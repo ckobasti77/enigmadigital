@@ -1,0 +1,236 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* ---------------------------------------------------------------------------
+   Enigma design tokens
+
+   Two layers:
+     1. Primitives  — brand scales ported from the Enigma IT site (dark slate,
+        cyan accent, Aeonik). Named so they never collide with shadcn names
+        (borders are `--line-*`, focus ring is `--focus-ring`).
+     2. Semantic    — shadcn/ui variable names, aliased onto the primitives.
+        Every `npx shadcn add` component is therefore on-brand by default.
+
+   Dark slate is the only page theme; there is no `.dark` variant. White is a
+   *surface* (`--surface-light`) for light contexts, not a theme.
+
+   Cyan is reserved for interactive elements and key metrics. `--accent` (the
+   shadcn hover tint) is deliberately a slate step, NOT cyan.
+   --------------------------------------------------------------------------- */
+
+:root {
+  /* Background scale: page → section → surface → raised */
+  --bg-950: #070d19;
+  --bg-900: #0b1221;
+  --bg-800: #0e1729;
+  --surface: #131d31;
+  --surface-raised: #18253a;
+  --surface-overlay: rgba(9, 16, 30, 0.85);
+  --surface-light: #ffffff;
+  --surface-light-muted: #f3f7ff;
+
+  /* Lines (borders) */
+  --line-soft: rgba(96, 128, 180, 0.22);
+  --line: rgba(96, 128, 180, 0.28);
+  --line-strong: rgba(88, 196, 255, 0.4);
+
+  /* Text */
+  --text-primary: #f3f7ff;
+  --text-secondary: rgba(193, 211, 245, 0.75);
+  --text-muted: rgba(148, 170, 210, 0.6);
+  --text-inverse: #091120;
+  --text-on-light: #0b1221;
+
+  /* Accent cyan — interactive elements + key metrics only */
+  --accent-300: #6ccbff;
+  --accent-400: #58c4ff;
+  --accent-500: #38bdf8;
+  --accent-600: #0ea5e9;
+  --accent-700: #0284c7;
+  --accent-glow: rgba(56, 189, 248, 0.28);
+  --focus-ring: rgba(88, 196, 255, 0.45);
+
+  /* Status */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #fb7185;
+
+  /* Charts — categorical, tuned to read on dark slate */
+  --chart-1: #38bdf8; /* cyan */
+  --chart-2: #a78bfa; /* violet */
+  --chart-3: #34d399; /* emerald */
+  --chart-4: #fbbf24; /* amber */
+  --chart-5: #fb7185; /* rose */
+  --chart-6: #6366f1; /* indigo */
+  --chart-grid: rgba(96, 128, 180, 0.16);
+
+  /* Geometry */
+  --radius: 0.625rem; /* shadcn base; lg = 14px = site surface radius */
+  --gutter: 1.5rem;
+  --content-max: 80rem;
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 150ms;
+  --duration-base: 300ms;
+
+  /* Elevation */
+  --shadow-elevated: 0 18px 48px rgba(0, 0, 0, 0.45);
+
+  /* ── shadcn semantic layer ─────────────────────────────────────────────── */
+  --background: var(--bg-950);
+  --foreground: var(--text-primary);
+  --card: var(--surface);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--accent-400);
+  --primary-foreground: var(--text-inverse);
+  --secondary: var(--surface-raised);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--surface-raised);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--surface-raised);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--danger);
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--focus-ring);
+  --sidebar: var(--bg-900);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--accent-400);
+  --sidebar-primary-foreground: var(--text-inverse);
+  --sidebar-accent: var(--surface-raised);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: var(--line-soft);
+  --sidebar-ring: var(--focus-ring);
+}
+
+@theme inline {
+  /* Primitives → utilities */
+  --color-bg-950: var(--bg-950);
+  --color-bg-900: var(--bg-900);
+  --color-bg-800: var(--bg-800);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-surface-light: var(--surface-light);
+  --color-surface-light-muted: var(--surface-light-muted);
+  --color-line-soft: var(--line-soft);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-inverse: var(--text-inverse);
+  --color-text-on-light: var(--text-on-light);
+  --color-accent-300: var(--accent-300);
+  --color-accent-400: var(--accent-400);
+  --color-accent-500: var(--accent-500);
+  --color-accent-600: var(--accent-600);
+  --color-accent-700: var(--accent-700);
+  --color-accent-glow: var(--accent-glow);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-grid: var(--chart-grid);
+
+  /* Semantic (shadcn) → utilities */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Radius (shadcn scale from --radius): sm 6px · md 8px · lg 10px · xl 14px */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Type */
+  --font-sans: var(--font-aeonik), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-aeonik), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Motion + elevation (utilities: ease-expo, shadow-card) */
+  --ease-expo: var(--ease-out-expo);
+  --shadow-card: var(--shadow-elevated);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply h-full bg-background font-sans;
+    color-scheme: dark;
+  }
+
+  body {
+    @apply min-h-full bg-background text-foreground antialiased;
+  }
+}
+
+@layer utilities {
+  /* Optional uppercase tracking for Aeonik headings / eyebrows */
+  .heading-caps {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  /* Purposeful hover lift — the only hover motion in the system */
+  .hover-lift {
+    transition:
+      transform var(--duration-base) var(--ease-out-expo),
+      border-color var(--duration-base) ease,
+      box-shadow var(--duration-base) ease;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    border-color: var(--line-strong);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hover-lift {
+      transition: none;
+    }
+
+    .hover-lift:hover {
+      transform: none;
+    }
+  }
+}
