@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, type ComponentType, type FormEvent, type ReactNode } from "react";
+import {
+  useState,
+  useEffect,
+  type ComponentType,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
@@ -12,6 +18,9 @@ import {
   LoaderCircle,
   Lock,
   Check,
+  AlertCircle,
+  ExternalLink,
+  Trash2,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
@@ -353,24 +362,263 @@ function OpenReplyCard({ connection }: { connection?: ConnectionView }) {
   );
 }
 
-// ── Instagram (placeholder, OAuth in P7) ─────────────────────────────────────
+// ── Instagram (Meta OAuth Flow & Insights) ───────────────────────────────────
 
-function InstagramCard() {
+function InstagramCard({ connection }: { connection?: ConnectionView }) {
+  const getOAuthConfig = useAction(api.instagram.getOAuthConfig);
+  const getOAuthUrl = useAction(api.instagram.getOAuthUrl);
+  const completeOAuth = useAction(api.instagram.completeOAuth);
+  const removeConnection = useMutation(api.connections.remove);
+
+  const [configState, setConfigState] = useState<{
+    loaded: boolean;
+    isConfigured: boolean;
+  }>({
+    loaded: false,
+    isConfigured: false,
+  });
+
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Check env configuration on mount
+  useEffect(() => {
+    let active = true;
+    getOAuthConfig()
+      .then((cfg) => {
+        if (active) {
+          setConfigState({ loaded: true, isConfigured: cfg.isConfigured });
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setConfigState({ loaded: true, isConfigured: false });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [getOAuthConfig]);
+
+  // Handle incoming OAuth callback code in URL parameters
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get("ig_code") || urlParams.get("code");
+    const err =
+      urlParams.get("ig_error") ||
+      urlParams.get("error_description") ||
+      urlParams.get("error");
+
+    if (!code && !err) return;
+
+    // Clean URL query parameters
+    window.history.replaceState({}, "", window.location.pathname);
+
+    if (err) {
+      setTimeout(() => {
+        setError(`Autorizacija nije uspela: ${err}`);
+      }, 0);
+      return;
+    }
+
+    if (code) {
+      setTimeout(() => {
+        setConnecting(true);
+        setError(null);
+      }, 0);
+
+      const redirectUri = `${window.location.origin}/api/auth/callback/instagram`;
+      completeOAuth({ code, redirectUri })
+        .then((res) => {
+          setSuccessMessage(
+            res.username
+              ? `Uspešno povezan nalog @${res.username}!`
+              : "Instagram nalog je uspešno povezan!",
+          );
+        })
+        .catch((e) => {
+          setError(convexMessage(e, "Povezivanje Instagram naloga nije uspelo."));
+        })
+        .finally(() => {
+          setConnecting(false);
+        });
+    }
+  }, [completeOAuth]);
+
+  async function handleStartConnect() {
+    setError(null);
+    setSuccessMessage(null);
+    setConnecting(true);
+    try {
+      const redirectUri = `${window.location.origin}/api/auth/callback/instagram`;
+      const { url } = await getOAuthUrl({ redirectUri });
+      window.location.href = url;
+    } catch (e) {
+      setError(convexMessage(e, "Pokretanje autorizacije nije uspelo."));
+      setConnecting(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!connection) return;
+    setDisconnecting(true);
+    setError(null);
+    try {
+      await removeConnection({ connectionId: connection._id });
+      setSuccessMessage("Instagram nalog je odvezen.");
+    } catch (e) {
+      setError(convexMessage(e, "Prekidanje veze nije uspelo."));
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
+  const isConnected = connection !== undefined;
+
+  // Determine status pill
+  let statusNode: ReactNode;
+  if (!configState.loaded) {
+    statusNode = <StatusPill tone="muted">Učitavanje…</StatusPill>;
+  } else if (!configState.isConfigured) {
+    statusNode = (
+      <StatusPill tone="warning">
+        Čeka Meta app — dodaj INSTAGRAM_APP_ID/SECRET u env
+      </StatusPill>
+    );
+  } else {
+    statusNode = connectionPill(connection?.status);
+  }
+
   return (
     <CardShell
       icon={Camera}
       title="Instagram"
       subtitle="Meta · organski insights"
-      status={<StatusPill tone="muted">Uskoro</StatusPill>}
+      status={statusNode}
     >
-      <div className="mt-5 rounded-lg border border-dashed border-line-soft bg-surface-raised/30 px-4 py-6 text-center">
-        <p className="text-sm text-muted-foreground">
-          Povezaćeš kasnije preko OAuth-a.
-        </p>
-        <p className="mt-1 text-xs text-text-muted">
-          Stiže u P7 — isti Meta app kao OpenReply.
-        </p>
-      </div>
+      {/* Missing Environment Variables State */}
+      {configState.loaded && !configState.isConfigured && (
+        <div className="mt-5 rounded-lg border border-dashed border-warning/30 bg-warning/5 px-4 py-5 text-sm">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" />
+            <div>
+              <p className="font-medium text-foreground">
+                Čeka se konfiguracija Meta aplikacije
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-text-muted">
+                Za povezivanje Instagram Business naloga potrebno je uneti{" "}
+                <code className="font-mono text-accent-400">INSTAGRAM_APP_ID</code> i{" "}
+                <code className="font-mono text-accent-400">
+                  INSTAGRAM_APP_SECRET
+                </code>{" "}
+                u Convex environment varijable.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Connecting in progress overlay */}
+      {connecting && (
+        <div className="mt-5 flex items-center gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3 text-xs text-text-muted">
+          <LoaderCircle className="size-4 animate-spin text-accent-400" />
+          <span>Povezivanje Instagram naloga u toku…</span>
+        </div>
+      )}
+
+      {/* Connected State */}
+      {configState.isConfigured && isConnected && !connecting && (
+        <div className="mt-5 space-y-3">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs text-foreground">
+                <Lock className="size-3.5 text-success" />
+                <span className="font-medium">
+                  Instagram nalog povezan
+                  {connection.externalId ? ` · ID ${connection.externalId}` : ""}
+                </span>
+              </div>
+              {connection.expiresAt && (
+                <p className="text-[11px] text-text-muted">
+                  Token važi do{" "}
+                  {new Date(connection.expiresAt).toLocaleDateString("sr-RS")}{" "}
+                  ({formatRelativeTime(connection.expiresAt)})
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleStartConnect}
+                disabled={connecting || disconnecting}
+              >
+                Ponovo poveži
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDisconnect}
+                disabled={disconnecting}
+                className="text-danger hover:text-danger"
+              >
+                {disconnecting ? (
+                  <LoaderCircle className="size-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="size-3.5" />
+                )}
+                Prekini vezu
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Not Connected State */}
+      {configState.isConfigured && !isConnected && !connecting && (
+        <div className="mt-5 space-y-4">
+          <div className="rounded-lg border border-line-soft bg-surface-raised/20 p-4 text-xs text-text-muted">
+            <p>
+              Poveži Instagram Business ili Creator nalog preko zvaničnog
+              Instagram Login-a za sinhronizaciju uvida (pratioci, doseg, posete
+              profilu, angažovanost, statistika objava i Reels-a).
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleStartConnect}
+            disabled={connecting}
+            className="gap-2"
+          >
+            {connecting ? (
+              <LoaderCircle className="size-4 animate-spin" />
+            ) : (
+              <ExternalLink className="size-4" />
+            )}
+            Poveži Instagram
+          </Button>
+        </div>
+      )}
+
+      {/* Success / Error Messages */}
+      {successMessage && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-success">
+          <Check className="size-3.5" />
+          <span>{successMessage}</span>
+        </div>
+      )}
+      {error && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-danger">
+          <AlertCircle className="size-3.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {isConnected && <SyncFooter connection={connection} />}
     </CardShell>
   );
 }
@@ -395,7 +643,7 @@ export function ConnectionsSettings() {
         <OpenReplyCard connection={byProvider.get("openreply")} />
       </Reveal>
       <Reveal delay={0.1}>
-        <InstagramCard />
+        <InstagramCard connection={byProvider.get("meta_ig")} />
       </Reveal>
       <Reveal delay={0.15}>
         <SyncHealth entries={health} />

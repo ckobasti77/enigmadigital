@@ -261,6 +261,11 @@ export const syncNow = action({
       return;
     }
 
+    if (authorized.provider === "meta_ig") {
+      await ctx.runAction(internal.instagram.syncIgInsights, { connectionId });
+      return;
+    }
+
     await runSync(
       ctx,
       {

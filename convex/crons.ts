@@ -12,5 +12,17 @@ crons.interval(
   internal.openreply.syncAllOpenReply,
   {},
 );
+crons.interval(
+  "sync instagram",
+  { hours: 6 },
+  internal.instagram.syncAllIg,
+  {},
+);
+crons.interval(
+  "refresh instagram tokens",
+  { hours: 24 },
+  internal.instagram.refreshAllTokens,
+  {},
+);
 
 export default crons;
