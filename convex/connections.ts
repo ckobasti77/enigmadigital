@@ -191,17 +191,17 @@ export const getForSync = internalQuery({
 });
 
 /**
- * All connection IDs for a provider, across workspaces — the cron fan-out
- * (`internal.ga4.syncAllGa4`) needs this. A full scan is fine at V1 scale (one
- * workspace, a handful of connections); revisit with a `by_provider` index if
- * the connections table ever grows large.
+ * All connection IDs for a provider, across workspaces — used by cron fan-outs.
  */
 export const listByProvider = internalQuery({
   args: { provider: providerValidator },
   returns: v.array(v.id("connections")),
   handler: async (ctx, { provider }) => {
-    const rows = await ctx.db.query("connections").collect();
-    return rows.filter((c) => c.provider === provider).map((c) => c._id);
+    const rows = await ctx.db
+      .query("connections")
+      .withIndex("by_provider", (q) => q.eq("provider", provider))
+      .collect();
+    return rows.map((c) => c._id);
   },
 });
 

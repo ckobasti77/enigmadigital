@@ -18,9 +18,11 @@ export function sanitizeSyncError(err: unknown): string {
       "<redacted-private-key>",
     )
     .replace(
-      /(access_token|refresh_token|client_secret|api[_-]?key|authorization|bearer)(\s*[=:]\s*)\S+/gi,
+      /(access_token|refresh_token|client_secret|api[_-]?key|authorization|bearer|code|password|secret)(\s*[=:]\s*)[^\s&]+/gi,
       "$1$2<redacted>",
-    );
+    )
+    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer <redacted>")
+    .replace(/v1:[0-9a-fA-F]{24,}/g, "<redacted-ciphertext>");
   if (message.length > 400) message = message.slice(0, 400) + "…";
   return message;
 }

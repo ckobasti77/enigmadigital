@@ -40,7 +40,9 @@ export default defineSchema({
     ),
     expiresAt: v.optional(v.number()), // Meta long-lived tokens (60 days)
     lastSyncAt: v.optional(v.number()),
-  }).index("by_workspace_provider", ["workspaceId", "provider"]),
+  })
+    .index("by_workspace_provider", ["workspaceId", "provider"])
+    .index("by_provider", ["provider"]),
 
   // GA4 — daily aggregate + per channel/campaign (for UTM attribution).
   ga4Daily: defineTable({

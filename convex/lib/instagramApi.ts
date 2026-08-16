@@ -373,16 +373,18 @@ export function extractMediaInsights(
  * Pull human-readable error from Graph API error response without leaking secrets.
  */
 export function extractGraphApiError(body: unknown): string {
+  let raw = "";
   if (typeof body === "string") {
     try {
       const parsed = JSON.parse(body) as {
         error?: { message?: string };
         error_message?: string;
       };
-      if (parsed.error?.message) return parsed.error.message;
-      if (parsed.error_message) return parsed.error_message;
+      if (parsed.error?.message) raw = parsed.error.message;
+      else if (parsed.error_message) raw = parsed.error_message;
+      else raw = body.slice(0, 300);
     } catch {
-      return body.slice(0, 300);
+      raw = body.slice(0, 300);
     }
   } else if (typeof body === "object" && body !== null) {
     const errObj = body as {
@@ -390,9 +392,15 @@ export function extractGraphApiError(body: unknown): string {
       error_message?: string;
       message?: string;
     };
-    if (errObj.error?.message) return errObj.error.message;
-    if (errObj.error_message) return errObj.error_message;
-    if (errObj.message) return errObj.message;
+    if (errObj.error?.message) raw = errObj.error.message;
+    else if (errObj.error_message) raw = errObj.error_message;
+    else if (errObj.message) raw = errObj.message;
   }
-  return "Meta Graph API request failed.";
+  if (!raw) raw = "Meta Graph API request failed.";
+  return raw
+    .replace(
+      /(access_token|client_secret|code|secret|password)(\s*[=:]\s*)[^\s&]+/gi,
+      "$1$2<redacted>",
+    )
+    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer <redacted>");
 }

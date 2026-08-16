@@ -9,6 +9,7 @@
  */
 
 import type * as analytics from "../analytics.js";
+import type * as attribution from "../attribution.js";
 import type * as auth from "../auth.js";
 import type * as connections from "../connections.js";
 import type * as crons from "../crons.js";
@@ -23,6 +24,7 @@ import type * as lib_instagramApi from "../lib/instagramApi.js";
 import type * as lib_openreplySql from "../lib/openreplySql.js";
 import type * as lib_providers from "../lib/providers.js";
 import type * as lib_runSync from "../lib/runSync.js";
+import type * as lib_slug from "../lib/slug.js";
 import type * as openreply from "../openreply.js";
 import type * as openreplyStore from "../openreplyStore.js";
 import type * as sync from "../sync.js";
@@ -36,6 +38,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
+  attribution: typeof attribution;
   auth: typeof auth;
   connections: typeof connections;
   crons: typeof crons;
@@ -50,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   "lib/openreplySql": typeof lib_openreplySql;
   "lib/providers": typeof lib_providers;
   "lib/runSync": typeof lib_runSync;
+  "lib/slug": typeof lib_slug;
   openreply: typeof openreply;
   openreplyStore: typeof openreplyStore;
   sync: typeof sync;

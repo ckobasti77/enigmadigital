@@ -1,20 +1,60 @@
 import { convexAuth } from "@convex-dev/auth/server";
 import { Email } from "@convex-dev/auth/providers/Email";
 import { Resend as ResendClient } from "resend";
+import type { Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
+
+/**
+ * Normalize email: trim and lowercase so allowlist checks cannot be bypassed
+ * via casing or leading/trailing whitespace.
+ */
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/**
+ * Check if an email is present in the ALLOWED_EMAILS environment variable.
+ * FAILS CLOSED: If ALLOWED_EMAILS is missing, empty, or whitespace-only,
+ * all access is denied.
+ */
+export function isEmailAllowed(email?: string | null): boolean {
+  if (!email) return false;
+  const normalized = normalizeEmail(email);
+  if (!normalized) return false;
+
+  const raw = process.env.ALLOWED_EMAILS;
+  if (!raw || raw.trim().length === 0) {
+    // Fail closed if ALLOWED_EMAILS is not configured in environment
+    return false;
+  }
+
+  const allowedList = raw
+    .split(/[,;\s]+/)
+    .map((e) => normalizeEmail(e))
+    .filter(Boolean);
+
+  return allowedList.includes(normalized);
+}
 
 /**
  * Email magic-link sign-in via Resend.
  *
  * `authorize: undefined` gives magic-link semantics: clicking the link is enough,
- * the user never re-enters their email. RESEND_API_KEY / EMAIL_FROM live in the
- * Convex deployment env (this runs inside a Convex action). If RESEND_API_KEY is
- * missing we log the link so the loop stays testable locally without email set up.
+ * the user never re-enters their email. RESEND_API_KEY / EMAIL_FROM / ALLOWED_EMAILS
+ * live in the Convex deployment env.
  */
 const ResendMagicLink = Email({
   id: "resend",
   maxAge: 60 * 15, // link valid for 15 minutes
   authorize: undefined,
-  async sendVerificationRequest({ identifier: email, url }) {
+  async sendVerificationRequest({ identifier: rawEmail, url }) {
+    const email = normalizeEmail(rawEmail);
+
+    if (!isEmailAllowed(email)) {
+      console.warn(`[auth] Sign-in attempt denied for email: ${email}`);
+      throw new Error("Pristup nije dozvoljen za ovu email adresu.");
+    }
+
     const apiKey = process.env.RESEND_API_KEY;
     const from = process.env.EMAIL_FROM ?? "Enigma <onboarding@resend.dev>";
 
@@ -71,20 +111,57 @@ function magicLinkEmail(url: string): string {
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [ResendMagicLink],
   callbacks: {
-    // Fires once, right after the user row is created on first sign-in.
-    // Bootstraps the owner's workspace + membership (PLAN.md §3).
-    async afterUserCreatedOrUpdated(ctx, { userId, existingUserId }) {
+    // Pre-session creation check: guarantees non-allowed users cannot get a session
+    async beforeSessionCreation(ctx, { userId }) {
+      const db = (ctx as unknown as MutationCtx).db;
+      const user = await db.get(userId as Id<"users">);
+      const email = user?.email ? normalizeEmail(user.email) : null;
+      if (!email || !isEmailAllowed(email)) {
+        throw new Error("Pristup nije dozvoljen za ovu email adresu.");
+      }
+    },
+
+    // Fires once right after user document creation or update.
+    // Bootstraps or attaches workspace membership (PLAN.md §3).
+    async afterUserCreatedOrUpdated(ctx, { userId, existingUserId, profile }) {
+      const db = (ctx as unknown as MutationCtx).db;
+      const rawEmail =
+        profile?.email ?? (await db.get(userId as Id<"users">))?.email;
+      const email = rawEmail ? normalizeEmail(rawEmail as string) : null;
+      if (!email || !isEmailAllowed(email)) {
+        throw new Error("Pristup nije dozvoljen za ovu email adresu.");
+      }
+
       if (existingUserId) return; // returning user — nothing to do
 
-      const workspaceId = await ctx.db.insert("workspaces", {
-        name: "Enigma IT",
-        slug: "enigma-it",
-      });
-      await ctx.db.insert("members", {
-        workspaceId,
-        userId,
-        role: "owner",
-      });
+      const typedUserId = userId as Id<"users">;
+      const existingMembership = await db
+        .query("members")
+        .withIndex("by_user", (q) => q.eq("userId", typedUserId))
+        .first();
+
+      if (!existingMembership) {
+        const workspace = await db
+          .query("workspaces")
+          .withIndex("by_slug", (q) => q.eq("slug", "enigma-it"))
+          .first();
+
+        let workspaceId: Id<"workspaces">;
+        if (workspace !== null) {
+          workspaceId = workspace._id;
+        } else {
+          workspaceId = await db.insert("workspaces", {
+            name: "Enigma IT",
+            slug: "enigma-it",
+          });
+        }
+
+        await db.insert("members", {
+          workspaceId,
+          userId: typedUserId,
+          role: "owner",
+        });
+      }
     },
   },
 });

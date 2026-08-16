@@ -17,10 +17,11 @@ export default function LoginPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!email.trim() || status === "sending") return;
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || status === "sending") return;
     setStatus("sending");
     try {
-      await signIn("resend", { email });
+      await signIn("resend", { email: cleanEmail });
       setStatus("sent");
     } catch (error) {
       console.error("Sign-in failed", error);

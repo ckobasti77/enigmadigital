@@ -142,7 +142,12 @@ export function InstagramContentGrid({ media }: { media: MediaItem[] }) {
               Sve objave
             </h2>
             <p className="font-mono text-xs tabular-nums text-text-muted">
-              Prikazano {sortedMedia.length} {sortedMedia.length === 1 ? "objava" : "objava"}
+              Prikazano {formatNumber(sortedMedia.length)}{" "}
+              {sortedMedia.length === 1
+                ? "objava"
+                : sortedMedia.length >= 2 && sortedMedia.length <= 4
+                  ? "objave"
+                  : "objava"}
             </p>
           </div>
 

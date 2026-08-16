@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Reveal } from "@/components/motion/reveal";
 import { formatRelativeTime } from "@/lib/format";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StatusPill } from "./status-pill";
 import { SyncHealth } from "./sync-health";
 
@@ -469,7 +470,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
     setError(null);
     try {
       await removeConnection({ connectionId: connection._id });
-      setSuccessMessage("Instagram nalog je odvezen.");
+      setSuccessMessage("Veza sa Instagram nalogom je prekinuta.");
     } catch (e) {
       setError(convexMessage(e, "Prekidanje veze nije uspelo."));
     } finally {
@@ -629,6 +630,10 @@ export function ConnectionsSettings() {
   const connections = useQuery(api.connections.list);
   const health = useQuery(api.sync.health);
 
+  if (connections === undefined) {
+    return <ConnectionsSettingsSkeleton />;
+  }
+
   const byProvider = new Map<ConnectionView["provider"], ConnectionView>();
   connections?.forEach((connection) =>
     byProvider.set(connection.provider, connection),
@@ -648,6 +653,40 @@ export function ConnectionsSettings() {
       <Reveal delay={0.15}>
         <SyncHealth entries={health} />
       </Reveal>
+    </div>
+  );
+}
+
+export function ConnectionsSettingsSkeleton() {
+  return (
+    <div className="mt-8 space-y-5">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <section key={i} className="rounded-xl border bg-card p-6 shadow-card">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Skeleton className="size-9 rounded-lg" />
+              <div className="space-y-1.5">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-48" />
+              </div>
+            </div>
+            <Skeleton className="h-6 w-20 rounded-full" />
+          </div>
+          <div className="mt-5">
+            <Skeleton className="h-14 w-full rounded-lg" />
+          </div>
+        </section>
+      ))}
+      <section className="rounded-xl border bg-card p-6 shadow-card">
+        <div className="flex items-center gap-2">
+          <Skeleton className="size-4" />
+          <Skeleton className="h-4 w-36" />
+        </div>
+        <div className="mt-5 space-y-3">
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-full" />
+        </div>
+      </section>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
-import { runSync } from "./lib/runSync";
+import { runSync, sanitizeSyncError } from "./lib/runSync";
 import {
   INSTAGRAM_OAUTH_TOKEN_URL,
   getMetaGraphVersion,
@@ -432,7 +432,7 @@ export const syncIgInsights = internalAction({
             console.warn("Instagram /me query warning:", extractGraphApiError(errBody));
           }
         } catch (err) {
-          console.warn("Instagram /me fetch failed:", err);
+          console.warn("Instagram /me fetch failed:", sanitizeSyncError(err));
         }
 
         // 2. Fetch Account Daily Insights (reach, profile_views, accounts_engaged)
@@ -454,7 +454,10 @@ export const syncIgInsights = internalAction({
             );
           }
         } catch (err) {
-          console.warn("Instagram account insights fetch failed:", err);
+          console.warn(
+            "Instagram account insights fetch failed:",
+            sanitizeSyncError(err),
+          );
         }
 
         // 3. Upsert Account Snapshot

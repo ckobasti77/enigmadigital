@@ -1,4 +1,8 @@
-import { ConnectionsSettings } from "@/components/app/settings/connections-settings";
+import { Suspense } from "react";
+import {
+  ConnectionsSettings,
+  ConnectionsSettingsSkeleton,
+} from "@/components/app/settings/connections-settings";
 
 export default function SettingsPage() {
   return (
@@ -14,7 +18,9 @@ export default function SettingsPage() {
         samo pri sinhronizaciji.
       </p>
 
-      <ConnectionsSettings />
+      <Suspense fallback={<ConnectionsSettingsSkeleton />}>
+        <ConnectionsSettings />
+      </Suspense>
     </div>
   );
 }
