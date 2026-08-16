@@ -17,8 +17,11 @@ import type * as ga4Store from "../ga4Store.js";
 import type * as http from "../http.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_crypto from "../lib/crypto.js";
+import type * as lib_openreplySql from "../lib/openreplySql.js";
 import type * as lib_providers from "../lib/providers.js";
 import type * as lib_runSync from "../lib/runSync.js";
+import type * as openreply from "../openreply.js";
+import type * as openreplyStore from "../openreplyStore.js";
 import type * as sync from "../sync.js";
 import type * as workspaces from "../workspaces.js";
 
@@ -38,8 +41,11 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "lib/auth": typeof lib_auth;
   "lib/crypto": typeof lib_crypto;
+  "lib/openreplySql": typeof lib_openreplySql;
   "lib/providers": typeof lib_providers;
   "lib/runSync": typeof lib_runSync;
+  openreply: typeof openreply;
+  openreplyStore: typeof openreplyStore;
   sync: typeof sync;
   workspaces: typeof workspaces;
 }>;

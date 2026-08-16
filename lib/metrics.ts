@@ -67,3 +67,47 @@ export function fillDays(
       },
   );
 }
+
+// ── OpenReply Metrics ──────────────────────────────────────────────────────
+
+export type OrDailyPoint = {
+  date: string;
+  dmsSent: number;
+  linkClicks: number;
+};
+
+export type OrPeriodTotals = {
+  dmsSent: number;
+  linkClicks: number;
+  ctr: number; // 0..1 (linkClicks / dmsSent)
+};
+
+export function summarizeOr(rows: OrDailyPoint[]): OrPeriodTotals {
+  let dmsSent = 0;
+  let linkClicks = 0;
+  for (const r of rows) {
+    dmsSent += r.dmsSent;
+    linkClicks += r.linkClicks;
+  }
+  return {
+    dmsSent,
+    linkClicks,
+    ctr: dmsSent > 0 ? linkClicks / dmsSent : 0,
+  };
+}
+
+export function fillOrDays(
+  rows: OrDailyPoint[],
+  from: string,
+  to: string,
+): OrDailyPoint[] {
+  const byDate = new Map(rows.map((r) => [r.date, r]));
+  return dateKeysBetween(from, to).map(
+    (date) =>
+      byDate.get(date) ?? {
+        date,
+        dmsSent: 0,
+        linkClicks: 0,
+      },
+  );
+}

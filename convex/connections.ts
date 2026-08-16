@@ -256,6 +256,11 @@ export const syncNow = action({
       return;
     }
 
+    if (authorized.provider === "openreply") {
+      await ctx.runAction(internal.openreply.syncOpenReply, { connectionId });
+      return;
+    }
+
     await runSync(
       ctx,
       {
