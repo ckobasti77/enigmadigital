@@ -111,3 +111,80 @@ export function fillOrDays(
       },
   );
 }
+
+// ── Instagram Metrics ──────────────────────────────────────────────────────
+
+export type IgDailyPoint = {
+  date: string;
+  followersCount: number;
+  reach: number;
+  profileViews: number;
+  accountsEngaged: number;
+};
+
+export type IgPeriodTotals = {
+  followersCount: number;
+  reach: number;
+  profileViews: number;
+  accountsEngaged: number;
+};
+
+export function summarizeIg(rows: IgDailyPoint[]): IgPeriodTotals {
+  let reach = 0;
+  let profileViews = 0;
+  let accountsEngaged = 0;
+  let followersCount = 0;
+
+  if (rows.length > 0) {
+    const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
+    followersCount = sorted[sorted.length - 1].followersCount;
+    for (const r of sorted) {
+      reach += r.reach;
+      profileViews += r.profileViews;
+      accountsEngaged += r.accountsEngaged;
+    }
+  }
+
+  return {
+    followersCount,
+    reach,
+    profileViews,
+    accountsEngaged,
+  };
+}
+
+export function fillIgDays(
+  rows: IgDailyPoint[],
+  from: string,
+  to: string,
+): IgDailyPoint[] {
+  const byDate = new Map(rows.map((r) => [r.date, r]));
+  const dates = dateKeysBetween(from, to);
+
+  // Track last known follower count for continuous step chart/sparkline
+  let lastKnownFollowers = 0;
+  for (const r of rows) {
+    if (r.followersCount > 0) {
+      lastKnownFollowers = r.followersCount;
+      break;
+    }
+  }
+
+  return dates.map((date) => {
+    const existing = byDate.get(date);
+    if (existing) {
+      if (existing.followersCount > 0) {
+        lastKnownFollowers = existing.followersCount;
+      }
+      return existing;
+    }
+    return {
+      date,
+      followersCount: lastKnownFollowers,
+      reach: 0,
+      profileViews: 0,
+      accountsEngaged: 0,
+    };
+  });
+}
+
