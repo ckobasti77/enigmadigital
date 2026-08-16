@@ -9,7 +9,7 @@ export function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-sidebar-border bg-sidebar/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-7 border-t border-sidebar-border bg-sidebar/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
       {navItems.map((item) => {
         const active = isNavActive(pathname, item.href);
         const Icon = item.icon;
@@ -19,14 +19,14 @@ export function MobileNav() {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative flex flex-col items-center justify-center gap-1 px-0.5 py-2 text-[9px] sm:text-[10px] font-medium transition-colors text-center",
+              "relative flex flex-col items-center justify-center gap-1 px-0.5 py-2 text-[8px] sm:text-[9px] font-medium transition-colors text-center",
               active ? "text-accent-400" : "text-text-muted",
             )}
           >
             {active && (
-              <span className="absolute top-0 h-0.5 w-5 rounded-full bg-accent-400" />
+              <span className="absolute top-0 h-0.5 w-4 rounded-full bg-accent-400" />
             )}
-            <Icon className="size-4 shrink-0" />
+            <Icon className="size-3.5 sm:size-4 shrink-0" />
             <span className="max-w-full truncate">{item.label}</span>
           </Link>
         );

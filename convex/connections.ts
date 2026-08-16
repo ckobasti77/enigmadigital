@@ -64,6 +64,46 @@ function validateCredentials(
       }
       return undefined; // its secret IS the connection string
     }
+    case "meta_ads": {
+      if (secret.length < 10) {
+        invalid("Meta System User token nije ispravan.");
+      }
+      return externalId?.trim() || undefined;
+    }
+    case "google_ads": {
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(secret);
+      } catch {
+        invalid("Google Ads kredencijali moraju biti validan JSON format.");
+      }
+      const devToken = String(
+        parsed.developerToken || parsed.developer_token || "",
+      ).trim();
+      const clientId = String(
+        parsed.clientId || parsed.client_id || "",
+      ).trim();
+      const clientSecret = String(
+        parsed.clientSecret || parsed.client_secret || "",
+      ).trim();
+      const refreshToken = String(
+        parsed.refreshToken || parsed.refresh_token || "",
+      ).trim();
+      const customerId = String(
+        parsed.customerId || parsed.customer_id || externalId || "",
+      )
+        .trim()
+        .replace(/-/g, "");
+
+      if (!devToken) invalid("Nedostaje Developer Token.");
+      if (!clientId || !clientSecret)
+        invalid("Nedostaju OAuth Client ID ili Client Secret.");
+      if (!refreshToken) invalid("Nedostaje OAuth Refresh Token.");
+      if (!customerId || !/^\d{10}$/.test(customerId)) {
+        invalid("Customer ID mora imati 10 cifara (npr. 123-456-7890).");
+      }
+      return customerId;
+    }
     default:
       return externalId?.trim() || undefined;
   }
@@ -263,6 +303,20 @@ export const syncNow = action({
 
     if (authorized.provider === "meta_ig") {
       await ctx.runAction(internal.instagram.syncIgInsights, { connectionId });
+      return;
+    }
+
+    if (authorized.provider === "meta_ads") {
+      await ctx.runAction(internal.metaAds.syncAdsStructure, { connectionId });
+      await ctx.runAction(internal.metaAds.syncAdsInsights, {
+        connectionId,
+        mode: "cold_all",
+      });
+      return;
+    }
+
+    if (authorized.provider === "google_ads") {
+      await ctx.runAction(internal.googleAds.syncGoogleAds, { connectionId });
       return;
     }
 

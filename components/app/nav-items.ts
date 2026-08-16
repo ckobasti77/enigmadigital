@@ -4,6 +4,8 @@ import {
   LineChart,
   Camera,
   MessageCircleReply,
+  Megaphone,
+  ShieldAlert,
   GitMerge,
   Settings,
 } from "lucide-react";
@@ -22,6 +24,8 @@ export const navItems: NavItem[] = [
   { label: "Analitika", href: "/analytics", icon: LineChart },
   { label: "Instagram", href: "/instagram", icon: Camera },
   { label: "OpenReply", href: "/openreply", icon: MessageCircleReply },
+  { label: "Ads", href: "/ads", icon: Megaphone },
+  { label: "Pravila", href: "/rules", icon: ShieldAlert },
   { label: "Atribucija", href: "/atribucija", icon: GitMerge },
   { label: "Podešavanja", href: "/settings", icon: Settings },
 ];

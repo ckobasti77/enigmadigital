@@ -1,0 +1,446 @@
+"use client";
+
+import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AgeGenderHeatTable } from "./age-gender-heat-table";
+import { PlacementBreakdown } from "./placement-breakdown";
+import { HourlyChart } from "./hourly-chart";
+import { formatDecimal, formatNumber, formatPercent } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import {
+  X,
+  Play,
+  Award,
+  BarChart3,
+  Layers,
+  Clock,
+  ExternalLink,
+} from "lucide-react";
+import Image from "next/image";
+
+function formatRankingBadge(type: "Kvalitet" | "Angažovanje" | "Konverzija", ranking?: string) {
+  if (!ranking || ranking === "UNKNOWN") return null;
+
+  let text = ranking;
+  let toneClass = "bg-surface-raised text-text-muted border-line";
+
+  if (ranking === "ABOVE_AVERAGE") {
+    text = "Iznad proseka";
+    toneClass = "bg-success/15 text-success border-success/30";
+  } else if (ranking === "AVERAGE") {
+    text = "Prosečno";
+    toneClass = "bg-surface-raised text-text-primary border-line";
+  } else if (ranking.includes("BELOW_AVERAGE_BOTTOM_35")) {
+    text = "Donjih 35%";
+    toneClass = "bg-warning/15 text-warning border-warning/30";
+  } else if (ranking.includes("BELOW_AVERAGE_BOTTOM_20") || ranking.includes("BELOW_AVERAGE_BOTTOM_10")) {
+    text = "Donjih 10–20%";
+    toneClass = "bg-danger/15 text-danger border-danger/30";
+  } else if (ranking.includes("BELOW_AVERAGE")) {
+    text = "Ispod proseka";
+    toneClass = "bg-danger/15 text-danger border-danger/30";
+  }
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium",
+        toneClass,
+      )}
+    >
+      <Award className="size-3 shrink-0" />
+      <span>{type}: {text}</span>
+    </span>
+  );
+}
+
+export function AdDrilldownPanel({
+  adId,
+  from,
+  to,
+  onClose,
+}: {
+  adId: Id<"ads">;
+  from: string;
+  to: string;
+  onClose: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<"demographics" | "placements" | "hourly">("demographics");
+
+  const data = useQuery(api.metaAdsStore.getAdDrilldown, {
+    adId,
+    from,
+    to,
+  });
+
+  if (data === undefined) {
+    return (
+      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l border-line bg-background/95 p-6 shadow-2xl backdrop-blur">
+        <div className="flex items-center justify-between pb-4">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="size-8 rounded-full" />
+        </div>
+        <div className="mt-4 space-y-4">
+          <Skeleton className="h-28 w-full rounded-lg" />
+          <Skeleton className="h-40 w-full rounded-lg" />
+          <Skeleton className="h-64 w-full rounded-lg" />
+        </div>
+      </div>
+    );
+  }
+
+  if (data === null) {
+    return (
+      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col items-center justify-center border-l border-line bg-background p-6">
+        <p className="text-sm text-text-muted">Oglas nije pronađen.</p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-4 rounded-lg bg-surface-raised px-4 py-2 text-xs font-medium text-foreground hover:bg-surface"
+        >
+          Zatvori
+        </button>
+      </div>
+    );
+  }
+
+  const { ad, adSet, campaign, coreMetrics, videoFunnel, rankings, hourlySeries, hasHourlyData, ageGenderMatrix, placementList } = data;
+
+  const hasVideo = videoFunnel.video3s > 0 || videoFunnel.thruplay > 0 || videoFunnel.videoP25 > 0;
+
+  const isGoogleAds = (data as { provider?: string }).provider === "google_ads" || (data as { provider?: string }).provider === "google";
+  const searchImpressionShare = (data as { searchImpressionShare?: number }).searchImpressionShare;
+
+  return (
+    <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l border-line bg-background/98 shadow-2xl backdrop-blur overflow-y-auto">
+      {/* Header */}
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-background/95 px-6 py-4 backdrop-blur">
+        <div className="flex items-center gap-3 min-w-0 pr-4">
+          {ad.thumbnailUrl ? (
+            <div className="relative size-12 shrink-0 overflow-hidden rounded-lg border border-line bg-surface">
+              <Image
+                src={ad.thumbnailUrl}
+                alt={ad.name}
+                fill
+                sizes="48px"
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+          ) : (
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-text-muted">
+              <Play className="size-5" />
+            </div>
+          )}
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "size-2 shrink-0 rounded-full",
+                  ad.status === "ACTIVE" ? "bg-success" : "bg-text-muted",
+                )}
+              />
+              <h2 className="truncate text-base font-bold text-foreground" title={ad.name}>
+                {ad.name}
+              </h2>
+            </div>
+            <p className="mt-0.5 truncate text-xs text-text-muted">
+              {campaign?.name} <span className="text-line-strong">/</span> {adSet?.name}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex size-8 shrink-0 items-center justify-center rounded-full border border-line bg-surface-raised text-text-muted hover:bg-surface hover:text-foreground transition-colors"
+          aria-label="Zatvori panel"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+
+      <div className="flex flex-1 flex-col gap-6 p-6">
+        {/* Provider badge, Hook Label & Rankings Badges */}
+        <div className="flex flex-wrap items-center gap-2">
+          {isGoogleAds ? (
+            <span className="inline-flex items-center rounded-full border border-chart-2/40 bg-chart-2/10 px-2.5 py-0.5 text-xs font-semibold text-chart-2">
+              Google Ads
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full border border-chart-1/40 bg-chart-1/10 px-2.5 py-0.5 text-xs font-semibold text-chart-1">
+              Meta Ads
+            </span>
+          )}
+
+          {searchImpressionShare !== undefined && (
+            <span className="inline-flex items-center rounded-full border border-accent-400/30 bg-accent-400/10 px-2.5 py-0.5 text-xs font-semibold text-accent-400">
+              Impression Share: {formatPercent(searchImpressionShare)}
+            </span>
+          )}
+
+          {ad.hookLabel && (
+            <span className="inline-flex items-center rounded-full border border-accent-400/30 bg-accent-400/10 px-2.5 py-0.5 text-xs font-semibold text-accent-400">
+              {ad.hookLabel}
+            </span>
+          )}
+          {formatRankingBadge("Kvalitet", rankings.qualityRanking)}
+          {formatRankingBadge("Angažovanje", rankings.engagementRanking)}
+          {formatRankingBadge("Konverzija", rankings.conversionRanking)}
+          {ad.previewUrl && (
+            <a
+              href={ad.previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-accent-400 transition-colors ml-auto"
+            >
+              <span>{isGoogleAds ? "Google pregled" : "Meta pregled"}</span>
+              <ExternalLink className="size-3" />
+            </a>
+          )}
+        </div>
+
+        {/* Video Funnel Section */}
+        {hasVideo ? (
+          <Card className="gap-0 py-0 shadow-card ring-line border border-line bg-surface/60 overflow-hidden">
+            <div className="border-b border-line-soft px-5 py-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium uppercase tracking-wider text-text-muted">
+                  Video Funnel &amp; Zadržavanje pažnje
+                </p>
+                <span className="text-[11px] text-text-muted">Metrike video kreative</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 divide-x divide-line-soft border-b border-line-soft bg-surface-raised/40">
+              <div className="p-4 text-center sm:text-left">
+                <span className="text-xs text-text-muted">Hook Rate (3s / Impresije)</span>
+                <p className="mt-1 font-mono text-2xl sm:text-3xl font-bold tabular-nums text-accent-400">
+                  {formatPercent(videoFunnel.hookRate)}
+                </p>
+                <p className="mt-1 text-[11px] text-text-muted">
+                  {formatNumber(videoFunnel.video3s)} pregleda ≥ 3s
+                </p>
+              </div>
+
+              <div className="p-4 text-center sm:text-left">
+                <span className="text-xs text-text-muted">Hold Rate (ThruPlay / 3s)</span>
+                <p className="mt-1 font-mono text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
+                  {formatPercent(videoFunnel.holdRate)}
+                </p>
+                <p className="mt-1 text-[11px] text-text-muted">
+                  {formatNumber(videoFunnel.thruplay)} kompletnih ThruPlay
+                </p>
+              </div>
+            </div>
+
+            {/* Visual Funnel Bar */}
+            <div className="p-5">
+              <p className="text-xs font-medium text-text-muted mb-3">
+                Kriva zadržavanja publike (Video Retention)
+              </p>
+              <div className="space-y-2.5 text-xs">
+                <div>
+                  <div className="flex justify-between text-text-muted mb-1 font-mono tabular-nums">
+                    <span>25% videa</span>
+                    <span className="text-foreground">{formatNumber(videoFunnel.videoP25)}</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-raised">
+                    <div
+                      className="h-full bg-chart-1"
+                      style={{
+                        width: `${videoFunnel.impressions > 0 ? Math.min(100, (videoFunnel.videoP25 / videoFunnel.impressions) * 100) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-text-muted mb-1 font-mono tabular-nums">
+                    <span>50% videa</span>
+                    <span className="text-foreground">{formatNumber(videoFunnel.videoP50)}</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-raised">
+                    <div
+                      className="h-full bg-chart-1/80"
+                      style={{
+                        width: `${videoFunnel.impressions > 0 ? Math.min(100, (videoFunnel.videoP50 / videoFunnel.impressions) * 100) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-text-muted mb-1 font-mono tabular-nums">
+                    <span>75% videa</span>
+                    <span className="text-foreground">{formatNumber(videoFunnel.videoP75)}</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-raised">
+                    <div
+                      className="h-full bg-chart-1/60"
+                      style={{
+                        width: `${videoFunnel.impressions > 0 ? Math.min(100, (videoFunnel.videoP75 / videoFunnel.impressions) * 100) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-text-muted mb-1 font-mono tabular-nums">
+                    <span>100% videa (Završeno)</span>
+                    <span className="text-foreground">{formatNumber(videoFunnel.videoP100)}</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-raised">
+                    <div
+                      className="h-full bg-chart-1/40"
+                      style={{
+                        width: `${videoFunnel.impressions > 0 ? Math.min(100, (videoFunnel.videoP100 / videoFunnel.impressions) * 100) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        ) : null}
+
+        {/* Core Metrics Grid */}
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-text-muted mb-3">
+            Ključne metrike performansi
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-lg border border-line bg-surface/50 p-3">
+              <span className="text-xs text-text-muted">Potrošnja</span>
+              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+                {formatNumber(coreMetrics.spend)} €
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-line bg-surface/50 p-3">
+              <span className="text-xs text-text-muted">Impresije</span>
+              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+                {formatNumber(coreMetrics.impressions)}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-line bg-surface/50 p-3">
+              <span className="text-xs text-text-muted">CTR (Svi klikovi)</span>
+              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-accent-400">
+                {formatPercent(coreMetrics.ctr)}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-line bg-surface/50 p-3">
+              <span className="text-xs text-text-muted">Frekvencija</span>
+              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+                {formatDecimal(coreMetrics.frequency)}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-line bg-surface/50 p-3">
+              <span className="text-xs text-text-muted">Rezultati (Konverzije)</span>
+              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+                {formatNumber(coreMetrics.results)}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-line bg-surface/50 p-3">
+              <span className="text-xs text-text-muted">CPA (Cena / rez.)</span>
+              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+                {coreMetrics.costPerResult > 0 ? `${formatNumber(coreMetrics.costPerResult)} €` : "—"}
+              </p>
+            </div>
+
+            {coreMetrics.hasConversionValue ? (
+              <div className="rounded-lg border border-line bg-surface/50 p-3">
+                <span className="text-xs text-text-muted">ROAS</span>
+                <p className="mt-1 font-mono text-lg font-bold tabular-nums text-success">
+                  {coreMetrics.roas.toFixed(2)}x
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-line bg-surface/50 p-3">
+                <span className="text-xs text-text-muted">CPC</span>
+                <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+                  {coreMetrics.cpc > 0 ? `${formatNumber(coreMetrics.cpc)} €` : "—"}
+                </p>
+              </div>
+            )}
+
+            <div className="rounded-lg border border-line bg-surface/50 p-3">
+              <span className="text-xs text-text-muted">CPM</span>
+              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
+                {coreMetrics.cpm > 0 ? `${formatNumber(coreMetrics.cpm)} €` : "—"}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Breakdown Tabs */}
+        <div className="flex flex-col gap-3">
+          <div className="flex border-b border-line-soft">
+            <button
+              type="button"
+              onClick={() => setActiveTab("demographics")}
+              className={cn(
+                "flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-xs font-medium transition-colors",
+                activeTab === "demographics"
+                  ? "border-accent-400 text-accent-400"
+                  : "border-transparent text-text-muted hover:text-foreground",
+              )}
+            >
+              <BarChart3 className="size-3.5" />
+              <span>Starost × Pol</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("placements")}
+              className={cn(
+                "flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-xs font-medium transition-colors",
+                activeTab === "placements"
+                  ? "border-accent-400 text-accent-400"
+                  : "border-transparent text-text-muted hover:text-foreground",
+              )}
+            >
+              <Layers className="size-3.5" />
+              <span>Pozicije (Placements)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("hourly")}
+              className={cn(
+                "flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-xs font-medium transition-colors",
+                activeTab === "hourly"
+                  ? "border-accent-400 text-accent-400"
+                  : "border-transparent text-text-muted hover:text-foreground",
+              )}
+            >
+              <Clock className="size-3.5" />
+              <span>Satna dinamika (24h)</span>
+            </button>
+          </div>
+
+          <div className="pt-2">
+            {activeTab === "demographics" && (
+              <AgeGenderHeatTable data={ageGenderMatrix} />
+            )}
+            {activeTab === "placements" && (
+              <PlacementBreakdown data={placementList} />
+            )}
+            {activeTab === "hourly" && (
+              <HourlyChart data={hourlySeries} hasHourlyData={hasHourlyData} />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

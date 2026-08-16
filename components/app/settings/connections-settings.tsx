@@ -14,6 +14,7 @@ import {
   LineChart,
   MessageCircleReply,
   Camera,
+  Megaphone,
   RefreshCw,
   LoaderCircle,
   Lock,
@@ -624,6 +625,429 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
   );
 }
 
+// ── Meta Ads (System User Token) ─────────────────────────────────────────────
+
+function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
+  const save = useMutation(api.connections.save);
+  const remove = useMutation(api.connections.remove);
+  const [editing, setEditing] = useState(false);
+  const [accountId, setAccountId] = useState("");
+  const [token, setToken] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isConnected = connection !== undefined;
+
+  function startEdit() {
+    setAccountId(connection?.externalId ?? "");
+    setToken("");
+    setError(null);
+    setEditing(true);
+  }
+
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await save({
+        provider: "meta_ads",
+        externalId: accountId.trim() || undefined,
+        secret: token.trim(),
+      });
+      setToken("");
+      setEditing(false);
+    } catch (err) {
+      setError(convexMessage(err, "Čuvanje nije uspelo."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!connection) return;
+    setDisconnecting(true);
+    setError(null);
+    try {
+      await remove({ connectionId: connection._id });
+    } catch (err) {
+      setError(convexMessage(err, "Prekidanje veze nije uspelo."));
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
+  // Determine status pill
+  let statusNode: ReactNode;
+  if (!isConnected) {
+    statusNode = (
+      <StatusPill tone="warning">Čeka System User token</StatusPill>
+    );
+  } else {
+    statusNode = connectionPill(connection?.status);
+  }
+
+  return (
+    <CardShell
+      icon={Megaphone}
+      title="Meta Ads"
+      subtitle="Marketing API · System User token"
+      status={statusNode}
+    >
+      {isConnected && !editing ? (
+        <div className="mt-5 flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            <Lock className="size-3.5 text-success" />
+            <span>
+              Kredencijali sačuvani
+              {connection?.externalId
+                ? ` · nalog ${connection.externalId}`
+                : ""}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={startEdit}>
+              Izmeni
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              className="text-danger hover:text-danger"
+            >
+              {disconnecting ? (
+                <LoaderCircle className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+              Prekini vezu
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleSave} className="mt-5 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="meta-ads-account" className="text-text-muted">
+              Ad Account ID (opciono)
+            </Label>
+            <Input
+              id="meta-ads-account"
+              placeholder="npr. act_1234567890 (ili ostavi prazno za automatsko pronalaženje)"
+              value={accountId}
+              onChange={(event) => setAccountId(event.target.value)}
+              disabled={saving}
+              className="font-mono text-xs"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="meta-ads-token" className="text-text-muted">
+              System User Access Token
+            </Label>
+            <Textarea
+              id="meta-ads-token"
+              rows={4}
+              spellCheck={false}
+              placeholder="EAA..."
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+              disabled={saving}
+              className="font-mono text-xs"
+            />
+          </div>
+          {error && <p className="text-sm text-danger">{error}</p>}
+          <div className="flex items-center gap-3">
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? (
+                <>
+                  <LoaderCircle className="animate-spin" />
+                  Čuvam…
+                </>
+              ) : (
+                <>
+                  <Check />
+                  Sačuvaj
+                </>
+              )}
+            </Button>
+            {isConnected && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setEditing(false);
+                  setToken("");
+                  setError(null);
+                }}
+              >
+                Otkaži
+              </Button>
+            )}
+          </div>
+        </form>
+      )}
+      <SyncFooter connection={connection} />
+    </CardShell>
+  );
+}
+
+// ── Google Ads (OAuth + Developer Token) ────────────────────────────────────
+
+function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
+  const save = useMutation(api.connections.save);
+  const remove = useMutation(api.connections.remove);
+  const [editing, setEditing] = useState(false);
+  const [developerToken, setDeveloperToken] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [refreshToken, setRefreshToken] = useState("");
+  const [customerId, setCustomerId] = useState("");
+  const [loginCustomerId, setLoginCustomerId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isConnected = connection !== undefined;
+
+  function startEdit() {
+    setCustomerId(connection?.externalId ?? "");
+    setDeveloperToken("");
+    setClientId("");
+    setClientSecret("");
+    setRefreshToken("");
+    setLoginCustomerId("");
+    setError(null);
+    setEditing(true);
+  }
+
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        developerToken: developerToken.trim(),
+        clientId: clientId.trim(),
+        clientSecret: clientSecret.trim(),
+        refreshToken: refreshToken.trim(),
+        customerId: customerId.trim().replace(/-/g, ""),
+        loginCustomerId: loginCustomerId.trim().replace(/-/g, "") || undefined,
+      };
+
+      await save({
+        provider: "google_ads",
+        externalId: customerId.trim().replace(/-/g, "") || undefined,
+        secret: JSON.stringify(payload),
+      });
+
+      setDeveloperToken("");
+      setClientId("");
+      setClientSecret("");
+      setRefreshToken("");
+      setLoginCustomerId("");
+      setEditing(false);
+    } catch (err) {
+      setError(convexMessage(err, "Čuvanje Google Ads kredencijala nije uspelo."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!connection) return;
+    setDisconnecting(true);
+    setError(null);
+    try {
+      await remove({ connectionId: connection._id });
+    } catch (err) {
+      setError(convexMessage(err, "Prekidanje veze nije uspelo."));
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
+  // Determine status pill
+  let statusNode: ReactNode;
+  if (!isConnected) {
+    statusNode = (
+      <StatusPill tone="warning">Čeka Google Ads odobrenje</StatusPill>
+    );
+  } else {
+    statusNode = connectionPill(connection?.status);
+  }
+
+  return (
+    <CardShell
+      icon={Megaphone}
+      title="Google Ads"
+      subtitle="Google Ads API (GAQL) · OAuth + Developer Token"
+      status={statusNode}
+    >
+      {isConnected && !editing ? (
+        <div className="mt-5 flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            <Lock className="size-3.5 text-success" />
+            <span>
+              Kredencijali sačuvani
+              {connection?.externalId
+                ? ` · nalog ${connection.externalId}`
+                : ""}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={startEdit}>
+              Izmeni
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              className="text-danger hover:text-danger"
+            >
+              {disconnecting ? (
+                <LoaderCircle className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+              Prekini vezu
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleSave} className="mt-5 space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="gads-customer-id" className="text-text-muted">
+                Customer ID (10 cifara)
+              </Label>
+              <Input
+                id="gads-customer-id"
+                placeholder="npr. 123-456-7890"
+                value={customerId}
+                onChange={(event) => setCustomerId(event.target.value)}
+                disabled={saving}
+                className="font-mono text-xs"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gads-manager-id" className="text-text-muted">
+                Manager / Login Customer ID (opciono)
+              </Label>
+              <Input
+                id="gads-manager-id"
+                placeholder="npr. 987-654-3210 (za MCC naloge)"
+                value={loginCustomerId}
+                onChange={(event) => setLoginCustomerId(event.target.value)}
+                disabled={saving}
+                className="font-mono text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="gads-dev-token" className="text-text-muted">
+              Developer Token
+            </Label>
+            <Input
+              id="gads-dev-token"
+              type="password"
+              placeholder="Developer token iz Google Ads API centra"
+              value={developerToken}
+              onChange={(event) => setDeveloperToken(event.target.value)}
+              disabled={saving}
+              className="font-mono text-xs"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="gads-client-id" className="text-text-muted">
+                OAuth Client ID
+              </Label>
+              <Input
+                id="gads-client-id"
+                placeholder="xxxx.apps.googleusercontent.com"
+                value={clientId}
+                onChange={(event) => setClientId(event.target.value)}
+                disabled={saving}
+                className="font-mono text-xs"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gads-client-secret" className="text-text-muted">
+                OAuth Client Secret
+              </Label>
+              <Input
+                id="gads-client-secret"
+                type="password"
+                placeholder="GOCSPX-..."
+                value={clientSecret}
+                onChange={(event) => setClientSecret(event.target.value)}
+                disabled={saving}
+                className="font-mono text-xs"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="gads-refresh-token" className="text-text-muted">
+              OAuth Refresh Token
+            </Label>
+            <Input
+              id="gads-refresh-token"
+              type="password"
+              placeholder="1//04..."
+              value={refreshToken}
+              onChange={(event) => setRefreshToken(event.target.value)}
+              disabled={saving}
+              className="font-mono text-xs"
+              required
+            />
+          </div>
+
+          {error && <p className="text-sm text-danger">{error}</p>}
+          <div className="flex items-center gap-3">
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? (
+                <>
+                  <LoaderCircle className="animate-spin" />
+                  Čuvam…
+                </>
+              ) : (
+                <>
+                  <Check />
+                  Sačuvaj
+                </>
+              )}
+            </Button>
+            {isConnected && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setEditing(false);
+                  setError(null);
+                }}
+              >
+                Otkaži
+              </Button>
+            )}
+          </div>
+        </form>
+      )}
+      <SyncFooter connection={connection} />
+    </CardShell>
+  );
+}
+
 // ── page body ────────────────────────────────────────────────────────────────
 
 export function ConnectionsSettings() {
@@ -651,6 +1075,12 @@ export function ConnectionsSettings() {
         <InstagramCard connection={byProvider.get("meta_ig")} />
       </Reveal>
       <Reveal delay={0.15}>
+        <MetaAdsCard connection={byProvider.get("meta_ads")} />
+      </Reveal>
+      <Reveal delay={0.2}>
+        <GoogleAdsCard connection={byProvider.get("google_ads")} />
+      </Reveal>
+      <Reveal delay={0.25}>
         <SyncHealth entries={health} />
       </Reveal>
     </div>

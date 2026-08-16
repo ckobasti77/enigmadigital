@@ -127,3 +127,49 @@ Kada infrastruktura eksternih servisa bude spremna, kompletirati sledeće korake
   - Na produkcionoj stranici [Podešavanja](https://digital.enigmait.rs/settings) kliknuti na **Poveži Instagram** i autorizovati Business nalog.
 - [ ] **GA4 Property ID u produkcionim podešavanjima**:
   - Uneti Service Account JSON ključ (sa "Viewer" ulogom u GA4) i numerički GA4 Property ID u **Podešavanja** (`/settings`).
+- [ ] **Google Ads API povezivanje (nakon Basic Access odobrenja)**:
+  - Pratiti korake ispod za jednokratno generisanje OAuth Refresh Tokena i uneti kredencijale u **Podešavanja** (`/settings`).
+
+---
+
+## Google Ads OAuth Refresh Token Bootstrap (Uputstvo korak po korak)
+
+Kada Google odobri **Basic Access Developer Token**, generisanje trajnog OAuth Refresh Tokena se vrši kroz sledeći standardni jednokratni postupak:
+
+### 1. Podešavanje Google Cloud projekta
+1. Otvorite [Google Cloud Console](https://console.cloud.google.com) i kreirajte novi projekat (npr. `Enigma-Ads-Sync`).
+2. U meniju **APIs & Services > Library**, pretražite i omogućite **Google Ads API**.
+3. U meniju **APIs & Services > OAuth consent screen**:
+   - Izaberite **External** tip korisnika.
+   - Unesite osnovne podatke aplikacije i dodajte vaš Google nalog kao **Test user**.
+4. U meniju **APIs & Services > Credentials**:
+   - Kliknite **Create Credentials > OAuth client ID**.
+   - Izaberite tip aplikacije **Web application**.
+   - U sekciju **Authorized redirect URIs** dodajte tačan URL:
+     `https://developers.google.com/oauthplayground`
+   - Kliknite **Create** i sačuvajte dobijeni **Client ID** i **Client Secret**.
+
+### 2. Generisanje Refresh Tokena preko Google OAuth Playground-a
+1. Otvorite [Google OAuth 2.0 Playground](https://developers.google.com/oauthplayground).
+2. Kliknite na ikonicu zupčanika u gornjem desnom uglu:
+   - Označite opciju **"Use your own OAuth credentials"**.
+   - Unesite vaš **OAuth Client ID** i **OAuth Client Secret** iz prethodnog koraka.
+3. U levom panelu (**Step 1: Select & authorize APIs**):
+   - U polje *"Input your own scopes"* na dnu liste unesite:
+     `https://www.googleapis.com/auth/adwords`
+   - Kliknite na dugme **Authorize APIs**.
+4. Prijavite se sa Google nalogom koji je vlasnik/administrator Google Ads naloga i odobrite pristup.
+5. U delu (**Step 2: Exchange authorization code for tokens**):
+   - Kliknite na plavo dugme **Exchange authorization code for tokens**.
+   - Kopirajte vrednost iz polja **Refresh token** (počinje sa `1//...`).
+
+### 3. Unos u Enigma Command Center
+1. Otvorite stranicu [Podešavanja (`/settings`)](https://digital.enigmait.rs/settings).
+2. Na kartici **Google Ads** unesite:
+   - **Customer ID**: 10-cifreni ID naloga (npr. `123-456-7890`).
+   - **Manager / Login Customer ID**: Opciono MCC ID ukoliko se pristupa preko krovnog naloga.
+   - **Developer Token**: Vaš odobreni token iz Google Ads API centra.
+   - **OAuth Client ID**: `xxxx.apps.googleusercontent.com`
+   - **OAuth Client Secret**: `GOCSPX-...`
+   - **OAuth Refresh Token**: Token dobijen u koraku 2 (`1//...`).
+3. Kliknite **Sačuvaj**. Kredencijali se enkriptuju sa AES-256-GCM i čuvaju u bazi. Automatska sinhronizacija (cron na svaka 3h) i ručna sinhronizacija na klik biće odmah aktivne.

@@ -24,5 +24,35 @@ crons.interval(
   internal.instagram.refreshAllTokens,
   {},
 );
+crons.interval(
+  "sync meta ads structure",
+  { hours: 3 },
+  internal.metaAds.syncAllAdsStructure,
+  {},
+);
+crons.interval(
+  "sync meta ads hot insights",
+  { minutes: 15 },
+  internal.metaAds.syncHotAdsInsights,
+  {},
+);
+crons.interval(
+  "sync meta ads all insights",
+  { hours: 6 },
+  internal.metaAds.syncAllAdsInsights,
+  {},
+);
+crons.interval(
+  "sync google ads",
+  { hours: 3 },
+  internal.googleAds.syncAllGoogleAds,
+  {},
+);
+crons.interval(
+  "evaluate ad rules",
+  { minutes: 30 },
+  internal.rules.evaluateRulesCron,
+  {},
+);
 
 export default crons;

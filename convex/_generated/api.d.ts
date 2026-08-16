@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as adActions from "../adActions.js";
+import type * as adActionsStore from "../adActionsStore.js";
 import type * as analytics from "../analytics.js";
 import type * as attribution from "../attribution.js";
 import type * as auth from "../auth.js";
@@ -15,18 +17,25 @@ import type * as connections from "../connections.js";
 import type * as crons from "../crons.js";
 import type * as ga4 from "../ga4.js";
 import type * as ga4Store from "../ga4Store.js";
+import type * as googleAds from "../googleAds.js";
+import type * as googleAdsStore from "../googleAdsStore.js";
 import type * as http from "../http.js";
 import type * as instagram from "../instagram.js";
 import type * as instagramStore from "../instagramStore.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_crypto from "../lib/crypto.js";
 import type * as lib_instagramApi from "../lib/instagramApi.js";
+import type * as lib_metaAdsApi from "../lib/metaAdsApi.js";
 import type * as lib_openreplySql from "../lib/openreplySql.js";
 import type * as lib_providers from "../lib/providers.js";
 import type * as lib_runSync from "../lib/runSync.js";
 import type * as lib_slug from "../lib/slug.js";
+import type * as metaAds from "../metaAds.js";
+import type * as metaAdsStore from "../metaAdsStore.js";
 import type * as openreply from "../openreply.js";
 import type * as openreplyStore from "../openreplyStore.js";
+import type * as rules from "../rules.js";
+import type * as rulesStore from "../rulesStore.js";
 import type * as sync from "../sync.js";
 import type * as workspaces from "../workspaces.js";
 
@@ -37,6 +46,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  adActions: typeof adActions;
+  adActionsStore: typeof adActionsStore;
   analytics: typeof analytics;
   attribution: typeof attribution;
   auth: typeof auth;
@@ -44,18 +55,25 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   ga4: typeof ga4;
   ga4Store: typeof ga4Store;
+  googleAds: typeof googleAds;
+  googleAdsStore: typeof googleAdsStore;
   http: typeof http;
   instagram: typeof instagram;
   instagramStore: typeof instagramStore;
   "lib/auth": typeof lib_auth;
   "lib/crypto": typeof lib_crypto;
   "lib/instagramApi": typeof lib_instagramApi;
+  "lib/metaAdsApi": typeof lib_metaAdsApi;
   "lib/openreplySql": typeof lib_openreplySql;
   "lib/providers": typeof lib_providers;
   "lib/runSync": typeof lib_runSync;
   "lib/slug": typeof lib_slug;
+  metaAds: typeof metaAds;
+  metaAdsStore: typeof metaAdsStore;
   openreply: typeof openreply;
   openreplyStore: typeof openreplyStore;
+  rules: typeof rules;
+  rulesStore: typeof rulesStore;
   sync: typeof sync;
   workspaces: typeof workspaces;
 }>;
