@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { ArrowRight, Check, LoaderCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,24 @@ export default function LoginPage() {
   const { signIn } = useAuthActions();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>("idle");
+
+  // If the proxy forwarded an in-flight Instagram OAuth code to the login
+  // page, park it so Settings can complete the exchange after sign-in.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const igCode = params.get("ig_code");
+    if (!igCode) return;
+    try {
+      window.localStorage.setItem(
+        "ig_oauth_code",
+        JSON.stringify({ code: igCode, ts: Date.now() }),
+      );
+    } catch {
+      // storage unavailable
+    }
+    window.history.replaceState({}, "", window.location.pathname);
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
