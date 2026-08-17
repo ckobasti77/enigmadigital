@@ -236,7 +236,7 @@ export const syncGa4 = internalAction({
             { name: "date" },
             { name: "sessionSource" },
             { name: "sessionMedium" },
-            { name: "sessionCampaign" },
+            { name: "sessionCampaignName" },
           ],
           metrics: [{ name: "sessions" }, { name: "conversions" }],
         });
