@@ -65,6 +65,69 @@ export const getMembership = internalQuery({
 });
 
 /**
+ * Persist a one-time OAuth `state` nonce for the connect flow. Also sweeps
+ * stale nonces (>1h) so abandoned attempts never accumulate.
+ */
+export const createOAuthState = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    nonce: v.string(),
+    redirectUri: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { workspaceId, userId, nonce, redirectUri }) => {
+    const cutoff = Date.now() - 60 * 60 * 1000;
+    const stale = await ctx.db
+      .query("oauthStates")
+      .filter((q) => q.lt(q.field("createdAt"), cutoff))
+      .collect();
+    for (const row of stale) {
+      await ctx.db.delete(row._id);
+    }
+
+    await ctx.db.insert("oauthStates", {
+      workspaceId,
+      userId,
+      provider: "meta_ig",
+      nonce,
+      redirectUri,
+      createdAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+/**
+ * Atomically consume (look up + delete) an OAuth `state` nonce.
+ * Returns null when the nonce is unknown — i.e. forged, already used, or swept.
+ */
+export const consumeOAuthState = internalMutation({
+  args: { nonce: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      workspaceId: v.id("workspaces"),
+      redirectUri: v.string(),
+      createdAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, { nonce }) => {
+    const row = await ctx.db
+      .query("oauthStates")
+      .withIndex("by_nonce", (q) => q.eq("nonce", nonce))
+      .first();
+    if (row === null) return null;
+    await ctx.db.delete(row._id);
+    return {
+      workspaceId: row.workspaceId,
+      redirectUri: row.redirectUri,
+      createdAt: row.createdAt,
+    };
+  },
+});
+
+/**
  * Upsert a single daily account snapshot by [workspaceId, date].
  */
 export const upsertAccountDaily = internalMutation({

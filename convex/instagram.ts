@@ -1,6 +1,7 @@
 "use node";
 
-import { action, internalAction } from "./_generated/server";
+import { randomUUID } from "node:crypto";
+import { action, internalAction, type ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
@@ -66,13 +67,17 @@ export const getOAuthConfig = action({
 
 /**
  * Generate Instagram Business Login URL for starting OAuth from the client.
+ *
+ * Requires an authenticated workspace member: a one-time `state` nonce is
+ * persisted (workspace + redirectUri) so the PUBLIC callback route can finish
+ * the token exchange server-side, with no dependency on the browser session.
  */
 export const getOAuthUrl = action({
   args: {
     redirectUri: v.string(),
-    state: v.optional(v.string()),
+    state: v.optional(v.string()), // ignored; kept for signature compatibility
   },
-  handler: async (_, { redirectUri, state }): Promise<{ url: string }> => {
+  handler: async (ctx, { redirectUri }): Promise<{ url: string }> => {
     const clientId = process.env.INSTAGRAM_APP_ID?.trim();
     if (!clientId) {
       throw new ConvexError({
@@ -81,10 +86,38 @@ export const getOAuthUrl = action({
       });
     }
 
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new ConvexError({
+        code: "unauthorized",
+        message: "Niste prijavljeni.",
+      });
+    }
+    const member: {
+      workspaceId: Id<"workspaces">;
+      role: "owner" | "client_viewer";
+    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
+      userId,
+    });
+    if (member === null) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Niste član aktivnog workspace-a.",
+      });
+    }
+
+    const nonce = randomUUID();
+    await ctx.runMutation(internal.instagramStore.createOAuthState, {
+      workspaceId: member.workspaceId,
+      userId,
+      nonce,
+      redirectUri,
+    });
+
     const url = buildInstagramAuthorizeUrl({
       clientId,
       redirectUri,
-      state,
+      state: nonce,
     });
 
     return { url };
@@ -100,41 +133,30 @@ export interface OAuthResult {
 }
 
 /**
- * Complete OAuth flow after Instagram redirect back with an authorization code:
+ * Shared OAuth code-exchange pipeline:
  *   1. Code -> Short-lived token
  *   2. Short-lived token -> Long-lived token (60 days)
  *   3. Retrieve IG user ID & username
  *   4. Encrypt and persist credentials to `connections` table
  *   5. Trigger an initial sync attempt
+ *
+ * Called from `completeOAuth` (authenticated client) and
+ * `completeOAuthFromCallback` (public callback route, workspace resolved via
+ * the one-time `state` nonce).
  */
-export const completeOAuth = action({
-  args: {
-    code: v.string(),
-    redirectUri: v.string(),
+async function exchangeCodeAndConnect(
+  ctx: ActionCtx,
+  {
+    workspaceId,
+    code,
+    redirectUri,
+  }: {
+    workspaceId: Id<"workspaces">;
+    code: string;
+    redirectUri: string;
   },
-  handler: async (ctx, { code, redirectUri }): Promise<OAuthResult> => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member: {
-      workspaceId: Id<"workspaces">;
-      role: "owner" | "client_viewer";
-    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
-      userId,
-    });
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
-    const workspaceId: Id<"workspaces"> = member.workspaceId;
-
+): Promise<OAuthResult> {
+  {
     const appId = process.env.INSTAGRAM_APP_ID?.trim();
     const appSecret = process.env.INSTAGRAM_APP_SECRET?.trim();
     const version = getMetaGraphVersion();
@@ -249,6 +271,90 @@ export const completeOAuth = action({
       username: username ?? null,
       expiresAt,
     };
+  }
+}
+
+/**
+ * Complete OAuth from the authenticated client (legacy path — used by the
+ * Settings page when the code arrives via URL/localStorage fallback).
+ */
+export const completeOAuth = action({
+  args: {
+    code: v.string(),
+    redirectUri: v.string(),
+  },
+  handler: async (ctx, { code, redirectUri }): Promise<OAuthResult> => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new ConvexError({
+        code: "unauthorized",
+        message: "Niste prijavljeni.",
+      });
+    }
+
+    const member: {
+      workspaceId: Id<"workspaces">;
+      role: "owner" | "client_viewer";
+    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
+      userId,
+    });
+    if (member === null) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Niste član aktivnog workspace-a.",
+      });
+    }
+
+    return exchangeCodeAndConnect(ctx, {
+      workspaceId: member.workspaceId,
+      code,
+      redirectUri,
+    });
+  },
+});
+
+const OAUTH_STATE_TTL_MS = 15 * 60 * 1000; // authorize -> callback within 15 min
+
+/**
+ * Complete OAuth from the PUBLIC callback route (no browser session needed).
+ * The one-time `state` nonce — created by `getOAuthUrl` for an authenticated
+ * member — both authenticates the request and resolves the target workspace.
+ * The redirectUri used for the token exchange is the one stored with the
+ * nonce, guaranteeing an exact match with the authorize request.
+ */
+export const completeOAuthFromCallback = action({
+  args: {
+    state: v.string(),
+    code: v.string(),
+  },
+  handler: async (ctx, { state, code }): Promise<OAuthResult> => {
+    const stored: {
+      workspaceId: Id<"workspaces">;
+      redirectUri: string;
+      createdAt: number;
+    } | null = await ctx.runMutation(internal.instagramStore.consumeOAuthState, {
+      nonce: state,
+    });
+
+    if (stored === null) {
+      throw new ConvexError({
+        code: "invalid",
+        message:
+          "Nepoznat ili već iskorišćen state parametar. Pokreni povezivanje ponovo iz Podešavanja.",
+      });
+    }
+    if (Date.now() - stored.createdAt > OAUTH_STATE_TTL_MS) {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Autorizacija je istekla. Pokreni povezivanje ponovo.",
+      });
+    }
+
+    return exchangeCodeAndConnect(ctx, {
+      workspaceId: stored.workspaceId,
+      code,
+      redirectUri: stored.redirectUri,
+    });
   },
 });
 

@@ -409,6 +409,22 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
     if (typeof window === "undefined") return;
 
     const urlParams = new URLSearchParams(window.location.search);
+
+    // Primary path: the callback route already completed the exchange
+    // server-side and redirected here with the result.
+    if (urlParams.get("ig_connected")) {
+      const username = urlParams.get("ig_username");
+      window.history.replaceState({}, "", window.location.pathname);
+      setTimeout(() => {
+        setSuccessMessage(
+          username
+            ? `Uspešno povezan nalog @${username}!`
+            : "Instagram nalog je uspešno povezan!",
+        );
+      }, 0);
+      return;
+    }
+
     let code = urlParams.get("ig_code") || urlParams.get("code");
     const err =
       urlParams.get("ig_error") ||

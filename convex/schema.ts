@@ -44,6 +44,20 @@ export default defineSchema({
     .index("by_workspace_provider", ["workspaceId", "provider"])
     .index("by_provider", ["provider"]),
 
+  // One-time OAuth `state` nonces. Created when an authenticated user starts
+  // the connect flow; consumed by the PUBLIC callback route to finish the
+  // token exchange server-side. This makes the OAuth return leg independent of
+  // the browser session (no login round-trip can lose the code). Rows are
+  // deleted on consume; stale rows (>1h) are swept opportunistically.
+  oauthStates: defineTable({
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    provider: providerValidator,
+    nonce: v.string(),
+    redirectUri: v.string(),
+    createdAt: v.number(),
+  }).index("by_nonce", ["nonce"]),
+
   // GA4 — daily aggregate + per channel/campaign (for UTM attribution).
   ga4Daily: defineTable({
     workspaceId: v.id("workspaces"),
