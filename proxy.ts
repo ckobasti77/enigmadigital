@@ -41,6 +41,6 @@ export const config = {
   matcher: [
     "/((?!.*\\..*|_next|api/auth/callback/instagram).*)",
     "/",
-    "/(api|trpc)(?!/auth/callback/instagram)(.*)",
+    "/(api|trpc)((?!/auth/callback/instagram).*)",
   ],
 };
