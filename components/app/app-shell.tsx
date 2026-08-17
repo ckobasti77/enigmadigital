@@ -1,19 +1,60 @@
 "use client";
 
-import { Authenticated, AuthLoading } from "convex/react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppSidebar } from "./app-sidebar";
 import { MobileNav } from "./mobile-nav";
 import { SignOutButton } from "./sign-out-button";
 import { WorkspaceProvider, useWorkspace } from "./workspace-provider";
 
+/**
+ * Parks an incoming Instagram OAuth code from the URL into localStorage so it
+ * survives a login round-trip (the Settings page consumes and removes it).
+ * Mounted OUTSIDE <Authenticated> on purpose: it must run even when the
+ * session is missing, which is exactly when the code would otherwise be lost.
+ */
+function OAuthCodeCatcher() {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("ig_code") || params.get("code");
+    if (!code) return;
+    try {
+      window.localStorage.setItem(
+        "ig_oauth_code",
+        JSON.stringify({ code, ts: Date.now() }),
+      );
+    } catch {
+      // storage unavailable — nothing we can do
+    }
+  }, []);
+  return null;
+}
+
+/** When the session is confirmed missing, send the user to login. */
+function RedirectToLogin() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/login");
+  }, [router]);
+  return <ShellFallback />;
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
+      <OAuthCodeCatcher />
+
       {/* No flash: the shell only mounts once the auth token is confirmed. */}
       <AuthLoading>
         <ShellFallback />
       </AuthLoading>
+
+      <Unauthenticated>
+        <RedirectToLogin />
+      </Unauthenticated>
 
       <Authenticated>
         <WorkspaceProvider>

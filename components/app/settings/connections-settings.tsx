@@ -409,11 +409,33 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
     if (typeof window === "undefined") return;
 
     const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get("ig_code") || urlParams.get("code");
+    let code = urlParams.get("ig_code") || urlParams.get("code");
     const err =
       urlParams.get("ig_error") ||
       urlParams.get("error_description") ||
       urlParams.get("error");
+
+    // Fallback: the OAuth code may have been parked in localStorage by
+    // OAuthCodeCatcher (app-shell) if the user hit the callback while the
+    // auth session was not yet mounted (e.g. forced to log in again).
+    if (!code && !err) {
+      try {
+        const stored = window.localStorage.getItem("ig_oauth_code");
+        if (stored) {
+          window.localStorage.removeItem("ig_oauth_code");
+          const parsed = JSON.parse(stored) as { code?: string; ts?: number };
+          if (
+            parsed.code &&
+            typeof parsed.ts === "number" &&
+            Date.now() - parsed.ts < 10 * 60 * 1000
+          ) {
+            code = parsed.code;
+          }
+        }
+      } catch {
+        // ignore malformed storage
+      }
+    }
 
     if (!code && !err) return;
 
