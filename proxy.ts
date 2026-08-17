@@ -9,17 +9,7 @@ import {
 
 const isSignInPage = createRouteMatcher(["/login"]);
 
-// OAuth callback endpoints must stay reachable WITHOUT a session: the
-// provider (Instagram) redirects here with a one-time code, and the auth
-// cookie may be absent on that cross-site navigation. The route itself only
-// forwards the code to the app — it performs no privileged work.
-const isPublicApiRoute = createRouteMatcher(["/api/auth/callback/instagram"]);
-
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
-  if (isPublicApiRoute(request)) {
-    return; // let the route handler run
-  }
-
   const authed = await convexAuth.isAuthenticated();
 
   // The two rules are disjoint (login vs everything-else), so no redirect loop.
@@ -40,6 +30,17 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
 });
 
 export const config = {
-  // Run on everything except static files and _next internals.
-  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
+  // Run on everything except static files, _next internals, and the Instagram
+  // OAuth callback. The callback is FULLY excluded (not just early-returned in
+  // the handler) because convexAuthNextjsMiddleware itself intercepts any
+  // request carrying a `?code=` query param and tries to verify it as a
+  // Convex Auth sign-in code — swallowing Instagram's authorization code and
+  // redirecting before our route handler can run. The callback route performs
+  // the whole exchange server-side via the one-time `state` nonce, so it needs
+  // no auth context from the middleware.
+  matcher: [
+    "/((?!.*\\..*|_next|api/auth/callback/instagram).*)",
+    "/",
+    "/(api|trpc)(?!/auth/callback/instagram)(.*)",
+  ],
 };
