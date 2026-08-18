@@ -213,13 +213,14 @@ export const saveConnectedCredentials = internalMutation({
   args: {
     workspaceId: v.id("workspaces"),
     externalId: v.string(),
+    externalIdAlt: v.optional(v.string()),
     encryptedCredentials: v.string(),
     expiresAt: v.number(),
   },
   returns: v.id("connections"),
   handler: async (
     ctx,
-    { workspaceId, externalId, encryptedCredentials, expiresAt },
+    { workspaceId, externalId, externalIdAlt, encryptedCredentials, expiresAt },
   ) => {
     const existing = await ctx.db
       .query("connections")
@@ -232,6 +233,7 @@ export const saveConnectedCredentials = internalMutation({
       await ctx.db.patch(existing._id, {
         encryptedCredentials,
         externalId,
+        ...(externalIdAlt !== undefined ? { externalIdAlt } : {}),
         status: "active",
         expiresAt,
       });
@@ -243,6 +245,7 @@ export const saveConnectedCredentials = internalMutation({
       provider: "meta_ig",
       encryptedCredentials,
       externalId,
+      ...(externalIdAlt !== undefined ? { externalIdAlt } : {}),
       status: "active",
       expiresAt,
     });

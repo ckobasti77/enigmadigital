@@ -32,8 +32,14 @@ export const ingestComment = internalMutation({
       .withIndex("by_provider", (q) => q.eq("provider", "meta_ig"))
       .collect();
 
-    const igConn = igConnections.find((c) => c.externalId === args.igUserId);
+    const igConn = igConnections.find(
+      (c) => c.externalId === args.igUserId || c.externalIdAlt === args.igUserId,
+    );
     if (!igConn) {
+      console.warn(
+        "OpenReply: nema meta_ig konekcije za IG nalog",
+        args.igUserId,
+      );
       return "ignored_no_workspace";
     }
     const workspaceId = igConn.workspaceId;

@@ -226,13 +226,22 @@ async function exchangeCodeAndConnect(
     // 3. Fetch Instagram user ID and profile info
     let igUserId = shortLivedData.user_id ? String(shortLivedData.user_id) : "";
     let username: string | undefined;
+    let igProfessionalId: string | undefined;
 
     try {
       const meRes = await fetch(buildMeUrl(longLivedToken, version));
       if (meRes.ok) {
-        const meData = (await meRes.json()) as RawUserProfile;
-        if (meData.id) igUserId = String(meData.id);
-        username = meData.username;
+        const raw = (await meRes.json()) as
+          | RawUserProfile
+          | { data?: RawUserProfile[] };
+        const profile: RawUserProfile =
+          "data" in raw && Array.isArray(raw.data) && raw.data.length > 0
+            ? raw.data[0]
+            : (raw as RawUserProfile);
+        if (profile.id) igUserId = String(profile.id);
+        username = profile.username;
+        igProfessionalId =
+          profile.user_id !== undefined ? String(profile.user_id) : undefined;
       }
     } catch {
       // Fall back to shortLivedData.user_id if /me lookup fails
@@ -252,6 +261,7 @@ async function exchangeCodeAndConnect(
       {
         workspaceId,
         externalId: igUserId,
+        externalIdAlt: igProfessionalId,
         encryptedCredentials,
         expiresAt,
       },

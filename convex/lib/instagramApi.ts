@@ -108,7 +108,7 @@ export function buildMeUrl(
   const url = new URL(`${INSTAGRAM_GRAPH_BASE_URL}/${version}/me`);
   url.searchParams.set(
     "fields",
-    "id,username,name,profile_picture_url,followers_count,media_count",
+    "id,user_id,username,name,profile_picture_url,followers_count,media_count",
   );
   url.searchParams.set("access_token", accessToken);
   return url.toString();
@@ -237,6 +237,7 @@ export interface RawLongLivedTokenResponse {
 
 export interface RawUserProfile {
   id: string;
+  user_id?: string | number;
   username?: string;
   name?: string;
   profile_picture_url?: string;

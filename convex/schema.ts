@@ -33,6 +33,8 @@ export default defineSchema({
     provider: providerValidator,
     encryptedCredentials: v.string(),
     externalId: v.optional(v.string()), // GA4 property ID, IG user ID, ad account ID…
+    externalIdAlt: v.optional(v.string()), // meta_ig: IG professional account
+                                           // ID (webhook `entry.id`)
     status: v.union(
       v.literal("active"),
       v.literal("error"),

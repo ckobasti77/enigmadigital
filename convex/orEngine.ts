@@ -15,6 +15,7 @@ export const status = query({
     verifyTokenSet: v.boolean(),
     appSecretSet: v.boolean(),
     igConnected: v.boolean(),
+    igProfessionalIdSet: v.boolean(),
   }),
   handler: async (ctx) => {
     const { workspaceId } = await requireMembership(ctx);
@@ -34,6 +35,10 @@ export const status = query({
       )
       .first();
     const igConnected = igConn !== null;
+    const igProfessionalIdSet =
+      igConn !== null &&
+      typeof igConn.externalIdAlt === "string" &&
+      igConn.externalIdAlt.trim().length > 0;
 
     const webhookUrl = process.env.CONVEX_SITE_URL
       ? `${process.env.CONVEX_SITE_URL}/instagram/webhook`
@@ -54,6 +59,7 @@ export const status = query({
       verifyTokenSet,
       appSecretSet,
       igConnected,
+      igProfessionalIdSet,
     };
   },
 });

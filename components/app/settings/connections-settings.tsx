@@ -427,6 +427,16 @@ function OpenReplyCard() {
             </div>
           )}
 
+          {status.igConnected && !status.igProfessionalIdSet && (
+            <div className="mt-4 flex items-start gap-2 text-xs text-warning">
+              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                Instagram token je star — ponovo poveži Instagram nalog da bi
+                webhook mogao da prepozna nalog.
+              </span>
+            </div>
+          )}
+
           {missingVars.length > 0 && (
             <div className="mt-4 flex items-start gap-2 text-xs text-warning">
               <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
