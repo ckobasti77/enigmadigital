@@ -33,6 +33,7 @@ const STATUS_LABELS: Record<DmLogStatus, string> = {
   failed: "Neuspelo",
   skipped_no_match: "Bez podudaranja",
   skipped_window: "Van prozora",
+  awaiting_follow: "Čeka praćenje",
 };
 
 const STATUS_TONES: Record<
@@ -44,11 +45,13 @@ const STATUS_TONES: Record<
   failed: "danger",
   skipped_no_match: "muted",
   skipped_window: "muted",
+  awaiting_follow: "warning",
 };
 
 const FILTERS: { value: DmLogStatus | "all"; label: string }[] = [
   { value: "all", label: "Sve" },
   { value: "sent", label: STATUS_LABELS.sent },
+  { value: "awaiting_follow", label: STATUS_LABELS.awaiting_follow },
   { value: "pending", label: STATUS_LABELS.pending },
   { value: "failed", label: STATUS_LABELS.failed },
   { value: "skipped_no_match", label: STATUS_LABELS.skipped_no_match },
@@ -139,10 +142,19 @@ export function DmLogTable() {
                     </TableCell>
 
                     <TableCell className="max-w-72 py-3 align-top">
-                      <p className="truncate text-xs font-medium text-foreground">
-                        {log.commenterUsername
-                          ? `@${log.commenterUsername}`
-                          : log.commenterId}
+                      <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                        <span className="truncate">
+                          {log.commenterUsername
+                            ? `@${log.commenterUsername}`
+                            : log.commenterId}
+                        </span>
+                        {/* A follow-up repeats the original comment, so without
+                            this the two rows read as a duplicate. */}
+                        {log.kind === "followup" && (
+                          <span className="shrink-0 rounded-md border border-line-soft bg-surface-raised px-1.5 text-xs text-text-muted">
+                            Naknadna
+                          </span>
+                        )}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
                         {log.commentText}

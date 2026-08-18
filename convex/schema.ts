@@ -34,7 +34,7 @@ export default defineSchema({
     encryptedCredentials: v.string(),
     externalId: v.optional(v.string()), // GA4 property ID, IG user ID, ad account ID…
     externalIdAlt: v.optional(v.string()), // meta_ig: IG professional account
-                                           // ID (webhook `entry.id`)
+    // ID (webhook `entry.id`)
     status: v.union(
       v.literal("active"),
       v.literal("error"),
@@ -154,6 +154,51 @@ export default defineSchema({
     linkLabel: v.optional(v.string()),
     publicReplyEnabled: v.boolean(),
     publicReplyMessage: v.optional(v.string()),
+    // What makes the automation fire. Optional so rows written before DM
+    // support stay valid without a migration; undefined means "comment".
+    trigger: v.optional(
+      v.union(v.literal("comment"), v.literal("dm"), v.literal("both")),
+    ),
+    // Tappable buttons attached to the outgoing message (button template, max
+    // 3). A "url" button carries `url`; a "postback" button carries the minted
+    // `payload` that a tap comes back on and the `replyMessage` we answer with.
+    buttons: v.optional(
+      v.array(
+        v.object({
+          label: v.string(),
+          type: v.union(v.literal("url"), v.literal("postback")),
+          url: v.optional(v.string()),
+          payload: v.optional(v.string()),
+          replyMessage: v.optional(v.string()),
+        }),
+      ),
+    ),
+    // The other way to offer a choice: chips above the composer (max 13). Every
+    // one is a postback in disguise, so the shape is the button minus the URL.
+    quickReplies: v.optional(
+      v.array(
+        v.object({
+          label: v.string(),
+          payload: v.optional(v.string()),
+          replyMessage: v.optional(v.string()),
+        }),
+      ),
+    ),
+    // The follow gate: when `requireFollow` is on, someone who does not follow
+    // the account gets `followPromptMessage` plus a single button labelled
+    // `followPromptButtonLabel` instead of the real message, and the real
+    // message only after tapping it. Both texts fall back to the defaults in
+    // lib/orFollow.ts, so switching the gate on needs nothing else.
+    requireFollow: v.optional(v.boolean()),
+    followPromptMessage: v.optional(v.string()),
+    followPromptButtonLabel: v.optional(v.string()),
+    // The delayed second message: `followUpDelayMinutes` after the automation's
+    // DM actually leaves, whoever got it gets `followUpMessage` too. Capped
+    // below Instagram's 24h window (lib/orFollowUp.ts) and dropped outright
+    // when that window has closed by the time it fires.
+    followUpEnabled: v.optional(v.boolean()),
+    followUpMessage: v.optional(v.string()),
+    followUpDelayMinutes: v.optional(v.number()),
     isActive: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -164,18 +209,41 @@ export default defineSchema({
   orDmLogs: defineTable({
     workspaceId: v.id("workspaces"),
     automationId: v.optional(v.id("orAutomations")),
+    // What the engine reacted to. Undefined means "comment" (every row written
+    // before DM triggers existed). For a DM row `commentId` holds the message
+    // id and `commenterId` the sender's IGSID; for a "postback" row `commentId`
+    // holds the tap's message id and `commentText` the button's title.
+    source: v.optional(
+      v.union(v.literal("comment"), v.literal("dm"), v.literal("postback")),
+    ),
+    // Which half of the automation wrote this row. Undefined means "primary" —
+    // the answer to the trigger itself, and every row written before follow-ups
+    // existed. Only a primary row ever schedules a follow-up, so a follow-up
+    // can never chain into another one.
+    kind: v.optional(v.union(v.literal("primary"), v.literal("followup"))),
     commentId: v.string(),
     mediaId: v.optional(v.string()),
     commenterId: v.string(),
     commenterUsername: v.optional(v.string()),
     commentText: v.string(),
     matchedKeyword: v.optional(v.string()),
+    // Text this row sends *instead of* the automation's `dmMessage` — the reply
+    // written on the button that was tapped. Only set on a "postback" row.
+    replyMessage: v.optional(v.string()),
+    // Set on the row a tap of the follow gate's button creates: ask Instagram
+    // again instead of trusting the cached answer, because the whole point of
+    // the tap is that the state just changed.
+    followRecheck: v.optional(v.boolean()),
     status: v.union(
       v.literal("pending"),
       v.literal("sent"),
       v.literal("failed"),
       v.literal("skipped_no_match"),
       v.literal("skipped_window"),
+      // The follow gate sent its prompt instead of the message. Deliberately
+      // not "sent": a delivered payload is what `orCampaignStats.dmsSent`
+      // counts, and the tap that follows gets a row of its own.
+      v.literal("awaiting_follow"),
     ),
     attempts: v.number(),
     dmSentAt: v.optional(v.number()),
@@ -196,6 +264,78 @@ export default defineSchema({
     commentId: v.string(),
     processedAt: v.number(),
   }).index("by_workspace_comment", ["workspaceId", "commentId"]),
+
+  // One row per person who has ever written to the account. `lastUserMessageAt`
+  // is the gate for Instagram's 24h messaging window: the app may only reply
+  // inside it, and only to someone who messaged first.
+  orConversations: defineTable({
+    workspaceId: v.id("workspaces"),
+    igsid: v.string(), // Instagram-scoped user id of the person, not the account
+    username: v.optional(v.string()),
+    lastUserMessageAt: v.optional(v.number()),
+    lastBotMessageAt: v.optional(v.number()),
+    consentAt: v.optional(v.number()), // first time they wrote / tapped
+    // Last answer the follow gate got from Instagram for this person, and when.
+    // A short-lived cache (lib/orFollow.ts), never a source of truth.
+    followsBusiness: v.optional(v.boolean()),
+    followCheckedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  }).index("by_workspace_igsid", ["workspaceId", "igsid"]),
+
+  // Inbound DMs, kept for de-duplication — Meta redelivers a webhook whenever
+  // it does not get a 200 fast enough.
+  orInboundMessages: defineTable({
+    workspaceId: v.id("workspaces"),
+    mid: v.string(),
+    igsid: v.string(),
+    text: v.string(),
+    receivedAt: v.number(),
+  }).index("by_workspace_mid", ["workspaceId", "mid"]),
+
+  // Button taps coming back from message buttons.
+  orPostbacks: defineTable({
+    workspaceId: v.id("workspaces"),
+    igsid: v.string(),
+    payload: v.string(),
+    title: v.optional(v.string()),
+    receivedAt: v.number(),
+  }).index("by_workspace_created", ["workspaceId", "receivedAt"]),
+
+  // Ice breakers and the persistent menu — the two taps that start a
+  // conversation without waiting for a comment, and the reason they matter:
+  // a tap opens the 24h messaging window and grants profile consent. Both live
+  // on the same Instagram node (/me/messenger_profile), so one row holds both.
+  // One row per workspace.
+  orProfileMenus: defineTable({
+    workspaceId: v.id("workspaces"),
+    // Up to 4 questions shown on an empty thread. Tapping one starts the DM of
+    // the automation it names; `payload` is the minted `or:<id>:<key>` the tap
+    // comes back on, the same format a message button uses.
+    iceBreakers: v.array(
+      v.object({
+        question: v.string(),
+        automationId: v.id("orAutomations"),
+        payload: v.optional(v.string()),
+      }),
+    ),
+    // Up to 5 items in the hamburger menu. A "url" item opens a page and never
+    // reaches the webhook; a "postback" item starts an automation's DM.
+    menuItems: v.array(
+      v.object({
+        title: v.string(),
+        type: v.union(v.literal("url"), v.literal("postback")),
+        url: v.optional(v.string()),
+        automationId: v.optional(v.id("orAutomations")),
+        payload: v.optional(v.string()),
+      }),
+    ),
+    // Saving only writes this row; these two say whether what is saved is what
+    // Instagram is actually showing.
+    publishedAt: v.optional(v.number()),
+    publishError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_workspace", ["workspaceId"]),
 
   orTrackedLinks: defineTable({
     workspaceId: v.id("workspaces"),
@@ -232,11 +372,7 @@ export default defineSchema({
     connectionId: v.optional(v.id("connections")),
     startedAt: v.number(),
     finishedAt: v.optional(v.number()),
-    status: v.union(
-      v.literal("running"),
-      v.literal("ok"),
-      v.literal("error"),
-    ),
+    status: v.union(v.literal("running"), v.literal("ok"), v.literal("error")),
     error: v.optional(v.string()), // pre-sanitized; safe to show in the UI
     itemsWritten: v.number(),
   }).index("by_workspace_provider", ["workspaceId", "provider"]),
@@ -454,11 +590,7 @@ export default defineSchema({
     targetId: v.string(), // externalId
     targetName: v.optional(v.string()),
     targetType: v.optional(
-      v.union(
-        v.literal("account"),
-        v.literal("campaign"),
-        v.literal("adset"),
-      ),
+      v.union(v.literal("account"), v.literal("campaign"), v.literal("adset")),
     ),
     firedAt: v.number(),
     metricValue: v.number(),
@@ -511,4 +643,3 @@ export default defineSchema({
     .index("by_workspace_date", ["workspaceId", "date"])
     .index("by_upsert_key", ["workspaceId", "keywordId", "date"]),
 });
-

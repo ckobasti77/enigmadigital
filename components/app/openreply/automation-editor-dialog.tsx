@@ -4,9 +4,33 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
-import { Loader2, MessageCircleReply, Link2, X } from "lucide-react";
+import {
+  Clock,
+  Loader2,
+  MessageCircleReply,
+  Link2,
+  MousePointerClick,
+  Plus,
+  UserRoundPlus,
+  X,
+} from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { normalizeKeyword } from "@/convex/lib/orMatch";
+import {
+  BUTTONS_MAX,
+  BUTTON_TITLE_MAX,
+  QUICK_REPLIES_MAX,
+  TEMPLATE_TEXT_MAX,
+} from "@/convex/lib/orButtons";
+import {
+  FOLLOW_PROMPT_MESSAGE_DEFAULT,
+  FOLLOW_PROMPT_BUTTON_LABEL_DEFAULT,
+} from "@/convex/lib/orFollow";
+import {
+  FOLLOW_UP_DELAY_MAX_MINUTES,
+  FOLLOW_UP_DELAY_MIN_MINUTES,
+  formatFollowUpDelay,
+} from "@/convex/lib/orFollowUp";
 import {
   Dialog,
   DialogPopup,
@@ -26,10 +50,49 @@ type AutomationView = FunctionReturnType<
   typeof api.orAutomationsApi.listAutomations
 >[number];
 
+type AutomationTrigger = AutomationView["trigger"];
+
+/** One vocabulary for the trigger, used by the editor and the automation card. */
+export const TRIGGER_LABELS: Record<AutomationTrigger, string> = {
+  comment: "Komentar",
+  dm: "DM",
+  both: "Komentar + DM",
+};
+
 // Mirrors the limits enforced in convex/orAutomationsApi.ts.
 const KEYWORDS_MAX = 20;
 const DM_MESSAGE_MAX = 900;
 const PUBLIC_REPLY_MAX = 280;
+
+/**
+ * How the message offers a choice. A message carries buttons or quick replies,
+ * never both — the same rule the mutation enforces, made visible as one pick.
+ */
+type TapMode = "none" | "buttons" | "quickReplies";
+
+/**
+ * A row being edited. `payload` is the identity of a button already delivered
+ * in a DM: it rides back to the mutation untouched so old buttons keep working.
+ * `uid` is local only, so React keeps the inputs attached to their own row.
+ */
+type ButtonRow = {
+  uid: number;
+  label: string;
+  type: "url" | "postback";
+  url: string;
+  replyMessage: string;
+  payload: string | null;
+};
+
+type QuickReplyRow = {
+  uid: number;
+  label: string;
+  replyMessage: string;
+  payload: string | null;
+};
+
+let rowUid = 0;
+const nextUid = () => ++rowUid;
 
 /** Pull the friendly message out of a thrown ConvexError, else a fallback. */
 function convexMessage(err: unknown, fallback: string): string {
@@ -72,6 +135,9 @@ function AutomationEditorForm({
   const isEditing = automationToEdit !== null;
 
   const [name, setName] = useState(automationToEdit?.name ?? "");
+  const [trigger, setTrigger] = useState<AutomationTrigger>(
+    automationToEdit?.trigger ?? "comment",
+  );
   const [keywords, setKeywords] = useState<string[]>(
     automationToEdit?.keywords ?? [],
   );
@@ -95,10 +161,69 @@ function AutomationEditorForm({
   const [publicReplyMessage, setPublicReplyMessage] = useState(
     automationToEdit?.publicReplyMessage ?? "",
   );
+  const [buttons, setButtons] = useState<ButtonRow[]>(() =>
+    (automationToEdit?.buttons ?? []).map((button) => ({
+      uid: nextUid(),
+      label: button.label,
+      type: button.type,
+      url: button.url ?? "",
+      replyMessage: button.replyMessage ?? "",
+      payload: button.payload,
+    })),
+  );
+  const [quickReplies, setQuickReplies] = useState<QuickReplyRow[]>(() =>
+    (automationToEdit?.quickReplies ?? []).map((quickReply) => ({
+      uid: nextUid(),
+      label: quickReply.label,
+      replyMessage: quickReply.replyMessage ?? "",
+      payload: quickReply.payload,
+    })),
+  );
+  const [tapMode, setTapMode] = useState<TapMode>(() =>
+    (automationToEdit?.buttons.length ?? 0) > 0
+      ? "buttons"
+      : (automationToEdit?.quickReplies.length ?? 0) > 0
+        ? "quickReplies"
+        : "none",
+  );
+  const [requireFollow, setRequireFollow] = useState(
+    automationToEdit?.requireFollow ?? false,
+  );
+  const [followPromptMessage, setFollowPromptMessage] = useState(
+    automationToEdit?.followPromptMessage ?? "",
+  );
+  const [followPromptButtonLabel, setFollowPromptButtonLabel] = useState(
+    automationToEdit?.followPromptButtonLabel ?? "",
+  );
+  const [followUpEnabled, setFollowUpEnabled] = useState(
+    automationToEdit?.followUpEnabled ?? false,
+  );
+  const [followUpMessage, setFollowUpMessage] = useState(
+    automationToEdit?.followUpMessage ?? "",
+  );
+  // Kept as text so the field can be emptied while typing; empty means the
+  // default the mutation fills in.
+  const [followUpDelay, setFollowUpDelay] = useState(
+    String(automationToEdit?.followUpDelayMinutes ?? ""),
+  );
   const [isActive, setIsActive] = useState(automationToEdit?.isActive ?? true);
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // A DM has no post behind it and nothing public to reply to, so both of
+  // those controls disappear when the automation only listens to messages.
+  const dmOnly = trigger === "dm";
+
+  // Only the mode that is actually picked is sent, which is what keeps the
+  // either/or true no matter what the other list still holds.
+  const sentButtons = tapMode === "buttons" ? buttons : [];
+  const sentQuickReplies = tapMode === "quickReplies" ? quickReplies : [];
+  // The button template's own text field is shorter than a plain DM.
+  const messageMax = tapMode === "buttons" ? TEMPLATE_TEXT_MAX : DM_MESSAGE_MAX;
+
+  const followUpDelayMinutes = Number.parseInt(followUpDelay, 10);
+  const hasFollowUpDelay = Number.isFinite(followUpDelayMinutes);
 
   const createAutomation = useMutation(api.orAutomationsApi.createAutomation);
   const updateAutomation = useMutation(api.orAutomationsApi.updateAutomation);
@@ -137,6 +262,7 @@ function AutomationEditorForm({
 
     const payload = {
       name,
+      trigger,
       keywords: finalKeywords,
       matchAnyWord,
       wholeWordMatch,
@@ -145,8 +271,27 @@ function AutomationEditorForm({
       dmMessage,
       linkUrl: linkUrl.trim() || undefined,
       linkLabel: linkLabel.trim() || undefined,
-      publicReplyEnabled,
+      publicReplyEnabled: dmOnly ? false : publicReplyEnabled,
       publicReplyMessage: publicReplyMessage.trim() || undefined,
+      buttons: sentButtons.map((button) => ({
+        label: button.label,
+        type: button.type,
+        url: button.url.trim() || undefined,
+        replyMessage: button.replyMessage.trim() || undefined,
+        payload: button.payload ?? undefined,
+      })),
+      quickReplies: sentQuickReplies.map((quickReply) => ({
+        label: quickReply.label,
+        replyMessage: quickReply.replyMessage.trim() || undefined,
+        payload: quickReply.payload ?? undefined,
+      })),
+      requireFollow,
+      // Empty means "use the default text", which is what the placeholders show.
+      followPromptMessage: followPromptMessage.trim() || undefined,
+      followPromptButtonLabel: followPromptButtonLabel.trim() || undefined,
+      followUpEnabled,
+      followUpMessage: followUpMessage.trim() || undefined,
+      followUpDelayMinutes: hasFollowUpDelay ? followUpDelayMinutes : undefined,
       isActive,
     };
 
@@ -161,9 +306,7 @@ function AutomationEditorForm({
       }
       onClose();
     } catch (err) {
-      setErrorMsg(
-        convexMessage(err, "Čuvanje nije uspelo. Pokušaj ponovo."),
-      );
+      setErrorMsg(convexMessage(err, "Čuvanje nije uspelo. Pokušaj ponovo."));
     } finally {
       setSubmitting(false);
     }
@@ -181,8 +324,8 @@ function AutomationEditorForm({
               {isEditing ? "Izmeni automatizaciju" : "Nova automatizacija"}
             </DialogTitle>
             <DialogDescription>
-              Kada komentar na Instagramu sadrži ključnu reč, autor komentara
-              dobija direktnu poruku.
+              Kada komentar ili poruka na Instagramu sadrži ključnu reč,
+              pošiljalac dobija direktnu poruku.
             </DialogDescription>
           </div>
         </div>
@@ -218,6 +361,28 @@ function AutomationEditorForm({
             <span className="font-mono text-xs text-text-muted">
               {keywords.length}/{KEYWORDS_MAX} ključnih reči
             </span>
+          </div>
+
+          <div>
+            <Label className="mb-1 block text-xs text-text-muted">
+              Šta pokreće automatizaciju
+            </Label>
+            <SegmentedControl
+              value={trigger}
+              onChange={(value) => setTrigger(value as AutomationTrigger)}
+              disabled={submitting}
+              options={[
+                { value: "comment", label: TRIGGER_LABELS.comment },
+                { value: "dm", label: TRIGGER_LABELS.dm },
+                { value: "both", label: TRIGGER_LABELS.both },
+              ]}
+            />
+            {trigger !== "comment" && (
+              <p className="mt-1.5 text-xs text-text-muted">
+                Instagram dozvoljava odgovor na poruku samo u roku od 24 sata od
+                poslednje poruke korisnika. Posle toga se poruka ne šalje.
+              </p>
+            )}
           </div>
 
           <div>
@@ -257,8 +422,8 @@ function AutomationEditorForm({
               />
             </div>
             <p className="mt-1.5 text-xs text-text-muted">
-              Enter ili zarez dodaje reč. Mala slova i naša slova (č, ć, š, ž, đ)
-              se izjednačavaju automatski.
+              Enter ili zarez dodaje reč. Mala slova i naša slova (č, ć, š, ž,
+              đ) se izjednačavaju automatski.
             </p>
           </div>
 
@@ -293,7 +458,7 @@ function AutomationEditorForm({
             </div>
           </div>
 
-          <div>
+          <div className={cn(dmOnly && "hidden")}>
             <Label className="mb-1 block text-xs text-text-muted">
               Objave koje se prate
             </Label>
@@ -327,12 +492,12 @@ function AutomationEditorForm({
             <span
               className={cn(
                 "font-mono text-xs tabular-nums",
-                dmMessage.length > DM_MESSAGE_MAX
+                dmMessage.length > messageMax
                   ? "text-danger"
                   : "text-text-muted",
               )}
             >
-              {dmMessage.length}/{DM_MESSAGE_MAX}
+              {dmMessage.length}/{messageMax}
             </span>
           </div>
           <Textarea
@@ -374,8 +539,367 @@ function AutomationEditorForm({
           </p>
         </div>
 
-        {/* Javni odgovor */}
-        <div className="space-y-2.5 rounded-xl border border-line bg-surface/50 p-3.5">
+        {/* Dugmad — poruka nosi ili dugmad ili brze odgovore, ne oboje */}
+        <div className="space-y-3 rounded-xl border border-line bg-surface/50 p-3.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+              <MousePointerClick className="size-3.5 text-accent-400" />
+              <span>Dugmad u poruci</span>
+            </span>
+            {tapMode !== "none" && (
+              <span className="font-mono text-xs tabular-nums text-text-muted">
+                {tapMode === "buttons"
+                  ? `${buttons.length}/${BUTTONS_MAX}`
+                  : `${quickReplies.length}/${QUICK_REPLIES_MAX}`}
+              </span>
+            )}
+          </div>
+
+          <SegmentedControl
+            value={tapMode}
+            onChange={(value) => setTapMode(value as TapMode)}
+            disabled={submitting}
+            options={[
+              { value: "none", label: "Bez dugmadi" },
+              { value: "buttons", label: "Dugmad" },
+              { value: "quickReplies", label: "Brzi odgovori" },
+            ]}
+          />
+
+          <p className="text-xs text-text-muted">
+            {tapMode === "quickReplies"
+              ? "Brzi odgovori stoje iznad polja za kucanje i nestaju čim neko izabere jedan."
+              : tapMode === "buttons"
+                ? "Dugmad ostaju uz poruku i mogu se kliknuti i kasnije. Klik na „Odgovor” šalje poruku koju upišeš ispod."
+                : "Dodaj dugmad ako želiš da razgovor ide dalje od jedne poruke."}
+          </p>
+
+          {tapMode === "buttons" && (
+            <div className="space-y-2.5">
+              {buttons.map((button, index) => (
+                <TapRow
+                  key={button.uid}
+                  disabled={submitting}
+                  label={button.label}
+                  onLabelChange={(label) =>
+                    setButtons((prev) =>
+                      prev.map((b, i) => (i === index ? { ...b, label } : b)),
+                    )
+                  }
+                  onRemove={() =>
+                    setButtons((prev) => prev.filter((_, i) => i !== index))
+                  }
+                  removeLabel={`Ukloni dugme ${button.label || index + 1}`}
+                  head={
+                    <SegmentedControl
+                      value={button.type}
+                      onChange={(value) =>
+                        setButtons((prev) =>
+                          prev.map((b, i) =>
+                            i === index
+                              ? { ...b, type: value as "url" | "postback" }
+                              : b,
+                          ),
+                        )
+                      }
+                      disabled={submitting}
+                      options={[
+                        { value: "url", label: "Link" },
+                        { value: "postback", label: "Odgovor" },
+                      ]}
+                    />
+                  }
+                >
+                  {button.type === "url" ? (
+                    <Input
+                      placeholder="https://enigmait.rs/ponuda"
+                      value={button.url}
+                      onChange={(e) =>
+                        setButtons((prev) =>
+                          prev.map((b, i) =>
+                            i === index ? { ...b, url: e.target.value } : b,
+                          ),
+                        )
+                      }
+                      disabled={submitting}
+                      className="border-line bg-surface text-xs"
+                      inputMode="url"
+                    />
+                  ) : (
+                    <Textarea
+                      placeholder="Šta se šalje kada neko klikne na ovo dugme…"
+                      value={button.replyMessage}
+                      onChange={(e) =>
+                        setButtons((prev) =>
+                          prev.map((b, i) =>
+                            i === index
+                              ? { ...b, replyMessage: e.target.value }
+                              : b,
+                          ),
+                        )
+                      }
+                      disabled={submitting}
+                      rows={2}
+                      className="border-line bg-surface text-xs"
+                    />
+                  )}
+                </TapRow>
+              ))}
+
+              <AddRowButton
+                disabled={submitting || buttons.length >= BUTTONS_MAX}
+                onClick={() =>
+                  setButtons((prev) => [
+                    ...prev,
+                    {
+                      uid: nextUid(),
+                      label: "",
+                      type: "url",
+                      url: "",
+                      replyMessage: "",
+                      payload: null,
+                    },
+                  ])
+                }
+              >
+                Dodaj dugme
+              </AddRowButton>
+            </div>
+          )}
+
+          {tapMode === "quickReplies" && (
+            <div className="space-y-2.5">
+              {quickReplies.map((quickReply, index) => (
+                <TapRow
+                  key={quickReply.uid}
+                  disabled={submitting}
+                  label={quickReply.label}
+                  onLabelChange={(label) =>
+                    setQuickReplies((prev) =>
+                      prev.map((q, i) => (i === index ? { ...q, label } : q)),
+                    )
+                  }
+                  onRemove={() =>
+                    setQuickReplies((prev) =>
+                      prev.filter((_, i) => i !== index),
+                    )
+                  }
+                  removeLabel={`Ukloni brzi odgovor ${quickReply.label || index + 1}`}
+                >
+                  <Textarea
+                    placeholder="Šta se šalje kada neko izabere ovaj odgovor…"
+                    value={quickReply.replyMessage}
+                    onChange={(e) =>
+                      setQuickReplies((prev) =>
+                        prev.map((q, i) =>
+                          i === index
+                            ? { ...q, replyMessage: e.target.value }
+                            : q,
+                        ),
+                      )
+                    }
+                    disabled={submitting}
+                    rows={2}
+                    className="border-line bg-surface text-xs"
+                  />
+                </TapRow>
+              ))}
+
+              <AddRowButton
+                disabled={
+                  submitting || quickReplies.length >= QUICK_REPLIES_MAX
+                }
+                onClick={() =>
+                  setQuickReplies((prev) => [
+                    ...prev,
+                    {
+                      uid: nextUid(),
+                      label: "",
+                      replyMessage: "",
+                      payload: null,
+                    },
+                  ])
+                }
+              >
+                Dodaj brzi odgovor
+              </AddRowButton>
+            </div>
+          )}
+        </div>
+
+        {/* Zaprati pre poruke — kapija koja traži praćenje */}
+        <div className="space-y-3 rounded-xl border border-line bg-surface/50 p-3.5">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                <UserRoundPlus className="size-3.5 text-accent-400" />
+                <span>Zaprati pre poruke</span>
+              </span>
+              <p className="mt-0.5 text-xs text-text-muted">
+                Ko ne prati nalog, prvo dobija poziv da zaprati. Poruku dobija
+                čim klikne na dugme.
+              </p>
+            </div>
+            <PillToggle
+              on={requireFollow}
+              onChange={setRequireFollow}
+              disabled={submitting}
+              onLabel="Uključena"
+              offLabel="Isključena"
+            />
+          </div>
+
+          {requireFollow && (
+            <div className="space-y-2.5">
+              <Textarea
+                placeholder={FOLLOW_PROMPT_MESSAGE_DEFAULT}
+                value={followPromptMessage}
+                onChange={(e) => setFollowPromptMessage(e.target.value)}
+                disabled={submitting}
+                rows={2}
+                className="border-line bg-surface text-xs"
+              />
+              <div className="grid gap-2.5 sm:grid-cols-[auto_1fr] sm:items-center">
+                <Input
+                  placeholder={FOLLOW_PROMPT_BUTTON_LABEL_DEFAULT}
+                  value={followPromptButtonLabel}
+                  onChange={(e) => setFollowPromptButtonLabel(e.target.value)}
+                  disabled={submitting}
+                  maxLength={BUTTON_TITLE_MAX}
+                  className="border-line bg-surface text-xs sm:w-52"
+                />
+                <p className="text-xs text-text-muted">
+                  Natpis na dugmetu koje otvara poruku. Ostavi prazno za
+                  podrazumevani tekst.
+                </p>
+              </div>
+
+              <DmPreview
+                caption="Poruka pre nego što neko zaprati"
+                message={
+                  followPromptMessage.trim() || FOLLOW_PROMPT_MESSAGE_DEFAULT
+                }
+                buttons={[
+                  {
+                    label:
+                      followPromptButtonLabel.trim() ||
+                      FOLLOW_PROMPT_BUTTON_LABEL_DEFAULT,
+                    type: "postback",
+                  },
+                ]}
+              />
+
+              <p className="text-xs text-text-muted">
+                Ako Instagram ne može da proveri praćenje, poruka ide normalno —
+                kapija nikada ne zadržava poruku bez odgovora.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Naknadna poruka — drugi dodir posle prve poruke */}
+        <div className="space-y-3 rounded-xl border border-line bg-surface/50 p-3.5">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                <Clock className="size-3.5 text-accent-400" />
+                <span>Naknadna poruka</span>
+              </span>
+              <p className="mt-0.5 text-xs text-text-muted">
+                Druga poruka stiže sama, određeno vreme posle prve.
+              </p>
+            </div>
+            <PillToggle
+              on={followUpEnabled}
+              onChange={setFollowUpEnabled}
+              disabled={submitting}
+              onLabel="Uključena"
+              offLabel="Isključena"
+            />
+          </div>
+
+          {followUpEnabled && (
+            <div className="space-y-2.5">
+              <div>
+                <div className="mb-1.5 flex items-baseline justify-between">
+                  <Label className="text-xs text-text-muted">
+                    Tekst naknadne poruke
+                  </Label>
+                  <span
+                    className={cn(
+                      "font-mono text-xs tabular-nums",
+                      followUpMessage.length > DM_MESSAGE_MAX
+                        ? "text-danger"
+                        : "text-text-muted",
+                    )}
+                  >
+                    {followUpMessage.length}/{DM_MESSAGE_MAX}
+                  </span>
+                </div>
+                <Textarea
+                  placeholder="Jesi li stigao/la da pogledaš? Tu sam za svako pitanje."
+                  value={followUpMessage}
+                  onChange={(e) => setFollowUpMessage(e.target.value)}
+                  disabled={submitting}
+                  rows={2}
+                  className="border-line bg-surface text-xs"
+                />
+              </div>
+
+              <div className="grid gap-2.5 sm:grid-cols-[auto_1fr] sm:items-center">
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min={FOLLOW_UP_DELAY_MIN_MINUTES}
+                    max={FOLLOW_UP_DELAY_MAX_MINUTES}
+                    placeholder="60"
+                    value={followUpDelay}
+                    onChange={(e) => setFollowUpDelay(e.target.value)}
+                    disabled={submitting}
+                    aria-label="Kašnjenje naknadne poruke u minutima"
+                    className="w-24 border-line bg-surface font-mono text-xs tabular-nums"
+                  />
+                  <span className="text-xs text-text-muted">minuta posle</span>
+                </div>
+                <p className="text-xs text-text-muted">
+                  Stiže{" "}
+                  {formatFollowUpDelay(
+                    hasFollowUpDelay ? followUpDelayMinutes : undefined,
+                  )}{" "}
+                  posle prve poruke. Najduže 23 h — posle 24 sata od poslednje
+                  poruke korisnika Instagram više ne dozvoljava odgovor.
+                </p>
+              </div>
+
+              <DmPreview
+                caption="Poruka koja stiže kasnije"
+                message={followUpMessage}
+                linkUrl={
+                  linkUrl.trim().length === 0
+                    ? ""
+                    : (automationToEdit?.trackedLinkUrl ?? linkUrl)
+                }
+                linkDestination={linkUrl.trim()}
+                linkLabel={linkLabel}
+              />
+
+              <p className="text-xs text-text-muted">
+                Naknadna poruka ide bez dugmadi. Ako je prozor od 24 sata do
+                tada istekao, poruka se ne šalje i u DM logu stoji „Van
+                prozora”.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Javni odgovor — postoji samo kad automatizaciju pokreće komentar */}
+        <div
+          className={cn(
+            "space-y-2.5 rounded-xl border border-line bg-surface/50 p-3.5",
+            dmOnly && "hidden",
+          )}
+        >
           <div className="flex items-center justify-between gap-2">
             <div>
               <span className="text-xs font-semibold text-foreground">
@@ -428,8 +952,13 @@ function AutomationEditorForm({
                 ? ""
                 : (automationToEdit?.trackedLinkUrl ?? linkUrl)
             }
+            linkDestination={linkUrl.trim()}
             linkLabel={linkLabel}
-            publicReply={publicReplyEnabled ? publicReplyMessage : null}
+            publicReply={
+              publicReplyEnabled && !dmOnly ? publicReplyMessage : null
+            }
+            buttons={sentButtons}
+            quickReplies={sentQuickReplies}
           />
         </div>
       </div>
@@ -475,7 +1004,79 @@ function AutomationEditorForm({
   );
 }
 
-function SegmentedControl({
+/**
+ * One editable button or quick reply: the label everyone sees, whatever that
+ * kind needs underneath it, and a way to take it back out.
+ */
+function TapRow({
+  label,
+  onLabelChange,
+  onRemove,
+  removeLabel,
+  head,
+  children,
+  disabled,
+}: {
+  label: string;
+  onLabelChange: (label: string) => void;
+  onRemove: () => void;
+  removeLabel: string;
+  head?: React.ReactNode;
+  children: React.ReactNode;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border border-line-soft bg-surface p-2.5">
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder="Natpis na dugmetu"
+          value={label}
+          onChange={(e) => onLabelChange(e.target.value)}
+          disabled={disabled}
+          maxLength={BUTTON_TITLE_MAX}
+          className="h-8 border-line bg-surface-raised text-xs"
+        />
+        {head}
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={disabled}
+          aria-label={removeLabel}
+          className="shrink-0 rounded-md p-1.5 text-text-muted transition-colors hover:text-danger disabled:opacity-50"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function AddRowButton({
+  onClick,
+  disabled,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full border-dashed border-line text-text-muted hover:text-foreground"
+    >
+      <Plus className="size-3.5" />
+      <span>{children}</span>
+    </Button>
+  );
+}
+
+export function SegmentedControl({
   value,
   onChange,
   options,
@@ -487,7 +1088,12 @@ function SegmentedControl({
   disabled?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div
+      className={cn(
+        "grid gap-2",
+        options.length === 3 ? "grid-cols-3" : "grid-cols-2",
+      )}
+    >
       {options.map((option) => (
         <button
           key={option.value}

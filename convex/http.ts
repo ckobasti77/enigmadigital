@@ -125,10 +125,38 @@ interface InstagramWebhookChange {
   value?: InstagramWebhookCommentValue;
 }
 
+interface InstagramWebhookQuickReply {
+  payload?: string;
+}
+
+interface InstagramWebhookMessage {
+  mid?: string;
+  text?: string;
+  is_echo?: boolean;
+  is_deleted?: boolean;
+  // Present when the message is a tapped quick reply rather than typed text.
+  quick_reply?: InstagramWebhookQuickReply;
+}
+
+interface InstagramWebhookPostback {
+  mid?: string;
+  title?: string;
+  payload?: string;
+}
+
+interface InstagramWebhookMessaging {
+  sender?: InstagramWebhookFrom;
+  recipient?: InstagramWebhookFrom;
+  timestamp?: number;
+  message?: InstagramWebhookMessage;
+  postback?: InstagramWebhookPostback;
+}
+
 interface InstagramWebhookEntry {
   id?: string;
   time?: number;
   changes?: InstagramWebhookChange[];
+  messaging?: InstagramWebhookMessaging[];
 }
 
 interface InstagramWebhookPayload {
@@ -165,7 +193,10 @@ http.route({
   }),
 });
 
-// Route 2 — POST: Meta Comments Webhook Event Ingestion
+// Route 2 — POST: Meta Webhook Event Ingestion
+//
+// Two different arrays arrive on the same route: comments ride in on
+// entry[].changes[], direct messages on entry[].messaging[].
 http.route({
   path: "/instagram/webhook",
   method: "POST",
@@ -223,6 +254,89 @@ http.route({
           });
         } catch {
           // Catch per-row so one bad row cannot abort the rest
+        }
+      }
+
+      const messagingEvents = Array.isArray(entry?.messaging)
+        ? entry.messaging
+        : [];
+      for (const event of messagingEvents) {
+        const senderId =
+          typeof event.sender?.id === "string" ? event.sender.id : undefined;
+        // Nothing arriving from the account itself is ours to react to.
+        if (!senderId || senderId === igUserId) continue;
+
+        // A button-template button comes back as its own event, with no
+        // `message` on it at all — so it has to be handled before that check.
+        const postback = event?.postback;
+        if (postback && typeof postback === "object") {
+          const postbackMid =
+            typeof postback.mid === "string" ? postback.mid : undefined;
+          const postbackPayload =
+            typeof postback.payload === "string" ? postback.payload : undefined;
+          if (!postbackMid || !postbackPayload) continue;
+
+          try {
+            await ctx.runMutation(internal.orIngest.ingestButtonTap, {
+              igUserId,
+              mid: postbackMid,
+              igsid: senderId,
+              payload: postbackPayload,
+              title:
+                typeof postback.title === "string" ? postback.title : undefined,
+            });
+          } catch {
+            // Catch per-row so one bad event cannot abort the rest
+          }
+          continue;
+        }
+
+        const message = event?.message;
+        if (!message || typeof message !== "object") continue;
+
+        // is_echo marks a message the BUSINESS sent, echoed back to us.
+        if (message.is_echo === true || message.is_deleted === true) continue;
+
+        const mid = typeof message.mid === "string" ? message.mid : undefined;
+        const text = typeof message.text === "string" ? message.text : "";
+        if (!mid) continue;
+
+        // A tapped quick reply arrives as an ordinary message carrying the
+        // payload we minted. It is a tap, not something to keyword-match.
+        const quickReplyPayload =
+          typeof message.quick_reply?.payload === "string"
+            ? message.quick_reply.payload
+            : undefined;
+
+        if (quickReplyPayload) {
+          try {
+            await ctx.runMutation(internal.orIngest.ingestButtonTap, {
+              igUserId,
+              mid,
+              igsid: senderId,
+              payload: quickReplyPayload,
+              // The chip's own label rides along as the message text.
+              title: text.trim().length > 0 ? text : undefined,
+            });
+          } catch {
+            // Catch per-row so one bad event cannot abort the rest
+          }
+          continue;
+        }
+
+        // SKIP when there is nothing to match a keyword against (attachment /
+        // reaction only).
+        if (text.trim().length === 0) continue;
+
+        try {
+          await ctx.runMutation(internal.orIngest.ingestDirectMessage, {
+            igUserId,
+            mid,
+            igsid: senderId,
+            text,
+          });
+        } catch {
+          // Catch per-row so one bad event cannot abort the rest
         }
       }
     }

@@ -177,6 +177,47 @@ export function buildPrivateReplyUrl(
 }
 
 /**
+ * Build endpoint URL for sending a direct message to someone who has already
+ * written to the account. Same path as the private reply — what differs is the
+ * recipient in the body: `id` (IGSID) here, `comment_id` there.
+ */
+export function buildSendMessageUrl(
+  igUserId: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  return `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${igUserId}/messages`;
+}
+
+/**
+ * Build endpoint URL for the profile of a person we are messaging with, keyed
+ * by their IGSID. `is_user_follow_business` is the follow gate's whole answer;
+ * `username` rides along because a tap carries no handle of its own.
+ *
+ * Needs `instagram_business_manage_messages`, and Instagram only answers for
+ * someone the account has a conversation with — see lib/orFollow.ts for what
+ * happens when it does not answer.
+ */
+export function buildUserProfileUrl(
+  igsid: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(`${INSTAGRAM_GRAPH_BASE_URL}/${version}/${igsid}`);
+  url.searchParams.set("fields", "username,is_user_follow_business");
+  return url.toString();
+}
+
+/**
+ * Build endpoint URL for the account's messenger profile — the one node that
+ * holds BOTH the ice breakers and the persistent menu. POST writes a field,
+ * GET reads it back (`?fields=ice_breakers`), DELETE takes it away.
+ */
+export function buildMessengerProfileUrl(
+  version: string = getMetaGraphVersion(),
+): string {
+  return `${INSTAGRAM_GRAPH_BASE_URL}/${version}/me/messenger_profile`;
+}
+
+/**
  * Build endpoint URL for posting a public reply to a comment.
  */
 export function buildCommentRepliesUrl(

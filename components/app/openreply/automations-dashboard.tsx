@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { Inbox, MessageCircleReply, Plus } from "lucide-react";
+import { Inbox, MessageCircleReply, MessageCircleQuestion, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
 import { Card } from "@/components/ui/card";
@@ -16,13 +16,14 @@ import {
 } from "./automations-list";
 import { AutomationEditorDialog } from "./automation-editor-dialog";
 import { DmLogTable } from "./dm-log-table";
+import { ProfileMenuPanel } from "./profile-menu-panel";
 import { cn } from "@/lib/utils";
 
 type AutomationView = FunctionReturnType<
   typeof api.orAutomationsApi.listAutomations
 >[number];
 
-type Tab = "automations" | "log";
+type Tab = "automations" | "profile" | "log";
 
 export function AutomationsDashboard() {
   const [tab, setTab] = useState<Tab>("automations");
@@ -61,6 +62,12 @@ export function AutomationsDashboard() {
             }
           />
           <TabButton
+            active={tab === "profile"}
+            onClick={() => setTab("profile")}
+            icon={MessageCircleQuestion}
+            label="Ledolomci i meni"
+          />
+          <TabButton
             active={tab === "log"}
             onClick={() => setTab("log")}
             icon={Inbox}
@@ -91,6 +98,10 @@ export function AutomationsDashboard() {
             <AutomationsList automations={automations} onEdit={openEdit} />
           </Reveal>
         )
+      ) : tab === "profile" ? (
+        <Reveal>
+          <ProfileMenuPanel />
+        </Reveal>
       ) : (
         <Reveal>
           <DmLogTable />

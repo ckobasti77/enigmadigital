@@ -6,20 +6,23 @@ import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
   Check,
+  Clock,
   Copy,
   Image as ImageIcon,
   Images,
   Pencil,
   Trash2,
+  UserRoundPlus,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatFollowUpDelay } from "@/convex/lib/orFollowUp";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { DmPreview } from "./dm-preview";
-import { PillToggle } from "./automation-editor-dialog";
+import { PillToggle, TRIGGER_LABELS } from "./automation-editor-dialog";
 import { cn } from "@/lib/utils";
 
 type AutomationView = FunctionReturnType<
@@ -129,24 +132,49 @@ function AutomationCard({
             {automation.name}
           </h3>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted">
+            <span className="text-foreground">
+              {TRIGGER_LABELS[automation.trigger]}
+            </span>
+            <span aria-hidden>·</span>
             <span>
               {automation.matchAnyWord ? "Bilo koja reč" : "Sve reči"}
             </span>
             <span aria-hidden>·</span>
-            <span>
-              {automation.wholeWordMatch ? "Cela reč" : "Deo reči"}
-            </span>
-            <span aria-hidden>·</span>
-            <span className="inline-flex items-center gap-1">
-              <PostIcon className="size-3" aria-hidden />
-              {automation.matchAnyPost ? (
-                "Sve objave"
-              ) : (
-                <span className="font-mono">
-                  Objava {automation.postId ?? "—"}
+            <span>{automation.wholeWordMatch ? "Cela reč" : "Deo reči"}</span>
+            {automation.trigger !== "dm" && (
+              <>
+                <span aria-hidden>·</span>
+                <span className="inline-flex items-center gap-1">
+                  <PostIcon className="size-3" aria-hidden />
+                  {automation.matchAnyPost ? (
+                    "Sve objave"
+                  ) : (
+                    <span className="font-mono">
+                      Objava {automation.postId ?? "—"}
+                    </span>
+                  )}
                 </span>
-              )}
-            </span>
+              </>
+            )}
+            {automation.requireFollow && (
+              <>
+                <span aria-hidden>·</span>
+                <span className="inline-flex items-center gap-1 text-accent-400">
+                  <UserRoundPlus className="size-3" aria-hidden />
+                  Traži praćenje
+                </span>
+              </>
+            )}
+            {automation.followUpEnabled && (
+              <>
+                <span aria-hidden>·</span>
+                <span className="inline-flex items-center gap-1 text-accent-400">
+                  <Clock className="size-3" aria-hidden />
+                  Naknadna poruka posle{" "}
+                  {formatFollowUpDelay(automation.followUpDelayMinutes)}
+                </span>
+              </>
+            )}
           </p>
         </div>
 
@@ -199,7 +227,10 @@ function AutomationCard({
           compact
           message={automation.dmMessage}
           linkUrl={automation.trackedLinkUrl ?? automation.linkUrl}
+          linkDestination={automation.linkUrl}
           linkLabel={automation.linkLabel}
+          buttons={automation.buttons}
+          quickReplies={automation.quickReplies}
           publicReply={
             automation.publicReplyEnabled ? automation.publicReplyMessage : null
           }

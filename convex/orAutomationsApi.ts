@@ -6,6 +6,19 @@ import type { Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
 import { normalizeKeyword } from "./lib/orMatch";
 import { shortLinkOrigin } from "./lib/orLink";
+import {
+  BUTTONS_MAX,
+  BUTTON_TITLE_MAX,
+  QUICK_REPLIES_MAX,
+  TEMPLATE_TEXT_MAX,
+  buildPostbackPayload,
+  parsePostbackPayload,
+} from "./lib/orButtons";
+import {
+  FOLLOW_UP_DELAY_DEFAULT_MINUTES,
+  FOLLOW_UP_DELAY_MAX_MINUTES,
+  FOLLOW_UP_DELAY_MIN_MINUTES,
+} from "./lib/orFollowUp";
 
 /**
  * Public API for the OpenReply automations screen (PLAN.md §4 / Step 5).
@@ -33,17 +46,49 @@ const POST_ID_MAX = 60;
 const DM_LOG_LIMIT_DEFAULT = 100;
 const DM_LOG_LIMIT_MAX = 200;
 
+const automationTriggerValidator = v.union(
+  v.literal("comment"),
+  v.literal("dm"),
+  v.literal("both"),
+);
+
 const dmLogStatusValidator = v.union(
   v.literal("pending"),
   v.literal("sent"),
   v.literal("failed"),
   v.literal("skipped_no_match"),
   v.literal("skipped_window"),
+  v.literal("awaiting_follow"),
 );
+
+const dmLogSourceValidator = v.union(
+  v.literal("comment"),
+  v.literal("dm"),
+  v.literal("postback"),
+);
+
+const dmLogKindValidator = v.union(v.literal("primary"), v.literal("followup"));
+
+const buttonInputValidator = v.object({
+  label: v.string(),
+  type: v.union(v.literal("url"), v.literal("postback")),
+  url: v.optional(v.string()),
+  payload: v.optional(v.string()),
+  replyMessage: v.optional(v.string()),
+});
+
+const quickReplyInputValidator = v.object({
+  label: v.string(),
+  payload: v.optional(v.string()),
+  replyMessage: v.optional(v.string()),
+});
 
 /** Everything the editor dialog sends, for both create and update. */
 const automationInputValidator = v.object({
   name: v.string(),
+  // Optional on the wire so an older client keeps working; undefined is the
+  // documented default, "comment".
+  trigger: v.optional(automationTriggerValidator),
   keywords: v.array(v.string()),
   matchAnyWord: v.boolean(),
   wholeWordMatch: v.boolean(),
@@ -54,11 +99,39 @@ const automationInputValidator = v.object({
   linkLabel: v.optional(v.string()),
   publicReplyEnabled: v.boolean(),
   publicReplyMessage: v.optional(v.string()),
+  // Optional on the wire: an older client sends neither and keeps working.
+  buttons: v.optional(v.array(buttonInputValidator)),
+  quickReplies: v.optional(v.array(quickReplyInputValidator)),
+  // The follow gate. Both texts are optional even with the gate on — the send
+  // path falls back to the defaults in lib/orFollow.ts.
+  requireFollow: v.optional(v.boolean()),
+  followPromptMessage: v.optional(v.string()),
+  followPromptButtonLabel: v.optional(v.string()),
+  // The delayed second message. The delay is optional even with the follow-up
+  // on — undefined means the default hour.
+  followUpEnabled: v.optional(v.boolean()),
+  followUpMessage: v.optional(v.string()),
+  followUpDelayMinutes: v.optional(v.number()),
   isActive: v.boolean(),
 });
 
+type AutomationButton = {
+  label: string;
+  type: "url" | "postback";
+  url?: string;
+  payload?: string;
+  replyMessage?: string;
+};
+
+type AutomationQuickReply = {
+  label: string;
+  payload?: string;
+  replyMessage?: string;
+};
+
 type AutomationInput = {
   name: string;
+  trigger?: "comment" | "dm" | "both";
   keywords: string[];
   matchAnyWord: boolean;
   wholeWordMatch: boolean;
@@ -69,6 +142,14 @@ type AutomationInput = {
   linkLabel?: string;
   publicReplyEnabled: boolean;
   publicReplyMessage?: string;
+  buttons?: AutomationButton[];
+  quickReplies?: AutomationQuickReply[];
+  requireFollow?: boolean;
+  followPromptMessage?: string;
+  followPromptButtonLabel?: string;
+  followUpEnabled?: boolean;
+  followUpMessage?: string;
+  followUpDelayMinutes?: number;
   isActive: boolean;
 };
 
@@ -87,6 +168,121 @@ function optionalText(
     invalid(`${label} može imati najviše ${max} karaktera.`);
   }
   return trimmed;
+}
+
+/** Instagram only opens a full http(s) address, on a link or on a button. */
+function requireHttpUrl(value: string, label: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    invalid(`${label} mora biti puna adresa, npr. https://enigmait.rs/ponuda.`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    invalid(`${label} mora počinjati sa http:// ili https://.`);
+  }
+}
+
+/**
+ * Trim and validate the tappable part of the message. A message carries either
+ * buttons or quick replies, never both — they are two renderings of the same
+ * choice, and sending a template with chips attached is asking Instagram to
+ * reject the whole message.
+ *
+ * Payloads are NOT minted here: the automation id they have to name only exists
+ * after the insert, so `mintButtonPayloads` fills them in right afterwards.
+ */
+function normalizeTapTargets(input: AutomationInput): {
+  buttons: AutomationButton[];
+  quickReplies: AutomationQuickReply[];
+} {
+  const buttons: AutomationButton[] = [];
+  for (const raw of input.buttons ?? []) {
+    const label = raw.label.trim();
+    if (label.length === 0) continue;
+    if (label.length > BUTTON_TITLE_MAX) {
+      invalid(
+        `Natpis na dugmetu može imati najviše ${BUTTON_TITLE_MAX} karaktera.`,
+      );
+    }
+
+    if (raw.type === "url") {
+      const url = optionalText(raw.url, LINK_URL_MAX, "Link na dugmetu");
+      if (url === undefined) {
+        invalid(`Unesi link za dugme „${label}”.`);
+      }
+      requireHttpUrl(url, "Link na dugmetu");
+      buttons.push({ label, type: "url", url });
+      continue;
+    }
+
+    const replyMessage = optionalText(
+      raw.replyMessage,
+      DM_MESSAGE_MAX,
+      "Odgovor na dugme",
+    );
+    if (replyMessage === undefined) {
+      invalid(`Unesi poruku koja se šalje kada neko klikne na „${label}”.`);
+    }
+    buttons.push({
+      label,
+      type: "postback",
+      payload: raw.payload,
+      replyMessage,
+    });
+  }
+  if (buttons.length > BUTTONS_MAX) {
+    invalid(`Poruka može imati najviše ${BUTTONS_MAX} dugmadi.`);
+  }
+
+  const quickReplies: AutomationQuickReply[] = [];
+  for (const raw of input.quickReplies ?? []) {
+    const label = raw.label.trim();
+    if (label.length === 0) continue;
+    if (label.length > BUTTON_TITLE_MAX) {
+      invalid(
+        `Natpis brzog odgovora može imati najviše ${BUTTON_TITLE_MAX} karaktera.`,
+      );
+    }
+
+    const replyMessage = optionalText(
+      raw.replyMessage,
+      DM_MESSAGE_MAX,
+      "Odgovor na brzi odgovor",
+    );
+    if (replyMessage === undefined) {
+      invalid(`Unesi poruku koja se šalje kada neko izabere „${label}”.`);
+    }
+    quickReplies.push({ label, payload: raw.payload, replyMessage });
+  }
+  if (quickReplies.length > QUICK_REPLIES_MAX) {
+    invalid(`Poruka može imati najviše ${QUICK_REPLIES_MAX} brzih odgovora.`);
+  }
+
+  if (buttons.length > 0 && quickReplies.length > 0) {
+    invalid("Poruka može imati ili dugmad ili brze odgovore, ne oboje.");
+  }
+
+  return { buttons, quickReplies };
+}
+
+/**
+ * How long after the first message the follow-up goes out. Capped at 23h
+ * rather than 24 because Instagram's window runs from the person's LAST
+ * message, which is already older than the DM we are answering with.
+ */
+function normalizeFollowUpDelay(raw: number | undefined): number {
+  const minutes = Math.round(raw ?? FOLLOW_UP_DELAY_DEFAULT_MINUTES);
+  if (
+    !Number.isFinite(minutes) ||
+    minutes < FOLLOW_UP_DELAY_MIN_MINUTES ||
+    minutes > FOLLOW_UP_DELAY_MAX_MINUTES
+  ) {
+    invalid(
+      `Kašnjenje naknadne poruke mora biti između ${FOLLOW_UP_DELAY_MIN_MINUTES} i ${FOLLOW_UP_DELAY_MAX_MINUTES} minuta (23 sata).`,
+    );
+  }
+  return minutes;
 }
 
 /**
@@ -129,35 +325,52 @@ function normalizeAutomationInput(input: AutomationInput): AutomationInput {
     invalid(`Poruka može imati najviše ${DM_MESSAGE_MAX} karaktera.`);
   }
 
+  // The button template's own text field is shorter than a plain DM.
+  const { buttons, quickReplies } = normalizeTapTargets(input);
+  if (buttons.length > 0 && dmMessage.length > TEMPLATE_TEXT_MAX) {
+    invalid(
+      `Kada poruka ima dugmad, tekst može imati najviše ${TEMPLATE_TEXT_MAX} karaktera.`,
+    );
+  }
+
+  const trigger = input.trigger ?? "comment";
+
   const postId = optionalText(input.postId, POST_ID_MAX, "ID objave");
-  if (!input.matchAnyPost && postId === undefined) {
+  // Post scope and the public reply only exist on the comment path — a DM has
+  // no post and no comment behind it.
+  if (trigger !== "dm" && !input.matchAnyPost && postId === undefined) {
     invalid("Unesi ID objave ili uključi opciju „Sve objave”.");
   }
 
   const linkUrl = optionalText(input.linkUrl, LINK_URL_MAX, "Link");
   if (linkUrl !== undefined) {
-    let parsed: URL;
-    try {
-      parsed = new URL(linkUrl);
-    } catch {
-      invalid("Link mora biti puna adresa, npr. https://enigmait.rs/ponuda.");
-    }
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      invalid("Link mora počinjati sa http:// ili https://.");
-    }
+    requireHttpUrl(linkUrl, "Link");
   }
 
+  const followUpEnabled = input.followUpEnabled ?? false;
+  const followUpMessage = optionalText(
+    input.followUpMessage,
+    DM_MESSAGE_MAX,
+    "Naknadna poruka",
+  );
+  if (followUpEnabled && followUpMessage === undefined) {
+    invalid("Unesi tekst naknadne poruke ili isključi naknadnu poruku.");
+  }
+
+  const publicReplyEnabled =
+    trigger === "dm" ? false : input.publicReplyEnabled;
   const publicReplyMessage = optionalText(
     input.publicReplyMessage,
     PUBLIC_REPLY_MAX,
     "Javni odgovor",
   );
-  if (input.publicReplyEnabled && publicReplyMessage === undefined) {
+  if (publicReplyEnabled && publicReplyMessage === undefined) {
     invalid("Unesi tekst javnog odgovora ili isključi javni odgovor.");
   }
 
   return {
     name,
+    trigger,
     keywords,
     matchAnyWord: input.matchAnyWord,
     wholeWordMatch: input.wholeWordMatch,
@@ -166,9 +379,30 @@ function normalizeAutomationInput(input: AutomationInput): AutomationInput {
     dmMessage,
     linkUrl,
     linkLabel: optionalText(input.linkLabel, LINK_LABEL_MAX, "Naziv linka"),
-    publicReplyEnabled: input.publicReplyEnabled,
-    publicReplyMessage: input.publicReplyEnabled
-      ? publicReplyMessage
+    publicReplyEnabled,
+    publicReplyMessage: publicReplyEnabled ? publicReplyMessage : undefined,
+    buttons,
+    quickReplies,
+    // The gate's prompt always ships with a button, so its text lives under the
+    // button template's shorter limit, not the plain-DM one. Empty is allowed
+    // and means "use the default" — the toggle alone is a working gate.
+    requireFollow: input.requireFollow ?? false,
+    followPromptMessage: optionalText(
+      input.followPromptMessage,
+      TEMPLATE_TEXT_MAX,
+      "Poruka za praćenje",
+    ),
+    followPromptButtonLabel: optionalText(
+      input.followPromptButtonLabel,
+      BUTTON_TITLE_MAX,
+      "Natpis na dugmetu za praćenje",
+    ),
+    // The follow-up is sent as plain text — no buttons ride along — so it gets
+    // the full DM limit, and it is nothing without a text to send.
+    followUpEnabled,
+    followUpMessage: followUpEnabled ? followUpMessage : undefined,
+    followUpDelayMinutes: followUpEnabled
+      ? normalizeFollowUpDelay(input.followUpDelayMinutes)
       : undefined,
     isActive: input.isActive,
   };
@@ -179,6 +413,7 @@ function normalizeAutomationInput(input: AutomationInput): AutomationInput {
 const automationViewValidator = v.object({
   _id: v.id("orAutomations"),
   name: v.string(),
+  trigger: automationTriggerValidator,
   keywords: v.array(v.string()),
   matchAnyWord: v.boolean(),
   wholeWordMatch: v.boolean(),
@@ -189,6 +424,33 @@ const automationViewValidator = v.object({
   linkLabel: v.union(v.string(), v.null()),
   publicReplyEnabled: v.boolean(),
   publicReplyMessage: v.union(v.string(), v.null()),
+  // `payload` rides back out to the editor and in again on save: it is the
+  // identity of a button already delivered in a DM, and re-minting it would
+  // silently break every one of those.
+  buttons: v.array(
+    v.object({
+      label: v.string(),
+      type: v.union(v.literal("url"), v.literal("postback")),
+      url: v.union(v.string(), v.null()),
+      payload: v.union(v.string(), v.null()),
+      replyMessage: v.union(v.string(), v.null()),
+    }),
+  ),
+  quickReplies: v.array(
+    v.object({
+      label: v.string(),
+      payload: v.union(v.string(), v.null()),
+      replyMessage: v.union(v.string(), v.null()),
+    }),
+  ),
+  requireFollow: v.boolean(),
+  followPromptMessage: v.union(v.string(), v.null()),
+  followPromptButtonLabel: v.union(v.string(), v.null()),
+  followUpEnabled: v.boolean(),
+  followUpMessage: v.union(v.string(), v.null()),
+  // Always a number, so the editor and the card have something to show even
+  // for an automation saved before follow-ups existed.
+  followUpDelayMinutes: v.number(),
   isActive: v.boolean(),
   createdAt: v.number(),
   updatedAt: v.number(),
@@ -243,6 +505,7 @@ export const listAutomations = query({
         return {
           _id: a._id,
           name: a.name,
+          trigger: a.trigger ?? "comment",
           keywords: a.keywords,
           matchAnyWord: a.matchAnyWord,
           wholeWordMatch: a.wholeWordMatch,
@@ -253,6 +516,25 @@ export const listAutomations = query({
           linkLabel: a.linkLabel ?? null,
           publicReplyEnabled: a.publicReplyEnabled,
           publicReplyMessage: a.publicReplyMessage ?? null,
+          buttons: (a.buttons ?? []).map((b) => ({
+            label: b.label,
+            type: b.type,
+            url: b.url ?? null,
+            payload: b.payload ?? null,
+            replyMessage: b.replyMessage ?? null,
+          })),
+          quickReplies: (a.quickReplies ?? []).map((q) => ({
+            label: q.label,
+            payload: q.payload ?? null,
+            replyMessage: q.replyMessage ?? null,
+          })),
+          requireFollow: a.requireFollow ?? false,
+          followPromptMessage: a.followPromptMessage ?? null,
+          followPromptButtonLabel: a.followPromptButtonLabel ?? null,
+          followUpEnabled: a.followUpEnabled ?? false,
+          followUpMessage: a.followUpMessage ?? null,
+          followUpDelayMinutes:
+            a.followUpDelayMinutes ?? FOLLOW_UP_DELAY_DEFAULT_MINUTES,
           isActive: a.isActive,
           createdAt: a.createdAt,
           updatedAt: a.updatedAt,
@@ -271,6 +553,8 @@ export const listAutomations = query({
 
 const dmLogViewValidator = v.object({
   _id: v.id("orDmLogs"),
+  source: dmLogSourceValidator,
+  kind: dmLogKindValidator,
   automationId: v.union(v.id("orAutomations"), v.null()),
   automationName: v.union(v.string(), v.null()),
   commentId: v.string(),
@@ -317,9 +601,10 @@ export const listDmLogs = query({
       const byAutomation = ctx.db
         .query("orDmLogs")
         .withIndex("by_automation", (q) => q.eq("automationId", automationId));
-      logs = await (status === undefined
-        ? byAutomation
-        : byAutomation.filter((q) => q.eq(q.field("status"), status))
+      logs = await (
+        status === undefined
+          ? byAutomation
+          : byAutomation.filter((q) => q.eq(q.field("status"), status))
       )
         .order("desc")
         .take(limit);
@@ -356,9 +641,13 @@ export const listDmLogs = query({
 
     return logs.map((l) => ({
       _id: l._id,
+      source: l.source ?? "comment",
+      kind: l.kind ?? "primary",
       automationId: l.automationId ?? null,
       automationName:
-        l.automationId !== undefined ? (names.get(l.automationId) ?? null) : null,
+        l.automationId !== undefined
+          ? (names.get(l.automationId) ?? null)
+          : null,
       commentId: l.commentId,
       mediaId: l.mediaId ?? null,
       commenterId: l.commenterId,
@@ -378,12 +667,61 @@ export const listDmLogs = query({
 
 // ── Mutations ────────────────────────────────────────────────────────────────
 
-/** Mint / repoint the short link, then refresh the rolled-up campaign row. */
+/**
+ * Give every postback button a payload that names its automation, so a tap can
+ * be resolved with a single `db.get`. Runs after the write because the id does
+ * not exist before the insert.
+ *
+ * A payload that already points at this automation is left alone: it is sitting
+ * in DMs that were delivered days ago, and those buttons have to keep working
+ * after the operator renames or reorders them.
+ */
+async function mintButtonPayloads(
+  ctx: MutationCtx,
+  automationId: Id<"orAutomations">,
+): Promise<void> {
+  const automation = await ctx.db.get(automationId);
+  if (automation === null) {
+    return;
+  }
+
+  let minted = false;
+  const keep = (payload: string | undefined): string => {
+    if (
+      payload !== undefined &&
+      parsePostbackPayload(payload)?.automationId === automationId
+    ) {
+      return payload;
+    }
+    minted = true;
+    return buildPostbackPayload(automationId);
+  };
+
+  const buttons = (automation.buttons ?? []).map((button) =>
+    button.type === "postback"
+      ? { ...button, payload: keep(button.payload) }
+      : button,
+  );
+  const quickReplies = (automation.quickReplies ?? []).map((quickReply) => ({
+    ...quickReply,
+    payload: keep(quickReply.payload),
+  }));
+
+  if (minted) {
+    await ctx.db.patch(automationId, { buttons, quickReplies });
+  }
+}
+
+/**
+ * Mint the button payloads and the short link, then refresh the rolled-up
+ * campaign row.
+ */
 async function syncDerived(
   ctx: MutationCtx,
   workspaceId: Id<"workspaces">,
   automationId: Id<"orAutomations">,
 ): Promise<void> {
+  await mintButtonPayloads(ctx, automationId);
   await ctx.runMutation(internal.orLinks.ensureTrackedLink, {
     workspaceId,
     automationId,
