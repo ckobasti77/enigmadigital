@@ -194,6 +194,12 @@ async function exchangeCodeAndConnect(
 
     const shortLivedData = (await tokenRes.json()) as RawOAuthTokenResponse;
     const shortLivedToken = shortLivedData.access_token;
+    console.log(
+      "IG OAuth odobrene permisije:",
+      Array.isArray(shortLivedData.permissions)
+        ? shortLivedData.permissions.join(",")
+        : "(nema polja permissions)",
+    );
     if (!shortLivedToken) {
       throw new ConvexError({
         code: "invalid",
