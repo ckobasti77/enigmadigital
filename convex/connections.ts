@@ -344,6 +344,11 @@ export const syncNow = action({
       return;
     }
 
+    if (authorized.provider === "youtube") {
+      await ctx.runAction(internal.youtube.syncYouTube, { connectionId });
+      return;
+    }
+
     await runSync(
       ctx,
       {

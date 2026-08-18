@@ -42,6 +42,8 @@ crons.interval(
   internal.googleAds.syncAllGoogleAds,
   {},
 );
+// YouTube restates recent analytics for a few days, so match GA4's cadence.
+crons.interval("sync youtube", { hours: 6 }, internal.youtube.syncAllYouTube, {});
 crons.interval(
   "evaluate ad rules",
   { minutes: 30 },

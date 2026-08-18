@@ -28,6 +28,7 @@ import type * as lib_instagramApi from "../lib/instagramApi.js";
 import type * as lib_metaAdsApi from "../lib/metaAdsApi.js";
 import type * as lib_orButtons from "../lib/orButtons.js";
 import type * as lib_orFollow from "../lib/orFollow.js";
+import type * as lib_orFollowUp from "../lib/orFollowUp.js";
 import type * as lib_orLink from "../lib/orLink.js";
 import type * as lib_orMatch from "../lib/orMatch.js";
 import type * as lib_orMessage from "../lib/orMessage.js";
@@ -35,6 +36,7 @@ import type * as lib_orProfile from "../lib/orProfile.js";
 import type * as lib_providers from "../lib/providers.js";
 import type * as lib_runSync from "../lib/runSync.js";
 import type * as lib_slug from "../lib/slug.js";
+import type * as lib_youtubeApi from "../lib/youtubeApi.js";
 import type * as metaAds from "../metaAds.js";
 import type * as metaAdsStore from "../metaAdsStore.js";
 import type * as openreplyStore from "../openreplyStore.js";
@@ -49,6 +51,8 @@ import type * as rules from "../rules.js";
 import type * as rulesStore from "../rulesStore.js";
 import type * as sync from "../sync.js";
 import type * as workspaces from "../workspaces.js";
+import type * as youtube from "../youtube.js";
+import type * as youtubeStore from "../youtubeStore.js";
 
 import type {
   ApiFromModules,
@@ -77,6 +81,7 @@ declare const fullApi: ApiFromModules<{
   "lib/metaAdsApi": typeof lib_metaAdsApi;
   "lib/orButtons": typeof lib_orButtons;
   "lib/orFollow": typeof lib_orFollow;
+  "lib/orFollowUp": typeof lib_orFollowUp;
   "lib/orLink": typeof lib_orLink;
   "lib/orMatch": typeof lib_orMatch;
   "lib/orMessage": typeof lib_orMessage;
@@ -84,6 +89,7 @@ declare const fullApi: ApiFromModules<{
   "lib/providers": typeof lib_providers;
   "lib/runSync": typeof lib_runSync;
   "lib/slug": typeof lib_slug;
+  "lib/youtubeApi": typeof lib_youtubeApi;
   metaAds: typeof metaAds;
   metaAdsStore: typeof metaAdsStore;
   openreplyStore: typeof openreplyStore;
@@ -98,6 +104,8 @@ declare const fullApi: ApiFromModules<{
   rulesStore: typeof rulesStore;
   sync: typeof sync;
   workspaces: typeof workspaces;
+  youtube: typeof youtube;
+  youtubeStore: typeof youtubeStore;
 }>;
 
 /**

@@ -642,4 +642,53 @@ export default defineSchema({
     .index("by_workspace_keyword", ["workspaceId", "keywordId"])
     .index("by_workspace_date", ["workspaceId", "date"])
     .index("by_upsert_key", ["workspaceId", "keywordId", "date"]),
+
+  // ── YouTube (Y2) ────────────────────────────────────────────────────────────
+  // Channel-wide daily roll-up from the YouTube Analytics API.
+  ytDailyTotals: defineTable({
+    workspaceId: v.id("workspaces"),
+    date: v.string(), // "YYYY-MM-DD"
+    views: v.number(),
+    estimatedMinutesWatched: v.number(),
+    averageViewDuration: v.number(), // seconds
+    averageViewPercentage: v.number(), // 0-100
+    subscribersGained: v.number(),
+    subscribersLost: v.number(),
+    likes: v.number(),
+    comments: v.number(),
+    shares: v.number(),
+    syncedAt: v.number(),
+  }).index("by_workspace_date", ["workspaceId", "date"]), // natural upsert key
+
+  // One row per video: Data API metadata + Analytics API watch-time overlay.
+  ytVideoStats: defineTable({
+    workspaceId: v.id("workspaces"),
+    videoId: v.string(),
+    title: v.string(),
+    publishedAt: v.number(),
+    thumbnailUrl: v.optional(v.string()),
+    duration: v.optional(v.string()), // ISO 8601 from the Data API, e.g. "PT4M13S"
+    views: v.number(),
+    likes: v.number(),
+    comments: v.number(),
+    // Absent when the video falls outside the Analytics top-100 window.
+    estimatedMinutesWatched: v.optional(v.number()),
+    averageViewPercentage: v.optional(v.number()),
+    syncedAt: v.number(),
+  })
+    .index("by_workspace_video", ["workspaceId", "videoId"]) // upsert by videoId
+    .index("by_workspace_published", ["workspaceId", "publishedAt"]),
+
+  // Where the views came from, per day (insightTrafficSourceType).
+  ytTrafficSources: defineTable({
+    workspaceId: v.id("workspaces"),
+    date: v.string(),
+    sourceType: v.string(), // e.g. "YT_SEARCH", "SUGGESTED_VIDEO"
+    views: v.number(),
+    estimatedMinutesWatched: v.number(),
+    syncedAt: v.number(),
+  })
+    // Upsert key is [workspaceId, date, sourceType]; the index prefix also
+    // serves the date-range read, with sourceType matched in the mutation.
+    .index("by_workspace_date", ["workspaceId", "date"]),
 });
