@@ -103,6 +103,35 @@ function validateCredentials(
       }
       return customerId;
     }
+    case "youtube": {
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(secret);
+      } catch {
+        invalid("YouTube kredencijali moraju biti validan JSON format.");
+      }
+      const clientId = String(
+        parsed.clientId || parsed.client_id || "",
+      ).trim();
+      const clientSecret = String(
+        parsed.clientSecret || parsed.client_secret || "",
+      ).trim();
+      const refreshToken = String(
+        parsed.refreshToken || parsed.refresh_token || "",
+      ).trim();
+      const channelId = String(
+        parsed.channelId || parsed.channel_id || externalId || "",
+      ).trim();
+
+      if (!clientId || !clientSecret)
+        invalid("Nedostaju OAuth Client ID ili Client Secret.");
+      if (!refreshToken) invalid("Nedostaje OAuth Refresh Token.");
+      // Canonical YouTube channel ID: "UC" + 22 url-safe base64 chars.
+      if (!/^UC[A-Za-z0-9_-]{22}$/.test(channelId)) {
+        invalid("Channel ID mora biti u obliku UC… (24 znaka).");
+      }
+      return channelId;
+    }
     default:
       return externalId?.trim() || undefined;
   }

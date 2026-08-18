@@ -15,6 +15,7 @@ import {
   MessageCircleReply,
   Camera,
   Megaphone,
+  SquarePlay,
   RefreshCw,
   LoaderCircle,
   Lock,
@@ -1183,6 +1184,217 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
   );
 }
 
+// ── YouTube (OAuth, read-only) ─────────────────────────────────
+
+function YouTubeCard({ connection }: { connection?: ConnectionView }) {
+  const save = useMutation(api.connections.save);
+  const remove = useMutation(api.connections.remove);
+  const [editing, setEditing] = useState(false);
+  const [channelId, setChannelId] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [refreshToken, setRefreshToken] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isConnected = connection !== undefined;
+
+  function startEdit() {
+    setChannelId(connection?.externalId ?? "");
+    setClientId("");
+    setClientSecret("");
+    setRefreshToken("");
+    setError(null);
+    setEditing(true);
+  }
+
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const trimmedChannelId = channelId.trim();
+      const payload = {
+        clientId: clientId.trim(),
+        clientSecret: clientSecret.trim(),
+        refreshToken: refreshToken.trim(),
+        channelId: trimmedChannelId,
+      };
+
+      await save({
+        provider: "youtube",
+        externalId: trimmedChannelId || undefined,
+        secret: JSON.stringify(payload),
+      });
+
+      setClientId("");
+      setClientSecret("");
+      setRefreshToken("");
+      setEditing(false);
+    } catch (err) {
+      setError(convexMessage(err, "Čuvanje YouTube kredencijala nije uspelo."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!connection) return;
+    setDisconnecting(true);
+    setError(null);
+    try {
+      await remove({ connectionId: connection._id });
+    } catch (err) {
+      setError(convexMessage(err, "Prekidanje veze nije uspelo."));
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
+  return (
+    <CardShell
+      icon={SquarePlay}
+      title="YouTube"
+      subtitle="YouTube Data API · OAuth (samo čitanje)"
+      status={connectionPill(connection?.status)}
+    >
+      {isConnected && !editing ? (
+        <div className="mt-5 flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            <Lock className="size-3.5 text-success" />
+            <span>
+              Kredencijali sačuvani
+              {connection?.externalId ? ` · kanal ${connection.externalId}` : ""}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={startEdit}>
+              Izmeni
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              className="text-danger hover:text-danger"
+            >
+              {disconnecting ? (
+                <LoaderCircle className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+              Prekini vezu
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleSave} className="mt-5 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="yt-channel-id" className="text-text-muted">
+              Channel ID
+            </Label>
+            <Input
+              id="yt-channel-id"
+              placeholder="npr. UCabcdefghijklmnopqrstuv"
+              value={channelId}
+              onChange={(event) => setChannelId(event.target.value)}
+              disabled={saving}
+              className="font-mono text-xs"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="yt-client-id" className="text-text-muted">
+                OAuth Client ID
+              </Label>
+              <Input
+                id="yt-client-id"
+                placeholder="xxxx.apps.googleusercontent.com"
+                value={clientId}
+                onChange={(event) => setClientId(event.target.value)}
+                disabled={saving}
+                className="font-mono text-xs"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="yt-client-secret" className="text-text-muted">
+                OAuth Client Secret
+              </Label>
+              <Input
+                id="yt-client-secret"
+                type="password"
+                placeholder="GOCSPX-…"
+                value={clientSecret}
+                onChange={(event) => setClientSecret(event.target.value)}
+                disabled={saving}
+                className="font-mono text-xs"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="yt-refresh-token" className="text-text-muted">
+              OAuth Refresh Token
+            </Label>
+            <Input
+              id="yt-refresh-token"
+              type="password"
+              placeholder="1//04…"
+              value={refreshToken}
+              onChange={(event) => setRefreshToken(event.target.value)}
+              disabled={saving}
+              className="font-mono text-xs"
+              required
+            />
+          </div>
+
+          {error && <p className="text-sm text-danger">{error}</p>}
+          <div className="flex items-center gap-3">
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? (
+                <>
+                  <LoaderCircle className="animate-spin" />
+                  Čuvam…
+                </>
+              ) : (
+                <>
+                  <Check />
+                  Sačuvaj
+                </>
+              )}
+            </Button>
+            {isConnected && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setEditing(false);
+                  setError(null);
+                }}
+              >
+                Otkaži
+              </Button>
+            )}
+          </div>
+        </form>
+      )}
+      {/* No SyncFooter yet — Y1 only stores credentials; the sync lands later. */}
+      <div className="mt-5 border-t pt-4">
+        <p className="text-xs text-text-muted">
+          Nalog se za sada samo povezuje. Preuzimanje podataka o kanalu stiže
+          u sledećem koraku.
+        </p>
+      </div>
+    </CardShell>
+  );
+}
+
 // ── page body ────────────────────────────────────────────────────────────────
 
 export function ConnectionsSettings() {
@@ -1216,6 +1428,9 @@ export function ConnectionsSettings() {
         <GoogleAdsCard connection={byProvider.get("google_ads")} />
       </Reveal>
       <Reveal delay={0.25}>
+        <YouTubeCard connection={byProvider.get("youtube")} />
+      </Reveal>
+      <Reveal delay={0.3}>
         <SyncHealth entries={health} />
       </Reveal>
     </div>

@@ -8,6 +8,7 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   meta_ig: "Instagram",
   meta_ads: "Meta Ads",
   google_ads: "Google Ads",
+  youtube: "YouTube",
   openreply: "OpenReply",
 };
 

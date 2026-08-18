@@ -10,6 +10,7 @@ export const providerValidator = v.union(
   v.literal("meta_ig"),
   v.literal("meta_ads"),
   v.literal("google_ads"),
+  v.literal("youtube"),
   v.literal("openreply"),
 );
 
@@ -18,6 +19,7 @@ export type Provider =
   | "meta_ig"
   | "meta_ads"
   | "google_ads"
+  | "youtube"
   | "openreply";
 
 /** V1 providers that have a Settings entry point in M2. */
@@ -26,5 +28,6 @@ export const ALL_PROVIDERS: Provider[] = [
   "meta_ig",
   "meta_ads",
   "google_ads",
+  "youtube",
   "openreply",
 ];
