@@ -44,6 +44,15 @@ crons.interval(
 );
 // YouTube restates recent analytics for a few days, so match GA4's cadence.
 crons.interval("sync youtube", { hours: 6 }, internal.youtube.syncAllYouTube, {});
+// YouTube has no webhook for comments — push notifications only fire for a new
+// video — so the comment engine has to ask. A page of comments costs 1 quota
+// unit, which at this cadence is ~100 units a day against a 10 000 budget.
+crons.interval(
+  "poll youtube comments",
+  { minutes: 15 },
+  internal.ytPoll.pollAllYouTubeComments,
+  {},
+);
 crons.interval(
   "evaluate ad rules",
   { minutes: 30 },

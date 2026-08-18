@@ -97,6 +97,101 @@ export function youtubeApiErrorReason(body: string): string | null {
   }
 }
 
+/**
+ * Read the credential blob stored on the connection. Accepts both camelCase
+ * and snake_case keys, because the value is pasted in by hand in Settings.
+ * Never echoes any part of the secret into the error messages.
+ */
+export function parseYouTubeCredentials(secretJson: string): YouTubeCredentials {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(secretJson);
+  } catch {
+    throw new Error("YouTube kredencijali nisu validan JSON format.");
+  }
+  if (typeof parsed !== "object" || parsed === null) {
+    throw new Error("YouTube kredencijali moraju biti JSON objekat.");
+  }
+
+  const p = parsed as Record<string, unknown>;
+  const clientId = String(p.clientId || p.client_id || "").trim();
+  const clientSecret = String(p.clientSecret || p.client_secret || "").trim();
+  const refreshToken = String(p.refreshToken || p.refresh_token || "").trim();
+
+  if (!clientId || !clientSecret) {
+    throw new Error("Nedostaju OAuth Client ID ili Client Secret.");
+  }
+  if (!refreshToken) throw new Error("Nedostaje OAuth Refresh Token.");
+
+  return { clientId, clientSecret, refreshToken };
+}
+
+// ── Data API: comments (Y4) ────────────────────────────────────────
+
+/**
+ * Longest comment YouTube accepts. Anything past this is rejected outright, so
+ * the reply engine clamps rather than lets the call fail.
+ */
+export const COMMENT_TEXT_MAX = 10_000;
+
+/**
+ * Every comment thread on the channel, newest first — 1 unit per page.
+ *
+ * `allThreadsRelatedToChannelId` covers comments on every video plus comments
+ * left on the channel itself; `videoId` would need one call per video. Only
+ * top-level comments come back, which is exactly the set an automation may
+ * answer: our own replies are not top-level and never reappear here.
+ *
+ * NEVER reach for search.list to find comments — 100 units per call.
+ */
+export function buildCommentThreadsUrl(params: {
+  channelId: string;
+  maxResults: number;
+  pageToken?: string;
+}): string {
+  const url = new URL(`${YOUTUBE_DATA_API_BASE_URL}/commentThreads`);
+  url.searchParams.set("part", "snippet");
+  url.searchParams.set("allThreadsRelatedToChannelId", params.channelId);
+  url.searchParams.set("order", "time");
+  url.searchParams.set("maxResults", String(params.maxResults));
+  // Default anyway, but stated: an automation answers what viewers can see.
+  url.searchParams.set("moderationStatus", "published");
+  if (params.pageToken) url.searchParams.set("pageToken", params.pageToken);
+  return url.toString();
+}
+
+/**
+ * Post a reply to a comment — 50 units. The body carries
+ * `snippet.parentId` (the top-level comment) and `snippet.textOriginal`.
+ *
+ * Needs the `youtube.force-ssl` OAuth scope; a read-only refresh token gets a
+ * 403 here even though the analytics sync works fine with it.
+ */
+export function buildCommentsInsertUrl(): string {
+  const url = new URL(`${YOUTUBE_DATA_API_BASE_URL}/comments`);
+  url.searchParams.set("part", "snippet");
+  return url.toString();
+}
+
+/**
+ * Hold, reject or publish a comment — 50 units. `banAuthor` is YouTube's
+ * "mark as spam / block this person" flag and is only accepted alongside
+ * `moderationStatus=rejected`, so callers must not set it otherwise.
+ */
+export function buildSetModerationStatusUrl(params: {
+  commentId: string;
+  moderationStatus: "heldForReview" | "rejected" | "published";
+  banAuthor?: boolean;
+}): string {
+  const url = new URL(`${YOUTUBE_DATA_API_BASE_URL}/comments/setModerationStatus`);
+  url.searchParams.set("id", params.commentId);
+  url.searchParams.set("moderationStatus", params.moderationStatus);
+  if (params.banAuthor === true && params.moderationStatus === "rejected") {
+    url.searchParams.set("banAuthor", "true");
+  }
+  return url.toString();
+}
+
 // ── OAuth ────────────────────────────────────────────────────────────────────
 
 /**

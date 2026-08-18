@@ -37,6 +37,7 @@ import type * as lib_providers from "../lib/providers.js";
 import type * as lib_runSync from "../lib/runSync.js";
 import type * as lib_slug from "../lib/slug.js";
 import type * as lib_youtubeApi from "../lib/youtubeApi.js";
+import type * as lib_ytQuota from "../lib/ytQuota.js";
 import type * as metaAds from "../metaAds.js";
 import type * as metaAdsStore from "../metaAdsStore.js";
 import type * as openreplyStore from "../openreplyStore.js";
@@ -53,6 +54,9 @@ import type * as sync from "../sync.js";
 import type * as workspaces from "../workspaces.js";
 import type * as youtube from "../youtube.js";
 import type * as youtubeStore from "../youtubeStore.js";
+import type * as ytIngest from "../ytIngest.js";
+import type * as ytPoll from "../ytPoll.js";
+import type * as ytReply from "../ytReply.js";
 
 import type {
   ApiFromModules,
@@ -90,6 +94,7 @@ declare const fullApi: ApiFromModules<{
   "lib/runSync": typeof lib_runSync;
   "lib/slug": typeof lib_slug;
   "lib/youtubeApi": typeof lib_youtubeApi;
+  "lib/ytQuota": typeof lib_ytQuota;
   metaAds: typeof metaAds;
   metaAdsStore: typeof metaAdsStore;
   openreplyStore: typeof openreplyStore;
@@ -106,6 +111,9 @@ declare const fullApi: ApiFromModules<{
   workspaces: typeof workspaces;
   youtube: typeof youtube;
   youtubeStore: typeof youtubeStore;
+  ytIngest: typeof ytIngest;
+  ytPoll: typeof ytPoll;
+  ytReply: typeof ytReply;
 }>;
 
 /**

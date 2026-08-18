@@ -8,9 +8,9 @@ import {
   YOUTUBE_DATA_API_BASE_URL,
   extractYouTubeApiError,
   fetchAccessToken,
+  parseYouTubeCredentials,
   youtubeApiErrorReason,
   type YouTubeAnalyticsReport,
-  type YouTubeCredentials,
 } from "./lib/youtubeApi";
 
 /**
@@ -179,30 +179,6 @@ function pickThumbnail(
   return undefined;
 }
 
-function parseCredentials(secretJson: string): YouTubeCredentials {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(secretJson);
-  } catch {
-    throw new Error("YouTube kredencijali nisu validan JSON format.");
-  }
-  if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("YouTube kredencijali moraju biti JSON objekat.");
-  }
-
-  const p = parsed as Record<string, unknown>;
-  const clientId = String(p.clientId || p.client_id || "").trim();
-  const clientSecret = String(p.clientSecret || p.client_secret || "").trim();
-  const refreshToken = String(p.refreshToken || p.refresh_token || "").trim();
-
-  if (!clientId || !clientSecret) {
-    throw new Error("Nedostaju OAuth Client ID ili Client Secret.");
-  }
-  if (!refreshToken) throw new Error("Nedostaje OAuth Refresh Token.");
-
-  return { clientId, clientSecret, refreshToken };
-}
-
 // ── sync action ──────────────────────────────────────────────────────────────
 
 export const syncYouTube = internalAction({
@@ -225,7 +201,7 @@ export const syncYouTube = internalAction({
         const channelId = (conn.externalId ?? "").trim();
         if (!channelId) throw new Error("Nedostaje YouTube Channel ID.");
 
-        const creds = parseCredentials(
+        const creds = parseYouTubeCredentials(
           await decryptCredentials(conn.encryptedCredentials),
         );
         const token = await fetchAccessToken(creds);

@@ -691,4 +691,89 @@ export default defineSchema({
     // Upsert key is [workspaceId, date, sourceType]; the index prefix also
     // serves the date-range read, with sourceType matched in the mutation.
     .index("by_workspace_date", ["workspaceId", "date"]),
+
+  // ── YouTube comment engine (Y4) ─────────────────────────────────────────────
+  // A parallel engine to OpenReply's, with one structural difference that
+  // shapes everything: YouTube has no direct messages. The only thing an
+  // automation can do is answer PUBLICLY on the comment, moderate it, or both.
+  ytAutomations: defineTable({
+    workspaceId: v.id("workspaces"),
+    name: v.string(),
+    keywords: v.array(v.string()), // stored already folded (lib/orMatch.ts)
+    matchAnyWord: v.boolean(), // true = any keyword, false = all keywords
+    wholeWordMatch: v.boolean(),
+    // Scope: every video on the channel, or exactly one.
+    matchAnyVideo: v.boolean(),
+    videoId: v.optional(v.string()),
+    // What happens on a match. At least one of the two must be on — an
+    // automation with neither cannot match, because there is nothing to do.
+    replyEnabled: v.boolean(),
+    replyMessage: v.optional(v.string()),
+    moderationEnabled: v.boolean(),
+    moderationStatus: v.optional(
+      v.union(
+        v.literal("heldForReview"),
+        v.literal("rejected"),
+        v.literal("published"),
+      ),
+    ),
+    // Maps to `banAuthor` on comments.setModerationStatus, which YouTube only
+    // accepts together with moderationStatus "rejected".
+    markAsSpam: v.optional(v.boolean()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_workspace_active", ["workspaceId", "isActive"]),
+
+  // One row per comment the engine looked at — answered, moderated, ignored or
+  // refused for want of quota. The same "log everything" rule as orDmLogs: a
+  // skipped comment is the row that explains why nothing happened.
+  ytCommentLogs: defineTable({
+    workspaceId: v.id("workspaces"),
+    automationId: v.optional(v.id("ytAutomations")),
+    commentId: v.string(), // top-level comment id; the reply's parentId
+    videoId: v.string(), // "" for a comment on the channel rather than a video
+    videoTitle: v.optional(v.string()),
+    authorName: v.optional(v.string()),
+    authorChannelId: v.optional(v.string()),
+    commentText: v.string(),
+    matchedKeyword: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("replied"), // a public reply went out (moderation may have too)
+      v.literal("moderated"), // moderation only — the automation posts no reply
+      v.literal("failed"),
+      v.literal("skipped_no_match"),
+      // The engine stopped rather than spend the quota the analytics sync
+      // needs tomorrow (lib/ytQuota.ts).
+      v.literal("skipped_quota"),
+    ),
+    attempts: v.number(),
+    repliedAt: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+    date: v.string(), // "YYYY-MM-DD" of createdAt, UTC
+    createdAt: v.number(),
+  })
+    .index("by_workspace_created", ["workspaceId", "createdAt"])
+    .index("by_workspace_status", ["workspaceId", "status"]),
+
+  // Dedup. There is no webhook for comments, so the poller re-reads the same
+  // page of comments every run; this table is what keeps it from answering
+  // twice. Same shape as orProcessedComments.
+  ytProcessedComments: defineTable({
+    workspaceId: v.id("workspaces"),
+    commentId: v.string(),
+    processedAt: v.number(),
+  }).index("by_workspace_comment", ["workspaceId", "commentId"]),
+
+  // One row per workspace per day: how many Data API units the comment engine
+  // has spent. The Data API meters writes at 50 units each against a 10 000/day
+  // budget shared with Y2's analytics sync, so this counter is what stops the
+  // engine before it starves the numbers (lib/ytQuota.ts).
+  ytQuotaUsage: defineTable({
+    workspaceId: v.id("workspaces"),
+    date: v.string(), // "YYYY-MM-DD", UTC (utcDateKey)
+    unitsUsed: v.number(),
+    updatedAt: v.number(),
+  }).index("by_workspace_date", ["workspaceId", "date"]),
 });
