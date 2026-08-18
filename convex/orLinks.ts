@@ -1,0 +1,161 @@
+import { internalMutation } from "./_generated/server";
+import { v } from "convex/values";
+import { internal } from "./_generated/api";
+import { generateSlug, shortLinkOrigin } from "./lib/orLink";
+import { slugify } from "./lib/slug";
+import { utcDateKey } from "./lib/orMatch";
+
+/**
+ * OpenReply tracked short links (PLAN.md §4 / Step 4).
+ *
+ * Default V8 runtime — no "use node": these run inside the send action's and
+ * the /r/ HTTP action's transaction path and must stay cheap.
+ */
+
+/** Max stored length for click provenance headers. */
+const USER_AGENT_MAX = 300;
+const REFERRER_MAX = 500;
+/** How many slug candidates to try before giving up on a collision. */
+const SLUG_ATTEMPTS = 5;
+
+/**
+ * Get-or-create the tracked link for an automation and return the short URL
+ * to put in the DM, or null when there is nothing to track.
+ *
+ * The slug is stable for the lifetime of the automation: editing the link in
+ * the UI repoints the existing slug instead of minting a new one, so short
+ * links already sitting in DMs that were sent days ago keep resolving.
+ */
+export const ensureTrackedLink = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    automationId: v.id("orAutomations"),
+  },
+  returns: v.union(v.null(), v.string()),
+  handler: async (ctx, args) => {
+    const automation = await ctx.db.get(args.automationId);
+    if (automation === null) {
+      return null;
+    }
+
+    const destinationUrl = automation.linkUrl?.trim();
+    if (!destinationUrl) {
+      return null;
+    }
+
+    const origin = shortLinkOrigin();
+    if (origin === null) {
+      return null;
+    }
+
+    const label = automation.linkLabel?.trim() || undefined;
+
+    const existing = await ctx.db
+      .query("orTrackedLinks")
+      .withIndex("by_workspace_automation", (q) =>
+        q
+          .eq("workspaceId", args.workspaceId)
+          .eq("automationId", args.automationId),
+      )
+      .first();
+
+    if (existing !== null) {
+      if (
+        existing.destinationUrl !== destinationUrl ||
+        existing.label !== label
+      ) {
+        await ctx.db.patch(existing._id, { destinationUrl, label });
+      }
+      return `${origin}/r/${existing.slug}`;
+    }
+
+    let slug: string | null = null;
+    for (let attempt = 0; attempt < SLUG_ATTEMPTS; attempt++) {
+      const candidate = generateSlug();
+      const clash = await ctx.db
+        .query("orTrackedLinks")
+        .withIndex("by_slug", (q) => q.eq("slug", candidate))
+        .first();
+      if (clash === null) {
+        slug = candidate;
+        break;
+      }
+    }
+    if (slug === null) {
+      return null;
+    }
+
+    await ctx.db.insert("orTrackedLinks", {
+      workspaceId: args.workspaceId,
+      automationId: args.automationId,
+      slug,
+      destinationUrl,
+      label,
+      createdAt: Date.now(),
+    });
+
+    return `${origin}/r/${slug}`;
+  },
+});
+
+/**
+ * Resolve a slug for the /r/ redirect and, unless the visitor is a bot, log the
+ * click and refresh the rollups it feeds.
+ *
+ * Returns null for an unknown slug so the HTTP action can answer 404. Bots get
+ * a working redirect but no click row — `countClick: false` keeps preview
+ * fetches (Instagram, WhatsApp, link unfurlers) out of the CTR numbers.
+ */
+export const registerClick = internalMutation({
+  args: {
+    slug: v.string(),
+    countClick: v.boolean(),
+    ipHash: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    referrer: v.optional(v.string()),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      destinationUrl: v.string(),
+      campaignSlug: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const link = await ctx.db
+      .query("orTrackedLinks")
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+      .first();
+    if (link === null) {
+      return null;
+    }
+
+    const automation = await ctx.db.get(link.automationId);
+    // Same slugify the Atribucija screen joins GA4 campaigns on.
+    const campaignSlug = automation === null ? "" : slugify(automation.name);
+
+    if (args.countClick) {
+      const now = Date.now();
+      const date = utcDateKey(now);
+
+      await ctx.db.insert("orLinkClicks", {
+        workspaceId: link.workspaceId,
+        automationId: link.automationId,
+        trackedLinkId: link._id,
+        date,
+        ipHash: args.ipHash,
+        userAgent: args.userAgent?.slice(0, USER_AGENT_MAX),
+        referrer: args.referrer?.slice(0, REFERRER_MAX),
+        createdAt: now,
+      });
+
+      await ctx.runMutation(internal.orRollup.recompute, {
+        workspaceId: link.workspaceId,
+        date,
+        automationId: link.automationId,
+      });
+    }
+
+    return { destinationUrl: link.destinationUrl, campaignSlug };
+  },
+});

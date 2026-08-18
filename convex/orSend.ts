@@ -21,6 +21,7 @@ type SendContextData = {
   createdAt: number;
   commentId: string;
   workspaceId: Id<"workspaces">;
+  automationId: Id<"orAutomations">;
   date: string;
   automation: {
     dmMessage: string;
@@ -55,6 +56,7 @@ export const loadSendContext = internalQuery({
       createdAt: v.number(),
       commentId: v.string(),
       workspaceId: v.id("workspaces"),
+      automationId: v.id("orAutomations"),
       date: v.string(),
       automation: v.object({
         dmMessage: v.string(),
@@ -99,6 +101,7 @@ export const loadSendContext = internalQuery({
       createdAt: log.createdAt,
       commentId: log.commentId,
       workspaceId: log.workspaceId,
+      automationId: log.automationId,
       date: log.date,
       automation: {
         dmMessage: automation.dmMessage,
@@ -233,6 +236,24 @@ export const sendDm = internalAction({
 
     const version = getMetaGraphVersion();
 
+    // 5b. Swap the automation's raw link for a tracked short link on our own
+    // domain, so the click is logged and the UTM tags ride into GA4. Returns
+    // null when there is no link or no configured short-link origin — in both
+    // cases we fall back to whatever the automation holds.
+    let linkUrl = context.automation.linkUrl;
+    if (typeof linkUrl === "string" && linkUrl.trim().length > 0) {
+      const shortUrl: string | null = await ctx.runMutation(
+        internal.orLinks.ensureTrackedLink,
+        {
+          workspaceId: context.workspaceId,
+          automationId: context.automationId,
+        },
+      );
+      if (shortUrl !== null) {
+        linkUrl = shortUrl;
+      }
+    }
+
     const handleDmFailure = async (errorMsg: string) => {
       const truncatedError = errorMsg.slice(0, 300);
       if (attempts >= 3) {
@@ -263,7 +284,7 @@ export const sendDm = internalAction({
       const privateReplyUrl = buildPrivateReplyUrl(context.igUserId, version);
       const text = composeDmMessage(
         context.automation.dmMessage,
-        context.automation.linkUrl,
+        linkUrl,
         context.automation.linkLabel,
       );
 

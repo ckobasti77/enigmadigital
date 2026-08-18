@@ -30,8 +30,12 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
 });
 
 export const config = {
-  // Run on everything except static files, _next internals, and the Instagram
-  // OAuth callback. The callback is FULLY excluded (not just early-returned in
+  // Run on everything except static files, _next internals, the Instagram
+  // OAuth callback, and the /r/ short-link redirects. Short links are clicked
+  // from Instagram DMs by people who are not signed in — running auth on them
+  // would bounce every click to /login and lose the destination.
+  //
+  // The callback is FULLY excluded (not just early-returned in
   // the handler) because convexAuthNextjsMiddleware itself intercepts any
   // request carrying a `?code=` query param and tries to verify it as a
   // Convex Auth sign-in code — swallowing Instagram's authorization code and
@@ -39,7 +43,7 @@ export const config = {
   // the whole exchange server-side via the one-time `state` nonce, so it needs
   // no auth context from the middleware.
   matcher: [
-    "/((?!.*\\..*|_next|api/auth/callback/instagram).*)",
+    "/((?!.*\\..*|_next|api/auth/callback/instagram|r/).*)",
     "/",
     "/(api|trpc)((?!/auth/callback/instagram).*)",
   ],

@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { auth } from "./auth";
+import { appendUtm, isBotUserAgent } from "./lib/orLink";
 
 const http = httpRouter();
 
@@ -76,6 +77,28 @@ async function verifySignature(
   }
 
   return false;
+}
+
+/**
+ * Pseudonymised client IP for click de-duplication analysis. Salted so the
+ * stored digest cannot be reversed by hashing the IPv4 space; never stores the
+ * raw address.
+ */
+async function hashClientIp(request: Request): Promise<string | undefined> {
+  const forwarded = request.headers.get("x-forwarded-for");
+  const ip =
+    forwarded?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip")?.trim();
+  if (!ip) {
+    return undefined;
+  }
+
+  const salt = process.env.LINK_HASH_SALT ?? process.env.CONVEX_SITE_URL ?? "";
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`${salt}:${ip}`),
+  );
+  return bufferToHex(digest).slice(0, 32);
 }
 
 // ── Payload Types ────────────────────────────────────────────────────────────
@@ -205,6 +228,55 @@ http.route({
     }
 
     return new Response("ok", { status: 200 });
+  }),
+});
+
+// Route 3 — GET: Tracked short-link redirect (/r/<slug>)
+//
+// Reached through the app's own domain: Next rewrites digital.enigmait.rs/r/:slug
+// to this action (next.config.ts), and proxy.ts excludes /r/ from the auth
+// middleware so an unauthenticated click is never bounced to /login.
+http.route({
+  pathPrefix: "/r/",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const slug = new URL(request.url).pathname
+      .slice("/r/".length)
+      .split("/")[0]
+      .trim()
+      .toLowerCase();
+
+    if (slug.length === 0) {
+      return new Response("Link nije pronađen.", { status: 404 });
+    }
+
+    const userAgent = request.headers.get("user-agent");
+    const countClick = !isBotUserAgent(userAgent);
+
+    const result = await ctx.runMutation(internal.orLinks.registerClick, {
+      slug,
+      countClick,
+      ipHash: countClick ? await hashClientIp(request) : undefined,
+      userAgent: userAgent ?? undefined,
+      referrer: request.headers.get("referer") ?? undefined,
+    });
+
+    if (result === null) {
+      return new Response("Link nije pronađen.", { status: 404 });
+    }
+
+    // UTM tags ride into GA4 from here; ones already on the destination win.
+    const target = appendUtm(result.destinationUrl, result.campaignSlug);
+
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: target,
+        // Never let a CDN or browser serve this hop from cache — every click
+        // has to reach the mutation to be counted.
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
+    });
   }),
 });
 

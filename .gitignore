@@ -46,3 +46,7 @@ enigmaitapitooldesign.pdf
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# lokalni noćni run + git lock smeće
+overnight/
+_to_delete/
