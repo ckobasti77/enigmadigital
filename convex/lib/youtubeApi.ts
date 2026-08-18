@@ -229,6 +229,152 @@ export function buildSetModerationStatusUrl(params: {
   return url.toString();
 }
 
+// ── Data API: media operations (Y6) ─────────────────────────────────────────
+
+/**
+ * Metadata for up to 50 videos in one call — 1 unit. `parts` picks what comes
+ * back (`snippet`, `status`, `statistics`, `contentDetails`); each extra part
+ * is free, so ask for what the screen shows and no more.
+ */
+export function buildVideosListUrl(params: {
+  ids: string[];
+  parts: string[];
+}): string {
+  const url = new URL(`${YOUTUBE_DATA_API_BASE_URL}/videos`);
+  url.searchParams.set("part", params.parts.join(","));
+  url.searchParams.set("id", params.ids.join(","));
+  return url.toString();
+}
+
+/**
+ * Edit a video — 50 units, PUT with the full resource.
+ *
+ * The Data API replaces every part it is given rather than merging, so a
+ * `snippet` sent without `categoryId` clears the category. Callers must read
+ * the video first (`buildVideosListUrl`) and send the whole part back.
+ */
+export function buildVideosUpdateUrl(parts: string[]): string {
+  const url = new URL(`${YOUTUBE_DATA_API_BASE_URL}/videos`);
+  url.searchParams.set("part", parts.join(","));
+  return url.toString();
+}
+
+/** Delete a video — 50 units, DELETE. There is no undo and no trash. */
+export function buildVideosDeleteUrl(videoId: string): string {
+  const url = new URL(`${YOUTUBE_DATA_API_BASE_URL}/videos`);
+  url.searchParams.set("id", videoId);
+  return url.toString();
+}
+
+/**
+ * Delete a comment — 50 units, DELETE. Harsher than
+ * `setModerationStatus=rejected`: rejection hides the comment, this removes it.
+ */
+export function buildCommentsDeleteUrl(commentId: string): string {
+  const url = new URL(`${YOUTUBE_DATA_API_BASE_URL}/comments`);
+  url.searchParams.set("id", commentId);
+  return url.toString();
+}
+
+/** The signed-in channel's own playlists — 1 unit. */
+export function buildPlaylistsListUrl(params: {
+  mine: true;
+  maxResults: number;
+}): string {
+  const url = new URL(`${YOUTUBE_DATA_API_BASE_URL}/playlists`);
+  url.searchParams.set("part", "snippet,contentDetails");
+  url.searchParams.set("mine", String(params.mine));
+  url.searchParams.set("maxResults", String(params.maxResults));
+  return url.toString();
+}
+
+/**
+ * Put one video into one playlist — 50 units. The body carries
+ * `snippet.playlistId` and `snippet.resourceId = { kind: "youtube#video",
+ * videoId }`.
+ */
+export function buildPlaylistItemsInsertUrl(): string {
+  const url = new URL(`${YOUTUBE_DATA_API_BASE_URL}/playlistItems`);
+  url.searchParams.set("part", "snippet");
+  return url.toString();
+}
+
+/**
+ * The caption tracks on one video — 50 units. Not a cheap read: listing the
+ * captions of ten videos costs as much as posting ten replies.
+ */
+export function buildCaptionsListUrl(videoId: string): string {
+  const url = new URL(`${YOUTUBE_DATA_API_BASE_URL}/captions`);
+  url.searchParams.set("part", "snippet");
+  url.searchParams.set("videoId", videoId);
+  return url.toString();
+}
+
+/** Remove one caption track — 50 units, DELETE. */
+export function buildCaptionsDeleteUrl(captionId: string): string {
+  const url = new URL(`${YOUTUBE_DATA_API_BASE_URL}/captions`);
+  url.searchParams.set("id", captionId);
+  return url.toString();
+}
+
+// ── Data API: the upload host ────────────────────────────────────────────────
+//
+// Every endpoint below sends a FILE, and those do not live on the same host as
+// the rest of the Data API. They are served from
+// www.googleapis.com/upload/youtube/v3, and posting them to
+// www.googleapis.com/youtube/v3 answers 404 — with no hint that the path was
+// right and only the host was wrong. It is an easy mistake and a slow one to
+// find, which is why these builders exist instead of string concatenation at
+// the call site.
+
+/** Media (file-carrying) endpoints of the Data API v3. */
+export const YOUTUBE_UPLOAD_API_BASE_URL =
+  "https://www.googleapis.com/upload/youtube/v3";
+
+/**
+ * Set a custom thumbnail — 50 units. POST the image bytes as the raw body with
+ * the image's own Content-Type; this is not a JSON call.
+ */
+export function buildThumbnailsSetUrl(videoId: string): string {
+  const url = new URL(`${YOUTUBE_UPLOAD_API_BASE_URL}/thumbnails/set`);
+  url.searchParams.set("videoId", videoId);
+  return url.toString();
+}
+
+/**
+ * Add a caption track — 400 units, multipart: the `snippet` JSON part and the
+ * caption file part in one body.
+ */
+export function buildCaptionsInsertUrl(): string {
+  const url = new URL(`${YOUTUBE_UPLOAD_API_BASE_URL}/captions`);
+  url.searchParams.set("part", "snippet");
+  url.searchParams.set("uploadType", "multipart");
+  return url.toString();
+}
+
+/** Replace an existing caption track — 450 units, same multipart shape. */
+export function buildCaptionsUpdateUrl(): string {
+  const url = new URL(`${YOUTUBE_UPLOAD_API_BASE_URL}/captions`);
+  url.searchParams.set("part", "snippet");
+  url.searchParams.set("uploadType", "multipart");
+  return url.toString();
+}
+
+/**
+ * Open a resumable video upload. The POST here carries only the metadata and
+ * answers with a `Location` header; the bytes then go to that URL.
+ *
+ * The bytes never pass through Convex — a few hundred megabytes will not fit
+ * in an action's time or memory — so the browser sends them straight to
+ * Google with a token from `ytAuth.issueUploadToken`.
+ */
+export function buildResumableUploadInitUrl(): string {
+  const url = new URL(`${YOUTUBE_UPLOAD_API_BASE_URL}/videos`);
+  url.searchParams.set("uploadType", "resumable");
+  url.searchParams.set("part", "snippet,status");
+  return url.toString();
+}
+
 // ── OAuth ────────────────────────────────────────────────────────────────────
 
 /**

@@ -774,6 +774,45 @@ export default defineSchema({
     workspaceId: v.id("workspaces"),
     date: v.string(), // "YYYY-MM-DD", UTC (utcDateKey)
     unitsUsed: v.number(),
+    // videos.insert calls made today. Kept apart from `unitsUsed` because
+    // Google meters uploads separately: an upload does not cost a single unit
+    // of the 10 000/day budget (lib/ytQuota.ts, VIDEO_UPLOAD_DAILY_LIMIT).
+    uploadsUsed: v.optional(v.number()),
     updatedAt: v.number(),
   }).index("by_workspace_date", ["workspaceId", "date"]),
+
+  // ── YouTube media operations (Y6) ───────────────────────────────────────────
+  // One row per media operation an operator started: an upload, a metadata
+  // edit, a thumbnail, a caption track, a playlist add, a comment deletion.
+  //
+  // The comment engine writes hundreds of rows a week and its log is a stream;
+  // this is the opposite. Media operations happen rarely and by hand, and the
+  // mistakes are expensive and often irreversible — a deleted video does not
+  // come back. So each one leaves a row saying what was attempted, what it
+  // cost, and how it ended, even when it ended before a single unit was spent.
+  ytMediaJobs: defineTable({
+    workspaceId: v.id("workspaces"),
+    kind: v.union(
+      v.literal("upload"),
+      v.literal("metadata"),
+      v.literal("thumbnail"),
+      v.literal("caption"),
+      v.literal("playlist"),
+      v.literal("comment_delete"),
+    ),
+    videoId: v.optional(v.string()),
+    title: v.optional(v.string()), // what the operator saw themselves doing
+    status: v.union(
+      v.literal("pending"),
+      v.literal("done"),
+      v.literal("failed"),
+      // Refused before it started: the media ceiling was already reached
+      // (lib/ytQuota.ts, QUOTA_MEDIA_LIMIT).
+      v.literal("skipped_quota"),
+    ),
+    unitsSpent: v.number(),
+    errorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  }).index("by_workspace_created", ["workspaceId", "createdAt"]),
 });
