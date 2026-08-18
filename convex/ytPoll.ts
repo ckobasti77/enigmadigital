@@ -46,12 +46,21 @@ const PAGE_SIZE = 100;
  */
 const COMMENT_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
+/**
+ * How many recent videos the per-video fallback walks when the channel-wide
+ * sweep is unsupported. Ten pages costs ten units — still nothing against the
+ * daily budget — and anything older would be past the 48h cutoff anyway.
+ */
+const FALLBACK_VIDEO_COUNT = 10;
+
 type PollContext = {
   workspaceId: Id<"workspaces">;
   channelId: string;
   encryptedCredentials: string;
   hasActiveAutomations: boolean;
   unitsUsed: number;
+  /** Newest videos first — the per-video fallback walks these. */
+  recentVideoIds: string[];
 } | null;
 
 /**
@@ -69,6 +78,7 @@ export const loadPollContext = internalQuery({
       encryptedCredentials: v.string(),
       hasActiveAutomations: v.boolean(),
       unitsUsed: v.number(),
+      recentVideoIds: v.array(v.string()),
     }),
   ),
   handler: async (ctx, { connectionId }) => {
@@ -86,12 +96,23 @@ export const loadPollContext = internalQuery({
       )
       .first();
 
+    // Only needed if the channel-wide sweep turns out to be unsupported, but
+    // it is a single indexed read and the poll cannot go back for it later.
+    const recent = await ctx.db
+      .query("ytVideoStats")
+      .withIndex("by_workspace_published", (q) =>
+        q.eq("workspaceId", conn.workspaceId),
+      )
+      .order("desc")
+      .take(FALLBACK_VIDEO_COUNT);
+
     return {
       workspaceId: conn.workspaceId,
       channelId,
       encryptedCredentials: conn.encryptedCredentials,
       hasActiveAutomations: active !== null,
       unitsUsed: await readUnitsUsed(ctx, conn.workspaceId),
+      recentVideoIds: recent.map((v) => v.videoId),
     };
   },
 });
@@ -173,7 +194,7 @@ export const pollComments = internalAction({
       return null;
     }
 
-    const { workspaceId, channelId } = context;
+    const { workspaceId, channelId, unitsUsed, recentVideoIds } = context;
 
     let token: string;
     try {
@@ -190,76 +211,114 @@ export const pollComments = internalAction({
     }
 
     const cutoff = Date.now() - COMMENT_MAX_AGE_MS;
-    const comments: IncomingComment[] = [];
     let unitsSpent = 0;
-    let pageToken: string | undefined = undefined;
-    let reachedBacklog = false;
 
-    for (let page = 0; page < MAX_PAGES; page++) {
-      if (
-        !canAfford(
-          context.unitsUsed + unitsSpent,
-          QUOTA_COST.commentThreadsList,
-        )
-      ) {
-        break;
-      }
+    /**
+     * Page through commentThreads for one scope: the whole channel when
+     * `videoId` is undefined, a single video otherwise.
+     *
+     * `unsupported` comes back true only when YouTube rejects the channel-wide
+     * parameter outright (400/404). That is not an error to log and forget —
+     * it means the cheap sweep will never work on this account, so the caller
+     * walks recent videos instead of silently collecting nothing on every run
+     * from here on.
+     */
+    const collect = async (
+      videoId?: string,
+    ): Promise<{ comments: IncomingComment[]; unsupported: boolean }> => {
+      const found: IncomingComment[] = [];
+      let pageToken: string | undefined = undefined;
+      let reachedBacklog = false;
 
-      let body: CommentThreadsResponse;
-      try {
-        const res = await fetch(
-          buildCommentThreadsUrl({
-            channelId,
-            maxResults: PAGE_SIZE,
-            pageToken,
-          }),
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        // The read is metered whether or not it answers, so book it either way.
-        unitsSpent += QUOTA_COST.commentThreadsList;
+      for (let page = 0; page < MAX_PAGES; page++) {
+        if (!canAfford(unitsUsed + unitsSpent, QUOTA_COST.commentThreadsList)) {
+          break;
+        }
 
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          if (
-            res.status === 403 &&
-            youtubeApiErrorReason(text) === "quotaExceeded"
-          ) {
-            // Nothing to do but wait for the reset (midnight Pacific).
+        let body: CommentThreadsResponse;
+        try {
+          const res = await fetch(
+            buildCommentThreadsUrl({
+              channelId,
+              videoId,
+              maxResults: PAGE_SIZE,
+              pageToken,
+            }),
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+          // The read is metered whether or not it answers, so book it either way.
+          unitsSpent += QUOTA_COST.commentThreadsList;
+
+          if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            if (
+              res.status === 403 &&
+              youtubeApiErrorReason(text) === "quotaExceeded"
+            ) {
+              // Nothing to do but wait for the reset (midnight Pacific).
+              break;
+            }
+            // Only the channel-wide sweep can be unsupported; a per-video
+            // request failing the same way is a genuine fault.
+            if (
+              videoId === undefined &&
+              (res.status === 400 || res.status === 404)
+            ) {
+              console.warn(
+                "YouTube: allThreadsRelatedToChannelId nije podržan na ovom nalogu — prelazim na obilazak videa.",
+                extractYouTubeApiError(text),
+              );
+              return { comments: found, unsupported: true };
+            }
+            console.warn(
+              "YouTube: commentThreads.list —",
+              extractYouTubeApiError(text),
+            );
             break;
           }
+          body = (await res.json()) as CommentThreadsResponse;
+        } catch (err) {
           console.warn(
             "YouTube: commentThreads.list —",
-            extractYouTubeApiError(text),
+            extractYouTubeApiError(
+              err instanceof Error ? err.message : String(err),
+            ),
           );
           break;
         }
-        body = (await res.json()) as CommentThreadsResponse;
-      } catch (err) {
-        console.warn(
-          "YouTube: commentThreads.list —",
-          extractYouTubeApiError(
-            err instanceof Error ? err.message : String(err),
-          ),
-        );
-        break;
-      }
 
-      for (const comment of readPage(body)) {
-        // Our own replies are not top-level comments and never come back here,
-        // but a comment the channel itself left is — and answering ourselves
-        // is the one loop this engine must not close.
-        if (comment.authorChannelId === channelId) continue;
-        if (comment.publishedAt < cutoff) {
-          reachedBacklog = true;
-          continue;
+        for (const comment of readPage(body)) {
+          // Our own replies are not top-level comments and never come back here,
+          // but a comment the channel itself left is — and answering ourselves
+          // is the one loop this engine must not close.
+          if (comment.authorChannelId === channelId) continue;
+          if (comment.publishedAt < cutoff) {
+            reachedBacklog = true;
+            continue;
+          }
+          found.push(comment);
         }
-        comments.push(comment);
+
+        // `order=time` is newest first, so once a page runs into the age cutoff
+        // every page after it is older still.
+        pageToken = body.nextPageToken;
+        if (!pageToken || reachedBacklog) break;
       }
 
-      // `order=time` is newest first, so once a page runs into the age cutoff
-      // every page after it is older still.
-      pageToken = body.nextPageToken;
-      if (!pageToken || reachedBacklog) break;
+      return { comments: found, unsupported: false };
+    };
+
+    const sweep = await collect();
+    const comments: IncomingComment[] = [...sweep.comments];
+
+    if (sweep.unsupported) {
+      for (const videoId of recentVideoIds) {
+        if (!canAfford(unitsUsed + unitsSpent, QUOTA_COST.commentThreadsList)) {
+          break;
+        }
+        const perVideo = await collect(videoId);
+        comments.push(...perVideo.comments);
+      }
     }
 
     // Book the reads before ingesting, so the affordability check each match

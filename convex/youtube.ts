@@ -10,6 +10,7 @@ import {
   fetchAccessToken,
   parseYouTubeCredentials,
   youtubeApiErrorReason,
+  isAnalyticsNoDataError,
   type YouTubeAnalyticsReport,
 } from "./lib/youtubeApi";
 
@@ -82,13 +83,52 @@ async function ytGet<T>(url: string, token: string, api: string): Promise<T> {
 }
 
 /**
+ * Analytics GET that tolerates the one failure which is not a failure.
+ *
+ * Returns null when the channel simply has no data to aggregate yet — see
+ * `isAnalyticsNoDataError`. Every other error still throws, so a real outage
+ * or a revoked token is still recorded as a failed sync run.
+ */
+async function ytGetAnalytics<T>(
+  url: string,
+  token: string,
+  label: string,
+): Promise<T | null> {
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    if (isAnalyticsNoDataError(res.status, body)) {
+      console.warn(
+        `YouTube Analytics (${label}): kanal još nema podataka (backendError) — preskačem.`,
+      );
+      return null;
+    }
+    if (res.status === 403 && youtubeApiErrorReason(body) === "quotaExceeded") {
+      throw new Error(
+        "YouTube API dnevna kvota je potrošena. Podaci će se osvežiti kada se kvota resetuje (ponoć po pacifičkom vremenu).",
+      );
+    }
+    throw new Error(
+      `YouTube Analytics API ${res.status}: ${extractYouTubeApiError(body)}`,
+    );
+  }
+
+  return (await res.json()) as T;
+}
+
+/**
  * Turn a positional Analytics report into name-keyed rows. `columnHeaders` is
  * the only reliable way to know what each cell means — the API does not
  * guarantee the order matches the requested `metrics` string.
  */
 function mapReport(
-  report: YouTubeAnalyticsReport,
+  report: YouTubeAnalyticsReport | null,
 ): Record<string, string | number>[] {
+  // No report at all (channel has no data yet) is zero rows, not an error.
+  if (report === null) return [];
   const headers = (report.columnHeaders ?? []).map((h) => h.name ?? "");
   // A report with no data omits `rows` entirely; that is zero rows, not an error.
   return (report.rows ?? []).map((row) => {
@@ -211,7 +251,7 @@ export const syncYouTube = internalAction({
         const DATA = "YouTube Data API";
 
         // b) channel daily totals
-        const dailyReport = await ytGet<YouTubeAnalyticsReport>(
+        const dailyReport = await ytGetAnalytics<YouTubeAnalyticsReport>(
           analyticsUrl({
             startDate,
             endDate,
@@ -239,7 +279,7 @@ export const syncYouTube = internalAction({
           }));
 
         // c) traffic sources per day
-        const trafficReport = await ytGet<YouTubeAnalyticsReport>(
+        const trafficReport = await ytGetAnalytics<YouTubeAnalyticsReport>(
           analyticsUrl({
             startDate,
             endDate,
@@ -345,7 +385,7 @@ export const syncYouTube = internalAction({
         // e) per-video watch time, merged onto the metadata rows. Videos
         //    outside the top 100 by watch time simply keep these fields unset.
         if (videos.length > 0) {
-          const videoReport = await ytGet<YouTubeAnalyticsReport>(
+          const videoReport = await ytGetAnalytics<YouTubeAnalyticsReport>(
             analyticsUrl({
               startDate,
               endDate,

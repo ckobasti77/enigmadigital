@@ -98,6 +98,30 @@ export function youtubeApiErrorReason(body: string): string | null {
 }
 
 /**
+ * True when a YouTube Analytics response means "this channel has no data yet"
+ * rather than a real failure.
+ *
+ * Verified live on 2026-08-18 against a channel created the same day: the
+ * Analytics API answers a perfectly valid report request with
+ *
+ *   HTTP 500 { "error": { "status": "INTERNAL", "code": 500,
+ *              "errors": [ { "reason": "backendError", "domain": "global" } ] } }
+ *
+ * A missing scope would be 403, so this is not an authorisation problem — the
+ * analytics backend simply has nothing to aggregate. It persists for days on a
+ * new channel, until the first video accumulates watch time. Treating it as an
+ * error would mark every sync run failed and paint Sync Health red while
+ * nothing is actually broken, so callers skip the report and carry on.
+ *
+ * Deliberately narrow: any other 500 is still a genuine fault.
+ */
+export function isAnalyticsNoDataError(status: number, body: string): boolean {
+  if (status !== 500) return false;
+  const reason = youtubeApiErrorReason(body);
+  return reason === "backendError" || reason === "INTERNAL";
+}
+
+/**
  * Read the credential blob stored on the connection. Accepts both camelCase
  * and snake_case keys, because the value is pasted in by hand in Settings.
  * Never echoes any part of the secret into the error messages.
@@ -145,13 +169,26 @@ export const COMMENT_TEXT_MAX = 10_000;
  * NEVER reach for search.list to find comments — 100 units per call.
  */
 export function buildCommentThreadsUrl(params: {
+  /** Channel-wide sweep. Ignored when `videoId` is given. */
   channelId: string;
+  /**
+   * Per-video fallback. `allThreadsRelatedToChannelId` is the cheap path — one
+   * request covers every video — but it is not honoured on every account, and
+   * when it is rejected the sweep would silently return nothing forever. The
+   * caller retries video by video instead; same 1 unit per page, just more
+   * pages.
+   */
+  videoId?: string;
   maxResults: number;
   pageToken?: string;
 }): string {
   const url = new URL(`${YOUTUBE_DATA_API_BASE_URL}/commentThreads`);
   url.searchParams.set("part", "snippet");
-  url.searchParams.set("allThreadsRelatedToChannelId", params.channelId);
+  if (params.videoId) {
+    url.searchParams.set("videoId", params.videoId);
+  } else {
+    url.searchParams.set("allThreadsRelatedToChannelId", params.channelId);
+  }
   url.searchParams.set("order", "time");
   url.searchParams.set("maxResults", String(params.maxResults));
   // Default anyway, but stated: an automation answers what viewers can see.
