@@ -42,6 +42,10 @@ const signedPercentFmt = new Intl.NumberFormat(LOCALE, {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
 });
+const signedIntegerFmt = new Intl.NumberFormat(LOCALE, {
+  signDisplay: "exceptZero",
+  maximumFractionDigits: 0,
+});
 const signedDecimalFmt = new Intl.NumberFormat(LOCALE, {
   signDisplay: "exceptZero",
   minimumFractionDigits: 1,
@@ -108,4 +112,21 @@ export function formatLongDate(key: string): string {
 /** "2026-08-01" … "2026-08-15" → "01.08 – 15.08." */
 export function formatDateSpan(from: string, to: string): string {
   return `${dayMonthFmt.format(keyToLocalDate(from))} – ${dayMonthFmt.format(keyToLocalDate(to))}`;
+}
+
+/**
+ * Watch time in minutes → "45 min" / "12,3 h" / "1.234 h". YouTube reports
+ * `estimatedMinutesWatched`; hours are the unit people actually read.
+ */
+export function formatWatchTime(minutes: number): string {
+  if (minutes < 60) return `${integerFmt.format(Math.round(minutes))} min`;
+  const hours = minutes / 60;
+  return hours < 100
+    ? `${decimalFmt.format(hours)} h`
+    : `${integerFmt.format(Math.round(hours))} h`;
+}
+
+/** Whole number with an explicit sign — "+1.234" / "−12" / "0". */
+export function formatSignedNumber(value: number): string {
+  return signedIntegerFmt.format(value);
 }

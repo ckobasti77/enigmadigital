@@ -188,3 +188,85 @@ export function fillIgDays(
   });
 }
 
+
+// ── YouTube Metrics ────────────────────────────────────────────────────────
+
+/** One `ytDailyTotals` row as returned by `api.youtubeStore.dailyTotals`. */
+export type YtDailyPoint = {
+  date: string;
+  views: number;
+  estimatedMinutesWatched: number;
+  averageViewDuration: number; // seconds
+  averageViewPercentage: number; // 0..100 for that day
+  subscribersGained: number;
+  subscribersLost: number;
+  likes: number;
+  comments: number;
+  shares: number;
+};
+
+export type YtPeriodTotals = {
+  views: number;
+  estimatedMinutesWatched: number;
+  /** Gained minus lost over the period — can legitimately be negative. */
+  netSubscribers: number;
+  subscribersGained: number;
+  subscribersLost: number;
+  /** View-weighted average of the daily rates (0..1); 0 when no views. */
+  averageViewPercentage: number;
+  /** Likes + comments + shares. */
+  engagements: number;
+};
+
+export function summarizeYt(rows: YtDailyPoint[]): YtPeriodTotals {
+  let views = 0;
+  let estimatedMinutesWatched = 0;
+  let subscribersGained = 0;
+  let subscribersLost = 0;
+  let engagements = 0;
+  let weightedPercentage = 0;
+
+  for (const r of rows) {
+    views += r.views;
+    estimatedMinutesWatched += r.estimatedMinutesWatched;
+    subscribersGained += r.subscribersGained;
+    subscribersLost += r.subscribersLost;
+    engagements += r.likes + r.comments + r.shares;
+    // The API reports 0..100; weight by views so low-traffic days don't
+    // distort the period average.
+    weightedPercentage += r.averageViewPercentage * r.views;
+  }
+
+  return {
+    views,
+    estimatedMinutesWatched,
+    netSubscribers: subscribersGained - subscribersLost,
+    subscribersGained,
+    subscribersLost,
+    averageViewPercentage: views > 0 ? weightedPercentage / views / 100 : 0,
+    engagements,
+  };
+}
+
+export function fillYtDays(
+  rows: YtDailyPoint[],
+  from: string,
+  to: string,
+): YtDailyPoint[] {
+  const byDate = new Map(rows.map((r) => [r.date, r]));
+  return dateKeysBetween(from, to).map(
+    (date) =>
+      byDate.get(date) ?? {
+        date,
+        views: 0,
+        estimatedMinutesWatched: 0,
+        averageViewDuration: 0,
+        averageViewPercentage: 0,
+        subscribersGained: 0,
+        subscribersLost: 0,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+      },
+  );
+}
