@@ -24,6 +24,7 @@ export const INSTAGRAM_GRAPH_BASE_URL = "https://graph.instagram.com";
 export const INSTAGRAM_SCOPES = [
   "instagram_business_basic",
   "instagram_business_manage_insights",
+  "instagram_business_manage_comments",
 ] as const;
 
 export function getMetaGraphVersion(): string {
@@ -162,6 +163,26 @@ export function buildMediaInsightsUrl(
   url.searchParams.set("metric", metrics.join(","));
   url.searchParams.set("access_token", accessToken);
   return url.toString();
+}
+
+/**
+ * Build endpoint URL for sending a private reply message (DM) to a comment.
+ */
+export function buildPrivateReplyUrl(
+  igUserId: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  return `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${igUserId}/messages`;
+}
+
+/**
+ * Build endpoint URL for posting a public reply to a comment.
+ */
+export function buildCommentRepliesUrl(
+  commentId: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  return `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${commentId}/replies`;
 }
 
 // ── Metric Matrix Per Media Type ─────────────────────────────────────────────

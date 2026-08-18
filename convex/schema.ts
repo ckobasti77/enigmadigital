@@ -139,6 +139,88 @@ export default defineSchema({
     linkClicks: v.number(),
   }).index("by_workspace_date", ["workspaceId", "date"]),
 
+  orAutomations: defineTable({
+    workspaceId: v.id("workspaces"),
+    name: v.string(),
+    keywords: v.array(v.string()), // stored already lowercased+trimmed
+    matchAnyWord: v.boolean(), // true = any keyword, false = all keywords
+    wholeWordMatch: v.boolean(),
+    matchAnyPost: v.boolean(), // true = any media, false = only `postId`
+    postId: v.optional(v.string()),
+    dmMessage: v.string(),
+    linkUrl: v.optional(v.string()),
+    linkLabel: v.optional(v.string()),
+    publicReplyEnabled: v.boolean(),
+    publicReplyMessage: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_active", ["workspaceId", "isActive"]),
+
+  orDmLogs: defineTable({
+    workspaceId: v.id("workspaces"),
+    automationId: v.optional(v.id("orAutomations")),
+    commentId: v.string(),
+    mediaId: v.optional(v.string()),
+    commenterId: v.string(),
+    commenterUsername: v.optional(v.string()),
+    commentText: v.string(),
+    matchedKeyword: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("sent"),
+      v.literal("failed"),
+      v.literal("skipped_no_match"),
+      v.literal("skipped_window"),
+    ),
+    attempts: v.number(),
+    dmSentAt: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+    publicReplySentAt: v.optional(v.number()),
+    publicReplyError: v.optional(v.string()),
+    date: v.string(), // "YYYY-MM-DD" of createdAt, UTC
+    createdAt: v.number(),
+  })
+    .index("by_workspace_created", ["workspaceId", "createdAt"])
+    .index("by_workspace_comment", ["workspaceId", "commentId"])
+    .index("by_automation", ["automationId"])
+    .index("by_workspace_status", ["workspaceId", "status"])
+    .index("by_workspace_date", ["workspaceId", "date"]),
+
+  orProcessedComments: defineTable({
+    workspaceId: v.id("workspaces"),
+    commentId: v.string(),
+    processedAt: v.number(),
+  }).index("by_workspace_comment", ["workspaceId", "commentId"]),
+
+  orTrackedLinks: defineTable({
+    workspaceId: v.id("workspaces"),
+    automationId: v.id("orAutomations"),
+    slug: v.string(),
+    destinationUrl: v.string(),
+    label: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_workspace_automation", ["workspaceId", "automationId"]),
+
+  orLinkClicks: defineTable({
+    workspaceId: v.id("workspaces"),
+    automationId: v.id("orAutomations"),
+    trackedLinkId: v.id("orTrackedLinks"),
+    date: v.string(), // "YYYY-MM-DD", UTC
+    ipHash: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    referrer: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_workspace_created", ["workspaceId", "createdAt"])
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_link", ["trackedLinkId"])
+    .index("by_workspace_automation", ["workspaceId", "automationId"]),
+
   // Operations — one row per sync attempt (start/finish/fail); powers the
   // Sync Health widget. Latest-per-provider = withIndex(...).order("desc").first()
   // (Convex appends _creationTime as the implicit trailing index column).

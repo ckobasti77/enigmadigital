@@ -22,6 +22,7 @@ import {
   AlertCircle,
   ExternalLink,
   Trash2,
+  Copy,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
@@ -261,105 +262,191 @@ function Ga4Card({ connection }: { connection?: ConnectionView }) {
 
 // ── OpenReply ────────────────────────────────────────────────────────────────
 
-function OpenReplyCard({ connection }: { connection?: ConnectionView }) {
-  const save = useMutation(api.connections.save);
-  const [editing, setEditing] = useState(false);
-  const [dsn, setDsn] = useState("");
-  const [saving, setSaving] = useState(false);
+function OpenReplyCard() {
+  const status = useQuery(api.orEngine.status);
+  const enable = useMutation(api.orEngine.enable);
+  const disable = useMutation(api.orEngine.disable);
+
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const isConnected = connection !== undefined;
-
-  async function handleSave(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
+  async function handleEnable() {
+    setBusy(true);
     setError(null);
     try {
-      await save({ provider: "openreply", secret: dsn });
-      setDsn("");
-      setEditing(false);
+      await enable();
     } catch (err) {
-      setError(convexMessage(err, "Čuvanje nije uspelo."));
+      setError(convexMessage(err, "Radnja nije uspela."));
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
   }
+
+  async function handleDisable() {
+    setBusy(true);
+    setError(null);
+    try {
+      await disable();
+    } catch (err) {
+      setError(convexMessage(err, "Radnja nije uspela."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCopy() {
+    if (!status?.webhookUrl) return;
+    try {
+      await navigator.clipboard.writeText(status.webhookUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore clipboard error
+    }
+  }
+
+  const missingVars: string[] = [];
+  if (status && !status.verifyTokenSet) missingVars.push("IG_WEBHOOK_VERIFY_TOKEN");
+  if (status && !status.appSecretSet) missingVars.push("META_APP_SECRET");
+
+  const statusNode =
+    status === undefined ? (
+      <StatusPill tone="muted">Učitavanje…</StatusPill>
+    ) : status.enabled ? (
+      <StatusPill tone="success">Aktivno</StatusPill>
+    ) : (
+      <StatusPill tone="muted">Nije uključeno</StatusPill>
+    );
 
   return (
     <CardShell
       icon={MessageCircleReply}
       title="OpenReply"
-      subtitle="Postgres · read-only korisnik"
-      status={connectionPill(connection?.status)}
+      subtitle="Komentar → DM automatizacija"
+      status={statusNode}
     >
-      {isConnected && !editing ? (
-        <div className="mt-5 flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
-          <div className="flex items-center gap-2 text-xs text-text-muted">
-            <Lock className="size-3.5" />
-            <span>Konekcija sačuvana</span>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setDsn("");
-              setError(null);
-              setEditing(true);
-            }}
-          >
-            Izmeni
-          </Button>
+      {status === undefined ? (
+        <div className="mt-5">
+          <Skeleton className="h-14 w-full rounded-lg" />
         </div>
       ) : (
-        <form onSubmit={handleSave} className="mt-5 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="or-dsn" className="text-text-muted">
-              Connection string
-            </Label>
-            <Input
-              id="or-dsn"
-              type="password"
-              autoComplete="off"
-              placeholder="postgresql://cc_reader:…@host:5432/db"
-              value={dsn}
-              onChange={(event) => setDsn(event.target.value)}
-              disabled={saving}
-              className="font-mono text-xs"
-            />
-          </div>
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <div className="flex items-center gap-3">
-            <Button type="submit" size="sm" disabled={saving}>
-              {saving ? (
-                <>
-                  <LoaderCircle className="animate-spin" />
-                  Čuvam…
-                </>
-              ) : (
-                <>
-                  <Check />
-                  Sačuvaj
-                </>
-              )}
-            </Button>
-            {isConnected && (
+        <div className="space-y-4">
+          {!status.igConnected && (
+            <div className="mt-5 rounded-lg border border-dashed border-warning/30 bg-warning/5 px-4 py-5 text-sm">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" />
+                <div>
+                  <p className="font-medium text-foreground">
+                    Prvo poveži Instagram nalog — OpenReply koristi isti token.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {status.enabled ? (
+            <div className="mt-5 space-y-4">
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate font-mono text-xs text-foreground select-all">
+                    {status.webhookUrl ?? "CONVEX_SITE_URL nije podešen"}
+                  </span>
+                </div>
+                {status.webhookUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopy}
+                    className="shrink-0"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="size-3.5 text-success" />
+                        Kopirano
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="size-3.5" />
+                        Kopiraj
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-xs text-text-muted">
+                  Nalepi ovaj URL u Meta app → Instagram → Webhooks, polje{" "}
+                  <code className="font-mono text-foreground">comments</code>.
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDisable}
+                  disabled={busy}
+                  className="shrink-0 text-danger hover:text-danger"
+                >
+                  {busy ? (
+                    <LoaderCircle className="size-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-3.5" />
+                  )}
+                  Isključi
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-5 space-y-4">
+              <div className="rounded-lg border border-line-soft bg-surface-raised/20 p-4 text-xs text-text-muted">
+                <p>
+                  Uključi engine da bi komentari na Instagram objavama automatski
+                  slali DM.
+                </p>
+              </div>
               <Button
                 type="button"
-                variant="ghost"
                 size="sm"
-                onClick={() => {
-                  setEditing(false);
-                  setDsn("");
-                  setError(null);
-                }}
+                onClick={handleEnable}
+                disabled={busy || !status.igConnected}
               >
-                Otkaži
+                {busy ? (
+                  <>
+                    <LoaderCircle className="size-4 animate-spin" />
+                    Uključujem…
+                  </>
+                ) : (
+                  <>
+                    <Check />
+                    Uključi OpenReply
+                  </>
+                )}
               </Button>
-            )}
-          </div>
-        </form>
+            </div>
+          )}
+
+          {missingVars.length > 0 && (
+            <div className="mt-4 flex items-start gap-2 text-xs text-warning">
+              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                Nedostaje Convex environment promenljiva:{" "}
+                {missingVars.map((varName, i) => (
+                  <span key={varName}>
+                    {i > 0 && " i "}
+                    <code className="font-mono font-medium text-accent-400">
+                      {varName}
+                    </code>
+                  </span>
+                ))}
+              </span>
+            </div>
+          )}
+
+          {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+        </div>
       )}
-      <SyncFooter connection={connection} />
     </CardShell>
   );
 }
@@ -1107,7 +1194,7 @@ export function ConnectionsSettings() {
         <Ga4Card connection={byProvider.get("ga4")} />
       </Reveal>
       <Reveal delay={0.05}>
-        <OpenReplyCard connection={byProvider.get("openreply")} />
+        <OpenReplyCard />
       </Reveal>
       <Reveal delay={0.1}>
         <InstagramCard connection={byProvider.get("meta_ig")} />

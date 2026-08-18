@@ -59,10 +59,9 @@ function validateCredentials(
       return id;
     }
     case "openreply": {
-      if (!/^postgres(?:ql)?:\/\//i.test(secret)) {
-        invalid("OpenReply konekcija mora biti postgres:// URL.");
-      }
-      return undefined; // its secret IS the connection string
+      invalid(
+        "OpenReply se uključuje u Podešavanjima, ne prima kredencijale.",
+      );
     }
     case "meta_ads": {
       if (secret.length < 10) {
@@ -296,10 +295,6 @@ export const syncNow = action({
       return;
     }
 
-    if (authorized.provider === "openreply") {
-      await ctx.runAction(internal.openreply.syncOpenReply, { connectionId });
-      return;
-    }
 
     if (authorized.provider === "meta_ig") {
       await ctx.runAction(internal.instagram.syncIgInsights, { connectionId });

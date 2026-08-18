@@ -7,12 +7,6 @@ const crons = cronJobs();
 
 crons.interval("sync ga4", { hours: 6 }, internal.ga4.syncAllGa4, {});
 crons.interval(
-  "sync openreply",
-  { hours: 1 },
-  internal.openreply.syncAllOpenReply,
-  {},
-);
-crons.interval(
   "sync instagram",
   { hours: 6 },
   internal.instagram.syncAllIg,
