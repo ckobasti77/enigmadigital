@@ -249,3 +249,99 @@ V2 startuje sa tri bezbedne, visokovredne akcije: `pause/resume` (campaign/adset
 - **Google Ads odobrenje kasni** → zato je u koraku 0; V1 i V2 ne zavise od njega.
 - **Marketing API rate limit na development pristupu** → niži nego standard tier, ali za jedan-dva ad naloga sa 15-min sync-om sasvim dovoljan; adaptivni tempo (hot/cold) drži potrošnju poziva niskom. Ako dodaš više klijenata, tražiš standard access.
 - **Mali uzorci u hook testovima** → dashboard eksplicitno označava „rano za zaključak" ispod praga impresija, da lepe cifre na malom uzorku ne donose pogrešne odluke.
+
+---
+
+## 9. YouTube modul
+
+Jedini modul u command centeru koji i **čita** i **piše**: pored analitike kanala, on i odgovara ljudima u ime kanala. Zato ima svoju sekciju — pravila igre su drugačija nego kod GA4 ili IG insightsa.
+
+### 9.1 Šta modul radi
+
+Dve polovine, jedan nalog i jedan kredencijal:
+
+1. **Analitika kanala** (`convex/youtube.ts`, `youtubeStore.ts`, ekran `/youtube`) — dnevni pregledi, vreme gledanja, neto pratioci, prosečan procenat odgledanog, izvori saobraćaja i poslednjih 30 videa. Cron na 6h, isti lookback princip kao GA4 (YouTube naknadno koriguje brojke za nekoliko dana unazad).
+2. **Motor za komentare** (`ytPoll.ts` → `ytIngest.ts` → `ytReply.ts`, ekran `/youtube/automatizacije`) — ključna reč u komentaru pokreće **javan odgovor** ispod tog komentara, **moderaciju** komentara, ili oboje. Svaki obrađen komentar završi kao red u `ytCommentLogs`, i onaj koji nije prošao — jer se ništa nije poklopilo ili jer je kvota potrošena.
+
+Ekran `/youtube/automatizacije` je namerno odvojena ruta, isto kao `/openreply/automatizacije`: analitika je ono što gledaš svaki dan, automatizacije su ono što podesiš jednom.
+
+### 9.2 Zašto nema DM-a
+
+**Najčešće pitanje, pa neka stoji napisano: YouTube nema privatne poruke.** Ugašene su septembra 2019. i nikad nisu vraćene — ne postoji API endpoint, ne postoji scope, ne postoji zaobilaznica. Sve što OpenReply radi kroz Instagram DM (link, dugmad, brzi odgovori, follow gate, naknadna poruka) na YouTube-u jednostavno **ne postoji kao kanal**.
+
+Zato je ceo model drugačiji: jedina poruka koju automatizacija može da pošalje je **javna**, potpisana imenom kanala, vidljiva svakome ko otvori video. To se vidi i u editoru — pregled crta komentar sa avatarom i imenom kanala, ne DM balon — i u šemi: `ytAutomations` nema `dmMessage`, `buttons`, `quickReplies` ni `requireFollow`.
+
+Druga posledica: pošto je odgovor javan, **moderacija je ravnopravna akcija**, a ne dodatak. Automatizacija sme da bude „samo moderacija" bez ijednog napisanog odgovora.
+
+### 9.3 Zašto se polluje umesto webhook-a
+
+YouTube ima push notifikacije (PubSubHubbub na `pubsubhubbub.appspot.com`), ali one javljaju **isključivo nov ili izmenjen video na kanalu**. Za komentar ne postoji nikakav push — ni webhook, ni Pub/Sub, ništa. Jedini način da se sazna za nov komentar je pitati.
+
+Zato `ytPoll.pollComments` na svakih 15 minuta čita `commentThreads.list` sa `allThreadsRelatedToChannelId` (jedan poziv pokriva ceo kanal; `videoId` bi tražio poziv po videu, a `search.list` košta 100 jedinica i **nikad se ne koristi za ovo**). Dedup radi tabela `ytProcessedComments` — poller svaki put ponovo vidi iste komentare, i to je jedino što sprečava da isti čovek dobije isti odgovor svakih 15 minuta.
+
+Dve zaštite koje idu uz polling:
+- **Starost komentara** — sve starije od 48h se preskače. Sprečava da prvo uključivanje motora odjednom odgovori na godine zaostalih komentara.
+- **Sopstveni kanal** — komentar čiji je `authorChannelId` jednak `channelId` se preskače. To je jedina petlja koju motor ne sme da zatvori.
+
+Poller ne piše u `syncRuns` (namerno): ti redovi su Sync Health widget za analitiku na 6h, a obilazak na 15 minuta bi ga zatrpao. Šta poller radi vidi se u logu komentara.
+
+### 9.4 Kvota — cena i šta praktično znači
+
+Data API v3 meri svaki poziv u „jedinicama" prema dnevnom budžetu projekta od **10 000**, koji se resetuje u **ponoć po pacifičkom vremenu** (kod nas 09:00, i leti i zimi).
+
+| Poziv | Cena | Ko ga zove |
+|---|---|---|
+| `commentThreads.list` (strana do 100 komentara) | **1** | poller, na 15 min |
+| `comments.insert` (jedan javan odgovor) | **50** | motor, po odgovoru |
+| `comments.setModerationStatus` | **50** | motor, po moderaciji |
+| YouTube Analytics API (`reports.query`) | **0** iz ovog budžeta | sync na 6h |
+
+Šta to znači u brojkama:
+
+- Sirovi plafon: 10 000 / 50 = **~200 automatskih odgovora dnevno**, i ni jedan više.
+- Polling na 15 minuta troši ~96–192 jedinice dnevno (1–2 strane po obilasku) — zanemarljivo.
+- Ali motor **ne radi protiv punih 10 000**. `QUOTA_RESERVE_FOR_SYNC` (2 000) je odvojen za analitiku, jer su brojke proizvod: ako motor potroši sve odgovarajući ljudima, sutrašnji sync ne može da se izvrši i dashboard pokazuje ustajale podatke do reseta. Efektivni plafon je `QUOTA_SOFT_LIMIT` = **8 000 jedinica**, odnosno **~160 odgovora dnevno** posle polling troška.
+- Automatizacija koja radi i odgovor i moderaciju košta **100 jedinica po komentaru**, dakle prepolovi taj broj.
+
+Kvota se **rezerviše u ingestu**, ne u slanju: nalet od trideset komentara koji se poklope bi inače svaki prošao proveru koju nijedan još nije platio. Kada YouTube ipak vrati `quotaExceeded`, to je autoritativno (naš brojač ide po UTC danu, pravi reset je pacifički) i motor potroši ostatak dnevnog budžeta da ostatak reda stane umesto da pedeset puta ponovi isti osuđeni poziv.
+
+Widget na vrhu ekrana sa automatizacijama pokazuje potrošnju u realnom vremenu, i kada je potrošena kaže kad se nastavlja.
+
+### 9.5 Scope-ovi
+
+```
+https://www.googleapis.com/auth/youtube.readonly        — kanal, videi, komentari
+https://www.googleapis.com/auth/yt-analytics.readonly   — izveštaji (pregledi, watch time, retencija)
+https://www.googleapis.com/auth/youtube.force-ssl       — comments.insert, comments.setModerationStatus
+```
+
+**`youtube.force-ssl` je jedini scope koji dozvoljava pisanje.** Bez njega `comments.insert` i `comments.setModerationStatus` vraćaju 403 — i to je podmukla greška, jer analitika i čitanje komentara i dalje rade savršeno, pa deluje kao da je konekcija ispravna. Ako motor ume da pročita komentar ali ne i da odgovori, prvo proveri da li je refresh token izdat sa ovim scope-om. Dodavanje scope-a **traži nov refresh token** — postojeći ne dobija nova prava.
+
+Ime je istorijsko („force SSL"), nema veze sa HTTPS-om; danas je to prosto YouTube-ov read-write scope.
+
+### 9.6 Kako se dobija refresh token
+
+Service account **ne radi** za YouTube (kanal pripada Google nalogu, ne projektu), pa mora OAuth sa korisničkim pristankom. Jednokratno, ~15 minuta:
+
+1. **Google Cloud Console** → isti projekat kao GA4 → uključi **YouTube Data API v3** i **YouTube Analytics API**.
+2. **OAuth consent screen** → tip *External*, dodaj sebe kao **Test user**. (U „Testing" režimu refresh token ističe posle 7 dana — za trajan token app mora biti *In production*; to je samo prekidač, ne traži verifikaciju dok su scope-ovi ograničeni na sopstveni nalog.)
+3. **Credentials** → *Create OAuth client ID* → tip **Desktop app**. Zapiši Client ID i Client Secret.
+4. Otvori consent URL u browseru, **ulogovan kao vlasnik kanala**:
+   `https://accounts.google.com/o/oauth2/v2/auth?client_id=<ID>&redirect_uri=http://localhost&response_type=code&access_type=offline&prompt=consent&scope=<sva tri scope-a, razdvojena razmakom>`
+   `access_type=offline` + `prompt=consent` su obavezni — bez njih Google vrati samo access token.
+5. Google redirektuje na `http://localhost/?code=…`. Prekopiraj `code` i razmeni ga za token:
+   `POST https://oauth2.googleapis.com/token` sa `code`, `client_id`, `client_secret`, `redirect_uri=http://localhost`, `grant_type=authorization_code`.
+6. Iz odgovora uzmi `refresh_token` (počinje sa `1//`) i u Podešavanjima nalepi JSON:
+   ```json
+   { "clientId": "...", "clientSecret": "...", "refreshToken": "1//...", "channelId": "UC..." }
+   ```
+   `channelId` je 24 znaka i počinje sa `UC` — nađeš ga u YouTube Studio → Settings → Channel → Advanced.
+
+Blob se u Convexu čuva enkriptovan (AES-GCM, `lib/crypto.ts`); access token se ne persistuje nego se vadi po pozivu i **nikad ne ulazi u log**. Ako refresh token prestane da važi (`invalid_grant`: povučen pristanak, rotirani kredencijali, ili 6 meseci nekorišćenja), jedini lek je ponovo povezati nalog.
+
+### 9.7 Šta tek treba uraditi
+
+- **Audit kod Google-a ako se pređe 10 000 jedinica.** Povećanje kvote se traži kroz *YouTube API Services — Audit and Quota Extension Form*: opis aplikacije, snimak ekrana kako se podaci koriste, dokaz o poštovanju YouTube API Services ToS-a i brandinga. Traje nedeljama i nije formalnost. Praktično: dok je ovo interni alat za jedan kanal, 8 000 jedinica je dovoljno; kad broj automatskih odgovora priđe stotinu dnevno, prijava ide odmah, pre nego što zatreba.
+- **Rad sa tuđim kanalima (klijenti).** Trenutni model je „jedan workspace, jedan kanal, ručno nalepljen refresh token" — to ne skalira na klijente. Za to treba: (a) pravi OAuth flow u aplikaciji sa `redirect_uri` na naš domen umesto ručne razmene koda, (b) **verifikacija OAuth consent screen-a** kod Google-a, jer su sva tri scope-a *sensitive/restricted* i bez verifikacije važi granica od 100 korisnika plus ekran upozorenja, (c) kvota **po projektu, ne po kanalu** — deset klijenata deli istih 10 000 jedinica, pa `ytQuotaUsage` mora da postane raspodela budžeta među workspace-ovima, a ne samo brojač, i (d) pravno: odgovaranje u ime klijenta na njegovom kanalu traži da to piše u ugovoru, jer je javno i potpisano njegovim imenom.
+- **Moderacija „rejected" nema opoziv.** Editor na to jasno upozorava, ali vredi razmisliti o „suvom hodu": režim u kom automatizacija samo loguje šta bi uradila, bez pisanja. Za `heldForReview` rizik je mali, za `rejected` nije.
+- **Titl videa u logu** dolazi iz `ytVideoStats` (Y2), pa komentar na videu koji sync još nije video ostaje bez naslova. Bezopasno, ali se vidi na ekranu.

@@ -54,6 +54,7 @@ import type * as sync from "../sync.js";
 import type * as workspaces from "../workspaces.js";
 import type * as youtube from "../youtube.js";
 import type * as youtubeStore from "../youtubeStore.js";
+import type * as ytAutomationsApi from "../ytAutomationsApi.js";
 import type * as ytIngest from "../ytIngest.js";
 import type * as ytPoll from "../ytPoll.js";
 import type * as ytReply from "../ytReply.js";
@@ -111,6 +112,7 @@ declare const fullApi: ApiFromModules<{
   workspaces: typeof workspaces;
   youtube: typeof youtube;
   youtubeStore: typeof youtubeStore;
+  ytAutomationsApi: typeof ytAutomationsApi;
   ytIngest: typeof ytIngest;
   ytPoll: typeof ytPoll;
   ytReply: typeof ytReply;
