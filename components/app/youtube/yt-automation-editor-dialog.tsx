@@ -9,6 +9,7 @@ import {
   Loader2,
   MessageSquareReply,
   ShieldCheck,
+  Trash2,
   X,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -125,6 +126,9 @@ function YtAutomationEditorForm({
   const [markAsSpam, setMarkAsSpam] = useState(
     automationToEdit?.markAsSpam ?? false,
   );
+  const [deleteEnabled, setDeleteEnabled] = useState(
+    automationToEdit?.deleteEnabled ?? false,
+  );
   const [isActive, setIsActive] = useState(automationToEdit?.isActive ?? true);
 
   const [submitting, setSubmitting] = useState(false);
@@ -177,6 +181,7 @@ function YtAutomationEditorForm({
       moderationEnabled,
       moderationStatus: moderationStatus === "" ? undefined : moderationStatus,
       markAsSpam,
+      deleteEnabled,
       isActive,
     };
 
@@ -212,7 +217,7 @@ function YtAutomationEditorForm({
             </DialogTitle>
             <DialogDescription>
               Kada komentar na kanalu sadrži ključnu reč, kanal mu javno
-              odgovara, moderiše ga, ili oboje.
+              odgovara, moderiše ga ili ga briše.
             </DialogDescription>
           </div>
         </div>
@@ -402,7 +407,12 @@ function YtAutomationEditorForm({
         </div>
 
         {/* Moderacija */}
-        <div className="space-y-2.5 rounded-xl border border-line bg-surface/50 p-3.5">
+        <div
+          className={cn(
+            "space-y-2.5 rounded-xl border border-line bg-surface/50 p-3.5",
+            deleteEnabled && "opacity-60",
+          )}
+        >
           <div className="flex items-center justify-between gap-2">
             <div>
               <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
@@ -414,15 +424,24 @@ function YtAutomationEditorForm({
               </p>
             </div>
             <PillToggle
-              on={moderationEnabled}
+              on={!deleteEnabled && moderationEnabled}
               onChange={setModerationEnabled}
-              disabled={submitting}
+              disabled={submitting || deleteEnabled}
               onLabel="Uključena"
               offLabel="Isključena"
             />
           </div>
 
-          {moderationEnabled && (
+          {/* Deleting the comment leaves nothing to moderate, so the whole
+              section steps aside rather than pretending to have an effect. */}
+          {deleteEnabled && (
+            <p className="text-xs leading-relaxed text-text-muted">
+              Moderacija se preskače dok je brisanje uključeno — komentar koji
+              se briše nema šta da se zadrži, odbije ili objavi.
+            </p>
+          )}
+
+          {!deleteEnabled && moderationEnabled && (
             <div className="space-y-2.5">
               <SegmentedControl
                 value={moderationStatus}
@@ -487,6 +506,54 @@ function YtAutomationEditorForm({
           )}
         </div>
 
+        {/* Brisanje komentara */}
+        <div className="space-y-2.5 rounded-xl border border-line bg-surface/50 p-3.5">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                <Trash2 className="size-3.5 text-accent-400" />
+                <span>Brisanje komentara</span>
+              </span>
+              <p className="mt-0.5 text-xs text-text-muted">
+                Komentar se uklanja sa videa čim se poklopi ključna reč.
+              </p>
+            </div>
+            <PillToggle
+              on={deleteEnabled}
+              onChange={setDeleteEnabled}
+              disabled={submitting}
+              onLabel="Uključeno"
+              offLabel="Isključeno"
+            />
+          </div>
+
+          {deleteEnabled && (
+            <div className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 p-3">
+              <AlertTriangle
+                className="mt-0.5 size-3.5 shrink-0 text-danger"
+                aria-hidden
+              />
+              <div className="text-xs leading-relaxed text-foreground">
+                <p className="font-semibold text-danger">
+                  Nepovratno — ni YouTube Studio ovo ne vraća
+                </p>
+                <p className="mt-1">
+                  Za razliku od moderacije, obrisan komentar ne postoji nigde
+                  više. Automatizacija ovo radi sama, bez tvoje potvrde, svaki
+                  put kada se poklopi ključna reč — pa je pogrešna ključna reč
+                  ovde skuplja nego bilo gde drugde na ovom ekranu.
+                </p>
+                {replyEnabled && (
+                  <p className="mt-1.5 text-text-muted">
+                    Odgovor se šalje pre brisanja, ali brisanjem komentara
+                    nestaje i odgovor ispod njega — YouTube uklanja celu nit.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Živi pregled odgovora */}
         <div className="rounded-xl border border-line-soft bg-card p-3.5">
           {replyEnabled ? (
@@ -500,10 +567,13 @@ function YtAutomationEditorForm({
             />
           ) : (
             <p className="text-xs text-text-muted">
-              Bez javnog odgovora — automatizacija samo moderiše komentar
-              {moderationEnabled && moderationStatus !== ""
-                ? ` (${MODERATION_LABELS[moderationStatus].toLowerCase()}).`
-                : "."}
+              {deleteEnabled
+                ? "Bez javnog odgovora — automatizacija samo briše komentar."
+                : moderationEnabled && moderationStatus !== ""
+                  ? `Bez javnog odgovora — automatizacija samo moderiše komentar (${MODERATION_LABELS[
+                      moderationStatus
+                    ].toLowerCase()}).`
+                  : "Bez javnog odgovora — automatizacija samo moderiše komentar."}
             </p>
           )}
         </div>

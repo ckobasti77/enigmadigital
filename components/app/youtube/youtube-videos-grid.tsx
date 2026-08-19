@@ -11,6 +11,7 @@ import {
   Gauge,
   Heart,
   MessageCircle,
+  Pencil,
   PlayCircle,
   Trophy,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { formatNumber, formatPercent, formatWatchTime } from "@/lib/format";
+import { YtVideoEditDialog } from "./yt-video-edit-dialog";
 import { cn } from "@/lib/utils";
 
 export type VideoItem = FunctionReturnType<
@@ -85,6 +87,7 @@ function compareVideos(a: VideoItem, b: VideoItem, sort: SortState): number {
 
 export function YouTubeVideosGrid({ videos }: { videos: VideoItem[] }) {
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
+  const [editing, setEditing] = useState<VideoItem | null>(null);
 
   const topThree = useMemo(
     () => [...videos].sort((a, b) => b.views - a.views).slice(0, 3),
@@ -128,7 +131,12 @@ export function YouTubeVideosGrid({ videos }: { videos: VideoItem[] }) {
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {topThree.map((item, idx) => (
-            <TopVideoCard key={item._id} item={item} rank={idx + 1} />
+            <TopVideoCard
+              key={item._id}
+              item={item}
+              rank={idx + 1}
+              onEdit={() => setEditing(item)}
+            />
           ))}
         </div>
       </div>
@@ -175,10 +183,21 @@ export function YouTubeVideosGrid({ videos }: { videos: VideoItem[] }) {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sortedVideos.map((item) => (
-            <VideoCard key={item._id} item={item} />
+            <VideoCard
+              key={item._id}
+              item={item}
+              onEdit={() => setEditing(item)}
+            />
           ))}
         </div>
       </div>
+
+      <YtVideoEditDialog
+        video={editing}
+        onOpenChange={(open) => {
+          if (!open) setEditing(null);
+        }}
+      />
     </div>
   );
 }
@@ -257,7 +276,15 @@ function Thumbnail({
 /**
  * Top video card: elevated, rank pill, views pulled out as the headline stat.
  */
-function TopVideoCard({ item, rank }: { item: VideoItem; rank: number }) {
+function TopVideoCard({
+  item,
+  rank,
+  onEdit,
+}: {
+  item: VideoItem;
+  rank: number;
+  onEdit: () => void;
+}) {
   return (
     <Card
       className={cn(
@@ -327,15 +354,18 @@ function TopVideoCard({ item, rank }: { item: VideoItem; rank: number }) {
           />
         </div>
 
-        <a
-          href={watchUrl(item.videoId)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-md border border-line-soft bg-surface-raised/40 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:border-line-strong hover:bg-surface-raised hover:text-foreground"
-        >
-          <span>Pogledaj na YouTube-u</span>
-          <ExternalLink className="size-3" aria-hidden />
-        </a>
+        <div className="mt-4 flex items-center gap-2">
+          <a
+            href={watchUrl(item.videoId)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-line-soft bg-surface-raised/40 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:border-line-strong hover:bg-surface-raised hover:text-foreground"
+          >
+            <span>Pogledaj na YouTube-u</span>
+            <ExternalLink className="size-3" aria-hidden />
+          </a>
+          <EditVideoButton onEdit={onEdit} title={item.title} />
+        </div>
       </div>
     </Card>
   );
@@ -363,7 +393,13 @@ function MiniStat({
 }
 
 /** Standard card for the full video list. */
-function VideoCard({ item }: { item: VideoItem }) {
+function VideoCard({
+  item,
+  onEdit,
+}: {
+  item: VideoItem;
+  onEdit: () => void;
+}) {
   return (
     <Card className="group relative flex flex-col justify-between overflow-hidden p-0 shadow-card hover-lift">
       <div className="relative">
@@ -410,18 +446,46 @@ function VideoCard({ item }: { item: VideoItem }) {
             </span>
           </div>
 
-          <a
-            href={watchUrl(item.videoId)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 font-medium text-text-secondary transition-colors hover:text-accent-400"
-          >
-            <span>Otvori</span>
-            <ExternalLink className="size-3" aria-hidden />
-          </a>
+          <div className="flex items-center gap-2">
+            <a
+              href={watchUrl(item.videoId)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-medium text-text-secondary transition-colors hover:text-accent-400"
+            >
+              <span>Otvori</span>
+              <ExternalLink className="size-3" aria-hidden />
+            </a>
+            <EditVideoButton onEdit={onEdit} title={item.title} />
+          </div>
         </div>
       </div>
     </Card>
+  );
+}
+
+/**
+ * The way into the edit dialog. Named for the video it opens, because a grid
+ * of identical pencils tells a screen reader nothing about which one.
+ */
+function EditVideoButton({
+  onEdit,
+  title,
+}: {
+  onEdit: () => void;
+  title: string;
+}) {
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onEdit}
+      aria-label={`Izmeni video ${title}`}
+      className="h-7 gap-1 border-line-soft px-2 text-xs text-text-secondary hover:border-line-strong hover:text-foreground"
+    >
+      <Pencil className="size-3" aria-hidden />
+      <span>Izmeni</span>
+    </Button>
   );
 }
 

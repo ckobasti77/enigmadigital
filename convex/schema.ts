@@ -720,6 +720,10 @@ export default defineSchema({
     // Maps to `banAuthor` on comments.setModerationStatus, which YouTube only
     // accepts together with moderationStatus "rejected".
     markAsSpam: v.optional(v.boolean()),
+    // Delete the comment outright (Y7). When on, `moderationEnabled` is
+    // ignored: there is nothing to moderate about a comment that is gone. The
+    // deletion runs AFTER the reply, because a reply needs its parent to exist.
+    deleteEnabled: v.optional(v.boolean()),
     isActive: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -747,9 +751,16 @@ export default defineSchema({
       // The engine stopped rather than spend the quota the analytics sync
       // needs tomorrow (lib/ytQuota.ts).
       v.literal("skipped_quota"),
+      // The comment itself was removed from YouTube — by an automation with
+      // `deleteEnabled`, or by hand from the log (Y7). Unlike moderation this
+      // cannot be undone from YouTube Studio either.
+      v.literal("deleted"),
     ),
     attempts: v.number(),
     repliedAt: v.optional(v.number()),
+    // Set whenever the comment was deleted, including on a row whose status
+    // stayed "replied" because a manual deletion came later.
+    deletedAt: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
     date: v.string(), // "YYYY-MM-DD" of createdAt, UTC
     createdAt: v.number(),

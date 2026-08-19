@@ -52,6 +52,7 @@ const commentLogStatusValidator = v.union(
   v.literal("failed"),
   v.literal("skipped_no_match"),
   v.literal("skipped_quota"),
+  v.literal("deleted"),
 );
 
 /** Everything the editor dialog sends, for both create and update. */
@@ -67,6 +68,7 @@ const automationInputValidator = v.object({
   moderationEnabled: v.boolean(),
   moderationStatus: v.optional(moderationStatusValidator),
   markAsSpam: v.optional(v.boolean()),
+  deleteEnabled: v.optional(v.boolean()),
   isActive: v.boolean(),
 });
 
@@ -84,6 +86,7 @@ type AutomationInput = {
   moderationEnabled: boolean;
   moderationStatus?: ModerationStatus;
   markAsSpam?: boolean;
+  deleteEnabled?: boolean;
   isActive: boolean;
 };
 
@@ -130,11 +133,18 @@ function normalizeAutomationInput(input: AutomationInput): AutomationInput {
     invalid(`Automatizacija može imati najviše ${KEYWORDS_MAX} ključnih reči.`);
   }
 
-  // An automation with neither action switched on cannot do anything on a
-  // match — the ingest path skips it outright — so it is refused here rather
-  // than saved as a rule that silently never fires.
-  if (!input.replyEnabled && !input.moderationEnabled) {
-    invalid("Uključi bar odgovor ili moderaciju.");
+  // Deleting the comment supersedes moderating it: there is nothing to hold
+  // for review once it is gone. The flag is normalised away here so the stored
+  // row cannot claim both, and ytReply.ts / automationQuotaCost never have to
+  // guess which one an operator meant.
+  const deleteEnabled = input.deleteEnabled ?? false;
+  const moderationEnabled = deleteEnabled ? false : input.moderationEnabled;
+
+  // An automation with no action switched on cannot do anything on a match —
+  // the ingest path skips it outright — so it is refused here rather than
+  // saved as a rule that silently never fires.
+  if (!input.replyEnabled && !moderationEnabled && !deleteEnabled) {
+    invalid("Uključi bar odgovor, moderaciju ili brisanje komentara.");
   }
 
   const replyMessage = input.replyMessage?.trim();
@@ -149,10 +159,10 @@ function normalizeAutomationInput(input: AutomationInput): AutomationInput {
     }
   }
 
-  const moderationStatus = input.moderationEnabled
+  const moderationStatus = moderationEnabled
     ? input.moderationStatus
     : undefined;
-  if (input.moderationEnabled && moderationStatus === undefined) {
+  if (moderationEnabled && moderationStatus === undefined) {
     invalid("Izaberi šta se radi sa komentarom.");
   }
 
@@ -175,8 +185,9 @@ function normalizeAutomationInput(input: AutomationInput): AutomationInput {
     videoId: input.matchAnyVideo ? undefined : videoId,
     replyEnabled: input.replyEnabled,
     replyMessage: input.replyEnabled ? replyMessage : undefined,
-    moderationEnabled: input.moderationEnabled,
+    moderationEnabled,
     moderationStatus,
+    deleteEnabled,
     // YouTube only accepts `banAuthor` together with `rejected`; anywhere else
     // the flag would make setModerationStatus fail.
     markAsSpam:
@@ -200,6 +211,7 @@ const automationViewValidator = v.object({
   moderationEnabled: v.boolean(),
   moderationStatus: v.union(moderationStatusValidator, v.null()),
   markAsSpam: v.boolean(),
+  deleteEnabled: v.boolean(),
   isActive: v.boolean(),
   createdAt: v.number(),
   updatedAt: v.number(),
@@ -258,6 +270,7 @@ export const listAutomations = query({
         moderationEnabled: a.moderationEnabled,
         moderationStatus: a.moderationStatus ?? null,
         markAsSpam: a.markAsSpam ?? false,
+        deleteEnabled: a.deleteEnabled ?? false,
         isActive: a.isActive,
         createdAt: a.createdAt,
         updatedAt: a.updatedAt,
@@ -279,6 +292,8 @@ const commentLogViewValidator = v.object({
   status: commentLogStatusValidator,
   attempts: v.number(),
   repliedAt: v.union(v.number(), v.null()),
+  /** Set once the comment itself was removed from YouTube (Y7). */
+  deletedAt: v.union(v.number(), v.null()),
   errorMessage: v.union(v.string(), v.null()),
   createdAt: v.number(),
 });
@@ -346,6 +361,7 @@ export const listCommentLogs = query({
       status: l.status,
       attempts: l.attempts,
       repliedAt: l.repliedAt ?? null,
+      deletedAt: l.deletedAt ?? null,
       errorMessage: l.errorMessage ?? null,
       createdAt: l.createdAt,
     }));

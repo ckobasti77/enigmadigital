@@ -117,13 +117,20 @@ export const loadQuotaUsage = internalQuery({
  *
  * A reply with no text written is not a reply, so it costs nothing and does
  * nothing — the same rule the send path applies.
+ *
+ * Deleting and moderating are exclusive, not additive: there is nothing to
+ * moderate about a comment that is being removed, so `deleteEnabled` wins and
+ * the moderation call is never made (Y7). ytReply.ts makes the same choice, and
+ * the two must agree or the reserved cost stops matching the calls that go out.
  */
 export function automationQuotaCost(a: Doc<"ytAutomations">): number {
   let cost = 0;
   if (a.replyEnabled && (a.replyMessage ?? "").trim().length > 0) {
     cost += QUOTA_COST.commentsInsert;
   }
-  if (a.moderationEnabled && a.moderationStatus !== undefined) {
+  if (a.deleteEnabled === true) {
+    cost += QUOTA_COST.commentsDelete;
+  } else if (a.moderationEnabled && a.moderationStatus !== undefined) {
     cost += QUOTA_COST.commentsSetModerationStatus;
   }
   return cost;

@@ -10,6 +10,7 @@ import { decryptCredentials } from "./lib/crypto";
 import { nextRetryDelayMs } from "./lib/orMessage";
 import {
   COMMENT_TEXT_MAX,
+  buildCommentsDeleteUrl,
   buildCommentsInsertUrl,
   buildSetModerationStatusUrl,
   extractYouTubeApiError,
@@ -57,6 +58,7 @@ const statusValidator = v.union(
   v.literal("failed"),
   v.literal("skipped_no_match"),
   v.literal("skipped_quota"),
+  v.literal("deleted"),
 );
 
 const moderationStatusValidator = v.union(
@@ -71,7 +73,8 @@ type LogStatus =
   | "moderated"
   | "failed"
   | "skipped_no_match"
-  | "skipped_quota";
+  | "skipped_quota"
+  | "deleted";
 
 type ReplyContext = {
   status: LogStatus;
@@ -85,6 +88,7 @@ type ReplyContext = {
     moderationEnabled: boolean;
     moderationStatus?: "heldForReview" | "rejected" | "published";
     markAsSpam?: boolean;
+    deleteEnabled?: boolean;
   } | null;
   encryptedCredentials: string;
 } | null;
@@ -112,6 +116,7 @@ export const loadReplyContext = internalQuery({
           moderationEnabled: v.boolean(),
           moderationStatus: v.optional(moderationStatusValidator),
           markAsSpam: v.optional(v.boolean()),
+          deleteEnabled: v.optional(v.boolean()),
         }),
       ),
       encryptedCredentials: v.string(),
@@ -146,6 +151,7 @@ export const loadReplyContext = internalQuery({
               moderationEnabled: automation.moderationEnabled,
               moderationStatus: automation.moderationStatus,
               markAsSpam: automation.markAsSpam,
+              deleteEnabled: automation.deleteEnabled,
             },
       encryptedCredentials: conn.encryptedCredentials,
     };
@@ -160,6 +166,7 @@ export const applyResult = internalMutation({
     attempts: v.number(),
     errorMessage: v.optional(v.string()),
     repliedAt: v.optional(v.number()),
+    deletedAt: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -173,6 +180,7 @@ export const applyResult = internalMutation({
         ? { errorMessage: args.errorMessage }
         : {}),
       ...(args.repliedAt !== undefined ? { repliedAt: args.repliedAt } : {}),
+      ...(args.deletedAt !== undefined ? { deletedAt: args.deletedAt } : {}),
     });
     return null;
   },
@@ -182,22 +190,31 @@ type PostOutcome =
   | { ok: true }
   | { ok: false; error: string; quotaExceeded: boolean };
 
-/** POST to a YouTube endpoint with the access token; never logs the token. */
-async function ytPost(
+/**
+ * One authorised call to a YouTube endpoint; never logs the token.
+ *
+ * `okStatuses` lets a caller declare a failure it considers done: a DELETE
+ * answering 404 means the comment is already gone, which is the outcome that
+ * was asked for.
+ */
+async function ytCall(
   url: string,
   token: string,
-  body?: unknown,
+  init?: { method?: string; body?: unknown; okStatuses?: number[] },
 ): Promise<PostOutcome> {
+  const body = init?.body;
   try {
     const res = await fetch(url, {
-      method: "POST",
+      method: init?.method ?? "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
-    if (res.ok) return { ok: true };
+    if (res.ok || (init?.okStatuses ?? []).includes(res.status)) {
+      return { ok: true };
+    }
 
     const text = await res.text().catch(() => "");
     return {
@@ -236,6 +253,7 @@ export const replyToComment = internalAction({
       status: LogStatus;
       errorMessage?: string;
       repliedAt?: number;
+      deletedAt?: number;
     }): Promise<null> => {
       await ctx.runMutation(internal.ytReply.applyResult, {
         commentLogId: args.commentLogId,
@@ -291,20 +309,29 @@ export const replyToComment = internalAction({
     // What this attempt does. A reply with no text written is not a reply.
     const replyText = (automation.replyMessage ?? "").trim();
     const willReply = automation.replyEnabled && replyText.length > 0;
-    const moderationStatus = automation.moderationEnabled
-      ? automation.moderationStatus
-      : undefined;
+    const willDelete = automation.deleteEnabled === true;
+    // Deleting the comment supersedes moderating it — there is nothing left to
+    // hold for review once it is gone, and the 50 units that call costs would
+    // buy nothing. ytIngest.automationQuotaCost reserves on the same rule.
+    const moderationStatus =
+      !willDelete && automation.moderationEnabled
+        ? automation.moderationStatus
+        : undefined;
 
-    if (!willReply && moderationStatus === undefined) {
+    if (!willReply && !willDelete && moderationStatus === undefined) {
       return await finish({
         status: "skipped_no_match",
         errorMessage: "Automatizacija nema uključenu nijednu akciju.",
       });
     }
 
+    // The retried action is whichever runs first: the reply if there is one,
+    // otherwise the single side action. Every one of them costs 50.
     const mainCost = willReply
       ? QUOTA_COST.commentsInsert
-      : QUOTA_COST.commentsSetModerationStatus;
+      : willDelete
+        ? QUOTA_COST.commentsDelete
+        : QUOTA_COST.commentsSetModerationStatus;
 
     // Attempt 1 spends what ingest already reserved. A retry is a fresh 50
     // units, so it is checked and booked here before the call goes out.
@@ -341,10 +368,12 @@ export const replyToComment = internalAction({
 
     // ── main action: the public reply ────────────────────────────────────────
     if (willReply) {
-      const result = await ytPost(buildCommentsInsertUrl(), token, {
-        snippet: {
-          parentId: commentId,
-          textOriginal: replyText.slice(0, COMMENT_TEXT_MAX),
+      const result = await ytCall(buildCommentsInsertUrl(), token, {
+        body: {
+          snippet: {
+            parentId: commentId,
+            textOriginal: replyText.slice(0, COMMENT_TEXT_MAX),
+          },
         },
       });
       if (!result.ok) {
@@ -360,7 +389,7 @@ export const replyToComment = internalAction({
     // re-post that reply.
     let moderationError: string | undefined;
     if (moderationStatus !== undefined) {
-      const result = await ytPost(
+      const result = await ytCall(
         buildSetModerationStatusUrl({
           commentId,
           moderationStatus,
@@ -379,14 +408,44 @@ export const replyToComment = internalAction({
       }
     }
 
+    // ── side action: deletion (Y7) ───────────────────────────────────────────
+    // LAST, and that order is not cosmetic: comments.insert needs the parent
+    // comment to exist, so deleting first would leave nothing to reply to.
+    // A 404 counts as done — a retry of a delete that did land would see one,
+    // and the comment being gone is what was asked for either way.
+    let deleted = false;
+    let deleteError: string | undefined;
+    if (willDelete) {
+      const result = await ytCall(buildCommentsDeleteUrl(commentId), token, {
+        method: "DELETE",
+        okStatuses: [404],
+      });
+      if (result.ok) {
+        deleted = true;
+      } else if (!willReply) {
+        // The delete was this attempt's main action; nothing irreversible ran
+        // before it, so it may retry.
+        return result.quotaExceeded
+          ? await handleQuotaExceeded()
+          : await handleFailure(result.error);
+      } else {
+        deleteError = result.error.slice(0, 200);
+      }
+    }
+
+    const sideError =
+      moderationError !== undefined
+        ? `Odgovor je poslat, moderacija nije: ${moderationError}`
+        : deleteError !== undefined
+          ? `Odgovor je poslat, komentar nije obrisan: ${deleteError}`
+          : undefined;
+
+    const now = Date.now();
     return await finish({
-      status: willReply ? "replied" : "moderated",
-      repliedAt: Date.now(),
-      ...(moderationError !== undefined
-        ? {
-            errorMessage: `Odgovor je poslat, moderacija nije: ${moderationError}`,
-          }
-        : {}),
+      status: deleted ? "deleted" : willReply ? "replied" : "moderated",
+      repliedAt: now,
+      ...(deleted ? { deletedAt: now } : {}),
+      ...(sideError !== undefined ? { errorMessage: sideError } : {}),
     });
   },
 });

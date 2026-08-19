@@ -46,8 +46,14 @@ function convexMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-/** What a match actually does, in one phrase. */
+/**
+ * What a match actually does, in one phrase. Deletion and moderation never
+ * appear together — the editor stores one or the other (Y7).
+ */
 function actionLabel(automation: YtAutomationView): string {
+  if (automation.deleteEnabled) {
+    return automation.replyEnabled ? "Odgovor + brisanje" : "Samo brisanje";
+  }
   if (automation.replyEnabled && automation.moderationEnabled) {
     return "Odgovor + moderacija";
   }
@@ -161,6 +167,8 @@ function AutomationCard({
             <span className="inline-flex items-center gap-1 text-foreground">
               {automation.replyEnabled ? (
                 <MessageSquareReply className="size-3" aria-hidden />
+              ) : automation.deleteEnabled ? (
+                <Trash2 className="size-3" aria-hidden />
               ) : (
                 <ShieldCheck className="size-3" aria-hidden />
               )}
@@ -179,6 +187,15 @@ function AutomationCard({
                 <span className="font-mono">Video {automation.videoId}</span>
               )}
             </span>
+            {automation.deleteEnabled && (
+              <>
+                <span aria-hidden>·</span>
+                <span className="inline-flex items-center gap-1 text-danger">
+                  <Trash2 className="size-3" aria-hidden />
+                  Briše komentar nepovratno
+                </span>
+              </>
+            )}
             {automation.moderationEnabled &&
               automation.moderationStatus !== null && (
                 <>
@@ -249,7 +266,9 @@ function AutomationCard({
           <YtCommentPreview compact message={automation.replyMessage ?? ""} />
         ) : (
           <p className="text-xs text-text-muted">
-            Bez javnog odgovora — automatizacija samo moderiše komentar.
+            {automation.deleteEnabled
+              ? "Bez javnog odgovora — automatizacija samo briše komentar."
+              : "Bez javnog odgovora — automatizacija samo moderiše komentar."}
           </p>
         )}
 

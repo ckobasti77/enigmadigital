@@ -56,10 +56,12 @@ import type * as youtube from "../youtube.js";
 import type * as youtubeStore from "../youtubeStore.js";
 import type * as ytAuth from "../ytAuth.js";
 import type * as ytAutomationsApi from "../ytAutomationsApi.js";
+import type * as ytComments from "../ytComments.js";
 import type * as ytIngest from "../ytIngest.js";
 import type * as ytMedia from "../ytMedia.js";
 import type * as ytPoll from "../ytPoll.js";
 import type * as ytReply from "../ytReply.js";
+import type * as ytVideos from "../ytVideos.js";
 
 import type {
   ApiFromModules,
@@ -116,10 +118,12 @@ declare const fullApi: ApiFromModules<{
   youtubeStore: typeof youtubeStore;
   ytAuth: typeof ytAuth;
   ytAutomationsApi: typeof ytAutomationsApi;
+  ytComments: typeof ytComments;
   ytIngest: typeof ytIngest;
   ytMedia: typeof ytMedia;
   ytPoll: typeof ytPoll;
   ytReply: typeof ytReply;
+  ytVideos: typeof ytVideos;
 }>;
 
 /**
