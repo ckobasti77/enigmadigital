@@ -250,6 +250,18 @@ export const remove = mutation({
     if (conn === null || conn.workspaceId !== workspaceId) {
       throw new ConvexError({ code: "forbidden" });
     }
+
+    // YouTube's Developer Policies require data retrieved from the API to be
+    // deleted when the authorization is revoked — not merely left unsynced. So
+    // disconnecting the channel erases every yt* table for this workspace, in
+    // rescheduled batches (`ytPurge`), rather than orphaning years of channel
+    // statistics and comment logs. The dialog in Settings says so out loud.
+    if (conn.provider === "youtube") {
+      await ctx.scheduler.runAfter(0, internal.ytPurge.purgeYouTubeData, {
+        workspaceId,
+      });
+    }
+
     await ctx.db.delete(connectionId);
   },
 });

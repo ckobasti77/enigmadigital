@@ -7,6 +7,7 @@ import {
 } from "@/components/app/youtube/youtube-dashboard";
 import { YtUploadButton } from "@/components/app/youtube/yt-upload-dialog";
 import { YtMediaJobsPanel } from "@/components/app/youtube/yt-media-jobs-panel";
+import { YouTubeAttribution } from "@/components/app/youtube/yt-attribution";
 
 export default function YouTubePage() {
   return (
@@ -56,6 +57,8 @@ export default function YouTubePage() {
         <div className="mt-8">
           <YtMediaJobsPanel />
         </div>
+
+        <YouTubeAttribution />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { YtAutomationsDashboard } from "@/components/app/youtube/yt-automations-dashboard";
+import { YouTubeAttribution } from "@/components/app/youtube/yt-attribution";
 
 export default function YouTubeAutomationsPage() {
   return (
@@ -26,6 +27,8 @@ export default function YouTubeAutomationsPage() {
 
       <div className="mt-8 flex flex-1 flex-col">
         <YtAutomationsDashboard />
+
+        <YouTubeAttribution />
       </div>
     </div>
   );

@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RevealGroup } from "@/components/motion/reveal";
 import { formatRelativeTime } from "@/lib/format";
+import { GOOGLE_PERMISSIONS_URL } from "@/lib/policy-links";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackLine, FeedbackNote } from "@/components/app/feedback";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
@@ -40,6 +41,7 @@ import {
   FormGroup,
   FormStack,
 } from "@/components/app/form-kit";
+import { DataAndAccess } from "./data-and-access";
 import { StatusPill } from "./status-pill";
 import { SyncHealth } from "./sync-health";
 import { SyncSchedule } from "./sync-schedule";
@@ -248,11 +250,20 @@ function DisconnectZone({
   label,
   busy,
   onConfirm,
+  zoneDescription,
+  dialogDescription,
 }: {
   /** Šta se prekida, u prvom padežu jednine: „Meta Ads nalog". */
   label: string;
   busy: boolean;
   onConfirm: () => void;
+  /**
+   * Kada prekid veze ne radi ono što podrazumevana rečenica obećava.
+   * YouTube (YA2) uz kredencijale briše i sve preuzete podatke, pa mora da
+   * kaže svoje — potvrda koja opisuje tuđu radnju gora je od nikakve.
+   */
+  zoneDescription?: string;
+  dialogDescription?: ReactNode;
 }) {
   const [asking, setAsking] = useState(false);
 
@@ -261,7 +272,10 @@ function DisconnectZone({
       <DangerZone
         className="mt-6"
         title="Prekini vezu"
-        description="Kredencijali se brišu. Već preuzeti podaci i istorija sinhronizacije ostaju."
+        description={
+          zoneDescription ??
+          "Kredencijali se brišu. Već preuzeti podaci i istorija sinhronizacije ostaju."
+        }
       >
         <Button
           type="button"
@@ -285,7 +299,10 @@ function DisconnectZone({
         onOpenChange={setAsking}
         busy={busy}
         title={`Prekinuti vezu sa ${label}?`}
-        description={`Sačuvani kredencijali se brišu i sinhronizacija staje. Podaci koji su već povučeni ostaju na tabli, a vezu možeš ponovo uspostaviti u svakom trenutku.`}
+        description={
+          dialogDescription ??
+          "Sačuvani kredencijali se brišu i sinhronizacija staje. Podaci koji su već povučeni ostaju na tabli, a vezu možeš ponovo uspostaviti u svakom trenutku."
+        }
         confirmLabel="Prekini vezu"
         busyLabel="Prekidam…"
         onConfirm={() => {
@@ -2015,9 +2032,17 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
     <CardShell
       icon={SquarePlay}
       title="YouTube"
-      subtitle="YouTube Data API · OAuth (samo čitanje)"
+      subtitle="YouTube Data API i Analytics · OAuth (čitanje i upravljanje)"
       status={connectionPill(connection?.status)}
     >
+      {/* Token nosi i `youtube.force-ssl`, čime aplikacija na kanalu PIŠE.
+          Kartica je do YA2 pisala „samo čitanje" — netačan opis dozvola nije
+          kozmetika, nego prva stvar koju revizija uporedi sa stvarnim opsegom. */}
+      <p className="mt-4 text-xs leading-relaxed text-text-muted">
+        Čita statistiku kanala i video zapisa. Odgovara na komentare i moderiše
+        ih. Menja naslove, opise i sličice. Šalje video zapise.
+      </p>
+
       {isConnected && !editing ? (
         <div className="mt-5">
           <SavedCredentials
@@ -2139,6 +2164,28 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
           label="YouTube kanalom"
           busy={disconnecting}
           onConfirm={handleDisconnect}
+          zoneDescription="Brišu se kredencijali i svi podaci preuzeti sa YouTube-a. Nepovratno."
+          dialogDescription={
+            <>
+              <span className="block">
+                Prekidanjem veze brišu se svi podaci preuzeti sa YouTube-a:
+                statistika kanala, podaci o video zapisima, izvori saobraćaja,
+                log komentara i automatizacije. Ova radnja je nepovratna.
+              </span>
+              <span className="mt-3 block">
+                Pristup aplikaciji možeš opozvati i sa Google strane, na{" "}
+                <a
+                  href={GOOGLE_PERMISSIONS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-accent-400 underline underline-offset-2 transition-colors hover:text-accent-300"
+                >
+                  myaccount.google.com/permissions
+                </a>
+                .
+              </span>
+            </>
+          }
         />
       )}
     </CardShell>
@@ -2173,6 +2220,8 @@ export function ConnectionsSettings() {
       <YouTubeCard connection={byProvider.get("youtube")} />
       <SyncSchedule connected={connections.map((c) => c.provider)} />
       <SyncHealth entries={health} />
+      {/* Na dnu na namerno: rezime se čita posle kartica koje sažima. */}
+      <DataAndAccess connected={connections.map((c) => c.provider)} />
     </RevealGroup>
   );
 }

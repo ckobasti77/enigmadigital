@@ -81,6 +81,7 @@ import type * as ytIngest from "../ytIngest.js";
 import type * as ytMedia from "../ytMedia.js";
 import type * as ytPlaylists from "../ytPlaylists.js";
 import type * as ytPoll from "../ytPoll.js";
+import type * as ytPurge from "../ytPurge.js";
 import type * as ytReply from "../ytReply.js";
 import type * as ytThumbnails from "../ytThumbnails.js";
 import type * as ytUpload from "../ytUpload.js";
@@ -166,6 +167,7 @@ declare const fullApi: ApiFromModules<{
   ytMedia: typeof ytMedia;
   ytPlaylists: typeof ytPlaylists;
   ytPoll: typeof ytPoll;
+  ytPurge: typeof ytPurge;
   ytReply: typeof ytReply;
   ytThumbnails: typeof ytThumbnails;
   ytUpload: typeof ytUpload;
