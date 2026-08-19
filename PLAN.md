@@ -258,10 +258,21 @@ Jedini modul u command centeru koji i **čita** i **piše**: pored analitike kan
 
 ### 9.1 Šta modul radi
 
-Dve polovine, jedan nalog i jedan kredencijal:
+Tri celine, jedan nalog i jedan kredencijal:
 
 1. **Analitika kanala** (`convex/youtube.ts`, `youtubeStore.ts`, ekran `/youtube`) — dnevni pregledi, vreme gledanja, neto pratioci, prosečan procenat odgledanog, izvori saobraćaja i poslednjih 30 videa. Cron na 6h, isti lookback princip kao GA4 (YouTube naknadno koriguje brojke za nekoliko dana unazad).
 2. **Motor za komentare** (`ytPoll.ts` → `ytIngest.ts` → `ytReply.ts`, ekran `/youtube/automatizacije`) — ključna reč u komentaru pokreće **javan odgovor** ispod tog komentara, **moderaciju** komentara, ili oboje. Svaki obrađen komentar završi kao red u `ytCommentLogs`, i onaj koji nije prošao — jer se ništa nije poklopilo ili jer je kvota potrošena.
+3. **Ručne izmene kanala** (`ytMedia.ts` kao zajednički sloj, pa `ytVideos.ts`, `ytCaptions.ts`, `ytUpload.ts`; sve sa ekrana `/youtube`) — ono što operater uradi klikom, a ne automatizacija:
+
+   | Radnja | Gde | Šta radi |
+   |---|---|---|
+   | **Slanje videa** | dugme „Pošalji video" u zaglavlju | resumable upload iz browsera, sa detekcijom Shorts-a |
+   | **Izmena videa** | „Izmeni" na kartici videa | naslov, opis, tagovi, kategorija, privatnost |
+   | **Brisanje videa** | unutar dijaloga za izmenu | nepovratno, uz punu potvrdu |
+   | **Titlovi** | „Titlovi" na kartici videa | spisak, slanje, zamena, brisanje |
+   | **Poslednje radnje** | panel na dnu `/youtube` | `ytMediaJobs` — šta je pokušano i kako se završilo |
+
+   Svaka od njih ostavlja red u `ytMediaJobs`, i onda kad ne uspe. To je namerno: automatizacije se dešavaju stotinama puta nedeljno i njihov log je tok, a ove radnje se dešavaju retko, ručno, i greška je skupa — obrisan video se ne vraća. Panel „Poslednje radnje" je jedino mesto gde se posle vidi *zašto* nešto nije prošlo; rečenica koju akcija baci nestane sa dijalogom.
 
 Ekran `/youtube/automatizacije` je namerno odvojena ruta, isto kao `/openreply/automatizacije`: analitika je ono što gledaš svaki dan, automatizacije su ono što podesiš jednom.
 
@@ -292,9 +303,23 @@ Data API v3 meri svaki poziv u „jedinicama" prema dnevnom budžetu projekta od
 | Poziv | Cena | Ko ga zove |
 |---|---|---|
 | `commentThreads.list` (strana do 100 komentara) | **1** | poller, na 15 min |
+| `videos.list` (do 50 videa odjednom) | **1** | sync; izmena videa, pre pisanja |
+| `playlists.list` | **1** | sloj za medije |
 | `comments.insert` (jedan javan odgovor) | **50** | motor, po odgovoru |
 | `comments.setModerationStatus` | **50** | motor, po moderaciji |
+| `comments.delete` | **50** | motor i ručno brisanje |
+| `videos.update` | **50** | izmena videa |
+| `videos.delete` | **50** | brisanje videa |
+| `thumbnails.set` | **50** | sloj za medije |
+| `playlistItems.insert` | **50** | sloj za medije |
+| `captions.list` | **50** | otvaranje panela sa titlovima |
+| `captions.delete` | **50** | brisanje titla |
+| `captions.insert` | **400** | slanje titla |
+| `captions.update` | **450** | zamena titla |
+| `videos.insert` (slanje videa) | **0** iz ovog budžeta | dugme „Pošalji video" |
 | YouTube Analytics API (`reports.query`) | **0** iz ovog budžeta | sync na 6h |
+
+Dve stavke u tabeli koštaju **0 iz ovog budžeta** i to nisu iste nule. Analytics API ima sopstveno ograničenje po korisniku, ne po jedinicama. `videos.insert` Google meri odvojeno i ne naplaćuje ga iz 10 000 — zato ima svoj brojač, `ytQuotaUsage.uploadsUsed`, i **svoj dnevni limit od 100 slanja koji je naš, ne Google-ov**. Postoji zbog jednog scenarija: petlje koja iznova šalje isti fajl. Zato se brojač knjiži *pre* slanja i vraća samo kada se ispostavi da resumable sesija nikad nije ni otvorena — brojač koji raste tek posle uspeha tu petlju ne bi zaustavio nijednom.
 
 Šta to znači u brojkama:
 
@@ -303,11 +328,63 @@ Data API v3 meri svaki poziv u „jedinicama" prema dnevnom budžetu projekta od
 - Ali motor **ne radi protiv punih 10 000**. `QUOTA_RESERVE_FOR_SYNC` (2 000) je odvojen za analitiku, jer su brojke proizvod: ako motor potroši sve odgovarajući ljudima, sutrašnji sync ne može da se izvrši i dashboard pokazuje ustajale podatke do reseta. Efektivni plafon je `QUOTA_SOFT_LIMIT` = **8 000 jedinica**, odnosno **~160 odgovora dnevno** posle polling troška.
 - Automatizacija koja radi i odgovor i moderaciju košta **100 jedinica po komentaru**, dakle prepolovi taj broj.
 
+#### Dva plafona nad istim brojačem
+
+Titl košta 400 jedinica. Deset titlova je 4 000 — pola dnevnog budžeta — i jedno popodne provedeno nad prevodima bi inače ostavilo motor za komentare bez ijedne jedinice, pa ljudi ispod videa ne bi dobili nikakav odgovor. Jedna nečija sesija montaže ne sme da ućutka kanal.
+
+Zato **ručne izmene rade protiv nižeg plafona** nego motor, iako oba čitaju isti dnevni brojač:
+
+| Plafon | Vrednost | Ko radi protiv njega |
+|---|---|---|
+| `QUOTA_DAILY_DEFAULT` | 10 000 | Google-ov budžet projekta |
+| `QUOTA_SOFT_LIMIT` | **8 000** | motor za komentare (2 000 je rezerva za sync) |
+| `QUOTA_MEDIA_LIMIT` | **6 000** | ručne izmene (još 2 000 je rezerva za komentare) |
+
+Panel sa titlovima zato pre svakog klika piše koliko taj klik košta i koliko ostaje posle njega, i nikad ne citira brojku motora — obećao bi 2 000 jedinica koje medijima nisu dozvoljene.
+
 Kvota se **rezerviše u ingestu**, ne u slanju: nalet od trideset komentara koji se poklope bi inače svaki prošao proveru koju nijedan još nije platio. Kada YouTube ipak vrati `quotaExceeded`, to je autoritativno (naš brojač ide po UTC danu, pravi reset je pacifički) i motor potroši ostatak dnevnog budžeta da ostatak reda stane umesto da pedeset puta ponovi isti osuđeni poziv.
 
 Widget na vrhu ekrana sa automatizacijama pokazuje potrošnju u realnom vremenu, i kada je potrošena kaže kad se nastavlja.
 
-### 9.5 Scope-ovi
+### 9.5 Slanje videa — i zašto svaki ostaje privatan
+
+**Ovo je ograničenje koje se ne može zaobići i mora da stoji napisano.** Google, doslovno iz dokumentacije za `videos.insert`:
+
+> *All videos uploaded via the videos.insert endpoint from unverified API projects created after 28 July 2020 will be restricted to private viewing mode.*
+
+Projekat `enigma-command-center` je napravljen posle tog datuma i nije prošao YouTube API Services audit. Znači: **svaki video poslat kroz ovu aplikaciju biće zaključan kao privatan.** To se ne menja ni iz aplikacije, ni iz YouTube Studija, ni ručno — skida se isključivo tako što projekat prođe audit (isti onaj iz §9.8, koji ionako treba za povećanje kvote).
+
+Zato u kodu privatnost nije polje nego konstanta. `ytUpload.startUpload` sam sastavlja telo zahteva i u njemu je `privacyStatus: "private"`; browser ne šalje privatnost, nego dobija telo koje sme da pošalje. U dijalogu je polje zaključano i objašnjava zašto, a upozorenje stoji **iznad dugmeta, uvek vidljivo, ne u tooltipu**. Ponuditi opciju „javno" koja ne radi gore je nego je ne ponuditi: prvo je laž koja se otkrije tek posle dvadeset minuta slanja.
+
+Dok odobrenje ne stigne, javna objava ide preko YouTube Studija — video je već na kanalu, samo privatan.
+
+#### Kako fajl stiže do Google-a
+
+Convex akcija nema ni vreme ni memoriju za fajl od nekoliko stotina megabajta, pa bajtovi **nikad ne ulaze u backend**:
+
+```
+browser → Convex    startUpload — knjiži dnevno slanje, otvara red u ytMediaJobs,
+                    vraća tačno telo koje sme da se pošalje
+browser → Convex    ytAuth.issueUploadToken — token od jednog sata, samo za upload
+browser → YouTube   resumable sesija, pa fajl u parčadima od 8 MB
+browser → Convex    finishUpload / failUpload — kako se završilo
+```
+
+Resumable protokol nije ukras: `POST` sa metapodacima otvara sesiju i vraća `Location` zaglavlje (bez njega se staje sa greškom — nema gde da se šalje), a fajl onda ide tamo u parčadima, svako sa `Content-Range`. Odgovor **308** znači „imam dotle, nastavi" i njegovo `Range` zaglavlje kaže dokle; **200/201** nosi gotov video sa `id`-jem. Prekinuta veza nije izgubljen posao — `PUT` sa `Content-Range: bytes */<ukupno>` pita dokle je stiglo i slanje se nastavlja odatle.
+
+Tri stvari koje nisu očigledne, a lako se pogreše:
+
+- **Media endpoint je drugi host.** Sve što nosi fajl ide na `www.googleapis.com/upload/youtube/v3`; isti put na običnom hostu vraća 404 bez nagoveštaja da je samo host pogrešan.
+- **`Content-Length` se iz browsera ne postavlja** — to je zabranjeno zaglavlje koje `fetch` računa sam. Dokumentacija ga pominje jer je pisana za servere.
+- **308 je inače kod za preusmerenje.** Browser ga ovde ne prati samo zato što odgovor nema `Location`; zbog toga `redirect` mora da ostane podrazumevani `follow` — `manual` bi vratio neprozirni odgovor bez `Range` zaglavlja, a `Range` je jedino što kaže dokle je fajl stigao.
+
+#### Shorts
+
+Ne postoji API za Shorts, ni polje koje video pretvara u Short. Short je **običan upload koji YouTube sam prekvalifikuje**, po dve osobine fajla: viši je nego širi, i traje najviše 3 minuta. Ništa što pošaljemo tu presudu ne menja.
+
+Zato dijalog fajl samo **pročita** — `HTMLVideoElement` daje `videoWidth`, `videoHeight` i `duration` bez ijednog dodatnog paketa — i kaže šta će biti: „ovo će biti Short", ili „vertikalan je ali duži od 3 minuta, biće običan video". Fajl se ne dira. Kad browser ne ume da dekodira format, ekran to kaže umesto da nagađa.
+
+### 9.6 Scope-ovi
 
 ```
 https://www.googleapis.com/auth/youtube.readonly        — kanal, videi, komentari
@@ -319,7 +396,7 @@ https://www.googleapis.com/auth/youtube.force-ssl       — comments.insert, com
 
 Ime je istorijsko („force SSL"), nema veze sa HTTPS-om; danas je to prosto YouTube-ov read-write scope.
 
-### 9.6 Kako se dobija refresh token
+### 9.7 Kako se dobija refresh token
 
 Service account **ne radi** za YouTube (kanal pripada Google nalogu, ne projektu), pa mora OAuth sa korisničkim pristankom. Jednokratno, ~15 minuta:
 
@@ -339,9 +416,13 @@ Service account **ne radi** za YouTube (kanal pripada Google nalogu, ne projektu
 
 Blob se u Convexu čuva enkriptovan (AES-GCM, `lib/crypto.ts`); access token se ne persistuje nego se vadi po pozivu i **nikad ne ulazi u log**. Ako refresh token prestane da važi (`invalid_grant`: povučen pristanak, rotirani kredencijali, ili 6 meseci nekorišćenja), jedini lek je ponovo povezati nalog.
 
-### 9.7 Šta tek treba uraditi
+### 9.8 Šta tek treba uraditi
 
-- **Audit kod Google-a ako se pređe 10 000 jedinica.** Povećanje kvote se traži kroz *YouTube API Services — Audit and Quota Extension Form*: opis aplikacije, snimak ekrana kako se podaci koriste, dokaz o poštovanju YouTube API Services ToS-a i brandinga. Traje nedeljama i nije formalnost. Praktično: dok je ovo interni alat za jedan kanal, 8 000 jedinica je dovoljno; kad broj automatskih odgovora priđe stotinu dnevno, prijava ide odmah, pre nego što zatreba.
+- **Audit kod Google-a — sada rešava dve stvari, ne jednu.** Ista prijava (*YouTube API Services — Audit and Quota Extension Form*: opis aplikacije, snimak ekrana kako se podaci koriste, dokaz o poštovanju YouTube API Services ToS-a i brandinga) skida **i** granicu od 10 000 jedinica **i** prisilni privatni režim za sve poslate videe (§9.5). Traje nedeljama i nije formalnost.
+
+  Redosled po prioritetu se promenio otkad postoji slanje videa. Kvota još nije usko grlo — 8 000 jedinica pokriva interni alat za jedan kanal. Privatni režim jeste: svaki video poslat odavde mora ručno da se objavi kroz Studio, što polovinu razloga za dugme „Pošalji video" poništava. Ako se slanje videa koristi ozbiljno, prijava ide odmah; ako se ne koristi, može da čeka.
+
+  Do tada u kodu ništa ne treba menjati osim jedne konstante: kada audit prođe, `privacyStatus` u `ytUpload.startUpload` prestaje da bude konstanta i postaje polje u formi, a upozorenje iz `lib/ytUpload.ts` (`UPLOAD_PRIVATE_NOTICE`, `UPLOAD_PRIVACY_LOCK_REASON`) se briše zajedno sa zaključanim poljem.
 - **Rad sa tuđim kanalima (klijenti).** Trenutni model je „jedan workspace, jedan kanal, ručno nalepljen refresh token" — to ne skalira na klijente. Za to treba: (a) pravi OAuth flow u aplikaciji sa `redirect_uri` na naš domen umesto ručne razmene koda, (b) **verifikacija OAuth consent screen-a** kod Google-a, jer su sva tri scope-a *sensitive/restricted* i bez verifikacije važi granica od 100 korisnika plus ekran upozorenja, (c) kvota **po projektu, ne po kanalu** — deset klijenata deli istih 10 000 jedinica, pa `ytQuotaUsage` mora da postane raspodela budžeta među workspace-ovima, a ne samo brojač, i (d) pravno: odgovaranje u ime klijenta na njegovom kanalu traži da to piše u ugovoru, jer je javno i potpisano njegovim imenom.
 - **Moderacija „rejected" nema opoziv.** Editor na to jasno upozorava, ali vredi razmisliti o „suvom hodu": režim u kom automatizacija samo loguje šta bi uradila, bez pisanja. Za `heldForReview` rizik je mali, za `rejected` nije.
 - **Titl videa u logu** dolazi iz `ytVideoStats` (Y2), pa komentar na videu koji sync još nije video ostaje bez naslova. Bezopasno, ali se vidi na ekranu.

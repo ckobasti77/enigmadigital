@@ -110,6 +110,73 @@ export const loadQuotaUsage = internalQuery({
   handler: async (ctx, { workspaceId }) => readUnitsUsed(ctx, workspaceId),
 });
 
+// ── uploads: a second counter on the same row (Y10) ──────────────────────────
+
+/**
+ * Videos sent today.
+ *
+ * Kept apart from `unitsUsed` because Google meters `videos.insert` separately:
+ * an upload does not cost a single unit of the 10 000/day budget, so counting
+ * it there would make the comment engine stop for a reason that never touched
+ * its allowance. The ceiling it works against is ours, not Google's
+ * (lib/ytQuota.ts, VIDEO_UPLOAD_DAILY_LIMIT).
+ *
+ * Both counters live on one row so a day has one record, and both are written
+ * from this file so nothing has to guess how the row gets created.
+ */
+export async function readUploadsUsed(
+  ctx: QueryCtx,
+  workspaceId: Id<"workspaces">,
+): Promise<number> {
+  const row = await ctx.db
+    .query("ytQuotaUsage")
+    .withIndex("by_workspace_date", (q) =>
+      q.eq("workspaceId", workspaceId).eq("date", utcDateKey(Date.now())),
+    )
+    .first();
+  return row?.uploadsUsed ?? 0;
+}
+
+/**
+ * Move today's upload counter, creating the row on the first one.
+ *
+ * `delta` is signed: an upload is booked when it is started, and given back
+ * when the resumable session turned out never to have opened — nothing was
+ * sent, so nothing was used. Never below zero.
+ */
+export async function addUploadsUsed(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  delta: number,
+): Promise<void> {
+  if (delta === 0) return;
+  const now = Date.now();
+  const date = utcDateKey(now);
+  const row = await ctx.db
+    .query("ytQuotaUsage")
+    .withIndex("by_workspace_date", (q) =>
+      q.eq("workspaceId", workspaceId).eq("date", date),
+    )
+    .first();
+
+  if (row === null) {
+    // A refund with no row to refund from is a no-op, not a negative counter.
+    if (delta < 0) return;
+    await ctx.db.insert("ytQuotaUsage", {
+      workspaceId,
+      date,
+      unitsUsed: 0,
+      uploadsUsed: delta,
+      updatedAt: now,
+    });
+    return;
+  }
+  await ctx.db.patch(row._id, {
+    uploadsUsed: Math.max(0, (row.uploadsUsed ?? 0) + delta),
+    updatedAt: now,
+  });
+}
+
 // ── automation cost & matching ───────────────────────────────────────────────
 
 /**

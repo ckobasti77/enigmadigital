@@ -6,6 +6,12 @@ import { ConvexError } from "convex/values";
 import { AlertTriangle, Loader2, Pencil, Trash2, X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import {
+  VIDEO_CATEGORIES,
+  VIDEO_DESCRIPTION_MAX,
+  VIDEO_TAGS_TOTAL_MAX,
+  VIDEO_TITLE_MAX,
+} from "@/convex/lib/ytUpload";
+import {
   Dialog,
   DialogPopup,
   DialogHeader,
@@ -38,35 +44,11 @@ import { cn } from "@/lib/utils";
  * leaves that part of the video exactly as it found it.
  */
 
-// Mirrors the limits enforced in convex/ytVideos.ts.
-const TITLE_MAX = 100;
-const DESCRIPTION_MAX = 5000;
-const TAGS_TOTAL_MAX = 500;
+// The limits and the category list are the same ones the upload dialog and
+// the mutations use (convex/lib/ytUpload.ts) — one list, or the two forms
+// drift and one of them starts offering a category the API refuses.
 
 type PrivacyStatus = "public" | "unlisted" | "private";
-
-/**
- * YouTube's assignable video categories, by the id the Data API expects.
- * Deliberately the subset that is assignable in every region — the full list
- * includes ids that only exist for old uploads and answer 400 on update.
- */
-const CATEGORIES: { id: string; label: string }[] = [
-  { id: "1", label: "Film i animacija" },
-  { id: "2", label: "Automobili i vozila" },
-  { id: "10", label: "Muzika" },
-  { id: "15", label: "Kućni ljubimci i životinje" },
-  { id: "17", label: "Sport" },
-  { id: "19", label: "Putovanja i događaji" },
-  { id: "20", label: "Igre" },
-  { id: "22", label: "Ljudi i blogovi" },
-  { id: "23", label: "Komedija" },
-  { id: "24", label: "Zabava" },
-  { id: "25", label: "Vesti i politika" },
-  { id: "26", label: "Uputstva i stil" },
-  { id: "27", label: "Obrazovanje" },
-  { id: "28", label: "Nauka i tehnologija" },
-  { id: "29", label: "Neprofitne organizacije i aktivizam" },
-];
 
 const PRIVACY_OPTIONS: { value: PrivacyStatus; label: string }[] = [
   { value: "public", label: "Javno" },
@@ -305,7 +287,7 @@ function YtVideoEditForm({
             <Label className="text-xs font-medium text-text-muted">
               Naslov
             </Label>
-            <CharCount value={title.length} max={TITLE_MAX} />
+            <CharCount value={title.length} max={VIDEO_TITLE_MAX} />
           </div>
           <Input
             value={title}
@@ -348,7 +330,7 @@ function YtVideoEditForm({
               <div className="mt-1 flex justify-end">
                 <CharCount
                   value={description.length}
-                  max={DESCRIPTION_MAX}
+                  max={VIDEO_DESCRIPTION_MAX}
                 />
               </div>
             </div>
@@ -413,7 +395,7 @@ function YtVideoEditForm({
                 <p className="text-xs text-text-muted">
                   Enter ili zarez dodaje tag.
                 </p>
-                <CharCount value={tagsLength} max={TAGS_TOTAL_MAX} />
+                <CharCount value={tagsLength} max={VIDEO_TAGS_TOTAL_MAX} />
               </div>
             </div>
           )}
@@ -431,7 +413,7 @@ function YtVideoEditForm({
             className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-accent-400 focus:outline-hidden"
           >
             <option value="">Ostaje kakva jeste</option>
-            {CATEGORIES.map((category) => (
+            {VIDEO_CATEGORIES.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.label}
               </option>

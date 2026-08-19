@@ -39,6 +39,7 @@ import type * as lib_slug from "../lib/slug.js";
 import type * as lib_youtubeApi from "../lib/youtubeApi.js";
 import type * as lib_ytCaptions from "../lib/ytCaptions.js";
 import type * as lib_ytQuota from "../lib/ytQuota.js";
+import type * as lib_ytUpload from "../lib/ytUpload.js";
 import type * as metaAds from "../metaAds.js";
 import type * as metaAdsStore from "../metaAdsStore.js";
 import type * as openreplyStore from "../openreplyStore.js";
@@ -63,6 +64,7 @@ import type * as ytIngest from "../ytIngest.js";
 import type * as ytMedia from "../ytMedia.js";
 import type * as ytPoll from "../ytPoll.js";
 import type * as ytReply from "../ytReply.js";
+import type * as ytUpload from "../ytUpload.js";
 import type * as ytVideos from "../ytVideos.js";
 
 import type {
@@ -103,6 +105,7 @@ declare const fullApi: ApiFromModules<{
   "lib/youtubeApi": typeof lib_youtubeApi;
   "lib/ytCaptions": typeof lib_ytCaptions;
   "lib/ytQuota": typeof lib_ytQuota;
+  "lib/ytUpload": typeof lib_ytUpload;
   metaAds: typeof metaAds;
   metaAdsStore: typeof metaAdsStore;
   openreplyStore: typeof openreplyStore;
@@ -127,6 +130,7 @@ declare const fullApi: ApiFromModules<{
   ytMedia: typeof ytMedia;
   ytPoll: typeof ytPoll;
   ytReply: typeof ytReply;
+  ytUpload: typeof ytUpload;
   ytVideos: typeof ytVideos;
 }>;
 

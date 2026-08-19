@@ -5,6 +5,8 @@ import {
   YouTubeDashboard,
   YouTubeDashboardSkeleton,
 } from "@/components/app/youtube/youtube-dashboard";
+import { YtUploadButton } from "@/components/app/youtube/yt-upload-dialog";
+import { YtMediaJobsPanel } from "@/components/app/youtube/yt-media-jobs-panel";
 
 export default function YouTubePage() {
   return (
@@ -23,13 +25,16 @@ export default function YouTubePage() {
           </p>
         </div>
 
-        <Link
-          href="/youtube/automatizacije"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-xs font-medium text-foreground transition-colors hover:border-accent-400/50 hover:bg-surface-raised"
-        >
-          <Settings2 className="size-3.5 text-accent-400" aria-hidden />
-          <span>Upravljaj automatizacijama</span>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/youtube/automatizacije"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-xs font-medium text-foreground transition-colors hover:border-accent-400/50 hover:bg-surface-raised"
+          >
+            <Settings2 className="size-3.5 text-accent-400" aria-hidden />
+            <span>Upravljaj automatizacijama</span>
+          </Link>
+          <YtUploadButton />
+        </div>
       </div>
 
       <div className="mt-8 flex flex-1 flex-col">
@@ -44,6 +49,13 @@ export default function YouTubePage() {
         >
           <YouTubeDashboard />
         </Suspense>
+
+        {/* Outside the dashboard on purpose: what an operator did to the
+            channel has nothing to do with the selected date range, and the
+            reason an upload failed must not disappear with an empty period. */}
+        <div className="mt-8">
+          <YtMediaJobsPanel />
+        </div>
       </div>
     </div>
   );
