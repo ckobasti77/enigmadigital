@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
 import { DateRangePicker, useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
+import { ChartErrorBoundary } from "@/components/app/chart-states";
 import { KpiTile, KpiTileSkeleton } from "@/components/app/analytics/kpi-tile";
 import { InstagramChart, InstagramChartSkeleton } from "./instagram-chart";
 import {
@@ -162,7 +163,9 @@ export function InstagramDashboard() {
           ) : (
             <>
               <Reveal delay={0.05}>
-                <InstagramChart data={series} />
+                <ChartErrorBoundary>
+                  <InstagramChart data={series} />
+                </ChartErrorBoundary>
               </Reveal>
 
               <Reveal delay={0.1}>

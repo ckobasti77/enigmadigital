@@ -426,3 +426,121 @@ Blob se u Convexu čuva enkriptovan (AES-GCM, `lib/crypto.ts`); access token se 
 - **Rad sa tuđim kanalima (klijenti).** Trenutni model je „jedan workspace, jedan kanal, ručno nalepljen refresh token" — to ne skalira na klijente. Za to treba: (a) pravi OAuth flow u aplikaciji sa `redirect_uri` na naš domen umesto ručne razmene koda, (b) **verifikacija OAuth consent screen-a** kod Google-a, jer su sva tri scope-a *sensitive/restricted* i bez verifikacije važi granica od 100 korisnika plus ekran upozorenja, (c) kvota **po projektu, ne po kanalu** — deset klijenata deli istih 10 000 jedinica, pa `ytQuotaUsage` mora da postane raspodela budžeta među workspace-ovima, a ne samo brojač, i (d) pravno: odgovaranje u ime klijenta na njegovom kanalu traži da to piše u ugovoru, jer je javno i potpisano njegovim imenom.
 - **Moderacija „rejected" nema opoziv.** Editor na to jasno upozorava, ali vredi razmisliti o „suvom hodu": režim u kom automatizacija samo loguje šta bi uradila, bez pisanja. Za `heldForReview` rizik je mali, za `rejected` nije.
 - **Titl videa u logu** dolazi iz `ytVideoStats` (Y2), pa komentar na videu koji sync još nije video ostaje bez naslova. Bezopasno, ali se vidi na ekranu.
+
+---
+
+## 10. Dizajn sistem — grafikoni (D3)
+
+### 10.1 Paleta serija
+
+`--chart-1..6` su zamenjeni validiranim vrednostima. Stara paleta je pala validaciju
+kategoričkih paleta (`dataviz/scripts/validate_palette.js`, podloga `#131d31`, režim
+`dark`) na dve provere:
+
+```
+[FAIL] Opseg svetline   van opsega: #38bdf8 L .754 · #a78bfa .709 · #34d399 .773
+                                    #fbbf24 .837 · #fb7185 .719   (traži se .48–.67)
+[FAIL] CVD separacija   najgori susedni par #a78bfa ↔ #38bdf8  ΔE 5.2 (deuteranopija)
+```
+
+Nova paleta prolazi svih šest, mereno istim validatorom:
+
+```
+#1c9dd6  cyan (brend) · #d95926  narandžasta · #199e70  zelena
+#c98500  amber        · #d55181  magenta     · #9085e9  ljubičasta
+
+[PASS] opseg svetline    svih 6 unutar L 0.48–0.67
+[PASS] hroma             svih 6 >= 0.1
+[PASS] CVD separacija    najgori susedni par #c98500 ↔ #199e70  ΔE 8.4 (protan)
+[PASS] normalan vid      najgori susedni par #d55181 ↔ #c98500  ΔE 19.3
+[PASS] kontrast          svih 6 preko 3:1 prema #131d31
+```
+
+**Nemam primedbu ni na jednu vrednost** — validator je pokrenut nezavisno i vratio
+iste brojeve koje spec navodi. Vrednosti su prepisane doslovno.
+
+`--accent-*` (`#38bdf8` i okolina) se **nije** menjao. Cyan ostaje boja interaktivnih
+elemenata i ključnih metrika; `--chart-1` je zaseban, tamniji cyan za seriju. Zato KPI
+pločica „Sesije" (accent) i linija „Sesije" na grafikonu (chart-1) namerno nisu iste
+boje — to su dva različita sloja sistema.
+
+### 10.2 Posledica po kontrast teksta
+
+Nova paleta je tamnija za oko jedan korak, pa boja serije kao **boja teksta** više ne
+prolazi AA za sitan tekst:
+
+```
+prema --card #131d31:   chart-2  4.33:1   chart-5  4.27:1   (AA traži 4.5:1)
+prema --surface-raised: chart-2  3.96:1   chart-5  3.90:1
+```
+
+To je ionako bilo protiv pravila („tekst nosi tekstualne tokene, nikad boju serije"),
+pa su bedževi u `/ads` koji su nosili `text-chart-*` prebačeni na `text-foreground`;
+obojeni okvir i tačkica i dalje nose identitet.
+
+**Ostaje za D4/D5:** `text-chart-1/80` i `text-chart-2/80` na sitnim ikonicama u
+`youtube-videos-grid.tsx` i `instagram-content-grid.tsx`. To su dekorativne ikonice
+uz metriku, nisu serije — tokeni grafikona tu uopšte ne pripadaju. Nije dirano jer je
+D3 o grafikonima, ali sa tamnijom paletom te ikonice postaju mutne.
+
+### 10.3 Zajednička vremenska serija
+
+Četiri ekrana (`/analytics`, `/instagram`, `/openreply`, `/youtube`) imala su četiri
+kopije istog grafikona — dva panela jedan ispod drugog, oko 250 linija svaka, sa
+razlikom samo u imenima serija. D3 traži osam izmena na svakom od njih (ravna
+ispuna, zaobljenje 4 px, razmak 2 px, direktne oznake, sortiran tooltip sa promenom,
+i tri nova stanja). Osam izmena puta četiri kopije je osam prilika da se kopije
+raziđu, pa je oblik izvučen u `components/app/timeline-chart.tsx`, a četiri fajla su
+ostala kao tanka konfiguracija (~60 linija). Pravila iz D3 sada žive na jednom mestu.
+
+Dva panela, nikad dve y-ose: mera gore kao površina, mera dole kao trake, zajednička
+x-osa kroz `syncId`. Jedan tooltip za oba panela — kad pređeš mišem preko traka,
+očitavanje se pojavi u gornjem panelu i nosi obe serije za taj dan.
+
+### 10.4 Odluke koje spec nije propisao
+
+Tri mesta gde je spec ostavio prostor, pa je izbor moj:
+
+1. **„Promena u odnosu na prethodni period" u tooltipu = prethodni dan.** Nadzorne
+   table računaju prethodni period samo kao zbir (za KPI pločice), ne po danu. Za
+   tačku na dnevnoj vremenskoj seriji jedino poređenje koje zaista postoji u
+   podacima je prethodni dan, pa je to prikazano. Kada je prethodni dan nula,
+   procenat nema smisla i piše „—".
+2. **Direktne oznake: prva, poslednja i ekstrem, ali sa gušenjem sudara.** Ako je
+   ekstrem bliži od 56 px nekom kraju, njegova oznaka se preskače — kraj već nosi
+   taj broj. Na panelu sa trakama obeležen je samo ekstrem: panel je visok 112 px i
+   tri oznake se u njemu sudaraju.
+3. **Stanje greške traži granicu greške.** Grafikoni do sada nisu imali nijednu.
+   Dodat je `ChartErrorBoundary` (`components/app/chart-states.tsx`) oko svakog
+   grafikona u četiri nadzorne table — inače bi stanje greške bio mrtav kod koji se
+   nikad ne prikaže. Granica hvata samo iscrtavanje; logika podataka nije dirana.
+
+### 10.5 Šta je pokazala provera u browseru
+
+Validator proverava boju; raspored se vidi samo okom. Provera je išla preko
+privremene rute `app/r/d3/` (obrisana posle) sa sintetičkim podacima: 28 dana,
+90 dana, 7 dana, nivo, prazno, greška — na 1280 px i na 390 px. Pet stvari koje
+se u kodu nisu videle:
+
+1. **Oznaka na kraju linije sedi na samoj tački.** Vrednost tačno iznad krajnje
+   tačke poklopi tačku. Rešenje: pomeraj od 7 px ka unutrašnjosti panela.
+2. **A onda sedi na liniji.** Kada linija strmo pada u poslednju tačku, prostor
+   iznad je već zauzet linijom. Sada strana bira sebe: ako linija ulazi odozgo,
+   oznaka ide ispod. Ivica panela nadjačava taj izbor — bolje preko linije nego
+   odsečeno.
+3. **Fiksnih „najviše sedam datuma" na x-osi je previše za telefon.** Na 390 px
+   se sedam datuma slepi u jednu crnu traku. Zamenjeno sa `preserveStartEnd` +
+   `minTickGap`, pa se osa proređuje prema raspoloživoj širini; prvi i poslednji
+   dan uvek ostaju.
+4. **Osa i očitavanje su govorili različitim jedinicama.** YouTube panel je imao
+   osu u minutima (25.000) a očitavanje u satima (333 h), za istu meru. Sada osa,
+   direktna oznaka i očitavanje idu kroz isti formater.
+5. **Opadajuće sortiranje očitavanja radi samo unutar iste jedinice.** Pregledi i
+   minuti gledanja nisu uporedivi: sortiranje po sirovoj vrednosti stavi
+   „333 h" iznad „7.475", što izgleda kao poredak a nije. Sortira se kada obe
+   serije dele formater (GA4, Instagram, OpenReply); kada ne dele, redosled
+   prati panele. **Ovo je odstupanje od slova specifikacije** („sortirano
+   opadajuće po vrednosti") i moja je odluka, ne korisnikova.
+
+Prostor iznad najviše marke je usput postao uslovan: okrugli podeoci obično već
+ostave višak, pa se fiksnim množiocem panel bespotrebno praznio.

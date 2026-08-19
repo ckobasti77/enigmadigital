@@ -92,7 +92,7 @@ function KeywordQualitySection({
         {report.totals.averageQualityScore && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted">Prosečan Quality Score:</span>
-            <span className="inline-flex items-center rounded-full border border-chart-2/40 bg-chart-2/10 px-2 py-0.5 text-xs font-bold font-mono text-chart-2">
+            <span className="inline-flex items-center rounded-full border border-chart-2/40 bg-chart-2/10 px-2 py-0.5 text-xs font-bold font-mono text-foreground">
               {report.totals.averageQualityScore} / 10
             </span>
           </div>
@@ -311,11 +311,11 @@ export function CampaignDetail({
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-text-muted">
               {/* Provider Badge */}
               {isGoogleAds ? (
-                <span className="inline-flex items-center gap-1 rounded border border-chart-2/40 bg-chart-2/10 px-2 py-0.5 font-semibold text-chart-2">
+                <span className="inline-flex items-center gap-1 rounded border border-chart-2/40 bg-chart-2/10 px-2 py-0.5 font-semibold text-foreground">
                   Google Ads
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded border border-chart-1/40 bg-chart-1/10 px-2 py-0.5 font-semibold text-chart-1">
+                <span className="inline-flex items-center gap-1 rounded border border-chart-1/40 bg-chart-1/10 px-2 py-0.5 font-semibold text-foreground">
                   Meta Ads
                 </span>
               )}
@@ -467,7 +467,7 @@ export function CampaignDetail({
         {isGoogleAds ? (
           <div className="rounded-lg border border-line bg-surface/50 p-3">
             <span className="text-xs text-text-muted">Search Impr. Share</span>
-            <p className="mt-1 font-mono text-xl font-bold tabular-nums text-chart-2">
+            <p className="mt-1 font-mono text-xl font-bold tabular-nums text-foreground">
               {(campaign as { searchImpressionShare?: number }).searchImpressionShare !== undefined
                 ? formatPercent((campaign as { searchImpressionShare?: number }).searchImpressionShare!)
                 : "—"}

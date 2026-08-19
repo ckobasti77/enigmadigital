@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
 import { DateRangePicker, useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
+import { ChartErrorBoundary } from "@/components/app/chart-states";
 import { KpiTile, KpiTileSkeleton } from "./kpi-tile";
 import { SessionsChart, SessionsChartSkeleton } from "./sessions-chart";
 import { TrafficTable, TrafficTableSkeleton } from "./traffic-table";
@@ -149,7 +150,9 @@ export function AnalyticsDashboard() {
           ) : (
             <>
               <Reveal delay={0.05}>
-                <SessionsChart data={series} />
+                <ChartErrorBoundary>
+                  <SessionsChart data={series} />
+                </ChartErrorBoundary>
               </Reveal>
 
               <Reveal delay={0.1}>

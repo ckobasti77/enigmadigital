@@ -414,11 +414,11 @@ export function CampaignsTable({
 
                               {/* Provider Badge */}
                               {row.provider === "google_ads" || row.provider === "google" ? (
-                                <span className="inline-flex items-center gap-1 rounded border border-chart-2/40 bg-chart-2/10 px-1.5 py-0.5 text-[0.625rem] font-semibold text-chart-2 shrink-0">
+                                <span className="inline-flex items-center gap-1 rounded border border-chart-2/40 bg-chart-2/10 px-1.5 py-0.5 text-[0.625rem] font-semibold text-foreground shrink-0">
                                   Google
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 rounded border border-chart-1/40 bg-chart-1/10 px-1.5 py-0.5 text-[0.625rem] font-semibold text-chart-1 shrink-0">
+                                <span className="inline-flex items-center gap-1 rounded border border-chart-1/40 bg-chart-1/10 px-1.5 py-0.5 text-[0.625rem] font-semibold text-foreground shrink-0">
                                   Meta
                                 </span>
                               )}

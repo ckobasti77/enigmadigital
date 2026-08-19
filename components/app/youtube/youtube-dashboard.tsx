@@ -11,6 +11,7 @@ import {
   useDateRange,
 } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
+import { ChartErrorBoundary } from "@/components/app/chart-states";
 import { KpiTile, KpiTileSkeleton } from "@/components/app/analytics/kpi-tile";
 import { YouTubeChart, YouTubeChartSkeleton } from "./youtube-chart";
 import {
@@ -184,7 +185,9 @@ export function YouTubeDashboard() {
           ) : (
             <>
               <Reveal delay={0.04}>
-                <YouTubeChart data={series} />
+                <ChartErrorBoundary>
+                  <YouTubeChart data={series} />
+                </ChartErrorBoundary>
               </Reveal>
 
               <Reveal delay={0.07}>

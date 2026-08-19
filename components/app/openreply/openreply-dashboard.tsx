@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
 import { DateRangePicker, useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
+import { ChartErrorBoundary } from "@/components/app/chart-states";
 import { KpiTile, KpiTileSkeleton } from "@/components/app/analytics/kpi-tile";
 import { OpenReplyChart, OpenReplyChartSkeleton } from "./openreply-chart";
 import { CampaignsTable, CampaignsTableSkeleton } from "./campaigns-table";
@@ -160,7 +161,9 @@ export function OpenReplyDashboard() {
           ) : (
             <>
               <Reveal delay={0.05}>
-                <OpenReplyChart data={series} />
+                <ChartErrorBoundary>
+                  <OpenReplyChart data={series} />
+                </ChartErrorBoundary>
               </Reveal>
 
               <Reveal delay={0.1}>

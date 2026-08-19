@@ -62,13 +62,34 @@
   --warning: #fbbf24;
   --danger: #fb7185;
 
-  /* Charts — categorical, tuned to read on dark slate */
-  --chart-1: #38bdf8; /* cyan */
-  --chart-2: #a78bfa; /* violet */
-  --chart-3: #34d399; /* emerald */
-  --chart-4: #fbbf24; /* amber */
-  --chart-5: #fb7185; /* rose */
-  --chart-6: #6366f1; /* indigo */
+  /* ── Charts — categorical ──────────────────────────────────────────────────
+     Fixed order, never cycled: slot 1 is always slot 1, whatever the filter
+     leaves on screen. A seventh series does not get a generated hue — it folds
+     into "Ostalo" or the chart splits into small multiples.
+
+     Measured, not judged. Against the chart surface (--surface, #131d31) these
+     six pass all six checks of the categorical validator:
+
+       lightness  all six inside OKLCH L 0.48–0.67
+       chroma     all six >= 0.1
+       CVD        worst adjacent pair ΔE 8.4 (protan) — over the 8 target
+       normal     worst adjacent pair ΔE 19.3 — over the 15 floor
+       contrast   all six over 3:1 vs the surface
+
+     The previous palette failed two of them: five of six sat at L 0.71–0.84
+     (the neon glare), and cyan↔violet were ΔE 5.2 under deuteranopia — the
+     most common colour blindness could not tell those two series apart.
+
+     Separate from --accent-*. Cyan the interaction colour and cyan the first
+     series are two different layers of the system, so they are two different
+     values on purpose.
+     ------------------------------------------------------------------------ */
+  --chart-1: #1c9dd6; /* cyan — brend */
+  --chart-2: #d95926; /* orange */
+  --chart-3: #199e70; /* teal green */
+  --chart-4: #c98500; /* amber */
+  --chart-5: #d55181; /* magenta */
+  --chart-6: #9085e9; /* violet */
   --chart-grid: rgba(96, 128, 180, 0.16);
 
   /* Geometry — every length in rem so a raised system font scales the layout

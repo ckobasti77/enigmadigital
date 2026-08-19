@@ -169,11 +169,11 @@ export function AdDrilldownPanel({
         {/* Provider badge, Hook Label & Rankings Badges */}
         <div className="flex flex-wrap items-center gap-2">
           {isGoogleAds ? (
-            <span className="inline-flex items-center rounded-full border border-chart-2/40 bg-chart-2/10 px-2.5 py-0.5 text-xs font-semibold text-chart-2">
+            <span className="inline-flex items-center rounded-full border border-chart-2/40 bg-chart-2/10 px-2.5 py-0.5 text-xs font-semibold text-foreground">
               Google Ads
             </span>
           ) : (
-            <span className="inline-flex items-center rounded-full border border-chart-1/40 bg-chart-1/10 px-2.5 py-0.5 text-xs font-semibold text-chart-1">
+            <span className="inline-flex items-center rounded-full border border-chart-1/40 bg-chart-1/10 px-2.5 py-0.5 text-xs font-semibold text-foreground">
               Meta Ads
             </span>
           )}
