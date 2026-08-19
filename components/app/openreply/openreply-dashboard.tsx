@@ -6,7 +6,7 @@ import { useQuery } from "convex/react";
 import { ChartNoAxesColumn, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
-import { DateRangePicker, useDateRange } from "@/components/app/date-range-picker";
+import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
 import { KpiTile, KpiTileSkeleton } from "@/components/app/analytics/kpi-tile";
@@ -85,8 +85,6 @@ export function OpenReplyDashboard() {
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <DateRangePicker />
-
       {!orConnected ? (
         <EmptyState icon={Unplug}>
           OpenReply još nije povezan.{" "}

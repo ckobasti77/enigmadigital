@@ -6,7 +6,7 @@ import { useQuery } from "convex/react";
 import { Unplug, AlertTriangle, CheckCircle2, MousePointerClick } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
-import { DateRangePicker, useDateRange } from "@/components/app/date-range-picker";
+import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,8 +43,6 @@ export function AttributionDashboard() {
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <DateRangePicker />
-
       {!hasGa4 && !hasOr ? (
         <EmptyState icon={Unplug}>
           GA4 i OpenReply integracije još nisu povezane.{" "}

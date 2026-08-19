@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { navItems, isNavActive } from "./nav-items";
+import { mobileNavItems, isNavActive } from "./nav-items";
 
 export function MobileNav() {
   const pathname = usePathname();
 
   return (
     <nav className="material material-edge-t edge-fade-t fixed inset-x-0 bottom-0 z-40 grid grid-cols-9 pb-[env(safe-area-inset-bottom)] md:hidden">
-      {navItems.map((item) => {
+      {mobileNavItems.map((item) => {
         const active = isNavActive(pathname, item.href);
         const Icon = item.icon;
         return (
@@ -30,7 +30,7 @@ export function MobileNav() {
               <span className="absolute top-0 h-0.5 w-4 rounded-full bg-accent-400" />
             )}
             <Icon className="size-3.5 sm:size-4 shrink-0" />
-            <span className="max-w-full truncate">{item.label}</span>
+            <span className="max-w-full truncate">{item.short ?? item.label}</span>
           </Link>
         );
       })}

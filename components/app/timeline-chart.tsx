@@ -31,6 +31,10 @@ import {
  *
  * Po jedna serija na panelu, i naslov panela je imenuje — zato legenda ne
  * postoji. Kutija sa jednim uzorkom boje ponovila bi naslov i pojela prostor.
+ *
+ * Donji panel je opcion. Kada podaci nose samo jednu dnevnu meru, prazan
+ * panel ispod nje bi obećao poređenje kojeg nema — pa ga tada nema ni na
+ * ekranu, a x-osa se seli u gornji panel.
  */
 
 export type TimelineMeasure = {
@@ -83,7 +87,8 @@ export function TimelineChart({
 }: {
   dates: string[];
   area: TimelineMeasure;
-  bars: TimelineMeasure;
+  /** Izostavljeno = jedan panel. */
+  bars?: TimelineMeasure;
   /** Vezuje dva panela u jednu x-osu. Jedinstven po ekranu. */
   syncId: string;
   yWidth?: number;
@@ -94,7 +99,7 @@ export function TimelineChart({
     date,
     i,
     area: area.values[i] ?? 0,
-    bars: bars.values[i] ?? 0,
+    bars: bars ? (bars.values[i] ?? 0) : 0,
   }));
 
   const areaMax = Math.max(0, ...rows.map((r) => r.area));
@@ -111,16 +116,16 @@ export function TimelineChart({
     );
   }
 
-  const config = {
+  const config: ChartConfig = {
     area: { label: area.label },
-    bars: { label: bars.label },
-  } satisfies ChartConfig;
+    ...(bars ? { bars: { label: bars.label } } : {}),
+  };
 
   const fitted = area.baseline === "fitted";
   const areaTicks = fitted
     ? fittedTicks(Math.min(...rows.map((r) => r.area)), areaMax, 3)
     : niceTicks(areaMax, 3);
-  const barsTicks = niceTicks(barsMax, 1);
+  const barsTicks = bars ? niceTicks(barsMax, 1) : [0];
   const areaFloor = fitted ? areaTicks[0] : 0;
   const areaTop = areaTicks[areaTicks.length - 1];
   const barsTop = barsTicks[barsTicks.length - 1];
@@ -128,7 +133,7 @@ export function TimelineChart({
   const barsCeiling = ceilingFor(0, barsTop, barsMax, BARS_HEADROOM);
 
   const areaMarks = markedPoints(rows.map((r) => r.area));
-  const barsPeak = peakIndex(rows.map((r) => r.bars));
+  const barsPeak = bars ? peakIndex(rows.map((r) => r.bars)) : -1;
 
   return (
     <Card className="gap-0 py-0 shadow-card ring-line">
@@ -137,19 +142,31 @@ export function TimelineChart({
       </div>
       <ChartContainer
         config={config}
-        className={`${TOP_H} w-full px-3 pt-2 aspect-auto`}
+        className={`${TOP_H} w-full px-3 pt-2 aspect-auto ${bars ? "" : "pb-3"}`}
       >
         <AreaChart
           data={rows}
           syncId={syncId}
-          margin={{ top: 12, right: 12, bottom: 8, left: 0 }}
+          margin={{ top: 12, right: 12, bottom: bars ? 8 : 0, left: 0 }}
         >
           <CartesianGrid
             vertical={false}
             stroke="var(--color-chart-grid)"
             strokeDasharray="0"
           />
-          <XAxis dataKey="date" hide />
+          {/* Bez donjeg panela x-osu nosi gornji — inače bi grafikon ostao
+              bez datuma. Prorede se prema raspoloživoj širini. */}
+          <XAxis
+            dataKey="date"
+            hide={Boolean(bars)}
+            axisLine={false}
+            tickLine={false}
+            interval="preserveStartEnd"
+            minTickGap={44}
+            tickFormatter={formatShortDate}
+            tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+            tickMargin={8}
+          />
           <YAxis
             width={yWidth}
             axisLine={false}
@@ -202,69 +219,73 @@ export function TimelineChart({
         </AreaChart>
       </ChartContainer>
 
-      <div className="mt-3 border-t border-line-soft px-5 pt-4">
-        <PanelTitle color={bars.color} title={bars.label} />
-      </div>
-      <ChartContainer
-        config={config}
-        className={`${BOTTOM_H} w-full px-3 pt-2 pb-3 aspect-auto`}
-      >
-        <BarChart
-          data={rows}
-          syncId={syncId}
-          /* Gornja margina je prostor za direktnu oznaku iznad najviše trake. */
-          margin={{ top: 11, right: 12, bottom: 0, left: 0 }}
-          /* 2 px u boji podloge razdvaja susedne trake — bez linije oko njih. */
-          barCategoryGap={2}
-        >
-          <CartesianGrid vertical={false} stroke="var(--color-chart-grid)" />
-          {/* Prorede se prema raspoloživoj širini, a ne prema broju dana —
-              fiksnih „najviše sedam" na telefonu daje sedam slepljenih datuma.
-              Prvi i poslednji dan ostaju uvek. */}
-          <XAxis
-            dataKey="date"
-            axisLine={false}
-            tickLine={false}
-            interval="preserveStartEnd"
-            minTickGap={44}
-            tickFormatter={formatShortDate}
-            tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
-            tickMargin={8}
-          />
-          <YAxis
-            width={yWidth}
-            axisLine={false}
-            tickLine={false}
-            ticks={barsTicks}
-            interval={0}
-            domain={[0, barsCeiling]}
-            allowDecimals={false}
-            tickFormatter={bars.format}
-            tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
-          />
-          {/* Očitavanje za oba panela stoji u gornjem; ovde ostaje samo
-              isticanje trake preko koje je pokazivač. */}
-          <ChartTooltip
-            cursor={{ fill: "var(--color-line-soft)" }}
-            content={() => null}
-          />
-          <Bar
-            dataKey="bars"
-            fill={bars.color}
-            /* Zaobljenje samo na kraju koji nije na osnovnoj liniji. */
-            radius={[4, 4, 0, 0]}
-            maxBarSize={24}
-            isAnimationActive={false}
+      {bars && (
+        <>
+          <div className="mt-3 border-t border-line-soft px-5 pt-4">
+            <PanelTitle color={bars.color} title={bars.label} />
+          </div>
+          <ChartContainer
+            config={config}
+            className={`${BOTTOM_H} w-full px-3 pt-2 pb-3 aspect-auto`}
           >
-            <LabelList
-              dataKey="bars"
-              content={(props) =>
-                renderBarLabel(props, barsPeak, bars.format)
-              }
-            />
-          </Bar>
-        </BarChart>
-      </ChartContainer>
+            <BarChart
+              data={rows}
+              syncId={syncId}
+              /* Gornja margina je prostor za direktnu oznaku iznad najviše trake. */
+              margin={{ top: 11, right: 12, bottom: 0, left: 0 }}
+              /* 2 px u boji podloge razdvaja susedne trake — bez linije oko njih. */
+              barCategoryGap={2}
+            >
+              <CartesianGrid vertical={false} stroke="var(--color-chart-grid)" />
+              {/* Prorede se prema raspoloživoj širini, a ne prema broju dana —
+                  fiksnih „najviše sedam" na telefonu daje sedam slepljenih datuma.
+                  Prvi i poslednji dan ostaju uvek. */}
+              <XAxis
+                dataKey="date"
+                axisLine={false}
+                tickLine={false}
+                interval="preserveStartEnd"
+                minTickGap={44}
+                tickFormatter={formatShortDate}
+                tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+                tickMargin={8}
+              />
+              <YAxis
+                width={yWidth}
+                axisLine={false}
+                tickLine={false}
+                ticks={barsTicks}
+                interval={0}
+                domain={[0, barsCeiling]}
+                allowDecimals={false}
+                tickFormatter={bars.format}
+                tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+              />
+              {/* Očitavanje za oba panela stoji u gornjem; ovde ostaje samo
+                  isticanje trake preko koje je pokazivač. */}
+              <ChartTooltip
+                cursor={{ fill: "var(--color-line-soft)" }}
+                content={() => null}
+              />
+              <Bar
+                dataKey="bars"
+                fill={bars.color}
+                /* Zaobljenje samo na kraju koji nije na osnovnoj liniji. */
+                radius={[4, 4, 0, 0]}
+                maxBarSize={24}
+                isAnimationActive={false}
+              >
+                <LabelList
+                  dataKey="bars"
+                  content={(props) =>
+                    renderBarLabel(props, barsPeak, bars.format)
+                  }
+                />
+              </Bar>
+            </BarChart>
+          </ChartContainer>
+        </>
+      )}
     </Card>
   );
 }
@@ -310,7 +331,7 @@ function TimelineTooltip({
   row?: Row;
   rows: Row[];
   area: TimelineMeasure;
-  bars: TimelineMeasure;
+  bars?: TimelineMeasure;
 }) {
   if (!active || !row) return null;
   const prev = row.i > 0 ? rows[row.i - 1] : undefined;
@@ -323,20 +344,26 @@ function TimelineTooltip({
       text: area.format(row.area),
       change: relativeChange(row.area, prev?.area),
     },
-    {
-      label: bars.label,
-      color: bars.color,
-      value: row.bars,
-      text: bars.format(row.bars),
-      change: relativeChange(row.bars, prev?.bars),
-    },
+    ...(bars
+      ? [
+          {
+            label: bars.label,
+            color: bars.color,
+            value: row.bars,
+            text: bars.format(row.bars),
+            change: relativeChange(row.bars, prev?.bars),
+          },
+        ]
+      : []),
   ];
 
   // Opadajuće po vrednosti — ali samo kada obe serije mere u istoj jedinici.
   // Pregledi i minuti gledanja nisu uporedivi: sortiranje bi „333 h" stavilo
   // iznad „7.475" i to bi izgledalo kao poredak, a nije. Tada redosled prati
   // panele, odozgo nadole.
-  if (area.format === bars.format) entries.sort((a, b) => b.value - a.value);
+  if (bars && area.format === bars.format) {
+    entries.sort((a, b) => b.value - a.value);
+  }
 
   return (
     <div className="min-w-56 rounded-lg border border-line bg-popover px-3 py-2 text-xs shadow-elev-2">
@@ -558,23 +585,33 @@ function fittedTicks(min: number, max: number, count: number): number[] {
 export function TimelineChartSkeleton({
   topLabelWidth = "w-16",
   bottomLabelWidth = "w-24",
+  /** `false` = jedan panel, isto kao i sam grafikon bez donje mere. */
+  bottomPanel = true,
 }: {
   topLabelWidth?: string;
   bottomLabelWidth?: string;
+  bottomPanel?: boolean;
 }) {
   return (
     <Card className="gap-0 py-0 shadow-card ring-line">
       <div className="px-5 pt-5">
         <Skeleton className={`h-4 ${topLabelWidth}`} />
       </div>
-      <ChartShapeSkeleton variant="area" className={`${TOP_H} px-5 pt-2`} />
-      <div className="mt-3 border-t border-line-soft px-5 pt-4">
-        <Skeleton className={`h-4 ${bottomLabelWidth}`} />
-      </div>
       <ChartShapeSkeleton
-        variant="bars"
-        className={`${BOTTOM_H} px-5 pt-2 pb-3`}
+        variant="area"
+        className={`${TOP_H} px-5 pt-2 ${bottomPanel ? "" : "pb-3"}`}
       />
+      {bottomPanel && (
+        <>
+          <div className="mt-3 border-t border-line-soft px-5 pt-4">
+            <Skeleton className={`h-4 ${bottomLabelWidth}`} />
+          </div>
+          <ChartShapeSkeleton
+            variant="bars"
+            className={`${BOTTOM_H} px-5 pt-2 pb-3`}
+          />
+        </>
+      )}
     </Card>
   );
 }

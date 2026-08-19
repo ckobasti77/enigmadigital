@@ -7,7 +7,6 @@ import { ChartNoAxesColumn, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
 import {
-  DateRangePicker,
   useDateRange,
 } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
@@ -98,8 +97,6 @@ export function YouTubeDashboard() {
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <DateRangePicker />
-
       {!ytConnected ? (
         <EmptyState icon={Unplug}>
           YouTube još nije povezan.{" "}

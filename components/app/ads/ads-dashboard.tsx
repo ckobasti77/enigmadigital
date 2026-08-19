@@ -5,16 +5,20 @@ import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { DateRangePicker, useDateRange } from "@/components/app/date-range-picker";
+import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
 import { Reveal } from "@/components/motion/reveal";
-import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  StatTile,
+  StatTileSkeleton,
+} from "@/components/app/analytics/kpi-tile";
+import { ChartErrorBoundary } from "@/components/app/chart-states";
+import { SpendChart, SpendChartSkeleton } from "./spend-chart";
 import { CampaignsTable } from "./campaigns-table";
 import { CampaignDetail } from "./campaign-detail";
 import { HookBattleView } from "./hook-battle-view";
 import { formatNumber, formatPercent } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import {
   Unplug,
   TrendingUp,
@@ -24,6 +28,10 @@ import {
   Swords,
   Pin,
 } from "lucide-react";
+
+const formatEur = (v: number) => `${formatNumber(v)} €`;
+const formatCpa = (v: number) => (v > 0 ? formatEur(v) : "—");
+const formatRoas = (v: number) => `${v.toFixed(2)}x`;
 
 export function AdsDashboard() {
   const { range } = useDateRange();
@@ -45,11 +53,10 @@ export function AdsDashboard() {
   const loading = connections === undefined || report === undefined;
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <DateRangePicker />
-
-        {/* Pinned Battles Quick Pill Indicator */}
+    <div className="flex flex-1 flex-col gap-8">
+      <div className="flex flex-wrap items-center justify-between gap-4 empty:hidden">
+        {/* Prečice do prikačenih duela kreativa — jedini ulaz u njih sa ovog
+            ekrana kada nijedna kampanja nije otvorena. */}
         {pinnedBattles && pinnedBattles.length > 0 && !selectedBattleAdSetId && (
           <div className="flex items-center gap-1.5 overflow-x-auto py-1">
             <span className="inline-flex items-center gap-1 text-xs text-text-muted font-medium mr-1">
@@ -108,98 +115,71 @@ export function AdsDashboard() {
         </Reveal>
       ) : (
         <>
-          {/* Hero KPI Summary */}
+          {/* Četiri mere koje odlučuju: koliko je otišlo, šta je stiglo,
+              po kojoj ceni i sa kakvim povratom. */}
           <Reveal>
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
-                <div className="flex h-32 flex-col justify-between px-5 py-4">
-                  <div className="flex items-center justify-between">
-                    <p className="heading-caps text-xs font-medium text-text-muted">
-                      Ukupna potrošnja
-                    </p>
-                    <DollarSign className="size-4 text-accent-400" />
-                  </div>
-                  <div>
-                    <span className="font-mono text-2xl sm:text-3xl font-bold tracking-tight text-accent-400">
-                      {formatNumber(report.totals.totalSpend)} €
-                    </span>
-                    <p className="mt-1 text-xs text-text-muted">
-                      za {report.totals.campaignsCount} {report.totals.campaignsCount === 1 ? "kampanju" : "kampanja"}
-                    </p>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
-                <div className="flex h-32 flex-col justify-between px-5 py-4">
-                  <div className="flex items-center justify-between">
-                    <p className="heading-caps text-xs font-medium text-text-muted">
-                      Ukupno rezultata
-                    </p>
-                    <Target className="size-4 text-foreground/60" />
-                  </div>
-                  <div>
-                    <span className="font-mono text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-                      {formatNumber(report.totals.totalResults)}
-                    </span>
-                    <p className="mt-1 text-xs text-text-muted">
-                      konverzija / ciljeva
-                    </p>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
-                <div className="flex h-32 flex-col justify-between px-5 py-4">
-                  <div className="flex items-center justify-between">
-                    <p className="heading-caps text-xs font-medium text-text-muted">
-                      Prosečan CPA
-                    </p>
-                    <TrendingUp className="size-4 text-foreground/60" />
-                  </div>
-                  <div>
-                    <span className="font-mono text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-                      {report.totals.overallCpa > 0 ? `${formatNumber(report.totals.overallCpa)} €` : "—"}
-                    </span>
-                    <p className="mt-1 text-xs text-text-muted">
-                      cena po konverziji
-                    </p>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
-                <div className="flex h-32 flex-col justify-between px-5 py-4">
-                  <div className="flex items-center justify-between">
-                    <p className="heading-caps text-xs font-medium text-text-muted">
-                      {report.totals.hasConversionValue ? "Prosečan ROAS" : "Prosečan CTR"}
-                    </p>
-                    <BarChart3 className="size-4 text-foreground/60" />
-                  </div>
-                  <div>
-                    <span
-                      className={cn(
-                        "font-mono text-2xl sm:text-3xl font-bold tracking-tight",
-                        report.totals.hasConversionValue ? "text-success" : "text-foreground",
-                      )}
-                    >
-                      {report.totals.hasConversionValue
-                        ? `${report.totals.overallRoas.toFixed(2)}x`
-                        : formatPercent(report.totals.overallCtr)}
-                    </span>
-                    <p className="mt-1 text-xs text-text-muted">
-                      {report.totals.hasConversionValue
-                        ? "povrat na uloženi budžet"
-                        : "procenat klikova na oglas"}
-                    </p>
-                  </div>
-                </div>
-              </Card>
+              <StatTile
+                label="Ukupna potrošnja"
+                icon={DollarSign}
+                value={report.totals.totalSpend}
+                format={formatEur}
+                valueClassName="text-accent-400"
+                note={`za ${report.totals.campaignsCount} ${
+                  report.totals.campaignsCount === 1 ? "kampanju" : "kampanja"
+                }`}
+              />
+              <StatTile
+                label="Ukupno rezultata"
+                icon={Target}
+                value={report.totals.totalResults}
+                format={formatNumber}
+                note="konverzija / ciljeva"
+              />
+              <StatTile
+                label="Prosečan CPA"
+                icon={TrendingUp}
+                value={report.totals.overallCpa}
+                format={formatCpa}
+                note="cena po konverziji"
+              />
+              <StatTile
+                label={
+                  report.totals.hasConversionValue
+                    ? "Prosečan ROAS"
+                    : "Prosečan CTR"
+                }
+                icon={BarChart3}
+                value={
+                  report.totals.hasConversionValue
+                    ? report.totals.overallRoas
+                    : report.totals.overallCtr
+                }
+                format={
+                  report.totals.hasConversionValue ? formatRoas : formatPercent
+                }
+                valueClassName={
+                  report.totals.hasConversionValue ? "text-success" : undefined
+                }
+                note={
+                  report.totals.hasConversionValue
+                    ? "povrat na uloženi budžet"
+                    : "procenat klikova na oglas"
+                }
+              />
             </div>
           </Reveal>
 
-          {/* Campaigns Table */}
+          {/* Kuda je budžet otišao kroz period — pre nego što se gleda po
+              kojoj kampanji. */}
           <Reveal delay={0.05}>
+            <ChartErrorBoundary>
+              <SpendChart campaigns={report.campaigns} />
+            </ChartErrorBoundary>
+          </Reveal>
+
+          {/* Campaigns Table */}
+          <Reveal delay={0.1}>
             <CampaignsTable
               campaigns={report.campaigns}
               onSelectCampaign={(id) => setSelectedCampaignId(id)}
@@ -213,13 +193,14 @@ export function AdsDashboard() {
 
 export function AdsDashboardSkeleton() {
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <div className="flex flex-1 flex-col gap-8">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Skeleton className="h-32 rounded-lg" />
-        <Skeleton className="h-32 rounded-lg" />
-        <Skeleton className="h-32 rounded-lg" />
-        <Skeleton className="h-32 rounded-lg" />
+        <StatTileSkeleton />
+        <StatTileSkeleton />
+        <StatTileSkeleton />
+        <StatTileSkeleton />
       </div>
+      <SpendChartSkeleton />
       <Skeleton className="h-96 w-full rounded-lg" />
     </div>
   );

@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppSidebar } from "./app-sidebar";
 import { MobileNav } from "./mobile-nav";
+import { PageTransition } from "./page-transition";
 import { SignOutButton } from "./sign-out-button";
-import { WorkspaceProvider, useWorkspace } from "./workspace-provider";
+import { SyncStatus } from "./sync-status";
+import { DateRangePicker } from "./date-range-picker";
+import { resolveScreen } from "./nav-items";
+import { WorkspaceProvider } from "./workspace-provider";
 
 /**
  * Parks an incoming Instagram OAuth code from the URL into localStorage so it
@@ -63,8 +67,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <AppSidebar />
           <div className="flex min-w-0 min-h-full flex-1 flex-col md:pl-[var(--sidebar-width)]">
             <Header />
-            <main className="flex flex-1 flex-col px-[var(--gutter)] py-8 pb-24 md:pb-8">
-              {children}
+            <main className="mx-auto flex w-full max-w-[var(--content-max)] flex-1 flex-col px-[var(--gutter)] py-8 pb-24 md:pb-8">
+              <PageTransition>{children}</PageTransition>
             </main>
           </div>
           <MobileNav />
@@ -74,24 +78,57 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Gornja traka: gde sam (sekcija · ekran), nad kojim periodom gledam, i da li
+ * su brojevi sveži. Sadržaj klizi ispod nje, a granicu nosi gradijentna maska
+ * iz D1 — ne linija od jednog piksela.
+ */
 function Header() {
-  const { workspace, isLoading } = useWorkspace();
+  const pathname = usePathname();
+  const screen = resolveScreen(pathname);
 
   return (
-    <header className="material edge-fade-b sticky top-0 z-30 flex h-[var(--chrome-height)] shrink-0 items-center justify-between gap-3 px-[var(--gutter)]">
-      <div className="flex items-center gap-2">
-        <span className="heading-caps text-micro font-medium text-accent-400 md:hidden">
-          Enigma
-        </span>
-        {isLoading ? (
-          <Skeleton className="h-4 w-28" />
-        ) : (
-          <span className="text-sm font-medium text-foreground">
-            {workspace?.name ?? "—"}
+    <header className="material edge-fade-b sticky top-0 z-30 flex shrink-0 flex-col">
+      <div className="flex h-[var(--chrome-height)] items-center gap-4 px-[var(--gutter)]">
+        <div className="flex min-w-0 flex-1 items-baseline gap-2">
+          <span className="heading-caps shrink-0 text-micro font-medium text-accent-400 md:hidden">
+            Enigma
           </span>
-        )}
+          {screen && (
+            <>
+              <span className="heading-caps hidden shrink-0 text-micro font-medium text-text-muted lg:inline">
+                {screen.section}
+                <span className="mx-1.5 text-line-strong">/</span>
+              </span>
+              <h2 className="truncate text-sm font-medium text-foreground">
+                {screen.title}
+              </h2>
+            </>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-3">
+          {screen?.range && (
+            // useSearchParams traži Suspense granicu na statičkim rutama;
+            // ljuska je iznad stranice, pa granica mora da stoji ovde.
+            <Suspense fallback={<Skeleton className="h-8 w-56" />}>
+              <DateRangePicker compact className="hidden md:flex" />
+            </Suspense>
+          )}
+          <SyncStatus className="hidden sm:inline-flex" />
+          <SignOutButton />
+        </div>
       </div>
-      <SignOutButton />
+
+      {/* Na telefonu naslov i birač perioda ne staju u isti red, pa birač
+          dobija svoj — i dalje u ljusci, i dalje isti izbor. */}
+      {screen?.range && (
+        <div className="material-edge-t px-[var(--gutter)] py-2 md:hidden">
+          <Suspense fallback={<Skeleton className="h-8 w-56" />}>
+            <DateRangePicker compact />
+          </Suspense>
+        </div>
+      )}
     </header>
   );
 }
@@ -102,7 +139,7 @@ function ShellFallback() {
       <div className="material material-edge-r fixed inset-y-0 left-0 z-40 hidden w-[var(--sidebar-width)] md:block" />
       <div className="flex min-w-0 min-h-full flex-1 flex-col md:pl-[var(--sidebar-width)]">
         <div className="material h-[var(--chrome-height)] shrink-0" />
-        <div className="flex flex-1 flex-col gap-4 px-[var(--gutter)] py-8">
+        <div className="mx-auto flex w-full max-w-[var(--content-max)] flex-1 flex-col gap-4 px-[var(--gutter)] py-8">
           <Skeleton className="h-7 w-40" />
           <Skeleton className="h-32 w-full max-w-2xl" />
         </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ComponentType } from "react";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -79,6 +80,67 @@ export function KpiTile({
             primary ? "text-accent-400" : "text-foreground/45",
           )}
         />
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * KPI bez poređenja: mera koja za izabrani period postoji samo kao zbir, pa
+ * nema ni prethodni period ni dnevnu liniju. Niža je od `KpiTile` za tačno
+ * onoliko koliko bi zauzela sparklinija — prazan prostor bi lagao da nešto
+ * nedostaje.
+ */
+export function StatTile({
+  label,
+  value,
+  format,
+  note,
+  icon: Icon,
+  valueClassName,
+}: {
+  label: string;
+  value: number;
+  format: (v: number) => string;
+  /** Šta broj znači — jedna linija, bez ponavljanja natpisa. */
+  note: string;
+  icon: ComponentType<{ className?: string }>;
+  valueClassName?: string;
+}) {
+  return (
+    <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
+      <div className="flex h-32 flex-col justify-between px-5 py-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className="heading-caps text-xs font-medium text-text-muted">
+            {label}
+          </p>
+          <Icon className="size-4 shrink-0 text-text-muted" aria-hidden />
+        </div>
+        <div>
+          <CountUp
+            value={value}
+            format={format}
+            className={cn(
+              "block font-mono text-2xl font-bold leading-none tracking-tight sm:text-3xl",
+              valueClassName ?? "text-foreground",
+            )}
+          />
+          <p className="mt-1.5 text-xs text-text-muted">{note}</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+export function StatTileSkeleton() {
+  return (
+    <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
+      <div className="flex h-32 flex-col justify-between px-5 py-4">
+        <Skeleton className="h-3 w-24" />
+        <div>
+          <Skeleton className="h-8 w-28" />
+          <Skeleton className="mt-2 h-3 w-32" />
+        </div>
       </div>
     </Card>
   );

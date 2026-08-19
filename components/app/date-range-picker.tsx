@@ -67,8 +67,19 @@ const PRESET_LABEL: Record<RangePreset, string> = {
   "90d": "90 dana",
 };
 
-/** Header control: preset toggles + custom span popover + resolved dates. */
-export function DateRangePicker({ className }: { className?: string }) {
+/**
+ * Header control: preset toggles + custom span popover + resolved dates.
+ *
+ * `compact` je za gornju traku: razrešeni datumi tamo dele red sa naslovom
+ * ekrana i stanjem sinhronizacije, pa se pojavljuju tek kada ima mesta.
+ */
+export function DateRangePicker({
+  className,
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) {
   const { range, setPreset, setCustom } = useDateRange();
   const [open, setOpen] = useState(false);
   const [draftFrom, setDraftFrom] = useState(range.from);
@@ -185,7 +196,12 @@ export function DateRangePicker({ className }: { className?: string }) {
         </Popover>
       </div>
 
-      <p className="font-mono text-xs tabular-nums text-text-muted">
+      <p
+        className={cn(
+          "font-mono text-xs tabular-nums text-text-muted",
+          compact && "hidden xl:block",
+        )}
+      >
         {formatDateSpan(range.from, range.to)}
         <span className="mx-1.5 text-line-strong">·</span>
         {range.days} d

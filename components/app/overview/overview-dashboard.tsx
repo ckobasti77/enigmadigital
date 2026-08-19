@@ -1,11 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "convex/react";
+import { ArrowUpRight, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
-import { DateRangePicker, useDateRange } from "@/components/app/date-range-picker";
+import { CountUp } from "@/components/motion/count-up";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useDateRange } from "@/components/app/date-range-picker";
+import { ChartErrorBoundary } from "@/components/app/chart-states";
 import { KpiTile, KpiTileSkeleton } from "@/components/app/analytics/kpi-tile";
+import {
+  SessionsChart,
+  SessionsChartSkeleton,
+} from "@/components/app/analytics/sessions-chart";
 import { UnconnectedTile } from "./unconnected-tile";
 import {
   PerformanceHighlights,
@@ -133,13 +142,13 @@ export function OverviewDashboard() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
-      <DateRangePicker />
-
-      {/* ── Top Strip: 5 KPI Tiles ──────────────────────────────────────── */}
+    <div className="flex flex-1 flex-col gap-8">
+      {/* Četiri mere koje odlučuju da li je dan dobar: koliko ih je došlo,
+          koliko ih je konvertovalo, koliki je organski doseg i koliko je
+          automatizacija poslala. Ostalo je niže — ne zato što ne važi, nego
+          zato što se ne gleda prvo. */}
       <Reveal>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {/* 1. GA4 Sessions */}
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {hasGa4 ? (
             ga4Cur && ga4Prev && ga4Series ? (
               <KpiTile
@@ -162,73 +171,6 @@ export function OverviewDashboard() {
             <UnconnectedTile label="Sesije" providerName="GA4" />
           )}
 
-          {/* 2. Instagram Reach */}
-          {hasInstagram ? (
-            igCur && igPrev && igSeries ? (
-              <KpiTile
-                label="IG Reach"
-                value={igCur.reach}
-                format={formatNumber}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(igCur.reach, igPrev.reach),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={igSeries.map((d) => d.reach)}
-              />
-            ) : (
-              <KpiTileSkeleton />
-            )
-          ) : (
-            <UnconnectedTile label="IG Reach" providerName="Instagram" />
-          )}
-
-          {/* 3. OpenReply DMs Sent */}
-          {hasOpenReply ? (
-            orCur && orPrev && orSeries ? (
-              <KpiTile
-                label="Poslate DM poruke"
-                value={orCur.dmsSent}
-                format={formatNumber}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(orCur.dmsSent, orPrev.dmsSent),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={orSeries.map((d) => d.dmsSent)}
-              />
-            ) : (
-              <KpiTileSkeleton />
-            )
-          ) : (
-            <UnconnectedTile label="Poslate DM poruke" providerName="OpenReply" />
-          )}
-
-          {/* 4. OpenReply Link Clicks */}
-          {hasOpenReply ? (
-            orCur && orPrev && orSeries ? (
-              <KpiTile
-                label="Klikovi na linkove"
-                value={orCur.linkClicks}
-                format={formatNumber}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(orCur.linkClicks, orPrev.linkClicks),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={orSeries.map((d) => d.linkClicks)}
-              />
-            ) : (
-              <KpiTileSkeleton />
-            )
-          ) : (
-            <UnconnectedTile label="Klikovi na linkove" providerName="OpenReply" />
-          )}
-
-          {/* 5. GA4 Conversions */}
           {hasGa4 ? (
             ga4Cur && ga4Prev && ga4Series ? (
               <KpiTile
@@ -249,13 +191,113 @@ export function OverviewDashboard() {
           ) : (
             <UnconnectedTile label="Konverzije" providerName="GA4" />
           )}
+
+          {hasInstagram ? (
+            igCur && igPrev && igSeries ? (
+              <KpiTile
+                label="Instagram doseg"
+                value={igCur.reach}
+                format={formatNumber}
+                delta={{
+                  kind: "pct",
+                  value: deltaPct(igCur.reach, igPrev.reach),
+                }}
+                formatDelta={formatSignedPercent}
+                compareLabel={compareLabel}
+                spark={igSeries.map((d) => d.reach)}
+              />
+            ) : (
+              <KpiTileSkeleton />
+            )
+          ) : (
+            <UnconnectedTile label="Instagram doseg" providerName="Instagram" />
+          )}
+
+          {hasOpenReply ? (
+            orCur && orPrev && orSeries ? (
+              <KpiTile
+                label="Poslate DM poruke"
+                value={orCur.dmsSent}
+                format={formatNumber}
+                delta={{
+                  kind: "pct",
+                  value: deltaPct(orCur.dmsSent, orPrev.dmsSent),
+                }}
+                formatDelta={formatSignedPercent}
+                compareLabel={compareLabel}
+                spark={orSeries.map((d) => d.dmsSent)}
+              />
+            ) : (
+              <KpiTileSkeleton />
+            )
+          ) : (
+            <UnconnectedTile
+              label="Poslate DM poruke"
+              providerName="OpenReply"
+            />
+          )}
         </div>
       </Reveal>
 
-      {/* ── Middle Cockpit Grid: Šta radi + Sync Health ─────────────────── */}
+      {/* Glavni sadržaj ekrana: kretanje sesija i konverzija kroz period. */}
+      <Reveal delay={0.05}>
+        {!hasGa4 ? (
+          <ConnectNotice provider="GA4">
+            Kretanje sesija i konverzija kroz period crta se iz Google
+            Analytics 4. Bez te veze kontrolna tabla prikazuje samo Instagram i
+            OpenReply.
+          </ConnectNotice>
+        ) : ga4Series === undefined ? (
+          <SessionsChartSkeleton />
+        ) : (
+          <ChartErrorBoundary>
+            <SessionsChart data={ga4Series} />
+          </ChartErrorBoundary>
+        )}
+      </Reveal>
+
+      {/* Prateće mere: važe, ali se ne gledaju prve. */}
+      <Reveal delay={0.075}>
+        <SecondaryStats
+          compareLabel={compareLabel}
+          items={[
+            {
+              label: "Aktivni korisnici",
+              provider: "GA4",
+              connected: hasGa4,
+              value: ga4Cur?.activeUsers,
+              delta:
+                ga4Cur && ga4Prev
+                  ? deltaPct(ga4Cur.activeUsers, ga4Prev.activeUsers)
+                  : undefined,
+            },
+            {
+              label: "Klikovi na linkove",
+              provider: "OpenReply",
+              connected: hasOpenReply,
+              value: orCur?.linkClicks,
+              delta:
+                orCur && orPrev
+                  ? deltaPct(orCur.linkClicks, orPrev.linkClicks)
+                  : undefined,
+            },
+            {
+              label: "Pratioci na Instagramu",
+              provider: "Instagram",
+              connected: hasInstagram,
+              value: igCur?.followersCount,
+              delta:
+                igCur && igPrev
+                  ? deltaPct(igCur.followersCount, igPrev.followersCount)
+                  : undefined,
+            },
+          ]}
+        />
+      </Reveal>
+
+      {/* Šta je radilo u periodu, i da li su brojevi uopšte sveži. */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* 'Šta radi' panel (2/3 width on wide screen) */}
-        <Reveal delay={0.05} className="lg:col-span-2">
+        <Reveal delay={0.1} className="lg:col-span-2">
           <PerformanceHighlights
             report={staleReport}
             mediaList={staleMedia}
@@ -265,14 +307,97 @@ export function OverviewDashboard() {
           />
         </Reveal>
 
-        {/* Sync Health Summary (1/3 width on wide screen) */}
         <Reveal delay={0.1} className="lg:col-span-1">
-          <SyncHealthWidget
-            entries={syncHealth}
-            connections={connections}
-          />
+          <SyncHealthWidget entries={syncHealth} connections={connections} />
         </Reveal>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Objašnjava ZAŠTO je prazno i šta se povodom toga radi — a ne samo da jeste.
+ * Prazan grafikon bez ovoga izgleda kao kvar.
+ */
+function ConnectNotice({
+  provider,
+  children,
+}: {
+  provider: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center rounded-xl border border-dashed border-line-soft bg-card/40 px-6 py-12 text-center">
+      <div className="flex size-9 items-center justify-center rounded-full border border-line-soft text-text-muted">
+        <Unplug className="size-4" aria-hidden />
+      </div>
+      <p className="mt-3 text-sm font-medium text-foreground">
+        {provider} nije povezan
+      </p>
+      <p className="mt-1 max-w-md text-xs leading-relaxed text-text-muted">
+        {children}
+      </p>
+      <Link
+        href="/settings"
+        className="mt-4 inline-flex items-center gap-1 rounded-md border border-line px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-accent-400/50 hover:text-accent-400"
+      >
+        Poveži u Podešavanjima
+        <ArrowUpRight className="size-3" aria-hidden />
+      </Link>
+    </div>
+  );
+}
+
+type SecondaryStat = {
+  label: string;
+  provider: string;
+  connected: boolean;
+  value: number | undefined;
+  delta: number | null | undefined;
+};
+
+/** Jedan red, tri mere, bez sparklinija — drugi nivo, i izgleda tako. */
+function SecondaryStats({
+  items,
+  compareLabel,
+}: {
+  items: SecondaryStat[];
+  compareLabel: string;
+}) {
+  return (
+    <div className="grid grid-cols-1 divide-y divide-line-soft overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      {items.map((item) => (
+        <div key={item.label} className="px-5 py-4">
+          <p className="heading-caps text-micro font-medium text-text-muted">
+            {item.label}
+          </p>
+          {!item.connected ? (
+            <Link
+              href="/settings"
+              className="mt-1.5 inline-flex items-center gap-1 text-sm text-text-muted transition-colors hover:text-accent-400"
+            >
+              {item.provider} nije povezan
+              <ArrowUpRight className="size-3" aria-hidden />
+            </Link>
+          ) : item.value === undefined ? (
+            <Skeleton className="mt-2 h-6 w-24" />
+          ) : (
+            <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2">
+              <CountUp
+                value={item.value}
+                format={formatNumber}
+                className="font-mono text-xl font-bold tracking-tight text-foreground"
+              />
+              <span className="font-mono text-xs tabular-nums text-text-muted">
+                {item.delta === null || item.delta === undefined
+                  ? "—"
+                  : formatSignedPercent(item.delta)}
+              </span>
+              <span className="text-xs text-text-muted">{compareLabel}</span>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -283,13 +408,22 @@ function useStale<T>(value: T | undefined): T | undefined {
   return value ?? last;
 }
 
+/** Isti raspored i iste visine kao učitane table — podaci ništa ne pomeraju. */
 export function OverviewSkeleton() {
   return (
-    <div className="flex flex-1 flex-col gap-6">
-      <div className="h-8" />
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {Array.from({ length: 5 }).map((_, i) => (
+    <div className="flex flex-1 flex-col gap-8">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
           <KpiTileSkeleton key={i} />
+        ))}
+      </div>
+      <SessionsChartSkeleton />
+      <div className="grid grid-cols-1 divide-y divide-line-soft overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="px-5 py-4">
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="mt-2.5 h-6 w-24" />
+          </div>
         ))}
       </div>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
