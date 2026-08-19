@@ -84,6 +84,48 @@ const healthEntryValidator = v.object({
 
 type HealthEntry = Infer<typeof healthEntryValidator>;
 
+/**
+ * When the data on screen last got any fresher (F6).
+ *
+ * Deliberately NOT the same thing as "the last sync run finished". Since the
+ * three-level schedule landed, most refreshes are small targeted passes that
+ * never open a `syncRuns` row — a header reading off runs alone would say
+ * "synced 5 h ago" about a screen that updated forty seconds ago, which is the
+ * exact lie this milestone exists to remove.
+ */
+export const freshness = query({
+  args: {},
+  returns: v.union(v.number(), v.null()),
+  handler: async (ctx): Promise<number | null> => {
+    const { workspaceId } = await requireMembership(ctx);
+
+    let best: number | null = null;
+    const consider = (value: number | undefined) => {
+      if (value === undefined) return;
+      if (best === null || value > best) best = value;
+    };
+
+    for (const provider of ALL_PROVIDERS) {
+      const run = await ctx.db
+        .query("syncRuns")
+        .withIndex("by_workspace_provider", (q) =>
+          q.eq("workspaceId", workspaceId).eq("provider", provider),
+        )
+        .order("desc")
+        .first();
+      if (run !== null && run.status === "ok") consider(run.finishedAt);
+    }
+
+    const jobs = await ctx.db
+      .query("metaSyncJobs")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+    for (const job of jobs) consider(job.lastOkAt);
+
+    return best;
+  },
+});
+
 /** Latest sync run per provider for the caller's workspace. */
 export const health = query({
   args: {},

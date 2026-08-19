@@ -9,6 +9,7 @@ import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
+import { RateLimitBanner } from "@/components/app/rate-limit-banner";
 import { KpiTile, KpiTileSkeleton } from "@/components/app/analytics/kpi-tile";
 import { InstagramChart, InstagramChartSkeleton } from "./instagram-chart";
 import {
@@ -84,6 +85,10 @@ export function InstagramDashboard() {
 
   return (
     <div className="flex flex-1 flex-col gap-8">
+      {/* Stoji iznad svega i van <Reveal>-a: ovo nije podatak koji se otkriva
+          sa ekranom nego stanje koje objašnjava zašto podaci kasne. */}
+      <RateLimitBanner network="Instagram" />
+
       {!igConnected ? (
         <EmptyState icon={Unplug}>
           Instagram još nije povezan.{" "}

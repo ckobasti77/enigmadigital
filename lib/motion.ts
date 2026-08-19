@@ -40,6 +40,13 @@ export const DUR_COUNT = 0.5;
 export const REVEAL_Y = 12;
 
 /**
+ * Pomeraj za nešto što je STIGLO, a ne za nešto što se otkriva. Kraći od
+ * `REVEAL_Y` namerno: ulazak ekrana je događaj koji čovek gleda, a pristigla
+ * kartica je vest koju treba primetiti bez prekidanja onoga što radi.
+ */
+export const ARRIVE_Y = 8;
+
+/**
  * Ukupno trajanje reveal-a na ekranu, od prvog do poslednjeg elementa.
  * Ovo je plafon za `trajanje + stagger × (broj − 1)`.
  */

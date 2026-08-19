@@ -41,6 +41,12 @@ export default defineSchema({
     externalIdAlt: v.optional(v.string()), // meta_ig: IG professional account
     // ID (webhook `entry.id`); meta_fb: the Page's name, so Settings can say
     // which Page is connected without a round trip to Meta
+    //
+    // meta_ig only: our own @handle, cached from `/me` by the full sync (F6).
+    // The comments edge names an author by handle and nothing else, so this is
+    // the only way to tell our replies from everybody else's — and a targeted
+    // single-post refresh cannot afford a `/me` call just to learn it again.
+    accountHandle: v.optional(v.string()),
     status: v.union(
       v.literal("active"),
       v.literal("error"),
@@ -682,6 +688,64 @@ export default defineSchema({
     error: v.optional(v.string()), // pre-sanitized; safe to show in the UI
     itemsWritten: v.number(),
   }).index("by_workspace_provider", ["workspaceId", "provider"]),
+
+  // ── Meta sync scheduling & rate limiting (F6) ───────────────────────────────
+  //
+  // Every Graph API answer carries `X-App-Usage` (and, on Business endpoints,
+  // `X-Business-Use-Case-Usage`) with three percentages of the rolling hourly
+  // allowance. The highest of the three is the one that matters — Meta blocks
+  // on whichever runs out first — so that is what the schedulers read before
+  // spending a call.
+  //
+  // ONE row per workspace, not per provider: `X-App-Usage` is the whole Meta
+  // APP's budget, and the Instagram and the Page connection share it. Splitting
+  // it per provider would let each half believe it still had room.
+  metaApiUsage: defineTable({
+    workspaceId: v.id("workspaces"),
+    callCount: v.number(), // 0..100 (percent)
+    cpuTime: v.number(),
+    totalTime: v.number(),
+    updatedAt: v.number(),
+    // Set when Meta actually refused (HTTP 429, or error code 4 / 17 / 32).
+    // `backoffMs` is the current step of the doubling, kept so the next
+    // refusal knows where it left off.
+    backoffUntil: v.optional(v.number()),
+    backoffMs: v.optional(v.number()),
+    lastThrottleAt: v.optional(v.number()),
+  }).index("by_workspace", ["workspaceId"]),
+
+  // When each scheduled pass last ran, and whether it got anywhere. This is
+  // NOT `syncRuns`: a run row is one whole sync of one integration and shows up
+  // in Sync Health, while these are the small recurring passes (head check,
+  // hourly insights, event-driven refresh) that would drown that widget.
+  //
+  // `job` is a short key — "event" | "head" | "account" | "hot" | "deletion".
+  metaSyncJobs: defineTable({
+    workspaceId: v.id("workspaces"),
+    provider: providerValidator,
+    job: v.string(),
+    lastRunAt: v.number(),
+    lastOkAt: v.optional(v.number()),
+    // Why the last attempt did nothing: rate limit, backoff, nothing new.
+    lastSkipReason: v.optional(v.string()),
+    itemsWritten: v.optional(v.number()),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_provider_job", ["workspaceId", "provider", "job"]),
+
+  // Debounce ledger for the event-driven refresh: one row per post that has
+  // ever been refreshed on its own. Deliberately its own table rather than a
+  // field on `igMediaStats` — the first comment on a brand new post arrives
+  // before that post has a row at all, and a claim that cannot be written is a
+  // claim two concurrent webhooks both win.
+  metaTargetedSyncs: defineTable({
+    workspaceId: v.id("workspaces"),
+    provider: providerValidator,
+    mediaId: v.string(), // IG media id, or FB post id
+    lastSyncAt: v.number(),
+  })
+    .index("by_provider_media", ["provider", "mediaId"])
+    .index("by_workspace", ["workspaceId"]),
 
   // Ads Command module (V2 - PLAN.md §7.3).
   // Hierarchy: adAccounts -> adCampaigns -> adSets -> ads

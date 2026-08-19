@@ -7,6 +7,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import { runSync } from "./lib/runSync";
 import { extractGraphApiError } from "./lib/instagramApi";
+import { allowsBackground, createUsageTracker, readGate } from "./lib/metaRateLimit";
 import {
   buildDebugTokenUrl,
   buildFacebookAuthorizeUrl,
@@ -742,9 +743,16 @@ export const syncFacebook = internalAction({
         const now = Date.now();
         let written = 0;
 
+        // Every Graph answer says how much of the app's allowance is spent
+        // (F6). The Page and the Instagram account share one Meta app, so this
+        // reading is what makes the two-minute schedulers stand down in time.
+        const tracker = createUsageTracker();
+
         // 1. The Page node — mostly to keep the name in Settings honest.
         try {
-          const res = await fetch(buildPageNodeUrl(pageId, token, version));
+          const res = await tracker.fetch(
+            buildPageNodeUrl(pageId, token, version),
+          );
           if (res.ok) {
             const node = await readJson<RawPageNode>(res);
             if (node.name) {
@@ -775,7 +783,7 @@ export const syncFacebook = internalAction({
           );
           const until = Math.floor(now / 1000);
 
-          let res = await fetch(
+          let res = await tracker.fetch(
             buildPageInsightsUrl({
               pageId,
               accessToken: token,
@@ -790,7 +798,7 @@ export const syncFacebook = internalAction({
               "Facebook: uvidi stranice odbijeni, pokušavam bez page_fans —",
               extractGraphApiError(body),
             );
-            res = await fetch(
+            res = await tracker.fetch(
               buildPageInsightsUrl({
                 pageId,
                 accessToken: token,
@@ -827,7 +835,7 @@ export const syncFacebook = internalAction({
         }
 
         // 3. The feed.
-        const postsRes = await fetch(
+        const postsRes = await tracker.fetch(
           buildPagePostsUrl(pageId, token, FB_POSTS_PER_SYNC, version),
         );
         if (!postsRes.ok) {
@@ -844,14 +852,14 @@ export const syncFacebook = internalAction({
           posts.map(async (post, index) => {
             if (index >= POST_INSIGHTS_LIMIT) return post;
             try {
-              let res = await fetch(
+              let res = await tracker.fetch(
                 buildPostInsightsUrl(post.postId, token),
               );
               // Same all-or-nothing rule as the Page insights: one retired
               // metric name costs every number on the card, so a refusal is
               // retried with the one metric that has never gone away.
               if (!res.ok) {
-                res = await fetch(
+                res = await tracker.fetch(
                   buildPostInsightsUrl(
                     post.postId,
                     token,
@@ -896,7 +904,7 @@ export const syncFacebook = internalAction({
 
         for (const postId of postIds) {
           try {
-            const res = await fetch(
+            const res = await tracker.fetch(
               buildPostCommentsUrl(
                 postId,
                 token,
@@ -922,6 +930,17 @@ export const syncFacebook = internalAction({
           }
         }
 
+        // What Meta said about the allowance, written once for the whole run.
+        // Also stamps the "full pass" row the Settings schedule table reads.
+        await tracker.flush(ctx, workspaceId);
+        await ctx.runMutation(internal.metaSyncStore.recordJob, {
+          workspaceId,
+          provider: "meta_fb",
+          job: "full",
+          ok: true,
+          itemsWritten: written,
+        });
+
         return written;
       },
     );
@@ -930,7 +949,13 @@ export const syncFacebook = internalAction({
   },
 });
 
-/** Six-hourly cron fan-out. */
+/**
+ * Six-hourly cron fan-out.
+ *
+ * Gated like every other scheduled pass since F6: the Page and the Instagram
+ * account draw on ONE Meta app allowance, and this is the pass that spends the
+ * most of it in a single go.
+ */
 export const syncAllFacebook = internalAction({
   args: {},
   returns: v.null(),
@@ -941,6 +966,25 @@ export const syncAllFacebook = internalAction({
     );
     for (const connectionId of ids) {
       try {
+        const conn: Doc<"connections"> | null = await ctx.runQuery(
+          internal.connections.getForSync,
+          { connectionId },
+        );
+        if (conn === null) continue;
+
+        const gate = await readGate(ctx, conn.workspaceId);
+        if (!allowsBackground(gate)) {
+          await ctx.runMutation(internal.metaSyncStore.recordJob, {
+            workspaceId: conn.workspaceId,
+            provider: "meta_fb",
+            job: "full",
+            ok: false,
+            skipReason:
+              "Potrošnja Meta limita je previsoka; sledeći prolaz preskočen.",
+          });
+          continue;
+        }
+
         await ctx.runAction(internal.facebook.syncFacebook, { connectionId });
       } catch {
         // Already recorded on the syncRuns row.

@@ -22,6 +22,26 @@ export function formatRelativeTime(timestamp: number, now = Date.now()): string 
   });
 }
 
+/**
+ * How long ago the screen last got fresher — in seconds while that is still the
+ * honest unit.
+ *
+ * `formatRelativeTime` rounds everything under 45 s to „upravo sada", which is
+ * right for a sync that runs every six hours and wrong for one that runs on a
+ * webhook: „pre 40 s" is a claim about how live the panel is, and rounding it
+ * away throws out exactly the thing F6 was built to show.
+ */
+export function formatSyncAge(timestamp: number, now = Date.now()): string {
+  const diff = now - timestamp;
+  if (diff < 0) return "upravo sada";
+
+  const sec = Math.floor(diff / 1000);
+  if (sec < 10) return "upravo sada";
+  if (sec < 60) return `pre ${sec} s`;
+
+  return formatRelativeTime(timestamp, now);
+}
+
 // ── numbers (sr-Latn: "12.345,6") ────────────────────────────────────────────
 
 const LOCALE = "sr-Latn-RS";
@@ -92,6 +112,15 @@ const dayMonthFmt = new Intl.DateTimeFormat(LOCALE, {
   day: "2-digit",
   month: "2-digit",
 });
+const clockFmt = new Intl.DateTimeFormat(LOCALE, {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** A moment as a wall clock reading in the reader's own time zone — "14:35". */
+export function formatClockTime(timestamp: number): string {
+  return clockFmt.format(new Date(timestamp));
+}
 
 /** Parse a "YYYY-MM-DD" key as a local date (no TZ shift). */
 function keyToLocalDate(key: string): Date {

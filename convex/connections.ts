@@ -7,6 +7,7 @@ import { providerValidator, type Provider } from "./lib/providers";
 import { requireMembership } from "./lib/auth";
 import { encryptCredentials } from "./lib/crypto";
 import { runSync } from "./lib/runSync";
+import { allowsManual, readGate } from "./lib/metaRateLimit";
 
 // ── credential validation (runs BEFORE encryption; never echoes the secret) ──
 
@@ -324,6 +325,25 @@ export const syncNow = action({
       { connectionId, userId },
     );
     if (authorized === null) throw new ConvexError({ code: "forbidden" });
+
+    // Meta's allowance is shared by the Instagram account and the Page, and a
+    // full sync is the most expensive thing this app can ask for. Near the
+    // ceiling it is refused OUT LOUD rather than run and blocked halfway: the
+    // background schedules keep the screen current anyway, and a person who
+    // pressed a button deserves a sentence, not a spinner that ends in nothing.
+    if (authorized.provider === "meta_ig" || authorized.provider === "meta_fb") {
+      const gate = await readGate(ctx, authorized.workspaceId);
+      if (!allowsManual(gate)) {
+        // No clock time in this sentence on purpose: the server runs in UTC and
+        // the person reading it does not. The banner on the screen already says
+        // when, in their own time zone.
+        throw new ConvexError({
+          code: "rate_limited",
+          message:
+            "Meta trenutno ograničava pozive. Sinhronizacija se nastavlja sama čim se limit oslobodi.",
+        });
+      }
+    }
 
     if (authorized.provider === "ga4") {
       // syncGa4 wraps its own runSync; a failure re-throws here so the button

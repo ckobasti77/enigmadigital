@@ -1,12 +1,12 @@
 "use client";
 
-import { Component, type ReactNode } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { AlertCircle, CheckCircle2, Clock, Disc } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatRelativeTime } from "@/lib/format";
+import { formatSyncAge } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -60,8 +60,33 @@ class QuietBoundary extends Component<{ children: ReactNode }, { failed: boolean
   }
 }
 
+/**
+ * Pomera prikazano „pre 40 s" bez ijednog mrežnog poziva.
+ *
+ * Podatak stiže sam, Convex-om, čim se baza promeni — jedino što zastareva je
+ * REČENICA o tome koliko je star. Deset sekundi je najduži interval na kom
+ * sekunde ne počnu vidno da lažu, a i dalje je jedan `setState` u minuti i po.
+ */
+function useTicker(intervalMs: number): void {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((n) => n + 1), intervalMs);
+    return () => window.clearInterval(id);
+  }, [intervalMs]);
+}
+
+const AGE_TICK_MS = 10_000;
+
 function SyncStatusPill({ className }: { className?: string }) {
   const entries = useQuery(api.sync.health);
+  // Kada su podaci na ekranu poslednji put postali svežiji. Namerno NIJE
+  // „poslednja sinhronizacija": većina osvežavanja su sada mali ciljani
+  // prolazi koji ne otvaraju red u istoriji, i traka bi tvrdila da je ekran
+  // star šest sati dok se kartica ispod nje promenila pre četrdeset sekundi.
+  const freshAt = useQuery(api.sync.freshness);
+
+  useTicker(AGE_TICK_MS);
 
   if (entries === undefined) {
     return <Skeleton className={cn("h-6 w-36", className)} />;
@@ -71,17 +96,15 @@ function SyncStatusPill({ className }: { className?: string }) {
     PRIORITY.find((t) => entries.some((e) => e.status === t)) ?? "idle";
   const { label, className: toneClass, icon: Icon } = TONE[tone];
 
-  // Za „kada" se uzima poslednje pokretanje bilo koje integracije: to je
-  // trenutak od kog brojevi na ekranu važe.
-  const latest = entries.reduce<number | null>(
-    (best, e) => (best === null || e.startedAt > best ? e.startedAt : best),
-    null,
-  );
+  const age = freshAt == null ? null : formatSyncAge(freshAt);
+  // Kada sve radi, vest je koliko su podaci sveži. Kada nešto ne radi, vest je
+  // to — pa naslov ustupa mesto stanju.
+  const headline = tone === "ok" && age !== null ? `Sinhronizovano ${age}` : label;
 
   return (
     <Link
       href="/settings"
-      title={`${label}${latest === null ? "" : ` · ${formatRelativeTime(latest)}`}`}
+      title={`${label}${age === null ? "" : ` · ${age}`}`}
       className={cn(
         "group inline-flex items-center gap-2 rounded-full border border-line-soft px-2.5 py-1 text-xs transition-colors hover:border-line-strong",
         className,
@@ -95,10 +118,10 @@ function SyncStatusPill({ className }: { className?: string }) {
         )}
         aria-hidden
       />
-      <span className={cn("font-medium", toneClass)}>{label}</span>
-      {latest !== null && (
+      <span className={cn("font-medium", toneClass)}>{headline}</span>
+      {tone !== "ok" && age !== null && (
         <span className="hidden font-mono tabular-nums text-text-muted 2xl:inline">
-          {formatRelativeTime(latest)}
+          {age}
         </span>
       )}
     </Link>

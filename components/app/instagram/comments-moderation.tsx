@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Reveal } from "@/components/motion/reveal";
 import { CountUp } from "@/components/motion/count-up";
+import { Arrive, ArrivalScope } from "@/components/motion/arrive";
 import { EmptyState } from "@/components/app/empty-state";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackNote } from "@/components/app/feedback";
@@ -165,17 +166,22 @@ export function CommentsModeration() {
               {EMPTY_COPY[filter].text}
             </EmptyState>
           ) : (
-            <div className="flex flex-col divide-y divide-line-soft px-4">
-              {threads.map((thread) => (
-                <CommentThread
-                  key={thread._id}
-                  thread={thread}
-                  showPost
-                  selected={selected.has(thread.commentId)}
-                  onSelectedChange={(on) => toggle(thread.commentId, on)}
-                />
-              ))}
-            </div>
+            // Komentar stiže webhook-om, dakle dok je ekran otvoren: ulazi
+            // kratkim uvodom umesto da lista ponovo poskoči.
+            <ArrivalScope>
+              <div className="flex flex-col divide-y divide-line-soft px-4">
+                {threads.map((thread) => (
+                  <Arrive key={thread._id}>
+                    <CommentThread
+                      thread={thread}
+                      showPost
+                      selected={selected.has(thread.commentId)}
+                      onSelectedChange={(on) => toggle(thread.commentId, on)}
+                    />
+                  </Arrive>
+                ))}
+              </div>
+            </ArrivalScope>
           )}
         </Card>
       </Reveal>

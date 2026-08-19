@@ -52,6 +52,45 @@ crons.interval(
   internal.instagramPublishStore.sweepExpiredUploads,
   {},
 );
+// ── Meta: the three-level schedule (F6) ─────────────────────────────────────
+//
+// Level 1 is not here — it is triggered by the webhook, in `http.ts`.
+//
+// Level 2 is the cheapest poll that can exist: five ids, no numbers, one call.
+// It exists because Meta has NO webhook for publishing. A new post can only be
+// noticed by asking, and asking cheaply every two minutes costs less in a day
+// than a single full sync does.
+crons.interval(
+  "instagram head check",
+  { minutes: 2 },
+  internal.metaSync.igHeadCheck,
+  {},
+);
+crons.interval(
+  "facebook head check",
+  { minutes: 2 },
+  internal.metaSync.fbHeadCheck,
+  {},
+);
+// Level 3, hourly: the account snapshot and the posts published in the last two
+// weeks. Meta does not compute insights in real time, so an hour is not a
+// compromise here — it is roughly the resolution the numbers actually have.
+crons.interval(
+  "meta hourly refresh",
+  { hours: 1 },
+  internal.metaSync.hourlyRefresh,
+  {},
+);
+// Level 3, daily: which posts has Instagram stopped having? Moved off the
+// six-hourly sync in F6 — it costs up to twenty-five probes and answers a
+// question whose answer changes about once a month.
+crons.interval(
+  "instagram deletion check",
+  { hours: 24 },
+  internal.metaSync.igDeletionCheck,
+  {},
+);
+
 crons.interval(
   "sync meta ads structure",
   { hours: 3 },

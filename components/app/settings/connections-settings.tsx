@@ -42,6 +42,7 @@ import {
 } from "@/components/app/form-kit";
 import { StatusPill } from "./status-pill";
 import { SyncHealth } from "./sync-health";
+import { SyncSchedule } from "./sync-schedule";
 
 type ConnectionView = FunctionReturnType<typeof api.connections.list>[number];
 
@@ -204,7 +205,7 @@ function SyncFooter({ connection }: { connection?: ConnectionView }) {
             ) : (
               <RefreshCw />
             )}
-            Sinhronizuj
+            {syncing ? "Sinhronizujem…" : "Sinhronizuj"}
           </Button>
         </div>
       </div>
@@ -2170,6 +2171,7 @@ export function ConnectionsSettings() {
       <MetaAdsCard connection={byProvider.get("meta_ads")} />
       <GoogleAdsCard connection={byProvider.get("google_ads")} />
       <YouTubeCard connection={byProvider.get("youtube")} />
+      <SyncSchedule connected={connections.map((c) => c.provider)} />
       <SyncHealth entries={health} />
     </RevealGroup>
   );

@@ -290,6 +290,39 @@ export function buildPagePostsUrl(
   return url.toString();
 }
 
+/**
+ * The cheapest look at the feed — ids and dates only (F6, level 2).
+ *
+ * A Page webhook does announce a new post (`feed` with `item: "post"`), unlike
+ * Instagram, but it announces it as an id with no numbers attached and only for
+ * posts published through the API. This poll is what makes "a post appeared in
+ * the panel" true for a post typed straight into Facebook, too.
+ */
+export function buildPagePostIdsUrl(
+  pageId: string,
+  accessToken: string,
+  limit: number = 5,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(`${FACEBOOK_GRAPH_BASE_URL}/${version}/${pageId}/posts`);
+  url.searchParams.set("fields", "id,created_time");
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/** One post node, with the same fields the feed listing asks for. */
+export function buildPostNodeUrl(
+  postId: string,
+  accessToken: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(`${FACEBOOK_GRAPH_BASE_URL}/${version}/${postId}`);
+  url.searchParams.set("fields", PAGE_POST_FIELDS);
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
 /** The Page node — name and fan count for the Settings card and the KPIs. */
 export function buildPageNodeUrl(
   pageId: string,

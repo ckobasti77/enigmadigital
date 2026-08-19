@@ -466,6 +466,107 @@ export const listDeletionCandidates = internalQuery({
   },
 });
 
+// ── Scheduling support (F6) ──────────────────────────────────────────────────
+
+/**
+ * Which workspace owns the account a webhook just named.
+ *
+ * `externalIdAlt` is compared too because the Instagram webhook may name either
+ * the app-scoped user id or the professional account id, and the connect flow
+ * stores both — the same rule `orIngest.resolveWorkspace` follows.
+ */
+export const resolveConnectionByAccount = internalQuery({
+  args: { accountId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      connectionId: v.id("connections"),
+      workspaceId: v.id("workspaces"),
+    }),
+  ),
+  handler: async (ctx, { accountId }) => {
+    const rows = await ctx.db
+      .query("connections")
+      .withIndex("by_provider", (q) => q.eq("provider", "meta_ig"))
+      .collect();
+
+    const conn = rows.find(
+      (c) => c.externalId === accountId || c.externalIdAlt === accountId,
+    );
+    if (!conn) return null;
+    return { connectionId: conn._id, workspaceId: conn.workspaceId };
+  },
+});
+
+/**
+ * Cache our own @handle on the connection.
+ *
+ * Written by whichever pass last asked `/me`. The event-driven refresh reads it
+ * instead of asking again — one call saved on every comment that arrives.
+ */
+export const saveAccountHandle = internalMutation({
+  args: { connectionId: v.id("connections"), handle: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { connectionId, handle }) => {
+    const conn = await ctx.db.get(connectionId);
+    if (conn === null) return null;
+    if (conn.accountHandle === handle) return null;
+    await ctx.db.patch(connectionId, { accountHandle: handle });
+    return null;
+  },
+});
+
+/**
+ * Of the ids Instagram just listed, which have we never seen?
+ *
+ * This is the whole of the two-minute head check: five ids in, and normally an
+ * empty array out — at which point the pass is over and nothing is written.
+ */
+export const findUnknownMediaIds = internalQuery({
+  args: { workspaceId: v.id("workspaces"), mediaIds: v.array(v.string()) },
+  returns: v.array(v.string()),
+  handler: async (ctx, { workspaceId, mediaIds }) => {
+    const unknown: string[] = [];
+    for (const mediaId of mediaIds) {
+      const existing = await ctx.db
+        .query("igMediaStats")
+        .withIndex("by_workspace_media", (q) =>
+          q.eq("workspaceId", workspaceId).eq("mediaId", mediaId),
+        )
+        .unique();
+      if (existing === null) unknown.push(mediaId);
+    }
+    return unknown;
+  },
+});
+
+/**
+ * The posts worth an hourly insights read: recent, and still on Instagram.
+ *
+ * Newest first and capped, because reach on a two-week-old post moves by single
+ * digits a day while reach on this morning's post is the number somebody is
+ * actually watching.
+ */
+export const listRecentMediaIds = internalQuery({
+  args: {
+    workspaceId: v.id("workspaces"),
+    since: v.number(),
+    limit: v.number(),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, { workspaceId, since, limit }) => {
+    const rows = await ctx.db
+      .query("igMediaStats")
+      .withIndex("by_workspace_published", (q) =>
+        q.eq("workspaceId", workspaceId).gte("publishedAt", since),
+      )
+      .order("desc")
+      .take(Math.max(0, limit));
+
+    return rows.filter((r) => r.deletedAt === undefined).map((r) => r.mediaId);
+  },
+});
+
 // ── Picture Proxy Support (/ig-media/ route in http.ts) ──────────────────────
 
 /**

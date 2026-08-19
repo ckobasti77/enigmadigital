@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
 import { CountUp } from "@/components/motion/count-up";
+import { Arrive, ArrivalScope } from "@/components/motion/arrive";
 import { EmptyState } from "@/components/app/empty-state";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -302,11 +303,17 @@ export function FacebookContentGrid({ posts }: { posts: FbPostItem[] }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sorted.map((post) => (
-              <PostCard key={post._id} post={post} />
-            ))}
-          </div>
+          {/* Ista pravila kao na Instagram mreži: ono što stigne uživo ulazi
+              kratkim uvodom, a ne ponovnim otkrivanjem ekrana. */}
+          <ArrivalScope>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {sorted.map((post) => (
+                <Arrive key={post._id} className="h-full">
+                  <PostCard post={post} />
+                </Arrive>
+              ))}
+            </div>
+          </ArrivalScope>
         </div>
       )}
     </div>
@@ -486,7 +493,7 @@ function PostCard({ post }: { post: FbPostItem }) {
   return (
     <Card
       className={cn(
-        "group relative flex flex-col justify-between overflow-hidden p-0 shadow-card hover-lift",
+        "group relative flex h-full flex-col justify-between overflow-hidden p-0 shadow-card hover-lift",
         deleted && "ring-danger/40",
       )}
     >

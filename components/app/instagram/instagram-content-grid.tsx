@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
 import { CountUp } from "@/components/motion/count-up";
+import { Arrive, ArrivalScope } from "@/components/motion/arrive";
 import { EmptyState } from "@/components/app/empty-state";
 import { formatNumber } from "@/lib/format";
 import { igMediaSrc } from "@/lib/ig-media";
@@ -296,11 +297,19 @@ export function InstagramContentGrid({ media }: { media: MediaItem[] }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sortedMedia.map((item) => (
-              <PostCard key={item._id} item={item} />
-            ))}
-          </div>
+          {/* Objava koja stigne dok je ekran otvoren ulazi kratkim uvodom, ne
+              punim reveal-om: nov podatak ne sme da izgleda kao da se stranica
+              ponovo učitala. Kartice iz prvog kadra pripadaju ekranu i njih
+              otkriva <Reveal> iznad. */}
+          <ArrivalScope>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {sortedMedia.map((item) => (
+                <Arrive key={item._id} className="h-full">
+                  <PostCard item={item} />
+                </Arrive>
+              ))}
+            </div>
+          </ArrivalScope>
         </div>
       )}
     </div>
@@ -481,7 +490,7 @@ function PostCard({ item }: { item: MediaItem }) {
   return (
     <Card
       className={cn(
-        "group relative flex flex-col justify-between overflow-hidden p-0 shadow-card hover-lift",
+        "group relative flex h-full flex-col justify-between overflow-hidden p-0 shadow-card hover-lift",
         deleted && "ring-danger/40",
       )}
     >

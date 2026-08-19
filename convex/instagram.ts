@@ -17,14 +17,12 @@ import {
   buildMeUrl,
   buildMeInsightsUrl,
   buildMeMediaUrl,
-  buildMediaFieldsUrl,
   buildMediaInsightsUrl,
   getMetricsForMediaType,
   extractAccountInsights,
   extractMediaInsights,
   extractGraphApiError,
-  isMissingObjectError,
-  normalizeMediaChildren,
+  toStoredMediaRow,
   buildMediaCommentsUrl,
   type RawOAuthTokenResponse,
   type RawLongLivedTokenResponse,
@@ -38,6 +36,7 @@ import {
   COMMENT_SYNC_WINDOW_MS,
   normalizeComments,
 } from "./lib/igComments";
+import { allowsBackground, createUsageTracker, readGate } from "./lib/metaRateLimit";
 
 /**
  * ============================================================================
@@ -55,13 +54,6 @@ import {
  */
 
 const REFRESH_THRESHOLD_MS = 10 * 24 * 60 * 60 * 1000; // 10 days before expiry (i.e. ~50 days old)
-
-/**
- * How many "did this post really disappear?" reads one sync may spend. In a
- * normal run the answer is zero suspects; the cap only matters the first time a
- * batch of posts is taken down at once, and the rest are picked up next run.
- */
-const DELETION_CHECK_LIMIT = 25;
 
 /**
  * How many posts one sync pulls comments for. The window is 30 days (F4), and
@@ -567,6 +559,12 @@ export const syncIgInsights = internalAction({
         const now = Date.now();
         const today = new Date(now).toISOString().slice(0, 10);
 
+        // Every Graph answer carries how much of the app's allowance is spent
+        // (F6). Reading it costs nothing and is the only honest way to know
+        // when the schedulers have to stand down — so it is read here too, on
+        // the pass that spends the most calls of any of them.
+        const tracker = createUsageTracker();
+
         // 1. Fetch User Profile for followers_count
         let followersCount = 0;
         // Our own handle. The comments edge identifies a commenter by username
@@ -574,11 +572,19 @@ export const syncIgInsights = internalAction({
         // apart from everybody else's (F4).
         let ourUsername: string | undefined;
         try {
-          const meRes = await fetch(buildMeUrl(token, version));
+          const meRes = await tracker.fetch(buildMeUrl(token, version));
           if (meRes.ok) {
             const meData = (await meRes.json()) as RawUserProfile;
             followersCount = meData.followers_count ?? 0;
             ourUsername = meData.username;
+            if (ourUsername) {
+              // Cached so the event-driven refresh (F6) does not have to spend
+              // a call re-learning who we are on every incoming comment.
+              await ctx.runMutation(
+                internal.instagramStore.saveAccountHandle,
+                { connectionId, handle: ourUsername },
+              );
+            }
           } else {
             const errBody = await meRes.text().catch(() => "");
             console.warn("Instagram /me query warning:", extractGraphApiError(errBody));
@@ -594,7 +600,9 @@ export const syncIgInsights = internalAction({
           accountsEngaged: 0,
         };
         try {
-          const insightsRes = await fetch(buildMeInsightsUrl(token, version));
+          const insightsRes = await tracker.fetch(
+            buildMeInsightsUrl(token, version),
+          );
           if (insightsRes.ok) {
             const json = (await insightsRes.json()) as RawInsightsResponse;
             accountInsights = extractAccountInsights(json.data);
@@ -628,7 +636,7 @@ export const syncIgInsights = internalAction({
         );
 
         // 4. Fetch latest 30 media items
-        const mediaRes = await fetch(buildMeMediaUrl(token, 30, version));
+        const mediaRes = await tracker.fetch(buildMeMediaUrl(token, 30, version));
         if (!mediaRes.ok) {
           const errBody = await mediaRes.text().catch(() => "");
           throw new Error(
@@ -662,7 +670,7 @@ export const syncIgInsights = internalAction({
               token,
               version,
             );
-            const mRes = await fetch(insightsUrl);
+            const mRes = await tracker.fetch(insightsUrl);
             if (mRes.ok) {
               const mJson = (await mRes.json()) as RawInsightsResponse;
               mediaInsight = extractMediaInsights(
@@ -675,44 +683,10 @@ export const syncIgInsights = internalAction({
             // Tolerate unsupported or inaccessible media insights
           }
 
-          const rawPublished = item.timestamp
-            ? new Date(item.timestamp).getTime()
-            : now;
-          const publishedAt = Number.isFinite(rawPublished) ? rawPublished : now;
-
-          // Carousel slides; undefined for every other media type.
-          const children = normalizeMediaChildren(item.children);
-
-          const isReels =
-            item.media_product_type?.toUpperCase() === "REELS" ||
-            item.media_type?.toUpperCase() === "REELS";
-          const mediaType = isReels ? "REELS" : item.media_type || "IMAGE";
-
-          mediaRows.push({
-            mediaId: String(item.id),
-            mediaType,
-            caption: item.caption ?? "",
-            permalink: item.permalink ?? "",
-            publishedAt,
-            reach: mediaInsight.reach,
-            likes: Number(item.like_count) || 0,
-            comments: Number(item.comments_count) || 0,
-            saves: mediaInsight.saves,
-            shares: mediaInsight.shares,
-            views: mediaInsight.views,
-            syncedAt: now,
-            // Signed CDN links — stored so the /ig-media/ proxy has a starting
-            // point, never rendered straight from the database.
-            ...(item.media_url ? { mediaUrl: item.media_url } : {}),
-            ...(item.thumbnail_url
-              ? { thumbnailUrl: item.thumbnail_url }
-              : {}),
-            ...(children ? { children } : {}),
-            // Only when Instagram actually said so; see the upsert.
-            ...(typeof item.is_comment_enabled === "boolean"
-              ? { commentsEnabled: item.is_comment_enabled }
-              : {}),
-          });
+          // Shared with the event-driven single-post refresh (F6): both read
+          // the same fields off the same endpoint, and two copies of this
+          // mapping would drift the day one of them learned a new field.
+          mediaRows.push(toStoredMediaRow(item, mediaInsight, now));
         }
 
         // 5. Upsert media batch
@@ -727,52 +701,7 @@ export const syncIgInsights = internalAction({
           );
         }
 
-        // 6. Verify the posts Instagram stopped listing.
-        //
-        // A deletion is never announced — the only way to learn about one is to
-        // ask for the post and be told it is gone. Absence from the list alone
-        // proves nothing (the post may simply have fallen past the end of the
-        // page), so every suspect gets one targeted `?fields=id` read and only a
-        // real "object does not exist" writes `deletedAt`.
-        //
-        // The row is never removed. The post did exist and did have reach, and
-        // that remains a true statement about the past.
-        let deletedMarked = 0;
-        if (mediaRows.length > 0) {
-          const oldestSeen = Math.min(...mediaRows.map((r) => r.publishedAt));
-          const seenIds = new Set(mediaRows.map((r) => r.mediaId));
-
-          const candidates: { _id: Id<"igMediaStats">; mediaId: string }[] =
-            await ctx.runQuery(internal.instagramStore.listDeletionCandidates, {
-              workspaceId,
-              publishedFrom: oldestSeen,
-              syncedBefore: now,
-              limit: DELETION_CHECK_LIMIT,
-            });
-
-          for (const candidate of candidates) {
-            if (seenIds.has(candidate.mediaId)) continue;
-            try {
-              const probe = await fetch(
-                buildMediaFieldsUrl(candidate.mediaId, "id", token, version),
-              );
-              if (probe.ok) continue;
-
-              const body = await probe.text().catch(() => "");
-              if (!isMissingObjectError(probe.status, body)) continue;
-
-              await ctx.runMutation(
-                internal.instagramStore.markMediaDeleted,
-                { id: candidate._id },
-              );
-              deletedMarked++;
-            } catch {
-              // A network hiccup is not evidence; stay quiet and retry next run.
-            }
-          }
-        }
-
-        // 7. Comments on recent posts (F4).
+        // 6. Comments on recent posts (F4).
         //
         // The webhook already delivers every NEW comment within seconds, so
         // this pass exists for everything the webhook cannot know: comments
@@ -783,6 +712,12 @@ export const syncIgInsights = internalAction({
         // Deliberately last, and deliberately quiet. Insights are what this run
         // is for; a post whose comments cannot be read must not cost the run
         // its numbers.
+        //
+        // Detecting DELETED POSTS moved out of this run in F6 — it is its own
+        // daily pass now (`metaSync.igDeletionCheck`). Spending up to
+        // twenty-five probes four times a day on a question whose answer
+        // changes about once a month was the single most wasteful thing this
+        // sync did.
         let commentsWritten = 0;
         const commentCutoff = now - COMMENT_SYNC_WINDOW_MS;
         const recent = mediaRows
@@ -792,7 +727,7 @@ export const syncIgInsights = internalAction({
 
         for (const row of recent) {
           try {
-            const res = await fetch(
+            const res = await tracker.fetch(
               buildMediaCommentsUrl(
                 row.mediaId,
                 token,
@@ -836,7 +771,18 @@ export const syncIgInsights = internalAction({
           }
         }
 
-        return accountWritten + mediaWritten + deletedMarked + commentsWritten;
+        // What Meta said about the allowance, written once for the whole run.
+        // Also stamps the "full pass" row the Settings schedule table reads.
+        await tracker.flush(ctx, workspaceId);
+        await ctx.runMutation(internal.metaSyncStore.recordJob, {
+          workspaceId,
+          provider: "meta_ig",
+          job: "full",
+          ok: true,
+          itemsWritten: accountWritten + mediaWritten + commentsWritten,
+        });
+
+        return accountWritten + mediaWritten + commentsWritten;
       },
     );
   },
@@ -844,6 +790,11 @@ export const syncIgInsights = internalAction({
 
 /**
  * Cron fan-out (every 6h): sync every active Instagram connection.
+ *
+ * This is the most expensive pass in the app — fifty-odd calls — so since F6 it
+ * asks the rate-limit gate first, like every other scheduled pass. Standing
+ * down costs nothing: the two-minute poll and the hourly refresh keep the
+ * screen current, and the next tick is six hours away, not six seconds.
  */
 export const syncAllIg = internalAction({
   args: {},
@@ -855,6 +806,25 @@ export const syncAllIg = internalAction({
 
     for (const connectionId of connectionIds) {
       try {
+        const conn: Doc<"connections"> | null = await ctx.runQuery(
+          internal.connections.getForSync,
+          { connectionId },
+        );
+        if (conn === null) continue;
+
+        const gate = await readGate(ctx, conn.workspaceId);
+        if (!allowsBackground(gate)) {
+          await ctx.runMutation(internal.metaSyncStore.recordJob, {
+            workspaceId: conn.workspaceId,
+            provider: "meta_ig",
+            job: "full",
+            ok: false,
+            skipReason:
+              "Potrošnja Meta limita je previsoka; sledeći prolaz preskočen.",
+          });
+          continue;
+        }
+
         await ctx.runAction(internal.instagram.syncIgInsights, {
           connectionId,
         });

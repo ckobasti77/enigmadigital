@@ -9,6 +9,7 @@ import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
+import { RateLimitBanner } from "@/components/app/rate-limit-banner";
 import { KpiTile, KpiTileSkeleton } from "@/components/app/analytics/kpi-tile";
 import { FacebookChart, FacebookChartSkeleton } from "./facebook-chart";
 import {
@@ -82,6 +83,8 @@ export function FacebookDashboard() {
 
   return (
     <div className="flex flex-1 flex-col gap-8">
+      <RateLimitBanner network="Facebook" />
+
       {!fbConnected ? (
         <EmptyState icon={Unplug}>
           Facebook stranica još nije povezana.{" "}

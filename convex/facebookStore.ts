@@ -383,6 +383,54 @@ export const listRecentPostIds = internalQuery({
   },
 });
 
+// ── Scheduling support (F6) ──────────────────────────────────────────────────
+
+/**
+ * Which workspace owns the Page a webhook just named.
+ *
+ * Only `externalId` is compared: on a Page connection `externalIdAlt` holds the
+ * Page's NAME, not a second id, so matching against it would be nonsense.
+ */
+export const resolveConnectionByPage = internalQuery({
+  args: { pageId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      connectionId: v.id("connections"),
+      workspaceId: v.id("workspaces"),
+    }),
+  ),
+  handler: async (ctx, { pageId }) => {
+    const rows = await ctx.db
+      .query("connections")
+      .withIndex("by_provider", (q) => q.eq("provider", "meta_fb"))
+      .collect();
+
+    const conn = rows.find((c) => c.externalId === pageId);
+    if (!conn) return null;
+    return { connectionId: conn._id, workspaceId: conn.workspaceId };
+  },
+});
+
+/** Of the post ids the feed just listed, which have we never seen? */
+export const findUnknownPostIds = internalQuery({
+  args: { workspaceId: v.id("workspaces"), postIds: v.array(v.string()) },
+  returns: v.array(v.string()),
+  handler: async (ctx, { workspaceId, postIds }) => {
+    const unknown: string[] = [];
+    for (const postId of postIds) {
+      const existing = await ctx.db
+        .query("fbPagePosts")
+        .withIndex("by_workspace_post", (q) =>
+          q.eq("workspaceId", workspaceId).eq("postId", postId),
+        )
+        .unique();
+      if (existing === null) unknown.push(postId);
+    }
+    return unknown;
+  },
+});
+
 // ── Public queries ───────────────────────────────────────────────────────────
 
 const dailyViewValidator = v.object({

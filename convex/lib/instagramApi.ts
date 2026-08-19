@@ -164,6 +164,32 @@ export const MEDIA_LIST_FIELDS =
   "children{id,media_type,media_url,thumbnail_url}";
 
 /**
+ * Build endpoint URL for the CHEAPEST possible look at the feed — ids and dates
+ * and nothing else (F6, level 2).
+ *
+ * There is no webhook for a new post. Instagram announces comments, messages
+ * and mentions, and stays silent about publishing, so the only way to notice a
+ * post is to ask — which makes the cost of asking the whole design problem.
+ * This is one call with no insights, no captions and no signed CDN links, run
+ * every two minutes; the expensive read only happens when the answer contains
+ * an id we have never seen.
+ *
+ * `timestamp` rides along because it costs nothing and the deletion sweep needs
+ * to know how far back the answer reaches.
+ */
+export function buildMeMediaIdsUrl(
+  accessToken: string,
+  limit: number = 5,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(`${INSTAGRAM_GRAPH_BASE_URL}/${version}/me/media`);
+  url.searchParams.set("fields", "id,timestamp");
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/**
  * Build endpoint URL for reading arbitrary fields off a single media node.
  * Used by the /ig-media/ proxy route to pull a FRESH picture URL, because the
  * signed CDN links Instagram hands out expire.
@@ -778,6 +804,78 @@ export function normalizeMediaChildren(
     });
   }
   return out.length > 0 ? out : undefined;
+}
+
+/**
+ * One row of `igMediaStats` as the sync builds it, before it is handed to the
+ * upsert. Structural twin of `mediaRowValidator` in `convex/instagramStore.ts`.
+ */
+export interface StoredMediaRow {
+  mediaId: string;
+  mediaType: string;
+  caption: string;
+  permalink: string;
+  publishedAt: number;
+  reach: number;
+  likes: number;
+  comments: number;
+  saves: number;
+  shares: number;
+  views: number;
+  syncedAt: number;
+  mediaUrl?: string;
+  thumbnailUrl?: string;
+  children?: StoredMediaChild[];
+  commentsEnabled?: boolean;
+}
+
+/**
+ * Fold one media node and its insights into the stored row.
+ *
+ * Shared by the six-hourly full pass and the event-driven single-post refresh
+ * (F6): both read the same fields off the same endpoint, and two copies of this
+ * mapping would drift the moment one of them learned about a new field.
+ */
+export function toStoredMediaRow(
+  item: RawMediaItem,
+  insight: { reach: number; saves: number; shares: number; views: number },
+  syncedAt: number,
+): StoredMediaRow {
+  const rawPublished = item.timestamp
+    ? new Date(item.timestamp).getTime()
+    : syncedAt;
+  const publishedAt = Number.isFinite(rawPublished) ? rawPublished : syncedAt;
+
+  // Carousel slides; undefined for every other media type.
+  const children = normalizeMediaChildren(item.children);
+
+  const isReels =
+    item.media_product_type?.toUpperCase() === "REELS" ||
+    item.media_type?.toUpperCase() === "REELS";
+
+  return {
+    mediaId: String(item.id),
+    mediaType: isReels ? "REELS" : item.media_type || "IMAGE",
+    caption: item.caption ?? "",
+    permalink: item.permalink ?? "",
+    publishedAt,
+    reach: insight.reach,
+    likes: Number(item.like_count) || 0,
+    comments: Number(item.comments_count) || 0,
+    saves: insight.saves,
+    shares: insight.shares,
+    views: insight.views,
+    syncedAt,
+    // Signed CDN links — stored so the /ig-media/ proxy has a starting point,
+    // never rendered straight from the database.
+    ...(item.media_url ? { mediaUrl: item.media_url } : {}),
+    ...(item.thumbnail_url ? { thumbnailUrl: item.thumbnail_url } : {}),
+    ...(children ? { children } : {}),
+    // Only when Instagram actually said so; see the upsert.
+    ...(typeof item.is_comment_enabled === "boolean"
+      ? { commentsEnabled: item.is_comment_enabled }
+      : {}),
+  };
 }
 
 /**

@@ -258,6 +258,33 @@ http.route({
 });
 
 /**
+ * Ask for one post to be re-read, right now (F6, level 1).
+ *
+ * A comment is news about ONE object, and it is answered with a read of that
+ * one object: three calls, debounced to at most one refresh per post per thirty
+ * seconds. Never a whole-account sync — a lively morning would otherwise turn
+ * every conversation into a rate limit.
+ *
+ * Failure is swallowed on purpose. The webhook's job is to answer Meta with a
+ * 200; a scheduler that could not be reached is not a reason to make Meta retry
+ * the whole delivery, and the two-minute poll picks the post up regardless.
+ */
+async function scheduleTargetedRefresh(
+  ctx: ActionCtx,
+  params: {
+    provider: "meta_ig" | "meta_fb";
+    accountId: string;
+    mediaId: string;
+  },
+): Promise<void> {
+  try {
+    await ctx.scheduler.runAfter(0, internal.metaSync.refreshFromWebhook, params);
+  } catch {
+    // Level 2 will notice the post within two minutes either way.
+  }
+}
+
+/**
  * The `messaging[]` half of a webhook, which Instagram and Facebook send in
  * exactly the same shape — a PSID where an IGSID would be.
  *
@@ -424,6 +451,18 @@ http.route({
         } catch {
           // Catch per-row so one bad row cannot abort the rest
         }
+
+        // Level 1 of the sync schedule (F6): go and re-read THIS post, and
+        // nothing else. Scheduled rather than awaited because Meta retries — and
+        // eventually unsubscribes — a webhook that answers slowly, and three
+        // Graph reads are far too slow to do while it waits.
+        if (mediaId) {
+          await scheduleTargetedRefresh(ctx, {
+            provider: "meta_ig",
+            accountId: igUserId,
+            mediaId,
+          });
+        }
       }
 
       await handleMessagingEvents(ctx, {
@@ -523,6 +562,15 @@ http.route({
           });
         } catch {
           // Catch per-row so one bad row cannot abort the rest
+        }
+
+        // Level 1 (F6), same as Instagram: this post, and nothing else.
+        if (postId) {
+          await scheduleTargetedRefresh(ctx, {
+            provider: "meta_fb",
+            accountId: pageId,
+            mediaId: postId,
+          });
         }
       }
 
