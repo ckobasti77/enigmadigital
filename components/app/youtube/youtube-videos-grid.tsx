@@ -7,6 +7,7 @@ import {
   ArrowUpDown,
   Clock,
   ExternalLink,
+  Captions,
   Eye,
   Gauge,
   Heart,
@@ -22,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { formatNumber, formatPercent, formatWatchTime } from "@/lib/format";
 import { YtVideoEditDialog } from "./yt-video-edit-dialog";
+import { YtCaptionsPanel } from "./yt-captions-panel";
 import { cn } from "@/lib/utils";
 
 export type VideoItem = FunctionReturnType<
@@ -88,6 +90,7 @@ function compareVideos(a: VideoItem, b: VideoItem, sort: SortState): number {
 export function YouTubeVideosGrid({ videos }: { videos: VideoItem[] }) {
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
   const [editing, setEditing] = useState<VideoItem | null>(null);
+  const [captioning, setCaptioning] = useState<VideoItem | null>(null);
 
   const topThree = useMemo(
     () => [...videos].sort((a, b) => b.views - a.views).slice(0, 3),
@@ -136,6 +139,7 @@ export function YouTubeVideosGrid({ videos }: { videos: VideoItem[] }) {
               item={item}
               rank={idx + 1}
               onEdit={() => setEditing(item)}
+              onCaptions={() => setCaptioning(item)}
             />
           ))}
         </div>
@@ -187,6 +191,7 @@ export function YouTubeVideosGrid({ videos }: { videos: VideoItem[] }) {
               key={item._id}
               item={item}
               onEdit={() => setEditing(item)}
+              onCaptions={() => setCaptioning(item)}
             />
           ))}
         </div>
@@ -196,6 +201,13 @@ export function YouTubeVideosGrid({ videos }: { videos: VideoItem[] }) {
         video={editing}
         onOpenChange={(open) => {
           if (!open) setEditing(null);
+        }}
+      />
+
+      <YtCaptionsPanel
+        video={captioning}
+        onOpenChange={(open) => {
+          if (!open) setCaptioning(null);
         }}
       />
     </div>
@@ -280,10 +292,12 @@ function TopVideoCard({
   item,
   rank,
   onEdit,
+  onCaptions,
 }: {
   item: VideoItem;
   rank: number;
   onEdit: () => void;
+  onCaptions: () => void;
 }) {
   return (
     <Card
@@ -365,6 +379,7 @@ function TopVideoCard({
             <ExternalLink className="size-3" aria-hidden />
           </a>
           <EditVideoButton onEdit={onEdit} title={item.title} />
+          <CaptionsButton onOpen={onCaptions} title={item.title} />
         </div>
       </div>
     </Card>
@@ -396,9 +411,11 @@ function MiniStat({
 function VideoCard({
   item,
   onEdit,
+  onCaptions,
 }: {
   item: VideoItem;
   onEdit: () => void;
+  onCaptions: () => void;
 }) {
   return (
     <Card className="group relative flex flex-col justify-between overflow-hidden p-0 shadow-card hover-lift">
@@ -457,6 +474,7 @@ function VideoCard({
               <ExternalLink className="size-3" aria-hidden />
             </a>
             <EditVideoButton onEdit={onEdit} title={item.title} />
+            <CaptionsButton onOpen={onCaptions} title={item.title} />
           </div>
         </div>
       </div>
@@ -485,6 +503,34 @@ function EditVideoButton({
     >
       <Pencil className="size-3" aria-hidden />
       <span>Izmeni</span>
+    </Button>
+  );
+}
+
+/**
+ * The way into the caption panel.
+ *
+ * Its own button rather than a tab inside the edit dialog: opening it costs 50
+ * quota units, so it has to be a deliberate click and not something the
+ * operator lands on while editing a title.
+ */
+function CaptionsButton({
+  onOpen,
+  title,
+}: {
+  onOpen: () => void;
+  title: string;
+}) {
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onOpen}
+      aria-label={`Titlovi za video ${title}`}
+      className="h-7 gap-1 border-line-soft px-2 text-xs text-text-secondary hover:border-line-strong hover:text-foreground"
+    >
+      <Captions className="size-3" aria-hidden />
+      <span>Titlovi</span>
     </Button>
   );
 }

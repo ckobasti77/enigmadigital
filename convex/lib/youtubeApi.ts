@@ -342,21 +342,46 @@ export function buildThumbnailsSetUrl(videoId: string): string {
 }
 
 /**
- * Add a caption track — 400 units, multipart: the `snippet` JSON part and the
- * caption file part in one body.
+ * How the file reaches Google.
+ *
+ * `multipart` puts the metadata and the bytes in one request and is what a
+ * caption track — tens of kilobytes — wants. `resumable` opens a session with
+ * the metadata first and sends the bytes to the URL that comes back; it is the
+ * fallback for when multipart is refused, and the only sane path for a video.
  */
-export function buildCaptionsInsertUrl(): string {
+export type YouTubeUploadType = "multipart" | "resumable";
+
+/**
+ * Add a caption track — 400 units.
+ *
+ * Multipart here means `multipart/related`: a JSON `snippet` part and the
+ * caption file part in one body (lib/ytCaptions.ts builds it). The most
+ * expensive single call this app makes.
+ */
+export function buildCaptionsInsertUrl(uploadType: YouTubeUploadType): string {
   const url = new URL(`${YOUTUBE_UPLOAD_API_BASE_URL}/captions`);
   url.searchParams.set("part", "snippet");
-  url.searchParams.set("uploadType", "multipart");
+  url.searchParams.set("uploadType", uploadType);
   return url.toString();
 }
 
-/** Replace an existing caption track — 450 units, same multipart shape. */
-export function buildCaptionsUpdateUrl(): string {
+/**
+ * Replace an existing caption track's file — 450 units, PUT.
+ *
+ * `parts` matters more than it looks. `captions.update` replaces every part it
+ * is given, exactly like `videos.update`: sending `part=snippet` with a snippet
+ * we did not read back first would wipe the track's name and its draft flag.
+ * Replacing only the file is therefore sent as `part=id` with a body of just
+ * `{ id }` — the documented minimal form — which leaves the metadata alone and
+ * costs no extra read.
+ */
+export function buildCaptionsUpdateUrl(params: {
+  parts: string[];
+  uploadType: YouTubeUploadType;
+}): string {
   const url = new URL(`${YOUTUBE_UPLOAD_API_BASE_URL}/captions`);
-  url.searchParams.set("part", "snippet");
-  url.searchParams.set("uploadType", "multipart");
+  url.searchParams.set("part", params.parts.join(","));
+  url.searchParams.set("uploadType", params.uploadType);
   return url.toString();
 }
 

@@ -1,8 +1,9 @@
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
 import { extractYouTubeApiError } from "./lib/youtubeApi";
+import { QUOTA_MEDIA_LIMIT, remainingMediaUnits } from "./lib/ytQuota";
 import { readUnitsUsed } from "./ytIngest";
 
 /**
@@ -23,7 +24,40 @@ import { readUnitsUsed } from "./ytIngest";
  *      videos.update means the video is gone.
  *
  * Default V8 runtime: `fetch` is all any of this needs.
+ *
+ * One public query lives here too — `mediaQuotaStatus`. It is the only thing a
+ * screen reads from this file, and it belongs next to the ceiling it reports
+ * on rather than in whichever feature happened to need it first.
  */
+
+// ── what today's media budget looks like ─────────────────────────────────────
+
+/**
+ * The media ceiling, from the operator's side of the screen.
+ *
+ * Separate from `ytAutomationsApi.quotaStatus`, which reports the same counter
+ * against the HIGHER comment-engine ceiling. Both are true; they answer
+ * different questions. This one answers "can I still send this file today",
+ * and a caption panel must never quote the engine's headroom — it would
+ * promise 2 000 units that media is not allowed to spend.
+ */
+export const mediaQuotaStatus = query({
+  args: {},
+  returns: v.object({
+    unitsUsed: v.number(),
+    unitsRemaining: v.number(),
+    mediaLimit: v.number(),
+  }),
+  handler: async (ctx) => {
+    const { workspaceId } = await requireMembership(ctx);
+    const unitsUsed = await readUnitsUsed(ctx, workspaceId);
+    return {
+      unitsUsed,
+      unitsRemaining: remainingMediaUnits(unitsUsed),
+      mediaLimit: QUOTA_MEDIA_LIMIT,
+    };
+  },
+});
 
 // ── job rows ─────────────────────────────────────────────────────────────────
 
@@ -165,6 +199,14 @@ export type YouTubeApiResult = {
   status: number;
   /** Response body as text — the parsed payload on success, the error on failure. */
   body: string;
+  /**
+   * The `Location` header, or null when there is none.
+   *
+   * Only one caller needs it and it is the reason this field exists: opening a
+   * resumable upload answers 200 with an EMPTY body, and the session URL the
+   * bytes go to is in this header. Reading only the body would lose it.
+   */
+  location: string | null;
 };
 
 /**
@@ -209,6 +251,7 @@ export async function ytRequest(
       ok: res.ok,
       status: res.status,
       body: res.ok ? text : extractYouTubeApiError(text),
+      location: res.headers.get("location"),
     };
   } catch (err) {
     // Never reached Google: DNS, TLS, a dropped socket. Status 0 tells the
@@ -219,6 +262,7 @@ export async function ytRequest(
       body: extractYouTubeApiError(
         err instanceof Error ? err.message : String(err),
       ),
+      location: null,
     };
   }
 }
