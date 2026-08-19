@@ -19,6 +19,7 @@ import { EmptyState } from "@/components/app/empty-state";
 import { StatusPill } from "@/components/app/settings/status-pill";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { PlatformBadge } from "./platform-badge";
 
 type DmLogView = FunctionReturnType<
   typeof api.orAutomationsApi.listDmLogs
@@ -120,6 +121,9 @@ export function DmLogTable() {
                   <TableHead className="h-9 text-xs font-medium text-text-muted">
                     Komentar
                   </TableHead>
+                  <TableHead className="hidden h-9 text-xs font-medium text-text-muted sm:table-cell">
+                    Platforma
+                  </TableHead>
                   <TableHead className="hidden h-9 text-xs font-medium text-text-muted md:table-cell">
                     Automatizacija
                   </TableHead>
@@ -159,6 +163,10 @@ export function DmLogTable() {
                       <p className="truncate text-xs text-muted-foreground">
                         {log.commentText}
                       </p>
+                    </TableCell>
+
+                    <TableCell className="hidden py-3 align-top sm:table-cell">
+                      <PlatformBadge platform={log.platform} short />
                     </TableCell>
 
                     <TableCell className="hidden max-w-48 py-3 align-top md:table-cell">
@@ -222,6 +230,7 @@ export function DmLogTableSkeleton() {
           >
             <Skeleton className="h-3.5 w-24" />
             <Skeleton className="h-3.5 flex-1" />
+            <Skeleton className="hidden h-3.5 w-20 sm:block" />
             <Skeleton className="hidden h-3.5 w-32 md:block" />
             <Skeleton className="hidden h-3.5 w-20 lg:block" />
             <Skeleton className="h-5 w-20" />

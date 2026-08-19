@@ -6,6 +6,7 @@ import type { Provider } from "@/convex/lib/providers";
 export const PROVIDER_LABELS: Record<Provider, string> = {
   ga4: "Google Analytics 4",
   meta_ig: "Instagram",
+  meta_fb: "Facebook stranica",
   meta_ads: "Meta Ads",
   google_ads: "Google Ads",
   youtube: "YouTube",

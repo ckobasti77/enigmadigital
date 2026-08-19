@@ -15,6 +15,13 @@ import {
   parsePostbackPayload,
 } from "./lib/orButtons";
 import {
+  automationPlatformValidator,
+  orPlatformValidator,
+  resolveAutomationPlatform,
+  resolvePlatform,
+  type AutomationPlatform,
+} from "./lib/orPlatform";
+import {
   FOLLOW_UP_DELAY_DEFAULT_MINUTES,
   FOLLOW_UP_DELAY_MAX_MINUTES,
   FOLLOW_UP_DELAY_MIN_MINUTES,
@@ -87,6 +94,9 @@ const quickReplyInputValidator = v.object({
 const automationInputValidator = v.object({
   name: v.string(),
   // Optional on the wire so an older client keeps working; undefined is the
+  // documented default, "instagram".
+  platform: v.optional(automationPlatformValidator),
+  // Optional on the wire so an older client keeps working; undefined is the
   // documented default, "comment".
   trigger: v.optional(automationTriggerValidator),
   keywords: v.array(v.string()),
@@ -131,6 +141,7 @@ type AutomationQuickReply = {
 
 type AutomationInput = {
   name: string;
+  platform?: AutomationPlatform;
   trigger?: "comment" | "dm" | "both";
   keywords: string[];
   matchAnyWord: boolean;
@@ -370,6 +381,7 @@ function normalizeAutomationInput(input: AutomationInput): AutomationInput {
 
   return {
     name,
+    platform: resolveAutomationPlatform(input.platform),
     trigger,
     keywords,
     matchAnyWord: input.matchAnyWord,
@@ -413,6 +425,7 @@ function normalizeAutomationInput(input: AutomationInput): AutomationInput {
 const automationViewValidator = v.object({
   _id: v.id("orAutomations"),
   name: v.string(),
+  platform: automationPlatformValidator,
   trigger: automationTriggerValidator,
   keywords: v.array(v.string()),
   matchAnyWord: v.boolean(),
@@ -505,6 +518,7 @@ export const listAutomations = query({
         return {
           _id: a._id,
           name: a.name,
+          platform: resolveAutomationPlatform(a.platform),
           trigger: a.trigger ?? "comment",
           keywords: a.keywords,
           matchAnyWord: a.matchAnyWord,
@@ -553,6 +567,7 @@ export const listAutomations = query({
 
 const dmLogViewValidator = v.object({
   _id: v.id("orDmLogs"),
+  platform: orPlatformValidator,
   source: dmLogSourceValidator,
   kind: dmLogKindValidator,
   automationId: v.union(v.id("orAutomations"), v.null()),
@@ -641,6 +656,7 @@ export const listDmLogs = query({
 
     return logs.map((l) => ({
       _id: l._id,
+      platform: resolvePlatform(l.platform),
       source: l.source ?? "comment",
       kind: l.kind ?? "primary",
       automationId: l.automationId ?? null,

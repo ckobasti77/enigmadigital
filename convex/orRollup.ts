@@ -1,5 +1,6 @@
 import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { resolvePlatform } from "./lib/orPlatform";
 
 /**
  * OpenReply Rollup Mutation.
@@ -24,11 +25,17 @@ export const recompute = internalMutation({
         )
         .collect();
 
+      // The split is counted here rather than queried later: the day's rows
+      // are already in hand, and a screen that had to walk orDmLogs itself to
+      // answer "how many on Facebook" would walk it once per visitor.
       let dmsSent = 0;
+      let dmsSentInstagram = 0;
+      let dmsSentFacebook = 0;
       for (const log of logs) {
-        if (log.status === "sent") {
-          dmsSent++;
-        }
+        if (log.status !== "sent") continue;
+        dmsSent++;
+        if (resolvePlatform(log.platform) === "facebook") dmsSentFacebook++;
+        else dmsSentInstagram++;
       }
 
       const clicks = await ctx.db
@@ -50,6 +57,8 @@ export const recompute = internalMutation({
       if (existingDaily !== null) {
         await ctx.db.patch(existingDaily._id, {
           dmsSent,
+          dmsSentInstagram,
+          dmsSentFacebook,
           linkClicks,
         });
       } else if (dmsSent > 0 || linkClicks > 0) {
@@ -57,6 +66,8 @@ export const recompute = internalMutation({
           workspaceId: args.workspaceId,
           date,
           dmsSent,
+          dmsSentInstagram,
+          dmsSentFacebook,
           linkClicks,
         });
       }

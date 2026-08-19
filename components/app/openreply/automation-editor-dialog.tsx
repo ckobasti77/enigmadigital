@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { normalizeKeyword } from "@/convex/lib/orMatch";
+import { PLATFORM_LABELS } from "@/convex/lib/orPlatform";
 import {
   BUTTONS_MAX,
   BUTTON_TITLE_MAX,
@@ -53,6 +54,7 @@ type AutomationView = FunctionReturnType<
 >[number];
 
 type AutomationTrigger = AutomationView["trigger"];
+type AutomationPlatform = AutomationView["platform"];
 
 /** One vocabulary for the trigger, used by the editor and the automation card. */
 export const TRIGGER_LABELS: Record<AutomationTrigger, string> = {
@@ -137,6 +139,9 @@ function AutomationEditorForm({
   const isEditing = automationToEdit !== null;
 
   const [name, setName] = useState(automationToEdit?.name ?? "");
+  const [platform, setPlatform] = useState<AutomationPlatform>(
+    automationToEdit?.platform ?? "instagram",
+  );
   const [trigger, setTrigger] = useState<AutomationTrigger>(
     automationToEdit?.trigger ?? "comment",
   );
@@ -216,6 +221,12 @@ function AutomationEditorForm({
   // A DM has no post behind it and nothing public to reply to, so both of
   // those controls disappear when the automation only listens to messages.
   const dmOnly = trigger === "dm";
+
+  // The follow gate asks Instagram whether someone follows the account. There
+  // is no such question on Facebook, so an automation that runs there is told
+  // outright what the gate will and will not do — rather than having the
+  // control quietly hidden, which would read as "this setting was lost".
+  const gateReachesFacebook = platform !== "instagram";
 
   // Only the mode that is actually picked is sent, which is what keeps the
   // either/or true no matter what the other list still holds.
@@ -316,6 +327,7 @@ function AutomationEditorForm({
 
     const payload = {
       name,
+      platform,
       trigger,
       keywords: finalKeywords,
       matchAnyWord,
@@ -413,6 +425,29 @@ function AutomationEditorForm({
             <span className="font-mono text-xs text-text-muted">
               {keywords.length}/{KEYWORDS_MAX} ključnih reči
             </span>
+          </div>
+
+          <div>
+            <Label className="mb-1 block text-xs text-text-muted">
+              Gde se automatizacija okida
+            </Label>
+            <SegmentedControl
+              value={platform}
+              onChange={(value) => setPlatform(value as AutomationPlatform)}
+              disabled={submitting}
+              options={[
+                { value: "instagram", label: PLATFORM_LABELS.instagram },
+                { value: "facebook", label: PLATFORM_LABELS.facebook },
+                { value: "both", label: "Obe" },
+              ]}
+            />
+            <p className="mt-1.5 text-xs text-text-muted">
+              {platform === "both"
+                ? "Ista ključna reč radi i na Instagramu i na Facebook stranici. Poruka se šalje sa naloga na kom je komentar ostavljen."
+                : platform === "facebook"
+                  ? "Radi samo na objavama Facebook stranice. Instagram komentari se ne razmatraju."
+                  : "Radi samo na Instagram nalogu. Facebook komentari se ne razmatraju."}
+            </p>
           </div>
 
           <div>
@@ -808,6 +843,14 @@ function AutomationEditorForm({
               offLabel="Isključena"
             />
           </div>
+
+          {requireFollow && gateReachesFacebook && (
+            <p className="rounded-lg border border-line-soft bg-surface-raised/40 px-3 py-2 text-xs leading-relaxed text-text-muted">
+              Facebook nema način da proveri da li neko prati stranicu, pa na
+              Facebook-u kapija ne radi — poruka odlazi odmah. Podešavanje ispod
+              važi samo za Instagram.
+            </p>
+          )}
 
           {requireFollow && (
             <div className="space-y-2.5">

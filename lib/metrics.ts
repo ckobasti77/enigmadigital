@@ -73,24 +73,35 @@ export function fillDays(
 export type OrDailyPoint = {
   date: string;
   dmsSent: number;
+  /** The same day split by platform (F5); the two always sum to `dmsSent`. */
+  dmsSentInstagram: number;
+  dmsSentFacebook: number;
   linkClicks: number;
 };
 
 export type OrPeriodTotals = {
   dmsSent: number;
+  dmsSentInstagram: number;
+  dmsSentFacebook: number;
   linkClicks: number;
   ctr: number; // 0..1 (linkClicks / dmsSent)
 };
 
 export function summarizeOr(rows: OrDailyPoint[]): OrPeriodTotals {
   let dmsSent = 0;
+  let dmsSentInstagram = 0;
+  let dmsSentFacebook = 0;
   let linkClicks = 0;
   for (const r of rows) {
     dmsSent += r.dmsSent;
+    dmsSentInstagram += r.dmsSentInstagram;
+    dmsSentFacebook += r.dmsSentFacebook;
     linkClicks += r.linkClicks;
   }
   return {
     dmsSent,
+    dmsSentInstagram,
+    dmsSentFacebook,
     linkClicks,
     ctr: dmsSent > 0 ? linkClicks / dmsSent : 0,
   };
@@ -107,9 +118,64 @@ export function fillOrDays(
       byDate.get(date) ?? {
         date,
         dmsSent: 0,
+        dmsSentInstagram: 0,
+        dmsSentFacebook: 0,
         linkClicks: 0,
       },
   );
+}
+
+// ── Facebook Page Metrics (F5) ─────────────────────────────────────────────
+
+export type FbDailyPoint = {
+  date: string;
+  impressions: number;
+  engagements: number;
+  /** Page likes, as a level rather than a flow — see `summarizeFb`. */
+  fans: number;
+};
+
+export type FbPeriodTotals = {
+  impressions: number;
+  engagements: number;
+  /** The LAST day's count, not a sum. Adding fans day by day counts nothing. */
+  fans: number;
+};
+
+export function summarizeFb(rows: FbDailyPoint[]): FbPeriodTotals {
+  let impressions = 0;
+  let engagements = 0;
+  let fans = 0;
+  for (const r of rows) {
+    impressions += r.impressions;
+    engagements += r.engagements;
+    // The newest non-zero reading wins. Rows arrive ascending, and a zero is
+    // "Facebook did not report that day", not "the Page lost every fan".
+    if (r.fans > 0) fans = r.fans;
+  }
+  return { impressions, engagements, fans };
+}
+
+export function fillFbDays(
+  rows: FbDailyPoint[],
+  from: string,
+  to: string,
+): FbDailyPoint[] {
+  const byDate = new Map(rows.map((r) => [r.date, r]));
+  // Fans carry forward across a gap for the same reason the summary skips a
+  // zero: a missing day is a missing reading, and drawing it as a cliff down
+  // to nothing would invent an event that did not happen.
+  let lastFans = 0;
+  return dateKeysBetween(from, to).map((date) => {
+    const row = byDate.get(date);
+    if (row !== undefined && row.fans > 0) lastFans = row.fans;
+    return {
+      date,
+      impressions: row?.impressions ?? 0,
+      engagements: row?.engagements ?? 0,
+      fans: row?.fans && row.fans > 0 ? row.fans : lastFans,
+    };
+  });
 }
 
 // ── Instagram Metrics ──────────────────────────────────────────────────────

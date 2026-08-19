@@ -1,5 +1,6 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { auth } from "./auth";
@@ -43,6 +44,14 @@ function bufferToHex(buffer: ArrayBuffer): string {
   return hex;
 }
 
+/**
+ * Verify `X-Hub-Signature-256` over the RAW body.
+ *
+ * ONE function for both webhooks (F5). It is the same Meta app behind the
+ * Instagram and the Facebook route, so it is the same secret and the same
+ * digest — and a second copy of a signature check is the kind of duplication
+ * that gets fixed in one place and stays broken in the other.
+ */
 async function verifySignature(
   raw: string,
   header: string | null,
@@ -175,36 +184,184 @@ interface InstagramWebhookPayload {
   entry?: InstagramWebhookEntry[];
 }
 
+// ── Facebook Page Payload Types (F5) ─────────────────────────────────────────
+//
+// A Page event does NOT look like an Instagram event. Comments ride in on
+// `changes[]` with `field: "feed"` and an `item` that says which kind of feed
+// change it is — a comment, a reaction, a new post — where Instagram has a
+// dedicated `comments` field and nothing else in the array.
+
+interface FacebookWebhookFeedValue {
+  item?: string; // "comment" | "post" | "reaction" | "share" | …
+  verb?: string; // "add" | "edited" | "remove" | "hide" | …
+  comment_id?: string;
+  post_id?: string;
+  parent_id?: string;
+  message?: string;
+  from?: { id?: string; name?: string };
+}
+
+interface FacebookWebhookChange {
+  field?: string;
+  value?: FacebookWebhookFeedValue;
+}
+
+interface FacebookWebhookEntry {
+  id?: string;
+  time?: number;
+  changes?: FacebookWebhookChange[];
+  // Messaging is the one part that IS identical to Instagram, PSID for IGSID.
+  messaging?: InstagramWebhookMessaging[];
+}
+
+interface FacebookWebhookPayload {
+  object?: string;
+  entry?: FacebookWebhookEntry[];
+}
+
 // ── Webhook Routes ───────────────────────────────────────────────────────────
+
+/**
+ * The `hub.challenge` handshake, shared by both webhooks.
+ *
+ * One verify token for both routes on purpose: it is one Meta app, the token
+ * proves nothing about which product is calling, and a second env var would be
+ * a second thing to get wrong at three in the morning.
+ */
+function handleWebhookHandshake(request: Request): Response {
+  const searchParams = new URL(request.url).searchParams;
+  const mode = searchParams.get("hub.mode");
+  const verifyToken = searchParams.get("hub.verify_token");
+  const challenge = searchParams.get("hub.challenge");
+
+  const expectedToken = process.env.IG_WEBHOOK_VERIFY_TOKEN?.trim();
+
+  if (
+    mode === "subscribe" &&
+    Boolean(expectedToken) &&
+    verifyToken === expectedToken
+  ) {
+    return new Response(challenge ?? "", {
+      status: 200,
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+
+  return new Response("Forbidden", { status: 403 });
+}
 
 // Route 1 — GET: Meta Webhook Handshake / Challenge Verification
 http.route({
   path: "/instagram/webhook",
   method: "GET",
-  handler: httpAction(async (_ctx, request) => {
-    const searchParams = new URL(request.url).searchParams;
-    const mode = searchParams.get("hub.mode");
-    const verifyToken = searchParams.get("hub.verify_token");
-    const challenge = searchParams.get("hub.challenge");
-
-    const expectedToken = process.env.IG_WEBHOOK_VERIFY_TOKEN?.trim();
-
-    if (
-      mode === "subscribe" &&
-      Boolean(expectedToken) &&
-      verifyToken === expectedToken
-    ) {
-      return new Response(challenge ?? "", {
-        status: 200,
-        headers: { "Content-Type": "text/plain" },
-      });
-    }
-
-    return new Response("Forbidden", { status: 403 });
-  }),
+  handler: httpAction(async (_ctx, request) => handleWebhookHandshake(request)),
 });
 
-// Route 2 — POST: Meta Webhook Event Ingestion
+/**
+ * The `messaging[]` half of a webhook, which Instagram and Facebook send in
+ * exactly the same shape — a PSID where an IGSID would be.
+ *
+ * Three different things arrive here and only one of them is a message to
+ * keyword-match: a button-template tap comes as its own `postback` event with
+ * no `message` at all, and a quick-reply tap comes as an ordinary message
+ * carrying the payload we minted. Both are taps, and both go to the tap
+ * ingest rather than to the matcher.
+ */
+async function handleMessagingEvents(
+  ctx: ActionCtx,
+  params: {
+    platform: "instagram" | "facebook";
+    accountId: string;
+    events: InstagramWebhookMessaging[];
+  },
+): Promise<void> {
+  const { platform, accountId, events } = params;
+
+  for (const event of events) {
+    const senderId =
+      typeof event.sender?.id === "string" ? event.sender.id : undefined;
+    // Nothing arriving from the account itself is ours to react to.
+    if (!senderId || senderId === accountId) continue;
+
+    // A button-template button comes back as its own event, with no
+    // `message` on it at all — so it has to be handled before that check.
+    const postback = event?.postback;
+    if (postback && typeof postback === "object") {
+      const postbackMid =
+        typeof postback.mid === "string" ? postback.mid : undefined;
+      const postbackPayload =
+        typeof postback.payload === "string" ? postback.payload : undefined;
+      if (!postbackMid || !postbackPayload) continue;
+
+      try {
+        await ctx.runMutation(internal.orIngest.ingestButtonTap, {
+          platform,
+          accountId,
+          mid: postbackMid,
+          igsid: senderId,
+          payload: postbackPayload,
+          title:
+            typeof postback.title === "string" ? postback.title : undefined,
+        });
+      } catch {
+        // Catch per-row so one bad event cannot abort the rest
+      }
+      continue;
+    }
+
+    const message = event?.message;
+    if (!message || typeof message !== "object") continue;
+
+    // is_echo marks a message the BUSINESS sent, echoed back to us.
+    if (message.is_echo === true || message.is_deleted === true) continue;
+
+    const mid = typeof message.mid === "string" ? message.mid : undefined;
+    const text = typeof message.text === "string" ? message.text : "";
+    if (!mid) continue;
+
+    // A tapped quick reply arrives as an ordinary message carrying the
+    // payload we minted. It is a tap, not something to keyword-match.
+    const quickReplyPayload =
+      typeof message.quick_reply?.payload === "string"
+        ? message.quick_reply.payload
+        : undefined;
+
+    if (quickReplyPayload) {
+      try {
+        await ctx.runMutation(internal.orIngest.ingestButtonTap, {
+          platform,
+          accountId,
+          mid,
+          igsid: senderId,
+          payload: quickReplyPayload,
+          // The chip's own label rides along as the message text.
+          title: text.trim().length > 0 ? text : undefined,
+        });
+      } catch {
+        // Catch per-row so one bad event cannot abort the rest
+      }
+      continue;
+    }
+
+    // SKIP when there is nothing to match a keyword against (attachment /
+    // reaction only).
+    if (text.trim().length === 0) continue;
+
+    try {
+      await ctx.runMutation(internal.orIngest.ingestDirectMessage, {
+        platform,
+        accountId,
+        mid,
+        igsid: senderId,
+        text,
+      });
+    } catch {
+      // Catch per-row so one bad event cannot abort the rest
+    }
+  }
+}
+
+// Route 2 — POST: Instagram Webhook Event Ingestion
 //
 // Two different arrays arrive on the same route: comments ride in on
 // entry[].changes[], direct messages on entry[].messaging[].
@@ -256,7 +413,8 @@ http.route({
 
         try {
           await ctx.runMutation(internal.orIngest.ingestComment, {
-            igUserId,
+            platform: "instagram",
+            accountId: igUserId,
             commentId,
             mediaId,
             commenterId: fromId,
@@ -268,88 +426,111 @@ http.route({
         }
       }
 
-      const messagingEvents = Array.isArray(entry?.messaging)
-        ? entry.messaging
-        : [];
-      for (const event of messagingEvents) {
-        const senderId =
-          typeof event.sender?.id === "string" ? event.sender.id : undefined;
-        // Nothing arriving from the account itself is ours to react to.
-        if (!senderId || senderId === igUserId) continue;
+      await handleMessagingEvents(ctx, {
+        platform: "instagram",
+        accountId: igUserId,
+        events: Array.isArray(entry?.messaging) ? entry.messaging : [],
+      });
+    }
 
-        // A button-template button comes back as its own event, with no
-        // `message` on it at all — so it has to be handled before that check.
-        const postback = event?.postback;
-        if (postback && typeof postback === "object") {
-          const postbackMid =
-            typeof postback.mid === "string" ? postback.mid : undefined;
-          const postbackPayload =
-            typeof postback.payload === "string" ? postback.payload : undefined;
-          if (!postbackMid || !postbackPayload) continue;
+    return new Response("ok", { status: 200 });
+  }),
+});
 
-          try {
-            await ctx.runMutation(internal.orIngest.ingestButtonTap, {
-              igUserId,
-              mid: postbackMid,
-              igsid: senderId,
-              payload: postbackPayload,
-              title:
-                typeof postback.title === "string" ? postback.title : undefined,
-            });
-          } catch {
-            // Catch per-row so one bad event cannot abort the rest
-          }
+// Route 2b — GET: Facebook Page Webhook Handshake (F5)
+//
+// Its own path rather than a branch inside the Instagram route: Meta subscribes
+// an OBJECT ("instagram" / "page") to a callback URL, and keeping one object
+// per URL means a misconfigured subscription fails visibly in the dashboard
+// instead of quietly delivering Page events to code expecting Instagram ones.
+http.route({
+  path: "/facebook/webhook",
+  method: "GET",
+  handler: httpAction(async (_ctx, request) => handleWebhookHandshake(request)),
+});
+
+// Route 2c — POST: Facebook Page Webhook Event Ingestion (F5)
+http.route({
+  path: "/facebook/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const raw = await request.text();
+    const signature = request.headers.get("x-hub-signature-256");
+
+    if (!(await verifySignature(raw, signature))) {
+      return new Response("Invalid signature", { status: 401 });
+    }
+
+    let payload: FacebookWebhookPayload;
+    try {
+      payload = JSON.parse(raw) as FacebookWebhookPayload;
+    } catch {
+      return new Response("ok", { status: 200 });
+    }
+
+    const entries = Array.isArray(payload?.entry) ? payload.entry : [];
+    for (const entry of entries) {
+      const pageId = typeof entry?.id === "string" ? entry.id : undefined;
+      if (!pageId) continue;
+
+      const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+      for (const change of changes) {
+        if (change?.field !== "feed") continue;
+
+        const val = change?.value;
+        if (!val || typeof val !== "object") continue;
+
+        // `feed` carries everything that happens on the Page — a new post, a
+        // reaction, a share. Only a freshly added comment is ours.
+        if (val.item !== "comment") continue;
+        if (val.verb !== "add") continue;
+
+        const commentId =
+          typeof val.comment_id === "string" ? val.comment_id : undefined;
+        const postId =
+          typeof val.post_id === "string" ? val.post_id : undefined;
+        const text = typeof val.message === "string" ? val.message : "";
+        const fromId =
+          typeof val.from?.id === "string" ? val.from.id : undefined;
+        const fromName =
+          typeof val.from?.name === "string" ? val.from.name : undefined;
+
+        // A comment the Page itself wrote — including the public reply an
+        // automation just posted — would otherwise trigger that same
+        // automation again, and again.
+        if (!commentId || !fromId || fromId === pageId) {
           continue;
         }
 
-        const message = event?.message;
-        if (!message || typeof message !== "object") continue;
-
-        // is_echo marks a message the BUSINESS sent, echoed back to us.
-        if (message.is_echo === true || message.is_deleted === true) continue;
-
-        const mid = typeof message.mid === "string" ? message.mid : undefined;
-        const text = typeof message.text === "string" ? message.text : "";
-        if (!mid) continue;
-
-        // A tapped quick reply arrives as an ordinary message carrying the
-        // payload we minted. It is a tap, not something to keyword-match.
-        const quickReplyPayload =
-          typeof message.quick_reply?.payload === "string"
-            ? message.quick_reply.payload
-            : undefined;
-
-        if (quickReplyPayload) {
-          try {
-            await ctx.runMutation(internal.orIngest.ingestButtonTap, {
-              igUserId,
-              mid,
-              igsid: senderId,
-              payload: quickReplyPayload,
-              // The chip's own label rides along as the message text.
-              title: text.trim().length > 0 ? text : undefined,
-            });
-          } catch {
-            // Catch per-row so one bad event cannot abort the rest
-          }
-          continue;
-        }
-
-        // SKIP when there is nothing to match a keyword against (attachment /
-        // reaction only).
-        if (text.trim().length === 0) continue;
+        // On a top-level comment `parent_id` is the POST; on a reply it is the
+        // comment being replied to. That equality is the only way to tell the
+        // two apart from the payload alone.
+        const parentId =
+          typeof val.parent_id === "string" ? val.parent_id : undefined;
+        const parentCommentId =
+          parentId !== undefined && parentId !== postId ? parentId : undefined;
 
         try {
-          await ctx.runMutation(internal.orIngest.ingestDirectMessage, {
-            igUserId,
-            mid,
-            igsid: senderId,
+          await ctx.runMutation(internal.orIngest.ingestComment, {
+            platform: "facebook",
+            accountId: pageId,
+            commentId,
+            mediaId: postId,
+            parentCommentId,
+            commenterId: fromId,
+            commenterUsername: fromName,
             text,
           });
         } catch {
-          // Catch per-row so one bad event cannot abort the rest
+          // Catch per-row so one bad row cannot abort the rest
         }
       }
+
+      await handleMessagingEvents(ctx, {
+        platform: "facebook",
+        accountId: pageId,
+        events: Array.isArray(entry?.messaging) ? entry.messaging : [],
+      });
     }
 
     return new Response("ok", { status: 200 });

@@ -24,6 +24,7 @@ import { formatNumber, formatPercent } from "@/lib/format";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackNote } from "@/components/app/feedback";
 import { DmPreview } from "./dm-preview";
+import { PlatformBadge } from "./platform-badge";
 import { PillToggle, TRIGGER_LABELS } from "./automation-editor-dialog";
 import { cn } from "@/lib/utils";
 
@@ -145,9 +146,12 @@ function AutomationCard({
     >
       <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold text-foreground">
-            {automation.name}
-          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="truncate text-sm font-semibold text-foreground">
+              {automation.name}
+            </h3>
+            <PlatformBadge platform={automation.platform} />
+          </div>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted">
             <span className="text-foreground">
               {TRIGGER_LABELS[automation.trigger]}

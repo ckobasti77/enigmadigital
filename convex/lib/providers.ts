@@ -8,6 +8,10 @@ import { v } from "convex/values";
 export const providerValidator = v.union(
   v.literal("ga4"),
   v.literal("meta_ig"),
+  // Facebook Page (F5). A separate connection from `meta_ig` even though both
+  // live in the same Meta app: the credential is a Page Access Token, which is
+  // a different token for a different node.
+  v.literal("meta_fb"),
   v.literal("meta_ads"),
   v.literal("google_ads"),
   v.literal("youtube"),
@@ -17,6 +21,7 @@ export const providerValidator = v.union(
 export type Provider =
   | "ga4"
   | "meta_ig"
+  | "meta_fb"
   | "meta_ads"
   | "google_ads"
   | "youtube"
@@ -26,6 +31,7 @@ export type Provider =
 export const ALL_PROVIDERS: Provider[] = [
   "ga4",
   "meta_ig",
+  "meta_fb",
   "meta_ads",
   "google_ads",
   "youtube",

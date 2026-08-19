@@ -10,6 +10,7 @@ import {
   PlaySquare,
   Settings,
   ShieldAlert,
+  Users,
 } from "lucide-react";
 
 export type NavIcon = ComponentType<{ className?: string }>;
@@ -57,6 +58,12 @@ export const navSections: NavSection[] = [
     title: "Kanali",
     items: [
       { label: "Instagram", href: "/instagram", icon: Camera, range: true },
+      {
+        label: "Facebook",
+        href: "/facebook",
+        icon: Users,
+        range: true,
+      },
       { label: "YouTube", href: "/youtube", icon: PlaySquare, range: true },
       { label: "Oglasi", href: "/ads", icon: Megaphone, range: true },
     ],
@@ -121,6 +128,12 @@ const EXTRA_SCREENS: Screen[] = [
   },
   {
     href: "/instagram/komentari",
+    section: "Kanali",
+    title: "Moderacija komentara",
+    range: false,
+  },
+  {
+    href: "/facebook/komentari",
     section: "Kanali",
     title: "Moderacija komentara",
     range: false,

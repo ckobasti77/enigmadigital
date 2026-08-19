@@ -3,7 +3,8 @@ import {
   internalMutation,
   internalAction,
 } from "./_generated/server";
-import type { ActionCtx } from "./_generated/server";
+import type { ActionCtx, QueryCtx } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
@@ -17,10 +18,22 @@ import {
   extractGraphApiError,
 } from "./lib/instagramApi";
 import {
+  buildPageMessagesUrl,
+  buildCommentRepliesUrl as buildPageCommentRepliesUrl,
+} from "./lib/facebookApi";
+import {
+  orPlatformValidator,
+  platformProvider,
+  resolvePlatform,
+  type OrPlatform,
+} from "./lib/orPlatform";
+import {
   nextRetryDelayMs,
   composeDmMessage,
   isWithinMessagingWindow,
+  isWithinPrivateReplyWindow,
   MESSAGING_WINDOW_EXPIRED_MESSAGE,
+  PRIVATE_REPLY_WINDOW_EXPIRED_MESSAGE,
 } from "./lib/orMessage";
 import { followUpDelayMs } from "./lib/orFollowUp";
 import { utcDateKey } from "./lib/orMatch";
@@ -40,6 +53,8 @@ import {
 } from "./lib/orFollow";
 
 type SendContextData = {
+  /** Which Meta platform this row belongs to. Undefined on the row = Instagram. */
+  platform: OrPlatform;
   status:
     | "pending"
     | "sent"
@@ -79,7 +94,8 @@ type SendContextData = {
     followUpMessage?: string;
     followUpDelayMinutes?: number;
   };
-  igUserId: string;
+  /** IG professional account id, or Page id — whichever platform this is. */
+  accountId: string;
   encryptedCredentials: string;
 } | null;
 
@@ -94,6 +110,7 @@ export const loadSendContext = internalQuery({
   returns: v.union(
     v.null(),
     v.object({
+      platform: orPlatformValidator,
       status: v.union(
         v.literal("pending"),
         v.literal("sent"),
@@ -145,7 +162,7 @@ export const loadSendContext = internalQuery({
         followUpMessage: v.optional(v.string()),
         followUpDelayMinutes: v.optional(v.number()),
       }),
-      igUserId: v.string(),
+      accountId: v.string(),
       encryptedCredentials: v.string(),
     }),
   ),
@@ -160,17 +177,25 @@ export const loadSendContext = internalQuery({
       return null;
     }
 
-    const igConn = await ctx.db
+    // The token to send with is the one belonging to THIS row's platform —
+    // never "the Instagram one, and Facebook if that is missing". A Page token
+    // used against graph.instagram.com does not fail loudly, it fails with an
+    // error message about a node that does not exist.
+    const platform = resolvePlatform(log.platform);
+
+    const conn = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>
-        q.eq("workspaceId", log.workspaceId).eq("provider", "meta_ig"),
+        q
+          .eq("workspaceId", log.workspaceId)
+          .eq("provider", platformProvider(platform)),
       )
       .first();
 
     if (
-      igConn === null ||
-      igConn.externalId === undefined ||
-      igConn.externalId.length === 0
+      conn === null ||
+      conn.externalId === undefined ||
+      conn.externalId.length === 0
     ) {
       return null;
     }
@@ -179,6 +204,7 @@ export const loadSendContext = internalQuery({
     const source = log.source ?? "comment";
 
     return {
+      platform,
       status: log.status,
       attempts: log.attempts,
       createdAt: log.createdAt,
@@ -224,29 +250,55 @@ export const loadSendContext = internalQuery({
         followUpMessage: automation.followUpMessage,
         followUpDelayMinutes: automation.followUpDelayMinutes,
       },
-      igUserId: igConn.externalId,
-      encryptedCredentials: igConn.encryptedCredentials,
+      accountId: conn.externalId,
+      encryptedCredentials: conn.encryptedCredentials,
     };
   },
 });
 
 /**
+ * The conversation row for one person on one platform.
+ *
+ * The index is still `[workspaceId, igsid]` and the platform is compared
+ * afterwards, for the same reason the dedup lookups in orIngest.ts do it that
+ * way: every row written before F5 carries no platform, and an indexed
+ * equality test would silently stop finding any of them — which here would
+ * read as "this person never wrote to us" and close a window that is open.
+ */
+async function findConversation(
+  ctx: QueryCtx,
+  workspaceId: Id<"workspaces">,
+  platform: OrPlatform,
+  igsid: string,
+): Promise<Doc<"orConversations"> | null> {
+  const rows = await ctx.db
+    .query("orConversations")
+    .withIndex("by_workspace_igsid", (q) =>
+      q.eq("workspaceId", workspaceId).eq("igsid", igsid),
+    )
+    .collect();
+
+  return rows.find((r) => resolvePlatform(r.platform) === platform) ?? null;
+}
+
+/**
  * Timestamp of the last message this person sent us, or null when we have
- * never heard from them. Instagram only allows a reply within 24h of it.
+ * never heard from them. Meta only allows a reply within 24h of it.
  */
 export const loadMessagingWindow = internalQuery({
   args: {
     workspaceId: v.id("workspaces"),
+    platform: orPlatformValidator,
     igsid: v.string(),
   },
   returns: v.union(v.number(), v.null()),
   handler: async (ctx, args) => {
-    const conversation = await ctx.db
-      .query("orConversations")
-      .withIndex("by_workspace_igsid", (q) =>
-        q.eq("workspaceId", args.workspaceId).eq("igsid", args.igsid),
-      )
-      .first();
+    const conversation = await findConversation(
+      ctx,
+      args.workspaceId,
+      args.platform,
+      args.igsid,
+    );
 
     return conversation?.lastUserMessageAt ?? null;
   },
@@ -270,12 +322,14 @@ export const loadFollowState = internalQuery({
     }),
   ),
   handler: async (ctx, args) => {
-    const conversation = await ctx.db
-      .query("orConversations")
-      .withIndex("by_workspace_igsid", (q) =>
-        q.eq("workspaceId", args.workspaceId).eq("igsid", args.igsid),
-      )
-      .first();
+    // Instagram only — the gate does not exist on Facebook, so there is no
+    // platform argument to take here.
+    const conversation = await findConversation(
+      ctx,
+      args.workspaceId,
+      "instagram",
+      args.igsid,
+    );
 
     if (conversation === null) {
       return null;
@@ -303,12 +357,12 @@ export const recordFollowState = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const conversation = await ctx.db
-      .query("orConversations")
-      .withIndex("by_workspace_igsid", (q) =>
-        q.eq("workspaceId", args.workspaceId).eq("igsid", args.igsid),
-      )
-      .first();
+    const conversation = await findConversation(
+      ctx,
+      args.workspaceId,
+      "instagram",
+      args.igsid,
+    );
 
     if (conversation === null) {
       return null;
@@ -386,12 +440,12 @@ export const applyResult = internalMutation({
       (args.status === "sent" || args.status === "awaiting_follow") &&
       (log.source === "dm" || log.source === "postback")
     ) {
-      const conversation = await ctx.db
-        .query("orConversations")
-        .withIndex("by_workspace_igsid", (q) =>
-          q.eq("workspaceId", log.workspaceId).eq("igsid", log.commenterId),
-        )
-        .first();
+      const conversation = await findConversation(
+        ctx,
+        log.workspaceId,
+        resolvePlatform(log.platform),
+        log.commenterId,
+      );
 
       if (conversation !== null) {
         await ctx.db.patch(conversation._id, { lastBotMessageAt: Date.now() });
@@ -514,7 +568,8 @@ export const sendDm = internalAction({
     // 3. Window guard. A private reply to a comment has 7 days from the
     // comment; a DM reply — including the answer to a button tap — has 24h from
     // the user's last message or tap, counted from the conversation row, not
-    // from the log. Meta's hard rule.
+    // from the log. Meta's hard rule, and one length per platform
+    // (lib/orMessage.ts) rather than one number shared by both.
     const directRecipient =
       context.source === "comment" ? undefined : context.recipientIgsid;
 
@@ -524,10 +579,13 @@ export const sendDm = internalAction({
           ? null
           : await ctx.runQuery(internal.orSend.loadMessagingWindow, {
               workspaceId: context.workspaceId,
+              platform: context.platform,
               igsid: directRecipient,
             });
 
-      if (!isWithinMessagingWindow(lastUserMessageAt, Date.now())) {
+      if (
+        !isWithinMessagingWindow(lastUserMessageAt, Date.now(), context.platform)
+      ) {
         await ctx.runMutation(internal.orSend.applyResult, {
           dmLogId: args.dmLogId,
           status: "skipped_window",
@@ -536,12 +594,18 @@ export const sendDm = internalAction({
         });
         return null;
       }
-    } else if (Date.now() - context.createdAt > 7 * 24 * 60 * 60 * 1000) {
+    } else if (
+      !isWithinPrivateReplyWindow(
+        context.createdAt,
+        Date.now(),
+        context.platform,
+      )
+    ) {
       await ctx.runMutation(internal.orSend.applyResult, {
         dmLogId: args.dmLogId,
         status: "skipped_window",
         attempts: context.attempts,
-        errorMessage: "Prošlo je više od 7 dana od komentara.",
+        errorMessage: PRIVATE_REPLY_WINDOW_EXPIRED_MESSAGE,
       });
       return null;
     }
@@ -629,7 +693,12 @@ export const sendDm = internalAction({
       }
 
       try {
-        const replyUrl = buildCommentRepliesUrl(context.commentId, version);
+        // Instagram answers a comment on `/replies`, Facebook on `/comments`.
+        // Same idea, different edge — the one place the public half differs.
+        const replyUrl =
+          context.platform === "facebook"
+            ? buildPageCommentRepliesUrl(context.commentId, version)
+            : buildCommentRepliesUrl(context.commentId, version);
         const replyRes = await fetch(replyUrl, {
           method: "POST",
           headers: {
@@ -654,10 +723,17 @@ export const sendDm = internalAction({
       }
     };
 
+    // Both platforms send on the account's own /messages edge, and on both
+    // what distinguishes a private reply from a thread message is the
+    // `recipient` in the body — a comment id there, a PSID/IGSID here. Only
+    // the host differs, which is why this is a two-line branch and the whole
+    // message body below is shared.
     const sendUrl =
-      directRecipient !== undefined
-        ? buildSendMessageUrl(context.igUserId, version)
-        : buildPrivateReplyUrl(context.igUserId, version);
+      context.platform === "facebook"
+        ? buildPageMessagesUrl(context.accountId, version)
+        : directRecipient !== undefined
+          ? buildSendMessageUrl(context.accountId, version)
+          : buildPrivateReplyUrl(context.accountId, version);
     const recipient =
       directRecipient !== undefined
         ? { id: directRecipient }
@@ -672,7 +748,13 @@ export const sendDm = internalAction({
     // `replyMessage` is the answer to a button tapped inside a conversation
     // that was already let through — gating the middle of a flow would ask
     // someone to follow in order to read the reply to their own tap.
+    // Instagram only. `is_user_follow_business` has no Facebook counterpart —
+    // a Page cannot ask whether someone likes it — so a gate switched on for
+    // an automation that also runs on Facebook simply does not gate there,
+    // rather than blocking every Facebook lead behind a question that can
+    // never be answered.
     if (
+      context.platform === "instagram" &&
       context.automation.requireFollow &&
       context.replyMessage === undefined
     ) {
@@ -757,9 +839,9 @@ export const sendDm = internalAction({
         linkBlock.length,
     );
 
-    // 6. POST the message. Both paths hit /{igUserId}/messages; what differs
-    // is the recipient — the sender's IGSID for a DM reply, the comment id for
-    // a private reply.
+    // 6. POST the message. Every path hits /{account-id}/messages; what
+    // differs is the recipient — the sender's IGSID/PSID for a DM reply, the
+    // comment id for a private reply.
     try {
       const text = composeDmMessage(
         (context.replyMessage ?? context.automation.dmMessage).slice(
@@ -873,16 +955,20 @@ export const queueFollowUp = internalMutation({
     }
 
     const now = Date.now();
+    const platform = resolvePlatform(log.platform);
 
-    const conversation = await ctx.db
-      .query("orConversations")
-      .withIndex("by_workspace_igsid", (q) =>
-        q.eq("workspaceId", log.workspaceId).eq("igsid", log.commenterId),
-      )
-      .first();
+    const conversation = await findConversation(
+      ctx,
+      log.workspaceId,
+      platform,
+      log.commenterId,
+    );
 
     const row = {
       workspaceId: log.workspaceId,
+      // The follow-up belongs to the same platform as the message it follows;
+      // it goes into that very thread.
+      platform,
       automationId: log.automationId,
       // A follow-up goes into the thread the first message opened, so it is
       // addressed like a DM reply — never as a private reply to the comment,
@@ -907,7 +993,9 @@ export const queueFollowUp = internalMutation({
 
     // The clock runs from the person's last message, not from ours, so even a
     // delay well inside 23h can land outside the window.
-    if (!isWithinMessagingWindow(conversation?.lastUserMessageAt, now)) {
+    if (
+      !isWithinMessagingWindow(conversation?.lastUserMessageAt, now, platform)
+    ) {
       await ctx.db.insert("orDmLogs", {
         ...row,
         status: "skipped_window",

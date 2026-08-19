@@ -14,6 +14,7 @@ import {
   LineChart,
   MessageCircleReply,
   Camera,
+  Users,
   Megaphone,
   SquarePlay,
   RefreshCw,
@@ -949,6 +950,549 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
   );
 }
 
+// ── Facebook stranica (Facebook Login for Business) ──────────────────────────
+
+/**
+ * The manual half of the setup, spelled out.
+ *
+ * Everything below has to be done by hand in the Meta app dashboard, and none
+ * of it can be done from here — so it is printed ABOVE the connect button
+ * rather than behind a "learn more" link. A person who presses the button first
+ * gets a permissions error whose text is about scopes; a person who reads this
+ * first does not.
+ */
+function FacebookSetupSteps({ webhookUrl }: { webhookUrl: string | null }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    if (!webhookUrl) return;
+    try {
+      await navigator.clipboard.writeText(webhookUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore clipboard error
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-line-soft bg-surface-raised/20 p-4">
+      <p className="text-xs font-semibold text-foreground">
+        Pre povezivanja — uradi ovo u Meta App Dashboard-u
+      </p>
+
+      <ol className="space-y-2.5 text-xs leading-relaxed text-text-muted">
+        <li className="flex gap-2">
+          <span className="font-mono text-text-secondary">1.</span>
+          <span>
+            Dodaj proizvod <span className="text-foreground">Facebook Login for Business</span> i
+            u <span className="text-foreground">Permissions</span> odobri:{" "}
+            {[
+              "pages_show_list",
+              "pages_read_engagement",
+              "pages_manage_engagement",
+              "pages_messaging",
+              "pages_manage_metadata",
+            ].map((scope, index) => (
+              <span key={scope}>
+                {index > 0 && ", "}
+                <code className="font-mono text-accent-400">{scope}</code>
+              </span>
+            ))}
+            .
+          </span>
+        </li>
+
+        <li className="flex gap-2">
+          <span className="font-mono text-text-secondary">2.</span>
+          <span>
+            U <span className="text-foreground">Webhooks</span> dodaj objekat{" "}
+            <span className="text-foreground">Page</span> i pretplati polja{" "}
+            <code className="font-mono text-accent-400">feed</code> i{" "}
+            <code className="font-mono text-accent-400">messages</code>.
+            Callback URL je isti kao za Instagram, ali sa putanjom{" "}
+            <code className="font-mono text-accent-400">/facebook/webhook</code>
+            .
+          </span>
+        </li>
+
+        <li className="flex gap-2">
+          <span className="font-mono text-text-secondary">3.</span>
+          <span>
+            Verify token je isti{" "}
+            <code className="font-mono text-accent-400">
+              IG_WEBHOOK_VERIFY_TOKEN
+            </code>{" "}
+            koji već koristi Instagram webhook. Ne pravi novi.
+          </span>
+        </li>
+
+        <li className="flex gap-2">
+          <span className="font-mono text-text-secondary">4.</span>
+          <span>
+            U <span className="text-foreground">Settings → Basic</span> uzmi App
+            ID i App Secret i upiši ih u Convex kao{" "}
+            <code className="font-mono text-accent-400">FACEBOOK_APP_ID</code> i{" "}
+            <code className="font-mono text-accent-400">FACEBOOK_APP_SECRET</code>
+            . App Secret je isti kao za Instagram; App ID nije — Instagram Login
+            ima svoj.
+          </span>
+        </li>
+      </ol>
+
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface px-3 py-2">
+        <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground select-all">
+          {webhookUrl ?? "CONVEX_SITE_URL nije podešen"}
+        </span>
+        {webhookUrl && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleCopy}
+            className="shrink-0"
+          >
+            {copied ? (
+              <>
+                <Check className="size-3.5 text-success" />
+                Kopirano
+              </>
+            ) : (
+              <>
+                <Copy className="size-3.5" />
+                Kopiraj
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The Page picker.
+ *
+ * Only worth opening when the account administers more than one Page, which is
+ * why it is a button rather than a list that is always on screen: for the
+ * common case — one Page — the list would be a control with a single option.
+ */
+function FacebookPagePicker({
+  currentPageId,
+  autoOpen,
+  onSwitched,
+}: {
+  currentPageId: string;
+  autoOpen: boolean;
+  onSwitched: (name: string | null) => void;
+}) {
+  const listPages = useAction(api.facebook.listPages);
+  const selectPage = useAction(api.facebook.selectPage);
+
+  const [open, setOpen] = useState(autoOpen);
+  // `null` means "not fetched yet" — which is also what makes the spinner a
+  // derived value instead of a second piece of state set from inside an effect.
+  const [pages, setPages] = useState<Array<{
+    id: string;
+    name: string;
+    category: string | null;
+    connected: boolean;
+  }> | null>(null);
+  const [switching, setSwitching] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loading = open && pages === null && error === null;
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    listPages()
+      .then((result) => {
+        if (active) setPages(result);
+      })
+      .catch((err) => {
+        if (active) {
+          setError(convexMessage(err, "Čitanje liste stranica nije uspelo."));
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [open, listPages]);
+
+  async function handleSelect(pageId: string) {
+    setSwitching(pageId);
+    setError(null);
+    try {
+      const result = await selectPage({ pageId });
+      onSwitched(result.pageName);
+      setOpen(false);
+    } catch (err) {
+      setError(convexMessage(err, "Promena stranice nije uspela."));
+    } finally {
+      setSwitching(null);
+    }
+  }
+
+  if (!open) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => {
+          setPages(null);
+          setError(null);
+          setOpen(true);
+        }}
+        className="text-text-muted"
+      >
+        Izaberi drugu stranicu
+      </Button>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-2 rounded-lg border border-line-soft bg-surface-raised/20 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-foreground">
+          Stranice koje nalog administrira
+        </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setOpen(false)}
+          className="text-text-muted"
+        >
+          Zatvori
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-10 w-full rounded-lg" />
+          <Skeleton className="h-10 w-full rounded-lg" />
+        </div>
+      ) : (pages ?? []).length === 0 ? (
+        <p className="text-xs text-text-muted">
+          Nijedna stranica nije pronađena.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {(pages ?? []).map((page) => {
+            const isCurrent = page.id === currentPageId;
+            return (
+              <li
+                key={page.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium text-foreground">
+                    {page.name}
+                  </p>
+                  <p className="truncate font-mono text-micro text-text-muted">
+                    {page.id}
+                    {page.category ? ` · ${page.category}` : ""}
+                  </p>
+                </div>
+                {isCurrent ? (
+                  <StatusPill tone="success">Povezana</StatusPill>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={switching !== null}
+                    onClick={() => void handleSelect(page.id)}
+                  >
+                    {switching === page.id ? (
+                      <LoaderCircle className="animate-spin" />
+                    ) : null}
+                    Poveži
+                  </Button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {error && <FeedbackNote tone="danger" title={error} />}
+    </div>
+  );
+}
+
+function FacebookCard({ connection }: { connection?: ConnectionView }) {
+  const setup = useQuery(api.facebookStore.setupInfo);
+  const getOAuthUrl = useAction(api.facebook.getOAuthUrl);
+  const refreshToken = useAction(api.facebook.refreshTokenNow);
+  const removeConnection = useMutation(api.connections.remove);
+  const pageInfo = useQuery(api.facebookStore.pageInfo);
+
+  const [connecting, setConnecting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [autoOpenPicker, setAutoOpenPicker] = useState(false);
+
+  // Isti sat kao na Instagram kartici: spoljni sistem se čita pretplatom, ne
+  // pozivom u renderu. `null` do prvog otkucaja znači „još ne znam".
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const first = window.setTimeout(tick, 0);
+    const interval = window.setInterval(tick, 60_000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  // The callback route redirects back here with its verdict in the query
+  // string; the exchange itself already happened server-side.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("fb_connected");
+    const err = params.get("fb_error");
+    if (!connected && !err) return;
+
+    const page = params.get("fb_page");
+    const pick = params.get("fb_pick");
+    window.history.replaceState({}, "", window.location.pathname);
+
+    setTimeout(() => {
+      if (err) {
+        setError(err);
+        return;
+      }
+      setSuccessMessage(
+        page
+          ? `Facebook stranica „${page}” je povezana!`
+          : "Facebook stranica je povezana!",
+      );
+      if (pick === "1") setAutoOpenPicker(true);
+    }, 0);
+  }, []);
+
+  async function handleStartConnect() {
+    setError(null);
+    setSuccessMessage(null);
+    setConnecting(true);
+    try {
+      const redirectUri = `${window.location.origin}/api/auth/callback/facebook`;
+      const { url } = await getOAuthUrl({ redirectUri });
+      window.location.href = url;
+    } catch (err) {
+      setError(convexMessage(err, "Pokretanje autorizacije nije uspelo."));
+      setConnecting(false);
+    }
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const result = await refreshToken();
+      if (result.success) setSuccessMessage(result.message);
+      else setError(result.message);
+    } catch (err) {
+      setError(convexMessage(err, "Osvežavanje tokena nije uspelo."));
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!connection) return;
+    setDisconnecting(true);
+    setError(null);
+    try {
+      await removeConnection({ connectionId: connection._id });
+      setSuccessMessage("Veza sa Facebook stranicom je prekinuta.");
+    } catch (err) {
+      setError(convexMessage(err, "Prekidanje veze nije uspelo."));
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
+  const isConnected = connection !== undefined;
+
+  let statusNode: ReactNode;
+  if (setup === undefined) {
+    statusNode = <StatusPill tone="muted">Učitavanje…</StatusPill>;
+  } else if (!setup.appConfigured) {
+    statusNode = (
+      <StatusPill tone="warning">
+        Čeka Meta app — dodaj FACEBOOK_APP_ID/SECRET u env
+      </StatusPill>
+    );
+  } else {
+    statusNode = connectionPill(connection?.status);
+  }
+
+  const missingVars: string[] = [];
+  if (setup && !setup.verifyTokenSet) missingVars.push("IG_WEBHOOK_VERIFY_TOKEN");
+  if (setup && !setup.appSecretSet) missingVars.push("FACEBOOK_APP_SECRET");
+
+  return (
+    <CardShell
+      icon={Users}
+      title="Facebook stranica"
+      subtitle="Meta · objave, komentari i DM automatizacija"
+      status={statusNode}
+    >
+      {setup === undefined ? (
+        <div className="mt-5">
+          <Skeleton className="h-14 w-full rounded-lg" />
+        </div>
+      ) : (
+        <div className="mt-5 space-y-4">
+          {isConnected && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2 text-xs text-foreground">
+                  <Lock className="size-3.5 shrink-0 text-success" aria-hidden />
+                  <span className="truncate font-medium">
+                    {pageInfo?.pageName ?? "Facebook stranica povezana"}
+                  </span>
+                </div>
+                <p className="font-mono text-micro text-text-muted">
+                  ID {connection.externalId ?? "—"}
+                </p>
+                <p className="text-micro text-text-muted">
+                  {connection.expiresAt
+                    ? `Token važi do ${new Date(
+                        connection.expiresAt,
+                      ).toLocaleDateString("sr-RS")} (${formatRelativeTime(
+                        connection.expiresAt,
+                      )})`
+                    : "Token nema rok trajanja — Meta ga poništava samo pri promeni lozinke ili povlačenju dozvole."}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefresh}
+                  disabled={refreshing || disconnecting}
+                >
+                  {refreshing ? (
+                    <LoaderCircle className="animate-spin" />
+                  ) : (
+                    <RefreshCw />
+                  )}
+                  Osveži token
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleStartConnect}
+                  disabled={connecting || disconnecting}
+                >
+                  Ponovo poveži
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {isConnected && connection.externalId && (
+            <FacebookPagePicker
+              currentPageId={connection.externalId}
+              autoOpen={autoOpenPicker}
+              onSwitched={(name) =>
+                setSuccessMessage(
+                  name
+                    ? `Sada je povezana stranica „${name}”.`
+                    : "Stranica je promenjena.",
+                )
+              }
+            />
+          )}
+
+          {/* Upozorenje pre nego što nastane problem — isto pravilo kao na
+              Instagram kartici. */}
+          {isConnected &&
+            connection.expiresAt != null &&
+            now !== null &&
+            connection.expiresAt - now < 14 * 24 * 60 * 60 * 1000 && (
+              <FeedbackNote
+                tone="warning"
+                title={`Pristup ističe ${formatRelativeTime(connection.expiresAt)}`}
+              >
+                Klikni „Osveži token” pre isteka da sinhronizacija ne stane.
+              </FeedbackNote>
+            )}
+
+          <FacebookSetupSteps webhookUrl={setup.webhookUrl} />
+
+          {!setup.appConfigured && (
+            <FeedbackNote
+              tone="warning"
+              title="Čeka se konfiguracija Meta aplikacije"
+            >
+              Bez{" "}
+              <code className="font-mono text-accent-400">FACEBOOK_APP_ID</code>{" "}
+              i{" "}
+              <code className="font-mono text-accent-400">
+                FACEBOOK_APP_SECRET
+              </code>{" "}
+              dugme ispod nema čime da pokrene prijavu.
+            </FeedbackNote>
+          )}
+
+          {missingVars.length > 0 && (
+            <FeedbackNote
+              tone="warning"
+              title="Nedostaje Convex environment promenljiva"
+            >
+              {missingVars.map((varName, i) => (
+                <span key={varName}>
+                  {i > 0 && " i "}
+                  <code className="font-mono font-medium text-accent-400">
+                    {varName}
+                  </code>
+                </span>
+              ))}
+              . Bez nje webhook odbija dolazne pozive.
+            </FeedbackNote>
+          )}
+
+          {!isConnected && (
+            <Button
+              size="sm"
+              onClick={handleStartConnect}
+              disabled={connecting || !setup.appConfigured}
+            >
+              {connecting ? (
+                <LoaderCircle className="animate-spin" />
+              ) : (
+                <ExternalLink />
+              )}
+              Poveži Facebook stranicu
+            </Button>
+          )}
+
+          {successMessage && (
+            <FeedbackNote tone="success" title={successMessage} />
+          )}
+          {error && <FeedbackNote tone="danger" title={error} />}
+        </div>
+      )}
+
+      {isConnected && <SyncFooter connection={connection} />}
+      {isConnected && (
+        <DisconnectZone
+          label="Facebook stranicom"
+          busy={disconnecting}
+          onConfirm={handleDisconnect}
+        />
+      )}
+    </CardShell>
+  );
+}
+
 // ── Meta Ads (System User Token) ─────────────────────────────────────────────
 
 function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
@@ -1616,12 +2160,13 @@ export function ConnectionsSettings() {
   );
 
   return (
-    // Sedam kartica u nizu: razmak računa RevealGroup tako da poslednja
+    // Osam kartica u nizu: razmak računa RevealGroup tako da poslednja
     // završi unutar budžeta, umesto ručne lestvice koja ga je probijala.
     <RevealGroup className="mt-8 space-y-5">
       <Ga4Card connection={byProvider.get("ga4")} />
       <OpenReplyCard />
       <InstagramCard connection={byProvider.get("meta_ig")} />
+      <FacebookCard connection={byProvider.get("meta_fb")} />
       <MetaAdsCard connection={byProvider.get("meta_ads")} />
       <GoogleAdsCard connection={byProvider.get("google_ads")} />
       <YouTubeCard connection={byProvider.get("youtube")} />

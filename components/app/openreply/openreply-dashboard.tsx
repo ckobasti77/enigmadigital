@@ -3,13 +3,17 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { ChartNoAxesColumn, Unplug } from "lucide-react";
+import { Camera, ChartNoAxesColumn, Unplug, Users } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
-import { KpiTile, KpiTileSkeleton } from "@/components/app/analytics/kpi-tile";
+import {
+  KpiTile,
+  KpiTileSkeleton,
+  StatTile,
+} from "@/components/app/analytics/kpi-tile";
 import { OpenReplyChart, OpenReplyChartSkeleton } from "./openreply-chart";
 import { CampaignsTable, CampaignsTableSkeleton } from "./campaigns-table";
 import {
@@ -70,6 +74,13 @@ export function OpenReplyDashboard() {
   const orConnected =
     connections === undefined ||
     connections.some((c) => c.provider === "openreply");
+
+  // The split is only shown to a workspace that actually has both accounts.
+  // A permanently empty "Facebook" tile next to a busy Instagram one reads as
+  // a broken integration rather than as an absent one.
+  const fbConnected =
+    connections !== undefined &&
+    connections.some((c) => c.provider === "meta_fb");
 
   const loading =
     connections === undefined ||
@@ -150,6 +161,31 @@ export function OpenReplyDashboard() {
               />
             </div>
           </Reveal>
+
+          {fbConnected && (
+            <Reveal delay={0.03}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <StatTile
+                  label="Odgovoreno na Instagramu"
+                  value={cur.dmsSentInstagram}
+                  format={formatNumber}
+                  note={`${formatPercent(
+                    cur.dmsSent > 0 ? cur.dmsSentInstagram / cur.dmsSent : 0,
+                  )} svih poslatih poruka u periodu`}
+                  icon={Camera}
+                />
+                <StatTile
+                  label="Odgovoreno na Facebook-u"
+                  value={cur.dmsSentFacebook}
+                  format={formatNumber}
+                  note={`${formatPercent(
+                    cur.dmsSent > 0 ? cur.dmsSentFacebook / cur.dmsSent : 0,
+                  )} svih poslatih poruka u periodu`}
+                  icon={Users}
+                />
+              </div>
+            </Reveal>
+          )}
 
           {cur.dmsSent === 0 && cur.linkClicks === 0 && campaigns.length === 0 ? (
             <EmptyState icon={ChartNoAxesColumn}>

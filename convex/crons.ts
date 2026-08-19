@@ -18,6 +18,21 @@ crons.interval(
   internal.instagram.refreshAllTokens,
   {},
 );
+// The Facebook Page (F5). Same cadence as Instagram for the same two reasons:
+// a Page restates its recent insights for a few days, and a Page token has to
+// be re-minted from the stored user token before that user token ages out.
+crons.interval(
+  "sync facebook page",
+  { hours: 6 },
+  internal.facebook.syncAllFacebook,
+  {},
+);
+crons.interval(
+  "refresh facebook tokens",
+  { hours: 24 },
+  internal.facebook.refreshAllTokens,
+  {},
+);
 // Publishing is scheduled to the minute, so the queue is checked every minute.
 // The tick is cheap — one indexed read of what is due, and nothing at all when
 // nothing is. It doubles as the recovery path: a post whose direct run never

@@ -32,9 +32,15 @@ export default defineSchema({
     workspaceId: v.id("workspaces"),
     provider: providerValidator,
     encryptedCredentials: v.string(),
+    // meta_fb only: the long-lived USER token the Page token was minted from,
+    // encrypted the same way. Kept because "Osvezi token" and the daily cron
+    // both have to ask `/me/accounts` for a fresh Page token, and only a user
+    // token may do that. Never sent anywhere else.
+    encryptedUserCredentials: v.optional(v.string()),
     externalId: v.optional(v.string()), // GA4 property ID, IG user ID, ad account ID…
     externalIdAlt: v.optional(v.string()), // meta_ig: IG professional account
-    // ID (webhook `entry.id`)
+    // ID (webhook `entry.id`); meta_fb: the Page's name, so Settings can say
+    // which Page is connected without a round trip to Meta
     status: v.union(
       v.literal("active"),
       v.literal("error"),
@@ -284,6 +290,105 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_workspace_created", ["workspaceId", "createdAt"]),
 
+  // ── Facebook stranica (F5) ──────────────────────────────────────────────────
+  //
+  // Facebook content gets its own three tables rather than a `platform` column
+  // on the Instagram ones. The OpenReply engine tables go the other way — one
+  // set of tables, a platform beside each row — and the difference is not an
+  // inconsistency but the point: an automation is the SAME object on both
+  // platforms, while a Page post and an Instagram post share almost no fields
+  // (no carousel, no saves, no reach-per-media; a Page post has shares and a
+  // `status_type` instead). Folding them together would also mean every
+  // existing Instagram query starts filtering, which is exactly the behaviour
+  // F5 forbids changing.
+  //
+  // Same rules as the Instagram side otherwise: upsert by natural key, and
+  // nothing is ever deleted — what disappeared from Facebook gets `deletedAt`
+  // and stays.
+  fbPageDaily: defineTable({
+    workspaceId: v.id("workspaces"),
+    date: v.string(),
+    impressions: v.number(),
+    engagements: v.number(),
+    fans: v.number(),
+  }).index("by_workspace_date", ["workspaceId", "date"]),
+
+  fbPagePosts: defineTable({
+    workspaceId: v.id("workspaces"),
+    postId: v.string(),
+    message: v.string(),
+    /** Meta's own word for the kind of post: "photo", "video", "link"… */
+    statusType: v.string(),
+    permalink: v.string(),
+    // Unlike Instagram's signed CDN links, `full_picture` is a plain URL that
+    // keeps working, so it is rendered directly and needs no proxy route.
+    pictureUrl: v.optional(v.string()),
+    publishedAt: v.number(),
+    likes: v.number(),
+    comments: v.number(),
+    shares: v.number(),
+    // Per-post insights; optional because a post whose insights call failed is
+    // still a post worth showing.
+    impressions: v.optional(v.number()),
+    reach: v.optional(v.number()),
+    clicks: v.optional(v.number()),
+    // Whether the Page itself has liked this post — the one thing Facebook
+    // offers that Instagram does not.
+    likedByUs: v.optional(v.boolean()),
+    deletedAt: v.optional(v.number()),
+    syncedAt: v.number(),
+  })
+    .index("by_workspace_post", ["workspaceId", "postId"]) // upsert key
+    .index("by_workspace_published", ["workspaceId", "publishedAt"]),
+
+  fbComments: defineTable({
+    workspaceId: v.id("workspaces"),
+    postId: v.string(),
+    commentId: v.string(),
+    parentCommentId: v.optional(v.string()),
+    text: v.string(),
+    // Facebook has no @handle on a comment — it hands out a display name, and
+    // withholds even that from a commenter who never granted the app anything.
+    authorName: v.string(),
+    authorId: v.optional(v.string()),
+    permalink: v.optional(v.string()),
+    timestamp: v.number(),
+    likeCount: v.optional(v.number()),
+    // Set by the Page's own like button. Undefined means "never asked" — the
+    // comments edge does not report whether WE liked it, only how many did.
+    likedByUs: v.optional(v.boolean()),
+    hidden: v.boolean(),
+    isOurs: v.boolean(),
+    repliedByUs: v.boolean(),
+    deletedAt: v.optional(v.number()),
+    syncedAt: v.number(),
+  })
+    .index("by_workspace_post", ["workspaceId", "postId"])
+    .index("by_workspace_comment", ["workspaceId", "commentId"]) // upsert key
+    .index("by_workspace_timestamp", ["workspaceId", "timestamp"]),
+
+  // Who did what to a Facebook comment, and when. Same contract as
+  // `igModerationLogs`, plus the two actions Instagram cannot offer.
+  fbModerationLogs: defineTable({
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    action: v.union(
+      v.literal("reply"),
+      v.literal("hide"),
+      v.literal("unhide"),
+      v.literal("delete"),
+      v.literal("like"),
+      v.literal("unlike"),
+    ),
+    commentId: v.optional(v.string()),
+    postId: v.optional(v.string()),
+    text: v.optional(v.string()),
+    authorName: v.optional(v.string()),
+    status: v.union(v.literal("done"), v.literal("failed")),
+    errorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_workspace_created", ["workspaceId", "createdAt"]),
+
   // OpenReply snapshot (source of truth stays its own Postgres).
   orCampaignStats: defineTable({
     workspaceId: v.id("workspaces"),
@@ -302,12 +407,28 @@ export default defineSchema({
     workspaceId: v.id("workspaces"),
     date: v.string(),
     dmsSent: v.number(),
+    // The same day split by platform (F5). Optional because every row written
+    // before Facebook existed has neither, and on those `dmsSent` is by
+    // definition all Instagram — which is exactly what the reader assumes.
+    dmsSentInstagram: v.optional(v.number()),
+    dmsSentFacebook: v.optional(v.number()),
     linkClicks: v.number(),
   }).index("by_workspace_date", ["workspaceId", "date"]),
 
   orAutomations: defineTable({
     workspaceId: v.id("workspaces"),
     name: v.string(),
+    // Which platform this automation listens to (F5). Optional so every row
+    // written before Facebook existed stays valid without a migration;
+    // undefined means "instagram" — see lib/orPlatform.ts, which is the only
+    // place that rule is written down.
+    platform: v.optional(
+      v.union(
+        v.literal("instagram"),
+        v.literal("facebook"),
+        v.literal("both"),
+      ),
+    ),
     keywords: v.array(v.string()), // stored already lowercased+trimmed
     matchAnyWord: v.boolean(), // true = any keyword, false = all keywords
     wholeWordMatch: v.boolean(),
@@ -373,6 +494,11 @@ export default defineSchema({
   orDmLogs: defineTable({
     workspaceId: v.id("workspaces"),
     automationId: v.optional(v.id("orAutomations")),
+    // Where this happened (F5). Undefined means "instagram" — every row
+    // written before Facebook existed.
+    platform: v.optional(
+      v.union(v.literal("instagram"), v.literal("facebook")),
+    ),
     // What the engine reacted to. Undefined means "comment" (every row written
     // before DM triggers existed). For a DM row `commentId` holds the message
     // id and `commenterId` the sender's IGSID; for a "postback" row `commentId`
@@ -423,18 +549,31 @@ export default defineSchema({
     .index("by_workspace_status", ["workspaceId", "status"])
     .index("by_workspace_date", ["workspaceId", "date"]),
 
+  // The dedup key stays [workspaceId, commentId] and the platform is compared
+  // in code (orIngest.ts). Putting it in the index instead would have meant
+  // `.eq("platform", "instagram")` missing every row written before this field
+  // existed — turning a redelivered old webhook into a second DM.
   orProcessedComments: defineTable({
     workspaceId: v.id("workspaces"),
+    platform: v.optional(
+      v.union(v.literal("instagram"), v.literal("facebook")),
+    ),
     commentId: v.string(),
     processedAt: v.number(),
   }).index("by_workspace_comment", ["workspaceId", "commentId"]),
 
   // One row per person who has ever written to the account. `lastUserMessageAt`
-  // is the gate for Instagram's 24h messaging window: the app may only reply
-  // inside it, and only to someone who messaged first.
+  // is the gate for Meta's 24h messaging window: the app may only reply inside
+  // it, and only to someone who messaged first.
   orConversations: defineTable({
     workspaceId: v.id("workspaces"),
-    igsid: v.string(), // Instagram-scoped user id of the person, not the account
+    platform: v.optional(
+      v.union(v.literal("instagram"), v.literal("facebook")),
+    ),
+    // The person's page-scoped id: an IGSID on Instagram, a PSID on Facebook.
+    // One column for both, because it is the same thing under two names and
+    // the platform beside it says which.
+    igsid: v.string(),
     username: v.optional(v.string()),
     lastUserMessageAt: v.optional(v.number()),
     lastBotMessageAt: v.optional(v.number()),
@@ -450,6 +589,9 @@ export default defineSchema({
   // it does not get a 200 fast enough.
   orInboundMessages: defineTable({
     workspaceId: v.id("workspaces"),
+    platform: v.optional(
+      v.union(v.literal("instagram"), v.literal("facebook")),
+    ),
     mid: v.string(),
     igsid: v.string(),
     text: v.string(),

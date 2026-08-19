@@ -6,6 +6,13 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { matchKeywords, utcDateKey } from "./lib/orMatch";
 import { parsePostbackPayload, FOLLOW_PAYLOAD_KEY } from "./lib/orButtons";
 import { FOLLOW_PROMPT_BUTTON_LABEL_DEFAULT } from "./lib/orFollow";
+import {
+  automationHandles,
+  orPlatformValidator,
+  platformProvider,
+  resolvePlatform,
+  type OrPlatform,
+} from "./lib/orPlatform";
 
 const ingestResultValidator = v.union(
   v.literal("ignored_no_workspace"),
@@ -20,30 +27,46 @@ type WorkspaceLookup =
   | { ok: false; reason: "ignored_no_workspace" | "ignored_engine_off" };
 
 /**
- * Map the Instagram account id on a webhook to the workspace that owns it.
+ * Map the account id on a webhook to the workspace that owns it.
  *
  * Split out of `resolveEnabledWorkspace` for F4: comment moderation stores
  * every comment regardless of whether the OpenReply engine is running, so the
  * "which workspace" question and the "is the engine on" question stopped being
  * the same question.
+ *
+ * F5 made it take a platform. `entry.id` is an Instagram professional account
+ * id on one webhook and a Page id on the other, and the two live on different
+ * `connections` rows — so which row to look in is decided by which webhook
+ * called, never by trying both.
  */
 async function resolveWorkspace(
   ctx: MutationCtx,
-  igUserId: string,
+  platform: OrPlatform,
+  accountId: string,
 ): Promise<Id<"workspaces"> | null> {
-  const igConnections = await ctx.db
+  const provider = platformProvider(platform);
+
+  const connections = await ctx.db
     .query("connections")
-    .withIndex("by_provider", (q) => q.eq("provider", "meta_ig"))
+    .withIndex("by_provider", (q) => q.eq("provider", provider))
     .collect();
 
-  const igConn = igConnections.find(
-    (c) => c.externalId === igUserId || c.externalIdAlt === igUserId,
+  // `externalIdAlt` is only ever an account id on Instagram, where the webhook
+  // may name either the app-scoped id or the professional one. On Facebook it
+  // holds the Page's NAME, so it is deliberately not compared here.
+  const conn = connections.find((c) =>
+    platform === "instagram"
+      ? c.externalId === accountId || c.externalIdAlt === accountId
+      : c.externalId === accountId,
   );
-  if (!igConn) {
-    console.warn("OpenReply: nema meta_ig konekcije za IG nalog", igUserId);
+  if (!conn) {
+    console.warn(
+      `OpenReply: nema ${provider} konekcije za nalog`,
+      accountId,
+    );
     return null;
   }
-  return igConn.workspaceId;
+  return conn.workspaceId;
 }
 
 /** Is this workspace's OpenReply engine switched on? */
@@ -62,14 +85,15 @@ async function isEngineOn(
 }
 
 /**
- * Map the Instagram account id on a webhook to a workspace whose OpenReply
- * engine is switched on. Shared by both ingest paths — comments and DMs.
+ * Map the account id on a webhook to a workspace whose OpenReply engine is
+ * switched on. Shared by both ingest paths — comments and DMs.
  */
 async function resolveEnabledWorkspace(
   ctx: MutationCtx,
-  igUserId: string,
+  platform: OrPlatform,
+  accountId: string,
 ): Promise<WorkspaceLookup> {
-  const workspaceId = await resolveWorkspace(ctx, igUserId);
+  const workspaceId = await resolveWorkspace(ctx, platform, accountId);
   if (workspaceId === null) {
     return { ok: false, reason: "ignored_no_workspace" };
   }
@@ -77,6 +101,51 @@ async function resolveEnabledWorkspace(
     return { ok: false, reason: "ignored_engine_off" };
   }
   return { ok: true, workspaceId };
+}
+
+/**
+ * Has this comment already been through the engine?
+ *
+ * The lookup uses the SAME index it always did, `[workspaceId, commentId]`,
+ * and compares the platform in code afterwards. Putting the platform in the
+ * index would have been tidier and wrong: every row written before F5 has no
+ * platform at all, so an indexed `.eq("platform", "instagram")` would miss all
+ * of them and a redelivered old webhook would send a second DM.
+ *
+ * Reading a comment id costs one row either way — ids are unique per platform,
+ * so the "scan" is a single document.
+ */
+async function findProcessedComment(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  platform: OrPlatform,
+  commentId: string,
+): Promise<Doc<"orProcessedComments"> | null> {
+  const rows = await ctx.db
+    .query("orProcessedComments")
+    .withIndex("by_workspace_comment", (q) =>
+      q.eq("workspaceId", workspaceId).eq("commentId", commentId),
+    )
+    .collect();
+
+  return rows.find((r) => resolvePlatform(r.platform) === platform) ?? null;
+}
+
+/** The same trick for an inbound message id (DMs and taps share the table). */
+async function findInboundMessage(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  platform: OrPlatform,
+  mid: string,
+): Promise<Doc<"orInboundMessages"> | null> {
+  const rows = await ctx.db
+    .query("orInboundMessages")
+    .withIndex("by_workspace_mid", (q) =>
+      q.eq("workspaceId", workspaceId).eq("mid", mid),
+    )
+    .collect();
+
+  return rows.find((r) => resolvePlatform(r.platform) === platform) ?? null;
 }
 
 /**
@@ -90,20 +159,25 @@ async function resolveEnabledWorkspace(
 async function touchConversation(
   ctx: MutationCtx,
   workspaceId: Id<"workspaces">,
+  platform: OrPlatform,
   igsid: string,
   now: number,
   username?: string,
 ): Promise<string | undefined> {
-  const conversation = await ctx.db
+  const rows = await ctx.db
     .query("orConversations")
     .withIndex("by_workspace_igsid", (q) =>
       q.eq("workspaceId", workspaceId).eq("igsid", igsid),
     )
-    .first();
+    .collect();
+
+  const conversation =
+    rows.find((r) => resolvePlatform(r.platform) === platform) ?? null;
 
   if (conversation === null) {
     await ctx.db.insert("orConversations", {
       workspaceId,
+      platform,
       igsid,
       username,
       lastUserMessageAt: now,
@@ -151,22 +225,29 @@ async function findProfileEntryLabel(
 
 /**
  * OpenReply Ingest Mutation.
- * Receives comments dispatched from the Instagram webhook, matches them
- * against active automations, deduplicates, and logs to orDmLogs.
+ * Receives comments dispatched from either webhook, matches them against
+ * active automations, deduplicates, and logs to orDmLogs.
  */
 export const ingestComment = internalMutation({
   args: {
-    igUserId: v.string(),
+    platform: orPlatformValidator,
+    /** IG professional account id, or Page id — whichever webhook called. */
+    accountId: v.string(),
     commentId: v.string(),
+    /** Instagram media id, or Facebook post id. */
     mediaId: v.optional(v.string()),
+    /** Set on a Facebook reply; Instagram's webhook does not say. */
+    parentCommentId: v.optional(v.string()),
     commenterId: v.string(),
     commenterUsername: v.optional(v.string()),
     text: v.string(),
   },
   returns: ingestResultValidator,
   handler: async (ctx, args) => {
+    const platform = args.platform;
+
     // 1. Whose account is this?
-    const workspaceId = await resolveWorkspace(ctx, args.igUserId);
+    const workspaceId = await resolveWorkspace(ctx, platform, args.accountId);
     if (workspaceId === null) {
       return "ignored_no_workspace";
     }
@@ -179,19 +260,35 @@ export const ingestComment = internalMutation({
     // the record to the engine would leave that screen empty for exactly the
     // accounts that need it most.
     //
-    // `mediaId` is what ties a comment to a post; a webhook without one has
-    // nothing to moderate under, so it is left to the automation path alone.
+    // The post id is what ties a comment to something to moderate under; a
+    // webhook without one is left to the automation path alone.
     if (args.mediaId !== undefined) {
-      await ctx.runMutation(internal.igCommentsStore.recordWebhookComment, {
-        workspaceId,
-        mediaId: args.mediaId,
-        commentId: args.commentId,
-        fromId: args.commenterId,
-        ...(args.commenterUsername !== undefined
-          ? { username: args.commenterUsername }
-          : {}),
-        text: args.text,
-      });
+      if (platform === "facebook") {
+        await ctx.runMutation(internal.fbCommentsStore.recordWebhookComment, {
+          workspaceId,
+          postId: args.mediaId,
+          commentId: args.commentId,
+          ...(args.parentCommentId !== undefined
+            ? { parentCommentId: args.parentCommentId }
+            : {}),
+          authorId: args.commenterId,
+          ...(args.commenterUsername !== undefined
+            ? { authorName: args.commenterUsername }
+            : {}),
+          text: args.text,
+        });
+      } else {
+        await ctx.runMutation(internal.igCommentsStore.recordWebhookComment, {
+          workspaceId,
+          mediaId: args.mediaId,
+          commentId: args.commentId,
+          fromId: args.commenterId,
+          ...(args.commenterUsername !== undefined
+            ? { username: args.commenterUsername }
+            : {}),
+          text: args.text,
+        });
+      }
     }
 
     // 3. From here on it is the engine's business, and it may be switched off.
@@ -199,13 +296,14 @@ export const ingestComment = internalMutation({
       return "ignored_engine_off";
     }
 
-    // 4. Dedup: query orProcessedComments by workspaceId + commentId
-    const existing = await ctx.db
-      .query("orProcessedComments")
-      .withIndex("by_workspace_comment", (q) =>
-        q.eq("workspaceId", workspaceId).eq("commentId", args.commentId),
-      )
-      .first();
+    // 4. Dedup, per platform: the two sets of ids are minted independently and
+    // must never be able to silence each other.
+    const existing = await findProcessedComment(
+      ctx,
+      workspaceId,
+      platform,
+      args.commentId,
+    );
 
     if (existing !== null) {
       return "duplicate";
@@ -214,6 +312,7 @@ export const ingestComment = internalMutation({
     const now = Date.now();
     await ctx.db.insert("orProcessedComments", {
       workspaceId,
+      platform,
       commentId: args.commentId,
       processedAt: now,
     });
@@ -226,11 +325,17 @@ export const ingestComment = internalMutation({
       )
       .collect();
 
-    // 6. Pick the first automation that matches BOTH post scope and keywords
+    // 6. Pick the first automation that matches platform, post scope AND
+    // keywords — in that order. The platform test comes first because it is
+    // about whether the automation is eligible at all; a Facebook-only
+    // automation that matched an Instagram keyword would otherwise take the
+    // event and stop the loop before a real candidate was reached.
     let matchedAutomation: Doc<"orAutomations"> | null = null;
     let matchedKeyword: string | null = null;
 
     for (const a of automations) {
+      if (!automationHandles(a.platform, platform)) continue;
+
       // undefined === "comment", the pre-DM default.
       if (a.trigger === "dm") continue;
 
@@ -260,6 +365,7 @@ export const ingestComment = internalMutation({
     if (matchedAutomation === null || matchedKeyword === null) {
       await ctx.db.insert("orDmLogs", {
         workspaceId,
+        platform,
         source: "comment",
         commentId: args.commentId,
         mediaId: args.mediaId,
@@ -277,6 +383,7 @@ export const ingestComment = internalMutation({
     // 8. If one matched: insert an orDmLogs row with status: "pending"
     const dmLogId = await ctx.db.insert("orDmLogs", {
       workspaceId,
+      platform,
       source: "comment",
       automationId: matchedAutomation._id,
       commentId: args.commentId,
@@ -299,35 +406,43 @@ export const ingestComment = internalMutation({
 
 /**
  * OpenReply Direct Message Ingest Mutation.
- * Receives DMs dispatched from the Instagram webhook (entry[].messaging[],
- * not entry[].changes[]), records the conversation that opens the 24h
- * messaging window, matches the text against DM-triggered automations and
- * logs to orDmLogs.
+ * Receives DMs dispatched from either webhook (entry[].messaging[], not
+ * entry[].changes[]), records the conversation that opens the 24h messaging
+ * window, matches the text against DM-triggered automations and logs to
+ * orDmLogs.
  */
 export const ingestDirectMessage = internalMutation({
   args: {
-    igUserId: v.string(),
+    platform: orPlatformValidator,
+    accountId: v.string(),
     mid: v.string(),
+    /** IGSID on Instagram, PSID on Facebook — the same thing twice named. */
     igsid: v.string(),
     text: v.string(),
     username: v.optional(v.string()),
   },
   returns: ingestResultValidator,
   handler: async (ctx, args) => {
+    const platform = args.platform;
+
     // 1-2. Resolve the workspace and make sure its engine is on
-    const lookup = await resolveEnabledWorkspace(ctx, args.igUserId);
+    const lookup = await resolveEnabledWorkspace(
+      ctx,
+      platform,
+      args.accountId,
+    );
     if (!lookup.ok) {
       return lookup.reason;
     }
     const workspaceId = lookup.workspaceId;
 
     // 3. Dedup: Meta redelivers the same message id until it gets a 200
-    const existing = await ctx.db
-      .query("orInboundMessages")
-      .withIndex("by_workspace_mid", (q) =>
-        q.eq("workspaceId", workspaceId).eq("mid", args.mid),
-      )
-      .first();
+    const existing = await findInboundMessage(
+      ctx,
+      workspaceId,
+      platform,
+      args.mid,
+    );
 
     if (existing !== null) {
       return "duplicate";
@@ -336,6 +451,7 @@ export const ingestDirectMessage = internalMutation({
     const now = Date.now();
     await ctx.db.insert("orInboundMessages", {
       workspaceId,
+      platform,
       mid: args.mid,
       igsid: args.igsid,
       text: args.text,
@@ -344,9 +460,16 @@ export const ingestDirectMessage = internalMutation({
 
     // 4. The conversation row is the consent record and the clock the send
     // path checks: replying is only allowed within 24h of this timestamp.
-    await touchConversation(ctx, workspaceId, args.igsid, now, args.username);
+    await touchConversation(
+      ctx,
+      workspaceId,
+      platform,
+      args.igsid,
+      now,
+      args.username,
+    );
 
-    // 5. Only automations that listen to DMs
+    // 5. Only automations that listen to DMs, on this platform
     const automations = await ctx.db
       .query("orAutomations")
       .withIndex("by_workspace_active", (q) =>
@@ -360,6 +483,8 @@ export const ingestDirectMessage = internalMutation({
     let matchedKeyword: string | null = null;
 
     for (const a of automations) {
+      if (!automationHandles(a.platform, platform)) continue;
+
       // undefined === "comment", so pre-DM automations never fire on a message.
       if (a.trigger !== "dm" && a.trigger !== "both") continue;
 
@@ -381,6 +506,7 @@ export const ingestDirectMessage = internalMutation({
     if (matchedAutomation === null || matchedKeyword === null) {
       await ctx.db.insert("orDmLogs", {
         workspaceId,
+        platform,
         source: "dm",
         commentId: args.mid,
         commenterId: args.igsid,
@@ -397,6 +523,7 @@ export const ingestDirectMessage = internalMutation({
     // 8. Matched — queue the reply
     const dmLogId = await ctx.db.insert("orDmLogs", {
       workspaceId,
+      platform,
       source: "dm",
       automationId: matchedAutomation._id,
       commentId: args.mid,
@@ -418,7 +545,7 @@ export const ingestDirectMessage = internalMutation({
 
 /**
  * OpenReply Button Tap Ingest Mutation.
- * Handles every way a tap comes back from Instagram: a `postback` event for a
+ * Handles every way a tap comes back from Meta: a `postback` event for a
  * button template button, an ice breaker or a persistent menu item, and a
  * normal message carrying `quick_reply.payload` for a quick reply. All of them
  * resolve to the same thing — a payload we minted — so all of them land here
@@ -429,7 +556,8 @@ export const ingestDirectMessage = internalMutation({
  */
 export const ingestButtonTap = internalMutation({
   args: {
-    igUserId: v.string(),
+    platform: orPlatformValidator,
+    accountId: v.string(),
     mid: v.string(),
     igsid: v.string(),
     payload: v.string(),
@@ -437,8 +565,14 @@ export const ingestButtonTap = internalMutation({
   },
   returns: ingestResultValidator,
   handler: async (ctx, args) => {
+    const platform = args.platform;
+
     // 1-2. Resolve the workspace and make sure its engine is on
-    const lookup = await resolveEnabledWorkspace(ctx, args.igUserId);
+    const lookup = await resolveEnabledWorkspace(
+      ctx,
+      platform,
+      args.accountId,
+    );
     if (!lookup.ok) {
       return lookup.reason;
     }
@@ -446,12 +580,12 @@ export const ingestButtonTap = internalMutation({
 
     // 3. Dedup. A tap carries a message id like any other inbound event and
     // Meta redelivers it until it gets a 200, so it shares the message table.
-    const existing = await ctx.db
-      .query("orInboundMessages")
-      .withIndex("by_workspace_mid", (q) =>
-        q.eq("workspaceId", workspaceId).eq("mid", args.mid),
-      )
-      .first();
+    const existing = await findInboundMessage(
+      ctx,
+      workspaceId,
+      platform,
+      args.mid,
+    );
 
     if (existing !== null) {
       return "duplicate";
@@ -462,13 +596,20 @@ export const ingestButtonTap = internalMutation({
 
     await ctx.db.insert("orInboundMessages", {
       workspaceId,
+      platform,
       mid: args.mid,
       igsid: args.igsid,
       text: title ?? args.payload,
       receivedAt: now,
     });
 
-    const username = await touchConversation(ctx, workspaceId, args.igsid, now);
+    const username = await touchConversation(
+      ctx,
+      workspaceId,
+      platform,
+      args.igsid,
+      now,
+    );
 
     // 4. The tap itself is worth keeping even when nothing answers it — it is
     // the only record that the button was ever pressed.
@@ -490,9 +631,15 @@ export const ingestButtonTap = internalMutation({
     const automation =
       automationId === null ? null : await ctx.db.get(automationId);
 
-    // A payload from another workspace is somebody else's button, not ours.
+    // A payload from another workspace is somebody else's button, not ours —
+    // and so is one belonging to an automation that does not run here. The
+    // second test matters after an operator narrows an automation to one
+    // platform while its buttons are still sitting in delivered messages on
+    // the other.
     const owned =
-      automation !== null && automation.workspaceId === workspaceId
+      automation !== null &&
+      automation.workspaceId === workspaceId &&
+      automationHandles(automation.platform, platform)
         ? automation
         : null;
 
@@ -545,6 +692,7 @@ export const ingestButtonTap = internalMutation({
     if (owned === null || !answered) {
       await ctx.db.insert("orDmLogs", {
         workspaceId,
+        platform,
         source: "postback",
         automationId: owned?._id,
         commentId: args.mid,
@@ -564,6 +712,7 @@ export const ingestButtonTap = internalMutation({
     // automation's `dmMessage`; an ice breaker leaves it unset on purpose.
     const dmLogId = await ctx.db.insert("orDmLogs", {
       workspaceId,
+      platform,
       source: "postback",
       automationId: owned._id,
       commentId: args.mid,

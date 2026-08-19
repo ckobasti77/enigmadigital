@@ -63,6 +63,14 @@ function validateCredentials(
         "OpenReply se uključuje u Podešavanjima, ne prima kredencijale.",
       );
     }
+    case "meta_fb": {
+      // The Page Access Token is minted by the OAuth flow and never pasted by
+      // hand: it is derived from a user token that has to be stored alongside
+      // it, and a token pasted here would arrive without one.
+      invalid(
+        "Facebook stranica se povezuje dugmetom „Poveži Facebook stranicu” u Podešavanjima.",
+      );
+    }
     case "meta_ads": {
       if (secret.length < 10) {
         invalid("Meta System User token nije ispravan.");
@@ -327,6 +335,11 @@ export const syncNow = action({
 
     if (authorized.provider === "meta_ig") {
       await ctx.runAction(internal.instagram.syncIgInsights, { connectionId });
+      return;
+    }
+
+    if (authorized.provider === "meta_fb") {
+      await ctx.runAction(internal.facebook.syncFacebook, { connectionId });
       return;
     }
 

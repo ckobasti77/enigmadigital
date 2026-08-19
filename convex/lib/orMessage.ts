@@ -3,6 +3,8 @@
  * No Convex imports.
  */
 
+import type { OrPlatform } from "./orPlatform";
+
 /** Exponential backoff for send retries: 1min, 2min, 4min… capped at 15min. */
 export function nextRetryDelayMs(attempts: number): number {
   const safeAttempts = Math.max(0, attempts);
@@ -29,17 +31,37 @@ export function composeDmMessage(
   return `${msg}\n\n${trimmedUrl}`;
 }
 
-// ── Instagram's 24h messaging window ─────────────────────────────────────────
+// ── Messaging windows ─────────────────────────────────────────────────────
 /**
  * How long after someone writes to us — or taps a button, which counts the
- * same — Instagram still lets us reply. Meta's hard rule; a message sent
- * outside it is rejected, so we never send one.
+ * same — Meta still lets us reply. Meta's hard rule; a message sent outside it
+ * is rejected, so we never send one.
+ *
+ * Both platforms are 24 hours today. They are written as one constant per
+ * platform rather than one shared number because they are two independent
+ * policies that merely agree right now — Meta has moved either of them before.
  */
-export const MESSAGING_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const MESSAGING_WINDOW_MS: Record<OrPlatform, number> = {
+  instagram: 24 * 60 * 60 * 1000,
+  facebook: 24 * 60 * 60 * 1000,
+};
+
+/**
+ * How long after a COMMENT the one allowed private reply may still go out.
+ * Seven days on both platforms, and one private reply per comment on both.
+ */
+export const PRIVATE_REPLY_WINDOW_MS: Record<OrPlatform, number> = {
+  instagram: 7 * 24 * 60 * 60 * 1000,
+  facebook: 7 * 24 * 60 * 60 * 1000,
+};
 
 /** What a log row says when the window closed before the message went out. */
 export const MESSAGING_WINDOW_EXPIRED_MESSAGE =
   "Prozor od 24 sata od poslednje poruke korisnika je istekao.";
+
+/** The same, for the seven-day window a comment opens. */
+export const PRIVATE_REPLY_WINDOW_EXPIRED_MESSAGE =
+  "Prošlo je više od 7 dana od komentara.";
 
 /**
  * True when we may still reply. `orConversations.lastUserMessageAt` is the
@@ -49,9 +71,19 @@ export const MESSAGING_WINDOW_EXPIRED_MESSAGE =
 export function isWithinMessagingWindow(
   lastUserMessageAt: number | null | undefined,
   now: number,
+  platform: OrPlatform = "instagram",
 ): boolean {
   return (
     typeof lastUserMessageAt === "number" &&
-    now - lastUserMessageAt <= MESSAGING_WINDOW_MS
+    now - lastUserMessageAt <= MESSAGING_WINDOW_MS[platform]
   );
+}
+
+/** True when the comment is still young enough for its one private reply. */
+export function isWithinPrivateReplyWindow(
+  commentedAt: number,
+  now: number,
+  platform: OrPlatform = "instagram",
+): boolean {
+  return now - commentedAt <= PRIVATE_REPLY_WINDOW_MS[platform];
 }

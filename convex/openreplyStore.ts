@@ -28,6 +28,17 @@ const dailyTotalRowValidator = v.object({
   linkClicks: v.number(),
 });
 
+const dailyPointValidator = v.object({
+  date: v.string(),
+  dmsSent: v.number(),
+  // The same day split by platform (F5). A row written before Facebook
+  // existed has no split, and on that row every DM was an Instagram DM — so
+  // the fallback below is a fact, not a guess.
+  dmsSentInstagram: v.number(),
+  dmsSentFacebook: v.number(),
+  linkClicks: v.number(),
+});
+
 /**
  * Atomic snapshot upsert called from the "use node" sync action.
  * Writes both campaigns and daily totals in a single Convex transaction.
@@ -137,12 +148,6 @@ export const campaigns = query({
   },
 });
 
-const dailyPointValidator = v.object({
-  date: v.string(),
-  dmsSent: v.number(),
-  linkClicks: v.number(),
-});
-
 /** Daily totals in [from, to] ascending by date. */
 export const daily = query({
   args: { from: v.string(), to: v.string() },
@@ -159,6 +164,8 @@ export const daily = query({
     return rows.map((r) => ({
       date: r.date,
       dmsSent: r.dmsSent,
+      dmsSentInstagram: r.dmsSentInstagram ?? r.dmsSent,
+      dmsSentFacebook: r.dmsSentFacebook ?? 0,
       linkClicks: r.linkClicks,
     }));
   },
