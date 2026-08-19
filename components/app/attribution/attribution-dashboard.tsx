@@ -10,7 +10,7 @@ import { DateRangePicker, useDateRange } from "@/components/app/date-range-picke
 import { EmptyState } from "@/components/app/empty-state";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AnimatedNumber } from "@/components/motion/animated-number";
+import { CountUp } from "@/components/motion/count-up";
 import { FunnelTable, FunnelTableSkeleton } from "./funnel-table";
 import {
   InstagramBreakdown,
@@ -69,7 +69,7 @@ export function AttributionDashboard() {
                   <p className="heading-caps text-xs font-medium text-text-muted">
                     OpenReply GA4 sesije
                   </p>
-                  <AnimatedNumber
+                  <CountUp
                     value={report.totals.openreply.sessions}
                     format={formatNumber}
                     className="mt-2 block text-2xl font-bold leading-none tracking-tight text-accent-400 sm:text-3xl"
@@ -95,7 +95,7 @@ export function AttributionDashboard() {
                   <p className="heading-caps text-xs font-medium text-text-muted">
                     OpenReply konverzije
                   </p>
-                  <AnimatedNumber
+                  <CountUp
                     value={report.totals.openreply.conversions}
                     format={formatNumber}
                     className="mt-2 block text-2xl font-bold leading-none tracking-tight text-foreground sm:text-3xl"
@@ -121,7 +121,7 @@ export function AttributionDashboard() {
                   <p className="heading-caps text-xs font-medium text-text-muted">
                     Ukupno Instagram sesija
                   </p>
-                  <AnimatedNumber
+                  <CountUp
                     value={report.totals.totalInstagram.sessions}
                     format={formatNumber}
                     className="mt-2 block text-2xl font-bold leading-none tracking-tight text-foreground sm:text-3xl"
@@ -182,12 +182,12 @@ export function AttributionDashboard() {
           </Reveal>
 
           {/* Main Funnel Table */}
-          <Reveal delay={0.08}>
+          <Reveal delay={0.05}>
             <FunnelTable campaigns={report.campaigns} />
           </Reveal>
 
           {/* Instagram Channel Breakdown */}
-          <Reveal delay={0.16}>
+          <Reveal delay={0.1}>
             <InstagramBreakdown
               totals={report.totals}
               unmatchedGa4={report.unmatchedGa4}

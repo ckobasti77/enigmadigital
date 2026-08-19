@@ -183,15 +183,15 @@ export function YouTubeDashboard() {
             </EmptyState>
           ) : (
             <>
-              <Reveal delay={0.08}>
+              <Reveal delay={0.04}>
                 <YouTubeChart data={series} />
               </Reveal>
 
-              <Reveal delay={0.16}>
+              <Reveal delay={0.07}>
                 <YouTubeTrafficSources sources={sources} />
               </Reveal>
 
-              <Reveal delay={0.24}>
+              <Reveal delay={0.1}>
                 <YouTubeVideosGrid videos={videos} />
               </Reveal>
             </>

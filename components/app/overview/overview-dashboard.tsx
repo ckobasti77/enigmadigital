@@ -255,7 +255,7 @@ export function OverviewDashboard() {
       {/* ── Middle Cockpit Grid: Šta radi + Sync Health ─────────────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* 'Šta radi' panel (2/3 width on wide screen) */}
-        <Reveal delay={0.08} className="lg:col-span-2">
+        <Reveal delay={0.05} className="lg:col-span-2">
           <PerformanceHighlights
             report={staleReport}
             mediaList={staleMedia}
@@ -266,7 +266,7 @@ export function OverviewDashboard() {
         </Reveal>
 
         {/* Sync Health Summary (1/3 width on wide screen) */}
-        <Reveal delay={0.16} className="lg:col-span-1">
+        <Reveal delay={0.1} className="lg:col-span-1">
           <SyncHealthWidget
             entries={syncHealth}
             connections={connections}

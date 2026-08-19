@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Reveal } from "@/components/motion/reveal";
+import { RevealGroup } from "@/components/motion/reveal";
 import { formatRelativeTime } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusPill } from "./status-pill";
@@ -1411,29 +1411,17 @@ export function ConnectionsSettings() {
   );
 
   return (
-    <div className="mt-8 space-y-5">
-      <Reveal>
-        <Ga4Card connection={byProvider.get("ga4")} />
-      </Reveal>
-      <Reveal delay={0.05}>
-        <OpenReplyCard />
-      </Reveal>
-      <Reveal delay={0.1}>
-        <InstagramCard connection={byProvider.get("meta_ig")} />
-      </Reveal>
-      <Reveal delay={0.15}>
-        <MetaAdsCard connection={byProvider.get("meta_ads")} />
-      </Reveal>
-      <Reveal delay={0.2}>
-        <GoogleAdsCard connection={byProvider.get("google_ads")} />
-      </Reveal>
-      <Reveal delay={0.25}>
-        <YouTubeCard connection={byProvider.get("youtube")} />
-      </Reveal>
-      <Reveal delay={0.3}>
-        <SyncHealth entries={health} />
-      </Reveal>
-    </div>
+    // Sedam kartica u nizu: razmak računa RevealGroup tako da poslednja
+    // završi unutar budžeta, umesto ručne lestvice koja ga je probijala.
+    <RevealGroup className="mt-8 space-y-5">
+      <Ga4Card connection={byProvider.get("ga4")} />
+      <OpenReplyCard />
+      <InstagramCard connection={byProvider.get("meta_ig")} />
+      <MetaAdsCard connection={byProvider.get("meta_ads")} />
+      <GoogleAdsCard connection={byProvider.get("google_ads")} />
+      <YouTubeCard connection={byProvider.get("youtube")} />
+      <SyncHealth entries={health} />
+    </RevealGroup>
   );
 }
 

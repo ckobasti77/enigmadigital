@@ -148,11 +148,11 @@ export function AnalyticsDashboard() {
             </EmptyState>
           ) : (
             <>
-              <Reveal delay={0.08}>
+              <Reveal delay={0.05}>
                 <SessionsChart data={series} />
               </Reveal>
 
-              <Reveal delay={0.16}>
+              <Reveal delay={0.1}>
                 <TrafficTable traffic={traffic} />
               </Reveal>
             </>

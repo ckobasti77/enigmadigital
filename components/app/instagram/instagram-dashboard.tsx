@@ -161,11 +161,11 @@ export function InstagramDashboard() {
             </EmptyState>
           ) : (
             <>
-              <Reveal delay={0.08}>
+              <Reveal delay={0.05}>
                 <InstagramChart data={series} />
               </Reveal>
 
-              <Reveal delay={0.16}>
+              <Reveal delay={0.1}>
                 <InstagramContentGrid media={media} />
               </Reveal>
             </>

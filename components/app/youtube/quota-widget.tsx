@@ -7,7 +7,7 @@ import { useQuery } from "convex/react";
 import { Gauge } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AnimatedNumber } from "@/components/motion/animated-number";
+import { CountUp } from "@/components/motion/count-up";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -73,7 +73,7 @@ export function QuotaWidget() {
           <Gauge className={cn("size-4 shrink-0", ICON_TONES[tone])} aria-hidden />
           <span>
             Potrošeno{" "}
-            <AnimatedNumber
+            <CountUp
               value={unitsUsed}
               format={formatNumber}
               className="font-mono font-medium text-foreground"

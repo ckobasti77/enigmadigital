@@ -199,7 +199,7 @@ export function AdsDashboard() {
           </Reveal>
 
           {/* Campaigns Table */}
-          <Reveal delay={0.08}>
+          <Reveal delay={0.05}>
             <CampaignsTable
               campaigns={report.campaigns}
               onSelectCampaign={(id) => setSelectedCampaignId(id)}

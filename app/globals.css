@@ -79,10 +79,32 @@
   --sidebar-width: 15rem;
   --chrome-height: 4rem;
 
-  /* Motion */
-  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  /* ── Motion ────────────────────────────────────────────────────────────────
+     Dva imenovana ease-a, i ništa između njih.
+
+       --ease-ui        kritično prigušen, bez prebačaja. Za sve što se prosto
+                        pojavi: reveal, meni, panel, dijalog.
+       --ease-momentum  blagi prebačaj. SAMO kada je gestu prethodio zamah —
+                        prevlačenje, bacanje, odbacivanje prstom.
+
+     Prebačaj na meniju koji se samo pojavio deluje pogrešno; prebačaj na
+     kartici koju si odbacio deluje tačno. Ta razlika je cela poenta.
+
+     GSAP nema pravi spring, pa ove krive imaju svoje blizance u
+     `lib/motion.ts` ("power3.out" i "back.out(1.4)"). Menja se u paru. */
+  --ease-ui: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-momentum: cubic-bezier(0.34, 1.42, 0.64, 1);
+  /* Zatečeno ime, sada psevdonim — da nijedno pozivno mesto ne ostane na
+     krivoj koja više nije deo sistema. */
+  --ease-out-expo: var(--ease-ui);
+
+  --duration-press: 100ms;
   --duration-fast: 150ms;
   --duration-base: 300ms;
+  --duration-momentum: 340ms;
+
+  /* Koliko se element utisne pod prstom. Vidi `.hover-lift:active` niže. */
+  --press-scale: 0.97;
 
   /* ── Elevation ─────────────────────────────────────────────────────────────
      Exactly four steps, and nothing between them. Each step is a contact
@@ -441,7 +463,8 @@
   /* Purposeful hover lift — the only hover motion in the system */
   .hover-lift {
     transition:
-      transform var(--duration-base) var(--ease-out-expo),
+      transform var(--duration-base) var(--ease-ui),
+      scale var(--duration-press) ease-out,
       border-color var(--duration-base) ease,
       box-shadow var(--duration-base) ease;
   }
@@ -449,6 +472,43 @@
   .hover-lift:hover {
     transform: translateY(-2px);
     border-color: var(--line-strong);
+  }
+
+  /* ── Odziv na pritisak ───────────────────────────────────────────────────
+     Povratna informacija stiže na `:active`, ne na `click`. Čekanje na
+     otpuštanje deluje mrtvo, a ovo je jeftino i menja ceo utisak.
+
+     Utiskivanje ide kroz CSS svojstvo `scale`, ne kroz `transform: scale()`,
+     da bi se složilo sa transformacijom koju element već nosi (podizanje iz
+     `.hover-lift`, `translate-y-px` na dugmetu) umesto da je pregazi.
+
+     Trajanje i kriva stoje na samom `:active` stanju: prelaz nadole tako
+     dobija propisanih 100 ms ease-out, a povratak zadržava sopstveni prelaz
+     elementa.
+
+     Redovi tabele su namerno izvan skaliranja — na punoj širini 0.97 pomera
+     ivice reda petnaestak piksela i iščupa ga iz mreže, daleko preko pomeraja
+     koji ovaj sistem uopšte dozvoljava. Oni dobijaju isti tajming kroz korak
+     u pozadini, odmah ispod. */
+  :is(
+    button,
+    summary,
+    [role="button"],
+    [role="tab"],
+    [role="switch"],
+    [role="menuitem"],
+    [role="option"]
+  ):not(:disabled):not([aria-disabled="true"]):active,
+  .hover-lift:active {
+    scale: var(--press-scale);
+    transition-duration: var(--duration-press);
+    transition-timing-function: ease-out;
+  }
+
+  tr.cursor-pointer:active {
+    background-color: var(--surface-raised);
+    transition-duration: var(--duration-press);
+    transition-timing-function: ease-out;
   }
 
   /* ── Focus ───────────────────────────────────────────────────────────────
@@ -498,6 +558,13 @@
    *animated*: transitions are narrowed to opacity, and the enter/exit
    keyframes keep their fade while their scale, slide and rotate go to zero. */
 @media (prefers-reduced-motion: reduce) {
+  /* Utiskivanje pod prstom je transform, pa nestaje — jedan token, bez
+     ijednog dodatnog pravila. Redovi tabele zadržavaju korak u pozadini,
+     jer boja nije pokret. */
+  :root {
+    --press-scale: 1;
+  }
+
   *,
   *::before,
   *::after {

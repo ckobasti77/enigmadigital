@@ -3,7 +3,7 @@
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AnimatedNumber } from "@/components/motion/animated-number";
+import { CountUp } from "@/components/motion/count-up";
 import { cn } from "@/lib/utils";
 
 export type KpiDelta =
@@ -50,7 +50,7 @@ export function KpiTile({
         <p className="heading-caps text-xs font-medium text-text-muted">
           {label}
         </p>
-        <AnimatedNumber
+        <CountUp
           value={value}
           format={format}
           className={cn(

@@ -159,11 +159,11 @@ export function OpenReplyDashboard() {
             </EmptyState>
           ) : (
             <>
-              <Reveal delay={0.08}>
+              <Reveal delay={0.05}>
                 <OpenReplyChart data={series} />
               </Reveal>
 
-              <Reveal delay={0.16}>
+              <Reveal delay={0.1}>
                 <CampaignsTable campaigns={campaigns} />
               </Reveal>
             </>
