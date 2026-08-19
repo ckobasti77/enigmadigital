@@ -1,9 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { useAction } from "convex/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useAction, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
-import { AlertTriangle, Loader2, Pencil, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Image as ImageIcon,
+  ListPlus,
+  Loader2,
+  Pencil,
+  RefreshCw,
+  Trash2,
+  X,
+} from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import {
   VIDEO_CATEGORIES,
@@ -27,6 +37,7 @@ import {
   PillToggle,
   SegmentedControl,
 } from "./yt-automation-editor-dialog";
+import { YtThumbnailDialog } from "./yt-thumbnail-dialog";
 import type { VideoItem } from "./youtube-videos-grid";
 import { cn } from "@/lib/utils";
 
@@ -437,6 +448,9 @@ function YtVideoEditForm({
           />
         </div>
 
+        {/* Sličica i plejliste — obe idu odmah, nezavisno od dugmeta ispod */}
+        <ImmediateSection video={video} disabled={submitting} />
+
         {/* Brisanje videa */}
         <div className="flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/5 p-3.5">
           <AlertTriangle
@@ -496,6 +510,228 @@ function YtVideoEditForm({
         </div>
       </DialogFooter>
     </form>
+  );
+}
+
+/**
+ * The two things on this screen that do NOT wait for „Sačuvaj izmene” (Y8).
+ *
+ * Sličica i dodavanje u plejlistu su zasebni pozivi YouTube-u sa sopstvenom
+ * cenom — 50 jedinica svaki — i dešavaju se u trenutku kad se klikne. Nemaju
+ * veze sa `videos.update` ispod i ne mogu se povući zatvaranjem dijaloga, pa
+ * stoje odvojeno i to piše iznad njih. Grupisati ih sa poljima forme značilo
+ * bi obećati „ništa se ne dešava dok ne sačuvam", što nije istina.
+ */
+function ImmediateSection({
+  video,
+  disabled,
+}: {
+  video: VideoItem;
+  disabled: boolean;
+}) {
+  const cachedPlaylists = useQuery(api.ytPlaylists.playlists);
+  const listPlaylists = useAction(api.ytPlaylists.listPlaylists);
+  const addVideoToPlaylist = useAction(api.ytPlaylists.addVideoToPlaylist);
+
+  const [thumbnailOpen, setThumbnailOpen] = useState(false);
+  const [thumbnailDone, setThumbnailDone] = useState(false);
+
+  const [playlistId, setPlaylistId] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const playlists = cachedPlaylists ?? [];
+  const busy = disabled || refreshing || adding;
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    setErrorMsg(null);
+    try {
+      await listPlaylists();
+    } catch (err) {
+      setErrorMsg(convexMessage(err, "Plejliste se ne mogu učitati."));
+    } finally {
+      setRefreshing(false);
+    }
+  }, [listPlaylists]);
+
+  // Fetched once, when this workspace has never loaded them — one unit out of
+  // six thousand, and the alternative is an empty dropdown that looks broken.
+  // Every refresh after that is a button, because a poll would spend a unit
+  // per open for a list that changes a few times a year.
+  //
+  // This one fails silently on purpose. Nobody asked for it, so an error
+  // banner on opening the edit dialog would be noise about something the
+  // operator was not doing; „Osveži spisak” is the same call with a message.
+  const autoLoaded = useRef(false);
+  useEffect(() => {
+    if (autoLoaded.current) return;
+    if (cachedPlaylists === undefined || cachedPlaylists.length > 0) return;
+    autoLoaded.current = true;
+    void listPlaylists().catch(() => {});
+  }, [cachedPlaylists, listPlaylists]);
+
+  const handleAdd = async () => {
+    if (playlistId === "") return;
+    const target = playlists.find((p) => p.playlistId === playlistId);
+    setAdding(true);
+    setErrorMsg(null);
+    setNotice(null);
+    try {
+      await addVideoToPlaylist({ playlistId, videoId: video.videoId });
+      setNotice(`Dodato u „${target?.title ?? "plejlistu"}”.`);
+      setPlaylistId("");
+    } catch (err) {
+      setErrorMsg(convexMessage(err, "Dodavanje u plejlistu nije uspelo."));
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3 rounded-xl border border-line bg-surface/50 p-3.5">
+      <div>
+        <span className="text-xs font-semibold text-foreground">
+          Sličica i plejliste
+        </span>
+        <p className="mt-0.5 text-xs text-text-muted">
+          Ovo dvoje se šalje odmah po kliku i ne čeka „Sačuvaj izmene”.
+        </p>
+      </div>
+
+      {errorMsg && (
+        <p className="flex items-start gap-1.5 text-xs leading-relaxed text-danger">
+          <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden />
+          <span>{errorMsg}</span>
+        </p>
+      )}
+
+      {/* Sličica */}
+      <div className="flex items-center gap-3">
+        <div className="relative aspect-video w-28 shrink-0 overflow-hidden rounded-lg border border-line bg-bg-950">
+          {video.thumbnailUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={video.thumbnailUrl}
+              alt=""
+              className="size-full object-cover"
+            />
+          ) : (
+            <div className="flex size-full items-center justify-center text-text-muted">
+              <ImageIcon className="size-4" aria-hidden />
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          {thumbnailDone ? (
+            <p className="flex items-start gap-1.5 text-xs leading-relaxed text-success">
+              <CheckCircle2 className="mt-0.5 size-3 shrink-0" aria-hidden />
+              <span>
+                Sličica je postavljena. YouTube-u treba minut-dva da je prikaže
+                svuda.
+              </span>
+            </p>
+          ) : (
+            <p className="text-xs leading-relaxed text-text-muted">
+              Prilagođene sličice traže kanal verifikovan telefonom.
+            </p>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => setThumbnailOpen(true)}
+            className="mt-2 border-line-soft text-text-secondary hover:border-line-strong hover:text-foreground"
+          >
+            <ImageIcon className="mr-1.5 size-3.5" aria-hidden />
+            {video.thumbnailUrl ? "Promeni sličicu" : "Postavi sličicu"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Plejliste */}
+      <div className="space-y-1.5 border-t border-line pt-3">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-xs font-medium text-text-muted">
+            Dodaj u plejlistu
+          </Label>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={busy}
+            className="inline-flex items-center gap-1 text-xs text-text-muted transition-colors hover:text-foreground disabled:opacity-50"
+          >
+            <RefreshCw
+              className={cn("size-3", refreshing && "animate-spin")}
+              aria-hidden
+            />
+            <span>Osveži spisak</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <select
+            value={playlistId}
+            onChange={(e) => {
+              setPlaylistId(e.target.value);
+              setNotice(null);
+            }}
+            disabled={busy || playlists.length === 0}
+            className="min-w-0 flex-1 rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-accent-400 focus:outline-hidden disabled:opacity-50"
+          >
+            <option value="">
+              {playlists.length === 0
+                ? refreshing
+                  ? "Učitavam plejliste…"
+                  : "Nema učitanih plejlista"
+                : "Izaberi plejlistu"}
+            </option>
+            {playlists.map((playlist) => (
+              <option key={playlist.playlistId} value={playlist.playlistId}>
+                {playlist.title} ({playlist.itemCount})
+              </option>
+            ))}
+          </select>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy || playlistId === ""}
+            onClick={() => void handleAdd()}
+            className="shrink-0 border-line-soft text-text-secondary hover:border-line-strong hover:text-foreground"
+          >
+            {adding ? (
+              <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+            ) : (
+              <ListPlus className="mr-1.5 size-3.5" aria-hidden />
+            )}
+            Dodaj
+          </Button>
+        </div>
+
+        {notice !== null ? (
+          <p className="flex items-start gap-1.5 text-xs leading-relaxed text-success">
+            <CheckCircle2 className="mt-0.5 size-3 shrink-0" aria-hidden />
+            <span>{notice}</span>
+          </p>
+        ) : (
+          <p className="text-xs text-text-muted">
+            Košta 50 jedinica kvote. Video ostaje i tamo gde je sada — plejlista
+            ga ne premešta.
+          </p>
+        )}
+      </div>
+
+      <YtThumbnailDialog
+        open={thumbnailOpen}
+        video={video}
+        onOpenChange={setThumbnailOpen}
+        onDone={() => setThumbnailDone(true)}
+      />
+    </div>
   );
 }
 

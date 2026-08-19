@@ -826,4 +826,22 @@ export default defineSchema({
     createdAt: v.number(),
     finishedAt: v.optional(v.number()),
   }).index("by_workspace_created", ["workspaceId", "createdAt"]),
+
+  // ── YouTube playlists (Y8) ──────────────────────────────────────────────────
+  // A cache, not a record. The playlists live on YouTube; this table exists so
+  // that opening a dropdown does not cost a unit every time, and so the list
+  // is on screen the moment the dialog opens instead of after a round trip.
+  //
+  // Refreshed only when the operator asks (`ytPlaylists.listPlaylists`) or on
+  // the first open of a workspace that has never loaded them. A playlist
+  // deleted on YouTube stays here until the next refresh — choosing it then
+  // spends 50 units on a 404, which is why the refresh button is next to the
+  // dropdown rather than buried.
+  ytPlaylists: defineTable({
+    workspaceId: v.id("workspaces"),
+    playlistId: v.string(),
+    title: v.string(),
+    itemCount: v.number(),
+    syncedAt: v.number(),
+  }).index("by_workspace_playlist", ["workspaceId", "playlistId"]), // upsert key
 });
