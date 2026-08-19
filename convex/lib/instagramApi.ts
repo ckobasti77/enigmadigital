@@ -140,11 +140,38 @@ export function buildMeMediaUrl(
   version: string = getMetaGraphVersion(),
 ): string {
   const url = new URL(`${INSTAGRAM_GRAPH_BASE_URL}/${version}/me/media`);
-  url.searchParams.set(
-    "fields",
-    "id,caption,media_type,media_product_type,permalink,thumbnail_url,timestamp,like_count,comments_count",
-  );
+  url.searchParams.set("fields", MEDIA_LIST_FIELDS);
   url.searchParams.set("limit", String(limit));
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/**
+ * Fields requested for every media item.
+ *
+ * `thumbnail_url` is returned for VIDEO/REELS only — a still frame. IMAGE and
+ * CAROUSEL_ALBUM carry their picture in `media_url` instead, which is why both
+ * are asked for. `children` is an edge that exists only on CAROUSEL_ALBUM and
+ * holds the individual slides; Instagram simply omits it for everything else.
+ */
+export const MEDIA_LIST_FIELDS =
+  "id,caption,media_type,media_product_type,permalink,media_url,thumbnail_url," +
+  "timestamp,like_count,comments_count," +
+  "children{id,media_type,media_url,thumbnail_url}";
+
+/**
+ * Build endpoint URL for reading arbitrary fields off a single media node.
+ * Used by the /ig-media/ proxy route to pull a FRESH picture URL, because the
+ * signed CDN links Instagram hands out expire.
+ */
+export function buildMediaFieldsUrl(
+  mediaId: string,
+  fields: string,
+  accessToken: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(`${INSTAGRAM_GRAPH_BASE_URL}/${version}/${mediaId}`);
+  url.searchParams.set("fields", fields);
   url.searchParams.set("access_token", accessToken);
   return url.toString();
 }
@@ -319,16 +346,35 @@ export interface RawInsightsResponse {
   };
 }
 
+export interface RawMediaChild {
+  id?: string;
+  media_type?: string;
+  media_url?: string;
+  thumbnail_url?: string;
+}
+
 export interface RawMediaItem {
   id: string;
   caption?: string;
   media_type?: string; // "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM"
   media_product_type?: string; // "FEED" | "REELS" | "STORY"
   permalink?: string;
-  thumbnail_url?: string;
+  media_url?: string; // picture for IMAGE / CAROUSEL_ALBUM, video file for VIDEO
+  thumbnail_url?: string; // still frame, VIDEO / REELS only
   timestamp?: string;
   like_count?: number;
   comments_count?: number;
+  children?: { data?: RawMediaChild[] };
+}
+
+/** Response shape of a single-media read (`/{mediaId}?fields=…`). */
+export interface RawMediaFieldsResponse extends Partial<RawMediaItem> {
+  error?: {
+    message: string;
+    type: string;
+    code: number;
+    error_subcode?: number;
+  };
 }
 
 export interface RawMediaListResponse {
@@ -467,4 +513,100 @@ export function extractGraphApiError(body: unknown): string {
       "$1$2<redacted>",
     )
     .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer <redacted>");
+}
+
+// ── Media Picture Helpers ────────────────────────────────────────────────────
+
+/** Carousel slide as it is stored on `igMediaStats.children`. */
+export interface StoredMediaChild {
+  id: string;
+  mediaType: string;
+  mediaUrl?: string;
+  thumbnailUrl?: string;
+}
+
+/**
+ * Flatten the `children` edge into the stored shape. Returns undefined when the
+ * media is not a carousel, so nothing is written for ordinary posts.
+ */
+export function normalizeMediaChildren(
+  children?: { data?: RawMediaChild[] },
+): StoredMediaChild[] | undefined {
+  const list = children?.data;
+  if (!Array.isArray(list) || list.length === 0) return undefined;
+
+  const out: StoredMediaChild[] = [];
+  for (const child of list) {
+    if (!child?.id) continue;
+    out.push({
+      id: String(child.id),
+      mediaType: child.media_type ?? "IMAGE",
+      ...(child.media_url ? { mediaUrl: child.media_url } : {}),
+      ...(child.thumbnail_url ? { thumbnailUrl: child.thumbnail_url } : {}),
+    });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+/**
+ * Pick the URL that actually renders as a picture.
+ *
+ * For video the still frame lives on `thumbnail_url` (`media_url` is the mp4);
+ * everywhere else the picture is `media_url`. A carousel parent occasionally
+ * comes back without its own `media_url`, so the first slide is the last resort.
+ */
+export function pickDisplayUrl(
+  mediaType: string,
+  mediaUrl?: string,
+  thumbnailUrl?: string,
+  children?: StoredMediaChild[],
+): string | undefined {
+  const upper = (mediaType || "").toUpperCase();
+  const isVideo = upper === "VIDEO" || upper === "REELS";
+
+  const primary = isVideo
+    ? (thumbnailUrl ?? mediaUrl)
+    : (mediaUrl ?? thumbnailUrl);
+  if (primary) return primary;
+
+  for (const child of children ?? []) {
+    const childUrl = pickDisplayUrl(
+      child.mediaType,
+      child.mediaUrl,
+      child.thumbnailUrl,
+    );
+    if (childUrl) return childUrl;
+  }
+  return undefined;
+}
+
+/**
+ * Does this Graph API failure mean the media is gone rather than the request
+ * being broken? Deleted media answers with HTTP 404, or with the classic
+ * `(#100) … Object with ID … does not exist` (code 100 / subcode 33).
+ */
+export function isMissingObjectError(status: number, body: string): boolean {
+  if (status === 404) return true;
+
+  try {
+    const parsed = JSON.parse(body) as RawMediaFieldsResponse;
+    const err = parsed.error;
+    if (err) {
+      if (err.code === 100 && err.error_subcode === 33) return true;
+      if (err.code === 803) return true; // "Some of the aliases you requested do not exist"
+      // The generic "…does not exist, cannot be loaded due to missing
+      // permissions…" wording covers a revoked token too, so a message that
+      // blames permissions is NOT treated as a deleted post.
+      const message = (err.message ?? "").toLowerCase();
+      if (
+        message.includes("does not exist") &&
+        !message.includes("missing permissions")
+      ) {
+        return true;
+      }
+    }
+  } catch {
+    // Not JSON — fall through to the status check below
+  }
+  return false;
 }

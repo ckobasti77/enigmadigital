@@ -116,9 +116,31 @@ export default defineSchema({
     shares: v.number(),
     views: v.number(),
     syncedAt: v.number(),
+    // Picture URLs as Instagram handed them out. They are SIGNED CDN links with
+    // an expiry, so nothing renders them directly — the public /ig-media/
+    // route in http.ts refreshes them on demand and redirects.
+    mediaUrl: v.optional(v.string()), // original Instagram CDN URL
+    thumbnailUrl: v.optional(v.string()),
+    children: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          mediaType: v.string(),
+          mediaUrl: v.optional(v.string()),
+          thumbnailUrl: v.optional(v.string()),
+        }),
+      ),
+    ), // CAROUSEL_ALBUM slides only
+    // When the picture URLs above were last refreshed. Kept apart from
+    // `syncedAt` so a proxy refresh never pretends the STATS are fresh.
+    mediaUrlSyncedAt: v.optional(v.number()),
+    // Set when Instagram reports the media is gone; cleared by the next sync
+    // that still sees it.
+    deletedAt: v.optional(v.number()),
   })
     .index("by_workspace_media", ["workspaceId", "mediaId"]) // upsert by mediaId
-    .index("by_workspace_published", ["workspaceId", "publishedAt"]),
+    .index("by_workspace_published", ["workspaceId", "publishedAt"])
+    .index("by_media", ["mediaId"]), // public /ig-media/ proxy lookup
 
   // OpenReply snapshot (source of truth stays its own Postgres).
   orCampaignStats: defineTable({

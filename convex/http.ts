@@ -3,6 +3,14 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { auth } from "./auth";
 import { appendUtm, isBotUserAgent } from "./lib/orLink";
+import { decryptCredentials } from "./lib/crypto";
+import {
+  buildMediaFieldsUrl,
+  isMissingObjectError,
+  normalizeMediaChildren,
+  pickDisplayUrl,
+  type RawMediaFieldsResponse,
+} from "./lib/instagramApi";
 
 const http = httpRouter();
 
@@ -391,6 +399,148 @@ http.route({
         "Cache-Control": "no-store, no-cache, must-revalidate",
       },
     });
+  }),
+});
+
+// Route 4 — GET: Instagram picture proxy (/ig-media/<mediaId>)
+//
+// Instagram hands out SIGNED CDN links that expire, so a `media_url` saved at
+// sync time renders as a broken image weeks later. Nothing displays the stored
+// URL directly: <img> points here, and this route redirects to a link that is
+// still valid — refetching one from Instagram when the stored one has aged out.
+//
+// The route is PUBLIC on purpose: it is read by <img> tags, which carry no auth
+// header. That is safe — the path holds nothing but a media ID that is already
+// public on Instagram, and the response says nothing about the workspace.
+//
+// It redirects and never streams the bytes: pushing image data through a Convex
+// action would be slow and would burn resources for no gain.
+
+const IG_MEDIA_URL_TTL_MS = 12 * 60 * 60 * 1000; // refetch links older than 12h
+const IG_MEDIA_CACHE_HEADER = "public, max-age=3600"; // 1h in the browser
+
+function igMediaRedirect(target: string): Response {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: target,
+      "Cache-Control": IG_MEDIA_CACHE_HEADER,
+    },
+  });
+}
+
+function igMediaError(message: string, status: number): Response {
+  return new Response(message, {
+    status,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+http.route({
+  pathPrefix: "/ig-media/",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const rawId = new URL(request.url).pathname
+      .slice("/ig-media/".length)
+      .split("/")[0]
+      .trim();
+    const mediaId = rawId ? decodeURIComponent(rawId) : "";
+    if (mediaId.length === 0) {
+      return igMediaError("Objava nije pronađena.", 404);
+    }
+
+    const media = await ctx.runQuery(internal.instagramStore.getMediaForProxy, {
+      mediaId,
+    });
+    if (media === null) {
+      return igMediaError("Objava nije pronađena.", 404);
+    }
+    if (media.deletedAt !== undefined) {
+      return igMediaError("Objava je obrisana.", 410);
+    }
+
+    const storedUrl = pickDisplayUrl(
+      media.mediaType,
+      media.mediaUrl,
+      media.thumbnailUrl,
+      media.children,
+    );
+    const isFresh = Date.now() - media.urlSyncedAt < IG_MEDIA_URL_TTL_MS;
+    if (storedUrl && isFresh) {
+      return igMediaRedirect(storedUrl);
+    }
+
+    // Stale (or never stored) — ask Instagram for a fresh link. Without a live
+    // connection there is nothing to ask with, so the stale link is the best
+    // that is left.
+    if (!media.encryptedCredentials) {
+      return storedUrl
+        ? igMediaRedirect(storedUrl)
+        : igMediaError("Slika nije dostupna.", 404);
+    }
+
+    let token: string;
+    try {
+      token = await decryptCredentials(media.encryptedCredentials);
+    } catch {
+      return storedUrl
+        ? igMediaRedirect(storedUrl)
+        : igMediaError("Slika nije dostupna.", 502);
+    }
+
+    const upperType = media.mediaType.toUpperCase();
+    const isCarousel =
+      upperType.includes("CAROUSEL") || upperType.includes("ALBUM");
+    const fields = isCarousel
+      ? "media_url,thumbnail_url,children{id,media_type,media_url,thumbnail_url}"
+      : "media_url,thumbnail_url";
+
+    let res: Response;
+    try {
+      res = await fetch(buildMediaFieldsUrl(mediaId, fields, token));
+    } catch {
+      return storedUrl
+        ? igMediaRedirect(storedUrl)
+        : igMediaError("Slika nije dostupna.", 502);
+    }
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      if (isMissingObjectError(res.status, body)) {
+        await ctx.runMutation(internal.instagramStore.markMediaDeleted, {
+          id: media._id,
+        });
+        return igMediaError("Objava je obrisana.", 410);
+      }
+      // Rate limit, expired token, transient failure — the stale link may well
+      // still load, so it beats showing nothing.
+      return storedUrl
+        ? igMediaRedirect(storedUrl)
+        : igMediaError("Slika nije dostupna.", 502);
+    }
+
+    const json = (await res.json()) as RawMediaFieldsResponse;
+    const children = normalizeMediaChildren(json.children);
+    await ctx.runMutation(internal.instagramStore.saveMediaUrls, {
+      id: media._id,
+      mediaUrl: json.media_url,
+      thumbnailUrl: json.thumbnail_url,
+      children,
+    });
+
+    const freshUrl = pickDisplayUrl(
+      media.mediaType,
+      json.media_url,
+      json.thumbnail_url,
+      children,
+    );
+    if (!freshUrl) {
+      return igMediaError("Slika nije dostupna.", 404);
+    }
+    return igMediaRedirect(freshUrl);
   }),
 });
 

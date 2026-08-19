@@ -25,6 +25,13 @@ export const accountDailyRowValidator = v.object({
   accountsEngaged: v.number(),
 });
 
+export const mediaChildValidator = v.object({
+  id: v.string(),
+  mediaType: v.string(),
+  mediaUrl: v.optional(v.string()),
+  thumbnailUrl: v.optional(v.string()),
+});
+
 export const mediaRowValidator = v.object({
   mediaId: v.string(),
   mediaType: v.string(),
@@ -38,6 +45,9 @@ export const mediaRowValidator = v.object({
   shares: v.number(),
   views: v.number(),
   syncedAt: v.number(),
+  mediaUrl: v.optional(v.string()),
+  thumbnailUrl: v.optional(v.string()),
+  children: v.optional(v.array(mediaChildValidator)),
 });
 
 // ── Internal Queries & Mutations (for Sync & Token Actions) ──────────────────
@@ -193,11 +203,18 @@ export const upsertMediaBatch = internalMutation({
           shares: row.shares,
           views: row.views,
           syncedAt: row.syncedAt,
+          mediaUrl: row.mediaUrl,
+          thumbnailUrl: row.thumbnailUrl,
+          children: row.children,
+          mediaUrlSyncedAt: row.syncedAt,
+          // Instagram still lists it, so an earlier "gone" verdict is void.
+          deletedAt: undefined,
         });
       } else {
         await ctx.db.insert("igMediaStats", {
           workspaceId,
           ...row,
+          mediaUrlSyncedAt: row.syncedAt,
         });
       }
       written++;
@@ -337,10 +354,14 @@ const mediaViewValidator = v.object({
   shares: v.number(),
   views: v.number(),
   syncedAt: v.number(),
+  deletedAt: v.optional(v.number()),
 });
 
 /**
  * List media stats for the workspace, ordered by publishedAt descending.
+ *
+ * Picture URLs are deliberately NOT returned: they expire. The grid points its
+ * <img> at the /ig-media/<mediaId> route instead.
  */
 export const mediaList = query({
   args: {
@@ -373,6 +394,107 @@ export const mediaList = query({
       shares: r.shares,
       views: r.views,
       syncedAt: r.syncedAt,
+      ...(r.deletedAt !== undefined ? { deletedAt: r.deletedAt } : {}),
     }));
+  },
+});
+
+// ── Picture Proxy Support (/ig-media/ route in http.ts) ──────────────────────
+
+/**
+ * Everything the public /ig-media/ route needs in one read: the stored picture
+ * URLs plus the encrypted token it would use to fetch a fresh one.
+ *
+ * Looked up by `mediaId` alone — the route carries no workspace, and a media ID
+ * belongs to exactly one Instagram account anyway. Internal, so the encrypted
+ * credentials never leave the backend.
+ */
+export const getMediaForProxy = internalQuery({
+  args: { mediaId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      _id: v.id("igMediaStats"),
+      mediaType: v.string(),
+      mediaUrl: v.optional(v.string()),
+      thumbnailUrl: v.optional(v.string()),
+      children: v.optional(v.array(mediaChildValidator)),
+      urlSyncedAt: v.number(),
+      deletedAt: v.optional(v.number()),
+      encryptedCredentials: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, { mediaId }) => {
+    const row = await ctx.db
+      .query("igMediaStats")
+      .withIndex("by_media", (q) => q.eq("mediaId", mediaId))
+      .first();
+    if (row === null) return null;
+
+    const connection = await ctx.db
+      .query("connections")
+      .withIndex("by_workspace_provider", (q) =>
+        q.eq("workspaceId", row.workspaceId).eq("provider", "meta_ig"),
+      )
+      .unique();
+
+    return {
+      _id: row._id,
+      mediaType: row.mediaType,
+      mediaUrl: row.mediaUrl,
+      thumbnailUrl: row.thumbnailUrl,
+      children: row.children,
+      // Rows written before this field existed fall back to the stats sync
+      // timestamp, which is when their URLs were fetched too.
+      urlSyncedAt: row.mediaUrlSyncedAt ?? row.syncedAt,
+      deletedAt: row.deletedAt,
+      encryptedCredentials: connection?.encryptedCredentials,
+    };
+  },
+});
+
+/**
+ * Store freshly fetched picture URLs. Only the URL fields move — stats and
+ * `syncedAt` stay whatever the last real sync left behind.
+ */
+export const saveMediaUrls = internalMutation({
+  args: {
+    id: v.id("igMediaStats"),
+    mediaUrl: v.optional(v.string()),
+    thumbnailUrl: v.optional(v.string()),
+    children: v.optional(v.array(mediaChildValidator)),
+  },
+  returns: v.null(),
+  handler: async (ctx, { id, mediaUrl, thumbnailUrl, children }) => {
+    const row = await ctx.db.get(id);
+    if (row === null) return null;
+
+    await ctx.db.patch(id, {
+      mediaUrl,
+      thumbnailUrl,
+      // A non-carousel answers without `children`; keep whatever we had rather
+      // than dropping slides on a partial read.
+      ...(children !== undefined ? { children } : {}),
+      mediaUrlSyncedAt: Date.now(),
+      deletedAt: undefined,
+    });
+    return null;
+  },
+});
+
+/**
+ * Mark the media as gone. The row itself is kept: the numbers it collected are
+ * still history, and the UI wants to show the post as deleted rather than hide it.
+ */
+export const markMediaDeleted = internalMutation({
+  args: { id: v.id("igMediaStats") },
+  returns: v.null(),
+  handler: async (ctx, { id }) => {
+    const row = await ctx.db.get(id);
+    if (row === null) return null;
+    if (row.deletedAt === undefined) {
+      await ctx.db.patch(id, { deletedAt: Date.now() });
+    }
+    return null;
   },
 });

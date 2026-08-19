@@ -22,6 +22,7 @@ import {
   extractAccountInsights,
   extractMediaInsights,
   extractGraphApiError,
+  normalizeMediaChildren,
   type RawOAuthTokenResponse,
   type RawLongLivedTokenResponse,
   type RawUserProfile,
@@ -650,6 +651,9 @@ export const syncIgInsights = internalAction({
             : now;
           const publishedAt = Number.isFinite(rawPublished) ? rawPublished : now;
 
+          // Carousel slides; undefined for every other media type.
+          const children = normalizeMediaChildren(item.children);
+
           const isReels =
             item.media_product_type?.toUpperCase() === "REELS" ||
             item.media_type?.toUpperCase() === "REELS";
@@ -668,6 +672,13 @@ export const syncIgInsights = internalAction({
             shares: mediaInsight.shares,
             views: mediaInsight.views,
             syncedAt: now,
+            // Signed CDN links — stored so the /ig-media/ proxy has a starting
+            // point, never rendered straight from the database.
+            ...(item.media_url ? { mediaUrl: item.media_url } : {}),
+            ...(item.thumbnail_url
+              ? { thumbnailUrl: item.thumbnail_url }
+              : {}),
+            ...(children ? { children } : {}),
           });
         }
 

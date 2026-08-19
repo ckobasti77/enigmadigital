@@ -22,12 +22,11 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/format";
+import { igMediaSrc } from "@/lib/ig-media";
 import { cn } from "@/lib/utils";
 
 export type MediaItem =
-  FunctionReturnType<typeof api.instagramStore.mediaList>[number] & {
-    thumbnailUrl?: string;
-  };
+  FunctionReturnType<typeof api.instagramStore.mediaList>[number];
 
 export type SortKey = "reach" | "saves" | "publishedAt";
 export type SortDirection = "asc" | "desc";
@@ -69,6 +68,86 @@ function TypeBadge({ type }: { type: string }) {
       <Icon className="size-3 text-accent-400" aria-hidden />
       {normalized}
     </span>
+  );
+}
+
+/**
+ * Placeholder shown while there is no picture: before one is known to exist,
+ * and after the proxy answers 410 (post deleted) or an error.
+ */
+function MediaFallback({
+  type,
+  variant,
+}: {
+  type: string;
+  variant: "top" | "grid";
+}) {
+  const normalized = normalizeMediaType(type);
+  const Icon =
+    normalized === "REEL" ? Film : normalized === "CAROUSEL" ? Layers : Camera;
+
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-bg-900 via-surface to-bg-950 p-4">
+      {variant === "top" && (
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(88,196,255,0.08),transparent_50%)]" />
+      )}
+      <div
+        className={cn(
+          "flex items-center justify-center rounded-xl border border-line transition-colors",
+          variant === "top"
+            ? "size-12 bg-surface-raised/80 text-accent-400 shadow-inner"
+            : "size-10 bg-surface-raised/60 text-text-muted group-hover:border-accent-400/30 group-hover:text-accent-400",
+        )}
+      >
+        <Icon className={variant === "top" ? "size-6" : "size-5"} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Post picture. The src is the /ig-media/ proxy, never a stored Instagram CDN
+ * link — those expire. A deleted post is not even requested; F2 puts its own
+ * marking on this placeholder.
+ */
+function PostVisual({
+  item,
+  variant,
+}: {
+  item: MediaItem;
+  variant: "top" | "grid";
+}) {
+  const src = item.deletedAt === undefined ? igMediaSrc(item.mediaId) : undefined;
+  const [status, setStatus] = useState<"loading" | "loaded" | "error">(
+    src ? "loading" : "error",
+  );
+
+  return (
+    <>
+      {src && status !== "error" && (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={src}
+          alt={item.caption || "Instagram objava"}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setStatus("loaded")}
+          onError={() => setStatus("error")}
+          className={cn(
+            "size-full object-cover transition-transform duration-300 group-hover:scale-105",
+            status === "loading" && "opacity-0",
+          )}
+        />
+      )}
+
+      {status === "loading" && (
+        <Skeleton className="absolute inset-0 size-full rounded-none" />
+      )}
+
+      {status === "error" && (
+        <MediaFallback type={item.mediaType} variant={variant} />
+      )}
+    </>
   );
 }
 
@@ -227,8 +306,6 @@ function TopContentCard({
   item: MediaItem;
   rank: number;
 }) {
-  const normalizedType = normalizeMediaType(item.mediaType);
-
   return (
     <Card
       className={cn(
@@ -240,27 +317,7 @@ function TopContentCard({
     >
       {/* Visual Header / Placeholder */}
       <div className="relative aspect-[16/9] w-full overflow-hidden bg-bg-900 border-b border-line-soft">
-        {item.thumbnailUrl ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={item.thumbnailUrl}
-            alt={item.caption || "Instagram objava"}
-            className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <div className="relative flex size-full flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-bg-900 via-surface to-bg-950 p-4">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(88,196,255,0.08),transparent_50%)]" />
-            <div className="flex size-12 items-center justify-center rounded-xl bg-surface-raised/80 border border-line text-accent-400 shadow-inner">
-              {normalizedType === "REEL" ? (
-                <Film className="size-6" />
-              ) : normalizedType === "CAROUSEL" ? (
-                <Layers className="size-6" />
-              ) : (
-                <Camera className="size-6" />
-              )}
-            </div>
-          </div>
-        )}
+        <PostVisual item={item} variant="top" />
 
         {/* Rank Badge */}
         <div className="absolute top-3 left-3">
@@ -360,32 +417,11 @@ function TopContentCard({
  * Standard Post Card for the 30-post grid.
  */
 function PostCard({ item }: { item: MediaItem }) {
-  const normalizedType = normalizeMediaType(item.mediaType);
-
   return (
     <Card className="group relative flex flex-col justify-between overflow-hidden p-0 shadow-card hover-lift">
       {/* Header Visual / Placeholder */}
       <div className="relative aspect-[16/10] w-full overflow-hidden bg-bg-900 border-b border-line-soft">
-        {item.thumbnailUrl ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={item.thumbnailUrl}
-            alt={item.caption || "Instagram objava"}
-            className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <div className="relative flex size-full flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-bg-900 via-surface to-bg-950 p-4">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-surface-raised/60 border border-line text-text-muted group-hover:text-accent-400 group-hover:border-accent-400/30 transition-colors">
-              {normalizedType === "REEL" ? (
-                <Film className="size-5" />
-              ) : normalizedType === "CAROUSEL" ? (
-                <Layers className="size-5" />
-              ) : (
-                <Camera className="size-5" />
-              )}
-            </div>
-          </div>
-        )}
+        <PostVisual item={item} variant="grid" />
 
         {/* Badges on Visual */}
         <div className="absolute top-2.5 left-2.5">
