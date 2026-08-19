@@ -48,6 +48,7 @@ export const mediaRowValidator = v.object({
   mediaUrl: v.optional(v.string()),
   thumbnailUrl: v.optional(v.string()),
   children: v.optional(v.array(mediaChildValidator)),
+  commentsEnabled: v.optional(v.boolean()),
 });
 
 // ── Internal Queries & Mutations (for Sync & Token Actions) ──────────────────
@@ -207,6 +208,11 @@ export const upsertMediaBatch = internalMutation({
           thumbnailUrl: row.thumbnailUrl,
           children: row.children,
           mediaUrlSyncedAt: row.syncedAt,
+          // Absent from the answer means "Instagram did not say", which is not
+          // the same as "off" — the stored answer stands until it does say.
+          ...(row.commentsEnabled !== undefined
+            ? { commentsEnabled: row.commentsEnabled }
+            : {}),
           // Instagram still lists it, so an earlier "gone" verdict is void.
           deletedAt: undefined,
         });
@@ -355,6 +361,10 @@ const mediaViewValidator = v.object({
   views: v.number(),
   syncedAt: v.number(),
   deletedAt: v.optional(v.number()),
+  // Whether Instagram currently accepts comments. Undefined means it has not
+  // been asked yet, which the switch on the card shows as its own state rather
+  // than pretending commenting is off.
+  commentsEnabled: v.optional(v.boolean()),
   // Slide IDENTITY only, no links — enough for the carousel swiper to know how
   // many frames there are and what to ask the proxy for.
   children: v.optional(
@@ -403,6 +413,9 @@ export const mediaList = query({
       views: r.views,
       syncedAt: r.syncedAt,
       ...(r.deletedAt !== undefined ? { deletedAt: r.deletedAt } : {}),
+      ...(r.commentsEnabled !== undefined
+        ? { commentsEnabled: r.commentsEnabled }
+        : {}),
       ...(r.children
         ? {
             children: r.children.map((c) => ({

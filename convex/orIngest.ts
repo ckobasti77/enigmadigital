@@ -20,13 +20,17 @@ type WorkspaceLookup =
   | { ok: false; reason: "ignored_no_workspace" | "ignored_engine_off" };
 
 /**
- * Map the Instagram account id on a webhook to a workspace whose OpenReply
- * engine is switched on. Shared by both ingest paths — comments and DMs.
+ * Map the Instagram account id on a webhook to the workspace that owns it.
+ *
+ * Split out of `resolveEnabledWorkspace` for F4: comment moderation stores
+ * every comment regardless of whether the OpenReply engine is running, so the
+ * "which workspace" question and the "is the engine on" question stopped being
+ * the same question.
  */
-async function resolveEnabledWorkspace(
+async function resolveWorkspace(
   ctx: MutationCtx,
   igUserId: string,
-): Promise<WorkspaceLookup> {
+): Promise<Id<"workspaces"> | null> {
   const igConnections = await ctx.db
     .query("connections")
     .withIndex("by_provider", (q) => q.eq("provider", "meta_ig"))
@@ -37,10 +41,16 @@ async function resolveEnabledWorkspace(
   );
   if (!igConn) {
     console.warn("OpenReply: nema meta_ig konekcije za IG nalog", igUserId);
-    return { ok: false, reason: "ignored_no_workspace" };
+    return null;
   }
-  const workspaceId = igConn.workspaceId;
+  return igConn.workspaceId;
+}
 
+/** Is this workspace's OpenReply engine switched on? */
+async function isEngineOn(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+): Promise<boolean> {
   const orConn = await ctx.db
     .query("connections")
     .withIndex("by_workspace_provider", (q) =>
@@ -48,10 +58,24 @@ async function resolveEnabledWorkspace(
     )
     .first();
 
-  if (orConn === null || orConn.status !== "active") {
+  return orConn !== null && orConn.status === "active";
+}
+
+/**
+ * Map the Instagram account id on a webhook to a workspace whose OpenReply
+ * engine is switched on. Shared by both ingest paths — comments and DMs.
+ */
+async function resolveEnabledWorkspace(
+  ctx: MutationCtx,
+  igUserId: string,
+): Promise<WorkspaceLookup> {
+  const workspaceId = await resolveWorkspace(ctx, igUserId);
+  if (workspaceId === null) {
+    return { ok: false, reason: "ignored_no_workspace" };
+  }
+  if (!(await isEngineOn(ctx, workspaceId))) {
     return { ok: false, reason: "ignored_engine_off" };
   }
-
   return { ok: true, workspaceId };
 }
 
@@ -141,14 +165,41 @@ export const ingestComment = internalMutation({
   },
   returns: ingestResultValidator,
   handler: async (ctx, args) => {
-    // 1-2. Resolve the workspace and make sure its engine is on
-    const lookup = await resolveEnabledWorkspace(ctx, args.igUserId);
-    if (!lookup.ok) {
-      return lookup.reason;
+    // 1. Whose account is this?
+    const workspaceId = await resolveWorkspace(ctx, args.igUserId);
+    if (workspaceId === null) {
+      return "ignored_no_workspace";
     }
-    const workspaceId = lookup.workspaceId;
 
-    // 3. Dedup: query orProcessedComments by workspaceId + commentId
+    // 2. Write the comment down BEFORE asking whether the engine is on.
+    //
+    // Moderation (F4) is not an automation feature: a workspace that never
+    // switched OpenReply on still has people commenting under its posts, and
+    // the moderation screen is the whole reason it would open this app. Tying
+    // the record to the engine would leave that screen empty for exactly the
+    // accounts that need it most.
+    //
+    // `mediaId` is what ties a comment to a post; a webhook without one has
+    // nothing to moderate under, so it is left to the automation path alone.
+    if (args.mediaId !== undefined) {
+      await ctx.runMutation(internal.igCommentsStore.recordWebhookComment, {
+        workspaceId,
+        mediaId: args.mediaId,
+        commentId: args.commentId,
+        fromId: args.commenterId,
+        ...(args.commenterUsername !== undefined
+          ? { username: args.commenterUsername }
+          : {}),
+        text: args.text,
+      });
+    }
+
+    // 3. From here on it is the engine's business, and it may be switched off.
+    if (!(await isEngineOn(ctx, workspaceId))) {
+      return "ignored_engine_off";
+    }
+
+    // 4. Dedup: query orProcessedComments by workspaceId + commentId
     const existing = await ctx.db
       .query("orProcessedComments")
       .withIndex("by_workspace_comment", (q) =>
@@ -167,7 +218,7 @@ export const ingestComment = internalMutation({
       processedAt: now,
     });
 
-    // 4. Load active automations for the workspace
+    // 5. Load active automations for the workspace
     const automations = await ctx.db
       .query("orAutomations")
       .withIndex("by_workspace_active", (q) =>
@@ -175,7 +226,7 @@ export const ingestComment = internalMutation({
       )
       .collect();
 
-    // 5. Pick the first automation that matches BOTH post scope and keywords
+    // 6. Pick the first automation that matches BOTH post scope and keywords
     let matchedAutomation: Doc<"orAutomations"> | null = null;
     let matchedKeyword: string | null = null;
 
@@ -205,7 +256,7 @@ export const ingestComment = internalMutation({
 
     const date = utcDateKey(now);
 
-    // 6. If none matched: insert an orDmLogs row with status: "skipped_no_match"
+    // 7. If none matched: insert an orDmLogs row with status: "skipped_no_match"
     if (matchedAutomation === null || matchedKeyword === null) {
       await ctx.db.insert("orDmLogs", {
         workspaceId,
@@ -223,7 +274,7 @@ export const ingestComment = internalMutation({
       return "no_match";
     }
 
-    // 7. If one matched: insert an orDmLogs row with status: "pending"
+    // 8. If one matched: insert an orDmLogs row with status: "pending"
     const dmLogId = await ctx.db.insert("orDmLogs", {
       workspaceId,
       source: "comment",

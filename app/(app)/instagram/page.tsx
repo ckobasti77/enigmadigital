@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { PenSquare } from "lucide-react";
+import { MessagesSquare, PenSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   InstagramDashboard,
@@ -19,14 +19,27 @@ export default function InstagramPage() {
           </p>
         </div>
 
-        <Button
-          render={<Link href="/instagram/objavi" />}
-          size="lg"
-          className="shrink-0 font-semibold"
-        >
-          <PenSquare data-icon="inline-start" />
-          Nova objava
-        </Button>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Button
+            render={<Link href="/instagram/komentari" />}
+            nativeButton={false}
+            variant="outline"
+            size="lg"
+          >
+            <MessagesSquare data-icon="inline-start" />
+            Komentari
+          </Button>
+
+          <Button
+            render={<Link href="/instagram/objavi" />}
+            nativeButton={false}
+            size="lg"
+            className="font-semibold"
+          >
+            <PenSquare data-icon="inline-start" />
+            Nova objava
+          </Button>
+        </div>
       </div>
 
       <div className="mt-8 flex flex-1 flex-col">

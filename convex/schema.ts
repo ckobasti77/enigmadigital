@@ -137,6 +137,10 @@ export default defineSchema({
     // Set when Instagram reports the media is gone; cleared by the next sync
     // that still sees it.
     deletedAt: v.optional(v.number()),
+    // Whether Instagram currently accepts comments on this post (F4). Optional
+    // because rows written before moderation existed never asked, and "we do
+    // not know yet" is not the same statement as "comments are off".
+    commentsEnabled: v.optional(v.boolean()),
   })
     .index("by_workspace_media", ["workspaceId", "mediaId"]) // upsert by mediaId
     .index("by_workspace_published", ["workspaceId", "publishedAt"])
@@ -208,6 +212,77 @@ export default defineSchema({
     // every batch with long-since-swept posts and never reach the ones that
     // still cost disk.
     .index("by_pending_files_created", ["filesDeletedAt", "createdAt"]),
+
+  // ── Instagram komentari (F4) ────────────────────────────────────────────────
+  // Every comment we have ever seen on our own posts — not only the ones that
+  // happened to trigger an automation.
+  //
+  // Until now a comment was written down only when the OpenReply engine reacted
+  // to it (`orDmLogs`), which makes that table a log of the ENGINE, not of the
+  // account. Moderation needs the opposite: the full list, including the
+  // comments nothing answered, because those are exactly the ones an operator
+  // opens this screen to deal with.
+  //
+  // Rows are never removed. A comment that disappears from Instagram — deleted
+  // by us here, or by its author over there — gets `deletedAt` and stays, the
+  // same rule the posts follow in `igMediaStats`.
+  igComments: defineTable({
+    workspaceId: v.id("workspaces"),
+    mediaId: v.string(),
+    commentId: v.string(),
+    // Set on a reply; absent on a top-level comment. A reply's own replies do
+    // not exist on Instagram — the tree is exactly two levels deep.
+    parentCommentId: v.optional(v.string()),
+    text: v.string(),
+    username: v.string(),
+    // Instagram only hands out the commenter's id on the webhook. The comments
+    // edge answers with a username and nothing else, so this stays optional.
+    fromId: v.optional(v.string()),
+    timestamp: v.number(),
+    likeCount: v.optional(v.number()), // read-only; the API cannot set it
+    hidden: v.boolean(),
+    isOurs: v.boolean(), // written by the connected account
+    repliedByUs: v.boolean(),
+    // Gone from Instagram: deleted from this screen, or by whoever wrote it.
+    deletedAt: v.optional(v.number()),
+    syncedAt: v.number(),
+  })
+    .index("by_workspace_media", ["workspaceId", "mediaId"])
+    .index("by_workspace_comment", ["workspaceId", "commentId"]) // upsert key
+    .index("by_workspace_timestamp", ["workspaceId", "timestamp"]),
+
+  // Who did what to a comment, and when (F4).
+  //
+  // Moderation is the one place in this app where a person, not a cron, makes
+  // something disappear from a public account. Hiding is reversible and
+  // deleting is not, so both leave a row saying which member did it — the
+  // question after the fact is never "what does the state look like now" but
+  // "who did this and when".
+  //
+  // A refusal is recorded too. "The reply never went out and here is what
+  // Instagram said" is precisely what a log holding only successes loses.
+  igModerationLogs: defineTable({
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    action: v.union(
+      v.literal("reply"),
+      v.literal("hide"),
+      v.literal("unhide"),
+      v.literal("delete"),
+      v.literal("comments_on"),
+      v.literal("comments_off"),
+    ),
+    commentId: v.optional(v.string()), // absent on the two post-level actions
+    mediaId: v.optional(v.string()),
+    // What the action was about: the reply that was sent, or the text of the
+    // comment that was hidden or deleted. Kept because a deleted comment has
+    // nowhere else left to be read from.
+    text: v.optional(v.string()),
+    username: v.optional(v.string()),
+    status: v.union(v.literal("done"), v.literal("failed")),
+    errorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_workspace_created", ["workspaceId", "createdAt"]),
 
   // OpenReply snapshot (source of truth stays its own Postgres).
   orCampaignStats: defineTable({

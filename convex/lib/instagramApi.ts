@@ -160,7 +160,7 @@ export function buildMeMediaUrl(
  */
 export const MEDIA_LIST_FIELDS =
   "id,caption,media_type,media_product_type,permalink,media_url,thumbnail_url," +
-  "timestamp,like_count,comments_count," +
+  "timestamp,like_count,comments_count,is_comment_enabled," +
   "children{id,media_type,media_url,thumbnail_url}";
 
 /**
@@ -362,6 +362,129 @@ export function buildCommentRepliesUrl(
   return `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${commentId}/replies`;
 }
 
+// -- Comment moderation (F4) -------------------------------------------------
+//
+// Everything below needs `instagram_business_manage_comments`, which is already
+// in INSTAGRAM_SCOPES. A token minted before that entry existed does not carry
+// it and no refresh adds it -- the account has to be reconnected. That is what
+// `translateModerationError` (lib/igComments.ts) says out loud when Instagram
+// answers with (#10).
+//
+// One capability people expect and Instagram does NOT have: liking a comment or
+// a post. There is no endpoint for it at any permission level, so `like_count`
+// below is a number to read and nothing more.
+
+/**
+ * Fields asked for on every comment.
+ *
+ * `replies` is an edge, and it is nested here rather than fetched per comment
+ * because a post with forty comments would otherwise cost forty extra calls.
+ * The tree is exactly two levels deep on Instagram -- a reply has no replies of
+ * its own -- so one level of nesting is the whole tree.
+ */
+export const COMMENT_FIELDS =
+  "id,text,timestamp,username,like_count,hidden," +
+  "replies{id,text,timestamp,username,like_count,hidden}";
+
+/**
+ * Build endpoint URL for listing the comments on one of our own posts.
+ */
+export function buildMediaCommentsUrl(
+  mediaId: string,
+  accessToken: string,
+  limit: number = 50,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(
+    `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${mediaId}/comments`,
+  );
+  url.searchParams.set("fields", COMMENT_FIELDS);
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/**
+ * Build endpoint URL of a single comment node.
+ *
+ * POST with `hide=true|false` hides or shows it; DELETE removes it for good.
+ * Both are the same address, which is why one builder serves both.
+ */
+export function buildCommentNodeUrl(
+  commentId: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  return `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${commentId}`;
+}
+
+/**
+ * Build endpoint URL of a single media node, for `comment_enabled=true|false`.
+ *
+ * Note the singular: the field WRITTEN is `comment_enabled`, while the field
+ * READ back off the media is `is_comment_enabled`. Instagram named them
+ * differently and getting it wrong fails quietly, so both names are pinned in
+ * this file rather than spelled out at the call sites.
+ */
+export function buildMediaNodeUrl(
+  mediaId: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  return `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${mediaId}`;
+}
+
+/** One comment as `/{ig-media-id}/comments` returns it. */
+export interface RawComment {
+  id?: string;
+  text?: string;
+  timestamp?: string;
+  username?: string;
+  like_count?: number;
+  hidden?: boolean;
+  replies?: { data?: RawComment[] };
+}
+
+/** What `GET /{ig-media-id}/comments` answers with. */
+export interface RawCommentsResponse {
+  data?: RawComment[];
+  paging?: {
+    cursors?: { before?: string; after?: string };
+    next?: string;
+  };
+  error?: {
+    message: string;
+    type: string;
+    code: number;
+    error_subcode?: number;
+  };
+}
+
+/** What a moderation write answers with. */
+export interface RawModerationResponse {
+  id?: string;
+  success?: boolean;
+  error?: {
+    message: string;
+    type: string;
+    code: number;
+    error_subcode?: number;
+  };
+}
+
+/** Numeric `error.code` out of a Graph API response, in either shape. */
+export function extractGraphApiErrorCode(body: unknown): number | undefined {
+  let parsed: unknown = body;
+  if (typeof body === "string") {
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      return undefined;
+    }
+  }
+  if (typeof parsed !== "object" || parsed === null) return undefined;
+  const code = (parsed as { error?: { code?: unknown } }).error?.code;
+  return typeof code === "number" ? code : undefined;
+}
+
 // ── Metric Matrix Per Media Type ─────────────────────────────────────────────
 
 /**
@@ -472,6 +595,7 @@ export interface RawMediaItem {
   timestamp?: string;
   like_count?: number;
   comments_count?: number;
+  is_comment_enabled?: boolean; // false once commenting is switched off
   children?: { data?: RawMediaChild[] };
 }
 

@@ -119,6 +119,12 @@ const EXTRA_SCREENS: Screen[] = [
     title: "Nova objava",
     range: false,
   },
+  {
+    href: "/instagram/komentari",
+    section: "Kanali",
+    title: "Moderacija komentara",
+    range: false,
+  },
 ];
 
 /**

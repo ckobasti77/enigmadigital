@@ -25,12 +25,19 @@ import {
   extractGraphApiError,
   isMissingObjectError,
   normalizeMediaChildren,
+  buildMediaCommentsUrl,
   type RawOAuthTokenResponse,
   type RawLongLivedTokenResponse,
   type RawUserProfile,
   type RawInsightsResponse,
   type RawMediaListResponse,
+  type RawCommentsResponse,
 } from "./lib/instagramApi";
+import {
+  COMMENTS_PER_MEDIA,
+  COMMENT_SYNC_WINDOW_MS,
+  normalizeComments,
+} from "./lib/igComments";
 
 /**
  * ============================================================================
@@ -55,6 +62,14 @@ const REFRESH_THRESHOLD_MS = 10 * 24 * 60 * 60 * 1000; // 10 days before expiry 
  * batch of posts is taken down at once, and the rest are picked up next run.
  */
 const DELETION_CHECK_LIMIT = 25;
+
+/**
+ * How many posts one sync pulls comments for. The window is 30 days (F4), and
+ * this cap is what keeps a very busy month from turning one run into a hundred
+ * extra calls; the posts are walked newest first, so what falls off the end is
+ * always the oldest.
+ */
+const COMMENT_MEDIA_LIMIT = 20;
 
 // ── OAuth Handshake ──────────────────────────────────────────────────────────
 
@@ -554,11 +569,16 @@ export const syncIgInsights = internalAction({
 
         // 1. Fetch User Profile for followers_count
         let followersCount = 0;
+        // Our own handle. The comments edge identifies a commenter by username
+        // and nothing else, so this is the only way to tell our own replies
+        // apart from everybody else's (F4).
+        let ourUsername: string | undefined;
         try {
           const meRes = await fetch(buildMeUrl(token, version));
           if (meRes.ok) {
             const meData = (await meRes.json()) as RawUserProfile;
             followersCount = meData.followers_count ?? 0;
+            ourUsername = meData.username;
           } else {
             const errBody = await meRes.text().catch(() => "");
             console.warn("Instagram /me query warning:", extractGraphApiError(errBody));
@@ -688,6 +708,10 @@ export const syncIgInsights = internalAction({
               ? { thumbnailUrl: item.thumbnail_url }
               : {}),
             ...(children ? { children } : {}),
+            // Only when Instagram actually said so; see the upsert.
+            ...(typeof item.is_comment_enabled === "boolean"
+              ? { commentsEnabled: item.is_comment_enabled }
+              : {}),
           });
         }
 
@@ -748,7 +772,71 @@ export const syncIgInsights = internalAction({
           }
         }
 
-        return accountWritten + mediaWritten + deletedMarked;
+        // 7. Comments on recent posts (F4).
+        //
+        // The webhook already delivers every NEW comment within seconds, so
+        // this pass exists for everything the webhook cannot know: comments
+        // left before the account was connected, edits, hides performed in the
+        // Instagram app, and — the one that matters most — deletions, which are
+        // never announced at all.
+        //
+        // Deliberately last, and deliberately quiet. Insights are what this run
+        // is for; a post whose comments cannot be read must not cost the run
+        // its numbers.
+        let commentsWritten = 0;
+        const commentCutoff = now - COMMENT_SYNC_WINDOW_MS;
+        const recent = mediaRows
+          .filter((r) => r.publishedAt >= commentCutoff)
+          .sort((a, b) => b.publishedAt - a.publishedAt)
+          .slice(0, COMMENT_MEDIA_LIMIT);
+
+        for (const row of recent) {
+          try {
+            const res = await fetch(
+              buildMediaCommentsUrl(
+                row.mediaId,
+                token,
+                COMMENTS_PER_MEDIA,
+                version,
+              ),
+            );
+            if (!res.ok) {
+              const errBody = await res.text().catch(() => "");
+              console.warn(
+                "Instagram comments warning:",
+                extractGraphApiError(errBody),
+              );
+              continue;
+            }
+
+            const json = (await res.json()) as RawCommentsResponse;
+            const rows = normalizeComments(json.data, ourUsername);
+
+            // Absence only proves a deletion when we saw the WHOLE list. A
+            // `paging.next` means there is another page, and a comment missing
+            // from page one says nothing at all — same rule the post sync
+            // follows for a post that fell off the end of its page.
+            const complete = json.paging?.next === undefined;
+
+            commentsWritten += await ctx.runMutation(
+              internal.igCommentsStore.upsertCommentBatch,
+              {
+                workspaceId,
+                mediaId: row.mediaId,
+                rows,
+                complete,
+                syncedAt: now,
+              },
+            );
+          } catch (err) {
+            console.warn(
+              "Instagram comments fetch failed:",
+              sanitizeSyncError(err),
+            );
+          }
+        }
+
+        return accountWritten + mediaWritten + deletedMarked + commentsWritten;
       },
     );
   },

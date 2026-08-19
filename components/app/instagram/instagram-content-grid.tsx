@@ -30,6 +30,7 @@ import { formatNumber } from "@/lib/format";
 import { igMediaSrc } from "@/lib/ig-media";
 import { cn } from "@/lib/utils";
 import { CarouselSwiper } from "./carousel-swiper";
+import { PostCommentsPanel } from "./post-comments-panel";
 import {
   MediaFallback,
   PostImage,
@@ -576,6 +577,14 @@ function PostCard({ item }: { item: MediaItem }) {
             )
           )}
         </div>
+
+        {/* Moderation, on the post it is about (F4). */}
+        <PostCommentsPanel
+          mediaId={item.mediaId}
+          commentCount={item.comments}
+          commentsEnabled={item.commentsEnabled}
+          deleted={deleted}
+        />
       </div>
     </Card>
   );
