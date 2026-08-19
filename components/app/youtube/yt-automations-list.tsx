@@ -33,6 +33,7 @@ import {
   PillToggle,
 } from "./yt-automation-editor-dialog";
 import { cn } from "@/lib/utils";
+import { FeedbackNote } from "@/components/app/feedback";
 
 type YtAutomationView = FunctionReturnType<
   typeof api.ytAutomationsApi.listAutomations
@@ -108,9 +109,7 @@ export function YtAutomationsList({
   return (
     <div className="flex flex-col gap-4">
       {errorMsg && (
-        <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-          {errorMsg}
-        </div>
+        <FeedbackNote tone="danger" title={errorMsg} />
       )}
 
       {automations.map((automation) => (
@@ -273,7 +272,7 @@ function AutomationCard({
         )}
 
         <div className="lg:justify-self-end">
-          <p className="heading-caps text-xs font-medium text-text-muted">
+          <p className="heading-caps text-micro font-medium text-text-muted">
             Odgovora (7 dana)
           </p>
           <p className="mt-0.5 font-mono text-lg tabular-nums text-accent-400">
@@ -332,7 +331,7 @@ function DeleteConfirmDialog({
             size="sm"
             onClick={onConfirm}
             disabled={busy}
-            className="bg-danger font-semibold text-surface-dark hover:bg-danger/90"
+            className="bg-danger font-semibold text-text-inverse hover:bg-danger/90"
           >
             {busy ? (
               <>

@@ -72,7 +72,7 @@ export function AdsDashboard() {
               >
                 <Swords className="size-3 text-accent-400" />
                 <span>{b.adSetName}</span>
-                <span className="text-[0.625rem] text-text-muted font-mono">
+                <span className="text-micro text-text-muted font-mono">
                   ({b.adsCount} v)
                 </span>
               </button>

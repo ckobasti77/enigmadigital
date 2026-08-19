@@ -48,7 +48,9 @@ import {
 import { PillToggle } from "./yt-automation-editor-dialog";
 import type { VideoItem } from "./youtube-videos-grid";
 import { formatNumber } from "@/lib/format";
+import { DUR_UI, EASE_UI } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { FeedbackNote } from "@/components/app/feedback";
 
 gsap.registerPlugin(useGSAP);
 
@@ -301,9 +303,7 @@ function YtCaptionsContent({
       </DialogHeader>
 
       {actionError && (
-        <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs leading-relaxed text-danger">
-          {actionError}
-        </div>
+        <FeedbackNote tone="danger" title={actionError} />
       )}
       {notice && (
         <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-xs text-success">
@@ -341,9 +341,7 @@ function YtCaptionsContent({
           </div>
 
           {listError !== null ? (
-            <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs leading-relaxed text-danger">
-              {listError}
-            </div>
+            <FeedbackNote tone="danger" title={listError} />
           ) : tracks === null ? (
             <div className="space-y-1.5">
               <Skeleton className="h-9 w-full rounded-lg" />
@@ -412,7 +410,7 @@ function YtCaptionsContent({
                   replacementProblem !== null ||
                   !affordable(quota, QUOTA_COST.captionsUpdate)
                 }
-                className="bg-accent-400 font-semibold text-surface-dark hover:bg-accent-400/90"
+                className="font-semibold"
               >
                 {submitting ? (
                   <>
@@ -466,7 +464,7 @@ function YtCaptionsContent({
                 disabled={
                   submitting || !affordable(quota, QUOTA_COST.captionsDelete)
                 }
-                className="bg-danger font-semibold text-surface-dark hover:bg-danger/90"
+                className="bg-danger font-semibold text-text-inverse hover:bg-danger/90"
               >
                 {submitting ? (
                   <>
@@ -598,7 +596,7 @@ function YtCaptionsContent({
                   name.length > CAPTION_NAME_MAX ||
                   !affordable(quota, QUOTA_COST.captionsInsert)
                 }
-                className="bg-accent-400 font-semibold text-surface-dark hover:bg-accent-400/90"
+                className="font-semibold"
               >
                 {submitting ? (
                   <>
@@ -942,15 +940,27 @@ function CostBar({
     limit > 0 ? Math.min(1 - usedRatio, pending / limit) : 0;
   const pendingWidth = `${(pendingRatio * 100).toFixed(1)}%`;
 
+  const played = useRef(false);
+
   useGSAP(
     () => {
+      const el = ref.current;
+      if (!el) return;
+      const first = !played.current;
+      played.current = true;
+
       const mm = gsap.matchMedia();
       mm.add("(prefers-reduced-motion: no-preference)", () => {
-        gsap.fromTo(
-          ref.current,
-          { width: 0 },
-          { width: pendingWidth, duration: 0.5, ease: "expo.out" },
-        );
+        // Samo prvi prikaz kreće od nule. Kada stigne nova procena iz
+        // Convex-a, traka klizi od zatečene širine — inače bi se pri svakom
+        // ažuriranju vraćala na nulu i ponovo rasla pred korisnikom.
+        if (first) gsap.set(el, { width: 0 });
+        gsap.to(el, {
+          width: pendingWidth,
+          duration: DUR_UI,
+          ease: EASE_UI,
+          overwrite: "auto",
+        });
       });
     },
     { dependencies: [pendingWidth] },

@@ -52,7 +52,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatNumber } from "@/lib/format";
+import { DUR_UI, EASE_UI } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { FeedbackNote } from "@/components/app/feedback";
 
 gsap.registerPlugin(useGSAP);
 
@@ -104,7 +106,7 @@ export function YtUploadButton() {
         type="button"
         size="sm"
         onClick={() => setOpen(true)}
-        className="h-auto gap-1.5 bg-accent-400 px-3 py-2 text-xs font-semibold text-surface-dark hover:bg-accent-400/90"
+        className="h-auto gap-1.5 bg-accent-400 px-3 py-2 text-xs font-semibold text-text-inverse hover:bg-accent-400/90"
       >
         <Upload className="size-3.5" aria-hidden />
         <span>Pošalji video</span>
@@ -363,9 +365,7 @@ function YtUploadForm({
       </DialogHeader>
 
       {errorMsg && (
-        <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs leading-relaxed text-danger">
-          {errorMsg}
-        </div>
+        <FeedbackNote tone="danger" title={errorMsg} />
       )}
 
       {notConnected && (
@@ -552,7 +552,7 @@ function YtUploadForm({
             size="sm"
             onClick={() => void handleSend()}
             disabled={!canSend}
-            className="bg-accent-400 font-semibold text-surface-dark hover:bg-accent-400/90"
+            className="font-semibold"
           >
             {uploading ? "Šaljem…" : "Pošalji na YouTube"}
           </Button>
@@ -812,7 +812,12 @@ function ProgressRail({ ratio }: { ratio: number }) {
     () => {
       const mm = gsap.matchMedia();
       mm.add("(prefers-reduced-motion: no-preference)", () => {
-        gsap.to(ref.current, { width, duration: 0.4, ease: "power2.out" });
+        gsap.to(ref.current, {
+          width,
+          duration: DUR_UI,
+          ease: EASE_UI,
+          overwrite: "auto",
+        });
       });
     },
     { dependencies: [width] },

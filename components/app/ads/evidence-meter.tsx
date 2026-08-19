@@ -68,7 +68,7 @@ export function EvidenceMeter({
                 className={cn(
                   "group inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-micro font-medium transition-colors cursor-pointer border",
                   isPending
-                    ? "border-amber-400/30 bg-amber-400/10 text-amber-400 hover:bg-amber-400/20"
+                    ? "border-warning/30 bg-warning/10 text-warning hover:bg-warning/20"
                     : isReliable
                       ? "border-success/30 bg-success/10 text-success hover:bg-success/20"
                       : "border-warning/30 bg-warning/10 text-warning hover:bg-warning/20",
@@ -78,7 +78,7 @@ export function EvidenceMeter({
           >
             {isPending ? (
               <>
-                <Clock className="size-3 shrink-0 text-amber-400" />
+                <Clock className="size-3 shrink-0 text-warning" />
                 <span>Čeka aktivaciju</span>
               </>
             ) : isReliable ? (
@@ -103,7 +103,7 @@ export function EvidenceMeter({
             <PopoverHeader>
               <div className="flex items-center gap-2">
                 {isPending ? (
-                  <Clock className="size-4 text-amber-400" />
+                  <Clock className="size-4 text-warning" />
                 ) : isReliable ? (
                   <CheckCircle2 className="size-4 text-success" />
                 ) : (
@@ -186,7 +186,7 @@ export function EvidenceMeter({
         </Popover>
 
         {showDetails && (
-          <span className="text-[0.625rem] font-mono tabular-nums text-text-muted">
+          <span className="text-micro font-mono tabular-nums text-text-muted">
             {sampleProgressPct}% praga
           </span>
         )}
@@ -205,7 +205,7 @@ export function EvidenceMeter({
               style={{ width: `${impPct}%` }}
             />
           </div>
-          <span className="text-[0.5625rem] font-mono tabular-nums text-text-muted shrink-0 w-12 text-right">
+          <span className="text-micro font-mono tabular-nums text-text-muted shrink-0 w-12 text-right">
             {formatNumber(impressions)} imp
           </span>
         </div>
@@ -221,7 +221,7 @@ export function EvidenceMeter({
               style={{ width: `${clickPct}%` }}
             />
           </div>
-          <span className="text-[0.5625rem] font-mono tabular-nums text-text-muted shrink-0 w-12 text-right">
+          <span className="text-micro font-mono tabular-nums text-text-muted shrink-0 w-12 text-right">
             {clicks} klik
           </span>
         </div>

@@ -270,7 +270,7 @@ export function HookBattleView({
               className={cn(
                 "h-7 text-xs transition-colors",
                 isPinned
-                  ? "bg-accent-400 text-slate-950 hover:bg-accent-300 font-semibold"
+                  ? "bg-primary text-primary-foreground hover:bg-primary/80 font-semibold"
                   : "border-line-soft bg-surface text-text-muted hover:text-foreground",
               )}
             >
@@ -296,10 +296,10 @@ export function HookBattleView({
                 <Swords className="size-4" />
               </span>
               <div>
-                <p className="heading-caps text-[0.625rem] font-medium text-accent-400">
+                <p className="heading-caps text-micro font-medium text-accent-400">
                   Hook Battle · Poređenje kreativa
                 </p>
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground">
                   {adSet.name}
                 </h1>
               </div>
@@ -329,7 +329,7 @@ export function HookBattleView({
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft/60 pb-3">
             <div className="flex items-center gap-2">
               <Sparkles className="size-4 text-accent-400" />
-              <span className="text-xs font-bold uppercase tracking-wider text-accent-400">
+              <span className="text-micro font-bold heading-caps text-accent-400">
                 Presuda analize
               </span>
             </div>
@@ -441,7 +441,7 @@ export function HookBattleView({
                   >
                     {/* Leader Top Ribbon */}
                     {isLeader && (
-                      <div className="bg-accent-400 text-slate-950 text-micro font-bold py-1 px-3 flex items-center justify-center gap-1.5 uppercase tracking-wider">
+                      <div className="bg-accent-400 text-text-inverse text-micro font-bold py-1 px-3 flex items-center justify-center gap-1.5 heading-caps">
                         <Crown className="size-3.5 fill-current" />
                         <span>Vodeći hook</span>
                       </div>
@@ -463,17 +463,17 @@ export function HookBattleView({
                         ) : (
                           <div className="flex flex-col items-center gap-1 text-text-muted">
                             <Play className="size-6 text-text-muted/60" />
-                            <span className="text-[0.625rem]">Video kreativa</span>
+                            <span className="text-micro">Video kreativa</span>
                           </div>
                         )}
 
-                        <div className="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-slate-950/85 px-2 py-0.5 text-[0.625rem] font-medium text-foreground backdrop-blur-xs border border-white/10">
+                        <div className="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-bg-950/85 px-2 py-0.5 text-micro font-medium text-foreground backdrop-blur-xs border border-material-edge">
                           <span
                             className={cn(
                               "size-1.5 rounded-full",
                               version.status === "ACTIVE"
                                 ? "bg-success"
-                                : "bg-amber-400 animate-pulse",
+                                : "bg-warning motion-safe:animate-pulse",
                             )}
                           />
                           <span>
@@ -484,7 +484,7 @@ export function HookBattleView({
                         </div>
 
                         {!isLeader && (
-                          <div className="absolute top-2 right-2 rounded bg-slate-950/80 px-1.5 py-0.5 text-[0.625rem] font-mono text-text-muted border border-white/10">
+                          <div className="absolute top-2 right-2 rounded bg-bg-950/80 px-1.5 py-0.5 text-micro font-mono text-text-muted border border-material-edge">
                             #{rankNumber}
                           </div>
                         )}
@@ -510,11 +510,11 @@ export function HookBattleView({
                     <div className="flex flex-col divide-y divide-line-soft text-xs">
                       {/* 1. HERO METRIC: HOOK RATE */}
                       <div className="p-4 bg-surface/30 flex flex-col gap-1">
-                        <span className="heading-caps text-[0.625rem] font-semibold text-text-muted">
+                        <span className="heading-caps text-micro font-semibold text-text-muted">
                           Hook Rate (3s / Impresije)
                         </span>
                         <div className="flex items-baseline justify-between">
-                          <span className="font-mono text-3xl font-bold tracking-tight text-accent-400">
+                          <span className="font-mono text-3xl font-bold text-accent-400">
                             {formatPercent(version.hookRate)}
                           </span>
                           <span className="font-mono text-xs text-text-muted">
@@ -579,7 +579,7 @@ export function HookBattleView({
                               : "—"}
                           </span>
                           {version.hasConversionValue && (
-                            <span className="block text-[0.625rem] text-success font-semibold">
+                            <span className="block text-micro text-success font-semibold">
                               {version.roas.toFixed(2)}x
                             </span>
                           )}
@@ -593,7 +593,7 @@ export function HookBattleView({
                           <span className="font-medium text-foreground">
                             {formatNumber(version.spend)} €
                           </span>
-                          <span className="block text-[0.625rem] text-text-muted">
+                          <span className="block text-micro text-text-muted">
                             ({version.results} konv.)
                           </span>
                         </div>

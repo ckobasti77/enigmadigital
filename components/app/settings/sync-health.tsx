@@ -32,7 +32,7 @@ export function SyncHealth({ entries }: { entries: HealthEntry[] | undefined }) 
     <section className="rounded-xl border bg-card p-6 shadow-card">
       <div className="flex items-center gap-2">
         <Activity className="size-4 text-text-muted" />
-        <h2 className="heading-caps text-xs font-medium text-text-muted">
+        <h2 className="heading-caps text-micro font-medium text-text-muted">
           Stanje sinhronizacije
         </h2>
       </div>

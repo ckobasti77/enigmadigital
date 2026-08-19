@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import type { VideoItem } from "./youtube-videos-grid";
 import { cn } from "@/lib/utils";
+import { FeedbackNote } from "@/components/app/feedback";
 
 /**
  * Setting a custom thumbnail (Y8).
@@ -190,9 +191,7 @@ function YtThumbnailForm({
       </DialogHeader>
 
       {errorMsg && (
-        <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs leading-relaxed text-danger">
-          {errorMsg}
-        </div>
+        <FeedbackNote tone="danger" title={errorMsg} />
       )}
 
       <div
@@ -323,7 +322,7 @@ function YtThumbnailForm({
             size="sm"
             onClick={handleSubmit}
             disabled={submitting || file === null || problem !== null}
-            className="bg-accent-400 font-semibold text-surface-dark hover:bg-accent-400/90"
+            className="font-semibold"
           >
             {submitting ? (
               <>

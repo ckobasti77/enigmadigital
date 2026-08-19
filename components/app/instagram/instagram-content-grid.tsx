@@ -65,7 +65,7 @@ function TypeBadge({ type }: { type: string }) {
         : Camera;
 
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-bg-950/80 px-2 py-0.5 text-micro font-semibold tracking-wider text-text-primary backdrop-blur-md">
+    <span className="inline-flex items-center gap-1 rounded-md bg-bg-950/80 px-2 py-0.5 text-micro font-semibold text-text-primary backdrop-blur-md">
       <Icon className="size-3 text-accent-400" aria-hidden />
       {normalized}
     </span>
@@ -245,7 +245,7 @@ function TopContentCard({
           <img
             src={item.thumbnailUrl}
             alt={item.caption || "Instagram objava"}
-            className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
           <div className="relative flex size-full flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-bg-900 via-surface to-bg-950 p-4">
@@ -323,7 +323,7 @@ function TopContentCard({
           </div>
           <div>
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <MessageCircle className="size-3 text-chart-1/80" /> Komentari
+              <MessageCircle className="size-3 text-text-muted" /> Komentari
             </span>
             <p className="font-mono text-xs font-semibold tabular-nums text-foreground mt-0.5">
               {formatNumber(item.comments)}
@@ -371,7 +371,7 @@ function PostCard({ item }: { item: MediaItem }) {
           <img
             src={item.thumbnailUrl}
             alt={item.caption || "Instagram objava"}
-            className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
           <div className="relative flex size-full flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-bg-900 via-surface to-bg-950 p-4">

@@ -20,7 +20,6 @@ import {
   LoaderCircle,
   Lock,
   Check,
-  AlertCircle,
   ExternalLink,
   Trash2,
   Copy,
@@ -28,11 +27,18 @@ import {
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RevealGroup } from "@/components/motion/reveal";
 import { formatRelativeTime } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
+import { FeedbackLine, FeedbackNote } from "@/components/app/feedback";
+import { ConfirmDialog } from "@/components/app/confirm-dialog";
+import {
+  DangerZone,
+  Field,
+  FormGroup,
+  FormStack,
+} from "@/components/app/form-kit";
 import { StatusPill } from "./status-pill";
 import { SyncHealth } from "./sync-health";
 
@@ -45,6 +51,45 @@ function convexMessage(err: unknown, fallback: string): string {
     if (data && typeof data.message === "string") return data.message;
   }
   return fallback;
+}
+
+/**
+ * Šta ne valja sa zalepljenim ključem — dok se lepi, ne posle čuvanja.
+ * `null` znači „nemam prigovor", uključujući i prazno polje: prazno polje nije
+ * greška dok se kuca, nego tek razlog što dugme još ne radi.
+ */
+function serviceAccountProblem(raw: string): string | null {
+  const value = raw.trim();
+  if (value.length === 0) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return "Ovo nije ispravan JSON — nalepi ceo sadržaj ključa, sa vitičastim zagradama.";
+  }
+
+  if (typeof parsed !== "object" || parsed === null) {
+    return "Ključ mora biti JSON objekat.";
+  }
+
+  const key = parsed as { type?: unknown; client_email?: unknown; private_key?: unknown };
+  if (key.type !== "service_account") {
+    return "Ovo nije ključ servisnog naloga — polje „type” mora biti „service_account”.";
+  }
+  if (typeof key.client_email !== "string" || typeof key.private_key !== "string") {
+    return "Ključu nedostaje „client_email” ili „private_key”.";
+  }
+  return null;
+}
+
+/** Google Ads ID je deset cifara; crtice su dozvoljene i skidaju se pri čuvanju. */
+function customerIdProblem(raw: string): string | null {
+  const value = raw.trim().replace(/-/g, "");
+  if (value.length === 0) return null;
+  if (!/^\d+$/.test(value)) return "Dozvoljene su samo cifre i crtice.";
+  if (value.length !== 10) return `Treba deset cifara, uneto ${value.length}.`;
+  return null;
 }
 
 function connectionPill(status: ConnectionView["status"] | undefined) {
@@ -94,49 +139,159 @@ function CardShell({
   );
 }
 
-/** "Sync now" footer — present on integrations that can actually be synced. */
+/**
+ * „Sinhronizuj" podnožje — na integracijama koje se zaista mogu povući.
+ *
+ * Sve četiri vrste povratne informacije stoje ovde, jedna po jedna: dok traje
+ * (stanje), kad prođe (završetak), i kad pukne (greška, sa sledećim potezom).
+ * Poruka o uspehu se sama sklanja posle nekoliko sekundi — potvrda koja ostane
+ * zauvek prestane da bude potvrda i postane deo pozadine.
+ */
 function SyncFooter({ connection }: { connection?: ConnectionView }) {
   const syncNow = useAction(api.connections.syncNow);
   const [syncing, setSyncing] = useState(false);
+  const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!done) return;
+    const timer = window.setTimeout(() => setDone(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [done]);
 
   async function handleSync() {
     if (!connection) return;
     setSyncing(true);
+    setDone(false);
     setError(null);
     try {
       await syncNow({ connectionId: connection._id });
-    } catch {
-      setError("Sinhronizacija nije uspela.");
+      setDone(true);
+    } catch (err) {
+      setError(
+        convexMessage(
+          err,
+          "Sinhronizacija nije uspela. Proveri kredencijale pa pokušaj ponovo.",
+        ),
+      );
     } finally {
       setSyncing(false);
     }
   }
 
   return (
-    <div className="mt-5 flex items-center justify-between gap-3 border-t pt-4">
-      <span className="text-xs text-text-muted">
-        {connection?.lastSyncAt
-          ? `Poslednja sinhronizacija ${formatRelativeTime(connection.lastSyncAt)}`
-          : "Još nije sinhronizovano"}
-      </span>
-      <div className="flex items-center gap-3">
-        {error && <span className="text-xs text-danger">{error}</span>}
+    <div className="mt-6 space-y-3 border-t pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="text-xs text-text-muted">
+          {connection?.lastSyncAt
+            ? `Poslednja sinhronizacija ${formatRelativeTime(connection.lastSyncAt)}`
+            : "Još nije sinhronizovano"}
+        </span>
+        <div className="flex items-center gap-3">
+          {syncing && <FeedbackLine tone="progress">Povlačim podatke…</FeedbackLine>}
+          {done && !syncing && (
+            <FeedbackLine tone="success">Podaci su osveženi</FeedbackLine>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSync}
+            disabled={!connection || syncing}
+          >
+            {syncing ? (
+              <LoaderCircle className="animate-spin" />
+            ) : (
+              <RefreshCw />
+            )}
+            Sinhronizuj
+          </Button>
+        </div>
+      </div>
+      {error && <FeedbackNote tone="danger" title={error} />}
+    </div>
+  );
+}
+
+/**
+ * Kredencijali su sačuvani — jedan red koji to kaže i put nazad u izmenu.
+ * Prekid veze NIJE ovde: on stoji dole, u svojoj zoni, odvojen od svega što
+ * se klikće svaki dan.
+ */
+function SavedCredentials({
+  detail,
+  onEdit,
+}: {
+  detail: string;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
+      <div className="flex items-center gap-2 text-xs text-text-muted">
+        <Lock className="size-3.5 shrink-0 text-success" aria-hidden />
+        <span>{detail}</span>
+      </div>
+      <Button variant="ghost" size="sm" onClick={onEdit}>
+        Izmeni
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Prekid veze: odvojen okvir, sopstveni naslov i potvrda koja kaže šta se
+ * gubi a šta ostaje. Potvrda stoji ovde i skoro nigde drugde — kada bi je
+ * tražila svaka radnja, prestala bi da se čita.
+ */
+function DisconnectZone({
+  label,
+  busy,
+  onConfirm,
+}: {
+  /** Šta se prekida, u prvom padežu jednine: „Meta Ads nalog". */
+  label: string;
+  busy: boolean;
+  onConfirm: () => void;
+}) {
+  const [asking, setAsking] = useState(false);
+
+  return (
+    <>
+      <DangerZone
+        className="mt-6"
+        title="Prekini vezu"
+        description="Kredencijali se brišu. Već preuzeti podaci i istorija sinhronizacije ostaju."
+      >
         <Button
+          type="button"
           variant="outline"
           size="sm"
-          onClick={handleSync}
-          disabled={!connection || syncing}
+          onClick={() => setAsking(true)}
+          disabled={busy}
+          className="border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
         >
-          {syncing ? (
+          {busy ? (
             <LoaderCircle className="animate-spin" />
           ) : (
-            <RefreshCw />
+            <Trash2 className="size-3.5" />
           )}
-          Sinhronizuj
+          Prekini vezu
         </Button>
-      </div>
-    </div>
+      </DangerZone>
+
+      <ConfirmDialog
+        open={asking}
+        onOpenChange={setAsking}
+        busy={busy}
+        title={`Prekinuti vezu sa ${label}?`}
+        description={`Sačuvani kredencijali se brišu i sinhronizacija staje. Podaci koji su već povučeni ostaju na tabli, a vezu možeš ponovo uspostaviti u svakom trenutku.`}
+        confirmLabel="Prekini vezu"
+        busyLabel="Prekidam…"
+        onConfirm={() => {
+          setAsking(false);
+          onConfirm();
+        }}
+      />
+    </>
   );
 }
 
@@ -151,6 +306,19 @@ function Ga4Card({ connection }: { connection?: ConnectionView }) {
   const [error, setError] = useState<string | null>(null);
 
   const isConnected = connection !== undefined;
+
+  // Provera stiže dok se kuca. Zalepljen ključ koji nije JSON vidi se odmah,
+  // umesto da se sazna tek posle „Sačuvaj" — i to porukom sa servera.
+  const propertyProblem =
+    propertyId.trim().length > 0 && !/^\d+$/.test(propertyId.trim())
+      ? "Property ID su samo cifre, bez razmaka i prefiksa."
+      : null;
+  const jsonProblem = serviceAccountProblem(json);
+  const canSaveGa4 =
+    propertyId.trim().length > 0 &&
+    json.trim().length > 0 &&
+    propertyProblem === null &&
+    jsonProblem === null;
 
   function startEdit() {
     setPropertyId(connection?.externalId ?? "");
@@ -182,78 +350,90 @@ function Ga4Card({ connection }: { connection?: ConnectionView }) {
       status={connectionPill(connection?.status)}
     >
       {isConnected && !editing ? (
-        <div className="mt-5 flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
-          <div className="flex items-center gap-2 text-xs text-text-muted">
-            <Lock className="size-3.5" />
-            <span>
-              Kredencijali sačuvani
-              {connection?.externalId ? ` · property ${connection.externalId}` : ""}
-            </span>
-          </div>
-          <Button variant="ghost" size="sm" onClick={startEdit}>
-            Izmeni
-          </Button>
+        <div className="mt-5">
+          <SavedCredentials
+            detail={`Kredencijali sačuvani${
+              connection?.externalId ? ` · property ${connection.externalId}` : ""
+            }`}
+            onEdit={startEdit}
+          />
         </div>
       ) : (
-        <form onSubmit={handleSave} className="mt-5 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="ga4-property" className="text-text-muted">
-              Property ID
-            </Label>
-            <Input
-              id="ga4-property"
-              inputMode="numeric"
-              placeholder="npr. 493820114"
-              value={propertyId}
-              onChange={(event) => setPropertyId(event.target.value)}
-              disabled={saving}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="ga4-json" className="text-text-muted">
-              Service account JSON
-            </Label>
-            <Textarea
-              id="ga4-json"
-              rows={6}
-              spellCheck={false}
-              placeholder='{ "type": "service_account", "project_id": "…", … }'
-              value={json}
-              onChange={(event) => setJson(event.target.value)}
-              disabled={saving}
-              className="font-mono text-xs"
-            />
-          </div>
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <div className="flex items-center gap-3">
-            <Button type="submit" size="sm" disabled={saving}>
-              {saving ? (
-                <>
-                  <LoaderCircle className="animate-spin" />
-                  Čuvam…
-                </>
-              ) : (
-                <>
-                  <Check />
-                  Sačuvaj
-                </>
-              )}
-            </Button>
-            {isConnected && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setEditing(false);
-                  setJson("");
-                  setError(null);
-                }}
+        <form onSubmit={handleSave} className="mt-6">
+          <FormStack>
+            <FormGroup title="Property">
+              <Field label="Property ID" error={propertyProblem} required>
+                {(field) => (
+                  <Input
+                    {...field}
+                    inputMode="numeric"
+                    placeholder="npr. 493820114"
+                    value={propertyId}
+                    onChange={(event) => setPropertyId(event.target.value)}
+                    disabled={saving}
+                  />
+                )}
+              </Field>
+            </FormGroup>
+
+            <FormGroup title="Servisni nalog">
+              <Field
+                label="Service account JSON"
+                error={jsonProblem}
+                hint="Ceo sadržaj ključa preuzetog iz Google Cloud konzole."
+                required
               >
-                Otkaži
+                {(field) => (
+                  <Textarea
+                    {...field}
+                    rows={6}
+                    spellCheck={false}
+                    placeholder='{ "type": "service_account", "project_id": "…", … }'
+                    value={json}
+                    onChange={(event) => setJson(event.target.value)}
+                    disabled={saving}
+                    className="font-mono text-xs"
+                  />
+                )}
+              </Field>
+            </FormGroup>
+
+            {error && <FeedbackNote tone="danger" title={error} />}
+
+            <div className="flex items-center gap-3">
+              <Button
+                type="submit"
+                size="sm"
+                disabled={saving || !canSaveGa4}
+              >
+                {saving ? (
+                  <>
+                    <LoaderCircle className="animate-spin" />
+                    Čuvam…
+                  </>
+                ) : (
+                  <>
+                    <Check />
+                    Sačuvaj
+                  </>
+                )}
               </Button>
-            )}
-          </div>
+              {isConnected && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setEditing(false);
+                    setJson("");
+                    setError(null);
+                  }}
+                >
+                  Otkaži
+                </Button>
+              )}
+            </div>
+          </FormStack>
         </form>
       )}
       <SyncFooter connection={connection} />
@@ -334,16 +514,14 @@ function OpenReplyCard() {
       ) : (
         <div className="space-y-4">
           {!status.igConnected && (
-            <div className="mt-5 rounded-lg border border-dashed border-warning/30 bg-warning/5 px-4 py-5 text-sm">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" />
-                <div>
-                  <p className="font-medium text-foreground">
-                    Prvo poveži Instagram nalog — OpenReply koristi isti token.
-                  </p>
-                </div>
-              </div>
-            </div>
+            <FeedbackNote
+              tone="warning"
+              className="mt-5"
+              title="Instagram nalog još nije povezan"
+            >
+              OpenReply šalje poruke istim tokenom, pa dok Instagram ne bude
+              povezan engine ne može da se uključi.
+            </FeedbackNote>
           )}
 
           {status.enabled ? (
@@ -377,27 +555,33 @@ function OpenReplyCard() {
                 )}
               </div>
 
-              <div className="flex items-center justify-between gap-4">
-                <p className="text-xs text-text-muted">
-                  Nalepi ovaj URL u Meta app → Instagram → Webhooks, polje{" "}
-                  <code className="font-mono text-foreground">comments</code>.
-                </p>
+              <p className="text-xs text-text-muted">
+                Nalepi ovaj URL u Meta app → Instagram → Webhooks, polje{" "}
+                <code className="font-mono text-foreground">comments</code>.
+              </p>
+
+              {/* Odvojeno, ali bez potvrde: gašenje engine-a se vraća jednim
+                  klikom, a potvrda koja stoji pred svime prestane da se čita. */}
+              <DangerZone
+                title="Isključi OpenReply"
+                description="Komentari prestaju da pokreću poruke. Automatizacije i log ostaju."
+              >
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   onClick={handleDisable}
                   disabled={busy}
-                  className="shrink-0 text-danger hover:text-danger"
+                  className="border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
                 >
                   {busy ? (
-                    <LoaderCircle className="size-3.5 animate-spin" />
+                    <LoaderCircle className="animate-spin" />
                   ) : (
                     <Trash2 className="size-3.5" />
                   )}
                   Isključi
                 </Button>
-              </div>
+              </DangerZone>
             </div>
           ) : (
             <div className="mt-5 space-y-4">
@@ -429,33 +613,37 @@ function OpenReplyCard() {
           )}
 
           {status.igConnected && !status.igProfessionalIdSet && (
-            <div className="mt-4 flex items-start gap-2 text-xs text-warning">
-              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
-              <span>
-                Instagram token je star — ponovo poveži Instagram nalog da bi
-                webhook mogao da prepozna nalog.
-              </span>
-            </div>
+            <FeedbackNote
+              tone="warning"
+              className="mt-4"
+              title="Instagram token je star"
+            >
+              Poveži Instagram nalog ponovo da bi webhook mogao da prepozna o
+              kom se nalogu radi.
+            </FeedbackNote>
           )}
 
           {missingVars.length > 0 && (
-            <div className="mt-4 flex items-start gap-2 text-xs text-warning">
-              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
-              <span>
-                Nedostaje Convex environment promenljiva:{" "}
-                {missingVars.map((varName, i) => (
-                  <span key={varName}>
-                    {i > 0 && " i "}
-                    <code className="font-mono font-medium text-accent-400">
-                      {varName}
-                    </code>
-                  </span>
-                ))}
-              </span>
-            </div>
+            <FeedbackNote
+              tone="warning"
+              className="mt-4"
+              title="Nedostaje Convex environment promenljiva"
+            >
+              {missingVars.map((varName, i) => (
+                <span key={varName}>
+                  {i > 0 && " i "}
+                  <code className="font-mono font-medium text-accent-400">
+                    {varName}
+                  </code>
+                </span>
+              ))}
+              . Bez nje webhook odbija dolazne pozive.
+            </FeedbackNote>
           )}
 
-          {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+          {error && (
+            <FeedbackNote tone="danger" className="mt-4" title={error} />
+          )}
         </div>
       )}
     </CardShell>
@@ -482,6 +670,20 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
   const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  // Sat je spoljni sistem, pa se čita pretplatom umesto pozivom u renderu:
+  // `Date.now()` u telu komponente je nečista funkcija i vraća drugu vrednost
+  // na svakom prolazu. Minut je dovoljno često za odbrojavanje do isteka
+  // tokena, a `null` do prve otkucaja znači „još ne znam" — a ne „ističe".
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const first = window.setTimeout(tick, 0);
+    const interval = window.setInterval(tick, 60_000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(interval);
+    };
+  }, []);
 
   // Check env configuration on mount
   useEffect(() => {
@@ -640,41 +842,36 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
     >
       {/* Missing Environment Variables State */}
       {configState.loaded && !configState.isConfigured && (
-        <div className="mt-5 rounded-lg border border-dashed border-warning/30 bg-warning/5 px-4 py-5 text-sm">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" />
-            <div>
-              <p className="font-medium text-foreground">
-                Čeka se konfiguracija Meta aplikacije
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-text-muted">
-                Za povezivanje Instagram Business naloga potrebno je uneti{" "}
-                <code className="font-mono text-accent-400">INSTAGRAM_APP_ID</code> i{" "}
-                <code className="font-mono text-accent-400">
-                  INSTAGRAM_APP_SECRET
-                </code>{" "}
-                u Convex environment varijable.
-              </p>
-            </div>
-          </div>
-        </div>
+        <FeedbackNote
+          tone="warning"
+          className="mt-5"
+          title="Čeka se konfiguracija Meta aplikacije"
+        >
+          Za povezivanje Instagram Business naloga unesi{" "}
+          <code className="font-mono text-accent-400">INSTAGRAM_APP_ID</code> i{" "}
+          <code className="font-mono text-accent-400">INSTAGRAM_APP_SECRET</code>{" "}
+          u Convex environment varijable.
+        </FeedbackNote>
       )}
 
       {/* Connecting in progress overlay */}
       {connecting && (
-        <div className="mt-5 flex items-center gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3 text-xs text-text-muted">
-          <LoaderCircle className="size-4 animate-spin text-accent-400" />
-          <span>Povezivanje Instagram naloga u toku…</span>
-        </div>
+        <FeedbackNote
+          tone="progress"
+          className="mt-5"
+          title="Povezujem Instagram nalog…"
+        >
+          Meta vraća token — ostani na ovoj strani još koji trenutak.
+        </FeedbackNote>
       )}
 
       {/* Connected State */}
       {configState.isConfigured && isConnected && !connecting && (
-        <div className="mt-5 space-y-3">
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
+        <div className="mt-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs text-foreground">
-                <Lock className="size-3.5 text-success" />
+                <Lock className="size-3.5 shrink-0 text-success" aria-hidden />
                 <span className="font-medium">
                   Instagram nalog povezan
                   {connection.externalId ? ` · ID ${connection.externalId}` : ""}
@@ -688,54 +885,46 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleStartConnect}
-                disabled={connecting || disconnecting}
-              >
-                Ponovo poveži
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDisconnect}
-                disabled={disconnecting}
-                className="text-danger hover:text-danger"
-              >
-                {disconnecting ? (
-                  <LoaderCircle className="size-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="size-3.5" />
-                )}
-                Prekini vezu
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleStartConnect}
+              disabled={connecting || disconnecting}
+            >
+              Ponovo poveži
+            </Button>
           </div>
+
+          {/* Upozorenje pre nego što nastane problem: token koji ističe za
+              manje od dve nedelje se ne primeti sam od sebe — primeti se tek
+              kada sinhronizacija stane. */}
+          {connection.expiresAt != null &&
+            now !== null &&
+            connection.expiresAt - now < 14 * 24 * 60 * 60 * 1000 && (
+              <FeedbackNote
+                tone="warning"
+                className="mt-3"
+                title={`Token ističe ${formatRelativeTime(connection.expiresAt)}`}
+              >
+                Klikni „Ponovo poveži” pre isteka da sinhronizacija ne stane.
+              </FeedbackNote>
+            )}
         </div>
       )}
 
       {/* Not Connected State */}
       {configState.isConfigured && !isConnected && !connecting && (
         <div className="mt-5 space-y-4">
-          <div className="rounded-lg border border-line-soft bg-surface-raised/20 p-4 text-xs text-text-muted">
-            <p>
-              Poveži Instagram Business ili Creator nalog preko zvaničnog
-              Instagram Login-a za sinhronizaciju uvida (pratioci, doseg, posete
-              profilu, angažovanost, statistika objava i Reels-a).
-            </p>
-          </div>
-          <Button
-            size="sm"
-            onClick={handleStartConnect}
-            disabled={connecting}
-            className="gap-2"
-          >
+          <p className="rounded-lg border border-line-soft bg-surface-raised/20 p-4 text-xs leading-relaxed text-text-muted">
+            Poveži Instagram Business ili Creator nalog preko zvaničnog
+            Instagram Login-a za sinhronizaciju uvida (pratioci, doseg, posete
+            profilu, angažovanost, statistika objava i Reels-a).
+          </p>
+          <Button size="sm" onClick={handleStartConnect} disabled={connecting}>
             {connecting ? (
-              <LoaderCircle className="size-4 animate-spin" />
+              <LoaderCircle className="animate-spin" />
             ) : (
-              <ExternalLink className="size-4" />
+              <ExternalLink />
             )}
             Poveži Instagram
           </Button>
@@ -744,19 +933,18 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
 
       {/* Success / Error Messages */}
       {successMessage && (
-        <div className="mt-3 flex items-center gap-2 text-xs text-success">
-          <Check className="size-3.5" />
-          <span>{successMessage}</span>
-        </div>
+        <FeedbackNote tone="success" className="mt-4" title={successMessage} />
       )}
-      {error && (
-        <div className="mt-3 flex items-center gap-2 text-xs text-danger">
-          <AlertCircle className="size-3.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <FeedbackNote tone="danger" className="mt-4" title={error} />}
 
       {isConnected && <SyncFooter connection={connection} />}
+      {isConnected && (
+        <DisconnectZone
+          label="Instagram nalogom"
+          busy={disconnecting}
+          onConfirm={handleDisconnect}
+        />
+      )}
     </CardShell>
   );
 }
@@ -774,6 +962,11 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
   const [error, setError] = useState<string | null>(null);
 
   const isConnected = connection !== undefined;
+
+  const accountProblem =
+    accountId.trim().length > 0 && !/^act_\d+$/.test(accountId.trim())
+      ? "Ad Account ID počinje sa „act_” i nastavlja se ciframa."
+      : null;
 
   function startEdit() {
     setAccountId(connection?.externalId ?? "");
@@ -832,99 +1025,101 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
       status={statusNode}
     >
       {isConnected && !editing ? (
-        <div className="mt-5 flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
-          <div className="flex items-center gap-2 text-xs text-text-muted">
-            <Lock className="size-3.5 text-success" />
-            <span>
-              Kredencijali sačuvani
-              {connection?.externalId
-                ? ` · nalog ${connection.externalId}`
-                : ""}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={startEdit}>
-              Izmeni
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleDisconnect}
-              disabled={disconnecting}
-              className="text-danger hover:text-danger"
-            >
-              {disconnecting ? (
-                <LoaderCircle className="size-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="size-3.5" />
-              )}
-              Prekini vezu
-            </Button>
-          </div>
+        <div className="mt-5">
+          <SavedCredentials
+            detail={`Kredencijali sačuvani${
+              connection?.externalId ? ` · nalog ${connection.externalId}` : ""
+            }`}
+            onEdit={startEdit}
+          />
         </div>
       ) : (
-        <form onSubmit={handleSave} className="mt-5 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="meta-ads-account" className="text-text-muted">
-              Ad Account ID (opciono)
-            </Label>
-            <Input
-              id="meta-ads-account"
-              placeholder="npr. act_1234567890 (ili ostavi prazno za automatsko pronalaženje)"
-              value={accountId}
-              onChange={(event) => setAccountId(event.target.value)}
-              disabled={saving}
-              className="font-mono text-xs"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="meta-ads-token" className="text-text-muted">
-              System User Access Token
-            </Label>
-            <Textarea
-              id="meta-ads-token"
-              rows={4}
-              spellCheck={false}
-              placeholder="EAA..."
-              value={token}
-              onChange={(event) => setToken(event.target.value)}
-              disabled={saving}
-              className="font-mono text-xs"
-            />
-          </div>
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <div className="flex items-center gap-3">
-            <Button type="submit" size="sm" disabled={saving}>
-              {saving ? (
-                <>
-                  <LoaderCircle className="animate-spin" />
-                  Čuvam…
-                </>
-              ) : (
-                <>
-                  <Check />
-                  Sačuvaj
-                </>
-              )}
-            </Button>
-            {isConnected && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setEditing(false);
-                  setToken("");
-                  setError(null);
-                }}
+        <form onSubmit={handleSave} className="mt-6">
+          <FormStack>
+            <FormGroup title="Nalog">
+              <Field
+                label="Ad Account ID"
+                error={accountProblem}
+                hint="Prazno polje znači da se nalog traži automatski."
               >
-                Otkaži
+                {(field) => (
+                  <Input
+                    {...field}
+                    placeholder="npr. act_1234567890"
+                    value={accountId}
+                    onChange={(event) => setAccountId(event.target.value)}
+                    disabled={saving}
+                    className="font-mono text-xs"
+                  />
+                )}
+              </Field>
+            </FormGroup>
+
+            <FormGroup title="Pristup">
+              <Field label="System User Access Token" required>
+                {(field) => (
+                  <Textarea
+                    {...field}
+                    rows={4}
+                    spellCheck={false}
+                    placeholder="EAA…"
+                    value={token}
+                    onChange={(event) => setToken(event.target.value)}
+                    disabled={saving}
+                    className="font-mono text-xs"
+                  />
+                )}
+              </Field>
+            </FormGroup>
+
+            {error && <FeedbackNote tone="danger" title={error} />}
+
+            <div className="flex items-center gap-3">
+              <Button
+                type="submit"
+                size="sm"
+                disabled={
+                  saving || token.trim().length === 0 || accountProblem !== null
+                }
+              >
+                {saving ? (
+                  <>
+                    <LoaderCircle className="animate-spin" />
+                    Čuvam…
+                  </>
+                ) : (
+                  <>
+                    <Check />
+                    Sačuvaj
+                  </>
+                )}
               </Button>
-            )}
-          </div>
+              {isConnected && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setEditing(false);
+                    setToken("");
+                    setError(null);
+                  }}
+                >
+                  Otkaži
+                </Button>
+              )}
+            </div>
+          </FormStack>
         </form>
       )}
       <SyncFooter connection={connection} />
+      {isConnected && (
+        <DisconnectZone
+          label="Meta Ads nalogom"
+          busy={disconnecting}
+          onConfirm={handleDisconnect}
+        />
+      )}
     </CardShell>
   );
 }
@@ -946,6 +1141,9 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
   const [error, setError] = useState<string | null>(null);
 
   const isConnected = connection !== undefined;
+
+  const customerProblem = customerIdProblem(customerId);
+  const managerProblem = customerIdProblem(loginCustomerId);
 
   function startEdit() {
     setCustomerId(connection?.externalId ?? "");
@@ -1022,164 +1220,170 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
       status={statusNode}
     >
       {isConnected && !editing ? (
-        <div className="mt-5 flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
-          <div className="flex items-center gap-2 text-xs text-text-muted">
-            <Lock className="size-3.5 text-success" />
-            <span>
-              Kredencijali sačuvani
-              {connection?.externalId
-                ? ` · nalog ${connection.externalId}`
-                : ""}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={startEdit}>
-              Izmeni
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleDisconnect}
-              disabled={disconnecting}
-              className="text-danger hover:text-danger"
-            >
-              {disconnecting ? (
-                <LoaderCircle className="size-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="size-3.5" />
-              )}
-              Prekini vezu
-            </Button>
-          </div>
+        <div className="mt-5">
+          <SavedCredentials
+            detail={`Kredencijali sačuvani${
+              connection?.externalId ? ` · nalog ${connection.externalId}` : ""
+            }`}
+            onEdit={startEdit}
+          />
         </div>
       ) : (
-        <form onSubmit={handleSave} className="mt-5 space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="gads-customer-id" className="text-text-muted">
-                Customer ID (10 cifara)
-              </Label>
-              <Input
-                id="gads-customer-id"
-                placeholder="npr. 123-456-7890"
-                value={customerId}
-                onChange={(event) => setCustomerId(event.target.value)}
-                disabled={saving}
-                className="font-mono text-xs"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="gads-manager-id" className="text-text-muted">
-                Manager / Login Customer ID (opciono)
-              </Label>
-              <Input
-                id="gads-manager-id"
-                placeholder="npr. 987-654-3210 (za MCC naloge)"
-                value={loginCustomerId}
-                onChange={(event) => setLoginCustomerId(event.target.value)}
-                disabled={saving}
-                className="font-mono text-xs"
-              />
-            </div>
-          </div>
+        // Šest polja, dve celine: ČIJI nalog i ČIME mu se pristupa. Razmak
+        // između te dve celine je veći od razmaka unutar njih, pa se forma
+        // čita kao dva pitanja umesto kao spisak od šest.
+        <form onSubmit={handleSave} className="mt-6">
+          <FormStack>
+            <FormGroup title="Nalog">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field
+                  label="Customer ID"
+                  error={customerProblem}
+                  hint="Deset cifara, sa crticama ili bez njih."
+                  required
+                >
+                  {(field) => (
+                    <Input
+                      {...field}
+                      placeholder="npr. 123-456-7890"
+                      value={customerId}
+                      onChange={(event) => setCustomerId(event.target.value)}
+                      disabled={saving}
+                      className="font-mono text-xs"
+                      required
+                    />
+                  )}
+                </Field>
+                <Field
+                  label="Manager (MCC) ID"
+                  error={managerProblem}
+                  hint="Samo ako nalogom upravlja MCC."
+                >
+                  {(field) => (
+                    <Input
+                      {...field}
+                      placeholder="npr. 987-654-3210"
+                      value={loginCustomerId}
+                      onChange={(event) =>
+                        setLoginCustomerId(event.target.value)
+                      }
+                      disabled={saving}
+                      className="font-mono text-xs"
+                    />
+                  )}
+                </Field>
+              </div>
+            </FormGroup>
 
-          <div className="space-y-2">
-            <Label htmlFor="gads-dev-token" className="text-text-muted">
-              Developer Token
-            </Label>
-            <Input
-              id="gads-dev-token"
-              type="password"
-              placeholder="Developer token iz Google Ads API centra"
-              value={developerToken}
-              onChange={(event) => setDeveloperToken(event.target.value)}
-              disabled={saving}
-              className="font-mono text-xs"
-              required
-            />
-          </div>
+            <FormGroup title="Pristup">
+              <Field label="Developer Token" required>
+                {(field) => (
+                  <Input
+                    {...field}
+                    type="password"
+                    placeholder="Developer token iz Google Ads API centra"
+                    value={developerToken}
+                    onChange={(event) => setDeveloperToken(event.target.value)}
+                    disabled={saving}
+                    className="font-mono text-xs"
+                    required
+                  />
+                )}
+              </Field>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="gads-client-id" className="text-text-muted">
-                OAuth Client ID
-              </Label>
-              <Input
-                id="gads-client-id"
-                placeholder="xxxx.apps.googleusercontent.com"
-                value={clientId}
-                onChange={(event) => setClientId(event.target.value)}
-                disabled={saving}
-                className="font-mono text-xs"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="gads-client-secret" className="text-text-muted">
-                OAuth Client Secret
-              </Label>
-              <Input
-                id="gads-client-secret"
-                type="password"
-                placeholder="GOCSPX-..."
-                value={clientSecret}
-                onChange={(event) => setClientSecret(event.target.value)}
-                disabled={saving}
-                className="font-mono text-xs"
-                required
-              />
-            </div>
-          </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="OAuth Client ID" required>
+                  {(field) => (
+                    <Input
+                      {...field}
+                      placeholder="xxxx.apps.googleusercontent.com"
+                      value={clientId}
+                      onChange={(event) => setClientId(event.target.value)}
+                      disabled={saving}
+                      className="font-mono text-xs"
+                      required
+                    />
+                  )}
+                </Field>
+                <Field label="OAuth Client Secret" required>
+                  {(field) => (
+                    <Input
+                      {...field}
+                      type="password"
+                      placeholder="GOCSPX-…"
+                      value={clientSecret}
+                      onChange={(event) => setClientSecret(event.target.value)}
+                      disabled={saving}
+                      className="font-mono text-xs"
+                      required
+                    />
+                  )}
+                </Field>
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="gads-refresh-token" className="text-text-muted">
-              OAuth Refresh Token
-            </Label>
-            <Input
-              id="gads-refresh-token"
-              type="password"
-              placeholder="1//04..."
-              value={refreshToken}
-              onChange={(event) => setRefreshToken(event.target.value)}
-              disabled={saving}
-              className="font-mono text-xs"
-              required
-            />
-          </div>
+              <Field label="OAuth Refresh Token" required>
+                {(field) => (
+                  <Input
+                    {...field}
+                    type="password"
+                    placeholder="1//04…"
+                    value={refreshToken}
+                    onChange={(event) => setRefreshToken(event.target.value)}
+                    disabled={saving}
+                    className="font-mono text-xs"
+                    required
+                  />
+                )}
+              </Field>
+            </FormGroup>
 
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <div className="flex items-center gap-3">
-            <Button type="submit" size="sm" disabled={saving}>
-              {saving ? (
-                <>
-                  <LoaderCircle className="animate-spin" />
-                  Čuvam…
-                </>
-              ) : (
-                <>
-                  <Check />
-                  Sačuvaj
-                </>
-              )}
-            </Button>
-            {isConnected && (
+            {error && <FeedbackNote tone="danger" title={error} />}
+
+            <div className="flex items-center gap-3">
               <Button
-                type="button"
-                variant="ghost"
+                type="submit"
                 size="sm"
-                onClick={() => {
-                  setEditing(false);
-                  setError(null);
-                }}
+                disabled={
+                  saving || customerProblem !== null || managerProblem !== null
+                }
               >
-                Otkaži
+                {saving ? (
+                  <>
+                    <LoaderCircle className="animate-spin" />
+                    Čuvam…
+                  </>
+                ) : (
+                  <>
+                    <Check />
+                    Sačuvaj
+                  </>
+                )}
               </Button>
-            )}
-          </div>
+              {isConnected && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setEditing(false);
+                    setError(null);
+                  }}
+                >
+                  Otkaži
+                </Button>
+              )}
+            </div>
+          </FormStack>
         </form>
       )}
       <SyncFooter connection={connection} />
+      {isConnected && (
+        <DisconnectZone
+          label="Google Ads nalogom"
+          busy={disconnecting}
+          onConfirm={handleDisconnect}
+        />
+      )}
     </CardShell>
   );
 }
@@ -1199,6 +1403,16 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
   const [error, setError] = useState<string | null>(null);
 
   const isConnected = connection !== undefined;
+
+  const trimmedChannel = channelId.trim();
+  const channelProblem =
+    trimmedChannel.length === 0
+      ? null
+      : !trimmedChannel.startsWith("UC")
+        ? "Channel ID počinje sa „UC” — to nije korisničko ime kanala."
+        : trimmedChannel.length !== 24
+          ? `Channel ID ima 24 znaka, uneto ${trimmedChannel.length}.`
+          : null;
 
   function startEdit() {
     setChannelId(connection?.externalId ?? "");
@@ -1260,137 +1474,128 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
       status={connectionPill(connection?.status)}
     >
       {isConnected && !editing ? (
-        <div className="mt-5 flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
-          <div className="flex items-center gap-2 text-xs text-text-muted">
-            <Lock className="size-3.5 text-success" />
-            <span>
-              Kredencijali sačuvani
-              {connection?.externalId ? ` · kanal ${connection.externalId}` : ""}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={startEdit}>
-              Izmeni
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleDisconnect}
-              disabled={disconnecting}
-              className="text-danger hover:text-danger"
-            >
-              {disconnecting ? (
-                <LoaderCircle className="size-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="size-3.5" />
-              )}
-              Prekini vezu
-            </Button>
-          </div>
+        <div className="mt-5">
+          <SavedCredentials
+            detail={`Kredencijali sačuvani${
+              connection?.externalId ? ` · kanal ${connection.externalId}` : ""
+            }`}
+            onEdit={startEdit}
+          />
         </div>
       ) : (
-        <form onSubmit={handleSave} className="mt-5 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="yt-channel-id" className="text-text-muted">
-              Channel ID
-            </Label>
-            <Input
-              id="yt-channel-id"
-              placeholder="npr. UCabcdefghijklmnopqrstuv"
-              value={channelId}
-              onChange={(event) => setChannelId(event.target.value)}
-              disabled={saving}
-              className="font-mono text-xs"
-              required
-            />
-          </div>
+        <form onSubmit={handleSave} className="mt-6">
+          <FormStack>
+            <FormGroup title="Kanal">
+              <Field label="Channel ID" error={channelProblem} required>
+                {(field) => (
+                  <Input
+                    {...field}
+                    placeholder="npr. UCabcdefghijklmnopqrstuv"
+                    value={channelId}
+                    onChange={(event) => setChannelId(event.target.value)}
+                    disabled={saving}
+                    className="font-mono text-xs"
+                    required
+                  />
+                )}
+              </Field>
+            </FormGroup>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="yt-client-id" className="text-text-muted">
-                OAuth Client ID
-              </Label>
-              <Input
-                id="yt-client-id"
-                placeholder="xxxx.apps.googleusercontent.com"
-                value={clientId}
-                onChange={(event) => setClientId(event.target.value)}
-                disabled={saving}
-                className="font-mono text-xs"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="yt-client-secret" className="text-text-muted">
-                OAuth Client Secret
-              </Label>
-              <Input
-                id="yt-client-secret"
-                type="password"
-                placeholder="GOCSPX-…"
-                value={clientSecret}
-                onChange={(event) => setClientSecret(event.target.value)}
-                disabled={saving}
-                className="font-mono text-xs"
-                required
-              />
-            </div>
-          </div>
+            <FormGroup title="Pristup">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="OAuth Client ID" required>
+                  {(field) => (
+                    <Input
+                      {...field}
+                      placeholder="xxxx.apps.googleusercontent.com"
+                      value={clientId}
+                      onChange={(event) => setClientId(event.target.value)}
+                      disabled={saving}
+                      className="font-mono text-xs"
+                      required
+                    />
+                  )}
+                </Field>
+                <Field label="OAuth Client Secret" required>
+                  {(field) => (
+                    <Input
+                      {...field}
+                      type="password"
+                      placeholder="GOCSPX-…"
+                      value={clientSecret}
+                      onChange={(event) => setClientSecret(event.target.value)}
+                      disabled={saving}
+                      className="font-mono text-xs"
+                      required
+                    />
+                  )}
+                </Field>
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="yt-refresh-token" className="text-text-muted">
-              OAuth Refresh Token
-            </Label>
-            <Input
-              id="yt-refresh-token"
-              type="password"
-              placeholder="1//04…"
-              value={refreshToken}
-              onChange={(event) => setRefreshToken(event.target.value)}
-              disabled={saving}
-              className="font-mono text-xs"
-              required
-            />
-          </div>
+              <Field label="OAuth Refresh Token" required>
+                {(field) => (
+                  <Input
+                    {...field}
+                    type="password"
+                    placeholder="1//04…"
+                    value={refreshToken}
+                    onChange={(event) => setRefreshToken(event.target.value)}
+                    disabled={saving}
+                    className="font-mono text-xs"
+                    required
+                  />
+                )}
+              </Field>
+            </FormGroup>
 
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <div className="flex items-center gap-3">
-            <Button type="submit" size="sm" disabled={saving}>
-              {saving ? (
-                <>
-                  <LoaderCircle className="animate-spin" />
-                  Čuvam…
-                </>
-              ) : (
-                <>
-                  <Check />
-                  Sačuvaj
-                </>
-              )}
-            </Button>
-            {isConnected && (
+            {error && <FeedbackNote tone="danger" title={error} />}
+
+            <div className="flex items-center gap-3">
               <Button
-                type="button"
-                variant="ghost"
+                type="submit"
                 size="sm"
-                onClick={() => {
-                  setEditing(false);
-                  setError(null);
-                }}
+                disabled={saving || channelProblem !== null}
               >
-                Otkaži
+                {saving ? (
+                  <>
+                    <LoaderCircle className="animate-spin" />
+                    Čuvam…
+                  </>
+                ) : (
+                  <>
+                    <Check />
+                    Sačuvaj
+                  </>
+                )}
               </Button>
-            )}
-          </div>
+              {isConnected && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setEditing(false);
+                    setError(null);
+                  }}
+                >
+                  Otkaži
+                </Button>
+              )}
+            </div>
+          </FormStack>
         </form>
       )}
-      {/* No SyncFooter yet — Y1 only stores credentials; the sync lands later. */}
-      <div className="mt-5 border-t pt-4">
-        <p className="text-xs text-text-muted">
-          Nalog se za sada samo povezuje. Preuzimanje podataka o kanalu stiže
-          u sledećem koraku.
-        </p>
-      </div>
+      {/* Podnožje za sinhronizaciju je isto kao na ostalim karticama:
+          `connections.syncNow` odavno rutira i YouTube (Y2), samo je kartica
+          ostala na tekstu iz Y1 koji je obećavao da sinhronizacija tek stiže. */}
+      <SyncFooter connection={connection} />
+      {isConnected && (
+        <DisconnectZone
+          label="YouTube kanalom"
+          busy={disconnecting}
+          onConfirm={handleDisconnect}
+        />
+      )}
     </CardShell>
   );
 }

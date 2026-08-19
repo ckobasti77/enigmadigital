@@ -13,7 +13,7 @@ export default function YouTubePage() {
     <div className="flex w-full flex-1 flex-col">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="heading-caps text-xs font-medium text-text-muted">
+          <p className="heading-caps text-micro font-medium text-text-muted">
             YouTube · Kanal
           </p>
           <h1 className="mt-2 text-h1 text-foreground">

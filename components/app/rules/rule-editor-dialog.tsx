@@ -23,6 +23,7 @@ import {
   type RuleScope,
 } from "@/lib/rule-sentence";
 import { cn } from "@/lib/utils";
+import { FeedbackNote } from "@/components/app/feedback";
 import {
   Loader2,
   Shield,
@@ -206,9 +207,7 @@ function RuleEditorForm({
           </DialogHeader>
 
           {errorMsg && (
-            <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-              {errorMsg}
-            </div>
+            <FeedbackNote tone="danger" title={errorMsg} />
           )}
 
           {/* Form Fields */}
@@ -262,7 +261,7 @@ function RuleEditorForm({
                   <Shield className="size-3.5 text-accent-400" />
                   <span>Uslov za aktiviranje</span>
                 </span>
-                <span className="text-[0.625rem] font-mono text-text-muted">
+                <span className="text-micro font-mono text-text-muted">
                   adInsights prozor
                 </span>
               </div>
@@ -395,7 +394,7 @@ function RuleEditorForm({
                     )}
                   >
                     <span className="text-xs font-semibold">{item.label}</span>
-                    <span className="text-[0.625rem] text-text-muted mt-0.5">
+                    <span className="text-micro text-text-muted mt-0.5">
                       {item.sub}
                     </span>
                   </button>
@@ -450,7 +449,7 @@ function RuleEditorForm({
 
             {/* Plain-Language Preview Sentence */}
             <div className="rounded-xl border border-accent-400/30 bg-accent-400/5 p-3.5 mt-2">
-              <div className="flex items-center gap-1.5 text-micro font-semibold text-accent-400 uppercase tracking-wider mb-1.5">
+              <div className="flex items-center gap-1.5 text-micro font-semibold text-accent-400 heading-caps mb-1.5">
                 <Eye className="size-3.5" />
                 <span>Pregled pravila prirodnim jezikom</span>
               </div>
@@ -473,7 +472,7 @@ function RuleEditorForm({
             <Button
               type="submit"
               size="sm"
-              className="bg-accent-400 text-surface-dark font-semibold hover:bg-accent-400/90"
+              className="font-semibold"
               disabled={submitting}
             >
               {submitting ? (

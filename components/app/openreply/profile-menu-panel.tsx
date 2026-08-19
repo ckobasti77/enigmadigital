@@ -31,6 +31,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SegmentedControl } from "./automation-editor-dialog";
 import { cn } from "@/lib/utils";
+import { FeedbackNote } from "@/components/app/feedback";
 
 type ProfileMenuView = FunctionReturnType<
   typeof api.orProfileMenu.getProfileMenu
@@ -275,9 +276,7 @@ function ProfileMenuForm({
         />
 
         {errorMsg && (
-          <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-            {errorMsg}
-          </div>
+          <FeedbackNote tone="danger" title={errorMsg} />
         )}
 
         {/* Ledolomci */}
@@ -466,7 +465,7 @@ function ProfileMenuForm({
             size="sm"
             onClick={handlePublish}
             disabled={busy || !igConnected}
-            className="bg-accent-400 font-semibold text-surface-dark hover:bg-accent-400/90"
+            className="font-semibold"
           >
             {pending === "publish" ? (
               <>

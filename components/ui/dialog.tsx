@@ -24,8 +24,12 @@ function DialogBackdrop({
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-backdrop"
+      // Scrim je ono što modal razlikuje od bočnog panela: stranica ispod se
+      // zatamni i zamuti, dakle otiđe nazad, i time prestane da bude ponuda.
+      // Boja je `--surface-overlay`, isti token koji nose i ostali preklopi,
+      // pa modal i sistem materijala govore isto.
       className={cn(
-        "fixed inset-0 z-50 bg-background/80 backdrop-blur-xs transition-opacity duration-150 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+        "fixed inset-0 z-50 bg-surface-overlay backdrop-blur-sm transition-opacity duration-150 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         className,
       )}
       {...props}

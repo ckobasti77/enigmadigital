@@ -6,6 +6,8 @@ import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/app/confirm-dialog";
+import { FeedbackNote } from "@/components/app/feedback";
 import { formatRuleSentence } from "@/lib/rule-sentence";
 import { cn } from "@/lib/utils";
 import {
@@ -33,8 +35,11 @@ export function RulesList({
   const deleteRuleMutation = useMutation(api.rulesStore.deleteRule);
 
   const [deletingId, setDeletingId] = useState<Id<"rules"> | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Doc<"rules"> | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleToggle = async (ruleId: Id<"rules">, currentEnabled: boolean) => {
+    setError(null);
     try {
       await toggleRuleMutation({
         ruleId,
@@ -42,19 +47,23 @@ export function RulesList({
       });
     } catch (err) {
       console.error("Failed to toggle rule:", err);
+      setError("Promena statusa nije uspela. Osveži stranu pa pokušaj ponovo.");
     }
   };
 
-  const handleDelete = async (ruleId: Id<"rules">) => {
-    if (confirm("Da li ste sigurni da želite da obrišete ovo pravilo?")) {
-      setDeletingId(ruleId);
-      try {
-        await deleteRuleMutation({ ruleId });
-      } catch (err) {
-        console.error("Failed to delete rule:", err);
-      } finally {
-        setDeletingId(null);
-      }
+  const handleDelete = async () => {
+    const rule = pendingDelete;
+    if (!rule) return;
+    setPendingDelete(null);
+    setDeletingId(rule._id);
+    setError(null);
+    try {
+      await deleteRuleMutation({ ruleId: rule._id });
+    } catch (err) {
+      console.error("Failed to delete rule:", err);
+      setError(`Brisanje pravila „${rule.name}” nije uspelo. Pokušaj ponovo.`);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -75,7 +84,7 @@ export function RulesList({
             type="button"
             size="sm"
             onClick={onEnsureTemplates}
-            className="bg-accent-400 text-surface-dark hover:bg-accent-400/90 font-semibold inline-flex items-center gap-1.5"
+            className="font-semibold"
           >
             <Sparkles className="size-4" />
             <span>Učitaj šablone (CPA & Spend Guard)</span>
@@ -87,6 +96,25 @@ export function RulesList({
 
   return (
     <div className="grid grid-cols-1 gap-4">
+      {error && <FeedbackNote tone="danger" title={error} />}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+        title="Obrisati pravilo?"
+        description={
+          pendingDelete === null
+            ? null
+            : `„${pendingDelete.name}” se briše i prestaje da se evaluira. Istorija okidanja ostaje, a radnje koje je pravilo već izvršilo na nalogu se ne poništavaju.`
+        }
+        confirmLabel="Obriši pravilo"
+        busyLabel="Brišem…"
+        busy={deletingId !== null}
+        onConfirm={handleDelete}
+      />
+
       {rules.map((rule) => {
         const sentence = formatRuleSentence({
           scope: rule.scope,
@@ -131,17 +159,17 @@ export function RulesList({
 
                   {/* Action Badge */}
                   {rule.action === "pause_and_notify" ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-[0.625rem] font-semibold text-warning">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-micro font-semibold text-warning">
                       <Pause className="size-2.5" />
                       <span>Pauziraj i javi</span>
                     </span>
                   ) : rule.action === "pause" ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-[0.625rem] font-semibold text-warning">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-micro font-semibold text-warning">
                       <Pause className="size-2.5" />
                       <span>Samo pauziraj</span>
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-accent-400/10 border border-accent-400/30 px-2 py-0.5 text-[0.625rem] font-semibold text-accent-400">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-accent-400/10 border border-accent-400/30 px-2 py-0.5 text-micro font-semibold text-accent-400">
                       <Mail className="size-2.5" />
                       <span>Samo javi</span>
                     </span>
@@ -190,13 +218,18 @@ export function RulesList({
                   <span>Izmeni</span>
                 </Button>
 
+                {/* Brisanje stoji odvojeno od izmene: tanka linija i razmak,
+                    da pogrešan klik ne bude na susednom pikselu. */}
+                <span className="mx-1 h-5 w-px bg-line-soft" aria-hidden />
+
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => handleDelete(rule._id)}
+                  onClick={() => setPendingDelete(rule)}
                   disabled={deletingId === rule._id}
-                  className="h-7 px-2 text-xs text-danger/80 hover:text-danger hover:bg-danger/10 border-line"
+                  aria-label={`Obriši pravilo ${rule.name}`}
+                  className="h-7 border-danger/25 px-2 text-xs text-danger/80 hover:bg-danger/10 hover:text-danger"
                 >
                   <Trash2 className="size-3" />
                 </Button>
@@ -205,7 +238,7 @@ export function RulesList({
 
             {/* Plain-Language Rule Preview Sentence Banner */}
             <div className="mt-3 rounded-lg border border-line bg-surface/60 px-3.5 py-2.5 text-xs text-foreground font-medium flex items-center gap-2">
-              <span className="text-accent-400 font-semibold text-micro uppercase tracking-wider shrink-0">
+              <span className="text-accent-400 font-semibold text-micro heading-caps shrink-0">
                 Pravilo:
               </span>
               <p className="leading-relaxed">„{sentence}”</p>

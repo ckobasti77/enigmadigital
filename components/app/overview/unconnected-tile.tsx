@@ -24,10 +24,10 @@ export function UnconnectedTile({
     >
       <div>
         <div className="flex items-center justify-between gap-1">
-          <p className="heading-caps text-xs font-medium text-text-muted">
+          <p className="heading-caps text-micro font-medium text-text-muted">
             {label}
           </p>
-          <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-[0.625rem] font-medium text-warning">
+          <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-micro font-medium text-warning">
             <span className="size-1 rounded-full bg-warning motion-safe:animate-pulse" />
             Čeka konekciju
           </span>

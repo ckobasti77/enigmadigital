@@ -15,6 +15,7 @@ import {
   formatNumber,
   formatPercent,
 } from "@/lib/format";
+import { activatable } from "@/lib/activate";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -81,7 +82,7 @@ function KeywordQualitySection({
     <Card className="gap-0 py-0 shadow-card ring-line border border-line overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft bg-surface-raised/40 px-5 py-3.5">
         <div className="flex items-center gap-2">
-          <Target className="size-4 text-chart-2" />
+          <Target className="size-4 text-text-muted" />
           <h3 className="text-sm font-bold text-foreground">
             Google Ads — Ocena kvaliteta ključnih reči (Quality Score)
           </h3>
@@ -303,7 +304,7 @@ export function CampaignDetail({
                 )}
                 aria-label={`Status: ${campaign.status}`}
               />
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
                 {campaign.name}
               </h1>
             </div>
@@ -373,7 +374,7 @@ export function CampaignDetail({
                     "h-9 gap-1.5 text-xs font-medium",
                     campaign.status === "ACTIVE"
                       ? "border-line-soft text-text-muted hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
-                      : "bg-success text-success-foreground hover:bg-success/90",
+                      : "bg-success text-text-inverse hover:bg-success/90",
                   )}
                 >
                   {campaign.status === "ACTIVE" ? (
@@ -517,6 +518,9 @@ export function CampaignDetail({
                 className="gap-0 py-0 shadow-card ring-line border border-line overflow-hidden"
               >
                 {/* AdSet Collapsible Header */}
+                {/* Ceo red ostaje klikabilan zbog miša, ali fokus i tastatura
+                    idu na pravo dugme unutra — ugnežđena interaktivna polja
+                    su i za čitač ekrana i za tastaturu ćorsokak. */}
                 <div
                   onClick={() => toggleSet(set._id)}
                   className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft bg-surface-raised/40 px-5 py-3.5 cursor-pointer hover:bg-surface-raised/70 transition-colors"
@@ -524,6 +528,11 @@ export function CampaignDetail({
                   <div className="flex items-center gap-2.5 min-w-0">
                     <button
                       type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleSet(set._id);
+                      }}
+                      aria-expanded={!isCollapsed}
                       className="text-text-muted hover:text-foreground transition-transform"
                       aria-label={isCollapsed ? "Prikaži oglase" : "Sakrij oglase"}
                     >
@@ -688,7 +697,8 @@ export function CampaignDetail({
                             return (
                               <TableRow
                                 key={ad._id}
-                                onClick={() => setSelectedAdId(ad._id)}
+                                {...activatable(() => setSelectedAdId(ad._id))}
+                                aria-label={`Otvori oglas ${ad.name}`}
                                 className="group cursor-pointer border-line-soft/60 hover:bg-surface-raised/40 transition-colors"
                               >
                                 <TableCell className="pl-5">
@@ -843,7 +853,7 @@ export function CampaignDetail({
                                     <button
                                       type="button"
                                       onClick={() => setSelectedAdId(ad._id)}
-                                      className="inline-flex items-center gap-1 rounded border border-line bg-surface-raised px-2 py-0.5 text-[0.625rem] font-medium text-foreground hover:border-accent-400/50 hover:text-accent-400 transition-colors ml-0.5"
+                                      className="inline-flex items-center gap-1 rounded border border-line bg-surface-raised px-2 py-0.5 text-micro font-medium text-foreground hover:border-accent-400/50 hover:text-accent-400 transition-colors ml-0.5"
                                     >
                                       <span>Detalji</span>
                                       <ChevronRightSquare className="size-3" />

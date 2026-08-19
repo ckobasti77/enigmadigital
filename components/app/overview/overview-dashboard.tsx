@@ -386,7 +386,7 @@ function SecondaryStats({
               <CountUp
                 value={item.value}
                 format={formatNumber}
-                className="font-mono text-xl font-bold tracking-tight text-foreground"
+                className="font-mono text-xl font-bold text-foreground"
               />
               <span className="font-mono text-xs tabular-nums text-text-muted">
                 {item.delta === null || item.delta === undefined

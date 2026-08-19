@@ -21,6 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatFollowUpDelay } from "@/convex/lib/orFollowUp";
 import { formatNumber, formatPercent } from "@/lib/format";
+import { ConfirmDialog } from "@/components/app/confirm-dialog";
+import { FeedbackNote } from "@/components/app/feedback";
 import { DmPreview } from "./dm-preview";
 import { PillToggle, TRIGGER_LABELS } from "./automation-editor-dialog";
 import { cn } from "@/lib/utils";
@@ -49,6 +51,9 @@ export function AutomationsList({
 
   const [busyId, setBusyId] = useState<Id<"orAutomations"> | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<AutomationView | null>(
+    null,
+  );
 
   const handleToggle = async (automation: AutomationView) => {
     setBusyId(automation._id);
@@ -65,11 +70,10 @@ export function AutomationsList({
     }
   };
 
-  const handleDelete = async (automation: AutomationView) => {
-    const confirmed = window.confirm(
-      `Obrisati automatizaciju „${automation.name}”? DM log i istorija klikova ostaju sačuvani.`,
-    );
-    if (!confirmed) return;
+  const handleDelete = async () => {
+    const automation = pendingDelete;
+    if (!automation) return;
+    setPendingDelete(null);
 
     setBusyId(automation._id);
     setErrorMsg(null);
@@ -84,11 +88,7 @@ export function AutomationsList({
 
   return (
     <div className="flex flex-col gap-4">
-      {errorMsg && (
-        <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-          {errorMsg}
-        </div>
-      )}
+      {errorMsg && <FeedbackNote tone="danger" title={errorMsg} />}
 
       {automations.map((automation) => (
         <AutomationCard
@@ -97,9 +97,26 @@ export function AutomationsList({
           busy={busyId === automation._id}
           onEdit={() => onEdit(automation)}
           onToggle={() => handleToggle(automation)}
-          onDelete={() => handleDelete(automation)}
+          onDelete={() => setPendingDelete(automation)}
         />
       ))}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+        title="Obrisati automatizaciju?"
+        description={
+          pendingDelete === null
+            ? null
+            : `„${pendingDelete.name}” se briše i prestaje da odgovara na komentare i poruke. DM log i istorija klikova ostaju sačuvani, a poruke koje su već poslate ostaju u inboxu primalaca.`
+        }
+        confirmLabel="Obriši automatizaciju"
+        busyLabel="Brišem…"
+        busy={busyId !== null}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
@@ -197,6 +214,9 @@ function AutomationCard({
             <Pencil className="size-3" />
             <span>Izmeni</span>
           </Button>
+          {/* Brisanje odvojeno od izmene — razmak i linija, da promašen
+              klik ne padne na susedno dugme. */}
+          <span className="mx-1 h-5 w-px bg-line-soft" aria-hidden />
           <Button
             type="button"
             variant="outline"
@@ -204,7 +224,7 @@ function AutomationCard({
             onClick={onDelete}
             disabled={busy}
             aria-label={`Obriši automatizaciju ${automation.name}`}
-            className="border-line text-danger/80 hover:bg-danger/10 hover:text-danger"
+            className="border-danger/25 text-danger/80 hover:bg-danger/10 hover:text-danger"
           >
             <Trash2 className="size-3" />
           </Button>
@@ -272,7 +292,7 @@ function Metric({
 }) {
   return (
     <div>
-      <p className="heading-caps text-xs font-medium text-text-muted">
+      <p className="heading-caps text-micro font-medium text-text-muted">
         {label}
       </p>
       <p

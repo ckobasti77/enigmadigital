@@ -40,6 +40,7 @@ import {
 import { YtThumbnailDialog } from "./yt-thumbnail-dialog";
 import type { VideoItem } from "./youtube-videos-grid";
 import { cn } from "@/lib/utils";
+import { FeedbackNote } from "@/components/app/feedback";
 
 /**
  * Editing one video's metadata (Y7).
@@ -219,9 +220,7 @@ function YtVideoEditForm({
         </DialogHeader>
 
         {errorMsg && (
-          <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-            {errorMsg}
-          </div>
+          <FeedbackNote tone="danger" title={errorMsg} />
         )}
 
         <div className="space-y-3 rounded-xl border border-danger/30 bg-danger/5 p-4">
@@ -252,7 +251,7 @@ function YtVideoEditForm({
             size="sm"
             onClick={handleDelete}
             disabled={submitting}
-            className="bg-danger font-semibold text-surface-dark hover:bg-danger/90"
+            className="bg-danger font-semibold text-text-inverse hover:bg-danger/90"
           >
             {submitting ? (
               <>
@@ -286,9 +285,7 @@ function YtVideoEditForm({
       </DialogHeader>
 
       {errorMsg && (
-        <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-          {errorMsg}
-        </div>
+        <FeedbackNote tone="danger" title={errorMsg} />
       )}
 
       <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
@@ -496,7 +493,7 @@ function YtVideoEditForm({
             type="submit"
             size="sm"
             disabled={submitting || !hasChanges}
-            className="bg-accent-400 font-semibold text-surface-dark hover:bg-accent-400/90"
+            className="font-semibold"
           >
             {submitting ? (
               <>

@@ -261,7 +261,7 @@ function Thumbnail({
         <img
           src={item.thumbnailUrl}
           alt={item.title}
-          className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
       ) : (
         <div className="relative flex size-full items-center justify-center overflow-hidden bg-gradient-to-br from-bg-900 via-surface to-bg-950 p-4">
@@ -347,7 +347,7 @@ function TopVideoCard({
 
         <div className="mt-3 grid grid-cols-4 gap-2 border-t border-line-soft pt-3 text-center">
           <MiniStat
-            icon={<Clock className="size-3 text-chart-2/80" />}
+            icon={<Clock className="size-3 text-text-muted" />}
             label="Gledanje"
             value={watchTime(item)}
           />
@@ -362,7 +362,7 @@ function TopVideoCard({
             value={formatNumber(item.likes)}
           />
           <MiniStat
-            icon={<MessageCircle className="size-3 text-chart-1/80" />}
+            icon={<MessageCircle className="size-3 text-text-muted" />}
             label="Komentari"
             value={formatNumber(item.comments)}
           />
@@ -440,7 +440,7 @@ function VideoCard({
             value={formatNumber(item.views)}
           />
           <MiniStat
-            icon={<Clock className="size-3 text-chart-2" />}
+            icon={<Clock className="size-3 text-text-muted" />}
             label="Gledanje"
             value={watchTime(item)}
           />

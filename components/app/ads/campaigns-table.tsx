@@ -5,6 +5,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import { formatDecimal, formatNumber, formatPercent } from "@/lib/format";
+import { activatable } from "@/lib/activate";
 import { cn } from "@/lib/utils";
 import {
   ArrowDown,
@@ -257,7 +258,7 @@ export function CampaignsTable({
               )}
             >
               <span>Sve platforme</span>
-              <span className="font-mono text-[0.625rem] text-text-muted">
+              <span className="font-mono text-micro text-text-muted">
                 ({campaigns.length})
               </span>
             </button>
@@ -274,7 +275,7 @@ export function CampaignsTable({
             >
               <span className="size-1.5 rounded-full bg-chart-1" />
               <span>Meta Ads</span>
-              <span className="font-mono text-[0.625rem] text-text-muted">
+              <span className="font-mono text-micro text-text-muted">
                 ({metaCount})
               </span>
             </button>
@@ -291,7 +292,7 @@ export function CampaignsTable({
             >
               <span className="size-1.5 rounded-full bg-chart-2" />
               <span>Google Ads</span>
-              <span className="font-mono text-[0.625rem] text-text-muted">
+              <span className="font-mono text-micro text-text-muted">
                 ({googleCount})
               </span>
             </button>
@@ -392,7 +393,8 @@ export function CampaignsTable({
                   return (
                     <TableRow
                       key={row._id}
-                      onClick={() => onSelectCampaign(row._id)}
+                      {...activatable(() => onSelectCampaign(row._id))}
+                      aria-label={`Otvori kampanju ${row.name}`}
                       className="group cursor-pointer border-line-soft/60 hover:bg-surface-raised/50 transition-colors"
                     >
                       {/* Name, Status dot, Provider badge, Objective, Freshness, Impression Share */}
@@ -414,18 +416,18 @@ export function CampaignsTable({
 
                               {/* Provider Badge */}
                               {row.provider === "google_ads" || row.provider === "google" ? (
-                                <span className="inline-flex items-center gap-1 rounded border border-chart-2/40 bg-chart-2/10 px-1.5 py-0.5 text-[0.625rem] font-semibold text-foreground shrink-0">
+                                <span className="inline-flex items-center gap-1 rounded border border-chart-2/40 bg-chart-2/10 px-1.5 py-0.5 text-micro font-semibold text-foreground shrink-0">
                                   Google
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 rounded border border-chart-1/40 bg-chart-1/10 px-1.5 py-0.5 text-[0.625rem] font-semibold text-foreground shrink-0">
+                                <span className="inline-flex items-center gap-1 rounded border border-chart-1/40 bg-chart-1/10 px-1.5 py-0.5 text-micro font-semibold text-foreground shrink-0">
                                   Meta
                                 </span>
                               )}
 
                               {row.syncPriority === "hot" && (
                                 <span
-                                  className="inline-flex items-center gap-0.5 rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[0.625rem] font-medium text-warning shrink-0"
+                                  className="inline-flex items-center gap-0.5 rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-micro font-medium text-warning shrink-0"
                                   title="Hot kampanja (15 min sync)"
                                 >
                                   <Flame className="size-2.5" />
@@ -444,7 +446,7 @@ export function CampaignsTable({
                                 {formatFreshness(row.syncedAt, row.syncPriority)}
                               </span>
                               {row.searchImpressionShare !== undefined && (
-                                <span className="inline-flex items-center gap-1 text-[0.625rem] font-mono text-accent-400 bg-accent-400/10 border border-accent-400/20 px-1.5 py-0.5 rounded">
+                                <span className="inline-flex items-center gap-1 text-micro font-mono text-accent-400 bg-accent-400/10 border border-accent-400/20 px-1.5 py-0.5 rounded">
                                   IS: {formatPercent(row.searchImpressionShare)}
                                 </span>
                               )}
@@ -549,7 +551,7 @@ export function CampaignsTable({
                               </button>
                             </div>
                           ) : (
-                            <span className="text-[0.625rem] text-text-muted/60 font-mono px-1">
+                            <span className="text-micro text-text-muted/60 font-mono px-1">
                               read-only
                             </span>
                           )}

@@ -64,13 +64,13 @@ export function AttributionDashboard() {
               {/* OpenReply Sessions */}
               <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
                 <div className="flex h-36 flex-col px-5 pt-4">
-                  <p className="heading-caps text-xs font-medium text-text-muted">
+                  <p className="heading-caps text-micro font-medium text-text-muted">
                     OpenReply GA4 sesije
                   </p>
                   <CountUp
                     value={report.totals.openreply.sessions}
                     format={formatNumber}
-                    className="mt-2 block text-2xl font-bold leading-none tracking-tight text-accent-400 sm:text-3xl"
+                    className="mt-2 block text-2xl font-bold leading-none text-accent-400 sm:text-3xl"
                   />
                   <div className="mt-2 flex items-baseline gap-1.5 text-xs text-text-muted">
                     <span className="font-mono tabular-nums text-foreground">
@@ -90,13 +90,13 @@ export function AttributionDashboard() {
               {/* OpenReply Conversions */}
               <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
                 <div className="flex h-36 flex-col px-5 pt-4">
-                  <p className="heading-caps text-xs font-medium text-text-muted">
+                  <p className="heading-caps text-micro font-medium text-text-muted">
                     OpenReply konverzije
                   </p>
                   <CountUp
                     value={report.totals.openreply.conversions}
                     format={formatNumber}
-                    className="mt-2 block text-2xl font-bold leading-none tracking-tight text-foreground sm:text-3xl"
+                    className="mt-2 block text-2xl font-bold leading-none text-foreground sm:text-3xl"
                   />
                   <div className="mt-2 flex items-baseline gap-1.5 text-xs text-text-muted">
                     <span className="font-mono tabular-nums text-success">
@@ -116,13 +116,13 @@ export function AttributionDashboard() {
               {/* Total Instagram Traffic */}
               <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
                 <div className="flex h-36 flex-col px-5 pt-4">
-                  <p className="heading-caps text-xs font-medium text-text-muted">
+                  <p className="heading-caps text-micro font-medium text-text-muted">
                     Ukupno Instagram sesija
                   </p>
                   <CountUp
                     value={report.totals.totalInstagram.sessions}
                     format={formatNumber}
-                    className="mt-2 block text-2xl font-bold leading-none tracking-tight text-foreground sm:text-3xl"
+                    className="mt-2 block text-2xl font-bold leading-none text-foreground sm:text-3xl"
                   />
                   <div className="mt-2 flex items-baseline gap-1.5 text-xs text-text-muted">
                     <span className="font-mono tabular-nums text-accent-400">
@@ -140,21 +140,21 @@ export function AttributionDashboard() {
               {/* UTM Match Status / Data Honesty */}
               <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
                 <div className="flex h-36 flex-col px-5 pt-4">
-                  <p className="heading-caps text-xs font-medium text-text-muted">
+                  <p className="heading-caps text-micro font-medium text-text-muted">
                     UTM Integritet
                   </p>
                   <div className="mt-2 flex items-center gap-2">
                     {mismatchCount > 0 ? (
                       <>
                         <AlertTriangle className="size-6 text-warning" />
-                        <span className="font-mono text-2xl font-bold leading-none tracking-tight text-warning sm:text-3xl tabular-nums">
+                        <span className="font-mono text-2xl font-bold leading-none text-warning sm:text-3xl tabular-nums">
                           {mismatchCount}
                         </span>
                       </>
                     ) : (
                       <>
                         <CheckCircle2 className="size-6 text-success" />
-                        <span className="font-mono text-2xl font-bold leading-none tracking-tight text-success sm:text-3xl">
+                        <span className="font-mono text-2xl font-bold leading-none text-success sm:text-3xl">
                           100%
                         </span>
                       </>

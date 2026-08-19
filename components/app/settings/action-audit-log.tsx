@@ -179,7 +179,7 @@ export function ActionAuditLog() {
             <span className="text-xs text-text-muted">Ukupno komandi</span>
             <Activity className="size-4 text-text-muted" />
           </div>
-          <span className="font-mono text-2xl font-bold tracking-tight text-foreground mt-2 block">
+          <span className="font-mono text-2xl font-bold text-foreground mt-2 block">
             {stats ? stats.total : <Skeleton className="h-7 w-12" />}
           </span>
         </Card>
@@ -189,7 +189,7 @@ export function ActionAuditLog() {
             <span className="text-xs text-text-muted">Uspešno izvršeno</span>
             <CheckCircle2 className="size-4 text-success" />
           </div>
-          <span className="font-mono text-2xl font-bold tracking-tight text-success mt-2 block">
+          <span className="font-mono text-2xl font-bold text-success mt-2 block">
             {stats ? stats.success : <Skeleton className="h-7 w-12" />}
           </span>
         </Card>
@@ -199,7 +199,7 @@ export function ActionAuditLog() {
             <span className="text-xs text-text-muted">Greške / Odbijeno</span>
             <AlertCircle className="size-4 text-danger" />
           </div>
-          <span className="font-mono text-2xl font-bold tracking-tight text-danger mt-2 block">
+          <span className="font-mono text-2xl font-bold text-danger mt-2 block">
             {stats ? stats.error : <Skeleton className="h-7 w-12" />}
           </span>
         </Card>
@@ -209,7 +209,7 @@ export function ActionAuditLog() {
             <span className="text-xs text-text-muted">Na čekanju</span>
             <Clock className="size-4 text-warning" />
           </div>
-          <span className="font-mono text-2xl font-bold tracking-tight text-warning mt-2 block">
+          <span className="font-mono text-2xl font-bold text-warning mt-2 block">
             {stats ? stats.pending : <Skeleton className="h-7 w-12" />}
           </span>
         </Card>
@@ -393,7 +393,7 @@ export function ActionAuditLog() {
                     <TableCell className="text-xs">
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span className="inline-flex rounded bg-surface px-1.5 py-0.5 text-[0.625rem] font-medium text-text-secondary border border-line-soft">
+                          <span className="inline-flex rounded bg-surface px-1.5 py-0.5 text-micro font-medium text-text-secondary border border-line-soft">
                             {formatTargetType(row.targetType)}
                           </span>
                           <span
@@ -403,7 +403,7 @@ export function ActionAuditLog() {
                             {row.targetName || row.targetId}
                           </span>
                         </div>
-                        <span className="font-mono text-[0.625rem] text-text-muted">
+                        <span className="font-mono text-micro text-text-muted">
                           ID: {row.targetId}
                         </span>
                       </div>

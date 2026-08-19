@@ -88,7 +88,7 @@ export function RetentionStrip({
     <TooltipProvider delay={100}>
       <div className={cn("flex flex-col gap-1.5 w-full", className)}>
         {showLabels && (
-          <div className="flex items-center justify-between text-[0.625rem] text-text-muted font-medium">
+          <div className="flex items-center justify-between text-micro text-text-muted font-medium">
             <span>Video zadržavanje</span>
             <span className="font-mono tabular-nums text-foreground/80">
               3s: {formatPercent(retention.video3s / (impressions || 1))}
@@ -114,7 +114,7 @@ export function RetentionStrip({
                     )}
                     style={{ height: `${fillHeightPct}%` }}
                   />
-                  <span className="mt-0.5 text-[0.5625rem] font-mono tabular-nums text-text-muted group-hover/bar:text-foreground">
+                  <span className="mt-0.5 text-micro font-mono tabular-nums text-text-muted group-hover/bar:text-foreground">
                     {cp.label}
                   </span>
                 </TooltipTrigger>
@@ -132,7 +132,7 @@ export function RetentionStrip({
         </div>
 
         {/* Numeric Milestone Summary */}
-        <div className="grid grid-cols-4 gap-1 text-center font-mono tabular-nums text-[0.625rem]">
+        <div className="grid grid-cols-4 gap-1 text-center font-mono tabular-nums text-micro">
           {checkpoints.map((cp) => (
             <span key={cp.label} className={cn("truncate", cp.textColor)}>
               {formatPercent(cp.pct)}

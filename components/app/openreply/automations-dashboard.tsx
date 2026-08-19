@@ -17,7 +17,8 @@ import {
 import { AutomationEditorDialog } from "./automation-editor-dialog";
 import { DmLogTable } from "./dm-log-table";
 import { ProfileMenuPanel } from "./profile-menu-panel";
-import { cn } from "@/lib/utils";
+import { TabNav, TabPanel } from "@/components/app/tab-nav";
+import { FeedbackNote } from "@/components/app/feedback";
 
 type AutomationView = FunctionReturnType<
   typeof api.orAutomationsApi.listAutomations
@@ -49,64 +50,57 @@ export function AutomationsDashboard() {
     <div className="flex flex-1 flex-col gap-6">
       <EngineStatusStrip engine={engine} activeCount={activeCount} />
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-px">
-        <div className="flex items-center gap-2">
-          <TabButton
-            active={tab === "automations"}
-            onClick={() => setTab("automations")}
-            icon={MessageCircleReply}
-            label={
+      <TabNav
+        tabs={[
+          {
+            id: "automations",
+            label:
               automations === undefined
                 ? "Automatizacije"
-                : `Automatizacije (${automations.length})`
-            }
-          />
-          <TabButton
-            active={tab === "profile"}
-            onClick={() => setTab("profile")}
-            icon={MessageCircleQuestion}
-            label="Ledolomci i meni"
-          />
-          <TabButton
-            active={tab === "log"}
-            onClick={() => setTab("log")}
-            icon={Inbox}
-            label="DM log"
-          />
-        </div>
+                : `Automatizacije (${automations.length})`,
+            icon: MessageCircleReply,
+          },
+          {
+            id: "profile",
+            label: "Ledolomci i meni",
+            icon: MessageCircleQuestion,
+          },
+          { id: "log", label: "DM log", icon: Inbox },
+        ]}
+        active={tab}
+        onChange={setTab}
+        panelId="openreply-panel"
+        trailing={
+          <Button type="button" size="sm" onClick={openNew}>
+            <Plus />
+            <span>Nova automatizacija</span>
+          </Button>
+        }
+      />
 
-        <Button
-          type="button"
-          size="sm"
-          onClick={openNew}
-          className="mb-2 bg-accent-400 font-semibold text-surface-dark hover:bg-accent-400/90"
-        >
-          <Plus className="size-4" />
-          <span>Nova automatizacija</span>
-        </Button>
-      </div>
-
-      {tab === "automations" ? (
-        automations === undefined ? (
-          <AutomationsListSkeleton />
-        ) : automations.length === 0 ? (
+      <TabPanel id="openreply-panel">
+        {tab === "automations" ? (
+          automations === undefined ? (
+            <AutomationsListSkeleton />
+          ) : automations.length === 0 ? (
+            <Reveal>
+              <NoAutomations onCreate={openNew} />
+            </Reveal>
+          ) : (
+            <Reveal>
+              <AutomationsList automations={automations} onEdit={openEdit} />
+            </Reveal>
+          )
+        ) : tab === "profile" ? (
           <Reveal>
-            <NoAutomations onCreate={openNew} />
+            <ProfileMenuPanel />
           </Reveal>
         ) : (
           <Reveal>
-            <AutomationsList automations={automations} onEdit={openEdit} />
+            <DmLogTable />
           </Reveal>
-        )
-      ) : tab === "profile" ? (
-        <Reveal>
-          <ProfileMenuPanel />
-        </Reveal>
-      ) : (
-        <Reveal>
-          <DmLogTable />
-        </Reveal>
-      )}
+        )}
+      </TabPanel>
 
       <AutomationEditorDialog
         open={editorOpen}
@@ -114,35 +108,6 @@ export function AutomationsDashboard() {
         automationToEdit={editing}
       />
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  icon: Icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: typeof Inbox;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "-mb-px flex items-center gap-2 border-b-2 px-3.5 py-2 text-sm font-medium transition-colors",
-        active
-          ? "border-accent-400 text-foreground"
-          : "border-transparent text-text-muted hover:border-line-soft hover:text-foreground",
-      )}
-    >
-      <Icon className="size-4" aria-hidden />
-      <span>{label}</span>
-    </button>
   );
 }
 
@@ -164,78 +129,42 @@ function EngineStatusStrip({
 
   if (!engine.igConnected) {
     return (
-      <StatusStrip tone="danger">
-        Instagram nalog nije povezan, pa nijedna automatizacija ne može da se
-        okine.{" "}
+      <FeedbackNote tone="danger" title="Instagram nalog nije povezan">
+        Nijedna automatizacija ne može da se okine dok nalog ne bude povezan.{" "}
         <SettingsLink>Poveži nalog u podešavanjima</SettingsLink>.
-      </StatusStrip>
+      </FeedbackNote>
     );
   }
 
   if (!engine.enabled) {
     return (
-      <StatusStrip tone="warning">
-        Motor automatizacija je isključen — komentari se ne obrađuju.{" "}
+      <FeedbackNote tone="warning" title="Motor automatizacija je isključen">
+        Komentari se ne obrađuju.{" "}
         <SettingsLink>Uključi ga u podešavanjima</SettingsLink>.
-      </StatusStrip>
+      </FeedbackNote>
     );
   }
 
   if (!engine.verifyTokenSet || !engine.appSecretSet) {
     return (
-      <StatusStrip tone="warning">
-        Motor je uključen, ali webhook nije do kraja podešen (
+      <FeedbackNote tone="warning" title="Webhook nije do kraja podešen">
+        Motor je uključen, ali nedostaje{" "}
         {[
           !engine.verifyTokenSet ? "IG_WEBHOOK_VERIFY_TOKEN" : null,
           !engine.appSecretSet ? "META_APP_SECRET" : null,
         ]
           .filter(Boolean)
-          .join(", ")}
-        ). <SettingsLink>Otvori podešavanja</SettingsLink>.
-      </StatusStrip>
+          .join(" i ")}
+        . <SettingsLink>Otvori podešavanja</SettingsLink>.
+      </FeedbackNote>
     );
   }
 
   return (
-    <StatusStrip tone="success">
-      Motor je uključen i sluša komentare.{" "}
+    <FeedbackNote tone="success" title="Motor je uključen i sluša komentare">
       <span className="font-mono tabular-nums">{activeCount}</span>{" "}
       {activeCount === 1 ? "aktivna automatizacija" : "aktivnih automatizacija"}.
-    </StatusStrip>
-  );
-}
-
-function StatusStrip({
-  tone,
-  children,
-}: {
-  tone: "success" | "warning" | "danger";
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm",
-        tone === "success"
-          ? "border-line-soft bg-card text-muted-foreground"
-          : tone === "warning"
-            ? "border-warning/30 bg-warning/5 text-foreground"
-            : "border-danger/30 bg-danger/5 text-foreground",
-      )}
-    >
-      <span
-        className={cn(
-          "mt-1.5 size-1.5 shrink-0 rounded-full",
-          tone === "success"
-            ? "bg-success"
-            : tone === "warning"
-              ? "bg-warning"
-              : "bg-danger",
-        )}
-        aria-hidden
-      />
-      <p className="leading-relaxed">{children}</p>
-    </div>
+    </FeedbackNote>
   );
 }
 
@@ -268,7 +197,7 @@ function NoAutomations({ onCreate }: { onCreate: () => void }) {
           type="button"
           size="sm"
           onClick={onCreate}
-          className="bg-accent-400 font-semibold text-surface-dark hover:bg-accent-400/90"
+          className="font-semibold"
         >
           <Plus className="size-4" />
           <span>Nova automatizacija</span>

@@ -48,14 +48,14 @@ export function KpiTile({
   return (
     <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
       <div className="flex h-40 flex-col px-5 pt-4">
-        <p className="heading-caps text-xs font-medium text-text-muted">
+        <p className="heading-caps text-micro font-medium text-text-muted">
           {label}
         </p>
         <CountUp
           value={value}
           format={format}
           className={cn(
-            "mt-2 block text-2xl font-bold leading-none tracking-tight sm:text-3xl",
+            "mt-2 block text-2xl font-bold leading-none sm:text-3xl",
             primary ? "text-accent-400" : "text-foreground",
           )}
         />
@@ -111,7 +111,7 @@ export function StatTile({
     <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
       <div className="flex h-32 flex-col justify-between px-5 py-4">
         <div className="flex items-center justify-between gap-2">
-          <p className="heading-caps text-xs font-medium text-text-muted">
+          <p className="heading-caps text-micro font-medium text-text-muted">
             {label}
           </p>
           <Icon className="size-4 shrink-0 text-text-muted" aria-hidden />
@@ -121,7 +121,7 @@ export function StatTile({
             value={value}
             format={format}
             className={cn(
-              "block font-mono text-2xl font-bold leading-none tracking-tight sm:text-3xl",
+              "block font-mono text-2xl font-bold leading-none sm:text-3xl",
               valueClassName ?? "text-foreground",
             )}
           />

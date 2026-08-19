@@ -201,7 +201,7 @@ function NewHookVersionDialogForm({
                 <Sparkles className="size-4" />
               </span>
               <div>
-                <p className="heading-caps text-[0.625rem] font-semibold text-accent-400 tracking-wider">
+                <p className="heading-caps text-micro font-semibold text-accent-400">
                   Kreativna iteracija · Nova verzija
                 </p>
                 <DialogTitle className="text-lg font-bold text-foreground">
@@ -214,7 +214,7 @@ function NewHookVersionDialogForm({
               <strong className="text-foreground">{effectiveAdName}</strong> u
               istom Ad Setu ({liveDetails?.adSetName || "Ad Set"}) sa novim
               tekstom, u bezbednom stanju{" "}
-              <span className="font-mono text-amber-400 font-semibold">
+              <span className="font-mono text-warning font-semibold">
                 PAUSED (čeka aktivaciju)
               </span>
               .
@@ -322,7 +322,7 @@ function NewHookVersionDialogForm({
                 disabled={loading || isLimitReached}
                 className="h-9 text-xs"
               />
-              <p className="text-[0.625rem] text-text-muted">
+              <p className="text-micro text-text-muted">
                 Prikazuje se na vrhu kolone u Hook Battle pregledu.
               </p>
             </div>
@@ -342,7 +342,7 @@ function NewHookVersionDialogForm({
                 disabled={loading || isLimitReached}
                 className="h-9 text-xs font-mono"
               />
-              <p className="text-[0.625rem] text-text-muted">
+              <p className="text-micro text-text-muted">
                 Prepoznatljivo ime u Meta Ads Manageru.
               </p>
             </div>
@@ -355,7 +355,7 @@ function NewHookVersionDialogForm({
                 Primarni tekst (Hook / Body Copy){" "}
                 <span className="text-danger">*</span>
               </Label>
-              <span className="text-[0.625rem] font-mono text-text-muted">
+              <span className="text-micro font-mono text-text-muted">
                 {primaryText.length} karaktera
               </span>
             </div>
@@ -370,7 +370,7 @@ function NewHookVersionDialogForm({
               disabled={loading || isLimitReached}
               className="text-xs leading-relaxed resize-y min-h-[96px]"
             />
-            <p className="text-[0.625rem] text-text-muted">
+            <p className="text-micro text-text-muted">
               Tekst koji se prikazuje iznad videa/slike na Instagram i Facebook
               feed-u.
             </p>
@@ -391,7 +391,7 @@ function NewHookVersionDialogForm({
               disabled={loading || isLimitReached}
               className="h-9 text-xs"
             />
-            <p className="text-[0.625rem] text-text-muted">
+            <p className="text-micro text-text-muted">
               Kratak naslov pored dugmeta za poziv na akciju (CTA).
             </p>
           </div>
@@ -437,7 +437,7 @@ function NewHookVersionDialogForm({
             type="submit"
             size="sm"
             disabled={loading || isLimitReached}
-            className="text-xs bg-accent-400 text-slate-950 hover:bg-accent-300 font-semibold gap-1.5 shadow-sm"
+            className="text-xs bg-primary text-primary-foreground hover:bg-primary/80 font-semibold gap-1.5 shadow-sm"
           >
             {loading ? (
               <>

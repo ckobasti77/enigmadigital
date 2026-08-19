@@ -13,7 +13,7 @@ export default function OpenReplyAutomationsPage() {
         <span>Nazad na OpenReply</span>
       </Link>
 
-      <p className="heading-caps mt-4 text-xs font-medium text-text-muted">
+      <p className="heading-caps mt-4 text-micro font-medium text-text-muted">
         Automatizacija · OpenReply
       </p>
       <h1 className="mt-2 text-h1 text-foreground">

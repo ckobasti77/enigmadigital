@@ -5,7 +5,6 @@ import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
-  AlertTriangle,
   Loader2,
   MessageSquareReply,
   ShieldCheck,
@@ -26,6 +25,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CharCount, Field } from "@/components/app/form-kit";
+import { FeedbackNote } from "@/components/app/feedback";
 import { YtCommentPreview } from "./yt-comment-preview";
 import { cn } from "@/lib/utils";
 
@@ -204,6 +205,31 @@ function YtAutomationEditorForm({
 
   const rejecting = moderationEnabled && moderationStatus === "rejected";
 
+  /*
+   * Iste dve vrste provera kao na OpenReply editoru: format se javlja uz
+   * polje dok se kuca, a ono što nedostaje stoji uz dugme koje zbog toga ne
+   * radi — da crveno ne stoji na polju koje niko nije ni dotakao.
+   */
+  const videoProblem =
+    !matchAnyVideo && videoId.trim().length > 0 &&
+    videoId.trim().length !== VIDEO_ID_LENGTH
+      ? `ID videa ima ${VIDEO_ID_LENGTH} znakova, uneto ${videoId.trim().length}.`
+      : null;
+  const replyProblem =
+    replyEnabled && replyMessage.length > REPLY_MESSAGE_MAX
+      ? `Odgovor je duži za ${replyMessage.length - REPLY_MESSAGE_MAX} znakova.`
+      : null;
+
+  const missing: string[] = [];
+  if (name.trim().length === 0) missing.push("naziv");
+  if (keywords.length === 0 && keywordDraft.trim().length === 0)
+    missing.push("bar jedna ključna reč");
+  if (replyEnabled && replyMessage.trim().length === 0)
+    missing.push("tekst odgovora");
+  if (!matchAnyVideo && videoId.trim().length === 0) missing.push("ID videa");
+  if (!replyEnabled && !moderationEnabled && !deleteEnabled)
+    missing.push("bar jedna radnja (odgovor, moderacija ili brisanje)");
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <DialogHeader>
@@ -223,26 +249,23 @@ function YtAutomationEditorForm({
         </div>
       </DialogHeader>
 
-      {errorMsg && (
-        <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-          {errorMsg}
-        </div>
-      )}
+      {errorMsg && <FeedbackNote tone="danger" title={errorMsg} />}
 
-      <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
-        {/* Naziv */}
-        <div>
-          <Label className="mb-1.5 block text-xs font-medium text-text-muted">
-            Naziv automatizacije
-          </Label>
-          <Input
-            placeholder="npr. Pitanja o ceni kursa"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={submitting}
-            className="border-line bg-surface"
-          />
-        </div>
+      {/* 28 px između celina, 12 px unutar njih — blizina je ono što kaže
+          šta ide sa čim. */}
+      <div className="max-h-[60vh] space-y-7 overflow-y-auto pr-1">
+        <Field label="Naziv automatizacije">
+          {(field) => (
+            <Input
+              {...field}
+              placeholder="npr. Pitanja o ceni kursa"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={submitting}
+              className="border-line bg-surface"
+            />
+          )}
+        </Field>
 
         {/* Okidač: ključne reči + podudaranje + opseg videa */}
         <div className="space-y-3 rounded-xl border border-line bg-surface/50 p-3.5">
@@ -342,20 +365,25 @@ function YtAutomationEditorForm({
               ]}
             />
             {!matchAnyVideo && (
-              <>
-                <Input
-                  placeholder="ID videa, npr. dQw4w9WgXcQ"
-                  value={videoId}
-                  onChange={(e) => setVideoId(e.target.value)}
-                  disabled={submitting}
-                  maxLength={VIDEO_ID_LENGTH}
-                  className="mt-2 border-line bg-surface font-mono text-xs"
-                />
-                <p className="mt-1.5 text-xs text-text-muted">
-                  Deo adrese posle <span className="font-mono">watch?v=</span> —
-                  tačno {VIDEO_ID_LENGTH} znakova.
-                </p>
-              </>
+              <div className="mt-2">
+                <Field
+                  label="ID videa"
+                  error={videoProblem}
+                  hint={`Deo adrese posle watch?v= — tačno ${VIDEO_ID_LENGTH} znakova.`}
+                >
+                  {(field) => (
+                    <Input
+                      {...field}
+                      placeholder="npr. dQw4w9WgXcQ"
+                      value={videoId}
+                      onChange={(e) => setVideoId(e.target.value)}
+                      disabled={submitting}
+                      maxLength={VIDEO_ID_LENGTH}
+                      className="border-line bg-surface font-mono text-xs"
+                    />
+                  )}
+                </Field>
+              </div>
             )}
           </div>
         </div>
@@ -383,26 +411,28 @@ function YtAutomationEditorForm({
           </div>
 
           {replyEnabled && (
-            <div>
-              <Textarea
-                placeholder="Hvala na komentaru! Sve o kursu je na enigmait.rs/kurs 👇"
-                value={replyMessage}
-                onChange={(e) => setReplyMessage(e.target.value)}
-                disabled={submitting}
-                rows={4}
-                className="border-line bg-surface"
-              />
-              <span
-                className={cn(
-                  "mt-1 block text-right font-mono text-xs tabular-nums",
-                  replyMessage.length > REPLY_MESSAGE_MAX
-                    ? "text-danger"
-                    : "text-text-muted",
-                )}
-              >
-                {replyMessage.length}/{REPLY_MESSAGE_MAX}
-              </span>
-            </div>
+            <Field
+              label="Tekst odgovora"
+              error={replyProblem}
+              action={
+                <CharCount
+                  value={replyMessage.length}
+                  max={REPLY_MESSAGE_MAX}
+                />
+              }
+            >
+              {(field) => (
+                <Textarea
+                  {...field}
+                  placeholder="Hvala na komentaru! Sve o kursu je na enigmait.rs/kurs 👇"
+                  value={replyMessage}
+                  onChange={(e) => setReplyMessage(e.target.value)}
+                  disabled={submitting}
+                  rows={4}
+                  className="border-line bg-surface"
+                />
+              )}
+            </Field>
           )}
         </div>
 
@@ -467,24 +497,15 @@ function YtAutomationEditorForm({
 
               {/* The one action on this screen that cannot be taken back. */}
               {rejecting && (
-                <div className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 p-3">
-                  <AlertTriangle
-                    className="mt-0.5 size-3.5 shrink-0 text-danger"
-                    aria-hidden
-                  />
-                  <div className="text-xs leading-relaxed text-foreground">
-                    <p className="font-semibold text-danger">
-                      Nepovratno brisanje komentara
-                    </p>
-                    <p className="mt-1">
-                      Odbijen komentar se trajno uklanja sa videa i ne može se
-                      vratiti — ni iz YouTube Studija. Automatizacija ovo radi
-                      sama, bez tvoje potvrde, svaki put kada se poklopi ključna
-                      reč. Ako nisi siguran, izaberi „
-                      {MODERATION_LABELS.heldForReview}”.
-                    </p>
-                  </div>
-                </div>
+                <FeedbackNote
+                  tone="danger"
+                  title="Nepovratno brisanje komentara"
+                >
+                  Odbijen komentar se trajno uklanja sa videa i ne može se
+                  vratiti — ni iz YouTube Studija. Automatizacija ovo radi sama,
+                  bez tvoje potvrde, svaki put kada se poklopi ključna reč. Ako
+                  nisi siguran, izaberi „{MODERATION_LABELS.heldForReview}”.
+                </FeedbackNote>
               )}
 
               {/* `banAuthor` — YouTube accepts it only alongside "rejected". */}
@@ -528,29 +549,23 @@ function YtAutomationEditorForm({
           </div>
 
           {deleteEnabled && (
-            <div className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 p-3">
-              <AlertTriangle
-                className="mt-0.5 size-3.5 shrink-0 text-danger"
-                aria-hidden
-              />
-              <div className="text-xs leading-relaxed text-foreground">
-                <p className="font-semibold text-danger">
-                  Nepovratno — ni YouTube Studio ovo ne vraća
+            <FeedbackNote
+              tone="danger"
+              title="Nepovratno — ni YouTube Studio ovo ne vraća"
+            >
+              <p>
+                Za razliku od moderacije, obrisan komentar ne postoji nigde
+                više. Automatizacija ovo radi sama, bez tvoje potvrde, svaki put
+                kada se poklopi ključna reč — pa je pogrešna ključna reč ovde
+                skuplja nego bilo gde drugde na ovom ekranu.
+              </p>
+              {replyEnabled && (
+                <p className="mt-1.5">
+                  Odgovor se šalje pre brisanja, ali brisanjem komentara nestaje
+                  i odgovor ispod njega — YouTube uklanja celu nit.
                 </p>
-                <p className="mt-1">
-                  Za razliku od moderacije, obrisan komentar ne postoji nigde
-                  više. Automatizacija ovo radi sama, bez tvoje potvrde, svaki
-                  put kada se poklopi ključna reč — pa je pogrešna ključna reč
-                  ovde skuplja nego bilo gde drugde na ovom ekranu.
-                </p>
-                {replyEnabled && (
-                  <p className="mt-1.5 text-text-muted">
-                    Odgovor se šalje pre brisanja, ali brisanjem komentara
-                    nestaje i odgovor ispod njega — YouTube uklanja celu nit.
-                  </p>
-                )}
-              </div>
-            </div>
+              )}
+            </FeedbackNote>
           )}
         </div>
 
@@ -587,7 +602,12 @@ function YtAutomationEditorForm({
           onLabel="Automatizacija je aktivna"
           offLabel="Automatizacija je pauzirana"
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {missing.length > 0 && (
+            <span className="text-xs text-text-muted">
+              Nedostaje: {missing.join(", ")}
+            </span>
+          )}
           <Button
             type="button"
             variant="outline"
@@ -600,8 +620,13 @@ function YtAutomationEditorForm({
           <Button
             type="submit"
             size="sm"
-            disabled={submitting}
-            className="bg-accent-400 font-semibold text-surface-dark hover:bg-accent-400/90"
+            disabled={
+              submitting ||
+              missing.length > 0 ||
+              videoProblem !== null ||
+              replyProblem !== null
+            }
+            className="font-semibold"
           >
             {submitting ? (
               <>

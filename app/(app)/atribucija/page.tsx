@@ -7,7 +7,7 @@ import {
 export default function AttributionPage() {
   return (
     <div className="flex w-full flex-1 flex-col">
-      <p className="heading-caps text-xs font-medium text-text-muted">
+      <p className="heading-caps text-micro font-medium text-text-muted">
         Atribucija · UTM & Funnel
       </p>
       <h1 className="mt-2 text-h1 text-foreground">

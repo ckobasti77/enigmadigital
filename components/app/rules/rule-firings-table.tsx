@@ -112,7 +112,7 @@ export function RuleFiringsTable({ ruleId }: RuleFiringsTableProps) {
                         {f.targetName || f.targetId}
                       </span>
                       {f.targetType && (
-                        <span className="rounded bg-surface px-1.5 py-0.5 text-[0.625rem] font-mono text-text-muted border border-line shrink-0 uppercase">
+                        <span className="rounded bg-surface px-1.5 py-0.5 text-micro font-mono text-text-muted border border-line shrink-0 uppercase">
                           {f.targetType === "campaign"
                             ? "KAMPANJA"
                             : f.targetType === "adset"

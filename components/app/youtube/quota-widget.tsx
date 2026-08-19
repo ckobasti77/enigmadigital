@@ -7,7 +7,9 @@ import { useQuery } from "convex/react";
 import { Gauge } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { FeedbackLine } from "@/components/app/feedback";
 import { CountUp } from "@/components/motion/count-up";
+import { DUR_UI, EASE_UI, MOTION_QUERIES } from "@/lib/motion";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -87,11 +89,10 @@ export function QuotaWidget() {
         </p>
 
         {exhausted ? (
-          <p className="text-xs font-medium text-danger">
-            Dnevna kvota je potrošena. Odgovori se nastavljaju sutra u 09:00 po
-            našem vremenu.
-          </p>
-        ) : (
+          <FeedbackLine tone="danger">
+            Kvota je potrošena — odgovori se nastavljaju sutra u 09:00
+          </FeedbackLine>
+        ) : tone === "normal" ? (
           <p className="text-xs text-text-muted">
             još oko{" "}
             <span className="font-mono tabular-nums text-foreground">
@@ -99,6 +100,13 @@ export function QuotaWidget() {
             </span>{" "}
             {pluralReplies(repliesLeft)}
           </p>
+        ) : (
+          // Upozorenje stiže PRE nego što nastane problem: dok još ima
+          // odgovora, ali ih je ostalo toliko malo da se dan neće izgurati.
+          <FeedbackLine tone={tone === "danger" ? "danger" : "warning"}>
+            Kvota je pri kraju — ostalo je još oko{" "}
+            {formatNumber(repliesLeft)} {pluralReplies(repliesLeft)}
+          </FeedbackLine>
         )}
       </div>
 
@@ -118,22 +126,40 @@ function pluralReplies(count: number): string {
 }
 
 /**
- * The bar grows to its share of the budget. GSAP rather than a CSS transition
- * so the reduced-motion branch is explicit: there it is simply drawn at width.
+ * Traka naraste do svog udela u budžetu — ali samo pri prvom prikazu.
+ *
+ * Kvota stiže iz Convex-a i menja se u toku dana. Kada bi se animacija vezala
+ * za vrednost, traka bi se svaki put vraćala na nulu i ponovo rasla dok
+ * operater gleda u nju. Zato prvi prikaz ide od nule, a svako kasnije
+ * ažuriranje klizi od zatečene širine do nove.
  */
 function QuotaBar({ ratio, tone }: { ratio: number; tone: Tone }) {
   const ref = useRef<HTMLDivElement>(null);
+  const played = useRef(false);
   const width = `${(ratio * 100).toFixed(1)}%`;
 
   useGSAP(
     () => {
+      const el = ref.current;
+      if (!el) return;
+      const first = !played.current;
+      played.current = true;
+
       const mm = gsap.matchMedia();
-      mm.add("(prefers-reduced-motion: no-preference)", () => {
-        gsap.fromTo(
-          ref.current,
-          { width: 0 },
-          { width, duration: 0.7, ease: "expo.out" },
-        );
+      mm.add(MOTION_QUERIES, (ctx) => {
+        if (ctx.conditions?.still) {
+          gsap.set(el, { width });
+          return;
+        }
+        // Bez `fromTo`: kreće od onoga što je na ekranu, pa nova vrednost
+        // nastavi odatle umesto da preskoči na nulu.
+        if (first) gsap.set(el, { width: 0 });
+        gsap.to(el, {
+          width,
+          duration: DUR_UI,
+          ease: EASE_UI,
+          overwrite: "auto",
+        });
       });
     },
     { dependencies: [width], scope: ref },

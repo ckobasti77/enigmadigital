@@ -17,7 +17,8 @@ import {
 } from "./yt-automations-list";
 import { YtAutomationEditorDialog } from "./yt-automation-editor-dialog";
 import { YtCommentLogTable } from "./yt-comment-log-table";
-import { cn } from "@/lib/utils";
+import { TabNav, TabPanel } from "@/components/app/tab-nav";
+import { FeedbackNote } from "@/components/app/feedback";
 
 type YtAutomationView = FunctionReturnType<
   typeof api.ytAutomationsApi.listAutomations
@@ -57,54 +58,48 @@ export function YtAutomationsDashboard() {
         activeCount={activeCount}
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-px">
-        <div className="flex items-center gap-2">
-          <TabButton
-            active={tab === "automations"}
-            onClick={() => setTab("automations")}
-            icon={MessageSquareReply}
-            label={
+      <TabNav
+        tabs={[
+          {
+            id: "automations",
+            label:
               automations === undefined
                 ? "Automatizacije"
-                : `Automatizacije (${automations.length})`
-            }
-          />
-          <TabButton
-            active={tab === "log"}
-            onClick={() => setTab("log")}
-            icon={Inbox}
-            label="Log komentara"
-          />
-        </div>
+                : `Automatizacije (${automations.length})`,
+            icon: MessageSquareReply,
+          },
+          { id: "log", label: "Log komentara", icon: Inbox },
+        ]}
+        active={tab}
+        onChange={setTab}
+        panelId="youtube-automations-panel"
+        trailing={
+          <Button type="button" size="sm" onClick={openNew}>
+            <Plus />
+            <span>Nova automatizacija</span>
+          </Button>
+        }
+      />
 
-        <Button
-          type="button"
-          size="sm"
-          onClick={openNew}
-          className="mb-2 bg-accent-400 font-semibold text-surface-dark hover:bg-accent-400/90"
-        >
-          <Plus className="size-4" />
-          <span>Nova automatizacija</span>
-        </Button>
-      </div>
-
-      {tab === "automations" ? (
-        automations === undefined ? (
-          <YtAutomationsListSkeleton />
-        ) : automations.length === 0 ? (
-          <Reveal>
-            <NoAutomations onCreate={openNew} />
-          </Reveal>
+      <TabPanel id="youtube-automations-panel">
+        {tab === "automations" ? (
+          automations === undefined ? (
+            <YtAutomationsListSkeleton />
+          ) : automations.length === 0 ? (
+            <Reveal>
+              <NoAutomations onCreate={openNew} />
+            </Reveal>
+          ) : (
+            <Reveal>
+              <YtAutomationsList automations={automations} onEdit={openEdit} />
+            </Reveal>
+          )
         ) : (
           <Reveal>
-            <YtAutomationsList automations={automations} onEdit={openEdit} />
+            <YtCommentLogTable />
           </Reveal>
-        )
-      ) : (
-        <Reveal>
-          <YtCommentLogTable />
-        </Reveal>
-      )}
+        )}
+      </TabPanel>
 
       <YtAutomationEditorDialog
         open={editorOpen}
@@ -115,41 +110,6 @@ export function YtAutomationsDashboard() {
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  icon: Icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: typeof Inbox;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "-mb-px flex items-center gap-2 border-b-2 px-3.5 py-2 text-sm font-medium transition-colors",
-        active
-          ? "border-accent-400 text-foreground"
-          : "border-transparent text-text-muted hover:border-line-soft hover:text-foreground",
-      )}
-    >
-      <Icon className="size-4" aria-hidden />
-      <span>{label}</span>
-    </button>
-  );
-}
-
-/**
- * One line that answers "is this thing actually live right now?". The comment
- * engine needs a connected YouTube account whose credentials still work, and
- * at least one active automation — the poller does not spend a quota unit if
- * nothing is listening.
- */
 function EngineStatusStrip({
   connection,
   loading,
@@ -165,72 +125,46 @@ function EngineStatusStrip({
 
   if (connection === undefined) {
     return (
-      <StatusStrip tone="danger">
-        YouTube nalog nije povezan, pa nijedna automatizacija ne može da se
-        okine. <SettingsLink>Poveži nalog u podešavanjima</SettingsLink>.
-      </StatusStrip>
+      <FeedbackNote tone="danger" title="YouTube nalog nije povezan">
+        Nijedna automatizacija ne može da se okine dok kanal ne bude povezan.{" "}
+        <SettingsLink>Poveži nalog u podešavanjima</SettingsLink>.
+      </FeedbackNote>
     );
   }
 
   if (connection.status !== "active") {
     return (
-      <StatusStrip tone="warning">
-        YouTube konekcija je u statusu „
-        {connection.status === "expired" ? "istekla" : "greška"}” — komentari se
-        ne obrađuju. <SettingsLink>Otvori podešavanja</SettingsLink>.
-      </StatusStrip>
+      <FeedbackNote
+        tone="warning"
+        title={
+          connection.status === "expired"
+            ? "YouTube veza je istekla"
+            : "YouTube veza je u grešci"
+        }
+      >
+        Komentari se ne obrađuju.{" "}
+        <SettingsLink>Otvori podešavanja</SettingsLink>.
+      </FeedbackNote>
     );
   }
 
   if (activeCount === 0) {
     return (
-      <StatusStrip tone="warning">
-        Nalog je povezan, ali nijedna automatizacija nije aktivna — motor ne
-        obilazi komentare dok bar jedna ne bude uključena.
-      </StatusStrip>
+      <FeedbackNote tone="warning" title="Nijedna automatizacija nije aktivna">
+        Nalog je povezan, ali motor ne obilazi komentare dok bar jedna
+        automatizacija ne bude uključena.
+      </FeedbackNote>
     );
   }
 
   return (
-    <StatusStrip tone="success">
-      Motor je uključen i obilazi komentare kanala.{" "}
+    <FeedbackNote
+      tone="success"
+      title="Motor je uključen i obilazi komentare kanala"
+    >
       <span className="font-mono tabular-nums">{activeCount}</span>{" "}
       {activeCount === 1 ? "aktivna automatizacija" : "aktivnih automatizacija"}.
-    </StatusStrip>
-  );
-}
-
-function StatusStrip({
-  tone,
-  children,
-}: {
-  tone: "success" | "warning" | "danger";
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm",
-        tone === "success"
-          ? "border-line-soft bg-card text-muted-foreground"
-          : tone === "warning"
-            ? "border-warning/30 bg-warning/5 text-foreground"
-            : "border-danger/30 bg-danger/5 text-foreground",
-      )}
-    >
-      <span
-        className={cn(
-          "mt-1.5 size-1.5 shrink-0 rounded-full",
-          tone === "success"
-            ? "bg-success"
-            : tone === "warning"
-              ? "bg-warning"
-              : "bg-danger",
-        )}
-        aria-hidden
-      />
-      <p className="leading-relaxed">{children}</p>
-    </div>
+    </FeedbackNote>
   );
 }
 
@@ -264,7 +198,7 @@ function NoAutomations({ onCreate }: { onCreate: () => void }) {
           type="button"
           size="sm"
           onClick={onCreate}
-          className="bg-accent-400 font-semibold text-surface-dark hover:bg-accent-400/90"
+          className="font-semibold"
         >
           <Plus className="size-4" />
           <span>Nova automatizacija</span>

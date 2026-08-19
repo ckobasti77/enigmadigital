@@ -11,7 +11,7 @@ export default function OpenReplyPage() {
     <div className="flex w-full flex-1 flex-col">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="heading-caps text-xs font-medium text-text-muted">
+          <p className="heading-caps text-micro font-medium text-text-muted">
             Automatizacija · OpenReply
           </p>
           <h1 className="mt-2 text-h1 text-foreground">

@@ -43,6 +43,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CharCount, Field } from "@/components/app/form-kit";
+import { FeedbackNote } from "@/components/app/feedback";
 import { DmPreview } from "./dm-preview";
 import { cn } from "@/lib/utils";
 
@@ -225,6 +227,58 @@ function AutomationEditorForm({
   const followUpDelayMinutes = Number.parseInt(followUpDelay, 10);
   const hasFollowUpDelay = Number.isFinite(followUpDelayMinutes);
 
+  /*
+   * Provere stižu uz polje dok se kuca, a ne kao spisak posle „Sačuvaj".
+   * Razlika je između dve vrste problema:
+   *   — format (link nije link, poruka preduga) → crveno odmah uz polje;
+   *   — nedostaje obavezno → nema crvenog na polju koje niko nije ni dirnuo,
+   *     nego jedna rečenica uz dugme koje zbog toga ne radi.
+   */
+  const linkProblem =
+    linkUrl.trim().length > 0 && !/^https?:\/\/\S+\.\S+/.test(linkUrl.trim())
+      ? "Link mora počinjati sa http:// ili https://."
+      : null;
+  const messageProblem =
+    dmMessage.length > messageMax
+      ? `Poruka je duža za ${dmMessage.length - messageMax} znakova od dozvoljenog.`
+      : null;
+  const postProblem =
+    !dmOnly && !matchAnyPost && postId.trim().length === 0
+      ? "Unesi ID objave ili se vrati na „Sve objave”."
+      : null;
+  const publicReplyProblem =
+    publicReplyEnabled && publicReplyMessage.length > PUBLIC_REPLY_MAX
+      ? `Javni odgovor je duži za ${publicReplyMessage.length - PUBLIC_REPLY_MAX} znakova.`
+      : null;
+  const followUpMessageProblem =
+    followUpEnabled && followUpMessage.length > DM_MESSAGE_MAX
+      ? `Naknadna poruka je duža za ${followUpMessage.length - DM_MESSAGE_MAX} znakova.`
+      : null;
+  const followUpDelayProblem =
+    followUpEnabled &&
+    followUpDelay.trim().length > 0 &&
+    (!hasFollowUpDelay ||
+      followUpDelayMinutes < FOLLOW_UP_DELAY_MIN_MINUTES ||
+      followUpDelayMinutes > FOLLOW_UP_DELAY_MAX_MINUTES)
+      ? `Kašnjenje ide od ${FOLLOW_UP_DELAY_MIN_MINUTES} do ${FOLLOW_UP_DELAY_MAX_MINUTES} minuta.`
+      : null;
+
+  const hasFormatProblem = Boolean(
+    linkProblem ||
+      messageProblem ||
+      postProblem ||
+      publicReplyProblem ||
+      followUpMessageProblem ||
+      followUpDelayProblem,
+  );
+
+  // Šta još fali da bi automatizacija uopšte mogla da postoji.
+  const missing: string[] = [];
+  if (name.trim().length === 0) missing.push("naziv");
+  if (keywords.length === 0 && keywordDraft.trim().length === 0)
+    missing.push("bar jedna ključna reč");
+  if (dmMessage.trim().length === 0) missing.push("tekst poruke");
+
   const createAutomation = useMutation(api.orAutomationsApi.createAutomation);
   const updateAutomation = useMutation(api.orAutomationsApi.updateAutomation);
 
@@ -331,26 +385,24 @@ function AutomationEditorForm({
         </div>
       </DialogHeader>
 
-      {errorMsg && (
-        <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-          {errorMsg}
-        </div>
-      )}
+      {errorMsg && <FeedbackNote tone="danger" title={errorMsg} />}
 
-      <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
-        {/* Naziv */}
-        <div>
-          <Label className="mb-1.5 block text-xs font-medium text-text-muted">
-            Naziv automatizacije
-          </Label>
-          <Input
-            placeholder="npr. Lead magnet — „cenovnik”"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={submitting}
-            className="border-line bg-surface"
-          />
-        </div>
+      {/* Razmak između celina (28 px) je vidljivo veći od razmaka unutar
+          njih (12 px) — forma se tako čita kao pet pitanja, a ne kao spisak
+          od dvadeset polja. */}
+      <div className="max-h-[60vh] space-y-7 overflow-y-auto pr-1">
+        <Field label="Naziv automatizacije">
+          {(field) => (
+            <Input
+              {...field}
+              placeholder="npr. Lead magnet — „cenovnik”"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={submitting}
+              className="border-line bg-surface"
+            />
+          )}
+        </Field>
 
         {/* Okidač: ključne reči + podudaranje */}
         <div className="space-y-3 rounded-xl border border-line bg-surface/50 p-3.5">
@@ -472,43 +524,41 @@ function AutomationEditorForm({
               ]}
             />
             {!matchAnyPost && (
-              <Input
-                placeholder="ID objave (media ID iz Instagram API-ja)"
-                value={postId}
-                onChange={(e) => setPostId(e.target.value)}
-                disabled={submitting}
-                className="mt-2 border-line bg-surface font-mono text-xs"
-              />
+              <div className="mt-2">
+                <Field label="ID objave" error={postProblem}>
+                  {(field) => (
+                    <Input
+                      {...field}
+                      placeholder="media ID iz Instagram API-ja"
+                      value={postId}
+                      onChange={(e) => setPostId(e.target.value)}
+                      disabled={submitting}
+                      className="border-line bg-surface font-mono text-xs"
+                    />
+                  )}
+                </Field>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Poruka */}
-        <div>
-          <div className="mb-1.5 flex items-baseline justify-between">
-            <Label className="text-xs font-medium text-text-muted">
-              Tekst poruke
-            </Label>
-            <span
-              className={cn(
-                "font-mono text-xs tabular-nums",
-                dmMessage.length > messageMax
-                  ? "text-danger"
-                  : "text-text-muted",
-              )}
-            >
-              {dmMessage.length}/{messageMax}
-            </span>
-          </div>
-          <Textarea
-            placeholder="Hvala na komentaru! Šaljem ti cenovnik…"
-            value={dmMessage}
-            onChange={(e) => setDmMessage(e.target.value)}
-            disabled={submitting}
-            rows={4}
-            className="border-line bg-surface"
-          />
-        </div>
+        <Field
+          label="Tekst poruke"
+          error={messageProblem}
+          action={<CharCount value={dmMessage.length} max={messageMax} />}
+        >
+          {(field) => (
+            <Textarea
+              {...field}
+              placeholder="Hvala na komentaru! Šaljem ti cenovnik…"
+              value={dmMessage}
+              onChange={(e) => setDmMessage(e.target.value)}
+              disabled={submitting}
+              rows={4}
+              className="border-line bg-surface"
+            />
+          )}
+        </Field>
 
         {/* Link */}
         <div className="space-y-2.5 rounded-xl border border-line bg-surface/50 p-3.5">
@@ -516,22 +566,32 @@ function AutomationEditorForm({
             <Link2 className="size-3.5 text-accent-400" />
             <span>Link u poruci</span>
           </span>
-          <div className="grid gap-2.5 sm:grid-cols-[1fr_auto]">
-            <Input
-              placeholder="https://enigmait.rs/ponuda"
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              disabled={submitting}
-              className="border-line bg-surface text-xs"
-              inputMode="url"
-            />
-            <Input
-              placeholder="Naziv linka (opciono)"
-              value={linkLabel}
-              onChange={(e) => setLinkLabel(e.target.value)}
-              disabled={submitting}
-              className="border-line bg-surface text-xs sm:w-52"
-            />
+          <div className="grid gap-2.5 sm:grid-cols-[1fr_13rem]">
+            <Field label="Adresa" error={linkProblem}>
+              {(field) => (
+                <Input
+                  {...field}
+                  placeholder="https://enigmait.rs/ponuda"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  disabled={submitting}
+                  className="border-line bg-surface text-xs"
+                  inputMode="url"
+                />
+              )}
+            </Field>
+            <Field label="Naziv linka">
+              {(field) => (
+                <Input
+                  {...field}
+                  placeholder="Opciono"
+                  value={linkLabel}
+                  onChange={(e) => setLinkLabel(e.target.value)}
+                  disabled={submitting}
+                  className="border-line bg-surface text-xs"
+                />
+              )}
+            </Field>
           </div>
           <p className="text-xs text-text-muted">
             Link se u poruci zamenjuje kratkom adresom sa tvog domena, pa se
@@ -820,48 +880,46 @@ function AutomationEditorForm({
 
           {followUpEnabled && (
             <div className="space-y-2.5">
-              <div>
-                <div className="mb-1.5 flex items-baseline justify-between">
-                  <Label className="text-xs text-text-muted">
-                    Tekst naknadne poruke
-                  </Label>
-                  <span
-                    className={cn(
-                      "font-mono text-xs tabular-nums",
-                      followUpMessage.length > DM_MESSAGE_MAX
-                        ? "text-danger"
-                        : "text-text-muted",
-                    )}
-                  >
-                    {followUpMessage.length}/{DM_MESSAGE_MAX}
-                  </span>
-                </div>
-                <Textarea
-                  placeholder="Jesi li stigao/la da pogledaš? Tu sam za svako pitanje."
-                  value={followUpMessage}
-                  onChange={(e) => setFollowUpMessage(e.target.value)}
-                  disabled={submitting}
-                  rows={2}
-                  className="border-line bg-surface text-xs"
-                />
-              </div>
+              <Field
+                label="Tekst naknadne poruke"
+                error={followUpMessageProblem}
+                action={
+                  <CharCount
+                    value={followUpMessage.length}
+                    max={DM_MESSAGE_MAX}
+                  />
+                }
+              >
+                {(field) => (
+                  <Textarea
+                    {...field}
+                    placeholder="Jesi li stigao/la da pogledaš? Tu sam za svako pitanje."
+                    value={followUpMessage}
+                    onChange={(e) => setFollowUpMessage(e.target.value)}
+                    disabled={submitting}
+                    rows={2}
+                    className="border-line bg-surface text-xs"
+                  />
+                )}
+              </Field>
 
               <div className="grid gap-2.5 sm:grid-cols-[auto_1fr] sm:items-center">
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    min={FOLLOW_UP_DELAY_MIN_MINUTES}
-                    max={FOLLOW_UP_DELAY_MAX_MINUTES}
-                    placeholder="60"
-                    value={followUpDelay}
-                    onChange={(e) => setFollowUpDelay(e.target.value)}
-                    disabled={submitting}
-                    aria-label="Kašnjenje naknadne poruke u minutima"
-                    className="w-24 border-line bg-surface font-mono text-xs tabular-nums"
-                  />
-                  <span className="text-xs text-text-muted">minuta posle</span>
-                </div>
+                <Field label="Kašnjenje (minuta)" error={followUpDelayProblem}>
+                  {(field) => (
+                    <Input
+                      {...field}
+                      type="number"
+                      inputMode="numeric"
+                      min={FOLLOW_UP_DELAY_MIN_MINUTES}
+                      max={FOLLOW_UP_DELAY_MAX_MINUTES}
+                      placeholder="60"
+                      value={followUpDelay}
+                      onChange={(e) => setFollowUpDelay(e.target.value)}
+                      disabled={submitting}
+                      className="w-28 border-line bg-surface font-mono text-xs tabular-nums"
+                    />
+                  )}
+                </Field>
                 <p className="text-xs text-text-muted">
                   Stiže{" "}
                   {formatFollowUpDelay(
@@ -918,26 +976,28 @@ function AutomationEditorForm({
             />
           </div>
           {publicReplyEnabled && (
-            <div>
-              <Textarea
-                placeholder="Poslato u DM! 📩"
-                value={publicReplyMessage}
-                onChange={(e) => setPublicReplyMessage(e.target.value)}
-                disabled={submitting}
-                rows={2}
-                className="border-line bg-surface text-xs"
-              />
-              <span
-                className={cn(
-                  "mt-1 block text-right font-mono text-xs tabular-nums",
-                  publicReplyMessage.length > PUBLIC_REPLY_MAX
-                    ? "text-danger"
-                    : "text-text-muted",
-                )}
-              >
-                {publicReplyMessage.length}/{PUBLIC_REPLY_MAX}
-              </span>
-            </div>
+            <Field
+              label="Tekst javnog odgovora"
+              error={publicReplyProblem}
+              action={
+                <CharCount
+                  value={publicReplyMessage.length}
+                  max={PUBLIC_REPLY_MAX}
+                />
+              }
+            >
+              {(field) => (
+                <Textarea
+                  {...field}
+                  placeholder="Poslato u DM! 📩"
+                  value={publicReplyMessage}
+                  onChange={(e) => setPublicReplyMessage(e.target.value)}
+                  disabled={submitting}
+                  rows={2}
+                  className="border-line bg-surface text-xs"
+                />
+              )}
+            </Field>
           )}
         </div>
 
@@ -971,7 +1031,12 @@ function AutomationEditorForm({
           onLabel="Automatizacija je aktivna"
           offLabel="Automatizacija je pauzirana"
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {missing.length > 0 && (
+            <span className="text-xs text-text-muted">
+              Nedostaje: {missing.join(", ")}
+            </span>
+          )}
           <Button
             type="button"
             variant="outline"
@@ -984,8 +1049,8 @@ function AutomationEditorForm({
           <Button
             type="submit"
             size="sm"
-            disabled={submitting}
-            className="bg-accent-400 font-semibold text-surface-dark hover:bg-accent-400/90"
+            disabled={submitting || hasFormatProblem || missing.length > 0}
+            className="font-semibold"
           >
             {submitting ? (
               <>

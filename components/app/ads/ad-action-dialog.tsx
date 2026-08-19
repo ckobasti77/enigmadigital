@@ -491,10 +491,10 @@ function AdActionDialogInner({
             className={cn(
               "font-medium",
               actionType === "pause"
-                ? "bg-danger text-danger-foreground hover:bg-danger/90"
+                ? "bg-danger text-text-inverse hover:bg-danger/90"
                 : actionType === "resume"
-                  ? "bg-success text-success-foreground hover:bg-success/90"
-                  : "bg-accent-400 text-slate-950 hover:bg-accent-300",
+                  ? "bg-success text-text-inverse hover:bg-success/90"
+                  : "bg-primary text-primary-foreground hover:bg-primary/80",
             )}
           >
             {loading ? (

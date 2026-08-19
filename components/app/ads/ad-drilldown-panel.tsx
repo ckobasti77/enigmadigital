@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AgeGenderHeatTable } from "./age-gender-heat-table";
 import { PlacementBreakdown } from "./placement-breakdown";
 import { HourlyChart } from "./hourly-chart";
+import { TabNav, TabPanel } from "@/components/app/tab-nav";
 import { formatDecimal, formatNumber, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -58,6 +59,39 @@ function formatRankingBadge(type: "Kvalitet" | "Angažovanje" | "Konverzija", ra
   );
 }
 
+/**
+ * Bočni panel se ponaša kao panel, ne kao dijalog: nema zatamnjenje iza sebe,
+ * jer ne prekida rad — sadržaj iza njega ostaje čitljiv i ostaje kontekst.
+ *
+ * Ali sve što se otvori mora da se zatvori Escape-om, i fokus mora da ima gde
+ * da uđe i gde da se vrati. Bez ovoga se panel otvori, a tastatura ostane
+ * zaglavljena u tabeli iza njega.
+ */
+function usePanelDismiss(onClose: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    ref.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      // Fokus se vraća tamo odakle je panel otvoren — inače se posle
+      // zatvaranja nastavlja od vrha stranice.
+      opener?.focus?.();
+    };
+  }, [onClose]);
+
+  return ref;
+}
+
 export function AdDrilldownPanel({
   adId,
   from,
@@ -70,6 +104,7 @@ export function AdDrilldownPanel({
   onClose: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<"demographics" | "placements" | "hourly">("demographics");
+  const panelRef = usePanelDismiss(onClose);
 
   const data = useQuery(api.metaAdsStore.getAdDrilldown, {
     adId,
@@ -79,7 +114,13 @@ export function AdDrilldownPanel({
 
   if (data === undefined) {
     return (
-      <div className="material-thick material-edge-l fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col p-6">
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        role="region"
+        aria-label="Detalji oglasa"
+        className="material-thick material-edge-l fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col p-6 outline-none"
+      >
         <div className="flex items-center justify-between pb-4">
           <Skeleton className="h-6 w-48" />
           <Skeleton className="size-8 rounded-full" />
@@ -95,7 +136,13 @@ export function AdDrilldownPanel({
 
   if (data === null) {
     return (
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col items-center justify-center border-l border-line bg-background p-6">
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        role="region"
+        aria-label="Detalji oglasa"
+        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col items-center justify-center border-l border-line bg-background p-6 outline-none"
+      >
         <p className="text-sm text-text-muted">Oglas nije pronađen.</p>
         <button
           type="button"
@@ -116,7 +163,13 @@ export function AdDrilldownPanel({
   const searchImpressionShare = (data as { searchImpressionShare?: number }).searchImpressionShare;
 
   return (
-    <div className="material-thick material-edge-l fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col overflow-y-auto">
+    <div
+      ref={panelRef}
+      tabIndex={-1}
+      role="region"
+      aria-label={`Detalji oglasa ${ad.name}`}
+      className="material-thick material-edge-l fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col overflow-y-auto outline-none"
+    >
       {/* Header */}
       <div className="edge-fade-b sticky top-0 z-10 flex items-center justify-between bg-bg-900 px-6 py-4">
         <div className="flex items-center gap-3 min-w-0 pr-4">
@@ -210,7 +263,7 @@ export function AdDrilldownPanel({
           <Card className="gap-0 py-0 shadow-card ring-line border border-line bg-surface/60 overflow-hidden">
             <div className="border-b border-line-soft px-5 py-3">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-medium uppercase tracking-wider text-text-muted">
+                <p className="text-micro font-medium heading-caps text-text-muted">
                   Video Funnel &amp; Zadržavanje pažnje
                 </p>
                 <span className="text-micro text-text-muted">Metrike video kreative</span>
@@ -311,7 +364,7 @@ export function AdDrilldownPanel({
 
         {/* Core Metrics Grid */}
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-text-muted mb-3">
+          <p className="text-micro font-medium heading-caps text-text-muted mb-3">
             Ključne metrike performansi
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -382,53 +435,21 @@ export function AdDrilldownPanel({
           </div>
         </div>
 
-        {/* Breakdown Tabs */}
+        {/* Ista traka jezičaka kao na ostalim ekranima — sa strelicama i
+            vezom sa panelom, umesto još jednog reda dugmadi. */}
         <div className="flex flex-col gap-3">
-          <div className="flex border-b border-line-soft">
-            <button
-              type="button"
-              onClick={() => setActiveTab("demographics")}
-              className={cn(
-                "flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-xs font-medium transition-colors",
-                activeTab === "demographics"
-                  ? "border-accent-400 text-accent-400"
-                  : "border-transparent text-text-muted hover:text-foreground",
-              )}
-            >
-              <BarChart3 className="size-3.5" />
-              <span>Starost × Pol</span>
-            </button>
+          <TabNav
+            tabs={[
+              { id: "demographics", label: "Starost × Pol", icon: BarChart3 },
+              { id: "placements", label: "Pozicije", icon: Layers },
+              { id: "hourly", label: "Satna dinamika (24h)", icon: Clock },
+            ]}
+            active={activeTab}
+            onChange={setActiveTab}
+            panelId="ad-breakdown-panel"
+          />
 
-            <button
-              type="button"
-              onClick={() => setActiveTab("placements")}
-              className={cn(
-                "flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-xs font-medium transition-colors",
-                activeTab === "placements"
-                  ? "border-accent-400 text-accent-400"
-                  : "border-transparent text-text-muted hover:text-foreground",
-              )}
-            >
-              <Layers className="size-3.5" />
-              <span>Pozicije (Placements)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("hourly")}
-              className={cn(
-                "flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-xs font-medium transition-colors",
-                activeTab === "hourly"
-                  ? "border-accent-400 text-accent-400"
-                  : "border-transparent text-text-muted hover:text-foreground",
-              )}
-            >
-              <Clock className="size-3.5" />
-              <span>Satna dinamika (24h)</span>
-            </button>
-          </div>
-
-          <div className="pt-2">
+          <TabPanel id="ad-breakdown-panel" className="pt-2">
             {activeTab === "demographics" && (
               <AgeGenderHeatTable data={ageGenderMatrix} />
             )}
@@ -438,7 +459,7 @@ export function AdDrilldownPanel({
             {activeTab === "hourly" && (
               <HourlyChart data={hourlySeries} hasHourlyData={hasHourlyData} />
             )}
-          </div>
+          </TabPanel>
         </div>
       </div>
     </div>

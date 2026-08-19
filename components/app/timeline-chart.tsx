@@ -390,7 +390,7 @@ function TimelineTooltip({
           </div>
         ))}
       </dl>
-      <p className="mt-1.5 text-[0.6875rem] text-text-muted">
+      <p className="mt-1.5 text-micro text-text-muted">
         Desna kolona: promena u odnosu na prethodni dan.
       </p>
     </div>
@@ -507,7 +507,7 @@ function renderAreaLabel(
         x={textX}
         y={textY}
         textAnchor={anchor}
-        className="font-mono text-[0.6875rem] tabular-nums"
+        className="font-mono text-micro tabular-nums"
         fill={
           kind === "peak"
             ? "var(--color-text-primary)"
@@ -540,7 +540,7 @@ function renderBarLabel(
       x={x + width / 2}
       y={Math.max(LABEL_RISE, y - 5)}
       textAnchor="middle"
-      className="font-mono text-[0.6875rem] tabular-nums"
+      className="font-mono text-micro tabular-nums"
       fill="var(--color-text-primary)"
     >
       {format(value)}

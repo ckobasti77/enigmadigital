@@ -29,6 +29,7 @@ import { EmptyState } from "@/components/app/empty-state";
 import { StatusPill } from "@/components/app/settings/status-pill";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { FeedbackNote } from "@/components/app/feedback";
 
 type YtCommentLogView = FunctionReturnType<
   typeof api.ytAutomationsApi.listCommentLogs
@@ -121,9 +122,7 @@ export function YtCommentLogTable() {
   return (
     <div className="flex flex-col gap-4">
       {errorMsg && (
-        <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-          {errorMsg}
-        </div>
+        <FeedbackNote tone="danger" title={errorMsg} />
       )}
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -376,7 +375,7 @@ function DeleteCommentDialog({
             size="sm"
             onClick={onConfirm}
             disabled={busy}
-            className="bg-danger font-semibold text-surface-dark hover:bg-danger/90"
+            className="bg-danger font-semibold text-text-inverse hover:bg-danger/90"
           >
             {busy ? (
               <>

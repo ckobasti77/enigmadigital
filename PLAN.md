@@ -478,10 +478,11 @@ To je ionako bilo protiv pravila („tekst nosi tekstualne tokene, nikad boju se
 pa su bedževi u `/ads` koji su nosili `text-chart-*` prebačeni na `text-foreground`;
 obojeni okvir i tačkica i dalje nose identitet.
 
-**Ostaje za D4/D5:** `text-chart-1/80` i `text-chart-2/80` na sitnim ikonicama u
-`youtube-videos-grid.tsx` i `instagram-content-grid.tsx`. To su dekorativne ikonice
-uz metriku, nisu serije — tokeni grafikona tu uopšte ne pripadaju. Nije dirano jer je
-D3 o grafikonima, ali sa tamnijom paletom te ikonice postaju mutne.
+**Zatvoreno u D5:** `text-chart-1/80` i `text-chart-2/80` na sitnim ikonicama u
+`youtube-videos-grid.tsx` i `instagram-content-grid.tsx` prebačeni su na
+`text-text-muted`. To su bile dekorativne ikonice uz metriku, ne serije — tokeni
+grafikona tu nisu pripadali. Posle D5 u celoj aplikaciji nema nijednog
+`text-chart-*`.
 
 ### 10.3 Zajednička vremenska serija
 
@@ -544,3 +545,305 @@ se u kodu nisu videle:
 
 Prostor iznad najviše marke je usput postao uslovan: okrugli podeoci obično već
 ostave višak, pa se fiksnim množiocem panel bespotrebno praznio.
+
+---
+
+## 11. Dizajn sistem (D1–D5)
+
+Ovo je zapis **zašto**, ne samo **šta**. Vrednosti se vide u `app/globals.css` i
+`lib/motion.ts` za deset sekundi; razlog zbog kog su baš te vrednosti izabrane ne
+vidi se nigde, a on je jedini deo koji se za pola godine neće moći rekonstruisati
+iz koda.
+
+Zajednička nit svih pravila ispod: **ovo je kontrolna tabla koju operater otvara
+deset puta dnevno**, a ne sajt koji se poseti jednom. Sve što na sajtu deluje
+bogato — dugačke animacije, veliki pomeraji, boja kao ukras — ovde posle desetog
+otvaranja postaje trošak. „Moćno" u ovom kontekstu znači precizno i brzo.
+
+### 11.1 Skala tipografije
+
+Šest nivoa, i ništa između njih (`@theme` u `app/globals.css`):
+
+| nivo      | veličina (fluidno 20rem → 80rem) | težina | tracking | čemu služi               |
+|-----------|----------------------------------|--------|----------|--------------------------|
+| `display` | 32 → 56 px                       | 700    | −0.022em | naslovna, retko          |
+| `h1`      | 24 → 32 px                       | 700    | −0.018em | naslov ekrana            |
+| `h2`      | 20 → 24 px                       | 700    | −0.012em | naslov dijaloga, sekcije |
+| `body`    | 14 → 16 px                       | 400    | 0        | tekst                    |
+| `small`   | 12 → 13 px                       | 400    | +0.005em | sekundarni tekst         |
+| `micro`   | 11 px (fiksno)                   | 400    | +0.02em  | oznake, bedževi, ose     |
+
+Tri razloga zašto baš ovako:
+
+1. **Tracking ide suprotno od veličine.** Veliki tekst na negativnom trackingu i
+   zbijenom proredu čita se kao jedan oblik; sitan tekst se otvara da bi slova
+   ostala razdvojiva na veličini na kojoj čovek zaista žmirka. Odatle i pravilo iz
+   D5: **nijedna veličina ne sme da nosi tracking druge veličine.**
+   `text-2xl tracking-tight` je bio upravo to — `tracking-tight` je −0.025em, a
+   `text-2xl` po skali nosi −0.015em. D5 je uklonio sve takve slučajeve; veličine
+   sada nose svoj optički tracking same.
+2. **Hijerarhiju nosi i težina, ne samo veličina.** Aeonik isporučuje 300/400/700,
+   pa su to jedini stvarni koraci — 500 i 600 bi se tiho zaokružili na jedan od
+   njih. Tri nivoa naslova su 700, tri nivoa teksta 400.
+3. **11 px je pod.** Ispod toga slova prestaju da budu čitljiva na ekranu koji se
+   gleda pod uglom, a to je stanje u kom se ova tabla najčešće gleda. `micro`
+   zato nije fluidan: fluidnost bi mu na uskom ekranu spustila donji kraj ispod
+   poda.
+
+Jedna posledica pravila o podu pojela je ceo jedan raspored: donja navigacija na
+telefonu imala je devet fiksnih kolona, što je natpise svelo na 8 px. Umesto da se
+natpisi sakriju, traka sada kliza vodoravno (`components/app/mobile-nav.tsx`) —
+stavke drže svoju širinu i `micro` natpis, a aktivna se sama dovuče u vidno polje.
+**Pet čitljivih je više od devet nečitljivih.**
+
+Za `heading-caps` (verzal sa +0.12em) važi izuzetak od pravila 1: verzal bez
+otvorenog trackinga je nečitljiv, pa taj tracking pripada *tretmanu*, ne veličini.
+Sve oznake sa `heading-caps` u D5 su spuštene na `micro` — pre toga je polovina
+bila `text-xs`, polovina `text-micro`, bez pravila koje bi reklo koja je koja.
+
+### 11.2 Četiri nivoa dubine
+
+`--elev-0` … `--elev-3`, i ništa između (`app/globals.css`):
+
+| nivo     | šta ga nosi             | čita se kao                              |
+|----------|-------------------------|------------------------------------------|
+| `elev-0` | sadržaj u toku stranice | nije podignuto; ivicu nosi linija        |
+| `elev-1` | kartice i pločice       | odvojeno od strane, još uvek prilepljeno |
+| `elev-2` | padajući meni, popover  | otkačeno, privremeno                     |
+| `elev-3` | modali, bočni paneli    | najdalje napred, blokira stranu          |
+
+Svaki nivo je **kontaktna senka** (uska, tamna — prodaje ivicu) plus
+**ambijentalna senka** (široka, meka — prodaje razdaljinu). Od nivoa do nivoa
+ambijentalno zamućenje se udvostručuje, a alfa raste za oko 0.1 — dovoljno da se
+skok vidi, a da se ne viče.
+
+Zašto tačno četiri: dubina u interfejsu nije estetika nego **izjava o tome šta je
+sada glavno**. Sa četiri nivoa ta izjava ima četiri moguće vrednosti i svaka se
+razlikuje na prvi pogled. Peti nivo ne bi doneo novu izjavu, samo bi zamaglio
+razliku između postojećih — zato su i standardna Tailwind imena (`shadow-md`,
+`shadow-lg`, `shadow-xl`…) preslikana na ista četiri koraka, da zalutalo
+`shadow-md` ne bi tiho uvelo peti.
+
+Iz iste podele sledi razlika koju D5 proverava: **modal ima scrim, bočni panel
+nema.** Modal prekida rad, pa stranica iza njega mora da ode nazad — otud
+zatamnjenje (`--surface-overlay`) i zamućenje. Panel ne prekida rad nego dopunjuje
+kontekst, pa stranica iza njega ostaje čitljiva. Oba i dalje moraju da se zatvore
+Escape-om i vrate fokus tamo odakle su otvorena; panel to radi kroz
+`usePanelDismiss` (`components/app/ads/ad-drilldown-panel.tsx`), modal kroz Base
+UI.
+
+Materijali (`.material-thin` / `.material` / `.material-thick`) su ortogonalni na
+dubinu: dubina kaže *koliko je napred*, materijal *od čega je napravljeno*. Jedno
+pravilo ih spaja: **translucentno se nikad ne stavlja na translucentno** —
+ugnežđen materijal ide u punu boju, jer se dva sloja zamućenja jedan preko drugog
+ne čitaju.
+
+### 11.3 Dva imenovana ease-a
+
+```
+--ease-ui        cubic-bezier(0.25, 1, 0.5, 1)     ⇄  "power3.out"     (lib/motion.ts)
+--ease-momentum  cubic-bezier(0.34, 1.42, 0.64, 1) ⇄  "back.out(1.4)"
+```
+
+- **`--ease-ui` — kritično prigušen, bez prebačaja.** Za sve što se prosto
+  *pojavi*: reveal, meni, popover, panel, dijalog, traka napretka. Ovo je
+  podrazumevani ease; ako se dvoumiš, on je tačan.
+- **`--ease-momentum` — blagi prebačaj.** **Samo** kada je pokretu prethodio zamah
+  ruke: prevlačenje, bacanje, odbacivanje kartice prstom.
+
+Razlika nije ukus nego fizika koju oko očekuje. Prebačaj znači „nešto je imalo
+brzinu i moralo da se zaustavi". Meni koji se samo pojavio nije imao brzinu, pa
+prebačaj na njemu deluje kao greška u tajmingu. Kartica koju si odgurnuo jeste, pa
+isti prebačaj na njoj deluje tačno.
+
+GSAP nema pravi spring, pa svaka kriva ima blizanca u `lib/motion.ts`. **Menjaju se
+u paru** — CSS i GSAP animacije često stoje jedna do druge na istom ekranu i
+razilaženje krivih se vidi.
+
+### 11.4 Pravilo o 400 ms
+
+**Nijedan ulazak na ekran ne traje duže od 400 ms ukupno**, od prvog do poslednjeg
+elementa. To je plafon za `trajanje + stagger × (broj − 1)`, a ne za pojedinačan
+element. Brojevi koji iz njega slede (`lib/motion.ts`):
+
+```
+DUR_UI            0.30 s   trajanje svega što ulazi bez zamaha
+REVEAL_BUDGET     0.40 s   plafon celog ekrana
+MAX_REVEAL_DELAY  0.10 s   = budžet − trajanje; sav prostor za sekvencu
+STAGGER_MAX       0.06 s   najveći razmak između dva susedna elementa
+REVEAL_Y          12 px    pomeraj pri ulasku
+DUR_ROUTE         0.20 s   prelaz između ruta (page-transition.tsx)
+```
+
+Plafon se ne poštuje disciplinom nego kodom: `resolveStagger(count)` sam stiska
+razmak kada dece ima više (`room / (count − 1)`), a `clampRevealDelay()` odseca
+svako kašnjenje preko 100 ms. Pozivno mesto ne može da probije budžet ni kada bi
+htelo.
+
+Zašto baš 400: ispod ~100 ms pokret se ne primeti, preko ~500 ms se **čeka**. Na
+tabli koja se otvara deset puta dnevno, pola sekunde po otvaranju je pola sekunde
+u kojoj animacija stoji između čoveka i broja koji je došao da vidi. Dvanaest
+piksela iz istog razloga: dovoljno da se registruje smena sadržaja, premalo da se
+pročita kao putovanje.
+
+Uz plafon idu tri posledice koje D5 proverava kroz celu aplikaciju:
+
+1. **Ništa se ne ponavlja kada stigne nov podatak iz Convex-a.** Ovo je najlakša
+   greška u realtime aplikaciji: backend pošalje ažuriranje, komponenta se
+   rerenderuje, i cela tabla ponovo poskoči — dok operater u nju gleda. Zaštita je
+   svuda ista: pamti se da je ulaz odigran (`phaseRef` u `Reveal`, `played` u
+   `Materialize` i u trakama napretka, poređenje vrednosti u `CountUp`). Trake
+   napretka posle prvog prikaza klize **od zatečene širine**, nikad ponovo od nule
+   — zato u njima nema `fromTo`. D5 je ovu grešku zatekao na tri mesta (kvota,
+   procena titlova, napredak slanja) i sva tri su ispravljena.
+2. **Odziv stiže na pritisak, ne na otpuštanje.** `:active` utiskuje element na
+   `--press-scale` 0.97 za 100 ms. Čekanje na `click` deluje mrtvo, a razlika košta
+   jedno CSS pravilo. Redovi tabele su izuzeti iz skaliranja — na punoj širini 0.97
+   pomeri ivice reda petnaestak piksela i iščupa red iz mreže — pa oni isti tajming
+   dobijaju kroz korak u pozadini.
+3. **`prefers-reduced-motion: reduce` znači nula pomeraja, ne kraću animaciju.**
+   Ostaje samo 150 ms cross-fade opaciteta. Svaka komponenta ima obe grane kroz
+   `gsap.matchMedia(MOTION_QUERIES)`; nijedna se ne oslanja na globalno gašenje.
+   Jedna zamka je zapisana u `components/motion/css-transition.ts`: globalno
+   pravilo za reduced motion postavlja tranziciju na *svaki* element, pa bi ona
+   interpolirala svaki okvir koji GSAP upiše i razvukla cross-fade preko njegovog
+   trajanja. Dok tvin drži `opacity`, tranzicija se gasi pa vraća.
+
+### 11.5 Validirana paleta grafikona
+
+Puni zapis je u §10; ovde stoji rezultat, jer je paleta deo sistema koliko i skala
+tipografije.
+
+```
+--chart-1  #1c9dd6  cyan (brend)      --chart-4  #c98500  amber
+--chart-2  #d95926  narandžasta       --chart-5  #d55181  magenta
+--chart-3  #199e70  zelena            --chart-6  #9085e9  ljubičasta
+
+validator: dataviz/scripts/validate_palette.js · podloga #131d31 · režim dark
+[PASS] opseg svetline    svih 6 unutar OKLCH L 0.48–0.67
+[PASS] hroma             svih 6 >= 0.1
+[PASS] CVD separacija    najgori susedni par #c98500 ↔ #199e70  ΔE 8.4 (protan)
+[PASS] normalan vid      najgori susedni par #d55181 ↔ #c98500  ΔE 19.3
+[PASS] kontrast          svih 6 preko 3:1 prema podlozi
+```
+
+Stara paleta je padala dve od šest provera: pet od šest boja sedelo je na
+L 0.71–0.84 (neonski odsjaj), a cyan i ljubičasta su pod deuteranopijom bili
+ΔE 5.2 — najčešće slepilo za boje nije moglo da razlikuje te dve serije.
+
+Redosled je fiksan i **nikad se ne cikliše**: slot 1 je uvek slot 1, šta god filter
+ostavio na ekranu. Sedma serija ne dobija generisanu nijansu nego se sliva u
+„Ostalo" ili se grafikon deli na male višestruke.
+
+`--chart-1` i `--accent-400` su namerno **različiti** cyanovi: cyan kao boja
+interakcije i cyan kao prva serija su dva sloja sistema, pa su dve vrednosti.
+
+Iz tamnije palete sledi pravilo koje D5 proverava: **nijedan tekst ne nosi boju
+serije.** `chart-2` i `chart-5` kao boja teksta padaju AA za sitan tekst (4.33:1 i
+4.27:1 prema `--card`). Identitet serije nose okvir, tačka i ispuna — nikad slova.
+
+### 11.6 Četiri vrste povratne informacije
+
+`components/app/feedback.tsx` — jedna kutija, četiri tona, i nijedan peti:
+
+| ton        | kada                             | ikonica         |
+|------------|----------------------------------|-----------------|
+| `progress` | nešto upravo teče                | `LoaderCircle`  |
+| `success`  | potvrda da je uspelo             | `CheckCircle2`  |
+| `warning`  | **pre** nego što nastane problem | `AlertTriangle` |
+| `danger`   | šta je pošlo naopako i šta sad   | `AlertCircle`   |
+
+Dva pravila iza tabele:
+
+- **Boja nikad ne nosi značenje sama.** Svaki ton ima svoju ikonicu, a tekst kaže
+  isto što i boja. Poruka tako radi i u sivim tonovima i za oko koje crveno i
+  zeleno vidi kao istu boju. Isto važi za statusne pločice i trake stanja motora.
+- **Upozorenje stiže dok se još može reagovati.** Kvota pri kraju javlja se dok
+  odgovora još ima (`quota-widget.tsx`), a ne kada su potrošeni; Instagram token
+  javlja da ističe dve nedelje unapred, a ne kada sinhronizacija stane.
+
+Greška i upozorenje idu kao `role="alert"` (čitač ekrana prekida i pročita), stanje
+i završetak kao `role="status"` — jer ono što je uspelo ne prekida čoveka usred
+rečenice. Poruke o uspehu se same sklanjaju: potvrda koja ostane zauvek prestaje da
+bude potvrda i postaje deo pozadine.
+
+### 11.7 Forme
+
+Ekrani sa najviše polja (Podešavanja, editori automatizacija) nose najveći rizik od
+nereda, pa pravila stoje u kodu kao komponente (`components/app/form-kit.tsx`), ne
+kao dogovor:
+
+- **Dva razmaka, i razlika među njima se vidi bez merenja.** 12 px unutar grupe
+  (`FormGroup`), 28 px između grupa (`FormStack`). Blizina znači srodnost i to je
+  jedini raspored koji se čita bez razmišljanja. Da je 16 naspram 20, oko bi videlo
+  jedan dugačak spisak polja; ovako vidi tri-četiri celine.
+- **Kontrola stoji pored onoga na šta utiče.** Prekidač koji uključuje celu grupu
+  je u zaglavlju te grupe, ne na dnu forme među dugmadima.
+- **Validacija stiže dok se kuca.** Razlikuju se dve vrste problema: *format*
+  (JSON koji nije JSON, link bez `https://`, ID pogrešne dužine) pocrveni odmah uz
+  polje; *nedostaje obavezno* ne farba polje koje niko nije ni dotakao, nego stoji
+  kao jedna rečenica uz dugme koje zbog toga ne radi. Poruka koja čeka „Sačuvaj"
+  stiže pošto je čovek mišlju već otišao dalje.
+- **Ako oznaka mora da objasni šta kontrola radi, veza je slaba — polje se
+  preimenuje.** `hint` je zato redak i drži se formata koji se ne da naslutiti.
+- **Opasne radnje su odvojene, ali se ne potvrđuje sve.** Brisanje i prekid veze
+  imaju svoj okvir (`DangerZone`) i svoj dijalog (`ConfirmDialog`) koji kaže i
+  **šta preživljava radnju** — log, istorija, već poslate poruke. Gašenje motora,
+  koje se vraća jednim klikom, dobija odvajanje ali ne i potvrdu: **kada se sve
+  potvrđuje, ljudi kliknu kroz potvrdu ne pročitavši je**, pa potvrda prestane da
+  štiti ono zbog čega postoji. Iz istog razloga nema više nijednog `window.confirm`
+  — native prozor ne ume da kaže šta ostaje sačuvano.
+
+### 11.8 Šta je revizija u D5 zatekla
+
+Vredi zapisati, jer su to greške koje se ponavljaju:
+
+1. **Klase koje ne postoje ne prijavljuju grešku.** `text-surface-dark` (20 mesta),
+   `text-success-foreground`, `text-danger-foreground` — ti tokeni nikad nisu bili
+   definisani, pa Tailwind nije generisao ništa, a tekst je nasleđivao skoro belu
+   na cyan i zelenoj podlozi. Nijedan alat ovo ne prijavljuje; vidi se samo okom
+   ili poređenjem sa `globals.css`.
+2. **Tri trake napretka su se vraćale na nulu** pri svakom ažuriranju iz Convex-a
+   (§11.4, tačka 1).
+3. **Tri klikabilna elementa nisu postojala za tastaturu** — dva reda tabele i
+   zaglavlje ad seta. Za miša gotov posao, za tastaturu ćorsokak. Rešeno kroz
+   `lib/activate.ts`; fokusni prsten stiže sam, iz pravila u `globals.css`.
+4. **Pet ručno pisanih traka sa jezičcima**, svaka sa drugačijim klasama i nijedna
+   sa strelicama. Spojene u `components/app/tab-nav.tsx`.
+5. **Bočni panel se nije zatvarao Escape-om** i nije puštao fokus unutra.
+
+### 11.9 Odluke u D5 koje spec nije propisao
+
+Četiri mesta gde je izbor moj, ne korisnikov:
+
+1. **Donja navigacija kliza umesto da se skraćuje.** Alternative su bile sakriti
+   natpise (ikonice bez teksta) ili izbaciti stavke sa telefona. Kliženje čuva i
+   natpise i sve rute; cena je da se do poslednjih stavki mora prevući.
+2. **Sve `heading-caps` oznake spuštene na `micro`.** Kod je imao obe veličine bez
+   pravila; `micro` je izabran jer ga sam token sistem opisuje kao nivo za oznake i
+   bedževe.
+3. **YouTube kartica u Podešavanjima dobila je „Sinhronizuj".** Tekst na njoj je od
+   Y1 tvrdio da preuzimanje podataka „tek stiže", a `connections.syncNow` rutira
+   YouTube još od Y2 — kartica je jedina bila zaostala. Ovo je jedina izmena u D5
+   koja dodaje radnju, a ne samo izgled.
+4. **Nedostajuća obavezna polja ne pocrvene sama od sebe**, nego stoje kao spisak
+   uz zaključano dugme. Slovo specifikacije („validacija dok korisnik kuca") moglo
+   bi se pročitati i kao „crveno na svakom praznom polju od prvog trenutka"; to bi
+   značilo da svaka nova automatizacija počinje kao tri greške.
+
+### 11.10 Šta ostaje otvoreno
+
+- `/privacy` i `/terms` **ne postoje** u aplikaciji. D5 ih nije pravio jer je
+  zadatak tražio da se srede „ako postoje". Meta app review ih traži za javnu
+  Instagram integraciju, pa su verovatno posao pred izlazak u produkciju.
+- **Provera u browseru je delimična.** `/login` je proveren okom (raspored,
+  fokusni prsten, greška formata koja stiže dok se kuca, konzola bez ijedne
+  poruke) i tu je uhvaćena jedina stvar koja se u kodu nije videla: primarno
+  dugme je stizalo ugašeno na prazno polje, što je prvo što čovek vidi na ovom
+  ekranu. Sada je dugme uvek živo, a poruka „Unesi email." stiže tek na pokušaj
+  slanja.
+  Ostali ekrani su iza magic-link prijave (`convex/auth.ts`, Resend, bez dev
+  prečice), pa za njih tvrdnje o rasporedu stoje na kodu i na
+  `tsc` / `lint` / `build`, ne na oku. Kada domen `enigmait.rs` bude potvrđen u
+  Resend-u, vredi proći ekrane sa formama na 1280 px i 390 px — najviše rizika
+  nose editori automatizacija, gde je razmak između grupa novo pravilo.

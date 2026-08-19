@@ -179,7 +179,7 @@ export function HookLabelEditor({
             e.stopPropagation();
             startEditing();
           }}
-          className="inline-flex items-center gap-1 rounded border border-dashed border-line-strong px-2 py-0.5 text-[0.625rem] text-text-muted hover:border-accent-400/40 hover:text-accent-400 transition-colors"
+          className="inline-flex items-center gap-1 rounded border border-dashed border-line-strong px-2 py-0.5 text-micro text-text-muted hover:border-accent-400/40 hover:text-accent-400 transition-colors"
           title="Dodaj hook oznaku (npr. Hook A, Hook B)"
         >
           <Edit2 className="size-2.5" />
