@@ -113,6 +113,12 @@ const EXTRA_SCREENS: Screen[] = [
     title: "Automatizacije i DM log",
     range: false,
   },
+  {
+    href: "/instagram/objavi",
+    section: "Kanali",
+    title: "Nova objava",
+    range: false,
+  },
 ];
 
 /**

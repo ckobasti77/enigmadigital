@@ -18,6 +18,25 @@ crons.interval(
   internal.instagram.refreshAllTokens,
   {},
 );
+// Publishing is scheduled to the minute, so the queue is checked every minute.
+// The tick is cheap — one indexed read of what is due, and nothing at all when
+// nothing is. It doubles as the recovery path: a post whose direct run never
+// happened is still `queued` and still due, so the next tick picks it up.
+crons.interval(
+  "publish scheduled instagram posts",
+  { minutes: 1 },
+  internal.instagramPublishStore.enqueueDueJobs,
+  {},
+);
+// A published post deletes its own files immediately; this takes back the disk
+// from everything else. 24 h is also exactly how long an Instagram container
+// lives, so nothing that could still be published loses its bytes.
+crons.interval(
+  "sweep instagram upload files",
+  { hours: 1 },
+  internal.instagramPublishStore.sweepExpiredUploads,
+  {},
+);
 crons.interval(
   "sync meta ads structure",
   { hours: 3 },

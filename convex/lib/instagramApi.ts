@@ -26,6 +26,10 @@ export const INSTAGRAM_SCOPES = [
   "instagram_business_manage_insights",
   "instagram_business_manage_comments",
   "instagram_business_manage_messages",
+  // F3 — publishing. A token issued before this entry existed does NOT carry
+  // it, and no refresh adds it: the account has to go through the connect flow
+  // again. The publishing screen says so out loud (lib/igPublish.ts).
+  "instagram_business_content_publish",
 ] as const;
 
 export function getMetaGraphVersion(): string {
@@ -242,6 +246,110 @@ export function buildMessengerProfileUrl(
   version: string = getMetaGraphVersion(),
 ): string {
   return `${INSTAGRAM_GRAPH_BASE_URL}/${version}/me/messenger_profile`;
+}
+
+// ── Content Publishing (F3) ──────────────────────────────────────────────────
+
+/**
+ * Build endpoint URL for creating a media CONTAINER — step one of two.
+ *
+ * The container is not a post. It is Instagram's copy of the file, pulled by
+ * Instagram itself from the public `image_url` / `video_url` we hand it, and it
+ * expires 24 hours later if nothing publishes it.
+ */
+export function buildMediaContainerUrl(
+  igUserId: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  return `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${igUserId}/media`;
+}
+
+/**
+ * Build endpoint URL for publishing a finished container — step two of two.
+ * The body carries `creation_id`, which is the container's `id`.
+ */
+export function buildMediaPublishUrl(
+  igUserId: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  return `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${igUserId}/media_publish`;
+}
+
+/**
+ * Build endpoint URL for asking whether a container is ready.
+ *
+ * `status_code` is the machine answer (IN_PROGRESS / FINISHED / ERROR /
+ * EXPIRED); `status` is the sentence a human can act on when it is ERROR, and
+ * is the only place Instagram says WHY a video was rejected.
+ */
+export function buildContainerStatusUrl(
+  containerId: string,
+  accessToken: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(`${INSTAGRAM_GRAPH_BASE_URL}/${version}/${containerId}`);
+  url.searchParams.set("fields", "status_code,status");
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/**
+ * Build endpoint URL for the rolling 24-hour publishing allowance.
+ *
+ * `config` holds the ceiling and the window; `quota_usage` holds how much of it
+ * is spent. Both are asked for because the ceiling is not a constant we get to
+ * assume — Instagram sets it per account.
+ */
+export function buildPublishingLimitUrl(
+  igUserId: string,
+  accessToken: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(
+    `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${igUserId}/content_publishing_limit`,
+  );
+  url.searchParams.set("fields", "config,quota_usage");
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/** What `POST /{ig-user-id}/media` and `/media_publish` answer with. */
+export interface RawContainerResponse {
+  id?: string;
+  error?: {
+    message: string;
+    type: string;
+    code: number;
+    error_subcode?: number;
+  };
+}
+
+/** What `GET /{container-id}?fields=status_code,status` answers with. */
+export interface RawContainerStatusResponse {
+  id?: string;
+  status_code?: string;
+  status?: string;
+  error?: {
+    message: string;
+    type: string;
+    code: number;
+  };
+}
+
+/** What `GET /{ig-user-id}/content_publishing_limit` answers with. */
+export interface RawPublishingLimitResponse {
+  data?: Array<{
+    quota_usage?: number;
+    config?: {
+      quota_total?: number;
+      quota_duration?: number;
+    };
+  }>;
+  error?: {
+    message: string;
+    type: string;
+    code: number;
+  };
 }
 
 /**

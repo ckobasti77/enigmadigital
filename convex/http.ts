@@ -1,6 +1,7 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { auth } from "./auth";
 import { appendUtm, isBotUserAgent } from "./lib/orLink";
 import { decryptCredentials } from "./lib/crypto";
@@ -558,6 +559,118 @@ http.route({
       return igMediaError("Slika nije dostupna.", 404);
     }
     return igMediaRedirect(freshUrl);
+  }),
+});
+
+// Route 5 — GET: Instagram upload source (/ig-upload/<storageId>)
+//
+// Instagram never takes bytes from us. A container is created by handing it a
+// PUBLIC address (`image_url` / `video_url`) which Instagram then fetches for
+// itself — so between "operator picked a file" and "post is live" that file has
+// to be reachable from the open internet. This route is that address.
+//
+// The storage id is the only protection, and it is enough: it is unguessable,
+// the file is there for minutes, and the whole point of the exercise is that
+// the picture is about to be published anyway. `Cache-Control: private` keeps
+// it out of shared caches for the short while it exists, and the file is
+// deleted the moment the post goes out (convex/instagramPublishStore.ts).
+//
+// Unlike /ig-media/ this one SERVES the bytes rather than redirecting: there is
+// nowhere to redirect to, the file lives here.
+
+const IG_UPLOAD_CACHE_HEADER = "private, max-age=600";
+
+/**
+ * `Range` is handled because Meta's video fetcher asks for one.
+ *
+ * A single `Content-Length` response works for a picture and fails for a
+ * gigabyte of video: the fetcher opens with a small ranged request, and a
+ * server that answers 200-with-everything to `Range:` is treated as broken.
+ * Only the single-range form is parsed — that is the only form anyone sends.
+ */
+function parseRange(
+  header: string | null,
+  size: number,
+): { start: number; end: number } | null {
+  if (!header) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match) return null;
+
+  const [, rawStart, rawEnd] = match;
+  if (rawStart === "" && rawEnd === "") return null;
+
+  // "bytes=-500" means the LAST 500 bytes, not "up to byte 500".
+  const start = rawStart === "" ? Math.max(0, size - Number(rawEnd)) : Number(rawStart);
+  const end = rawStart === "" ? size - 1 : rawEnd === "" ? size - 1 : Number(rawEnd);
+
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  if (start < 0 || start >= size || end < start) return null;
+  return { start, end: Math.min(end, size - 1) };
+}
+
+http.route({
+  pathPrefix: "/ig-upload/",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const raw = new URL(request.url).pathname
+      .slice("/ig-upload/".length)
+      .split("/")[0]
+      .trim();
+    if (raw.length === 0) {
+      return new Response("Fajl nije pronađen.", { status: 404 });
+    }
+
+    const storageId = decodeURIComponent(raw) as Id<"_storage">;
+
+    let blob: Blob | null;
+    try {
+      blob = await ctx.storage.get(storageId);
+    } catch {
+      // A malformed id lands here rather than as a 500.
+      return new Response("Fajl nije pronađen.", { status: 404 });
+    }
+    if (blob === null) {
+      return new Response("Fajl nije pronađen.", { status: 404 });
+    }
+
+    // Convex fills `blob.type` from the content type recorded at upload, so the
+    // metadata read is only for the case where it did not — a file POSTed
+    // without the header. Meta refuses a wrong type outright, so this is worth
+    // one extra read rather than a guess from the bytes.
+    const contentType =
+      blob.type.length > 0
+        ? blob.type
+        : ((await ctx.runQuery(
+            internal.instagramPublishStore.getUploadContentType,
+            { storageId },
+          )) ?? "application/octet-stream");
+
+    const size = blob.size;
+    const range = parseRange(request.headers.get("range"), size);
+
+    if (range === null) {
+      return new Response(blob, {
+        status: 200,
+        headers: {
+          "Content-Type": contentType,
+          "Content-Length": String(size),
+          "Accept-Ranges": "bytes",
+          "Cache-Control": IG_UPLOAD_CACHE_HEADER,
+        },
+      });
+    }
+
+    const slice = blob.slice(range.start, range.end + 1);
+    return new Response(slice, {
+      status: 206,
+      headers: {
+        "Content-Type": contentType,
+        "Content-Length": String(range.end - range.start + 1),
+        "Content-Range": `bytes ${range.start}-${range.end}/${size}`,
+        "Accept-Ranges": "bytes",
+        "Cache-Control": IG_UPLOAD_CACHE_HEADER,
+      },
+    });
   }),
 });
 

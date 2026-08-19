@@ -142,6 +142,73 @@ export default defineSchema({
     .index("by_workspace_published", ["workspaceId", "publishedAt"])
     .index("by_media", ["mediaId"]), // public /ig-media/ proxy lookup
 
+  // ── Instagram publishing (F3) ───────────────────────────────────────────────
+  // One row per post an operator started — sent now or scheduled for later.
+  //
+  // Publishing is two calls with an asynchronous wait between them (create a
+  // container, poll it, publish it), and the file has to sit on a public URL
+  // the whole time. That is far too much state to hold in a browser tab that
+  // may be closed at any moment, so it lives here: the row IS the job, and the
+  // cron can pick it up whether or not anyone is watching.
+  //
+  // Nothing is ever deleted. A failed post is the one an operator most needs to
+  // see afterwards, and "why did it not go out" is only answerable from a row
+  // that says which step it died on.
+  igPublishJobs: defineTable({
+    workspaceId: v.id("workspaces"),
+    kind: v.union(
+      v.literal("IMAGE"),
+      v.literal("REEL"),
+      v.literal("STORY"),
+      v.literal("CAROUSEL"),
+    ),
+    caption: v.optional(v.string()), // never set for STORIES
+    shareToFeed: v.optional(v.boolean()), // REELS only
+    // The files, in the order they appear in the post. A carousel keeps its
+    // slide order here — there is nowhere else it is written down.
+    storageIds: v.array(v.id("_storage")),
+    // Public `/ig-upload/<storageId>` addresses, in the same order. Built once
+    // at creation so a retry cannot silently point at a different host.
+    mediaUrls: v.array(v.string()),
+    // Content type per file, same order. Instagram needs to be told `image_url`
+    // or `video_url`, and by publish time the file's own name is long gone.
+    contentTypes: v.array(v.string()),
+    containerId: v.optional(v.string()),
+    childContainerIds: v.optional(v.array(v.string())), // CAROUSEL slides
+    // When the container was handed to Instagram. The processing deadline runs
+    // from here, not from `createdAt`, so a retry gets a full fresh wait.
+    processingSince: v.optional(v.number()),
+    scheduledFor: v.optional(v.number()), // epoch ms; the picker works in Europe/Belgrade
+    status: v.union(
+      v.literal("draft"),
+      v.literal("queued"),
+      v.literal("uploading"),
+      v.literal("processing"),
+      v.literal("published"),
+      v.literal("failed"),
+      v.literal("canceled"),
+    ),
+    attempts: v.number(),
+    error: v.optional(v.string()),
+    publishedMediaId: v.optional(v.string()),
+    publishedAt: v.optional(v.number()),
+    // Cleared once the files are gone, so the 24h sweep knows what is left.
+    filesDeletedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_workspace_status", ["workspaceId", "status"])
+    .index("by_workspace_scheduled", ["workspaceId", "scheduledFor"])
+    // The 1-minute cron asks "what is due, anywhere" — a question no
+    // workspace-scoped index can answer without walking every workspace first.
+    .index("by_status_scheduled", ["status", "scheduledFor"])
+    // The 24h file sweep. Keyed on `filesDeletedAt` FIRST so the scan starts at
+    // the rows that still hold bytes: an index on `createdAt` alone would fill
+    // every batch with long-since-swept posts and never reach the ones that
+    // still cost disk.
+    .index("by_pending_files_created", ["filesDeletedAt", "createdAt"]),
+
   // OpenReply snapshot (source of truth stays its own Postgres).
   orCampaignStats: defineTable({
     workspaceId: v.id("workspaces"),
