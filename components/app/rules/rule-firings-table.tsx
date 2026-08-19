@@ -112,7 +112,7 @@ export function RuleFiringsTable({ ruleId }: RuleFiringsTableProps) {
                         {f.targetName || f.targetId}
                       </span>
                       {f.targetType && (
-                        <span className="rounded bg-surface px-1.5 py-0.5 text-[10px] font-mono text-text-muted border border-line shrink-0 uppercase">
+                        <span className="rounded bg-surface px-1.5 py-0.5 text-[0.625rem] font-mono text-text-muted border border-line shrink-0 uppercase">
                           {f.targetType === "campaign"
                             ? "KAMPANJA"
                             : f.targetType === "adset"
@@ -131,18 +131,18 @@ export function RuleFiringsTable({ ruleId }: RuleFiringsTableProps) {
                   {/* Action Taken Badge */}
                   <TableCell>
                     {f.actionTaken === "pause_and_notify" ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-[11px] font-medium text-warning">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-micro font-medium text-warning">
                         <Pause className="size-3" />
                         <span>Pauzirano + Notifikovano</span>
                       </span>
                     ) : f.actionTaken === "pause" ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-[11px] font-medium text-warning">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-micro font-medium text-warning">
                         <Pause className="size-3" />
                         <span>Pauzirano</span>
                       </span>
                     ) : f.actionTaken === "notify_only_write_disabled" ? (
                       <span
-                        className="inline-flex items-center gap-1 rounded-full bg-surface-raised border border-line px-2 py-0.5 text-[11px] font-medium text-text-muted"
+                        className="inline-flex items-center gap-1 rounded-full bg-surface-raised border border-line px-2 py-0.5 text-micro font-medium text-text-muted"
                         title={
                           f.details ||
                           "Pisanje je isključeno (ADS_WRITE_ENABLED nije true)"
@@ -152,7 +152,7 @@ export function RuleFiringsTable({ ruleId }: RuleFiringsTableProps) {
                         <span>Samo notifikovano (Write disabled)</span>
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-accent-400/10 border border-accent-400/30 px-2 py-0.5 text-[11px] font-medium text-accent-400">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-accent-400/10 border border-accent-400/30 px-2 py-0.5 text-micro font-medium text-accent-400">
                         <Mail className="size-3" />
                         <span>Notifikovano</span>
                       </span>
@@ -163,7 +163,7 @@ export function RuleFiringsTable({ ruleId }: RuleFiringsTableProps) {
                   <TableCell className="text-center">
                     {f.notified ? (
                       <span
-                        className="inline-flex items-center gap-1 text-[11px] font-medium text-success"
+                        className="inline-flex items-center gap-1 text-micro font-medium text-success"
                         title="Email uspešno poslat preko Resend-a"
                       >
                         <CheckCircle2 className="size-3.5" />
@@ -171,7 +171,7 @@ export function RuleFiringsTable({ ruleId }: RuleFiringsTableProps) {
                       </span>
                     ) : (
                       <span
-                        className="inline-flex items-center gap-1 text-[11px] font-medium text-text-muted/60"
+                        className="inline-flex items-center gap-1 text-micro font-medium text-text-muted/60"
                         title="Email nije poslat ili RESEND_API_KEY nije konfigurisan"
                       >
                         <Mail className="size-3.5" />

@@ -66,7 +66,7 @@ export function EvidenceMeter({
               <button
                 type="button"
                 className={cn(
-                  "group inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer border",
+                  "group inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-micro font-medium transition-colors cursor-pointer border",
                   isPending
                     ? "border-amber-400/30 bg-amber-400/10 text-amber-400 hover:bg-amber-400/20"
                     : isReliable
@@ -177,7 +177,7 @@ export function EvidenceMeter({
             </div>
 
             {!isReliable && (
-              <p className="mt-2.5 text-[11px] leading-normal text-text-muted italic border-t border-line-soft pt-2">
+              <p className="mt-2.5 text-micro leading-normal text-text-muted italic border-t border-line-soft pt-2">
                 Pravilo poštenja: Verzije ispod praga se ne krunišu kao lideri
                 kako se ne bi donosile lažne preuranjene odluke.
               </p>
@@ -186,7 +186,7 @@ export function EvidenceMeter({
         </Popover>
 
         {showDetails && (
-          <span className="text-[10px] font-mono tabular-nums text-text-muted">
+          <span className="text-[0.625rem] font-mono tabular-nums text-text-muted">
             {sampleProgressPct}% praga
           </span>
         )}
@@ -205,7 +205,7 @@ export function EvidenceMeter({
               style={{ width: `${impPct}%` }}
             />
           </div>
-          <span className="text-[9px] font-mono tabular-nums text-text-muted shrink-0 w-12 text-right">
+          <span className="text-[0.5625rem] font-mono tabular-nums text-text-muted shrink-0 w-12 text-right">
             {formatNumber(impressions)} imp
           </span>
         </div>
@@ -221,7 +221,7 @@ export function EvidenceMeter({
               style={{ width: `${clickPct}%` }}
             />
           </div>
-          <span className="text-[9px] font-mono tabular-nums text-text-muted shrink-0 w-12 text-right">
+          <span className="text-[0.5625rem] font-mono tabular-nums text-text-muted shrink-0 w-12 text-right">
             {clicks} klik
           </span>
         </div>

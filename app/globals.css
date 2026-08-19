@@ -5,11 +5,13 @@
 /* ---------------------------------------------------------------------------
    Enigma design tokens
 
-   Two layers:
+   Three layers:
      1. Primitives  — brand scales ported from the Enigma IT site (dark slate,
         cyan accent, Aeonik). Named so they never collide with shadcn names
         (borders are `--line-*`, focus ring is `--focus-ring`).
-     2. Semantic    — shadcn/ui variable names, aliased onto the primitives.
+     2. Materials   — translucent chrome, elevation and edge treatments. These
+        describe *how a surface is made*, not what colour it is.
+     3. Semantic    — shadcn/ui variable names, aliased onto the primitives.
         Every `npx shadcn add` component is therefore on-brand by default.
 
    Dark slate is the only page theme; there is no `.dark` variant. White is a
@@ -50,6 +52,10 @@
   --accent-700: #0284c7;
   --accent-glow: rgba(56, 189, 248, 0.28);
   --focus-ring: rgba(88, 196, 255, 0.45);
+  /* Solid companion to --focus-ring: the crisp core of the focus indicator.
+     The soft rgba ring alone lands near 3:1 on --bg-950, which is the WCAG
+     floor with no margin; the solid stroke clears it comfortably. */
+  --focus-ring-strong: var(--accent-400);
 
   /* Status */
   --success: #34d399;
@@ -65,18 +71,67 @@
   --chart-6: #6366f1; /* indigo */
   --chart-grid: rgba(96, 128, 180, 0.16);
 
-  /* Geometry */
+  /* Geometry — every length in rem so a raised system font scales the layout
+     with the type instead of tearing it apart. */
   --radius: 0.625rem; /* shadcn base; lg = 14px = site surface radius */
   --gutter: 1.5rem;
   --content-max: 80rem;
+  --sidebar-width: 15rem;
+  --chrome-height: 4rem;
 
   /* Motion */
   --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
   --duration-fast: 150ms;
   --duration-base: 300ms;
 
-  /* Elevation */
-  --shadow-elevated: 0 18px 48px rgba(0, 0, 0, 0.45);
+  /* ── Elevation ─────────────────────────────────────────────────────────────
+     Exactly four steps, and nothing between them. Each step is a contact
+     shadow (tight, dark, sells the edge) plus an ambient shadow (wide, soft,
+     sells the distance). From one step to the next the ambient blur doubles
+     and its alpha climbs ~0.1 — so the jump is legible without being loud.
+
+       elev-0  in the flow of the page   — no shadow, the ring does the work
+       elev-1  cards and tiles           — lifted off the page, still attached
+       elev-2  dropdowns, popovers       — detached, temporary
+       elev-3  modals, sheets            — furthest forward, blocks the page
+     ------------------------------------------------------------------------ */
+  --elev-0: none;
+  --elev-1:
+    0 1px 2px rgba(0, 0, 0, 0.28),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+  --elev-2:
+    0 4px 10px rgba(0, 0, 0, 0.34),
+    0 12px 32px rgba(0, 0, 0, 0.3);
+  --elev-3:
+    0 8px 20px rgba(0, 0, 0, 0.42),
+    0 32px 72px rgba(0, 0, 0, 0.5);
+
+  /* Legacy alias — kept because dozens of call sites read `shadow-card`. */
+  --shadow-elevated: var(--elev-1);
+
+  /* ── Materials ─────────────────────────────────────────────────────────────
+     Translucent chrome. The larger the surface, the thicker the material:
+     more blur, more opacity, deeper shadow. The hairline is not a border in
+     the drawing sense — it is the light the material catches along its edge.
+     ------------------------------------------------------------------------ */
+  --material-thin-bg: rgba(11, 18, 33, 0.6);
+  --material-thin-blur: blur(12px) saturate(140%);
+  --material-bg: rgba(11, 18, 33, 0.72);
+  --material-blur: blur(20px) saturate(160%);
+  --material-thick-bg: rgba(9, 16, 30, 0.86);
+  --material-thick-blur: blur(32px) saturate(180%);
+  --material-edge: rgba(255, 255, 255, 0.06);
+  --material-edge-strong: rgba(255, 255, 255, 0.1);
+
+  /* Vibrancy — text over a translucent material competes with whatever is
+     sliding underneath it, so it moves up one step in lightness and alpha. */
+  --text-secondary-vibrant: rgba(214, 228, 252, 0.88);
+  --text-muted-vibrant: rgba(178, 198, 234, 0.84);
+
+  /* Scroll edge — the fade that replaces a hairline where chrome overlaps
+     content. Page colour at partial alpha, dissolving into nothing. */
+  --edge-fade: rgba(7, 13, 25, 0.72);
+  --edge-fade-size: 1.5rem;
 
   /* ── shadcn semantic layer ─────────────────────────────────────────────── */
   --background: var(--bg-950);
@@ -107,6 +162,76 @@
   --sidebar-ring: var(--focus-ring);
 }
 
+/* ---------------------------------------------------------------------------
+   Type scale
+
+   Tracking and leading run *opposite* to size. Large type sits on a negative
+   track and a tight leading so it reads as one shape; small type opens up so
+   the letters stay separable at the size a person actually squints at.
+
+   Weight, not just size, carries the hierarchy: the three heading tiers are
+   700, the three text tiers are 400. Aeonik ships 300/400/700, so those are
+   the real steps available — 500 and 600 would silently round to one of them.
+
+   Sizes are fluid between a 20rem and an 80rem viewport, with both ends of
+   every clamp in rem so system font scaling still moves the whole scale.
+   --------------------------------------------------------------------------- */
+@theme {
+  /* Semantic tiers */
+  --text-display: clamp(2rem, 1.5rem + 2.5vw, 3.5rem); /* 32 → 56px */
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.022em;
+  --text-display--font-weight: 700;
+
+  --text-h1: clamp(1.5rem, 1.333rem + 0.833vw, 2rem); /* 24 → 32px */
+  --text-h1--line-height: 1.15;
+  --text-h1--letter-spacing: -0.018em;
+  --text-h1--font-weight: 700;
+
+  --text-h2: clamp(1.25rem, 1.167rem + 0.417vw, 1.5rem); /* 20 → 24px */
+  --text-h2--line-height: 1.25;
+  --text-h2--letter-spacing: -0.012em;
+  --text-h2--font-weight: 700;
+
+  --text-body: clamp(0.875rem, 0.833rem + 0.208vw, 1rem); /* 14 → 16px */
+  --text-body--line-height: 1.55;
+  --text-body--letter-spacing: 0em;
+  --text-body--font-weight: 400;
+
+  --text-small: clamp(0.75rem, 0.729rem + 0.104vw, 0.8125rem); /* 12 → 13px */
+  --text-small--line-height: 1.45;
+  --text-small--letter-spacing: 0.005em;
+  --text-small--font-weight: 400;
+
+  --text-micro: 0.6875rem; /* 11px — labels, badges, chart axes */
+  --text-micro--line-height: 1.4;
+  --text-micro--letter-spacing: 0.02em;
+  --text-micro--font-weight: 400;
+
+  /* The stock Tailwind steps land on the same curve, so existing markup gets
+     optical tracking without a single class changing. */
+  --text-xs--line-height: 1.45;
+  --text-xs--letter-spacing: 0.005em;
+  --text-sm--line-height: 1.55;
+  --text-sm--letter-spacing: 0em;
+  --text-base--line-height: 1.55;
+  --text-base--letter-spacing: 0em;
+  --text-lg--line-height: 1.4;
+  --text-lg--letter-spacing: -0.008em;
+  --text-xl--line-height: 1.3;
+  --text-xl--letter-spacing: -0.012em;
+  --text-2xl--line-height: 1.2;
+  --text-2xl--letter-spacing: -0.015em;
+  --text-3xl--line-height: 1.15;
+  --text-3xl--letter-spacing: -0.018em;
+  --text-4xl--line-height: 1.1;
+  --text-4xl--letter-spacing: -0.02em;
+  --text-5xl--line-height: 1.05;
+  --text-5xl--letter-spacing: -0.022em;
+  --text-6xl--line-height: 1.03;
+  --text-6xl--letter-spacing: -0.024em;
+}
+
 @theme inline {
   /* Primitives → utilities */
   --color-bg-950: var(--bg-950);
@@ -120,6 +245,7 @@
   --color-line-soft: var(--line-soft);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-material-edge: var(--material-edge);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
@@ -184,9 +310,24 @@
   --font-heading: var(--font-aeonik), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-  /* Motion + elevation (utilities: ease-expo, shadow-card) */
+  /* Motion */
   --ease-expo: var(--ease-out-expo);
-  --shadow-card: var(--shadow-elevated);
+
+  /* Elevation utilities: shadow-elev-0 … shadow-elev-3.
+     The stock Tailwind depth names are collapsed onto the same four steps so
+     a stray `shadow-md` cannot reintroduce a fifth, undefined depth. */
+  --shadow-elev-0: var(--elev-0);
+  --shadow-elev-1: var(--elev-1);
+  --shadow-elev-2: var(--elev-2);
+  --shadow-elev-3: var(--elev-3);
+  --shadow-card: var(--elev-1);
+  --shadow-2xs: var(--elev-1);
+  --shadow-xs: var(--elev-1);
+  --shadow-sm: var(--elev-1);
+  --shadow-md: var(--elev-2);
+  --shadow-lg: var(--elev-2);
+  --shadow-xl: var(--elev-3);
+  --shadow-2xl: var(--elev-3);
 }
 
 @layer base {
@@ -211,6 +352,92 @@
     letter-spacing: 0.12em;
   }
 
+  /* ── Materials ───────────────────────────────────────────────────────────
+     `.material` is the chrome bar (sidebar, header, tab bar). `.material-thin`
+     is for small floating controls, `.material-thick` for sheets and large
+     overlays. Bigger surface, thicker material.
+     ---------------------------------------------------------------------- */
+  .material-thin,
+  .material,
+  .material-thick {
+    /* Vibrancy: raise muted text one step so it survives whatever is sliding
+       underneath. Both the primitive and the shadcn alias are redeclared —
+       `--muted-foreground` resolves at :root, so it needs its own override. */
+    --text-secondary: var(--text-secondary-vibrant);
+    --text-muted: var(--text-muted-vibrant);
+    --muted-foreground: var(--text-secondary-vibrant);
+  }
+
+  .material-thin {
+    background-color: var(--material-thin-bg);
+    -webkit-backdrop-filter: var(--material-thin-blur);
+    backdrop-filter: var(--material-thin-blur);
+    box-shadow: var(--elev-1);
+  }
+
+  .material {
+    background-color: var(--material-bg);
+    -webkit-backdrop-filter: var(--material-blur);
+    backdrop-filter: var(--material-blur);
+    box-shadow: var(--elev-2);
+  }
+
+  .material-thick {
+    background-color: var(--material-thick-bg);
+    -webkit-backdrop-filter: var(--material-thick-blur);
+    backdrop-filter: var(--material-thick-blur);
+    box-shadow: var(--elev-3);
+  }
+
+  /* The light a material catches along the edge that faces the content. */
+  .material-edge-r {
+    border-right: 1px solid var(--material-edge);
+  }
+
+  .material-edge-l {
+    border-left: 1px solid var(--material-edge);
+  }
+
+  .material-edge-t {
+    border-top: 1px solid var(--material-edge);
+  }
+
+  /* Never stack translucency on translucency — legibility falls apart. A
+     material nested inside another goes solid. (Portalled overlays escape
+     this subtree, which is why dialogs and popovers are opaque by hand.) */
+  :is(.material-thin, .material, .material-thick)
+    :is(.material-thin, .material, .material-thick) {
+    background-color: var(--surface-raised);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* ── Scroll edges ────────────────────────────────────────────────────────
+     Where floating chrome overlaps scrolling content, the content dissolves
+     into the bar instead of being cut off by a hairline.
+
+     These deliberately do not set `position` — chrome is already sticky or
+     fixed, and declaring `relative` here would silently win over it. */
+  .edge-fade-b::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 100%;
+    height: var(--edge-fade-size);
+    background: linear-gradient(to bottom, var(--edge-fade), transparent);
+    pointer-events: none;
+  }
+
+  .edge-fade-t::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: 100%;
+    height: var(--edge-fade-size);
+    background: linear-gradient(to top, var(--edge-fade), transparent);
+    pointer-events: none;
+  }
+
   /* Purposeful hover lift — the only hover motion in the system */
   .hover-lift {
     transition:
@@ -224,13 +451,149 @@
     border-color: var(--line-strong);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .hover-lift {
-      transition: none;
-    }
+  /* ── Focus ───────────────────────────────────────────────────────────────
+     One indicator, every interactive element, including clickable cards. It
+     lives in the utilities layer so a component's own `outline-none` cannot
+     quietly delete it. The 2px offset keeps the stroke off cyan fills, where
+     an inset ring would vanish.
 
-    .hover-lift:hover {
-      transform: none;
-    }
+     `tabindex="-1"` is excluded on purpose: that is how Base UI parks focus
+     on a popup, and a modal does not need a ring drawn around all of it. */
+  :is(
+    a[href],
+    area[href],
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [contenteditable="true"],
+    [role="button"],
+    [role="link"],
+    [role="tab"],
+    [role="switch"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"],
+    [role="option"],
+    [tabindex]:not([tabindex="-1"])
+  ):focus-visible {
+    outline: 2px solid var(--focus-ring-strong);
+    outline-offset: 2px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Accessibility
+
+   Part of the token system, not a pass over it afterwards. Each query rewrites
+   the primitives, so every component that reads a token adapts for free.
+   --------------------------------------------------------------------------- */
+
+/* Motion → a short opacity crossfade and nothing else.
+   Note: `transform` is not blanket-disabled, because layout depends on it
+   (centred dialogs are `translate(-50%, -50%)`). Instead transforms stop being
+   *animated*: transitions are narrowed to opacity, and the enter/exit
+   keyframes keep their fade while their scale, slide and rotate go to zero. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    --tw-enter-scale: 1 !important;
+    --tw-exit-scale: 1 !important;
+    --tw-enter-rotate: 0deg !important;
+    --tw-exit-rotate: 0deg !important;
+    --tw-enter-translate-x: 0 !important;
+    --tw-enter-translate-y: 0 !important;
+    --tw-exit-translate-x: 0 !important;
+    --tw-exit-translate-y: 0 !important;
+    --tw-enter-blur: 0 !important;
+    --tw-exit-blur: 0 !important;
+    animation-duration: var(--duration-fast) !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity !important;
+    transition-duration: var(--duration-fast) !important;
+    scroll-behavior: auto !important;
+  }
+
+  .hover-lift {
+    transition: none;
+  }
+
+  .hover-lift:hover {
+    transform: none;
+  }
+}
+
+/* Transparency → materials go solid. The blur is what costs legibility, so it
+   is removed outright rather than reduced. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --material-thin-bg: var(--surface);
+    --material-bg: var(--bg-900);
+    --material-thick-bg: var(--surface-raised);
+    --surface-overlay: #091120;
+    --material-edge: var(--line-soft);
+    --material-edge-strong: var(--line);
+  }
+
+  .material-thin,
+  .material,
+  .material-thick {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* An opaque bar has a real edge, so the dissolve becomes a hairline. */
+  .edge-fade-b::after,
+  .edge-fade-t::before {
+    height: 1px;
+    background: var(--line-soft);
+  }
+}
+
+/* Contrast → near-opaque surfaces, borders that are actually borders, text
+   pushed to the top of the range. */
+@media (prefers-contrast: more) {
+  :root {
+    --line-soft: rgba(150, 182, 230, 0.45);
+    --line: rgba(160, 192, 238, 0.6);
+    --line-strong: rgba(120, 214, 255, 0.8);
+    --text-secondary: rgba(230, 240, 255, 0.96);
+    --text-muted: rgba(212, 228, 250, 0.92);
+    --text-secondary-vibrant: rgb(236, 244, 255);
+    --text-muted-vibrant: rgba(226, 238, 255, 0.98);
+    --muted-foreground: rgba(230, 240, 255, 0.96);
+    --surface-overlay: rgba(9, 16, 30, 0.97);
+    --focus-ring: rgba(120, 214, 255, 0.8);
+    --material-thin-bg: rgba(11, 18, 33, 0.95);
+    --material-bg: rgba(9, 16, 30, 0.96);
+    --material-thick-bg: rgba(9, 16, 30, 0.98);
+    --material-edge: rgba(160, 192, 238, 0.6);
+    --material-edge-strong: rgba(160, 192, 238, 0.75);
+    --edge-fade: rgba(7, 13, 25, 0.92);
+  }
+
+  .material-thin,
+  .material,
+  .material-thick {
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border-color: var(--material-edge);
+  }
+
+  :is(
+    a[href],
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role="button"],
+    [tabindex]:not([tabindex="-1"])
+  ):focus-visible {
+    outline-width: 3px;
   }
 }

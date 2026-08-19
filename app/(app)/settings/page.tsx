@@ -18,7 +18,7 @@ export default function SettingsPage() {
         <p className="heading-caps text-xs font-medium text-text-muted">
           Podešavanja
         </p>
-        <h1 className="mt-1 text-3xl font-bold leading-tight tracking-tight text-foreground">
+        <h1 className="mt-1 text-h1 text-foreground">
           {activeTab === "connections" ? "Integracije" : "Istorija akcija"}
         </h1>
         <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted-foreground">

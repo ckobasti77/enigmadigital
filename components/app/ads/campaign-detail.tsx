@@ -85,7 +85,7 @@ function KeywordQualitySection({
           <h3 className="text-sm font-bold text-foreground">
             Google Ads — Ocena kvaliteta ključnih reči (Quality Score)
           </h3>
-          <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-text-muted">
+          <span className="rounded-full bg-surface px-2 py-0.5 text-micro font-medium text-text-muted">
             {report.totals.totalKeywords} {report.totals.totalKeywords === 1 ? "reč" : "reči"}
           </span>
         </div>
@@ -122,7 +122,7 @@ function KeywordQualitySection({
                 <TableCell className="pl-5 font-medium text-foreground">
                   {kw.keywordText}
                 </TableCell>
-                <TableCell className="text-center font-mono text-[11px] text-text-muted">
+                <TableCell className="text-center font-mono text-micro text-text-muted">
                   {kw.matchType}
                 </TableCell>
                 <TableCell className="text-center">
@@ -143,13 +143,13 @@ function KeywordQualitySection({
                     <span className="text-text-muted">—</span>
                   )}
                 </TableCell>
-                <TableCell className="text-center text-[11px]">
+                <TableCell className="text-center text-micro">
                   {formatRatingBadge(kw.searchPredictedCtr)}
                 </TableCell>
-                <TableCell className="text-center text-[11px]">
+                <TableCell className="text-center text-micro">
                   {formatRatingBadge(kw.creativeQualityScore)}
                 </TableCell>
-                <TableCell className="text-center text-[11px]">
+                <TableCell className="text-center text-micro">
                   {formatRatingBadge(kw.postClickQualityScore)}
                 </TableCell>
                 <TableCell className="text-right font-mono tabular-nums text-foreground">
@@ -346,7 +346,7 @@ export function CampaignDetail({
           <div className="flex flex-wrap items-center gap-3">
             {campaign.dailyBudget && (
               <div className="flex flex-col items-end rounded-lg border border-line bg-surface/40 px-3 py-2">
-                <span className="text-[11px] text-text-muted">Dnevni budžet</span>
+                <span className="text-micro text-text-muted">Dnevni budžet</span>
                 <span className="font-mono text-sm font-semibold text-foreground">
                   {formatNumber(campaign.dailyBudget)} € / dan
                 </span>
@@ -546,7 +546,7 @@ export function CampaignDetail({
                         <span className="font-semibold text-foreground truncate">
                           {set.name}
                         </span>
-                        <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-text-muted">
+                        <span className="rounded-full bg-surface px-2 py-0.5 text-micro font-medium text-text-muted">
                           {set.ads.length} {set.ads.length === 1 ? "oglas" : "oglasa"}
                         </span>
                       </div>
@@ -755,7 +755,7 @@ export function CampaignDetail({
                                       {ad.costPerResult > 0 ? `${formatNumber(ad.costPerResult)} €` : "—"}
                                     </span>
                                     {ad.hasConversionValue && (
-                                      <span className="block text-[11px] text-success font-semibold">
+                                      <span className="block text-micro text-success font-semibold">
                                         {ad.roas.toFixed(2)}x
                                       </span>
                                     )}
@@ -764,11 +764,11 @@ export function CampaignDetail({
 
                                 <TableCell className="text-right font-mono tabular-nums">
                                   {isGoogleAds ? (
-                                    <span className="text-[11px] font-medium text-text-secondary">
+                                    <span className="text-micro font-medium text-text-secondary">
                                       {ad.status === "ACTIVE" ? "Aktivan" : "Pauziran"}
                                     </span>
                                   ) : hasAdVideo ? (
-                                    <div className="text-[11px]">
+                                    <div className="text-micro">
                                       <span className="text-accent-400 font-medium">{formatPercent(ad.hookRate)}</span>
                                       <span className="text-text-muted mx-1">/</span>
                                       <span className="text-foreground">{formatPercent(ad.holdRate)}</span>
@@ -843,7 +843,7 @@ export function CampaignDetail({
                                     <button
                                       type="button"
                                       onClick={() => setSelectedAdId(ad._id)}
-                                      className="inline-flex items-center gap-1 rounded border border-line bg-surface-raised px-2 py-0.5 text-[10px] font-medium text-foreground hover:border-accent-400/50 hover:text-accent-400 transition-colors ml-0.5"
+                                      className="inline-flex items-center gap-1 rounded border border-line bg-surface-raised px-2 py-0.5 text-[0.625rem] font-medium text-foreground hover:border-accent-400/50 hover:text-accent-400 transition-colors ml-0.5"
                                     >
                                       <span>Detalji</span>
                                       <ChevronRightSquare className="size-3" />

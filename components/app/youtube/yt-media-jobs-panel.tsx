@@ -165,7 +165,7 @@ function JobRow({ job }: { job: MediaJob }) {
         <TableCell className="py-2">
           <span
             className={cn(
-              "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-medium",
+              "inline-flex items-center rounded-md border px-1.5 py-0.5 text-micro font-medium",
               STATUS_TONES[job.status],
             )}
           >
@@ -188,7 +188,7 @@ function JobRow({ job }: { job: MediaJob }) {
           <TableCell colSpan={5} className="px-3 pb-2 pt-0">
             <p
               className={cn(
-                "rounded-md border px-2.5 py-1.5 text-[11px] leading-relaxed",
+                "rounded-md border px-2.5 py-1.5 text-micro leading-relaxed",
                 job.status === "skipped_quota"
                   ? "border-warning/25 bg-warning/5 text-warning"
                   : "border-danger/25 bg-danger/5 text-danger",

@@ -9,7 +9,7 @@ export function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-9 border-t border-sidebar-border bg-sidebar/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+    <nav className="material material-edge-t edge-fade-t fixed inset-x-0 bottom-0 z-40 grid grid-cols-9 pb-[env(safe-area-inset-bottom)] md:hidden">
       {navItems.map((item) => {
         const active = isNavActive(pathname, item.href);
         const Icon = item.icon;
@@ -19,7 +19,10 @@ export function MobileNav() {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative flex flex-col items-center justify-center gap-1 px-0.5 py-2 text-[8px] sm:text-[9px] font-medium transition-colors text-center",
+              // Nine cells on a 20rem screen leave less room than the micro
+              // tier needs, so these two sit below the scale — in rem, and on
+              // micro's tracking, which is what keeps them legible that small.
+              "relative flex flex-col items-center justify-center gap-1 px-0.5 py-2 text-[0.5rem] tracking-[0.02em] sm:text-[0.5625rem] font-medium transition-colors text-center",
               active ? "text-accent-400" : "text-text-muted",
             )}
           >

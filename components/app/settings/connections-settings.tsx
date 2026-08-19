@@ -681,7 +681,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
                 </span>
               </div>
               {connection.expiresAt && (
-                <p className="text-[11px] text-text-muted">
+                <p className="text-micro text-text-muted">
                   Token važi do{" "}
                   {new Date(connection.expiresAt).toLocaleDateString("sr-RS")}{" "}
                   ({formatRelativeTime(connection.expiresAt)})

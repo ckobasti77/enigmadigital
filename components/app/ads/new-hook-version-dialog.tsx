@@ -201,7 +201,7 @@ function NewHookVersionDialogForm({
                 <Sparkles className="size-4" />
               </span>
               <div>
-                <p className="heading-caps text-[10px] font-semibold text-accent-400 tracking-wider">
+                <p className="heading-caps text-[0.625rem] font-semibold text-accent-400 tracking-wider">
                   Kreativna iteracija · Nova verzija
                 </p>
                 <DialogTitle className="text-lg font-bold text-foreground">
@@ -240,7 +240,7 @@ function NewHookVersionDialogForm({
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
+            <div className="flex items-center gap-1.5 text-micro text-text-muted">
               <span className="size-1.5 rounded-full bg-success" />
               <span>ADS_WRITE_ENABLED & Audit aktivan</span>
             </div>
@@ -264,7 +264,7 @@ function NewHookVersionDialogForm({
                   <CheckCircle2 className="size-3.5 text-success shrink-0" />
                   <span>Dozvoljeno menjati ovde (API):</span>
                 </p>
-                <ul className="list-disc list-inside space-y-1 text-[11px] text-text-muted pl-1">
+                <ul className="list-disc list-inside space-y-1 text-micro text-text-muted pl-1">
                   <li>
                     <strong className="text-foreground/90">
                       Primarni tekst
@@ -295,7 +295,7 @@ function NewHookVersionDialogForm({
                   <ExternalLink className="size-3.5 text-text-muted shrink-0" />
                   <span>Zahteva Meta Ads Manager:</span>
                 </p>
-                <ul className="list-disc list-inside space-y-1 text-[11px] text-text-muted pl-1">
+                <ul className="list-disc list-inside space-y-1 text-micro text-text-muted pl-1">
                   <li>Zamena video ili slikovnog fajla (novi video render)</li>
                   <li>Promena poziva na akciju (CTA: Saznaj više, Kupite)</li>
                   <li>Odredišni URL link sajta i UTM parametri</li>
@@ -322,7 +322,7 @@ function NewHookVersionDialogForm({
                 disabled={loading || isLimitReached}
                 className="h-9 text-xs"
               />
-              <p className="text-[10px] text-text-muted">
+              <p className="text-[0.625rem] text-text-muted">
                 Prikazuje se na vrhu kolone u Hook Battle pregledu.
               </p>
             </div>
@@ -342,7 +342,7 @@ function NewHookVersionDialogForm({
                 disabled={loading || isLimitReached}
                 className="h-9 text-xs font-mono"
               />
-              <p className="text-[10px] text-text-muted">
+              <p className="text-[0.625rem] text-text-muted">
                 Prepoznatljivo ime u Meta Ads Manageru.
               </p>
             </div>
@@ -355,7 +355,7 @@ function NewHookVersionDialogForm({
                 Primarni tekst (Hook / Body Copy){" "}
                 <span className="text-danger">*</span>
               </Label>
-              <span className="text-[10px] font-mono text-text-muted">
+              <span className="text-[0.625rem] font-mono text-text-muted">
                 {primaryText.length} karaktera
               </span>
             </div>
@@ -370,7 +370,7 @@ function NewHookVersionDialogForm({
               disabled={loading || isLimitReached}
               className="text-xs leading-relaxed resize-y min-h-[96px]"
             />
-            <p className="text-[10px] text-text-muted">
+            <p className="text-[0.625rem] text-text-muted">
               Tekst koji se prikazuje iznad videa/slike na Instagram i Facebook
               feed-u.
             </p>
@@ -391,7 +391,7 @@ function NewHookVersionDialogForm({
               disabled={loading || isLimitReached}
               className="h-9 text-xs"
             />
-            <p className="text-[10px] text-text-muted">
+            <p className="text-[0.625rem] text-text-muted">
               Kratak naslov pored dugmeta za poziv na akciju (CTA).
             </p>
           </div>

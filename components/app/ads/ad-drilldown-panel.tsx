@@ -48,7 +48,7 @@ function formatRankingBadge(type: "Kvalitet" | "Angažovanje" | "Konverzija", ra
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium",
+        "inline-flex items-center gap-1 rounded border px-2 py-0.5 text-micro font-medium",
         toneClass,
       )}
     >
@@ -79,7 +79,7 @@ export function AdDrilldownPanel({
 
   if (data === undefined) {
     return (
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l border-line bg-background/95 p-6 shadow-2xl backdrop-blur">
+      <div className="material-thick material-edge-l fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col p-6">
         <div className="flex items-center justify-between pb-4">
           <Skeleton className="h-6 w-48" />
           <Skeleton className="size-8 rounded-full" />
@@ -116,9 +116,9 @@ export function AdDrilldownPanel({
   const searchImpressionShare = (data as { searchImpressionShare?: number }).searchImpressionShare;
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l border-line bg-background/98 shadow-2xl backdrop-blur overflow-y-auto">
+    <div className="material-thick material-edge-l fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col overflow-y-auto">
       {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-background/95 px-6 py-4 backdrop-blur">
+      <div className="edge-fade-b sticky top-0 z-10 flex items-center justify-between bg-bg-900 px-6 py-4">
         <div className="flex items-center gap-3 min-w-0 pr-4">
           {ad.thumbnailUrl ? (
             <div className="relative size-12 shrink-0 overflow-hidden rounded-lg border border-line bg-surface">
@@ -213,7 +213,7 @@ export function AdDrilldownPanel({
                 <p className="text-xs font-medium uppercase tracking-wider text-text-muted">
                   Video Funnel &amp; Zadržavanje pažnje
                 </p>
-                <span className="text-[11px] text-text-muted">Metrike video kreative</span>
+                <span className="text-micro text-text-muted">Metrike video kreative</span>
               </div>
             </div>
 
@@ -223,7 +223,7 @@ export function AdDrilldownPanel({
                 <p className="mt-1 font-mono text-2xl sm:text-3xl font-bold tabular-nums text-accent-400">
                   {formatPercent(videoFunnel.hookRate)}
                 </p>
-                <p className="mt-1 text-[11px] text-text-muted">
+                <p className="mt-1 text-micro text-text-muted">
                   {formatNumber(videoFunnel.video3s)} pregleda ≥ 3s
                 </p>
               </div>
@@ -233,7 +233,7 @@ export function AdDrilldownPanel({
                 <p className="mt-1 font-mono text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
                   {formatPercent(videoFunnel.holdRate)}
                 </p>
-                <p className="mt-1 text-[11px] text-text-muted">
+                <p className="mt-1 text-micro text-text-muted">
                   {formatNumber(videoFunnel.thruplay)} kompletnih ThruPlay
                 </p>
               </div>

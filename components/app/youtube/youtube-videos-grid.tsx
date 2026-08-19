@@ -277,7 +277,7 @@ function Thumbnail({
       )}
 
       {duration && (
-        <span className="absolute bottom-2 right-2 rounded bg-bg-950/80 px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-text-primary backdrop-blur-md">
+        <span className="absolute bottom-2 right-2 rounded bg-bg-950/80 px-1.5 py-0.5 font-mono text-micro tabular-nums text-text-primary backdrop-blur-md">
           {duration}
         </span>
       )}
@@ -325,7 +325,7 @@ function TopVideoCard({
         </div>
 
         <div className="absolute left-3 bottom-2">
-          <span className="rounded bg-bg-950/70 px-2 py-0.5 font-mono text-[11px] text-text-muted backdrop-blur-xs">
+          <span className="rounded bg-bg-950/70 px-2 py-0.5 font-mono text-micro text-text-muted backdrop-blur-xs">
             {formatPublishedAt(item.publishedAt)}
           </span>
         </div>
@@ -397,7 +397,7 @@ function MiniStat({
 }) {
   return (
     <div>
-      <span className="flex items-center justify-center gap-1 text-[11px] text-text-muted">
+      <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
         {icon} {label}
       </span>
       <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
@@ -422,7 +422,7 @@ function VideoCard({
       <div className="relative">
         <Thumbnail item={item} />
         <div className="absolute right-2.5 top-2.5">
-          <span className="rounded bg-bg-950/80 px-2 py-0.5 font-mono text-[11px] text-text-muted backdrop-blur-md">
+          <span className="rounded bg-bg-950/80 px-2 py-0.5 font-mono text-micro text-text-muted backdrop-blur-md">
             {formatPublishedAt(item.publishedAt)}
           </span>
         </div>

@@ -234,7 +234,7 @@ function YtThumbnailForm({
               }
               className="size-full object-contain"
             />
-            <span className="absolute left-2 top-2 rounded bg-bg-950/80 px-1.5 py-0.5 font-mono text-[11px] text-text-muted backdrop-blur-md">
+            <span className="absolute left-2 top-2 rounded bg-bg-950/80 px-1.5 py-0.5 font-mono text-micro text-text-muted backdrop-blur-md">
               16:9
             </span>
           </>
@@ -244,7 +244,7 @@ function YtThumbnailForm({
             <p className="text-xs text-text-muted">
               Prevuci sliku ovde ili je izaberi sa računara
             </p>
-            <p className="font-mono text-[11px] tabular-nums text-text-muted/70">
+            <p className="font-mono text-micro tabular-nums text-text-muted/70">
               JPG ili PNG · {THUMBNAIL_RECOMMENDED_WIDTH}×
               {THUMBNAIL_RECOMMENDED_HEIGHT} · do 2 MB
             </p>

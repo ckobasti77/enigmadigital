@@ -137,7 +137,7 @@ export function InstagramBreakdown({
                           >
                             {ch.name}
                           </p>
-                          <p className="font-mono text-[11px] text-text-muted">
+                          <p className="font-mono text-micro text-text-muted">
                             utm_medium={ch.medium}
                           </p>
                         </div>
@@ -234,7 +234,7 @@ export function InstagramBreakdown({
                 {unmatchedGa4.map((u) => (
                   <li
                     key={u.sessionCampaign}
-                    className="flex items-center gap-1.5 rounded bg-surface-raised px-2 py-1 font-mono text-[11px] text-text-primary"
+                    className="flex items-center gap-1.5 rounded bg-surface-raised px-2 py-1 font-mono text-micro text-text-primary"
                   >
                     <span className="text-warning">&quot;{u.sessionCampaign}&quot;</span>
                     <span className="text-text-muted">·</span>

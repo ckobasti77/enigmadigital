@@ -262,14 +262,14 @@ function RuleEditorForm({
                   <Shield className="size-3.5 text-accent-400" />
                   <span>Uslov za aktiviranje</span>
                 </span>
-                <span className="text-[10px] font-mono text-text-muted">
+                <span className="text-[0.625rem] font-mono text-text-muted">
                   adInsights prozor
                 </span>
               </div>
 
               <div className="grid grid-cols-3 gap-2.5">
                 <div>
-                  <Label className="text-[11px] text-text-muted block mb-1">
+                  <Label className="text-micro text-text-muted block mb-1">
                     Metrika
                   </Label>
                   <select
@@ -287,7 +287,7 @@ function RuleEditorForm({
                 </div>
 
                 <div>
-                  <Label className="text-[11px] text-text-muted block mb-1">
+                  <Label className="text-micro text-text-muted block mb-1">
                     Operator
                   </Label>
                   <select
@@ -304,7 +304,7 @@ function RuleEditorForm({
                 </div>
 
                 <div>
-                  <Label className="text-[11px] text-text-muted block mb-1">
+                  <Label className="text-micro text-text-muted block mb-1">
                     Prag vrednosti
                   </Label>
                   <Input
@@ -322,7 +322,7 @@ function RuleEditorForm({
               {/* Lookback Window & Noise Filter (Min Impressions) */}
               <div className="grid grid-cols-2 gap-2.5 pt-1 border-t border-line/60">
                 <div>
-                  <Label className="text-[11px] text-text-muted block mb-1">
+                  <Label className="text-micro text-text-muted block mb-1">
                     Vremenski prozor
                   </Label>
                   <div className="flex items-center gap-1">
@@ -342,7 +342,7 @@ function RuleEditorForm({
                 </div>
 
                 <div>
-                  <Label className="text-[11px] text-text-muted block mb-1">
+                  <Label className="text-micro text-text-muted block mb-1">
                     Min. impresija (šum)
                   </Label>
                   <Input
@@ -395,7 +395,7 @@ function RuleEditorForm({
                     )}
                   >
                     <span className="text-xs font-semibold">{item.label}</span>
-                    <span className="text-[10px] text-text-muted mt-0.5">
+                    <span className="text-[0.625rem] text-text-muted mt-0.5">
                       {item.sub}
                     </span>
                   </button>
@@ -450,7 +450,7 @@ function RuleEditorForm({
 
             {/* Plain-Language Preview Sentence */}
             <div className="rounded-xl border border-accent-400/30 bg-accent-400/5 p-3.5 mt-2">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-accent-400 uppercase tracking-wider mb-1.5">
+              <div className="flex items-center gap-1.5 text-micro font-semibold text-accent-400 uppercase tracking-wider mb-1.5">
                 <Eye className="size-3.5" />
                 <span>Pregled pravila prirodnim jezikom</span>
               </div>

@@ -58,14 +58,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <Authenticated>
         <WorkspaceProvider>
-          <div className="flex min-h-full flex-1">
-            <AppSidebar />
-            <div className="flex min-w-0 flex-1 flex-col">
-              <Header />
-              <main className="flex flex-1 flex-col px-[var(--gutter)] py-8 pb-24 md:pb-8">
-                {children}
-              </main>
-            </div>
+          {/* The sidebar and header are fixed/sticky chrome, so the column is
+              inset by the sidebar width rather than sharing a flex row. */}
+          <AppSidebar />
+          <div className="flex min-w-0 min-h-full flex-1 flex-col md:pl-[var(--sidebar-width)]">
+            <Header />
+            <main className="flex flex-1 flex-col px-[var(--gutter)] py-8 pb-24 md:pb-8">
+              {children}
+            </main>
           </div>
           <MobileNav />
         </WorkspaceProvider>
@@ -78,9 +78,9 @@ function Header() {
   const { workspace, isLoading } = useWorkspace();
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-line-soft px-[var(--gutter)]">
+    <header className="material edge-fade-b sticky top-0 z-30 flex h-[var(--chrome-height)] shrink-0 items-center justify-between gap-3 px-[var(--gutter)]">
       <div className="flex items-center gap-2">
-        <span className="heading-caps text-xs font-medium text-accent-400 md:hidden">
+        <span className="heading-caps text-micro font-medium text-accent-400 md:hidden">
           Enigma
         </span>
         {isLoading ? (
@@ -98,15 +98,15 @@ function Header() {
 
 function ShellFallback() {
   return (
-    <div className="flex min-h-full flex-1">
-      <div className="hidden w-60 shrink-0 border-r border-sidebar-border bg-sidebar md:block" />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="h-16 shrink-0 border-b border-line-soft" />
+    <>
+      <div className="material material-edge-r fixed inset-y-0 left-0 z-40 hidden w-[var(--sidebar-width)] md:block" />
+      <div className="flex min-w-0 min-h-full flex-1 flex-col md:pl-[var(--sidebar-width)]">
+        <div className="material h-[var(--chrome-height)] shrink-0" />
         <div className="flex flex-1 flex-col gap-4 px-[var(--gutter)] py-8">
           <Skeleton className="h-7 w-40" />
           <Skeleton className="h-32 w-full max-w-2xl" />
         </div>
       </div>
-    </div>
+    </>
   );
 }

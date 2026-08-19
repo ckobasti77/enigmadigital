@@ -9,12 +9,12 @@ export function AppSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
-      <div className="flex h-16 items-center px-5">
-        <span className="heading-caps text-xs font-medium text-accent-400">
+    <aside className="material material-edge-r fixed inset-y-0 left-0 z-40 hidden w-[var(--sidebar-width)] flex-col overflow-y-auto md:flex">
+      <div className="flex h-[var(--chrome-height)] shrink-0 items-center px-5">
+        <span className="heading-caps text-micro font-medium text-accent-400">
           Enigma
         </span>
-        <span className="heading-caps ml-1.5 text-xs font-medium text-text-muted">
+        <span className="heading-caps ml-1.5 text-micro font-medium text-text-muted">
           / Command
         </span>
       </div>
@@ -29,7 +29,9 @@ export function AppSidebar() {
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                // font-medium is the vibrancy weight step: labels sitting on a
+                // translucent bar need more body than plain page text.
+                "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 active
                   ? "bg-sidebar-accent text-foreground"
                   : "text-text-muted hover:bg-sidebar-accent/50 hover:text-foreground",

@@ -417,7 +417,7 @@ function AdActionDialogInner({
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-text-muted">
+                  <div className="flex items-center justify-between text-micro text-text-muted">
                     <span>Dozvoljeni raspon (±50%):</span>
                     <span className="font-mono">
                       {budgetGuardrails.minAllowed} € – {budgetGuardrails.maxAllowed} €

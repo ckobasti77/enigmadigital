@@ -124,12 +124,12 @@ export function PerformanceHighlights({
                         {topCampaign.name}
                       </h3>
                       {topCampaign.active ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[0.625rem] font-medium text-success">
                           <span className="size-1 rounded-full bg-success" />
                           Aktivna
                         </span>
                       ) : (
-                        <span className="rounded-full bg-surface-raised px-2 py-0.5 text-[10px] font-medium text-text-muted">
+                        <span className="rounded-full bg-surface-raised px-2 py-0.5 text-[0.625rem] font-medium text-text-muted">
                           Neaktivna
                         </span>
                       )}
@@ -139,7 +139,7 @@ export function PerformanceHighlights({
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="heading-caps text-[10px] font-medium text-text-muted">
+                    <p className="heading-caps text-[0.625rem] font-medium text-text-muted">
                       Konverzije
                     </p>
                     <p className="font-mono text-2xl font-bold tabular-nums text-accent-400">
@@ -150,22 +150,22 @@ export function PerformanceHighlights({
 
                 <div className="grid grid-cols-3 gap-2 rounded-lg border border-line-soft bg-surface-raised/40 p-3 text-xs">
                   <div>
-                    <span className="text-[11px] text-text-muted">Poslato DM</span>
+                    <span className="text-micro text-text-muted">Poslato DM</span>
                     <p className="mt-0.5 font-mono font-medium tabular-nums text-foreground">
                       {formatNumber(topCampaign.dmsSent)}
                     </p>
                   </div>
                   <div>
-                    <span className="text-[11px] text-text-muted">Klikovi (CTR)</span>
+                    <span className="text-micro text-text-muted">Klikovi (CTR)</span>
                     <p className="mt-0.5 font-mono font-medium tabular-nums text-foreground">
                       {formatNumber(topCampaign.linkClicks)}{" "}
-                      <span className="text-text-muted text-[10px]">
+                      <span className="text-text-muted text-[0.625rem]">
                         ({formatPercent(topCampaign.ctr)})
                       </span>
                     </p>
                   </div>
                   <div>
-                    <span className="text-[11px] text-text-muted">GA4 sesije</span>
+                    <span className="text-micro text-text-muted">GA4 sesije</span>
                     <p className="mt-0.5 font-mono font-medium tabular-nums text-foreground">
                       {formatNumber(topCampaign.ga4Sessions)}
                     </p>
@@ -175,7 +175,7 @@ export function PerformanceHighlights({
             )}
           </div>
 
-          <div className="mt-4 flex items-center justify-between border-t border-line-soft/60 pt-3 text-[11px] text-text-muted">
+          <div className="mt-4 flex items-center justify-between border-t border-line-soft/60 pt-3 text-micro text-text-muted">
             <span className="flex items-center gap-1.5">
               <MessageCircleReply className="size-3 text-accent-400" />
               <span>Automatizacija: OpenReply + GA4 UTM</span>
@@ -235,10 +235,10 @@ export function PerformanceHighlights({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="rounded-full border border-line-soft bg-surface-raised px-2 py-0.5 text-[10px] font-medium text-text-secondary uppercase">
+                      <span className="rounded-full border border-line-soft bg-surface-raised px-2 py-0.5 text-[0.625rem] font-medium text-text-secondary uppercase">
                         {topPost.mediaType.replace("_", " ")}
                       </span>
-                      <span className="text-[11px] text-text-muted">
+                      <span className="text-micro text-text-muted">
                         {formatShortDate(
                           new Date(topPost.publishedAt).toISOString().slice(0, 10),
                         )}
@@ -249,7 +249,7 @@ export function PerformanceHighlights({
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="heading-caps text-[10px] font-medium text-text-muted">
+                    <p className="heading-caps text-[0.625rem] font-medium text-text-muted">
                       Doseg (Reach)
                     </p>
                     <p className="font-mono text-2xl font-bold tabular-nums text-foreground">
@@ -288,7 +288,7 @@ export function PerformanceHighlights({
             )}
           </div>
 
-          <div className="mt-4 flex items-center justify-between border-t border-line-soft/60 pt-3 text-[11px] text-text-muted">
+          <div className="mt-4 flex items-center justify-between border-t border-line-soft/60 pt-3 text-micro text-text-muted">
             <span className="flex items-center gap-1.5">
               <Eye className="size-3 text-accent-400" />
               <span>Organski uvid sa Instagrama</span>

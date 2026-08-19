@@ -208,7 +208,7 @@ export function HookBattleView({
                   <PopoverTitle className="text-xs font-semibold text-foreground">
                     Podešavanje statističkih pragova
                   </PopoverTitle>
-                  <PopoverDescription className="text-[11px] text-text-muted mt-1">
+                  <PopoverDescription className="text-micro text-text-muted mt-1">
                     Verzije ispod ovog praga označavaju se sa &ldquo;Rano za
                     zaključak&rdquo; i ne mogu biti krunisane kao pobednik.
                   </PopoverDescription>
@@ -252,7 +252,7 @@ export function HookBattleView({
                         setThresholdImp(DEFAULT_THRESHOLD_IMPRESSIONS);
                         setThresholdClicks(DEFAULT_THRESHOLD_CLICKS);
                       }}
-                      className="text-[11px] text-text-muted"
+                      className="text-micro text-text-muted"
                     >
                       Resetuj na podrazumevano
                     </Button>
@@ -296,7 +296,7 @@ export function HookBattleView({
                 <Swords className="size-4" />
               </span>
               <div>
-                <p className="heading-caps text-[10px] font-medium text-accent-400">
+                <p className="heading-caps text-[0.625rem] font-medium text-accent-400">
                   Hook Battle · Poređenje kreativa
                 </p>
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
@@ -335,7 +335,7 @@ export function HookBattleView({
             </div>
 
             {/* Active Criterion Badge */}
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-0.5 text-[11px] text-text-muted">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-0.5 text-micro text-text-muted">
               <Info className="size-3 text-accent-400" />
               <span>Kriterijum: <strong className="text-foreground font-medium">{evaluation.criterion}</strong></span>
             </div>
@@ -441,7 +441,7 @@ export function HookBattleView({
                   >
                     {/* Leader Top Ribbon */}
                     {isLeader && (
-                      <div className="bg-accent-400 text-slate-950 text-[11px] font-bold py-1 px-3 flex items-center justify-center gap-1.5 uppercase tracking-wider">
+                      <div className="bg-accent-400 text-slate-950 text-micro font-bold py-1 px-3 flex items-center justify-center gap-1.5 uppercase tracking-wider">
                         <Crown className="size-3.5 fill-current" />
                         <span>Vodeći hook</span>
                       </div>
@@ -463,11 +463,11 @@ export function HookBattleView({
                         ) : (
                           <div className="flex flex-col items-center gap-1 text-text-muted">
                             <Play className="size-6 text-text-muted/60" />
-                            <span className="text-[10px]">Video kreativa</span>
+                            <span className="text-[0.625rem]">Video kreativa</span>
                           </div>
                         )}
 
-                        <div className="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-slate-950/85 px-2 py-0.5 text-[10px] font-medium text-foreground backdrop-blur-xs border border-white/10">
+                        <div className="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-slate-950/85 px-2 py-0.5 text-[0.625rem] font-medium text-foreground backdrop-blur-xs border border-white/10">
                           <span
                             className={cn(
                               "size-1.5 rounded-full",
@@ -484,7 +484,7 @@ export function HookBattleView({
                         </div>
 
                         {!isLeader && (
-                          <div className="absolute top-2 right-2 rounded bg-slate-950/80 px-1.5 py-0.5 text-[10px] font-mono text-text-muted border border-white/10">
+                          <div className="absolute top-2 right-2 rounded bg-slate-950/80 px-1.5 py-0.5 text-[0.625rem] font-mono text-text-muted border border-white/10">
                             #{rankNumber}
                           </div>
                         )}
@@ -510,7 +510,7 @@ export function HookBattleView({
                     <div className="flex flex-col divide-y divide-line-soft text-xs">
                       {/* 1. HERO METRIC: HOOK RATE */}
                       <div className="p-4 bg-surface/30 flex flex-col gap-1">
-                        <span className="heading-caps text-[10px] font-semibold text-text-muted">
+                        <span className="heading-caps text-[0.625rem] font-semibold text-text-muted">
                           Hook Rate (3s / Impresije)
                         </span>
                         <div className="flex items-baseline justify-between">
@@ -579,7 +579,7 @@ export function HookBattleView({
                               : "—"}
                           </span>
                           {version.hasConversionValue && (
-                            <span className="block text-[10px] text-success font-semibold">
+                            <span className="block text-[0.625rem] text-success font-semibold">
                               {version.roas.toFixed(2)}x
                             </span>
                           )}
@@ -593,7 +593,7 @@ export function HookBattleView({
                           <span className="font-medium text-foreground">
                             {formatNumber(version.spend)} €
                           </span>
-                          <span className="block text-[10px] text-text-muted">
+                          <span className="block text-[0.625rem] text-text-muted">
                             ({version.results} konv.)
                           </span>
                         </div>
@@ -604,7 +604,7 @@ export function HookBattleView({
                         <span className="text-text-muted">Impresije (Frekvencija)</span>
                         <div className="text-right font-mono text-foreground">
                           <span>{formatNumber(version.impressions)}</span>
-                          <span className="text-text-muted ml-1 text-[11px]">
+                          <span className="text-text-muted ml-1 text-micro">
                             ({formatDecimal(version.frequency)})
                           </span>
                         </div>
@@ -661,7 +661,7 @@ export function HookBattleView({
                               })
                             }
                             title="Kreiraj novu verziju hook-a sa izmenjenim tekstom"
-                            className="h-6 text-[11px] px-2 border-accent-400/40 bg-accent-400/10 text-accent-400 hover:bg-accent-400/20 hover:text-accent-300 font-medium gap-1"
+                            className="h-6 text-micro px-2 border-accent-400/40 bg-accent-400/10 text-accent-400 hover:bg-accent-400/20 hover:text-accent-300 font-medium gap-1"
                           >
                             <Sparkles className="size-3" />
                             <span>Nova verzija</span>
@@ -673,7 +673,7 @@ export function HookBattleView({
                           variant="ghost"
                           size="xs"
                           onClick={() => setSelectedAdId(version._id)}
-                          className="h-6 text-[11px] px-2 text-text-muted hover:text-accent-400 hover:bg-surface-raised gap-1"
+                          className="h-6 text-micro px-2 text-text-muted hover:text-accent-400 hover:bg-surface-raised gap-1"
                         >
                           <span>Detalji</span>
                           <ChevronRightSquare className="size-3" />

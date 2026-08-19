@@ -80,7 +80,7 @@ export function AttributionDashboard() {
                     </span>
                     <span>od ukupnog IG saobraćaja</span>
                   </div>
-                  <div className="mt-auto mb-3 flex items-center gap-1.5 text-[11px] text-text-muted">
+                  <div className="mt-auto mb-3 flex items-center gap-1.5 text-micro text-text-muted">
                     <MousePointerClick className="size-3 text-accent-400" />
                     <span>
                       {formatNumber(report.totals.openreply.linkClicks)} link klikova
@@ -106,7 +106,7 @@ export function AttributionDashboard() {
                     </span>
                     <span>stopa sesija → konverzija</span>
                   </div>
-                  <div className="mt-auto mb-3 text-[11px] text-text-muted">
+                  <div className="mt-auto mb-3 text-micro text-text-muted">
                     <span className="font-mono tabular-nums text-foreground">
                       {formatPercent(report.totals.openreplyShareOfIgConversions)}
                     </span>{" "}
@@ -132,7 +132,7 @@ export function AttributionDashboard() {
                     </span>
                     <span>ukupnih konverzija sa IG</span>
                   </div>
-                  <div className="mt-auto mb-3 text-[11px] text-text-muted">
+                  <div className="mt-auto mb-3 text-micro text-text-muted">
                     Bio: {formatNumber(report.totals.bio.sessions)} · Story:{" "}
                     {formatNumber(report.totals.story.sessions)}
                   </div>
@@ -173,7 +173,7 @@ export function AttributionDashboard() {
                         } klikove bez GA4 sesija`
                       : "Sve kampanje sa klikovima beleže sesije"}
                   </div>
-                  <div className="mt-auto mb-3 text-[11px] text-text-muted font-mono">
+                  <div className="mt-auto mb-3 text-micro text-text-muted font-mono">
                     utm_medium=openreply-dm
                   </div>
                 </div>

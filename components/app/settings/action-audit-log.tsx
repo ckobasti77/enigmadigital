@@ -393,7 +393,7 @@ export function ActionAuditLog() {
                     <TableCell className="text-xs">
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span className="inline-flex rounded bg-surface px-1.5 py-0.5 text-[10px] font-medium text-text-secondary border border-line-soft">
+                          <span className="inline-flex rounded bg-surface px-1.5 py-0.5 text-[0.625rem] font-medium text-text-secondary border border-line-soft">
                             {formatTargetType(row.targetType)}
                           </span>
                           <span
@@ -403,14 +403,14 @@ export function ActionAuditLog() {
                             {row.targetName || row.targetId}
                           </span>
                         </div>
-                        <span className="font-mono text-[10px] text-text-muted">
+                        <span className="font-mono text-[0.625rem] text-text-muted">
                           ID: {row.targetId}
                         </span>
                       </div>
                     </TableCell>
 
                     {/* Params */}
-                    <TableCell className="text-xs text-text-secondary font-mono text-[11px]">
+                    <TableCell className="text-xs text-text-secondary font-mono text-micro">
                       {parseParamsSummary(row.params)}
                     </TableCell>
 

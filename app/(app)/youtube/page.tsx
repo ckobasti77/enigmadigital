@@ -16,7 +16,7 @@ export default function YouTubePage() {
           <p className="heading-caps text-xs font-medium text-text-muted">
             YouTube · Kanal
           </p>
-          <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight text-foreground">
+          <h1 className="mt-2 text-h1 text-foreground">
             YouTube analitika
           </h1>
           <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">

@@ -121,7 +121,7 @@ export function RulesList({
                   </h3>
 
                   {/* Scope Badge */}
-                  <span className="rounded-md bg-surface px-2 py-0.5 text-[11px] font-mono text-text-muted border border-line">
+                  <span className="rounded-md bg-surface px-2 py-0.5 text-micro font-mono text-text-muted border border-line">
                     {rule.scope === "campaign"
                       ? "Kampanje"
                       : rule.scope === "adset"
@@ -131,24 +131,24 @@ export function RulesList({
 
                   {/* Action Badge */}
                   {rule.action === "pause_and_notify" ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-[0.625rem] font-semibold text-warning">
                       <Pause className="size-2.5" />
                       <span>Pauziraj i javi</span>
                     </span>
                   ) : rule.action === "pause" ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-[0.625rem] font-semibold text-warning">
                       <Pause className="size-2.5" />
                       <span>Samo pauziraj</span>
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-accent-400/10 border border-accent-400/30 px-2 py-0.5 text-[10px] font-semibold text-accent-400">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-accent-400/10 border border-accent-400/30 px-2 py-0.5 text-[0.625rem] font-semibold text-accent-400">
                       <Mail className="size-2.5" />
                       <span>Samo javi</span>
                     </span>
                   )}
                 </div>
 
-                <div className="flex items-center gap-3 text-[11px] text-text-muted">
+                <div className="flex items-center gap-3 text-micro text-text-muted">
                   <span className="flex items-center gap-1">
                     <Clock className="size-3" />
                     <span>Cooldown: {rule.cooldownHours}h</span>
@@ -205,7 +205,7 @@ export function RulesList({
 
             {/* Plain-Language Rule Preview Sentence Banner */}
             <div className="mt-3 rounded-lg border border-line bg-surface/60 px-3.5 py-2.5 text-xs text-foreground font-medium flex items-center gap-2">
-              <span className="text-accent-400 font-semibold text-[11px] uppercase tracking-wider shrink-0">
+              <span className="text-accent-400 font-semibold text-micro uppercase tracking-wider shrink-0">
                 Pravilo:
               </span>
               <p className="leading-relaxed">„{sentence}”</p>

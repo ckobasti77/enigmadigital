@@ -218,7 +218,7 @@ export function FunnelTable({
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 font-mono text-xs text-text-muted">
-                            <span className="rounded bg-surface-raised px-1.5 py-0.5 text-[11px] text-accent-400">
+                            <span className="rounded bg-surface-raised px-1.5 py-0.5 text-micro text-accent-400">
                               {row.slug}
                             </span>
                             {row.keyword && (
@@ -235,7 +235,7 @@ export function FunnelTable({
                       <TableCell className="py-3.5 text-right font-mono tabular-nums text-foreground">
                         <div>
                           <span>{formatNumber(row.dmsSent)}</span>
-                          <span className="block text-[11px] text-text-muted">
+                          <span className="block text-micro text-text-muted">
                             poslato
                           </span>
                         </div>
@@ -247,7 +247,7 @@ export function FunnelTable({
                           <span className="font-mono tabular-nums text-foreground">
                             {formatNumber(row.linkClicks)}
                           </span>
-                          <span className="font-mono text-[11px] tabular-nums text-accent-400">
+                          <span className="font-mono text-micro tabular-nums text-accent-400">
                             {formatPercent(row.ctr)} CTR
                           </span>
                         </div>
@@ -262,7 +262,7 @@ export function FunnelTable({
                             </span>
                             <Tooltip>
                               <TooltipTrigger>
-                                <span className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-medium text-warning transition-colors hover:bg-warning/25">
+                                <span className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-micro font-medium text-warning transition-colors hover:bg-warning/25">
                                   <AlertTriangle className="size-3 shrink-0" />
                                   UTM neslaganje?
                                 </span>
@@ -296,7 +296,7 @@ export function FunnelTable({
                             <span className="font-mono tabular-nums text-text-muted">
                               —
                             </span>
-                            <span className="text-[11px] text-text-muted">
+                            <span className="text-micro text-text-muted">
                               nema klikova
                             </span>
                           </div>
@@ -305,7 +305,7 @@ export function FunnelTable({
                             <span className="font-mono tabular-nums text-foreground">
                               {formatNumber(row.ga4Sessions)}
                             </span>
-                            <span className="font-mono text-[11px] tabular-nums text-text-muted">
+                            <span className="font-mono text-micro tabular-nums text-text-muted">
                               {row.clickToSessionRate !== null ? (
                                 <span className="inline-flex items-center gap-0.5 text-success">
                                   <ArrowRight className="size-2.5" />
@@ -326,7 +326,7 @@ export function FunnelTable({
                             <span className="font-mono tabular-nums text-text-muted">
                               —
                             </span>
-                            <span className="text-[11px] text-text-muted">
+                            <span className="text-micro text-text-muted">
                               —
                             </span>
                           </div>
@@ -335,7 +335,7 @@ export function FunnelTable({
                             <span className="font-mono tabular-nums text-text-muted">
                               —
                             </span>
-                            <span className="text-[11px] text-text-muted">
+                            <span className="text-micro text-text-muted">
                               0 sesija
                             </span>
                           </div>
@@ -351,7 +351,7 @@ export function FunnelTable({
                             >
                               {formatNumber(row.ga4Conversions)}
                             </span>
-                            <span className="font-mono text-[11px] tabular-nums text-text-muted">
+                            <span className="font-mono text-micro tabular-nums text-text-muted">
                               {row.sessionToConvRate !== null
                                 ? `${formatPercent(row.sessionToConvRate)} CR`
                                 : "—"}
@@ -367,7 +367,7 @@ export function FunnelTable({
                             <span className="font-mono font-medium tabular-nums text-foreground">
                               {formatPercent(row.overallConvRate)}
                             </span>
-                            <span className="text-[11px] text-text-muted">
+                            <span className="text-micro text-text-muted">
                               DM → Cilj
                             </span>
                           </div>

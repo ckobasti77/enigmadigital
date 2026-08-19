@@ -680,7 +680,7 @@ function CaptionTable({
               >
                 <TableCell className="py-2 pl-3 text-xs text-foreground">
                   {captionLanguageLabel(track.language)}
-                  <span className="ml-1.5 font-mono text-[11px] text-text-muted">
+                  <span className="ml-1.5 font-mono text-micro text-text-muted">
                     {track.language}
                   </span>
                 </TableCell>
@@ -695,7 +695,7 @@ function CaptionTable({
                 </TableCell>
                 <TableCell className="py-2 pr-3 text-right">
                   {automatic ? (
-                    <span className="text-[11px] text-text-muted">
+                    <span className="text-micro text-text-muted">
                       YouTube ga sam pravi
                     </span>
                   ) : (
@@ -706,7 +706,7 @@ function CaptionTable({
                         size="sm"
                         onClick={() => onReplace(track)}
                         disabled={disabled}
-                        className="h-6 gap-1 border-line-soft px-2 text-[11px] text-text-secondary hover:border-line-strong hover:text-foreground"
+                        className="h-6 gap-1 border-line-soft px-2 text-micro text-text-secondary hover:border-line-strong hover:text-foreground"
                       >
                         <Replace className="size-3" aria-hidden />
                         <span>Zameni</span>
@@ -717,7 +717,7 @@ function CaptionTable({
                         size="sm"
                         onClick={() => onDelete(track)}
                         disabled={disabled}
-                        className="h-6 gap-1 border-danger/40 px-2 text-[11px] text-danger hover:bg-danger/10 hover:text-danger"
+                        className="h-6 gap-1 border-danger/40 px-2 text-micro text-danger hover:bg-danger/10 hover:text-danger"
                       >
                         <Trash2 className="size-3" aria-hidden />
                         <span>Obriši</span>
@@ -749,7 +749,7 @@ function StatusPill({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-medium",
+        "inline-flex items-center rounded-md border px-1.5 py-0.5 text-micro font-medium",
         automatic
           ? "border-line bg-surface text-text-muted"
           : track.isDraft

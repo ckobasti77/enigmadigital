@@ -112,7 +112,7 @@ export function SyncHealthWidget({
                       {PROVIDER_LABELS[provider]}
                     </span>
                     {health?.error && (
-                      <p className="line-clamp-1 text-[11px] text-danger font-mono mt-0.5">
+                      <p className="line-clamp-1 text-micro text-danger font-mono mt-0.5">
                         {health.error}
                       </p>
                     )}
@@ -135,7 +135,7 @@ export function SyncHealthWidget({
                   >
                     {statusText}
                   </span>
-                  <p className="text-[11px] text-text-muted">
+                  <p className="text-micro text-text-muted">
                     {health?.startedAt
                       ? formatRelativeTime(health.startedAt)
                       : isConnected

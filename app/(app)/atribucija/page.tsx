@@ -10,7 +10,7 @@ export default function AttributionPage() {
       <p className="heading-caps text-xs font-medium text-text-muted">
         Atribucija · UTM & Funnel
       </p>
-      <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight text-foreground">
+      <h1 className="mt-2 text-h1 text-foreground">
         UTM atribucija i levak konverzije
       </h1>
       <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">

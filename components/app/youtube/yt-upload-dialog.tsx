@@ -733,7 +733,7 @@ function ShapeVerdict({ probe, probing }: { probe: Probe; probing: boolean }) {
         <p className="mt-1 text-xs leading-relaxed text-text-muted">
           {copy[shape].body}
         </p>
-        <p className="mt-1.5 font-mono text-[11px] tabular-nums text-text-muted">
+        <p className="mt-1.5 font-mono text-micro tabular-nums text-text-muted">
           {probe.width}×{probe.height} ·{" "}
           {formatDurationSeconds(probe.durationSeconds)}
         </p>
@@ -781,7 +781,7 @@ function UploadProgressPanel({
       <ProgressRail ratio={progress.ratio} />
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <p className="font-mono text-[11px] tabular-nums text-text-muted">
+        <p className="font-mono text-micro tabular-nums text-text-muted">
           {formatFileSize(progress.uploadedBytes)} od{" "}
           {formatFileSize(progress.totalBytes)}
         </p>
@@ -790,7 +790,7 @@ function UploadProgressPanel({
           variant="outline"
           size="sm"
           onClick={onAbort}
-          className="h-6 gap-1 border-danger/40 px-2 text-[11px] text-danger hover:bg-danger/10 hover:text-danger"
+          className="h-6 gap-1 border-danger/40 px-2 text-micro text-danger hover:bg-danger/10 hover:text-danger"
         >
           <X className="size-3" aria-hidden />
           <span>Prekini slanje</span>

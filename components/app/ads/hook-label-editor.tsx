@@ -94,7 +94,7 @@ export function HookLabelEditor({
           disabled={isSaving}
           className={cn(
             "h-7 text-xs border-accent-400/50 bg-surface-raised focus-visible:ring-accent-400",
-            size === "sm" ? "h-6 text-[11px] px-2" : "h-8 text-xs px-2.5",
+            size === "sm" ? "h-6 text-micro px-2" : "h-8 text-xs px-2.5",
           )}
         />
         <Button
@@ -166,7 +166,7 @@ export function HookLabelEditor({
             e.stopPropagation();
             startEditing();
           }}
-          className="inline-flex items-center gap-1 rounded border border-accent-400/30 bg-accent-400/10 px-2 py-0.5 text-[11px] font-semibold text-accent-400 cursor-pointer hover:border-accent-400/60 hover:bg-accent-400/15 transition-all truncate"
+          className="inline-flex items-center gap-1 rounded border border-accent-400/30 bg-accent-400/10 px-2 py-0.5 text-micro font-semibold text-accent-400 cursor-pointer hover:border-accent-400/60 hover:bg-accent-400/15 transition-all truncate"
           title="Kliknite za izmenu oznake"
         >
           <span className="truncate">{currentLabel}</span>
@@ -179,7 +179,7 @@ export function HookLabelEditor({
             e.stopPropagation();
             startEditing();
           }}
-          className="inline-flex items-center gap-1 rounded border border-dashed border-line-strong px-2 py-0.5 text-[10px] text-text-muted hover:border-accent-400/40 hover:text-accent-400 transition-colors"
+          className="inline-flex items-center gap-1 rounded border border-dashed border-line-strong px-2 py-0.5 text-[0.625rem] text-text-muted hover:border-accent-400/40 hover:text-accent-400 transition-colors"
           title="Dodaj hook oznaku (npr. Hook A, Hook B)"
         >
           <Edit2 className="size-2.5" />

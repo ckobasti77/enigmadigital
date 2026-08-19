@@ -257,7 +257,7 @@ export function CampaignsTable({
               )}
             >
               <span>Sve platforme</span>
-              <span className="font-mono text-[10px] text-text-muted">
+              <span className="font-mono text-[0.625rem] text-text-muted">
                 ({campaigns.length})
               </span>
             </button>
@@ -274,7 +274,7 @@ export function CampaignsTable({
             >
               <span className="size-1.5 rounded-full bg-chart-1" />
               <span>Meta Ads</span>
-              <span className="font-mono text-[10px] text-text-muted">
+              <span className="font-mono text-[0.625rem] text-text-muted">
                 ({metaCount})
               </span>
             </button>
@@ -291,7 +291,7 @@ export function CampaignsTable({
             >
               <span className="size-1.5 rounded-full bg-chart-2" />
               <span>Google Ads</span>
-              <span className="font-mono text-[10px] text-text-muted">
+              <span className="font-mono text-[0.625rem] text-text-muted">
                 ({googleCount})
               </span>
             </button>
@@ -414,18 +414,18 @@ export function CampaignsTable({
 
                               {/* Provider Badge */}
                               {row.provider === "google_ads" || row.provider === "google" ? (
-                                <span className="inline-flex items-center gap-1 rounded border border-chart-2/40 bg-chart-2/10 px-1.5 py-0.5 text-[10px] font-semibold text-chart-2 shrink-0">
+                                <span className="inline-flex items-center gap-1 rounded border border-chart-2/40 bg-chart-2/10 px-1.5 py-0.5 text-[0.625rem] font-semibold text-chart-2 shrink-0">
                                   Google
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 rounded border border-chart-1/40 bg-chart-1/10 px-1.5 py-0.5 text-[10px] font-semibold text-chart-1 shrink-0">
+                                <span className="inline-flex items-center gap-1 rounded border border-chart-1/40 bg-chart-1/10 px-1.5 py-0.5 text-[0.625rem] font-semibold text-chart-1 shrink-0">
                                   Meta
                                 </span>
                               )}
 
                               {row.syncPriority === "hot" && (
                                 <span
-                                  className="inline-flex items-center gap-0.5 rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-warning shrink-0"
+                                  className="inline-flex items-center gap-0.5 rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[0.625rem] font-medium text-warning shrink-0"
                                   title="Hot kampanja (15 min sync)"
                                 >
                                   <Flame className="size-2.5" />
@@ -434,7 +434,7 @@ export function CampaignsTable({
                               )}
                             </div>
 
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-micro text-text-muted">
                               <span className="inline-flex items-center gap-1 rounded bg-surface px-1.5 py-0.5 text-text-secondary">
                                 <Target className="size-2.5 text-accent-400" />
                                 {formatObjective(row.objective)}
@@ -444,7 +444,7 @@ export function CampaignsTable({
                                 {formatFreshness(row.syncedAt, row.syncPriority)}
                               </span>
                               {row.searchImpressionShare !== undefined && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-mono text-accent-400 bg-accent-400/10 border border-accent-400/20 px-1.5 py-0.5 rounded">
+                                <span className="inline-flex items-center gap-1 text-[0.625rem] font-mono text-accent-400 bg-accent-400/10 border border-accent-400/20 px-1.5 py-0.5 rounded">
                                   IS: {formatPercent(row.searchImpressionShare)}
                                 </span>
                               )}
@@ -480,7 +480,7 @@ export function CampaignsTable({
                             {row.costPerResult > 0 ? `${formatNumber(row.costPerResult)} €` : "—"}
                           </span>
                           {row.hasConversionValue && (
-                            <span className="block text-[11px] font-semibold text-success">
+                            <span className="block text-micro font-semibold text-success">
                               {row.roas.toFixed(2)}x
                             </span>
                           )}
@@ -549,13 +549,13 @@ export function CampaignsTable({
                               </button>
                             </div>
                           ) : (
-                            <span className="text-[10px] text-text-muted/60 font-mono px-1">
+                            <span className="text-[0.625rem] text-text-muted/60 font-mono px-1">
                               read-only
                             </span>
                           )}
 
                           <div className="flex items-center gap-1 text-text-muted group-hover:text-foreground transition-colors pl-1 border-l border-line-soft/60">
-                            <span className="font-mono tabular-nums text-[11px]">
+                            <span className="font-mono tabular-nums text-micro">
                               {row.adSetsCount} {row.adSetsCount === 1 ? (row.provider === "google_ads" ? "grupa" : "set") : (row.provider === "google_ads" ? "grupa" : "setova")}
                             </span>
                             <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />

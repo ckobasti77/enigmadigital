@@ -65,7 +65,7 @@ function TypeBadge({ type }: { type: string }) {
         : Camera;
 
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-bg-950/80 px-2 py-0.5 text-[11px] font-semibold tracking-wider text-text-primary backdrop-blur-md">
+    <span className="inline-flex items-center gap-1 rounded-md bg-bg-950/80 px-2 py-0.5 text-micro font-semibold tracking-wider text-text-primary backdrop-blur-md">
       <Icon className="size-3 text-accent-400" aria-hidden />
       {normalized}
     </span>
@@ -282,7 +282,7 @@ function TopContentCard({
         </div>
 
         <div className="absolute bottom-2 left-3">
-          <span className="text-[11px] font-mono text-text-muted bg-bg-950/70 backdrop-blur-xs px-2 py-0.5 rounded">
+          <span className="text-micro font-mono text-text-muted bg-bg-950/70 backdrop-blur-xs px-2 py-0.5 rounded">
             {formatPostDate(item.publishedAt)}
           </span>
         </div>
@@ -306,7 +306,7 @@ function TopContentCard({
         {/* Engagement Grid */}
         <div className="mt-3 grid grid-cols-4 gap-2 border-t border-line-soft pt-3 text-center">
           <div>
-            <span className="flex items-center justify-center gap-1 text-[11px] text-text-muted">
+            <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <Heart className="size-3 text-danger/80" /> Lajkovi
             </span>
             <p className="font-mono text-xs font-semibold tabular-nums text-foreground mt-0.5">
@@ -314,7 +314,7 @@ function TopContentCard({
             </p>
           </div>
           <div>
-            <span className="flex items-center justify-center gap-1 text-[11px] text-text-muted">
+            <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <Bookmark className="size-3 text-warning/80" /> Sačuvano
             </span>
             <p className="font-mono text-xs font-semibold tabular-nums text-foreground mt-0.5">
@@ -322,7 +322,7 @@ function TopContentCard({
             </p>
           </div>
           <div>
-            <span className="flex items-center justify-center gap-1 text-[11px] text-text-muted">
+            <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <MessageCircle className="size-3 text-chart-1/80" /> Komentari
             </span>
             <p className="font-mono text-xs font-semibold tabular-nums text-foreground mt-0.5">
@@ -330,7 +330,7 @@ function TopContentCard({
             </p>
           </div>
           <div>
-            <span className="flex items-center justify-center gap-1 text-[11px] text-text-muted">
+            <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <Share2 className="size-3 text-success/80" /> Deljenja
             </span>
             <p className="font-mono text-xs font-semibold tabular-nums text-foreground mt-0.5">
@@ -393,7 +393,7 @@ function PostCard({ item }: { item: MediaItem }) {
         </div>
 
         <div className="absolute top-2.5 right-2.5">
-          <span className="rounded bg-bg-950/80 px-2 py-0.5 font-mono text-[11px] text-text-muted backdrop-blur-md">
+          <span className="rounded bg-bg-950/80 px-2 py-0.5 font-mono text-micro text-text-muted backdrop-blur-md">
             {formatPostDate(item.publishedAt)}
           </span>
         </div>
@@ -408,7 +408,7 @@ function PostCard({ item }: { item: MediaItem }) {
         {/* Stats Grid */}
         <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg bg-surface-raised/40 border border-line-soft p-2.5 text-center">
           <div>
-            <div className="flex items-center justify-center gap-1 text-[11px] text-text-muted">
+            <div className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <Eye className="size-3 text-accent-400" />
               <span>Doseg</span>
             </div>
@@ -418,7 +418,7 @@ function PostCard({ item }: { item: MediaItem }) {
           </div>
 
           <div>
-            <div className="flex items-center justify-center gap-1 text-[11px] text-text-muted">
+            <div className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <Bookmark className="size-3 text-warning" />
               <span>Sačuvano</span>
             </div>
@@ -428,7 +428,7 @@ function PostCard({ item }: { item: MediaItem }) {
           </div>
 
           <div>
-            <div className="flex items-center justify-center gap-1 text-[11px] text-text-muted">
+            <div className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <Heart className="size-3 text-danger" />
               <span>Lajkovi</span>
             </div>
