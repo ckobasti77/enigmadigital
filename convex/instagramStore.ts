@@ -355,13 +355,21 @@ const mediaViewValidator = v.object({
   views: v.number(),
   syncedAt: v.number(),
   deletedAt: v.optional(v.number()),
+  // Slide IDENTITY only, no links — enough for the carousel swiper to know how
+  // many frames there are and what to ask the proxy for.
+  children: v.optional(
+    v.array(v.object({ id: v.string(), mediaType: v.string() })),
+  ),
 });
 
 /**
  * List media stats for the workspace, ordered by publishedAt descending.
  *
  * Picture URLs are deliberately NOT returned: they expire. The grid points its
- * <img> at the /ig-media/<mediaId> route instead.
+ * <img> at the /ig-media/<mediaId>[/<childId>] route instead.
+ *
+ * Deleted posts stay in the list. They are marked, not hidden: the numbers they
+ * collected are still true, and an operator needs to see what disappeared.
  */
 export const mediaList = query({
   args: {
@@ -395,7 +403,53 @@ export const mediaList = query({
       views: r.views,
       syncedAt: r.syncedAt,
       ...(r.deletedAt !== undefined ? { deletedAt: r.deletedAt } : {}),
+      ...(r.children
+        ? {
+            children: r.children.map((c) => ({
+              id: c.id,
+              mediaType: c.mediaType,
+            })),
+          }
+        : {}),
     }));
+  },
+});
+
+/**
+ * Posts that MIGHT have been deleted, for the sync to verify one by one.
+ *
+ * A row qualifies on two counts at once:
+ *   `syncedAt < syncedBefore` — the run that just finished stamped every post
+ *     Instagram still lists, so anything left behind was not in the answer;
+ *   `publishedAt >= publishedFrom` — and it is newer than the oldest post that
+ *     WAS in the answer. That second half is the whole point: `/me/media`
+ *     returns newest first, so a post older than the window simply fell off the
+ *     end of the page and says nothing about being gone. Only a post inside the
+ *     window that Instagram skipped is worth an API call.
+ *
+ * Already-marked rows are left out — the verdict does not need confirming.
+ */
+export const listDeletionCandidates = internalQuery({
+  args: {
+    workspaceId: v.id("workspaces"),
+    publishedFrom: v.number(),
+    syncedBefore: v.number(),
+    limit: v.number(),
+  },
+  returns: v.array(v.object({ _id: v.id("igMediaStats"), mediaId: v.string() })),
+  handler: async (ctx, { workspaceId, publishedFrom, syncedBefore, limit }) => {
+    const rows = await ctx.db
+      .query("igMediaStats")
+      .withIndex("by_workspace_published", (q) =>
+        q.eq("workspaceId", workspaceId).gte("publishedAt", publishedFrom),
+      )
+      .order("desc")
+      .collect();
+
+    return rows
+      .filter((r) => r.deletedAt === undefined && r.syncedAt < syncedBefore)
+      .slice(0, Math.max(0, limit))
+      .map((r) => ({ _id: r._id, mediaId: r.mediaId }));
   },
 });
 

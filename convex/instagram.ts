@@ -17,11 +17,13 @@ import {
   buildMeUrl,
   buildMeInsightsUrl,
   buildMeMediaUrl,
+  buildMediaFieldsUrl,
   buildMediaInsightsUrl,
   getMetricsForMediaType,
   extractAccountInsights,
   extractMediaInsights,
   extractGraphApiError,
+  isMissingObjectError,
   normalizeMediaChildren,
   type RawOAuthTokenResponse,
   type RawLongLivedTokenResponse,
@@ -46,6 +48,13 @@ import {
  */
 
 const REFRESH_THRESHOLD_MS = 10 * 24 * 60 * 60 * 1000; // 10 days before expiry (i.e. ~50 days old)
+
+/**
+ * How many "did this post really disappear?" reads one sync may spend. In a
+ * normal run the answer is zero suspects; the cap only matters the first time a
+ * batch of posts is taken down at once, and the rest are picked up next run.
+ */
+const DELETION_CHECK_LIMIT = 25;
 
 // ── OAuth Handshake ──────────────────────────────────────────────────────────
 
@@ -694,7 +703,52 @@ export const syncIgInsights = internalAction({
           );
         }
 
-        return accountWritten + mediaWritten;
+        // 6. Verify the posts Instagram stopped listing.
+        //
+        // A deletion is never announced — the only way to learn about one is to
+        // ask for the post and be told it is gone. Absence from the list alone
+        // proves nothing (the post may simply have fallen past the end of the
+        // page), so every suspect gets one targeted `?fields=id` read and only a
+        // real "object does not exist" writes `deletedAt`.
+        //
+        // The row is never removed. The post did exist and did have reach, and
+        // that remains a true statement about the past.
+        let deletedMarked = 0;
+        if (mediaRows.length > 0) {
+          const oldestSeen = Math.min(...mediaRows.map((r) => r.publishedAt));
+          const seenIds = new Set(mediaRows.map((r) => r.mediaId));
+
+          const candidates: { _id: Id<"igMediaStats">; mediaId: string }[] =
+            await ctx.runQuery(internal.instagramStore.listDeletionCandidates, {
+              workspaceId,
+              publishedFrom: oldestSeen,
+              syncedBefore: now,
+              limit: DELETION_CHECK_LIMIT,
+            });
+
+          for (const candidate of candidates) {
+            if (seenIds.has(candidate.mediaId)) continue;
+            try {
+              const probe = await fetch(
+                buildMediaFieldsUrl(candidate.mediaId, "id", token, version),
+              );
+              if (probe.ok) continue;
+
+              const body = await probe.text().catch(() => "");
+              if (!isMissingObjectError(probe.status, body)) continue;
+
+              await ctx.runMutation(
+                internal.instagramStore.markMediaDeleted,
+                { id: candidate._id },
+              );
+              deletedMarked++;
+            } catch {
+              // A network hiccup is not evidence; stay quiet and retry next run.
+            }
+          }
+        }
+
+        return accountWritten + mediaWritten + deletedMarked;
       },
     );
   },

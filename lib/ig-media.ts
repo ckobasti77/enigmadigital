@@ -19,7 +19,16 @@ const CONVEX_SITE_URL = (
   .trim()
   .replace(/\/+$/, "");
 
-export function igMediaSrc(mediaId: string): string | undefined {
+/**
+ * A second argument addresses ONE slide of a carousel: `/ig-media/<mediaId>/
+ * <childId>`. The route reads the slide's link off the parent's `children`, so
+ * a whole carousel still costs Instagram a single refresh.
+ */
+export function igMediaSrc(
+  mediaId: string,
+  childId?: string,
+): string | undefined {
   if (!CONVEX_SITE_URL || !mediaId) return undefined;
-  return `${CONVEX_SITE_URL}/ig-media/${encodeURIComponent(mediaId)}`;
+  const base = `${CONVEX_SITE_URL}/ig-media/${encodeURIComponent(mediaId)}`;
+  return childId ? `${base}/${encodeURIComponent(childId)}` : base;
 }

@@ -8,8 +8,10 @@ import {
   buildMediaFieldsUrl,
   isMissingObjectError,
   normalizeMediaChildren,
+  pickChildDisplayUrl,
   pickDisplayUrl,
   type RawMediaFieldsResponse,
+  type StoredMediaChild,
 } from "./lib/instagramApi";
 
 const http = httpRouter();
@@ -402,15 +404,20 @@ http.route({
   }),
 });
 
-// Route 4 — GET: Instagram picture proxy (/ig-media/<mediaId>)
+// Route 4 — GET: Instagram picture proxy (/ig-media/<mediaId>[/<childId>])
 //
 // Instagram hands out SIGNED CDN links that expire, so a `media_url` saved at
 // sync time renders as a broken image weeks later. Nothing displays the stored
 // URL directly: <img> points here, and this route redirects to a link that is
 // still valid — refetching one from Instagram when the stored one has aged out.
 //
+// A second path segment addresses ONE slide of a carousel. The slide's link is
+// stored on the parent's `children`, and Instagram refreshes the whole edge in
+// a single read — so a swiper that asks for five slides at once costs one
+// upstream request, not five.
+//
 // The route is PUBLIC on purpose: it is read by <img> tags, which carry no auth
-// header. That is safe — the path holds nothing but a media ID that is already
+// header. That is safe — the path holds nothing but media IDs that are already
 // public on Instagram, and the response says nothing about the workspace.
 //
 // It redirects and never streams the bytes: pushing image data through a Convex
@@ -443,11 +450,14 @@ http.route({
   pathPrefix: "/ig-media/",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const rawId = new URL(request.url).pathname
+    const segments = new URL(request.url).pathname
       .slice("/ig-media/".length)
-      .split("/")[0]
-      .trim();
-    const mediaId = rawId ? decodeURIComponent(rawId) : "";
+      .split("/")
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+
+    const mediaId = segments[0] ? decodeURIComponent(segments[0]) : "";
+    const childId = segments[1] ? decodeURIComponent(segments[1]) : undefined;
     if (mediaId.length === 0) {
       return igMediaError("Objava nije pronađena.", 404);
     }
@@ -462,8 +472,17 @@ http.route({
       return igMediaError("Objava je obrisana.", 410);
     }
 
-    const storedUrl = pickDisplayUrl(
-      media.mediaType,
+    // One slide, or the whole post — the rest of the route is identical.
+    const resolve = (
+      mediaUrl?: string,
+      thumbnailUrl?: string,
+      children?: StoredMediaChild[],
+    ): string | undefined =>
+      childId === undefined
+        ? pickDisplayUrl(media.mediaType, mediaUrl, thumbnailUrl, children)
+        : pickChildDisplayUrl(children, childId);
+
+    const storedUrl = resolve(
       media.mediaUrl,
       media.thumbnailUrl,
       media.children,
@@ -494,9 +513,12 @@ http.route({
     const upperType = media.mediaType.toUpperCase();
     const isCarousel =
       upperType.includes("CAROUSEL") || upperType.includes("ALBUM");
-    const fields = isCarousel
-      ? "media_url,thumbnail_url,children{id,media_type,media_url,thumbnail_url}"
-      : "media_url,thumbnail_url";
+    // A slide request always needs the edge back, whatever the parent's type
+    // says — that edge is the only place its link lives.
+    const fields =
+      isCarousel || childId !== undefined
+        ? "media_url,thumbnail_url,children{id,media_type,media_url,thumbnail_url}"
+        : "media_url,thumbnail_url";
 
     let res: Response;
     try {
@@ -531,12 +553,7 @@ http.route({
       children,
     });
 
-    const freshUrl = pickDisplayUrl(
-      media.mediaType,
-      json.media_url,
-      json.thumbnail_url,
-      children,
-    );
+    const freshUrl = resolve(json.media_url, json.thumbnail_url, children);
     if (!freshUrl) {
       return igMediaError("Slika nije dostupna.", 404);
     }

@@ -610,3 +610,18 @@ export function isMissingObjectError(status: number, body: string): boolean {
   }
   return false;
 }
+
+/**
+ * Pick the picture URL of ONE carousel slide. Unlike `pickDisplayUrl` it never
+ * falls back to the parent or to a sibling slide: the caller asked for a
+ * specific slide, and quietly answering with a different picture would make a
+ * swiper show the same frame twice.
+ */
+export function pickChildDisplayUrl(
+  children: StoredMediaChild[] | undefined,
+  childId: string,
+): string | undefined {
+  const child = (children ?? []).find((c) => c.id === childId);
+  if (!child) return undefined;
+  return pickDisplayUrl(child.mediaType, child.mediaUrl, child.thumbnailUrl);
+}
