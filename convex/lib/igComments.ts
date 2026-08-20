@@ -4,6 +4,7 @@ import {
   extractGraphApiErrorCode,
   type RawComment,
 } from "./instagramApi";
+import { isThrottleCode } from "./metaRateLimit";
 
 /**
  * ============================================================================
@@ -119,7 +120,12 @@ export function translateModerationError(body: unknown): string {
 
   // Throttling. Meta uses several codes for the same thing depending on which
   // ceiling was hit, and the answer is the same in all of them: wait.
-  if (code === 4 || code === 17 || code === 32 || code === 613) {
+  //
+  // The list itself lives in `metaRateLimit.ts` and is imported rather than
+  // repeated (V3): the same codes decide whether `recordUsage` arms the
+  // backoff, and a sentence promising the operator that the throttle is
+  // understood must never come from a path that did not arm it.
+  if (isThrottleCode(code)) {
     return "Instagram je privremeno ograničio broj zahteva. Sačekaj nekoliko minuta pa pokušaj ponovo.";
   }
 

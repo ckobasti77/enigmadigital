@@ -70,6 +70,17 @@ const THROW_VELOCITY = 0.05; // px/ms
 /** Only the tail of the gesture decides the speed; the run-up does not. */
 const VELOCITY_WINDOW_MS = 90;
 
+/**
+ * A finger that has been still for longer than this has no momentum left,
+ * whatever it was doing before it stopped.
+ *
+ * Without it the tail window above measures a flick that ended a second ago:
+ * drag fast, hold still, lift — and the track is thrown a whole frame past
+ * where the finger was put down. "Drag slowly and let go exactly where I want
+ * it" has to be possible, and this is the only thing that makes it so.
+ */
+const STILL_BEFORE_RELEASE_MS = 120;
+
 /** Resistance constant past the first and last slide. Lower = stiffer. */
 const RUBBER = 0.55;
 
@@ -82,12 +93,23 @@ function rubberBand(overshoot: number, dimension: number): number {
   return (overshoot * dimension * RUBBER) / (dimension + RUBBER * overshoot);
 }
 
+type Sample = { t: number; x: number };
+
 type DragState = {
   pointerId: number;
   startX: number;
   startTranslate: number;
   active: boolean;
-  samples: { t: number; x: number }[];
+  /**
+   * The press landed on a moving track and killed the tween in flight.
+   *
+   * Stopping the picture with a finger is a legitimate act, so this is not an
+   * error state — but it does mean that even a press which never becomes a
+   * drag still owes the track a landing. Without it, a tap on a sliding frame
+   * froze the strip halfway between two pictures for good.
+   */
+  caught: boolean;
+  samples: Sample[];
 };
 
 export function CarouselSwiper({
@@ -110,6 +132,13 @@ export function CarouselSwiper({
   const stillRef = useRef(false);
 
   const [index, setIndex] = useState(0);
+  /**
+   * Which frame the TRACK is over, which during a gesture is not `index` —
+   * `index` only moves once the gesture ends. The preload window below hangs
+   * off this one so a swipe across two frames does not uncover a picture that
+   * was never mounted.
+   */
+  const [nearIndex, setNearIndex] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [still, setStill] = useState(false);
 
@@ -121,6 +150,15 @@ export function CarouselSwiper({
     [],
   );
 
+  /** Which frame a given track offset is nearest to. */
+  const frameAt = useCallback(
+    (x: number): number => {
+      const width = widthRef.current || 1;
+      return Math.max(0, Math.min(count - 1, Math.round(-x / width)));
+    },
+    [count],
+  );
+
   /** Snap to a slide. `thrown` is what earns the momentum ease. */
   const goTo = useCallback(
     (next: number, thrown = false) => {
@@ -130,6 +168,7 @@ export function CarouselSwiper({
       const target = Math.max(0, Math.min(count - 1, next));
       indexRef.current = target;
       setIndex(target);
+      setNearIndex(target);
 
       tweenRef.current?.kill();
 
@@ -169,7 +208,15 @@ export function CarouselSwiper({
 
       widthRef.current = track.clientWidth;
       if (indexRef.current > count - 1) {
-        indexRef.current = Math.max(0, count - 1);
+        // Convex dropped a slide out from under us. Clamping the ref alone was
+        // not enough: React state kept the old number, so the counter said
+        // "4 / 3" and the load window below — which is a distance from the
+        // current frame — matched no slide at all and the swiper showed a
+        // black rectangle.
+        const clamped = Math.max(0, count - 1);
+        indexRef.current = clamped;
+        setIndex(clamped);
+        setNearIndex(clamped);
       }
 
       const mm = gsap.matchMedia();
@@ -206,7 +253,20 @@ export function CarouselSwiper({
       });
       observer.observe(track);
 
-      return () => observer.disconnect();
+      return () => {
+        observer.disconnect();
+        // The tweens are built inside the event handlers, outside this
+        // context, so nothing else kills them. Unmounting mid-flight otherwise
+        // leaves a tween writing transforms into a detached node — and in the
+        // reduced-motion branch fires `onComplete` over elements that are
+        // already gone.
+        tweenRef.current?.kill();
+        tweenRef.current = null;
+        // A cross-fade killed halfway leaves `transition: none !important` on
+        // every slide. Harmless on unmount, permanent when this ran because
+        // the slide COUNT changed and the same elements stay on screen.
+        for (const el of slideEls()) releaseCssTransition(el);
+      };
     },
     { dependencies: [count, slideEls], scope: rootRef },
   );
@@ -225,7 +285,10 @@ export function CarouselSwiper({
     if (!track || stillRef.current || count < 2) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
 
-    // Catch the picture in flight instead of waiting for it to land.
+    // Catch the picture in flight instead of waiting for it to land. Whether
+    // there WAS something to catch decides what a press that never turns into
+    // a drag has to do on release — see `closeGesture`.
+    const caught = tweenRef.current?.isActive() === true;
     tweenRef.current?.kill();
     tweenRef.current = null;
 
@@ -234,6 +297,7 @@ export function CarouselSwiper({
       startX: event.clientX,
       startTranslate: Number(gsap.getProperty(track, "x")),
       active: false,
+      caught,
       samples: [{ t: event.timeStamp, x: event.clientX }],
     };
     // The pointer is deliberately NOT captured here. Capturing on press
@@ -261,40 +325,116 @@ export function CarouselSwiper({
     if (drag.samples.length > 6) drag.samples.shift();
 
     // Written straight, with no tween in between: this is the 1:1 part.
-    gsap.set(track, { x: withResistance(drag.startTranslate + dx) });
+    const x = withResistance(drag.startTranslate + dx);
+    gsap.set(track, { x });
+    setNearIndex(frameAt(x));
   };
 
-  const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+  /**
+   * Close the gesture, whichever way it ended.
+   *
+   * EVERY exit goes through here — `pointerup`, `pointercancel`, the pointer
+   * leaving the card before the capture is taken, and the browser taking the
+   * capture away. Before V3 only the first two existed, so a mouse pressed on
+   * the swiper, nudged two pixels and released outside the card left `dragRef`
+   * populated with a live `startX`: no `pointerup` ever reached the root, and
+   * the next move back over the card — button up, same `pointerId` — crossed
+   * the threshold, took the capture and tracked a bare cursor.
+   *
+   * `release` is where and when the pointer let go. Null when there is no such
+   * moment (a capture taken away by the browser), and then there is no throw
+   * to project either.
+   */
+  const closeGesture = (
+    node: HTMLElement,
+    pointerId: number,
+    release: Sample | null,
+  ) => {
     const drag = dragRef.current;
     const track = trackRef.current;
-    if (!drag || !track || drag.pointerId !== event.pointerId) return;
+    if (!drag || drag.pointerId !== pointerId) return;
 
     dragRef.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+    if (node.hasPointerCapture(pointerId)) {
+      node.releasePointerCapture(pointerId);
     }
-    if (!drag.active) return;
     setDragging(false);
+    if (!track) return;
 
     const width = widthRef.current || 1;
     const current = Number(gsap.getProperty(track, "x"));
 
-    // Speed over the tail of the gesture only.
-    const samples = drag.samples;
-    const last = samples[samples.length - 1];
-    let first = samples[0];
-    for (let i = samples.length - 1; i >= 0; i--) {
-      if (last.t - samples[i].t > VELOCITY_WINDOW_MS) break;
-      first = samples[i];
+    // A press that never crossed the threshold is a tap, and a tap moves
+    // nothing — unless it caught a tween in flight, in which case the track is
+    // sitting between two frames and only this can put it back on one.
+    if (!drag.active) {
+      if (drag.caught) goTo(frameAt(current));
+      return;
     }
-    const elapsed = last.t - first.t;
-    const velocity = elapsed > 0 ? (last.x - first.x) / elapsed : 0;
+
+    // The last real MOVE is what says whether the finger was still moving at
+    // all. Read before the release is appended, because the release is not a
+    // movement — it is the end of one.
+    const samples = drag.samples;
+    const lastMove = samples[samples.length - 1];
+    const stalled =
+      release === null || release.t - lastMove.t > STILL_BEFORE_RELEASE_MS;
+
+    // The release is a sample too. Without it the tail window below can be
+    // measuring a stretch of the gesture that ended long before the finger did.
+    if (release !== null) samples.push(release);
+
+    let velocity = 0;
+    if (!stalled) {
+      const last = samples[samples.length - 1];
+      let first = samples[0];
+      for (let i = samples.length - 1; i >= 0; i--) {
+        if (last.t - samples[i].t > VELOCITY_WINDOW_MS) break;
+        first = samples[i];
+      }
+      const elapsed = last.t - first.t;
+      if (elapsed > 0) velocity = (last.x - first.x) / elapsed;
+    }
 
     // Where the throw would have come to rest — the target is the frame
     // nearest THAT point, which is why a flick turns the page and a slow drag
-    // across the same distance does not.
+    // across the same distance does not. A still finger projects nowhere and
+    // lands exactly where it is.
     const projected = current + velocity * PROJECTION_MS;
     goTo(Math.round(-projected / width), Math.abs(velocity) > THROW_VELOCITY);
+  };
+
+  const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    closeGesture(event.currentTarget, event.pointerId, {
+      t: event.timeStamp,
+      x: event.clientX,
+    });
+  };
+
+  /**
+   * The pointer left the card before the gesture earned its capture.
+   *
+   * Only before: once the capture is taken, it IS the promise that `pointerup`
+   * comes back to this element, and a touch pointer holds an implicit capture
+   * from the moment it goes down — so this fires for an uncommitted mouse and
+   * for nothing else.
+   */
+  const handlePointerLeave = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.active) return;
+    closeGesture(event.currentTarget, event.pointerId, {
+      t: event.timeStamp,
+      x: event.clientX,
+    });
+  };
+
+  /**
+   * The capture was taken away — the page scroll won the touch, the node was
+   * re-parented, a dialog opened over it. Our own `releasePointerCapture` fires
+   * this too, but by then `dragRef` is already empty and this returns at once.
+   */
+  const handleLostCapture = (event: React.PointerEvent<HTMLDivElement>) => {
+    closeGesture(event.currentTarget, event.pointerId, null);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -319,6 +459,8 @@ export function CarouselSwiper({
       onPointerMove={handlePointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onPointerLeave={handlePointerLeave}
+      onLostPointerCapture={handleLostCapture}
       className={cn(
         "group/swiper absolute inset-0 touch-pan-y overflow-hidden select-none",
         still ? "cursor-default" : dragging ? "cursor-grabbing" : "cursor-grab",
@@ -334,8 +476,12 @@ export function CarouselSwiper({
           >
             {/* Only the frame in view and its two neighbours are fetched — a
                 page full of carousels would otherwise open hundreds of proxy
-                requests for pictures nobody has swiped to. */}
-            {Math.abs(i - index) <= 1 && (
+                requests for pictures nobody has swiped to. Measured from where
+                the TRACK is, not from `index`: `index` stands still for the
+                whole gesture, so a drag across two frames used to reveal a
+                slide whose picture had never been mounted and slide a skeleton
+                in under the finger. */}
+            {Math.abs(i - nearIndex) <= 1 && (
               <PostImage
                 src={igMediaSrc(mediaId, slide.id)}
                 alt={`${label} — slika ${i + 1} od ${count}`}

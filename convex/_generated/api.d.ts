@@ -65,6 +65,7 @@ import type * as metaAds from "../metaAds.js";
 import type * as metaAdsStore from "../metaAdsStore.js";
 import type * as metaSync from "../metaSync.js";
 import type * as metaSyncStore from "../metaSyncStore.js";
+import type * as moderationLog from "../moderationLog.js";
 import type * as openreplyStore from "../openreplyStore.js";
 import type * as orAutomationsApi from "../orAutomationsApi.js";
 import type * as orEngine from "../orEngine.js";
@@ -158,6 +159,7 @@ declare const fullApi: ApiFromModules<{
   metaAdsStore: typeof metaAdsStore;
   metaSync: typeof metaSync;
   metaSyncStore: typeof metaSyncStore;
+  moderationLog: typeof moderationLog;
   openreplyStore: typeof openreplyStore;
   orAutomationsApi: typeof orAutomationsApi;
   orEngine: typeof orEngine;

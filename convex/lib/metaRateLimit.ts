@@ -153,15 +153,35 @@ export function parseUsageHeaders(headers: Headers): MetaUsage | null {
   return usage;
 }
 
-/** Graph API error codes that mean "you are going too fast", not "you are wrong". */
-const THROTTLE_CODES = new Set([4, 17, 32, 613]);
+/**
+ * Graph API error codes that mean "you are going too fast", not "you are wrong".
+ *
+ * THE ONLY COPY OF THIS LIST (V3). It used to be written out three times — here,
+ * in `translateModerationError` and in `translateFacebookError` — and the two
+ * translators are the ones an operator reads, so a code added to only one of
+ * them would produce the worst possible pairing: a sentence saying "Instagram
+ * has throttled you, wait" from a path that never armed the backoff. The
+ * refusal would then be re-run by the next scheduled pass ninety seconds later
+ * and the block extended, while the screen claimed the situation was
+ * understood.
+ *
+ * That cannot happen while every reader goes through `isThrottleCode`: the
+ * message the operator sees and the brake the gate applies are now two answers
+ * to one question, and neither can be given without the other.
+ */
+export const THROTTLE_CODES: ReadonlySet<number> = new Set([4, 17, 32, 613]);
+
+/** Does this Graph API `error.code` mean "too fast"? */
+export function isThrottleCode(code: number | undefined): boolean {
+  return code !== undefined && THROTTLE_CODES.has(code);
+}
 
 /**
  * Is this failure a throttle rather than a bad request?
  *
  * `body` is the raw error text. A 429 answers the question on its own; below
- * that, Meta signals throttling through `error.code`, and 4 / 17 / 32 are the
- * three that mean the app, the user, or the page has run out of calls.
+ * that, Meta signals throttling through `error.code`, and 4 / 17 / 32 / 613 are
+ * the ones that mean the app, the user, or the page has run out of calls.
  */
 export function isThrottleResponse(status: number, body: string): boolean {
   if (status === 429) return true;
@@ -171,7 +191,7 @@ export function isThrottleResponse(status: number, body: string): boolean {
       error?: { code?: number; error_subcode?: number };
     };
     const code = parsed.error?.code;
-    if (typeof code === "number" && THROTTLE_CODES.has(code)) return true;
+    if (typeof code === "number" && isThrottleCode(code)) return true;
   } catch {
     // Not JSON — the status was the only evidence and it said no.
   }

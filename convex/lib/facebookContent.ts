@@ -16,6 +16,7 @@
  */
 
 import { extractGraphApiError, extractGraphApiErrorCode } from "./instagramApi";
+import { isThrottleCode } from "./metaRateLimit";
 import { FB_COMMENT_REPLIES_PAGE } from "./facebookApi";
 import type {
   RawFbComment,
@@ -113,7 +114,11 @@ export function translateFacebookError(body: unknown): string {
 
   // Throttling. Meta uses several codes for the same thing depending on which
   // ceiling was hit, and the answer is the same in all of them: wait.
-  if (code === 4 || code === 17 || code === 32 || code === 613) {
+  //
+  // Imported, not repeated (V3) — see the note on THROTTLE_CODES. The same
+  // list decides whether the gate arms its backoff, and the two answers have
+  // to be the same answer.
+  if (isThrottleCode(code)) {
     return "Facebook je privremeno ograničio broj zahteva. Sačekaj nekoliko minuta pa pokušaj ponovo.";
   }
 

@@ -375,6 +375,22 @@ export const ingestComment = internalMutation({
 
     const date = utcDateKey(now);
 
+    // The engine log REFERENCES the comment; it does not own a second copy of
+    // it (V3).
+    //
+    // Step 2 above already wrote the text to `igComments` / `fbComments`, and
+    // that row is the one moderation edits: hiding it, and above all marking it
+    // deleted. A copy here would keep answering with the original text long
+    // after the moderation screen had declared the comment gone — two tables
+    // as independent sources of truth about one sentence, disagreeing in
+    // exactly the case a person went looking for.
+    //
+    // The copy is only kept where there is no such row to point at: a webhook
+    // with no post id never reaches step 2, so its text has nowhere else to
+    // live. `mediaId` is therefore the whole condition, and `listDmLogs` reads
+    // it back the same way.
+    const commentText = args.mediaId !== undefined ? "" : args.text;
+
     // 7. If none matched: insert an orDmLogs row with status: "skipped_no_match"
     if (matchedAutomation === null || matchedKeyword === null) {
       await ctx.db.insert("orDmLogs", {
@@ -385,7 +401,7 @@ export const ingestComment = internalMutation({
         mediaId: args.mediaId,
         commenterId: args.commenterId,
         commenterUsername: args.commenterUsername,
-        commentText: args.text,
+        commentText,
         status: "skipped_no_match",
         attempts: 0,
         date,
@@ -404,7 +420,7 @@ export const ingestComment = internalMutation({
       mediaId: args.mediaId,
       commenterId: args.commenterId,
       commenterUsername: args.commenterUsername,
-      commentText: args.text,
+      commentText,
       matchedKeyword,
       status: "pending",
       attempts: 0,

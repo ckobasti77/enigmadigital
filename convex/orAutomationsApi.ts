@@ -576,7 +576,10 @@ const dmLogViewValidator = v.object({
   mediaId: v.union(v.string(), v.null()),
   commenterId: v.string(),
   commenterUsername: v.union(v.string(), v.null()),
+  /** Resolved from `igComments` / `fbComments` where there is a row (V3). */
   commentText: v.string(),
+  /** When moderation marked that comment deleted. Null while it is still up. */
+  commentDeletedAt: v.union(v.number(), v.null()),
   matchedKeyword: v.union(v.string(), v.null()),
   status: dmLogStatusValidator,
   attempts: v.number(),
@@ -654,6 +657,50 @@ export const listDmLogs = query({
       }
     }
 
+    // The comment itself, read from the table that owns it (V3).
+    //
+    // `mediaId` is the marker: a row that has one came from a comment under one
+    // of our posts, which means F4 wrote that comment down before the engine
+    // was asked anything — so its text, and whether it has since been deleted,
+    // are that row's to answer, not this one's. A DM or a button tap has no
+    // `mediaId` and no comment anywhere; those keep their own text.
+    //
+    // Keyed by platform AND id, and asked once per key even when the answer is
+    // "no such comment": a primary row and its follow-up share one comment id,
+    // and a log page is 200 rows.
+    const comments = new Map<string, { text: string; deletedAt?: number }>();
+    const asked = new Set<string>();
+    for (const l of logs) {
+      if (l.mediaId === undefined) continue;
+      const platform = resolvePlatform(l.platform);
+      const key = `${platform}:${l.commentId}`;
+      if (asked.has(key)) continue;
+      asked.add(key);
+
+      const comment =
+        platform === "facebook"
+          ? await ctx.db
+              .query("fbComments")
+              .withIndex("by_workspace_comment", (q) =>
+                q.eq("workspaceId", workspaceId).eq("commentId", l.commentId),
+              )
+              .first()
+          : await ctx.db
+              .query("igComments")
+              .withIndex("by_workspace_comment", (q) =>
+                q.eq("workspaceId", workspaceId).eq("commentId", l.commentId),
+              )
+              .first();
+      if (comment !== null) {
+        comments.set(key, {
+          text: comment.text,
+          ...(comment.deletedAt !== undefined
+            ? { deletedAt: comment.deletedAt }
+            : {}),
+        });
+      }
+    }
+
     return logs.map((l) => ({
       _id: l._id,
       platform: resolvePlatform(l.platform),
@@ -668,7 +715,14 @@ export const listDmLogs = query({
       mediaId: l.mediaId ?? null,
       commenterId: l.commenterId,
       commenterUsername: l.commenterUsername ?? null,
-      commentText: l.commentText,
+      // The stored copy is the fallback, not the answer: rows written before
+      // V3 still hold one, and it is only used when no comment row is there.
+      commentText:
+        comments.get(`${resolvePlatform(l.platform)}:${l.commentId}`)?.text ??
+        l.commentText,
+      commentDeletedAt:
+        comments.get(`${resolvePlatform(l.platform)}:${l.commentId}`)
+          ?.deletedAt ?? null,
       matchedKeyword: l.matchedKeyword ?? null,
       status: l.status,
       attempts: l.attempts,

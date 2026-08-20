@@ -1,19 +1,21 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { History, Link2 } from "lucide-react";
+import { History, Link2, ShieldCheck } from "lucide-react";
 import {
   ConnectionsSettings,
   ConnectionsSettingsSkeleton,
 } from "@/components/app/settings/connections-settings";
 import { ActionAuditLog } from "@/components/app/settings/action-audit-log";
+import { ModerationAuditLog } from "@/components/app/settings/moderation-audit-log";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
 
-type Tab = "connections" | "audit";
+type Tab = "connections" | "audit" | "moderation";
 
 const TABS: readonly TabItem<Tab>[] = [
   { id: "connections", label: "Integracije", icon: Link2 },
   { id: "audit", label: "Istorija akcija", icon: History },
+  { id: "moderation", label: "Moderacija", icon: ShieldCheck },
 ];
 
 const COPY: Record<Tab, { title: string; blurb: string }> = {
@@ -26,6 +28,11 @@ const COPY: Record<Tab, { title: string; blurb: string }> = {
     title: "Istorija akcija",
     blurb:
       "Revizorski trag svih izvršenih komandi na povezanim Meta Ads nalozima (pauziranje, budžet, dupliranje).",
+  },
+  moderation: {
+    title: "Moderacija",
+    blurb:
+      "Ko je i kada odgovorio, sakrio ili obrisao komentar na Instagramu i Facebook stranici — uključujući i radnje koje je Meta odbila.",
   },
 };
 
@@ -56,8 +63,10 @@ export default function SettingsPage() {
           <Suspense fallback={<ConnectionsSettingsSkeleton />}>
             <ConnectionsSettings />
           </Suspense>
-        ) : (
+        ) : tab === "audit" ? (
           <ActionAuditLog />
+        ) : (
+          <ModerationAuditLog />
         )}
       </TabPanel>
     </div>

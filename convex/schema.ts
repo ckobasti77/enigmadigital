@@ -246,7 +246,6 @@ export default defineSchema({
     createdBy: v.id("users"),
   })
     .index("by_workspace_status", ["workspaceId", "status"])
-    .index("by_workspace_scheduled", ["workspaceId", "scheduledFor"])
     // The 1-minute cron asks "what is due, anywhere" — a question no
     // workspace-scoped index can answer without walking every workspace first.
     .index("by_status_scheduled", ["status", "scheduledFor"])
@@ -591,6 +590,23 @@ export default defineSchema({
     mediaId: v.optional(v.string()),
     commenterId: v.string(),
     commenterUsername: v.optional(v.string()),
+    /**
+     * What the person said — but ONLY where the engine is the only place it is
+     * written down (V3): a DM, a button tap, or a comment webhook that carried
+     * no post id.
+     *
+     * A comment under one of our posts is written to `igComments` /
+     * `fbComments` before the engine is even asked whether it is switched on,
+     * and that row is the single source of truth for the text: it is what
+     * moderation hides, and what moderation marks deleted. So those rows carry
+     * an empty string here and `listDmLogs` reads the text out of the comment
+     * table instead — which is also what makes a deletion visible on the
+     * OpenReply screen and not only on the moderation one.
+     *
+     * Rows written before V3 keep their copy; the read path prefers the
+     * comment table whenever there is one, so they are corrected on display
+     * rather than migrated.
+     */
     commentText: v.string(),
     matchedKeyword: v.optional(v.string()),
     // Text this row sends *instead of* the automation's `dmMessage` — the reply
@@ -839,6 +855,9 @@ export default defineSchema({
     lastSyncAt: v.number(),
   })
     .index("by_provider_media", ["provider", "mediaId"])
+    // Not dead, despite no `withIndex` in any sync path: the purge engine (P3)
+    // drains this table per workspace and per provider through it. Dropping it
+    // would turn every disconnect into a full-table scan.
     .index("by_workspace", ["workspaceId"]),
 
   // Ads Command module (V2 - PLAN.md §7.3).

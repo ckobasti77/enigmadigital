@@ -160,9 +160,26 @@ export function DmLogTable() {
                           </span>
                         )}
                       </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {log.commentText}
+                      {/* The text comes from `igComments` / `fbComments`, so
+                          a comment the moderation screen has marked deleted
+                          reads as deleted here too — one comment, one state,
+                          on every screen (V3). */}
+                      <p
+                        className={cn(
+                          "truncate text-xs",
+                          log.commentDeletedAt !== null
+                            ? "text-text-muted line-through"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {log.commentText || "—"}
                       </p>
+                      {log.commentDeletedAt !== null && (
+                        <p className="text-micro text-text-muted">
+                          Komentar obrisan{" "}
+                          {timestampFmt.format(new Date(log.commentDeletedAt))}
+                        </p>
+                      )}
                     </TableCell>
 
                     <TableCell className="hidden py-3 align-top sm:table-cell">
