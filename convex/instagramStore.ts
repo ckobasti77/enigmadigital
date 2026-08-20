@@ -1,5 +1,6 @@
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
 
 /**
@@ -428,41 +429,102 @@ export const mediaList = query({
   },
 });
 
+/** How many stored rows one candidate query walks to fill its batch. */
+const DELETION_SCAN_LIMIT = 400;
+
 /**
- * Posts that MIGHT have been deleted, for the sync to verify one by one.
+ * Posts that MIGHT have been deleted, for the sweep to verify one by one.
  *
- * A row qualifies on two counts at once:
- *   `syncedAt < syncedBefore` — the run that just finished stamped every post
- *     Instagram still lists, so anything left behind was not in the answer;
- *   `publishedAt >= publishedFrom` — and it is newer than the oldest post that
- *     WAS in the answer. That second half is the whole point: `/me/media`
- *     returns newest first, so a post older than the window simply fell off the
- *     end of the page and says nothing about being gone. Only a post inside the
- *     window that Instagram skipped is worth an API call.
+ * A row qualifies on one count: Instagram did not name it in the listing the
+ * sweep just read (`seenIds`), and we do not already hold a verdict on it.
  *
- * Already-marked rows are left out — the verdict does not need confirming.
+ * It used to qualify on a second count as well — `publishedAt` newer than the
+ * oldest post in that listing — on the theory that anything older merely fell
+ * off the end of the page. That reasoning has a hole with a guarantee attached
+ * (V1): when the deleted post was the OLDEST the account had, every post still
+ * listed is newer than it, so the window's floor sits above it and it can never
+ * become a candidate. The one post the sweep could not find was the one it was
+ * most likely to be asked about.
+ *
+ * Dropping the window makes every stored post a suspect, which is more than one
+ * pass can afford to probe — so they are worked through in rounds instead of
+ * being excluded. `by_workspace_deletion_checked` hands back the least recently
+ * checked first (a row that has never been checked carries no value at all and
+ * sorts ahead of every timestamp), and the sweep stamps everything it looks at.
+ * Over a few passes every post gets its turn.
  */
 export const listDeletionCandidates = internalQuery({
   args: {
     workspaceId: v.id("workspaces"),
-    publishedFrom: v.number(),
-    syncedBefore: v.number(),
+    /** Ids Instagram just listed — alive, and not worth a probe. */
+    seenIds: v.array(v.string()),
     limit: v.number(),
   },
   returns: v.array(v.object({ _id: v.id("igMediaStats"), mediaId: v.string() })),
-  handler: async (ctx, { workspaceId, publishedFrom, syncedBefore, limit }) => {
+  handler: async (ctx, { workspaceId, seenIds, limit }) => {
+    const seen = new Set(seenIds);
+    const wanted = Math.max(0, limit);
+    if (wanted === 0) return [];
+
+    const out: { _id: Id<"igMediaStats">; mediaId: string }[] = [];
+
+    // Bounded on both ends: at most `limit` candidates, and at most
+    // DELETION_SCAN_LIMIT rows walked looking for them.
     const rows = await ctx.db
       .query("igMediaStats")
-      .withIndex("by_workspace_published", (q) =>
-        q.eq("workspaceId", workspaceId).gte("publishedAt", publishedFrom),
+      .withIndex("by_workspace_deletion_checked", (q) =>
+        q.eq("workspaceId", workspaceId),
       )
-      .order("desc")
-      .collect();
+      .order("asc")
+      .take(DELETION_SCAN_LIMIT);
 
-    return rows
-      .filter((r) => r.deletedAt === undefined && r.syncedAt < syncedBefore)
-      .slice(0, Math.max(0, limit))
-      .map((r) => ({ _id: r._id, mediaId: r.mediaId }));
+    for (const row of rows) {
+      if (out.length >= wanted) break;
+      if (row.deletedAt !== undefined) continue;
+      if (seen.has(row.mediaId)) continue;
+      out.push({ _id: row._id, mediaId: row.mediaId });
+    }
+
+    return out;
+  },
+});
+
+/**
+ * Move everything this pass looked at to the back of the rotation.
+ *
+ * Both halves matter: the suspects that were probed, and the posts the listing
+ * itself vouched for. A post that is never stamped stays at the front of
+ * `by_workspace_deletion_checked` forever and crowds out the ones behind it.
+ */
+export const stampDeletionChecked = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    /** Rows probed by id. */
+    ids: v.array(v.id("igMediaStats")),
+    /** Rows vouched for by the listing, known only by their media id. */
+    mediaIds: v.array(v.string()),
+    at: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { workspaceId, ids, mediaIds, at }) => {
+    for (const id of ids) {
+      const row = await ctx.db.get(id);
+      if (row === null || row.workspaceId !== workspaceId) continue;
+      await ctx.db.patch(id, { deletionCheckedAt: at });
+    }
+
+    for (const mediaId of mediaIds) {
+      const row = await ctx.db
+        .query("igMediaStats")
+        .withIndex("by_workspace_media", (q) =>
+          q.eq("workspaceId", workspaceId).eq("mediaId", mediaId),
+        )
+        .first();
+      if (row === null) continue;
+      await ctx.db.patch(row._id, { deletionCheckedAt: at });
+    }
+
+    return null;
   },
 });
 

@@ -46,6 +46,18 @@ export const moderationActionValidator = v.union(
 /** How many comment rows one screen read walks before it stops. */
 const LIST_WINDOW = 500;
 
+/**
+ * How many threads one read may return, and therefore the highest number the
+ * filter chips are allowed to print (V1).
+ *
+ * The screen has no "load more". A chip counting the whole 500-row window while
+ * the list stops at a hundred was promising two hundred threads that no
+ * sequence of clicks could reach, so the counts are capped at what is actually
+ * on screen and the chip says "100+" when it hits the ceiling.
+ */
+const MAX_THREADS = 100;
+const MAX_THREADS_CEILING = 200;
+
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
 async function findComment(
@@ -79,15 +91,32 @@ async function markParentReplied(
 
 // ── Sync writes ──────────────────────────────────────────────────────────────
 
+/** How many stored rows one deletion sweep walks. */
+const SWEEP_SCAN_LIMIT = 2000;
+
 /**
  * Upsert one post's comments.
  *
  * `complete` is the whole deletion story. Instagram never announces a removed
  * comment, so absence from the answer is the only signal there is — but absence
- * only MEANS something when we know we saw the whole list. When the response
- * carried a `paging.next`, we saw one page of many and a comment missing from
- * it proves nothing, so nothing is marked. This mirrors the rule the post sync
- * uses in `instagramStore.listDeletionCandidates`, arrived at the same way.
+ * only MEANS something when we know we saw the whole list. This mirrors the
+ * rule the post sync uses in `instagramStore.listDeletionCandidates`, arrived
+ * at the same way.
+ *
+ * Three things have to be true before a missing comment is called deleted, and
+ * each of them was a way of marking a live comment as gone before V1:
+ *
+ *   1. `complete` — the caller walked EVERY page, top level and nested. A
+ *      thread's `replies` edge is paginated too, and a reply past that page was
+ *      being swept up as deleted the moment the thread outgrew it.
+ *   2. `seenIds` — the ids from every page of the walk, not just this batch.
+ *      The walk writes in chunks, so the last chunk on its own knows nothing
+ *      about the comments the first one carried.
+ *   3. `snapshotAt` — the instant the FIRST Graph call went out. Between that
+ *      call and this mutation there is a network round trip inside a loop over
+ *      twenty posts, and a comment can arrive on the webhook in the middle of
+ *      it. Anything we learned about after the snapshot was not in the answer
+ *      because it did not exist yet, which is not the same as being gone.
  */
 export const upsertCommentBatch = internalMutation({
   args: {
@@ -96,9 +125,31 @@ export const upsertCommentBatch = internalMutation({
     rows: v.array(commentRowValidator),
     complete: v.boolean(),
     syncedAt: v.number(),
+    /** When the first Graph call of this walk went out. */
+    snapshotAt: v.number(),
+    /** Every id the walk saw. Defaults to the ids in `rows`. */
+    seenIds: v.optional(v.array(v.string())),
+    /**
+     * What cut the walk short, or `null` to clear an earlier stamp. Left
+     * undefined by callers that never attempted full coverage — a single-post
+     * refresh must not erase what the full pass recorded.
+     */
+    truncated: v.optional(v.union(v.string(), v.null())),
   },
   returns: v.number(),
-  handler: async (ctx, { workspaceId, mediaId, rows, complete, syncedAt }) => {
+  handler: async (
+    ctx,
+    {
+      workspaceId,
+      mediaId,
+      rows,
+      complete,
+      syncedAt,
+      snapshotAt,
+      seenIds,
+      truncated,
+    },
+  ) => {
     let written = 0;
 
     for (const row of rows) {
@@ -123,6 +174,9 @@ export const upsertCommentBatch = internalMutation({
           syncedAt,
           // Instagram is showing it again, so an earlier "gone" verdict is void.
           deletedAt: undefined,
+          // The answer says where this comment sits in the thread, which is
+          // exactly what the webhook could not (V1).
+          levelUnknown: undefined,
         });
       } else {
         await ctx.db.insert("igComments", {
@@ -135,20 +189,27 @@ export const upsertCommentBatch = internalMutation({
       written++;
     }
 
+    if (truncated !== undefined) {
+      await stampTruncation(ctx, workspaceId, mediaId, truncated, syncedAt);
+    }
+
     if (!complete) return written;
 
     // Everything we hold for this post that Instagram just did not mention.
-    const seen = new Set(rows.map((r) => r.commentId));
+    const seen = new Set(seenIds ?? rows.map((r) => r.commentId));
     const stored = await ctx.db
       .query("igComments")
       .withIndex("by_workspace_media", (q) =>
         q.eq("workspaceId", workspaceId).eq("mediaId", mediaId),
       )
-      .collect();
+      .take(SWEEP_SCAN_LIMIT);
 
     for (const row of stored) {
       if (row.deletedAt !== undefined) continue;
       if (seen.has(row.commentId)) continue;
+      // Written or last touched after the snapshot: it reached us by some other
+      // road than this answer, and this answer cannot speak about it.
+      if (row.syncedAt >= snapshotAt || row.timestamp >= snapshotAt) continue;
       await ctx.db.patch(row._id, { deletedAt: syncedAt });
       written++;
     }
@@ -156,6 +217,42 @@ export const upsertCommentBatch = internalMutation({
     return written;
   },
 });
+
+/**
+ * Record on the POST that its comment read was cut short — or that it was not.
+ *
+ * On the post rather than in a log line because the question it answers is
+ * asked about a post: "why has this one never reported a deleted comment".
+ */
+async function stampTruncation(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  mediaId: string,
+  reason: string | null,
+  at: number,
+): Promise<void> {
+  const media = await ctx.db
+    .query("igMediaStats")
+    .withIndex("by_workspace_media", (q) =>
+      q.eq("workspaceId", workspaceId).eq("mediaId", mediaId),
+    )
+    .first();
+  if (media === null) return;
+
+  if (reason === null) {
+    if (media.commentsTruncatedAt === undefined) return;
+    await ctx.db.patch(media._id, {
+      commentsTruncatedAt: undefined,
+      commentsTruncatedReason: undefined,
+    });
+    return;
+  }
+
+  await ctx.db.patch(media._id, {
+    commentsTruncatedAt: at,
+    commentsTruncatedReason: reason,
+  });
+}
 
 /**
  * Record a comment that arrived on the webhook.
@@ -174,6 +271,13 @@ export const recordWebhookComment = internalMutation({
     mediaId: v.string(),
     commentId: v.string(),
     parentCommentId: v.optional(v.string()),
+    /**
+     * The webhook carried nothing usable about the thread level (V1). The row
+     * is stored anyway — it is a real comment somebody wrote — but the panel
+     * offers no "Odgovori" button on it, because `POST /{reply-id}/replies` is
+     * refused by Instagram and a button that always fails is worse than none.
+     */
+    levelUnknown: v.optional(v.boolean()),
     fromId: v.string(),
     username: v.optional(v.string()),
     text: v.string(),
@@ -188,6 +292,11 @@ export const recordWebhookComment = internalMutation({
         text: args.text,
         fromId: args.fromId,
         ...(args.username ? { username: args.username } : {}),
+        // A redelivery that DOES name the parent settles a level an earlier
+        // one left open; one that does not must never unsettle it.
+        ...(args.parentCommentId
+          ? { parentCommentId: args.parentCommentId, levelUnknown: undefined }
+          : {}),
         syncedAt: now,
       });
       return null;
@@ -199,6 +308,9 @@ export const recordWebhookComment = internalMutation({
       commentId: args.commentId,
       ...(args.parentCommentId
         ? { parentCommentId: args.parentCommentId }
+        : {}),
+      ...(args.parentCommentId === undefined && args.levelUnknown
+        ? { levelUnknown: true }
         : {}),
       text: args.text,
       username: args.username ?? "",
@@ -519,6 +631,8 @@ const threadViewValidator = v.object({
   repliedByUs: v.boolean(),
   deletedAt: v.optional(v.number()),
   automationName: v.optional(v.string()),
+  /** Thread level still unresolved — the reply button stays off (V1). */
+  levelUnknown: v.optional(v.boolean()),
   /** Which post this is under; null when the post predates the media sync. */
   media: v.union(
     v.null(),
@@ -593,18 +707,22 @@ export const listThreads = query({
   returns: v.array(threadViewValidator),
   handler: async (ctx, { filter = "unanswered", search, mediaId, limit }) => {
     const { workspaceId } = await requireMembership(ctx);
-    const maxThreads = limit && limit > 0 ? Math.min(limit, 200) : 100;
+    const maxThreads =
+      limit && limit > 0 ? Math.min(limit, MAX_THREADS_CEILING) : MAX_THREADS;
     const needle = (search ?? "").trim().toLowerCase();
 
     // One post's comments come off the media index; the whole screen walks the
-    // newest slice of the workspace instead.
+    // newest slice of the workspace instead. Both are bounded: a viral post
+    // holds as many rows as the whole workspace does, and an unbounded walk
+    // over it takes the read limit down with it (V1).
     const window = mediaId
       ? await ctx.db
           .query("igComments")
           .withIndex("by_workspace_media", (q) =>
             q.eq("workspaceId", workspaceId).eq("mediaId", mediaId),
           )
-          .collect()
+          .order("desc")
+          .take(LIST_WINDOW)
       : await ctx.db
           .query("igComments")
           .withIndex("by_workspace_timestamp", (q) =>
@@ -707,6 +825,7 @@ export const listThreads = query({
         ...(parentAutomation !== null
           ? { automationName: parentAutomation }
           : {}),
+        ...(parent.levelUnknown === true ? { levelUnknown: true } : {}),
         media:
           media === null
             ? null
@@ -727,8 +846,11 @@ export const listThreads = query({
 /**
  * How many comments sit behind each filter — the numbers on the filter chips.
  *
- * Counted over the same window `listThreads` reads, so a chip never promises a
- * thread the list cannot show.
+ * Counted over the same window `listThreads` reads AND capped at the same
+ * number of threads it returns, so a chip never promises a thread the list
+ * cannot show. `cap` travels back so the screen can print "100+" rather than a
+ * flat hundred: the number is a floor, and saying so is the honest version of
+ * a screen with no "load more" (V1).
  */
 export const filterCounts = query({
   args: {},
@@ -737,6 +859,7 @@ export const filterCounts = query({
     unanswered: v.number(),
     hidden: v.number(),
     deleted: v.number(),
+    cap: v.number(),
   }),
   handler: async (ctx) => {
     const { workspaceId } = await requireMembership(ctx);
@@ -752,11 +875,17 @@ export const filterCounts = query({
     const counts = { all: 0, unanswered: 0, hidden: 0, deleted: 0 };
     for (const row of window) {
       if (row.parentCommentId !== undefined) continue;
-      counts.all++;
-      if (matchesFilter(row, "unanswered")) counts.unanswered++;
-      if (matchesFilter(row, "hidden")) counts.hidden++;
-      if (matchesFilter(row, "deleted")) counts.deleted++;
+      if (counts.all < MAX_THREADS) counts.all++;
+      if (counts.unanswered < MAX_THREADS && matchesFilter(row, "unanswered")) {
+        counts.unanswered++;
+      }
+      if (counts.hidden < MAX_THREADS && matchesFilter(row, "hidden")) {
+        counts.hidden++;
+      }
+      if (counts.deleted < MAX_THREADS && matchesFilter(row, "deleted")) {
+        counts.deleted++;
+      }
     }
-    return counts;
+    return { ...counts, cap: MAX_THREADS };
   },
 });

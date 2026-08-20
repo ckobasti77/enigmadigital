@@ -435,24 +435,45 @@ export function buildCommentRepliesUrl(
  * The tree is exactly two levels deep on Instagram -- a reply has no replies of
  * its own -- so one level of nesting is the whole tree.
  */
+/**
+ * How many replies the nested edge returns per comment.
+ *
+ * Written out rather than left to Meta's default of 25, because the number is
+ * a CORRECTNESS constant and not a tuning knob: `replies` is a page like any
+ * other, and a thread longer than this comes back cut with its own `paging`.
+ * Whoever reads the answer has to know where the cut is — see
+ * `repliesTruncated` in `lib/igComments.ts`, which is what keeps a live reply
+ * past this line from being swept up as deleted (V1).
+ */
+export const COMMENT_REPLIES_PAGE = 50;
+
 export const COMMENT_FIELDS =
   "id,text,timestamp,username,like_count,hidden," +
-  "replies{id,text,timestamp,username,like_count,hidden}";
+  `replies.limit(${COMMENT_REPLIES_PAGE})` +
+  "{id,text,timestamp,username,like_count,hidden}";
 
 /**
  * Build endpoint URL for listing the comments on one of our own posts.
+ *
+ * `after` is the cursor out of `paging.cursors.after` of the previous page.
+ * Without it this endpoint answers with the newest `limit` comments and nothing
+ * else, which on a busy post means the rest are invisible to us forever — and,
+ * worse, that we never see the whole list and therefore can never tell that
+ * something was deleted.
  */
 export function buildMediaCommentsUrl(
   mediaId: string,
   accessToken: string,
   limit: number = 50,
   version: string = getMetaGraphVersion(),
+  after?: string,
 ): string {
   const url = new URL(
     `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${mediaId}/comments`,
   );
   url.searchParams.set("fields", COMMENT_FIELDS);
   url.searchParams.set("limit", String(limit));
+  if (after) url.searchParams.set("after", after);
   url.searchParams.set("access_token", accessToken);
   return url.toString();
 }
@@ -493,7 +514,15 @@ export interface RawComment {
   username?: string;
   like_count?: number;
   hidden?: boolean;
-  replies?: { data?: RawComment[] };
+  /**
+   * The nested page of replies. It carries its OWN `paging` — the edge is
+   * paginated exactly like the top-level list — which is the whole reason this
+   * field is typed rather than left as `{ data }`.
+   */
+  replies?: {
+    data?: RawComment[];
+    paging?: { cursors?: { before?: string; after?: string }; next?: string };
+  };
 }
 
 /** What `GET /{ig-media-id}/comments` answers with. */
@@ -938,34 +967,133 @@ export function pickDisplayUrl(
 }
 
 /**
- * Does this Graph API failure mean the media is gone rather than the request
- * being broken? Deleted media answers with HTTP 404, or with the classic
- * `(#100) … Object with ID … does not exist` (code 100 / subcode 33).
+ * Graph API error codes that are about the CALLER, never about the object.
+ *
+ * Every one of them can be answered for an object that is perfectly alive, so
+ * seeing one ends the question: nothing may be marked deleted off it.
+ *
+ *   1, 2      unknown / temporary Meta-side failure
+ *   4, 17, 32, 613, 341  the four throttling ceilings
+ *   10, 200, 299         permission missing from the token
+ *   102, 190, 463, 467   session expired, token invalid or revoked
+ *   3, 12                method unsupported or deprecated
+ */
+const CALLER_ERROR_CODES: ReadonlySet<number> = new Set([
+  1, 2, 3, 4, 10, 12, 17, 32, 102, 190, 200, 299, 341, 463, 467, 613,
+]);
+
+/**
+ * What a Graph API failure says about the OBJECT that was asked for.
+ *
+ *   "gone"      — the object is definitively not there.
+ *   "ambiguous" — it may be gone, or the token may simply no longer be allowed
+ *                 to see it. NOT enough on its own to write `deletedAt`; the
+ *                 caller has to corroborate (see below).
+ *   "other"     — the failure is about the request or the token, and says
+ *                 nothing at all about the object.
+ */
+export type MissingObjectVerdict = "gone" | "ambiguous" | "other";
+
+/**
+ * Classify a Graph API failure. Status first, then `code`, then
+ * `error_subcode`; the message is only ever a confirmation of the last resort.
+ *
+ * THE EXACT SHAPES COVERED, so the next person does not have to guess:
+ *
+ * 1. Deleted media or comment — the canonical one, and the reason this
+ *    function exists. HTTP 400:
+ *      {"error":{"message":"Unsupported get request. Object with ID '17900…'
+ *        does not exist, cannot be loaded due to missing permissions, or does
+ *        not support this operation.","type":"IGApiException","code":100,
+ *        "error_subcode":33,"fbtrace_id":"A…"}}
+ *    Note the message contains BOTH "does not exist" AND "missing permissions".
+ *    Any heuristic that requires the first and forbids the second can never
+ *    fire — which is exactly the bug this replaces. And subcode 33 is not
+ *    always sent: the same body turns up with `code:100` alone.
+ *    -> "ambiguous", because that one sentence is Meta's answer for a deleted
+ *       object AND for an object the token lost the right to read.
+ *
+ * 2. Alias gone (mostly Facebook nodes). HTTP 400:
+ *      {"error":{"message":"(#803) Some of the aliases you requested do not
+ *        exist: 12345","type":"OAuthException","code":803}}
+ *    -> "gone". This wording has no permission reading.
+ *
+ * 3. HTTP 404 / 410 with any body, including a non-JSON one.
+ *    -> "gone".
+ *
+ * 4. Token revoked. HTTP 400:
+ *      {"error":{"message":"Error validating access token: The user has not
+ *        authorized application …","type":"OAuthException","code":190,
+ *        "error_subcode":458}}
+ *    -> "other". Every object looks missing to a dead token.
+ *
+ * 5. Scope missing. HTTP 403 or 400:
+ *      {"error":{"message":"(#10) Application does not have permission for
+ *        this action","type":"OAuthException","code":10}}
+ *    -> "other".
+ *
+ * 6. Throttled. HTTP 400:
+ *      {"error":{"message":"(#4) Application request limit reached",
+ *        "code":4}}
+ *    -> "other".
+ *
+ * 7. Anything unparsable, or an error object with no numeric code.
+ *    -> "other". A body we cannot read is not evidence of anything.
+ */
+export function classifyMissingObject(
+  status: number,
+  body: string,
+): MissingObjectVerdict {
+  // 1. The status line. A Graph 404/410 is unambiguous and needs no body.
+  if (status === 404 || status === 410) return "gone";
+
+  let err: RawMediaFieldsResponse["error"] | undefined;
+  try {
+    err = (JSON.parse(body) as RawMediaFieldsResponse).error;
+  } catch {
+    err = undefined;
+  }
+  if (!err) return "other";
+
+  const code = typeof err.code === "number" ? err.code : undefined;
+  const subcode =
+    typeof err.error_subcode === "number" ? err.error_subcode : undefined;
+
+  // 2. `error.code` — the caller's own problems win outright.
+  if (code !== undefined && CALLER_ERROR_CODES.has(code)) return "other";
+  if (code === 803) return "gone";
+
+  if (code === 100) {
+    // 3. `error.error_subcode` — 33 is "object not found", and it is
+    // OVERLOADED: Meta sends it both for a deleted object and for one the
+    // token may no longer read. Hence "ambiguous", never "gone".
+    if (subcode === 33) return "ambiguous";
+    // Other subcodes of 100 are argument errors (unknown field, bad metric).
+    if (subcode !== undefined) return "other";
+    // 4. The message, last and only as confirmation of a bare code 100.
+    const message = (err.message ?? "").toLowerCase();
+    if (
+      message.includes("does not exist") ||
+      message.includes("cannot be loaded")
+    ) {
+      return "ambiguous";
+    }
+    return "other";
+  }
+
+  return "other";
+}
+
+/**
+ * Might this failure mean the object is gone?
+ *
+ * For callers that do NOT write a deletion verdict and only need to know
+ * whether to bother logging or to hand the question to the pass that owns it.
+ * Anything that WRITES `deletedAt` must call `classifyMissingObject` and treat
+ * "ambiguous" as "ask something else first".
  */
 export function isMissingObjectError(status: number, body: string): boolean {
-  if (status === 404) return true;
-
-  try {
-    const parsed = JSON.parse(body) as RawMediaFieldsResponse;
-    const err = parsed.error;
-    if (err) {
-      if (err.code === 100 && err.error_subcode === 33) return true;
-      if (err.code === 803) return true; // "Some of the aliases you requested do not exist"
-      // The generic "…does not exist, cannot be loaded due to missing
-      // permissions…" wording covers a revoked token too, so a message that
-      // blames permissions is NOT treated as a deleted post.
-      const message = (err.message ?? "").toLowerCase();
-      if (
-        message.includes("does not exist") &&
-        !message.includes("missing permissions")
-      ) {
-        return true;
-      }
-    }
-  } catch {
-    // Not JSON — fall through to the status check below
-  }
-  return false;
+  return classifyMissingObject(status, body) !== "other";
 }
 
 /**

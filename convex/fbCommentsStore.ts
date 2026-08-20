@@ -48,6 +48,18 @@ export const fbModerationActionValidator = v.union(
 /** How many comment rows one screen read walks before it stops. */
 const LIST_WINDOW = 500;
 
+/**
+ * How many threads one read may return, and therefore the highest number the
+ * filter chips are allowed to print. Same reasoning as the Instagram side (V1):
+ * the screen has no "load more", so a chip counting past what the list returns
+ * promises threads no sequence of clicks can reach.
+ */
+const MAX_THREADS = 100;
+const MAX_THREADS_CEILING = 200;
+
+/** How many stored rows one deletion sweep walks. */
+const SWEEP_SCAN_LIMIT = 2000;
+
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
 async function findComment(
@@ -85,9 +97,18 @@ async function markParentReplied(
  *
  * `complete` is the whole deletion story. Facebook never announces a removed
  * comment, so absence from the answer is the only signal there is — but absence
- * only MEANS something when we know we saw the whole list. When the response
- * carried a `paging.next`, we saw one page of many and a comment missing from
- * it proves nothing, so nothing is marked.
+ * only MEANS something when we know we saw the whole list.
+ *
+ * Three things have to be true before a missing comment is called deleted, and
+ * each of them was a way of marking a live comment as gone before V1:
+ *
+ *   1. `complete` — the caller walked EVERY page, top level and nested. The
+ *      `comments` edge nested inside a comment is paginated too, and a reply
+ *      past that page was being swept up the moment a thread outgrew it.
+ *   2. `seenIds` — the ids from every page of the walk, not just this batch.
+ *   3. `snapshotAt` — the instant the FIRST Graph call went out. A comment that
+ *      arrived on the webhook after the read but before this write was not in
+ *      the answer because it did not exist yet.
  */
 export const upsertCommentBatch = internalMutation({
   args: {
@@ -96,9 +117,30 @@ export const upsertCommentBatch = internalMutation({
     rows: v.array(fbCommentRowValidator),
     complete: v.boolean(),
     syncedAt: v.number(),
+    /** When the first Graph call of this walk went out. */
+    snapshotAt: v.number(),
+    /** Every id the walk saw. Defaults to the ids in `rows`. */
+    seenIds: v.optional(v.array(v.string())),
+    /**
+     * What cut the walk short, or `null` to clear an earlier stamp. Left
+     * undefined by callers that never attempted full coverage.
+     */
+    truncated: v.optional(v.union(v.string(), v.null())),
   },
   returns: v.number(),
-  handler: async (ctx, { workspaceId, postId, rows, complete, syncedAt }) => {
+  handler: async (
+    ctx,
+    {
+      workspaceId,
+      postId,
+      rows,
+      complete,
+      syncedAt,
+      snapshotAt,
+      seenIds,
+      truncated,
+    },
+  ) => {
     let written = 0;
 
     for (const row of rows) {
@@ -136,19 +178,26 @@ export const upsertCommentBatch = internalMutation({
       written++;
     }
 
+    if (truncated !== undefined) {
+      await stampTruncation(ctx, workspaceId, postId, truncated, syncedAt);
+    }
+
     if (!complete) return written;
 
-    const seen = new Set(rows.map((r) => r.commentId));
+    const seen = new Set(seenIds ?? rows.map((r) => r.commentId));
     const stored = await ctx.db
       .query("fbComments")
       .withIndex("by_workspace_post", (q) =>
         q.eq("workspaceId", workspaceId).eq("postId", postId),
       )
-      .collect();
+      .take(SWEEP_SCAN_LIMIT);
 
     for (const row of stored) {
       if (row.deletedAt !== undefined) continue;
       if (seen.has(row.commentId)) continue;
+      // Written or last touched after the snapshot: it reached us by some other
+      // road than this answer, and this answer cannot speak about it.
+      if (row.syncedAt >= snapshotAt || row.timestamp >= snapshotAt) continue;
       await ctx.db.patch(row._id, { deletedAt: syncedAt });
       written++;
     }
@@ -156,6 +205,41 @@ export const upsertCommentBatch = internalMutation({
     return written;
   },
 });
+
+/**
+ * Record on the POST that its comment read was cut short — or that it was not.
+ * On the post rather than in a log line because the question it answers is
+ * asked about a post: "why has this one never reported a deleted comment".
+ */
+async function stampTruncation(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  postId: string,
+  reason: string | null,
+  at: number,
+): Promise<void> {
+  const post = await ctx.db
+    .query("fbPagePosts")
+    .withIndex("by_workspace_post", (q) =>
+      q.eq("workspaceId", workspaceId).eq("postId", postId),
+    )
+    .first();
+  if (post === null) return;
+
+  if (reason === null) {
+    if (post.commentsTruncatedAt === undefined) return;
+    await ctx.db.patch(post._id, {
+      commentsTruncatedAt: undefined,
+      commentsTruncatedReason: undefined,
+    });
+    return;
+  }
+
+  await ctx.db.patch(post._id, {
+    commentsTruncatedAt: at,
+    commentsTruncatedReason: reason,
+  });
+}
 
 /**
  * Record a comment that arrived on the webhook.
@@ -603,16 +687,21 @@ export const listThreads = query({
   returns: v.array(fbThreadViewValidator),
   handler: async (ctx, { filter = "unanswered", search, postId, limit }) => {
     const { workspaceId } = await requireMembership(ctx);
-    const maxThreads = limit && limit > 0 ? Math.min(limit, 200) : 100;
+    const maxThreads =
+      limit && limit > 0 ? Math.min(limit, MAX_THREADS_CEILING) : MAX_THREADS;
     const needle = (search ?? "").trim().toLowerCase();
 
+    // Both branches are bounded: a post with thousands of comments holds as
+    // many rows as the whole Page does, and an unbounded walk over it takes the
+    // read limit down with it (V1).
     const window = postId
       ? await ctx.db
           .query("fbComments")
           .withIndex("by_workspace_post", (q) =>
             q.eq("workspaceId", workspaceId).eq("postId", postId),
           )
-          .collect()
+          .order("desc")
+          .take(LIST_WINDOW)
       : await ctx.db
           .query("fbComments")
           .withIndex("by_workspace_timestamp", (q) =>
@@ -745,8 +834,11 @@ export const listThreads = query({
 /**
  * How many comments sit behind each filter — the numbers on the filter chips.
  *
- * Counted over the same window `listThreads` reads, so a chip never promises a
- * thread the list cannot show.
+ * Counted over the same window `listThreads` reads AND capped at the same
+ * number of threads it returns, so a chip never promises a thread the list
+ * cannot show. `cap` travels back so the screen can print "100+" rather than a
+ * flat hundred: the number is a floor, and saying so is the honest version of
+ * a screen with no "load more" (V1).
  */
 export const filterCounts = query({
   args: {},
@@ -755,6 +847,7 @@ export const filterCounts = query({
     unanswered: v.number(),
     hidden: v.number(),
     deleted: v.number(),
+    cap: v.number(),
   }),
   handler: async (ctx) => {
     const { workspaceId } = await requireMembership(ctx);
@@ -770,11 +863,17 @@ export const filterCounts = query({
     const counts = { all: 0, unanswered: 0, hidden: 0, deleted: 0 };
     for (const row of window) {
       if (row.parentCommentId !== undefined) continue;
-      counts.all++;
-      if (matchesFilter(row, "unanswered")) counts.unanswered++;
-      if (matchesFilter(row, "hidden")) counts.hidden++;
-      if (matchesFilter(row, "deleted")) counts.deleted++;
+      if (counts.all < MAX_THREADS) counts.all++;
+      if (counts.unanswered < MAX_THREADS && matchesFilter(row, "unanswered")) {
+        counts.unanswered++;
+      }
+      if (counts.hidden < MAX_THREADS && matchesFilter(row, "hidden")) {
+        counts.hidden++;
+      }
+      if (counts.deleted < MAX_THREADS && matchesFilter(row, "deleted")) {
+        counts.deleted++;
+      }
     }
-    return counts;
+    return { ...counts, cap: MAX_THREADS };
   },
 });

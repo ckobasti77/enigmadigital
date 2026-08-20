@@ -173,6 +173,12 @@ interface InstagramWebhookCommentValue {
   text?: string;
   from?: InstagramWebhookFrom;
   media?: InstagramWebhookMedia;
+  /**
+   * The comment being replied to. Instagram sends it ONLY on a reply — unlike
+   * the Facebook payload, where `parent_id` is the post on a top-level comment
+   * and has to be compared against `post_id` to mean anything.
+   */
+  parent_id?: string;
 }
 
 interface InstagramWebhookChange {
@@ -473,12 +479,33 @@ http.route({
           continue;
         }
 
+        // Which thread this belongs to (V1). A reply carries `parent_id`; a
+        // top-level comment simply has no such key. Without this the panel
+        // showed every webhook-delivered reply as a new thread with a working
+        // "Odgovori" button — and Instagram refuses a reply to a reply, so the
+        // button could only ever fail.
+        //
+        // Absence is NOT read as proof of a top level: the row is marked
+        // level-unknown and goes without a reply button until a sync says where
+        // it sits. That sync is seconds away — the same webhook schedules a
+        // re-read of this very post below.
+        const parentId =
+          typeof val.parent_id === "string" && val.parent_id.length > 0
+            ? val.parent_id
+            : undefined;
+        const parentCommentId =
+          parentId !== undefined && parentId !== commentId
+            ? parentId
+            : undefined;
+
         try {
           await ctx.runMutation(internal.orIngest.ingestComment, {
             platform: "instagram",
             accountId: igUserId,
             commentId,
             mediaId,
+            parentCommentId,
+            levelUnknown: parentCommentId === undefined,
             commenterId: fromId,
             commenterUsername,
             text,

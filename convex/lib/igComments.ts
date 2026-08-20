@@ -1,4 +1,5 @@
 import {
+  COMMENT_REPLIES_PAGE,
   extractGraphApiError,
   extractGraphApiErrorCode,
   type RawComment,
@@ -14,8 +15,56 @@ import {
  * ============================================================================
  */
 
-/** How many top-level comments one sync pulls per post. */
+/** How many top-level comments one sync pulls per post, per page. */
 export const COMMENTS_PER_MEDIA = 50;
+
+/**
+ * The ceiling on one post's comment sync: whichever of the two comes first.
+ *
+ * A cap is unavoidable — a viral post has more comments than any single pass
+ * should spend calls on — but a SILENT cap is a lie, because a truncated read
+ * looks exactly like a complete one to everything downstream. So whenever
+ * either of these stops the walk, the post row is stamped (see
+ * `commentsTruncatedAt` in the schema) and the pass declares itself incomplete,
+ * which switches the deletion sweep off for that post.
+ */
+export const COMMENT_PAGE_LIMIT = 10;
+export const COMMENT_TOTAL_LIMIT = 500;
+
+/**
+ * How many comment rows go into ONE upsert mutation.
+ *
+ * A page of 50 comments can carry 50 replies each, and a mutation writes inside
+ * a single transaction with limits of its own. The walk therefore writes in
+ * chunks and sweeps once at the end, with the full set of ids it saw.
+ */
+export const COMMENT_WRITE_CHUNK = 200;
+
+/**
+ * Was this comment's reply list cut short?
+ *
+ * Two signals, because neither alone is trustworthy: the nested edge sends
+ * `paging.next` when there is more, but nested paging is the part of Graph
+ * that most often answers with cursors and nothing else — so a full page is
+ * treated as "possibly more" too.
+ */
+export function repliesTruncated(comment: RawComment): boolean {
+  const replies = comment.replies;
+  if (!replies) return false;
+  if (replies.paging?.next !== undefined) return true;
+  return (replies.data?.length ?? 0) >= COMMENT_REPLIES_PAGE;
+}
+
+/** How many comments on this page came back with their replies cut short. */
+export function countTruncatedReplies(
+  list: RawComment[] | undefined,
+): number {
+  let n = 0;
+  for (const comment of list ?? []) {
+    if (repliesTruncated(comment)) n++;
+  }
+  return n;
+}
 
 /**
  * How far back the comment sync reaches. Instagram keeps answering for older

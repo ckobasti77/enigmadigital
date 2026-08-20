@@ -34,7 +34,11 @@ import {
 } from "./lib/instagramApi";
 import {
   COMMENTS_PER_MEDIA,
+  COMMENT_PAGE_LIMIT,
   COMMENT_SYNC_WINDOW_MS,
+  COMMENT_TOTAL_LIMIT,
+  COMMENT_WRITE_CHUNK,
+  countTruncatedReplies,
   normalizeComments,
 } from "./lib/igComments";
 import {
@@ -42,6 +46,7 @@ import {
   createUsageTracker,
   readGate,
   withUsageTracker,
+  type UsageTracker,
 } from "./lib/metaRateLimit";
 
 /**
@@ -68,6 +73,142 @@ const REFRESH_THRESHOLD_MS = 10 * 24 * 60 * 60 * 1000; // 10 days before expiry 
  * always the oldest.
  */
 const COMMENT_MEDIA_LIMIT = 20;
+
+/**
+ * Walk one post's comments to the end, then let the sweep run — or say why it
+ * could not (V1).
+ *
+ * Before V1 this was a single call for the newest fifty comments, and whatever
+ * did not fit was not merely invisible: it was ABSENT from the answer, and the
+ * sweep read absence as deletion. Two separate lies came out of that — comments
+ * 51+ never entered the database, and every live reply past the nested page of
+ * a long thread was struck through in the panel.
+ *
+ * So: follow `paging.cursors.after` to the end, and declare the pass complete
+ * only when the top level ran out AND no thread came back with its replies cut.
+ * Every way of stopping early is recorded on the post row, because a cap nobody
+ * can see reads exactly like a complete read.
+ *
+ * Returns how many rows were written.
+ */
+async function syncMediaComments(
+  ctx: ActionCtx,
+  params: {
+    workspaceId: Id<"workspaces">;
+    mediaId: string;
+    token: string;
+    version: string;
+    ourUsername: string | undefined;
+    syncedAt: number;
+    tracker: UsageTracker;
+  },
+): Promise<number> {
+  const {
+    workspaceId,
+    mediaId,
+    token,
+    version,
+    ourUsername,
+    syncedAt,
+    tracker,
+  } = params;
+
+  // The instant BEFORE the first call. Everything the database learns after
+  // this moment arrived by another road and is none of this answer's business.
+  const snapshotAt = Date.now();
+
+  const seenIds: string[] = [];
+  let written = 0;
+  let after: string | undefined;
+  let pages = 0;
+  let topLevel = 0;
+  let threadsCut = 0;
+  /** Non-null once something stopped the walk short of the end. */
+  let truncated: string | null = null;
+
+  for (;;) {
+    if (tracker.throttled) {
+      truncated = "Meta je odbila zahtev usred čitanja komentara.";
+      break;
+    }
+
+    const res = await tracker.fetch(
+      buildMediaCommentsUrl(mediaId, token, COMMENTS_PER_MEDIA, version, after),
+    );
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.warn("Instagram comments warning:", extractGraphApiError(errBody));
+      truncated = "Instagram nije odgovorio na čitanje komentara.";
+      break;
+    }
+
+    const json = (await res.json()) as RawCommentsResponse;
+    const page = json.data ?? [];
+    pages++;
+    topLevel += page.length;
+    threadsCut += countTruncatedReplies(page);
+
+    const rows = normalizeComments(page, ourUsername);
+    for (const chunk of chunked(rows, COMMENT_WRITE_CHUNK)) {
+      written += await ctx.runMutation(
+        internal.igCommentsStore.upsertCommentBatch,
+        {
+          workspaceId,
+          mediaId,
+          rows: chunk,
+          // Never on a chunk: the sweep needs every id the walk saw, and the
+          // last chunk alone knows nothing about the first one's comments.
+          complete: false,
+          syncedAt,
+          snapshotAt,
+        },
+      );
+    }
+    for (const row of rows) seenIds.push(row.commentId);
+
+    after = json.paging?.cursors?.after;
+    if (json.paging?.next === undefined || !after) break;
+    if (pages >= COMMENT_PAGE_LIMIT) {
+      truncated = `Stalo na ${COMMENT_PAGE_LIMIT} stranica komentara.`;
+      break;
+    }
+    if (topLevel >= COMMENT_TOTAL_LIMIT) {
+      truncated = `Stalo na ${COMMENT_TOTAL_LIMIT} komentara.`;
+      break;
+    }
+  }
+
+  // A thread longer than one nested page is the same problem one level down:
+  // we hold part of the list, so absence from it proves nothing.
+  if (truncated === null && threadsCut > 0) {
+    truncated = `${threadsCut} niti ima više odgovora nego što staje u jedan odgovor Instagrama.`;
+  }
+
+  // One closing call: it carries the verdict, the ids from every page, and the
+  // truncation stamp — including the `null` that clears an older one.
+  written += await ctx.runMutation(internal.igCommentsStore.upsertCommentBatch, {
+    workspaceId,
+    mediaId,
+    rows: [],
+    complete: truncated === null,
+    syncedAt,
+    snapshotAt,
+    seenIds,
+    truncated,
+  });
+
+  return written;
+}
+
+/** Split a list into fixed-size pieces; one mutation is one transaction. */
+function chunked<T>(list: T[], size: number): T[][] {
+  if (list.length <= size) return list.length > 0 ? [list] : [];
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += size) {
+    out.push(list.slice(i, i + size));
+  }
+  return out;
+}
 
 // ── OAuth Handshake ──────────────────────────────────────────────────────────
 
@@ -751,42 +892,15 @@ export const syncIgInsights = internalAction({
         for (const row of recent) {
           if (tracker.throttled) break; // P2: a refusal ends the loop
           try {
-            const res = await tracker.fetch(
-              buildMediaCommentsUrl(
-                row.mediaId,
-                token,
-                COMMENTS_PER_MEDIA,
-                version,
-              ),
-            );
-            if (!res.ok) {
-              const errBody = await res.text().catch(() => "");
-              console.warn(
-                "Instagram comments warning:",
-                extractGraphApiError(errBody),
-              );
-              continue;
-            }
-
-            const json = (await res.json()) as RawCommentsResponse;
-            const rows = normalizeComments(json.data, ourUsername);
-
-            // Absence only proves a deletion when we saw the WHOLE list. A
-            // `paging.next` means there is another page, and a comment missing
-            // from page one says nothing at all — same rule the post sync
-            // follows for a post that fell off the end of its page.
-            const complete = json.paging?.next === undefined;
-
-            commentsWritten += await ctx.runMutation(
-              internal.igCommentsStore.upsertCommentBatch,
-              {
-                workspaceId,
-                mediaId: row.mediaId,
-                rows,
-                complete,
-                syncedAt: now,
-              },
-            );
+            commentsWritten += await syncMediaComments(ctx, {
+              workspaceId,
+              mediaId: row.mediaId,
+              token,
+              version,
+              ourUsername,
+              syncedAt: now,
+              tracker,
+            });
           } catch (err) {
             console.warn(
               "Instagram comments fetch failed:",

@@ -16,14 +16,50 @@
  */
 
 import { extractGraphApiError, extractGraphApiErrorCode } from "./instagramApi";
+import { FB_COMMENT_REPLIES_PAGE } from "./facebookApi";
 import type {
   RawFbComment,
   RawFbInsightsResponse,
   RawPagePost,
 } from "./facebookApi";
 
-/** How many top-level comments one sync pulls per post. */
+/** How many top-level comments one sync pulls per post, per page. */
 export const FB_COMMENTS_PER_POST = 50;
+
+/**
+ * The ceiling on one post's comment sync: whichever of the two comes first.
+ * When either stops the walk, the post row is stamped (`commentsTruncatedAt`)
+ * and the pass declares itself incomplete, which switches the deletion sweep
+ * off for that post — a silent cap would read as "we saw everything" (V1).
+ */
+export const FB_COMMENT_PAGE_LIMIT = 10;
+export const FB_COMMENT_TOTAL_LIMIT = 500;
+
+/** How many comment rows go into ONE upsert mutation. */
+export const FB_COMMENT_WRITE_CHUNK = 200;
+
+/**
+ * Was this comment's reply list cut short? Two signals, because neither alone
+ * is trustworthy — nested paging often answers with cursors and no `next`, so
+ * a full page counts as "possibly more" as well.
+ */
+export function fbRepliesTruncated(comment: RawFbComment): boolean {
+  const replies = comment.comments;
+  if (!replies) return false;
+  if (replies.paging?.next !== undefined) return true;
+  return (replies.data?.length ?? 0) >= FB_COMMENT_REPLIES_PAGE;
+}
+
+/** How many comments on this page came back with their replies cut short. */
+export function countFbTruncatedReplies(
+  list: RawFbComment[] | undefined,
+): number {
+  let n = 0;
+  for (const comment of list ?? []) {
+    if (fbRepliesTruncated(comment)) n++;
+  }
+  return n;
+}
 
 /**
  * How far back the comment sync reaches. Facebook keeps answering for older

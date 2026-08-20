@@ -43,10 +43,14 @@ import {
   type RawPagePostsResponse,
 } from "./lib/facebookApi";
 import {
+  countFbTruncatedReplies,
   extractPageInsights,
   extractPostInsights,
+  FB_COMMENT_PAGE_LIMIT,
   FB_COMMENT_POST_LIMIT,
   FB_COMMENT_SYNC_WINDOW_MS,
+  FB_COMMENT_TOTAL_LIMIT,
+  FB_COMMENT_WRITE_CHUNK,
   FB_COMMENTS_PER_POST,
   FB_POSTS_PER_SYNC,
   normalizeFbComments,
@@ -105,6 +109,126 @@ function randomNonce(): string {
 
 async function readJson<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
+}
+
+/**
+ * Walk one post's comments to the end, then let the sweep run — or say why it
+ * could not (V1). The Instagram twin is `syncMediaComments` in instagram.ts,
+ * and the reasoning is identical: before V1 this was a single call for the
+ * newest fifty comments, and everything past that was not merely invisible but
+ * ABSENT from the answer — which the sweep read as a deletion.
+ *
+ * Complete means the top level ran out AND no thread came back with its nested
+ * replies cut. Every early stop is recorded on the post row, because a cap
+ * nobody can see reads exactly like a complete read.
+ */
+async function syncPostComments(
+  ctx: ActionCtx,
+  params: {
+    workspaceId: Id<"workspaces">;
+    postId: string;
+    pageId: string;
+    token: string;
+    version: string;
+    syncedAt: number;
+    tracker: UsageTracker;
+  },
+): Promise<number> {
+  const { workspaceId, postId, pageId, token, version, syncedAt, tracker } =
+    params;
+
+  // The instant BEFORE the first call. Everything the database learns after
+  // this moment arrived by another road and is none of this answer's business.
+  const snapshotAt = Date.now();
+
+  const seenIds: string[] = [];
+  let written = 0;
+  let after: string | undefined;
+  let pages = 0;
+  let topLevel = 0;
+  let threadsCut = 0;
+  let truncated: string | null = null;
+
+  for (;;) {
+    if (tracker.throttled) {
+      truncated = "Meta je odbila zahtev usred čitanja komentara.";
+      break;
+    }
+
+    const res = await tracker.fetch(
+      buildPostCommentsUrl(postId, token, FB_COMMENTS_PER_POST, version, after),
+    );
+    if (!res.ok) {
+      truncated = "Facebook nije odgovorio na čitanje komentara.";
+      break;
+    }
+
+    const body = await readJson<RawFbCommentsResponse>(res);
+    const page = body.data ?? [];
+    pages++;
+    topLevel += page.length;
+    threadsCut += countFbTruncatedReplies(page);
+
+    const rows = normalizeFbComments(page, pageId);
+    for (const chunk of chunked(rows, FB_COMMENT_WRITE_CHUNK)) {
+      written += await ctx.runMutation(
+        internal.fbCommentsStore.upsertCommentBatch,
+        {
+          workspaceId,
+          postId,
+          rows: chunk,
+          // Never on a chunk: the sweep needs every id the walk saw.
+          complete: false,
+          syncedAt,
+          snapshotAt,
+        },
+      );
+    }
+    for (const row of rows) seenIds.push(row.commentId);
+
+    after = body.paging?.cursors?.after;
+    if (!body.paging?.next || !after) break;
+    if (pages >= FB_COMMENT_PAGE_LIMIT) {
+      truncated = `Stalo na ${FB_COMMENT_PAGE_LIMIT} stranica komentara.`;
+      break;
+    }
+    if (topLevel >= FB_COMMENT_TOTAL_LIMIT) {
+      truncated = `Stalo na ${FB_COMMENT_TOTAL_LIMIT} komentara.`;
+      break;
+    }
+  }
+
+  if (truncated === null && threadsCut > 0) {
+    truncated = `${threadsCut} niti ima više odgovora nego što staje u jedan odgovor Facebooka.`;
+  }
+
+  // One closing call: the verdict, the ids from every page, and the truncation
+  // stamp — including the `null` that clears an older one.
+  written += await ctx.runMutation(
+    internal.fbCommentsStore.upsertCommentBatch,
+    {
+      workspaceId,
+      postId,
+      rows: [],
+      complete: truncated === null,
+      syncedAt,
+      snapshotAt,
+      seenIds,
+      truncated,
+    },
+  );
+
+  return written;
+}
+
+/** Split a list into fixed-size pieces; one mutation is one transaction. */
+function chunked<T>(list: T[], size: number): T[][] {
+  if (list.length <= size) return list.length > 0 ? [list] : [];
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += size) {
+    out.push(list.slice(i, i + size));
+  }
+  return out;
 }
 
 /** Every Page the person administers, newest handshake first. */
@@ -981,27 +1105,15 @@ export const syncFacebook = internalAction({
         for (const postId of postIds) {
           if (tracker.throttled) break; // P2: a refusal ends the loop
           try {
-            const res = await tracker.fetch(
-              buildPostCommentsUrl(
-                postId,
-                token,
-                FB_COMMENTS_PER_POST,
-                version,
-              ),
-            );
-            if (!res.ok) continue;
-            const body = await readJson<RawFbCommentsResponse>(res);
-            const rows = normalizeFbComments(body.data, pageId);
-            written += await ctx.runMutation(
-              internal.fbCommentsStore.upsertCommentBatch,
-              {
-                workspaceId,
-                postId,
-                rows,
-                complete: !body.paging?.next,
-                syncedAt: now,
-              },
-            );
+            written += await syncPostComments(ctx, {
+              workspaceId,
+              postId,
+              pageId,
+              token,
+              version,
+              syncedAt: now,
+              tracker,
+            });
           } catch {
             // One post's comments failing must not cost the other nineteen.
           }

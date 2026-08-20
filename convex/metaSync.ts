@@ -23,6 +23,7 @@ import {
   buildMediaCommentsUrl,
   buildMediaFieldsUrl,
   buildMediaInsightsUrl,
+  classifyMissingObject,
   extractAccountInsights,
   extractGraphApiError,
   extractMediaInsights,
@@ -245,6 +246,7 @@ async function refreshIgMedia(
   const { workspaceId, token, mediaId, ourUsername } = params;
   const version = getMetaGraphVersion();
   const now = Date.now();
+  const snapshotAt = now;
 
   const nodeRes = await tracker.fetch(
     buildMediaFieldsUrl(mediaId, MEDIA_LIST_FIELDS, token, version),
@@ -316,6 +318,7 @@ async function refreshIgMedia(
           // settled.
           complete: false,
           syncedAt: now,
+          snapshotAt,
         },
       );
     }
@@ -396,6 +399,7 @@ async function refreshFbPost(
           // be allowed to conclude that comments are missing.
           complete: false,
           syncedAt: now,
+          snapshotAt: now,
         },
       );
     }
@@ -1005,6 +1009,41 @@ export const hourlyRefresh = internalAction({
 // ── Level 3 — the daily deletion sweep ──────────────────────────────────────
 
 /**
+ * Can this token still read a post we know for a fact exists?
+ *
+ * The control question behind every ambiguous verdict. Meta answers "Object
+ * with ID … does not exist, cannot be loaded due to missing permissions" for a
+ * deleted object and for a live one the token may no longer see, so a single
+ * refusal cannot tell the two apart — but a second call can. `controlIds` are
+ * ids the feed listing returned seconds ago: if one of them reads back, the
+ * connection is healthy and a refusal elsewhere is about the object. If none
+ * of them read, everything is failing and nothing may be called deleted.
+ *
+ * At most two calls per pass, and only when an ambiguous answer turns up.
+ */
+async function connectionStillReads(
+  tracker: UsageTracker,
+  controlIds: string[],
+  token: string,
+  version: string,
+): Promise<boolean> {
+  for (const controlId of controlIds.slice(0, 2)) {
+    if (tracker.throttled) return false;
+    try {
+      const res = await tracker.fetch(
+        buildMediaFieldsUrl(controlId, "id", token, version),
+      );
+      if (res.ok) return true;
+      // Drain the body so the connection is not left hanging.
+      await res.text().catch(() => "");
+    } catch {
+      // Network failure is not an answer either; try the second id.
+    }
+  }
+  return false;
+}
+
+/**
  * Which of the posts we hold has Instagram stopped having?
  *
  * A deletion is never announced. Absence from a listing proves nothing either —
@@ -1052,6 +1091,8 @@ export const igDeletionCheck = internalAction({
         const now = Date.now();
         let marked = 0;
         let ok = true;
+        /** Set when the pass refused to write a verdict it could not trust. */
+        let standDown: string | undefined;
 
         try {
           const res = await tracker.fetch(
@@ -1066,16 +1107,22 @@ export const igDeletionCheck = internalAction({
               listed.map((item) => String(item?.id ?? "")).filter(Boolean),
             );
 
-            // How far back the answer reaches. Anything older than this fell off
-            // the end of the page and its absence means nothing.
-            const oldestSeen = listed.reduce((min, item) => {
-              const at = item?.timestamp
-                ? new Date(item.timestamp).getTime()
-                : NaN;
-              return Number.isFinite(at) ? Math.min(min, at) : min;
-            }, Number.POSITIVE_INFINITY);
-
-            if (seenIds.size > 0 && Number.isFinite(oldestSeen)) {
+            if (seenIds.size > 0) {
+              // Every stored post Instagram did not just list is a suspect —
+              // not only the ones inside the listing's date window (V1).
+              //
+              // The window used to be `publishedAt >= oldestSeen`, and it had a
+              // blind spot with a guarantee attached: when the post that was
+              // deleted happened to be the OLDEST the account had, every post
+              // still listed is newer than it, so it could never enter its own
+              // window. It was the one post the sweep was structurally unable
+              // to find.
+              //
+              // Dropping the window means more suspects than one pass can
+              // afford to probe, so they are worked through in rounds: the
+              // query hands back the least recently checked first, and every
+              // post the pass looks at is stamped. Nothing is excluded, some
+              // things simply wait their turn.
               const candidates: {
                 _id: Id<"igMediaStats">;
                 mediaId: string;
@@ -1083,17 +1130,20 @@ export const igDeletionCheck = internalAction({
                 internal.instagramStore.listDeletionCandidates,
                 {
                   workspaceId,
-                  publishedFrom: oldestSeen,
-                  syncedBefore: now,
+                  seenIds: [...seenIds],
                   limit: DELETION_CHECK_LIMIT,
                 },
               );
+
+              const checked: Id<"igMediaStats">[] = [];
+              // Asked for at most once per pass, and only if an ambiguous
+              // answer actually turns up. See `connectionStillReads`.
+              let health: boolean | undefined;
 
               for (const candidate of candidates) {
                 // Twenty-five probes into a refusal is twenty-five calls that
                 // cannot land and a longer block for the trouble (P2).
                 if (tracker.throttled) break;
-                if (seenIds.has(candidate.mediaId)) continue;
                 const probe = await tracker.fetch(
                   buildMediaFieldsUrl(
                     candidate.mediaId,
@@ -1102,15 +1152,62 @@ export const igDeletionCheck = internalAction({
                     version,
                   ),
                 );
+                checked.push(candidate._id);
                 if (probe.ok) continue;
 
                 const body = await probe.text().catch(() => "");
-                if (!isMissingObjectError(probe.status, body)) continue;
+                const verdict = classifyMissingObject(probe.status, body);
+                if (verdict === "other") continue;
+
+                if (verdict === "ambiguous") {
+                  // Code 100 / subcode 33 means "deleted" and "your token may
+                  // no longer read this" in the same breath, so one refusal is
+                  // not evidence. Ask something we KNOW exists: if that reads,
+                  // the connection is healthy and the suspect really is gone.
+                  // If it does not, the token is the problem and this pass may
+                  // not mark anything at all.
+                  if (health === undefined) {
+                    health = await connectionStillReads(
+                      tracker,
+                      [...seenIds],
+                      loaded.token,
+                      version,
+                    );
+                    if (!health) {
+                      standDown =
+                        "Instagram ne čita ni objave koje sigurno postoje; ništa nije označeno kao obrisano.";
+                      console.warn("Instagram: provera obrisanih —", standDown);
+                    }
+                  }
+                  if (!health) {
+                    // This suspect never got an answer, so it must not count as
+                    // checked — it would go to the back of the rotation on the
+                    // strength of a question the token could not ask.
+                    checked.pop();
+                    ok = false;
+                    break;
+                  }
+                }
 
                 await ctx.runMutation(internal.instagramStore.markMediaDeleted, {
                   id: candidate._id,
                 });
                 marked++;
+              }
+
+              // Both the probed suspects and the posts the listing vouched for:
+              // rotation only works if everything the pass looked at moves to
+              // the back of the queue.
+              if (checked.length > 0 || seenIds.size > 0) {
+                await ctx.runMutation(
+                  internal.instagramStore.stampDeletionChecked,
+                  {
+                    workspaceId,
+                    ids: checked,
+                    mediaIds: [...seenIds],
+                    at: now,
+                  },
+                );
               }
             }
           }
@@ -1125,6 +1222,7 @@ export const igDeletionCheck = internalAction({
           job: "deletion",
           ok,
           itemsWritten: marked,
+          ...(standDown !== undefined ? { skipReason: standDown } : {}),
         });
       }
     });

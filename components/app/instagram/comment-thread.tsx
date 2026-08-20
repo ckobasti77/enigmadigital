@@ -573,7 +573,10 @@ export function CommentThread({
             hidden={thread.hidden}
             deleted={deleted}
             automationName={thread.automationName}
-            canReply
+            // Until a sync says whether this is a thread or somebody's reply,
+            // there is no reply button: Instagram refuses a reply to a reply,
+            // so offering one on a row we cannot place would only ever fail.
+            canReply={thread.levelUnknown !== true}
             replyOpen={replyOpen}
             onToggleReply={() => setReplyOpen((open) => !open)}
             onError={setError}

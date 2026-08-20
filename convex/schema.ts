@@ -156,9 +156,21 @@ export default defineSchema({
     // because rows written before moderation existed never asked, and "we do
     // not know yet" is not the same statement as "comments are off".
     commentsEnabled: v.optional(v.boolean()),
+    // When the comment sync last hit its ceiling on this post, and which one
+    // (V1). A cap nobody records is indistinguishable from a complete read, so
+    // this is written in the database rather than logged: it is the answer to
+    // "why does this post never report a deleted comment". Cleared by the first
+    // pass that gets all the way through.
+    commentsTruncatedAt: v.optional(v.number()),
+    commentsTruncatedReason: v.optional(v.string()),
+    // When the deletion sweep last probed this post (V1). The sweep walks
+    // oldest-checked first, so this is what turns "every stored post is a
+    // candidate" into a rotation that fits inside one pass's call budget.
+    deletionCheckedAt: v.optional(v.number()),
   })
     .index("by_workspace_media", ["workspaceId", "mediaId"]) // upsert by mediaId
     .index("by_workspace_published", ["workspaceId", "publishedAt"])
+    .index("by_workspace_deletion_checked", ["workspaceId", "deletionCheckedAt"])
     .index("by_media", ["mediaId"]), // public /ig-media/ proxy lookup
 
   // ── Instagram publishing (F3) ───────────────────────────────────────────────
@@ -304,6 +316,12 @@ export default defineSchema({
     repliedByUs: v.boolean(),
     // Gone from Instagram: deleted from this screen, or by whoever wrote it.
     deletedAt: v.optional(v.number()),
+    // Set when the webhook that created this row carried no usable parent
+    // information, so we do not know whether it is a top-level comment or a
+    // reply (V1). A reply cannot be replied to — Instagram threads are exactly
+    // two levels deep — so the panel withholds its "Odgovori" button until a
+    // sync resolves the thread and clears this.
+    levelUnknown: v.optional(v.boolean()),
     syncedAt: v.number(),
   })
     .index("by_workspace_media", ["workspaceId", "mediaId"])
@@ -389,6 +407,11 @@ export default defineSchema({
     // offers that Instagram does not.
     likedByUs: v.optional(v.boolean()),
     deletedAt: v.optional(v.number()),
+    // Same contract as `igMediaStats` (V1): when the comment sync last hit its
+    // ceiling on this post, and which one. Cleared by the first pass that gets
+    // all the way through.
+    commentsTruncatedAt: v.optional(v.number()),
+    commentsTruncatedReason: v.optional(v.string()),
     syncedAt: v.number(),
   })
     .index("by_workspace_post", ["workspaceId", "postId"]) // upsert key

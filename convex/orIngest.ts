@@ -236,8 +236,18 @@ export const ingestComment = internalMutation({
     commentId: v.string(),
     /** Instagram media id, or Facebook post id. */
     mediaId: v.optional(v.string()),
-    /** Set on a Facebook reply; Instagram's webhook does not say. */
+    /**
+     * The comment being replied to. Facebook says so by sending a `parent_id`
+     * that differs from the post; Instagram sends `parent_id` only on a reply
+     * (V1).
+     */
     parentCommentId: v.optional(v.string()),
+    /**
+     * The webhook carried no usable parent, so the thread level is unresolved
+     * rather than known to be top level (V1). Instagram only — the moderation
+     * panel withholds its reply button on such a row until a sync settles it.
+     */
+    levelUnknown: v.optional(v.boolean()),
     commenterId: v.string(),
     commenterUsername: v.optional(v.string()),
     text: v.string(),
@@ -282,6 +292,10 @@ export const ingestComment = internalMutation({
           workspaceId,
           mediaId: args.mediaId,
           commentId: args.commentId,
+          ...(args.parentCommentId !== undefined
+            ? { parentCommentId: args.parentCommentId }
+            : {}),
+          ...(args.levelUnknown ? { levelUnknown: true } : {}),
           fromId: args.commenterId,
           ...(args.commenterUsername !== undefined
             ? { username: args.commenterUsername }

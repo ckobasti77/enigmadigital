@@ -242,16 +242,34 @@ export function buildLikesUrl(
  * below the first reply onto its top-level parent — a three-level thread in a
  * moderation queue is a scrolling problem, not information.
  */
+/**
+ * How many replies the nested edge returns per comment.
+ *
+ * A correctness constant, not a tuning knob: `comments` nested inside a comment
+ * is a page like any other, and a thread longer than this comes back cut, with
+ * its own `paging`. `fbRepliesTruncated` in `lib/facebookContent.ts` is what
+ * keeps a live reply past this line from being swept up as deleted (V1).
+ */
+export const FB_COMMENT_REPLIES_PAGE = 50;
+
 export const FB_COMMENT_FIELDS =
   "id,message,created_time,like_count,is_hidden,permalink_url," +
-  "from{id,name},comments.limit(25){id,message,created_time,like_count," +
+  `from{id,name},comments.limit(${FB_COMMENT_REPLIES_PAGE})` +
+  "{id,message,created_time,like_count," +
   "is_hidden,permalink_url,from{id,name}}";
 
+/**
+ * `after` is the cursor out of `paging.cursors.after` of the previous page.
+ * Without it this endpoint answers with the newest `limit` comments only, so
+ * the rest stay invisible — and a list we never saw whole can never prove that
+ * something was deleted.
+ */
 export function buildPostCommentsUrl(
   postId: string,
   accessToken: string,
   limit: number = 50,
   version: string = getMetaGraphVersion(),
+  after?: string,
 ): string {
   const url = new URL(
     `${FACEBOOK_GRAPH_BASE_URL}/${version}/${postId}/comments`,
@@ -260,6 +278,7 @@ export function buildPostCommentsUrl(
   url.searchParams.set("filter", "toplevel");
   url.searchParams.set("order", "reverse_chronological");
   url.searchParams.set("limit", String(limit));
+  if (after) url.searchParams.set("after", after);
   url.searchParams.set("access_token", accessToken);
   return url.toString();
 }
@@ -484,7 +503,11 @@ export interface RawFbComment {
   is_hidden?: boolean;
   permalink_url?: string;
   from?: { id?: string; name?: string };
-  comments?: { data?: RawFbComment[]; paging?: { next?: string } };
+  /** The nested page of replies — paginated exactly like the top-level list. */
+  comments?: {
+    data?: RawFbComment[];
+    paging?: { cursors?: { before?: string; after?: string }; next?: string };
+  };
 }
 
 export interface RawFbCommentsResponse {

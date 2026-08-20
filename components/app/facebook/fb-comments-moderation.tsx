@@ -189,7 +189,13 @@ function FilterBar({
   search: string;
   onSearchChange: (next: string) => void;
   counts:
-    | { all: number; unanswered: number; hidden: number; deleted: number }
+    | {
+        all: number;
+        unanswered: number;
+        hidden: number;
+        deleted: number;
+        cap: number;
+      }
     | undefined;
 }) {
   return (
@@ -215,7 +221,14 @@ function FilterBar({
             {counts && (
               <CountUp
                 value={counts[option.value]}
-                format={formatNumber}
+                // The list stops at `cap` threads and there is no "load more",
+                // so a chip at the ceiling says "100+" — the number is a floor,
+                // and printing it flat would promise threads nothing can reach.
+                format={(value) =>
+                  value >= counts.cap
+                    ? `${formatNumber(value)}+`
+                    : formatNumber(value)
+                }
                 className="font-mono text-micro text-text-muted"
               />
             )}
