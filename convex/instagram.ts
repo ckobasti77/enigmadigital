@@ -440,9 +440,18 @@ async function exchangeCodeAndConnect(
       },
     );
 
-    // 5. Trigger initial sync in background
+    // 5. Trigger initial sync in background — unless Meta is already refusing.
+    //
+    // This is the LAST unguarded way into `syncIgInsights`, which is ~50 Graph
+    // calls (P1/K1). Connecting an account is rare and human-driven, so it can
+    // never be the cause of a block — but starting fifty calls INTO one is
+    // still fifty calls that cannot land, and the six-hourly pass and the
+    // two-minute head check fill the screen on their own within minutes.
     try {
-      await ctx.runAction(internal.instagram.syncIgInsights, { connectionId });
+      const gate = await readGate(ctx, workspaceId);
+      if (allowsBackground(gate)) {
+        await ctx.runAction(internal.instagram.syncIgInsights, { connectionId });
+      }
     } catch {
       // Errors will be recorded on syncRuns table
     }

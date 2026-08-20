@@ -860,48 +860,109 @@ export const sendDm = internalAction({
     // 6. POST the message. Every path hits /{account-id}/messages; what
     // differs is the recipient — the sender's IGSID/PSID for a DM reply, the
     // comment id for a private reply.
-    try {
-      const text = composeDmMessage(
-        (context.replyMessage ?? context.automation.dmMessage).slice(
-          0,
-          baseTextMax,
+    //
+    // 7. A refusal comes back as a sentence rather than a throw, so the caller
+    // can decide whether it is the end or whether something simpler is worth
+    // trying. `null` means it went out.
+    const post = async (
+      message: Record<string, unknown>,
+    ): Promise<string | null> => {
+      try {
+        const res = await tracker.fetch(sendUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ recipient, message }),
+        });
+        if (res.ok) return null;
+        const errText = await res.text().catch(() => "");
+        return extractGraphApiError(errText);
+      } catch (err) {
+        const rawMsg = err instanceof Error ? err.message : String(err);
+        return extractGraphApiError(rawMsg);
+      }
+    };
+
+    let failure = await post(
+      buildOutgoingMessage({
+        text: composeDmMessage(
+          (context.replyMessage ?? context.automation.dmMessage).slice(
+            0,
+            baseTextMax,
+          ),
+          linkText,
+          context.automation.linkLabel,
         ),
-        linkText,
+        // A url button pointing at the automation's link gets the tracked
+        // short link too, so a tap is counted like any other click.
+        buttons: buttons.map((button) =>
+          button.type === "url" && button.url === context.automation.linkUrl
+            ? { ...button, url: linkUrl }
+            : button,
+        ),
+        quickReplies,
+      }),
+    );
+
+    /** Set when the message went out, but without the buttons it was written with. */
+    let degraded: string | undefined;
+
+    // The plain-text fallback.
+    //
+    // A body carrying a button template is one Meta can refuse where the same
+    // words on their own would have gone through — a private reply to a comment
+    // is the case this exists for, and the automations most likely to carry
+    // buttons are exactly the ones a comment triggers. Without this, the send
+    // repeated the identical body three times and ended `failed`: the lead got
+    // NOTHING, and the log blamed the network.
+    //
+    // Only the automation's own message falls back. The follow gate's prompt
+    // above deliberately does not: its entire content is a button to press, and
+    // a plain-text version asks a question that cannot be answered and strands
+    // the row in `awaiting_follow` for good. There, a visible failure is the
+    // honest outcome.
+    //
+    // Not attempted after a throttle — Meta has already said stop, and a second
+    // body is a second call into an active block.
+    if (
+      failure !== null &&
+      !tracker.throttled &&
+      (buttons.length > 0 || quickReplies.length > 0)
+    ) {
+      const refusal = failure;
+      // With the buttons gone, a link that lived only on one would not be sent
+      // at all, so the text carries it whether or not a button did.
+      const plainLinkBlock = composeDmMessage(
+        "",
+        linkUrl,
         context.automation.linkLabel,
       );
-
-      const res = await tracker.fetch(sendUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          recipient,
-          message: buildOutgoingMessage({
-            text,
-            // A url button pointing at the automation's link gets the tracked
-            // short link too, so a tap is counted like any other click.
-            buttons: buttons.map((button) =>
-              button.type === "url" && button.url === context.automation.linkUrl
-                ? { ...button, url: linkUrl }
-                : button,
+      const retry = await post(
+        buildOutgoingMessage({
+          text: composeDmMessage(
+            (context.replyMessage ?? context.automation.dmMessage).slice(
+              0,
+              Math.max(0, MESSAGE_TEXT_MAX - plainLinkBlock.length),
             ),
-            quickReplies,
-          }),
+            linkUrl,
+            context.automation.linkLabel,
+          ),
         }),
-      });
-
-      // 7. On a non-ok response: read the body text, run it through extractGraphApiError.
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        const extracted = extractGraphApiError(errText);
-        return await handleDmFailure(extracted);
+      );
+      if (retry === null) {
+        failure = null;
+        degraded =
+          `Poruka je poslata bez dugmadi — Meta ih na ovom putu nije prihvatila: ${refusal}`.slice(
+            0,
+            300,
+          );
       }
-    } catch (err) {
-      const rawMsg = err instanceof Error ? err.message : String(err);
-      const extracted = extractGraphApiError(rawMsg);
-      return await handleDmFailure(extracted);
+    }
+
+    if (failure !== null) {
+      return await handleDmFailure(failure);
     }
 
     // 8-9. applyResult with status "sent", attempts, dmSentAt: Date.now(), plus
@@ -911,6 +972,10 @@ export const sendDm = internalAction({
       status: "sent",
       attempts,
       dmSentAt: Date.now(),
+      // "Sent" with a sentence attached is the shape of a message that arrived
+      // in a poorer form than it was written in. Saying nothing would leave the
+      // operator wondering for weeks why nobody taps the buttons.
+      ...(degraded !== undefined ? { errorMessage: degraded } : {}),
       ...(await postPublicReply()),
     });
     await flush();
@@ -1010,11 +1075,30 @@ export const queueFollowUp = internalMutation({
       createdAt: now,
     };
 
+    // Where the 24h clock started.
+    //
+    // For a DM or a tap it is `lastUserMessageAt`, written by
+    // `orIngest.touchConversation`. A COMMENT never goes through there — a
+    // comment is not a message — so a comment-triggered automation has no
+    // conversation row at all, and reading the window off one that was never
+    // written made EVERY follow-up on a comment automation end as
+    // `skipped_window`. The feature was mostly built for those automations, and
+    // for them it had never once fired.
+    //
+    // The comment is the interaction that opened the window, and `log.createdAt`
+    // is the moment we recorded it — the same instant the 7-day private-reply
+    // clock is measured from a few lines up in `sendDm`. That is also what the
+    // 23-hour cap on the delay (`lib/orFollowUp.ts`) was always sized against.
+    // A later message from the same person still wins, because then the window
+    // genuinely restarted.
+    const windowStart =
+      log.source === "comment"
+        ? Math.max(conversation?.lastUserMessageAt ?? 0, log.createdAt)
+        : conversation?.lastUserMessageAt;
+
     // The clock runs from the person's last message, not from ours, so even a
     // delay well inside 23h can land outside the window.
-    if (
-      !isWithinMessagingWindow(conversation?.lastUserMessageAt, now, platform)
-    ) {
+    if (!isWithinMessagingWindow(windowStart, now, platform)) {
       await ctx.db.insert("orDmLogs", {
         ...row,
         status: "skipped_window",

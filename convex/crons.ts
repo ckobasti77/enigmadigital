@@ -21,10 +21,18 @@ const crons = cronJobs();
  * dashboard went stale precisely BECAUSE the previous minute had pulled too
  * hard. Spreading them costs nothing and removes the spike entirely.
  *
- * So each Meta job gets its own minute (and, above hourly, its own hour slot).
- * The numbers are arbitrary but FIXED — the point is only that no two share
- * one. Cron minutes are UTC; nothing here is tied to a wall-clock hour that a
+ * So each EXPENSIVE Meta job gets its own minute (and, above hourly, its own
+ * hour slot): no two of the full passes, the token refreshes, the deletion
+ * check or the three ad jobs ever land together. The numbers are arbitrary but
+ * FIXED. Cron minutes are UTC; nothing here is tied to a wall-clock hour that a
  * person cares about, so that is fine.
+ *
+ * The two head checks are the deliberate exception, and they cannot be
+ * separated from anything: between them they run on EVERY minute of the hour,
+ * so whatever else fires shares its minute with one of them. That is fine and
+ * is not what the spike was — a head check is a single call for five ids, so
+ * the worst overlap in this file is now one heavy job plus one call, instead of
+ * eight heavy jobs at once.
  *
  * The non-Meta jobs (GA4, Google Ads, YouTube, the publish queue, the file
  * sweep) are left on `interval`: they spend a different quota, and lining them
@@ -170,8 +178,6 @@ crons.interval(
   internal.ytPoll.pollAllYouTubeComments,
   {},
 );
-// A firing rule PAUSES an ad through the Graph API, so this is a Meta job and
-// gets its own minutes like the rest of them.
 // The only thing that makes an erasure something to rely on (P3).
 //
 // A purge is a chain of self-scheduling mutations, and a chain dies whenever
@@ -190,6 +196,8 @@ crons.interval(
   internal.purge.resumeStalled,
   {},
 );
+// A firing rule PAUSES an ad through the Graph API, so this is a Meta job and
+// gets its own minutes like the rest of them.
 crons.cron(
   "evaluate ad rules",
   everyNMinutes(30, 11),
