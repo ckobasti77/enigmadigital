@@ -28,9 +28,27 @@ export { getMetaGraphVersion };
 export const FACEBOOK_GRAPH_BASE_URL = "https://graph.facebook.com";
 export const FACEBOOK_WWW_BASE_URL = "https://www.facebook.com";
 
+/**
+ * Scopes we actually ask for at OAuth time.
+ *
+ * The app currently holds only the two read scopes. The three write scopes
+ * (`pages_manage_engagement`, `pages_messaging`, `pages_manage_metadata`)
+ * require a Page use case plus App Review, and advanced access to them
+ * requires business verification — which requires a registered company.
+ * Asking for a scope the app does not hold makes Facebook abort the whole
+ * dialog with "Invalid Scopes", so the Page could not be connected at all.
+ *
+ * Reading works today; writing waits. Move the entries from
+ * FACEBOOK_PENDING_SCOPES into FACEBOOK_SCOPES the day App Review grants them
+ * — nothing else in the code has to change.
+ */
 export const FACEBOOK_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
+] as const;
+
+/** Granted by App Review later; see the note above. */
+export const FACEBOOK_PENDING_SCOPES = [
   "pages_manage_engagement",
   "pages_messaging",
   "pages_manage_metadata",
