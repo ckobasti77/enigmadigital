@@ -5,6 +5,7 @@ import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { decryptCredentials } from "./lib/crypto";
+import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
 import {
   buildContainerStatusUrl,
   buildMediaContainerUrl,
@@ -85,14 +86,21 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** A Graph API POST that turns a failure into a sentence, never a stack. */
+/**
+ * A Graph API POST that turns a failure into a sentence, never a stack.
+ *
+ * Through the tracker like every Meta call (P2). Publishing a carousel is up
+ * to twelve calls off one click, and none of them used to be visible to the
+ * rate-limit gate.
+ */
 async function graphPost(
   url: string,
   params: URLSearchParams,
+  tracker: UsageTracker,
 ): Promise<RawContainerResponse> {
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await tracker.fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params.toString(),
@@ -187,10 +195,20 @@ async function createCarouselContainer(
   claim: Claim,
   token: string,
   version: string,
+  tracker: UsageTracker,
 ): Promise<string> {
   const childIds = [...(claim.childContainerIds ?? [])];
 
   for (let index = childIds.length; index < claim.mediaUrls.length; index++) {
+    // Meta refused. The remaining slides cannot be built either, and every
+    // extra attempt lengthens the block — the ids already saved mean the retry
+    // picks up exactly here (P2).
+    if (tracker.throttled) {
+      throw new PublishError(
+        "Instagram privremeno ograničava pozive. Objava se nastavlja sama.",
+      );
+    }
+
     const contentType = claim.contentTypes[index] ?? "";
     const params = new URLSearchParams();
     params.set(urlParamFor(contentType), claim.mediaUrls[index]);
@@ -202,6 +220,7 @@ async function createCarouselContainer(
     const child = await graphPost(
       buildMediaContainerUrl(claim.igUserId, version),
       params,
+      tracker,
     );
     if (!child.id) {
       throw new PublishError(
@@ -225,6 +244,7 @@ async function createCarouselContainer(
   const parent = await graphPost(
     buildMediaContainerUrl(claim.igUserId, version),
     parentParams,
+    tracker,
   );
   if (!parent.id) {
     throw new PublishError("Instagram nije vratio kontejner za carousel.");
@@ -312,13 +332,25 @@ async function awaitContainer(
   token: string,
   version: string,
   processingSince: number,
+  tracker: UsageTracker,
 ): Promise<ContainerVerdict> {
   const runDeadline = Date.now() + POLL_BUDGET_MS;
 
   for (;;) {
+    // A poll every few seconds is the densest loop in the app; once Meta has
+    // refused, waiting is strictly better than asking again (P2). Not terminal
+    // — the container is still processing and the retry chain owns it.
+    if (tracker.throttled) {
+      throw new PublishError(
+        "Instagram privremeno ograničava pozive. Objava se nastavlja sama.",
+      );
+    }
+
     let res: Response;
     try {
-      res = await fetch(buildContainerStatusUrl(containerId, token, version));
+      res = await tracker.fetch(
+        buildContainerStatusUrl(containerId, token, version),
+      );
     } catch {
       throw new PublishError(
         "Instagram nije odgovorio na pitanje o statusu obrade.",
@@ -437,9 +469,10 @@ async function recoverPublishedMediaId(
   token: string,
   version: string,
   since: number,
+  tracker: UsageTracker,
 ): Promise<string | null> {
   try {
-    const res = await fetch(
+    const res = await tracker.fetch(
       buildRecentMediaMatchUrl(token, RECOVERY_LOOKBACK, version),
     );
     if (!res.ok) return null;
@@ -487,6 +520,10 @@ export const runPublishJob = internalAction({
 
     const version = getMetaGraphVersion();
 
+    // Publishing was invisible to the gate before P2 — up to twelve calls for a
+    // carousel, plus a status poll every few seconds while a video processes.
+    const tracker = createUsageTracker();
+
     try {
       let containerId = claim.containerId;
       let processingSince = claim.processingSince ?? Date.now();
@@ -495,8 +532,15 @@ export const runPublishJob = internalAction({
         await verifyImageShapes(ctx, claim);
         containerId =
           claim.kind === "CAROUSEL"
-            ? await createCarouselContainer(ctx, jobId, claim, token, version)
-            : await createSingleContainer(claim, token, version);
+            ? await createCarouselContainer(
+                ctx,
+                jobId,
+                claim,
+                token,
+                version,
+                tracker,
+              )
+            : await createSingleContainer(claim, token, version, tracker);
 
         processingSince = Date.now();
         await ctx.runMutation(internal.instagramPublishStore.markProcessing, {
@@ -521,6 +565,7 @@ export const runPublishJob = internalAction({
         token,
         version,
         processingSince,
+        tracker,
       );
       if (verdict === "waiting") return null; // a continuation is scheduled
 
@@ -533,6 +578,7 @@ export const runPublishJob = internalAction({
           token,
           version,
           claim.publishStartedAt ?? processingSince,
+          tracker,
         );
         await ctx.runMutation(internal.instagramPublishStore.markPublished, {
           jobId,
@@ -558,6 +604,7 @@ export const runPublishJob = internalAction({
           params.set("access_token", token);
           return params;
         })(),
+        tracker,
       );
 
       await ctx.runMutation(internal.instagramPublishStore.markPublished, {
@@ -580,6 +627,8 @@ export const runPublishJob = internalAction({
         message,
         terminal,
       });
+    } finally {
+      await tracker.flush(ctx, claim.workspaceId);
     }
 
     return null;
@@ -590,10 +639,12 @@ async function createSingleContainer(
   claim: Claim,
   token: string,
   version: string,
+  tracker: UsageTracker,
 ): Promise<string> {
   const created = await graphPost(
     buildMediaContainerUrl(claim.igUserId, version),
     singleContainerParams(claim, token),
+    tracker,
   );
   if (!created.id) {
     throw new PublishError("Instagram nije vratio kontejner za objavu.");
@@ -670,8 +721,9 @@ export const publishingLimit = action({
     }
 
     const version = getMetaGraphVersion();
+    const tracker = createUsageTracker();
     try {
-      const res = await fetch(
+      const res = await tracker.fetch(
         buildPublishingLimitUrl(connection.igUserId, token, version),
       );
       const body = await res.text().catch(() => "");
@@ -699,6 +751,8 @@ export const publishingLimit = action({
         total: PUBLISH_LIMIT_FALLBACK,
         error: "Instagram trenutno ne odgovara na pitanje o kvoti.",
       };
+    } finally {
+      await tracker.flush(ctx, member.workspaceId);
     }
   },
 });

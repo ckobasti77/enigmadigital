@@ -6,6 +6,8 @@ import { v } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { decryptCredentials } from "./lib/crypto";
 import { runSync, sanitizeSyncError } from "./lib/runSync";
+import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
+import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
 import {
   getMetaGraphVersion,
   normalizeAdAccountId,
@@ -86,8 +88,15 @@ interface FetchMetaResult<T> {
 
 async function fetchMetaGraphPage<T>(
   url: string,
+  tracker: UsageTracker,
 ): Promise<{ items: T[]; nextUrl?: string; rateLimit: RateLimitStatus }> {
-  const res = await fetch(url);
+  // Through the tracker, like every Meta call (P2). Ads is the heaviest caller
+  // in the app — the hot pass runs every fifteen minutes and pages — and it was
+  // the largest of the blind spots that made the gate report "ok" at 100 %.
+  // `parseRateLimitHeaders` below reads the SAME headers for its own pagination
+  // brake; what it does not do is tell the shared gate, which is this file's
+  // half of the job.
+  const res = await tracker.fetch(url);
   const rateLimit = parseRateLimitHeaders(res.headers);
 
   if (!res.ok) {
@@ -111,7 +120,8 @@ async function fetchMetaGraphPage<T>(
 async function fetchAllPages<T>(
   initialUrl: string,
   maxPages: number = 10,
-  onCall?: () => void,
+  onCall: (() => void) | undefined,
+  tracker: UsageTracker,
 ): Promise<FetchMetaResult<T>> {
   const data: T[] = [];
   let currentUrl: string | undefined = initialUrl;
@@ -126,6 +136,10 @@ async function fetchAllPages<T>(
   };
 
   while (currentUrl && pageCount < maxPages) {
+    // Meta has already refused once in this pass, so the next page cannot
+    // land either — asking anyway only lengthens the block (P2).
+    if (tracker.throttled) break;
+
     if (onCall) onCall();
     pageCount++;
 
@@ -133,7 +147,7 @@ async function fetchAllPages<T>(
       items: T[];
       nextUrl?: string;
       rateLimit: RateLimitStatus;
-    } = await fetchMetaGraphPage<T>(currentUrl);
+    } = await fetchMetaGraphPage<T>(currentUrl, tracker);
 
     lastRateLimit = pageResult.rateLimit;
     data.push(...pageResult.items);
@@ -307,226 +321,239 @@ export const syncAdsStructure = internalAction({
     }
     const workspaceId: Id<"workspaces"> = conn.workspaceId;
 
-    await runSync(
-      ctx,
-      { workspaceId, provider: "meta_ads", connectionId },
-      async (): Promise<number> => {
-        if (!conn.encryptedCredentials) {
-          throw new Error("Meta Ads nije povezan");
-        }
+    // Every Meta answer says how much of the shared allowance is spent, and
+    // Ads is the pass that spends the most of it (P2). One tracker per run,
+    // flushed once — a mutation per HTTP call would cost more than the calls.
+    const tracker = createUsageTracker();
 
-        let token: string;
-        try {
-          token = await decryptCredentials(conn.encryptedCredentials);
-        } catch {
-          throw new Error("Meta Ads nije povezan");
-        }
+    // The reading is worth just as much on the failing path — a call that
+    // came back 429 is exactly the one the gate needs to hear about (P2).
+    try {
+      await runSync(
+        ctx,
+        { workspaceId, provider: "meta_ads", connectionId },
+        async (): Promise<number> => {
+          if (!conn.encryptedCredentials) {
+            throw new Error("Meta Ads nije povezan");
+          }
 
-        const trimmedToken = token.trim();
-        if (!trimmedToken) {
-          throw new Error("Meta Ads nije povezan");
-        }
-
-        const version = getMetaGraphVersion();
-        let apiCalls = 0;
-        const countCall = () => {
-          apiCalls++;
-        };
-
-        // 1. Identify Ad Account(s)
-        let primaryAccountId = (conn.externalId ?? "").trim();
-        let accountName = "Meta Ad Account";
-        let accountCurrency = "USD";
-
-        if (primaryAccountId) {
+          let token: string;
           try {
+            token = await decryptCredentials(conn.encryptedCredentials);
+          } catch {
+            throw new Error("Meta Ads nije povezan");
+          }
+
+          const trimmedToken = token.trim();
+          if (!trimmedToken) {
+            throw new Error("Meta Ads nije povezan");
+          }
+
+          const version = getMetaGraphVersion();
+          let apiCalls = 0;
+          const countCall = () => {
+            apiCalls++;
+          };
+
+          // 1. Identify Ad Account(s)
+          let primaryAccountId = (conn.externalId ?? "").trim();
+          let accountName = "Meta Ad Account";
+          let accountCurrency = "USD";
+
+          if (primaryAccountId) {
+            try {
+              countCall();
+              const actRes = await tracker.fetch(
+                buildAdAccountUrl(primaryAccountId, trimmedToken, version),
+              );
+              if (actRes.ok) {
+                const actData = (await actRes.json()) as {
+                  id?: string;
+                  account_id?: string;
+                  name?: string;
+                  currency?: string;
+                };
+                if (actData.name) accountName = actData.name;
+                if (actData.currency) accountCurrency = actData.currency;
+              }
+            } catch {
+              // Keep fallback account metadata
+            }
+          } else {
+            // Discover accounts via /me/adaccounts
             countCall();
-            const actRes = await fetch(
-              buildAdAccountUrl(primaryAccountId, trimmedToken, version),
+            const meRes = await tracker.fetch(
+              buildAdAccountsUrl(trimmedToken, version),
             );
-            if (actRes.ok) {
-              const actData = (await actRes.json()) as {
-                id?: string;
+            if (!meRes.ok) {
+              const errBody = await meRes.text().catch(() => "");
+              throw new Error(`Meta Ad Accounts greška: ${extractMetaAdsError(errBody)}`);
+            }
+            const meData = (await meRes.json()) as {
+              data?: Array<{
+                id: string;
                 account_id?: string;
                 name?: string;
                 currency?: string;
-              };
-              if (actData.name) accountName = actData.name;
-              if (actData.currency) accountCurrency = actData.currency;
+              }>;
+            };
+
+            const firstAct = meData.data?.[0];
+            if (!firstAct || !firstAct.id) {
+              throw new Error("Nije pronađen nijedan Meta Ad nalog za dati token.");
             }
-          } catch {
-            // Keep fallback account metadata
+            primaryAccountId = firstAct.id;
+            accountName = firstAct.name ?? "Meta Ad Account";
+            accountCurrency = firstAct.currency ?? "USD";
           }
-        } else {
-          // Discover accounts via /me/adaccounts
-          countCall();
-          const meRes = await fetch(buildAdAccountsUrl(trimmedToken, version));
-          if (!meRes.ok) {
-            const errBody = await meRes.text().catch(() => "");
-            throw new Error(`Meta Ad Accounts greška: ${extractMetaAdsError(errBody)}`);
-          }
-          const meData = (await meRes.json()) as {
-            data?: Array<{
-              id: string;
-              account_id?: string;
-              name?: string;
-              currency?: string;
-            }>;
-          };
 
-          const firstAct = meData.data?.[0];
-          if (!firstAct || !firstAct.id) {
-            throw new Error("Nije pronađen nijedan Meta Ad nalog za dati token.");
-          }
-          primaryAccountId = firstAct.id;
-          accountName = firstAct.name ?? "Meta Ad Account";
-          accountCurrency = firstAct.currency ?? "USD";
-        }
+          const normalizedActId = normalizeAdAccountId(primaryAccountId);
 
-        const normalizedActId = normalizeAdAccountId(primaryAccountId);
-
-        // 2. Upsert Ad Account document
-        const adAccountId: Id<"adAccounts"> = await ctx.runMutation(
-          internal.metaAdsStore.upsertAdAccount,
-          {
-            workspaceId,
-            provider: "meta_ads",
-            externalId: normalizedActId,
-            name: accountName,
-            currency: accountCurrency,
-          },
-        );
-
-        // 3. Fetch Campaigns
-        const campaignsRes = await fetchAllPages<{
-          id: string;
-          name: string;
-          objective?: string;
-          status: string;
-          effective_status?: string;
-          daily_budget?: string;
-          lifetime_budget?: string;
-        }>(buildCampaignsUrl(normalizedActId, trimmedToken, 500, version), 10, countCall);
-
-        // 4. Fetch 48h spend to classify hot vs cold campaigns
-        const spend48hMap = new Map<string, number>();
-        try {
-          const spend48hUrl = buildInsightsUrl({
-            targetId: normalizedActId,
-            level: "campaign",
-            datePreset: "last_2d",
-            limit: 500,
-            accessToken: trimmedToken,
-            version,
-          });
-          const spendRes = await fetchAllPages<{
-            campaign_id?: string;
-            spend?: string | number;
-          }>(spend48hUrl, 5, countCall);
-
-          for (const item of spendRes.data) {
-            if (item.campaign_id) {
-              const prev = spend48hMap.get(item.campaign_id) ?? 0;
-              spend48hMap.set(item.campaign_id, prev + toNum(item.spend));
-            }
-          }
-        } catch (err) {
-          console.warn(
-            "[Meta Ads Sync] 48h spend lookup warning:",
-            sanitizeSyncError(err),
+          // 2. Upsert Ad Account document
+          const adAccountId: Id<"adAccounts"> = await ctx.runMutation(
+            internal.metaAdsStore.upsertAdAccount,
+            {
+              workspaceId,
+              provider: "meta_ads",
+              externalId: normalizedActId,
+              name: accountName,
+              currency: accountCurrency,
+            },
           );
-        }
 
-        const campaigns = campaignsRes.data.map((c) => {
-          const spend48h = spend48hMap.get(c.id) ?? 0;
-          const isActive =
-            c.status === "ACTIVE" || c.effective_status === "ACTIVE";
-          const syncPriority: "hot" | "cold" =
-            spend48h > 0 || (isActive && spend48h > 0) ? "hot" : "cold";
+          // 3. Fetch Campaigns
+          const campaignsRes = await fetchAllPages<{
+            id: string;
+            name: string;
+            objective?: string;
+            status: string;
+            effective_status?: string;
+            daily_budget?: string;
+            lifetime_budget?: string;
+          }>(buildCampaignsUrl(normalizedActId, trimmedToken, 500, version), 10, countCall, tracker);
 
-          return {
-            externalId: c.id,
-            name: c.name || "Bez naziva",
-            objective: c.objective,
-            status: c.status || "PAUSED",
-            dailyBudget: c.daily_budget ? toNum(c.daily_budget) / 100 : undefined,
-            lifetimeBudget: c.lifetime_budget
-              ? toNum(c.lifetime_budget) / 100
+          // 4. Fetch 48h spend to classify hot vs cold campaigns
+          const spend48hMap = new Map<string, number>();
+          try {
+            const spend48hUrl = buildInsightsUrl({
+              targetId: normalizedActId,
+              level: "campaign",
+              datePreset: "last_2d",
+              limit: 500,
+              accessToken: trimmedToken,
+              version,
+            });
+            const spendRes = await fetchAllPages<{
+              campaign_id?: string;
+              spend?: string | number;
+            }>(spend48hUrl, 5, countCall, tracker);
+
+            for (const item of spendRes.data) {
+              if (item.campaign_id) {
+                const prev = spend48hMap.get(item.campaign_id) ?? 0;
+                spend48hMap.set(item.campaign_id, prev + toNum(item.spend));
+              }
+            }
+          } catch (err) {
+            console.warn(
+              "[Meta Ads Sync] 48h spend lookup warning:",
+              sanitizeSyncError(err),
+            );
+          }
+
+          const campaigns = campaignsRes.data.map((c) => {
+            const spend48h = spend48hMap.get(c.id) ?? 0;
+            const isActive =
+              c.status === "ACTIVE" || c.effective_status === "ACTIVE";
+            const syncPriority: "hot" | "cold" =
+              spend48h > 0 || (isActive && spend48h > 0) ? "hot" : "cold";
+
+            return {
+              externalId: c.id,
+              name: c.name || "Bez naziva",
+              objective: c.objective,
+              status: c.status || "PAUSED",
+              dailyBudget: c.daily_budget ? toNum(c.daily_budget) / 100 : undefined,
+              lifetimeBudget: c.lifetime_budget
+                ? toNum(c.lifetime_budget) / 100
+                : undefined,
+              syncPriority,
+            };
+          });
+
+          // 5. Fetch AdSets
+          const adSetsRes = await fetchAllPages<{
+            id: string;
+            campaign_id: string;
+            name: string;
+            status: string;
+            effective_status?: string;
+            daily_budget?: string;
+            lifetime_budget?: string;
+            targeting?: Record<string, unknown>;
+          }>(buildAdSetsUrl(normalizedActId, trimmedToken, 500, version), 10, countCall, tracker);
+
+          const adSets = adSetsRes.data.map((s) => ({
+            externalId: s.id,
+            campaignExternalId: s.campaign_id,
+            name: s.name || "Bez naziva",
+            status: s.status || "PAUSED",
+            targetingSummary: s.targeting ? JSON.stringify(s.targeting) : undefined,
+            dailyBudget: s.daily_budget ? toNum(s.daily_budget) / 100 : undefined,
+            lifetimeBudget: s.lifetime_budget
+              ? toNum(s.lifetime_budget) / 100
               : undefined,
-            syncPriority,
-          };
-        });
+          }));
 
-        // 5. Fetch AdSets
-        const adSetsRes = await fetchAllPages<{
-          id: string;
-          campaign_id: string;
-          name: string;
-          status: string;
-          effective_status?: string;
-          daily_budget?: string;
-          lifetime_budget?: string;
-          targeting?: Record<string, unknown>;
-        }>(buildAdSetsUrl(normalizedActId, trimmedToken, 500, version), 10, countCall);
+          // 6. Fetch Ads with Creatives
+          const adsRes = await fetchAllPages<{
+            id: string;
+            adset_id: string;
+            campaign_id?: string;
+            name: string;
+            status: string;
+            effective_status?: string;
+            creative?: {
+              id?: string;
+              name?: string;
+              thumbnail_url?: string;
+              image_url?: string;
+            };
+          }>(buildAdsUrl(normalizedActId, trimmedToken, 500, version), 10, countCall, tracker);
 
-        const adSets = adSetsRes.data.map((s) => ({
-          externalId: s.id,
-          campaignExternalId: s.campaign_id,
-          name: s.name || "Bez naziva",
-          status: s.status || "PAUSED",
-          targetingSummary: s.targeting ? JSON.stringify(s.targeting) : undefined,
-          dailyBudget: s.daily_budget ? toNum(s.daily_budget) / 100 : undefined,
-          lifetimeBudget: s.lifetime_budget
-            ? toNum(s.lifetime_budget) / 100
-            : undefined,
-        }));
+          const ads = adsRes.data.map((a) => ({
+            externalId: a.id,
+            adSetExternalId: a.adset_id,
+            name: a.name || "Bez naziva",
+            status: a.status || "PAUSED",
+            creativeId: a.creative?.id,
+            hookLabel: undefined,
+            thumbnailUrl: a.creative?.thumbnail_url || a.creative?.image_url,
+            previewUrl: a.creative?.image_url,
+          }));
 
-        // 6. Fetch Ads with Creatives
-        const adsRes = await fetchAllPages<{
-          id: string;
-          adset_id: string;
-          campaign_id?: string;
-          name: string;
-          status: string;
-          effective_status?: string;
-          creative?: {
-            id?: string;
-            name?: string;
-            thumbnail_url?: string;
-            image_url?: string;
-          };
-        }>(buildAdsUrl(normalizedActId, trimmedToken, 500, version), 10, countCall);
+          // 7. Atomically persist structure
+          const written: number = await ctx.runMutation(
+            internal.metaAdsStore.upsertStructure,
+            {
+              workspaceId,
+              accountId: adAccountId,
+              campaigns,
+              adSets,
+              ads,
+            },
+          );
 
-        const ads = adsRes.data.map((a) => ({
-          externalId: a.id,
-          adSetExternalId: a.adset_id,
-          name: a.name || "Bez naziva",
-          status: a.status || "PAUSED",
-          creativeId: a.creative?.id,
-          hookLabel: undefined,
-          thumbnailUrl: a.creative?.thumbnail_url || a.creative?.image_url,
-          previewUrl: a.creative?.image_url,
-        }));
+          console.log(
+            `[Meta Ads Sync] Structure sync finished. API calls: ${apiCalls}, campaigns: ${campaigns.length}, adSets: ${adSets.length}, ads: ${ads.length}`,
+          );
 
-        // 7. Atomically persist structure
-        const written: number = await ctx.runMutation(
-          internal.metaAdsStore.upsertStructure,
-          {
-            workspaceId,
-            accountId: adAccountId,
-            campaigns,
-            adSets,
-            ads,
-          },
-        );
-
-        console.log(
-          `[Meta Ads Sync] Structure sync finished. API calls: ${apiCalls}, campaigns: ${campaigns.length}, adSets: ${adSets.length}, ads: ${ads.length}`,
-        );
-
-        return written;
-      },
-    );
+          return written;
+        },
+      );
+    } finally {
+      await tracker.flush(ctx, workspaceId);
+    }
   },
 });
 
@@ -555,331 +582,352 @@ export const syncAdsInsights = internalAction({
     }
     const workspaceId: Id<"workspaces"> = conn.workspaceId;
 
-    await runSync(
-      ctx,
-      { workspaceId, provider: "meta_ads", connectionId },
-      async (): Promise<number> => {
-        if (!conn.encryptedCredentials) {
-          throw new Error("Meta Ads nije povezan");
-        }
+    // Every Meta answer says how much of the shared allowance is spent, and
+    // Ads is the pass that spends the most of it (P2). One tracker per run,
+    // flushed once — a mutation per HTTP call would cost more than the calls.
+    const tracker = createUsageTracker();
 
-        let token: string;
-        try {
-          token = await decryptCredentials(conn.encryptedCredentials);
-        } catch {
-          throw new Error("Meta Ads nije povezan");
-        }
+    // The reading is worth just as much on the failing path — a call that
+    // came back 429 is exactly the one the gate needs to hear about (P2).
+    try {
+      await runSync(
+        ctx,
+        { workspaceId, provider: "meta_ads", connectionId },
+        async (): Promise<number> => {
+          if (!conn.encryptedCredentials) {
+            throw new Error("Meta Ads nije povezan");
+          }
 
-        const trimmedToken = token.trim();
-        if (!trimmedToken) {
-          throw new Error("Meta Ads nije povezan");
-        }
+          let token: string;
+          try {
+            token = await decryptCredentials(conn.encryptedCredentials);
+          } catch {
+            throw new Error("Meta Ads nije povezan");
+          }
 
-        const version = getMetaGraphVersion();
-        let apiCalls = 0;
-        const countCall = () => {
-          apiCalls++;
-        };
+          const trimmedToken = token.trim();
+          if (!trimmedToken) {
+            throw new Error("Meta Ads nije povezan");
+          }
 
-        // Map external ad IDs to Convex ad IDs
-        const adIdMap: Record<string, string> = await ctx.runQuery(
-          internal.metaAdsStore.getAdIdMap,
-          { workspaceId },
-        );
+          const version = getMetaGraphVersion();
+          let apiCalls = 0;
+          const countCall = () => {
+            apiCalls++;
+          };
 
-        const adExternalIds = Object.keys(adIdMap);
-        if (adExternalIds.length === 0) {
-          // No ads in workspace yet -> nothing to pull insights for
-          return 0;
-        }
+          // Map external ad IDs to Convex ad IDs
+          const adIdMap: Record<string, string> = await ctx.runQuery(
+            internal.metaAdsStore.getAdIdMap,
+            { workspaceId },
+          );
 
-        const accounts = await ctx.runQuery(internal.metaAdsStore.getAccounts, {
-          workspaceId,
-          provider: "meta_ads",
-        });
+          const adExternalIds = Object.keys(adIdMap);
+          if (adExternalIds.length === 0) {
+            // No ads in workspace yet -> nothing to pull insights for
+            return 0;
+          }
 
-        if (accounts.length === 0) {
-          return 0;
-        }
+          const accounts = await ctx.runQuery(internal.metaAdsStore.getAccounts, {
+            workspaceId,
+            provider: "meta_ads",
+          });
 
-        let totalWritten = 0;
+          if (accounts.length === 0) {
+            return 0;
+          }
 
-        for (const account of accounts) {
-          const actId = normalizeAdAccountId(account.externalId);
+          let totalWritten = 0;
 
-          if (mode === "hot") {
-            // Mode "hot": Fetch TODAY insights for active/hot campaigns
-            const hotCampaigns = await ctx.runQuery(
-              internal.metaAdsStore.getCampaignsByPriority,
-              { workspaceId, priority: "hot" },
-            );
+          for (const account of accounts) {
+            // Six paged reads per account. Once Meta has refused, none of the
+            // remaining ones can land (P2).
+            if (tracker.throttled) break;
 
-            if (hotCampaigns.length === 0) {
-              continue;
-            }
+            const actId = normalizeAdAccountId(account.externalId);
 
-            // 1. Fetch Today hourly insights at ad level
-            try {
-              const hourlyUrl = buildInsightsUrl({
-                targetId: actId,
-                level: "ad",
-                datePreset: "today",
-                breakdowns: [
-                  "hourly_stats_aggregated_by_audience_time_zone",
-                ],
-                limit: 500,
-                accessToken: trimmedToken,
-                version,
-              });
-
-              const hourlyRes = await fetchAllPages<RawAdInsightRow>(
-                hourlyUrl,
-                5,
-                countCall,
+            if (mode === "hot") {
+              // Mode "hot": Fetch TODAY insights for active/hot campaigns
+              const hotCampaigns = await ctx.runQuery(
+                internal.metaAdsStore.getCampaignsByPriority,
+                { workspaceId, priority: "hot" },
               );
 
-              const rows = [];
-              for (const raw of hourlyRes.data) {
-                if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
-                const adId = adIdMap[raw.ad_id] as Id<"ads">;
-                rows.push(transformInsightRow(raw, adId, true));
+              if (hotCampaigns.length === 0) {
+                continue;
               }
 
-              for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
-                totalWritten += await ctx.runMutation(
-                  internal.metaAdsStore.upsertInsightsBatch,
-                  {
-                    workspaceId,
-                    rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
-                  },
+              // 1. Fetch Today hourly insights at ad level
+              try {
+                const hourlyUrl = buildInsightsUrl({
+                  targetId: actId,
+                  level: "ad",
+                  datePreset: "today",
+                  breakdowns: [
+                    "hourly_stats_aggregated_by_audience_time_zone",
+                  ],
+                  limit: 500,
+                  accessToken: trimmedToken,
+                  version,
+                });
+
+                const hourlyRes = await fetchAllPages<RawAdInsightRow>(
+                  hourlyUrl,
+                  5,
+                  countCall,
+                  tracker,
+                );
+
+                const rows = [];
+                for (const raw of hourlyRes.data) {
+                  if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
+                  const adId = adIdMap[raw.ad_id] as Id<"ads">;
+                  rows.push(transformInsightRow(raw, adId, true));
+                }
+
+                for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
+                  totalWritten += await ctx.runMutation(
+                    internal.metaAdsStore.upsertInsightsBatch,
+                    {
+                      workspaceId,
+                      rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
+                    },
+                  );
+                }
+              } catch (err) {
+                console.warn(
+                  "[Meta Ads Sync] Hot hourly insights warning:",
+                  sanitizeSyncError(err),
                 );
               }
-            } catch (err) {
-              console.warn(
-                "[Meta Ads Sync] Hot hourly insights warning:",
-                sanitizeSyncError(err),
-              );
-            }
 
-            // 2. Fetch Today demographic breakdown (age, gender)
-            try {
-              const demoUrl = buildInsightsUrl({
-                targetId: actId,
-                level: "ad",
-                datePreset: "today",
-                breakdowns: ["age", "gender"],
-                limit: 500,
-                accessToken: trimmedToken,
-                version,
-              });
+              // 2. Fetch Today demographic breakdown (age, gender)
+              try {
+                const demoUrl = buildInsightsUrl({
+                  targetId: actId,
+                  level: "ad",
+                  datePreset: "today",
+                  breakdowns: ["age", "gender"],
+                  limit: 500,
+                  accessToken: trimmedToken,
+                  version,
+                });
 
-              const demoRes = await fetchAllPages<RawAdInsightRow>(
-                demoUrl,
-                5,
-                countCall,
-              );
+                const demoRes = await fetchAllPages<RawAdInsightRow>(
+                  demoUrl,
+                  5,
+                  countCall,
+                  tracker,
+                );
 
-              const rows = [];
-              for (const raw of demoRes.data) {
-                if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
-                const adId = adIdMap[raw.ad_id] as Id<"ads">;
-                rows.push(transformInsightRow(raw, adId, false));
-              }
+                const rows = [];
+                for (const raw of demoRes.data) {
+                  if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
+                  const adId = adIdMap[raw.ad_id] as Id<"ads">;
+                  rows.push(transformInsightRow(raw, adId, false));
+                }
 
-              for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
-                totalWritten += await ctx.runMutation(
-                  internal.metaAdsStore.upsertInsightsBatch,
-                  {
-                    workspaceId,
-                    rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
-                  },
+                for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
+                  totalWritten += await ctx.runMutation(
+                    internal.metaAdsStore.upsertInsightsBatch,
+                    {
+                      workspaceId,
+                      rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
+                    },
+                  );
+                }
+              } catch (err) {
+                console.warn(
+                  "[Meta Ads Sync] Hot demographic breakdown warning:",
+                  sanitizeSyncError(err),
                 );
               }
-            } catch (err) {
-              console.warn(
-                "[Meta Ads Sync] Hot demographic breakdown warning:",
-                sanitizeSyncError(err),
-              );
-            }
 
-            // 3. Fetch Today placement breakdown (publisher_platform, platform_position)
-            try {
-              const placementUrl = buildInsightsUrl({
-                targetId: actId,
-                level: "ad",
-                datePreset: "today",
-                breakdowns: ["publisher_platform", "platform_position"],
-                limit: 500,
-                accessToken: trimmedToken,
-                version,
-              });
+              // 3. Fetch Today placement breakdown (publisher_platform, platform_position)
+              try {
+                const placementUrl = buildInsightsUrl({
+                  targetId: actId,
+                  level: "ad",
+                  datePreset: "today",
+                  breakdowns: ["publisher_platform", "platform_position"],
+                  limit: 500,
+                  accessToken: trimmedToken,
+                  version,
+                });
 
-              const placementRes = await fetchAllPages<RawAdInsightRow>(
-                placementUrl,
-                5,
-                countCall,
-              );
+                const placementRes = await fetchAllPages<RawAdInsightRow>(
+                  placementUrl,
+                  5,
+                  countCall,
+                  tracker,
+                );
 
-              const rows = [];
-              for (const raw of placementRes.data) {
-                if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
-                const adId = adIdMap[raw.ad_id] as Id<"ads">;
-                rows.push(transformInsightRow(raw, adId, false));
-              }
+                const rows = [];
+                for (const raw of placementRes.data) {
+                  if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
+                  const adId = adIdMap[raw.ad_id] as Id<"ads">;
+                  rows.push(transformInsightRow(raw, adId, false));
+                }
 
-              for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
-                totalWritten += await ctx.runMutation(
-                  internal.metaAdsStore.upsertInsightsBatch,
-                  {
-                    workspaceId,
-                    rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
-                  },
+                for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
+                  totalWritten += await ctx.runMutation(
+                    internal.metaAdsStore.upsertInsightsBatch,
+                    {
+                      workspaceId,
+                      rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
+                    },
+                  );
+                }
+              } catch (err) {
+                console.warn(
+                  "[Meta Ads Sync] Hot placement breakdown warning:",
+                  sanitizeSyncError(err),
                 );
               }
-            } catch (err) {
-              console.warn(
-                "[Meta Ads Sync] Hot placement breakdown warning:",
-                sanitizeSyncError(err),
-              );
-            }
-          } else {
-            // Mode "cold_all": 7-day lookback window (attribution restatement)
-            const timeRange = getLookbackDates(LOOKBACK_DAYS);
+            } else {
+              // Mode "cold_all": 7-day lookback window (attribution restatement)
+              const timeRange = getLookbackDates(LOOKBACK_DAYS);
 
-            // 1. Daily ad-level totals (no breakdown)
-            try {
-              const dailyUrl = buildInsightsUrl({
-                targetId: actId,
-                level: "ad",
-                timeRange,
-                timeIncrement: 1,
-                limit: 500,
-                accessToken: trimmedToken,
-                version,
-              });
+              // 1. Daily ad-level totals (no breakdown)
+              try {
+                const dailyUrl = buildInsightsUrl({
+                  targetId: actId,
+                  level: "ad",
+                  timeRange,
+                  timeIncrement: 1,
+                  limit: 500,
+                  accessToken: trimmedToken,
+                  version,
+                });
 
-              const dailyRes = await fetchAllPages<RawAdInsightRow>(
-                dailyUrl,
-                10,
-                countCall,
-              );
+                const dailyRes = await fetchAllPages<RawAdInsightRow>(
+                  dailyUrl,
+                  10,
+                  countCall,
+                  tracker,
+                );
 
-              const rows = [];
-              for (const raw of dailyRes.data) {
-                if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
-                const adId = adIdMap[raw.ad_id] as Id<"ads">;
-                rows.push(transformInsightRow(raw, adId, false));
-              }
+                const rows = [];
+                for (const raw of dailyRes.data) {
+                  if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
+                  const adId = adIdMap[raw.ad_id] as Id<"ads">;
+                  rows.push(transformInsightRow(raw, adId, false));
+                }
 
-              for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
-                totalWritten += await ctx.runMutation(
-                  internal.metaAdsStore.upsertInsightsBatch,
-                  {
-                    workspaceId,
-                    rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
-                  },
+                for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
+                  totalWritten += await ctx.runMutation(
+                    internal.metaAdsStore.upsertInsightsBatch,
+                    {
+                      workspaceId,
+                      rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
+                    },
+                  );
+                }
+              } catch (err) {
+                console.warn(
+                  "[Meta Ads Sync] 7-day daily insights warning:",
+                  sanitizeSyncError(err),
                 );
               }
-            } catch (err) {
-              console.warn(
-                "[Meta Ads Sync] 7-day daily insights warning:",
-                sanitizeSyncError(err),
-              );
-            }
 
-            // 2. Demographic breakdown over 7-day window
-            try {
-              const demoUrl = buildInsightsUrl({
-                targetId: actId,
-                level: "ad",
-                timeRange,
-                timeIncrement: 1,
-                breakdowns: ["age", "gender"],
-                limit: 500,
-                accessToken: trimmedToken,
-                version,
-              });
+              // 2. Demographic breakdown over 7-day window
+              try {
+                const demoUrl = buildInsightsUrl({
+                  targetId: actId,
+                  level: "ad",
+                  timeRange,
+                  timeIncrement: 1,
+                  breakdowns: ["age", "gender"],
+                  limit: 500,
+                  accessToken: trimmedToken,
+                  version,
+                });
 
-              const demoRes = await fetchAllPages<RawAdInsightRow>(
-                demoUrl,
-                10,
-                countCall,
-              );
+                const demoRes = await fetchAllPages<RawAdInsightRow>(
+                  demoUrl,
+                  10,
+                  countCall,
+                  tracker,
+                );
 
-              const rows = [];
-              for (const raw of demoRes.data) {
-                if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
-                const adId = adIdMap[raw.ad_id] as Id<"ads">;
-                rows.push(transformInsightRow(raw, adId, false));
-              }
+                const rows = [];
+                for (const raw of demoRes.data) {
+                  if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
+                  const adId = adIdMap[raw.ad_id] as Id<"ads">;
+                  rows.push(transformInsightRow(raw, adId, false));
+                }
 
-              for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
-                totalWritten += await ctx.runMutation(
-                  internal.metaAdsStore.upsertInsightsBatch,
-                  {
-                    workspaceId,
-                    rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
-                  },
+                for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
+                  totalWritten += await ctx.runMutation(
+                    internal.metaAdsStore.upsertInsightsBatch,
+                    {
+                      workspaceId,
+                      rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
+                    },
+                  );
+                }
+              } catch (err) {
+                console.warn(
+                  "[Meta Ads Sync] 7-day demographic breakdown warning:",
+                  sanitizeSyncError(err),
                 );
               }
-            } catch (err) {
-              console.warn(
-                "[Meta Ads Sync] 7-day demographic breakdown warning:",
-                sanitizeSyncError(err),
-              );
-            }
 
-            // 3. Placement breakdown over 7-day window
-            try {
-              const placementUrl = buildInsightsUrl({
-                targetId: actId,
-                level: "ad",
-                timeRange,
-                timeIncrement: 1,
-                breakdowns: ["publisher_platform", "platform_position"],
-                limit: 500,
-                accessToken: trimmedToken,
-                version,
-              });
+              // 3. Placement breakdown over 7-day window
+              try {
+                const placementUrl = buildInsightsUrl({
+                  targetId: actId,
+                  level: "ad",
+                  timeRange,
+                  timeIncrement: 1,
+                  breakdowns: ["publisher_platform", "platform_position"],
+                  limit: 500,
+                  accessToken: trimmedToken,
+                  version,
+                });
 
-              const placementRes = await fetchAllPages<RawAdInsightRow>(
-                placementUrl,
-                10,
-                countCall,
-              );
+                const placementRes = await fetchAllPages<RawAdInsightRow>(
+                  placementUrl,
+                  10,
+                  countCall,
+                  tracker,
+                );
 
-              const rows = [];
-              for (const raw of placementRes.data) {
-                if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
-                const adId = adIdMap[raw.ad_id] as Id<"ads">;
-                rows.push(transformInsightRow(raw, adId, false));
-              }
+                const rows = [];
+                for (const raw of placementRes.data) {
+                  if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
+                  const adId = adIdMap[raw.ad_id] as Id<"ads">;
+                  rows.push(transformInsightRow(raw, adId, false));
+                }
 
-              for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
-                totalWritten += await ctx.runMutation(
-                  internal.metaAdsStore.upsertInsightsBatch,
-                  {
-                    workspaceId,
-                    rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
-                  },
+                for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
+                  totalWritten += await ctx.runMutation(
+                    internal.metaAdsStore.upsertInsightsBatch,
+                    {
+                      workspaceId,
+                      rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
+                    },
+                  );
+                }
+              } catch (err) {
+                console.warn(
+                  "[Meta Ads Sync] 7-day placement breakdown warning:",
+                  sanitizeSyncError(err),
                 );
               }
-            } catch (err) {
-              console.warn(
-                "[Meta Ads Sync] 7-day placement breakdown warning:",
-                sanitizeSyncError(err),
-              );
             }
           }
-        }
 
-        console.log(
-          `[Meta Ads Sync] ${mode} insights sync completed. API calls: ${apiCalls}, items written: ${totalWritten}`,
-        );
+          console.log(
+            `[Meta Ads Sync] ${mode} insights sync completed. API calls: ${apiCalls}, items written: ${totalWritten}`,
+          );
 
-        return totalWritten;
-      },
-    );
+          return totalWritten;
+        },
+      );
+    } finally {
+      await tracker.flush(ctx, workspaceId);
+    }
   },
 });
 
@@ -891,18 +939,23 @@ export const syncAdsInsights = internalAction({
 export const syncAllAdsStructure = internalAction({
   args: {},
   handler: async (ctx): Promise<void> => {
-    const connectionIds: Id<"connections">[] = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "meta_ads" },
-    );
+    // One run at a time (P2). Convex fires a cron on its own clock and does not
+    // ask whether the previous firing has finished; a pass that outgrows its
+    // cadence would otherwise run as two copies over the same allowance.
+    await withCronLock(ctx, CRON_LOCKS.adsStructure, async () => {
+      const connectionIds: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_ads" },
+      );
 
-    for (const connectionId of connectionIds) {
-      try {
-        await ctx.runAction(internal.metaAds.syncAdsStructure, { connectionId });
-      } catch {
-        // Error is logged on syncRuns; continue with next connection
+      for (const connectionId of connectionIds) {
+        try {
+          await ctx.runAction(internal.metaAds.syncAdsStructure, { connectionId });
+        } catch {
+          // Error is logged on syncRuns; continue with next connection
+        }
       }
-    }
+    });
   },
 });
 
@@ -912,21 +965,26 @@ export const syncAllAdsStructure = internalAction({
 export const syncHotAdsInsights = internalAction({
   args: {},
   handler: async (ctx): Promise<void> => {
-    const connectionIds: Id<"connections">[] = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "meta_ads" },
-    );
+    // One run at a time (P2). Convex fires a cron on its own clock and does not
+    // ask whether the previous firing has finished; a pass that outgrows its
+    // cadence would otherwise run as two copies over the same allowance.
+    await withCronLock(ctx, CRON_LOCKS.adsHot, async () => {
+      const connectionIds: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_ads" },
+      );
 
-    for (const connectionId of connectionIds) {
-      try {
-        await ctx.runAction(internal.metaAds.syncAdsInsights, {
-          connectionId,
-          mode: "hot",
-        });
-      } catch {
-        // Error is logged on syncRuns; continue with next connection
+      for (const connectionId of connectionIds) {
+        try {
+          await ctx.runAction(internal.metaAds.syncAdsInsights, {
+            connectionId,
+            mode: "hot",
+          });
+        } catch {
+          // Error is logged on syncRuns; continue with next connection
+        }
       }
-    }
+    });
   },
 });
 
@@ -936,20 +994,25 @@ export const syncHotAdsInsights = internalAction({
 export const syncAllAdsInsights = internalAction({
   args: {},
   handler: async (ctx): Promise<void> => {
-    const connectionIds: Id<"connections">[] = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "meta_ads" },
-    );
+    // One run at a time (P2). Convex fires a cron on its own clock and does not
+    // ask whether the previous firing has finished; a pass that outgrows its
+    // cadence would otherwise run as two copies over the same allowance.
+    await withCronLock(ctx, CRON_LOCKS.adsAll, async () => {
+      const connectionIds: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_ads" },
+      );
 
-    for (const connectionId of connectionIds) {
-      try {
-        await ctx.runAction(internal.metaAds.syncAdsInsights, {
-          connectionId,
-          mode: "cold_all",
-        });
-      } catch {
-        // Error is logged on syncRuns; continue with next connection
+      for (const connectionId of connectionIds) {
+        try {
+          await ctx.runAction(internal.metaAds.syncAdsInsights, {
+            connectionId,
+            mode: "cold_all",
+          });
+        } catch {
+          // Error is logged on syncRuns; continue with next connection
+        }
       }
-    }
+    });
   },
 });

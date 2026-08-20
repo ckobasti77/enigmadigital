@@ -6,6 +6,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { decryptCredentials } from "./lib/crypto";
 import { sanitizeSyncError } from "./lib/runSync";
+import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
 import {
   TARGETED_DEBOUNCE_MS,
   allowsBackground,
@@ -520,85 +521,103 @@ export const igHeadCheck = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx): Promise<null> => {
-    const connectionIds: Id<"connections">[] = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "meta_ig" },
-    );
+    // One run at a time (P2). A pass that outlives its own cadence would
+    // otherwise be running as two copies, both spending the same allowance
+    // on the same posts.
+    await withCronLock(ctx, CRON_LOCKS.igHeadCheck, async () => {
+      const connectionIds: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_ig" },
+      );
 
-    for (const connectionId of connectionIds) {
-      const loaded = await loadConnection(ctx, connectionId, "meta_ig");
-      if (loaded === null) continue;
+      for (const connectionId of connectionIds) {
+        const loaded = await loadConnection(ctx, connectionId, "meta_ig");
+        if (loaded === null) continue;
 
-      const workspaceId = loaded.conn.workspaceId;
-      const gate = await readGate(ctx, workspaceId);
-      if (!allowsBackground(gate)) {
-        await ctx.runMutation(internal.metaSyncStore.recordJob, {
+        const workspaceId = loaded.conn.workspaceId;
+        const gate = await readGate(ctx, workspaceId);
+        if (!allowsBackground(gate)) {
+          await ctx.runMutation(internal.metaSyncStore.recordJob, {
+            workspaceId,
+            provider: "meta_ig",
+            job: "head",
+            ok: false,
+            skipReason: gateReason(gate.state, "meta_ig"),
+          });
+          continue;
+        }
+
+        const tracker = createUsageTracker();
+        let written = 0;
+        let ok = true;
+
+        try {
+          const res = await tracker.fetch(
+            buildMeMediaIdsUrl(
+              loaded.token,
+              HEAD_CHECK_LIMIT,
+              getMetaGraphVersion(),
+            ),
+          );
+          if (res.ok) {
+            const json = (await res.json()) as RawMediaListResponse;
+            const ids = (json.data ?? [])
+              .map((item) => (item?.id ? String(item.id) : ""))
+              .filter((id) => id.length > 0);
+
+            const unknown: string[] = ids.length
+              ? await ctx.runQuery(internal.instagramStore.findUnknownMediaIds, {
+                  workspaceId,
+                  mediaIds: ids,
+                })
+              : [];
+
+            if (unknown.length > 0) {
+              const ourUsername = await resolveIgHandle(ctx, loaded, tracker);
+              for (const mediaId of unknown) {
+                // Meta refused: the remaining posts are not likelier to land,
+                // and asking anyway only lengthens the block (P2).
+                if (tracker.throttled) break;
+
+                // The claim's answer is the point of the claim (P2). Ignoring it
+                // meant an overlapped run — or a webhook that arrived one second
+                // ago — re-read the same brand new post a second time, which is
+                // exactly the duplicate work the debounce exists to stop.
+                const claimed: boolean = await ctx.runMutation(
+                  internal.metaSyncStore.claimTargeted,
+                  {
+                    workspaceId,
+                    provider: "meta_ig",
+                    mediaId,
+                    minIntervalMs: TARGETED_DEBOUNCE_MS,
+                  },
+                );
+                if (!claimed) continue;
+
+                written += await refreshIgMedia(
+                  ctx,
+                  { workspaceId, token: loaded.token, mediaId, ourUsername },
+                  tracker,
+                );
+              }
+            }
+          } else {
+            ok = false;
+          }
+        } catch (err) {
+          ok = false;
+          console.warn("Instagram head check —", sanitizeSyncError(err));
+        }
+
+        await finishPass(ctx, tracker, {
           workspaceId,
           provider: "meta_ig",
           job: "head",
-          ok: false,
-          skipReason: gateReason(gate.state, "meta_ig"),
+          ok,
+          itemsWritten: written,
         });
-        continue;
       }
-
-      const tracker = createUsageTracker();
-      let written = 0;
-      let ok = true;
-
-      try {
-        const res = await tracker.fetch(
-          buildMeMediaIdsUrl(
-            loaded.token,
-            HEAD_CHECK_LIMIT,
-            getMetaGraphVersion(),
-          ),
-        );
-        if (res.ok) {
-          const json = (await res.json()) as RawMediaListResponse;
-          const ids = (json.data ?? [])
-            .map((item) => (item?.id ? String(item.id) : ""))
-            .filter((id) => id.length > 0);
-
-          const unknown: string[] = ids.length
-            ? await ctx.runQuery(internal.instagramStore.findUnknownMediaIds, {
-                workspaceId,
-                mediaIds: ids,
-              })
-            : [];
-
-          if (unknown.length > 0) {
-            const ourUsername = await resolveIgHandle(ctx, loaded, tracker);
-            for (const mediaId of unknown) {
-              await ctx.runMutation(internal.metaSyncStore.claimTargeted, {
-                workspaceId,
-                provider: "meta_ig",
-                mediaId,
-                minIntervalMs: TARGETED_DEBOUNCE_MS,
-              });
-              written += await refreshIgMedia(
-                ctx,
-                { workspaceId, token: loaded.token, mediaId, ourUsername },
-                tracker,
-              );
-            }
-          }
-        } else {
-          ok = false;
-        }
-      } catch (err) {
-        ok = false;
-        console.warn("Instagram head check —", sanitizeSyncError(err));
-      }
-
-      await finishPass(ctx, tracker, {
-        workspaceId,
-        provider: "meta_ig",
-        job: "head",
-        ok,
-        itemsWritten: written,
-      });
-    }
+    });
     return null;
   },
 });
@@ -608,86 +627,100 @@ export const fbHeadCheck = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx): Promise<null> => {
-    const connectionIds: Id<"connections">[] = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "meta_fb" },
-    );
+    // One run at a time (P2). A pass that outlives its own cadence would
+    // otherwise be running as two copies, both spending the same allowance
+    // on the same posts.
+    await withCronLock(ctx, CRON_LOCKS.fbHeadCheck, async () => {
+      const connectionIds: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_fb" },
+      );
 
-    for (const connectionId of connectionIds) {
-      const loaded = await loadConnection(ctx, connectionId, "meta_fb");
-      if (loaded === null) continue;
+      for (const connectionId of connectionIds) {
+        const loaded = await loadConnection(ctx, connectionId, "meta_fb");
+        if (loaded === null) continue;
 
-      const pageId = loaded.conn.externalId;
-      if (!pageId) continue;
+        const pageId = loaded.conn.externalId;
+        if (!pageId) continue;
 
-      const workspaceId = loaded.conn.workspaceId;
-      const gate = await readGate(ctx, workspaceId);
-      if (!allowsBackground(gate)) {
-        await ctx.runMutation(internal.metaSyncStore.recordJob, {
+        const workspaceId = loaded.conn.workspaceId;
+        const gate = await readGate(ctx, workspaceId);
+        if (!allowsBackground(gate)) {
+          await ctx.runMutation(internal.metaSyncStore.recordJob, {
+            workspaceId,
+            provider: "meta_fb",
+            job: "head",
+            ok: false,
+            skipReason: gateReason(gate.state, "meta_fb"),
+          });
+          continue;
+        }
+
+        const tracker = createUsageTracker();
+        let written = 0;
+        let ok = true;
+
+        try {
+          const res = await tracker.fetch(
+            buildPagePostIdsUrl(
+              pageId,
+              loaded.token,
+              HEAD_CHECK_LIMIT,
+              getMetaGraphVersion(),
+            ),
+          );
+          if (res.ok) {
+            const json = (await res.json()) as RawPagePostsResponse;
+            const ids = (json.data ?? [])
+              .map((post) => (post?.id ? String(post.id) : ""))
+              .filter((id) => id.length > 0);
+
+            const unknown: string[] = ids.length
+              ? await ctx.runQuery(internal.facebookStore.findUnknownPostIds, {
+                  workspaceId,
+                  postIds: ids,
+                })
+              : [];
+
+            for (const postId of unknown) {
+              // Same two rules as Instagram: stop on a refusal, and honour the
+              // claim rather than re-reading what somebody else just took (P2).
+              if (tracker.throttled) break;
+
+              const claimed: boolean = await ctx.runMutation(
+                internal.metaSyncStore.claimTargeted,
+                {
+                  workspaceId,
+                  provider: "meta_fb",
+                  mediaId: postId,
+                  minIntervalMs: TARGETED_DEBOUNCE_MS,
+                },
+              );
+              if (!claimed) continue;
+
+              written += await refreshFbPost(
+                ctx,
+                { workspaceId, token: loaded.token, pageId, postId },
+                tracker,
+              );
+            }
+          } else {
+            ok = false;
+          }
+        } catch (err) {
+          ok = false;
+          console.warn("Facebook head check —", sanitizeSyncError(err));
+        }
+
+        await finishPass(ctx, tracker, {
           workspaceId,
           provider: "meta_fb",
           job: "head",
-          ok: false,
-          skipReason: gateReason(gate.state, "meta_fb"),
+          ok,
+          itemsWritten: written,
         });
-        continue;
       }
-
-      const tracker = createUsageTracker();
-      let written = 0;
-      let ok = true;
-
-      try {
-        const res = await tracker.fetch(
-          buildPagePostIdsUrl(
-            pageId,
-            loaded.token,
-            HEAD_CHECK_LIMIT,
-            getMetaGraphVersion(),
-          ),
-        );
-        if (res.ok) {
-          const json = (await res.json()) as RawPagePostsResponse;
-          const ids = (json.data ?? [])
-            .map((post) => (post?.id ? String(post.id) : ""))
-            .filter((id) => id.length > 0);
-
-          const unknown: string[] = ids.length
-            ? await ctx.runQuery(internal.facebookStore.findUnknownPostIds, {
-                workspaceId,
-                postIds: ids,
-              })
-            : [];
-
-          for (const postId of unknown) {
-            await ctx.runMutation(internal.metaSyncStore.claimTargeted, {
-              workspaceId,
-              provider: "meta_fb",
-              mediaId: postId,
-              minIntervalMs: TARGETED_DEBOUNCE_MS,
-            });
-            written += await refreshFbPost(
-              ctx,
-              { workspaceId, token: loaded.token, pageId, postId },
-              tracker,
-            );
-          }
-        } else {
-          ok = false;
-        }
-      } catch (err) {
-        ok = false;
-        console.warn("Facebook head check —", sanitizeSyncError(err));
-      }
-
-      await finishPass(ctx, tracker, {
-        workspaceId,
-        provider: "meta_fb",
-        job: "head",
-        ok,
-        itemsWritten: written,
-      });
-    }
+    });
     return null;
   },
 });
@@ -752,6 +785,9 @@ async function hourlyInstagram(
     provider: "meta_ig",
     job: "account",
     ok: accountOk,
+    // The snapshot writes exactly one row, and saying so is what lets the
+    // header tell "the numbers moved" apart from "the call went through" (P2).
+    itemsWritten: accountOk ? 1 : 0,
   });
 
   // 2. The recent posts. Anything older than two weeks moves by single digits a
@@ -770,6 +806,7 @@ async function hourlyInstagram(
     );
 
     for (const mediaId of mediaIds) {
+      if (tracker.throttled) break; // P2: a refusal ends the pass, not one call
       written += await refreshIgMedia(
         ctx,
         { workspaceId, token: loaded.token, mediaId, ourUsername },
@@ -803,6 +840,7 @@ async function hourlyFacebook(
 
   // 1. Daily Page insights over a short window.
   let pageOk = true;
+  let pageWritten = 0;
   try {
     const now = Date.now();
     const since = Math.floor(
@@ -839,10 +877,10 @@ async function hourlyFacebook(
         (await res.json()) as RawFbInsightsResponse,
       );
       if (rows.length > 0) {
-        await ctx.runMutation(internal.facebookStore.upsertPageDaily, {
-          workspaceId,
-          rows,
-        });
+        pageWritten += await ctx.runMutation(
+          internal.facebookStore.upsertPageDaily,
+          { workspaceId, rows },
+        );
       }
     } else {
       pageOk = false;
@@ -857,6 +895,9 @@ async function hourlyFacebook(
     provider: "meta_fb",
     job: "account",
     ok: pageOk,
+    // See the Instagram twin: the header needs to know a row was written, not
+    // only that the call came back (P2).
+    itemsWritten: pageWritten,
   });
 
   // 2. The recent posts.
@@ -873,6 +914,7 @@ async function hourlyFacebook(
     );
 
     for (const postId of postIds) {
+      if (tracker.throttled) break; // P2: a refusal ends the pass, not one call
       written += await refreshFbPost(
         ctx,
         { workspaceId, token: loaded.token, pageId, postId },
@@ -920,38 +962,42 @@ export const hourlyRefresh = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx): Promise<null> => {
-    const igIds: Id<"connections">[] = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "meta_ig" },
-    );
-    for (const connectionId of igIds) {
-      const loaded = await loadConnection(ctx, connectionId, "meta_ig");
-      if (loaded === null) continue;
+    // One run at a time (P2). A pass that outlives its own cadence would
+    // otherwise be running as two copies, both spending the same allowance
+    // on the same posts.
+    await withCronLock(ctx, CRON_LOCKS.metaHourly, async () => {
+      const igIds: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_ig" },
+      );
+      for (const connectionId of igIds) {
+        const loaded = await loadConnection(ctx, connectionId, "meta_ig");
+        if (loaded === null) continue;
 
-      const gate = await readGate(ctx, loaded.conn.workspaceId);
-      if (!allowsBackground(gate)) {
-        await recordHourlySkip(ctx, loaded.conn.workspaceId, "meta_ig", gate.state);
-        continue;
+        const gate = await readGate(ctx, loaded.conn.workspaceId);
+        if (!allowsBackground(gate)) {
+          await recordHourlySkip(ctx, loaded.conn.workspaceId, "meta_ig", gate.state);
+          continue;
+        }
+        await hourlyInstagram(ctx, loaded);
       }
-      await hourlyInstagram(ctx, loaded);
-    }
 
-    const fbIds: Id<"connections">[] = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "meta_fb" },
-    );
-    for (const connectionId of fbIds) {
-      const loaded = await loadConnection(ctx, connectionId, "meta_fb");
-      if (loaded === null) continue;
+      const fbIds: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_fb" },
+      );
+      for (const connectionId of fbIds) {
+        const loaded = await loadConnection(ctx, connectionId, "meta_fb");
+        if (loaded === null) continue;
 
-      const gate = await readGate(ctx, loaded.conn.workspaceId);
-      if (!allowsBackground(gate)) {
-        await recordHourlySkip(ctx, loaded.conn.workspaceId, "meta_fb", gate.state);
-        continue;
+        const gate = await readGate(ctx, loaded.conn.workspaceId);
+        if (!allowsBackground(gate)) {
+          await recordHourlySkip(ctx, loaded.conn.workspaceId, "meta_fb", gate.state);
+          continue;
+        }
+        await hourlyFacebook(ctx, loaded);
       }
-      await hourlyFacebook(ctx, loaded);
-    }
-
+    });
     return null;
   },
 });
@@ -975,105 +1021,113 @@ export const igDeletionCheck = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx): Promise<null> => {
-    const connectionIds: Id<"connections">[] = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "meta_ig" },
-    );
+    // One run at a time (P2). A pass that outlives its own cadence would
+    // otherwise be running as two copies, both spending the same allowance
+    // on the same posts.
+    await withCronLock(ctx, CRON_LOCKS.igDeletion, async () => {
+      const connectionIds: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_ig" },
+      );
 
-    for (const connectionId of connectionIds) {
-      const loaded = await loadConnection(ctx, connectionId, "meta_ig");
-      if (loaded === null) continue;
+      for (const connectionId of connectionIds) {
+        const loaded = await loadConnection(ctx, connectionId, "meta_ig");
+        if (loaded === null) continue;
 
-      const workspaceId = loaded.conn.workspaceId;
-      const gate = await readGate(ctx, workspaceId);
-      if (!allowsBackground(gate)) {
-        await ctx.runMutation(internal.metaSyncStore.recordJob, {
+        const workspaceId = loaded.conn.workspaceId;
+        const gate = await readGate(ctx, workspaceId);
+        if (!allowsBackground(gate)) {
+          await ctx.runMutation(internal.metaSyncStore.recordJob, {
+            workspaceId,
+            provider: "meta_ig",
+            job: "deletion",
+            ok: false,
+            skipReason: gateReason(gate.state, "meta_ig"),
+          });
+          continue;
+        }
+
+        const version = getMetaGraphVersion();
+        const tracker = createUsageTracker();
+        const now = Date.now();
+        let marked = 0;
+        let ok = true;
+
+        try {
+          const res = await tracker.fetch(
+            buildMeMediaIdsUrl(loaded.token, DELETION_LIST_LIMIT, version),
+          );
+          if (!res.ok) {
+            ok = false;
+          } else {
+            const json = (await res.json()) as RawMediaListResponse;
+            const listed = json.data ?? [];
+            const seenIds = new Set(
+              listed.map((item) => String(item?.id ?? "")).filter(Boolean),
+            );
+
+            // How far back the answer reaches. Anything older than this fell off
+            // the end of the page and its absence means nothing.
+            const oldestSeen = listed.reduce((min, item) => {
+              const at = item?.timestamp
+                ? new Date(item.timestamp).getTime()
+                : NaN;
+              return Number.isFinite(at) ? Math.min(min, at) : min;
+            }, Number.POSITIVE_INFINITY);
+
+            if (seenIds.size > 0 && Number.isFinite(oldestSeen)) {
+              const candidates: {
+                _id: Id<"igMediaStats">;
+                mediaId: string;
+              }[] = await ctx.runQuery(
+                internal.instagramStore.listDeletionCandidates,
+                {
+                  workspaceId,
+                  publishedFrom: oldestSeen,
+                  syncedBefore: now,
+                  limit: DELETION_CHECK_LIMIT,
+                },
+              );
+
+              for (const candidate of candidates) {
+                // Twenty-five probes into a refusal is twenty-five calls that
+                // cannot land and a longer block for the trouble (P2).
+                if (tracker.throttled) break;
+                if (seenIds.has(candidate.mediaId)) continue;
+                const probe = await tracker.fetch(
+                  buildMediaFieldsUrl(
+                    candidate.mediaId,
+                    "id",
+                    loaded.token,
+                    version,
+                  ),
+                );
+                if (probe.ok) continue;
+
+                const body = await probe.text().catch(() => "");
+                if (!isMissingObjectError(probe.status, body)) continue;
+
+                await ctx.runMutation(internal.instagramStore.markMediaDeleted, {
+                  id: candidate._id,
+                });
+                marked++;
+              }
+            }
+          }
+        } catch (err) {
+          ok = false;
+          console.warn("Instagram: provera obrisanih —", sanitizeSyncError(err));
+        }
+
+        await finishPass(ctx, tracker, {
           workspaceId,
           provider: "meta_ig",
           job: "deletion",
-          ok: false,
-          skipReason: gateReason(gate.state, "meta_ig"),
+          ok,
+          itemsWritten: marked,
         });
-        continue;
       }
-
-      const version = getMetaGraphVersion();
-      const tracker = createUsageTracker();
-      const now = Date.now();
-      let marked = 0;
-      let ok = true;
-
-      try {
-        const res = await tracker.fetch(
-          buildMeMediaIdsUrl(loaded.token, DELETION_LIST_LIMIT, version),
-        );
-        if (!res.ok) {
-          ok = false;
-        } else {
-          const json = (await res.json()) as RawMediaListResponse;
-          const listed = json.data ?? [];
-          const seenIds = new Set(
-            listed.map((item) => String(item?.id ?? "")).filter(Boolean),
-          );
-
-          // How far back the answer reaches. Anything older than this fell off
-          // the end of the page and its absence means nothing.
-          const oldestSeen = listed.reduce((min, item) => {
-            const at = item?.timestamp
-              ? new Date(item.timestamp).getTime()
-              : NaN;
-            return Number.isFinite(at) ? Math.min(min, at) : min;
-          }, Number.POSITIVE_INFINITY);
-
-          if (seenIds.size > 0 && Number.isFinite(oldestSeen)) {
-            const candidates: {
-              _id: Id<"igMediaStats">;
-              mediaId: string;
-            }[] = await ctx.runQuery(
-              internal.instagramStore.listDeletionCandidates,
-              {
-                workspaceId,
-                publishedFrom: oldestSeen,
-                syncedBefore: now,
-                limit: DELETION_CHECK_LIMIT,
-              },
-            );
-
-            for (const candidate of candidates) {
-              if (seenIds.has(candidate.mediaId)) continue;
-              const probe = await tracker.fetch(
-                buildMediaFieldsUrl(
-                  candidate.mediaId,
-                  "id",
-                  loaded.token,
-                  version,
-                ),
-              );
-              if (probe.ok) continue;
-
-              const body = await probe.text().catch(() => "");
-              if (!isMissingObjectError(probe.status, body)) continue;
-
-              await ctx.runMutation(internal.instagramStore.markMediaDeleted, {
-                id: candidate._id,
-              });
-              marked++;
-            }
-          }
-        }
-      } catch (err) {
-        ok = false;
-        console.warn("Instagram: provera obrisanih —", sanitizeSyncError(err));
-      }
-
-      await finishPass(ctx, tracker, {
-        workspaceId,
-        provider: "meta_ig",
-        job: "deletion",
-        ok,
-        itemsWritten: marked,
-      });
-    }
+    });
     return null;
   },
 });

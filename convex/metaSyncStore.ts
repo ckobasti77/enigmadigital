@@ -219,6 +219,13 @@ export const claimTargeted = internalMutation({
  * Record that a pass ran. `ok: false` means it stood down (rate limit, backoff)
  * or failed — `lastOkAt` is left alone, so the Settings screen keeps showing
  * the last time this pass actually did something.
+ *
+ * `lastOkAt` and `lastDataAt` answer two different questions and P2 split them
+ * apart because conflating them made the header lie. "The call went through"
+ * is what the Settings table reports; "the numbers on screen got fresher" is
+ * what the header counts from. The two-minute head check succeeds all day
+ * while writing nothing, so only a pass that actually WROTE something moves
+ * `lastDataAt`.
  */
 export const recordJob = internalMutation({
   args: {
@@ -242,6 +249,11 @@ export const recordJob = internalMutation({
       )
       .unique();
 
+    // A pass that succeeded and wrote nothing did not make the screen fresher.
+    // Every caller passes `itemsWritten`, including the passes whose whole job
+    // is to write one row, so this is the honest test rather than a proxy.
+    const refreshedData = ok && (itemsWritten ?? 0) > 0;
+
     if (existing === null) {
       await ctx.db.insert("metaSyncJobs", {
         workspaceId,
@@ -249,6 +261,7 @@ export const recordJob = internalMutation({
         job,
         lastRunAt: now,
         ...(ok ? { lastOkAt: now } : {}),
+        ...(refreshedData ? { lastDataAt: now } : {}),
         ...(itemsWritten !== undefined ? { itemsWritten } : {}),
         ...(skipReason !== undefined ? { lastSkipReason: skipReason } : {}),
       });
@@ -258,6 +271,7 @@ export const recordJob = internalMutation({
     await ctx.db.patch(existing._id, {
       lastRunAt: now,
       ...(ok ? { lastOkAt: now } : {}),
+      ...(refreshedData ? { lastDataAt: now } : {}),
       ...(itemsWritten !== undefined ? { itemsWritten } : {}),
       // Cleared on success so a resolved rate limit does not keep explaining
       // itself hours later.

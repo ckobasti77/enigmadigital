@@ -767,12 +767,36 @@ export default defineSchema({
     job: v.string(),
     lastRunAt: v.number(),
     lastOkAt: v.optional(v.number()),
+    // When this pass last actually REFRESHED DATA, which is not the same thing
+    // as `lastOkAt` (P2). The two-minute head check succeeds all day long while
+    // writing nothing — five ids in, five ids we already had — so a header
+    // reading `lastOkAt` says "synced 40 s ago" over numbers that stopped
+    // moving six hours ago. That is the exact lie the header exists to remove,
+    // so the age of the DATA gets its own field.
+    lastDataAt: v.optional(v.number()),
     // Why the last attempt did nothing: rate limit, backoff, nothing new.
     lastSkipReason: v.optional(v.string()),
     itemsWritten: v.optional(v.number()),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_provider_job", ["workspaceId", "provider", "job"]),
+
+  // ── Cron self-overlap guard (P2) ────────────────────────────────────────────
+  //
+  // Convex fires a cron on its own clock and does not care whether the previous
+  // firing is still running. A six-hourly sync that takes seven hours would be
+  // running twice, both halves spending the same Meta allowance on the same
+  // posts — and the slower it got, the more copies of itself it would start.
+  //
+  // One row per job name. `expiresAt` is what makes it safe: a run that dies
+  // between the claim and the release (isolate killed, deploy, timeout) would
+  // otherwise hold the lock for good, so a lock past its expiry is taken over
+  // rather than waited on.
+  cronLocks: defineTable({
+    name: v.string(),
+    startedAt: v.number(),
+    expiresAt: v.number(),
+  }).index("by_name", ["name"]),
 
   // Debounce ledger for the event-driven refresh: one row per post that has
   // ever been refreshed on its own. Deliberately its own table rather than a

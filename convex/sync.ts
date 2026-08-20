@@ -92,6 +92,13 @@ type HealthEntry = Infer<typeof healthEntryValidator>;
  * never open a `syncRuns` row — a header reading off runs alone would say
  * "synced 5 h ago" about a screen that updated forty seconds ago, which is the
  * exact lie this milestone exists to remove.
+ *
+ * And not the same thing as "the last pass succeeded" either (P2). The
+ * two-minute head check asks for five ids and normally writes nothing, so it
+ * reports success around the clock — including on a morning when the token has
+ * expired for insights and the numbers have not moved since midnight. So this
+ * reads `lastDataAt`, the last time a pass actually WROTE, and never
+ * `lastOkAt`. The age on screen is the age of the DATA.
  */
 export const freshness = query({
   args: {},
@@ -120,7 +127,7 @@ export const freshness = query({
       .query("metaSyncJobs")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .collect();
-    for (const job of jobs) consider(job.lastOkAt);
+    for (const job of jobs) consider(job.lastDataAt);
 
     return best;
   },

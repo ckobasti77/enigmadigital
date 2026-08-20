@@ -28,6 +28,26 @@ import { internal } from "../_generated/api";
  *      it is running NOTHING calls Meta, event-driven work included. There is
  *      no retry loop: each scheduled pass either goes or does not, and the next
  *      tick is the retry.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * THE RULE, AND IT HAS NO EXCEPTIONS (P2)
+ *
+ *   EVERY call to graph.instagram.com or graph.facebook.com goes through
+ *   `tracker.fetch`. A new one does too. Always.
+ *
+ * Both brakes above are derived from what Meta says in its ANSWERS, so a call
+ * made with a bare `fetch` is not merely untracked — it is a call the gate
+ * cannot see and will therefore under-count. That was the state of things
+ * before P2: exactly two passes used the tracker while twenty-odd other call
+ * sites (Ads every fifteen minutes, all of publishing, all of comment
+ * moderation, both OAuth flows, the picture proxy) went straight out. The gate
+ * reported "ok" at a hundred per cent, the banner told the operator a number
+ * that was systematically too low, and background work walked into the wall.
+ *
+ * A pass that LOOPS must also read `tracker.throttled` between iterations and
+ * stop. Meta refusing the first of thirty calls does not make the other
+ * twenty-nine likelier to land; it makes the block longer.
+ * ────────────────────────────────────────────────────────────────────────────
  * ============================================================================
  */
 
@@ -261,4 +281,26 @@ export function createUsageTracker(): UsageTracker {
       });
     },
   };
+}
+
+/**
+ * Run `body` with a tracker and flush it whatever happens (P2).
+ *
+ * For the call sites that were never written around a tracker — an action that
+ * throws its errors at the UI, a pass with a dozen early returns — where an
+ * explicit `flush` before every exit is a line somebody will eventually forget
+ * to add. The reading is worth just as much on the failed path: a call that
+ * came back 429 is precisely the one the gate needs to hear about.
+ */
+export async function withUsageTracker<T>(
+  ctx: ActionCtx,
+  workspaceId: Id<"workspaces">,
+  body: (tracker: UsageTracker) => Promise<T>,
+): Promise<T> {
+  const tracker = createUsageTracker();
+  try {
+    return await body(tracker);
+  } finally {
+    await tracker.flush(ctx, workspaceId);
+  }
 }

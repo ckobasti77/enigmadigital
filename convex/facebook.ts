@@ -6,8 +6,15 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import { runSync } from "./lib/runSync";
+import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
 import { extractGraphApiError } from "./lib/instagramApi";
-import { allowsBackground, createUsageTracker, readGate } from "./lib/metaRateLimit";
+import {
+  allowsBackground,
+  createUsageTracker,
+  withUsageTracker,
+  readGate,
+  type UsageTracker,
+} from "./lib/metaRateLimit";
 import {
   buildDebugTokenUrl,
   buildFacebookAuthorizeUrl,
@@ -101,8 +108,11 @@ async function readJson<T>(res: Response): Promise<T> {
 }
 
 /** Every Page the person administers, newest handshake first. */
-async function fetchPages(userToken: string): Promise<RawPageAccount[]> {
-  const res = await fetch(buildMeAccountsUrl(userToken));
+async function fetchPages(
+  userToken: string,
+  tracker: UsageTracker,
+): Promise<RawPageAccount[]> {
+  const res = await tracker.fetch(buildMeAccountsUrl(userToken));
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     invalid(`Čitanje liste stranica nije uspelo: ${extractGraphApiError(body)}`);
@@ -121,13 +131,16 @@ async function fetchPages(userToken: string): Promise<RawPageAccount[]> {
  * saying it does not expire on a clock. What still does expire is data access
  * (90 days), so that is the date the card counts down to when there is one.
  */
-async function fetchTokenExpiry(token: string): Promise<number | undefined> {
+async function fetchTokenExpiry(
+  token: string,
+  tracker: UsageTracker,
+): Promise<number | undefined> {
   const appId = getFacebookAppId();
   const appSecret = getFacebookAppSecret();
   if (!appId || !appSecret) return undefined;
 
   try {
-    const res = await fetch(
+    const res = await tracker.fetch(
       buildDebugTokenUrl({ inputToken: token, appId, appSecret }),
     );
     if (!res.ok) return undefined;
@@ -152,12 +165,13 @@ async function fetchTokenExpiry(token: string): Promise<number | undefined> {
 async function subscribePageToWebhook(
   pageId: string,
   pageToken: string,
+  tracker: UsageTracker,
 ): Promise<void> {
   try {
     const params = new URLSearchParams();
     params.set("subscribed_fields", PAGE_SUBSCRIBED_FIELDS);
     params.set("access_token", pageToken);
-    const res = await fetch(buildSubscribedAppsUrl(pageId), {
+    const res = await tracker.fetch(buildSubscribedAppsUrl(pageId), {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params.toString(),
@@ -273,7 +287,45 @@ async function exchangeCodeAndConnect(
     invalid("Čeka Meta app — dodaj FACEBOOK_APP_ID/SECRET u env");
   }
 
-  const shortRes = await fetch(
+  // Five calls to graph.facebook.com before this returns, and every one of
+  // them counts against the allowance the schedulers ration (P2).
+  const tracker = createUsageTracker();
+  try {
+    return await exchangeSteps(ctx, tracker, {
+      workspaceId,
+      clientId,
+      clientSecret,
+      redirectUri,
+      code,
+    });
+  } finally {
+    await tracker.flush(ctx, workspaceId);
+  }
+}
+
+/**
+ * The exchange itself, split out only so the tracker above can be flushed in a
+ * `finally` — every step here reports failure by throwing at the UI, and a
+ * `flush` before each `invalid()` is a line somebody would eventually forget.
+ */
+async function exchangeSteps(
+  ctx: ActionCtx,
+  tracker: UsageTracker,
+  {
+    workspaceId,
+    clientId,
+    clientSecret,
+    redirectUri,
+    code,
+  }: {
+    workspaceId: Id<"workspaces">;
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+    code: string;
+  },
+): Promise<FacebookOAuthResult> {
+  const shortRes = await tracker.fetch(
     buildFacebookTokenUrl({ clientId, clientSecret, redirectUri, code }),
   );
   if (!shortRes.ok) {
@@ -286,7 +338,7 @@ async function exchangeCodeAndConnect(
     invalid("Facebook nije vratio access token.");
   }
 
-  const longRes = await fetch(
+  const longRes = await tracker.fetch(
     buildFacebookLongLivedTokenUrl({
       clientId,
       clientSecret,
@@ -305,7 +357,7 @@ async function exchangeCodeAndConnect(
     invalid("Facebook nije vratio dugotrajni token.");
   }
 
-  const pages = await fetchPages(userToken);
+  const pages = await fetchPages(userToken, tracker);
   if (pages.length === 0) {
     invalid(
       "Ovaj nalog ne administrira nijednu Facebook stranicu, ili dozvola pages_show_list nije odobrena.",
@@ -327,7 +379,7 @@ async function exchangeCodeAndConnect(
     },
   );
 
-  const expiresAt = await fetchTokenExpiry(pageToken);
+  const expiresAt = await fetchTokenExpiry(pageToken, tracker);
   if (expiresAt !== undefined) {
     await ctx.runMutation(internal.facebookStore.updateTokenExpiry, {
       connectionId,
@@ -335,7 +387,7 @@ async function exchangeCodeAndConnect(
     });
   }
 
-  await subscribePageToWebhook(pageId, pageToken);
+  await subscribePageToWebhook(pageId, pageToken, tracker);
 
   try {
     await ctx.runAction(internal.facebook.syncFacebook, { connectionId });
@@ -469,7 +521,9 @@ export const listPages = action({
     const workspaceId = await requireWorkspace(ctx);
     const { conn, userToken } = await requireStoredUserToken(ctx, workspaceId);
 
-    const pages = await fetchPages(userToken);
+    const pages = await withUsageTracker(ctx, workspaceId, (tracker) =>
+      fetchPages(userToken, tracker),
+    );
     return pages.map((page) => ({
       id: String(page.id),
       name: page.name ?? String(page.id),
@@ -490,40 +544,47 @@ export const selectPage = action({
     const workspaceId = await requireWorkspace(ctx);
     const { userToken } = await requireStoredUserToken(ctx, workspaceId);
 
-    const pages = await fetchPages(userToken);
-    const page = pages.find((p) => String(p.id) === pageId);
-    if (page === undefined) {
-      invalid("Ova stranica nije među stranicama koje nalog administrira.");
-    }
-
-    const pageToken = String(page.access_token);
-    const connectionId: Id<"connections"> = await ctx.runMutation(
-      internal.facebookStore.saveConnectedCredentials,
-      {
-        workspaceId,
-        pageId,
-        ...(page.name ? { pageName: page.name } : {}),
-        encryptedCredentials: await encryptCredentials(pageToken),
-      },
-    );
-
-    const expiresAt = await fetchTokenExpiry(pageToken);
-    if (expiresAt !== undefined) {
-      await ctx.runMutation(internal.facebookStore.updateTokenExpiry, {
-        connectionId,
-        expiresAt,
-      });
-    }
-
-    await subscribePageToWebhook(pageId, pageToken);
-
+    // Three Meta calls to swap Page, and the readings matter even when the
+    // middle one throws at the picker (P2).
+    const tracker = createUsageTracker();
     try {
-      await ctx.runAction(internal.facebook.syncFacebook, { connectionId });
-    } catch {
-      // Errors are already recorded on the syncRuns row.
-    }
+      const pages = await fetchPages(userToken, tracker);
+      const page = pages.find((p) => String(p.id) === pageId);
+      if (page === undefined) {
+        invalid("Ova stranica nije među stranicama koje nalog administrira.");
+      }
 
-    return { pageId, pageName: page.name ?? null };
+      const pageToken = String(page.access_token);
+      const connectionId: Id<"connections"> = await ctx.runMutation(
+        internal.facebookStore.saveConnectedCredentials,
+        {
+          workspaceId,
+          pageId,
+          ...(page.name ? { pageName: page.name } : {}),
+          encryptedCredentials: await encryptCredentials(pageToken),
+        },
+      );
+
+      const expiresAt = await fetchTokenExpiry(pageToken, tracker);
+      if (expiresAt !== undefined) {
+        await ctx.runMutation(internal.facebookStore.updateTokenExpiry, {
+          connectionId,
+          expiresAt,
+        });
+      }
+
+      await subscribePageToWebhook(pageId, pageToken, tracker);
+
+      try {
+        await ctx.runAction(internal.facebook.syncFacebook, { connectionId });
+      } catch {
+        // Errors are already recorded on the syncRuns row.
+      }
+
+      return { pageId, pageName: page.name ?? null };
+    } finally {
+      await tracker.flush(ctx, workspaceId);
+    }
   },
 });
 
@@ -586,61 +647,69 @@ export const refreshConnectionToken = internalAction({
       return { success: false, reason: "Decryption failed" };
     }
 
-    // Extend the user token first; a failure here means the person has to sign
-    // in again, and there is no point asking for Page tokens with a dead one.
+    // Three Meta calls on a daily cron, per connection. The reading matters
+    // most on the failing path — a 429 here is exactly what the gate has to
+    // hear about (P2).
+    const tracker = createUsageTracker();
     try {
-      const res = await fetch(
-        buildFacebookLongLivedTokenUrl({
-          clientId,
-          clientSecret,
-          shortLivedToken: userToken,
-        }),
-      );
-      if (res.ok) {
-        const body = await readJson<RawFacebookTokenResponse>(res);
-        if (body.access_token) userToken = body.access_token;
+      // Extend the user token first; a failure here means the person has to sign
+      // in again, and there is no point asking for Page tokens with a dead one.
+      try {
+        const res = await tracker.fetch(
+          buildFacebookLongLivedTokenUrl({
+            clientId,
+            clientSecret,
+            shortLivedToken: userToken,
+          }),
+        );
+        if (res.ok) {
+          const body = await readJson<RawFacebookTokenResponse>(res);
+          if (body.access_token) userToken = body.access_token;
+        }
+      } catch {
+        // Keep the old one and let the /me/accounts call be the real verdict.
       }
-    } catch {
-      // Keep the old one and let the /me/accounts call be the real verdict.
-    }
 
-    let pages: RawPageAccount[];
-    try {
-      pages = await fetchPages(userToken);
-    } catch {
-      await ctx.runMutation(internal.facebookStore.markConnectionExpired, {
-        connectionId,
+      let pages: RawPageAccount[];
+      try {
+        pages = await fetchPages(userToken, tracker);
+      } catch {
+        await ctx.runMutation(internal.facebookStore.markConnectionExpired, {
+          connectionId,
+        });
+        return { success: false, reason: "Facebook refused /me/accounts" };
+      }
+
+      const page = pages.find((p) => String(p.id) === conn.externalId);
+      if (page === undefined) {
+        await ctx.runMutation(internal.facebookStore.markConnectionExpired, {
+          connectionId,
+        });
+        return {
+          success: false,
+          reason: "Connected Page is no longer administered by this account",
+        };
+      }
+
+      const pageToken = String(page.access_token);
+      await ctx.runMutation(internal.facebookStore.saveConnectedCredentials, {
+        workspaceId: conn.workspaceId,
+        pageId: String(page.id),
+        ...(page.name ? { pageName: page.name } : {}),
+        encryptedCredentials: await encryptCredentials(pageToken),
+        encryptedUserCredentials: await encryptCredentials(userToken),
       });
-      return { success: false, reason: "Facebook refused /me/accounts" };
-    }
 
-    const page = pages.find((p) => String(p.id) === conn.externalId);
-    if (page === undefined) {
-      await ctx.runMutation(internal.facebookStore.markConnectionExpired, {
+      const expiresAt = await fetchTokenExpiry(pageToken, tracker);
+      await ctx.runMutation(internal.facebookStore.updateTokenExpiry, {
         connectionId,
+        ...(expiresAt !== undefined ? { expiresAt } : {}),
       });
-      return {
-        success: false,
-        reason: "Connected Page is no longer administered by this account",
-      };
+
+      return { success: true, ...(expiresAt !== undefined ? { expiresAt } : {}) };
+    } finally {
+      await tracker.flush(ctx, conn.workspaceId);
     }
-
-    const pageToken = String(page.access_token);
-    await ctx.runMutation(internal.facebookStore.saveConnectedCredentials, {
-      workspaceId: conn.workspaceId,
-      pageId: String(page.id),
-      ...(page.name ? { pageName: page.name } : {}),
-      encryptedCredentials: await encryptCredentials(pageToken),
-      encryptedUserCredentials: await encryptCredentials(userToken),
-    });
-
-    const expiresAt = await fetchTokenExpiry(pageToken);
-    await ctx.runMutation(internal.facebookStore.updateTokenExpiry, {
-      connectionId,
-      ...(expiresAt !== undefined ? { expiresAt } : {}),
-    });
-
-    return { success: true, ...(expiresAt !== undefined ? { expiresAt } : {}) };
   },
 });
 
@@ -683,22 +752,27 @@ export const refreshAllTokens = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx): Promise<null> => {
-    const ids: Id<"connections">[] = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "meta_fb" },
-    );
-    for (const connectionId of ids) {
-      try {
-        await ctx.runAction(internal.facebook.refreshConnectionToken, {
-          connectionId,
-        });
-      } catch (err) {
-        console.warn(
-          "Facebook: osvežavanje tokena nije uspelo —",
-          err instanceof Error ? err.message : String(err),
-        );
+    // One run at a time (P2). Convex fires a cron on its own clock and does not
+    // ask whether the previous firing has finished; a pass that outgrows its
+    // cadence would otherwise run as two copies over the same allowance.
+    await withCronLock(ctx, CRON_LOCKS.fbTokens, async () => {
+      const ids: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_fb" },
+      );
+      for (const connectionId of ids) {
+        try {
+          await ctx.runAction(internal.facebook.refreshConnectionToken, {
+            connectionId,
+          });
+        } catch (err) {
+          console.warn(
+            "Facebook: osvežavanje tokena nije uspelo —",
+            err instanceof Error ? err.message : String(err),
+          );
+        }
       }
-    }
+    });
     return null;
   },
 });
@@ -851,6 +925,8 @@ export const syncFacebook = internalAction({
         const withInsights = await Promise.all(
           posts.map(async (post, index) => {
             if (index >= POST_INSIGHTS_LIMIT) return post;
+            // Meta already refused; the rest of the batch cannot land (P2).
+            if (tracker.throttled) return post;
             try {
               let res = await tracker.fetch(
                 buildPostInsightsUrl(post.postId, token),
@@ -903,6 +979,7 @@ export const syncFacebook = internalAction({
         );
 
         for (const postId of postIds) {
+          if (tracker.throttled) break; // P2: a refusal ends the loop
           try {
             const res = await tracker.fetch(
               buildPostCommentsUrl(
@@ -960,36 +1037,41 @@ export const syncAllFacebook = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx): Promise<null> => {
-    const ids: Id<"connections">[] = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "meta_fb" },
-    );
-    for (const connectionId of ids) {
-      try {
-        const conn: Doc<"connections"> | null = await ctx.runQuery(
-          internal.connections.getForSync,
-          { connectionId },
-        );
-        if (conn === null) continue;
+    // One run at a time (P2). Convex fires a cron on its own clock and does not
+    // ask whether the previous firing has finished; a pass that outgrows its
+    // cadence would otherwise run as two copies over the same allowance.
+    await withCronLock(ctx, CRON_LOCKS.fbSync, async () => {
+      const ids: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_fb" },
+      );
+      for (const connectionId of ids) {
+        try {
+          const conn: Doc<"connections"> | null = await ctx.runQuery(
+            internal.connections.getForSync,
+            { connectionId },
+          );
+          if (conn === null) continue;
 
-        const gate = await readGate(ctx, conn.workspaceId);
-        if (!allowsBackground(gate)) {
-          await ctx.runMutation(internal.metaSyncStore.recordJob, {
-            workspaceId: conn.workspaceId,
-            provider: "meta_fb",
-            job: "full",
-            ok: false,
-            skipReason:
-              "Potrošnja Meta limita je previsoka; sledeći prolaz preskočen.",
-          });
-          continue;
+          const gate = await readGate(ctx, conn.workspaceId);
+          if (!allowsBackground(gate)) {
+            await ctx.runMutation(internal.metaSyncStore.recordJob, {
+              workspaceId: conn.workspaceId,
+              provider: "meta_fb",
+              job: "full",
+              ok: false,
+              skipReason:
+                "Potrošnja Meta limita je previsoka; sledeći prolaz preskočen.",
+            });
+            continue;
+          }
+
+          await ctx.runAction(internal.facebook.syncFacebook, { connectionId });
+        } catch {
+          // Already recorded on the syncRuns row.
         }
-
-        await ctx.runAction(internal.facebook.syncFacebook, { connectionId });
-      } catch {
-        // Already recorded on the syncRuns row.
       }
-    }
+    });
     return null;
   },
 });

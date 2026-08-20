@@ -11,6 +11,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
 import { decryptCredentials } from "./lib/crypto";
+import { createUsageTracker } from "./lib/metaRateLimit";
 import {
   getMetaGraphVersion,
   buildMessengerProfileUrl,
@@ -501,70 +502,77 @@ export const publish = action({
       "Content-Type": "application/json",
     };
 
-    const fail = async (message: string): Promise<never> => {
-      await ctx.runMutation(internal.orProfileMenu.recordPublishResult, {
-        workspaceId: context.workspaceId,
-        publishError: message,
-      });
-      throw new ConvexError({ code: "invalid", message });
-    };
-
-    const body: Record<string, unknown> = { platform: "instagram" };
-    if (iceBreakers !== null) body.ice_breakers = iceBreakers;
-    if (persistentMenu !== null) body.persistent_menu = persistentMenu;
-
+    // Two writes to graph.instagram.com behind one button, and both count
+    // against the allowance the schedulers ration (P2).
+    const tracker = createUsageTracker();
     try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        return await fail(await graphError(res));
-      }
-    } catch (err) {
-      const rawMsg = err instanceof Error ? err.message : String(err);
-      return await fail(extractGraphApiError(rawMsg).slice(0, 300));
-    }
+      const fail = async (message: string): Promise<never> => {
+        await ctx.runMutation(internal.orProfileMenu.recordPublishResult, {
+          workspaceId: context.workspaceId,
+          publishError: message,
+        });
+        throw new ConvexError({ code: "invalid", message });
+      };
 
-    const emptyFields = [
-      ...(iceBreakers === null ? ["ice_breakers"] : []),
-      ...(persistentMenu === null ? ["persistent_menu"] : []),
-    ];
+      const body: Record<string, unknown> = { platform: "instagram" };
+      if (iceBreakers !== null) body.ice_breakers = iceBreakers;
+      if (persistentMenu !== null) body.persistent_menu = persistentMenu;
 
-    // Clearing a field means DELETE-ing it, so emptying the menu and
-    // publishing actually takes it off the profile. A field that was never set
-    // answers with an error, which is the ordinary case here — the publish
-    // itself already succeeded, so it is logged and not surfaced as a failed
-    // publish. "Proveri šta je objavljeno" is what settles any doubt.
-    if (emptyFields.length > 0) {
       try {
-        const res = await fetch(url, {
-          method: "DELETE",
+        const res = await tracker.fetch(url, {
+          method: "POST",
           headers,
-          body: JSON.stringify({ fields: emptyFields }),
+          body: JSON.stringify(body),
         });
         if (!res.ok) {
+          return await fail(await graphError(res));
+        }
+      } catch (err) {
+        const rawMsg = err instanceof Error ? err.message : String(err);
+        return await fail(extractGraphApiError(rawMsg).slice(0, 300));
+      }
+
+      const emptyFields = [
+        ...(iceBreakers === null ? ["ice_breakers"] : []),
+        ...(persistentMenu === null ? ["persistent_menu"] : []),
+      ];
+
+      // Clearing a field means DELETE-ing it, so emptying the menu and
+      // publishing actually takes it off the profile. A field that was never set
+      // answers with an error, which is the ordinary case here — the publish
+      // itself already succeeded, so it is logged and not surfaced as a failed
+      // publish. "Proveri šta je objavljeno" is what settles any doubt.
+      if (emptyFields.length > 0) {
+        try {
+          const res = await tracker.fetch(url, {
+            method: "DELETE",
+            headers,
+            body: JSON.stringify({ fields: emptyFields }),
+          });
+          if (!res.ok) {
+            console.warn(
+              "OpenReply: brisanje praznih polja messenger profila nije uspelo",
+              emptyFields.join(","),
+              await graphError(res),
+            );
+          }
+        } catch (err) {
           console.warn(
             "OpenReply: brisanje praznih polja messenger profila nije uspelo",
             emptyFields.join(","),
-            await graphError(res),
+            err instanceof Error ? err.message : String(err),
           );
         }
-      } catch (err) {
-        console.warn(
-          "OpenReply: brisanje praznih polja messenger profila nije uspelo",
-          emptyFields.join(","),
-          err instanceof Error ? err.message : String(err),
-        );
       }
-    }
 
-    await ctx.runMutation(internal.orProfileMenu.recordPublishResult, {
-      workspaceId: context.workspaceId,
-      publishedAt: Date.now(),
-    });
-    return null;
+      await ctx.runMutation(internal.orProfileMenu.recordPublishResult, {
+        workspaceId: context.workspaceId,
+        publishedAt: Date.now(),
+      });
+      return null;
+    } finally {
+      await tracker.flush(ctx, context.workspaceId);
+    }
   },
 });
 
@@ -578,8 +586,9 @@ export const unpublish = action({
   handler: async (ctx): Promise<null> => {
     const { context, token } = await loadToken(ctx);
 
+    const tracker = createUsageTracker();
     try {
-      const res = await fetch(buildMessengerProfileUrl(getMetaGraphVersion()), {
+      const res = await tracker.fetch(buildMessengerProfileUrl(getMetaGraphVersion()), {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -605,6 +614,8 @@ export const unpublish = action({
         code: "invalid",
         message: extractGraphApiError(rawMsg).slice(0, 300),
       });
+    } finally {
+      await tracker.flush(ctx, context.workspaceId);
     }
 
     await ctx.runMutation(internal.orProfileMenu.recordPublishResult, {
@@ -628,14 +639,15 @@ export const fetchLiveProfile = action({
   handler: async (
     ctx,
   ): Promise<{ iceBreakerQuestions: string[]; menuTitles: string[] }> => {
-    const { token } = await loadToken(ctx);
+    const { context, token } = await loadToken(ctx);
 
     const base = buildMessengerProfileUrl(getMetaGraphVersion());
 
+    const tracker = createUsageTracker();
     const readField = async (field: string): Promise<unknown> => {
       const url = new URL(base);
       url.searchParams.set("fields", field);
-      const res = await fetch(url.toString(), {
+      const res = await tracker.fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -663,6 +675,8 @@ export const fetchLiveProfile = action({
         code: "invalid",
         message: extractGraphApiError(rawMsg).slice(0, 300),
       });
+    } finally {
+      await tracker.flush(ctx, context.workspaceId);
     }
   },
 });

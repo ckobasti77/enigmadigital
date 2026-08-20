@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { decryptCredentials } from "./lib/crypto";
+import { createUsageTracker } from "./lib/metaRateLimit";
 import {
   getMetaGraphVersion,
   META_GRAPH_BASE_URL,
@@ -208,6 +209,10 @@ export const pauseResume = action({
       },
     );
 
+    // Every ad write is a call to graph.facebook.com and counts against the
+    // same allowance the syncs are rationing (P2).
+    const tracker = createUsageTracker();
+
     // 5. Execute Graph API POST
     const version = getMetaGraphVersion();
     const url = `${META_GRAPH_BASE_URL}/${version}/${args.targetId}`;
@@ -217,7 +222,7 @@ export const pauseResume = action({
     formData.append("access_token", accessToken);
 
     try {
-      const res = await fetch(url, {
+      const res = await tracker.fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString(),
@@ -263,6 +268,8 @@ export const pauseResume = action({
         code: "execution_error",
         message: errorMsg,
       });
+    } finally {
+      await tracker.flush(ctx, workspaceId);
     }
   },
 });
@@ -362,6 +369,10 @@ export const changeBudget = action({
       },
     );
 
+    // Every ad write is a call to graph.facebook.com and counts against the
+    // same allowance the syncs are rationing (P2).
+    const tracker = createUsageTracker();
+
     // 6. Execute Graph API POST (Meta expects daily_budget in cents)
     const budgetCents = Math.round(args.newDailyBudget * 100);
     const version = getMetaGraphVersion();
@@ -372,7 +383,7 @@ export const changeBudget = action({
     formData.append("access_token", accessToken);
 
     try {
-      const res = await fetch(url, {
+      const res = await tracker.fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString(),
@@ -418,6 +429,8 @@ export const changeBudget = action({
         code: "execution_error",
         message: errorMsg,
       });
+    } finally {
+      await tracker.flush(ctx, workspaceId);
     }
   },
 });
@@ -479,6 +492,10 @@ export const duplicateAd = action({
       },
     );
 
+    // Every ad write is a call to graph.facebook.com and counts against the
+    // same allowance the syncs are rationing (P2).
+    const tracker = createUsageTracker();
+
     // 5. Execute Graph API POST /<ad_id>/copies
     const version = getMetaGraphVersion();
     const url = `${META_GRAPH_BASE_URL}/${version}/${args.adId}/copies`;
@@ -491,7 +508,7 @@ export const duplicateAd = action({
     formData.append("access_token", accessToken);
 
     try {
-      const res = await fetch(url, {
+      const res = await tracker.fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString(),
@@ -544,6 +561,8 @@ export const duplicateAd = action({
         code: "execution_error",
         message: errorMsg,
       });
+    } finally {
+      await tracker.flush(ctx, workspaceId);
     }
   },
 });
@@ -653,6 +672,10 @@ export const createHookVersion = action({
       },
     );
 
+    // Every ad write is a call to graph.facebook.com and counts against the
+    // same allowance the syncs are rationing (P2).
+    const tracker = createUsageTracker();
+
     const version = getMetaGraphVersion();
 
     // 7. Execute Graph API POST /<sourceAdId>/copies (status_option: "PAUSED")
@@ -663,7 +686,7 @@ export const createHookVersion = action({
     formData.append("access_token", accessToken);
 
     try {
-      const copyRes = await fetch(copiesUrl, {
+      const copyRes = await tracker.fetch(copiesUrl, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString(),
@@ -698,7 +721,7 @@ export const createHookVersion = action({
           const actId = normalizeAdAccountId(sourceAd.accountExternalId);
           // Fetch source creative details
           const creativeUrl = `${META_GRAPH_BASE_URL}/${version}/${sourceAd.creativeId}?fields=id,name,object_story_spec,asset_feed_spec,image_url,thumbnail_url,video_id&access_token=${accessToken}`;
-          const crRes = await fetch(creativeUrl);
+          const crRes = await tracker.fetch(creativeUrl);
           if (crRes.ok) {
             const crJson = (await crRes.json().catch(() => ({}))) as {
               object_story_spec?: Record<string, unknown>;
@@ -725,7 +748,7 @@ export const createHookVersion = action({
               crFormData.append("object_story_spec", JSON.stringify(spec));
               crFormData.append("access_token", accessToken);
 
-              const newCrRes = await fetch(createCrUrl, {
+              const newCrRes = await tracker.fetch(createCrUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
                 body: crFormData.toString(),
@@ -739,7 +762,7 @@ export const createHookVersion = action({
                 const adUpdateData = new URLSearchParams();
                 adUpdateData.append("creative", JSON.stringify({ creative_id: newCrJson.id }));
                 adUpdateData.append("access_token", accessToken);
-                await fetch(updateAdUrl, {
+                await tracker.fetch(updateAdUrl, {
                   method: "POST",
                   headers: { "Content-Type": "application/x-www-form-urlencoded" },
                   body: adUpdateData.toString(),
@@ -790,6 +813,8 @@ export const createHookVersion = action({
         code: "execution_error",
         message: errorMsg,
       });
+    } finally {
+      await tracker.flush(ctx, workspaceId);
     }
   },
 });

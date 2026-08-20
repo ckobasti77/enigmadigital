@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { Resend as ResendClient } from "resend";
 import { decryptCredentials } from "./lib/crypto";
+import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
 import type { Id } from "./_generated/dataModel";
 import {
   getMetaGraphVersion,
@@ -13,6 +14,7 @@ import {
   type RawGraphApiResponse,
 } from "./lib/metaAdsApi";
 import { sanitizeSyncError } from "./lib/runSync";
+import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
 import type { EvaluationRuleContext } from "./rulesStore";
 
 // ── Email Notification Helpers ───────────────────────────────────────────────
@@ -284,6 +286,19 @@ async function runRuleEvaluations(
     },
   );
 
+  // A pause is a POST to graph.facebook.com and counts like any other Meta
+  // call (P2). One tracker per workspace rather than one per pause: this loop
+  // can walk several workspaces in a pass, and a usage reading belongs to the
+  // workspace whose allowance it describes.
+  const trackers = new Map<Id<"workspaces">, UsageTracker>();
+  const trackerFor = (workspaceId: Id<"workspaces">): UsageTracker => {
+    const existing = trackers.get(workspaceId);
+    if (existing !== undefined) return existing;
+    const created = createUsageTracker();
+    trackers.set(workspaceId, created);
+    return created;
+  };
+
   let totalTargetsChecked = 0;
   let firingsCount = 0;
   let notificationsSentCount = 0;
@@ -367,7 +382,12 @@ async function runRuleEvaluations(
         if (isWriteEnabled) {
           // Attempt pause via Meta API
           let pauseSuccess = false;
-          if (connection?.encryptedCredentials) {
+          // Meta has already refused this workspace in this pass; the next
+          // pause cannot land and asking extends the block (P2).
+          if (
+            connection?.encryptedCredentials &&
+            !trackerFor(rule.workspaceId).throttled
+          ) {
             try {
               const accessToken = await decryptCredentials(
                 connection.encryptedCredentials,
@@ -379,7 +399,7 @@ async function runRuleEvaluations(
                 formData.append("status", "PAUSED");
                 formData.append("access_token", accessToken.trim());
 
-                const res = await fetch(url, {
+                const res = await trackerFor(rule.workspaceId).fetch(url, {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/x-www-form-urlencoded",
@@ -477,6 +497,10 @@ async function runRuleEvaluations(
     }
   }
 
+  for (const [workspaceId, tracker] of trackers) {
+    await tracker.flush(ctx, workspaceId);
+  }
+
   return {
     evaluatedRulesCount: contexts.length,
     totalTargetsChecked,
@@ -495,7 +519,20 @@ async function runRuleEvaluations(
 export const evaluateRulesCron = internalAction({
   args: {},
   handler: async (ctx): Promise<EvaluationResultSummary> => {
-    return await runRuleEvaluations(ctx);
+    // One run at a time (P2). A pause is a Meta write, and two overlapping
+    // evaluations would send the same pause twice.
+    let summary: EvaluationResultSummary = {
+      evaluatedRulesCount: 0,
+      totalTargetsChecked: 0,
+      firingsCount: 0,
+      notificationsSentCount: 0,
+      pausesExecutedCount: 0,
+      writeDisabledFallbacksCount: 0,
+    };
+    await withCronLock(ctx, CRON_LOCKS.adRules, async () => {
+      summary = await runRuleEvaluations(ctx);
+    });
+    return summary;
   },
 });
 

@@ -9,6 +9,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { decryptCredentials } from "./lib/crypto";
+import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
 import {
   getMetaGraphVersion,
   buildPrivateReplyUrl,
@@ -484,6 +485,7 @@ async function resolveFollowsBusiness(
     version: string;
     force: boolean;
   },
+  tracker: UsageTracker,
 ): Promise<boolean | null> {
   if (!params.force) {
     // Annotated because this helper is part of the same module the internal
@@ -506,9 +508,10 @@ async function resolveFollowsBusiness(
 
   let body: unknown;
   try {
-    const res = await fetch(buildUserProfileUrl(params.igsid, params.version), {
-      headers: { Authorization: `Bearer ${params.token}` },
-    });
+    const res = await tracker.fetch(
+      buildUserProfileUrl(params.igsid, params.version),
+      { headers: { Authorization: `Bearer ${params.token}` } },
+    );
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       console.warn(
@@ -630,6 +633,15 @@ export const sendDm = internalAction({
 
     const version = getMetaGraphVersion();
 
+    // Up to four Meta calls leave this action — the follow check, the public
+    // reply, and the message itself (twice, if the gate sends its prompt
+    // first). All of them count (P2). Flushed at every exit below rather than
+    // in a `finally`, because `handleDmFailure` is itself an exit.
+    const tracker = createUsageTracker();
+    const flush = async (): Promise<void> => {
+      await tracker.flush(ctx, context.workspaceId);
+    };
+
     // 5b. Swap the automation's raw link for a tracked short link on our own
     // domain, so the click is logged and the UTM tags ride into GA4. Returns
     // null when there is no link or no configured short-link origin — in both
@@ -649,6 +661,7 @@ export const sendDm = internalAction({
     }
 
     const handleDmFailure = async (errorMsg: string): Promise<null> => {
+      await flush();
       const truncatedError = errorMsg.slice(0, 300);
       if (attempts >= 3) {
         await ctx.runMutation(internal.orSend.applyResult, {
@@ -699,7 +712,7 @@ export const sendDm = internalAction({
           context.platform === "facebook"
             ? buildPageCommentRepliesUrl(context.commentId, version)
             : buildCommentRepliesUrl(context.commentId, version);
-        const replyRes = await fetch(replyUrl, {
+        const replyRes = await tracker.fetch(replyUrl, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -758,17 +771,21 @@ export const sendDm = internalAction({
       context.automation.requireFollow &&
       context.replyMessage === undefined
     ) {
-      const follows = await resolveFollowsBusiness(ctx, {
-        workspaceId: context.workspaceId,
-        igsid: context.commenterIgsid,
-        token,
-        version,
-        force: context.followRecheck === true,
-      });
+      const follows = await resolveFollowsBusiness(
+        ctx,
+        {
+          workspaceId: context.workspaceId,
+          igsid: context.commenterIgsid,
+          token,
+          version,
+          force: context.followRecheck === true,
+        },
+        tracker,
+      );
 
       if (follows === false) {
         try {
-          const res = await fetch(sendUrl, {
+          const res = await tracker.fetch(sendUrl, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${token}`,
@@ -806,6 +823,7 @@ export const sendDm = internalAction({
           attempts,
           ...(await postPublicReply()),
         });
+        await flush();
         return null;
       }
     }
@@ -852,7 +870,7 @@ export const sendDm = internalAction({
         context.automation.linkLabel,
       );
 
-      const res = await fetch(sendUrl, {
+      const res = await tracker.fetch(sendUrl, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -895,6 +913,7 @@ export const sendDm = internalAction({
       dmSentAt: Date.now(),
       ...(await postPublicReply()),
     });
+    await flush();
 
     // 10. The delayed nudge. Scheduled only off a row that actually delivered
     // the automation's own message: a follow-up scheduling another one would

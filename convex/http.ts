@@ -6,6 +6,7 @@ import type { Id } from "./_generated/dataModel";
 import { auth } from "./auth";
 import { appendUtm, isBotUserAgent } from "./lib/orLink";
 import { decryptCredentials } from "./lib/crypto";
+import { createUsageTracker } from "./lib/metaRateLimit";
 import {
   buildMediaFieldsUrl,
   isMissingObjectError,
@@ -652,9 +653,35 @@ http.route({
 //
 // It redirects and never streams the bytes: pushing image data through a Convex
 // action would be slow and would burn resources for no gain.
+//
+// PUBLIC ALSO MEANS ANYONE (P2). A media id is readable off any permalink on
+// the profile, so an unauthenticated caller decides how often this code runs.
+// Exactly one situation may reach Instagram from here: a post WE ALREADY HOLD
+// whose stored link has aged out. An id we do not have, or a carousel slide
+// that is not in the stored `children`, is a 404 before a single Graph call —
+// otherwise a loop over invented ids would spend the account's whole Meta
+// allowance and take every sync down with it. And even the legitimate case is
+// claimed for a minute at a time, so a hot image cannot be refreshed on repeat.
 
 const IG_MEDIA_URL_TTL_MS = 12 * 60 * 60 * 1000; // refetch links older than 12h
 const IG_MEDIA_CACHE_HEADER = "public, max-age=3600"; // 1h in the browser
+
+/**
+ * How long one post is left alone after the proxy refreshed it (P2).
+ *
+ * Claimed in `metaTargetedSyncs` through the same `claimTargeted` mutation the
+ * webhook refresh uses — the claim has to be a transaction, because a page
+ * with twelve thumbnails on it makes twelve simultaneous requests and a
+ * check-then-write would let all twelve through.
+ *
+ * The key is PREFIXED rather than the bare media id: sharing the webhook's row
+ * would mean a thumbnail load silently suppressing the comment-driven refresh
+ * of the same post for the next half minute.
+ */
+const IG_MEDIA_REFRESH_CLAIM_MS = 60 * 1000;
+
+/** How often a 404 from the proxy may wake the daily deletion sweep. */
+const DELETION_SWEEP_CLAIM_MS = 60 * 60 * 1000;
 
 function igMediaRedirect(target: string): Response {
   return new Response(null, {
@@ -702,6 +729,18 @@ http.route({
       return igMediaError("Objava je obrisana.", 410);
     }
 
+    // A slide id that is not in the stored `children` is a slide we do not
+    // have, and asking Instagram about it would answer the same thing at the
+    // cost of a Graph call — a call an anonymous caller could ask for in a
+    // loop, forever, because the answer is never written down. 404 here, and
+    // nothing below this line runs (P2).
+    if (
+      childId !== undefined &&
+      !(media.children ?? []).some((child) => child.id === childId)
+    ) {
+      return igMediaError("Slika nije pronađena.", 404);
+    }
+
     // One slide, or the whole post — the rest of the route is identical.
     const resolve = (
       mediaUrl?: string,
@@ -718,14 +757,37 @@ http.route({
       media.children,
     );
     const isFresh = Date.now() - media.urlSyncedAt < IG_MEDIA_URL_TTL_MS;
-    if (storedUrl && isFresh) {
-      return igMediaRedirect(storedUrl);
+    if (isFresh) {
+      // Within the TTL the stored answer is the answer, including when the
+      // stored answer is "there is no picture". Refetching on a fresh record
+      // would be asking the same question twice a second for as long as
+      // somebody kept requesting it.
+      return storedUrl
+        ? igMediaRedirect(storedUrl)
+        : igMediaError("Slika nije dostupna.", 404);
     }
 
-    // Stale (or never stored) — ask Instagram for a fresh link. Without a live
-    // connection there is nothing to ask with, so the stale link is the best
-    // that is left.
+    // Stale — ask Instagram for a fresh link. Without a live connection there
+    // is nothing to ask with, so the stale link is the best that is left.
     if (!media.encryptedCredentials) {
+      return storedUrl
+        ? igMediaRedirect(storedUrl)
+        : igMediaError("Slika nije dostupna.", 404);
+    }
+
+    // The blunt repeat guard. Twelve thumbnails in one grid are one refresh,
+    // not twelve — and a caller hammering one expired id gets the stale link
+    // (or a 404) rather than a Graph call per request.
+    const claimed: boolean = await ctx.runMutation(
+      internal.metaSyncStore.claimTargeted,
+      {
+        workspaceId: media.workspaceId,
+        provider: "meta_ig",
+        mediaId: `proxy:${mediaId}`,
+        minIntervalMs: IG_MEDIA_REFRESH_CLAIM_MS,
+      },
+    );
+    if (!claimed) {
       return storedUrl
         ? igMediaRedirect(storedUrl)
         : igMediaError("Slika nije dostupna.", 404);
@@ -750,22 +812,53 @@ http.route({
         ? "media_url,thumbnail_url,children{id,media_type,media_url,thumbnail_url}"
         : "media_url,thumbnail_url";
 
+    // Through the tracker like every other Meta call (P2): this route is one of
+    // the app's busiest callers, and a gate that cannot see it is a gate that
+    // reports "ok" while the allowance is gone.
+    const tracker = createUsageTracker();
     let res: Response;
     try {
-      res = await fetch(buildMediaFieldsUrl(mediaId, fields, token));
+      res = await tracker.fetch(buildMediaFieldsUrl(mediaId, fields, token));
     } catch {
       return storedUrl
         ? igMediaRedirect(storedUrl)
         : igMediaError("Slika nije dostupna.", 502);
+    } finally {
+      await tracker.flush(ctx, media.workspaceId);
     }
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       if (isMissingObjectError(res.status, body)) {
-        await ctx.runMutation(internal.instagramStore.markMediaDeleted, {
-          id: media._id,
-        });
-        return igMediaError("Objava je obrisana.", 410);
+        // NOT a deletion verdict, and this route may not write one (P2).
+        //
+        // Meta answers code 100 / subcode 33 for a permission problem and for a
+        // token caught mid-rotation just as readily as for a post that is
+        // genuinely gone. This route is public: one such answer used to be
+        // enough for anyone to have a live post struck through in the grid and
+        // 410'd to every visitor until the next full sync six hours later.
+        //
+        // So it asks the pass that OWNS that verdict to go and look. The daily
+        // sweep re-probes each suspect on its own before writing anything, and
+        // it stands down on the rate-limit gate — and the claim keeps a stream
+        // of 404s from waking it more than once an hour.
+        const sweep: boolean = await ctx.runMutation(
+          internal.metaSyncStore.claimTargeted,
+          {
+            workspaceId: media.workspaceId,
+            provider: "meta_ig",
+            mediaId: "proxy:deletion-sweep",
+            minIntervalMs: DELETION_SWEEP_CLAIM_MS,
+          },
+        );
+        if (sweep) {
+          try {
+            await ctx.scheduler.runAfter(0, internal.metaSync.igDeletionCheck, {});
+          } catch {
+            // The sweep runs daily regardless; this only makes it sooner.
+          }
+        }
+        return igMediaError("Slika nije dostupna.", 404);
       }
       // Rate limit, expired token, transient failure — the stale link may well
       // still load, so it beats showing nothing.
@@ -798,11 +891,18 @@ http.route({
 // itself — so between "operator picked a file" and "post is live" that file has
 // to be reachable from the open internet. This route is that address.
 //
-// The storage id is the only protection, and it is enough: it is unguessable,
-// the file is there for minutes, and the whole point of the exercise is that
-// the picture is about to be published anyway. `Cache-Control: private` keeps
-// it out of shared caches for the short while it exists, and the file is
-// deleted the moment the post goes out (convex/instagramPublishStore.ts).
+// The storage id is unguessable, the file is there for minutes, and the whole
+// point of the exercise is that the picture is about to be published anyway.
+// `Cache-Control: private` keeps it out of shared caches for the short while it
+// exists, and the file is deleted the moment the post goes out
+// (convex/instagramPublishStore.ts).
+//
+// What the id is NOT is authorisation (P2). The route used to hand back
+// whatever `ctx.storage.get` returned, which made it a public reader of the
+// whole storage bucket — harmless only for as long as nothing but publish
+// uploads ever lived there, and silently catastrophic the first time something
+// else did. So the id now has to name a file that a LIVE publish job is
+// pointing at (convex/igUploadAccess.ts); anything else is a 404.
 //
 // Unlike /ig-media/ this one SERVES the bytes rather than redirecting: there is
 // nowhere to redirect to, the file lives here.
@@ -851,28 +951,37 @@ http.route({
 
     const storageId = decodeURIComponent(raw) as Id<"_storage">;
 
-    let blob: Blob | null;
+    // The authorisation, and it comes BEFORE the bytes are touched. One 404
+    // covers "no such file", "not owned by any job", "files already swept" and
+    // "that post is out" — telling an anonymous caller which of those it was
+    // would be telling it which storage ids exist.
+    let authorized: { contentType: string | null } | null;
     try {
-      blob = await ctx.storage.get(storageId);
+      authorized = await ctx.runQuery(internal.igUploadAccess.authorizeUpload, {
+        storageId,
+      });
     } catch {
-      // A malformed id lands here rather than as a 500.
+      // A malformed id fails the validator; that is a 404, not a 500.
       return new Response("Fajl nije pronađen.", { status: 404 });
     }
+    if (authorized === null) {
+      return new Response("Fajl nije pronađen.", { status: 404 });
+    }
+
+    const blob: Blob | null = await ctx.storage.get(storageId);
     if (blob === null) {
       return new Response("Fajl nije pronađen.", { status: 404 });
     }
 
     // Convex fills `blob.type` from the content type recorded at upload, so the
     // metadata read is only for the case where it did not — a file POSTed
-    // without the header. Meta refuses a wrong type outright, so this is worth
-    // one extra read rather than a guess from the bytes.
+    // without the header. Meta refuses a wrong type outright, so it is worth
+    // carrying the stored value rather than guessing from the bytes; the
+    // authorisation read already fetched it.
     const contentType =
       blob.type.length > 0
         ? blob.type
-        : ((await ctx.runQuery(
-            internal.instagramPublishStore.getUploadContentType,
-            { storageId },
-          )) ?? "application/octet-stream");
+        : (authorized.contentType ?? "application/octet-stream");
 
     const size = blob.size;
     const range = parseRange(request.headers.get("range"), size);

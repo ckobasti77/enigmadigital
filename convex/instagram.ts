@@ -8,6 +8,7 @@ import type { Id, Doc } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import { runSync, sanitizeSyncError } from "./lib/runSync";
+import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
 import {
   INSTAGRAM_OAUTH_TOKEN_URL,
   getMetaGraphVersion,
@@ -36,7 +37,12 @@ import {
   COMMENT_SYNC_WINDOW_MS,
   normalizeComments,
 } from "./lib/igComments";
-import { allowsBackground, createUsageTracker, readGate } from "./lib/metaRateLimit";
+import {
+  allowsBackground,
+  createUsageTracker,
+  readGate,
+  withUsageTracker,
+} from "./lib/metaRateLimit";
 
 /**
  * ============================================================================
@@ -173,7 +179,10 @@ async function exchangeCodeAndConnect(
     redirectUri: string;
   },
 ): Promise<OAuthResult> {
-  {
+  // Both OAuth calls go to graph.instagram.com, so both count against the same
+  // allowance the schedulers are rationing (P2). One tracker for the whole
+  // exchange, flushed even when a step throws at the UI.
+  return await withUsageTracker(ctx, workspaceId, async (tracker) => {
     const appId = process.env.INSTAGRAM_APP_ID?.trim();
     const appSecret = process.env.INSTAGRAM_APP_SECRET?.trim();
     const version = getMetaGraphVersion();
@@ -193,7 +202,7 @@ async function exchangeCodeAndConnect(
     tokenParams.set("redirect_uri", redirectUri);
     tokenParams.set("code", code);
 
-    const tokenRes = await fetch(INSTAGRAM_OAUTH_TOKEN_URL, {
+    const tokenRes = await tracker.fetch(INSTAGRAM_OAUTH_TOKEN_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -230,7 +239,7 @@ async function exchangeCodeAndConnect(
       shortLivedToken,
       version,
     );
-    const longLivedRes = await fetch(longLivedUrl);
+    const longLivedRes = await tracker.fetch(longLivedUrl);
 
     if (!longLivedRes.ok) {
       const errBody = await longLivedRes.text().catch(() => "");
@@ -252,7 +261,7 @@ async function exchangeCodeAndConnect(
     let igProfessionalId: string | undefined;
 
     try {
-      const meRes = await fetch(buildMeUrl(longLivedToken, version));
+      const meRes = await tracker.fetch(buildMeUrl(longLivedToken, version));
       if (meRes.ok) {
         const raw = (await meRes.json()) as
           | RawUserProfile
@@ -304,7 +313,7 @@ async function exchangeCodeAndConnect(
       username: username ?? null,
       expiresAt,
     };
-  }
+  });
 }
 
 /**
@@ -438,9 +447,12 @@ export const refreshConnectionToken = internalAction({
       return { success: false, status: "expired", reason: "Decryption failed" };
     }
 
+    // Daily, per connection, and straight at graph.instagram.com — so it counts
+    // like everything else does (P2).
+    const tracker = createUsageTracker();
     const refreshUrl = buildRefreshTokenUrl(token, version);
     try {
-      const res = await fetch(refreshUrl);
+      const res = await tracker.fetch(refreshUrl);
       if (!res.ok) {
         // Meta refresh endpoint returned an error -> token revoked/expired
         await ctx.runMutation(internal.instagramStore.markConnectionExpired, {
@@ -485,6 +497,8 @@ export const refreshConnectionToken = internalAction({
         status: "expired",
         reason: "Network or API failure",
       };
+    } finally {
+      await tracker.flush(ctx, conn.workspaceId);
     }
   },
 });
@@ -495,20 +509,25 @@ export const refreshConnectionToken = internalAction({
 export const refreshAllTokens = internalAction({
   args: {},
   handler: async (ctx): Promise<void> => {
-    const connectionIds: Id<"connections">[] = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "meta_ig" },
-    );
+    // One run at a time (P2). Convex fires a cron on its own clock and does not
+    // ask whether the previous firing has finished; a pass that outgrows its
+    // cadence would otherwise run as two copies over the same allowance.
+    await withCronLock(ctx, CRON_LOCKS.igTokens, async () => {
+      const connectionIds: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_ig" },
+      );
 
-    for (const connectionId of connectionIds) {
-      try {
-        await ctx.runAction(internal.instagram.refreshConnectionToken, {
-          connectionId,
-        });
-      } catch {
-        // Continue to next connection
+      for (const connectionId of connectionIds) {
+        try {
+          await ctx.runAction(internal.instagram.refreshConnectionToken, {
+            connectionId,
+          });
+        } catch {
+          // Continue to next connection
+        }
       }
-    }
+    });
   },
 });
 
@@ -649,6 +668,10 @@ export const syncIgInsights = internalAction({
         const mediaRows = [];
 
         for (const item of mediaItems) {
+          // Thirty per-post insight reads. After a refusal not one of them can
+          // land, and each attempt lengthens the block (P2). The posts already
+          // collected are still written below.
+          if (tracker.throttled) break;
           if (!item.id) continue;
 
           let mediaInsight = {
@@ -726,6 +749,7 @@ export const syncIgInsights = internalAction({
           .slice(0, COMMENT_MEDIA_LIMIT);
 
         for (const row of recent) {
+          if (tracker.throttled) break; // P2: a refusal ends the loop
           try {
             const res = await tracker.fetch(
               buildMediaCommentsUrl(
@@ -799,38 +823,43 @@ export const syncIgInsights = internalAction({
 export const syncAllIg = internalAction({
   args: {},
   handler: async (ctx): Promise<void> => {
-    const connectionIds: Id<"connections">[] = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "meta_ig" },
-    );
+    // One run at a time (P2). Convex fires a cron on its own clock and does not
+    // ask whether the previous firing has finished; a pass that outgrows its
+    // cadence would otherwise run as two copies over the same allowance.
+    await withCronLock(ctx, CRON_LOCKS.igSync, async () => {
+      const connectionIds: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_ig" },
+      );
 
-    for (const connectionId of connectionIds) {
-      try {
-        const conn: Doc<"connections"> | null = await ctx.runQuery(
-          internal.connections.getForSync,
-          { connectionId },
-        );
-        if (conn === null) continue;
+      for (const connectionId of connectionIds) {
+        try {
+          const conn: Doc<"connections"> | null = await ctx.runQuery(
+            internal.connections.getForSync,
+            { connectionId },
+          );
+          if (conn === null) continue;
 
-        const gate = await readGate(ctx, conn.workspaceId);
-        if (!allowsBackground(gate)) {
-          await ctx.runMutation(internal.metaSyncStore.recordJob, {
-            workspaceId: conn.workspaceId,
-            provider: "meta_ig",
-            job: "full",
-            ok: false,
-            skipReason:
-              "Potrošnja Meta limita je previsoka; sledeći prolaz preskočen.",
+          const gate = await readGate(ctx, conn.workspaceId);
+          if (!allowsBackground(gate)) {
+            await ctx.runMutation(internal.metaSyncStore.recordJob, {
+              workspaceId: conn.workspaceId,
+              provider: "meta_ig",
+              job: "full",
+              ok: false,
+              skipReason:
+                "Potrošnja Meta limita je previsoka; sledeći prolaz preskočen.",
+            });
+            continue;
+          }
+
+          await ctx.runAction(internal.instagram.syncIgInsights, {
+            connectionId,
           });
-          continue;
+        } catch {
+          // Recorded on syncRuns; continue with the next connection
         }
-
-        await ctx.runAction(internal.instagram.syncIgInsights, {
-          connectionId,
-        });
-      } catch {
-        // Recorded on syncRuns; continue with the next connection
       }
-    }
+    });
   },
 });

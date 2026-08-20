@@ -5,31 +5,73 @@ import { internal } from "./_generated/api";
 // OpenReply is synced hourly for near-real-time DM/click metrics.
 const crons = cronJobs();
 
+/**
+ * ============================================================================
+ * WHY THE META JOBS ARE ON `cron` AND NOT `interval` (P2)
+ * ============================================================================
+ *
+ * `crons.interval` counts from the moment of DEPLOY, and every cadence in this
+ * file — 1 min, 2 min, 15 min, 30 min, 1 h, 3 h, 6 h, 24 h — divides evenly
+ * into every longer one. So they do not merely overlap occasionally: they land
+ * on the SAME INSTANT, forever, by construction. Every six hours all eight Meta
+ * jobs fired together — around a hundred and seventy Graph calls in one breath.
+ *
+ * That single minute pushed the usage percentage past the warning threshold,
+ * and the gate then stood the schedulers down for the following hour. The
+ * dashboard went stale precisely BECAUSE the previous minute had pulled too
+ * hard. Spreading them costs nothing and removes the spike entirely.
+ *
+ * So each Meta job gets its own minute (and, above hourly, its own hour slot).
+ * The numbers are arbitrary but FIXED — the point is only that no two share
+ * one. Cron minutes are UTC; nothing here is tied to a wall-clock hour that a
+ * person cares about, so that is fine.
+ *
+ * The non-Meta jobs (GA4, Google Ads, YouTube, the publish queue, the file
+ * sweep) are left on `interval`: they spend a different quota, and lining them
+ * up with the Meta ones would only add coupling that does not exist today.
+ * ============================================================================
+ */
+
+/**
+ * "every N minutes, starting at minute `offset`" as a cron string.
+ *
+ * Written out as a comma list rather than the `*​/N` step form: the list is what
+ * Convex's own documentation uses, and this is not the place to find out the
+ * hard way that a step is parsed differently by the backend.
+ */
+function everyNMinutes(step: number, offset: number): string {
+  const minutes: number[] = [];
+  for (let minute = offset; minute < 60; minute += step) minutes.push(minute);
+  return `${minutes.join(",")} * * * *`;
+}
+
 crons.interval("sync ga4", { hours: 6 }, internal.ga4.syncAllGa4, {});
-crons.interval(
+// Level 3, six-hourly: the full Instagram pass, the most expensive in the app.
+crons.cron(
   "sync instagram",
-  { hours: 6 },
+  "5 0,6,12,18 * * *",
   internal.instagram.syncAllIg,
   {},
 );
-crons.interval(
+crons.cron(
   "refresh instagram tokens",
-  { hours: 24 },
+  "10 3 * * *",
   internal.instagram.refreshAllTokens,
   {},
 );
 // The Facebook Page (F5). Same cadence as Instagram for the same two reasons:
 // a Page restates its recent insights for a few days, and a Page token has to
 // be re-minted from the stored user token before that user token ages out.
-crons.interval(
+// Offset by an hour from Instagram's so the two never spend together.
+crons.cron(
   "sync facebook page",
-  { hours: 6 },
+  "35 1,7,13,19 * * *",
   internal.facebook.syncAllFacebook,
   {},
 );
-crons.interval(
+crons.cron(
   "refresh facebook tokens",
-  { hours: 24 },
+  "40 3 * * *",
   internal.facebook.refreshAllTokens,
   {},
 );
@@ -37,6 +79,10 @@ crons.interval(
 // The tick is cheap — one indexed read of what is due, and nothing at all when
 // nothing is. It doubles as the recovery path: a post whose direct run never
 // happened is still `queued` and still due, so the next tick picks it up.
+//
+// Stays on `interval`: it reads our own table, and the Meta calls it can lead
+// to are demand-driven — they happen when an operator scheduled a post, not
+// because a clock came round.
 crons.interval(
   "publish scheduled instagram posts",
   { minutes: 1 },
@@ -60,52 +106,50 @@ crons.interval(
 // It exists because Meta has NO webhook for publishing. A new post can only be
 // noticed by asking, and asking cheaply every two minutes costs less in a day
 // than a single full sync does.
-crons.interval(
+//
+// Instagram takes the even minutes and Facebook the odd ones, so the two never
+// ask at the same second.
+crons.cron(
   "instagram head check",
-  { minutes: 2 },
+  everyNMinutes(2, 0),
   internal.metaSync.igHeadCheck,
   {},
 );
-crons.interval(
+crons.cron(
   "facebook head check",
-  { minutes: 2 },
+  everyNMinutes(2, 1),
   internal.metaSync.fbHeadCheck,
   {},
 );
 // Level 3, hourly: the account snapshot and the posts published in the last two
 // weeks. Meta does not compute insights in real time, so an hour is not a
 // compromise here — it is roughly the resolution the numbers actually have.
-crons.interval(
-  "meta hourly refresh",
-  { hours: 1 },
-  internal.metaSync.hourlyRefresh,
-  {},
-);
+crons.cron("meta hourly refresh", "20 * * * *", internal.metaSync.hourlyRefresh, {});
 // Level 3, daily: which posts has Instagram stopped having? Moved off the
 // six-hourly sync in F6 — it costs up to twenty-five probes and answers a
 // question whose answer changes about once a month.
-crons.interval(
+crons.cron(
   "instagram deletion check",
-  { hours: 24 },
+  "15 4 * * *",
   internal.metaSync.igDeletionCheck,
   {},
 );
 
-crons.interval(
+crons.cron(
   "sync meta ads structure",
-  { hours: 3 },
+  "25 1,4,7,10,13,16,19,22 * * *",
   internal.metaAds.syncAllAdsStructure,
   {},
 );
-crons.interval(
+crons.cron(
   "sync meta ads hot insights",
-  { minutes: 15 },
+  everyNMinutes(15, 7),
   internal.metaAds.syncHotAdsInsights,
   {},
 );
-crons.interval(
+crons.cron(
   "sync meta ads all insights",
-  { hours: 6 },
+  "50 2,8,14,20 * * *",
   internal.metaAds.syncAllAdsInsights,
   {},
 );
@@ -126,9 +170,11 @@ crons.interval(
   internal.ytPoll.pollAllYouTubeComments,
   {},
 );
-crons.interval(
+// A firing rule PAUSES an ad through the Graph API, so this is a Meta job and
+// gets its own minutes like the rest of them.
+crons.cron(
   "evaluate ad rules",
-  { minutes: 30 },
+  everyNMinutes(30, 11),
   internal.rules.evaluateRulesCron,
   {},
 );

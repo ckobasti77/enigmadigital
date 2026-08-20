@@ -583,6 +583,9 @@ export const getMediaForProxy = internalQuery({
     v.null(),
     v.object({
       _id: v.id("igMediaStats"),
+      // The public route has no session to read a workspace from, and it needs
+      // one to claim its refresh against the same ledger everything else uses.
+      workspaceId: v.id("workspaces"),
       mediaType: v.string(),
       mediaUrl: v.optional(v.string()),
       thumbnailUrl: v.optional(v.string()),
@@ -608,6 +611,7 @@ export const getMediaForProxy = internalQuery({
 
     return {
       _id: row._id,
+      workspaceId: row.workspaceId,
       mediaType: row.mediaType,
       mediaUrl: row.mediaUrl,
       thumbnailUrl: row.thumbnailUrl,

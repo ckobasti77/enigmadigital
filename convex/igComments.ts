@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { decryptCredentials } from "./lib/crypto";
+import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
 import {
   buildCommentNodeUrl,
   buildCommentRepliesUrl,
@@ -62,6 +63,12 @@ type ModerationSession = {
   userId: Id<"users">;
   token: string;
   version: string;
+  /**
+   * Every write here is a Meta call, so every write is counted (P2). Moderation
+   * was one of the larger blind spots: a bulk delete is fifty calls off one
+   * click, and the gate could not see a single one of them.
+   */
+  tracker: UsageTracker;
 };
 
 /**
@@ -89,6 +96,7 @@ async function openSession(ctx: ActionCtx): Promise<ModerationSession> {
     userId: context.userId,
     token,
     version: getMetaGraphVersion(),
+    tracker: createUsageTracker(),
   };
 }
 
@@ -104,21 +112,23 @@ type GraphResult =
  * one helper is what stops one of them from quietly losing its credentials.
  */
 async function graphWrite(
+  ctx: ActionCtx,
+  session: ModerationSession,
   url: string,
   method: "POST" | "DELETE",
-  token: string,
   fields: Record<string, string> = {},
 ): Promise<GraphResult> {
+  const { token, tracker } = session;
   let res: Response;
   try {
     if (method === "DELETE") {
       const target = new URL(url);
       target.searchParams.set("access_token", token);
-      res = await fetch(target.toString(), { method: "DELETE" });
+      res = await tracker.fetch(target.toString(), { method: "DELETE" });
     } else {
       const params = new URLSearchParams(fields);
       params.set("access_token", token);
-      res = await fetch(url, {
+      res = await tracker.fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params.toString(),
@@ -126,6 +136,12 @@ async function graphWrite(
     }
   } catch {
     return { ok: false, message: NO_ANSWER };
+  } finally {
+    // Flushed per call rather than per action. These are single writes behind
+    // a button with no natural end-of-pass to batch against — and a refusal
+    // read here is what lets the bulk loop below stop on the next iteration
+    // instead of firing the other forty-nine into the same wall.
+    await tracker.flush(ctx, session.workspaceId);
   }
 
   const raw = await res.text().catch(() => "");
@@ -154,7 +170,7 @@ async function hideOne(
   commentId: string,
   hidden: boolean,
 ): Promise<void> {
-  const { workspaceId, userId, token, version } = session;
+  const { workspaceId, userId, version } = session;
 
   const comment = await ctx.runQuery(
     internal.igCommentsStore.getForModeration,
@@ -166,9 +182,10 @@ async function hideOne(
   }
 
   const result = await graphWrite(
+    ctx,
+    session,
     buildCommentNodeUrl(commentId, version),
     "POST",
-    token,
     { hide: hidden ? "true" : "false" },
   );
 
@@ -199,7 +216,7 @@ async function deleteOne(
   commentId: string,
   acknowledgeAutomation: boolean,
 ): Promise<void> {
-  const { workspaceId, userId, token, version } = session;
+  const { workspaceId, userId, version } = session;
 
   const comment = await ctx.runQuery(
     internal.igCommentsStore.getForModeration,
@@ -219,9 +236,10 @@ async function deleteOne(
   }
 
   const result = await graphWrite(
+    ctx,
+    session,
     buildCommentNodeUrl(commentId, version),
     "DELETE",
-    token,
   );
 
   await ctx.runMutation(internal.igCommentsStore.logModeration, {
@@ -266,7 +284,7 @@ export const replyToComment = action({
     }
 
     const session = await openSession(ctx);
-    const { workspaceId, userId, token, version } = session;
+    const { workspaceId, userId, version } = session;
 
     const comment = await ctx.runQuery(
       internal.igCommentsStore.getForModeration,
@@ -278,9 +296,10 @@ export const replyToComment = action({
     }
 
     const result = await graphWrite(
+      ctx,
+      session,
       buildCommentRepliesUrl(args.commentId, version),
       "POST",
-      token,
       { message },
     );
 
@@ -376,6 +395,7 @@ type BulkResult = {
  * why the other two are still there.
  */
 async function runBulk(
+  session: ModerationSession,
   commentIds: string[],
   each: (commentId: string) => Promise<void>,
 ): Promise<BulkResult> {
@@ -384,6 +404,16 @@ async function runBulk(
   let firstError: string | null = null;
 
   for (const commentId of commentIds) {
+    // Meta has refused. The remaining forty-nine cannot land either, and each
+    // attempt extends the block — so the rest are reported as failed without
+    // being sent (P2).
+    if (session.tracker.throttled) {
+      failed++;
+      firstError ??=
+        "Instagram privremeno ograničava pozive. Pokušaj ponovo za koji minut.";
+      continue;
+    }
+
     try {
       await each(commentId);
       succeeded++;
@@ -421,7 +451,7 @@ export const bulkSetHidden = action({
   handler: async (ctx, args): Promise<BulkResult> => {
     const ids = normalizeSelection(args.commentIds);
     const session = await openSession(ctx);
-    return await runBulk(ids, (commentId) =>
+    return await runBulk(session, ids, (commentId) =>
       hideOne(ctx, session, commentId, args.hidden),
     );
   },
@@ -436,7 +466,7 @@ export const bulkDelete = action({
   handler: async (ctx, args): Promise<BulkResult> => {
     const ids = normalizeSelection(args.commentIds);
     const session = await openSession(ctx);
-    return await runBulk(ids, (commentId) =>
+    return await runBulk(session, ids, (commentId) =>
       deleteOne(ctx, session, commentId, args.acknowledgeAutomation === true),
     );
   },
@@ -455,7 +485,8 @@ export const setCommentsEnabled = action({
   args: { mediaId: v.string(), enabled: v.boolean() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const { workspaceId, userId, token, version } = await openSession(ctx);
+    const session = await openSession(ctx);
+    const { workspaceId, userId, version } = session;
 
     const owned: boolean = await ctx.runQuery(
       internal.igCommentsStore.ownsMedia,
@@ -464,9 +495,10 @@ export const setCommentsEnabled = action({
     if (!owned) invalid("Objava ne pripada ovom nalogu.");
 
     const result = await graphWrite(
+      ctx,
+      session,
       buildMediaNodeUrl(args.mediaId, version),
       "POST",
-      token,
       { comment_enabled: args.enabled ? "true" : "false" },
     );
 
