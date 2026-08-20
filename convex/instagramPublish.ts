@@ -82,6 +82,19 @@ class PublishError extends Error {
   }
 }
 
+/**
+ * Thrown when a state transition is refused because the fence token no longer
+ * matches (R1/1): a second run claimed the job. The run that lost simply stops
+ * — it writes no failure, because the run that won is the one that will report
+ * the outcome. Distinct from `PublishError` so the catch can tell them apart.
+ */
+class LostJobError extends Error {
+  constructor() {
+    super("Posao je preuzeo drugi pokušaj.");
+    this.name = "LostJobError";
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -147,6 +160,8 @@ type Claim = {
   publishStartedAt?: number;
   attempts: number;
   fresh: boolean;
+  /** The fence token this run must present on every state transition (R1/1). */
+  runToken: string;
 };
 
 /** Which URL parameter carries this file — that is the whole of the difference. */
@@ -229,10 +244,13 @@ async function createCarouselContainer(
     }
 
     childIds.push(String(child.id));
-    await ctx.runMutation(
+    const held = await ctx.runMutation(
       internal.instagramPublishStore.saveChildContainers,
-      { jobId, childContainerIds: childIds },
+      { jobId, childContainerIds: childIds, runToken: claim.runToken },
     );
+    // Another run claimed this job while we were building it (R1/1). Stop —
+    // the containers already made are saved and the owner will use them.
+    if (!held) throw new LostJobError();
   }
 
   const parentParams = new URLSearchParams();
@@ -424,32 +442,48 @@ async function awaitContainer(
  */
 const RECOVERY_SLACK_MS = 5 * 60_000;
 
+/**
+ * How far AFTER the send the window still reaches (R1/1d). The post we lost was
+ * published seconds after `media_publish`; a post whose timestamp is well past
+ * that is a different post that happens to share a caption, and matching it
+ * would staple the wrong numbers to this job forever. Without an upper bound the
+ * window was open-ended into the future.
+ */
+const RECOVERY_FORWARD_MS = 15 * 60_000;
+
 /** How many recent posts are worth looking at — the lost one is the newest. */
 const RECOVERY_LOOKBACK = 10;
 
 /**
  * Which of these posts is ours, if any of them is.
  *
- * Two pieces of evidence, and both have to agree: the post appeared after we
- * pressed send, and it carries the caption we sent. A single surviving
- * candidate is an answer; two are not, and neither is none. Guessing between
- * two would attach somebody else's numbers to this row forever, which is worse
- * than the row saying it does not know.
+ * Two pieces of evidence, and both have to agree: the post appeared inside a
+ * bounded window around the send, and it carries the caption we sent. A single
+ * surviving candidate is an answer; two are not, and neither is none. Guessing
+ * between two would attach somebody else's numbers to this row forever, which is
+ * worse than the row saying it does not know.
+ *
+ * A post with no caption — every STORY, and a captionless feed post — carries NO
+ * distinguishing signal, so it is never matched (R1/1d). Timing alone used to be
+ * enough, which meant a story the operator posted from their phone two minutes
+ * before this send could take this job's id. "Unconfirmed" is the honest answer
+ * there; a wrong id is not.
  */
 export function matchPublishedMedia(
   items: Array<{ id?: string; caption?: string; timestamp?: string }>,
   params: { caption?: string; since: number },
 ): string | null {
-  const floor = params.since - RECOVERY_SLACK_MS;
   const wanted = params.caption?.trim();
+  // No caption, no distinguishing signal, no match.
+  if (wanted === undefined || wanted.length === 0) return null;
+
+  const floor = params.since - RECOVERY_SLACK_MS;
+  const ceiling = params.since + RECOVERY_FORWARD_MS;
 
   const candidates = items.filter((item) => {
     if (!item.id) return false;
     const at = Date.parse(item.timestamp ?? "");
-    if (!Number.isFinite(at) || at < floor) return false;
-    // A story, or a post with no caption, is matched on timing alone — there
-    // is nothing else to compare, and demanding more would never confirm.
-    if (wanted === undefined || wanted.length === 0) return true;
+    if (!Number.isFinite(at) || at < floor || at > ceiling) return false;
     return (item.caption ?? "").trim() === wanted;
   });
 
@@ -514,6 +548,7 @@ export const runPublishJob = internalAction({
         message:
           "Pristupni token Instagram naloga se ne može pročitati. Poveži nalog ponovo u Podešavanjima.",
         terminal: true,
+        runToken: claim.runToken,
       });
       return null;
     }
@@ -543,19 +578,29 @@ export const runPublishJob = internalAction({
             : await createSingleContainer(claim, token, version, tracker);
 
         processingSince = Date.now();
-        await ctx.runMutation(internal.instagramPublishStore.markProcessing, {
-          jobId,
-          containerId,
-        });
+        // A second run claimed this job while the container was being built
+        // (R1/1). Stop — the loser writes nothing.
+        if (
+          !(await ctx.runMutation(
+            internal.instagramPublishStore.markProcessing,
+            { jobId, containerId, runToken: claim.runToken },
+          ))
+        ) {
+          return null;
+        }
       } else if (claim.fresh) {
         // A retry that already owns a container: publish THAT one rather than
         // build a second copy of the same post. The deadline is re-armed,
         // because the wait genuinely starts again.
         processingSince = Date.now();
-        await ctx.runMutation(internal.instagramPublishStore.markProcessing, {
-          jobId,
-          containerId,
-        });
+        if (
+          !(await ctx.runMutation(
+            internal.instagramPublishStore.markProcessing,
+            { jobId, containerId, runToken: claim.runToken },
+          ))
+        ) {
+          return null;
+        }
       }
 
       const verdict = await awaitContainer(
@@ -569,32 +614,41 @@ export const runPublishJob = internalAction({
       );
       if (verdict === "waiting") return null; // a continuation is scheduled
 
-      if (verdict === "already-published") {
-        // An earlier run got this post out and lost the reply. The job ends
-        // here as a success, and `media_publish` is NOT sent — everything
-        // below this block is unreachable for it, on purpose.
-        const recovered = await recoverPublishedMediaId(
+      // `publishStartedAt` is a LOCK, not a note (R1/1a). If it is set, an
+      // earlier run already sent `media_publish` for this job — so a `ready`
+      // verdict here does NOT mean "send". Meta returns `FINISHED` and
+      // `PUBLISHED` interchangeably in this window, and betting on the string is
+      // exactly the double-post this file was rewritten to prevent. The only
+      // safe path is recovery, whatever the verdict says.
+      const alreadySent = claim.publishStartedAt !== undefined;
+      if (verdict === "already-published" || alreadySent) {
+        await finishAsRecovered(ctx, {
+          jobId,
           claim,
           token,
           version,
-          claim.publishStartedAt ?? processingSince,
+          since: claim.publishStartedAt ?? processingSince,
           tracker,
-        );
-        await ctx.runMutation(internal.instagramPublishStore.markPublished, {
-          jobId,
-          ...(recovered !== null
-            ? { publishedMediaId: recovered }
-            : { mediaIdUnconfirmed: true }),
-          connectionId: claim.connectionId,
+          // The container itself said PUBLISHED: the post is live for certain.
+          // A bare `alreadySent` with a `ready` verdict is the ambiguous case,
+          // where we cannot prove the send landed and must ask a person.
+          postKnownLive: verdict === "already-published",
         });
         return null;
       }
 
       // Written BEFORE the call, so a run that dies waiting for the answer
-      // leaves evidence that the call was made. See the file header.
-      await ctx.runMutation(internal.instagramPublishStore.markPublishing, {
-        jobId,
-      });
+      // leaves evidence that the call was made. See the file header. `false`
+      // means a second run took the job in the meantime (R1/1): stop rather
+      // than send.
+      if (
+        !(await ctx.runMutation(
+          internal.instagramPublishStore.markPublishing,
+          { jobId, runToken: claim.runToken },
+        ))
+      ) {
+        return null;
+      }
 
       const published = await graphPost(
         buildMediaPublishUrl(claim.igUserId, version),
@@ -615,8 +669,12 @@ export const runPublishJob = internalAction({
           ? { publishedMediaId: String(published.id) }
           : { mediaIdUnconfirmed: true }),
         connectionId: claim.connectionId,
+        runToken: claim.runToken,
       });
     } catch (err) {
+      // The run lost its fence token mid-flight (R1/1). The run that owns the
+      // job records the outcome; this one leaves the row alone.
+      if (err instanceof LostJobError) return null;
       const terminal = err instanceof PublishError ? err.terminal : false;
       const message =
         err instanceof Error && err.message.trim().length > 0
@@ -626,6 +684,7 @@ export const runPublishJob = internalAction({
         jobId,
         message,
         terminal,
+        runToken: claim.runToken,
       });
     } finally {
       await tracker.flush(ctx, claim.workspaceId);
@@ -634,6 +693,73 @@ export const runPublishJob = internalAction({
     return null;
   },
 });
+
+/**
+ * End a job whose post may already be on the profile, WITHOUT sending
+ * `media_publish` again (R1/1a).
+ *
+ * Reached two ways: the container answered `PUBLISHED` (the post is certainly
+ * live), or `publishStartedAt` is set and the container answered `FINISHED`
+ * (an earlier send whose outcome we cannot read). Both look for the media id
+ * through `me/media`; they differ only in what happens when it is not found —
+ * a certainly-live post is recorded without an id, an unprovable one is handed
+ * to a person rather than guessed at.
+ */
+async function finishAsRecovered(
+  ctx: ActionCtx,
+  params: {
+    jobId: Id<"igPublishJobs">;
+    claim: Claim;
+    token: string;
+    version: string;
+    since: number;
+    tracker: UsageTracker;
+    postKnownLive: boolean;
+  },
+): Promise<void> {
+  const { jobId, claim, token, version, since, tracker, postKnownLive } =
+    params;
+
+  const recovered = await recoverPublishedMediaId(
+    claim,
+    token,
+    version,
+    since,
+    tracker,
+  );
+
+  if (recovered !== null) {
+    await ctx.runMutation(internal.instagramPublishStore.markPublished, {
+      jobId,
+      publishedMediaId: recovered,
+      connectionId: claim.connectionId,
+      runToken: claim.runToken,
+    });
+    return;
+  }
+
+  if (postKnownLive) {
+    // The post exists; we simply could not name it. An honest gap beats an
+    // invented id, and beats a second post.
+    await ctx.runMutation(internal.instagramPublishStore.markPublished, {
+      jobId,
+      mediaIdUnconfirmed: true,
+      connectionId: claim.connectionId,
+      runToken: claim.runToken,
+    });
+    return;
+  }
+
+  // We sent once and cannot prove it landed. Stopping for a human is the whole
+  // point of the lock: better one manual check than two identical posts.
+  await ctx.runMutation(internal.instagramPublishStore.markFailure, {
+    jobId,
+    message:
+      "Ne mogu da potvrdim da li je objava otišla — proveri profil pa označi ručno.",
+    terminal: true,
+    runToken: claim.runToken,
+  });
+}
 
 async function createSingleContainer(
   claim: Claim,

@@ -1,9 +1,10 @@
 /**
  * ============================================================================
- * DOKAZ: nijedna tabela nekog providera ne ostaje van brisanja
+ * DOKAZ: nijedna tabela ne ostaje bez odluke o brisanju
  * ============================================================================
  *
- * Pokretanje (radi se i automatski, kao prvi korak `npm run build`):
+ * Pokretanje (radi se i automatski, kao prvi korak `npm run build` i
+ * `npm run deploy:convex`):
  *
  *   node --import ./scripts/ts-hooks.mjs scripts/verify-purge-coverage.ts
  *
@@ -13,63 +14,84 @@
  * brisanje. Taj kvar se ne vidi u testu koji proverava da brisanje radi — jer
  * brisanje i dalje radi, samo ne za sve.
  *
- * Ovde se, dakle, ne proverava da li brisanje radi, nego da li je POTPUNO.
- * Tri provere, i sve tri obaraju build:
+ * Ovde se, dakle, ne proverava da li brisanje radi, nego da li je POTPUNO — i
+ * to za SVAKU tabelu u šemi, ne samo za one čije ime počinje prefiksom
+ * providera (R1/4e). Ranije su `ruleFirings` (imena oglasa), `rules`, `syncRuns`
+ * i `pinnedBattles` prolazili nezapaženo baš zato što im ime ne počinje
+ * prefiksom.
  *
- *   1. Svaka tabela u šemi čije ime počinje prefiksom nekog providera
- *      (`yt`, `ig`, `fb`, `meta`, `ga4`, `gads`, `ad`, `or`) mora imati odluku
- *      u `TABLE_OWNERSHIP` — ili je neko briše, ili je izuzeta sa napisanim
- *      razlogom. Ćutanje nije opcija.
- *   2. Suvišan ključ u `TABLE_OWNERSHIP` (tabela koje više nema, ili prefiks
- *      koji je dodat u tip a ne i u `PROVIDER_TABLE_PREFIXES`) je isto greška.
+ * Četiri provere, i sve obaraju build:
+ *
+ *   1. SVAKA aplikaciona tabela u šemi (sve osim auth tabela, koje dolaze iz
+ *      `@convex-dev/auth` i izvode se odavde automatski) mora imati odluku — u
+ *      `TABLE_OWNERSHIP` (prefiksi) ili u `EXTRA_TABLE_OWNERSHIP` (ostalo). Ili
+ *      je neko briše, ili je izuzeta sa napisanim razlogom. Ćutanje nije opcija.
+ *   2. Suvišan ključ u mapama (tabela koje više nema) je isto greška.
  *   3. Ako mapa tvrdi da tabelu briše provider X, korak tog providera zaista
  *      mora da je navede. Inače mapa opisuje nameru, a ne kod.
- *
- * TypeScript hvata samo prvu od te tri, i to samo dok se tip
- * `ProviderPrefixedTable` i lista prefiksa poklapaju. Ovo hvata i ostalo.
+ *   4. Izuzeće bez razloga je greška.
  */
 
+import { authTables } from "@convex-dev/auth/server";
 import schema from "../convex/schema";
 import {
-  PROVIDER_TABLE_PREFIXES,
+  EXTRA_TABLE_OWNERSHIP,
   PURGE_STEPS,
   TABLE_OWNERSHIP,
 } from "../convex/lib/purgeMap";
 import { ALL_PROVIDERS, type Provider } from "../convex/lib/providers";
 
+type Disposition =
+  | { readonly purgedBy: readonly Provider[] }
+  | { readonly excluded: string };
+
 const problems: string[] = [];
 const notes: string[] = [];
 
-// ── 1 + 2: šema naspram mape ────────────────────────────────────────────────
+// ── priprema ────────────────────────────────────────────────────────────────
 
 const schemaTables = Object.keys(
   (schema as unknown as { tables: Record<string, unknown> }).tables,
 ).sort();
 
-const prefixed = schemaTables.filter((table) =>
-  PROVIDER_TABLE_PREFIXES.some((prefix) => table.startsWith(prefix)),
-);
+// Auth tabele stižu iz @convex-dev/auth i njima upravlja ta biblioteka. Izvode
+// se iz `authTables` da spisak nikada ne zastari kad se biblioteka nadogradi.
+const authTableNames = new Set(Object.keys(authTables));
 
-const owned = new Set(Object.keys(TABLE_OWNERSHIP));
+// Aplikacione tabele = sve osim auth tabela.
+const appTables = schemaTables.filter((table) => !authTableNames.has(table));
 
-for (const table of prefixed) {
-  if (!owned.has(table)) {
+const ownership: Record<string, Disposition> = {
+  ...(TABLE_OWNERSHIP as Record<string, Disposition>),
+  ...EXTRA_TABLE_OWNERSHIP,
+};
+const ownedKeys = new Set(Object.keys(ownership));
+
+// ── 1: svaka aplikaciona tabela ima odluku ──────────────────────────────────
+
+for (const table of appTables) {
+  if (!ownedKeys.has(table)) {
     problems.push(
-      `Tabela "${table}" po imenu pripada nekom provideru, a nema odluku u TABLE_OWNERSHIP (convex/lib/purgeMap.ts). Dodaj je u spisak brisanja ili je izuzmi sa razlogom.`,
+      `Tabela "${table}" nema odluku o brisanju. Dodaj je u TABLE_OWNERSHIP (ako ime počinje prefiksom providera) ili u EXTRA_TABLE_OWNERSHIP (convex/lib/purgeMap.ts) — obriši je kroz neki provajder ili je izuzmi sa razlogom.`,
     );
   }
 }
 
-const prefixedSet = new Set(prefixed);
-for (const table of owned) {
-  if (!prefixedSet.has(table)) {
+// ── 2: nema suvišnih ključeva ────────────────────────────────────────────────
+
+for (const table of ownedKeys) {
+  if (!schemaTables.includes(table)) {
     problems.push(
-      `TABLE_OWNERSHIP ima ključ "${table}" kojeg nema u šemi (ili se ne poklapa ni sa jednim prefiksom). Obriši ga ili uskladi PROVIDER_TABLE_PREFIXES.`,
+      `Odluka postoji za "${table}", ali te tabele nema u šemi. Obriši ključ.`,
+    );
+  } else if (authTableNames.has(table)) {
+    problems.push(
+      `Auth tabela "${table}" ne treba odluku ovde — njome upravlja @convex-dev/auth. Ukloni ključ.`,
     );
   }
 }
 
-// ── 3: mapa naspram stvarnih koraka ─────────────────────────────────────────
+// ── 3 + 4: mapa naspram stvarnih koraka, i izuzeća sa razlogom ───────────────
 
 const stepTablesByProvider = new Map<Provider, Set<string>>();
 for (const provider of ALL_PROVIDERS) {
@@ -88,7 +110,7 @@ for (const provider of ALL_PROVIDERS) {
   stepTablesByProvider.set(provider, tables);
 }
 
-for (const [table, disposition] of Object.entries(TABLE_OWNERSHIP)) {
+for (const [table, disposition] of Object.entries(ownership)) {
   if ("excluded" in disposition) {
     if (disposition.excluded.trim().length === 0) {
       problems.push(`Tabela "${table}" je izuzeta bez razloga.`);
@@ -111,7 +133,7 @@ for (const [table, disposition] of Object.entries(TABLE_OWNERSHIP)) {
     }
     if (!tables.has(table)) {
       problems.push(
-        `TABLE_OWNERSHIP kaže da "${provider}" briše "${table}", ali nijedan korak u PURGE_STEPS["${provider}"] tu tabelu ne dodiruje.`,
+        `TABLE mapa kaže da "${provider}" briše "${table}", ali nijedan korak u PURGE_STEPS["${provider}"] tu tabelu ne dodiruje.`,
       );
     }
   }
@@ -119,7 +141,7 @@ for (const [table, disposition] of Object.entries(TABLE_OWNERSHIP)) {
 
 // ── izveštaj ────────────────────────────────────────────────────────────────
 
-console.log("Pokrivenost brisanja (P3)\n");
+console.log("Pokrivenost brisanja (P3 / R1)\n");
 for (const provider of ALL_PROVIDERS) {
   const tables = [...(stepTablesByProvider.get(provider) ?? [])].sort();
   console.log(
@@ -139,5 +161,5 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `\n✓ ${prefixed.length} tabela sa prefiksom providera, svaka sa odlukom, svaki spisak se poklapa sa kodom.`,
+  `\n✓ ${appTables.length} aplikacionih tabela (+ ${authTableNames.size} auth), svaka sa odlukom, svaki spisak se poklapa sa kodom.`,
 );

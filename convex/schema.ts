@@ -57,6 +57,12 @@ export default defineSchema({
     status: connectionStatusValidator,
     expiresAt: v.optional(v.number()), // Meta long-lived tokens (60 days)
     lastSyncAt: v.optional(v.number()),
+    // Bumped every time a fresh grant is written to this row (a reconnect). A
+    // purge run records the generation it was opened for; a pass whose recorded
+    // generation no longer matches is working against a grant the operator has
+    // since replaced, and stops (R1/4c). Optional so pre-R1 rows read as
+    // generation 0 — the value `beginPurgeRun` also records for them.
+    generation: v.optional(v.number()),
   })
     .index("by_workspace_provider", ["workspaceId", "provider"])
     .index("by_provider", ["provider"]),
@@ -149,6 +155,14 @@ export default defineSchema({
     // When the picture URLs above were last refreshed. Kept apart from
     // `syncedAt` so a proxy refresh never pretends the STATS are fresh.
     mediaUrlSyncedAt: v.optional(v.number()),
+    // When the /ig-media/ proxy last FAILED to refresh this post's links, and
+    // the growing backoff it earned (R1/2a). A success clears both. Without
+    // them a failing refresh bought only the 60 s per-media claim, so while Meta
+    // refused, the ceiling was "one call per stored post per minute" — 18 000/h
+    // for a 300-post archive. The backoff (1m → 5m → 30m → 6h) makes a refusal
+    // buy MORE silence, not less.
+    mediaUrlAttemptedAt: v.optional(v.number()),
+    mediaUrlBackoffMs: v.optional(v.number()),
     // Set when Instagram reports the media is gone; cleared by the next sync
     // that still sees it.
     deletedAt: v.optional(v.number()),
@@ -170,7 +184,18 @@ export default defineSchema({
   })
     .index("by_workspace_media", ["workspaceId", "mediaId"]) // upsert by mediaId
     .index("by_workspace_published", ["workspaceId", "publishedAt"])
-    .index("by_workspace_deletion_checked", ["workspaceId", "deletionCheckedAt"])
+    // The deletion sweep's rotation. `deletedAt` is FIRST so the sweep can pin
+    // it to `undefined` and never walk a row that is already known gone (R1/5b):
+    // rows marked deleted before this index existed have no `deletionCheckedAt`,
+    // sorted ahead of everything, and used to fill the 400-row scan budget with
+    // rows the sweep then skipped — 400+ of them and detection stopped silently.
+    // Constraining `deletedAt` at the index level spends the budget only on live
+    // posts.
+    .index("by_workspace_deleted_checked", [
+      "workspaceId",
+      "deletedAt",
+      "deletionCheckedAt",
+    ])
     .index("by_media", ["mediaId"]), // public /ig-media/ proxy lookup
 
   // ── Instagram publishing (F3) ───────────────────────────────────────────────
@@ -230,8 +255,16 @@ export default defineSchema({
     // stale rather than live.
     claimedAt: v.optional(v.number()),
     // When `media_publish` was actually sent. Doubles as the lower bound of the
-    // window searched when a lost media id has to be recovered.
+    // window searched when a lost media id has to be recovered. It is ALSO the
+    // lock (R1/1): once set, no run may send `media_publish` again — a `ready`
+    // verdict goes to recovery instead, whatever Meta's `status_code` says.
     publishStartedAt: v.optional(v.number()),
+    // The fence token minted by `claimJob` on every claim (R1/1). Every state
+    // transition carries it and is refused if it no longer matches the row, so
+    // two runs that both claimed the same job — a scheduler race, a reclaim of a
+    // run that was still alive — cannot both advance it. The loser reads a
+    // mismatch and stops.
+    runToken: v.optional(v.string()),
     error: v.optional(v.string()),
     publishedMediaId: v.optional(v.string()),
     // The post is on the profile but we could not prove WHICH post it is —
@@ -282,6 +315,30 @@ export default defineSchema({
     // Erasure (P3) needs to ask "what does THIS workspace still hold" — a
     // question neither of the two indexes above can answer without a scan.
     .index("by_workspace", ["workspaceId"]),
+
+  // ── Instagram publishing: the reverse map from a file to its job (R1/5a) ────
+  //
+  // The public `/ig-upload/<storageId>` route has to answer one question fast —
+  // "is a live publish job pointing at this file?" — and `storageIds` is an
+  // ARRAY on `igPublishJobs`, which Convex cannot index by membership. The
+  // previous answer walked the 512 newest jobs across every workspace, and
+  // scheduling posts 90 days ahead pushes real jobs out of that window: the file
+  // for a post booked for next month is no longer in the 512, Instagram fetches
+  // it and gets a 404, and the scheduled post fails — the exact P1 bug, back
+  // through P2's scan.
+  //
+  // One row per (job, file) closes that: `createJob` writes them, the file
+  // deletions (publish success, sweep, purge, cancel) remove them, and the route
+  // looks a storage id straight up. A row exists iff a job is still pointing at
+  // the file, so its mere presence is the authorisation.
+  igPublishFiles: defineTable({
+    workspaceId: v.id("workspaces"),
+    storageId: v.id("_storage"),
+    jobId: v.id("igPublishJobs"),
+  })
+    .index("by_storage", ["storageId"])
+    // Removing a job's rows when its files go, without walking the whole table.
+    .index("by_job", ["jobId"]),
 
   // ── Instagram komentari (F4) ────────────────────────────────────────────────
   // Every comment we have ever seen on our own posts — not only the ones that
@@ -639,7 +696,11 @@ export default defineSchema({
     .index("by_workspace_comment", ["workspaceId", "commentId"])
     .index("by_automation", ["automationId"])
     .index("by_workspace_status", ["workspaceId", "status"])
-    .index("by_workspace_date", ["workspaceId", "date"]),
+    .index("by_workspace_date", ["workspaceId", "date"])
+    // Erasure drains this per platform (R1/4g): a Meta disconnect must take the
+    // message text and handles it pulled through THAT connection, the same
+    // obligation `igComments` meets. `undefined` reads as instagram.
+    .index("by_workspace_platform", ["workspaceId", "platform"]),
 
   // The dedup key stays [workspaceId, commentId] and the platform is compared
   // in code (orIngest.ts). Putting it in the index instead would have meant
@@ -652,7 +713,9 @@ export default defineSchema({
     ),
     commentId: v.string(),
     processedAt: v.number(),
-  }).index("by_workspace_comment", ["workspaceId", "commentId"]),
+  })
+    .index("by_workspace_comment", ["workspaceId", "commentId"])
+    .index("by_workspace_platform", ["workspaceId", "platform"]), // erasure (R1/4g)
 
   // One row per person who has ever written to the account. `lastUserMessageAt`
   // is the gate for Meta's 24h messaging window: the app may only reply inside
@@ -675,7 +738,9 @@ export default defineSchema({
     followsBusiness: v.optional(v.boolean()),
     followCheckedAt: v.optional(v.number()),
     createdAt: v.number(),
-  }).index("by_workspace_igsid", ["workspaceId", "igsid"]),
+  })
+    .index("by_workspace_igsid", ["workspaceId", "igsid"])
+    .index("by_workspace_platform", ["workspaceId", "platform"]), // erasure (R1/4g)
 
   // Inbound DMs, kept for de-duplication — Meta redelivers a webhook whenever
   // it does not get a 200 fast enough.
@@ -688,7 +753,9 @@ export default defineSchema({
     igsid: v.string(),
     text: v.string(),
     receivedAt: v.number(),
-  }).index("by_workspace_mid", ["workspaceId", "mid"]),
+  })
+    .index("by_workspace_mid", ["workspaceId", "mid"])
+    .index("by_workspace_platform", ["workspaceId", "platform"]), // erasure (R1/4g)
 
   // Button taps coming back from message buttons.
   orPostbacks: defineTable({
@@ -855,9 +922,12 @@ export default defineSchema({
     lastSyncAt: v.number(),
   })
     .index("by_provider_media", ["provider", "mediaId"])
-    // Not dead, despite no `withIndex` in any sync path: the purge engine (P3)
-    // drains this table per workspace and per provider through it. Dropping it
-    // would turn every disconnect into a full-table scan.
+    // The purge engine drains this table per workspace AND per provider. Reading
+    // `by_workspace` and `.filter()`-ing the provider walked every row of the
+    // other Meta connection first — a workspace with 18 000 meta_fb rows and
+    // 2 000 meta_ig rows blew the read limit before the first meta_ig row and the
+    // whole erasure failed (R1/4a). The provider is in the index now.
+    .index("by_workspace_provider", ["workspaceId", "provider"])
     .index("by_workspace", ["workspaceId"]),
 
   // Ads Command module (V2 - PLAN.md §7.3).
@@ -1355,6 +1425,12 @@ export default defineSchema({
     // The connection row this erasure will delete once it is finished. Absent
     // only if that row disappeared some other way in the meantime.
     connectionId: v.optional(v.id("connections")),
+    // The connection's `generation` when this run opened (R1/4c). A reconnect
+    // reuses the SAME connection row, so `connectionId` alone cannot tell "the
+    // grant this run is erasing" from "a fresh grant on the same row". Every pass
+    // compares this against the live row and stops on a mismatch, so a resumed
+    // stale chain can never reach into a reconnected account's data.
+    connectionGeneration: v.optional(v.number()),
     startedAt: v.number(),
     // Touched by every pass that commits. The watchdog reads nothing else to
     // decide whether a run is still moving.
@@ -1377,6 +1453,22 @@ export default defineSchema({
     // any pass that deletes something, so a big slow purge is never mistaken
     // for a stuck one.
     resumes: v.number(),
+    // Set once every step has been walked forward at least once. Deletion runs
+    // in parallel with the revoke retries (R1/4d), so the run is only finalised
+    // when this is true AND the revoke has settled — see `maybeFinalize`.
+    deletionDone: v.optional(v.boolean()),
+    // Verification cycles run after the forward pass (R1/4b). "done" is written
+    // only when a WHOLE re-scan of every step deletes zero rows — the guarantee
+    // that a webhook write which landed in an already-finished step's table
+    // cannot be sealed in as "obrisano". `sweepDeleted` accumulates one cycle's
+    // deletions across its several batches.
+    finalSweeps: v.optional(v.number()),
+    sweepDeleted: v.optional(v.number()),
+    // How many times the revoke has been attempted (R1/4d). A failed attempt
+    // keeps the credentials and retries, up to a ceiling, instead of the old
+    // behaviour that wiped the token on the first failure and could never revoke
+    // it again.
+    revokeAttempts: v.optional(v.number()),
     // Whether the token was handed back to the provider BEFORE the credentials
     // were destroyed. "unsupported" means the provider has no revoke endpoint
     // for this kind of credential (a GA4 service account key, for one) — not
@@ -1417,4 +1509,24 @@ export default defineSchema({
     // "broken since forever" from "one stray request last Tuesday".
     lastOkAt: v.optional(v.number()),
   }).index("by_route", ["route"]),
+
+  // ── Per-route hourly ceiling on the public HTTP routes (R1/2c, 2d) ──────────
+  //
+  // `/ig-media/` and `/r/` are public and unauthenticated, and each one drives a
+  // write the caller does not pay for: `/ig-media/` an outbound Graph call,
+  // `/r/` an `orLinkClicks` insert. A fixed-window counter per (workspace, route)
+  // caps how many of those an hour of traffic can start; over the ceiling the
+  // route stops the outbound work (serving the stale answer, or skipping the
+  // click) and stamps `cappedAt` so Settings can say it happened.
+  //
+  // At most `limit`+1 writes to a row per window on purpose: once the count
+  // reaches the ceiling the mutation stops incrementing, so a flood of requests
+  // cannot turn this row itself into the write storm it exists to prevent.
+  publicRouteUsage: defineTable({
+    workspaceId: v.id("workspaces"),
+    route: v.string(), // "ig-media" | "r"
+    windowStartedAt: v.number(),
+    count: v.number(),
+    cappedAt: v.optional(v.number()),
+  }).index("by_workspace_route", ["workspaceId", "route"]),
 });

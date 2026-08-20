@@ -4,6 +4,11 @@ import { internal } from "./_generated/api";
 import { generateSlug, shortLinkOrigin } from "./lib/orLink";
 import { slugify } from "./lib/slug";
 import { utcDateKey } from "./lib/orMatch";
+import {
+  claimPublicRouteCall,
+  R_HOURLY_CAP,
+  ROUTE_WINDOW_MS,
+} from "./publicRouteLimit";
 
 /**
  * OpenReply tracked short links (PLAN.md §4 / Step 4).
@@ -134,7 +139,21 @@ export const registerClick = internalMutation({
     // Same slugify the Atribucija screen joins GA4 campaigns on.
     const campaignSlug = automation === null ? "" : slugify(automation.name);
 
-    if (args.countClick) {
+    // The redirect ALWAYS happens; only the click WRITE is capped (R1/2d). This
+    // route is public and every hit inserts an `orLinkClicks` row with a rollup
+    // recompute behind it — an unauthenticated write amplifier bounded only by a
+    // user-agent bot filter. Over the hourly ceiling the visitor still reaches
+    // the destination; the click just is not counted.
+    const withinCap = args.countClick
+      ? await claimPublicRouteCall(ctx, {
+          workspaceId: link.workspaceId,
+          route: "r",
+          limit: R_HOURLY_CAP,
+          windowMs: ROUTE_WINDOW_MS,
+        })
+      : false;
+
+    if (args.countClick && withinCap) {
       const now = Date.now();
       const date = utcDateKey(now);
 

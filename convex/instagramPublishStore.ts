@@ -296,6 +296,12 @@ export const createJob = mutation({
       createdBy: userId,
     });
 
+    // The reverse map the public /ig-upload/ route reads (R1/5a): one row per
+    // file, looked up by storage id with no scan. Removed when the files go.
+    for (const storageId of storageIds) {
+      await ctx.db.insert("igPublishFiles", { workspaceId, storageId, jobId });
+    }
+
     await claimUploads(ctx, storageIds);
 
     if (scheduledFor === undefined) {
@@ -570,6 +576,14 @@ const claimValidator = v.object({
   attempts: v.number(),
   /** `true` when this run created the claim, `false` for a polling round. */
   fresh: v.boolean(),
+  /**
+   * The fence token for this claim (R1/1). Minted fresh on every claim and
+   * written to the row, so a second claim invalidates the first. Every state
+   * transition below carries it back and is refused on a mismatch — the run
+   * that no longer owns the job stops instead of publishing beside the one that
+   * does.
+   */
+  runToken: v.string(),
 });
 
 /**
@@ -626,13 +640,39 @@ export const claimJob = internalMutation({
       return null;
     }
 
+    // Backfill the file→job rows for a job created before they existed (R1/5a).
+    // The public `/ig-upload/` route now authorises by these rows, so a job
+    // still holding bytes must have them before Instagram is handed the URL.
+    // One indexed read per claim; the insert runs once and never again.
+    if (job.filesDeletedAt === undefined && job.storageIds.length > 0) {
+      const anyFileRow = await ctx.db
+        .query("igPublishFiles")
+        .withIndex("by_job", (q) => q.eq("jobId", jobId))
+        .first();
+      if (anyFileRow === null) {
+        for (const storageId of job.storageIds) {
+          await ctx.db.insert("igPublishFiles", {
+            workspaceId: job.workspaceId,
+            storageId,
+            jobId,
+          });
+        }
+      }
+    }
+
     const fresh = job.status === "queued";
+    // A fresh fence token per claim. Two schedulers can aim at the same
+    // queued/processing job in the same second; both write a token, the second
+    // overwrites the first, and every later transition the loser tries is
+    // refused because the row no longer carries its token (R1/1).
+    const runToken = crypto.randomUUID();
     await ctx.db.patch(jobId, {
       // Stamped on EVERY claim, polling rounds included: this is what makes
       // "uploading since 09:00" distinguishable from "a run that died at
       // 09:00 and left the word there". A live poll refreshes it every few
       // minutes; a dead run never does.
       claimedAt: now,
+      runToken,
       ...(fresh
         ? {
             status: "uploading" as const,
@@ -670,6 +710,7 @@ export const claimJob = internalMutation({
         : {}),
       attempts: fresh ? job.attempts + 1 : job.attempts,
       fresh,
+      runToken,
     };
   },
 });
@@ -685,13 +726,15 @@ export const saveChildContainers = internalMutation({
   args: {
     jobId: v.id("igPublishJobs"),
     childContainerIds: v.array(v.string()),
+    runToken: v.string(),
   },
-  returns: v.null(),
-  handler: async (ctx, { jobId, childContainerIds }) => {
+  // `false` = this run no longer owns the job (R1/1); the caller must stop.
+  returns: v.boolean(),
+  handler: async (ctx, { jobId, childContainerIds, runToken }) => {
     const job = await ctx.db.get(jobId);
-    if (job === null) return null;
+    if (job === null || job.runToken !== runToken) return false;
     await ctx.db.patch(jobId, { childContainerIds, updatedAt: Date.now() });
-    return null;
+    return true;
   },
 });
 
@@ -704,11 +747,13 @@ export const markProcessing = internalMutation({
   args: {
     jobId: v.id("igPublishJobs"),
     containerId: v.string(),
+    runToken: v.string(),
   },
-  returns: v.null(),
-  handler: async (ctx, { jobId, containerId }) => {
+  // `false` = the fence token no longer matches; the run lost the job (R1/1).
+  returns: v.boolean(),
+  handler: async (ctx, { jobId, containerId, runToken }) => {
     const job = await ctx.db.get(jobId);
-    if (job === null) return null;
+    if (job === null || job.runToken !== runToken) return false;
     const now = Date.now();
     await ctx.db.patch(jobId, {
       status: "processing",
@@ -716,7 +761,7 @@ export const markProcessing = internalMutation({
       processingSince: now,
       updatedAt: now,
     });
-    return null;
+    return true;
   },
 });
 
@@ -733,11 +778,14 @@ export const markProcessing = internalMutation({
  * `convex/instagramPublish.ts`.
  */
 export const markPublishing = internalMutation({
-  args: { jobId: v.id("igPublishJobs") },
-  returns: v.null(),
-  handler: async (ctx, { jobId }) => {
+  args: { jobId: v.id("igPublishJobs"), runToken: v.string() },
+  // `false` = the run lost the fence token and must NOT send `media_publish`
+  // (R1/1). This is the last transition before the irreversible call, so it is
+  // the one that matters most.
+  returns: v.boolean(),
+  handler: async (ctx, { jobId, runToken }) => {
     const job = await ctx.db.get(jobId);
-    if (job === null) return null;
+    if (job === null || job.runToken !== runToken) return false;
 
     const now = Date.now();
     await ctx.db.patch(jobId, {
@@ -746,7 +794,7 @@ export const markPublishing = internalMutation({
       claimedAt: now,
       updatedAt: now,
     });
-    return null;
+    return true;
   },
 });
 
@@ -780,14 +828,17 @@ export const markPublished = internalMutation({
     /** Set instead, when the id could not be established at all. */
     mediaIdUnconfirmed: v.optional(v.boolean()),
     connectionId: v.id("connections"),
+    runToken: v.string(),
   },
-  returns: v.null(),
+  // `false` = the run lost the fence token (R1/1); the run that owns the job
+  // will record the outcome instead.
+  returns: v.boolean(),
   handler: async (
     ctx,
-    { jobId, publishedMediaId, mediaIdUnconfirmed, connectionId },
+    { jobId, publishedMediaId, mediaIdUnconfirmed, connectionId, runToken },
   ) => {
     const job = await ctx.db.get(jobId);
-    if (job === null) return null;
+    if (job === null || job.runToken !== runToken) return false;
 
     const now = Date.now();
     for (const storageId of job.storageIds) {
@@ -797,6 +848,7 @@ export const markPublished = internalMutation({
         // Already gone is the outcome we wanted anyway.
       }
     }
+    await deletePublishFileRows(ctx, jobId);
 
     await ctx.db.patch(jobId, {
       status: "published",
@@ -818,7 +870,7 @@ export const markPublished = internalMutation({
         });
       }
     }
-    return null;
+    return true;
   },
 });
 
@@ -837,12 +889,14 @@ export const markFailure = internalMutation({
     message: v.string(),
     /** Skip the retry chain: nothing about this failure will change on its own. */
     terminal: v.optional(v.boolean()),
+    runToken: v.string(),
   },
-  returns: v.null(),
-  handler: async (ctx, { jobId, message, terminal = false }) => {
+  // `false` = the run lost the fence token (R1/1); the owner reports the outcome.
+  returns: v.boolean(),
+  handler: async (ctx, { jobId, message, terminal = false, runToken }) => {
     const job = await ctx.db.get(jobId);
-    if (job === null) return null;
-    if (job.status === "published" || job.status === "canceled") return null;
+    if (job === null || job.runToken !== runToken) return false;
+    if (job.status === "published" || job.status === "canceled") return true;
 
     const now = Date.now();
     const delay = terminal ? null : retryDelayMs(job.attempts);
@@ -863,7 +917,7 @@ export const markFailure = internalMutation({
         error: text,
         updatedAt: now,
       });
-      return null;
+      return true;
     }
 
     await ctx.db.patch(jobId, {
@@ -872,7 +926,7 @@ export const markFailure = internalMutation({
       scheduledFor: now + delay,
       updatedAt: now,
     });
-    return null;
+    return true;
   },
 });
 
@@ -1130,9 +1184,29 @@ async function deleteJobFiles(
       // Already gone is the outcome we wanted anyway.
     }
   }
+  await deletePublishFileRows(ctx, job._id);
 
   const now = Date.now();
   await ctx.db.patch(job._id, { filesDeletedAt: now, updatedAt: now });
+}
+
+/**
+ * Drop the file→job rows for a job whose bytes are gone (R1/5a).
+ *
+ * Called wherever `storageIds` are deleted — publish success, the 24h sweep,
+ * the purge engine — so the /ig-upload/ lookup and the disk stay in step.
+ */
+export async function deletePublishFileRows(
+  ctx: MutationCtx,
+  jobId: Id<"igPublishJobs">,
+): Promise<void> {
+  const rows = await ctx.db
+    .query("igPublishFiles")
+    .withIndex("by_job", (q) => q.eq("jobId", jobId))
+    .collect();
+  for (const row of rows) {
+    await ctx.db.delete(row._id);
+  }
 }
 
 // ── what the publishing-limit action needs ───────────────────────────────────

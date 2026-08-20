@@ -142,6 +142,11 @@ async function loadConnection(
     { connectionId },
   );
   if (conn === null || conn.provider !== provider) return null;
+  // Mid-erasure this connection accepts no reads-that-write (R1/4b): a targeted
+  // refresh fired by a webhook must not repopulate a table the purge is
+  // draining. The credentials are wiped once revoke settles, but the revoke
+  // retries can keep them alive for a while, so status is the honest gate here.
+  if (conn.status === "disconnecting") return null;
   if (!conn.encryptedCredentials) return null;
 
   try {

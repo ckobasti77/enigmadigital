@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * DOKAZ: kontejner koji je već `PUBLISHED` se NE objavljuje po drugi put
+ * DOKAZ: `media_publish` se šalje NAJVIŠE jednom po poslu
  * ============================================================================
  *
  * Pokretanje:
@@ -11,16 +11,23 @@
  * `convex/instagramPublish.ts`, preko `._handler`, koji Convex ostavlja na
  * registrovanoj funkciji. Lažni su samo `ctx` i `fetch`, dakle baza i Meta.
  *
- * Šta se dokazuje:
+ * Posle R1 zaštita više ne visi o Metinom `status_code`. `publishStartedAt` je
+ * BRAVA: čim je postavljen, nijedan prolaz ne sme da pošalje `media_publish`
+ * ponovo — ide u putanju oporavka, ma šta kontejner vraćao. Zato scenariji
+ * pokrivaju oba stanja polja, i „FINISHED" više nije dovoljan da se pošalje.
  *
- *   A) `status_code: "PUBLISHED"` + objava koja se prepoznaje u feed-u
- *      → nula `POST /media_publish`, posao se zatvara kao uspešan sa pravim id-em
- *   B) `status_code: "PUBLISHED"` + feed u kojem se ne razaznaje koja je objava
- *      → nula `POST /media_publish`, posao se zatvara sa `mediaIdUnconfirmed`
- *   C) `status_code: "FINISHED"` (uobičajen put)
- *      → tačno jedan `POST /media_publish`, i `markPublishing` je upisan PRE njega
+ *   A) `PUBLISHED` + `publishStartedAt` set + objava se prepoznaje u feed-u
+ *      → nula `media_publish`, posao se zatvara sa pravim id-em
+ *   B) `PUBLISHED` + `publishStartedAt` set + feed sa dva kandidata
+ *      → nula `media_publish`, posao se zatvara sa `mediaIdUnconfirmed`
+ *   C) `FINISHED` + `publishStartedAt` set + feed prazan (ne može da se potvrdi)
+ *      → nula `media_publish`, posao staje kao `failed` i traži čoveka (R1/1a)
+ *   D) `FINISHED` + `publishStartedAt` NIJE set (prvi pokušaj) — uobičajen put
+ *      → tačno jedan `media_publish`, i `markPublishing` je upisan PRE njega
+ *   E) fence token se ne poklapa (`markPublishing` vraća false)
+ *      → nula `media_publish`: prolaz koji je izgubio posao ćuti (R1/1)
  *
- * C postoji da A i B ne bi mogli da prođu zato što se objavljivanje pokvarilo
+ * D postoji da A–C ne bi mogli da prođu zato što se objavljivanje pokvarilo
  * uopšte: test koji pokazuje da se poziv ne šalje mora da pokaže i kada se šalje.
  */
 
@@ -37,14 +44,23 @@ const CONTAINER_ID = "18000000000000000";
 const JOB_ID = "job_test_1";
 const CONNECTION_ID = "conn_test_1";
 const CAPTION = "Prolećna kolekcija je stigla";
+const RUN_TOKEN = "tok_test_1";
 
 type Recorded = { name: string; args: Record<string, unknown> };
 
 type Scenario = {
   label: string;
   containerStatus: string;
+  /** Whether a previous run already sent `media_publish` for this job. */
+  alreadySent: boolean;
   /** What `GET /me/media` answers when the lost id is looked for. */
   feed: Array<{ id: string; caption?: string; timestamp: string }>;
+  /**
+   * The fence token every guarded transition answers with. When it differs from
+   * the run's own token, the transition reports "false" (job lost) and the run
+   * must stop before sending (R1/1).
+   */
+  ownsJob?: boolean;
 };
 
 type Outcome = {
@@ -63,14 +79,25 @@ type Outcome = {
 
 const PUBLISHED_AT = new Date("2026-08-20T10:00:00.000Z").getTime();
 
+/** The transitions that carry the fence token and answer true/false (R1/1). */
+const GUARDED = [
+  "markProcessing",
+  "markPublishing",
+  "markPublished",
+  "markFailure",
+  "saveChildContainers",
+];
+
 /**
  * Everything the handler is allowed to touch, and nothing else.
  *
  * `runMutation` records rather than writes; the claim it answers with is the
- * one shape that matters here — a job that already owns a container and has
- * already had `media_publish` sent for it once.
+ * one shape that matters here — a job that already owns a container, with
+ * `publishStartedAt` set or not per scenario. The guarded transitions answer
+ * `ownsJob` so the fence path can be exercised too.
  */
-function makeCtx(outcome: Outcome, encrypted: string) {
+function makeCtx(outcome: Outcome, encrypted: string, scenario: Scenario) {
+  const ownsJob = scenario.ownsJob ?? true;
   return {
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {
       const name = getFunctionName(ref as Parameters<typeof getFunctionName>[0]);
@@ -91,10 +118,15 @@ function makeCtx(outcome: Outcome, encrypted: string) {
           storageIds: ["kg1"],
           containerId: CONTAINER_ID,
           processingSince: PUBLISHED_AT - 60_000,
-          publishStartedAt: PUBLISHED_AT,
+          ...(scenario.alreadySent ? { publishStartedAt: PUBLISHED_AT } : {}),
           attempts: 2,
           fresh: true,
+          runToken: RUN_TOKEN,
         };
+      }
+      // A guarded transition answers true = "you still own the job".
+      if (GUARDED.some((suffix) => name.endsWith(suffix))) {
+        return ownsJob;
       }
       return null;
     },
@@ -156,7 +188,7 @@ async function run(scenario: Scenario): Promise<Outcome> {
         _handler: (ctx: unknown, args: unknown) => Promise<unknown>;
       }
     )._handler;
-    await handler(makeCtx(outcome, encrypted), { jobId: JOB_ID });
+    await handler(makeCtx(outcome, encrypted, scenario), { jobId: JOB_ID });
   } finally {
     globalThis.fetch = realFetch;
   }
@@ -185,22 +217,18 @@ async function main(): Promise<void> {
 
   // ── A ─────────────────────────────────────────────────────────────────────
   console.log(
-    "\nA) kontejner je PUBLISHED, objava se prepoznaje u feed-u po opisu i vremenu",
+    "\nA) PUBLISHED + već poslato, objava se prepoznaje u feed-u po opisu i vremenu",
   );
   const a = await run({
     label: "A",
     containerStatus: "PUBLISHED",
+    alreadySent: true,
     feed: [{ id: "17888888888888888", caption: CAPTION, timestamp: publishedAtIso }],
   });
   check(
     "media_publish NIJE poslat",
     a.publishPosts === 0,
     `poslat ${a.publishPosts} put(a): ${a.requests.join(" | ")}`,
-  );
-  check(
-    "posao je zatvoren kao objavljen",
-    mutation(a, "markPublished") !== undefined,
-    `pozvane mutacije: ${a.mutations.map((m) => m.name).join(", ")}`,
   );
   check(
     "upisan je pravi publishedMediaId",
@@ -220,11 +248,12 @@ async function main(): Promise<void> {
 
   // ── B ─────────────────────────────────────────────────────────────────────
   console.log(
-    "\nB) kontejner je PUBLISHED, feed ne razaznaje koja je objava (dva kandidata)",
+    "\nB) PUBLISHED + već poslato, feed ne razaznaje koja je objava (dva kandidata)",
   );
   const b = await run({
     label: "B",
     containerStatus: "PUBLISHED",
+    alreadySent: true,
     feed: [
       { id: "17111111111111111", caption: CAPTION, timestamp: publishedAtIso },
       { id: "17222222222222222", caption: CAPTION, timestamp: publishedAtIso },
@@ -247,26 +276,81 @@ async function main(): Promise<void> {
   );
 
   // ── C ─────────────────────────────────────────────────────────────────────
-  console.log("\nC) kontejner je FINISHED — uobičajen put, objava se šalje");
-  const c = await run({ label: "C", containerStatus: "FINISHED", feed: [] });
+  console.log(
+    "\nC) FINISHED + već poslato, feed prazan — brava drži, poziv se NE ponavlja (R1/1a)",
+  );
+  const c = await run({
+    label: "C",
+    containerStatus: "FINISHED",
+    alreadySent: true,
+    feed: [],
+  });
   check(
-    "media_publish je poslat tačno jednom",
-    c.publishPosts === 1,
+    "media_publish NIJE poslat iako kontejner vraća FINISHED",
+    c.publishPosts === 0,
     `poslat ${c.publishPosts} put(a): ${c.requests.join(" | ")}`,
   );
-  const publishingAt = c.timeline.findIndex((step) =>
+  check(
+    "posao je zaustavljen kao neuspeh koji traži čoveka",
+    mutation(c, "markFailure")?.args.terminal === true,
+    `upisano: ${JSON.stringify(mutation(c, "markFailure")?.args)}`,
+  );
+  check(
+    "markPublished NIJE pozvan (ne izmišlja se uspeh)",
+    mutation(c, "markPublished") === undefined,
+    `upisano: ${JSON.stringify(mutation(c, "markPublished")?.args)}`,
+  );
+
+  // ── D ─────────────────────────────────────────────────────────────────────
+  console.log(
+    "\nD) FINISHED + prvi pokušaj (publishStartedAt nije set) — objava se šalje",
+  );
+  const d = await run({
+    label: "D",
+    containerStatus: "FINISHED",
+    alreadySent: false,
+    feed: [],
+  });
+  check(
+    "media_publish je poslat tačno jednom",
+    d.publishPosts === 1,
+    `poslat ${d.publishPosts} put(a): ${d.requests.join(" | ")}`,
+  );
+  const publishingAt = d.timeline.findIndex((step) =>
     step.endsWith("markPublishing"),
   );
-  const callAt = c.timeline.findIndex((step) => step.includes("/media_publish"));
+  const callAt = d.timeline.findIndex((step) => step.includes("/media_publish"));
   check(
     "markPublishing je upisan PRE poziva media_publish",
     publishingAt !== -1 && callAt !== -1 && publishingAt < callAt,
-    `redosled: ${c.timeline.join(" → ")}`,
+    `redosled: ${d.timeline.join(" → ")}`,
   );
   check(
     "posao je zatvoren kao objavljen",
-    mutation(c, "markPublished")?.args.publishedMediaId === "17999999999999999",
-    `upisano: ${JSON.stringify(mutation(c, "markPublished")?.args)}`,
+    mutation(d, "markPublished")?.args.publishedMediaId === "17999999999999999",
+    `upisano: ${JSON.stringify(mutation(d, "markPublished")?.args)}`,
+  );
+
+  // ── E ─────────────────────────────────────────────────────────────────────
+  console.log(
+    "\nE) FINISHED + prvi pokušaj, ali fence token se ne poklapa — prolaz ćuti (R1/1)",
+  );
+  const e = await run({
+    label: "E",
+    containerStatus: "FINISHED",
+    alreadySent: false,
+    feed: [],
+    ownsJob: false,
+  });
+  check(
+    "media_publish NIJE poslat (posao je preuzeo drugi prolaz)",
+    e.publishPosts === 0,
+    `poslat ${e.publishPosts} put(a): ${e.requests.join(" | ")}`,
+  );
+  check(
+    "markPublished NIJE pozvan sa uspehom",
+    mutation(e, "markPublished") === undefined,
+    `upisano: ${JSON.stringify(mutation(e, "markPublished")?.args)}`,
   );
 
   console.log(

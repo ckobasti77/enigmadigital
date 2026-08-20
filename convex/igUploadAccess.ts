@@ -26,30 +26,25 @@ type StorageMetadata = DocumentByName<SystemDataModel, "_storage">;
  * Deliberately its own module rather than a query added to
  * `convex/instagramPublishStore.ts`: that file is the publishing lifecycle and
  * this is an access check on the public edge. They change for different reasons.
+ *
+ * R1/5a: this used to WALK the 512 newest jobs across every workspace, because
+ * `storageIds` is an array Convex cannot index. Scheduling posts 90 days ahead
+ * pushed real jobs out of that window — six a day for three months is 540 —
+ * so the file for a post booked for next month fell out of the 512, Instagram
+ * fetched it, got a 404, and the scheduled post failed. That is the exact P1
+ * bug, back through P2's scan. `igPublishFiles` is the reverse map: one row per
+ * (job, file), so a storage id is looked up directly, no scan, no window.
  * ============================================================================
  */
-
-/**
- * How many live jobs one lookup will walk.
- *
- * The index is already filtered to jobs that still HOLD BYTES — a published
- * post deletes its files immediately and the hourly sweep takes the rest — so
- * in practice this reads the handful of posts in flight plus any drafts. The
- * cap is a backstop against a pathological workspace, not a working limit, and
- * newest-first is the order that matters: Instagram fetches a file within
- * seconds of being handed the container.
- *
- * `storageIds` is an ARRAY, and Convex cannot index array membership — the
- * walk is the price of the URL shape that publishing already committed to.
- */
-const LIVE_JOB_SCAN_LIMIT = 512;
 
 /**
  * Statuses in which the file is of no further use to anyone. Instagram has
  * either taken the bytes already or is never going to.
  *
  * `failed` is NOT one of them: a failed job can be retried from the composer,
- * and a retry needs its file to still be reachable.
+ * and a retry needs its file to still be reachable. A `canceled` job keeps its
+ * bytes until the 24h sweep but must not serve them, so its file row lingers —
+ * this status check is what refuses it.
  */
 const TERMINAL_STATUSES = new Set(["published", "canceled"]);
 
@@ -67,19 +62,18 @@ export const authorizeUpload = internalQuery({
     v.object({ contentType: v.union(v.string(), v.null()) }),
   ),
   handler: async (ctx, { storageId }) => {
-    // `filesDeletedAt: undefined` is the "still holds bytes" half of the
-    // check, done by the index rather than after the read.
-    const live = await ctx.db
-      .query("igPublishJobs")
-      .withIndex("by_pending_files_created", (q) =>
-        q.eq("filesDeletedAt", undefined),
-      )
-      .order("desc")
-      .take(LIVE_JOB_SCAN_LIMIT);
+    // Direct lookup (R1/5a): a file→job row exists exactly while a job still
+    // points at this file. The row is written by `createJob` and removed the
+    // moment the bytes are deleted (publish, sweep, purge).
+    const fileRow = await ctx.db
+      .query("igPublishFiles")
+      .withIndex("by_storage", (q) => q.eq("storageId", storageId))
+      .first();
+    if (fileRow === null) return null;
 
-    const owner = live.find((job) => job.storageIds.includes(storageId));
-    if (owner === undefined) return null;
-    if (TERMINAL_STATUSES.has(owner.status)) return null;
+    const job = await ctx.db.get(fileRow.jobId);
+    if (job === null || job.filesDeletedAt !== undefined) return null;
+    if (TERMINAL_STATUSES.has(job.status)) return null;
 
     const meta: StorageMetadata | null = await ctx.db.system.get(
       "_storage",

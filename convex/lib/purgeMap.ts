@@ -141,6 +141,14 @@ async function drainIgPublishJobs(
         await ctx.storage.delete(storageId).catch(() => {});
       }
     }
+    // The file→job map rows go with the job (R1/5a).
+    const fileRows = await ctx.db
+      .query("igPublishFiles")
+      .withIndex("by_job", (q) => q.eq("jobId", row._id))
+      .collect();
+    for (const fileRow of fileRows) {
+      await ctx.db.delete(fileRow._id);
+    }
     await ctx.db.delete(row._id);
   }
   return { deleted: rows.length, exhausted: rows.length < page };
@@ -267,6 +275,207 @@ async function drainAdHierarchy(
   }
 }
 
+// ── OpenReply: rows that ride in through the Instagram and Page connections ──
+//
+// OpenReply has no `connections` row of its own, but its data arrives through
+// the Meta connections and carries the same class of PII — message text, author
+// handles (R1/4g). The counter-check was right that leaving it until "some day"
+// is not an exclusion, it is a hole.
+//
+// The split follows the data:
+//   • The message logs (`orDmLogs`, `orConversations`, `orInboundMessages`,
+//     `orProcessedComments`) carry a `platform`, so a Meta disconnect erases the
+//     rows that came through THAT connection — the same obligation `igComments`
+//     meets. `undefined` reads as instagram (lib/orPlatform).
+//   • The automations, their tracked links and clicks, the profile menu and the
+//     rollups have no clean platform (an automation may be "both"; a link
+//     belongs to an automation; a rollup spans both), so they go only when the
+//     LAST of the two social connections leaves — otherwise a still-connected
+//     platform would lose the config it is running on.
+
+type SocialProvider = "meta_ig" | "meta_fb";
+
+/** The `platform` values a given Meta connection owns; undefined reads as IG. */
+function platformsOwnedBy(
+  self: SocialProvider,
+): Array<"instagram" | "facebook" | undefined> {
+  return self === "meta_ig" ? ["instagram", undefined] : ["facebook"];
+}
+
+/** Is the OTHER of the two social connections still live (not mid-erasure)? */
+async function otherSocialStillConnected(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  self: SocialProvider,
+): Promise<boolean> {
+  const other: SocialProvider = self === "meta_ig" ? "meta_fb" : "meta_ig";
+  const conn = await ctx.db
+    .query("connections")
+    .withIndex("by_workspace_provider", (q) =>
+      q.eq("workspaceId", workspaceId).eq("provider", other),
+    )
+    .unique();
+  return conn !== null && conn.status !== "disconnecting";
+}
+
+/** A budget accumulator shared across the several tables one step may touch. */
+type DrainAcc = { deleted: number; budget: number; stop: boolean };
+
+/** Drain one already-scoped query into the accumulator, stopping when short. */
+async function stepDrain<T extends TableNames>(
+  ctx: MutationCtx,
+  acc: DrainAcc,
+  query: Query<NamedTableInfo<DataModel, T>>,
+): Promise<void> {
+  if (acc.stop) return;
+  if (acc.budget <= 0) {
+    acc.stop = true;
+    return;
+  }
+  const res = await drain(ctx, query, acc.budget);
+  acc.deleted += res.deleted;
+  acc.budget -= res.deleted;
+  if (!res.exhausted) acc.stop = true;
+}
+
+/** The shared OpenReply tables — erased only when the last social conn leaves. */
+async function drainOrShared(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  self: SocialProvider,
+  limit: number,
+): Promise<StepResult> {
+  if (await otherSocialStillConnected(ctx, workspaceId, self)) {
+    // The other platform is still running on these rows; not this erasure's to
+    // remove. The connection that leaves last will take them.
+    return { deleted: 0, exhausted: true };
+  }
+
+  const acc: DrainAcc = { deleted: 0, budget: limit, stop: false };
+  await stepDrain(
+    ctx,
+    acc,
+    ctx.db
+      .query("orAutomations")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)),
+  );
+  await stepDrain(
+    ctx,
+    acc,
+    ctx.db
+      .query("orTrackedLinks")
+      .withIndex("by_workspace_automation", (q) =>
+        q.eq("workspaceId", workspaceId),
+      ),
+  );
+  await stepDrain(
+    ctx,
+    acc,
+    ctx.db
+      .query("orLinkClicks")
+      .withIndex("by_workspace_created", (q) =>
+        q.eq("workspaceId", workspaceId),
+      ),
+  );
+  await stepDrain(
+    ctx,
+    acc,
+    ctx.db
+      .query("orProfileMenus")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId)),
+  );
+  await stepDrain(
+    ctx,
+    acc,
+    ctx.db
+      .query("orCampaignStats")
+      .withIndex("by_workspace_campaign", (q) =>
+        q.eq("workspaceId", workspaceId),
+      ),
+  );
+  await stepDrain(
+    ctx,
+    acc,
+    ctx.db
+      .query("orDailyTotals")
+      .withIndex("by_workspace_date", (q) => q.eq("workspaceId", workspaceId)),
+  );
+  await stepDrain(
+    ctx,
+    acc,
+    ctx.db
+      .query("orPostbacks")
+      .withIndex("by_workspace_created", (q) =>
+        q.eq("workspaceId", workspaceId),
+      ),
+  );
+  return { deleted: acc.deleted, exhausted: !acc.stop };
+}
+
+/** The OpenReply steps for one social provider (R1/4g). */
+function OPENREPLY_STEPS_FOR(self: SocialProvider): PurgeStep[] {
+  const perPlatform = <T extends TableNames>(
+    table: T,
+    build: (
+      ctx: MutationCtx,
+      ws: Id<"workspaces">,
+      platform: "instagram" | "facebook" | undefined,
+    ) => Query<NamedTableInfo<DataModel, T>>,
+  ): PurgeStep => ({
+    tables: [table],
+    run: async (ctx, ws, limit) => {
+      const acc: DrainAcc = { deleted: 0, budget: limit, stop: false };
+      for (const platform of platformsOwnedBy(self)) {
+        await stepDrain(ctx, acc, build(ctx, ws, platform));
+      }
+      return { deleted: acc.deleted, exhausted: !acc.stop };
+    },
+  });
+
+  return [
+    perPlatform("orDmLogs", (ctx, ws, platform) =>
+      ctx.db
+        .query("orDmLogs")
+        .withIndex("by_workspace_platform", (q) =>
+          q.eq("workspaceId", ws).eq("platform", platform),
+        ),
+    ),
+    perPlatform("orProcessedComments", (ctx, ws, platform) =>
+      ctx.db
+        .query("orProcessedComments")
+        .withIndex("by_workspace_platform", (q) =>
+          q.eq("workspaceId", ws).eq("platform", platform),
+        ),
+    ),
+    perPlatform("orConversations", (ctx, ws, platform) =>
+      ctx.db
+        .query("orConversations")
+        .withIndex("by_workspace_platform", (q) =>
+          q.eq("workspaceId", ws).eq("platform", platform),
+        ),
+    ),
+    perPlatform("orInboundMessages", (ctx, ws, platform) =>
+      ctx.db
+        .query("orInboundMessages")
+        .withIndex("by_workspace_platform", (q) =>
+          q.eq("workspaceId", ws).eq("platform", platform),
+        ),
+    ),
+    {
+      tables: [
+        "orAutomations",
+        "orTrackedLinks",
+        "orLinkClicks",
+        "orProfileMenus",
+        "orCampaignStats",
+        "orDailyTotals",
+        "orPostbacks",
+      ],
+      run: (ctx, ws, limit) => drainOrShared(ctx, ws, self, limit),
+    },
+  ];
+}
+
 // ── the per-provider step lists ─────────────────────────────────────────────
 
 /** Shorthand for the common case: one table, one workspace-scoped index. */
@@ -360,17 +569,21 @@ const INSTAGRAM_STEPS: PurgeStep[] = [
       .query("igModerationLogs")
       .withIndex("by_workspace_created", (q) => q.eq("workspaceId", ws)),
   ),
-  { tables: ["igPublishJobs"], run: drainIgPublishJobs },
+  { tables: ["igPublishJobs", "igPublishFiles"], run: drainIgPublishJobs },
   { tables: ["igPublishUploads"], run: drainIgPublishUploads },
   {
     tables: ["metaTargetedSyncs"],
     run: (ctx, ws, limit) =>
       drain(
         ctx,
+        // Provider IN the index, not a post-read `.filter()` (R1/4a): filtering
+        // read every meta_fb row first, blowing the read limit before the first
+        // meta_ig row on a busy workspace and failing the whole erasure.
         ctx.db
           .query("metaTargetedSyncs")
-          .withIndex("by_workspace", (q) => q.eq("workspaceId", ws))
-          .filter((q) => q.eq(q.field("provider"), "meta_ig")),
+          .withIndex("by_workspace_provider", (q) =>
+            q.eq("workspaceId", ws).eq("provider", "meta_ig"),
+          ),
         limit,
       ),
   },
@@ -391,6 +604,7 @@ const INSTAGRAM_STEPS: PurgeStep[] = [
     tables: ["metaApiUsage"],
     run: (ctx, ws, limit) => drainMetaApiUsage(ctx, ws, "meta_ig", limit),
   },
+  ...OPENREPLY_STEPS_FOR("meta_ig"),
 ];
 
 const FACEBOOK_STEPS: PurgeStep[] = [
@@ -419,10 +633,12 @@ const FACEBOOK_STEPS: PurgeStep[] = [
     run: (ctx, ws, limit) =>
       drain(
         ctx,
+        // Provider IN the index (R1/4a) — see the Instagram twin above.
         ctx.db
           .query("metaTargetedSyncs")
-          .withIndex("by_workspace", (q) => q.eq("workspaceId", ws))
-          .filter((q) => q.eq(q.field("provider"), "meta_fb")),
+          .withIndex("by_workspace_provider", (q) =>
+            q.eq("workspaceId", ws).eq("provider", "meta_fb"),
+          ),
         limit,
       ),
   },
@@ -443,6 +659,7 @@ const FACEBOOK_STEPS: PurgeStep[] = [
     tables: ["metaApiUsage"],
     run: (ctx, ws, limit) => drainMetaApiUsage(ctx, ws, "meta_fb", limit),
   },
+  ...OPENREPLY_STEPS_FOR("meta_fb"),
 ];
 
 const GA4_STEPS: PurgeStep[] = [
@@ -465,14 +682,28 @@ const GOOGLE_ADS_STEPS: PurgeStep[] = [
       .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
   ),
   {
-    tables: ["adAccounts", "adCampaigns", "adSets", "ads", "adInsights"],
+    tables: [
+      "adAccounts",
+      "adCampaigns",
+      "adSets",
+      "ads",
+      "adInsights",
+      "pinnedBattles",
+    ],
     run: (ctx, ws, limit) => drainAdHierarchy(ctx, ws, "google_ads", limit),
   },
 ];
 
 const META_ADS_STEPS: PurgeStep[] = [
   {
-    tables: ["adAccounts", "adCampaigns", "adSets", "ads", "adInsights"],
+    tables: [
+      "adAccounts",
+      "adCampaigns",
+      "adSets",
+      "ads",
+      "adInsights",
+      "pinnedBattles",
+    ],
     run: (ctx, ws, limit) => drainAdHierarchy(ctx, ws, "meta_ads", limit),
   },
   {
@@ -572,6 +803,7 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   igModerationLogs: { purgedBy: ["meta_ig"] },
   igPublishJobs: { purgedBy: ["meta_ig"] },
   igPublishUploads: { purgedBy: ["meta_ig"] },
+  igPublishFiles: { purgedBy: ["meta_ig"] },
 
   // ── Facebook Page ─────────────────────────────────────────────────────────
   fbPageDaily: { purgedBy: ["meta_fb"] },
@@ -602,23 +834,87 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
       "Log radnji koje je operater sam izveo nad oglasima (pauza, budžet), a ne podataka preuzetih od providera. Nema `provider` kolonu ni vezu ka `adAccounts`, pa se ne može svesti na jednu platformu; ostaje kao revizioni trag.",
   },
 
-  // ── OpenReply ─────────────────────────────────────────────────────────────
-  // OpenReply je zaseban provider koji nema red u `connections` — pali se i
-  // gasi u Podešavanjima i ne čuva kredencijal — pa nema ni prekid veze koji bi
-  // pokrenuo brisanje. Njegovi redovi uz to nose `platform` i dele se između
-  // Instagrama i Facebook-a (`orAutomations` sme da bude i „both”), tako da bi
-  // brisanje pri prekidu jedne od dve Meta veze odnelo i podatke one druge.
-  // Zato ovde stoje kao izuzetak sa razlogom, a ne kao previd: OpenReply-ju
-  // treba sopstveni purge koji zna za `platform`.
-  orCampaignStats: { excluded: "OpenReply — vidi belešku iznad." },
-  orDailyTotals: { excluded: "OpenReply — vidi belešku iznad." },
-  orAutomations: { excluded: "OpenReply — vidi belešku iznad." },
-  orDmLogs: { excluded: "OpenReply — vidi belešku iznad." },
-  orProcessedComments: { excluded: "OpenReply — vidi belešku iznad." },
-  orConversations: { excluded: "OpenReply — vidi belešku iznad." },
-  orInboundMessages: { excluded: "OpenReply — vidi belešku iznad." },
-  orPostbacks: { excluded: "OpenReply — vidi belešku iznad." },
-  orProfileMenus: { excluded: "OpenReply — vidi belešku iznad." },
-  orTrackedLinks: { excluded: "OpenReply — vidi belešku iznad." },
-  orLinkClicks: { excluded: "OpenReply — vidi belešku iznad." },
+  // ── OpenReply (R1/4g) ─────────────────────────────────────────────────────
+  // OpenReply nema svoj red u `connections`, ali njegovi podaci stižu kroz Meta
+  // veze i nose isti PII (tuđi tekst poruka, korisnička imena). Zato se brišu
+  // KROZ te veze — više nije izuzetak. Poruke nose `platform`, pa ih prekid
+  // jedne Meta veze briše po platformi (vidi `OPENREPLY_STEPS_FOR`); ostalo
+  // (automatizacije, linkovi, meni, zbirni redovi) nema čistu platformu i briše
+  // se kad ode POSLEDNJA od dve društvene veze (`drainOrShared`).
+  orDmLogs: { purgedBy: ["meta_ig", "meta_fb"] },
+  orProcessedComments: { purgedBy: ["meta_ig", "meta_fb"] },
+  orConversations: { purgedBy: ["meta_ig", "meta_fb"] },
+  orInboundMessages: { purgedBy: ["meta_ig", "meta_fb"] },
+  orAutomations: { purgedBy: ["meta_ig", "meta_fb"] },
+  orTrackedLinks: { purgedBy: ["meta_ig", "meta_fb"] },
+  orLinkClicks: { purgedBy: ["meta_ig", "meta_fb"] },
+  orProfileMenus: { purgedBy: ["meta_ig", "meta_fb"] },
+  orCampaignStats: { purgedBy: ["meta_ig", "meta_fb"] },
+  orDailyTotals: { purgedBy: ["meta_ig", "meta_fb"] },
+  orPostbacks: { purgedBy: ["meta_ig", "meta_fb"] },
+};
+
+/**
+ * The decision for every APPLICATION table whose name carries no provider
+ * prefix (R1/4e).
+ *
+ * `TABLE_OWNERSHIP` above is enforced at compile time for prefixed tables. This
+ * covers the rest — infrastructure, audit trails, the erasure ledger itself —
+ * so that `scripts/verify-purge-coverage.ts` can demand a decision for EVERY
+ * table in the schema, not only the ones whose name happens to start with a
+ * provider prefix. `pinnedBattles` is the one that is actually purged (it hangs
+ * off an ad set); everything else is infrastructure or the operator's own data,
+ * excluded with the reason written down. Auth tables are derived from
+ * `authTables` in the verify script and excluded there, not here.
+ *
+ * A new non-prefixed table with no entry here fails the coverage check, which
+ * fails `npm run build` — the same guarantee the compile-time Record gives the
+ * prefixed ones.
+ */
+export const EXTRA_TABLE_OWNERSHIP: Record<string, Disposition> = {
+  workspaces: {
+    excluded:
+      "Koren tenanta (radni prostor), ne podaci preuzeti od providera. Ostaje dok postoji nalog.",
+  },
+  members: {
+    excluded:
+      "Članstvo korisnika u radnom prostoru, ne podaci providera. Ostaje dok postoji nalog.",
+  },
+  connections: {
+    excluded:
+      "Sam red kredencijala. Njega briše `connections.remove` / završnica purge-a (`deleteConnectionRow`), a ne korak brisanja — on je ono što POKREĆE brisanje.",
+  },
+  oauthStates: {
+    excluded:
+      "Jednokratni OAuth nonce, kratkog veka; briše se pri potrošnji ili se pomete posle sat vremena. Ne vezuje se za konekciju koja se prekida.",
+  },
+  syncRuns: {
+    excluded:
+      "Operativni log Sync Health-a (start/kraj/greška po sinhronizaciji). Poruka je sanitizovana i ne nosi tuđi sadržaj; istorija je korisna posle ponovnog povezivanja.",
+  },
+  cronLocks: {
+    excluded:
+      "Brava protiv preklapanja cron poslova, na nivou deploya. Bez workspace/PII sadržaja.",
+  },
+  rules: {
+    excluded:
+      "Pravila automatizacije oglasa koja je operater sam napisao (metrika i prag), ne podaci preuzeti od providera. Ista klasa kao `adActions`.",
+  },
+  ruleFirings: {
+    excluded:
+      "Revizioni trag radnji koje su pravila sama izvela (pauza, budžet). `targetName` je naziv oglasa u trenutku okidanja — operaterov sopstveni sadržaj, ne tuđi. Nema `provider` kolonu ni vezu ka `adAccounts`. Isto rešenje kao `adActions`.",
+  },
+  pinnedBattles: { purgedBy: ["meta_ads", "google_ads"] },
+  purgeRuns: {
+    excluded:
+      "Sam ledger brisanja — dokaz da se brisanje desilo. Čisti ga `clearFinishedRuns` pri ponovnom povezivanju; obrisati ga ovde značilo bi obrisati dokaz.",
+  },
+  webhookSignatureFailures: {
+    excluded:
+      "Zdravlje webhook potpisa na nivou deploya (koja env varijabla nedostaje). Nema ni workspace ni PII — potpis se proverava pre nego što se zna čiji je.",
+  },
+  publicRouteUsage: {
+    excluded:
+      "Brojači plafona javnih ruta (R1/2c, 2d). Bez PII; sami se resetuju po prozoru.",
+  },
 };

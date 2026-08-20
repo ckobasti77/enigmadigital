@@ -6,7 +6,12 @@ import type { Id } from "./_generated/dataModel";
 import { auth } from "./auth";
 import { appendUtm, isBotUserAgent } from "./lib/orLink";
 import { decryptCredentials } from "./lib/crypto";
-import { createUsageTracker } from "./lib/metaRateLimit";
+import {
+  allowsBackground,
+  createUsageTracker,
+  readGate,
+} from "./lib/metaRateLimit";
+import { IG_MEDIA_HOURLY_CAP, ROUTE_WINDOW_MS } from "./publicRouteLimit";
 import {
   signatureFailureReason,
   signatureSecrets,
@@ -875,6 +880,44 @@ http.route({
         : igMediaError("Slika nije dostupna.", 404);
     }
 
+    const staleAnswer = (): Response =>
+      storedUrl
+        ? igMediaStaleRedirect(storedUrl)
+        : igMediaError("Slika nije dostupna.", 404);
+
+    // A refresh that reached Instagram and failed arms the growing backoff
+    // (R1/2a), then serves what we have. This is the branch the attack lives in:
+    // every failure has to buy silence.
+    const failedRefresh = async (status: number): Promise<Response> => {
+      await ctx.runMutation(internal.instagramStore.recordMediaUrlFailure, {
+        id: media._id,
+      });
+      return storedUrl
+        ? igMediaStaleRedirect(storedUrl)
+        : igMediaError("Slika nije dostupna.", status);
+    };
+
+    // Recently failed — do not hammer Instagram (R1/2a). While Meta refuses, a
+    // failed refresh must buy MORE silence than a success would, not the bare
+    // 60 s the per-media claim gives it.
+    const nowMs = Date.now();
+    if (
+      media.mediaUrlAttemptedAt !== undefined &&
+      media.mediaUrlBackoffMs !== undefined &&
+      nowMs - media.mediaUrlAttemptedAt < media.mediaUrlBackoffMs
+    ) {
+      return staleAnswer();
+    }
+
+    // The gate, read BEFORE the call (R1/2b). This route used to report its own
+    // spend but never honour the gate, so when the schedulers stood down the
+    // proxy's traffic kept the allowance pinned at 100 % and blocked recovery.
+    // Not "ok" now means: serve what we have, spend nothing.
+    const gate = await readGate(ctx, media.workspaceId);
+    if (!allowsBackground(gate)) {
+      return staleAnswer();
+    }
+
     // The blunt repeat guard. Twelve thumbnails in one grid are one refresh,
     // not twelve — and a caller hammering one expired id gets the stale link
     // (or a 404) rather than a Graph call per request.
@@ -888,18 +931,31 @@ http.route({
       },
     );
     if (!claimed) {
-      return storedUrl
-        ? igMediaStaleRedirect(storedUrl)
-        : igMediaError("Slika nije dostupna.", 404);
+      return staleAnswer();
+    }
+
+    // The per-route hourly ceiling (R1/2c). The per-media claim above throttles
+    // ONE post; this bounds the workspace's whole outbound-call rate from this
+    // route, so no set of ids can turn it into a Graph-call amplifier. Checked
+    // after the claim so a debounced hot image does not spend a slot.
+    const withinCap: boolean = await ctx.runMutation(
+      internal.publicRouteLimit.claimRouteCall,
+      {
+        workspaceId: media.workspaceId,
+        route: "ig-media",
+        limit: IG_MEDIA_HOURLY_CAP,
+        windowMs: ROUTE_WINDOW_MS,
+      },
+    );
+    if (!withinCap) {
+      return staleAnswer();
     }
 
     let token: string;
     try {
       token = await decryptCredentials(media.encryptedCredentials);
     } catch {
-      return storedUrl
-        ? igMediaStaleRedirect(storedUrl)
-        : igMediaError("Slika nije dostupna.", 502);
+      return failedRefresh(502);
     }
 
     const upperType = media.mediaType.toUpperCase();
@@ -920,9 +976,7 @@ http.route({
     try {
       res = await tracker.fetch(buildMediaFieldsUrl(mediaId, fields, token));
     } catch {
-      return storedUrl
-        ? igMediaStaleRedirect(storedUrl)
-        : igMediaError("Slika nije dostupna.", 502);
+      return failedRefresh(502);
     } finally {
       await tracker.flush(ctx, media.workspaceId);
     }
@@ -958,13 +1012,13 @@ http.route({
             // The sweep runs daily regardless; this only makes it sooner.
           }
         }
-        return igMediaError("Slika nije dostupna.", 404);
+        // Arm the backoff too (R1/2a): a loop over a since-deleted id that has
+        // not yet been 410'd is exactly the traffic the ceiling is for.
+        return failedRefresh(404);
       }
       // Rate limit, expired token, transient failure — the stale link may well
       // still load, so it beats showing nothing.
-      return storedUrl
-        ? igMediaStaleRedirect(storedUrl)
-        : igMediaError("Slika nije dostupna.", 502);
+      return failedRefresh(502);
     }
 
     // The last unguarded `await` on this route (V2/6). A 200 whose body is not
@@ -975,9 +1029,7 @@ http.route({
     try {
       json = (await res.json()) as RawMediaFieldsResponse;
     } catch {
-      return storedUrl
-        ? igMediaStaleRedirect(storedUrl)
-        : igMediaError("Slika nije dostupna.", 502);
+      return failedRefresh(502);
     }
 
     // And the parsed body is still whatever Instagram felt like sending: a

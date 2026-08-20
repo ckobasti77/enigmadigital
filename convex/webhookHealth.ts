@@ -24,6 +24,18 @@ import {
 
 const routeValidator = v.union(v.literal("instagram"), v.literal("facebook"));
 
+/**
+ * At most one failure write per route per minute (R1/5e).
+ *
+ * Both webhook routes are PUBLIC and write here on EVERY rejected request. Two
+ * Settings cards subscribe reactively to this exact row, so an unauthenticated
+ * flood of bad signatures used to hammer it — one write per garbage request,
+ * each an OCC conflict against the cards. The counter is a health signal, not an
+ * audit ledger: "broken" reads the same whether it counted 3 or 3000, so once a
+ * minute is plenty and the flood cannot turn the row into the storm it names.
+ */
+const FAILURE_WRITE_INTERVAL_MS = 60 * 1000;
+
 /** Called by the webhook route when `X-Hub-Signature-256` does not verify. */
 export const recordSignatureFailure = internalMutation({
   args: { route: routeValidator, reason: v.string() },
@@ -42,6 +54,11 @@ export const recordSignatureFailure = internalMutation({
         lastFailureAt: now,
         lastReason: reason,
       });
+      return null;
+    }
+    // Inside the window: the row already says "recently failing", so drop the
+    // write rather than churn the document the cards are watching (R1/5e).
+    if (now - existing.lastFailureAt < FAILURE_WRITE_INTERVAL_MS) {
       return null;
     }
     await ctx.db.patch(existing._id, {

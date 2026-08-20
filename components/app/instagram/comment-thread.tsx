@@ -5,6 +5,7 @@ import { useAction } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
+  AlertTriangle,
   Bot,
   CornerDownRight,
   ExternalLink,
@@ -549,6 +550,17 @@ export function CommentThread({
               </a>
             )}
           </div>
+
+          {/* Why this post's comment read was cut short (R1/5d). Without it the
+              stamp was written where nobody could see it — the post that never
+              reports a deleted comment, or whose long threads are not fully
+              imported, now says so. */}
+          {showPost && thread.media?.commentsTruncatedReason && (
+            <p className="mt-1.5 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-2 py-1 text-micro leading-relaxed text-warning">
+              <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden />
+              <span>{thread.media.commentsTruncatedReason}</span>
+            </p>
+          )}
 
           <CommentActions
             commentId={thread.commentId}

@@ -159,7 +159,11 @@ export const saveConnectedCredentials = internalMutation({
     };
 
     if (existing !== null) {
-      await ctx.db.patch(existing._id, patch);
+      await ctx.db.patch(existing._id, {
+        ...patch,
+        // A fresh grant invalidates any in-flight purge of the old one (R1/4c).
+        generation: (existing.generation ?? 0) + 1,
+      });
       return existing._id;
     }
 
@@ -167,6 +171,7 @@ export const saveConnectedCredentials = internalMutation({
       workspaceId: args.workspaceId,
       provider: "meta_fb",
       ...patch,
+      generation: 1,
     });
   },
 });

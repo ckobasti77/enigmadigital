@@ -123,12 +123,16 @@ async function syncMediaComments(
   let pages = 0;
   let topLevel = 0;
   let threadsCut = 0;
-  /** Non-null once something stopped the walk short of the end. */
-  let truncated: string | null = null;
+  /**
+   * Set when the TOP-LEVEL walk stopped short (R1/5c). This is the one that
+   * governs whether a missing TOP-LEVEL comment may be called deleted: if we did
+   * not read every page of top-level comments, absence proves nothing about them.
+   */
+  let topTruncated: string | null = null;
 
   for (;;) {
     if (tracker.throttled) {
-      truncated = "Meta je odbila zahtev usred čitanja komentara.";
+      topTruncated = "Meta je odbila zahtev usred čitanja komentara.";
       break;
     }
 
@@ -138,7 +142,7 @@ async function syncMediaComments(
     if (!res.ok) {
       const errBody = await res.text().catch(() => "");
       console.warn("Instagram comments warning:", extractGraphApiError(errBody));
-      truncated = "Instagram nije odgovorio na čitanje komentara.";
+      topTruncated = "Instagram nije odgovorio na čitanje komentara.";
       break;
     }
 
@@ -169,32 +173,46 @@ async function syncMediaComments(
     after = json.paging?.cursors?.after;
     if (json.paging?.next === undefined || !after) break;
     if (pages >= COMMENT_PAGE_LIMIT) {
-      truncated = `Stalo na ${COMMENT_PAGE_LIMIT} stranica komentara.`;
+      topTruncated = `Stalo na ${COMMENT_PAGE_LIMIT} stranica komentara.`;
       break;
     }
     if (topLevel >= COMMENT_TOTAL_LIMIT) {
-      truncated = `Stalo na ${COMMENT_TOTAL_LIMIT} komentara.`;
+      topTruncated = `Stalo na ${COMMENT_TOTAL_LIMIT} komentara.`;
       break;
     }
   }
 
-  // A thread longer than one nested page is the same problem one level down:
-  // we hold part of the list, so absence from it proves nothing.
-  if (truncated === null && threadsCut > 0) {
-    truncated = `${threadsCut} niti ima više odgovora nego što staje u jedan odgovor Instagrama.`;
-  }
+  // Two completeness verdicts, not one (R1/5c). The top level is complete when
+  // every page was read; the REPLIES are complete only if, on top of that, no
+  // thread outgrew its single nested page. Splitting them means a post with one
+  // long thread no longer switches deletion detection OFF entirely — top-level
+  // deletions are still caught; only reply deletions stand down, because a reply
+  // absent from a thread we only partly read might just be on the page we did
+  // not follow. (We do not chase the nested cursor here — the damage is limited,
+  // and the truncation is shown on the post so the operator knows.)
+  const complete = topTruncated === null;
+  const repliesComplete = complete && threadsCut === 0;
 
-  // One closing call: it carries the verdict, the ids from every page, and the
+  // What the post card shows (R1/5c, 5d): the top-level reason if there is one,
+  // else the reply-only reason, else `null` to clear an older stamp.
+  const truncatedReason =
+    topTruncated ??
+    (threadsCut > 0
+      ? `${threadsCut} niti ima više odgovora nego što staje u jedan odgovor Instagrama; ti odgovori se ne uvoze i njihovo brisanje se ne prati.`
+      : null);
+
+  // One closing call: it carries both verdicts, the ids from every page, and the
   // truncation stamp — including the `null` that clears an older one.
   written += await ctx.runMutation(internal.igCommentsStore.upsertCommentBatch, {
     workspaceId,
     mediaId,
     rows: [],
-    complete: truncated === null,
+    complete,
+    repliesComplete,
     syncedAt,
     snapshotAt,
     seenIds,
-    truncated,
+    truncated: truncatedReason,
   });
 
   return written;

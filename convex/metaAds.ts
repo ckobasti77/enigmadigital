@@ -1,13 +1,18 @@
 "use node";
 
-import { internalAction } from "./_generated/server";
+import { internalAction, type ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { decryptCredentials } from "./lib/crypto";
 import { runSync, sanitizeSyncError } from "./lib/runSync";
 import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
-import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
+import {
+  allowsBackground,
+  createUsageTracker,
+  readGate,
+  type UsageTracker,
+} from "./lib/metaRateLimit";
 import {
   getMetaGraphVersion,
   normalizeAdAccountId,
@@ -934,6 +939,47 @@ export const syncAdsInsights = internalAction({
 // ── Cron Fan-Outs ───────────────────────────────────────────────────────────
 
 /**
+ * Read the rate-limit gate before a Meta Ads pass, and stand down if it is not
+ * clean (R1/3).
+ *
+ * Ads is the heaviest caller in the app and, before this, the ONLY scheduled
+ * Meta pass that did not read the gate: it reported its own spend and then, on
+ * the next 15-minute tick, walked straight back into the backoff it had just
+ * armed — extending it. Now it asks first, like Instagram and Facebook do, and
+ * records the skip so Settings can say why it went quiet.
+ *
+ * Returns `true` when the pass may run. `listByProvider` already drops
+ * disconnecting connections, so a `null` connection here just means it vanished
+ * between the list and the read.
+ */
+async function shouldRunAds(
+  ctx: ActionCtx,
+  connectionId: Id<"connections">,
+  job: string,
+): Promise<boolean> {
+  const conn: Doc<"connections"> | null = await ctx.runQuery(
+    internal.connections.getForSync,
+    { connectionId },
+  );
+  if (conn === null) return false;
+
+  const gate = await readGate(ctx, conn.workspaceId);
+  if (allowsBackground(gate)) return true;
+
+  await ctx.runMutation(internal.metaSyncStore.recordJob, {
+    workspaceId: conn.workspaceId,
+    provider: "meta_ads",
+    job,
+    ok: false,
+    skipReason:
+      gate.state === "backoff"
+        ? "Meta privremeno ograničava pozive; prolaz oglasa preskočen."
+        : "Potrošnja Meta limita je previsoka; prolaz oglasa preskočen.",
+  });
+  return false;
+}
+
+/**
  * Cron fan-out (every 3h): sync structure for every Meta Ads connection.
  */
 export const syncAllAdsStructure = internalAction({
@@ -950,6 +996,8 @@ export const syncAllAdsStructure = internalAction({
 
       for (const connectionId of connectionIds) {
         try {
+          // Gate first (R1/3): standing down beats extending an active backoff.
+          if (!(await shouldRunAds(ctx, connectionId, "structure"))) continue;
           await ctx.runAction(internal.metaAds.syncAdsStructure, { connectionId });
         } catch {
           // Error is logged on syncRuns; continue with next connection
@@ -976,6 +1024,7 @@ export const syncHotAdsInsights = internalAction({
 
       for (const connectionId of connectionIds) {
         try {
+          if (!(await shouldRunAds(ctx, connectionId, "hot"))) continue;
           await ctx.runAction(internal.metaAds.syncAdsInsights, {
             connectionId,
             mode: "hot",
@@ -1005,6 +1054,7 @@ export const syncAllAdsInsights = internalAction({
 
       for (const connectionId of connectionIds) {
         try {
+          if (!(await shouldRunAds(ctx, connectionId, "all"))) continue;
           await ctx.runAction(internal.metaAds.syncAdsInsights, {
             connectionId,
             mode: "cold_all",

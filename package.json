@@ -10,7 +10,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "verify:ig-publish": "node --import ./scripts/ts-hooks.mjs scripts/verify-ig-publish-idempotency.ts",
-    "verify:purge": "node --import ./scripts/ts-hooks.mjs scripts/verify-purge-coverage.ts"
+    "verify:purge": "node --import ./scripts/ts-hooks.mjs scripts/verify-purge-coverage.ts",
+    "deploy:convex": "npm run verify:purge && npx convex deploy"
   },
   "dependencies": {
     "@auth/core": "^0.41.3",

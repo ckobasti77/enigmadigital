@@ -115,7 +115,14 @@ export const upsertCommentBatch = internalMutation({
     workspaceId: v.id("workspaces"),
     postId: v.string(),
     rows: v.array(fbCommentRowValidator),
+    /** The TOP-LEVEL walk read every page — a missing top-level comment is gone. */
     complete: v.boolean(),
+    /**
+     * Every thread's replies were read in full too (R1/5c). When false, a reply
+     * missing from the answer is NOT marked deleted — it might be on a nested
+     * page we did not follow.
+     */
+    repliesComplete: v.optional(v.boolean()),
     syncedAt: v.number(),
     /** When the first Graph call of this walk went out. */
     snapshotAt: v.number(),
@@ -135,6 +142,7 @@ export const upsertCommentBatch = internalMutation({
       postId,
       rows,
       complete,
+      repliesComplete,
       syncedAt,
       snapshotAt,
       seenIds,
@@ -195,6 +203,9 @@ export const upsertCommentBatch = internalMutation({
     for (const row of stored) {
       if (row.deletedAt !== undefined) continue;
       if (seen.has(row.commentId)) continue;
+      // A reply may only be called deleted when the replies were read in full
+      // (R1/5c). Top-level comments are still swept.
+      if (row.parentCommentId !== undefined && repliesComplete !== true) continue;
       // Written or last touched after the snapshot: it reached us by some other
       // road than this answer, and this answer cannot speak about it.
       if (row.syncedAt >= snapshotAt || row.timestamp >= snapshotAt) continue;
@@ -619,6 +630,8 @@ const fbThreadViewValidator = v.object({
       permalink: v.string(),
       statusType: v.string(),
       publishedAt: v.number(),
+      // Why this post's comment read was cut short, if it was (R1/5d).
+      commentsTruncatedReason: v.optional(v.string()),
     }),
   ),
   replies: v.array(fbReplyViewValidator),
@@ -822,6 +835,9 @@ export const listThreads = query({
                 permalink: post.permalink,
                 statusType: post.statusType,
                 publishedAt: post.publishedAt,
+                ...(post.commentsTruncatedReason !== undefined
+                  ? { commentsTruncatedReason: post.commentsTruncatedReason }
+                  : {}),
               },
         replies: replyViews,
       });

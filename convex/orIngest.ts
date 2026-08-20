@@ -66,6 +66,13 @@ async function resolveWorkspace(
     );
     return null;
   }
+  // A connection mid-erasure accepts NO new writes (R1/4b). This path is the one
+  // that runs on the raw webhook — a comment three seconds after "Prekini vezu"
+  // used to write `igComments`/`fbComments` (and the `or*` tables) into a step
+  // the purge had already finished, orphaning rows the card then claimed were
+  // erased. The cron syncs are already fenced by `listByProvider`; this closes
+  // the event-driven door.
+  if (conn.status === "disconnecting") return null;
   return conn.workspaceId;
 }
 

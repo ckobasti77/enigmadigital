@@ -194,7 +194,15 @@ export const list = query({
 
 // ── mutations ────────────────────────────────────────────────────────────────
 
-/** Create or update a provider's credentials (encrypted before write). */
+/**
+ * Create or update a provider's credentials (encrypted before write).
+ *
+ * Owner-only (R1/6). It calls `clearFinishedRuns` — the record that a purge ran
+ * — and flips a `disconnecting` row back to `active`, which is the reconnect
+ * that closes the purge race. `client_viewer`, a role that exists in order to
+ * only look at things, must not be able to reach either. The UI already hides
+ * the form from a viewer, so anyone who hits this got here some other way.
+ */
 export const save = mutation({
   args: {
     provider: providerValidator,
@@ -202,7 +210,7 @@ export const save = mutation({
     secret: v.string(),
   },
   handler: async (ctx, { provider, externalId, secret }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = await requireOwner(ctx);
 
     const trimmedSecret = secret.trim();
     const normalizedExternalId = validateCredentials(
@@ -230,6 +238,10 @@ export const save = mutation({
       await ctx.db.patch(existing._id, {
         encryptedCredentials,
         status: "active",
+        // A fresh grant on this row (R1/4c). Any purge run still pointing at the
+        // old generation stops the moment it next checks, so it cannot reach the
+        // data this reconnect is about to sync.
+        generation: (existing.generation ?? 0) + 1,
         ...(normalizedExternalId !== undefined
           ? { externalId: normalizedExternalId }
           : {}),
@@ -242,6 +254,7 @@ export const save = mutation({
       provider,
       encryptedCredentials,
       status: "active",
+      generation: 1,
       ...(normalizedExternalId !== undefined
         ? { externalId: normalizedExternalId }
         : {}),

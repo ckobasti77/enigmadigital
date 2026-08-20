@@ -147,11 +147,12 @@ async function syncPostComments(
   let pages = 0;
   let topLevel = 0;
   let threadsCut = 0;
-  let truncated: string | null = null;
+  // Top-level truncation only — see the Instagram twin in `instagram.ts` (R1/5c).
+  let topTruncated: string | null = null;
 
   for (;;) {
     if (tracker.throttled) {
-      truncated = "Meta je odbila zahtev usred čitanja komentara.";
+      topTruncated = "Meta je odbila zahtev usred čitanja komentara.";
       break;
     }
 
@@ -159,7 +160,7 @@ async function syncPostComments(
       buildPostCommentsUrl(postId, token, FB_COMMENTS_PER_POST, version, after),
     );
     if (!res.ok) {
-      truncated = "Facebook nije odgovorio na čitanje komentara.";
+      topTruncated = "Facebook nije odgovorio na čitanje komentara.";
       break;
     }
 
@@ -189,20 +190,27 @@ async function syncPostComments(
     after = body.paging?.cursors?.after;
     if (!body.paging?.next || !after) break;
     if (pages >= FB_COMMENT_PAGE_LIMIT) {
-      truncated = `Stalo na ${FB_COMMENT_PAGE_LIMIT} stranica komentara.`;
+      topTruncated = `Stalo na ${FB_COMMENT_PAGE_LIMIT} stranica komentara.`;
       break;
     }
     if (topLevel >= FB_COMMENT_TOTAL_LIMIT) {
-      truncated = `Stalo na ${FB_COMMENT_TOTAL_LIMIT} komentara.`;
+      topTruncated = `Stalo na ${FB_COMMENT_TOTAL_LIMIT} komentara.`;
       break;
     }
   }
 
-  if (truncated === null && threadsCut > 0) {
-    truncated = `${threadsCut} niti ima više odgovora nego što staje u jedan odgovor Facebooka.`;
-  }
+  // Top-level completeness governs top-level deletions; reply completeness
+  // governs reply deletions (R1/5c). A single long thread no longer turns the
+  // whole post's deletion detection off.
+  const complete = topTruncated === null;
+  const repliesComplete = complete && threadsCut === 0;
+  const truncatedReason =
+    topTruncated ??
+    (threadsCut > 0
+      ? `${threadsCut} niti ima više odgovora nego što staje u jedan odgovor Facebooka; ti odgovori se ne uvoze i njihovo brisanje se ne prati.`
+      : null);
 
-  // One closing call: the verdict, the ids from every page, and the truncation
+  // One closing call: both verdicts, the ids from every page, and the truncation
   // stamp — including the `null` that clears an older one.
   written += await ctx.runMutation(
     internal.fbCommentsStore.upsertCommentBatch,
@@ -210,11 +218,12 @@ async function syncPostComments(
       workspaceId,
       postId,
       rows: [],
-      complete: truncated === null,
+      complete,
+      repliesComplete,
       syncedAt,
       snapshotAt,
       seenIds,
-      truncated,
+      truncated: truncatedReason,
     },
   );
 

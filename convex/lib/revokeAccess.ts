@@ -34,6 +34,29 @@ export type RevokeOutcome = {
   error?: string;
 };
 
+/**
+ * What to tell the operator when automatic revoke has run out of tries (R1/4d).
+ *
+ * The data is gone either way; this is the one thing left for a person to do,
+ * and it has to name WHERE. A pure function so a mutation can build the notice
+ * without an outbound call.
+ */
+export function manualRevokeMessage(provider: Provider): string {
+  switch (provider) {
+    case "youtube":
+    case "google_ads":
+      return "Opoziv nije uspeo posle više pokušaja. Ručno ukloni pristup aplikaciji na https://myaccount.google.com/permissions.";
+    case "meta_ig":
+    case "meta_fb":
+      return "Opoziv nije uspeo posle više pokušaja. Ručno ukloni aplikaciju u podešavanjima Meta naloga: Settings → Business Integrations (https://www.facebook.com/settings?tab=business_tools).";
+    case "meta_ads":
+      return "Opoziv nije uspeo posle više pokušaja. System User token se opoziva u Business Manager-u: Business settings → System users → Assets.";
+    case "ga4":
+    case "openreply":
+      return "Opoziv nije uspeo posle više pokušaja.";
+  }
+}
+
 const REVOKE_TIMEOUT_MS = 10_000;
 
 /** `fetch` with a ceiling. A revoke that hangs must not hold up the erasure. */

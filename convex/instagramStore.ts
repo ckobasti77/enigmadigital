@@ -259,6 +259,8 @@ export const saveConnectedCredentials = internalMutation({
         externalId,
         ...(externalIdAlt !== undefined ? { externalIdAlt } : {}),
         status: "active",
+        // A fresh grant invalidates any in-flight purge of the old one (R1/4c).
+        generation: (existing.generation ?? 0) + 1,
         expiresAt,
       });
       return existing._id;
@@ -271,6 +273,7 @@ export const saveConnectedCredentials = internalMutation({
       externalId,
       ...(externalIdAlt !== undefined ? { externalIdAlt } : {}),
       status: "active",
+      generation: 1,
       expiresAt,
     });
   },
@@ -469,18 +472,22 @@ export const listDeletionCandidates = internalQuery({
     const out: { _id: Id<"igMediaStats">; mediaId: string }[] = [];
 
     // Bounded on both ends: at most `limit` candidates, and at most
-    // DELETION_SCAN_LIMIT rows walked looking for them.
+    // DELETION_SCAN_LIMIT rows walked looking for them. `deletedAt` is pinned to
+    // `undefined` in the index (R1/5b), so a post already known gone is never
+    // walked — before this, rows marked deleted before the index existed carried
+    // no `deletionCheckedAt`, sorted first, and 400+ of them filled the scan
+    // budget with rows the sweep only skipped, so no live post was ever probed
+    // and deletion detection stopped without a sound.
     const rows = await ctx.db
       .query("igMediaStats")
-      .withIndex("by_workspace_deletion_checked", (q) =>
-        q.eq("workspaceId", workspaceId),
+      .withIndex("by_workspace_deleted_checked", (q) =>
+        q.eq("workspaceId", workspaceId).eq("deletedAt", undefined),
       )
       .order("asc")
       .take(DELETION_SCAN_LIMIT);
 
     for (const row of rows) {
       if (out.length >= wanted) break;
-      if (row.deletedAt !== undefined) continue;
       if (seen.has(row.mediaId)) continue;
       out.push({ _id: row._id, mediaId: row.mediaId });
     }
@@ -655,6 +662,9 @@ export const getMediaForProxy = internalQuery({
       urlSyncedAt: v.number(),
       deletedAt: v.optional(v.number()),
       encryptedCredentials: v.optional(v.string()),
+      // When the proxy last FAILED to refresh, and the backoff it earned (R1/2a).
+      mediaUrlAttemptedAt: v.optional(v.number()),
+      mediaUrlBackoffMs: v.optional(v.number()),
     }),
   ),
   handler: async (ctx, { mediaId }) => {
@@ -683,6 +693,8 @@ export const getMediaForProxy = internalQuery({
       urlSyncedAt: row.mediaUrlSyncedAt ?? row.syncedAt,
       deletedAt: row.deletedAt,
       encryptedCredentials: connection?.encryptedCredentials,
+      mediaUrlAttemptedAt: row.mediaUrlAttemptedAt,
+      mediaUrlBackoffMs: row.mediaUrlBackoffMs,
     };
   },
 });
@@ -711,6 +723,46 @@ export const saveMediaUrls = internalMutation({
       ...(children !== undefined ? { children } : {}),
       mediaUrlSyncedAt: Date.now(),
       deletedAt: undefined,
+      // A success clears the failure backoff (R1/2a).
+      mediaUrlAttemptedAt: undefined,
+      mediaUrlBackoffMs: undefined,
+    });
+    return null;
+  },
+});
+
+/** The backoff ladder a failing proxy refresh climbs: 1m → 5m → 30m → 6h. */
+const MEDIA_URL_BACKOFF_LADDER = [
+  60 * 1000,
+  5 * 60 * 1000,
+  30 * 60 * 1000,
+  6 * 60 * 60 * 1000,
+] as const;
+
+/**
+ * A proxy refresh failed — stamp it and grow the backoff (R1/2a).
+ *
+ * Before this, a failed refresh only bought the 60 s per-media claim, so while
+ * Meta refused, the ceiling was "one call per stored post per minute" — 18 000/h
+ * for a 300-post archive, and exactly the regime the attack creates. Now a
+ * failure buys MORE silence than a success would spend, climbing the ladder so a
+ * post Meta keeps refusing is left alone for up to six hours.
+ */
+export const recordMediaUrlFailure = internalMutation({
+  args: { id: v.id("igMediaStats") },
+  returns: v.null(),
+  handler: async (ctx, { id }) => {
+    const row = await ctx.db.get(id);
+    if (row === null) return null;
+
+    const prev = row.mediaUrlBackoffMs ?? 0;
+    const next =
+      MEDIA_URL_BACKOFF_LADDER.find((step) => step > prev) ??
+      MEDIA_URL_BACKOFF_LADDER[MEDIA_URL_BACKOFF_LADDER.length - 1];
+
+    await ctx.db.patch(id, {
+      mediaUrlAttemptedAt: Date.now(),
+      mediaUrlBackoffMs: next,
     });
     return null;
   },

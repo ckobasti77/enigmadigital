@@ -74,6 +74,7 @@ import type * as orLinks from "../orLinks.js";
 import type * as orProfileMenu from "../orProfileMenu.js";
 import type * as orRollup from "../orRollup.js";
 import type * as orSend from "../orSend.js";
+import type * as publicRouteLimit from "../publicRouteLimit.js";
 import type * as purge from "../purge.js";
 import type * as rules from "../rules.js";
 import type * as rulesStore from "../rulesStore.js";
@@ -168,6 +169,7 @@ declare const fullApi: ApiFromModules<{
   orProfileMenu: typeof orProfileMenu;
   orRollup: typeof orRollup;
   orSend: typeof orSend;
+  publicRouteLimit: typeof publicRouteLimit;
   purge: typeof purge;
   rules: typeof rules;
   rulesStore: typeof rulesStore;

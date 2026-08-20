@@ -106,6 +106,7 @@ export function SyncSchedule({ connected }: { connected: Provider[] }) {
       </p>
 
       <MetaUsageLine />
+      <RouteCapLine />
 
       <div className="mt-5 space-y-6">
         {networks.map((provider) => (
@@ -183,6 +184,36 @@ function MetaUsageLine() {
           {formatClockTime(status.retryAt)}
         </span>
       )}
+    </p>
+  );
+}
+
+/**
+ * Kad javna ruta udari svoj časovni plafon (R1/2c, 2d).
+ *
+ * `/ig-media/` i `/r/` su javne i svaka vuče upis koji pozivalac ne plaća —
+ * odlazni Graph poziv, odnosno upis klika. Plafon po workspace-u ih zaustavlja,
+ * a ovaj red je jedino mesto gde se to vidi. Ćuti dok se ništa ne probije.
+ */
+function RouteCapLine() {
+  const capped = useQuery(api.publicRouteLimit.routeUsageStatus);
+  if (capped === undefined || capped.length === 0) return null;
+
+  const label = (route: string): string =>
+    route === "ig-media"
+      ? "slike objava (/ig-media/)"
+      : route === "r"
+        ? "praćeni linkovi (/r/)"
+        : route;
+
+  return (
+    <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-warning">
+      <Gauge className="size-3.5 shrink-0" aria-hidden />
+      <span>
+        Plafon poziva dostignut ovog sata:{" "}
+        {capped.map((row) => label(row.route)).join(", ")}. Osvežavanje s tih
+        ruta je pauzirano do sledećeg sata; keširane vrednosti se i dalje služe.
+      </span>
     </p>
   );
 }

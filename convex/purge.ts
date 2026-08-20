@@ -5,7 +5,7 @@ import {
   mutation,
   query,
 } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -13,7 +13,7 @@ import { providerValidator, type Provider } from "./lib/providers";
 import { requireMembership, requireOwner } from "./lib/auth";
 import { decryptCredentials } from "./lib/crypto";
 import { PURGE_BATCH, purgeSteps } from "./lib/purgeMap";
-import { revokeProviderAccess } from "./lib/revokeAccess";
+import { manualRevokeMessage, revokeProviderAccess } from "./lib/revokeAccess";
 
 /**
  * ============================================================================
@@ -63,6 +63,70 @@ const STALL_MS = 5 * 60 * 1000;
  */
 const MAX_DEAD_RESUMES = 3;
 
+/**
+ * How many full verification re-scans may run before the erasure gives up
+ * (R1/4b). Each cycle re-walks every step; the run is "done" only after one
+ * cycle deletes nothing. If new rows keep arriving after three, something is
+ * still writing and the run fails loudly rather than sealing them in.
+ */
+const MAX_FINAL_SWEEPS = 3;
+
+/**
+ * How many times the token is handed back to the provider before the erasure
+ * stops trying and tells the operator to do it by hand (R1/4d).
+ */
+const MAX_REVOKE_ATTEMPTS = 3;
+
+/** Growing wait between revoke attempts, kept below `STALL_MS` on purpose. */
+function revokeRetryDelayMs(attempts: number): number {
+  return attempts <= 1 ? 60 * 1000 : 3 * 60 * 1000;
+}
+
+/**
+ * The connection this run is erasing, but ONLY if it is still the same grant
+ * (R1/4c). A reconnect flips the row back to `active` and bumps `generation`; a
+ * later disconnect makes a NEW run against a NEW generation. Either way a stale
+ * chain reads `null` here and stops, so it can never reach into a reconnected
+ * account's data.
+ */
+async function loadPurgeConnection(
+  ctx: QueryCtx,
+  run: Doc<"purgeRuns">,
+): Promise<Doc<"connections"> | null> {
+  if (run.connectionId === undefined) return null;
+  const connection = await ctx.db.get(run.connectionId);
+  if (connection === null) return null;
+  if (connection.status !== "disconnecting") return null;
+  if ((connection.generation ?? 0) !== (run.connectionGeneration ?? 0)) {
+    return null;
+  }
+  return connection;
+}
+
+/**
+ * Seal the run as done — but only when BOTH halves are finished (R1/4b, 4d).
+ *
+ * Deletion runs in parallel with the revoke retries, and the connection row
+ * (which still holds the credentials the revoke needs) must survive until the
+ * revoke has settled. So "done" and the connection-row deletion wait for
+ * `deletionDone` AND a revoke that is no longer `pending`. Idempotent: whichever
+ * half finishes last calls it, and a second call finds the run already done.
+ */
+async function maybeFinalize(
+  ctx: MutationCtx,
+  runId: Id<"purgeRuns">,
+): Promise<void> {
+  const run = await ctx.db.get(runId);
+  if (run === null || run.status !== "running") return;
+  if (run.deletionDone !== true) return;
+  // Revoke still retrying — keep the row and its credentials alive.
+  if (run.revokeStatus === "pending") return;
+
+  const now = Date.now();
+  await ctx.db.patch(runId, { status: "done", finishedAt: now, updatedAt: now });
+  await deleteConnectionRow(ctx, run);
+}
+
 // ── the batch pass ───────────────────────────────────────────────────────────
 
 /**
@@ -85,6 +149,24 @@ export const runPass = internalMutation({
     // each other for the same documents.
     if (run.status !== "running" || run.fenceToken !== fenceToken) return null;
 
+    // The connection must still be the disconnecting grant this run opened for
+    // (R1/4c). A reconnect flips it to "active" and bumps `generation`; carrying
+    // on would delete the reconnected account's live data. `runPass` reads the
+    // connection every pass, not just `run.status`, precisely so a chain the
+    // watchdog resumed after a reconnect stops here instead.
+    const connection = await loadPurgeConnection(ctx, run);
+    if (connection === null) {
+      const now = Date.now();
+      await ctx.db.patch(runId, {
+        status: "failed",
+        updatedAt: now,
+        finishedAt: now,
+        lastError:
+          "Veza je u međuvremenu promenjena (ponovo povezana ili prekinuta iznova), pa je brisanje zaustavljeno da ne bi diralo nove podatke.",
+      });
+      return null;
+    }
+
     const steps = purgeSteps(run.provider);
     let stepIndex = Math.max(0, Math.min(run.stepIndex, steps.length));
     let budget = PURGE_BATCH;
@@ -99,50 +181,100 @@ export const runPass = internalMutation({
     }
 
     const now = Date.now();
-    const finished = stepIndex >= steps.length;
+    const reachedEnd = stepIndex >= steps.length;
+    const verifying = (run.finalSweeps ?? 0) > 0;
+    const aliveReset = deleted > 0 ? { resumes: 0 } : {};
 
-    await ctx.db.patch(runId, {
-      stepIndex,
-      deletedTotal: run.deletedTotal + deleted,
-      updatedAt: now,
-      // A pass that deleted something is proof the run is alive; the watchdog's
-      // patience starts over.
-      ...(deleted > 0 ? { resumes: 0 } : {}),
-      ...(finished
-        ? { status: "done" as const, finishedAt: now }
-        : {}),
-    });
-
-    if (finished) {
-      // Only now. The connection row is what every remaining query, cron and
-      // admin path uses to find this workspace's provider data; deleting it
-      // first (which is what YA2 did) turns anything left behind into rows no
-      // index can reach.
-      await deleteConnectionRow(ctx, run.connectionId);
+    // More work left inside this traversal (forward pass, or a verification
+    // cycle) — commit progress and continue.
+    if (!reachedEnd) {
+      await ctx.db.patch(runId, {
+        stepIndex,
+        deletedTotal: run.deletedTotal + deleted,
+        updatedAt: now,
+        ...(verifying ? { sweepDeleted: (run.sweepDeleted ?? 0) + deleted } : {}),
+        ...aliveReset,
+      });
+      await ctx.scheduler.runAfter(0, internal.purge.runPass, { runId, fenceToken });
       return null;
     }
 
-    await ctx.scheduler.runAfter(0, internal.purge.runPass, {
-      runId,
-      fenceToken,
+    // Reached the end of the FORWARD pass. Do not declare "done" yet: a webhook
+    // write that landed in an already-finished step's table (R1/4b) is only
+    // caught by re-scanning every step and finding nothing. Begin cycle 1.
+    if (!verifying) {
+      await ctx.db.patch(runId, {
+        stepIndex: 0,
+        deletedTotal: run.deletedTotal + deleted,
+        finalSweeps: 1,
+        sweepDeleted: 0,
+        updatedAt: now,
+        ...aliveReset,
+      });
+      await ctx.scheduler.runAfter(0, internal.purge.runPass, { runId, fenceToken });
+      return null;
+    }
+
+    // Reached the end of a VERIFICATION cycle. If the whole cycle deleted
+    // nothing, deletion is provably complete.
+    const sweepTotal = (run.sweepDeleted ?? 0) + deleted;
+    if (sweepTotal === 0) {
+      await ctx.db.patch(runId, {
+        stepIndex,
+        deletedTotal: run.deletedTotal + deleted,
+        updatedAt: now,
+        deletionDone: true,
+        ...aliveReset,
+      });
+      // Finalises only if the revoke has also settled; otherwise the revoke
+      // side will finalise when it does (R1/4d).
+      await maybeFinalize(ctx, runId);
+      return null;
+    }
+
+    // Stragglers were found and cleared this cycle. Go round again, bounded — if
+    // rows keep arriving after MAX_FINAL_SWEEPS, something is still writing and
+    // the run fails loudly instead of sealing them in.
+    const nextSweep = (run.finalSweeps ?? 1) + 1;
+    if (nextSweep > MAX_FINAL_SWEEPS) {
+      await ctx.db.patch(runId, {
+        status: "failed",
+        updatedAt: now,
+        finishedAt: now,
+        deletedTotal: run.deletedTotal + deleted,
+        lastError: `Novi redovi su nastavljali da stižu i posle ${MAX_FINAL_SWEEPS} kontrolna prolaza; deo podataka je možda ostao. Proveri da je veza stvarno prekinuta pa klikni „Pokušaj ponovo”.`,
+      });
+      return null;
+    }
+    await ctx.db.patch(runId, {
+      stepIndex: 0,
+      deletedTotal: run.deletedTotal + deleted,
+      finalSweeps: nextSweep,
+      sweepDeleted: 0,
+      updatedAt: now,
+      ...aliveReset,
     });
+    await ctx.scheduler.runAfter(0, internal.purge.runPass, { runId, fenceToken });
     return null;
   },
 });
 
-/** Drop the connection row, if it is still there and still mid-disconnect. */
+/**
+ * Drop the connection row, but only if it is still the same disconnecting grant
+ * this run was erasing (R1/4c).
+ *
+ * The connection row is what every remaining query, cron and admin path uses to
+ * find this workspace's provider data; deleting it first (which is what YA2 did)
+ * turns anything left behind into rows no index can reach — so it goes last, and
+ * only for the exact grant that was erased.
+ */
 async function deleteConnectionRow(
   ctx: MutationCtx,
-  connectionId: Id<"connections"> | undefined,
+  run: Doc<"purgeRuns">,
 ): Promise<void> {
-  if (connectionId === undefined) return;
-  const connection = await ctx.db.get(connectionId);
+  const connection = await loadPurgeConnection(ctx, run);
   if (connection === null) return;
-  // Reconnecting during the purge writes fresh credentials and flips the row
-  // back to "active". Deleting it here would then throw away a connection the
-  // operator has just made.
-  if (connection.status !== "disconnecting") return;
-  await ctx.db.delete(connectionId);
+  await ctx.db.delete(connection._id);
 }
 
 // ── the watchdog ─────────────────────────────────────────────────────────────
@@ -189,19 +321,25 @@ export const resumeStalled = internalMutation({
         updatedAt: Date.now(),
       });
 
-      // A run that never got past the revoke step has no credentials wiped and
-      // no batches run yet, so it restarts from there rather than from the
-      // deletions.
+      // Revoke and deletion are independent chains now (R1/4d): restart whichever
+      // is still outstanding. Both are gated by the fresh fence token, so any
+      // copy still alive from before stops on its next write.
       if (run.revokeStatus === "pending") {
         await ctx.scheduler.runAfter(0, internal.purge.revokeAndStart, {
           runId: run._id,
           fenceToken,
         });
-      } else {
+      }
+      if (run.deletionDone !== true) {
         await ctx.scheduler.runAfter(0, internal.purge.runPass, {
           runId: run._id,
           fenceToken,
         });
+      }
+      // Both halves already finished but the run never got sealed (the isolate
+      // died between the last write and `maybeFinalize`) — finish it here.
+      if (run.revokeStatus !== "pending" && run.deletionDone === true) {
+        await maybeFinalize(ctx, run._id);
       }
     }
     return null;
@@ -230,10 +368,15 @@ export const credentialsForRevoke = internalQuery({
     const run = await ctx.db.get(runId);
     if (run === null || run.status !== "running") return null;
     if (run.fenceToken !== fenceToken) return null;
-    if (run.connectionId === undefined) return null;
 
-    const connection = await ctx.db.get(run.connectionId);
+    // Only revoke while this is still the disconnecting grant the run opened for
+    // (R1/4d). Without this the watchdog could revoke a token the operator has
+    // since reconnected — the retry loop would keep trying long after a fresh
+    // grant replaced the old one.
+    const connection = await loadPurgeConnection(ctx, run);
     if (connection === null) return null;
+    // Already wiped by a settled attempt — nothing left to revoke with.
+    if (connection.encryptedCredentials.length === 0) return null;
 
     return {
       provider: connection.provider,
@@ -298,11 +441,18 @@ export const revokeAndStart = internalAction({
 });
 
 /**
- * Record what the revoke did, destroy the stored credentials, and let the
- * batches go.
+ * Record one revoke attempt (R1/4d).
  *
- * The credentials are cleared HERE rather than at disconnect time, because
- * clearing them earlier is what made revocation impossible in the first place.
+ * A FAILED attempt with tries left keeps the credentials and schedules a retry:
+ * the old code wiped the token on the first failure, so ten seconds of Google
+ * latency left a `youtube.force-ssl` grant alive forever, unrevokable. Only when
+ * the revoke settles — success, "unsupported", or the last failed attempt — are
+ * the credentials destroyed. On exhaustion the card says the operator has to do
+ * it by hand, with the link.
+ *
+ * Deletion is NOT scheduled from here: it runs in parallel (started in
+ * `beginPurgeRun`), so a slow revoke never holds the data. `revokeStatus`
+ * staying `pending` is what keeps the run from finalising while a retry is out.
  */
 export const finishRevoke = internalMutation({
   args: {
@@ -321,26 +471,55 @@ export const finishRevoke = internalMutation({
     if (run === null) return null;
     if (run.status !== "running" || run.fenceToken !== fenceToken) return null;
 
-    if (run.connectionId !== undefined) {
-      const connection = await ctx.db.get(run.connectionId);
-      if (connection !== null && connection.status === "disconnecting") {
-        await ctx.db.patch(run.connectionId, {
-          encryptedCredentials: "",
-          encryptedUserCredentials: undefined,
-        });
-      }
+    const connection = await loadPurgeConnection(ctx, run);
+    const now = Date.now();
+    const attempts = (run.revokeAttempts ?? 0) + 1;
+    const settledOk = revokeStatus === "ok" || revokeStatus === "unsupported";
+    const exhausted = attempts >= MAX_REVOKE_ATTEMPTS;
+
+    // Superseded by a reconnect (R1/4c): these credentials belong to the new
+    // grant. Do not wipe or retry — record the attempt and let the run's own
+    // connection checks stop the chain.
+    if (connection === null) {
+      await ctx.db.patch(runId, { revokeAttempts: attempts, updatedAt: now });
+      return null;
     }
 
-    await ctx.db.patch(runId, {
-      revokeStatus,
-      ...(revokeError !== undefined ? { revokeError } : {}),
-      updatedAt: Date.now(),
+    // Failed, but tries remain: keep the token, stay `pending`, retry later.
+    if (!settledOk && !exhausted) {
+      await ctx.db.patch(runId, {
+        revokeStatus: "pending",
+        revokeAttempts: attempts,
+        ...(revokeError !== undefined ? { revokeError } : {}),
+        updatedAt: now,
+      });
+      await ctx.scheduler.runAfter(
+        revokeRetryDelayMs(attempts),
+        internal.purge.revokeAndStart,
+        { runId, fenceToken },
+      );
+      return null;
+    }
+
+    // Settled. Now — and only now — the stored token is destroyed.
+    await ctx.db.patch(connection._id, {
+      encryptedCredentials: "",
+      encryptedUserCredentials: undefined,
     });
 
-    await ctx.scheduler.runAfter(0, internal.purge.runPass, {
-      runId,
-      fenceToken,
+    const finalError = settledOk
+      ? revokeError
+      : manualRevokeMessage(connection.provider);
+
+    await ctx.db.patch(runId, {
+      revokeStatus: settledOk ? revokeStatus : "failed",
+      ...(finalError !== undefined ? { revokeError: finalError } : {}),
+      revokeAttempts: attempts,
+      updatedAt: now,
     });
+
+    // If deletion already finished, this is the last piece — finalise (R1/4d).
+    await maybeFinalize(ctx, runId);
     return null;
   },
 });
@@ -360,10 +539,14 @@ export async function beginPurgeRun(
   },
 ): Promise<Id<"purgeRuns">> {
   const now = Date.now();
+  const connection = await ctx.db.get(args.connectionId);
   const runId = await ctx.db.insert("purgeRuns", {
     workspaceId: args.workspaceId,
     provider: args.provider,
     connectionId: args.connectionId,
+    // The grant this run is bound to (R1/4c): a later reconnect bumps this on
+    // the row and the run stops.
+    connectionGeneration: connection?.generation ?? 0,
     startedAt: now,
     updatedAt: now,
     status: "running",
@@ -372,8 +555,16 @@ export async function beginPurgeRun(
     fenceToken: 1,
     resumes: 0,
     revokeStatus: "pending",
+    revokeAttempts: 0,
   });
+  // Revoke and deletion run in PARALLEL (R1/4d). Deletion needs no credentials,
+  // so it must not wait behind revoke retries that can span minutes; the
+  // connection row survives (holding the token) until the revoke settles.
   await ctx.scheduler.runAfter(0, internal.purge.revokeAndStart, {
+    runId,
+    fenceToken: 1,
+  });
+  await ctx.scheduler.runAfter(0, internal.purge.runPass, {
     runId,
     fenceToken: 1,
   });
@@ -486,6 +677,12 @@ export const retry = mutation({
     }
 
     const fenceToken = failed.fenceToken + 1;
+    // If deletion had not finished, give it a FRESH forward pass + verification
+    // (R1/4b): a run that failed because stragglers kept arriving would
+    // otherwise inherit the exhausted `finalSweeps`/`sweepDeleted` and fail on
+    // its first pass again. `deletedTotal` is kept — re-walking empty tables is
+    // cheap and those deletions really happened.
+    const restartDeletion = failed.deletionDone !== true;
     await ctx.db.patch(failed._id, {
       status: "running",
       fenceToken,
@@ -493,18 +690,27 @@ export const retry = mutation({
       lastError: undefined,
       finishedAt: undefined,
       updatedAt: Date.now(),
+      ...(restartDeletion
+        ? { stepIndex: 0, finalSweeps: undefined, sweepDeleted: undefined }
+        : {}),
     });
 
+    // Pick up whichever half had not finished (R1/4d). A revoke that exhausted
+    // its tries is `failed`, not `pending`, so retrying does not re-hammer it.
     if (failed.revokeStatus === "pending") {
       await ctx.scheduler.runAfter(0, internal.purge.revokeAndStart, {
         runId: failed._id,
         fenceToken,
       });
-    } else {
+    }
+    if (restartDeletion) {
       await ctx.scheduler.runAfter(0, internal.purge.runPass, {
         runId: failed._id,
         fenceToken,
       });
+    }
+    if (failed.revokeStatus !== "pending" && !restartDeletion) {
+      await maybeFinalize(ctx, failed._id);
     }
     return null;
   },
