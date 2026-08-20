@@ -8,6 +8,11 @@ import { appendUtm, isBotUserAgent } from "./lib/orLink";
 import { decryptCredentials } from "./lib/crypto";
 import { createUsageTracker } from "./lib/metaRateLimit";
 import {
+  signatureFailureReason,
+  signatureSecrets,
+  type WebhookRoute,
+} from "./lib/webhookSecrets";
+import {
   buildMediaFieldsUrl,
   isMissingObjectError,
   normalizeMediaChildren,
@@ -49,11 +54,45 @@ function bufferToHex(buffer: ArrayBuffer): string {
  * Verify `X-Hub-Signature-256` over the RAW body.
  *
  * ONE function for both webhooks (F5). It is the same Meta app behind the
- * Instagram and the Facebook route, so it is the same secret and the same
- * digest — and a second copy of a signature check is the kind of duplication
- * that gets fixed in one place and stays broken in the other.
+ * Instagram and the Facebook route, so it is the same digest — but NOT
+ * necessarily the same variable: the Facebook card tells the operator to set
+ * `FACEBOOK_APP_SECRET`, and this function used to ignore that variable
+ * entirely (P3). A deployment set up by following the on-screen instructions
+ * therefore refused every Page event with a 401 while looking healthy in every
+ * other respect. The candidate list per route now lives in
+ * `lib/webhookSecrets.ts`, which is also what the Settings indicator reads, so
+ * the two cannot drift apart again.
+ *
+ * A refusal is recorded rather than swallowed. A silent 401 loop is worse than
+ * a crash: Meta retries, then unsubscribes, and nothing anywhere says why.
  */
 async function verifySignature(
+  ctx: ActionCtx,
+  route: WebhookRoute,
+  raw: string,
+  header: string | null,
+): Promise<boolean> {
+  const ok = await signatureMatches(route, raw, header);
+
+  // Best effort on both sides: a webhook must answer Meta quickly, and losing
+  // a counter is never a reason to fail the request itself.
+  if (ok) {
+    await ctx
+      .runMutation(internal.webhookHealth.recordSignatureOk, { route })
+      .catch(() => {});
+  } else {
+    await ctx
+      .runMutation(internal.webhookHealth.recordSignatureFailure, {
+        route,
+        reason: signatureFailureReason(route),
+      })
+      .catch(() => {});
+  }
+  return ok;
+}
+
+async function signatureMatches(
+  route: WebhookRoute,
   raw: string,
   header: string | null,
 ): Promise<boolean> {
@@ -65,12 +104,7 @@ async function verifySignature(
     return false;
   }
 
-  const candidateSecrets: string[] = [];
-  const metaSecret = process.env.META_APP_SECRET?.trim();
-  if (metaSecret) candidateSecrets.push(metaSecret);
-  const igSecret = process.env.INSTAGRAM_APP_SECRET?.trim();
-  if (igSecret) candidateSecrets.push(igSecret);
-
+  const candidateSecrets = signatureSecrets(route);
   if (candidateSecrets.length === 0) {
     return false;
   }
@@ -400,7 +434,7 @@ http.route({
     const raw = await request.text();
     const signature = request.headers.get("x-hub-signature-256");
 
-    if (!(await verifySignature(raw, signature))) {
+    if (!(await verifySignature(ctx, "instagram", raw, signature))) {
       return new Response("Invalid signature", { status: 401 });
     }
 
@@ -497,7 +531,7 @@ http.route({
     const raw = await request.text();
     const signature = request.headers.get("x-hub-signature-256");
 
-    if (!(await verifySignature(raw, signature))) {
+    if (!(await verifySignature(ctx, "facebook", raw, signature))) {
       return new Response("Invalid signature", { status: 401 });
     }
 

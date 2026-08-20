@@ -5,6 +5,7 @@ import { v, ConvexError } from "convex/values";
 import type { DocumentByName, SystemDataModel } from "convex/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
+import { connectionStatusValidator } from "./lib/providers";
 import {
   ABANDONED_AFTER_DUE_MS,
   MAX_ATTEMPTS,
@@ -1150,11 +1151,8 @@ export const getConnectionForWorkspace = internalQuery({
       connectionId: v.id("connections"),
       igUserId: v.optional(v.string()),
       encryptedCredentials: v.string(),
-      status: v.union(
-        v.literal("active"),
-        v.literal("error"),
-        v.literal("expired"),
-      ),
+      // Shared union (P3): a row may now also be "disconnecting".
+      status: connectionStatusValidator,
     }),
   ),
   handler: async (ctx, { workspaceId }) => {

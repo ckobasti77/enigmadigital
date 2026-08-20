@@ -26,6 +26,7 @@ import {
   Copy,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import type { Provider } from "@/convex/lib/providers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,6 +43,12 @@ import {
   FormStack,
 } from "@/components/app/form-kit";
 import { DataAndAccess } from "./data-and-access";
+import {
+  PurgeNotice,
+  useIsWorkspaceOwner,
+  usePurgeRun,
+} from "./purge-state";
+import { WebhookSignatureNote } from "./webhook-health";
 import { StatusPill } from "./status-pill";
 import { SyncHealth } from "./sync-health";
 import { SyncSchedule } from "./sync-schedule";
@@ -104,6 +111,13 @@ function connectionPill(status: ConnectionView["status"] | undefined) {
       return <StatusPill tone="danger">Greška</StatusPill>;
     case "expired":
       return <StatusPill tone="warning">Isteklo</StatusPill>;
+    // Veza je prekinuta, ali red još stoji dok se preuzeti podaci brišu (P3).
+    case "disconnecting":
+      return (
+        <StatusPill tone="warning" pulse>
+          Brisanje u toku
+        </StatusPill>
+      );
     default:
       return <StatusPill tone="muted">Nije povezano</StatusPill>;
   }
@@ -247,12 +261,15 @@ function SavedCredentials({
  * tražila svaka radnja, prestala bi da se čita.
  */
 function DisconnectZone({
+  provider,
   label,
   busy,
   onConfirm,
   zoneDescription,
   dialogDescription,
 }: {
+  /** Koji servis — za proveru da li brisanje već teče. */
+  provider: Provider;
   /** Šta se prekida, u prvom padežu jednine: „Meta Ads nalog". */
   label: string;
   busy: boolean;
@@ -266,6 +283,16 @@ function DisconnectZone({
   dialogDescription?: ReactNode;
 }) {
   const [asking, setAsking] = useState(false);
+  const isOwner = useIsWorkspaceOwner();
+  const run = usePurgeRun(provider);
+
+  // Prekid veze traži rolu `owner` na serveru (P3). Ko to nije, ne vidi ni
+  // dugme: dugme koje puca na klik je gore od dugmeta kojeg nema. Dok se rola
+  // učitava zona se takođe ne prikazuje — bolje da se pojavi trenutak kasnije
+  // nego da trepne pa nestane.
+  if (isOwner !== true) return null;
+
+  const purging = run !== undefined && run !== null && run.status === "running";
 
   return (
     <>
@@ -273,8 +300,13 @@ function DisconnectZone({
         className="mt-6"
         title="Prekini vezu"
         description={
-          zoneDescription ??
-          "Kredencijali se brišu. Već preuzeti podaci i istorija sinhronizacije ostaju."
+          purging
+            ? "Brisanje preuzetih podataka je u toku. Detalji su iznad."
+            : (zoneDescription ??
+              // Do P3 je ovde pisalo da preuzeti podaci ostaju. Pisalo je
+              // tačno — brisao se samo YouTube — ali sada se briše sve, pa bi
+              // ista rečenica bila obećanje suprotno od onoga što kod radi.
+              "Pristup se opoziva, a kredencijali i svi podaci preuzeti sa ovog servisa se brišu. Nepovratno.")
         }
       >
         <Button
@@ -282,10 +314,10 @@ function DisconnectZone({
           variant="outline"
           size="sm"
           onClick={() => setAsking(true)}
-          disabled={busy}
+          disabled={busy || purging}
           className="border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
         >
-          {busy ? (
+          {busy || purging ? (
             <LoaderCircle className="animate-spin" />
           ) : (
             <Trash2 className="size-3.5" />
@@ -301,7 +333,7 @@ function DisconnectZone({
         title={`Prekinuti vezu sa ${label}?`}
         description={
           dialogDescription ??
-          "Sačuvani kredencijali se brišu i sinhronizacija staje. Podaci koji su već povučeni ostaju na tabli, a vezu možeš ponovo uspostaviti u svakom trenutku."
+          "Pristup ovoj aplikaciji se opoziva kod servisa, sačuvani kredencijali se brišu i briše se sve što je sa njega preuzeto. Brisanje traje koliko traje i vidi se na kartici. Vezu možeš ponovo uspostaviti, ali obrisani podaci se ne vraćaju."
         }
         confirmLabel="Prekini vezu"
         busyLabel="Prekidam…"
@@ -859,6 +891,10 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
       subtitle="Meta · organski insights"
       status={statusNode}
     >
+      {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
+          Ne prikazuje ništa dok brisanja nema. */}
+      <PurgeNotice provider="meta_ig" />
+      <WebhookSignatureNote route="instagram" />
       {/* Missing Environment Variables State */}
       {configState.loaded && !configState.isConfigured && (
         <FeedbackNote
@@ -959,6 +995,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
       {isConnected && <SyncFooter connection={connection} />}
       {isConnected && (
         <DisconnectZone
+          provider="meta_ig"
           label="Instagram nalogom"
           busy={disconnecting}
           onConfirm={handleDisconnect}
@@ -1361,6 +1398,10 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
       subtitle="Meta · objave, komentari i DM automatizacija"
       status={statusNode}
     >
+      {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
+          Ne prikazuje ništa dok brisanja nema. */}
+      <PurgeNotice provider="meta_fb" />
+      <WebhookSignatureNote route="facebook" />
       {setup === undefined ? (
         <div className="mt-5">
           <Skeleton className="h-14 w-full rounded-lg" />
@@ -1502,6 +1543,7 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
       {isConnected && <SyncFooter connection={connection} />}
       {isConnected && (
         <DisconnectZone
+          provider="meta_fb"
           label="Facebook stranicom"
           busy={disconnecting}
           onConfirm={handleDisconnect}
@@ -1586,6 +1628,9 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
       subtitle="Marketing API · System User token"
       status={statusNode}
     >
+      {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
+          Ne prikazuje ništa dok brisanja nema. */}
+      <PurgeNotice provider="meta_ads" />
       {isConnected && !editing ? (
         <div className="mt-5">
           <SavedCredentials
@@ -1677,6 +1722,7 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
       <SyncFooter connection={connection} />
       {isConnected && (
         <DisconnectZone
+          provider="meta_ads"
           label="Meta Ads nalogom"
           busy={disconnecting}
           onConfirm={handleDisconnect}
@@ -1781,6 +1827,9 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
       subtitle="Google Ads API (GAQL) · OAuth + Developer Token"
       status={statusNode}
     >
+      {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
+          Ne prikazuje ništa dok brisanja nema. */}
+      <PurgeNotice provider="google_ads" />
       {isConnected && !editing ? (
         <div className="mt-5">
           <SavedCredentials
@@ -1941,6 +1990,7 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
       <SyncFooter connection={connection} />
       {isConnected && (
         <DisconnectZone
+          provider="google_ads"
           label="Google Ads nalogom"
           busy={disconnecting}
           onConfirm={handleDisconnect}
@@ -2035,6 +2085,9 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
       subtitle="YouTube Data API i Analytics · OAuth (čitanje i upravljanje)"
       status={connectionPill(connection?.status)}
     >
+      {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
+          Ne prikazuje ništa dok brisanja nema. */}
+      <PurgeNotice provider="youtube" />
       {/* Token nosi i `youtube.force-ssl`, čime aplikacija na kanalu PIŠE.
           Kartica je do YA2 pisala „samo čitanje" — netačan opis dozvola nije
           kozmetika, nego prva stvar koju revizija uporedi sa stvarnim opsegom. */}
@@ -2161,10 +2214,11 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
       <SyncFooter connection={connection} />
       {isConnected && (
         <DisconnectZone
+          provider="youtube"
           label="YouTube kanalom"
           busy={disconnecting}
           onConfirm={handleDisconnect}
-          zoneDescription="Brišu se kredencijali i svi podaci preuzeti sa YouTube-a. Nepovratno."
+          zoneDescription="Pristup se opoziva kod Google-a, pa se brišu kredencijali i svi podaci preuzeti sa YouTube-a. Nepovratno."
           dialogDescription={
             <>
               <span className="block">
@@ -2173,7 +2227,12 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                 log komentara i automatizacije. Ova radnja je nepovratna.
               </span>
               <span className="mt-3 block">
-                Pristup aplikaciji možeš opozvati i sa Google strane, na{" "}
+                Aplikacija pri tome sama opoziva pristup kod Google-a. Brisanje
+                ne teče trenutno — kartica pokazuje dokle je stiglo i javlja
+                kada je gotovo.
+              </span>
+              <span className="mt-3 block">
+                Ako opoziv ne prođe, možeš ga dovršiti i ručno, na{" "}
                 <a
                   href={GOOGLE_PERMISSIONS_URL}
                   target="_blank"

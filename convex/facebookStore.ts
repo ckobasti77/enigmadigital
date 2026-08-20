@@ -2,6 +2,9 @@ import { internalMutation, internalQuery, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
+import { connectionStatusValidator } from "./lib/providers";
+import { getFacebookAppSecret } from "./lib/facebookApi";
+import { hasSignatureSecret } from "./lib/webhookSecrets";
 
 /**
  * ============================================================================
@@ -549,9 +552,7 @@ export const setupInfo = query({
 
     const appId =
       process.env.FACEBOOK_APP_ID?.trim() || process.env.META_APP_ID?.trim();
-    const appSecret =
-      process.env.FACEBOOK_APP_SECRET?.trim() ||
-      process.env.META_APP_SECRET?.trim();
+    const appSecret = getFacebookAppSecret();
 
     return {
       webhookUrl: process.env.CONVEX_SITE_URL
@@ -559,7 +560,11 @@ export const setupInfo = query({
         : null,
       appConfigured: Boolean(appId && appSecret),
       verifyTokenSet: Boolean(process.env.IG_WEBHOOK_VERIFY_TOKEN?.trim()),
-      appSecretSet: Boolean(appSecret),
+      // Asks the SAME question the webhook asks (P3): whether any variable the
+      // Facebook signature check will actually try is set. It used to read its
+      // own private pair, which is how the card managed to say "green" over a
+      // route that answered 401 to everything.
+      appSecretSet: hasSignatureSecret("facebook"),
     };
   },
 });
@@ -575,11 +580,7 @@ export const pageInfo = query({
     v.object({
       pageId: v.string(),
       pageName: v.union(v.string(), v.null()),
-      status: v.union(
-        v.literal("active"),
-        v.literal("error"),
-        v.literal("expired"),
-      ),
+      status: connectionStatusValidator,
       expiresAt: v.union(v.number(), v.null()),
       lastSyncAt: v.union(v.number(), v.null()),
     }),

@@ -99,18 +99,33 @@ export default function PrivacyPage() {
 
       <Section title="Kako se brišu">
         <p>
-          Prekid veze sa servisom u Podešavanjima briše sačuvane kredencijale.
-          Za YouTube prekid veze briše i sve podatke preuzete sa YouTube-a —
-          statistiku kanala, podatke o video zapisima, izvore saobraćaja, log
-          komentara i automatizacije. Ta radnja je nepovratna.
+          Prekid veze sa servisom u Podešavanjima radi tri stvari, tim redom:
+          opoziva pristup ovoj aplikaciji kod samog servisa, briše sačuvane
+          kredencijale, pa briše sve podatke preuzete sa tog servisa. To važi za
+          svaki povezani servis — Google Analytics, YouTube, Instagram, Facebook
+          stranicu, Meta Ads i Google Ads — a ne samo za YouTube.
         </p>
         <p className="mt-3">
-          Pristup Google nalozima možeš opozvati i sa Google strane, na{" "}
+          Za YouTube to znači statistiku kanala, podatke o video zapisima,
+          izvore saobraćaja, log obrađenih komentara (uz tekst komentara i javno
+          ime autora) i automatizacije. Za Instagram i Facebook stranicu
+          statistiku naloga i objava, komentare i logove moderacije. Radnja je
+          nepovratna.
+        </p>
+        <p className="mt-3">
+          Brisanje ne teče trenutno: odvija se u pozadini, u serijama, i
+          nastavlja se samo ako se prekine. Kartica servisa u Podešavanjima
+          pokazuje koliko je redova obrisano dok traje, i javlja datum kada se
+          završi. Dok se ne završi, veza se ne smatra prekinutom.
+        </p>
+        <p className="mt-3">
+          Pristup Google nalozima možeš proveriti i opozvati i sam, na{" "}
           <PolicyLink href={GOOGLE_PERMISSIONS_URL}>
             myaccount.google.com/permissions
           </PolicyLink>
-          . Opoziv zaustavlja svaku dalju sinhronizaciju; za brisanje već
-          preuzetih podataka prekini vezu u Podešavanjima.
+          . Opoziv sa te strane zaustavlja svaku dalju sinhronizaciju, ali ne
+          briše ono što je već preuzeto — za brisanje prekini vezu u
+          Podešavanjima.
         </p>
       </Section>
 

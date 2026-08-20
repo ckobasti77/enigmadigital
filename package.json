@@ -5,11 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "convex:dev": "convex dev",
-    "build": "next build",
+    "build": "npm run verify:purge && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "verify:ig-publish": "node --import ./scripts/ts-hooks.mjs scripts/verify-ig-publish-idempotency.ts"
+    "verify:ig-publish": "node --import ./scripts/ts-hooks.mjs scripts/verify-ig-publish-idempotency.ts",
+    "verify:purge": "node --import ./scripts/ts-hooks.mjs scripts/verify-purge-coverage.ts"
   },
   "dependencies": {
     "@auth/core": "^0.41.3",

@@ -1,7 +1,10 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
-import { providerValidator } from "./lib/providers";
+import {
+  connectionStatusValidator,
+  providerValidator,
+} from "./lib/providers";
 
 // Multi-tenant from day one (PLAN.md §3). V1 is single-user, but every future
 // table carries a `workspaceId`, so onboarding clients later needs no migration.
@@ -47,11 +50,11 @@ export default defineSchema({
     // the only way to tell our replies from everybody else's — and a targeted
     // single-post refresh cannot afford a `/me` call just to learn it again.
     accountHandle: v.optional(v.string()),
-    status: v.union(
-      v.literal("active"),
-      v.literal("error"),
-      v.literal("expired"),
-    ),
+    // Includes "disconnecting" (P3): the row is NOT deleted the moment somebody
+    // disconnects. It is the only thing that still says this workspace has
+    // provider data, and deleting it first orphans everything the purge has not
+    // reached yet. See `lib/providers.ts`.
+    status: connectionStatusValidator,
     expiresAt: v.optional(v.number()), // Meta long-lived tokens (60 days)
     lastSyncAt: v.optional(v.number()),
   })
@@ -264,7 +267,10 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_storage", ["storageId"])
-    .index("by_created", ["createdAt"]),
+    .index("by_created", ["createdAt"])
+    // Erasure (P3) needs to ask "what does THIS workspace still hold" — a
+    // question neither of the two indexes above can answer without a scan.
+    .index("by_workspace", ["workspaceId"]),
 
   // ── Instagram komentari (F4) ────────────────────────────────────────────────
   // Every comment we have ever seen on our own posts — not only the ones that
@@ -1279,4 +1285,94 @@ export default defineSchema({
     itemCount: v.number(),
     syncedAt: v.number(),
   }).index("by_workspace_playlist", ["workspaceId", "playlistId"]), // upsert key
+
+  // ── Brisanje preuzetih podataka (P3) ────────────────────────────────────────
+  //
+  // One row per erasure of one provider's data from one workspace. It exists
+  // because YA2's version did not: the purge was a chain of `runAfter` calls
+  // and nothing else, so a single failed pass — an OCC conflict with the
+  // 15-minute comment poller is enough — took the scheduled continuation down
+  // with it. Tens of thousands of rows carrying comment text and author names
+  // stayed in the database for good, nobody was told, and nothing would ever
+  // pick the work back up.
+  //
+  // So the chain now writes down where it is. Every pass commits its progress
+  // in the SAME transaction as the deletions it just made, which means a pass
+  // that dies loses only its own batch; `stepIndex` and `deletedTotal` still
+  // describe exactly what is already gone. The 10-minute watchdog cron finds a
+  // run whose `updatedAt` has stopped moving and starts it again from there.
+  //
+  // `fenceToken` is what makes the restart safe. The watchdog bumps it before
+  // rescheduling, and every pass compares the token it was handed against the
+  // one on the row — so a pass from the old chain that turns out to be alive
+  // after all returns without touching anything instead of running beside the
+  // new one.
+  purgeRuns: defineTable({
+    workspaceId: v.id("workspaces"),
+    provider: providerValidator,
+    // The connection row this erasure will delete once it is finished. Absent
+    // only if that row disappeared some other way in the meantime.
+    connectionId: v.optional(v.id("connections")),
+    startedAt: v.number(),
+    // Touched by every pass that commits. The watchdog reads nothing else to
+    // decide whether a run is still moving.
+    updatedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    // "done" is written ONLY when every step has answered with zero remaining
+    // rows. There is no other way to reach it.
+    status: v.union(
+      v.literal("running"),
+      v.literal("done"),
+      v.literal("failed"),
+    ),
+    // How far through `purgeSteps(provider)` this run has got. A step is only
+    // stepped past once it reports itself exhausted.
+    stepIndex: v.number(),
+    deletedTotal: v.number(),
+    lastError: v.optional(v.string()),
+    fenceToken: v.number(),
+    // Consecutive watchdog restarts that produced no deletions. Reset to 0 by
+    // any pass that deletes something, so a big slow purge is never mistaken
+    // for a stuck one.
+    resumes: v.number(),
+    // Whether the token was handed back to the provider BEFORE the credentials
+    // were destroyed. "unsupported" means the provider has no revoke endpoint
+    // for this kind of credential (a GA4 service account key, for one) — not
+    // that the attempt failed.
+    revokeStatus: v.union(
+      v.literal("pending"),
+      v.literal("ok"),
+      v.literal("failed"),
+      v.literal("unsupported"),
+    ),
+    revokeError: v.optional(v.string()),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_provider", ["workspaceId", "provider"])
+    // The watchdog's only question: which runs claim to be running, oldest
+    // heartbeat first.
+    .index("by_status_updated", ["status", "updatedAt"]),
+
+  // ── Webhook signature health (P3) ───────────────────────────────────────────
+  //
+  // A webhook whose signature does not verify answers 401 and says nothing
+  // else — to Meta, which eventually unsubscribes, and to nobody at all here.
+  // The failure mode this exists for is a deployment where the app secret sits
+  // in a variable the verifier never reads: OAuth works, the sync works, the
+  // card is green, and every single event is refused.
+  //
+  // One row per route ("instagram" / "facebook"), deployment-wide rather than
+  // per workspace: the signature is checked before the payload is parsed, so
+  // there is no workspace to attribute a refusal to yet.
+  webhookSignatureFailures: defineTable({
+    route: v.string(),
+    failures: v.number(),
+    lastFailureAt: v.number(),
+    // Names the environment variable that has to be set. Shown verbatim in
+    // Settings, so it is written for the person reading it there.
+    lastReason: v.string(),
+    // When a signature last verified. A counter without this cannot tell
+    // "broken since forever" from "one stray request last Tuesday".
+    lastOkAt: v.optional(v.number()),
+  }).index("by_route", ["route"]),
 });

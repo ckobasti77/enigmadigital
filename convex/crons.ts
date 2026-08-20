@@ -172,6 +172,24 @@ crons.interval(
 );
 // A firing rule PAUSES an ad through the Graph API, so this is a Meta job and
 // gets its own minutes like the rest of them.
+// The only thing that makes an erasure something to rely on (P3).
+//
+// A purge is a chain of self-scheduling mutations, and a chain dies whenever
+// one link does — an OCC conflict with the comment poller is enough, and the
+// rollback takes the scheduled continuation with it. This is what notices: a
+// `purgeRuns` row still claiming to be running whose `updatedAt` stopped moving
+// gets a fresh fence token and a new first pass, from the step it had already
+// committed. Ten minutes is well past any single pass and far short of anyone
+// noticing their data is still there.
+//
+// On `interval` with the rest of the non-Meta jobs: it spends no provider quota
+// at all, and on a deployment with nothing to purge it is one indexed read.
+crons.interval(
+  "resume stalled purges",
+  { minutes: 10 },
+  internal.purge.resumeStalled,
+  {},
+);
 crons.cron(
   "evaluate ad rules",
   everyNMinutes(30, 11),

@@ -109,9 +109,14 @@ export function DataAndAccess({ connected }: { connected: Provider[] }) {
       )}
 
       <div className="mt-5 space-y-3 border-t pt-4">
+        {/* Do P3 je ovde pisalo da se preuzeti podaci brišu „kod YouTube-a”.
+            Sada se brišu kod svakog servisa, i opoziv radi sama aplikacija. */}
         <p className="text-xs leading-relaxed text-text-muted">
-          Prekid veze na kartici iznad briše sačuvane kredencijale. Kod
-          YouTube-a briše i sve preuzete podatke, nepovratno. Detaljno u{" "}
+          Prekid veze na kartici iznad opoziva pristup kod samog servisa, briše
+          sačuvane kredencijale i briše sve podatke preuzete sa tog servisa.
+          Nepovratno. Brisanje se odvija u pozadini i kartica pokazuje dokle je
+          stiglo. Prekid veze može da izvede samo vlasnik radnog prostora.
+          Detaljno u{" "}
           <Link
             href="/privacy"
             className="text-accent-400 underline underline-offset-2 transition-colors hover:text-accent-300"
@@ -121,9 +126,9 @@ export function DataAndAccess({ connected }: { connected: Provider[] }) {
           .
         </p>
         <p className="text-xs leading-relaxed text-text-muted">
-          Pristup Google nalozima (GA4, Google Ads, YouTube) opoziva se i sa
-          Google strane — opoziv zaustavlja sinhronizaciju, ali ne briše ono što
-          je već preuzeto.
+          Pristup Google nalozima (GA4, Google Ads, YouTube) možeš proveriti i
+          opozvati i sa Google strane. Ako opoziv iz aplikacije ne prođe,
+          kartica to kaže i uputi ovde.
         </p>
         <a
           href={GOOGLE_PERMISSIONS_URL}

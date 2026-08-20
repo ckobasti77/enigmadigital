@@ -37,3 +37,27 @@ export const ALL_PROVIDERS: Provider[] = [
   "youtube",
   "openreply",
 ];
+
+/**
+ * The lifecycle of one `connections` row.
+ *
+ * `disconnecting` was added in P3 and is the reason this union lives here
+ * rather than being typed out at each use site: the row is no longer deleted at
+ * the moment somebody presses "Prekini vezu". The credentials are destroyed and
+ * the erasure begins, but the row itself stays — it is the only thing left that
+ * says this workspace still holds provider data, and every query that reports
+ * connection state has to be able to say so. Four copies of the union in four
+ * files is how one of them ends up not being able to.
+ */
+export const connectionStatusValidator = v.union(
+  v.literal("active"),
+  v.literal("error"),
+  v.literal("expired"),
+  v.literal("disconnecting"),
+);
+
+export type ConnectionStatus =
+  | "active"
+  | "error"
+  | "expired"
+  | "disconnecting";

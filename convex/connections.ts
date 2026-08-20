@@ -3,11 +3,17 @@ import { v, ConvexError } from "convex/values";
 import { z } from "zod";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
-import { providerValidator, type Provider } from "./lib/providers";
-import { requireMembership } from "./lib/auth";
+import {
+  connectionStatusValidator,
+  providerValidator,
+  type Provider,
+} from "./lib/providers";
+import { requireMembership, requireOwner } from "./lib/auth";
 import { encryptCredentials } from "./lib/crypto";
 import { runSync } from "./lib/runSync";
 import { allowsManual, readGate } from "./lib/metaRateLimit";
+import { beginPurgeRun, clearFinishedRuns } from "./purge";
+import { purgeSteps } from "./lib/purgeMap";
 
 // ── credential validation (runs BEFORE encryption; never echoes the secret) ──
 
@@ -152,11 +158,7 @@ const connectionViewValidator = v.object({
   _id: v.id("connections"),
   _creationTime: v.number(),
   provider: providerValidator,
-  status: v.union(
-    v.literal("active"),
-    v.literal("error"),
-    v.literal("expired"),
-  ),
+  status: connectionStatusValidator,
   externalId: v.union(v.string(), v.null()),
   lastSyncAt: v.union(v.number(), v.null()),
   expiresAt: v.union(v.number(), v.null()),
@@ -218,6 +220,12 @@ export const save = mutation({
       )
       .unique();
 
+    // A "Podaci obrisani" notice belongs to the connection that was erased, not
+    // to the one being made right now (P3). A run still in flight is left
+    // alone: it is deleting rows this second, and the card has to keep saying
+    // so until it stops.
+    await clearFinishedRuns(ctx, workspaceId, provider);
+
     if (existing !== null) {
       await ctx.db.patch(existing._id, {
         encryptedCredentials,
@@ -241,28 +249,60 @@ export const save = mutation({
   },
 });
 
-/** Disconnect an integration (deletes stored credentials). */
+/**
+ * Disconnect an integration: revoke the grant, erase everything pulled from it,
+ * and only then forget the connection.
+ *
+ * Two things changed here in P3, and both were the difference between the
+ * dialog's promise and what the code did.
+ *
+ * The row is no longer deleted first. It used to go in the same transaction
+ * that merely SCHEDULED the erasure, so the mutation reported success before a
+ * single row had been removed, and an erasure that then died halfway was
+ * indistinguishable from one that finished. Worse, with the connection gone
+ * nothing indexed "this workspace has YouTube data and no YouTube connection" —
+ * the leftovers were unreachable by any cron, query or admin path. Now the row
+ * is flagged `disconnecting` and stays until `purgeRuns` says the last step
+ * came back empty.
+ *
+ * And it takes the owner role. `requireMembership` hands back any membership
+ * regardless of `role`, which meant `client_viewer` — a role that exists in
+ * order to only look at things — could irreversibly erase a workspace's whole
+ * dataset.
+ */
 export const remove = mutation({
   args: { connectionId: v.id("connections") },
+  returns: v.null(),
   handler: async (ctx, { connectionId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = await requireOwner(ctx);
     const conn = await ctx.db.get(connectionId);
     if (conn === null || conn.workspaceId !== workspaceId) {
       throw new ConvexError({ code: "forbidden" });
     }
-
-    // YouTube's Developer Policies require data retrieved from the API to be
-    // deleted when the authorization is revoked — not merely left unsynced. So
-    // disconnecting the channel erases every yt* table for this workspace, in
-    // rescheduled batches (`ytPurge`), rather than orphaning years of channel
-    // statistics and comment logs. The dialog in Settings says so out loud.
-    if (conn.provider === "youtube") {
-      await ctx.scheduler.runAfter(0, internal.ytPurge.purgeYouTubeData, {
-        workspaceId,
-      });
+    if (conn.status === "disconnecting") {
+      // Already under way. Pressing the button twice must not open a second
+      // run against the same tables.
+      return null;
     }
 
-    await ctx.db.delete(connectionId);
+    // Every provider that stores anything gets the same treatment. YouTube's
+    // Developer Policies are what forced the question, but Instagram, the Page,
+    // GA4 and the ad platforms hold the same class of data under the same kind
+    // of obligation — and code that answers one question two ways is a bug
+    // waiting for whoever reads it next (`lib/purgeMap.ts` is the list).
+    if (purgeSteps(conn.provider).length === 0) {
+      await ctx.db.delete(connectionId);
+      return null;
+    }
+
+    await clearFinishedRuns(ctx, workspaceId, conn.provider);
+    await ctx.db.patch(connectionId, { status: "disconnecting" });
+    await beginPurgeRun(ctx, {
+      workspaceId,
+      provider: conn.provider,
+      connectionId,
+    });
+    return null;
   },
 });
 
@@ -290,7 +330,13 @@ export const listByProvider = internalQuery({
       .query("connections")
       .withIndex("by_provider", (q) => q.eq("provider", provider))
       .collect();
-    return rows.map((c) => c._id);
+    // A connection mid-erasure has no credentials left (P3): the revoke step
+    // wipes them before the deletions start. Handing its id to a cron fan-out
+    // would only produce a `syncRuns` failure row for an integration the
+    // operator has already disconnected.
+    return rows
+      .filter((c) => c.status !== "disconnecting")
+      .map((c) => c._id);
   },
 });
 
@@ -307,6 +353,9 @@ export const authorizeForSync = internalQuery({
   handler: async (ctx, { connectionId, userId }) => {
     const conn = await ctx.db.get(connectionId);
     if (conn === null) return null;
+    // Mid-erasure the credentials are already gone (P3), so there is nothing
+    // left to sync with — refuse rather than record a failed run.
+    if (conn.status === "disconnecting") return null;
     const membership = await ctx.db
       .query("members")
       .withIndex("by_user", (q) => q.eq("userId", userId))

@@ -35,3 +35,28 @@ export async function requireMembership(ctx: QueryCtx): Promise<Membership> {
     role: membership.role,
   };
 }
+
+/**
+ * Same as `requireMembership`, but refuses anyone who is not the workspace
+ * owner.
+ *
+ * `requireMembership` answers "is this person in the workspace" and hands back
+ * the role without ever looking at it — which meant `client_viewer`, a role
+ * that exists in order to only look at things, could press "Prekini vezu" and
+ * erase a workspace's entire YouTube dataset for good (P3). Irreversible and
+ * workspace-wide is exactly the pair that needs the stricter check, so
+ * disconnecting and purging go through here.
+ *
+ * The message is deliberately plain: the UI hides the button from anyone who
+ * would hit this, so a person who sees it got here some other way.
+ */
+export async function requireOwner(ctx: QueryCtx): Promise<Membership> {
+  const membership = await requireMembership(ctx);
+  if (membership.role !== "owner") {
+    throw new ConvexError({
+      code: "forbidden",
+      message: "Ovu radnju može da izvede samo vlasnik radnog prostora.",
+    });
+  }
+  return membership;
+}
