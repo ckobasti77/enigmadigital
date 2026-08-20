@@ -25,6 +25,7 @@ import {
   buildPageNodeUrl,
   buildPagePostsUrl,
   buildPostCommentsUrl,
+  hasScope,
   buildPostInsightsUrl,
   buildSubscribedAppsUrl,
   getFacebookAppId,
@@ -136,6 +137,16 @@ async function syncPostComments(
 ): Promise<number> {
   const { workspaceId, postId, pageId, token, version, syncedAt, tracker } =
     params;
+
+  // Comments on a Page post are content OTHER people wrote, which needs
+  // `pages_read_user_content`. Without it every page of this loop is a
+  // guaranteed rejection: it would burn the rate-limit allowance and leave
+  // "Facebook nije odgovorio" on the card, which reads like an outage rather
+  // than a permission the app has not been granted yet. Say the true reason
+  // instead, and spend nothing.
+  if (!hasScope("pages_read_user_content")) {
+    return 0;
+  }
 
   // The instant BEFORE the first call. Everything the database learns after
   // this moment arrived by another road and is none of this answer's business.

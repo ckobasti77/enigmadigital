@@ -47,11 +47,24 @@ export const FACEBOOK_SCOPES = [
   "pages_read_engagement",
 ] as const;
 
-/** Granted by App Review later; see the note above. */
+/**
+ * Granted by App Review later; see the note above.
+ *
+ *   pages_manage_engagement — comment, hide, delete, like as the Page
+ *   pages_messaging         — the private reply and the DM thread
+ *   pages_manage_metadata   — subscribe the Page to the webhook
+ *   pages_read_user_content — read comments left by OTHER people, and delete
+ *                             them. `pages_read_engagement` only covers what
+ *                             the Page itself posted, so moderation is blind
+ *                             without this one.
+ *   pages_manage_posts      — publish, edit and delete Page posts
+ */
 export const FACEBOOK_PENDING_SCOPES = [
   "pages_manage_engagement",
   "pages_messaging",
   "pages_manage_metadata",
+  "pages_read_user_content",
+  "pages_manage_posts",
 ] as const;
 
 /**
@@ -310,9 +323,38 @@ export function buildPostCommentsUrl(
  * `limit(0)`: the summary carries `total_count`, and without the limit Meta
  * ships the first 25 of each alongside it for nothing.
  */
-export const PAGE_POST_FIELDS =
-  "id,message,story,created_time,permalink_url,full_picture,status_type," +
-  "comments.summary(true).limit(0),likes.summary(true).limit(0),shares";
+/**
+ * Fields for GET /{page-id}/posts.
+ *
+ * `comments.summary(...)` and `likes.summary(...)` read content OTHER people
+ * left on the Page, which needs `pages_read_user_content`. Asking for a field
+ * the token cannot read makes Graph reject the WHOLE request, so a missing
+ * scope did not cost us the comment counts — it cost us the posts, the
+ * pictures and the share counts too, and the sync row went red with nothing
+ * fetched.
+ *
+ * So the field list is built from the scopes we actually hold. The day App
+ * Review grants `pages_read_user_content` and it moves into FACEBOOK_SCOPES,
+ * the counts come back on their own; nothing else has to change.
+ */
+const PAGE_POST_FIELDS_BASE =
+  "id,message,story,created_time,permalink_url,full_picture,status_type,shares";
+
+const PAGE_POST_FIELDS_USER_CONTENT =
+  "comments.summary(true).limit(0),likes.summary(true).limit(0)";
+
+export function hasScope(scope: string): boolean {
+  return (FACEBOOK_SCOPES as readonly string[]).includes(scope);
+}
+
+export function pagePostFields(): string {
+  return hasScope("pages_read_user_content")
+    ? `${PAGE_POST_FIELDS_BASE},${PAGE_POST_FIELDS_USER_CONTENT}`
+    : PAGE_POST_FIELDS_BASE;
+}
+
+/** Kept for callers that still import the constant. */
+export const PAGE_POST_FIELDS = pagePostFields();
 
 export function buildPagePostsUrl(
   pageId: string,
