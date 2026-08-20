@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { BULK_ACTION_MAX } from "@/convex/lib/igComments";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ import { Arrive, ArrivalScope } from "@/components/motion/arrive";
 import { EmptyState } from "@/components/app/empty-state";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackNote } from "@/components/app/feedback";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, pluralSr } from "@/lib/format";
 import { CommentThread, convexMessage } from "./comment-thread";
 
 type Filter = "unanswered" | "all" | "hidden" | "deleted";
@@ -60,15 +61,9 @@ const EMPTY_COPY: Record<Filter, { icon: typeof Inbox; text: string }> = {
   },
 };
 
-/** Serbian counting: 1 komentar, 2–4 komentara, 5+ komentara. */
+/** 1 komentar, 2–4 komentara, 5+ komentara — po pravilu iz `lib/format`. */
 function commentsWord(count: number): string {
-  const mod100 = count % 100;
-  const mod10 = count % 10;
-  if (mod10 === 1 && mod100 !== 11) return "komentar";
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
-    return "komentara";
-  }
-  return "komentara";
+  return pluralSr(count, "komentar", "komentara", "komentara");
 }
 
 export function CommentsModeration() {
@@ -107,8 +102,20 @@ export function CommentsModeration() {
     [selection, visibleIds],
   );
 
+  // The backend refuses a bulk action over `BULK_ACTION_MAX` outright — one
+  // comment too many and NOTHING happens, which used to be the whole outcome
+  // of ticking "Izaberi sve" on a full page of 100 (V2/1). The ceiling now
+  // lives on this side of the call, so the number in the dialog is the number
+  // that gets processed.
+  const selectableCount = Math.min(visibleIds.size, BULK_ACTION_MAX);
+  const capped = visibleIds.size > BULK_ACTION_MAX;
+
   const toggle = (commentId: string, on: boolean) => {
     setSelection((prev) => {
+      if (on && !prev.has(commentId)) {
+        const live = [...prev].filter((id) => visibleIds.has(id));
+        if (live.length >= BULK_ACTION_MAX) return prev;
+      }
       const next = new Set(prev);
       if (on) next.add(commentId);
       else next.delete(commentId);
@@ -116,7 +123,8 @@ export function CommentsModeration() {
     });
   };
 
-  const allSelected = visibleIds.size > 0 && selected.size === visibleIds.size;
+  const atLimit = selected.size >= BULK_ACTION_MAX;
+  const allSelected = selectableCount > 0 && selected.size === selectableCount;
 
   if (!igConnected) {
     return (
@@ -154,35 +162,48 @@ export function CommentsModeration() {
             selection={selected}
             allSelected={allSelected}
             onSelectAll={(on) =>
-              setSelection(on ? new Set(visibleIds) : new Set())
+              setSelection(
+                on
+                  ? new Set([...visibleIds].slice(0, BULK_ACTION_MAX))
+                  : new Set(),
+              )
             }
-            selectableCount={visibleIds.size}
+            selectableCount={selectableCount}
+            capped={capped}
+            atLimit={atLimit}
           />
 
-          {threads === undefined ? (
-            <CommentListSkeleton />
-          ) : threads.length === 0 ? (
-            <EmptyState icon={EMPTY_COPY[filter].icon}>
-              {EMPTY_COPY[filter].text}
-            </EmptyState>
-          ) : (
-            // Komentar stiže webhook-om, dakle dok je ekran otvoren: ulazi
-            // kratkim uvodom umesto da lista ponovo poskoči.
-            <ArrivalScope>
+          {/* Komentar stiže webhook-om, dakle dok je ekran otvoren: ulazi
+              kratkim uvodom umesto da lista ponovo poskoči. Scope stoji IZNAD
+              praznog stanja, da prvi komentar ikad primljen bude tretiran kao
+              dolazak, a `ready` ga drži neslegnutim dok upit traje, da prva
+              porcija redova ostane posao <Reveal>-a. */}
+          <ArrivalScope
+            ready={threads !== undefined}
+            resetKey={`${filter}|${search.trim()}`}
+          >
+            {threads === undefined ? (
+              <CommentListSkeleton />
+            ) : threads.length === 0 ? (
+              <EmptyState icon={EMPTY_COPY[filter].icon}>
+                {EMPTY_COPY[filter].text}
+              </EmptyState>
+            ) : (
               <div className="flex flex-col divide-y divide-line-soft px-4">
                 {threads.map((thread) => (
-                  <Arrive key={thread._id}>
+                  <Arrive key={thread._id} id={thread.commentId}>
                     <CommentThread
                       thread={thread}
                       showPost
                       selected={selected.has(thread.commentId)}
                       onSelectedChange={(on) => toggle(thread.commentId, on)}
+                      selectDisabled={atLimit}
                     />
                   </Arrive>
                 ))}
               </div>
-            </ArrivalScope>
-          )}
+            )}
+          </ArrivalScope>
         </Card>
       </Reveal>
     </div>
@@ -286,11 +307,17 @@ function SelectionBar({
   allSelected,
   onSelectAll,
   selectableCount,
+  capped,
+  atLimit,
 }: {
   selection: Set<string>;
   allSelected: boolean;
   onSelectAll: (on: boolean) => void;
+  /** How many rows „Izaberi sve" will actually tick — never over the ceiling. */
   selectableCount: number;
+  /** True when the list holds more rows than one action may carry. */
+  capped: boolean;
+  atLimit: boolean;
 }) {
   const bulkHide = useAction(api.igComments.bulkSetHidden);
   const bulkDelete = useAction(api.igComments.bulkDelete);
@@ -379,10 +406,18 @@ function SelectionBar({
           />
           <span>
             {count === 0
-              ? "Izaberi sve"
+              ? capped
+                ? `Izaberi sve (najviše ${formatNumber(BULK_ACTION_MAX)})`
+                : "Izaberi sve"
               : `Izabrano ${formatNumber(count)} ${commentsWord(count)}`}
           </span>
         </label>
+
+        {atLimit && (
+          <span className="text-micro text-text-muted">
+            {formatNumber(BULK_ACTION_MAX)} je najviše po jednoj radnji.
+          </span>
+        )}
 
         {count > 0 && (
           <div className="ml-auto flex flex-wrap items-center gap-1.5">

@@ -27,7 +27,7 @@ import { Toggle } from "@/components/ui/toggle";
 import { CountUp } from "@/components/motion/count-up";
 import { Arrive, ArrivalScope } from "@/components/motion/arrive";
 import { EmptyState } from "@/components/app/empty-state";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, pluralSr } from "@/lib/format";
 import { igMediaSrc } from "@/lib/ig-media";
 import { cn } from "@/lib/utils";
 import { CarouselSwiper } from "./carousel-swiper";
@@ -256,6 +256,11 @@ export function InstagramContentGrid({ media }: { media: MediaItem[] }) {
       </div>
 
       {/* ── All Posts Grid with Sort Controls ────────────────────────────── */}
+      {/* Scope stoji IZNAD grane sa praznim stanjem: kad se filter „sakrij
+          obrisane" isprazni pa ponovo napuni, to nije pedeset dolazaka nego
+          ponovo nacrtan ekran. `resetKey` isto to radi za promenu sortiranja i
+          filtera — pamćenje viđenih redova kreće ispočetka, i ništa ne leti. */}
+      <ArrivalScope resetKey={`${sort.key}|${sort.dir}|${String(hideDeleted)}`}>
       {visible.length > 0 && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft pt-6">
@@ -265,11 +270,7 @@ export function InstagramContentGrid({ media }: { media: MediaItem[] }) {
               </h2>
               <p className="font-mono text-xs tabular-nums text-text-muted">
                 Prikazano {formatNumber(sortedMedia.length)}{" "}
-                {sortedMedia.length === 1
-                  ? "objava"
-                  : sortedMedia.length >= 2 && sortedMedia.length <= 4
-                    ? "objave"
-                    : "objava"}
+                {pluralSr(sortedMedia.length, "objava", "objave", "objava")}
               </p>
             </div>
 
@@ -300,18 +301,19 @@ export function InstagramContentGrid({ media }: { media: MediaItem[] }) {
           {/* Objava koja stigne dok je ekran otvoren ulazi kratkim uvodom, ne
               punim reveal-om: nov podatak ne sme da izgleda kao da se stranica
               ponovo učitala. Kartice iz prvog kadra pripadaju ekranu i njih
-              otkriva <Reveal> iznad. */}
-          <ArrivalScope>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {sortedMedia.map((item) => (
-                <Arrive key={item._id} className="h-full">
-                  <PostCard item={item} />
-                </Arrive>
-              ))}
-            </div>
-          </ArrivalScope>
+              otkriva <Reveal> iznad. Dolazak se vezuje za `mediaId`, ne za
+              montiranje: kartica koja je već bila na ekranu ne animira se
+              ponovo ni posle promene sortiranja. */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {sortedMedia.map((item) => (
+              <Arrive key={item._id} id={item.mediaId} className="h-full">
+                <PostCard item={item} />
+              </Arrive>
+            ))}
+          </div>
         </div>
       )}
+      </ArrivalScope>
     </div>
   );
 }

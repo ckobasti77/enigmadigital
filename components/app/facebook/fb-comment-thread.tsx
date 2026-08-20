@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackLine } from "@/components/app/feedback";
 import { formatNumber, formatRelativeTime } from "@/lib/format";
+import { useOptimisticToggle } from "@/lib/use-optimistic-toggle";
 import { cn } from "@/lib/utils";
 
 export type FbCommentThreadData = FunctionReturnType<
@@ -146,32 +147,6 @@ function HiddenTag() {
       Sakriveno
     </span>
   );
-}
-
-/**
- * Keeps an optimistic boolean until the backend agrees with it.
- *
- * Hiding and liking are both round trips to Facebook, and waiting for one
- * before the icon changes makes the screen feel broken. So the flip happens
- * first.
- *
- * The override retires by being IGNORED once it matches the stored value, which
- * is why nothing here clears it: an effect that reset it on success would flash
- * the old state for the frame between the call returning and Convex pushing the
- * new row, and a later press simply overwrites it anyway.
- */
-function useOptimisticFlag(actual: boolean): {
-  value: boolean;
-  set: (next: boolean) => void;
-  revert: () => void;
-} {
-  const [override, setOverride] = useState<boolean | null>(null);
-
-  return {
-    value: override === null || override === actual ? actual : override,
-    set: setOverride,
-    revert: () => setOverride(null),
-  };
 }
 
 function ReplyComposer({
@@ -304,8 +279,8 @@ function CommentActions({
   const setLiked = useAction(api.fbComments.setCommentLiked);
   const remove = useAction(api.fbComments.deleteComment);
 
-  const hiddenFlag = useOptimisticFlag(hidden);
-  const likedFlag = useOptimisticFlag(liked);
+  const hiddenFlag = useOptimisticToggle(hidden);
+  const likedFlag = useOptimisticToggle(liked);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -314,12 +289,10 @@ function CommentActions({
 
   const toggleHidden = async () => {
     const next = !hiddenFlag.value;
-    hiddenFlag.set(next);
     onError(null);
     try {
-      await setHidden({ commentId, hidden: next });
+      await hiddenFlag.run(next, () => setHidden({ commentId, hidden: next }));
     } catch (err) {
-      hiddenFlag.revert();
       onError(
         convexMessage(
           err,
@@ -331,12 +304,10 @@ function CommentActions({
 
   const toggleLiked = async () => {
     const next = !likedFlag.value;
-    likedFlag.set(next);
     onError(null);
     try {
-      await setLiked({ commentId, liked: next });
+      await likedFlag.run(next, () => setLiked({ commentId, liked: next }));
     } catch (err) {
-      likedFlag.revert();
       onError(
         convexMessage(
           err,
@@ -386,6 +357,9 @@ function CommentActions({
           variant="ghost"
           size="xs"
           aria-pressed={likedFlag.value}
+          // A second press before the first answers would be two opposite
+          // writes to Facebook, settled by whichever finished last (V2/3).
+          disabled={likedFlag.pending}
           onClick={() => void toggleLiked()}
           className={cn(
             "text-text-muted hover:text-foreground",
@@ -400,6 +374,7 @@ function CommentActions({
           type="button"
           variant="ghost"
           size="xs"
+          disabled={hiddenFlag.pending}
           onClick={() => void toggleHidden()}
           className="text-text-muted hover:text-foreground"
         >
@@ -530,12 +505,18 @@ export function FbCommentThread({
   selected,
   onSelectedChange,
   showPost = false,
+  selectDisabled = false,
 }: {
   thread: FbCommentThreadData;
   /** Omit to render the thread without a checkbox. */
   selected?: boolean;
   onSelectedChange?: (next: boolean) => void;
   showPost?: boolean;
+  /**
+   * The selection is full — one bulk action carries only so many comments, and
+   * a checkbox that silently refuses is worse than one that says it cannot.
+   */
+  selectDisabled?: boolean;
 }) {
   const [replyOpen, setReplyOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -557,7 +538,7 @@ export function FbCommentThread({
           <Checkbox
             checked={selected ?? false}
             onCheckedChange={(next) => onSelectedChange(next)}
-            disabled={deleted}
+            disabled={deleted || (selectDisabled && selected !== true)}
             aria-label={`Izaberi komentar korisnika ${thread.authorName || "bez imena"}`}
             className="mt-1.5"
           />

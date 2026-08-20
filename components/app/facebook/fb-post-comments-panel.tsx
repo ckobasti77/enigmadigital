@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackLine } from "@/components/app/feedback";
 import { formatNumber } from "@/lib/format";
+import { useOptimisticToggle } from "@/lib/use-optimistic-toggle";
 import { cn } from "@/lib/utils";
 import { FbCommentThread, convexMessage } from "./fb-comment-thread";
 
@@ -126,20 +127,17 @@ function PostLikeButton({
   likedByUs?: boolean;
 }) {
   const setPostLiked = useAction(api.fbComments.setPostLiked);
-  const [override, setOverride] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const actual = likedByUs === true;
-  const value = override === null || override === actual ? actual : override;
+  const flag = useOptimisticToggle(likedByUs === true);
+  const value = flag.value;
 
   const toggle = async () => {
     const next = !value;
-    setOverride(next);
     setError(null);
     try {
-      await setPostLiked({ postId, liked: next });
+      await flag.run(next, () => setPostLiked({ postId, liked: next }));
     } catch (err) {
-      setOverride(null);
       setError(
         convexMessage(
           err,
@@ -156,6 +154,7 @@ function PostLikeButton({
         variant="ghost"
         size="xs"
         aria-pressed={value}
+        disabled={flag.pending}
         onClick={() => void toggle()}
         className={cn(
           "text-text-muted hover:text-foreground",

@@ -20,11 +20,17 @@ import { hasSignatureSecret } from "./lib/webhookSecrets";
  * ============================================================================
  */
 
+/**
+ * Every metric is optional, and that is the point (V2/2): the insights call is
+ * all-or-nothing per metric list, and its retry drops `page_fans` on ANY first
+ * failure — a rate limit, a transient 5xx. A metric that did not come back is
+ * absent here, and `upsertPageDaily` leaves the stored one alone.
+ */
 export const pageDailyRowValidator = v.object({
   date: v.string(),
-  impressions: v.number(),
-  engagements: v.number(),
-  fans: v.number(),
+  impressions: v.optional(v.number()),
+  engagements: v.optional(v.number()),
+  fans: v.optional(v.number()),
 });
 
 export const pagePostRowValidator = v.object({
@@ -34,8 +40,12 @@ export const pagePostRowValidator = v.object({
   permalink: v.string(),
   pictureUrl: v.optional(v.string()),
   publishedAt: v.number(),
-  likes: v.number(),
-  comments: v.number(),
+  // Optional for the same reason as the three below: the feed can answer
+  // without a `summary` block, and a zero written over a true count is a lie
+  // the screen has no way to spot. `shares` stays required — Facebook omits it
+  // on a post nobody shared, so there absence really does mean zero.
+  likes: v.optional(v.number()),
+  comments: v.optional(v.number()),
   shares: v.number(),
   impressions: v.optional(v.number()),
   reach: v.optional(v.number()),
@@ -221,6 +231,20 @@ export const getConnection = internalQuery({
 
 // ── Sync writes ──────────────────────────────────────────────────────────────
 
+/**
+ * Upsert a day of Page-level numbers.
+ *
+ * A METRIC THAT DID NOT ARRIVE IS NOT WRITTEN. Same rule `upsertPagePosts`
+ * already applied to its optional insight fields, and the reason is the same:
+ * one throttled call used to overwrite thirty-two days of `page_fans` with zero
+ * and leave the Page reading nought followers and −100 % for six hours (V2/2).
+ * There is no previous value to keep on a brand-new day, so an insert falls
+ * back to 0 — which is already what "Facebook did not report that day" looks
+ * like everywhere it is read (`summarizeFb`, `fillFbDays`).
+ *
+ * A row that carries no metric at all is skipped outright rather than written
+ * as three zeroes.
+ */
 export const upsertPageDaily = internalMutation({
   args: {
     workspaceId: v.id("workspaces"),
@@ -230,6 +254,17 @@ export const upsertPageDaily = internalMutation({
   handler: async (ctx, { workspaceId, rows }) => {
     let written = 0;
     for (const row of rows) {
+      const patch = {
+        ...(row.impressions !== undefined
+          ? { impressions: row.impressions }
+          : {}),
+        ...(row.engagements !== undefined
+          ? { engagements: row.engagements }
+          : {}),
+        ...(row.fans !== undefined ? { fans: row.fans } : {}),
+      };
+      if (Object.keys(patch).length === 0) continue;
+
       const existing = await ctx.db
         .query("fbPageDaily")
         .withIndex("by_workspace_date", (q) =>
@@ -238,13 +273,16 @@ export const upsertPageDaily = internalMutation({
         .unique();
 
       if (existing !== null) {
-        await ctx.db.patch(existing._id, {
-          impressions: row.impressions,
-          engagements: row.engagements,
-          fans: row.fans,
-        });
+        await ctx.db.patch(existing._id, patch);
       } else {
-        await ctx.db.insert("fbPageDaily", { workspaceId, ...row });
+        await ctx.db.insert("fbPageDaily", {
+          workspaceId,
+          date: row.date,
+          impressions: 0,
+          engagements: 0,
+          fans: 0,
+          ...patch,
+        });
       }
       written++;
     }
@@ -285,11 +323,11 @@ export const upsertPagePosts = internalMutation({
           permalink: row.permalink,
           pictureUrl: row.pictureUrl,
           publishedAt: row.publishedAt,
-          likes: row.likes,
-          comments: row.comments,
           shares: row.shares,
-          // A failed insights call must not wipe the numbers the last
-          // successful one wrote.
+          // A failed insights call, or a feed answer without its summary
+          // blocks, must not wipe the numbers the last successful one wrote.
+          ...(row.likes !== undefined ? { likes: row.likes } : {}),
+          ...(row.comments !== undefined ? { comments: row.comments } : {}),
           ...(row.impressions !== undefined
             ? { impressions: row.impressions }
             : {}),
@@ -299,8 +337,12 @@ export const upsertPagePosts = internalMutation({
           deletedAt: undefined,
         });
       } else {
+        // Nothing stored yet, so there is no earlier reading to keep; 0 is the
+        // only value a required column can take.
         await ctx.db.insert("fbPagePosts", {
           workspaceId,
+          likes: 0,
+          comments: 0,
           ...row,
           syncedAt,
         });

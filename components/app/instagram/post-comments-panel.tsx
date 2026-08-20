@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { FeedbackLine } from "@/components/app/feedback";
 import { formatNumber } from "@/lib/format";
+import { useOptimisticToggle } from "@/lib/use-optimistic-toggle";
 import { cn } from "@/lib/utils";
 import { CommentThread, convexMessage } from "./comment-thread";
 
@@ -117,9 +118,15 @@ export function PostCommentsPanel({
 /**
  * The `comment_enabled` switch.
  *
- * Optimistic like the hide button, and for the same reason: the round trip to
- * Instagram is long enough that a switch which waits for it reads as broken. If
- * the call fails the switch goes back where it was and says why.
+ * Optimistic like the hide button, and through the same helper: the round trip
+ * to Instagram is long enough that a switch which waits for it reads as broken.
+ * If the call fails the switch goes back where it was and says why.
+ *
+ * It used to drop the override the instant the action returned — one frame
+ * before Convex pushed the new row — so the switch flicked back to the old
+ * position and then forward again, which is precisely the flicker an optimistic
+ * override exists to prevent (V2/3). `useOptimisticToggle` holds it until the
+ * stored value agrees.
  */
 function CommentsEnabledSwitch({
   mediaId,
@@ -129,24 +136,20 @@ function CommentsEnabledSwitch({
   commentsEnabled?: boolean;
 }) {
   const setEnabled = useAction(api.igComments.setCommentsEnabled);
-  const [override, setOverride] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Undefined means no sync has asked yet. Assuming "on" is the honest guess —
   // it is Instagram's default and what the post almost certainly is — and the
   // next sync replaces the guess with the answer.
-  const actual = commentsEnabled ?? true;
-  const value = override ?? actual;
+  const flag = useOptimisticToggle(commentsEnabled ?? true);
+  const value = flag.value;
   const unknown = commentsEnabled === undefined;
 
   const change = async (next: boolean) => {
-    setOverride(next);
     setError(null);
     try {
-      await setEnabled({ mediaId, enabled: next });
-      setOverride(null);
+      await flag.run(next, () => setEnabled({ mediaId, enabled: next }));
     } catch (err) {
-      setOverride(null);
       setError(
         convexMessage(
           err,
@@ -171,6 +174,7 @@ function CommentsEnabledSwitch({
         </span>
         <Switch
           checked={value}
+          disabled={flag.pending}
           onCheckedChange={(next) => void change(next)}
           aria-label="Komentari na objavi"
         />

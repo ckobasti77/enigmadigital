@@ -1,11 +1,12 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { Timer } from "lucide-react";
+import { Gauge, Timer } from "lucide-react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatRelativeTime } from "@/lib/format";
+import { formatClockTime, formatRelativeTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { Provider } from "@/convex/lib/providers";
 import { PROVIDER_LABELS } from "./status-pill";
 
@@ -104,6 +105,8 @@ export function SyncSchedule({ connected }: { connected: Provider[] }) {
         slučaj kada ne želiš da čekaš sledeći prolaz.
       </p>
 
+      <MetaUsageLine />
+
       <div className="mt-5 space-y-6">
         {networks.map((provider) => (
           <div key={provider}>
@@ -132,6 +135,55 @@ export function SyncSchedule({ connected }: { connected: Provider[] }) {
         ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * Koliko je Metine kvote potrošeno — jedan red, bez trake.
+ *
+ * Ovde stoji ono što je sklonjeno sa ekrana u V2/4: nivo „warn" (preko 80 %)
+ * ne zaustavlja ništa što čovek radi rukom, pa nema šta da traži u žutoj traci
+ * preko celog panela. Ali jeste razlog zašto pozadinski prolazi ćute, i to je
+ * tačno pitanje zbog kog se otvara ova kartica.
+ *
+ * Kvota je jedna za celu Meta aplikaciju — Instagram, Facebook stranicu i
+ * oglase zajedno — pa red namerno ne imenuje mrežu.
+ */
+function MetaUsageLine() {
+  const status = useQuery(api.metaSyncStore.rateLimit);
+  if (status === undefined || status.state === "ok") return null;
+
+  const held = status.state !== "warn";
+
+  return (
+    <p
+      className={cn(
+        "mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs",
+        held ? "text-warning" : "text-text-muted",
+      )}
+    >
+      <Gauge className="size-3.5 shrink-0" aria-hidden />
+      <span>
+        Metina kvota:{" "}
+        <span className="font-mono tabular-nums">
+          {Math.round(status.peak)} %
+        </span>{" "}
+        potrošeno.
+      </span>
+      <span>
+        {status.state === "warn"
+          ? "Pozadinski prolazi čekaju; ručna sinhronizacija i dalje radi."
+          : status.state === "stop"
+            ? "Prolazi su zaustavljeni dok se obim ne oslobodi."
+            : "Meta je odbila pozive i čekamo."}
+      </span>
+      {status.retryAt !== null && (
+        <span className="font-mono tabular-nums">
+          {status.state === "backoff" ? "Nastavak u " : "Najkasnije do "}
+          {formatClockTime(status.retryAt)}
+        </span>
+      )}
+    </p>
   );
 }
 

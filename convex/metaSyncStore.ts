@@ -152,7 +152,15 @@ function resolveGate(
   }
 
   const peak = usagePeak(row);
-  if (peak > USAGE_STOP_PCT) return { state: "stop", retryAt: null, peak };
+  if (peak > USAGE_STOP_PCT) {
+    // Not a promise from Meta, and not a guess either: it is the moment THIS
+    // gate stops holding anything back. The reading describes a rolling hour,
+    // and the TTL above turns it back to "ok" once that hour is up, so the
+    // wait can never be longer than this. It can be shorter — one event-driven
+    // call writing a lower reading lifts it at once — which is why the banner
+    // says "najkasnije" rather than naming an exact minute (V2/4).
+    return { state: "stop", retryAt: row.updatedAt + USAGE_TTL_MS, peak };
+  }
   if (peak > USAGE_WARN_PCT) return { state: "warn", retryAt: null, peak };
   return { state: "ok", retryAt: null, peak };
 }
@@ -303,8 +311,16 @@ export const lastOkAt = internalQuery({
 // ── Public queries ──────────────────────────────────────────────────────────
 
 /**
- * The yellow band. `limited` is true only when something is actually being held
- * back right now — a workspace at 40 % of its allowance is not news.
+ * The yellow band.
+ *
+ * `limited` is true only when something is ACTUALLY STOPPED. It used to be
+ * `state !== "ok"`, which lit the band at 81 % — a level where Meta is
+ * refusing nothing, the hand-pressed "Sinhronizuj" still goes through, and the
+ * only thing standing down is a background pass that will run again in two
+ * minutes (V2/4). A warning about a state in which everything works is a
+ * warning people learn to ignore. `warn` is now a line in Settings instead,
+ * where somebody who wants to know can go and look; `state` and `peak` are
+ * still returned for exactly that.
  */
 export const rateLimit = query({
   args: {},
@@ -322,7 +338,10 @@ export const rateLimit = query({
       .unique();
 
     const resolved = resolveGate(row, Date.now());
-    return { ...resolved, limited: resolved.state !== "ok" };
+    return {
+      ...resolved,
+      limited: resolved.state === "stop" || resolved.state === "backoff",
+    };
   },
 });
 

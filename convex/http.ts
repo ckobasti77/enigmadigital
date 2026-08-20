@@ -728,6 +728,19 @@ const IG_MEDIA_URL_TTL_MS = 12 * 60 * 60 * 1000; // refetch links older than 12h
 const IG_MEDIA_CACHE_HEADER = "public, max-age=3600"; // 1h in the browser
 
 /**
+ * Cache header for a redirect to the STORED link on a path that could not
+ * refresh it — no connection, the repeat guard said no, Instagram refused.
+ *
+ * The stored link is signed and past its TTL, so this is the branch where it is
+ * MOST likely to be dead; an hour in the browser cache turns one bad moment
+ * into an hour of broken pictures, and the refresh that would have fixed it
+ * never gets asked for because nothing reaches the route (V2/6). A minute is
+ * long enough to absorb a grid of thumbnails loading at once and short enough
+ * that the next look is a fresh question.
+ */
+const IG_MEDIA_STALE_CACHE_HEADER = "public, max-age=60";
+
+/**
  * How long one post is left alone after the proxy refreshed it (P2).
  *
  * Claimed in `metaTargetedSyncs` through the same `claimTargeted` mutation the
@@ -754,6 +767,22 @@ function igMediaRedirect(target: string): Response {
   });
 }
 
+/** A JSON field is only a URL if it is a non-empty string. */
+function asString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/** Same redirect, for a link we could not refresh and do not vouch for. */
+function igMediaStaleRedirect(target: string): Response {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: target,
+      "Cache-Control": IG_MEDIA_STALE_CACHE_HEADER,
+    },
+  });
+}
+
 function igMediaError(message: string, status: number): Response {
   return new Response(message, {
     status,
@@ -774,8 +803,17 @@ http.route({
       .map((part) => part.trim())
       .filter((part) => part.length > 0);
 
-    const mediaId = segments[0] ? decodeURIComponent(segments[0]) : "";
-    const childId = segments[1] ? decodeURIComponent(segments[1]) : undefined;
+    // `decodeURIComponent` throws a `URIError` on a malformed escape, and
+    // anyone may type one: `GET /ig-media/%zz` used to be a 500 (V2/6). A path
+    // that cannot be decoded names no post, which is a 404.
+    let mediaId: string;
+    let childId: string | undefined;
+    try {
+      mediaId = segments[0] ? decodeURIComponent(segments[0]) : "";
+      childId = segments[1] ? decodeURIComponent(segments[1]) : undefined;
+    } catch {
+      return igMediaError("Objava nije pronađena.", 404);
+    }
     if (mediaId.length === 0) {
       return igMediaError("Objava nije pronađena.", 404);
     }
@@ -822,7 +860,8 @@ http.route({
       // Within the TTL the stored answer is the answer, including when the
       // stored answer is "there is no picture". Refetching on a fresh record
       // would be asking the same question twice a second for as long as
-      // somebody kept requesting it.
+      // somebody kept requesting it. This is the one branch that serves a
+      // stored link we DO vouch for, so it keeps the full cache header.
       return storedUrl
         ? igMediaRedirect(storedUrl)
         : igMediaError("Slika nije dostupna.", 404);
@@ -832,7 +871,7 @@ http.route({
     // is nothing to ask with, so the stale link is the best that is left.
     if (!media.encryptedCredentials) {
       return storedUrl
-        ? igMediaRedirect(storedUrl)
+        ? igMediaStaleRedirect(storedUrl)
         : igMediaError("Slika nije dostupna.", 404);
     }
 
@@ -850,7 +889,7 @@ http.route({
     );
     if (!claimed) {
       return storedUrl
-        ? igMediaRedirect(storedUrl)
+        ? igMediaStaleRedirect(storedUrl)
         : igMediaError("Slika nije dostupna.", 404);
     }
 
@@ -859,7 +898,7 @@ http.route({
       token = await decryptCredentials(media.encryptedCredentials);
     } catch {
       return storedUrl
-        ? igMediaRedirect(storedUrl)
+        ? igMediaStaleRedirect(storedUrl)
         : igMediaError("Slika nije dostupna.", 502);
     }
 
@@ -882,7 +921,7 @@ http.route({
       res = await tracker.fetch(buildMediaFieldsUrl(mediaId, fields, token));
     } catch {
       return storedUrl
-        ? igMediaRedirect(storedUrl)
+        ? igMediaStaleRedirect(storedUrl)
         : igMediaError("Slika nije dostupna.", 502);
     } finally {
       await tracker.flush(ctx, media.workspaceId);
@@ -924,20 +963,37 @@ http.route({
       // Rate limit, expired token, transient failure — the stale link may well
       // still load, so it beats showing nothing.
       return storedUrl
-        ? igMediaRedirect(storedUrl)
+        ? igMediaStaleRedirect(storedUrl)
         : igMediaError("Slika nije dostupna.", 502);
     }
 
-    const json = (await res.json()) as RawMediaFieldsResponse;
+    // The last unguarded `await` on this route (V2/6). A 200 whose body is not
+    // JSON — an edge error page, a rate-limit interstitial — used to throw out
+    // of the handler as a 500 instead of taking the fallback every other branch
+    // already takes.
+    let json: RawMediaFieldsResponse;
+    try {
+      json = (await res.json()) as RawMediaFieldsResponse;
+    } catch {
+      return storedUrl
+        ? igMediaStaleRedirect(storedUrl)
+        : igMediaError("Slika nije dostupna.", 502);
+    }
+
+    // And the parsed body is still whatever Instagram felt like sending: a
+    // field that is not a string must never reach a `v.string()` validator,
+    // which would fail the mutation and take the request down with it.
+    const mediaUrl = asString(json.media_url);
+    const thumbnailUrl = asString(json.thumbnail_url);
     const children = normalizeMediaChildren(json.children);
     await ctx.runMutation(internal.instagramStore.saveMediaUrls, {
       id: media._id,
-      mediaUrl: json.media_url,
-      thumbnailUrl: json.thumbnail_url,
+      mediaUrl,
+      thumbnailUrl,
       children,
     });
 
-    const freshUrl = resolve(json.media_url, json.thumbnail_url, children);
+    const freshUrl = resolve(mediaUrl, thumbnailUrl, children);
     if (!freshUrl) {
       return igMediaError("Slika nije dostupna.", 404);
     }

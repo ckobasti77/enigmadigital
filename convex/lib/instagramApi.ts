@@ -852,11 +852,23 @@ export function normalizeMediaChildren(
   const out: StoredMediaChild[] = [];
   for (const child of list) {
     if (!child?.id) continue;
+    // The types say "string"; the wire says whatever Instagram sent. A field
+    // that is not one must not reach a `v.string()` validator, which would
+    // fail the whole mutation over one odd slide (V2/6).
+    const mediaUrl = child.media_url;
+    const thumbnailUrl = child.thumbnail_url;
     out.push({
       id: String(child.id),
-      mediaType: child.media_type ?? "IMAGE",
-      ...(child.media_url ? { mediaUrl: child.media_url } : {}),
-      ...(child.thumbnail_url ? { thumbnailUrl: child.thumbnail_url } : {}),
+      mediaType:
+        typeof child.media_type === "string" && child.media_type.length > 0
+          ? child.media_type
+          : "IMAGE",
+      ...(typeof mediaUrl === "string" && mediaUrl.length > 0
+        ? { mediaUrl }
+        : {}),
+      ...(typeof thumbnailUrl === "string" && thumbnailUrl.length > 0
+        ? { thumbnailUrl }
+        : {}),
     });
   }
   return out.length > 0 ? out : undefined;
@@ -940,6 +952,12 @@ export function toStoredMediaRow(
  * For video the still frame lives on `thumbnail_url` (`media_url` is the mp4);
  * everywhere else the picture is `media_url`. A carousel parent occasionally
  * comes back without its own `media_url`, so the first slide is the last resort.
+ *
+ * ON A VIDEO, `media_url` IS NOT A FALLBACK (V2/7). It is an .mp4, and handing
+ * one to an `<img>` produces a decode failure and the placeholder — the same
+ * outcome as returning nothing, reached the long way round after a wasted
+ * request. A video without a `thumbnail_url` has no picture, and saying so is
+ * the honest answer.
  */
 export function pickDisplayUrl(
   mediaType: string,
@@ -950,9 +968,7 @@ export function pickDisplayUrl(
   const upper = (mediaType || "").toUpperCase();
   const isVideo = upper === "VIDEO" || upper === "REELS";
 
-  const primary = isVideo
-    ? (thumbnailUrl ?? mediaUrl)
-    : (mediaUrl ?? thumbnailUrl);
+  const primary = isVideo ? thumbnailUrl : (mediaUrl ?? thumbnailUrl);
   if (primary) return primary;
 
   for (const child of children ?? []) {

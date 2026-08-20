@@ -159,3 +159,30 @@ export function formatWatchTime(minutes: number): string {
 export function formatSignedNumber(value: number): string {
   return signedIntegerFmt.format(value);
 }
+
+// ── words ────────────────────────────────────────────────────────────────────
+
+/**
+ * Serbian plural agreement — the ONE place the rule lives.
+ *
+ * The rule is by the last two digits, not by the number: 21 takes the singular
+ * („21 objava"), 22–24 the paucal („22 objave"), and 11–14 the plural in spite
+ * of ending in 1–4 („12 objava"). A naive `n >= 2 && n <= 4` gets every number
+ * above twenty wrong, which is where a content grid spends most of its life.
+ *
+ *   pluralSr(n, "objava", "objave", "objava")
+ *   pluralSr(n, "komentar", "komentara", "komentara")
+ */
+export function pluralSr(
+  count: number,
+  one: string,
+  few: string,
+  many: string,
+): string {
+  const abs = Math.abs(Math.trunc(count));
+  const mod100 = abs % 100;
+  const mod10 = abs % 10;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}

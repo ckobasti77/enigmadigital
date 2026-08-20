@@ -148,8 +148,14 @@ export interface NormalizedPagePost {
   permalink: string;
   pictureUrl?: string;
   publishedAt: number;
-  likes: number;
-  comments: number;
+  /**
+   * Absent when the feed answered without the `summary` block for that edge —
+   * a missing field-level permission, a partial answer. Zero would be a claim;
+   * absence keeps whatever the last complete read wrote (V2/2).
+   */
+  likes?: number;
+  comments?: number;
+  /** Facebook omits `shares` entirely on a post nobody shared, so 0 is true. */
   shares: number;
 }
 
@@ -175,8 +181,12 @@ export function normalizePagePosts(
       permalink: post.permalink_url ?? "",
       ...(post.full_picture ? { pictureUrl: post.full_picture } : {}),
       publishedAt: parseFacebookTime(post.created_time),
-      likes: post.likes?.summary?.total_count ?? 0,
-      comments: post.comments?.summary?.total_count ?? 0,
+      ...(typeof post.likes?.summary?.total_count === "number"
+        ? { likes: post.likes.summary.total_count }
+        : {}),
+      ...(typeof post.comments?.summary?.total_count === "number"
+        ? { comments: post.comments.summary.total_count }
+        : {}),
       shares: post.shares?.count ?? 0,
     });
   }
@@ -280,12 +290,23 @@ export function normalizeFbComments(
 
 // ── Insights ─────────────────────────────────────────────────────────────────
 
-/** One day of Page-level numbers. */
+/**
+ * One day of Page-level numbers.
+ *
+ * ALL THREE ARE OPTIONAL, and a metric Meta did not answer with is LEFT OUT
+ * rather than defaulted to zero — the same rule `FbPostInsight` below already
+ * followed. The insights call is retried WITHOUT `page_fans` on any failure of
+ * the first attempt, including a rate limit or a transient 5xx, so a single
+ * throttled call used to hand back `fans: 0` for the last thirty-two days and
+ * the upsert wrote every zero down: the Page went to nought followers and −100 %
+ * until a fully clean sync six hours later (V2/2). A missing number is now
+ * missing all the way to the database, where the previous reading survives.
+ */
 export interface FbDailyInsight {
   date: string; // "YYYY-MM-DD", UTC
-  impressions: number;
-  engagements: number;
-  fans: number;
+  impressions?: number;
+  engagements?: number;
+  fans?: number;
 }
 
 function toNumber(value: unknown): number {
@@ -329,12 +350,7 @@ export function extractPageInsights(
       .toISOString()
       .slice(0, 10);
 
-    const row = byDate.get(date) ?? {
-      date,
-      impressions: 0,
-      engagements: 0,
-      fans: 0,
-    };
+    const row = byDate.get(date) ?? { date };
     row[field] = toNumber(value);
     byDate.set(date, row);
   };

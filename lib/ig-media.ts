@@ -28,7 +28,39 @@ export function igMediaSrc(
   mediaId: string,
   childId?: string,
 ): string | undefined {
-  if (!CONVEX_SITE_URL || !mediaId) return undefined;
+  if (!CONVEX_SITE_URL) {
+    warnMissingSiteUrl();
+    return undefined;
+  }
+  if (!mediaId) return undefined;
   const base = `${CONVEX_SITE_URL}/ig-media/${encodeURIComponent(mediaId)}`;
   return childId ? `${base}/${encodeURIComponent(childId)}` : base;
+}
+
+/**
+ * A build without either public URL renders every post as "Instagram has no
+ * picture" — a real state of the data, and indistinguishable from this one
+ * unless somebody says so out loud (V2/7). `NEXT_PUBLIC_*` is inlined at BUILD
+ * time, so this is a deployment mistake nobody can fix by restarting anything.
+ *
+ * Once per session: a grid of thirty cards asking thirty times would bury the
+ * one line that matters.
+ */
+let warned = false;
+
+function warnMissingSiteUrl(): void {
+  if (warned) return;
+  warned = true;
+  const message =
+    "igMediaSrc: ni NEXT_PUBLIC_CONVEX_SITE_URL ni NEXT_PUBLIC_CONVEX_URL nisu " +
+    "ugradjeni u build, pa se nijedna slika objave nece prikazati. " +
+    "Postavi jednu od njih i ponovi build.";
+  if (process.env.NODE_ENV === "development") {
+    // Loud in development, where it is a five-minute fix; a warning in
+    // production, where crashing the whole screen over thumbnails would be a
+    // worse outcome than missing thumbnails.
+    console.error(message);
+  } else {
+    console.warn(message);
+  }
 }

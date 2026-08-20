@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { Camera, Film, Layers } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useImageStatus } from "@/lib/use-image-status";
 import { cn } from "@/lib/utils";
 
 /**
@@ -80,22 +80,21 @@ export function PostImage({
    *  picture is already following a finger. */
   zoomOnHover?: boolean;
 }) {
-  const [status, setStatus] = useState<"loading" | "loaded" | "error">(
-    src ? "loading" : "error",
-  );
+  const image = useImageStatus(src);
+  const status = image.status;
 
   return (
     <>
-      {src && status !== "error" && (
+      {image.src && status !== "error" && (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
-          src={src}
+          src={image.src}
           alt={alt}
           loading="lazy"
           decoding="async"
           draggable={false}
-          onLoad={() => setStatus("loaded")}
-          onError={() => setStatus("error")}
+          onLoad={image.onLoad}
+          onError={image.onError}
           className={cn(
             "size-full object-cover",
             zoomOnHover &&

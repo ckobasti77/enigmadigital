@@ -28,7 +28,8 @@ import { Toggle } from "@/components/ui/toggle";
 import { CountUp } from "@/components/motion/count-up";
 import { Arrive, ArrivalScope } from "@/components/motion/arrive";
 import { EmptyState } from "@/components/app/empty-state";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, pluralSr } from "@/lib/format";
+import { useImageStatus } from "@/lib/use-image-status";
 import { cn } from "@/lib/utils";
 import { FbPostCommentsPanel } from "./fb-post-comments-panel";
 
@@ -94,22 +95,21 @@ function TypeBadge({ statusType }: { statusType: string }) {
  * `/fb-media/` proxy to write.
  */
 function PostImage({ src, alt }: { src?: string; alt: string }) {
-  const [status, setStatus] = useState<"loading" | "loaded" | "error">(
-    src ? "loading" : "error",
-  );
+  const image = useImageStatus(src);
+  const status = image.status;
 
   return (
     <>
-      {src && status !== "error" && (
+      {image.src && status !== "error" && (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
-          src={src}
+          src={image.src}
           alt={alt}
           loading="lazy"
           decoding="async"
           draggable={false}
-          onLoad={() => setStatus("loaded")}
-          onError={() => setStatus("error")}
+          onLoad={image.onLoad}
+          onError={image.onError}
           className={cn(
             "size-full object-cover transition-transform duration-300 group-hover:scale-105",
             status === "loading" && "opacity-0",
@@ -263,6 +263,10 @@ export function FacebookContentGrid({ posts }: { posts: FbPostItem[] }) {
       </div>
 
       {/* ── Sve objave ───────────────────────────────────────────────────── */}
+      {/* Scope stoji IZNAD grane sa praznim stanjem, i `resetKey` ga vraća na
+          početak pri promeni sortiranja ili filtera — ponovo nacrtan ekran
+          nije gomila dolazaka. Ista pravila kao na Instagram mreži. */}
+      <ArrivalScope resetKey={`${sort.key}|${sort.dir}|${String(hideDeleted)}`}>
       {visible.length > 0 && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft pt-6">
@@ -272,11 +276,7 @@ export function FacebookContentGrid({ posts }: { posts: FbPostItem[] }) {
               </h2>
               <p className="font-mono text-xs tabular-nums text-text-muted">
                 Prikazano {formatNumber(sorted.length)}{" "}
-                {sorted.length === 1
-                  ? "objava"
-                  : sorted.length >= 2 && sorted.length <= 4
-                    ? "objave"
-                    : "objava"}
+                {pluralSr(sorted.length, "objava", "objave", "objava")}
               </p>
             </div>
 
@@ -304,18 +304,18 @@ export function FacebookContentGrid({ posts }: { posts: FbPostItem[] }) {
           </div>
 
           {/* Ista pravila kao na Instagram mreži: ono što stigne uživo ulazi
-              kratkim uvodom, a ne ponovnim otkrivanjem ekrana. */}
-          <ArrivalScope>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {sorted.map((post) => (
-                <Arrive key={post._id} className="h-full">
-                  <PostCard post={post} />
-                </Arrive>
-              ))}
-            </div>
-          </ArrivalScope>
+              kratkim uvodom, a ne ponovnim otkrivanjem ekrana. Dolazak se
+              vezuje za `postId`, ne za montiranje kartice. */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {sorted.map((post) => (
+              <Arrive key={post._id} id={post.postId} className="h-full">
+                <PostCard post={post} />
+              </Arrive>
+            ))}
+          </div>
         </div>
       )}
+      </ArrivalScope>
     </div>
   );
 }

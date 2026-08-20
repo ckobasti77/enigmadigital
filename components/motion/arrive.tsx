@@ -32,45 +32,71 @@ gsap.registerPlugin(useGSAP);
  * pomeraj (8 px umesto 12) i nikakav stagger: stigla je jedna stvar, ne ceo
  * ekran.
  *
- * Razlika između to dvoje ne može da se odluči u samoj kartici — ona ne zna da
- * li je montirana zajedno sa ekranom ili minut kasnije. Zato `ArrivalScope`
- * obeleži trenutak kada je lista prvi put nacrtana, a svako dete koje se
- * montira POSLE toga zna da je pridošlica.
+ * PRISTIGLA JE STVAR, NE KOMPONENTA (V2/5). Ranije se odluka donosila po tome
+ * da li se `Arrive` montirao posle scope-a, čime su dve različite stvari
+ * izjednačene: promena sortiranja ili filtera ume da odmontira i ponovo montira
+ * kartice koje čovek gleda već pola minuta, pa je ceo ekran odletao kroz
+ * fade+8px kao da je sve tek stiglo. Scope zato pamti IDENTITETE redova koje je
+ * već prikazao — red koji je jednom viđen ne animira se više nikad, bez obzira
+ * na to koliko puta se montira.
  */
-const ArrivalContext = createContext<{ settled: { current: boolean } } | null>(
-  null,
-);
+interface ArrivalScopeValue {
+  /** Koji `resetKey` je ovu kutiju napravio — identitet pamćenja. */
+  key: string | undefined;
+  /** Da li je početni kadar prošao; pre toga ništa nije „pristiglo". */
+  settled: { current: boolean };
+  /** Identiteti redova koje je ovaj scope već nacrtao. */
+  seen: Set<string>;
+}
 
-/**
- * Omotač oko liste koja se osvežava uživo. Sve što se montira u prvom kadru
- * pripada ekranu i ne animira se ovde (to je `Reveal`-ov posao); sve posle toga
- * je pristiglo.
- */
-export function ArrivalScope({ children }: { children: ReactNode }) {
-  const settled = useRef(false);
-  // Stabilna kutija oko ref-a: kontekst mora da nosi istu vrednost kroz sve
-  // rendere, inače bi se svako dete preplatilo novim kontekstom i ponovo
-  // odlučivalo da li je pridošlica.
-  const value = useMemo(() => ({ settled }), []);
+const ArrivalContext = createContext<ArrivalScopeValue | null>(null);
+
+export function ArrivalScope({
+  children,
+  ready = true,
+  resetKey,
+}: {
+  children: ReactNode;
+  /**
+   * Da li su podaci stigli. Dok je `false` (upit još traje, skelet je na
+   * ekranu) scope se ne sleže, pa prva porcija redova pripada ekranu — nju
+   * otkriva `Reveal` iznad — a ne dolasku.
+   */
+  ready?: boolean;
+  /**
+   * Kad se promeni, scope kreće ispočetka: nov filter ili nova pretraga vraća
+   * sasvim drugu listu, i to je ponovo crtanje ekrana, a ne pedeset dolazaka.
+   */
+  resetKey?: string;
+}) {
+  // Nova kutija na svaku promenu ključa. Reset je time obična promena
+  // identiteta konteksta, bez ijednog upisa u ref tokom rendera.
+  const value = useMemo<ArrivalScopeValue>(
+    () => ({
+      key: resetKey,
+      settled: { current: false },
+      seen: new Set<string>(),
+    }),
+    [resetKey],
+  );
 
   useEffect(() => {
+    if (!ready) return;
     // Jedan kadar kasnije, ne odmah: deca se montiraju u istom prolazu kao i
     // sam scope, pa bi ih trenutno postavljanje sve proglasilo pristiglima.
-    const id = requestAnimationFrame(() => {
-      settled.current = true;
+    const frame = requestAnimationFrame(() => {
+      value.settled.current = true;
     });
     return () => {
-      cancelAnimationFrame(id);
+      cancelAnimationFrame(frame);
       // React u razvoju montira dvaput; bez ovoga bi drugi prolaz zatekao
       // scope kao „slegnut" i animirao ceo početni ekran.
-      settled.current = false;
+      value.settled.current = false;
     };
-  }, []);
+  }, [ready, value]);
 
   return (
-    <ArrivalContext.Provider value={value}>
-      {children}
-    </ArrivalContext.Provider>
+    <ArrivalContext.Provider value={value}>{children}</ArrivalContext.Provider>
   );
 }
 
@@ -79,30 +105,37 @@ export function ArrivalScope({ children }: { children: ReactNode }) {
  * decu i ćuti — što je namerno: komponenta koja se koristi i na ekranu bez
  * uživo osvežavanja ne sme tamo da počne da poskakuje.
  *
+ * `id` je identitet REDA (`commentId`, `mediaId`, `postId`), ne React ključ i
+ * ne id dokumenta koji se menja pri ponovnom upisu.
+ *
  * Pod `prefers-reduced-motion: reduce` ostaje samo kratak opacity prelaz, bez
  * pomeraja, kroz iste `MOTION_QUERIES` kao i ostatak sistema.
  */
 export function Arrive({
+  id,
   children,
   className,
 }: {
+  id: string;
   children: ReactNode;
   className?: string;
 }) {
   const scope = useContext(ArrivalContext);
   const ref = useRef<HTMLDivElement>(null);
-  // Odluka se donosi jednom, pri prvom renderu ove stavke, i posle se ne menja:
-  // kasniji render iste kartice (nov broj lajkova) ne sme ponovo da animira.
-  const playRef = useRef<boolean | null>(null);
-  if (playRef.current === null) {
-    playRef.current = scope?.settled.current === true;
-  }
 
+  // Ceo račun stoji u layout efektu, dakle pre iscrtavanja: prvi kadar već
+  // nosi opacity 0, pa nema bleska pre nego što tvin krene.
   useGSAP(
     () => {
       const el = ref.current;
-      if (!el || !playRef.current) return;
-      playRef.current = false;
+      if (!el || scope === null) return;
+
+      // Red koji je scope već video ostaje kakav jeste, pa se montirao ponovo
+      // ili ne. Upisuje se i onda kada se ne animira — „viđen" znači prikazan,
+      // ne animiran.
+      if (scope.seen.has(id)) return;
+      scope.seen.add(id);
+      if (!scope.settled.current) return;
 
       const mm = gsap.matchMedia();
       mm.add(MOTION_QUERIES, (ctx) => {
@@ -128,7 +161,7 @@ export function Arrive({
         });
       });
     },
-    { scope: ref },
+    { scope: ref, dependencies: [id, scope] },
   );
 
   return (
