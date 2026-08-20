@@ -25,9 +25,15 @@
 export type PublishKind = "IMAGE" | "REEL" | "STORY" | "CAROUSEL";
 
 /**
- * Tok stanja: `queued → uploading → processing → published`. Svaki prelaz se
- * upisuje, jer panel prikazuje gde je posao TRENUTNO — „šalje se" je jedna reč
- * za tri različite stvari koje traju različito dugo.
+ * Tok stanja: `queued → uploading → processing → publishing → published`.
+ * Svaki prelaz se upisuje, jer panel prikazuje gde je posao TRENUTNO — „šalje
+ * se" je jedna reč za četiri različite stvari koje traju različito dugo.
+ *
+ * `publishing` se upisuje PRE poziva `media_publish`, ne posle. Ako pokretanje
+ * umre između poziva i odgovora (istekla akcija, prekinut socket), sledeći
+ * prolaz vidi `publishing` sa kontejnerom i mora prvo da PITA Instagram šta se
+ * desilo — jer ponovno slanje pravi drugu objavu na profilu, a to se ne
+ * povlači.
  *
  * `draft` postoji u tabeli i nikad se ne upisuje iz ovog koda: forma živi u
  * browseru dok se ne pošalje. Ostavljen je jer je snimljena skica sledeće
@@ -38,6 +44,7 @@ export type PublishStatus =
   | "queued"
   | "uploading"
   | "processing"
+  | "publishing"
   | "published"
   | "failed"
   | "canceled";
@@ -61,10 +68,21 @@ export const STATUS_LABELS: Record<PublishStatus, string> = {
   queued: "Na čekanju",
   uploading: "Šalje se na Instagram",
   processing: "Instagram obrađuje",
+  publishing: "Objavljuje se",
   published: "Objavljeno",
   failed: "Neuspešno",
   canceled: "Otkazano",
 };
+
+/**
+ * Objava jeste otišla, ali se ne zna KOJA je to objava.
+ *
+ * Kontejner je odgovorio `PUBLISHED`, što znači da je neko ranije pokretanje
+ * uspelo i izgubilo odgovor. Panel to kaže naglas umesto da prikaže red kao da
+ * je sve uredno — bez `publishedMediaId` nema linka ni brojeva, i bolje je da
+ * piše zašto.
+ */
+export const PUBLISHED_UNCONFIRMED_LABEL = "Objavljeno, ID nije potvrđen";
 
 /** Story nosi sliku ili video preko celog ekrana — opis nema gde da stane. */
 export function acceptsCaption(kind: PublishKind): boolean {
@@ -121,25 +139,58 @@ export const PUBLISH_LIMIT_FALLBACK = 100;
 
 // ── timings the pipeline runs on ─────────────────────────────────────────────
 
-/** Koliko se puta jedan posao uopšte pokreće. */
-export const MAX_ATTEMPTS = 3;
-
 /**
  * Razmak posle neuspelog pokušaja broj N (1-indeksirano).
  *
- * Spec traži „najviše 3 pokušaja, sa razmakom 1 min, 5 min, 15 min". Te dve
- * rečenice se ne slažu: tri pokušaja imaju dva razmaka između sebe. Plafon je
- * ovde jači od spiska, jer objava je nepovratna — bolje je stati i pustiti
- * čoveka da klikne „Pokušaj ponovo" nego sam poslati četvrti put. Treći razmak
- * zato stoji u nizu, ali ga automatika ne dohvata.
+ * Spec traži razmake 1 min, 5 min i 15 min. Tri razmaka postoje samo ako ima
+ * četiri pokretanja — prvi pokušaj i tri ponavljanja — pa je plafon četiri, a
+ * ne tri. Ranije je stajalo tri, i onda unos od 15 min nikada nije dohvaćen:
+ * pravilo iz specifikacije je postojalo u nizu i nije se primenjivalo.
  */
 export const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000];
+
+/** Koliko se puta jedan posao uopšte pokreće: prvi put + `RETRY_DELAYS_MS`. */
+export const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
 
 /** `null` znači da je plafon dostignut i da posao ide u `failed`. */
 export function retryDelayMs(attempts: number): number | null {
   if (attempts >= MAX_ATTEMPTS) return null;
   return RETRY_DELAYS_MS[Math.max(0, attempts - 1)] ?? null;
 }
+
+/**
+ * Posle koliko vremena „radi se na tome" prestaje da bude istina.
+ *
+ * `claimedAt` se upisuje pri SVAKOM preuzimanju posla, i anketiranje se nastavlja
+ * novom akcijom, pa ova granica meri koliko dugo nijedno pokretanje nije dotaklo
+ * posao — a ne koliko posao ukupno traje.
+ *
+ * Svaki prag je namerno iznad životnog veka jednog pokretanja: akcija ima
+ * ograničeno vreme izvršavanja (reda nekoliko minuta), a anketiranje se javlja
+ * najmanje jednom u ~5 min (`POLL_BUDGET_MS` + `POLL_CONTINUE_MS`). To je ceo
+ * bezbednosni argument za vraćanje posla u red — kada prag istekne, pokretanje
+ * koje je posao preuzelo više NE MOŽE biti živo, pa nema dva pokretača nad
+ * istim poslom.
+ */
+export const STALE_UPLOADING_MS = 15 * 60_000;
+/** Malo iznad roka obrade od 30 min, iz istog razloga. */
+export const STALE_PROCESSING_MS = 35 * 60_000;
+/**
+ * `publishing` je jedan HTTP poziv, ne obrada — ako se za ovoliko nije rešio,
+ * pokretanja nema. Vraćanje u red je bezbedno jer sledeći prolaz prvo pita
+ * kontejner da li je već objavljen.
+ */
+export const STALE_PUBLISHING_MS = 15 * 60_000;
+
+/**
+ * Kada zakazana objava prestaje da bude zakazana i postaje mrtva.
+ *
+ * Zakazivanje ide do 90 dana unapred, pa starost reda ne govori ništa o tome
+ * da li posao još ima smisla. Ovo govori: termin je prošao pre nedelju dana, a
+ * objava nikada nije otišla. Tu se posao zatvara kao neuspeo i tek onda mu se
+ * uzimaju fajlovi.
+ */
+export const ABANDONED_AFTER_DUE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Razmak između dva pitanja „je li kontejner gotov". */
 export const POLL_INTERVAL_MS = 3_000;

@@ -6,7 +6,11 @@ import type { DocumentByName, SystemDataModel } from "convex/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
 import {
-  PROCESSING_DEADLINE_MS,
+  ABANDONED_AFTER_DUE_MS,
+  MAX_ATTEMPTS,
+  STALE_PROCESSING_MS,
+  STALE_PUBLISHING_MS,
+  STALE_UPLOADING_MS,
   UPLOAD_TTL_MS,
   acceptsCaption,
   acceptsShareToFeed,
@@ -50,10 +54,34 @@ const statusValidator = v.union(
   v.literal("queued"),
   v.literal("uploading"),
   v.literal("processing"),
+  v.literal("publishing"),
   v.literal("published"),
   v.literal("failed"),
   v.literal("canceled"),
 );
+
+/**
+ * The statuses that mean "a run owns this right now".
+ *
+ * Every one of them is a claim made by an action that may not be alive any
+ * more, which is why each has a staleness threshold rather than being trusted.
+ */
+const RUNNING_STATUSES = ["uploading", "processing", "publishing"] as const;
+
+const STALE_AFTER_MS: Record<(typeof RUNNING_STATUSES)[number], number> = {
+  uploading: STALE_UPLOADING_MS,
+  processing: STALE_PROCESSING_MS,
+  publishing: STALE_PUBLISHING_MS,
+};
+
+/** Statuses a job can still leave under its own power. */
+const LIVE_STATUSES = [
+  "draft",
+  "queued",
+  "uploading",
+  "processing",
+  "publishing",
+] as const;
 
 function invalid(message: string): never {
   throw new ConvexError({ code: "invalid", message });
@@ -99,6 +127,69 @@ export const generateUploadUrl = mutation({
     return await ctx.storage.generateUploadUrl();
   },
 });
+
+/**
+ * Write down that a file arrived, before anything owns it.
+ *
+ * The browser learns a storage id only by finishing the upload, so between
+ * that moment and `createJob` the bytes are referenced by nothing at all. If
+ * `createJob` then refuses the post — the scheduled time slipped into the past
+ * while a gigabyte was moving, the caption grew too long — or the tab is
+ * simply closed, that file stays on the disk forever: the sweep walks
+ * `igPublishJobs`, and no job names it.
+ *
+ * This is the receipt that closes that gap. `createJob` tears it up when the
+ * job takes the file over, so a row surviving past the TTL means exactly one
+ * thing, and the sweep can act on it without checking anything else.
+ */
+export const registerUpload = mutation({
+  args: { storageId: v.id("_storage") },
+  returns: v.null(),
+  handler: async (ctx, { storageId }) => {
+    const { workspaceId } = await requireMembership(ctx);
+
+    const meta: StorageMetadata | null = await ctx.db.system.get(
+      "_storage",
+      storageId,
+    );
+    if (meta === null) invalid("Fajl nije stigao. Dodaj ga ponovo i pošalji.");
+
+    // The same upload registered twice is one file, not two receipts.
+    const existing = await ctx.db
+      .query("igPublishUploads")
+      .withIndex("by_storage", (q) => q.eq("storageId", storageId))
+      .first();
+    if (existing !== null) return null;
+
+    await ctx.db.insert("igPublishUploads", {
+      workspaceId,
+      storageId,
+      createdAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+/**
+ * Hand the files over from the upload receipts to the job that will send them.
+ *
+ * Deleting the receipt IS the handover: from here on the job row is what names
+ * these bytes, and the job row is what the sweep reads.
+ */
+async function claimUploads(
+  ctx: MutationCtx,
+  storageIds: Id<"_storage">[],
+): Promise<void> {
+  for (const storageId of storageIds) {
+    const receipt = await ctx.db
+      .query("igPublishUploads")
+      .withIndex("by_storage", (q) => q.eq("storageId", storageId))
+      .first();
+    // No receipt is not a problem: a caller that never registered still gets a
+    // working job, it just never had a gap to close.
+    if (receipt !== null) await ctx.db.delete(receipt._id);
+  }
+}
 
 // ── creating a job ───────────────────────────────────────────────────────────
 
@@ -168,6 +259,18 @@ export const createJob = mutation({
       if (scheduleProblem !== null) invalid(scheduleProblem);
     }
 
+    // The same files, already on their way out.
+    //
+    // A double-clicked button is caught in the browser; this catches the thing
+    // the browser cannot — the same call arriving twice because the first one's
+    // answer was lost on the way back. The client would retry believing nothing
+    // happened, and two identical posts would go out.
+    if (await hasLiveJobWithSameFiles(ctx, workspaceId, storageIds)) {
+      invalid(
+        "Ista objava je već poslata i još je u toku. Sačekaj da se završi ili je otkaži u listi.",
+      );
+    }
+
     // An immediate post also carries a `scheduledFor` — of "now". That single
     // field is what lets the 1-minute cron be a safety net rather than a
     // separate mechanism: anything still `queued` and due gets picked up, no
@@ -192,6 +295,8 @@ export const createJob = mutation({
       createdBy: userId,
     });
 
+    await claimUploads(ctx, storageIds);
+
     if (scheduledFor === undefined) {
       await ctx.scheduler.runAfter(0, internal.instagramPublish.runPublishJob, {
         jobId,
@@ -203,12 +308,72 @@ export const createJob = mutation({
 });
 
 /**
- * Call off a post that has not started yet.
+ * Is this exact set of files already on its way to Instagram?
  *
- * Deliberately only from `queued`: once a container exists Instagram holds a
- * copy of the file, and a "cancel" that leaves that copy publishable would be
- * a lie. The files stay put until the 24h sweep — a cancel is often a change
- * of mind, and the row is already the record of what happened.
+ * Compared as a SET, not as a list: the same pictures in a different carousel
+ * order are the same upload being sent twice, and reordering slides is not a
+ * reason to let a duplicate through.
+ */
+async function hasLiveJobWithSameFiles(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  storageIds: Id<"_storage">[],
+): Promise<boolean> {
+  const wanted = new Set<string>(storageIds);
+
+  for (const status of LIVE_STATUSES) {
+    const rows = await ctx.db
+      .query("igPublishJobs")
+      .withIndex("by_workspace_status", (q) =>
+        q.eq("workspaceId", workspaceId).eq("status", status),
+      )
+      .order("desc")
+      .take(LIVE_TAKE);
+
+    for (const row of rows) {
+      if (row.storageIds.length !== wanted.size) continue;
+      if (row.storageIds.every((id) => wanted.has(id))) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Has a run been holding this job past the point where a run could still exist?
+ *
+ * `claimedAt` is refreshed by every claim, including a polling round, so this
+ * measures silence rather than duration: a fifteen-minute video that is being
+ * actively waited on reports in every few minutes, and one whose action was
+ * killed reports never again.
+ *
+ * A row written before `claimedAt` existed has none, and is stale by
+ * definition — nothing is running that could have claimed it.
+ */
+function isStaleClaim(job: Doc<"igPublishJobs">, now: number): boolean {
+  const threshold =
+    STALE_AFTER_MS[job.status as (typeof RUNNING_STATUSES)[number]];
+  if (threshold === undefined) return false;
+  return now - (job.claimedAt ?? job.updatedAt) > threshold;
+}
+
+/**
+ * Call off a post that is not going anywhere.
+ *
+ * `queued` is the ordinary case — nothing has been handed to Instagram yet.
+ *
+ * A job stuck in `uploading` or `processing` is the other one, and refusing it
+ * was a trap: the run that claimed it is dead, the cron only ever looked at
+ * `queued`, and the operator was left with a row that said "šalje se" forever
+ * and offered neither cancel, nor retry, nor publish. Cancelling is allowed
+ * there precisely because the run is provably gone.
+ *
+ * `publishing` is NEVER cancellable, stale or not. `media_publish` has been
+ * sent and its answer is unknown, so the post may already be on the profile —
+ * writing "otkazano" over that would be the interface stating something false.
+ * That job gets reclaimed and asks Instagram what actually happened.
+ *
+ * The files stay put until the 24h sweep — a cancel is often a change of mind,
+ * and the row is already the record of what happened.
  */
 export const cancelJob = mutation({
   args: { jobId: v.id("igPublishJobs") },
@@ -219,14 +384,24 @@ export const cancelJob = mutation({
     if (job === null || job.workspaceId !== workspaceId) {
       invalid("Objava nije pronađena.");
     }
-    if (job.status !== "queued") {
+
+    const now = Date.now();
+    const cancellable =
+      job.status === "queued" ||
+      ((job.status === "uploading" || job.status === "processing") &&
+        isStaleClaim(job, now));
+
+    if (!cancellable) {
       invalid(
         job.status === "published"
           ? "Objava je već otišla na Instagram i ne može se povući odavde."
-          : "Objava je već krenula i ne može se otkazati.",
+          : job.status === "publishing"
+            ? "Objava je predata Instagramu i odgovor se još čeka — možda je već otišla. Sačekaj da se stanje razreši."
+            : "Objava je već krenula i ne može se otkazati.",
       );
     }
-    await ctx.db.patch(jobId, { status: "canceled", updatedAt: Date.now() });
+
+    await ctx.db.patch(jobId, { status: "canceled", updatedAt: now });
     return null;
   },
 });
@@ -286,8 +461,12 @@ const jobViewValidator = v.object({
   attempts: v.number(),
   error: v.optional(v.string()),
   publishedMediaId: v.optional(v.string()),
+  /** Published, but which post it is could not be established. */
+  mediaIdUnconfirmed: v.optional(v.boolean()),
   publishedAt: v.optional(v.number()),
   filesDeleted: v.boolean(),
+  /** The panel offers "Otkaži" over a stuck job, and has to know it is stuck. */
+  cancellable: v.boolean(),
   createdAt: v.number(),
   updatedAt: v.number(),
 });
@@ -315,6 +494,7 @@ export const listJobs = query({
       ["queued", LIVE_TAKE],
       ["uploading", LIVE_TAKE],
       ["processing", LIVE_TAKE],
+      ["publishing", LIVE_TAKE],
       ["failed", LIVE_TAKE],
       ["published", CLOSED_TAKE],
       ["canceled", CLOSED_TAKE],
@@ -332,6 +512,7 @@ export const listJobs = query({
       rows.push(...batch);
     }
 
+    const now = Date.now();
     return rows
       .sort((a, b) => b.createdAt - a.createdAt)
       .map((row) => ({
@@ -351,10 +532,17 @@ export const listJobs = query({
         ...(row.publishedMediaId !== undefined
           ? { publishedMediaId: row.publishedMediaId }
           : {}),
+        ...(row.mediaIdUnconfirmed === true
+          ? { mediaIdUnconfirmed: true }
+          : {}),
         ...(row.publishedAt !== undefined
           ? { publishedAt: row.publishedAt }
           : {}),
         filesDeleted: row.filesDeletedAt !== undefined,
+        cancellable:
+          row.status === "queued" ||
+          ((row.status === "uploading" || row.status === "processing") &&
+            isStaleClaim(row, now)),
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       }));
@@ -377,6 +565,7 @@ const claimValidator = v.object({
   containerId: v.optional(v.string()),
   childContainerIds: v.optional(v.array(v.string())),
   processingSince: v.optional(v.number()),
+  publishStartedAt: v.optional(v.number()),
   attempts: v.number(),
   /** `true` when this run created the claim, `false` for a polling round. */
   fresh: v.boolean(),
@@ -419,15 +608,39 @@ export const claimJob = internalMutation({
       return null;
     }
 
-    const fresh = job.status === "queued";
-    if (fresh) {
+    // An expired token answers every Graph call with the same OAuth refusal,
+    // and three attempts spaced over twenty minutes arrive at it three times.
+    // Nothing about it changes without a person, so the job says so at once.
+    //
+    // `error` is deliberately NOT treated the same way: it is written by any
+    // failed sync pass (convex/sync.ts) and usually says nothing about the
+    // token, so refusing to publish over it would block perfectly good posts.
+    if (connection.status === "expired") {
       await ctx.db.patch(jobId, {
-        status: "uploading",
-        attempts: job.attempts + 1,
-        error: undefined,
+        status: "failed",
+        error:
+          "Pristupni token Instagram naloga je istekao. Poveži nalog ponovo u Podešavanjima, pa pošalji objavu iz liste.",
         updatedAt: now,
       });
+      return null;
     }
+
+    const fresh = job.status === "queued";
+    await ctx.db.patch(jobId, {
+      // Stamped on EVERY claim, polling rounds included: this is what makes
+      // "uploading since 09:00" distinguishable from "a run that died at
+      // 09:00 and left the word there". A live poll refreshes it every few
+      // minutes; a dead run never does.
+      claimedAt: now,
+      ...(fresh
+        ? {
+            status: "uploading" as const,
+            attempts: job.attempts + 1,
+            error: undefined,
+          }
+        : {}),
+      updatedAt: now,
+    });
 
     return {
       workspaceId: job.workspaceId,
@@ -450,6 +663,9 @@ export const claimJob = internalMutation({
         : {}),
       ...(job.processingSince !== undefined
         ? { processingSince: job.processingSince }
+        : {}),
+      ...(job.publishStartedAt !== undefined
+        ? { publishStartedAt: job.publishStartedAt }
         : {}),
       attempts: fresh ? job.attempts + 1 : job.attempts,
       fresh,
@@ -504,12 +720,51 @@ export const markProcessing = internalMutation({
 });
 
 /**
+ * `media_publish` is about to be sent.
+ *
+ * Written BEFORE the call rather than after it, and that ordering is the whole
+ * point. A run can die between sending the request and reading the answer, and
+ * from the next run's side that looks exactly like a request that was never
+ * sent — same job, same container, same `FINISHED`. The difference is here.
+ *
+ * A run that finds `publishing` on a job does not send anything: it asks the
+ * container, and a container that answers `PUBLISHED` ends the job. See
+ * `convex/instagramPublish.ts`.
+ */
+export const markPublishing = internalMutation({
+  args: { jobId: v.id("igPublishJobs") },
+  returns: v.null(),
+  handler: async (ctx, { jobId }) => {
+    const job = await ctx.db.get(jobId);
+    if (job === null) return null;
+
+    const now = Date.now();
+    await ctx.db.patch(jobId, {
+      status: "publishing",
+      publishStartedAt: now,
+      claimedAt: now,
+      updatedAt: now,
+    });
+    return null;
+  },
+});
+
+/**
  * It is on the profile.
  *
  * The files go now, in the same transaction — Instagram has its own copy, and
  * keeping somebody's video on our disk past the moment it stops being needed
- * is a decision nobody made. The insights sync is nudged too, so the post
- * appears on the panel within seconds instead of at the next six-hour run.
+ * is a decision nobody made.
+ *
+ * What is scheduled afterwards is ONE post being read, not a sync. A full
+ * `syncIgInsights` used to be fired from here: about fifty Graph calls, and —
+ * because F6 put its rate-limit gate on the cron fan-out rather than on the
+ * sync itself — fifty calls straight through an active backoff. Eight posts
+ * scheduled for the same minute meant four hundred calls in under a minute and
+ * eight phantom rows in Sync Health. The targeted refresh goes through the
+ * gate, debounces, and costs three calls for the one post that actually
+ * changed. Without a confirmed media id there is nothing to target, and the
+ * two-minute head check finds the post on its own for the price of one call.
  */
 export const markPublished = internalMutation({
   args: {
@@ -521,10 +776,15 @@ export const markPublished = internalMutation({
      * worse than a card with no link on it.
      */
     publishedMediaId: v.optional(v.string()),
+    /** Set instead, when the id could not be established at all. */
+    mediaIdUnconfirmed: v.optional(v.boolean()),
     connectionId: v.id("connections"),
   },
   returns: v.null(),
-  handler: async (ctx, { jobId, publishedMediaId, connectionId }) => {
+  handler: async (
+    ctx,
+    { jobId, publishedMediaId, mediaIdUnconfirmed, connectionId },
+  ) => {
     const job = await ctx.db.get(jobId);
     if (job === null) return null;
 
@@ -540,15 +800,23 @@ export const markPublished = internalMutation({
     await ctx.db.patch(jobId, {
       status: "published",
       ...(publishedMediaId !== undefined ? { publishedMediaId } : {}),
+      ...(mediaIdUnconfirmed === true ? { mediaIdUnconfirmed: true } : {}),
       publishedAt: now,
       error: undefined,
       filesDeletedAt: now,
       updatedAt: now,
     });
 
-    await ctx.scheduler.runAfter(0, internal.instagram.syncIgInsights, {
-      connectionId,
-    });
+    if (publishedMediaId !== undefined) {
+      const connection = await ctx.db.get(connectionId);
+      if (connection?.externalId) {
+        await ctx.scheduler.runAfter(0, internal.metaSync.refreshFromWebhook, {
+          provider: "meta_ig",
+          accountId: connection.externalId,
+          mediaId: publishedMediaId,
+        });
+      }
+    }
     return null;
   },
 });
@@ -578,10 +846,20 @@ export const markFailure = internalMutation({
     const now = Date.now();
     const delay = terminal ? null : retryDelayMs(job.attempts);
 
+    // A failure that interrupted `media_publish` without a verdict from Meta
+    // leaves a genuinely unknown outcome, and the message has to say so — a
+    // flat "nije uspelo" invites the operator to post it again by hand next to
+    // one that may already be live. A `terminal` failure is different: it is
+    // Meta's own refusal, so the post demonstrably did not go out.
+    const text =
+      job.status === "publishing" && !terminal
+        ? `${message} Objava je već bila predata Instagramu — proveri profil pre nego što je pošalješ ponovo.`
+        : message;
+
     if (delay === null) {
       await ctx.db.patch(jobId, {
         status: "failed",
-        error: message,
+        error: text,
         updatedAt: now,
       });
       return null;
@@ -589,7 +867,7 @@ export const markFailure = internalMutation({
 
     await ctx.db.patch(jobId, {
       status: "queued",
-      error: message,
+      error: text,
       scheduledFor: now + delay,
       updatedAt: now,
     });
@@ -624,8 +902,11 @@ export const getUploadContentType = internalQuery({
 /** How many due jobs one cron tick starts. The rest wait a minute. */
 const DUE_BATCH = 10;
 
+/** How many stuck jobs one tick unsticks. */
+const RECLAIM_BATCH = 10;
+
 /**
- * Every minute: start whatever is due.
+ * Every minute: start whatever is due, and unstick whatever is not moving.
  *
  * Reads `queued` jobs whose moment has arrived, across every workspace, and
  * hands each to the publish action. It never runs anything itself — the claim
@@ -637,6 +918,9 @@ export const enqueueDueJobs = internalMutation({
   returns: v.null(),
   handler: async (ctx) => {
     const now = Date.now();
+
+    await reclaimStuckJobs(ctx, now);
+
     const due = await ctx.db
       .query("igPublishJobs")
       .withIndex("by_status_scheduled", (q) =>
@@ -655,6 +939,59 @@ export const enqueueDueJobs = internalMutation({
   },
 });
 
+/**
+ * Give back the jobs whose runs died holding them.
+ *
+ * `claimJob` writes `uploading` before the first Graph call, and from that
+ * moment the row belongs to an action that may stop existing at any point — a
+ * gigabyte of video can outlast an action's execution time, an isolate can be
+ * killed, a deploy lands mid-run. None of those get to call `markFailure`, so
+ * without this the row keeps its status forever: the due-jobs cron only reads
+ * `queued`, the sweep left `uploading` alone, and the panel offered the
+ * operator neither cancel, nor retry, nor publish.
+ *
+ * Back to `queued` and the ordinary path takes over. `attempts` is NOT
+ * incremented here — `claimJob` already counts every run it hands out, so the
+ * count is exactly "runs started" and would be double-counted if this added to
+ * it. What this DOES enforce is the ceiling: a run that dies never reaches
+ * `markFailure`, so nothing else would ever stop the reclaim → die → reclaim
+ * loop.
+ *
+ * A job that already owns a container comes back with it, and the next pass
+ * asks Instagram about that container before creating or publishing anything.
+ * That is what keeps this safe for a job that died in `publishing`.
+ */
+async function reclaimStuckJobs(ctx: MutationCtx, now: number): Promise<void> {
+  for (const status of RUNNING_STATUSES) {
+    const stuck = await ctx.db
+      .query("igPublishJobs")
+      .withIndex("by_status_claimed", (q) =>
+        q.eq("status", status).lt("claimedAt", now - STALE_AFTER_MS[status]),
+      )
+      .take(RECLAIM_BATCH);
+
+    for (const job of stuck) {
+      if (job.attempts >= MAX_ATTEMPTS) {
+        await ctx.db.patch(job._id, {
+          status: "failed",
+          error:
+            status === "publishing"
+              ? "Objavljivanje je prekinuto i nije se razrešilo posle svih pokušaja. Objava je možda otišla — proveri profil pre nego što je pošalješ ponovo."
+              : "Slanje se prekidalo više puta i nije se završilo. Proveri fajl i pokušaj ponovo.",
+          updatedAt: now,
+        });
+        continue;
+      }
+
+      await ctx.db.patch(job._id, {
+        status: "queued",
+        scheduledFor: now,
+        updatedAt: now,
+      });
+    }
+  }
+}
+
 /** How many old jobs one sweep looks at. */
 const SWEEP_BATCH = 50;
 
@@ -662,20 +999,25 @@ const SWEEP_BATCH = 50;
  * Every hour: take back the disk.
  *
  * A published post deletes its own files the moment it succeeds. This is for
- * everything else — the failed, the cancelled, and the one that has been
- * "processing" since yesterday — where the file was deliberately kept so a
- * retry would have something to send. Twenty-four hours is also exactly how
- * long an Instagram container lives, so nothing that could still be published
- * loses its bytes.
+ * everything else, and it takes bytes from a job on ONE condition — that the
+ * job is over. Anything still able to send those bytes keeps them, however old
+ * the row is.
  *
- * A job still moving is left alone no matter its age; only the state is
- * cleared, never the row.
+ * The age of a row says nothing about that, which is what made the previous
+ * version dangerous: scheduling runs up to 90 days ahead, so a post booked for
+ * next Friday is 24 hours old by Saturday and was swept as stale. On Friday it
+ * woke up, asked Instagram to fetch a file that no longer existed, failed —
+ * and "Pokušaj ponovo" refuses a job whose files are gone, so the scheduled
+ * post was simply lost. The `queued`-with-a-future-time rule below is the fix,
+ * and everything else here is the rest of the same question asked properly.
  */
 export const sweepExpiredUploads = internalMutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
-    const cutoff = Date.now() - UPLOAD_TTL_MS;
+    const now = Date.now();
+    const cutoff = now - UPLOAD_TTL_MS;
+
     const old = await ctx.db
       .query("igPublishJobs")
       .withIndex("by_pending_files_created", (q) =>
@@ -684,14 +1026,97 @@ export const sweepExpiredUploads = internalMutation({
       .take(SWEEP_BATCH);
 
     for (const job of old) {
-      // Bytes are only taken from a job that is standing still. One mid-upload
-      // is rare at this age and cheap to leave for the next hour.
-      if (job.status === "uploading") continue;
-      await deleteJobFiles(ctx, job);
+      // 1. A post waiting for a time that has not come is untouchable. This is
+      //    the only rule that was actually missing, and the only one that
+      //    could destroy something the operator cannot get back.
+      if (job.status === "queued" && (job.scheduledFor ?? 0) > now) continue;
+
+      // 2. The other end of the same clock: a post whose moment passed a week
+      //    ago and never went out is not waiting for anything. It is closed
+      //    with a reason first, and only then loses its bytes — a row that
+      //    silently lost its files and still says "na čekanju" is the state
+      //    this sweep exists to prevent.
+      const due = job.scheduledFor ?? job.createdAt;
+      if (isUnfinished(job.status) && now - due > ABANDONED_AFTER_DUE_MS) {
+        await ctx.db.patch(job._id, {
+          status: "failed",
+          error:
+            job.status === "publishing"
+              ? "Zakazano vreme je prošlo pre više od 7 dana i objavljivanje se nikada nije razrešilo. Objava je možda otišla — proveri profil."
+              : "Zakazano vreme je prošlo pre više od 7 dana, a objava nikada nije otišla.",
+          updatedAt: now,
+        });
+        await deleteJobFiles(ctx, job);
+        continue;
+      }
+
+      // 3. Everything that is genuinely over. `failed` counts: the status is
+      //    only ever written once the retry chain has stopped — at the attempt
+      //    ceiling or on a refusal that will never change — so a `failed` row
+      //    is never waiting on an automatic run. What it may still be waiting
+      //    on is a person, and 24 h is how long that offer stands.
+      //
+      //    A `draft` this old was never submitted; its files are the upload
+      //    that the composer started and did not finish.
+      if (
+        job.status === "failed" ||
+        job.status === "canceled" ||
+        job.status === "published" ||
+        job.status === "draft"
+      ) {
+        await deleteJobFiles(ctx, job);
+      }
+
+      // Anything left — due-and-queued, uploading, processing, publishing —
+      // is mid-flight and keeps its bytes. If it is not really moving, the
+      // 1-minute reclaim puts it back in the queue long before this matters.
     }
+
+    await sweepOrphanedUploads(ctx, cutoff);
     return null;
   },
 });
+
+/**
+ * Statuses from which a post could still, in principle, reach the profile.
+ *
+ * `draft` is not one of them: it was never submitted, so it has no moment that
+ * could have passed and nothing to report as abandoned. It is only disk.
+ */
+function isUnfinished(status: Doc<"igPublishJobs">["status"]): boolean {
+  return (
+    status === "queued" ||
+    status === "uploading" ||
+    status === "processing" ||
+    status === "publishing"
+  );
+}
+
+/**
+ * The files nobody ever claimed.
+ *
+ * A receipt older than the TTL means the upload finished and `createJob` never
+ * ran — it refused the post, or the tab was closed between the two. Those bytes
+ * are referenced by nothing and would otherwise sit on the disk forever.
+ */
+async function sweepOrphanedUploads(
+  ctx: MutationCtx,
+  cutoff: number,
+): Promise<void> {
+  const orphans = await ctx.db
+    .query("igPublishUploads")
+    .withIndex("by_created", (q) => q.lt("createdAt", cutoff))
+    .take(SWEEP_BATCH);
+
+  for (const orphan of orphans) {
+    try {
+      await ctx.storage.delete(orphan.storageId);
+    } catch {
+      // Already gone is the outcome we wanted anyway.
+    }
+    await ctx.db.delete(orphan._id);
+  }
+}
 
 async function deleteJobFiles(
   ctx: MutationCtx,
@@ -706,23 +1131,7 @@ async function deleteJobFiles(
   }
 
   const now = Date.now();
-  // A job that has been "processing" for a day is not processing. Instagram's
-  // container is expired by now too, so saying so is not a guess.
-  const stalled =
-    job.status === "processing" &&
-    now - (job.processingSince ?? job.createdAt) > PROCESSING_DEADLINE_MS;
-
-  await ctx.db.patch(job._id, {
-    filesDeletedAt: now,
-    ...(stalled
-      ? {
-          status: "failed" as const,
-          error:
-            "Instagram nikada nije javio da je obrada gotova. Kontejner je istekao posle 24 h.",
-        }
-      : {}),
-    updatedAt: now,
-  });
+  await ctx.db.patch(job._id, { filesDeletedAt: now, updatedAt: now });
 }
 
 // ── what the publishing-limit action needs ───────────────────────────────────

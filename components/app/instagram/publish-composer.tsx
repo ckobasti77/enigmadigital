@@ -21,6 +21,7 @@ import {
   KIND_LABELS,
   NO_DELETE_NOTICE,
   NO_LIKE_NOTICE,
+  PUBLISHED_UNCONFIRMED_LABEL,
   PUBLISH_KINDS,
   SCOPE_NOTICE_BODY,
   SCOPE_NOTICE_TITLE,
@@ -137,6 +138,7 @@ export function PublishComposer() {
   const generateUploadUrl = useMutation(
     api.instagramPublishStore.generateUploadUrl,
   );
+  const registerUpload = useMutation(api.instagramPublishStore.registerUpload);
   const createJob = useMutation(api.instagramPublishStore.createJob);
   const fetchLimit = useAction(api.instagramPublish.publishingLimit);
 
@@ -156,6 +158,17 @@ export function PublishComposer() {
   const [activeJobId, setActiveJobId] = useState<Id<"igPublishJobs"> | null>(
     null,
   );
+
+  /**
+   * One send at a time, decided outside React's state.
+   *
+   * `phase` disables the button, but a disabled button is a RENDERED fact: it
+   * arrives one commit after the click that should have caused it, and two
+   * clicks inside that window are two uploads and two posts. A ref changes in
+   * the same tick as the call, which is the only place the guard can be if it
+   * is meant to hold.
+   */
+  const sending = useRef(false);
 
   const now = useCoarseNow();
 
@@ -371,6 +384,9 @@ export function PublishComposer() {
   const totalBytes = items.reduce((sum, item) => sum + item.file.size, 0);
 
   const submit = async () => {
+    if (sending.current) return;
+    sending.current = true;
+
     setConfirmOpen(false);
     setErrorMsg(null);
     setSentBytes(0);
@@ -386,6 +402,11 @@ export function PublishComposer() {
           item.file,
           (loaded) => setSentBytes(done + loaded),
         );
+        // Written down the moment it lands, because from here until `createJob`
+        // nothing in the database names this file — and if the tab closes or
+        // the job is refused, nothing ever would. The receipt is what lets the
+        // sweep find it.
+        await registerUpload({ storageId: storageId as Id<"_storage"> });
         done += item.file.size;
         setSentBytes(done);
         storageIds.push(storageId as Id<"_storage">);
@@ -407,6 +428,7 @@ export function PublishComposer() {
     } catch (err) {
       setErrorMsg(convexMessage(err, "Slanje objave nije uspelo."));
     } finally {
+      sending.current = false;
       setPhase("idle");
     }
   };
@@ -697,6 +719,7 @@ export function PublishComposer() {
                   status={activeJob.status}
                   scheduledFor={activeJob.scheduledFor ?? null}
                   error={activeJob.error ?? null}
+                  mediaIdUnconfirmed={activeJob.mediaIdUnconfirmed === true}
                   now={now}
                 />
               )}
@@ -1017,15 +1040,25 @@ function ActiveJobNote({
   status,
   scheduledFor,
   error,
+  mediaIdUnconfirmed,
   now,
 }: {
   status: string;
   scheduledFor: number | null;
   error: string | null;
+  mediaIdUnconfirmed: boolean;
   now: number;
 }) {
   if (status === "published") {
-    return (
+    // The post is out either way; the difference is whether this row will ever
+    // be able to point at it. Saying it here beats a card that quietly never
+    // grows a link.
+    return mediaIdUnconfirmed ? (
+      <FeedbackNote tone="warning" title={PUBLISHED_UNCONFIRMED_LABEL}>
+        Objava je otišla na profil, ali Instagram nije potvrdio koja je — ovaj
+        red zato ostaje bez linka i brojeva. Proveri profil.
+      </FeedbackNote>
+    ) : (
       <FeedbackNote tone="success" title="Objava je na profilu">
         Pojaviće se na Instagram ekranu čim se povuku prvi podaci o njoj.
       </FeedbackNote>
@@ -1064,6 +1097,15 @@ function ActiveJobNote({
       <FeedbackNote tone="progress" title="Instagram obrađuje fajl…">
         Za video to traje od nekoliko sekundi do nekoliko minuta. Stranica ne
         mora da ostane otvorena.
+      </FeedbackNote>
+    );
+  }
+
+  if (status === "publishing") {
+    return (
+      <FeedbackNote tone="progress" title="Objava je predata Instagramu…">
+        Čeka se potvrda. Ako odgovor izostane, panel sam proverava kontejner —
+        objava se ne šalje po drugi put.
       </FeedbackNote>
     );
   }

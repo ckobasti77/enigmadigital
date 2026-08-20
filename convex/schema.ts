@@ -199,14 +199,30 @@ export default defineSchema({
       v.literal("draft"),
       v.literal("queued"),
       v.literal("uploading"),
+      // `POST /media_publish` has been sent and its answer has not arrived.
+      // Written BEFORE the call, never after: a run that dies here must let
+      // the next one ASK Instagram what happened rather than send it again.
+      v.literal("publishing"),
       v.literal("processing"),
       v.literal("published"),
       v.literal("failed"),
       v.literal("canceled"),
     ),
     attempts: v.number(),
+    // When a run last took this job. A run can die between the claim and the
+    // next write (isolate killed, deploy, action timeout), and this is the only
+    // evidence that the `uploading`/`processing`/`publishing` on the row is
+    // stale rather than live.
+    claimedAt: v.optional(v.number()),
+    // When `media_publish` was actually sent. Doubles as the lower bound of the
+    // window searched when a lost media id has to be recovered.
+    publishStartedAt: v.optional(v.number()),
     error: v.optional(v.string()),
     publishedMediaId: v.optional(v.string()),
+    // The post is on the profile but we could not prove WHICH post it is —
+    // the container answered `PUBLISHED` from an earlier run whose reply was
+    // lost. An honest gap beats an invented id, and beats a second post.
+    mediaIdUnconfirmed: v.optional(v.boolean()),
     publishedAt: v.optional(v.number()),
     // Cleared once the files are gone, so the 24h sweep knows what is left.
     filesDeletedAt: v.optional(v.number()),
@@ -223,7 +239,32 @@ export default defineSchema({
     // the rows that still hold bytes: an index on `createdAt` alone would fill
     // every batch with long-since-swept posts and never reach the ones that
     // still cost disk.
-    .index("by_pending_files_created", ["filesDeletedAt", "createdAt"]),
+    .index("by_pending_files_created", ["filesDeletedAt", "createdAt"])
+    // "Which jobs claim to be running but have not been touched in a while?"
+    // Rows written before `claimedAt` existed sort first (undefined precedes
+    // every number), which is what we want: they are the oldest stuck ones.
+    .index("by_status_claimed", ["status", "claimedAt"]),
+
+  // ── Instagram publishing: files that have arrived but own nothing yet ──────
+  //
+  // A file reaches Convex storage BEFORE the job that will send it exists —
+  // the browser has to upload it to learn its storage id, and a gigabyte of
+  // video cannot travel through a mutation. Everything between those two
+  // moments is unreferenced disk: if `createJob` refuses the post, or the tab
+  // is closed mid-flow, nothing in `igPublishJobs` names those bytes and the
+  // sweep that walks that table cannot see them.
+  //
+  // A row here is exactly that gap, and nothing else. `createJob` DELETES the
+  // row when the job takes the file over, so the table only ever holds uploads
+  // still waiting for an owner — and anything older than the 24h TTL is an
+  // orphan by definition.
+  igPublishUploads: defineTable({
+    workspaceId: v.id("workspaces"),
+    storageId: v.id("_storage"),
+    createdAt: v.number(),
+  })
+    .index("by_storage", ["storageId"])
+    .index("by_created", ["createdAt"]),
 
   // ── Instagram komentari (F4) ────────────────────────────────────────────────
   // Every comment we have ever seen on our own posts — not only the ones that

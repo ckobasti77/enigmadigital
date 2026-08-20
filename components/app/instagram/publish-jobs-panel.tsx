@@ -8,6 +8,7 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import {
   KIND_LABELS,
+  PUBLISHED_UNCONFIRMED_LABEL,
   STATUS_LABELS,
   pluralFiles,
 } from "@/convex/lib/igPublish";
@@ -47,10 +48,23 @@ const STATUS_TONES: Record<PublishJob["status"], string> = {
   queued: "border-line bg-surface text-text-secondary",
   uploading: "border-accent-400/30 bg-accent-400/10 text-accent-400",
   processing: "border-accent-400/30 bg-accent-400/10 text-accent-400",
+  publishing: "border-accent-400/30 bg-accent-400/10 text-accent-400",
   published: "border-success/30 bg-success/10 text-success",
   failed: "border-danger/30 bg-danger/10 text-danger",
   canceled: "border-line bg-surface text-text-muted",
 };
+
+/**
+ * What the badge says. Normally the status, with one exception worth spelling
+ * out: a post that went out on a run whose answer was lost is `published` and
+ * has no media id, so nothing on this row will ever link anywhere. Saying so
+ * costs one phrase and saves the question.
+ */
+function statusLabel(job: PublishJob): string {
+  return job.status === "published" && job.mediaIdUnconfirmed === true
+    ? PUBLISHED_UNCONFIRMED_LABEL
+    : STATUS_LABELS[job.status];
+}
 
 function convexMessage(err: unknown, fallback: string): string {
   if (err instanceof ConvexError) {
@@ -248,7 +262,7 @@ function JobRow({
               STATUS_TONES[job.status],
             )}
           >
-            {STATUS_LABELS[job.status]}
+            {statusLabel(job)}
           </span>
           {job.attempts > 1 && job.status !== "published" && (
             <span className="ml-1.5 font-mono text-micro tabular-nums text-text-muted">
@@ -271,7 +285,7 @@ function JobRow({
         </TableCell>
 
         <TableCell className="py-2 pr-3 text-right">
-          {job.status === "queued" && (
+          {job.cancellable && (
             <Button
               type="button"
               variant="ghost"

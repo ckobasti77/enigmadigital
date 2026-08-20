@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:ig-publish": "node --import ./scripts/ts-hooks.mjs scripts/verify-ig-publish-idempotency.ts"
   },
   "dependencies": {
     "@auth/core": "^0.41.3",

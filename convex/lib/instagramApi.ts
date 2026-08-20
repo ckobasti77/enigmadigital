@@ -190,6 +190,33 @@ export function buildMeMediaIdsUrl(
 }
 
 /**
+ * Build endpoint URL for finding a post we published but never got the id of.
+ *
+ * Instagram answers `POST /media_publish` with the new media id and nowhere
+ * else — the container knows it is `PUBLISHED` and does not say what it became.
+ * So when that answer is lost, the only way back to the id is to look at the
+ * feed and match on what we do know: when we sent it, and what its caption was.
+ *
+ * Deliberately NOT `MEDIA_LIST_FIELDS` — matching needs three fields, and the
+ * full list drags in signed CDN links and carousel children for nothing.
+ *
+ * Stories are absent from this edge and always will be; a story whose id is
+ * lost stays lost, which is why the caller treats "not found" as an ordinary
+ * outcome rather than an error.
+ */
+export function buildRecentMediaMatchUrl(
+  accessToken: string,
+  limit: number = 10,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(`${INSTAGRAM_GRAPH_BASE_URL}/${version}/me/media`);
+  url.searchParams.set("fields", "id,caption,timestamp");
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/**
  * Build endpoint URL for reading arbitrary fields off a single media node.
  * Used by the /ig-media/ proxy route to pull a FRESH picture URL, because the
  * signed CDN links Instagram hands out expire.

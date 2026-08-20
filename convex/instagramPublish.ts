@@ -10,10 +10,12 @@ import {
   buildMediaContainerUrl,
   buildMediaPublishUrl,
   buildPublishingLimitUrl,
+  buildRecentMediaMatchUrl,
   extractGraphApiError,
   getMetaGraphVersion,
   type RawContainerResponse,
   type RawContainerStatusResponse,
+  type RawMediaListResponse,
   type RawPublishingLimitResponse,
 } from "./lib/instagramApi";
 import {
@@ -46,10 +48,20 @@ import {
  *   1. claim the job (a transaction, so two schedulers cannot both win it)
  *   2. POST /{ig-user-id}/media          → a container id
  *   3. GET  /{container-id}?fields=status_code  until FINISHED
- *   4. POST /{ig-user-id}/media_publish  → the post
+ *   4. write `publishing` to the job     → BEFORE the call, never after
+ *   5. POST /{ig-user-id}/media_publish  → the post
  *
  * Step 3 is not optional and not a formality. A container that is still
- * IN_PROGRESS answers step 4 with an error, and the error does not say why.
+ * IN_PROGRESS answers step 5 with an error, and the error does not say why.
+ *
+ * Step 4 is what makes step 5 survivable. `media_publish` can reach Meta and
+ * have its ANSWER lost — a timeout, a cut socket, an isolate that dies — and
+ * from the outside that is indistinguishable from a call that never arrived.
+ * The difference is written down before the call and read by the next run,
+ * which asks the container what happened instead of sending it again: the
+ * container answers `PUBLISHED`, and `PUBLISHED` ends the job as a success.
+ * Sending twice puts two identical posts on somebody's profile, and nothing in
+ * this API takes one back.
  * ============================================================================
  */
 
@@ -123,6 +135,8 @@ type Claim = {
   containerId?: string;
   childContainerIds?: string[];
   processingSince?: number;
+  /** Set once `media_publish` has been sent at least once for this job. */
+  publishStartedAt?: number;
   attempts: number;
   fresh: boolean;
 };
@@ -269,11 +283,21 @@ async function verifyImageShapes(ctx: ActionCtx, claim: Claim): Promise<void> {
 // ── waiting on Instagram ─────────────────────────────────────────────────────
 
 /**
+ * What the container had to say, once it said anything final.
+ *
+ * `already-published` is NOT a synonym for `ready`, and treating it as one was
+ * the bug this file was rewritten for. `ready` means "send `media_publish`";
+ * `already-published` means "an earlier run sent it and this post is on the
+ * profile" — sending again from here is how an operator gets two of the same
+ * Reel with no way to delete either through this API.
+ */
+type ContainerVerdict = "ready" | "already-published" | "waiting";
+
+/**
  * Ask the container whether it is ready, and keep asking.
  *
- * Returns `true` when Instagram is done, `false` when this run has used up its
- * time and has scheduled itself to continue. Throws when the answer is a
- * verdict rather than a delay.
+ * Returns `waiting` when this run has used up its time and has scheduled
+ * itself to continue. Throws when the answer is a verdict rather than a delay.
  *
  * Two clocks run here and they measure different things: the RUN budget caps
  * how long one action sits waiting, and the PROCESSING deadline caps how long
@@ -288,7 +312,7 @@ async function awaitContainer(
   token: string,
   version: string,
   processingSince: number,
-): Promise<boolean> {
+): Promise<ContainerVerdict> {
   const runDeadline = Date.now() + POLL_BUDGET_MS;
 
   for (;;) {
@@ -318,7 +342,9 @@ async function awaitContainer(
     }
 
     const status = parseContainerStatus(parsed.status_code);
-    if (status === "FINISHED" || status === "PUBLISHED") return true;
+    if (status === "FINISHED") return "ready";
+    // The post is already out. Nothing below this line may send it again.
+    if (status === "PUBLISHED") return "already-published";
 
     if (status === "ERROR") {
       // `status` (not `status_code`) is the only place Instagram says WHY a
@@ -351,10 +377,79 @@ async function awaitContainer(
         internal.instagramPublish.runPublishJob,
         { jobId },
       );
-      return false;
+      return "waiting";
     }
 
     await sleep(POLL_INTERVAL_MS);
+  }
+}
+
+// ── finding a post whose id we lost ──────────────────────────────────────────
+
+/**
+ * How far before the send the search window opens. Instagram stamps the post
+ * with its own clock, and a couple of minutes of skew is ordinary.
+ */
+const RECOVERY_SLACK_MS = 5 * 60_000;
+
+/** How many recent posts are worth looking at — the lost one is the newest. */
+const RECOVERY_LOOKBACK = 10;
+
+/**
+ * Which of these posts is ours, if any of them is.
+ *
+ * Two pieces of evidence, and both have to agree: the post appeared after we
+ * pressed send, and it carries the caption we sent. A single surviving
+ * candidate is an answer; two are not, and neither is none. Guessing between
+ * two would attach somebody else's numbers to this row forever, which is worse
+ * than the row saying it does not know.
+ */
+export function matchPublishedMedia(
+  items: Array<{ id?: string; caption?: string; timestamp?: string }>,
+  params: { caption?: string; since: number },
+): string | null {
+  const floor = params.since - RECOVERY_SLACK_MS;
+  const wanted = params.caption?.trim();
+
+  const candidates = items.filter((item) => {
+    if (!item.id) return false;
+    const at = Date.parse(item.timestamp ?? "");
+    if (!Number.isFinite(at) || at < floor) return false;
+    // A story, or a post with no caption, is matched on timing alone — there
+    // is nothing else to compare, and demanding more would never confirm.
+    if (wanted === undefined || wanted.length === 0) return true;
+    return (item.caption ?? "").trim() === wanted;
+  });
+
+  return candidates.length === 1 ? String(candidates[0].id) : null;
+}
+
+/**
+ * The media id of a post that went out on a run whose answer never came back.
+ *
+ * Best effort by construction, and silent on every failure: the post EXISTS
+ * either way, so a throw here would send the job back through the retry chain
+ * to rediscover the same `PUBLISHED` container. `null` means the row records
+ * the post without an id, which is exactly what it knows.
+ */
+async function recoverPublishedMediaId(
+  claim: Claim,
+  token: string,
+  version: string,
+  since: number,
+): Promise<string | null> {
+  try {
+    const res = await fetch(
+      buildRecentMediaMatchUrl(token, RECOVERY_LOOKBACK, version),
+    );
+    if (!res.ok) return null;
+    const parsed = (await res.json()) as RawMediaListResponse;
+    return matchPublishedMedia(parsed.data ?? [], {
+      ...(claim.caption !== undefined ? { caption: claim.caption } : {}),
+      since,
+    });
+  } catch {
+    return null;
   }
 }
 
@@ -419,7 +514,7 @@ export const runPublishJob = internalAction({
         });
       }
 
-      const ready = await awaitContainer(
+      const verdict = await awaitContainer(
         ctx,
         jobId,
         containerId,
@@ -427,7 +522,33 @@ export const runPublishJob = internalAction({
         version,
         processingSince,
       );
-      if (!ready) return null; // still processing; a continuation is scheduled
+      if (verdict === "waiting") return null; // a continuation is scheduled
+
+      if (verdict === "already-published") {
+        // An earlier run got this post out and lost the reply. The job ends
+        // here as a success, and `media_publish` is NOT sent — everything
+        // below this block is unreachable for it, on purpose.
+        const recovered = await recoverPublishedMediaId(
+          claim,
+          token,
+          version,
+          claim.publishStartedAt ?? processingSince,
+        );
+        await ctx.runMutation(internal.instagramPublishStore.markPublished, {
+          jobId,
+          ...(recovered !== null
+            ? { publishedMediaId: recovered }
+            : { mediaIdUnconfirmed: true }),
+          connectionId: claim.connectionId,
+        });
+        return null;
+      }
+
+      // Written BEFORE the call, so a run that dies waiting for the answer
+      // leaves evidence that the call was made. See the file header.
+      await ctx.runMutation(internal.instagramPublishStore.markPublishing, {
+        jobId,
+      });
 
       const published = await graphPost(
         buildMediaPublishUrl(claim.igUserId, version),
@@ -441,7 +562,11 @@ export const runPublishJob = internalAction({
 
       await ctx.runMutation(internal.instagramPublishStore.markPublished, {
         jobId,
-        ...(published.id ? { publishedMediaId: String(published.id) } : {}),
+        // A 200 with no id is rare and not worth a failure — the post is out.
+        // It is worth SAYING, though, which is what the flag is for.
+        ...(published.id
+          ? { publishedMediaId: String(published.id) }
+          : { mediaIdUnconfirmed: true }),
         connectionId: claim.connectionId,
       });
     } catch (err) {
