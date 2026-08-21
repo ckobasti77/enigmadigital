@@ -1,10 +1,9 @@
 "use client";
 
 import { Suspense, useEffect } from "react";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppSidebar } from "./app-sidebar";
 import { MobileNav } from "./mobile-nav";
@@ -14,7 +13,7 @@ import { SectionNav } from "./section-nav";
 import { SignOutButton } from "./sign-out-button";
 import { SyncStatus } from "./sync-status";
 import { DateRangePicker } from "./date-range-picker";
-import { channelTabsFor, channelTrailingFor, resolveScreen } from "./nav-items";
+import { channelTabsFor, resolveScreen } from "./nav-items";
 import { WorkspaceProvider } from "./workspace-provider";
 
 /**
@@ -92,7 +91,6 @@ function Header() {
   const pathname = usePathname();
   const screen = resolveScreen(pathname);
   const tabs = channelTabsFor(pathname);
-  const trailing = channelTrailingFor(pathname);
 
   return (
     <header className="material edge-fade-b sticky top-0 z-30 flex shrink-0 flex-col">
@@ -138,24 +136,13 @@ function Header() {
         </div>
       )}
 
-      {/* Druga ravan navigacije živi u ljusci, ne u telu strane: ostaje
+      {/* Druga ravan navigacije: na desktopu je preseljena u bočnu traku
+          (ugnježdene podstavke), pa ovde ostaje samo na telefonu — klizajući
+          red čipova ispod naslova. Živi u ljusci, ne u telu strane, da ostane
           zakačena i ne bledi ponovo pri prelasku između podekrana kanala. */}
       {tabs && (
-        <div className="px-[var(--gutter)]">
-          <SectionNav
-            tabs={tabs}
-            trailing={
-              trailing ? (
-                <Link
-                  href={trailing.href}
-                  className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-text-muted transition-colors hover:text-foreground"
-                >
-                  <SlidersHorizontal className="size-3.5" aria-hidden />
-                  {trailing.label}
-                </Link>
-              ) : undefined
-            }
-          />
+        <div className="px-[var(--gutter)] md:hidden">
+          <SectionNav tabs={tabs} />
         </div>
       )}
     </header>

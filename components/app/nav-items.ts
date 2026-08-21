@@ -1,6 +1,5 @@
 import type { ComponentType } from "react";
 import {
-  Bot,
   Camera,
   GitMerge,
   LayoutDashboard,
@@ -77,13 +76,6 @@ export const navSections: NavSection[] = [
         icon: MessageCircleReply,
         range: true,
       },
-      {
-        label: "YouTube automatizacije",
-        href: "/youtube/automatizacije",
-        icon: Bot,
-        range: false,
-        mobile: false,
-      },
       { label: "Pravila", href: "/rules", icon: ShieldAlert, range: false },
     ],
   },
@@ -118,6 +110,16 @@ const EXTRA_SCREENS: Screen[] = [
     href: "/openreply/automatizacije",
     section: "Automatizacija",
     title: "Automatizacije i DM log",
+    range: false,
+  },
+  // YouTube automatizacije više nije top-level stavka nego podekran YouTube-a
+  // (kao „/openreply/automatizacije"). Bez ovog reda `resolveScreen` bi pao na
+  // „/youtube" i gornja traka bi pokazala birač perioda — a ovaj ekran ne radi
+  // nad periodom.
+  {
+    href: "/youtube/automatizacije",
+    section: "Kanali",
+    title: "YouTube automatizacije",
     range: false,
   },
   {
@@ -231,14 +233,38 @@ function matches(pathname: string, href: string): boolean {
     : pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/**
+ * Najduže poklapanje putanje među ponuđenim href-ovima — jedno pravilo za oba
+ * nivoa navigacije. Tako i „/instagram/objave/<id>" (bez svoje stavke) pada na
+ * „/instagram", umesto da ostane bez ijedne obeležene stavke.
+ */
+export function bestHref(
+  pathname: string,
+  hrefs: readonly string[],
+): string | undefined {
+  let best: string | undefined;
+  for (const href of hrefs) {
+    if (matches(pathname, href) && (best === undefined || href.length > best.length)) {
+      best = href;
+    }
+  }
+  return best;
+}
+
+/** Kandidati za prvi nivo: samo top-level stavke; podekrani padaju na roditelja. */
+const NAV_HREFS: readonly string[] = navItems.map((i) => i.href);
+
 /** Tačno jedna stavka je aktivna: ona sa najdužim poklapanjem putanje. */
 export function isNavActive(pathname: string, href: string): boolean {
   return activeHref(pathname) === href;
 }
 
-/** `undefined` znači ruta van registra — indikator se tada ne prikazuje. */
+/**
+ * Href aktivne stavke PRVOG nivoa (roditelja). `undefined` znači ruta van
+ * registra — indikator se tada ne prikazuje.
+ */
 export function activeHref(pathname: string): string | undefined {
-  return ROUTES.find((r) => r.item && matches(pathname, r.href))?.href;
+  return bestHref(pathname, NAV_HREFS);
 }
 
 /** Sekcija, naziv ekrana i da li mu treba birač perioda — za gornju traku. */
@@ -320,25 +346,18 @@ export function activeChannelTab(
   pathname: string,
   tabs: readonly ChannelTab[],
 ): string | undefined {
-  const matching = tabs.filter((t) => matches(pathname, t.href));
-  if (matching.length === 0) return undefined;
-  return matching.reduce((a, b) => (b.href.length > a.href.length ? b : a)).href;
+  return bestHref(
+    pathname,
+    tabs.map((t) => t.href),
+  );
 }
 
 /**
- * Prečica koja stoji uz traku podekrana, desno. GA4 konfiguracija nije ekran sa
- * podacima nego podešavanje, pa ne dobija tab — dobija prečicu ka Podešavanjima
- * odakle se property i čita/osvežava.
+ * Podstavke jedne stavke bočne trake, izvedene iz `channelTabs` — jedan spisak
+ * ostaje jedan. `undefined` znači stavka bez podstranica (nema sevrona).
  */
-export type ChannelTrailing = { href: string; label: string };
-
-const CHANNEL_TRAILING: Record<string, ChannelTrailing> = {
-  "/analytics": { href: "/settings", label: "Konfiguracija" },
-};
-
-export function channelTrailingFor(
-  pathname: string,
-): ChannelTrailing | undefined {
-  const base = Object.keys(CHANNEL_TRAILING).find((b) => matches(pathname, b));
-  return base ? CHANNEL_TRAILING[base] : undefined;
+export function navChildrenFor(
+  href: string,
+): readonly ChannelTab[] | undefined {
+  return channelTabs[href];
 }
