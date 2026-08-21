@@ -27,8 +27,12 @@ export const startSyncRun = internalMutation({
 });
 
 export const finishSyncRun = internalMutation({
-  args: { syncRunId: v.id("syncRuns"), itemsWritten: v.number() },
-  handler: async (ctx, { syncRunId, itemsWritten }) => {
+  args: {
+    syncRunId: v.id("syncRuns"),
+    itemsWritten: v.number(),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, { syncRunId, itemsWritten, note }) => {
     const run = await ctx.db.get(syncRunId);
     if (run === null) return;
     const now = Date.now();
@@ -36,6 +40,7 @@ export const finishSyncRun = internalMutation({
       status: "ok",
       finishedAt: now,
       itemsWritten,
+      ...(note !== undefined ? { note } : {}),
     });
     if (run.connectionId) {
       const conn = await ctx.db.get(run.connectionId);
@@ -79,6 +84,7 @@ const healthEntryValidator = v.object({
   startedAt: v.number(),
   finishedAt: v.union(v.number(), v.null()),
   error: v.union(v.string(), v.null()),
+  note: v.union(v.string(), v.null()),
   itemsWritten: v.number(),
 });
 
@@ -158,6 +164,7 @@ export const health = query({
         startedAt: run.startedAt,
         finishedAt: run.finishedAt ?? null,
         error: run.error ?? null,
+        note: run.note ?? null,
         itemsWritten: run.itemsWritten,
       });
     }

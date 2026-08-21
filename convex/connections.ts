@@ -380,6 +380,21 @@ export const authorizeForSync = internalQuery({
   },
 });
 
+/** Return GA4 connection for a workspace (internal for realtime/sync). */
+export const getGa4ForWorkspace = internalQuery({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const conn = await ctx.db
+      .query("connections")
+      .withIndex("by_workspace_provider", (q) =>
+        q.eq("workspaceId", workspaceId).eq("provider", "ga4"),
+      )
+      .first();
+    if (conn === null || conn.status === "disconnecting") return null;
+    return conn;
+  },
+});
+
 // ── manual trigger ───────────────────────────────────────────────────────────
 
 /**

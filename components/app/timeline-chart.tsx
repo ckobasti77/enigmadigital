@@ -43,7 +43,7 @@ export type TimelineMeasure = {
   /** Token serije iz `globals.css`, npr. `var(--color-chart-1)`. */
   color: string;
   /** Vrednosti po danu, istim redosledom kao `dates`. */
-  values: number[];
+  values: (number | undefined | null)[];
   /** Formatiranje kroz `lib/format.ts`. */
   format: (v: number) => string;
   /**
@@ -98,14 +98,32 @@ export function TimelineChart({
   const rows = dates.map((date, i) => ({
     date,
     i,
-    area: area.values[i] ?? 0,
-    bars: bars ? (bars.values[i] ?? 0) : 0,
+    area:
+      area.values[i] !== undefined && area.values[i] !== null
+        ? (area.values[i] as number)
+        : null,
+    bars: bars
+      ? bars.values[i] !== undefined && bars.values[i] !== null
+        ? (bars.values[i] as number)
+        : null
+      : null,
   }));
 
-  const areaMax = Math.max(0, ...rows.map((r) => r.area));
-  const barsMax = Math.max(0, ...rows.map((r) => r.bars));
+  const definedArea = rows
+    .map((r) => r.area)
+    .filter((v): v is number => v !== null);
+  const definedBars = rows
+    .map((r) => r.bars)
+    .filter((v): v is number => v !== null);
 
-  if (rows.length === 0 || (areaMax === 0 && barsMax === 0)) {
+  const areaMax = definedArea.length > 0 ? Math.max(0, ...definedArea) : 0;
+  const barsMax = definedBars.length > 0 ? Math.max(0, ...definedBars) : 0;
+
+  if (
+    rows.length === 0 ||
+    definedArea.length === 0 ||
+    (areaMax === 0 && barsMax === 0)
+  ) {
     return (
       <Card className="gap-0 py-0 shadow-card ring-line">
         <div className="px-5 pt-5">
@@ -123,7 +141,7 @@ export function TimelineChart({
 
   const fitted = area.baseline === "fitted";
   const areaTicks = fitted
-    ? fittedTicks(Math.min(...rows.map((r) => r.area)), areaMax, 3)
+    ? fittedTicks(Math.min(...definedArea), areaMax, 3)
     : niceTicks(areaMax, 3);
   const barsTicks = bars ? niceTicks(barsMax, 1) : [0];
   const areaFloor = fitted ? areaTicks[0] : 0;
@@ -133,7 +151,7 @@ export function TimelineChart({
   const barsCeiling = ceilingFor(0, barsTop, barsMax, BARS_HEADROOM);
 
   const areaMarks = markedPoints(rows.map((r) => r.area));
-  const barsPeak = bars ? peakIndex(rows.map((r) => r.bars)) : -1;
+  const barsPeak = bars ? peakIndex(rows.map((r) => r.bars ?? 0)) : -1;
 
   return (
     <Card className="gap-0 py-0 shadow-card ring-line">
@@ -200,6 +218,7 @@ export function TimelineChart({
             fill={area.color}
             fillOpacity={fitted ? 0 : 0.1}
             dot={false}
+            connectNulls={false}
             activeDot={{
               r: 4,
               strokeWidth: 2,
@@ -308,7 +327,7 @@ function PanelTitle({ color, title }: { color: string; title: string }) {
 
 // ── očitavanje ───────────────────────────────────────────────────────────────
 
-type Row = { date: string; i: number; area: number; bars: number };
+type Row = { date: string; i: number; area: number | null; bars: number | null };
 
 function firstRow(payload: unknown): Row | undefined {
   const list = payload as Array<{ payload?: Row }> | undefined;
@@ -340,8 +359,11 @@ function TimelineTooltip({
     {
       label: area.label,
       color: area.color,
-      value: row.area,
-      text: area.format(row.area),
+      value: row.area ?? 0,
+      text:
+        row.area === null || row.area === undefined
+          ? "—"
+          : area.format(row.area),
       change: relativeChange(row.area, prev?.area),
     },
     ...(bars
@@ -349,8 +371,11 @@ function TimelineTooltip({
           {
             label: bars.label,
             color: bars.color,
-            value: row.bars,
-            text: bars.format(row.bars),
+            value: row.bars ?? 0,
+            text:
+              row.bars === null || row.bars === undefined
+                ? "—"
+                : bars.format(row.bars),
             change: relativeChange(row.bars, prev?.bars),
           },
         ]
@@ -398,8 +423,16 @@ function TimelineTooltip({
 }
 
 /** `null` kada poređenje ne postoji ili bi delilo nulom. */
-function relativeChange(value: number, previous?: number): number | null {
-  if (previous === undefined || previous === 0) return null;
+function relativeChange(value: number | null, previous?: number | null): number | null {
+  if (
+    value === null ||
+    value === undefined ||
+    previous === null ||
+    previous === undefined ||
+    previous === 0
+  ) {
+    return null;
+  }
   return (value - previous) / previous;
 }
 
@@ -443,22 +476,46 @@ function plotBand(viewBox: unknown): { top: number; bottom: number } {
  * kraja — taj kraj već nosi isti broj, a dve oznake jedna preko druge su gore
  * nego nijedna.
  */
-function markedPoints(values: number[]): Map<number, Mark> {
+function markedPoints(values: (number | null)[]): Map<number, Mark> {
   const marks = new Map<number, Mark>();
   const n = values.length;
   if (n === 0) return marks;
 
+  const definedIndices = values
+    .map((v, i) => (v !== null && v !== undefined ? i : -1))
+    .filter((i) => i !== -1);
+  if (definedIndices.length === 0) return marks;
+
   // Vrh je lokalni maksimum, pa je iznad njega uvek prazno.
-  const peak = peakIndex(values);
+  const peak = peakIndex(values.map((v) => v ?? 0));
   const guard = Math.max(1, Math.ceil(n * 0.1));
-  if (values[peak] > 0 && peak > guard && peak < n - 1 - guard) {
+  if (
+    values[peak] !== null &&
+    (values[peak] as number) > 0 &&
+    peak > guard &&
+    peak < n - 1 - guard
+  ) {
     marks.set(peak, { kind: "peak", below: false });
   }
-  // Na krajevima linija ulazi u prostor oznake: ako se penje od prve tačke
-  // (ili pada u poslednju), iznad je linija, pa oznaka silazi ispod.
-  if (n >= 3) marks.set(0, { kind: "first", below: values[1] > values[0] });
-  if (n >= 2) {
-    marks.set(n - 1, { kind: "last", below: values[n - 2] > values[n - 1] });
+
+  const firstIdx = definedIndices[0];
+  const lastIdx = definedIndices[definedIndices.length - 1];
+
+  if (firstIdx !== undefined && values[firstIdx] !== null) {
+    const nextIdx = definedIndices[1];
+    const below =
+      nextIdx !== undefined && values[nextIdx] !== null
+        ? (values[nextIdx] as number) > (values[firstIdx] as number)
+        : false;
+    marks.set(firstIdx, { kind: "first", below });
+  }
+  if (lastIdx !== undefined && lastIdx !== firstIdx && values[lastIdx] !== null) {
+    const prevIdx = definedIndices[definedIndices.length - 2];
+    const below =
+      prevIdx !== undefined && values[prevIdx] !== null
+        ? (values[prevIdx] as number) > (values[lastIdx] as number)
+        : false;
+    marks.set(lastIdx, { kind: "last", below });
   }
   return marks;
 }

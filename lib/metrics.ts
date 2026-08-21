@@ -6,45 +6,150 @@ export type DailyPoint = {
   sessions: number;
   activeUsers: number;
   newUsers: number;
-  conversions: number;
-  engagementRate: number; // 0..1 for that day
+  keyEvents: number;
+  engagementRate?: number; // 0..1 for that day
+  totalUsers?: number;
+  engagedSessions?: number;
+  screenPageViews?: number;
+  userEngagementDuration?: number;
+  scrolledUsers?: number;
+  avgEngagementDurationPerSession?: number;
 };
 
 export type PeriodTotals = {
   sessions: number;
   activeUsers: number;
-  conversions: number;
-  /** Session-weighted average of the daily rates (0..1); 0 when no sessions. */
-  engagementRate: number;
+  newUsers: number;
+  keyEvents: number;
+  totalUsers?: number;
+  engagedSessions?: number;
+  screenPageViews?: number;
+  userEngagementDuration?: number;
+  scrolledUsers?: number;
+  /** Session-weighted average or engagedSessions / sessions; undefined when not known. */
+  engagementRate?: number;
+  /** userEngagementDuration / sessions (in seconds); undefined when not known. */
+  avgEngagementDurationPerSession?: number;
 };
 
 export function summarize(rows: DailyPoint[]): PeriodTotals {
   let sessions = 0;
   let activeUsers = 0;
-  let conversions = 0;
-  let engaged = 0;
+  let newUsers = 0;
+  let keyEvents = 0;
+
+  let totalUsersSum = 0;
+  let hasMissingTotalUsers = rows.length === 0;
+
+  let engagedSessionsSum = 0;
+  let hasMissingEngagedSessions = rows.length === 0;
+
+  let screenPageViewsSum = 0;
+  let hasMissingScreenPageViews = rows.length === 0;
+
+  let userEngagementDurationSum = 0;
+  let hasMissingUserEngagementDuration = rows.length === 0;
+
+  let scrolledUsersSum = 0;
+  let hasMissingScrolledUsers = rows.length === 0;
+
+  let legacyEngagedFallback = 0;
+  let hasMissingLegacyEngaged = rows.length === 0;
+
   for (const r of rows) {
     sessions += r.sessions;
     activeUsers += r.activeUsers;
-    conversions += r.conversions;
-    engaged += r.engagementRate * r.sessions;
+    newUsers += r.newUsers;
+    keyEvents += r.keyEvents;
+
+    if (r.totalUsers !== undefined) {
+      totalUsersSum += r.totalUsers;
+    } else {
+      hasMissingTotalUsers = true;
+    }
+
+    if (r.engagedSessions !== undefined) {
+      engagedSessionsSum += r.engagedSessions;
+    } else {
+      hasMissingEngagedSessions = true;
+    }
+
+    if (r.screenPageViews !== undefined) {
+      screenPageViewsSum += r.screenPageViews;
+    } else {
+      hasMissingScreenPageViews = true;
+    }
+
+    if (r.userEngagementDuration !== undefined) {
+      userEngagementDurationSum += r.userEngagementDuration;
+    } else {
+      hasMissingUserEngagementDuration = true;
+    }
+
+    if (r.scrolledUsers !== undefined) {
+      scrolledUsersSum += r.scrolledUsers;
+    } else {
+      hasMissingScrolledUsers = true;
+    }
+
+    if (r.engagementRate !== undefined) {
+      legacyEngagedFallback += r.engagementRate * r.sessions;
+    } else {
+      hasMissingLegacyEngaged = true;
+    }
   }
+
+  const totalUsers = hasMissingTotalUsers ? undefined : totalUsersSum;
+  const engagedSessions = hasMissingEngagedSessions ? undefined : engagedSessionsSum;
+  const screenPageViews = hasMissingScreenPageViews ? undefined : screenPageViewsSum;
+  const userEngagementDuration = hasMissingUserEngagementDuration
+    ? undefined
+    : userEngagementDurationSum;
+  const scrolledUsers = hasMissingScrolledUsers ? undefined : scrolledUsersSum;
+
+  let engagementRate: number | undefined = undefined;
+  if (!hasMissingEngagedSessions) {
+    engagementRate = sessions > 0 ? engagedSessionsSum / sessions : 0;
+  } else if (!hasMissingLegacyEngaged) {
+    engagementRate = sessions > 0 ? legacyEngagedFallback / sessions : 0;
+  }
+
+  const avgEngagementDurationPerSession = !hasMissingUserEngagementDuration
+    ? sessions > 0
+      ? userEngagementDurationSum / sessions
+      : 0
+    : undefined;
+
   return {
     sessions,
     activeUsers,
-    conversions,
-    engagementRate: sessions > 0 ? engaged / sessions : 0,
+    newUsers,
+    keyEvents,
+    totalUsers,
+    engagedSessions,
+    screenPageViews,
+    userEngagementDuration,
+    scrolledUsers,
+    engagementRate,
+    avgEngagementDurationPerSession,
   };
 }
 
-/** Relative change (e.g. 0.12 = +12 %); null when the baseline is 0. */
-export function deltaPct(current: number, previous: number): number | null {
-  if (previous === 0) return null;
+/** Relative change (e.g. 0.12 = +12 %); null when baseline is 0 or either is undefined. */
+export function deltaPct(
+  current: number | undefined,
+  previous: number | undefined,
+): number | null {
+  if (current === undefined || previous === undefined || previous === 0) return null;
   return (current - previous) / previous;
 }
 
-/** Absolute change in percentage points for a 0..1 rate (e.g. 1.3 = +1,3 pp). */
-export function deltaPp(current: number, previous: number): number {
+/** Absolute change in percentage points for a 0..1 rate (e.g. 1.3 = +1,3 pp); null when either is undefined. */
+export function deltaPp(
+  current: number | undefined,
+  previous: number | undefined,
+): number | null {
+  if (current === undefined || previous === undefined) return null;
   return (current - previous) * 100;
 }
 
@@ -55,17 +160,28 @@ export function fillDays(
   to: string,
 ): DailyPoint[] {
   const byDate = new Map(rows.map((r) => [r.date, r]));
-  return dateKeysBetween(from, to).map(
-    (date) =>
-      byDate.get(date) ?? {
-        date,
-        sessions: 0,
-        activeUsers: 0,
-        newUsers: 0,
-        conversions: 0,
-        engagementRate: 0,
-      },
-  );
+  return dateKeysBetween(from, to).map((date) => {
+    const r = byDate.get(date);
+    if (r) {
+      return {
+        ...r,
+      };
+    }
+    return {
+      date,
+      sessions: 0,
+      activeUsers: 0,
+      newUsers: 0,
+      keyEvents: 0,
+      engagementRate: undefined,
+      totalUsers: undefined,
+      engagedSessions: undefined,
+      screenPageViews: undefined,
+      userEngagementDuration: undefined,
+      scrolledUsers: undefined,
+      avgEngagementDurationPerSession: undefined,
+    };
+  });
 }
 
 // ── OpenReply Metrics ──────────────────────────────────────────────────────

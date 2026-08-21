@@ -1,4 +1,5 @@
-import { query } from "./_generated/server";
+import { internalQuery, query } from "./_generated/server";
+import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 /**
@@ -32,5 +33,18 @@ export const currentContext = query({
         : null,
       role: membership?.role ?? null,
     };
+  },
+});
+
+/** Return active workspace for a user (internal). */
+export const getWorkspaceForUser = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const membership = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+    if (!membership) return null;
+    return { workspaceId: membership.workspaceId, role: membership.role };
   },
 });

@@ -9,8 +9,8 @@ import type { MetricState } from "@/convex/lib/igMetrics";
 import { cn } from "@/lib/utils";
 
 export type KpiDelta =
-  | { kind: "pct"; value: number | null }
-  | { kind: "pp"; value: number };
+  | { kind: "pct"; value: number | null | undefined }
+  | { kind: "pp"; value: number | null | undefined };
 
 /**
  * One KPI: label, big Aeonik numeral, delta vs the previous equal period, and
@@ -36,17 +36,17 @@ export function KpiTile({
   reason,
 }: {
   label: string;
-  value: number;
+  value: number | undefined;
   format: (v: number) => string;
   delta: KpiDelta;
   formatDelta: (v: number) => string;
   compareLabel: string;
-  spark: number[];
+  spark: (number | undefined)[];
   primary?: boolean;
   state?: MetricState;
   reason?: string;
 }) {
-  if (state !== "value") {
+  if (state !== "value" || value === undefined) {
     return (
       <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
         <div className="flex h-40 flex-col px-5 pt-4">
@@ -60,7 +60,9 @@ export function KpiTile({
             {reason ??
               (state === "suppressed"
                 ? "Nedovoljno podataka za prikaz."
-                : "Podatak nije dostupan za ovaj period.")}
+                : state === "unavailable"
+                  ? "Podatak nije dostupan za ovaj period."
+                  : "Merenje ove metrike je početo kasnije; stariji dani nemaju podatak.")}
           </p>
         </div>
       </Card>
@@ -69,7 +71,7 @@ export function KpiTile({
 
   const d = delta.value;
   const tone =
-    d === null || Math.abs(d) < 1e-9
+    d === null || d === undefined || Math.abs(d) < 1e-9
       ? "neutral"
       : d > 0
         ? "up"
@@ -101,7 +103,7 @@ export function KpiTile({
             )}
           >
             <DeltaIcon className="size-3.5" aria-hidden />
-            {d === null ? "—" : formatDelta(d)}
+            {d === null || d === undefined ? "—" : formatDelta(d)}
           </span>
           <span className="text-text-muted">{compareLabel}</span>
         </div>
@@ -198,27 +200,39 @@ const SPARK_H = 32;
 /**
  * Inline SVG sparkline — fixed viewBox stretched to the tile width, so it
  * needs no measurement and can't cause a resize flash. Reduced-motion safe
- * (it doesn't move).
+ * (it doesn't move). Breaks line across undefined days (no 0, no interpolation).
  */
 function Sparkline({
   values,
   className,
 }: {
-  values: number[];
+  values: (number | undefined)[];
   className?: string;
 }) {
-  const max = Math.max(1, ...values);
+  const defined = values.filter((v): v is number => v !== undefined && v !== null);
+  if (defined.length === 0) return null;
+
+  const max = Math.max(1, ...defined);
   const n = values.length;
-  const pts = values.map((v, i) => {
-    const x = n === 1 ? SPARK_W / 2 : (i / (n - 1)) * SPARK_W;
-    const y = SPARK_H - 2 - (v / max) * (SPARK_H - 4);
-    return [x, y] as const;
+
+  const segments: Array<Array<[number, number]>> = [];
+  let currentSegment: Array<[number, number]> = [];
+
+  values.forEach((v, i) => {
+    if (v !== undefined && v !== null) {
+      const x = n === 1 ? SPARK_W / 2 : (i / (n - 1)) * SPARK_W;
+      const y = SPARK_H - 2 - (v / max) * (SPARK_H - 4);
+      currentSegment.push([x, y]);
+    } else {
+      if (currentSegment.length > 0) {
+        segments.push(currentSegment);
+        currentSegment = [];
+      }
+    }
   });
-  const line = pts.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
-  const area =
-    pts.length > 0
-      ? `M0,${SPARK_H} L${line.replace(/ /g, " L")} L${SPARK_W},${SPARK_H} Z`
-      : "";
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment);
+  }
 
   return (
     <svg
@@ -227,20 +241,40 @@ function Sparkline({
       className={cn("h-8 w-full", className)}
       aria-hidden
     >
-      {pts.length > 1 && (
-        <>
-          <path d={area} fill="currentColor" fillOpacity={0.08} />
-          <polyline
-            points={line}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-          />
-        </>
-      )}
+      {segments.map((seg, sIdx) => {
+        if (seg.length === 0) return null;
+        if (seg.length === 1) {
+          const [cx, cy] = seg[0];
+          return (
+            <circle
+              key={sIdx}
+              cx={cx}
+              cy={cy}
+              r={1.5}
+              fill="currentColor"
+            />
+          );
+        }
+        const line = seg.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
+        const firstX = seg[0][0].toFixed(2);
+        const lastX = seg[seg.length - 1][0].toFixed(2);
+        const area = `M${firstX},${SPARK_H} L${line.replace(/ /g, " L")} L${lastX},${SPARK_H} Z`;
+
+        return (
+          <g key={sIdx}>
+            <path d={area} fill="currentColor" fillOpacity={0.08} />
+            <polyline
+              points={line}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        );
+      })}
     </svg>
   );
 }

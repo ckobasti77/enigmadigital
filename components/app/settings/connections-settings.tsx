@@ -43,6 +43,7 @@ import {
   FormStack,
 } from "@/components/app/form-kit";
 import { DataAndAccess } from "./data-and-access";
+import { Ga4Configuration } from "./ga4-configuration";
 import {
   PurgeNotice,
   useIsWorkspaceOwner,
@@ -2271,6 +2272,7 @@ export function ConnectionsSettings() {
     // završi unutar budžeta, umesto ručne lestvice koja ga je probijala.
     <RevealGroup className="mt-8 space-y-5">
       <Ga4Card connection={byProvider.get("ga4")} />
+      {byProvider.has("ga4") && <Ga4Configuration />}
       <OpenReplyCard />
       <InstagramCard connection={byProvider.get("meta_ig")} />
       <FacebookCard connection={byProvider.get("meta_fb")} />

@@ -2,6 +2,7 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireMembership } from "./lib/auth";
 import { slugify } from "./lib/slug";
+import { getKeyEvents } from "./lib/ga4Catalog";
 
 /**
  * UTM Attribution & Funnel Query Layer.
@@ -26,7 +27,7 @@ const campaignFunnelValidator = v.object({
   linkClicks: v.number(),
   ctr: v.number(),
   ga4Sessions: v.number(),
-  ga4Conversions: v.number(),
+  ga4KeyEvents: v.number(),
   hasGa4Data: v.boolean(),
   hasMismatch: v.boolean(),
   clickToSessionRate: v.union(v.number(), v.null()),
@@ -37,7 +38,7 @@ const campaignFunnelValidator = v.object({
 
 const mediumMetricValidator = v.object({
   sessions: v.number(),
-  conversions: v.number(),
+  keyEvents: v.number(),
   conversionRate: v.number(),
 });
 
@@ -46,7 +47,7 @@ const openreplyTotalsValidator = v.object({
   linkClicks: v.number(),
   ctr: v.number(),
   sessions: v.number(),
-  conversions: v.number(),
+  keyEvents: v.number(),
   conversionRate: v.number(),
   clickToSessionRate: v.union(v.number(), v.null()),
 });
@@ -54,7 +55,7 @@ const openreplyTotalsValidator = v.object({
 const unmatchedTrafficValidator = v.object({
   sessionCampaign: v.string(),
   sessions: v.number(),
-  conversions: v.number(),
+  keyEvents: v.number(),
 });
 
 const attributionReportValidator = v.object({
@@ -66,7 +67,7 @@ const attributionReportValidator = v.object({
     otherInstagram: mediumMetricValidator,
     totalInstagram: mediumMetricValidator,
     openreplyShareOfIgSessions: v.number(),
-    openreplyShareOfIgConversions: v.number(),
+    openreplyShareOfIgKeyEvents: v.number(),
   }),
   unmatchedGa4: v.array(unmatchedTrafficValidator),
 });
@@ -97,19 +98,19 @@ export const report = query({
       .collect();
 
     // 3. Aggregate GA4 rows by source, medium and campaign
-    type Agg = { sessions: number; conversions: number };
+    type Agg = { sessions: number; keyEvents: number };
 
     const openReplyTrafficBySlug = new Map<string, Agg>();
     const unmatchedMap = new Map<string, Agg>();
 
     let bioSessions = 0;
-    let bioConversions = 0;
+    let bioKeyEvents = 0;
     let storySessions = 0;
-    let storyConversions = 0;
+    let storyKeyEvents = 0;
     let otherIgSessions = 0;
-    let otherIgConversions = 0;
+    let otherIgKeyEvents = 0;
     let openReplyTotalSessions = 0;
-    let openReplyTotalConversions = 0;
+    let openReplyTotalKeyEvents = 0;
 
     // Pre-calculate known campaign slugs
     const knownSlugs = new Set<string>();
@@ -120,11 +121,12 @@ export const report = query({
     for (const r of trafficRows) {
       const source = r.sessionSource.trim().toLowerCase();
       const medium = r.sessionMedium.trim().toLowerCase();
+      const keyEvents = getKeyEvents(r);
 
       if (source === "instagram") {
         if (medium === "openreply-dm") {
           openReplyTotalSessions += r.sessions;
-          openReplyTotalConversions += r.conversions;
+          openReplyTotalKeyEvents += keyEvents;
 
           const rawCamp = r.sessionCampaign.trim();
           const slug = slugify(rawCamp);
@@ -133,11 +135,11 @@ export const report = query({
           const existing = openReplyTrafficBySlug.get(slug);
           if (existing) {
             existing.sessions += r.sessions;
-            existing.conversions += r.conversions;
+            existing.keyEvents += keyEvents;
           } else {
             openReplyTrafficBySlug.set(slug, {
               sessions: r.sessions,
-              conversions: r.conversions,
+              keyEvents,
             });
           }
 
@@ -145,23 +147,23 @@ export const report = query({
             const unmatchedExisting = unmatchedMap.get(rawCamp);
             if (unmatchedExisting) {
               unmatchedExisting.sessions += r.sessions;
-              unmatchedExisting.conversions += r.conversions;
+              unmatchedExisting.keyEvents += keyEvents;
             } else {
               unmatchedMap.set(rawCamp, {
                 sessions: r.sessions,
-                conversions: r.conversions,
+                keyEvents,
               });
             }
           }
         } else if (medium === "bio") {
           bioSessions += r.sessions;
-          bioConversions += r.conversions;
+          bioKeyEvents += keyEvents;
         } else if (medium === "story") {
           storySessions += r.sessions;
-          storyConversions += r.conversions;
+          storyKeyEvents += keyEvents;
         } else {
           otherIgSessions += r.sessions;
-          otherIgConversions += r.conversions;
+          otherIgKeyEvents += keyEvents;
         }
       }
     }
@@ -178,7 +180,7 @@ export const report = query({
       const ga4Data = openReplyTrafficBySlug.get(slug);
       const hasGa4Data = ga4Data !== undefined;
       const ga4Sessions = ga4Data?.sessions ?? 0;
-      const ga4Conversions = ga4Data?.conversions ?? 0;
+      const ga4KeyEvents = ga4Data?.keyEvents ?? 0;
 
       // Data honesty: campaign has OpenReply link clicks, but zero GA4 sessions
       const hasMismatch = c.linkClicks > 0 && ga4Sessions === 0;
@@ -190,12 +192,12 @@ export const report = query({
 
       const sessionToConvRate =
         ga4Sessions > 0
-          ? ga4Conversions / ga4Sessions
+          ? ga4KeyEvents / ga4Sessions
           : null;
 
       const overallConvRate =
         c.dmsSent > 0 && hasGa4Data
-          ? ga4Conversions / c.dmsSent
+          ? ga4KeyEvents / c.dmsSent
           : null;
 
       return {
@@ -210,7 +212,7 @@ export const report = query({
         linkClicks: c.linkClicks,
         ctr: c.ctr,
         ga4Sessions,
-        ga4Conversions,
+        ga4KeyEvents,
         hasGa4Data,
         hasMismatch,
         clickToSessionRate,
@@ -223,24 +225,24 @@ export const report = query({
     // 5. Total Instagram metrics
     const totalIgSessions =
       openReplyTotalSessions + bioSessions + storySessions + otherIgSessions;
-    const totalIgConversions =
-      openReplyTotalConversions +
-      bioConversions +
-      storyConversions +
-      otherIgConversions;
+    const totalIgKeyEvents =
+      openReplyTotalKeyEvents +
+      bioKeyEvents +
+      storyKeyEvents +
+      otherIgKeyEvents;
 
     const openreplyShareOfIgSessions =
       totalIgSessions > 0 ? openReplyTotalSessions / totalIgSessions : 0;
-    const openreplyShareOfIgConversions =
-      totalIgConversions > 0
-        ? openReplyTotalConversions / totalIgConversions
+    const openreplyShareOfIgKeyEvents =
+      totalIgKeyEvents > 0
+        ? openReplyTotalKeyEvents / totalIgKeyEvents
         : 0;
 
     const unmatchedGa4 = Array.from(unmatchedMap.entries()).map(
       ([sessionCampaign, agg]) => ({
         sessionCampaign,
         sessions: agg.sessions,
-        conversions: agg.conversions,
+        keyEvents: agg.keyEvents,
       }),
     );
 
@@ -252,10 +254,10 @@ export const report = query({
           linkClicks: totalLinkClicks,
           ctr: totalDmsSent > 0 ? totalLinkClicks / totalDmsSent : 0,
           sessions: openReplyTotalSessions,
-          conversions: openReplyTotalConversions,
+          keyEvents: openReplyTotalKeyEvents,
           conversionRate:
             openReplyTotalSessions > 0
-              ? openReplyTotalConversions / openReplyTotalSessions
+              ? openReplyTotalKeyEvents / openReplyTotalSessions
               : 0,
           clickToSessionRate:
             totalLinkClicks > 0
@@ -264,30 +266,30 @@ export const report = query({
         },
         bio: {
           sessions: bioSessions,
-          conversions: bioConversions,
+          keyEvents: bioKeyEvents,
           conversionRate:
-            bioSessions > 0 ? bioConversions / bioSessions : 0,
+            bioSessions > 0 ? bioKeyEvents / bioSessions : 0,
         },
         story: {
           sessions: storySessions,
-          conversions: storyConversions,
+          keyEvents: storyKeyEvents,
           conversionRate:
-            storySessions > 0 ? storyConversions / storySessions : 0,
+            storySessions > 0 ? storyKeyEvents / storySessions : 0,
         },
         otherInstagram: {
           sessions: otherIgSessions,
-          conversions: otherIgConversions,
+          keyEvents: otherIgKeyEvents,
           conversionRate:
-            otherIgSessions > 0 ? otherIgConversions / otherIgSessions : 0,
+            otherIgSessions > 0 ? otherIgKeyEvents / otherIgSessions : 0,
         },
         totalInstagram: {
           sessions: totalIgSessions,
-          conversions: totalIgConversions,
+          keyEvents: totalIgKeyEvents,
           conversionRate:
-            totalIgSessions > 0 ? totalIgConversions / totalIgSessions : 0,
+            totalIgSessions > 0 ? totalIgKeyEvents / totalIgSessions : 0,
         },
         openreplyShareOfIgSessions,
-        openreplyShareOfIgConversions,
+        openreplyShareOfIgKeyEvents,
       },
       unmatchedGa4,
     };

@@ -156,6 +156,42 @@ const EXTRA_SCREENS: Screen[] = [
     title: "Moderacija komentara",
     range: false,
   },
+  {
+    href: "/analytics/sticanje",
+    section: "Analitika",
+    title: "Sticanje korisnika",
+    range: true,
+  },
+  {
+    href: "/analytics/oglasi",
+    section: "Analitika",
+    title: "Plaćeni oglasi (Google Ads)",
+    range: true,
+  },
+  {
+    href: "/analytics/sadrzaj",
+    section: "Analitika",
+    title: "Sadržaj i stranice",
+    range: true,
+  },
+  {
+    href: "/analytics/posetioci",
+    section: "Analitika",
+    title: "Posetioci i ponašanje",
+    range: true,
+  },
+  {
+    href: "/analytics/uzivo",
+    section: "Analitika",
+    title: "Uživo (poslednjih 30 minuta)",
+    range: false,
+  },
+  {
+    href: "/analytics/retencija",
+    section: "Analitika",
+    title: "Retencija i kohorte",
+    range: false,
+  },
   // Detalj objave se otvara iz mreže, nema svoju stavku u navigaciji. Bez ovog
   // reda `resolveScreen` bi pao na „/instagram" i gornja traka bi na njemu
   // pokazala birač perioda — a detalj objave ne radi nad periodom. Href je
@@ -225,6 +261,15 @@ export type ChannelTab = {
 };
 
 export const channelTabs: Record<string, readonly ChannelTab[]> = {
+  "/analytics": [
+    { href: "/analytics", label: "Pregled" },
+    { href: "/analytics/uzivo", label: "Uživo" },
+    { href: "/analytics/sticanje", label: "Sticanje" },
+    { href: "/analytics/oglasi", label: "Oglasi" },
+    { href: "/analytics/sadrzaj", label: "Sadržaj" },
+    { href: "/analytics/posetioci", label: "Posetioci" },
+    { href: "/analytics/retencija", label: "Retencija" },
+  ],
   "/instagram": [
     { href: "/instagram", label: "Pregled" },
     { href: "/instagram/publika", label: "Publika" },

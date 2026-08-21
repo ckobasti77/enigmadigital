@@ -96,6 +96,18 @@ export function formatSignedPp(delta: number): string {
   return `${signedDecimalFmt.format(delta)} pp`;
 }
 
+/** Currency formatting with dynamic ISO currency code (e.g. "RSD", "EUR", "USD"). If currencyCode is absent, formats bare number. */
+export function formatCurrency(value: number, currencyCode?: string): string {
+  if (!currencyCode) {
+    return decimalFmt.format(value);
+  }
+  return new Intl.NumberFormat(LOCALE, {
+    style: "currency",
+    currency: currencyCode,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 // ── dates ("YYYY-MM-DD" keys) ────────────────────────────────────────────────
 
 const shortDateFmt = new Intl.DateTimeFormat(LOCALE, {
@@ -174,6 +186,25 @@ export function formatWatchTime(minutes: number): string {
 export function formatDurationMs(ms: number): string {
   if (!ms || ms <= 0) return "0s";
   const totalSeconds = Math.round(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+  return `${seconds}s`;
+}
+
+/**
+ * Format duration in seconds into human readable Serbian duration, e.g. "2m 14s", "45s".
+ */
+export function formatSeconds(sec: number): string {
+  if (!sec || sec <= 0) return "0s";
+  const totalSeconds = Math.round(sec);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;

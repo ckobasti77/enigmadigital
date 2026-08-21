@@ -12,18 +12,22 @@ import { ChartErrorBoundary } from "@/components/app/chart-states";
 import { KpiTile, KpiTileSkeleton } from "./kpi-tile";
 import { SessionsChart, SessionsChartSkeleton } from "./sessions-chart";
 import { TrafficTable, TrafficTableSkeleton } from "./traffic-table";
+import { DataQualityNotice } from "./data-quality-notice";
 import { deltaPct, deltaPp, fillDays, summarize } from "@/lib/metrics";
+import { Info } from "lucide-react";
 import {
   formatNumber,
   formatPercent,
+  formatSeconds,
   formatSignedPercent,
   formatSignedPp,
 } from "@/lib/format";
 
 /**
  * Analytics (GA4). Three live subscriptions: current period, previous equal
- * period (deltas), traffic breakdown. Every derived number is computed in
- * `lib/metrics.ts` so it can be checked by hand against the raw rows.
+ * period (deltas), traffic breakdown, plus report metadata for data quality.
+ * Every derived number is computed in `lib/metrics.ts` so it can be checked
+ * by hand against the raw rows.
  */
 export function AnalyticsDashboard() {
   const { range } = useDateRange();
@@ -41,6 +45,10 @@ export function AnalyticsDashboard() {
   const traffic = useStale(
     useQuery(api.analytics.traffic, { from: range.from, to: range.to }),
   );
+  const reportMeta = useStale(
+    useQuery(api.analytics.reportMeta, { reportKey: "daily" }),
+  );
+  const ga4Config = useStale(useQuery(api.analytics.ga4Configuration));
 
   // Series is derived together with the range it was fetched for, so a stale
   // frame never zero-fills old rows into a new window.
@@ -72,6 +80,9 @@ export function AnalyticsDashboard() {
     traffic === undefined;
   const compareLabel = `vs prethodnih ${range.days} d`;
 
+  const isShortRetention =
+    ga4Config?.eventDataRetention === "TWO_MONTHS" && range.days > 60;
+
   return (
     <div className="flex flex-1 flex-col gap-8">
       {!ga4Connected ? (
@@ -89,8 +100,60 @@ export function AnalyticsDashboard() {
         <DashboardSkeleton />
       ) : (
         <>
+          {/* Retention period notice if range exceeds retention setting */}
+          {isShortRetention && (
+            <Reveal>
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-raised/40 p-4 text-xs text-text-muted">
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4 shrink-0 text-text-muted" />
+                  <span>
+                    Period čuvanja podataka u GA4 je podešen na 2 meseca
+                    (TWO_MONTHS), što je kraće od izabranog raspona od{" "}
+                    {range.days} dana.
+                  </span>
+                </div>
+                <Link
+                  href="/settings"
+                  className="shrink-0 font-medium text-foreground underline-offset-4 hover:underline"
+                >
+                  Podešavanja
+                </Link>
+              </div>
+            </Reveal>
+          )}
+
+          {/* 8 KPI Tiles in 2 Rows of 4 */}
           <Reveal>
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              {/* 1. Korisnici */}
+              <KpiTile
+                label="Korisnici"
+                value={cur.totalUsers}
+                format={formatNumber}
+                delta={{
+                  kind: "pct",
+                  value: deltaPct(cur.totalUsers, prev.totalUsers),
+                }}
+                formatDelta={formatSignedPercent}
+                compareLabel={compareLabel}
+                spark={series.map((d) => d.totalUsers)}
+              />
+
+              {/* 2. Novi korisnici */}
+              <KpiTile
+                label="Novi korisnici"
+                value={cur.newUsers}
+                format={formatNumber}
+                delta={{
+                  kind: "pct",
+                  value: deltaPct(cur.newUsers, prev.newUsers),
+                }}
+                formatDelta={formatSignedPercent}
+                compareLabel={compareLabel}
+                spark={series.map((d) => d.newUsers)}
+              />
+
+              {/* 3. Sesije */}
               <KpiTile
                 label="Sesije"
                 primary
@@ -101,30 +164,22 @@ export function AnalyticsDashboard() {
                 compareLabel={compareLabel}
                 spark={series.map((d) => d.sessions)}
               />
+
+              {/* 4. Angažovane sesije */}
               <KpiTile
-                label="Aktivni korisnici"
-                value={cur.activeUsers}
+                label="Angažovane sesije"
+                value={cur.engagedSessions}
                 format={formatNumber}
                 delta={{
                   kind: "pct",
-                  value: deltaPct(cur.activeUsers, prev.activeUsers),
+                  value: deltaPct(cur.engagedSessions, prev.engagedSessions),
                 }}
                 formatDelta={formatSignedPercent}
                 compareLabel={compareLabel}
-                spark={series.map((d) => d.activeUsers)}
+                spark={series.map((d) => d.engagedSessions)}
               />
-              <KpiTile
-                label="Konverzije"
-                value={cur.conversions}
-                format={formatNumber}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(cur.conversions, prev.conversions),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={series.map((d) => d.conversions)}
-              />
+
+              {/* 5. Stopa angažovanja */}
               <KpiTile
                 label="Stopa angažovanja"
                 value={cur.engagementRate}
@@ -137,10 +192,55 @@ export function AnalyticsDashboard() {
                 compareLabel={compareLabel}
                 spark={series.map((d) => d.engagementRate)}
               />
+
+              {/* 6. Pregledi stranica */}
+              <KpiTile
+                label="Pregledi stranica"
+                value={cur.screenPageViews}
+                format={formatNumber}
+                delta={{
+                  kind: "pct",
+                  value: deltaPct(cur.screenPageViews, prev.screenPageViews),
+                }}
+                formatDelta={formatSignedPercent}
+                compareLabel={compareLabel}
+                spark={series.map((d) => d.screenPageViews)}
+              />
+
+              {/* 7. Prosečno vreme angažovanja po sesiji */}
+              <KpiTile
+                label="Prosečno vreme angažovanja po sesiji"
+                value={cur.avgEngagementDurationPerSession}
+                format={formatSeconds}
+                delta={{
+                  kind: "pct",
+                  value: deltaPct(
+                    cur.avgEngagementDurationPerSession,
+                    prev.avgEngagementDurationPerSession,
+                  ),
+                }}
+                formatDelta={formatSignedPercent}
+                compareLabel={compareLabel}
+                spark={series.map((d) => d.avgEngagementDurationPerSession)}
+              />
+
+              {/* 8. Ključni događaji */}
+              <KpiTile
+                label="Ključni događaji"
+                value={cur.keyEvents}
+                format={formatNumber}
+                delta={{
+                  kind: "pct",
+                  value: deltaPct(cur.keyEvents, prev.keyEvents),
+                }}
+                formatDelta={formatSignedPercent}
+                compareLabel={compareLabel}
+                spark={series.map((d) => d.keyEvents)}
+              />
             </div>
           </Reveal>
 
-          {cur.sessions === 0 && cur.conversions === 0 ? (
+          {cur.sessions === 0 && cur.keyEvents === 0 ? (
             <EmptyState icon={ChartNoAxesColumn}>
               Nema podataka za izabrani period. Istorija seže 90 dana unazad od
               prve sinhronizacije.
@@ -151,6 +251,11 @@ export function AnalyticsDashboard() {
                 <ChartErrorBoundary>
                   <SessionsChart data={series} />
                 </ChartErrorBoundary>
+              </Reveal>
+
+              {/* Data quality notice & timezone footer */}
+              <Reveal delay={0.075}>
+                <DataQualityNotice meta={reportMeta} />
               </Reveal>
 
               <Reveal delay={0.1}>
@@ -178,6 +283,10 @@ export function DashboardSkeleton() {
   return (
     <>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <KpiTileSkeleton />
+        <KpiTileSkeleton />
+        <KpiTileSkeleton />
+        <KpiTileSkeleton />
         <KpiTileSkeleton />
         <KpiTileSkeleton />
         <KpiTileSkeleton />

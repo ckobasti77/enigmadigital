@@ -95,7 +95,7 @@ export function AttributionDashboard() {
                     OpenReply konverzije
                   </p>
                   <CountUp
-                    value={report.totals.openreply.conversions}
+                    value={report.totals.openreply.keyEvents}
                     format={formatNumber}
                     className="mt-2 block text-2xl font-bold leading-none text-foreground sm:text-3xl"
                   />
@@ -107,7 +107,7 @@ export function AttributionDashboard() {
                   </div>
                   <div className="mt-auto mb-3 text-micro text-text-muted">
                     <span className="font-mono tabular-nums text-foreground">
-                      {formatPercent(report.totals.openreplyShareOfIgConversions)}
+                      {formatPercent(report.totals.openreplyShareOfIgKeyEvents)}
                     </span>{" "}
                     svih IG konverzija
                   </div>
@@ -127,7 +127,7 @@ export function AttributionDashboard() {
                   />
                   <div className="mt-2 flex items-baseline gap-1.5 text-xs text-text-muted">
                     <span className="font-mono tabular-nums text-accent-400">
-                      {formatNumber(report.totals.totalInstagram.conversions)}
+                      {formatNumber(report.totals.totalInstagram.keyEvents)}
                     </span>
                     <span>ukupnih konverzija sa IG</span>
                   </div>

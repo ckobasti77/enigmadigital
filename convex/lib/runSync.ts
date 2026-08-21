@@ -40,15 +40,28 @@ export async function runSync(
     workspaceId: Id<"workspaces">;
     provider: Provider;
     connectionId?: Id<"connections">;
+    note?: string;
   },
-  fn: () => Promise<number>,
+  fn: () => Promise<number | { itemsWritten: number; note?: string }>,
 ): Promise<void> {
-  const syncRunId = await ctx.runMutation(internal.sync.startSyncRun, args);
+  const syncRunId = await ctx.runMutation(internal.sync.startSyncRun, {
+    workspaceId: args.workspaceId,
+    provider: args.provider,
+    connectionId: args.connectionId,
+  });
   try {
-    const itemsWritten = await fn();
+    const result = await fn();
+    const itemsWritten =
+      typeof result === "number" ? result : result.itemsWritten;
+    const note =
+      (typeof result === "object" && result.note !== undefined
+        ? result.note
+        : args.note) ?? undefined;
+
     await ctx.runMutation(internal.sync.finishSyncRun, {
       syncRunId,
       itemsWritten,
+      note,
     });
   } catch (err) {
     await ctx.runMutation(internal.sync.failSyncRun, {

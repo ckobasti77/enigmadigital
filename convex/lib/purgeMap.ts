@@ -703,6 +703,51 @@ const GA4_STEPS: PurgeStep[] = [
       .query("ga4TrafficDaily")
       .withIndex("by_workspace_date_dims", (q) => q.eq("workspaceId", ws)),
   ),
+  simple("ga4Quota", (ctx, ws) =>
+    ctx.db
+      .query("ga4Quota")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("ga4ReportMeta", (ctx, ws) =>
+    ctx.db
+      .query("ga4ReportMeta")
+      .withIndex("by_workspace_report", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("ga4MetricDaily", (ctx, ws) =>
+    ctx.db
+      .query("ga4MetricDaily")
+      .withIndex("by_workspace_report_date", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("ga4Realtime", (ctx, ws) =>
+    ctx.db
+      .query("ga4Realtime")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("ga4Cohorts", (ctx, ws) =>
+    ctx.db
+      .query("ga4Cohorts")
+      .withIndex("by_workspace_granularity", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("ga4Catalog", (ctx, ws) =>
+    ctx.db
+      .query("ga4Catalog")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("ga4Compat", (ctx, ws) =>
+    ctx.db
+      .query("ga4Compat")
+      .withIndex("by_workspace_combo", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("ga4Backfill", (ctx, ws) =>
+    ctx.db
+      .query("ga4Backfill")
+      .withIndex("by_workspace_report", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("ga4Config", (ctx, ws) =>
+    ctx.db
+      .query("ga4Config")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
 ];
 
 const GOOGLE_ADS_STEPS: PurgeStep[] = [
@@ -857,6 +902,15 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   // ── GA4 ───────────────────────────────────────────────────────────────────
   ga4Daily: { purgedBy: ["ga4"] },
   ga4TrafficDaily: { purgedBy: ["ga4"] },
+  ga4Quota: { purgedBy: ["ga4"] },
+  ga4ReportMeta: { purgedBy: ["ga4"] },
+  ga4MetricDaily: { purgedBy: ["ga4"] },
+  ga4Catalog: { purgedBy: ["ga4"] },
+  ga4Compat: { purgedBy: ["ga4"] },
+  ga4Backfill: { purgedBy: ["ga4"] },
+  ga4Realtime: { purgedBy: ["ga4"] },
+  ga4Cohorts: { purgedBy: ["ga4"] },
+  ga4Config: { purgedBy: ["ga4"] },
 
   // ── Ads ───────────────────────────────────────────────────────────────────
   gadsKeywordQuality: { purgedBy: ["google_ads"] },

@@ -88,8 +88,15 @@ export default defineSchema({
     sessions: v.number(),
     activeUsers: v.number(),
     newUsers: v.number(),
-    conversions: v.number(),
-    engagementRate: v.number(),
+    keyEvents: v.optional(v.number()),
+    conversions: v.optional(v.number()),
+    engagementRate: v.optional(v.number()),
+    totalUsers: v.optional(v.number()),
+    engagedSessions: v.optional(v.number()),
+    screenPageViews: v.optional(v.number()),
+    userEngagementDuration: v.optional(v.number()),
+    scrolledUsers: v.optional(v.number()),
+    metricsVersion: v.optional(v.number()),
   }).index("by_workspace_date", ["workspaceId", "date"]),
 
   ga4TrafficDaily: defineTable({
@@ -99,7 +106,8 @@ export default defineSchema({
     sessionMedium: v.string(),
     sessionCampaign: v.string(),
     sessions: v.number(),
-    conversions: v.number(),
+    keyEvents: v.optional(v.number()),
+    conversions: v.optional(v.number()),
   })
     // Full dimension tuple = natural upsert key; the prefix also serves
     // date-range reads for the dashboard.
@@ -112,6 +120,238 @@ export default defineSchema({
     ])
     // M6 UTM join: OpenReply campaign name ↔ GA4 sessionCampaign.
     .index("by_workspace_campaign", ["workspaceId", "sessionCampaign"]),
+
+  // GA4 Data API quota tracking (consumed vs remaining)
+  ga4Quota: defineTable({
+    workspaceId: v.id("workspaces"),
+    propertyId: v.string(),
+    fetchedAt: v.number(),
+    tokensPerDay: v.optional(
+      v.object({ consumed: v.number(), remaining: v.number() }),
+    ),
+    tokensPerHour: v.optional(
+      v.object({ consumed: v.number(), remaining: v.number() }),
+    ),
+    tokensPerProjectPerHour: v.optional(
+      v.object({ consumed: v.number(), remaining: v.number() }),
+    ),
+    concurrentRequests: v.optional(
+      v.object({ consumed: v.number(), remaining: v.number() }),
+    ),
+    serverErrorsPerProjectPerHour: v.optional(
+      v.object({ consumed: v.number(), remaining: v.number() }),
+    ),
+    potentiallyThresholdedRequestsPerHour: v.optional(
+      v.object({ consumed: v.number(), remaining: v.number() }),
+    ),
+    peakPct: v.number(),
+    state: v.union(v.literal("ok"), v.literal("warn"), v.literal("stop")),
+  }).index("by_workspace", ["workspaceId"]),
+
+  // GA4 report response metadata (sampling, thresholding, timezone)
+  ga4ReportMeta: defineTable({
+    workspaceId: v.id("workspaces"),
+    reportKey: v.string(), // "daily" | "traffic"
+    fetchedAt: v.number(),
+    timeZone: v.optional(v.string()),
+    currencyCode: v.optional(v.string()),
+    emptyReason: v.optional(v.string()),
+    subjectToThresholding: v.optional(v.boolean()),
+    dataLossFromOtherRow: v.optional(v.boolean()),
+    sampled: v.optional(v.boolean()),
+    samplesReadCount: v.optional(v.number()),
+    samplingSpaceSize: v.optional(v.number()),
+  }).index("by_workspace_report", ["workspaceId", "reportKey"]),
+
+  // GA4 dugački format za sve metrike i razdvajanja (A2/A3-A6).
+  // Model tri stanja: "value" | "thresholded" | "unavailable" (F6).
+  ga4MetricDaily: defineTable({
+    workspaceId: v.id("workspaces"),
+    reportKey: v.optional(v.string()), // "acq_channel_first" | "content_pages" ...
+    date: v.string(), // "YYYY-MM-DD" u vremenskoj zoni propertije
+    metric: v.string(),
+    dimensionKeys: v.array(v.string()),
+    dimensionValues: v.array(v.string()),
+    dimKey: v.optional(v.string()), // dimensionKeys.join("|") + "\u0000" + dimensionValues.join("|")
+    value: v.optional(v.number()),
+    state: v.union(
+      v.literal("value"),
+      v.literal("thresholded"),
+      v.literal("unavailable"),
+    ),
+    syncedAt: v.number(),
+  })
+    .index("by_workspace_report_date", ["workspaceId", "reportKey", "date"])
+    .index("by_ws_report_date_metric_dim", [
+      "workspaceId",
+      "reportKey",
+      "date",
+      "metric",
+      "dimKey",
+    ]),
+
+  // GA4 postepeni backfill za izveštaje u ga4MetricDaily (A4 §5.2).
+  ga4Backfill: defineTable({
+    workspaceId: v.id("workspaces"),
+    reportKey: v.string(),
+    oldestSyncedDate: v.string(), // "YYYY-MM-DD"
+    completedAt: v.optional(v.number()),
+  }).index("by_workspace_report", ["workspaceId", "reportKey"]),
+
+  // GA4 katalog otkriven kroz getMetadata za svaku propertiju (A2/A3).
+  ga4Catalog: defineTable({
+    workspaceId: v.id("workspaces"),
+    propertyId: v.string(),
+    fetchedAt: v.number(),
+    dimensions: v.array(
+      v.object({
+        apiName: v.string(),
+        uiName: v.string(),
+        description: v.string(),
+        customDefinition: v.optional(v.boolean()),
+        category: v.optional(v.string()),
+      }),
+    ),
+    metrics: v.array(
+      v.object({
+        apiName: v.string(),
+        uiName: v.string(),
+        description: v.string(),
+        type: v.string(),
+        expression: v.optional(v.string()),
+        customDefinition: v.optional(v.boolean()),
+        category: v.optional(v.string()),
+        blockedReasons: v.optional(v.array(v.string())),
+      }),
+    ),
+    lastErrorAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+  }).index("by_workspace", ["workspaceId"]),
+
+  // GA4 keš provere kompatibilnosti dimenzija i metrika (A2).
+  ga4Compat: defineTable({
+    workspaceId: v.id("workspaces"),
+    comboKey: v.string(),
+    compatible: v.boolean(),
+    incompatible: v.array(v.string()),
+    checkedAt: v.number(),
+  }).index("by_workspace_combo", ["workspaceId", "comboKey"]),
+
+  // GA4 podaci uživo za poslednjih 30 minuta (A5 §5.1).
+  // Čuva se samo jedan red po radnom prostoru (poslednji snimak).
+  ga4Realtime: defineTable({
+    workspaceId: v.id("workspaces"),
+    propertyId: v.string(),
+    fetchedAt: v.number(),
+    activeUsers: v.optional(v.number()),
+    byMinute: v.array(
+      v.object({ minutesAgo: v.number(), activeUsers: v.number() }),
+    ),
+    byScreen: v.array(v.object({ key: v.string(), value: v.number() })),
+    byCountry: v.array(v.object({ key: v.string(), value: v.number() })),
+    byDevice: v.array(v.object({ key: v.string(), value: v.number() })),
+    byEvent: v.array(v.object({ key: v.string(), value: v.number() })),
+    state: v.union(v.literal("value"), v.literal("unavailable")),
+    error: v.optional(v.string()),
+  }).index("by_workspace", ["workspaceId"]),
+
+  // GA4 kohortna retencija (A5 §5.2).
+  // 12 nedeljnih kohorti sa stopama povratka (nth 0..11).
+  ga4Cohorts: defineTable({
+    workspaceId: v.id("workspaces"),
+    granularity: v.string(), // "WEEKLY"
+    cohortName: v.string(),
+    cohortStartDate: v.string(),
+    nth: v.number(),
+    cohortTotalUsers: v.optional(v.number()),
+    cohortActiveUsers: v.optional(v.number()),
+    state: v.union(
+      v.literal("value"),
+      v.literal("thresholded"),
+      v.literal("unavailable"),
+    ),
+    syncedAt: v.number(),
+  })
+    .index("by_workspace_granularity", ["workspaceId", "granularity"])
+    .index("by_workspace_cohort_nth", [
+      "workspaceId",
+      "granularity",
+      "cohortName",
+      "nth",
+    ]),
+
+  // GA4 konfiguracija propertije očitana kroz Admin API (A7).
+  // Čuva se samo jedan red po radnom prostoru (trenutno stanje, ne istorija).
+  ga4Config: defineTable({
+    workspaceId: v.id("workspaces"),
+    propertyId: v.string(),
+    fetchedAt: v.number(),
+    displayName: v.optional(v.string()),
+    timeZone: v.optional(v.string()),
+    currencyCode: v.optional(v.string()),
+    industryCategory: v.optional(v.string()),
+    serviceLevel: v.optional(v.string()),
+    createTime: v.optional(v.string()),
+    eventDataRetention: v.optional(v.string()),
+    resetUserDataOnNewActivity: v.optional(v.boolean()),
+    keyEvents: v.optional(
+      v.array(
+        v.object({
+          eventName: v.string(),
+          countingMethod: v.optional(v.string()),
+          custom: v.optional(v.boolean()),
+          createTime: v.optional(v.string()),
+        }),
+      ),
+    ),
+    customDimensions: v.optional(
+      v.array(
+        v.object({
+          parameterName: v.string(),
+          displayName: v.string(),
+          description: v.optional(v.string()),
+          scope: v.optional(v.string()),
+        }),
+      ),
+    ),
+    customMetrics: v.optional(
+      v.array(
+        v.object({
+          parameterName: v.string(),
+          displayName: v.string(),
+          description: v.optional(v.string()),
+          scope: v.optional(v.string()),
+        }),
+      ),
+    ),
+    dataStreams: v.optional(
+      v.array(
+        v.object({
+          displayName: v.string(),
+          type: v.optional(v.string()),
+          measurementId: v.optional(v.string()),
+          defaultUri: v.optional(v.string()),
+        }),
+      ),
+    ),
+    googleAdsLinks: v.optional(
+      v.array(
+        v.object({
+          customerId: v.string(),
+          adsPersonalizationEnabled: v.optional(v.boolean()),
+          createTime: v.optional(v.string()),
+        }),
+      ),
+    ),
+    errors: v.optional(
+      v.array(
+        v.object({
+          resource: v.string(),
+          reason: v.string(),
+        }),
+      ),
+    ),
+  }).index("by_workspace", ["workspaceId"]),
 
   // Instagram organic.
   igAccountDaily: defineTable({
@@ -1059,6 +1299,7 @@ export default defineSchema({
     finishedAt: v.optional(v.number()),
     status: v.union(v.literal("running"), v.literal("ok"), v.literal("error")),
     error: v.optional(v.string()), // pre-sanitized; safe to show in the UI
+    note: v.optional(v.string()), // npr. quota warn partial sync notice (F5)
     itemsWritten: v.number(),
   }).index("by_workspace_provider", ["workspaceId", "provider"]),
 

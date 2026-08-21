@@ -39,8 +39,10 @@ export function PerformanceHighlights({
 }) {
   // 1. Find top campaign by attributed conversions, then by link clicks/DMs
   const sortedCampaigns = [...(report?.campaigns ?? [])].sort((a, b) => {
-    if (b.ga4Conversions !== a.ga4Conversions) {
-      return b.ga4Conversions - a.ga4Conversions;
+    const aConvs = a.ga4KeyEvents;
+    const bConvs = b.ga4KeyEvents;
+    if (bConvs !== aConvs) {
+      return bConvs - aConvs;
     }
     if (b.ga4Sessions !== a.ga4Sessions) {
       return b.ga4Sessions - a.ga4Sessions;
@@ -143,7 +145,7 @@ export function PerformanceHighlights({
                       Konverzije
                     </p>
                     <p className="font-mono text-2xl font-bold tabular-nums text-accent-400">
-                      {formatNumber(topCampaign.ga4Conversions)}
+                      {formatNumber(topCampaign.ga4KeyEvents)}
                     </p>
                   </div>
                 </div>

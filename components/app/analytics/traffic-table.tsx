@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 type Traffic = FunctionReturnType<typeof api.analytics.traffic>;
 type Row = Traffic["rows"][number];
 
-type SortKey = "source" | "medium" | "campaign" | "sessions" | "conversions";
+type SortKey = "source" | "medium" | "campaign" | "sessions" | "keyEvents";
 type Sort = { key: SortKey; dir: "asc" | "desc" };
 
 const DEFAULT_SORT: Sort = { key: "sessions", dir: "desc" };
@@ -51,7 +51,10 @@ export function TrafficTable({ traffic }: { traffic: Traffic }) {
     setSort((s) =>
       s.key === key
         ? { key, dir: s.dir === "desc" ? "asc" : "desc" }
-        : { key, dir: key === "sessions" || key === "conversions" ? "desc" : "asc" },
+        : {
+            key,
+            dir: key === "sessions" || key === "keyEvents" ? "desc" : "asc",
+          },
     );
 
   return (
@@ -94,10 +97,10 @@ export function TrafficTable({ traffic }: { traffic: Traffic }) {
                 align="right"
               />
               <SortableHead
-                label="Konverzije"
-                active={sort.key === "conversions"}
+                label="Ključni događaji"
+                active={sort.key === "keyEvents"}
                 dir={sort.dir}
-                onClick={() => toggle("conversions")}
+                onClick={() => toggle("keyEvents")}
                 align="right"
                 className="pr-5 md:pr-2"
               />
@@ -112,6 +115,7 @@ export function TrafficTable({ traffic }: { traffic: Traffic }) {
                 traffic.totalSessions > 0
                   ? row.sessions / traffic.totalSessions
                   : 0;
+              const count = row.keyEvents;
               return (
                 <TableRow
                   key={`${row.source}|${row.medium}|${row.campaign}`}
@@ -131,7 +135,7 @@ export function TrafficTable({ traffic }: { traffic: Traffic }) {
                     {formatNumber(row.sessions)}
                   </TableCell>
                   <TableCell className="py-2.5 pr-5 text-right font-mono tabular-nums text-foreground md:pr-2">
-                    {formatNumber(row.conversions)}
+                    {formatNumber(count)}
                   </TableCell>
                   <TableCell className="hidden py-2.5 pr-5 md:table-cell">
                     <div className="flex items-center justify-end gap-2">

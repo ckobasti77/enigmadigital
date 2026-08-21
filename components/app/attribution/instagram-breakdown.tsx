@@ -27,7 +27,7 @@ export function InstagramBreakdown({
   unmatchedGa4: UnmatchedGa4;
 }) {
   const totalSessions = totals.totalInstagram.sessions;
-  const totalConversions = totals.totalInstagram.conversions;
+  const totalKeyEvents = totals.totalInstagram.keyEvents;
 
   const channels = [
     {
@@ -36,7 +36,7 @@ export function InstagramBreakdown({
       medium: "openreply-dm",
       icon: MessageCircleReply,
       sessions: totals.openreply.sessions,
-      conversions: totals.openreply.conversions,
+      keyEvents: totals.openreply.keyEvents,
       conversionRate: totals.openreply.conversionRate,
       primary: true,
     },
@@ -46,7 +46,7 @@ export function InstagramBreakdown({
       medium: "bio",
       icon: Link2,
       sessions: totals.bio.sessions,
-      conversions: totals.bio.conversions,
+      keyEvents: totals.bio.keyEvents,
       conversionRate: totals.bio.conversionRate,
       primary: false,
     },
@@ -56,7 +56,7 @@ export function InstagramBreakdown({
       medium: "story",
       icon: Sparkles,
       sessions: totals.story.sessions,
-      conversions: totals.story.conversions,
+      keyEvents: totals.story.keyEvents,
       conversionRate: totals.story.conversionRate,
       primary: false,
     },
@@ -66,7 +66,7 @@ export function InstagramBreakdown({
       medium: "—",
       icon: Globe,
       sessions: totals.otherInstagram.sessions,
-      conversions: totals.otherInstagram.conversions,
+      keyEvents: totals.otherInstagram.keyEvents,
       conversionRate: totals.otherInstagram.conversionRate,
       primary: false,
     },
@@ -88,7 +88,7 @@ export function InstagramBreakdown({
           <div className="flex items-center gap-2 font-mono text-xs tabular-nums text-text-muted">
             <span>
               Ukupno sa IG: {formatNumber(totalSessions)} sesija ·{" "}
-              {formatNumber(totalConversions)} konverzija
+              {formatNumber(totalKeyEvents)} konverzija
             </span>
           </div>
         </div>
@@ -110,7 +110,7 @@ export function InstagramBreakdown({
                 const sessionShare =
                   totalSessions > 0 ? ch.sessions / totalSessions : 0;
                 const convShare =
-                  totalConversions > 0 ? ch.conversions / totalConversions : 0;
+                  totalKeyEvents > 0 ? ch.keyEvents / totalKeyEvents : 0;
                 const Icon = ch.icon;
 
                 return (
@@ -155,12 +155,12 @@ export function InstagramBreakdown({
                     <TableCell className="py-3.5 text-right font-mono tabular-nums">
                       <span
                         className={
-                          ch.conversions > 0 && ch.primary
+                          ch.keyEvents > 0 && ch.primary
                             ? "font-semibold text-accent-400"
                             : "text-foreground"
                         }
                       >
-                        {formatNumber(ch.conversions)}
+                        {formatNumber(ch.keyEvents)}
                       </span>
                     </TableCell>
 
@@ -205,7 +205,7 @@ export function InstagramBreakdown({
                   100%
                 </TableCell>
                 <TableCell className="py-3.5 text-right font-mono tabular-nums font-semibold text-accent-400">
-                  {formatNumber(totalConversions)}
+                  {formatNumber(totalKeyEvents)}
                 </TableCell>
                 <TableCell className="py-3.5 text-right font-mono tabular-nums font-semibold text-foreground">
                   {totalSessions > 0
@@ -240,7 +240,7 @@ export function InstagramBreakdown({
                     <span className="text-text-muted">·</span>
                     <span>{formatNumber(u.sessions)} sesija</span>
                     <span className="text-text-muted">·</span>
-                    <span>{formatNumber(u.conversions)} konverzija</span>
+                    <span>{formatNumber(u.keyEvents)} konverzija</span>
                   </li>
                 ))}
               </ul>

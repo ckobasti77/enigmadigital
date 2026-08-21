@@ -174,22 +174,22 @@ export function OverviewDashboard() {
           {hasGa4 ? (
             ga4Cur && ga4Prev && ga4Series ? (
               <KpiTile
-                label="Konverzije"
-                value={ga4Cur.conversions}
+                label="Ključni događaji"
+                value={ga4Cur.keyEvents}
                 format={formatNumber}
                 delta={{
                   kind: "pct",
-                  value: deltaPct(ga4Cur.conversions, ga4Prev.conversions),
+                  value: deltaPct(ga4Cur.keyEvents, ga4Prev.keyEvents),
                 }}
                 formatDelta={formatSignedPercent}
                 compareLabel={compareLabel}
-                spark={ga4Series.map((d) => d.conversions)}
+                spark={ga4Series.map((d) => d.keyEvents)}
               />
             ) : (
               <KpiTileSkeleton />
             )
           ) : (
-            <UnconnectedTile label="Konverzije" providerName="GA4" />
+            <UnconnectedTile label="Ključni događaji" providerName="GA4" />
           )}
 
           {hasInstagram ? (
@@ -239,11 +239,11 @@ export function OverviewDashboard() {
         </div>
       </Reveal>
 
-      {/* Glavni sadržaj ekrana: kretanje sesija i konverzija kroz period. */}
+      {/* Glavni sadržaj ekrana: kretanje sesija i ključnih događaja kroz period. */}
       <Reveal delay={0.05}>
         {!hasGa4 ? (
           <ConnectNotice provider="GA4">
-            Kretanje sesija i konverzija kroz period crta se iz Google
+            Kretanje sesija i ključnih događaja kroz period crta se iz Google
             Analytics 4. Bez te veze kontrolna tabla prikazuje samo Instagram i
             OpenReply.
           </ConnectNotice>
@@ -262,19 +262,21 @@ export function OverviewDashboard() {
           compareLabel={compareLabel}
           items={[
             {
-              label: "Aktivni korisnici",
+              label: "Korisnici",
               provider: "GA4",
               connected: hasGa4,
-              value: ga4Cur?.activeUsers,
+              loading: hasGa4 && ga4Cur === undefined,
+              value: ga4Cur?.totalUsers,
               delta:
                 ga4Cur && ga4Prev
-                  ? deltaPct(ga4Cur.activeUsers, ga4Prev.activeUsers)
+                  ? deltaPct(ga4Cur.totalUsers, ga4Prev.totalUsers)
                   : undefined,
             },
             {
               label: "Klikovi na linkove",
               provider: "OpenReply",
               connected: hasOpenReply,
+              loading: hasOpenReply && orCur === undefined,
               value: orCur?.linkClicks,
               delta:
                 orCur && orPrev
@@ -285,6 +287,7 @@ export function OverviewDashboard() {
               label: "Pratioci na Instagramu",
               provider: "Instagram",
               connected: hasInstagram,
+              loading: hasInstagram && igCur === undefined,
               value: igCur?.followersCount,
               delta:
                 igCur && igPrev
@@ -352,6 +355,7 @@ type SecondaryStat = {
   label: string;
   provider: string;
   connected: boolean;
+  loading?: boolean;
   value: number | undefined;
   delta: number | null | undefined;
 };
@@ -379,8 +383,18 @@ function SecondaryStats({
               {item.provider} nije povezan
               <ArrowUpRight className="size-3" aria-hidden />
             </Link>
-          ) : item.value === undefined ? (
+          ) : item.loading ? (
             <Skeleton className="mt-2 h-6 w-24" />
+          ) : item.value === undefined ? (
+            <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2">
+              <span className="font-mono text-xl font-bold text-text-muted">
+                —
+              </span>
+              <span className="font-mono text-xs tabular-nums text-text-muted">
+                —
+              </span>
+              <span className="text-xs text-text-muted">{compareLabel}</span>
+            </div>
           ) : (
             <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2">
               <CountUp

@@ -40,7 +40,7 @@ type SortKey =
   | "linkClicks"
   | "ctr"
   | "ga4Sessions"
-  | "ga4Conversions"
+  | "ga4KeyEvents"
   | "overallConvRate";
 
 type Sort = { key: SortKey; dir: "asc" | "desc" };
@@ -91,7 +91,7 @@ export function FunnelTable({
     [campaigns],
   );
   const totalConversions = useMemo(
-    () => campaigns.reduce((acc, c) => acc + c.ga4Conversions, 0),
+    () => campaigns.reduce((acc, c) => acc + c.ga4KeyEvents, 0),
     [campaigns],
   );
 
@@ -181,10 +181,10 @@ export function FunnelTable({
                     align="right"
                   />
                   <SortableHead
-                    label="4. Konverzije"
-                    active={sort.key === "ga4Conversions"}
+                    label="4. Ključni događaji (GA4)"
+                    active={sort.key === "ga4KeyEvents"}
                     dir={sort.dir}
-                    onClick={() => toggle("ga4Conversions")}
+                    onClick={() => toggle("ga4KeyEvents")}
                     align="right"
                   />
                   <SortableHead
@@ -319,7 +319,7 @@ export function FunnelTable({
                         )}
                       </TableCell>
 
-                      {/* Stage 4: GA4 Conversions + Conversion Rate */}
+                      {/* Stage 4: GA4 Ključni događaji + Conversion Rate */}
                       <TableCell className="py-3.5 text-right">
                         {!row.hasGa4Data && row.linkClicks === 0 ? (
                           <div className="flex flex-col items-end">
@@ -344,12 +344,12 @@ export function FunnelTable({
                             <span
                               className={cn(
                                 "font-mono tabular-nums",
-                                row.ga4Conversions > 0
+                                row.ga4KeyEvents > 0
                                   ? "font-semibold text-accent-400"
                                   : "text-foreground",
                               )}
                             >
-                              {formatNumber(row.ga4Conversions)}
+                              {formatNumber(row.ga4KeyEvents)}
                             </span>
                             <span className="font-mono text-micro tabular-nums text-text-muted">
                               {row.sessionToConvRate !== null
