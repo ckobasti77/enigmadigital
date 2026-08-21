@@ -5,6 +5,7 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import {
   DUR_COUNT,
+  DUR_FRESH,
   DUR_REDUCED,
   EASE_UI,
   MOTION_QUERIES,
@@ -48,7 +49,25 @@ export function CountUp({
       lastValue.current = value;
 
       if (isUpdate) {
+        // Sveži podatak nije ulazak ekrana: nova brojka se upiše odmah, pa je
+        // kratak fade (120 ms, bez pomeraja) samo naznači oku. `overwrite:auto`
+        // prekine fade u toku ako stigne još svežiji podatak — nikad naslagani
+        // tvinovi, nikad ponovno odbrojavanje. Opacity je bezbedan i pod
+        // reduced-motion, pa nema zasebne grane; `holdCssTransition` sklanja
+        // globalni 150 ms opacity prelaz da ne re-interpolira svaki GSAP kadar.
         el.textContent = format(value);
+        holdCssTransition(el);
+        gsap.fromTo(
+          el,
+          { opacity: 0.4 },
+          {
+            opacity: 1,
+            duration: DUR_FRESH,
+            ease: EASE_UI,
+            overwrite: "auto",
+            onComplete: () => releaseCssTransition(el),
+          },
+        );
         return;
       }
 

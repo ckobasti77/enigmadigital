@@ -156,6 +156,16 @@ const EXTRA_SCREENS: Screen[] = [
     title: "Moderacija komentara",
     range: false,
   },
+  // Detalj objave se otvara iz mreže, nema svoju stavku u navigaciji. Bez ovog
+  // reda `resolveScreen` bi pao na „/instagram" i gornja traka bi na njemu
+  // pokazala birač perioda — a detalj objave ne radi nad periodom. Href je
+  // segment pre `[mediaId]`, pa hvata svaki `/instagram/objave/<id>`.
+  {
+    href: "/instagram/objave",
+    section: "Kanali",
+    title: "Detalj objave",
+    range: false,
+  },
 ];
 
 /**
@@ -198,4 +208,63 @@ export function activeHref(pathname: string): string | undefined {
 /** Sekcija, naziv ekrana i da li mu treba birač perioda — za gornju traku. */
 export function resolveScreen(pathname: string): Screen | undefined {
   return ROUTES.find((r) => matches(pathname, r.href))?.screen;
+}
+
+/**
+ * Druga ravan navigacije. Kanal u bočnoj traci vodi na svoj pregled; podekrani
+ * žive u traci sa jezičcima (`SectionNav`) na vrhu tog kanala, ista na svakom
+ * njegovom ekranu. Bez ovoga je šest Instagram ekrana skriveno iza jedne
+ * stavke — dostupni samo lovom na dugme sa početne strane kanala.
+ *
+ * Kratki natpisi namerno: traka mora da stane u red i da klizi na telefonu.
+ * Puni, opisniji naziv ekrana i dalje nosi breadcrumb u gornjoj traci.
+ */
+export type ChannelTab = {
+  href: string;
+  label: string;
+};
+
+export const channelTabs: Record<string, readonly ChannelTab[]> = {
+  "/instagram": [
+    { href: "/instagram", label: "Pregled" },
+    { href: "/instagram/publika", label: "Publika" },
+    { href: "/instagram/stories", label: "Priče" },
+    { href: "/instagram/inbox", label: "Inbox" },
+    { href: "/instagram/komentari", label: "Komentari" },
+    { href: "/instagram/objavi", label: "Nova objava" },
+  ],
+  "/facebook": [
+    { href: "/facebook", label: "Pregled" },
+    { href: "/facebook/komentari", label: "Komentari" },
+  ],
+  "/youtube": [
+    { href: "/youtube", label: "Pregled" },
+    { href: "/youtube/automatizacije", label: "Automatizacije" },
+  ],
+  "/openreply": [
+    { href: "/openreply", label: "Pregled" },
+    { href: "/openreply/automatizacije", label: "Automatizacije" },
+  ],
+} as const;
+
+/** Podekrani kanala kome ekran pripada, ili `undefined` van kanala. */
+export function channelTabsFor(
+  pathname: string,
+): readonly ChannelTab[] | undefined {
+  const base = Object.keys(channelTabs).find((b) => matches(pathname, b));
+  return base ? channelTabs[base] : undefined;
+}
+
+/**
+ * Aktivan jezičak: onaj sa najdužim poklapanjem putanje. Detalj objave
+ * (`/instagram/objave/<id>`) tako pada na „Pregled", jer mreža objava živi
+ * tamo — a ne ostaje bez ijednog obeleženog jezička.
+ */
+export function activeChannelTab(
+  pathname: string,
+  tabs: readonly ChannelTab[],
+): string | undefined {
+  const matching = tabs.filter((t) => matches(pathname, t.href));
+  if (matching.length === 0) return undefined;
+  return matching.reduce((a, b) => (b.href.length > a.href.length ? b : a)).href;
 }

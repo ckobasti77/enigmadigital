@@ -201,7 +201,23 @@ export function AdsDashboardSkeleton() {
         <StatTileSkeleton />
       </div>
       <SpendChartSkeleton />
-      <Skeleton className="h-96 w-full rounded-lg" />
+      {/* Silueta tabele kampanja — skelet ima oblik sadržaja koji stiže, ne
+          jedan sivi pravougaonik. */}
+      <div className="overflow-hidden rounded-lg border border-line">
+        <div className="border-b border-line px-4 py-3">
+          <Skeleton className="h-4 w-40" />
+        </div>
+        <div className="divide-y divide-line-soft">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-3.5">
+              <Skeleton className="h-4 flex-1" />
+              <Skeleton className="hidden h-4 w-16 sm:block" />
+              <Skeleton className="hidden h-4 w-16 sm:block" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

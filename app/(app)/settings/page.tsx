@@ -8,6 +8,7 @@ import {
 } from "@/components/app/settings/connections-settings";
 import { ActionAuditLog } from "@/components/app/settings/action-audit-log";
 import { ModerationAuditLog } from "@/components/app/settings/moderation-audit-log";
+import { PageHeader } from "@/components/app/page-header";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
 
 type Tab = "connections" | "audit" | "moderation";
@@ -42,13 +43,10 @@ export default function SettingsPage() {
 
   return (
     <div className="w-full max-w-4xl">
-      <p className="heading-caps text-micro font-medium text-text-muted">
-        Podešavanja
-      </p>
-      <h1 className="mt-2 text-h1 text-foreground">{copy.title}</h1>
-      <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-        {copy.blurb}
-      </p>
+      {/* Identitet aktivne kartice (Integracije / Istorija / Moderacija) nosi
+          sama traka sa jezičcima ispod — naslov se ne ponavlja. Opis prati
+          izabranu karticu. */}
+      <PageHeader description={copy.blurb} />
 
       <TabNav
         className="mt-8"

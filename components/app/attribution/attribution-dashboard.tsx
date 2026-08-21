@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
+import { ChartErrorBoundary } from "@/components/app/chart-states";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CountUp } from "@/components/motion/count-up";
@@ -179,18 +180,23 @@ export function AttributionDashboard() {
             </div>
           </Reveal>
 
-          {/* Main Funnel Table */}
-          <Reveal delay={0.05}>
-            <FunnelTable campaigns={report.campaigns} />
-          </Reveal>
+          {/* Levak i IG breakdown pod jednom granicom greške: pokvaren izveštaj
+              degradira u poruku sa „Pokušaj ponovo", ne u prazan ekran — isti
+              standard kao ostali grafikonski ekrani. */}
+          <ChartErrorBoundary>
+            {/* Main Funnel Table */}
+            <Reveal delay={0.05}>
+              <FunnelTable campaigns={report.campaigns} />
+            </Reveal>
 
-          {/* Instagram Channel Breakdown */}
-          <Reveal delay={0.1}>
-            <InstagramBreakdown
-              totals={report.totals}
-              unmatchedGa4={report.unmatchedGa4}
-            />
-          </Reveal>
+            {/* Instagram Channel Breakdown */}
+            <Reveal delay={0.1}>
+              <InstagramBreakdown
+                totals={report.totals}
+                unmatchedGa4={report.unmatchedGa4}
+              />
+            </Reveal>
+          </ChartErrorBoundary>
         </>
       )}
     </div>

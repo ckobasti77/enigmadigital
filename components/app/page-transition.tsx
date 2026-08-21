@@ -7,18 +7,18 @@ import { useGSAP } from "@gsap/react";
 import { DUR_REDUCED, EASE_UI, MOTION_QUERIES, WILL_CHANGE } from "@/lib/motion";
 
 /**
- * Prelaz između ekrana: 200 ms fade i 8 px podizanja, i ništa više.
+ * Prelaz između ekrana: 200 ms fade i 6 px podizanja, i ništa više.
  *
  * Kratko je namerno. Ovo je tabla koju operater otvara desetak puta dnevno i
  * kroz koju se kreće brzo; klizanje cele stranice bi svaki put stajalo između
- * njega i podataka. Osam piksela je taman toliko da se oseti smena sadržaja, a
+ * njega i podataka. Šest piksela je taman toliko da se oseti smena sadržaja, a
  * da se ne pročita kao pokret.
  *
  * Animira se ISKLJUČIVO telo. Bočna i gornja traka su ljuska — one ostaju gde
  * jesu, jer su one jedini fiksni orijentir dok se sadržaj menja.
  */
 const DUR_ROUTE = 0.2;
-const ROUTE_Y = 8;
+const ROUTE_Y = 6;
 
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

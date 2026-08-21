@@ -5,6 +5,7 @@ import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CountUp } from "@/components/motion/count-up";
+import type { MetricState } from "@/convex/lib/igMetrics";
 import { cn } from "@/lib/utils";
 
 export type KpiDelta =
@@ -15,6 +16,12 @@ export type KpiDelta =
  * One KPI: label, big Aeonik numeral, delta vs the previous equal period, and
  * a sparkline of the current period. `primary` marks the one metric that may
  * wear cyan (Sessions); every other tile stays in foreground ink.
+ *
+ * `state` nosi model tri stanja (G1): kada mera nije `"value"`, pločica NE
+ * prikazuje nulu — nula i „nema podatka" nikad ne smeju da izgledaju isto.
+ * Umesto broja stoji crtica i razlog, bez delte i bez linije (poređenje i
+ * trend ne postoje kad nema vrednosti). Podrazumevano `"value"`, pa sve
+ * postojeće pločice rade nepromenjeno.
  */
 export function KpiTile({
   label,
@@ -25,6 +32,8 @@ export function KpiTile({
   compareLabel,
   spark,
   primary = false,
+  state = "value",
+  reason,
 }: {
   label: string;
   value: number;
@@ -34,7 +43,30 @@ export function KpiTile({
   compareLabel: string;
   spark: number[];
   primary?: boolean;
+  state?: MetricState;
+  reason?: string;
 }) {
+  if (state !== "value") {
+    return (
+      <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
+        <div className="flex h-40 flex-col px-5 pt-4">
+          <p className="heading-caps text-micro font-medium text-text-muted">
+            {label}
+          </p>
+          <span className="mt-2 block text-2xl font-semibold leading-none text-text-muted sm:text-3xl">
+            —
+          </span>
+          <p className="mt-3 text-xs leading-relaxed text-text-muted">
+            {reason ??
+              (state === "suppressed"
+                ? "Nedovoljno podataka za prikaz."
+                : "Podatak nije dostupan za ovaj period.")}
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
   const d = delta.value;
   const tone =
     d === null || Math.abs(d) < 1e-9

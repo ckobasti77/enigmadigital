@@ -3,14 +3,17 @@
 import { Suspense, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
+import { Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppSidebar } from "./app-sidebar";
 import { MobileNav } from "./mobile-nav";
+import { CommandPalette } from "./command-palette";
 import { PageTransition } from "./page-transition";
+import { SectionNav } from "./section-nav";
 import { SignOutButton } from "./sign-out-button";
 import { SyncStatus } from "./sync-status";
 import { DateRangePicker } from "./date-range-picker";
-import { resolveScreen } from "./nav-items";
+import { channelTabsFor, resolveScreen } from "./nav-items";
 import { WorkspaceProvider } from "./workspace-provider";
 
 /**
@@ -72,6 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </main>
           </div>
           <MobileNav />
+          <CommandPalette />
         </WorkspaceProvider>
       </Authenticated>
     </>
@@ -86,6 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function Header() {
   const pathname = usePathname();
   const screen = resolveScreen(pathname);
+  const tabs = channelTabsFor(pathname);
 
   return (
     <header className="material edge-fade-b sticky top-0 z-30 flex shrink-0 flex-col">
@@ -115,6 +120,7 @@ function Header() {
               <DateRangePicker compact className="hidden md:flex" />
             </Suspense>
           )}
+          <CommandTrigger />
           <SyncStatus className="hidden sm:inline-flex" />
           <SignOutButton />
         </div>
@@ -129,7 +135,33 @@ function Header() {
           </Suspense>
         </div>
       )}
+
+      {/* Druga ravan navigacije živi u ljusci, ne u telu strane: ostaje
+          zakačena i ne bledi ponovo pri prelasku između podekrana kanala. */}
+      {tabs && (
+        <div className="px-[var(--gutter)]">
+          <SectionNav tabs={tabs} />
+        </div>
+      )}
     </header>
+  );
+}
+
+/** Otvara komandnu paletu klikom — parnjak globalnom ⌘K prečicom. */
+function CommandTrigger() {
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new CustomEvent("enigma:command"))}
+      aria-label="Komandna paleta"
+      title="Komandna paleta (⌘K)"
+      className="hover-lift inline-flex h-8 items-center gap-2 rounded-lg border border-line px-2.5 text-text-muted transition-colors hover:text-foreground"
+    >
+      <Search className="size-4" />
+      <kbd className="hidden font-sans text-micro font-medium lg:inline">
+        ⌘K
+      </kbd>
+    </button>
   );
 }
 

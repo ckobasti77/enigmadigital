@@ -11,7 +11,8 @@ import { EmptyState } from "@/components/app/empty-state";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
 import { RateLimitBanner } from "@/components/app/rate-limit-banner";
 import { KpiTile, KpiTileSkeleton } from "@/components/app/analytics/kpi-tile";
-import { InstagramChart, InstagramChartSkeleton } from "./instagram-chart";
+import { TimelineChartSkeleton } from "@/components/app/timeline-chart";
+import { MetricExplorer } from "./metric-explorer";
 import {
   InstagramContentGrid,
   InstagramContentGridSkeleton,
@@ -93,6 +94,28 @@ export function InstagramDashboard() {
       .filter((r) => r.state === "value" && typeof r.value === "number")
       .reduce((sum, r) => sum + (r.value ?? 0), 0);
   }, [profileViewsPrevious]);
+
+  // Tri stanja za pločicu pregleda profila: nula i „nema podatka" ne smeju da
+  // izgledaju isto. Prebacujemo na potisnuto/nedostupno samo kad Meta to
+  // izričito javi — prazan skup ostaje 0, da se ništa ne regresira.
+  const profileViewsState = useMemo<{
+    state: "value" | "suppressed" | "unavailable";
+    reason?: string;
+  }>(() => {
+    if (!profileViewsCurrent) return { state: "value" };
+    if (
+      profileViewsCurrent.some(
+        (r) => r.state === "value" && typeof r.value === "number",
+      )
+    ) {
+      return { state: "value" };
+    }
+    const supp = profileViewsCurrent.find((r) => r.state === "suppressed");
+    if (supp) return { state: "suppressed", reason: supp.reason };
+    const unav = profileViewsCurrent.find((r) => r.state === "unavailable");
+    if (unav) return { state: "unavailable", reason: unav.reason };
+    return { state: "value" };
+  }, [profileViewsCurrent]);
 
   const profileViewsSpark = useMemo(() => {
     if (!series) return [];
@@ -179,6 +202,8 @@ export function InstagramDashboard() {
                 formatDelta={formatSignedPercent}
                 compareLabel={compareLabel}
                 spark={profileViewsSpark}
+                state={profileViewsState.state}
+                reason={profileViewsState.reason}
               />
               <KpiTile
                 label="Ukupno interakcija"
@@ -216,7 +241,12 @@ export function InstagramDashboard() {
             <>
               <Reveal delay={0.05}>
                 <ChartErrorBoundary>
-                  <InstagramChart data={series} />
+                  <MetricExplorer
+                    from={range.from}
+                    to={range.to}
+                    dates={series.map((d) => d.date)}
+                    followers={series.map((d) => d.followersCount)}
+                  />
                 </ChartErrorBoundary>
               </Reveal>
 
@@ -247,7 +277,7 @@ export function InstagramDashboardSkeleton() {
         <KpiTileSkeleton />
         <KpiTileSkeleton />
       </div>
-      <InstagramChartSkeleton />
+      <TimelineChartSkeleton topLabelWidth="w-32" bottomPanel={false} />
       <InstagramContentGridSkeleton />
     </>
   );

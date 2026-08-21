@@ -24,8 +24,12 @@ export const EASE_UI = "power3.out";
  */
 export const EASE_MOMENTUM = "back.out(1.4)";
 
-/** Trajanje svega što ulazi bez zamaha. */
-export const DUR_UI = 0.3;
+/**
+ * Trajanje svega što ulazi bez zamaha. 240 ms: dovoljno da se ulazak oseti,
+ * dovoljno kratko da ne stoji između operatera i podataka koje otvara deset
+ * puta dnevno. CSS blizanac: `--duration-base`.
+ */
+export const DUR_UI = 0.24;
 
 /** Trajanje pokreta koji nastavlja zamah gesta. */
 export const DUR_MOMENTUM = 0.34;
@@ -36,31 +40,39 @@ export const DUR_REDUCED = 0.15;
 /** Odbrojavanje brojčane vrednosti pri prvom prikazu. */
 export const DUR_COUNT = 0.5;
 
-/** Pomeraj pri ulasku. Suptilno je moćnije od velikog — zato 12, ne 40. */
-export const REVEAL_Y = 12;
+/**
+ * Sveži podatak koji stigne iz Convex-a NIJE ulazak ekrana — brojka koja se
+ * menja treba da se primeti, ne da ponovo odigra reveal. Zato kratak fade od
+ * 120 ms, bez pomeraja: dovoljno da oko uhvati promenu, prekratko da odvuče
+ * pažnju sa onoga što operater trenutno radi.
+ */
+export const DUR_FRESH = 0.12;
+
+/** Pomeraj pri ulasku. Suptilno je moćnije od velikog — zato 10, ne 40. */
+export const REVEAL_Y = 10;
 
 /**
  * Pomeraj za nešto što je STIGLO, a ne za nešto što se otkriva. Kraći od
  * `REVEAL_Y` namerno: ulazak ekrana je događaj koji čovek gleda, a pristigla
  * kartica je vest koju treba primetiti bez prekidanja onoga što radi.
  */
-export const ARRIVE_Y = 8;
+export const ARRIVE_Y = 6;
 
 /**
  * Ukupno trajanje reveal-a na ekranu, od prvog do poslednjeg elementa.
  * Ovo je plafon za `trajanje + stagger × (broj − 1)`.
  */
-export const REVEAL_BUDGET = 0.4;
+export const REVEAL_BUDGET = 0.3;
 
 /** Najveći razmak između dva susedna elementa u stagger-u. */
-export const STAGGER_MAX = 0.06;
+export const STAGGER_MAX = 0.035;
 
 /**
  * Koliko kašnjenja preostaje pojedinačnom `<Reveal>`-u kada se od budžeta
- * oduzme sopstveno trajanje. Sa 300 ms trajanja i 400 ms budžeta to je 100 ms
+ * oduzme sopstveno trajanje. Sa 240 ms trajanja i 300 ms budžeta to je 60 ms
  * — ceo prostor za sekvencu na jednom ekranu.
  */
-export const MAX_REVEAL_DELAY = 0.1;
+export const MAX_REVEAL_DELAY = 0.06;
 
 /** Nagoveštaj kompozitoru; sklanja se čim animacija završi. */
 export const WILL_CHANGE = "transform, opacity";
