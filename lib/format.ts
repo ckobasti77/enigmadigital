@@ -81,6 +81,14 @@ export function formatDecimal(value: number): string {
   return decimalFmt.format(value);
 }
 
+/** Sažet broj za ose grafikona: 1.234 → "1,2k", 2.500.000 → "2,5M". */
+export function formatCompact(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${decimalFmt.format(value / 1_000_000)}M`;
+  if (abs >= 1_000) return `${decimalFmt.format(value / 1_000)}k`;
+  return integerFmt.format(value);
+}
+
 /** 0..1 → "43,2%". */
 export function formatPercent(rate: number): string {
   return percentFmt.format(rate);

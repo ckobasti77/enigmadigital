@@ -14,18 +14,26 @@ import {
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Reveal } from "@/components/motion/reveal";
+import { Reveal, RevealGroup } from "@/components/motion/reveal";
 import { EmptyState } from "@/components/app/empty-state";
 import { formatNumber, formatPercent } from "@/lib/format";
+import { StatTile } from "./kpi-tile";
 
+// Kategorijske boje fiksnim redom (chart-1..6), nikad u krug: prikazuje se
+// najviše 6 kohorti odjednom, pa deveta boja i ne postoji.
 const CHART_COLORS = [
-  "var(--color-chart-1, #3b82f6)",
-  "var(--color-chart-2, #10b981)",
-  "var(--color-chart-3, #f59e0b)",
-  "var(--color-chart-4, #8b5cf6)",
-  "var(--color-chart-5, #ec4899)",
-  "var(--color-chart-6, #06b6d4)",
+  "var(--color-chart-1)",
+  "var(--color-chart-2)",
+  "var(--color-chart-3)",
+  "var(--color-chart-4)",
+  "var(--color-chart-5)",
+  "var(--color-chart-6)",
 ];
+
+/** Sekvencijalna skala matrice: jedna nijansa (chart-1), svetlo → zasićeno. */
+function cohortFill(alphaPct: number): string {
+  return `color-mix(in oklab, var(--color-chart-1) ${alphaPct}%, transparent)`;
+}
 
 export function RetentionDashboard() {
   const connections = useQuery(api.connections.list);
@@ -97,15 +105,11 @@ export function RetentionDashboard() {
 
   if (cohorts.length === 0) {
     return (
-      <Card className="flex flex-col items-center justify-center p-12 text-center shadow-card ring-line">
-        <Layers className="h-10 w-10 text-muted-foreground/60 mb-3" />
-        <h3 className="text-base font-semibold text-foreground">
-          Nema podataka o kohortama
-        </h3>
-        <p className="mt-1 max-w-md text-xs text-muted-foreground">
-          Kohortni podaci se osvežavaju automatski jednom dnevno tokom redovne GA4 sinhronizacije. Ukoliko je nalog tek povezan, podaci će biti dostupni nakon sledeće sinhronizacije.
-        </p>
-      </Card>
+      <EmptyState icon={Layers}>
+        Nema podataka o kohortama. Kohortni podaci se osvežavaju jednom dnevno
+        tokom redovne GA4 sinhronizacije; ako je nalog tek povezan, stižu nakon
+        sledeće sinhronizacije.
+      </EmptyState>
     );
   }
 
@@ -113,72 +117,47 @@ export function RetentionDashboard() {
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Quality Notice if thresholded rows exist */}
+      {/* Traka o kvalitetu: pragovi privatnosti — statusni token, ne amber-500 */}
       {data.thresholdedCount > 0 && (
-        <Card className="flex items-start gap-3 border-amber-500/30 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <Card className="flex items-start gap-3 border-warning/30 bg-warning/10 p-4 shadow-card">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div className="flex flex-col gap-1 text-xs">
-            <p className="font-semibold">Privatnost i pragovi (Thresholding)</p>
-            <p>
-              Google je primenio pragove privatnosti na {data.thresholdedCount} kohortnih tačaka zbog malog broja korisnika. Ćelije označene zvezdicom (*) predstavljaju zaštićene vrednosti.
+            <p className="font-semibold text-foreground">
+              Privatnost i pragovi (Thresholding)
+            </p>
+            <p className="text-text-secondary">
+              Google je primenio pragove privatnosti na {data.thresholdedCount}{" "}
+              kohortnih tačaka zbog malog broja korisnika. Ćelije označene
+              zvezdicom (*) predstavljaju zaštićene vrednosti.
             </p>
           </div>
         </Card>
       )}
 
-      {/* KPI Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Reveal delay={0.05}>
-          <Card className="flex flex-col gap-2 p-5 shadow-card ring-line">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Prosečna retencija (1. nedelja)
-              </span>
-              <Percent className="h-4 w-4 text-primary" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-mono text-3xl font-bold tracking-tight text-foreground">
-                {formatPercent(avgW1)}
-              </span>
-              <span className="text-xs text-muted-foreground">nakon 7 dana</span>
-            </div>
-          </Card>
-        </Reveal>
-
-        <Reveal delay={0.1}>
-          <Card className="flex flex-col gap-2 p-5 shadow-card ring-line">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Prosečna retencija (4. nedelja)
-              </span>
-              <Percent className="h-4 w-4 text-primary" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-mono text-3xl font-bold tracking-tight text-foreground">
-                {formatPercent(avgW4)}
-              </span>
-              <span className="text-xs text-muted-foreground">nakon 28 dana</span>
-            </div>
-          </Card>
-        </Reveal>
-
-        <Reveal delay={0.15}>
-          <Card className="flex flex-col gap-2 p-5 shadow-card ring-line">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Ukupno novih korisnika
-              </span>
-              <Users className="h-4 w-4 text-primary" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-mono text-3xl font-bold tracking-tight text-foreground">
-                {formatNumber(totalTrackedUsers)}
-              </span>
-              <span className="text-xs text-muted-foreground">u 12 kohorti</span>
-            </div>
-          </Card>
-        </Reveal>
-      </div>
+      {/* KPI Summary — deljene StatTile pločice (bez poređenja) */}
+      <RevealGroup className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatTile
+          label="Prosečna retencija (1. nedelja)"
+          value={avgW1}
+          format={formatPercent}
+          note="nakon 7 dana"
+          icon={Percent}
+        />
+        <StatTile
+          label="Prosečna retencija (4. nedelja)"
+          value={avgW4}
+          format={formatPercent}
+          note="nakon 28 dana"
+          icon={Percent}
+        />
+        <StatTile
+          label="Ukupno novih korisnika"
+          value={totalTrackedUsers}
+          format={formatNumber}
+          note="u 12 kohorti"
+          icon={Users}
+        />
+      </RevealGroup>
 
       {/* Cohort Line Chart (Retention Curves) */}
       <Reveal delay={0.2}>
@@ -365,11 +344,12 @@ export function RetentionDashboard() {
                         }
 
                         if (w === 0) {
-                          // Week 0 is always 100%
+                          // Nedelja 0 je uvek 100% — najzasićeniji korak skale.
                           return (
                             <td
                               key={w}
-                              className="py-2.5 px-2 text-center font-semibold text-primary bg-primary/10"
+                              className="py-2.5 px-2 text-center font-semibold text-foreground"
+                              style={{ backgroundColor: cohortFill(70) }}
                             >
                               100%
                             </td>
@@ -390,21 +370,19 @@ export function RetentionDashboard() {
                           );
                         }
 
-                        // Calculate opacity intensity based on retention percentage (e.g. 0% -> 0.05, 30% -> 0.6)
-                        const opacity = Math.min(0.7, Math.max(0.08, ret * 2));
+                        // Sekvencijalna skala: udeo → zasićenost jedne nijanse.
+                        const alphaPct = Math.min(70, Math.max(8, ret * 200));
 
                         return (
                           <td
                             key={w}
                             className="py-2.5 px-2 text-center font-medium tabular-nums transition-colors"
-                            style={{
-                              backgroundColor: `rgba(59, 130, 246, ${opacity})`,
-                            }}
+                            style={{ backgroundColor: cohortFill(alphaPct) }}
                             title={`Nedelja ${w}: ${formatPercent(ret)} (${point.activeUsers ?? 0} korisnika)`}
                           >
                             <span className="text-foreground">
                               {formatPercent(ret)}
-                              {isThresholded && <sup className="text-amber-500">*</sup>}
+                              {isThresholded && <sup className="text-warning">*</sup>}
                             </span>
                           </td>
                         );

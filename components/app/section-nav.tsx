@@ -49,6 +49,37 @@ export function SectionNav({
       });
   }, [active]);
 
+  // Susedni tabovi sa istim `group` čine jedan klaster; redosled u nizu čuva
+  // redosled grupa. Kada nijedan tab nema grupu, ostaje jedan klaster bez
+  // natpisa — ravna traka, identična kao pre (Instagram/Facebook/…).
+  const groups: { name?: string; tabs: ChannelTab[] }[] = [];
+  for (const tab of tabs) {
+    const last = groups[groups.length - 1];
+    if (last && last.name === tab.group) last.tabs.push(tab);
+    else groups.push({ name: tab.group, tabs: [tab] });
+  }
+  const showGroups = groups.length > 1 && groups.some((g) => g.name);
+
+  const renderTab = (tab: ChannelTab) => {
+    const selected = tab.href === active;
+    return (
+      <Link
+        key={tab.href}
+        href={tab.href}
+        data-tab-href={tab.href}
+        aria-current={selected ? "page" : undefined}
+        className={cn(
+          "shrink-0 whitespace-nowrap px-3.5 py-2.5 text-sm font-medium transition-colors",
+          selected
+            ? "text-foreground shadow-[inset_0_-2px_0_0_var(--color-accent-400)]"
+            : "text-text-muted hover:text-foreground hover:shadow-[inset_0_-2px_0_0_var(--color-line-soft)]",
+        )}
+      >
+        {tab.label}
+      </Link>
+    );
+  };
+
   return (
     <div
       className={cn(
@@ -61,25 +92,24 @@ export function SectionNav({
         aria-label="Podekrani kanala"
         className="flex min-w-0 items-center gap-1 overflow-x-auto"
       >
-        {tabs.map((tab) => {
-          const selected = tab.href === active;
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              data-tab-href={tab.href}
-              aria-current={selected ? "page" : undefined}
-              className={cn(
-                "shrink-0 whitespace-nowrap px-3.5 py-2.5 text-sm font-medium transition-colors",
-                selected
-                  ? "text-foreground shadow-[inset_0_-2px_0_0_var(--color-accent-400)]"
-                  : "text-text-muted hover:text-foreground hover:shadow-[inset_0_-2px_0_0_var(--color-line-soft)]",
-              )}
-            >
-              {tab.label}
-            </Link>
-          );
-        })}
+        {showGroups
+          ? groups.map((group, gi) => (
+              <div key={group.name ?? gi} className="flex items-center gap-1">
+                {gi > 0 && (
+                  <span
+                    className="mx-1.5 h-4 w-px shrink-0 self-center bg-line-soft"
+                    aria-hidden
+                  />
+                )}
+                {group.name && (
+                  <span className="heading-caps shrink-0 whitespace-nowrap px-1 text-micro text-text-muted/80">
+                    {group.name}
+                  </span>
+                )}
+                {group.tabs.map(renderTab)}
+              </div>
+            ))
+          : tabs.map(renderTab)}
       </nav>
 
       {trailing && <div className="shrink-0 pb-1.5">{trailing}</div>}

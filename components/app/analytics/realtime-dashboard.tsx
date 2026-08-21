@@ -122,8 +122,8 @@ export function RealtimeDashboard() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-success" />
             </span>
             <span className="text-sm font-semibold tracking-tight text-foreground">
               Aktivnost uživo
@@ -151,15 +151,15 @@ export function RealtimeDashboard() {
         </Button>
       </div>
 
-      {/* Quota warning or error banner */}
+      {/* Kvota / greška — statusni token, ne amber-500 */}
       {isUnavailable && (
-        <Card className="flex items-start gap-3 border-amber-500/30 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <Card className="flex items-start gap-3 border-warning/30 bg-warning/10 p-4 shadow-card">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
           <div className="flex flex-col gap-1 text-sm">
-            <p className="font-semibold">
+            <p className="font-semibold text-foreground">
               Privremeno ograničenje podataka uživo
             </p>
-            <p className="text-xs opacity-90">
+            <p className="text-xs text-text-secondary">
               {snapshot?.error ||
                 "GA4 kvota je trenutno preopterećena. Podaci uživo se privremeno pauziraju kako bi se zaštitila dnevna sinhronizacija."}
             </p>
@@ -283,9 +283,9 @@ export function RealtimeDashboard() {
                           {formatNumber(item.value)}
                         </span>
                       </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/40">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-line-soft">
                         <div
-                          className="h-full rounded-full bg-primary/80 transition-all duration-300"
+                          className="h-full rounded-full bg-foreground/45 transition-[width] duration-300"
                           style={{ width: `${Math.max(2, share)}%` }}
                         />
                       </div>
@@ -336,9 +336,9 @@ export function RealtimeDashboard() {
                           {formatNumber(item.value)}
                         </span>
                       </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/40">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-line-soft">
                         <div
-                          className="h-full rounded-full bg-primary/80 transition-all duration-300"
+                          className="h-full rounded-full bg-foreground/45 transition-[width] duration-300"
                           style={{ width: `${Math.max(2, share)}%` }}
                         />
                       </div>
@@ -402,9 +402,9 @@ export function RealtimeDashboard() {
                           </span>
                         </div>
                       </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/40">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-line-soft">
                         <div
-                          className="h-full rounded-full bg-primary/80 transition-all duration-300"
+                          className="h-full rounded-full bg-foreground/45 transition-[width] duration-300"
                           style={{ width: `${Math.max(2, share)}%` }}
                         />
                       </div>

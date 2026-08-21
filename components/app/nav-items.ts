@@ -258,17 +258,28 @@ export function resolveScreen(pathname: string): Screen | undefined {
 export type ChannelTab = {
   href: string;
   label: string;
+  /**
+   * Naziv grupe u traci podekrana. Kada bar jedan tab kanala ima grupu,
+   * `SectionNav` crta razdelnik + sitan natpis pred svakom grupom; kanali bez
+   * grupa se renderuju kao ravna traka (nepromenjeno). Susedni tabovi sa istim
+   * `group` čine jedan klaster, pa redosled u nizu određuje i redosled grupa.
+   */
+  group?: string;
 };
 
 export const channelTabs: Record<string, readonly ChannelTab[]> = {
+  // Sedam ekrana bez hijerarhije klizalo je u ravnoj traci. Grupe ih dele na
+  // ono što se gleda svaki dan i ono u šta se roni povremeno; dnevno ide prvo,
+  // pa se vidi bez pomeranja. „Detaljno" prati putanju: sticanje → sadržaj →
+  // posetioci → oglasi → retencija.
   "/analytics": [
-    { href: "/analytics", label: "Pregled" },
-    { href: "/analytics/uzivo", label: "Uživo" },
-    { href: "/analytics/sticanje", label: "Sticanje" },
-    { href: "/analytics/oglasi", label: "Oglasi" },
-    { href: "/analytics/sadrzaj", label: "Sadržaj" },
-    { href: "/analytics/posetioci", label: "Posetioci" },
-    { href: "/analytics/retencija", label: "Retencija" },
+    { href: "/analytics", label: "Pregled", group: "Svakodnevno" },
+    { href: "/analytics/uzivo", label: "Uživo", group: "Svakodnevno" },
+    { href: "/analytics/sticanje", label: "Sticanje", group: "Detaljno" },
+    { href: "/analytics/sadrzaj", label: "Sadržaj", group: "Detaljno" },
+    { href: "/analytics/posetioci", label: "Posetioci", group: "Detaljno" },
+    { href: "/analytics/oglasi", label: "Oglasi", group: "Detaljno" },
+    { href: "/analytics/retencija", label: "Retencija", group: "Detaljno" },
   ],
   "/instagram": [
     { href: "/instagram", label: "Pregled" },
@@ -312,4 +323,22 @@ export function activeChannelTab(
   const matching = tabs.filter((t) => matches(pathname, t.href));
   if (matching.length === 0) return undefined;
   return matching.reduce((a, b) => (b.href.length > a.href.length ? b : a)).href;
+}
+
+/**
+ * Prečica koja stoji uz traku podekrana, desno. GA4 konfiguracija nije ekran sa
+ * podacima nego podešavanje, pa ne dobija tab — dobija prečicu ka Podešavanjima
+ * odakle se property i čita/osvežava.
+ */
+export type ChannelTrailing = { href: string; label: string };
+
+const CHANNEL_TRAILING: Record<string, ChannelTrailing> = {
+  "/analytics": { href: "/settings", label: "Konfiguracija" },
+};
+
+export function channelTrailingFor(
+  pathname: string,
+): ChannelTrailing | undefined {
+  const base = Object.keys(CHANNEL_TRAILING).find((b) => matches(pathname, b));
+  return base ? CHANNEL_TRAILING[base] : undefined;
 }

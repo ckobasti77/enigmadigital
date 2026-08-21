@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { Unplug } from "lucide-react";
+import { ChartNoAxesColumn, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
@@ -214,41 +214,51 @@ export function AudienceDashboard() {
             </div>
           </Reveal>
 
-          {/* Device Stacked Area Chart */}
-          <Reveal>
-            <ChartErrorBoundary>
-              <DeviceChart data={deviceData} />
-            </ChartErrorBoundary>
-          </Reveal>
+          {deviceData.totals.sessions === 0 &&
+          deviceData.totals.totalUsers === 0 ? (
+            <EmptyState icon={ChartNoAxesColumn}>
+              Nema podataka o posetiocima za izabrani period. Istorija seže 90
+              dana unazad od prve sinhronizacije.
+            </EmptyState>
+          ) : (
+            <>
+              {/* Device Stacked Area Chart */}
+              <Reveal>
+                <ChartErrorBoundary>
+                  <DeviceChart data={deviceData} />
+                </ChartErrorBoundary>
+              </Reveal>
 
-          {/* Geographic Ranking (Explicitly NO MAP) */}
-          <Reveal>
-            <ChartErrorBoundary>
-              <GeoRanking
-                data={geoData}
-                level={geoLevel}
-                onLevelChange={setGeoLevel}
-              />
-            </ChartErrorBoundary>
-          </Reveal>
+              {/* Geographic Ranking (Explicitly NO MAP) */}
+              <Reveal>
+                <ChartErrorBoundary>
+                  <GeoRanking
+                    data={geoData}
+                    level={geoLevel}
+                    onLevelChange={setGeoLevel}
+                  />
+                </ChartErrorBoundary>
+              </Reveal>
 
-          {/* 7x24 Heatmap Matrix */}
-          <Reveal>
-            <ChartErrorBoundary>
-              <TimeOfDayHeatmap data={timeData} />
-            </ChartErrorBoundary>
-          </Reveal>
+              {/* 7x24 Heatmap Matrix */}
+              <Reveal>
+                <ChartErrorBoundary>
+                  <TimeOfDayHeatmap data={timeData} />
+                </ChartErrorBoundary>
+              </Reveal>
 
-          {/* Data Quality Notice */}
-          <Reveal>
-            <DataQualityNotice
-              meta={
-                deviceData.reportMeta ||
-                geoData.reportMeta ||
-                timeData.reportMeta
-              }
-            />
-          </Reveal>
+              {/* Data Quality Notice */}
+              <Reveal>
+                <DataQualityNotice
+                  meta={
+                    deviceData.reportMeta ||
+                    geoData.reportMeta ||
+                    timeData.reportMeta
+                  }
+                />
+              </Reveal>
+            </>
+          )}
         </>
       )}
     </div>

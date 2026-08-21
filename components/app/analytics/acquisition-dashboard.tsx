@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { Unplug } from "lucide-react";
+import { ChartNoAxesColumn, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
@@ -238,32 +238,41 @@ export function AcquisitionDashboard() {
             </div>
           </Reveal>
 
-          {/* Main Chart: Channel Comparison across Two Scopes */}
-          <Reveal>
-            <ChartErrorBoundary>
-              <ChannelComparisonChart data={channels} />
-            </ChartErrorBoundary>
-          </Reveal>
+          {channels.totals.sessions === 0 && channels.totals.firstUsers === 0 ? (
+            <EmptyState icon={ChartNoAxesColumn}>
+              Nema podataka o sticanju za izabrani period. Istorija seže 90 dana
+              unazad od prve sinhronizacije.
+            </EmptyState>
+          ) : (
+            <>
+              {/* Main Chart: Channel Comparison across Two Scopes */}
+              <Reveal>
+                <ChartErrorBoundary>
+                  <ChannelComparisonChart data={channels} />
+                </ChartErrorBoundary>
+              </Reveal>
 
-          {/* Source / Medium Table with Scope Toggle */}
-          <Reveal>
-            <SourceAcquisitionTable
-              data={sources}
-              scope={sourceScope}
-              onScopeChange={setSourceScope}
-            />
-          </Reveal>
+              {/* Source / Medium Table with Scope Toggle */}
+              <Reveal>
+                <SourceAcquisitionTable
+                  data={sources}
+                  scope={sourceScope}
+                  onScopeChange={setSourceScope}
+                />
+              </Reveal>
 
-          {/* Data Quality Notice */}
-          <Reveal>
-            <DataQualityNotice
-              meta={
-                channels.reportMetaFirst ||
-                channels.reportMetaSession ||
-                sources.reportMeta
-              }
-            />
-          </Reveal>
+              {/* Data Quality Notice */}
+              <Reveal>
+                <DataQualityNotice
+                  meta={
+                    channels.reportMetaFirst ||
+                    channels.reportMetaSession ||
+                    sources.reportMeta
+                  }
+                />
+              </Reveal>
+            </>
+          )}
         </>
       )}
     </div>

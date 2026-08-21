@@ -280,14 +280,6 @@ export const GA4_METRIC_CATALOG: Record<string, Ga4MetricDef> = {
     category: "Event",
     description: "Zbir vrednosti parametra value prosleđenog uz događaje.",
   },
-  eventsPerSession: {
-    apiName: "eventsPerSession",
-    label: "Događaji po sesiji",
-    type: "TYPE_FLOAT",
-    unit: "ratio",
-    category: "Event",
-    description: "Prosečan broj događaja po sesiji.",
-  },
   keyEvents: {
     apiName: "keyEvents",
     label: "Ključni događaji",

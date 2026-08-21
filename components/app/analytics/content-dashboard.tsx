@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { Unplug } from "lucide-react";
+import { ChartNoAxesColumn, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
@@ -149,7 +149,7 @@ export function ContentDashboard() {
                   kind: "pct",
                   value: deltaPct(
                     pagesData.totals.screenPageViews,
-                    curDailySum.sessions,
+                    prevDailySum.screenPageViews,
                   ),
                 }}
                 formatDelta={formatSignedPercent}
@@ -158,12 +158,12 @@ export function ContentDashboard() {
               />
               <KpiTile
                 label="Korisnici"
-                value={pagesData.totals.totalUsers || curDailySum.activeUsers}
+                value={pagesData.totals.totalUsers}
                 format={formatNumber}
                 delta={{
                   kind: "pct",
                   value: deltaPct(
-                    pagesData.totals.totalUsers || curDailySum.activeUsers,
+                    pagesData.totals.totalUsers,
                     prevDailySum.activeUsers,
                   ),
                 }}
@@ -185,12 +185,12 @@ export function ContentDashboard() {
               />
               <KpiTile
                 label="Ključni događaji"
-                value={pagesData.totals.keyEvents || curDailySum.keyEvents}
+                value={pagesData.totals.keyEvents}
                 format={formatNumber}
                 delta={{
                   kind: "pct",
                   value: deltaPct(
-                    pagesData.totals.keyEvents || curDailySum.keyEvents,
+                    pagesData.totals.keyEvents,
                     prevDailySum.keyEvents,
                   ),
                 }}
@@ -201,31 +201,42 @@ export function ContentDashboard() {
             </div>
           </Reveal>
 
-          {/* Top 20 Pages Table */}
-          <Reveal>
-            <ChartErrorBoundary>
-              <PagesTable data={pagesData} />
-            </ChartErrorBoundary>
-          </Reveal>
+          {pagesData.totals.screenPageViews === 0 &&
+          landingData.totals.sessions === 0 &&
+          eventsData.totals.eventCount === 0 ? (
+            <EmptyState icon={ChartNoAxesColumn}>
+              Nema podataka o sadržaju za izabrani period. Istorija seže 90 dana
+              unazad od prve sinhronizacije.
+            </EmptyState>
+          ) : (
+            <>
+              {/* Top 20 Pages Table */}
+              <Reveal>
+                <ChartErrorBoundary>
+                  <PagesTable data={pagesData} />
+                </ChartErrorBoundary>
+              </Reveal>
 
-          {/* Top 20 Landing Pages Table */}
-          <Reveal>
-            <ChartErrorBoundary>
-              <LandingPagesTable data={landingData} />
-            </ChartErrorBoundary>
-          </Reveal>
+              {/* Top 20 Landing Pages Table */}
+              <Reveal>
+                <ChartErrorBoundary>
+                  <LandingPagesTable data={landingData} />
+                </ChartErrorBoundary>
+              </Reveal>
 
-          {/* Top 20 Events Table */}
-          <Reveal>
-            <ChartErrorBoundary>
-              <EventsTable data={eventsData} />
-            </ChartErrorBoundary>
-          </Reveal>
+              {/* Top 20 Events Table */}
+              <Reveal>
+                <ChartErrorBoundary>
+                  <EventsTable data={eventsData} />
+                </ChartErrorBoundary>
+              </Reveal>
 
-          {/* Data Quality Notice */}
-          <Reveal>
-            <DataQualityNotice meta={pagesData.reportMeta} />
-          </Reveal>
+              {/* Data Quality Notice */}
+              <Reveal>
+                <DataQualityNotice meta={pagesData.reportMeta} />
+              </Reveal>
+            </>
+          )}
         </>
       )}
     </div>

@@ -13,6 +13,11 @@ import { KpiTile, KpiTileSkeleton } from "./kpi-tile";
 import { SessionsChart, SessionsChartSkeleton } from "./sessions-chart";
 import { TrafficTable, TrafficTableSkeleton } from "./traffic-table";
 import { DataQualityNotice } from "./data-quality-notice";
+import { metricFormat } from "./metric-state";
+import {
+  computeSessionKeyEventRate,
+  computeUserKeyEventRate,
+} from "@/convex/lib/ga4Catalog";
 import { deltaPct, deltaPp, fillDays, summarize } from "@/lib/metrics";
 import { Info } from "lucide-react";
 import {
@@ -83,6 +88,26 @@ export function AnalyticsDashboard() {
   const isShortRetention =
     ga4Config?.eventDataRetention === "TWO_MONTHS" && range.days > 60;
 
+  // F1: stope ključnih događaja — dosad mrtve funkcije. Kad nema imenioca
+  // (sesija/korisnika), stanje je „unavailable" → pločica pokazuje „—", ne 0%.
+  const sessionRate = computeSessionKeyEventRate(cur?.keyEvents, cur?.sessions);
+  const userRate = computeUserKeyEventRate(cur?.keyEvents, cur?.totalUsers);
+  const prevSessionRate = computeSessionKeyEventRate(
+    prev?.keyEvents,
+    prev?.sessions,
+  );
+  const prevUserRate = computeUserKeyEventRate(prev?.keyEvents, prev?.totalUsers);
+  const sessionRateSpark =
+    series?.map((d) => {
+      const r = computeSessionKeyEventRate(d.keyEvents, d.sessions);
+      return r.state === "value" ? r.value : undefined;
+    }) ?? [];
+  const userRateSpark =
+    series?.map((d) => {
+      const r = computeUserKeyEventRate(d.keyEvents, d.totalUsers);
+      return r.state === "value" ? r.value : undefined;
+    }) ?? [];
+
   return (
     <div className="flex flex-1 flex-col gap-8">
       {!ga4Connected ? (
@@ -122,9 +147,9 @@ export function AnalyticsDashboard() {
             </Reveal>
           )}
 
-          {/* 8 KPI Tiles in 2 Rows of 4 */}
+          {/* 10 KPI pločica u 2 reda po 5 (poslednje dve su F1 stope) */}
           <Reveal>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
               {/* 1. Korisnici */}
               <KpiTile
                 label="Korisnici"
@@ -237,6 +262,45 @@ export function AnalyticsDashboard() {
                 compareLabel={compareLabel}
                 spark={series.map((d) => d.keyEvents)}
               />
+
+              {/* 9. F1 — stopa ključnih događaja po sesiji */}
+              <KpiTile
+                label="Stopa klj. događaja / sesiji"
+                value={sessionRate.value}
+                state={sessionRate.state === "value" ? "value" : "unavailable"}
+                reason="Za ovu stopu nema sesija u periodu."
+                format={metricFormat("sessionKeyEventRate")}
+                delta={{
+                  kind: "pp",
+                  value:
+                    sessionRate.state === "value" &&
+                    prevSessionRate.state === "value"
+                      ? deltaPp(sessionRate.value ?? 0, prevSessionRate.value ?? 0)
+                      : null,
+                }}
+                formatDelta={formatSignedPp}
+                compareLabel={compareLabel}
+                spark={sessionRateSpark}
+              />
+
+              {/* 10. F1 — stopa ključnih događaja po korisniku */}
+              <KpiTile
+                label="Stopa klj. događaja / korisniku"
+                value={userRate.value}
+                state={userRate.state === "value" ? "value" : "unavailable"}
+                reason="Za ovu stopu nema korisnika u periodu."
+                format={metricFormat("userKeyEventRate")}
+                delta={{
+                  kind: "pp",
+                  value:
+                    userRate.state === "value" && prevUserRate.state === "value"
+                      ? deltaPp(userRate.value ?? 0, prevUserRate.value ?? 0)
+                      : null,
+                }}
+                formatDelta={formatSignedPp}
+                compareLabel={compareLabel}
+                spark={userRateSpark}
+              />
             </div>
           </Reveal>
 
@@ -282,15 +346,10 @@ function useStale<T>(value: T | undefined): T | undefined {
 export function DashboardSkeleton() {
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiTileSkeleton />
-        <KpiTileSkeleton />
-        <KpiTileSkeleton />
-        <KpiTileSkeleton />
-        <KpiTileSkeleton />
-        <KpiTileSkeleton />
-        <KpiTileSkeleton />
-        <KpiTileSkeleton />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <KpiTileSkeleton key={i} />
+        ))}
       </div>
       <SessionsChartSkeleton />
       <TrafficTableSkeleton />

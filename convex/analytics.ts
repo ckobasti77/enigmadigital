@@ -348,8 +348,10 @@ export const acquisitionByChannel = query({
 
     const channelRows = Array.from(byChannel.values()).map((agg) => {
       const engagementRate =
-        agg.sessions !== undefined && agg.sessions > 0
-          ? (agg.engagedSessions ?? 0) / agg.sessions
+        agg.sessions !== undefined &&
+        agg.sessions > 0 &&
+        agg.engagedSessions !== undefined
+          ? agg.engagedSessions / agg.sessions
           : undefined;
 
       if (agg.firstUsers !== undefined) totFirstUsers += agg.firstUsers;
