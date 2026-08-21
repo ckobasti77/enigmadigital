@@ -39,14 +39,36 @@ export function PublishPreview({
   items,
   caption,
   scheduledFor,
+  userTags,
+  audioName,
+  locationId,
+  isPlacingTag,
+  onImageClick,
 }: {
   kind: PublishKind;
   items: PickedItem[];
   caption: string;
   scheduledFor: number | null;
+  userTags?: Array<{ username: string; x?: number; y?: number }>;
+  audioName?: string;
+  locationId?: string;
+  isPlacingTag?: boolean;
+  onImageClick?: (coords: { x: number; y: number }) => void;
 }) {
   const Icon = KIND_ICONS[kind];
   const first = items[0];
+
+  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!onImageClick || first?.kind !== "image") return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    onImageClick({
+      x: Math.round(x * 1000) / 1000,
+      y: Math.round(y * 1000) / 1000,
+    });
+  };
 
   return (
     <Card className="overflow-hidden p-0 shadow-card">
@@ -61,9 +83,11 @@ export function PublishPreview({
       </div>
 
       <div
+        onClick={handleContainerClick}
         className={cn(
           "relative w-full overflow-hidden bg-bg-950",
           frameClass(kind),
+          isPlacingTag && "cursor-crosshair ring-2 ring-accent-400/50 ring-inset",
         )}
       >
         {first === undefined ? (
@@ -76,13 +100,38 @@ export function PublishPreview({
             </p>
           </div>
         ) : first.kind === "image" ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={first.previewUrl}
-            alt="Pregled objave"
-            draggable={false}
-            className="size-full object-contain"
-          />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={first.previewUrl}
+              alt="Pregled objave"
+              draggable={false}
+              className="size-full object-contain pointer-events-none"
+            />
+            {userTags &&
+              userTags.map((tag, idx) => {
+                if (typeof tag.x !== "number" || typeof tag.y !== "number") {
+                  return null;
+                }
+                const leftPct = Math.max(4, Math.min(96, tag.x * 100));
+                const topPct = Math.max(4, Math.min(96, tag.y * 100));
+                return (
+                  <div
+                    key={`${tag.username}-${idx}`}
+                    style={{ left: `${leftPct}%`, top: `${topPct}%` }}
+                    className="pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-white/20 bg-bg-950/85 px-2 py-0.5 text-micro font-medium text-white shadow-md backdrop-blur-sm"
+                  >
+                    <span className="size-1.5 rounded-full bg-accent-400" />
+                    <span>@{tag.username.replace(/^@/, "")}</span>
+                  </div>
+                );
+              })}
+            {isPlacingTag && (
+              <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-bg-950/80 px-2 py-1 text-micro text-accent-400 backdrop-blur-md">
+                Klikni na sliku za postavljanje oznake
+              </div>
+            )}
+          </>
         ) : (
           <video
             src={first.previewUrl}
@@ -130,6 +179,21 @@ export function PublishPreview({
               )}
             </span>
           ))}
+        </div>
+      )}
+
+      {(locationId || audioName) && (
+        <div className="flex flex-wrap gap-2 border-b border-line-soft px-4 py-2 text-micro text-text-muted">
+          {locationId && (
+            <span className="inline-flex items-center gap-1 font-mono">
+              📍 ID lokacije: {locationId}
+            </span>
+          )}
+          {audioName && (
+            <span className="inline-flex items-center gap-1">
+              🎵 Zvuk: {audioName}
+            </span>
+          )}
         </div>
       )}
 

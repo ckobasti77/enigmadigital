@@ -42,6 +42,16 @@ export function InstagramDashboard() {
     from: range.prevFrom,
     to: range.prevTo,
   });
+  const profileViewsCurrent = useQuery(api.instagramStore.metricSeries, {
+    metric: "profile_views",
+    from: range.from,
+    to: range.to,
+  });
+  const profileViewsPrevious = useQuery(api.instagramStore.metricSeries, {
+    metric: "profile_views",
+    from: range.prevFrom,
+    to: range.prevTo,
+  });
   const rawMedia = useQuery(api.instagramStore.mediaList, {
     limit: 30,
   });
@@ -69,6 +79,33 @@ export function InstagramDashboard() {
       [previousRows],
     ),
   );
+
+  const curProfileViews = useMemo(() => {
+    if (!profileViewsCurrent) return 0;
+    return profileViewsCurrent
+      .filter((r) => r.state === "value" && typeof r.value === "number")
+      .reduce((sum, r) => sum + (r.value ?? 0), 0);
+  }, [profileViewsCurrent]);
+
+  const prevProfileViews = useMemo(() => {
+    if (!profileViewsPrevious) return 0;
+    return profileViewsPrevious
+      .filter((r) => r.state === "value" && typeof r.value === "number")
+      .reduce((sum, r) => sum + (r.value ?? 0), 0);
+  }, [profileViewsPrevious]);
+
+  const profileViewsSpark = useMemo(() => {
+    if (!series) return [];
+    const byDate = new Map<string, number>();
+    if (profileViewsCurrent) {
+      for (const r of profileViewsCurrent) {
+        if (r.state === "value" && typeof r.value === "number") {
+          byDate.set(r.date, r.value);
+        }
+      }
+    }
+    return series.map((d) => byDate.get(d.date) ?? 0);
+  }, [series, profileViewsCurrent]);
 
   const igConnected =
     connections === undefined ||
@@ -105,7 +142,7 @@ export function InstagramDashboard() {
       ) : (
         <>
           <Reveal>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
               <KpiTile
                 label="Pratioci"
                 primary
@@ -133,15 +170,27 @@ export function InstagramDashboard() {
               />
               <KpiTile
                 label="Pregledi profila"
-                value={cur.profileViews}
+                value={curProfileViews}
                 format={formatNumber}
                 delta={{
                   kind: "pct",
-                  value: deltaPct(cur.profileViews, prev.profileViews),
+                  value: deltaPct(curProfileViews, prevProfileViews),
                 }}
                 formatDelta={formatSignedPercent}
                 compareLabel={compareLabel}
-                spark={series.map((d) => d.profileViews)}
+                spark={profileViewsSpark}
+              />
+              <KpiTile
+                label="Ukupno interakcija"
+                value={cur.totalInteractions}
+                format={formatNumber}
+                delta={{
+                  kind: "pct",
+                  value: deltaPct(cur.totalInteractions, prev.totalInteractions),
+                }}
+                formatDelta={formatSignedPercent}
+                compareLabel={compareLabel}
+                spark={series.map((d) => d.totalInteractions)}
               />
               <KpiTile
                 label="Angažovani nalozi"
@@ -191,7 +240,8 @@ function useStale<T>(value: T | undefined): T | undefined {
 export function InstagramDashboardSkeleton() {
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+        <KpiTileSkeleton />
         <KpiTileSkeleton />
         <KpiTileSkeleton />
         <KpiTileSkeleton />

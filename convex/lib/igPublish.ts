@@ -103,10 +103,15 @@ export function itemRange(kind: PublishKind): { min: number; max: number } {
 
 // ── limits Instagram enforces ────────────────────────────────────────────────
 
-/** Duži opis Instagram odbija. */
 export const CAPTION_MAX = 2200;
 /** Više hashtagova Instagram odbija. */
 export const HASHTAG_MAX = 30;
+/** Više @ spominjanja u opisu Instagram odbija. */
+export const MENTION_MAX = 20;
+/** Najviše označenih korisnika po objavi. */
+export const USER_TAGS_MAX = 20;
+/** Najveća dozvoljena dužina alt teksta za sliku. */
+export const ALT_TEXT_MAX = 1000;
 
 export const CAROUSEL_MIN = 2;
 export const CAROUSEL_MAX = 10;
@@ -463,6 +468,14 @@ export function countHashtags(caption: string): number {
   return matches ? matches.length : 0;
 }
 
+/**
+ * Spominjanja naloga (@) u opisu. Instagram prima najviše 20.
+ */
+export function countMentions(caption: string): number {
+  const matches = caption.match(/(^|[^\p{L}\p{N}_.])@[\p{L}\p{N}_.]+/gu);
+  return matches ? matches.length : 0;
+}
+
 export function checkCaption(params: {
   kind: PublishKind;
   caption: string;
@@ -475,6 +488,81 @@ export function checkCaption(params: {
   const tags = countHashtags(caption);
   if (tags > HASHTAG_MAX) {
     return `Opis ima ${tags} hashtagova, a Instagram prima najviše ${HASHTAG_MAX}.`;
+  }
+  const mentions = countMentions(caption);
+  if (mentions > MENTION_MAX) {
+    return `Opis ima ${mentions} spominjanja (@), a Instagram prima najviše ${MENTION_MAX}.`;
+  }
+  return null;
+}
+
+export function checkAltText(params: {
+  kind: PublishKind;
+  altText?: string;
+}): string | null {
+  const { kind, altText } = params;
+  if (altText === undefined || altText.trim().length === 0) return null;
+  if (kind !== "IMAGE") {
+    return "Alt tekst je podržan samo za objave tipa Slika.";
+  }
+  if (altText.length > ALT_TEXT_MAX) {
+    return `Alt tekst ima ${altText.length} znakova, a Instagram prima najviše ${ALT_TEXT_MAX}.`;
+  }
+  return null;
+}
+
+export type UserTagInput = {
+  username: string;
+  x?: number;
+  y?: number;
+};
+
+export function checkUserTags(params: {
+  kind: PublishKind;
+  userTags?: UserTagInput[];
+}): string | null {
+  const { kind, userTags } = params;
+  if (!userTags || userTags.length === 0) return null;
+  if (userTags.length > USER_TAGS_MAX) {
+    return `Možeš označiti najviše ${USER_TAGS_MAX} naloga po objavi.`;
+  }
+  for (const tag of userTags) {
+    const handle = tag.username.trim().replace(/^@/, "");
+    if (handle.length === 0) {
+      return "Korisničko ime za označavanje ne sme biti prazno.";
+    }
+    if (kind === "IMAGE") {
+      if (
+        (tag.x !== undefined && (tag.x < 0 || tag.x > 1)) ||
+        (tag.y !== undefined && (tag.y < 0 || tag.y > 1))
+      ) {
+        return "Koordinate za označavanje moraju biti u opsegu od 0.0 do 1.0.";
+      }
+    }
+  }
+  return null;
+}
+
+export function checkAudioName(params: {
+  kind: PublishKind;
+  audioName?: string;
+}): string | null {
+  const { kind, audioName } = params;
+  if (audioName === undefined || audioName.trim().length === 0) return null;
+  if (kind !== "REEL") {
+    return "Ime audio numere je podržano samo za Reels.";
+  }
+  return null;
+}
+
+export function checkTrialGraduationStrategy(params: {
+  kind: PublishKind;
+  strategy?: "MANUAL" | "SS_PERFORMANCE";
+}): string | null {
+  const { kind, strategy } = params;
+  if (!strategy) return null;
+  if (kind !== "REEL") {
+    return "Probni Reels je podržan samo za Reels.";
   }
   return null;
 }
@@ -587,7 +675,15 @@ export function isMissingPublishScope(message: string): boolean {
 /** Poruka koja ide u `error` polje posla, na srpskom i bez tajni. */
 export function publishFailureMessage(raw: string): string {
   const message = raw.trim().length > 0 ? raw.trim() : "Nepoznata greška.";
-  return isMissingPublishScope(message)
-    ? `${message} — nalogu nedostaje opseg za objavljivanje, poveži Instagram ponovo u Podešavanjima.`
-    : message;
+  const lower = message.toLowerCase();
+  if (isMissingPublishScope(message)) {
+    return `${message} — nalogu nedostaje opseg za objavljivanje, poveži Instagram ponovo u Podešavanjima.`;
+  }
+  if (
+    lower.includes("private") &&
+    (lower.includes("tag") || lower.includes("user"))
+  ) {
+    return "Označen nalog je privatan — Instagram ne dozvoljava označavanje privatnih naloga.";
+  }
+  return message;
 }

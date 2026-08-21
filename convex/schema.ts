@@ -119,9 +119,53 @@ export default defineSchema({
     date: v.string(),
     followersCount: v.number(),
     reach: v.number(),
-    profileViews: v.number(),
+    profileViews: v.optional(v.number()),
+    totalInteractions: v.optional(v.number()),
     accountsEngaged: v.number(),
   }).index("by_workspace_date", ["workspaceId", "date"]),
+
+  // Dugački format za svih 15 metrika naloga i njihova razdvajanja (G1).
+  // Model tri stanja: "value" | "suppressed" | "unavailable".
+  igMetricDaily: defineTable({
+    workspaceId: v.id("workspaces"),
+    date: v.string(), // "YYYY-MM-DD", UTC
+    metric: v.string(), // "reach", "views", ...
+    // Prazan niz = ukupna vrednost bez razdvajanja.
+    dimensionKeys: v.array(v.string()), // ["media_product_type"]
+    dimensionValues: v.array(v.string()), // ["REELS"]
+    value: v.optional(v.number()), // undefined kad state != "value"
+    state: v.union(
+      v.literal("value"),
+      v.literal("suppressed"),
+      v.literal("unavailable"),
+    ),
+    reason: v.optional(v.string()), // zašto, kad nije "value"
+    syncedAt: v.number(),
+  })
+    .index("by_workspace_date_metric", ["workspaceId", "date", "metric"])
+    .index("by_workspace_metric_date", ["workspaceId", "metric", "date"]),
+
+  // Demografski podaci publike i angažovane publike (G2).
+  // Model tri stanja: "value" | "suppressed" | "unavailable".
+  igDemographics: defineTable({
+    workspaceId: v.id("workspaces"),
+    metric: v.union(v.literal("follower"), v.literal("engaged")),
+    timeframe: v.string(), // "last_14_days" | "last_30_days" | "last_90_days" | "prev_month" | "this_month" | "this_week"
+    dimensionKeys: v.array(v.string()), // ["age","gender"] | ["country"] | ["city"]
+    dimensionValues: v.array(v.string()),
+    value: v.optional(v.number()),
+    state: v.union(
+      v.literal("value"),
+      v.literal("suppressed"),
+      v.literal("unavailable"),
+    ),
+    reason: v.optional(v.string()),
+    syncedAt: v.number(),
+  }).index("by_workspace_metric_timeframe", [
+    "workspaceId",
+    "metric",
+    "timeframe",
+  ]),
 
   igMediaStats: defineTable({
     workspaceId: v.id("workspaces"),
@@ -136,6 +180,31 @@ export default defineSchema({
     saves: v.number(),
     shares: v.number(),
     views: v.number(),
+    // Extended post metrics (G3) — all optional to maintain backward compatibility
+    reposts: v.optional(v.number()),
+    profileVisits: v.optional(v.number()),
+    follows: v.optional(v.number()),
+    replies: v.optional(v.number()),
+    totalInteractions: v.optional(v.number()),
+    reelsAvgWatchTimeMs: v.optional(v.number()),
+    reelsVideoViewTotalTimeMs: v.optional(v.number()),
+    reelsSkipRate: v.optional(v.number()),
+    crosspostedViews: v.optional(v.number()),
+    facebookViews: v.optional(v.number()),
+    // 3-state metric map for scalar fields on this post
+    metricStates: v.optional(
+      v.record(
+        v.string(),
+        v.object({
+          state: v.union(
+            v.literal("value"),
+            v.literal("suppressed"),
+            v.literal("unavailable"),
+          ),
+          reason: v.optional(v.string()),
+        }),
+      ),
+    ),
     syncedAt: v.number(),
     // Picture URLs as Instagram handed them out. They are SIGNED CDN links with
     // an expiry, so nothing renders them directly — the public /ig-media/
@@ -198,6 +267,136 @@ export default defineSchema({
     ])
     .index("by_media", ["mediaId"]), // public /ig-media/ proxy lookup
 
+  // ── Instagram razdvajanja po objavi (G3) ────────────────────────────────────
+  // 3-state breakdown metrics on post level: "profile_activity" and "navigation".
+  igMediaBreakdowns: defineTable({
+    workspaceId: v.id("workspaces"),
+    mediaId: v.string(),
+    metric: v.string(), // "profile_activity" | "navigation"
+    dimensionKey: v.string(), // "action_type" | "story_navigation_action_type"
+    dimensionValue: v.string(), // "BIO_LINK_CLICKED" | "TAP_EXIT" ...
+    value: v.optional(v.number()),
+    state: v.union(
+      v.literal("value"),
+      v.literal("suppressed"),
+      v.literal("unavailable"),
+    ),
+    reason: v.optional(v.string()),
+    syncedAt: v.number(),
+  })
+    .index("by_workspace_media", ["workspaceId", "mediaId"])
+    .index("by_workspace_media_metric", ["workspaceId", "mediaId", "metric"]),
+
+  // ── Instagram priče / Stories (G4) ──────────────────────────────────────────
+  // Aktivne i arhivirane priče. Metrike idu u igMediaStats i igMediaBreakdowns.
+  igStories: defineTable({
+    workspaceId: v.id("workspaces"),
+    storyId: v.string(),
+    mediaType: v.string(), // IMAGE | VIDEO
+    mediaUrl: v.optional(v.string()), // ističe — ne oslanjaj se
+    thumbnailUrl: v.optional(v.string()),
+    permalink: v.optional(v.string()),
+    timestamp: v.number(), // objavljena
+    expiresAt: v.number(), // timestamp + 24h
+    firstSeenAt: v.number(),
+    lastPolledAt: v.number(),
+    pollCount: v.number(),
+    // Kad istekne, red OSTAJE. Brojke su istorija.
+    archivedAt: v.optional(v.number()),
+  })
+    .index("by_workspace_expires", ["workspaceId", "expiresAt"])
+    .index("by_workspace_story", ["workspaceId", "storyId"])
+    .index("by_workspace_timestamp", ["workspaceId", "timestamp"]),
+
+  // ── Instagram spominjanja / Mentions (G5) ───────────────────────────────────
+  igMentions: defineTable({
+    workspaceId: v.id("workspaces"),
+    kind: v.union(v.literal("comment"), v.literal("caption")),
+    commentId: v.optional(v.string()),
+    mediaId: v.string(),
+    text: v.string(),
+    authorUsername: v.optional(v.string()),
+    permalink: v.optional(v.string()),
+    timestamp: v.number(),
+    repliedAt: v.optional(v.number()),
+    replyText: v.optional(v.string()),
+    // Kontekst koji nije uvek dostupan (privatan nalog, obrisano)
+    contextState: v.union(
+      v.literal("value"),
+      v.literal("suppressed"),
+      v.literal("unavailable"),
+    ),
+    contextReason: v.optional(v.string()),
+    syncedAt: v.number(),
+  })
+    .index("by_workspace_timestamp", ["workspaceId", "timestamp"])
+    .index("by_workspace_replied", ["workspaceId", "repliedAt"])
+    .index("by_workspace_media", ["workspaceId", "mediaId"])
+    .index("by_workspace_comment", ["workspaceId", "commentId"]),
+
+  // ── Instagram poruke / Inbox (G6) ───────────────────────────────────────────
+  igMessages: defineTable({
+    workspaceId: v.id("workspaces"),
+    platform: v.optional(
+      v.union(v.literal("instagram"), v.literal("facebook")),
+    ),
+    igsid: v.string(), // Korisnikov IGSID / sagovornik
+    conversationId: v.optional(v.string()),
+    mid: v.string(), // Meta message ID
+    senderId: v.string(),
+    senderType: v.union(v.literal("user"), v.literal("business")),
+    text: v.optional(v.string()),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          type: v.string(), // "image" | "video" | "audio" | "file" | "like_heart" | "share" | "story"
+          url: v.optional(v.string()),
+          title: v.optional(v.string()),
+        }),
+      ),
+    ),
+    shares: v.optional(
+      v.object({
+        link: v.optional(v.string()),
+        id: v.optional(v.string()),
+      }),
+    ),
+    story: v.optional(
+      v.object({
+        id: v.optional(v.string()),
+        url: v.optional(v.string()),
+      }),
+    ),
+    reactions: v.optional(
+      v.array(
+        v.object({
+          emoji: v.string(),
+          actorId: v.string(),
+          isOurs: v.boolean(),
+        }),
+      ),
+    ),
+    isUnsupported: v.optional(v.boolean()),
+    isEcho: v.optional(v.boolean()),
+    sentAt: v.number(),
+    editedAt: v.optional(v.number()),
+    status: v.optional(
+      v.union(
+        v.literal("sending"),
+        v.literal("sent"),
+        v.literal("failed"),
+        v.literal("delivered"),
+        v.literal("seen"),
+      ),
+    ),
+    errorMessage: v.optional(v.string()),
+    replyToMid: v.optional(v.string()),
+  })
+    .index("by_workspace_igsid", ["workspaceId", "igsid"])
+    .index("by_workspace_mid", ["workspaceId", "mid"])
+    .index("by_workspace_sent", ["workspaceId", "sentAt"])
+    .index("by_workspace_igsid_sent", ["workspaceId", "igsid", "sentAt"]),
+
   // ── Instagram publishing (F3) ───────────────────────────────────────────────
   // One row per post an operator started — sent now or scheduled for later.
   //
@@ -226,9 +425,22 @@ export default defineSchema({
     // Public `/ig-upload/<storageId>` addresses, in the same order. Built once
     // at creation so a retry cannot silently point at a different host.
     mediaUrls: v.array(v.string()),
-    // Content type per file, same order. Instagram needs to be told `image_url`
-    // or `video_url`, and by publish time the file's own name is long gone.
     contentTypes: v.array(v.string()),
+    userTags: v.optional(
+      v.array(
+        v.object({
+          username: v.string(),
+          x: v.optional(v.number()),
+          y: v.optional(v.number()),
+        }),
+      ),
+    ),
+    locationId: v.optional(v.string()),
+    altText: v.optional(v.string()),
+    audioName: v.optional(v.string()),
+    trialGraduationStrategy: v.optional(
+      v.union(v.literal("MANUAL"), v.literal("SS_PERFORMANCE")),
+    ),
     containerId: v.optional(v.string()),
     childContainerIds: v.optional(v.array(v.string())), // CAROUSEL slides
     // When the container was handed to Instagram. The processing deadline runs
@@ -730,17 +942,25 @@ export default defineSchema({
     // the platform beside it says which.
     igsid: v.string(),
     username: v.optional(v.string()),
+    name: v.optional(v.string()),
+    profilePic: v.optional(v.string()),
+    conversationId: v.optional(v.string()), // Meta conversation ID (t_...)
     lastUserMessageAt: v.optional(v.number()),
     lastBotMessageAt: v.optional(v.number()),
+    lastMessageText: v.optional(v.string()),
+    lastMessageAt: v.optional(v.number()),
+    unreadCount: v.optional(v.number()),
     consentAt: v.optional(v.number()), // first time they wrote / tapped
     // Last answer the follow gate got from Instagram for this person, and when.
     // A short-lived cache (lib/orFollow.ts), never a source of truth.
     followsBusiness: v.optional(v.boolean()),
     followCheckedAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_workspace_igsid", ["workspaceId", "igsid"])
-    .index("by_workspace_platform", ["workspaceId", "platform"]), // erasure (R1/4g)
+    .index("by_workspace_platform", ["workspaceId", "platform"]) // erasure (R1/4g)
+    .index("by_workspace_updated", ["workspaceId", "updatedAt"]),
 
   // Inbound DMs, kept for de-duplication — Meta redelivers a webhook whenever
   // it does not get a 200 fast enough.

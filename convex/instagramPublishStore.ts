@@ -15,10 +15,14 @@ import {
   UPLOAD_TTL_MS,
   acceptsCaption,
   acceptsShareToFeed,
+  checkAltText,
+  checkAudioName,
   checkCaption,
   checkFile,
   checkItemCount,
   checkScheduledFor,
+  checkTrialGraduationStrategy,
+  checkUserTags,
   retryDelayMs,
   type PublishKind,
 } from "./lib/igPublish";
@@ -214,11 +218,37 @@ export const createJob = mutation({
     shareToFeed: v.optional(v.boolean()),
     storageIds: v.array(v.id("_storage")),
     scheduledFor: v.optional(v.number()),
+    userTags: v.optional(
+      v.array(
+        v.object({
+          username: v.string(),
+          x: v.optional(v.number()),
+          y: v.optional(v.number()),
+        }),
+      ),
+    ),
+    locationId: v.optional(v.string()),
+    altText: v.optional(v.string()),
+    audioName: v.optional(v.string()),
+    trialGraduationStrategy: v.optional(
+      v.union(v.literal("MANUAL"), v.literal("SS_PERFORMANCE")),
+    ),
   },
   returns: v.id("igPublishJobs"),
   handler: async (
     ctx,
-    { kind, caption, shareToFeed, storageIds, scheduledFor },
+    {
+      kind,
+      caption,
+      shareToFeed,
+      storageIds,
+      scheduledFor,
+      userTags,
+      locationId,
+      altText,
+      audioName,
+      trialGraduationStrategy,
+    },
   ) => {
     const { workspaceId, userId } = await requireMembership(ctx);
     const now = Date.now();
@@ -235,6 +265,21 @@ export const createJob = mutation({
     const trimmedCaption = acceptsCaption(kind) ? (caption ?? "").trim() : "";
     const captionProblem = checkCaption({ kind, caption: trimmedCaption });
     if (captionProblem !== null) invalid(captionProblem);
+
+    const altTextProblem = checkAltText({ kind, altText });
+    if (altTextProblem !== null) invalid(altTextProblem);
+
+    const userTagsProblem = checkUserTags({ kind, userTags });
+    if (userTagsProblem !== null) invalid(userTagsProblem);
+
+    const audioNameProblem = checkAudioName({ kind, audioName });
+    if (audioNameProblem !== null) invalid(audioNameProblem);
+
+    const trialProblem = checkTrialGraduationStrategy({
+      kind,
+      strategy: trialGraduationStrategy,
+    });
+    if (trialProblem !== null) invalid(trialProblem);
 
     const contentTypes: string[] = [];
     for (const storageId of storageIds) {
@@ -278,6 +323,10 @@ export const createJob = mutation({
     // matter why its direct run never happened.
     const dueAt = scheduledFor ?? now;
 
+    const trimmedLocationId = locationId?.trim();
+    const trimmedAltText = altText?.trim();
+    const trimmedAudioName = audioName?.trim();
+
     const jobId = await ctx.db.insert("igPublishJobs", {
       workspaceId,
       kind,
@@ -288,6 +337,19 @@ export const createJob = mutation({
       storageIds,
       mediaUrls: storageIds.map(uploadUrlFor),
       contentTypes,
+      ...(userTags && userTags.length > 0 ? { userTags } : {}),
+      ...(trimmedLocationId && trimmedLocationId.length > 0
+        ? { locationId: trimmedLocationId }
+        : {}),
+      ...(kind === "IMAGE" && trimmedAltText && trimmedAltText.length > 0
+        ? { altText: trimmedAltText }
+        : {}),
+      ...(kind === "REEL" && trimmedAudioName && trimmedAudioName.length > 0
+        ? { audioName: trimmedAudioName }
+        : {}),
+      ...(kind === "REEL" && trialGraduationStrategy
+        ? { trialGraduationStrategy }
+        : {}),
       scheduledFor: dueAt,
       status: "queued",
       attempts: 0,
@@ -569,6 +631,21 @@ const claimValidator = v.object({
   mediaUrls: v.array(v.string()),
   contentTypes: v.array(v.string()),
   storageIds: v.array(v.id("_storage")),
+  userTags: v.optional(
+    v.array(
+      v.object({
+        username: v.string(),
+        x: v.optional(v.number()),
+        y: v.optional(v.number()),
+      }),
+    ),
+  ),
+  locationId: v.optional(v.string()),
+  altText: v.optional(v.string()),
+  audioName: v.optional(v.string()),
+  trialGraduationStrategy: v.optional(
+    v.union(v.literal("MANUAL"), v.literal("SS_PERFORMANCE")),
+  ),
   containerId: v.optional(v.string()),
   childContainerIds: v.optional(v.array(v.string())),
   processingSince: v.optional(v.number()),
@@ -696,6 +773,13 @@ export const claimJob = internalMutation({
       mediaUrls: job.mediaUrls,
       contentTypes: job.contentTypes,
       storageIds: job.storageIds,
+      ...(job.userTags !== undefined ? { userTags: job.userTags } : {}),
+      ...(job.locationId !== undefined ? { locationId: job.locationId } : {}),
+      ...(job.altText !== undefined ? { altText: job.altText } : {}),
+      ...(job.audioName !== undefined ? { audioName: job.audioName } : {}),
+      ...(job.trialGraduationStrategy !== undefined
+        ? { trialGraduationStrategy: job.trialGraduationStrategy }
+        : {}),
       ...(job.containerId !== undefined
         ? { containerId: job.containerId }
         : {}),

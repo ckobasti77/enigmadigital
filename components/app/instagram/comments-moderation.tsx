@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useAction, useQuery } from "convex/react";
 import {
+  AtSign,
   EyeOff,
   Inbox,
   Search,
@@ -27,8 +28,9 @@ import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackNote } from "@/components/app/feedback";
 import { formatNumber, pluralSr } from "@/lib/format";
 import { CommentThread, convexMessage } from "./comment-thread";
+import { MentionCard } from "./mention-card";
 
-type Filter = "unanswered" | "all" | "hidden" | "deleted";
+type Filter = "unanswered" | "all" | "hidden" | "deleted" | "mentions";
 
 /**
  * "Neodgovoreni" is first and it is the default, because it is the reason the
@@ -40,6 +42,7 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "all", label: "Svi" },
   { value: "hidden", label: "Sakriveni" },
   { value: "deleted", label: "Obrisani" },
+  { value: "mentions", label: "Spominjanja" },
 ];
 
 const EMPTY_COPY: Record<Filter, { icon: typeof Inbox; text: string }> = {
@@ -59,6 +62,10 @@ const EMPTY_COPY: Record<Filter, { icon: typeof Inbox; text: string }> = {
     icon: Trash2,
     text: "Nijedan komentar nije obrisan.",
   },
+  mentions: {
+    icon: AtSign,
+    text: "Nema zabeleženih spominjanja.",
+  },
 };
 
 /** 1 komentar, 2–4 komentara, 5+ komentara — po pravilu iz `lib/format`. */
@@ -73,10 +80,23 @@ export function CommentsModeration() {
 
   const connections = useQuery(api.connections.list);
   const counts = useQuery(api.igCommentsStore.filterCounts);
-  const threads = useQuery(api.igCommentsStore.listThreads, {
-    filter,
-    search: search.trim() || undefined,
-  });
+  const threads = useQuery(
+    api.igCommentsStore.listThreads,
+    filter !== "mentions"
+      ? {
+          filter,
+          search: search.trim() || undefined,
+        }
+      : "skip",
+  );
+  const mentions = useQuery(
+    api.igMentionsStore.listMentions,
+    filter === "mentions"
+      ? {
+          search: search.trim() || undefined,
+        }
+      : "skip",
+  );
 
   const igConnected =
     connections === undefined ||
@@ -84,12 +104,14 @@ export function CommentsModeration() {
 
   const visibleIds = useMemo(
     () =>
-      new Set(
-        (threads ?? [])
-          .filter((t) => t.deletedAt === undefined)
-          .map((t) => t.commentId),
-      ),
-    [threads],
+      filter === "mentions"
+        ? new Set<string>()
+        : new Set(
+            (threads ?? [])
+              .filter((t) => t.deletedAt === undefined)
+              .map((t) => t.commentId),
+          ),
+    [filter, threads],
   );
 
   // A comment that leaves the list — answered, hidden, deleted — must not stay
@@ -144,66 +166,96 @@ export function CommentsModeration() {
   return (
     <div className="flex flex-1 flex-col gap-5">
       <Reveal>
-        <FilterBar
-          filter={filter}
-          onFilterChange={(next) => {
-            setFilter(next);
-            setSelection(new Set());
-          }}
-          search={search}
-          onSearchChange={setSearch}
-          counts={counts}
-        />
+        <div className="flex flex-col gap-2">
+          <FilterBar
+            filter={filter}
+            onFilterChange={(next) => {
+              setFilter(next);
+              setSelection(new Set());
+            }}
+            search={search}
+            onSearchChange={setSearch}
+            counts={counts}
+          />
+          <p className="text-micro text-text-muted">
+            Instagram ne šalje obaveštenje kad te spomene nalog koji je privatan, i ne šalje spominjanja iz priča.
+          </p>
+        </div>
       </Reveal>
 
       <Reveal delay={0.05} className="flex flex-1 flex-col">
         <Card className="flex flex-1 flex-col gap-0 p-0 shadow-card">
-          <SelectionBar
-            selection={selected}
-            allSelected={allSelected}
-            onSelectAll={(on) =>
-              setSelection(
-                on
-                  ? new Set([...visibleIds].slice(0, BULK_ACTION_MAX))
-                  : new Set(),
-              )
-            }
-            selectableCount={selectableCount}
-            capped={capped}
-            atLimit={atLimit}
-          />
+          {filter !== "mentions" && (
+            <SelectionBar
+              selection={selected}
+              allSelected={allSelected}
+              onSelectAll={(on) =>
+                setSelection(
+                  on
+                    ? new Set([...visibleIds].slice(0, BULK_ACTION_MAX))
+                    : new Set(),
+                )
+              }
+              selectableCount={selectableCount}
+              capped={capped}
+              atLimit={atLimit}
+            />
+          )}
 
           {/* Komentar stiže webhook-om, dakle dok je ekran otvoren: ulazi
               kratkim uvodom umesto da lista ponovo poskoči. Scope stoji IZNAD
               praznog stanja, da prvi komentar ikad primljen bude tretiran kao
               dolazak, a `ready` ga drži neslegnutim dok upit traje, da prva
               porcija redova ostane posao <Reveal>-a. */}
-          <ArrivalScope
-            ready={threads !== undefined}
-            resetKey={`${filter}|${search.trim()}`}
-          >
-            {threads === undefined ? (
-              <CommentListSkeleton />
-            ) : threads.length === 0 ? (
-              <EmptyState icon={EMPTY_COPY[filter].icon}>
-                {EMPTY_COPY[filter].text}
-              </EmptyState>
-            ) : (
-              <div className="flex flex-col divide-y divide-line-soft px-4">
-                {threads.map((thread) => (
-                  <Arrive key={thread._id} id={thread.commentId}>
-                    <CommentThread
-                      thread={thread}
-                      showPost
-                      selected={selected.has(thread.commentId)}
-                      onSelectedChange={(on) => toggle(thread.commentId, on)}
-                      selectDisabled={atLimit}
-                    />
-                  </Arrive>
-                ))}
-              </div>
-            )}
-          </ArrivalScope>
+          {filter === "mentions" ? (
+            <ArrivalScope
+              ready={mentions !== undefined}
+              resetKey={`mentions|${search.trim()}`}
+            >
+              {mentions === undefined ? (
+                <CommentListSkeleton />
+              ) : mentions.length === 0 ? (
+                <EmptyState icon={EMPTY_COPY.mentions.icon}>
+                  {EMPTY_COPY.mentions.text}
+                </EmptyState>
+              ) : (
+                <div className="flex flex-col divide-y divide-line-soft px-4">
+                  {mentions.map((mention) => (
+                    <Arrive key={mention._id} id={mention._id}>
+                      <MentionCard mention={mention} />
+                    </Arrive>
+                  ))}
+                </div>
+              )}
+            </ArrivalScope>
+          ) : (
+            <ArrivalScope
+              ready={threads !== undefined}
+              resetKey={`${filter}|${search.trim()}`}
+            >
+              {threads === undefined ? (
+                <CommentListSkeleton />
+              ) : threads.length === 0 ? (
+                <EmptyState icon={EMPTY_COPY[filter].icon}>
+                  {EMPTY_COPY[filter].text}
+                </EmptyState>
+              ) : (
+                <div className="flex flex-col divide-y divide-line-soft px-4">
+                  {threads.map((thread) => (
+                    <Arrive key={thread._id} id={thread.commentId}>
+                      <CommentThread
+                        thread={thread}
+                        showPost
+                        selected={selected.has(thread.commentId)}
+                        onSelectedChange={(on) => toggle(thread.commentId, on)}
+                        selectDisabled={atLimit}
+                      />
+                    </Arrive>
+                  ))}
+                </div>
+              )}
+            </ArrivalScope>
+          )}
         </Card>
       </Reveal>
     </div>
@@ -227,6 +279,7 @@ function FilterBar({
         unanswered: number;
         hidden: number;
         deleted: number;
+        mentions: number;
         cap: number;
       }
     | undefined;

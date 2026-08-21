@@ -150,6 +150,11 @@ type Claim = {
   kind: PublishKind;
   caption?: string;
   shareToFeed?: boolean;
+  userTags?: Array<{ username: string; x?: number; y?: number }>;
+  locationId?: string;
+  altText?: string;
+  audioName?: string;
+  trialGraduationStrategy?: "MANUAL" | "SS_PERFORMANCE";
   mediaUrls: string[];
   contentTypes: string[];
   storageIds: Id<"_storage">[];
@@ -170,22 +175,72 @@ function urlParamFor(contentType: string): "image_url" | "video_url" {
 }
 
 /**
+ * Format user_tags parameter for Meta Graph API.
+ * For images: includes coordinates [{username, x, y}].
+ * For videos/reels: includes only [{username}] without x and y.
+ */
+function formatUserTags(
+  tags: Array<{ username: string; x?: number; y?: number }> | undefined,
+  includeCoordinates: boolean,
+): string | undefined {
+  if (!tags || tags.length === 0) return undefined;
+  const formatted = tags.map((tag) => {
+    const username = tag.username.trim().replace(/^@/, "");
+    if (!includeCoordinates) {
+      return { username };
+    }
+    const item: { username: string; x?: number; y?: number } = { username };
+    if (typeof tag.x === "number" && typeof tag.y === "number") {
+      item.x = Math.max(0, Math.min(1, Math.round(tag.x * 1000) / 1000));
+      item.y = Math.max(0, Math.min(1, Math.round(tag.y * 1000) / 1000));
+    }
+    return item;
+  });
+  return JSON.stringify(formatted);
+}
+
+/**
  * The container for a single-file post.
  *
- * The three types differ by two parameters and nothing else, which is exactly
- * why they are one function: a REEL is `media_type=REELS`, a STORY is
+ * The types differ by parameters: a REEL is `media_type=REELS`, a STORY is
  * `media_type=STORIES` and carries no caption, and a feed image sets no
  * `media_type` at all — passing one would be rejected.
  */
 function singleContainerParams(claim: Claim, token: string): URLSearchParams {
   const params = new URLSearchParams();
-  params.set(urlParamFor(claim.contentTypes[0] ?? ""), claim.mediaUrls[0]);
+  const contentType = claim.contentTypes[0] ?? "";
+  params.set(urlParamFor(contentType), claim.mediaUrls[0]);
 
   if (claim.kind === "REEL") {
     params.set("media_type", "REELS");
     params.set("share_to_feed", claim.shareToFeed === false ? "false" : "true");
+    if (claim.audioName) {
+      params.set("audio_name", claim.audioName);
+    }
+    if (claim.trialGraduationStrategy) {
+      params.set(
+        "trial_params",
+        JSON.stringify({ graduation_strategy: claim.trialGraduationStrategy }),
+      );
+    }
+    const tagsJson = formatUserTags(claim.userTags, false);
+    if (tagsJson) {
+      params.set("user_tags", tagsJson);
+    }
   } else if (claim.kind === "STORY") {
     params.set("media_type", "STORIES");
+  } else if (claim.kind === "IMAGE") {
+    if (claim.altText) {
+      params.set("alt_text", claim.altText);
+    }
+    const tagsJson = formatUserTags(claim.userTags, true);
+    if (tagsJson) {
+      params.set("user_tags", tagsJson);
+    }
+  }
+
+  if (claim.locationId) {
+    params.set("location_id", claim.locationId);
   }
 
   // A story has nowhere to put a caption, and sending one is an error.
@@ -225,11 +280,19 @@ async function createCarouselContainer(
     }
 
     const contentType = claim.contentTypes[index] ?? "";
+    const isImage = isImageContentType(contentType);
     const params = new URLSearchParams();
     params.set(urlParamFor(contentType), claim.mediaUrls[index]);
     params.set("is_carousel_item", "true");
     // An image slide needs no `media_type`; a video slide is refused without it.
-    if (!isImageContentType(contentType)) params.set("media_type", "VIDEO");
+    if (!isImage) params.set("media_type", "VIDEO");
+
+    // Tagging on the first carousel slide if user tags are provided
+    if (index === 0 && claim.userTags && claim.userTags.length > 0) {
+      const tagsJson = formatUserTags(claim.userTags, isImage);
+      if (tagsJson) params.set("user_tags", tagsJson);
+    }
+
     params.set("access_token", token);
 
     const child = await graphPost(
@@ -257,6 +320,7 @@ async function createCarouselContainer(
   parentParams.set("media_type", "CAROUSEL");
   parentParams.set("children", childIds.join(","));
   if (claim.caption) parentParams.set("caption", claim.caption);
+  if (claim.locationId) parentParams.set("location_id", claim.locationId);
   parentParams.set("access_token", token);
 
   const parent = await graphPost(
@@ -849,8 +913,9 @@ export const publishingLimit = action({
     const version = getMetaGraphVersion();
     const tracker = createUsageTracker();
     try {
+      const since = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
       const res = await tracker.fetch(
-        buildPublishingLimitUrl(connection.igUserId, token, version),
+        buildPublishingLimitUrl(connection.igUserId, token, version, since),
       );
       const body = await res.text().catch(() => "");
       if (!res.ok) {

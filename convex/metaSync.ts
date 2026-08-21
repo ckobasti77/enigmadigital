@@ -26,7 +26,6 @@ import {
   classifyMissingObject,
   extractAccountInsights,
   extractGraphApiError,
-  extractMediaInsights,
   getMetaGraphVersion,
   getMetricsForMediaType,
   isMissingObjectError,
@@ -36,7 +35,16 @@ import {
   type RawMediaFieldsResponse,
   type RawMediaListResponse,
   type RawUserProfile,
+  type ExtractedMediaInsights,
 } from "./lib/instagramApi";
+import type { MetricState } from "./lib/igMetrics";
+import {
+  resolveMediaProductGroup,
+  MEDIA_BREAKDOWN_CONFIGS,
+  parseMediaInsightsResponse,
+  parseMediaBreakdownResponse,
+  type ParsedMediaBreakdownRow,
+} from "./lib/igMediaMetrics";
 import { COMMENTS_PER_MEDIA, normalizeComments } from "./lib/igComments";
 import {
   buildPageInsightsUrl,
@@ -269,7 +277,13 @@ async function refreshIgMedia(
   const node = (await nodeRes.json()) as RawMediaFieldsResponse;
   if (!node.id) return 0;
 
-  let insight = { reach: 0, saves: 0, shares: 0, views: 0 };
+  let insight: ExtractedMediaInsights = { reach: 0, saves: 0, shares: 0, views: 0 };
+  const breakdownRows: ParsedMediaBreakdownRow[] = [];
+  const group = resolveMediaProductGroup(
+    node.media_type ?? "",
+    node.media_product_type,
+  );
+
   try {
     const metrics = getMetricsForMediaType(
       node.media_type ?? "",
@@ -278,16 +292,72 @@ async function refreshIgMedia(
     const res = await tracker.fetch(
       buildMediaInsightsUrl(mediaId, metrics, token, version),
     );
-    if (res.ok) {
-      const json = (await res.json()) as RawInsightsResponse;
-      insight = extractMediaInsights(
-        json.data,
-        node.media_type,
-        node.media_product_type,
-      );
+    const resBody = await res.json().catch(() => null);
+    const parsedMap = parseMediaInsightsResponse({
+      response: resBody,
+      requestedMetrics: metrics,
+      isError: !res.ok,
+      statusCode: res.status,
+    });
+
+    const metricStates: Record<string, { state: MetricState; reason?: string }> = {};
+    for (const [mName, mResVal] of Object.entries(parsedMap)) {
+      metricStates[mName] = {
+        state: mResVal.state,
+        ...(mResVal.reason !== undefined ? { reason: mResVal.reason } : {}),
+      };
     }
+
+    insight = {
+      reach: parsedMap.reach?.value ?? 0,
+      saves: parsedMap.saved?.value ?? 0,
+      shares: parsedMap.shares?.value ?? 0,
+      views: parsedMap.views?.value ?? 0,
+      likes: parsedMap.likes?.value,
+      comments: parsedMap.comments?.value,
+      reposts: parsedMap.reposts?.value,
+      profileVisits: parsedMap.profile_visits?.value,
+      follows: parsedMap.follows?.value,
+      replies: parsedMap.replies?.value,
+      totalInteractions: parsedMap.total_interactions?.value,
+      reelsAvgWatchTimeMs: parsedMap.ig_reels_avg_watch_time?.value,
+      reelsVideoViewTotalTimeMs: parsedMap.ig_reels_video_view_total_time?.value,
+      reelsSkipRate: parsedMap.reels_skip_rate?.value,
+      crosspostedViews: parsedMap.crossposted_views?.value,
+      facebookViews: parsedMap.facebook_views?.value,
+      metricStates,
+    };
   } catch {
     // Insights are the one part Meta computes late anyway; the rest still lands.
+  }
+
+  // Fetch breakdowns if configured
+  const breakdownConfigs = MEDIA_BREAKDOWN_CONFIGS[group];
+  for (const bConfig of breakdownConfigs) {
+    if (tracker.throttled) break;
+    try {
+      const bUrl = buildMediaInsightsUrl(
+        mediaId,
+        [bConfig.metric],
+        token,
+        version,
+        bConfig.breakdown,
+      );
+      const bRes = await tracker.fetch(bUrl);
+      const bBody = await bRes.json().catch(() => null);
+      const parsedBreakdowns = parseMediaBreakdownResponse({
+        mediaId,
+        metric: bConfig.metric,
+        dimensionKey: bConfig.breakdown,
+        response: bBody,
+        isError: !bRes.ok,
+        statusCode: bRes.status,
+        syncedAt: now,
+      });
+      breakdownRows.push(...parsedBreakdowns);
+    } catch {
+      // Tolerate failure
+    }
   }
 
   const row = toStoredMediaRow(
@@ -300,6 +370,13 @@ async function refreshIgMedia(
     internal.instagramStore.upsertMediaBatch,
     { workspaceId, rows: [row] },
   );
+
+  if (breakdownRows.length > 0) {
+    await ctx.runMutation(
+      internal.instagramStore.upsertMediaBreakdownsBatch,
+      { workspaceId, rows: breakdownRows },
+    );
+  }
 
   try {
     const res = await tracker.fetch(
@@ -763,13 +840,18 @@ async function hourlyInstagram(
       accountOk = false;
     }
 
-    let insights = { reach: 0, profileViews: 0, accountsEngaged: 0 };
+    let insights = { reach: 0, totalInteractions: 0, accountsEngaged: 0 };
     const insightsRes = await tracker.fetch(
       buildMeInsightsUrl(loaded.token, version),
     );
     if (insightsRes.ok) {
       const json = (await insightsRes.json()) as RawInsightsResponse;
-      insights = extractAccountInsights(json.data);
+      const extracted = extractAccountInsights(json.data);
+      insights = {
+        reach: extracted.reach,
+        totalInteractions: extracted.totalInteractions,
+        accountsEngaged: extracted.accountsEngaged,
+      };
     }
 
     if (accountOk) {
@@ -779,7 +861,7 @@ async function hourlyInstagram(
           date: new Date(Date.now()).toISOString().slice(0, 10),
           followersCount,
           reach: insights.reach,
-          profileViews: insights.profileViews,
+          totalInteractions: insights.totalInteractions,
           accountsEngaged: insights.accountsEngaged,
         },
       });
@@ -1214,6 +1296,12 @@ export const igDeletionCheck = internalAction({
                   },
                 );
               }
+
+              // G4 dopuna: čišćenje arhiviranih priča starijih od 13 meseci
+              await ctx.runMutation(
+                internal.instagramStore.sweepOldArchivedStories,
+                { workspaceId, now },
+              );
             }
           }
         } catch (err) {

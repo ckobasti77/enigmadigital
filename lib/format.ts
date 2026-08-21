@@ -138,6 +138,19 @@ export function formatLongDate(key: string): string {
   return longDateFmt.format(keyToLocalDate(key));
 }
 
+const dateTimeFmt = new Intl.DateTimeFormat(LOCALE, {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** Timestamp in ms → "15.08.2026. 14:35" */
+export function formatDateTime(timestamp: number): string {
+  return dateTimeFmt.format(new Date(timestamp));
+}
+
 /** "2026-08-01" … "2026-08-15" → "01.08 – 15.08." */
 export function formatDateSpan(from: string, to: string): string {
   return `${dayMonthFmt.format(keyToLocalDate(from))} – ${dayMonthFmt.format(keyToLocalDate(to))}`;
@@ -153,6 +166,25 @@ export function formatWatchTime(minutes: number): string {
   return hours < 100
     ? `${decimalFmt.format(hours)} h`
     : `${integerFmt.format(Math.round(hours))} h`;
+}
+
+/**
+ * Format milliseconds into human readable Serbian duration, e.g. "1m 24s", "45s", "2h 15m 10s".
+ */
+export function formatDurationMs(ms: number): string {
+  if (!ms || ms <= 0) return "0s";
+  const totalSeconds = Math.round(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+  return `${seconds}s`;
 }
 
 /** Whole number with an explicit sign — "+1.234" / "−12" / "0". */

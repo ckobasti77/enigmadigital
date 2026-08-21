@@ -67,6 +67,31 @@ crons.cron(
   internal.instagram.refreshAllTokens,
   {},
 );
+// Daily cron (G1): sync all 12 Instagram day metrics & breakdowns (05:45 UTC).
+// Non-conflicting minute and hour slot separated from other Meta jobs.
+crons.cron(
+  "sync daily instagram metrics",
+  "45 5 * * *",
+  internal.instagram.syncAllIgMetrics,
+  {},
+);
+// Daily cron (G2): sync Instagram audience demographics (04:55 UTC).
+// Non-conflicting minute and hour slot separated from other Meta jobs.
+crons.cron(
+  "sync instagram demographics",
+  "55 4 * * *",
+  internal.instagram.syncAllIgDemographics,
+  {},
+);
+// 30-minute cron (G4): poll active Instagram stories and their navigation funnels.
+// Offset at minutes :13 and :43 to avoid collision with :20 (hourly refresh),
+// :05 (6h sync), :35 (FB sync), :10/:40 (token refresh), :45/:55 (daily metrics/demographics).
+crons.cron(
+  "poll instagram stories",
+  everyNMinutes(30, 13),
+  internal.instagram.pollAllIgStories,
+  {},
+);
 // The Facebook Page (F5). Same cadence as Instagram for the same two reasons:
 // a Page restates its recent insights for a few days, and a Page token has to
 // be re-minted from the stored user token before that user token ages out.

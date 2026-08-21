@@ -11,34 +11,53 @@ import {
 } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
-import { CalendarClock, Gauge, Info, Send, Zap } from "lucide-react";
+import {
+  CalendarClock,
+  ChevronDown,
+  Crosshair,
+  Gauge,
+  Info,
+  Plus,
+  Send,
+  X,
+  Zap,
+} from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
+  ALT_TEXT_MAX,
   CAPTION_MAX,
   HASHTAG_MAX,
   IRREVERSIBLE_NOTICE,
   KIND_LABELS,
+  MENTION_MAX,
   NO_DELETE_NOTICE,
   NO_LIKE_NOTICE,
   PUBLISHED_UNCONFIRMED_LABEL,
   PUBLISH_KINDS,
   SCOPE_NOTICE_BODY,
   SCOPE_NOTICE_TITLE,
+  USER_TAGS_MAX,
   acceptsCaption,
   acceptsShareToFeed,
+  checkAltText,
+  checkAudioName,
   checkCaption,
   checkFile,
   checkImageAspect,
   checkItemCount,
   checkScheduledFor,
+  checkTrialGraduationStrategy,
+  checkUserTags,
   countHashtags,
+  countMentions,
   formatBytes,
   itemRange,
   pluralFiles,
   storyAspectNote,
   checkVideoDuration,
   type PublishKind,
+  type UserTagInput,
 } from "@/convex/lib/igPublish";
 import {
   pickedKindOf,
@@ -56,6 +75,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -149,6 +169,24 @@ export function PublishComposer() {
   const [scheduleOn, setScheduleOn] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
+
+  // G7 fields
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [userTags, setUserTags] = useState<UserTagInput[]>([]);
+  const [newTagHandle, setNewTagHandle] = useState("");
+  const [isPlacingTag, setIsPlacingTag] = useState(false);
+  const [pendingCoords, setPendingCoords] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const [locationId, setLocationId] = useState("");
+  const [altText, setAltText] = useState("");
+  const [audioName, setAudioName] = useState("");
+  const [trialEnabled, setTrialEnabled] = useState(false);
+  const [trialGraduationStrategy, setTrialGraduationStrategy] = useState<
+    "MANUAL" | "SS_PERFORMANCE"
+  >("MANUAL");
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [sentBytes, setSentBytes] = useState(0);
@@ -244,6 +282,28 @@ export function PublishComposer() {
   const countProblem = checkItemCount(kind, items.length);
   const captionProblem = checkCaption({ kind, caption });
   const hashtags = countHashtags(caption);
+  const mentions = countMentions(caption);
+
+  const altTextProblem = useMemo(
+    () => checkAltText({ kind, altText: altText.trim() }),
+    [kind, altText],
+  );
+  const userTagsProblem = useMemo(
+    () => checkUserTags({ kind, userTags }),
+    [kind, userTags],
+  );
+  const audioNameProblem = useMemo(
+    () => checkAudioName({ kind, audioName: audioName.trim() }),
+    [kind, audioName],
+  );
+  const trialProblem = useMemo(
+    () =>
+      checkTrialGraduationStrategy({
+        kind,
+        strategy: trialEnabled ? trialGraduationStrategy : undefined,
+      }),
+    [kind, trialEnabled, trialGraduationStrategy],
+  );
 
   const scheduledFor = useMemo(() => {
     if (!scheduleOn) return null;
@@ -276,6 +336,10 @@ export function PublishComposer() {
     countProblem === null &&
     captionProblem === null &&
     scheduleProblem === null &&
+    altTextProblem === null &&
+    userTagsProblem === null &&
+    audioNameProblem === null &&
+    trialProblem === null &&
     itemProblems.every((problem) => problem === null);
 
   // ── picking files ──────────────────────────────────────────────────────────
@@ -368,6 +432,54 @@ export function PublishComposer() {
     });
   }, []);
 
+  const handleImageClickForTag = useCallback(
+    (coords: { x: number; y: number }) => {
+      setPendingCoords(coords);
+      setIsPlacingTag(false);
+    },
+    [],
+  );
+
+  const addTag = useCallback(() => {
+    const clean = newTagHandle.trim().replace(/^@/, "");
+    if (!clean) return;
+    if (
+      userTags.some(
+        (t) => t.username.toLowerCase() === clean.toLowerCase(),
+      )
+    ) {
+      return;
+    }
+    if (userTags.length >= USER_TAGS_MAX) return;
+
+    const tag: UserTagInput = {
+      username: clean,
+      ...(kind === "IMAGE" && pendingCoords
+        ? pendingCoords
+        : kind === "IMAGE"
+          ? { x: 0.5, y: 0.5 }
+          : {}),
+    };
+    setUserTags((prev) => [...prev, tag]);
+    setNewTagHandle("");
+    setPendingCoords(null);
+    setIsPlacingTag(false);
+  }, [newTagHandle, userTags, kind, pendingCoords]);
+
+  const removeTag = useCallback((index: number) => {
+    setUserTags((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const extraCount = useMemo(() => {
+    let count = 0;
+    if (userTags.length > 0) count++;
+    if (locationId.trim().length > 0) count++;
+    if (kind === "IMAGE" && altText.trim().length > 0) count++;
+    if (kind === "REEL" && audioName.trim().length > 0) count++;
+    if (kind === "REEL" && trialEnabled) count++;
+    return count;
+  }, [userTags, locationId, kind, altText, audioName, trialEnabled]);
+
   const resetForm = useCallback(
     (sent: PickedItem[]) => {
       for (const row of sent) releaseUrl(row.previewUrl);
@@ -375,6 +487,15 @@ export function PublishComposer() {
       setCaption("");
       setScheduleOn(false);
       setDropNotice(null);
+      setUserTags([]);
+      setNewTagHandle("");
+      setPendingCoords(null);
+      setIsPlacingTag(false);
+      setLocationId("");
+      setAltText("");
+      setAudioName("");
+      setTrialEnabled(false);
+      setTrialGraduationStrategy("MANUAL");
     },
     [releaseUrl],
   );
@@ -420,6 +541,19 @@ export function PublishComposer() {
           : {}),
         ...(acceptsShareToFeed(kind) ? { shareToFeed } : {}),
         storageIds,
+        ...(userTags.length > 0 ? { userTags } : {}),
+        ...(locationId.trim().length > 0
+          ? { locationId: locationId.trim() }
+          : {}),
+        ...(kind === "IMAGE" && altText.trim().length > 0
+          ? { altText: altText.trim() }
+          : {}),
+        ...(kind === "REEL" && audioName.trim().length > 0
+          ? { audioName: audioName.trim() }
+          : {}),
+        ...(kind === "REEL" && trialEnabled
+          ? { trialGraduationStrategy }
+          : {}),
         ...(scheduledFor !== null ? { scheduledFor } : {}),
       });
 
@@ -549,6 +683,18 @@ export function PublishComposer() {
                     error={captionProblem}
                     action={
                       <span className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "font-mono text-micro tabular-nums",
+                            mentions > MENTION_MAX
+                              ? "text-danger"
+                              : mentions >= MENTION_MAX - 3
+                                ? "text-warning"
+                                : "text-text-muted",
+                          )}
+                        >
+                          {mentions}/{MENTION_MAX} @
+                        </span>
                         <span
                           className={cn(
                             "font-mono text-micro tabular-nums",
@@ -699,6 +845,292 @@ export function PublishComposer() {
                 )}
               </FormGroup>
 
+              {/* Sklopivi odeljak „Dodatno“ (G7) */}
+              <div className="rounded-xl border border-line-soft bg-surface/30 p-4 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setAdvancedOpen((prev) => !prev)}
+                  className="flex w-full items-center justify-between text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-foreground">
+                      Dodatno
+                    </span>
+                    {extraCount > 0 && (
+                      <span className="rounded-full bg-accent-400/10 px-2 py-0.5 font-mono text-micro text-accent-400">
+                        {extraCount}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-text-muted">
+                    <span>{advancedOpen ? "Sakrij" : "Prikaži"}</span>
+                    <ChevronDown
+                      className={cn(
+                        "size-4 transition-transform duration-200",
+                        advancedOpen && "rotate-180",
+                      )}
+                    />
+                  </div>
+                </button>
+
+                {advancedOpen && (
+                  <div className="mt-4 space-y-5 border-t border-line-soft pt-4">
+                    {/* 1. Označavanje naloga */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium text-foreground">
+                        Označavanje naloga (@user_tags)
+                      </Label>
+                      <p className="text-xs text-text-muted">
+                        {kind === "IMAGE"
+                          ? "Označi javne naloge na slici. Klikni na sliku u pregledu za tačnu poziciju ili dodaj nalog na centar."
+                          : kind === "REEL"
+                            ? "Označi javne naloge na Reel-u. Instagram za video i Reels ne podržava koordinate, već samo korisničko ime."
+                            : "Označi javne naloge na objavi."}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="relative min-w-[200px] flex-1">
+                          <Input
+                            type="text"
+                            placeholder="Korisničko ime (npr. @profil)"
+                            value={newTagHandle}
+                            disabled={busy}
+                            onChange={(e) => setNewTagHandle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                addTag();
+                              }
+                            }}
+                            className="text-xs"
+                          />
+                        </div>
+
+                        {kind === "IMAGE" &&
+                          items.length > 0 &&
+                          items[0]?.kind === "image" && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => setIsPlacingTag((prev) => !prev)}
+                              className={cn(
+                                "text-xs",
+                                (isPlacingTag || pendingCoords) &&
+                                  "border-accent-400 text-accent-400",
+                              )}
+                            >
+                              <Crosshair className="size-3.5" />
+                              {pendingCoords
+                                ? `Pozicija (${Math.round(pendingCoords.x * 100)}%, ${Math.round(pendingCoords.y * 100)}%)`
+                                : isPlacingTag
+                                  ? "Klikni na pregled…"
+                                  : "Izaberi poziciju"}
+                            </Button>
+                          )}
+
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={busy || !newTagHandle.trim()}
+                          onClick={addTag}
+                          className="text-xs"
+                        >
+                          <Plus className="size-3.5" />
+                          Dodaj oznaku
+                        </Button>
+                      </div>
+
+                      {userTagsProblem && (
+                        <p className="text-xs text-danger">{userTagsProblem}</p>
+                      )}
+
+                      {userTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {userTags.map((tag, idx) => (
+                            <span
+                              key={`${tag.username}-${idx}`}
+                              className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-raised px-2 py-1 text-xs text-foreground"
+                            >
+                              <span>@{tag.username}</span>
+                              {typeof tag.x === "number" &&
+                                typeof tag.y === "number" && (
+                                  <span className="font-mono text-micro text-text-muted">
+                                    ({Math.round(tag.x * 100)}%,{" "}
+                                    {Math.round(tag.y * 100)}%)
+                                  </span>
+                                )}
+                              <button
+                                type="button"
+                                onClick={() => removeTag(idx)}
+                                className="text-text-muted hover:text-danger"
+                                aria-label={`Ukloni oznaku @${tag.username}`}
+                              >
+                                <X className="size-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 2. Lokacija */}
+                    <div className="space-y-1.5">
+                      <Label
+                        htmlFor="ig-location-id"
+                        className="text-xs font-medium text-foreground"
+                      >
+                        Lokacija (Facebook Page ID)
+                      </Label>
+                      <Input
+                        id="ig-location-id"
+                        type="text"
+                        placeholder="npr. 104523948572134"
+                        value={locationId}
+                        disabled={busy}
+                        onChange={(e) => setLocationId(e.target.value)}
+                        className="font-mono text-xs"
+                      />
+                      <p className="text-xs leading-relaxed text-text-muted">
+                        Instagram traži <strong>ID Facebook stranice</strong>{" "}
+                        fizičke lokacije (mesta, lokala ili biznisa), a ne
+                        slobodan tekst. ID možete pronaći u URL adresi stranice ili
+                        u odeljku „O stranici“ (Page ID).
+                      </p>
+                    </div>
+
+                    {/* 3. Alt tekst — SAMO ZA SLIKE */}
+                    {kind === "IMAGE" && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <Label
+                            htmlFor="ig-alt-text"
+                            className="text-xs font-medium text-foreground"
+                          >
+                            Alt tekst (za pristupačnost)
+                          </Label>
+                          <CharCount
+                            value={altText.length}
+                            max={ALT_TEXT_MAX}
+                          />
+                        </div>
+                        <Textarea
+                          id="ig-alt-text"
+                          rows={2}
+                          placeholder="Opis slike za osobe sa oštećenjem vida i pretraživače…"
+                          value={altText}
+                          disabled={busy}
+                          onChange={(e) => setAltText(e.target.value)}
+                          className="min-h-16 text-xs"
+                        />
+                        {altTextProblem && (
+                          <p className="text-xs text-danger">
+                            {altTextProblem}
+                          </p>
+                        )}
+                        <p className="text-xs text-text-muted">
+                          Alt tekst se dodaje samo na slike. Pomaže
+                          pristupačnosti i rangiranju sadržaja (do 1000 znakova).
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 4. Ime audio numere — SAMO ZA REELS */}
+                    {kind === "REEL" && (
+                      <div className="space-y-1.5">
+                        <Label
+                          htmlFor="ig-audio-name"
+                          className="text-xs font-medium text-foreground"
+                        >
+                          Ime audio numere
+                        </Label>
+                        <Input
+                          id="ig-audio-name"
+                          type="text"
+                          placeholder="npr. Originalni zvuk — Naziv brenda"
+                          value={audioName}
+                          disabled={busy}
+                          onChange={(e) => setAudioName(e.target.value)}
+                          className="text-xs"
+                        />
+                        <p className="text-xs text-text-muted">
+                          Imenuje audio zapis vašeg Reel-a u Instagram audio
+                          biblioteci.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 5. Probni Reels — SAMO ZA REELS */}
+                    {kind === "REEL" && (
+                      <div className="space-y-3 rounded-lg border border-line-soft bg-surface-raised/40 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">
+                              Probni Reel (Trial Reel)
+                            </p>
+                            <p className="text-xs leading-relaxed text-text-muted">
+                              Probni Reel se prvo prikazuje samo publici koja vas
+                              ne prati kako bi se testirao algoritam pre
+                              objavljivanja vašim pratiocima.
+                            </p>
+                          </div>
+                          <Switch
+                            checked={trialEnabled}
+                            onCheckedChange={setTrialEnabled}
+                            disabled={busy}
+                          />
+                        </div>
+
+                        {trialEnabled && (
+                          <div className="space-y-1.5 border-t border-line-soft pt-2">
+                            <Label className="text-xs text-text-muted">
+                              Strategija diplomiranja (Graduation Strategy)
+                            </Label>
+                            <ToggleGroup
+                              value={[trialGraduationStrategy]}
+                              onValueChange={(val) => {
+                                const next = val[0] as
+                                  | "MANUAL"
+                                  | "SS_PERFORMANCE"
+                                  | undefined;
+                                if (next) setTrialGraduationStrategy(next);
+                              }}
+                              spacing={0}
+                              aria-label="Strategija probnog Reel-a"
+                              className="w-full justify-start rounded-lg border border-line bg-card p-0.5"
+                            >
+                              <ToggleGroupItem
+                                value="MANUAL"
+                                size="sm"
+                                disabled={busy}
+                                className="flex-1 rounded-md! px-3 text-xs text-text-secondary aria-pressed:text-accent-400 data-pressed:text-accent-400"
+                              >
+                                Ručno (MANUAL)
+                              </ToggleGroupItem>
+                              <ToggleGroupItem
+                                value="SS_PERFORMANCE"
+                                size="sm"
+                                disabled={busy}
+                                className="flex-1 rounded-md! px-3 text-xs text-text-secondary aria-pressed:text-accent-400 data-pressed:text-accent-400"
+                              >
+                                Po uspehu (SS_PERFORMANCE)
+                              </ToggleGroupItem>
+                            </ToggleGroup>
+                            <p className="text-micro text-text-muted">
+                              {trialGraduationStrategy === "MANUAL"
+                                ? "Reel ostaje u probnom režimu dok ga ručno ne podelite sa pratiocima."
+                                : "Instagram će automatski objaviti Reel svim pratiocima ako postigne dobar angažman među nepraćenom publikom."}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {busy && (
                 <UploadProgress
                   phase={phase}
@@ -751,6 +1183,13 @@ export function PublishComposer() {
               items={items}
               caption={caption}
               scheduledFor={scheduledFor}
+              userTags={userTags}
+              locationId={locationId.trim() || undefined}
+              audioName={
+                kind === "REEL" ? audioName.trim() || undefined : undefined
+              }
+              isPlacingTag={isPlacingTag}
+              onImageClick={handleImageClickForTag}
             />
           </div>
         </div>
@@ -779,6 +1218,14 @@ export function PublishComposer() {
               <span className="mt-1.5 size-1 shrink-0 rounded-full bg-text-muted" />
               <span>{NO_DELETE_NOTICE}</span>
             </li>
+            <li className="flex gap-2">
+              <span className="mt-1.5 size-1 shrink-0 rounded-full bg-text-muted" />
+              <span>
+                Označavanje proizvoda, saradnici na objavi (collaborators) i
+                plaćena partnerstva nisu podržani preko Instagram Login-a
+                (zahtevaju Facebook Login).
+              </span>
+            </li>
           </ul>
         </Card>
       </Reveal>
@@ -795,6 +1242,16 @@ export function PublishComposer() {
             hashtags={hashtags}
             shareToFeed={shareToFeed}
             scheduledFor={scheduledFor}
+            userTags={userTags}
+            locationId={locationId.trim() || undefined}
+            altText={
+              kind === "IMAGE" ? altText.trim() || undefined : undefined
+            }
+            audioName={
+              kind === "REEL" ? audioName.trim() || undefined : undefined
+            }
+            trialEnabled={kind === "REEL" && trialEnabled}
+            trialGraduationStrategy={trialGraduationStrategy}
           />
         }
         confirmLabel={scheduleOn ? "Zakaži" : "Objavi"}
@@ -815,6 +1272,12 @@ function PublishSummary({
   hashtags,
   shareToFeed,
   scheduledFor,
+  userTags,
+  locationId,
+  altText,
+  audioName,
+  trialEnabled,
+  trialGraduationStrategy,
 }: {
   kind: PublishKind;
   items: PickedItem[];
@@ -822,6 +1285,12 @@ function PublishSummary({
   hashtags: number;
   shareToFeed: boolean;
   scheduledFor: number | null;
+  userTags?: UserTagInput[];
+  locationId?: string;
+  altText?: string;
+  audioName?: string;
+  trialEnabled?: boolean;
+  trialGraduationStrategy?: "MANUAL" | "SS_PERFORMANCE";
 }) {
   const trimmed = caption.trim();
   const totalBytes = items.reduce((sum, item) => sum + item.file.size, 0);
@@ -860,6 +1329,46 @@ function PublishSummary({
           {shareToFeed
             ? "Pojavljuje se i na profilnom feed-u."
             : "Ostaje samo u Reels tabu."}
+        </span>
+      )}
+
+      {userTags && userTags.length > 0 && (
+        <span className="block text-xs text-text-muted">
+          Označeni nalozi:{" "}
+          <span className="font-medium text-foreground">
+            {userTags.map((t) => `@${t.username}`).join(", ")}
+          </span>
+        </span>
+      )}
+
+      {locationId && (
+        <span className="block font-mono text-xs text-text-muted">
+          📍 ID lokacije: {locationId}
+        </span>
+      )}
+
+      {altText && (
+        <span className="block text-xs text-text-muted">
+          Alt tekst:{" "}
+          <span className="italic text-foreground/90">
+            {altText.length > 80 ? `${altText.slice(0, 80)}…` : altText}
+          </span>
+        </span>
+      )}
+
+      {audioName && (
+        <span className="block text-xs text-text-muted">
+          Zvuk: <span className="text-foreground">{audioName}</span>
+        </span>
+      )}
+
+      {trialEnabled && (
+        <span className="block text-xs text-accent-400">
+          Probni Reel (
+          {trialGraduationStrategy === "MANUAL"
+            ? "ručno diplomiranje"
+            : "automatski po uspehu"}
+          )
         </span>
       )}
 

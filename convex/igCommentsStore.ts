@@ -879,6 +879,7 @@ export const filterCounts = query({
     unanswered: v.number(),
     hidden: v.number(),
     deleted: v.number(),
+    mentions: v.number(),
     cap: v.number(),
   }),
   handler: async (ctx) => {
@@ -906,6 +907,14 @@ export const filterCounts = query({
         counts.deleted++;
       }
     }
-    return { ...counts, cap: MAX_THREADS };
+
+    const mentionsWindow = await ctx.db
+      .query("igMentions")
+      .withIndex("by_workspace_timestamp", (q) =>
+        q.eq("workspaceId", workspaceId),
+      )
+      .take(MAX_THREADS);
+
+    return { ...counts, mentions: mentionsWindow.length, cap: MAX_THREADS };
   },
 });

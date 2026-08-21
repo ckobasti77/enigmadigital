@@ -1,13 +1,15 @@
 import {
+  action,
   internalQuery,
   internalMutation,
   internalAction,
 } from "./_generated/server";
 import type { ActionCtx, QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
-import { internal } from "./_generated/api";
-import { v } from "convex/values";
+import { api, internal } from "./_generated/api";
+import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { requireMembership } from "./lib/auth";
 import { decryptCredentials } from "./lib/crypto";
 import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
 import {
@@ -33,6 +35,7 @@ import {
   composeDmMessage,
   isWithinMessagingWindow,
   isWithinPrivateReplyWindow,
+  isWithinUtf8ByteLimit,
   MESSAGING_WINDOW_EXPIRED_MESSAGE,
   PRIVATE_REPLY_WINDOW_EXPIRED_MESSAGE,
 } from "./lib/orMessage";
@@ -1116,3 +1119,391 @@ export const queueFollowUp = internalMutation({
     return null;
   },
 });
+
+// ── Human Inbox Sending Layer (G6) ───────────────────────────────────────────
+
+/**
+ * Load context for sending a direct inbox message or action from the operator.
+ */
+export const loadInboxSendContext = internalQuery({
+  args: {
+    platform: orPlatformValidator,
+    igsid: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      workspaceId: v.id("workspaces"),
+      accountId: v.string(),
+      encryptedCredentials: v.string(),
+      lastUserMessageAt: v.union(v.number(), v.null()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const { workspaceId } = await requireMembership(ctx);
+    const platform = resolvePlatform(args.platform);
+
+    const conn = await ctx.db
+      .query("connections")
+      .withIndex("by_workspace_provider", (q) =>
+        q
+          .eq("workspaceId", workspaceId)
+          .eq("provider", platformProvider(platform)),
+      )
+      .first();
+
+    if (
+      conn === null ||
+      conn.status === "disconnecting" ||
+      conn.externalId === undefined ||
+      conn.externalId.length === 0
+    ) {
+      return null;
+    }
+
+    const conv = await findConversation(ctx, workspaceId, platform, args.igsid);
+
+    return {
+      workspaceId,
+      accountId: conn.externalId,
+      encryptedCredentials: conn.encryptedCredentials,
+      lastUserMessageAt: conv?.lastUserMessageAt ?? null,
+    };
+  },
+});
+
+/**
+ * Send a direct message to a user from the Inbox UI.
+ * Strictly checks the 24-hour messaging window and UTF-8 byte limits!
+ */
+export const sendInboxMessage = action({
+  args: {
+    platform: v.optional(orPlatformValidator),
+    igsid: v.string(),
+    text: v.optional(v.string()),
+    attachment: v.optional(
+      v.object({
+        type: v.union(
+          v.literal("image"),
+          v.literal("video"),
+          v.literal("audio"),
+          v.literal("file"),
+          v.literal("like_heart"),
+        ),
+        url: v.optional(v.string()),
+      }),
+    ),
+    quickReplies: v.optional(
+      v.array(
+        v.object({
+          label: v.string(),
+          payload: v.optional(v.string()),
+        }),
+      ),
+    ),
+  },
+  returns: v.object({
+    mid: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const platform = resolvePlatform(args.platform);
+    const context = await ctx.runQuery(internal.orSend.loadInboxSendContext, {
+      platform,
+      igsid: args.igsid,
+    });
+
+    if (context === null) {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Instagram nalog nije povezan ili je u procesu odjavljivanja.",
+      });
+    }
+
+    // 1. Check 24-hour messaging window from lastUserMessageAt!
+    if (
+      !isWithinMessagingWindow(
+        context.lastUserMessageAt,
+        Date.now(),
+        platform,
+      )
+    ) {
+      throw new ConvexError({
+        code: "window_expired",
+        message:
+          "Prozor za odgovor je istekao. Instagram dozvoljava odgovor 24 sata od poslednje poruke korisnika.",
+      });
+    }
+
+    // 2. Validate text bytes (1000 bytes limit)
+    const text = args.text?.trim();
+    if (text && !isWithinUtf8ByteLimit(text, 1000)) {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Tekst poruke prelazi maksimalnih 1000 bajtova.",
+      });
+    }
+
+    if (!text && !args.attachment) {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Unesi tekst poruke ili izaberi prilog.",
+      });
+    }
+
+    // 3. Decrypt token
+    let token: string;
+    try {
+      token = await decryptCredentials(context.encryptedCredentials);
+    } catch {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Neuspela dekripcija Instagram tokena.",
+      });
+    }
+
+    const version = getMetaGraphVersion();
+    const sendUrl =
+      platform === "facebook"
+        ? buildPageMessagesUrl(context.accountId, version)
+        : buildSendMessageUrl(context.accountId, version);
+
+    const message = buildOutgoingMessage({
+      text,
+      attachment: args.attachment,
+      quickReplies: args.quickReplies,
+    });
+
+    const tracker = createUsageTracker();
+    let res: Response;
+    try {
+      res = await tracker.fetch(sendUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recipient: { id: args.igsid },
+          message,
+        }),
+      });
+    } catch (err) {
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      throw new ConvexError({
+        code: "invalid",
+        message: extractGraphApiError(rawMsg).slice(0, 300),
+      });
+    } finally {
+      await tracker.flush(ctx, context.workspaceId);
+    }
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new ConvexError({
+        code: "invalid",
+        message: extractGraphApiError(errText).slice(0, 300),
+      });
+    }
+
+    const body = (await res.json().catch(() => ({}))) as {
+      message_id?: string;
+      recipient_id?: string;
+    };
+    const mid = body.message_id || `mid_${Date.now()}`;
+
+    // Record in database
+    await ctx.runMutation(internal.instagramInboxStore.recordOutgoingMessage, {
+      workspaceId: context.workspaceId,
+      platform,
+      igsid: args.igsid,
+      mid,
+      text,
+      attachments: args.attachment
+        ? [{ type: args.attachment.type, url: args.attachment.url }]
+        : undefined,
+      sentAt: Date.now(),
+    });
+
+    return { mid };
+  },
+});
+
+/**
+ * Send sender action (typing_on, typing_off, mark_seen) to a conversation.
+ * Must be a standalone API call without message payload.
+ */
+export const sendSenderAction = action({
+  args: {
+    platform: v.optional(orPlatformValidator),
+    igsid: v.string(),
+    senderAction: v.union(
+      v.literal("typing_on"),
+      v.literal("typing_off"),
+      v.literal("mark_seen"),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const platform = resolvePlatform(args.platform);
+    const context = await ctx.runQuery(internal.orSend.loadInboxSendContext, {
+      platform,
+      igsid: args.igsid,
+    });
+
+    if (context === null) {
+      return null;
+    }
+
+    let token: string;
+    try {
+      token = await decryptCredentials(context.encryptedCredentials);
+    } catch {
+      return null;
+    }
+
+    const version = getMetaGraphVersion();
+    const sendUrl =
+      platform === "facebook"
+        ? buildPageMessagesUrl(context.accountId, version)
+        : buildSendMessageUrl(context.accountId, version);
+
+    const tracker = createUsageTracker();
+    try {
+      await tracker.fetch(sendUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recipient: { id: args.igsid },
+          sender_action: args.senderAction,
+        }),
+      });
+    } catch {
+      // Best effort for typing / seen indicators
+    } finally {
+      await tracker.flush(ctx, context.workspaceId);
+    }
+
+    if (args.senderAction === "mark_seen") {
+      await ctx.runMutation(api.instagramInboxStore.markSeen, {
+        igsid: args.igsid,
+        platform,
+      });
+    }
+
+    return null;
+  },
+});
+
+/**
+ * Send a message reaction (react / unreact) to a specific message ID.
+ */
+export const sendMessageReaction = action({
+  args: {
+    platform: v.optional(orPlatformValidator),
+    igsid: v.string(),
+    mid: v.string(),
+    emoji: v.optional(v.string()),
+    action: v.union(v.literal("react"), v.literal("unreact")),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const platform = resolvePlatform(args.platform);
+    const context = await ctx.runQuery(internal.orSend.loadInboxSendContext, {
+      platform,
+      igsid: args.igsid,
+    });
+
+    if (context === null) {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Instagram nalog nije povezan.",
+      });
+    }
+
+    if (
+      !isWithinMessagingWindow(
+        context.lastUserMessageAt,
+        Date.now(),
+        platform,
+      )
+    ) {
+      throw new ConvexError({
+        code: "window_expired",
+        message:
+          "Prozor za odgovor je istekao. Instagram dozvoljava odgovor 24 sata od poslednje poruke korisnika.",
+      });
+    }
+
+    let token: string;
+    try {
+      token = await decryptCredentials(context.encryptedCredentials);
+    } catch {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Neuspela dekripcija Instagram tokena.",
+      });
+    }
+
+    const version = getMetaGraphVersion();
+    const sendUrl =
+      platform === "facebook"
+        ? buildPageMessagesUrl(context.accountId, version)
+        : buildSendMessageUrl(context.accountId, version);
+
+    const payload: Record<string, unknown> = {
+      message_id: args.mid,
+      ...(args.action === "react" && args.emoji
+        ? { reaction: args.emoji }
+        : {}),
+    };
+
+    const tracker = createUsageTracker();
+    let res: Response;
+    try {
+      res = await tracker.fetch(sendUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recipient: { id: args.igsid },
+          sender_action: args.action,
+          payload,
+        }),
+      });
+    } catch (err) {
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      throw new ConvexError({
+        code: "invalid",
+        message: extractGraphApiError(rawMsg).slice(0, 300),
+      });
+    } finally {
+      await tracker.flush(ctx, context.workspaceId);
+    }
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new ConvexError({
+        code: "invalid",
+        message: extractGraphApiError(errText).slice(0, 300),
+      });
+    }
+
+    await ctx.runMutation(internal.instagramInboxStore.recordReaction, {
+      workspaceId: context.workspaceId,
+      igsid: args.igsid,
+      mid: args.mid,
+      emoji: args.emoji,
+      action: args.action,
+      actorId: context.accountId,
+      isOurs: true,
+    });
+
+    return null;
+  },
+});
+

@@ -18,20 +18,33 @@ import {
   buildMeUrl,
   buildMeInsightsUrl,
   buildMeMediaUrl,
+  buildMeStoriesUrl,
   buildMediaInsightsUrl,
   getMetricsForMediaType,
   extractAccountInsights,
-  extractMediaInsights,
   extractGraphApiError,
   toStoredMediaRow,
   buildMediaCommentsUrl,
+  buildMeTagsUrl,
   type RawOAuthTokenResponse,
   type RawLongLivedTokenResponse,
   type RawUserProfile,
   type RawInsightsResponse,
   type RawMediaListResponse,
+  type RawStoriesResponse,
   type RawCommentsResponse,
+  type RawTagsResponse,
+  type ExtractedMediaInsights,
 } from "./lib/instagramApi";
+import type { MetricState } from "./lib/igMetrics";
+import {
+  resolveMediaProductGroup,
+  MEDIA_BASE_METRICS,
+  MEDIA_BREAKDOWN_CONFIGS,
+  parseMediaInsightsResponse,
+  parseMediaBreakdownResponse,
+  type ParsedMediaBreakdownRow,
+} from "./lib/igMediaMetrics";
 import {
   COMMENTS_PER_MEDIA,
   COMMENT_PAGE_LIMIT,
@@ -48,6 +61,24 @@ import {
   withUsageTracker,
   type UsageTracker,
 } from "./lib/metaRateLimit";
+import {
+  DAILY_METRIC_GROUPS,
+  buildIgMetricInsightsUrl,
+  getBackfillDateChunks,
+  getRecentUtcDates,
+  getSinceUntilForUtcDate,
+  parseIgInsightsResponse,
+  type ParsedMetricRow,
+  type RawIgInsightsResponse,
+} from "./lib/igMetrics";
+import {
+  DEMOGRAPHIC_BREAKDOWNS,
+  DEMOGRAPHIC_METRICS,
+  DEMOGRAPHIC_TIMEFRAMES,
+  buildIgDemographicsUrl,
+  parseIgDemographicsResponse,
+  type RawDemographicsResponse,
+} from "./lib/igDemographics";
 
 /**
  * ============================================================================
@@ -780,10 +811,10 @@ export const syncIgInsights = internalAction({
           console.warn("Instagram /me fetch failed:", sanitizeSyncError(err));
         }
 
-        // 2. Fetch Account Daily Insights (reach, profile_views, accounts_engaged)
+        // 2. Fetch Account Daily Insights (reach, total_interactions, accounts_engaged)
         let accountInsights = {
           reach: 0,
-          profileViews: 0,
+          totalInteractions: 0,
           accountsEngaged: 0,
         };
         try {
@@ -792,7 +823,12 @@ export const syncIgInsights = internalAction({
           );
           if (insightsRes.ok) {
             const json = (await insightsRes.json()) as RawInsightsResponse;
-            accountInsights = extractAccountInsights(json.data);
+            const extracted = extractAccountInsights(json.data);
+            accountInsights = {
+              reach: extracted.reach,
+              totalInteractions: extracted.totalInteractions,
+              accountsEngaged: extracted.accountsEngaged,
+            };
           } else {
             const errBody = await insightsRes.text().catch(() => "");
             console.warn(
@@ -816,7 +852,7 @@ export const syncIgInsights = internalAction({
               date: today,
               followersCount,
               reach: accountInsights.reach,
-              profileViews: accountInsights.profileViews,
+              totalInteractions: accountInsights.totalInteractions,
               accountsEngaged: accountInsights.accountsEngaged,
             },
           },
@@ -834,6 +870,7 @@ export const syncIgInsights = internalAction({
         const mediaJson = (await mediaRes.json()) as RawMediaListResponse;
         const mediaItems = mediaJson.data ?? [];
         const mediaRows = [];
+        const mediaBreakdownRows: ParsedMediaBreakdownRow[] = [];
 
         for (const item of mediaItems) {
           // Thirty per-post insight reads. After a refusal not one of them can
@@ -842,14 +879,19 @@ export const syncIgInsights = internalAction({
           if (tracker.throttled) break;
           if (!item.id) continue;
 
-          let mediaInsight = {
+          let mediaInsight: ExtractedMediaInsights = {
             reach: 0,
             saves: 0,
             shares: 0,
             views: 0,
           };
 
-          // Fetch per-media insights (isolated try-catch so one failing media never breaks the run)
+          const group = resolveMediaProductGroup(
+            item.media_type ?? "",
+            item.media_product_type,
+          );
+
+          // Fetch per-media base insights (isolated try-catch so one failing media never breaks the run)
           try {
             const metrics = getMetricsForMediaType(
               item.media_type ?? "",
@@ -862,16 +904,72 @@ export const syncIgInsights = internalAction({
               version,
             );
             const mRes = await tracker.fetch(insightsUrl);
-            if (mRes.ok) {
-              const mJson = (await mRes.json()) as RawInsightsResponse;
-              mediaInsight = extractMediaInsights(
-                mJson.data,
-                item.media_type,
-                item.media_product_type,
-              );
+            const body = await mRes.json().catch(() => null);
+            const parsedMap = parseMediaInsightsResponse({
+              response: body,
+              requestedMetrics: metrics,
+              isError: !mRes.ok,
+              statusCode: mRes.status,
+            });
+
+            const metricStates: Record<string, { state: MetricState; reason?: string }> = {};
+            for (const [mName, mResVal] of Object.entries(parsedMap)) {
+              metricStates[mName] = {
+                state: mResVal.state,
+                ...(mResVal.reason !== undefined ? { reason: mResVal.reason } : {}),
+              };
             }
+
+            mediaInsight = {
+              reach: parsedMap.reach?.value ?? 0,
+              saves: parsedMap.saved?.value ?? 0,
+              shares: parsedMap.shares?.value ?? 0,
+              views: parsedMap.views?.value ?? 0,
+              likes: parsedMap.likes?.value,
+              comments: parsedMap.comments?.value,
+              reposts: parsedMap.reposts?.value,
+              profileVisits: parsedMap.profile_visits?.value,
+              follows: parsedMap.follows?.value,
+              replies: parsedMap.replies?.value,
+              totalInteractions: parsedMap.total_interactions?.value,
+              reelsAvgWatchTimeMs: parsedMap.ig_reels_avg_watch_time?.value,
+              reelsVideoViewTotalTimeMs: parsedMap.ig_reels_video_view_total_time?.value,
+              reelsSkipRate: parsedMap.reels_skip_rate?.value,
+              crosspostedViews: parsedMap.crossposted_views?.value,
+              facebookViews: parsedMap.facebook_views?.value,
+              metricStates,
+            };
           } catch {
             // Tolerate unsupported or inaccessible media insights
+          }
+
+          // Fetch breakdowns for this media (if configured for this media group)
+          const breakdownConfigs = MEDIA_BREAKDOWN_CONFIGS[group];
+          for (const bConfig of breakdownConfigs) {
+            if (tracker.throttled) break;
+            try {
+              const bUrl = buildMediaInsightsUrl(
+                item.id,
+                [bConfig.metric],
+                token,
+                version,
+                bConfig.breakdown,
+              );
+              const bRes = await tracker.fetch(bUrl);
+              const bBody = await bRes.json().catch(() => null);
+              const parsedBreakdowns = parseMediaBreakdownResponse({
+                mediaId: String(item.id),
+                metric: bConfig.metric,
+                dimensionKey: bConfig.breakdown,
+                response: bBody,
+                isError: !bRes.ok,
+                statusCode: bRes.status,
+                syncedAt: now,
+              });
+              mediaBreakdownRows.push(...parsedBreakdowns);
+            } catch {
+              // Tolerate failure
+            }
           }
 
           // Shared with the event-driven single-post refresh (F6): both read
@@ -880,7 +978,7 @@ export const syncIgInsights = internalAction({
           mediaRows.push(toStoredMediaRow(item, mediaInsight, now));
         }
 
-        // 5. Upsert media batch
+        // 5. Upsert media batch and breakdowns
         let mediaWritten = 0;
         if (mediaRows.length > 0) {
           mediaWritten = await ctx.runMutation(
@@ -888,6 +986,15 @@ export const syncIgInsights = internalAction({
             {
               workspaceId,
               rows: mediaRows,
+            },
+          );
+        }
+        if (mediaBreakdownRows.length > 0) {
+          await ctx.runMutation(
+            internal.instagramStore.upsertMediaBreakdownsBatch,
+            {
+              workspaceId,
+              rows: mediaBreakdownRows,
             },
           );
         }
@@ -936,6 +1043,44 @@ export const syncIgInsights = internalAction({
           }
         }
 
+        // 7. Tagged media / Tags (G5).
+        // Fetch posts where account is tagged, up to 30 items.
+        let tagsWritten = 0;
+        if (!tracker.throttled) {
+          try {
+            const tagsRes = await tracker.fetch(
+              buildMeTagsUrl(token, 30, version),
+            );
+            if (tagsRes.ok) {
+              const tagsJson = (await tagsRes.json()) as RawTagsResponse;
+              const tagItems = (tagsJson.data ?? []).map((t) => ({
+                mediaId: String(t.id),
+                caption: t.caption,
+                permalink: t.permalink,
+                username: t.username,
+                timestamp: t.timestamp
+                  ? new Date(t.timestamp).getTime()
+                  : 0,
+              }));
+              if (tagItems.length > 0) {
+                tagsWritten = await ctx.runMutation(
+                  internal.igMentionsStore.upsertTagsBatch,
+                  {
+                    workspaceId,
+                    tags: tagItems,
+                    syncedAt: now,
+                  },
+                );
+              }
+            }
+          } catch (err) {
+            console.warn(
+              "Instagram tags fetch failed:",
+              sanitizeSyncError(err),
+            );
+          }
+        }
+
         // What Meta said about the allowance, written once for the whole run.
         // Also stamps the "full pass" row the Settings schedule table reads.
         await tracker.flush(ctx, workspaceId);
@@ -944,10 +1089,11 @@ export const syncIgInsights = internalAction({
           provider: "meta_ig",
           job: "full",
           ok: true,
-          itemsWritten: accountWritten + mediaWritten + commentsWritten,
+          itemsWritten:
+            accountWritten + mediaWritten + commentsWritten + tagsWritten,
         });
 
-        return accountWritten + mediaWritten + commentsWritten;
+        return accountWritten + mediaWritten + commentsWritten + tagsWritten;
       },
     );
   },
@@ -1002,5 +1148,840 @@ export const syncAllIg = internalAction({
         }
       }
     });
+  },
+});
+
+// ── Instagram Account Metrics Sync (G1) ─────────────────────────────────────
+
+/**
+ * Helper to sync all 12 day metrics (and breakdowns) for a list of UTC dates.
+ * Executes at most 5 calls per date through tracker.fetch, stopping immediately if throttled.
+ */
+async function syncMetricsForDates(
+  ctx: ActionCtx,
+  params: {
+    workspaceId: Id<"workspaces">;
+    token: string;
+    version: string;
+    dates: string[];
+    tracker: UsageTracker;
+  },
+): Promise<number> {
+  const { workspaceId, token, version, dates, tracker } = params;
+  const now = Date.now();
+  let totalWritten = 0;
+
+  for (const date of dates) {
+    if (tracker.throttled) break;
+
+    const { since, until } = getSinceUntilForUtcDate(date);
+    const dateRows: ParsedMetricRow[] = [];
+
+    for (const group of DAILY_METRIC_GROUPS) {
+      if (tracker.throttled) break;
+
+      const url = buildIgMetricInsightsUrl({
+        accessToken: token,
+        metrics: group.metrics,
+        period: group.period,
+        metricType: group.metricType,
+        breakdown: group.breakdown,
+        since,
+        until,
+        version,
+      });
+
+      try {
+        const res = await tracker.fetch(url);
+        if (res.ok) {
+          const json = (await res.json()) as RawIgInsightsResponse;
+          const parsed = parseIgInsightsResponse({
+            response: json,
+            requestedMetrics: group.metrics,
+            date,
+          });
+          dateRows.push(...parsed);
+        } else {
+          const errBody = await res.text().catch(() => "");
+          const errMsg = extractGraphApiError(errBody);
+          const parsed = parseIgInsightsResponse({
+            requestedMetrics: group.metrics,
+            date,
+            isError: true,
+            errorMessage: errMsg,
+          });
+          dateRows.push(...parsed);
+        }
+      } catch (err) {
+        const parsed = parseIgInsightsResponse({
+          requestedMetrics: group.metrics,
+          date,
+          isError: true,
+          errorMessage: sanitizeSyncError(err),
+        });
+        dateRows.push(...parsed);
+      }
+    }
+
+    if (dateRows.length > 0) {
+      const written: number = await ctx.runMutation(
+        internal.instagramStore.upsertMetricBatch,
+        {
+          workspaceId,
+          rows: dateRows.map((r) => ({
+            ...r,
+            syncedAt: now,
+          })),
+        },
+      );
+      totalWritten += written;
+    }
+  }
+
+  return totalWritten;
+}
+
+/**
+ * Action to sync Instagram metrics for a specific connection (daily: last 3 days, or backfill: 90 days).
+ */
+export const syncConnectionMetrics = internalAction({
+  args: {
+    connectionId: v.id("connections"),
+    mode: v.union(v.literal("daily"), v.literal("backfill")),
+  },
+  handler: async (ctx, { connectionId, mode }): Promise<number> => {
+    const conn: Doc<"connections"> | null = await ctx.runQuery(
+      internal.connections.getForSync,
+      { connectionId },
+    );
+    if (conn === null || conn.provider !== "meta_ig" || !conn.encryptedCredentials) {
+      throw new Error("Instagram konekcija nije dostupna.");
+    }
+    const workspaceId: Id<"workspaces"> = conn.workspaceId;
+
+    let token: string;
+    try {
+      token = await decryptCredentials(conn.encryptedCredentials);
+    } catch {
+      throw new Error("Neuspela dekripcija Instagram kredencijala.");
+    }
+
+    const version = getMetaGraphVersion();
+    const tracker = createUsageTracker();
+    let written = 0;
+
+    try {
+      if (mode === "backfill") {
+        // 90 days in 3 chunks of 30 days
+        const chunks = getBackfillDateChunks(90, 30);
+        for (const chunk of chunks) {
+          if (tracker.throttled) break;
+          written += await syncMetricsForDates(ctx, {
+            workspaceId,
+            token,
+            version,
+            dates: chunk,
+            tracker,
+          });
+        }
+      } else {
+        // Daily: last 3 days
+        const dates = getRecentUtcDates(3);
+        written += await syncMetricsForDates(ctx, {
+          workspaceId,
+          token,
+          version,
+          dates,
+          tracker,
+        });
+      }
+    } finally {
+      await tracker.flush(ctx, workspaceId);
+      await ctx.runMutation(internal.metaSyncStore.recordJob, {
+        workspaceId,
+        provider: "meta_ig",
+        job: mode === "backfill" ? "metric_backfill" : "metrics_daily",
+        ok: !tracker.throttled,
+        itemsWritten: written,
+        ...(tracker.throttled
+          ? { skipReason: "Meta je ograničila zahteve (429 / throttle)." }
+          : {}),
+      });
+    }
+
+    return written;
+  },
+});
+
+/**
+ * Daily cron action (at 05:45 UTC): sync metrics for all active Instagram connections.
+ * Performs 90-day backfill on first run for workspace, else syncs last 3 days.
+ */
+export const syncAllIgMetrics = internalAction({
+  args: {},
+  handler: async (ctx): Promise<void> => {
+    await withCronLock(ctx, CRON_LOCKS.igDailyMetrics, async () => {
+      const connectionIds: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_ig" },
+      );
+
+      for (const connectionId of connectionIds) {
+        try {
+          const conn: Doc<"connections"> | null = await ctx.runQuery(
+            internal.connections.getForSync,
+            { connectionId },
+          );
+          if (conn === null || conn.status === "disconnecting") continue;
+
+          const gate = await readGate(ctx, conn.workspaceId);
+          if (!allowsBackground(gate)) {
+            await ctx.runMutation(internal.metaSyncStore.recordJob, {
+              workspaceId: conn.workspaceId,
+              provider: "meta_ig",
+              job: "metrics_daily",
+              ok: false,
+              skipReason:
+                "Potrošnja Meta limita je previsoka; sledeći prolaz preskočen.",
+            });
+            continue;
+          }
+
+          await runSync(
+            ctx,
+            {
+              workspaceId: conn.workspaceId,
+              provider: "meta_ig",
+              connectionId,
+            },
+            async (): Promise<number> => {
+              const hasBackfill: boolean = await ctx.runQuery(
+                internal.instagramStore.hasMetricBackfill,
+                { workspaceId: conn.workspaceId },
+              );
+              const mode = hasBackfill ? "daily" : "backfill";
+
+              return await ctx.runAction(
+                internal.instagram.syncConnectionMetrics,
+                {
+                  connectionId,
+                  mode,
+                },
+              );
+            },
+          );
+        } catch {
+          // Recorded on syncRuns; continue to next connection
+        }
+      }
+    });
+  },
+});
+
+// ── Instagram Audience Demographics Sync (G2) ───────────────────────────────
+
+/**
+ * Action to sync all 36 demographics calls (2 metrics × 6 timeframes × 3 breakdowns) for a connection.
+ * Once daily, through tracker.fetch, stopping immediately if throttled.
+ */
+export const syncConnectionDemographics = internalAction({
+  args: {
+    connectionId: v.id("connections"),
+  },
+  handler: async (ctx, { connectionId }): Promise<number> => {
+    const conn: Doc<"connections"> | null = await ctx.runQuery(
+      internal.connections.getForSync,
+      { connectionId },
+    );
+    if (conn === null || conn.provider !== "meta_ig" || !conn.encryptedCredentials) {
+      throw new Error("Instagram konekcija nije dostupna.");
+    }
+    const workspaceId: Id<"workspaces"> = conn.workspaceId;
+
+    let token: string;
+    try {
+      token = await decryptCredentials(conn.encryptedCredentials);
+    } catch {
+      throw new Error("Neuspela dekripcija Instagram kredencijala.");
+    }
+
+    const version = getMetaGraphVersion();
+    const tracker = createUsageTracker();
+    const now = Date.now();
+    let totalWritten = 0;
+
+    try {
+      for (const metric of DEMOGRAPHIC_METRICS) {
+        if (tracker.throttled) break;
+
+        for (const timeframe of DEMOGRAPHIC_TIMEFRAMES) {
+          if (tracker.throttled) break;
+
+          for (const breakdown of DEMOGRAPHIC_BREAKDOWNS) {
+            if (tracker.throttled) break;
+
+            const url = buildIgDemographicsUrl({
+              accessToken: token,
+              metric,
+              timeframe,
+              breakdown,
+              version,
+            });
+
+            try {
+              const res = await tracker.fetch(url);
+              if (res.ok) {
+                const json = (await res.json()) as RawDemographicsResponse;
+                const parsed = parseIgDemographicsResponse({
+                  metric,
+                  timeframe,
+                  breakdown,
+                  response: json,
+                });
+                const written: number = await ctx.runMutation(
+                  internal.instagramStore.upsertDemographicsBatch,
+                  {
+                    workspaceId,
+                    rows: parsed.map((r) => ({
+                      ...r,
+                      syncedAt: now,
+                    })),
+                  },
+                );
+                totalWritten += written;
+              } else {
+                const errBody = await res.text().catch(() => "");
+                const errMsg = extractGraphApiError(errBody);
+                const parsed = parseIgDemographicsResponse({
+                  metric,
+                  timeframe,
+                  breakdown,
+                  isError: true,
+                  errorMessage: errMsg,
+                });
+                const written: number = await ctx.runMutation(
+                  internal.instagramStore.upsertDemographicsBatch,
+                  {
+                    workspaceId,
+                    rows: parsed.map((r) => ({
+                      ...r,
+                      syncedAt: now,
+                    })),
+                  },
+                );
+                totalWritten += written;
+              }
+            } catch (err) {
+              const parsed = parseIgDemographicsResponse({
+                metric,
+                timeframe,
+                breakdown,
+                isError: true,
+                errorMessage: sanitizeSyncError(err),
+              });
+              const written: number = await ctx.runMutation(
+                internal.instagramStore.upsertDemographicsBatch,
+                {
+                  workspaceId,
+                  rows: parsed.map((r) => ({
+                    ...r,
+                    syncedAt: now,
+                  })),
+                },
+              );
+              totalWritten += written;
+            }
+          }
+        }
+      }
+    } finally {
+      await tracker.flush(ctx, workspaceId);
+      await ctx.runMutation(internal.metaSyncStore.recordJob, {
+        workspaceId,
+        provider: "meta_ig",
+        job: "demographics_daily",
+        ok: !tracker.throttled,
+        itemsWritten: totalWritten,
+        ...(tracker.throttled
+          ? { skipReason: "Meta je ograničila zahteve (429 / throttle)." }
+          : {}),
+      });
+    }
+
+    return totalWritten;
+  },
+});
+
+/**
+ * Daily cron action (at 04:55 UTC): sync audience demographics for all active Instagram connections.
+ */
+export const syncAllIgDemographics = internalAction({
+  args: {},
+  handler: async (ctx): Promise<void> => {
+    await withCronLock(ctx, CRON_LOCKS.igDemographics, async () => {
+      const connectionIds: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_ig" },
+      );
+
+      for (const connectionId of connectionIds) {
+        try {
+          const conn: Doc<"connections"> | null = await ctx.runQuery(
+            internal.connections.getForSync,
+            { connectionId },
+          );
+          if (conn === null || conn.status === "disconnecting") continue;
+
+          const gate = await readGate(ctx, conn.workspaceId);
+          if (!allowsBackground(gate)) {
+            await ctx.runMutation(internal.metaSyncStore.recordJob, {
+              workspaceId: conn.workspaceId,
+              provider: "meta_ig",
+              job: "demographics_daily",
+              ok: false,
+              skipReason:
+                "Potrošnja Meta limita je previsoka; sledeći prolaz preskočen.",
+            });
+            continue;
+          }
+
+          await runSync(
+            ctx,
+            {
+              workspaceId: conn.workspaceId,
+              provider: "meta_ig",
+              connectionId,
+            },
+            async (): Promise<number> => {
+              return await ctx.runAction(
+                internal.instagram.syncConnectionDemographics,
+                {
+                  connectionId,
+                },
+              );
+            },
+          );
+        } catch {
+          // Recorded on syncRuns; continue to next connection
+        }
+      }
+    });
+  },
+});
+
+// ── Instagram Stories Sync (G4) ─────────────────────────────────────────────
+
+/**
+ * Poll active stories and their insights for a single Instagram connection.
+ *
+ * Polling Rules:
+ *   - Runs every 30 minutes.
+ *   - `GET /me/stories` returns only currently active stories (<= 24h old).
+ *   - Fetches base STORY metrics (views, reach, shares, total_interactions, reposts, profile_visits, follows, replies, facebook_views)
+ *   - Fetches breakdowns (profile_activity by action_type, navigation by story_navigation_action_type)
+ *   - Error 10 (less than 5 viewers) is treated as `state: "suppressed"` with STORY_BELOW_THRESHOLD_REASON (not a crash).
+ *   - Rate Gate Rule:
+ *     Pri poslednjoj prilici pred istek (npr. expiresAt - now < 60 min)
+ *     anketiraj i ako je readGate u warn stanju — bolje potrošiti poziv nego
+ *     izgubiti podatak zauvek. Samo stop/backoff sme da preskoči.
+ *   - Archived check: marks `archivedAt` on expired stories without deleting rows.
+ */
+export const pollConnectionStories = internalAction({
+  args: {
+    connectionId: v.id("connections"),
+    force: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { connectionId, force = false }): Promise<number> => {
+    const conn: Doc<"connections"> | null = await ctx.runQuery(
+      internal.connections.getForSync,
+      { connectionId },
+    );
+    if (conn === null || conn.provider !== "meta_ig" || !conn.encryptedCredentials) {
+      return 0;
+    }
+
+    const workspaceId: Id<"workspaces"> = conn.workspaceId;
+    let token: string;
+    try {
+      token = await decryptCredentials(conn.encryptedCredentials);
+    } catch {
+      throw new Error("Neuspela dekripcija Instagram kredencijala za Story anketu.");
+    }
+
+    const version = getMetaGraphVersion();
+    const now = Date.now();
+    const tracker = createUsageTracker();
+
+    try {
+      const gate = await readGate(ctx, workspaceId);
+      // Hard block: stop (>95%) or backoff (429) stops all polling
+      if (!force && (gate.state === "stop" || gate.state === "backoff")) {
+        console.warn(
+          `[Story Poll] Radni prostor ${workspaceId} preskače Story anketu zbog rate-limit stanja (${gate.state}).`,
+        );
+        return 0;
+      }
+
+      // 1. Fetch active stories from /me/stories
+      const storiesUrl = buildMeStoriesUrl(token, version);
+      const storiesRes = await tracker.fetch(storiesUrl);
+
+      if (!storiesRes.ok) {
+        const errBody = await storiesRes.text().catch(() => "");
+        console.warn("Instagram stories fetch warning:", extractGraphApiError(errBody));
+        return 0;
+      }
+
+      const storiesData = (await storiesRes.json()) as RawStoriesResponse;
+      const rawStories = storiesData.data ?? [];
+
+      const storiesToUpsert: Array<{
+        storyId: string;
+        mediaType: string;
+        mediaUrl?: string;
+        thumbnailUrl?: string;
+        permalink?: string;
+        timestamp: number;
+        expiresAt: number;
+      }> = [];
+
+      type StoryMediaUpsertRow = {
+        mediaId: string;
+        mediaType: string;
+        caption: string;
+        permalink: string;
+        publishedAt: number;
+        reach: number;
+        likes: number;
+        comments: number;
+        saves: number;
+        shares: number;
+        views: number;
+        reposts?: number;
+        profileVisits?: number;
+        follows?: number;
+        replies?: number;
+        totalInteractions?: number;
+        facebookViews?: number;
+        metricStates?: Record<string, { state: MetricState; reason?: string }>;
+        syncedAt: number;
+        mediaUrl?: string;
+        thumbnailUrl?: string;
+      };
+
+      type StoryBreakdownUpsertRow = {
+        mediaId: string;
+        metric: string;
+        dimensionKey: string;
+        dimensionValue: string;
+        value?: number;
+        state: MetricState;
+        reason?: string;
+        syncedAt: number;
+      };
+
+      const mediaRowsToUpsert: StoryMediaUpsertRow[] = [];
+      const breakdownRowsToUpsert: StoryBreakdownUpsertRow[] = [];
+
+      for (const item of rawStories) {
+        if (!item.id) continue;
+        if (tracker.throttled) break;
+
+        const storyTimestamp = item.timestamp
+          ? new Date(item.timestamp).getTime()
+          : now;
+        const expiresAt = storyTimestamp + 24 * 60 * 60 * 1000;
+        const mediaType = (item.media_type || "IMAGE").toUpperCase();
+
+        storiesToUpsert.push({
+          storyId: item.id,
+          mediaType,
+          mediaUrl: item.media_url,
+          thumbnailUrl: item.thumbnail_url,
+          permalink: item.permalink,
+          timestamp: storyTimestamp,
+          expiresAt,
+        });
+
+        // Check if insights should be queried:
+        // Pri poslednjoj prilici pred istek (npr. expiresAt - now < 60 min)
+        // anketiraj i ako je readGate u warn stanju — bolje potrošiti poziv nego
+        // izgubiti podatak zauvek. Samo stop/backoff sme da preskoči.
+        const isExpiringSoon = expiresAt - now < 60 * 60 * 1000;
+        if (gate.state === "warn" && !isExpiringSoon && !force) {
+          // If in warn state and story is not expiring soon, skip insights to preserve quota
+          continue;
+        }
+
+        // Fetch base story metrics
+        const baseMetrics = MEDIA_BASE_METRICS.STORY;
+        const insightsUrl = buildMediaInsightsUrl(
+          item.id,
+          baseMetrics,
+          token,
+          version,
+        );
+
+        let parsedMetrics: Record<
+          string,
+          { value?: number; state: MetricState; reason?: string }
+        > = {};
+        try {
+          const insightsRes = await tracker.fetch(insightsUrl);
+          if (insightsRes.ok) {
+            const json = (await insightsRes.json()) as RawInsightsResponse;
+            parsedMetrics = parseMediaInsightsResponse({
+              response: json,
+              requestedMetrics: baseMetrics,
+              statusCode: insightsRes.status,
+            });
+          } else {
+            const errBody = await insightsRes.text().catch(() => "");
+            let errObj: RawInsightsResponse | undefined;
+            try {
+              errObj = JSON.parse(errBody) as RawInsightsResponse;
+            } catch {
+              errObj = undefined;
+            }
+
+            parsedMetrics = parseMediaInsightsResponse({
+              response: errObj,
+              requestedMetrics: baseMetrics,
+              isError: true,
+              errorMessage: extractGraphApiError(errBody),
+              statusCode: insightsRes.status,
+            });
+          }
+        } catch (e: unknown) {
+          parsedMetrics = parseMediaInsightsResponse({
+            requestedMetrics: baseMetrics,
+            isError: true,
+            errorMessage:
+              e instanceof Error
+                ? e.message
+                : "Greška pri dohvatanju uvida za priču.",
+          });
+        }
+
+        const metricStates: Record<string, { state: MetricState; reason?: string }> = {};
+        for (const [k, v] of Object.entries(parsedMetrics)) {
+          metricStates[k] = { state: v.state, reason: v.reason };
+        }
+
+        mediaRowsToUpsert.push({
+          mediaId: item.id,
+          mediaType: "STORY",
+          caption: "",
+          permalink: item.permalink ?? "",
+          publishedAt: storyTimestamp,
+          reach: parsedMetrics.reach?.value ?? 0,
+          likes: 0,
+          comments: 0,
+          saves: 0,
+          shares: parsedMetrics.shares?.value ?? 0,
+          views: parsedMetrics.views?.value ?? 0,
+          reposts: parsedMetrics.reposts?.value,
+          profileVisits: parsedMetrics.profile_visits?.value,
+          follows: parsedMetrics.follows?.value,
+          replies: parsedMetrics.replies?.value,
+          totalInteractions: parsedMetrics.total_interactions?.value,
+          facebookViews: parsedMetrics.facebook_views?.value,
+          metricStates,
+          syncedAt: now,
+          mediaUrl: item.media_url,
+          thumbnailUrl: item.thumbnail_url,
+        });
+
+        // Fetch story breakdowns: profile_activity and navigation
+        for (const cfg of MEDIA_BREAKDOWN_CONFIGS.STORY) {
+          if (tracker.throttled) break;
+          const bdUrl = buildMediaInsightsUrl(
+            item.id,
+            [cfg.metric],
+            token,
+            version,
+            cfg.breakdown,
+          );
+
+          try {
+            const bdRes = await tracker.fetch(bdUrl);
+            let parsedBreakdowns: ParsedMediaBreakdownRow[] = [];
+            if (bdRes.ok) {
+              const bdJson = (await bdRes.json()) as RawInsightsResponse;
+              parsedBreakdowns = parseMediaBreakdownResponse({
+                mediaId: item.id,
+                metric: cfg.metric,
+                dimensionKey: cfg.breakdown,
+                response: bdJson,
+                statusCode: bdRes.status,
+                syncedAt: now,
+              });
+            } else {
+              const errBody = await bdRes.text().catch(() => "");
+              let errObj: RawInsightsResponse | undefined;
+              try {
+                errObj = JSON.parse(errBody) as RawInsightsResponse;
+              } catch {
+                errObj = undefined;
+              }
+              parsedBreakdowns = parseMediaBreakdownResponse({
+                mediaId: item.id,
+                metric: cfg.metric,
+                dimensionKey: cfg.breakdown,
+                response: errObj,
+                isError: true,
+                errorMessage: extractGraphApiError(errBody),
+                statusCode: bdRes.status,
+                syncedAt: now,
+              });
+            }
+
+            for (const row of parsedBreakdowns) {
+              breakdownRowsToUpsert.push({
+                mediaId: row.mediaId,
+                metric: row.metric,
+                dimensionKey: row.dimensionKey,
+                dimensionValue: row.dimensionValue,
+                value: row.value,
+                state: row.state,
+                reason: row.reason,
+                syncedAt: row.syncedAt,
+              });
+            }
+          } catch (e: unknown) {
+            breakdownRowsToUpsert.push({
+              mediaId: item.id,
+              metric: cfg.metric,
+              dimensionKey: cfg.breakdown,
+              dimensionValue: "ALL",
+              value: undefined,
+              state: "unavailable",
+              reason:
+                e instanceof Error
+                  ? e.message
+                  : "Greška pri čitanju razdvajanja.",
+              syncedAt: now,
+            });
+          }
+        }
+      }
+
+      // Upsert into database
+      if (storiesToUpsert.length > 0 || mediaRowsToUpsert.length > 0) {
+        await ctx.runMutation(internal.instagramStore.upsertStoriesAndMetrics, {
+          workspaceId,
+          stories: storiesToUpsert,
+          mediaRows: mediaRowsToUpsert,
+          breakdownRows: breakdownRowsToUpsert,
+          now,
+        });
+      }
+
+      // Archive expired stories
+      await ctx.runMutation(internal.instagramStore.archiveExpiredStories, {
+        workspaceId,
+        now,
+      });
+
+      return storiesToUpsert.length;
+    } finally {
+      await tracker.flush(ctx, workspaceId);
+    }
+  },
+});
+
+/**
+ * 30-minute cron action to poll active stories for all connected Instagram accounts.
+ */
+export const pollAllIgStories = internalAction({
+  args: {},
+  handler: async (ctx): Promise<void> => {
+    await withCronLock(ctx, CRON_LOCKS.igStories, async () => {
+      const connectionIds: Id<"connections">[] = await ctx.runQuery(
+        internal.connections.listByProvider,
+        { provider: "meta_ig" },
+      );
+
+      for (const connectionId of connectionIds) {
+        try {
+          const conn: Doc<"connections"> | null = await ctx.runQuery(
+            internal.connections.getForSync,
+            { connectionId },
+          );
+          if (conn === null || conn.status !== "active") continue;
+
+          await runSync(
+            ctx,
+            {
+              workspaceId: conn.workspaceId,
+              provider: "meta_ig",
+              connectionId,
+            },
+            async (): Promise<number> => {
+              return await ctx.runAction(
+                internal.instagram.pollConnectionStories,
+                {
+                  connectionId,
+                },
+              );
+            },
+          );
+        } catch {
+          // Errors recorded in syncRuns table, continue to next connection
+        }
+      }
+    });
+  },
+});
+
+/**
+ * Manual action to trigger story poll for the current workspace.
+ */
+export const pollStoriesManual = action({
+  args: {},
+  handler: async (ctx): Promise<{ success: boolean; count: number }> => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new ConvexError({
+        code: "unauthorized",
+        message: "Niste prijavljeni.",
+      });
+    }
+    const member: {
+      workspaceId: Id<"workspaces">;
+      role: "owner" | "client_viewer";
+    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
+      userId,
+    });
+    if (member === null) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Niste član aktivnog workspace-a.",
+      });
+    }
+
+    const conn: Doc<"connections"> | null = await ctx.runQuery(
+      internal.instagramStore.getWorkspaceConnection,
+      {
+        workspaceId: member.workspaceId,
+        provider: "meta_ig",
+      },
+    );
+    if (conn === null || conn.status !== "active") {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Instagram nalog nije povezan.",
+      });
+    }
+
+    const count: number = await ctx.runAction(
+      internal.instagram.pollConnectionStories,
+      {
+        connectionId: conn._id,
+        force: true,
+      },
+    );
+
+    return { success: true, count };
   },
 });

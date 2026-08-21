@@ -184,7 +184,8 @@ export type IgDailyPoint = {
   date: string;
   followersCount: number;
   reach: number;
-  profileViews: number;
+  profileViews?: number;
+  totalInteractions: number;
   accountsEngaged: number;
 };
 
@@ -192,12 +193,14 @@ export type IgPeriodTotals = {
   followersCount: number;
   reach: number;
   profileViews: number;
+  totalInteractions: number;
   accountsEngaged: number;
 };
 
 export function summarizeIg(rows: IgDailyPoint[]): IgPeriodTotals {
   let reach = 0;
   let profileViews = 0;
+  let totalInteractions = 0;
   let accountsEngaged = 0;
   let followersCount = 0;
 
@@ -206,7 +209,8 @@ export function summarizeIg(rows: IgDailyPoint[]): IgPeriodTotals {
     followersCount = sorted[sorted.length - 1].followersCount;
     for (const r of sorted) {
       reach += r.reach;
-      profileViews += r.profileViews;
+      profileViews += r.profileViews ?? 0;
+      totalInteractions += r.totalInteractions ?? 0;
       accountsEngaged += r.accountsEngaged;
     }
   }
@@ -215,6 +219,7 @@ export function summarizeIg(rows: IgDailyPoint[]): IgPeriodTotals {
     followersCount,
     reach,
     profileViews,
+    totalInteractions,
     accountsEngaged,
   };
 }
@@ -242,13 +247,17 @@ export function fillIgDays(
       if (existing.followersCount > 0) {
         lastKnownFollowers = existing.followersCount;
       }
-      return existing;
+      return {
+        ...existing,
+        totalInteractions: existing.totalInteractions ?? 0,
+      };
     }
     return {
       date,
       followersCount: lastKnownFollowers,
       reach: 0,
       profileViews: 0,
+      totalInteractions: 0,
       accountsEngaged: 0,
     };
   });

@@ -552,10 +552,35 @@ const INSTAGRAM_STEPS: PurgeStep[] = [
       .query("igAccountDaily")
       .withIndex("by_workspace_date", (q) => q.eq("workspaceId", ws)),
   ),
+  simple("igMetricDaily", (ctx, ws) =>
+    ctx.db
+      .query("igMetricDaily")
+      .withIndex("by_workspace_date_metric", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("igDemographics", (ctx, ws) =>
+    ctx.db
+      .query("igDemographics")
+      .withIndex("by_workspace_metric_timeframe", (q) => q.eq("workspaceId", ws)),
+  ),
   simple("igMediaStats", (ctx, ws) =>
     ctx.db
       .query("igMediaStats")
       .withIndex("by_workspace_media", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("igMediaBreakdowns", (ctx, ws) =>
+    ctx.db
+      .query("igMediaBreakdowns")
+      .withIndex("by_workspace_media", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("igStories", (ctx, ws) =>
+    ctx.db
+      .query("igStories")
+      .withIndex("by_workspace_expires", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("igMentions", (ctx, ws) =>
+    ctx.db
+      .query("igMentions")
+      .withIndex("by_workspace_timestamp", (q) => q.eq("workspaceId", ws)),
   ),
   // Other people's comment text and handles — the same class of data the
   // YouTube list starts from.
@@ -563,6 +588,11 @@ const INSTAGRAM_STEPS: PurgeStep[] = [
     ctx.db
       .query("igComments")
       .withIndex("by_workspace_media", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("igMessages", (ctx, ws) =>
+    ctx.db
+      .query("igMessages")
+      .withIndex("by_workspace_igsid", (q) => q.eq("workspaceId", ws)),
   ),
   simple("igModerationLogs", (ctx, ws) =>
     ctx.db
@@ -798,8 +828,14 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
 
   // ── Instagram ─────────────────────────────────────────────────────────────
   igAccountDaily: { purgedBy: ["meta_ig"] },
+  igMetricDaily: { purgedBy: ["meta_ig"] },
+  igDemographics: { purgedBy: ["meta_ig"] },
   igMediaStats: { purgedBy: ["meta_ig"] },
+  igMediaBreakdowns: { purgedBy: ["meta_ig"] },
+  igStories: { purgedBy: ["meta_ig"] },
+  igMentions: { purgedBy: ["meta_ig"] },
   igComments: { purgedBy: ["meta_ig"] },
+  igMessages: { purgedBy: ["meta_ig"] },
   igModerationLogs: { purgedBy: ["meta_ig"] },
   igPublishJobs: { purgedBy: ["meta_ig"] },
   igPublishUploads: { purgedBy: ["meta_ig"] },

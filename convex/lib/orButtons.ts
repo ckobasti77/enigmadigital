@@ -47,6 +47,11 @@ export interface OutgoingQuickReply {
   payload?: string;
 }
 
+export interface OutgoingAttachment {
+  type: "image" | "video" | "audio" | "file" | "like_heart";
+  url?: string;
+}
+
 // ── Postback payloads ────────────────────────────────────────────────────────
 
 /**
@@ -101,20 +106,62 @@ interface GraphQuickReply {
   payload: string;
 }
 
+function formatQuickReplies(
+  quickReplies?: OutgoingQuickReply[],
+): GraphQuickReply[] {
+  return (quickReplies ?? [])
+    .slice(0, QUICK_REPLIES_MAX)
+    .flatMap((quickReply): GraphQuickReply[] => {
+      const title = quickReply.label.trim().slice(0, BUTTON_TITLE_MAX);
+      const payload = (quickReply.payload?.trim() || title).slice(0, 1000);
+      if (title.length === 0) return [];
+      return [{ content_type: "text", title, payload }];
+    });
+}
+
 /**
  * Build the `message` object for POST /{IG_PRO_ID}/messages.
  *
- * Plain text when there is nothing to tap; a button template when there are
- * buttons; `quick_replies` alongside the text when there are quick replies.
+ * Supports plain text, attachments (image, video, audio, pdf, sticker),
+ * button templates, and quick replies.
  * Everything is clamped to Meta's limits here rather than trusted from the
- * stored row, so an automation written before a limit changed cannot produce a
- * request Instagram rejects.
+ * caller, so an automation or input cannot produce a request Instagram rejects.
  */
 export function buildOutgoingMessage(params: {
-  text: string;
+  text?: string;
   buttons?: OutgoingButton[];
   quickReplies?: OutgoingQuickReply[];
+  attachment?: OutgoingAttachment;
 }): Record<string, unknown> {
+  const formattedQuickReplies = formatQuickReplies(params.quickReplies);
+
+  // 1. Prilozi (Attachment: image, video, audio, file/PDF, like_heart)
+  if (params.attachment) {
+    const { type, url } = params.attachment;
+    if (type === "like_heart") {
+      const msg: Record<string, unknown> = {
+        attachment: { type: "like_heart" },
+      };
+      if (formattedQuickReplies.length > 0) {
+        msg.quick_replies = formattedQuickReplies;
+      }
+      return msg;
+    }
+    if (url && url.trim().length > 0) {
+      const msg: Record<string, unknown> = {
+        attachment: {
+          type,
+          payload: { url: url.trim(), is_reusable: false },
+        },
+      };
+      if (formattedQuickReplies.length > 0) {
+        msg.quick_replies = formattedQuickReplies;
+      }
+      return msg;
+    }
+  }
+
+  // 2. Dugmad (Buttons)
   const buttons = (params.buttons ?? [])
     .slice(0, BUTTONS_MAX)
     .flatMap((button): GraphButton[] => {
@@ -132,17 +179,9 @@ export function buildOutgoingMessage(params: {
       return [{ type: "postback", title, payload }];
     });
 
-  const quickReplies = (params.quickReplies ?? [])
-    .slice(0, QUICK_REPLIES_MAX)
-    .flatMap((quickReply): GraphQuickReply[] => {
-      const title = quickReply.label.trim().slice(0, BUTTON_TITLE_MAX);
-      const payload = quickReply.payload?.trim();
-      if (title.length === 0 || !payload) return [];
-      return [{ content_type: "text", title, payload }];
-    });
-
   const hasButtons = buttons.length > 0;
-  const text = params.text.slice(
+  const rawText = params.text ?? "";
+  const text = rawText.slice(
     0,
     hasButtons ? TEMPLATE_TEXT_MAX : MESSAGE_TEXT_MAX,
   );
@@ -156,9 +195,10 @@ export function buildOutgoingMessage(params: {
       }
     : { text };
 
-  if (quickReplies.length > 0) {
-    message.quick_replies = quickReplies;
+  if (formattedQuickReplies.length > 0) {
+    message.quick_replies = formattedQuickReplies;
   }
 
   return message;
 }
+

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ArrowDown,
   ArrowUp,
@@ -17,6 +18,7 @@ import {
   Share2,
   Trash2,
   Trophy,
+  BarChart2,
 } from "lucide-react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
@@ -460,23 +462,33 @@ function TopContentCard({ item, rank }: { item: MediaItem; rank: number }) {
           </div>
         </div>
 
-        {/* Link Button — nothing to open once the post is gone */}
+        {/* Actions — detail screen + Instagram link */}
         {deleted ? (
           <span className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-md border border-line-soft bg-surface-raised/20 py-1.5">
             <GonePost />
           </span>
         ) : (
-          item.permalink && (
-            <a
-              href={item.permalink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-md border border-line-soft bg-surface-raised/40 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:border-line-strong hover:bg-surface-raised hover:text-foreground"
+          <div className="mt-4 flex items-center gap-2">
+            <Link
+              href={`/instagram/objave/${item.mediaId}`}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border border-line bg-surface-raised/80 py-1.5 text-xs font-semibold text-foreground transition-colors hover:border-line-strong hover:bg-surface-raised hover:text-accent-400"
             >
-              <span>Pogledaj na Instagramu</span>
-              <ExternalLink className="size-3" aria-hidden />
-            </a>
-          )
+              <BarChart2 className="size-3 text-accent-400" aria-hidden="true" />
+              <span>Detalji objave</span>
+            </Link>
+
+            {item.permalink && (
+              <a
+                href={item.permalink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex size-7 shrink-0 items-center justify-center rounded-md border border-line-soft bg-surface-raised/40 text-text-secondary transition-colors hover:border-line-strong hover:bg-surface-raised hover:text-foreground"
+                title="Otvori na Instagramu"
+              >
+                <ExternalLink className="size-3" aria-hidden="true" />
+              </a>
+            )}
+          </div>
         )}
       </div>
     </Card>
@@ -518,13 +530,16 @@ function PostCard({ item }: { item: MediaItem }) {
 
       {/* Post Body */}
       <div className="flex flex-1 flex-col p-4">
-        <p className="line-clamp-2 min-h-8 text-xs leading-relaxed text-foreground/90">
+        <Link
+          href={`/instagram/objave/${item.mediaId}`}
+          className="line-clamp-2 min-h-8 text-xs leading-relaxed text-foreground/90 transition-colors hover:text-accent-400"
+        >
           {item.caption ? (
             item.caption
           ) : (
             <span className="text-text-muted italic">Bez opisa</span>
           )}
-        </p>
+        </Link>
 
         {/* Stats Grid */}
         <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg bg-surface-raised/40 border border-line-soft p-2.5 text-center">
@@ -572,21 +587,31 @@ function PostCard({ item }: { item: MediaItem }) {
             </span>
           </div>
 
-          {deleted ? (
-            <GonePost />
-          ) : (
-            item.permalink && (
-              <a
-                href={item.permalink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 font-medium text-text-secondary hover:text-accent-400 transition-colors"
-              >
-                <span>Otvori</span>
-                <ExternalLink className="size-3" aria-hidden />
-              </a>
-            )
-          )}
+          <div className="flex items-center gap-2.5">
+            <Link
+              href={`/instagram/objave/${item.mediaId}`}
+              className="inline-flex items-center gap-1 font-semibold text-xs text-accent-400 hover:underline transition-colors"
+            >
+              <span>Detalji</span>
+              <BarChart2 className="size-3" aria-hidden="true" />
+            </Link>
+
+            {deleted ? (
+              <GonePost />
+            ) : (
+              item.permalink && (
+                <a
+                  href={item.permalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-text-muted hover:text-foreground transition-colors"
+                  title="Otvori na Instagramu"
+                >
+                  <ExternalLink className="size-3" aria-hidden="true" />
+                </a>
+              )
+            )}
+          </div>
         </div>
 
         {/* Moderation, on the post it is about (F4). */}

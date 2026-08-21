@@ -133,6 +133,24 @@ const EXTRA_SCREENS: Screen[] = [
     range: false,
   },
   {
+    href: "/instagram/publika",
+    section: "Kanali",
+    title: "Publika i demografija",
+    range: false,
+  },
+  {
+    href: "/instagram/stories",
+    section: "Kanali",
+    title: "Priče (Stories)",
+    range: false,
+  },
+  {
+    href: "/instagram/inbox",
+    section: "Kanali",
+    title: "Poruke (Inbox)",
+    range: false,
+  },
+  {
     href: "/facebook/komentari",
     section: "Kanali",
     title: "Moderacija komentara",

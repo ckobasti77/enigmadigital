@@ -127,8 +127,8 @@ export function buildMeInsightsUrl(
   version: string = getMetaGraphVersion(),
 ): string {
   const url = new URL(`${INSTAGRAM_GRAPH_BASE_URL}/${version}/me/insights`);
-  // Account level insights: reach, profile_views, accounts_engaged
-  url.searchParams.set("metric", "reach,profile_views,accounts_engaged");
+  // Account level insights: reach, total_interactions, accounts_engaged (profile_views is retired)
+  url.searchParams.set("metric", "reach,total_interactions,accounts_engaged");
   url.searchParams.set("period", "day");
   url.searchParams.set("metric_type", "total_value");
   url.searchParams.set("access_token", accessToken);
@@ -162,6 +162,43 @@ export const MEDIA_LIST_FIELDS =
   "id,caption,media_type,media_product_type,permalink,media_url,thumbnail_url," +
   "timestamp,like_count,comments_count,is_comment_enabled," +
   "children{id,media_type,media_url,thumbnail_url}";
+
+/**
+ * Fields requested for active stories.
+ *
+ * Story endpoint returns only currently active stories (within 24h).
+ */
+export const STORY_LIST_FIELDS =
+  "id,media_type,media_url,thumbnail_url,permalink,timestamp";
+
+/**
+ * Build endpoint URL for fetching active stories for the current user (/me/stories).
+ */
+export function buildMeStoriesUrl(
+  accessToken: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(`${INSTAGRAM_GRAPH_BASE_URL}/${version}/me/stories`);
+  url.searchParams.set("fields", STORY_LIST_FIELDS);
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/**
+ * Build endpoint URL for fetching active stories by Instagram user ID (/{igUserId}/stories).
+ */
+export function buildStoriesUrl(
+  igUserId: string,
+  accessToken: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(
+    `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${igUserId}/stories`,
+  );
+  url.searchParams.set("fields", STORY_LIST_FIELDS);
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
 
 /**
  * Build endpoint URL for the CHEAPEST possible look at the feed — ids and dates
@@ -238,14 +275,18 @@ export function buildMediaFieldsUrl(
  */
 export function buildMediaInsightsUrl(
   mediaId: string,
-  metrics: string[],
+  metrics: readonly string[],
   accessToken: string,
   version: string = getMetaGraphVersion(),
+  breakdown?: string,
 ): string {
   const url = new URL(
     `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${mediaId}/insights`,
   );
   url.searchParams.set("metric", metrics.join(","));
+  if (breakdown) {
+    url.searchParams.set("breakdown", breakdown);
+  }
   url.searchParams.set("access_token", accessToken);
   return url.toString();
 }
@@ -299,6 +340,76 @@ export function buildMessengerProfileUrl(
   version: string = getMetaGraphVersion(),
 ): string {
   return `${INSTAGRAM_GRAPH_BASE_URL}/${version}/me/messenger_profile`;
+}
+
+// ── Instagram Inbox / Conversations (G6) ────────────────────────────────────
+
+/**
+ * HUMAN_AGENT messaging tag extends the 24-hour standard messaging window
+ * to 7 days for manual responses by human agents.
+ *
+ * NOTE: Using `HUMAN_AGENT` requires:
+ * 1. Meta App Review approval for the Human Agent feature.
+ * 2. Business Verification of the Meta Business account.
+ *
+ * The current workspace does not hold approved App Review for this tag yet.
+ * When approved, `HUMAN_AGENT_TAG` can be attached to the message payload
+ * (`messaging_type: "MESSAGE_TAG"`, `tag: "HUMAN_AGENT"`), extending the window
+ * from 24 hours to 7 days.
+ */
+export const HUMAN_AGENT_TAG = "HUMAN_AGENT";
+
+/**
+ * Build endpoint URL for listing conversations on the Instagram professional account.
+ * Note: Only active conversations within 30 days in the Requests folder are returned.
+ */
+export function buildConversationsUrl(
+  igUserId: string,
+  version: string = getMetaGraphVersion(),
+  limit: number = 25,
+): string {
+  const url = new URL(
+    `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${igUserId}/conversations`,
+  );
+  url.searchParams.set("platform", "instagram");
+  url.searchParams.set("fields", "id,updated_time,unread_count,participants");
+  url.searchParams.set("limit", String(limit));
+  return url.toString();
+}
+
+/**
+ * Build endpoint URL for fetching messages inside a conversation.
+ * Graph API returns full details for the 20 most recent messages.
+ */
+export function buildConversationMessagesUrl(
+  conversationId: string,
+  version: string = getMetaGraphVersion(),
+  limit: number = 20,
+): string {
+  const url = new URL(
+    `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${conversationId}/messages`,
+  );
+  url.searchParams.set(
+    "fields",
+    "id,created_time,from,to,message,attachments,shares,story,reactions,is_unsupported",
+  );
+  url.searchParams.set("limit", String(limit));
+  return url.toString();
+}
+
+/**
+ * Build endpoint URL for fetching full detail of a single message.
+ */
+export function buildMessageDetailUrl(
+  messageId: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(`${INSTAGRAM_GRAPH_BASE_URL}/${version}/${messageId}`);
+  url.searchParams.set(
+    "fields",
+    "id,created_time,from,to,message,attachments,shares,story,reactions,is_unsupported",
+  );
+  return url.toString();
 }
 
 // ── Content Publishing (F3) ──────────────────────────────────────────────────
@@ -357,11 +468,15 @@ export function buildPublishingLimitUrl(
   igUserId: string,
   accessToken: string,
   version: string = getMetaGraphVersion(),
+  since?: number,
 ): string {
   const url = new URL(
     `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${igUserId}/content_publishing_limit`,
   );
   url.searchParams.set("fields", "config,quota_usage");
+  if (since !== undefined) {
+    url.searchParams.set("since", String(since));
+  }
   url.searchParams.set("access_token", accessToken);
   return url.toString();
 }
@@ -567,32 +682,24 @@ export function extractGraphApiErrorCode(body: unknown): number | undefined {
   return typeof code === "number" ? code : undefined;
 }
 
+import type { MetricState } from "./igMetrics";
+import {
+  resolveMediaProductGroup,
+  MEDIA_BASE_METRICS,
+} from "./igMediaMetrics";
+
 // ── Metric Matrix Per Media Type ─────────────────────────────────────────────
 
 /**
- * Instagram media types:
- *   IMAGE / CAROUSEL_ALBUM: static posts -> reach, saved, shares, total_interactions (views is 0)
- *   REELS: short-form video -> reach, saved, shares, plays, total_interactions (plays/views)
- *   VIDEO: standard feed video -> reach, saved, shares, views, total_interactions
+ * Returns exact list of base insight metrics for a given media type and product type.
+ * Ensures no unsupported metrics are requested (which would fail the whole API call).
  */
 export function getMetricsForMediaType(
   mediaType: string,
   mediaProductType?: string,
 ): string[] {
-  const upperType = (mediaType || "").toUpperCase();
-  const upperProduct = (mediaProductType || "").toUpperCase();
-
-  if (upperProduct === "REELS" || upperType === "REELS") {
-    // Reels exposes plays / views, reach, saved, shares, total_interactions
-    return ["reach", "saved", "shares", "plays", "total_interactions"];
-  }
-
-  if (upperType === "VIDEO") {
-    return ["reach", "saved", "shares", "views", "total_interactions"];
-  }
-
-  // IMAGE / CAROUSEL_ALBUM / default
-  return ["reach", "saved", "shares", "total_interactions"];
+  const group = resolveMediaProductGroup(mediaType, mediaProductType);
+  return [...MEDIA_BASE_METRICS[group]];
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -707,6 +814,32 @@ export interface RawMediaListResponse {
   };
 }
 
+export interface RawStoryItem {
+  id: string;
+  media_type?: string; // "IMAGE" | "VIDEO"
+  media_url?: string;
+  thumbnail_url?: string;
+  permalink?: string;
+  timestamp?: string;
+}
+
+export interface RawStoriesResponse {
+  data?: RawStoryItem[];
+  paging?: {
+    cursors?: {
+      before?: string;
+      after?: string;
+    };
+    next?: string;
+  };
+  error?: {
+    message: string;
+    type: string;
+    code: number;
+    error_subcode?: number;
+  };
+}
+
 // ── Metric Extractors ────────────────────────────────────────────────────────
 
 function extractMetricValue(entry?: RawInsightEntry): number {
@@ -733,6 +866,7 @@ function extractMetricValue(entry?: RawInsightEntry): number {
 export function extractAccountInsights(data?: RawInsightEntry[]): {
   reach: number;
   profileViews: number;
+  totalInteractions: number;
   accountsEngaged: number;
 } {
   const list = data ?? [];
@@ -743,54 +877,87 @@ export function extractAccountInsights(data?: RawInsightEntry[]): {
 
   return {
     reach: extractMetricValue(byName.get("reach")),
-    profileViews: extractMetricValue(byName.get("profile_views")),
+    profileViews: 0,
+    totalInteractions: extractMetricValue(byName.get("total_interactions")),
     accountsEngaged: extractMetricValue(byName.get("accounts_engaged")),
   };
 }
 
-/**
- * Extract per-media metrics from `/{mediaId}/insights` response entries.
- * Gracefully handles metric differences between REELS and static posts.
- */
-export function extractMediaInsights(
-  data?: RawInsightEntry[],
-  mediaType: string = "IMAGE",
-  mediaProductType?: string,
-): {
+export interface ExtractedMediaInsights {
   reach: number;
   saves: number;
   shares: number;
   views: number;
-} {
+  likes?: number;
+  comments?: number;
+  reposts?: number;
+  profileVisits?: number;
+  follows?: number;
+  replies?: number;
+  totalInteractions?: number;
+  reelsAvgWatchTimeMs?: number;
+  reelsVideoViewTotalTimeMs?: number;
+  reelsSkipRate?: number;
+  crosspostedViews?: number;
+  facebookViews?: number;
+  metricStates?: Record<string, { state: MetricState; reason?: string }>;
+}
+
+/**
+ * Extract per-media metrics from `/{mediaId}/insights` response entries.
+ * Gracefully handles metric differences across FEED, REELS, and STORY.
+ */
+export function extractMediaInsights(
+  data?: RawInsightEntry[],
+): ExtractedMediaInsights {
   const list = data ?? [];
   const byName = new Map<string, RawInsightEntry>();
   for (const item of list) {
     if (item?.name) byName.set(item.name, item);
   }
 
-  const reach = extractMetricValue(byName.get("reach"));
-  const saves = extractMetricValue(byName.get("saved"));
-  const shares = extractMetricValue(byName.get("shares"));
+  const getNum = (name: string): number | undefined => {
+    const entry = byName.get(name);
+    if (!entry) return undefined;
+    return extractMetricValue(entry);
+  };
 
-  const upperType = (mediaType || "").toUpperCase();
-  const upperProduct = (mediaProductType || "").toUpperCase();
-  let views = 0;
+  const reach = getNum("reach") ?? 0;
+  const saves = getNum("saved") ?? 0;
+  const shares = getNum("shares") ?? 0;
+  const views = getNum("views") ?? 0;
 
-  if (upperProduct === "REELS" || upperType === "REELS") {
-    // On Reels, plays is the primary metric representing video plays/views
-    views =
-      extractMetricValue(byName.get("plays")) ||
-      extractMetricValue(byName.get("views"));
-  } else if (upperType === "VIDEO") {
-    views =
-      extractMetricValue(byName.get("views")) ||
-      extractMetricValue(byName.get("plays"));
-  } else {
-    // Static IMAGE / CAROUSEL_ALBUM do not have video views
-    views = 0;
-  }
+  const likes = getNum("likes");
+  const comments = getNum("comments");
+  const reposts = getNum("reposts");
+  const profileVisits = getNum("profile_visits");
+  const follows = getNum("follows");
+  const replies = getNum("replies");
+  const totalInteractions = getNum("total_interactions");
+  const reelsAvgWatchTimeMs = getNum("ig_reels_avg_watch_time");
+  const reelsVideoViewTotalTimeMs = getNum("ig_reels_video_view_total_time");
+  const reelsSkipRate = getNum("reels_skip_rate");
+  const crosspostedViews = getNum("crossposted_views");
+  const facebookViews = getNum("facebook_views");
 
-  return { reach, saves, shares, views };
+  return {
+    reach,
+    saves,
+    shares,
+    views,
+    likes,
+    comments,
+    reposts,
+    profileVisits,
+    follows,
+    replies,
+    totalInteractions,
+    reelsAvgWatchTimeMs,
+    reelsVideoViewTotalTimeMs,
+    reelsSkipRate,
+    crosspostedViews,
+    facebookViews,
+  };
 }
 
 /**
@@ -890,6 +1057,17 @@ export interface StoredMediaRow {
   saves: number;
   shares: number;
   views: number;
+  reposts?: number;
+  profileVisits?: number;
+  follows?: number;
+  replies?: number;
+  totalInteractions?: number;
+  reelsAvgWatchTimeMs?: number;
+  reelsVideoViewTotalTimeMs?: number;
+  reelsSkipRate?: number;
+  crosspostedViews?: number;
+  facebookViews?: number;
+  metricStates?: Record<string, { state: MetricState; reason?: string }>;
   syncedAt: number;
   mediaUrl?: string;
   thumbnailUrl?: string;
@@ -906,7 +1084,7 @@ export interface StoredMediaRow {
  */
 export function toStoredMediaRow(
   item: RawMediaItem,
-  insight: { reach: number; saves: number; shares: number; views: number },
+  insight: ExtractedMediaInsights,
   syncedAt: number,
 ): StoredMediaRow {
   const rawPublished = item.timestamp
@@ -917,22 +1095,37 @@ export function toStoredMediaRow(
   // Carousel slides; undefined for every other media type.
   const children = normalizeMediaChildren(item.children);
 
-  const isReels =
-    item.media_product_type?.toUpperCase() === "REELS" ||
-    item.media_type?.toUpperCase() === "REELS";
+  const group = resolveMediaProductGroup(item.media_type, item.media_product_type);
+  const mediaType =
+    group === "STORY"
+      ? "STORY"
+      : group === "REELS"
+        ? "REELS"
+        : item.media_type || "IMAGE";
 
   return {
     mediaId: String(item.id),
-    mediaType: isReels ? "REELS" : item.media_type || "IMAGE",
+    mediaType,
     caption: item.caption ?? "",
     permalink: item.permalink ?? "",
     publishedAt,
     reach: insight.reach,
-    likes: Number(item.like_count) || 0,
-    comments: Number(item.comments_count) || 0,
+    likes: Number(item.like_count) || insight.likes || 0,
+    comments: Number(item.comments_count) || insight.comments || 0,
     saves: insight.saves,
     shares: insight.shares,
     views: insight.views,
+    ...(insight.reposts !== undefined ? { reposts: insight.reposts } : {}),
+    ...(insight.profileVisits !== undefined ? { profileVisits: insight.profileVisits } : {}),
+    ...(insight.follows !== undefined ? { follows: insight.follows } : {}),
+    ...(insight.replies !== undefined ? { replies: insight.replies } : {}),
+    ...(insight.totalInteractions !== undefined ? { totalInteractions: insight.totalInteractions } : {}),
+    ...(insight.reelsAvgWatchTimeMs !== undefined ? { reelsAvgWatchTimeMs: insight.reelsAvgWatchTimeMs } : {}),
+    ...(insight.reelsVideoViewTotalTimeMs !== undefined ? { reelsVideoViewTotalTimeMs: insight.reelsVideoViewTotalTimeMs } : {}),
+    ...(insight.reelsSkipRate !== undefined ? { reelsSkipRate: insight.reelsSkipRate } : {}),
+    ...(insight.crosspostedViews !== undefined ? { crosspostedViews: insight.crosspostedViews } : {}),
+    ...(insight.facebookViews !== undefined ? { facebookViews: insight.facebookViews } : {}),
+    ...(insight.metricStates ? { metricStates: insight.metricStates } : {}),
     syncedAt,
     // Signed CDN links — stored so the /ig-media/ proxy has a starting point,
     // never rendered straight from the database.
@@ -1126,3 +1319,114 @@ export function pickChildDisplayUrl(
   if (!child) return undefined;
   return pickDisplayUrl(child.mediaType, child.mediaUrl, child.thumbnailUrl);
 }
+
+// ── Mentions & Tagged Media (G5) ─────────────────────────────────────────────
+
+export interface RawMentionedComment {
+  id?: string;
+  text?: string;
+  timestamp?: string;
+  media?: {
+    id?: string;
+    permalink?: string;
+  };
+  username?: string;
+}
+
+export interface RawMentionedCommentResponse {
+  id?: string;
+  mentioned_comment?: RawMentionedComment;
+}
+
+export interface RawMentionedMedia {
+  id?: string;
+  caption?: string;
+  media_type?: string;
+  permalink?: string;
+  timestamp?: string;
+  username?: string;
+}
+
+export interface RawMentionedMediaResponse {
+  id?: string;
+  mentioned_media?: RawMentionedMedia;
+}
+
+export interface RawTagItem {
+  id?: string;
+  caption?: string;
+  media_type?: string;
+  permalink?: string;
+  timestamp?: string;
+  username?: string;
+}
+
+export interface RawTagsResponse {
+  data?: RawTagItem[];
+  paging?: {
+    cursors?: { after?: string; before?: string };
+    next?: string;
+  };
+}
+
+/**
+ * Build endpoint URL for reading a mentioned comment's context.
+ */
+export function buildMentionedCommentContextUrl(
+  igUserId: string,
+  commentId: string,
+  accessToken: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(`${INSTAGRAM_GRAPH_BASE_URL}/${version}/${igUserId}`);
+  url.searchParams.set(
+    "fields",
+    `mentioned_comment.comment_id(${commentId}){id,text,timestamp,media{id,permalink},username}`,
+  );
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/**
+ * Build endpoint URL for reading a mentioned post/caption's context.
+ */
+export function buildMentionedMediaContextUrl(
+  igUserId: string,
+  mediaId: string,
+  accessToken: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(`${INSTAGRAM_GRAPH_BASE_URL}/${version}/${igUserId}`);
+  url.searchParams.set(
+    "fields",
+    `mentioned_media.media_id(${mediaId}){id,caption,media_type,permalink,timestamp,username}`,
+  );
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/**
+ * Build endpoint URL for replying to a mention (POST /{igUserId}/mentions).
+ */
+export function buildMentionReplyUrl(
+  igUserId: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  return `${INSTAGRAM_GRAPH_BASE_URL}/${version}/${igUserId}/mentions`;
+}
+
+/**
+ * Build endpoint URL for fetching tagged media (posts where user is tagged).
+ */
+export function buildMeTagsUrl(
+  accessToken: string,
+  limit: number = 30,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(`${INSTAGRAM_GRAPH_BASE_URL}/${version}/me/tags`);
+  url.searchParams.set("fields", "id,caption,media_type,permalink,timestamp,username");
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+

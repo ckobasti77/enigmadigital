@@ -2,6 +2,7 @@ import { internalMutation, internalQuery, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
+import { providerValidator } from "./lib/providers";
 
 /**
  * ============================================================================
@@ -22,8 +23,24 @@ export const accountDailyRowValidator = v.object({
   date: v.string(),
   followersCount: v.number(),
   reach: v.number(),
-  profileViews: v.number(),
+  profileViews: v.optional(v.number()),
+  totalInteractions: v.optional(v.number()),
   accountsEngaged: v.number(),
+});
+
+export const metricRowValidator = v.object({
+  date: v.string(),
+  metric: v.string(),
+  dimensionKeys: v.array(v.string()),
+  dimensionValues: v.array(v.string()),
+  value: v.optional(v.number()),
+  state: v.union(
+    v.literal("value"),
+    v.literal("suppressed"),
+    v.literal("unavailable"),
+  ),
+  reason: v.optional(v.string()),
+  syncedAt: v.number(),
 });
 
 export const mediaChildValidator = v.object({
@@ -45,11 +62,59 @@ export const mediaRowValidator = v.object({
   saves: v.number(),
   shares: v.number(),
   views: v.number(),
+  reposts: v.optional(v.number()),
+  profileVisits: v.optional(v.number()),
+  follows: v.optional(v.number()),
+  replies: v.optional(v.number()),
+  totalInteractions: v.optional(v.number()),
+  reelsAvgWatchTimeMs: v.optional(v.number()),
+  reelsVideoViewTotalTimeMs: v.optional(v.number()),
+  reelsSkipRate: v.optional(v.number()),
+  crosspostedViews: v.optional(v.number()),
+  facebookViews: v.optional(v.number()),
+  metricStates: v.optional(
+    v.record(
+      v.string(),
+      v.object({
+        state: v.union(
+          v.literal("value"),
+          v.literal("suppressed"),
+          v.literal("unavailable"),
+        ),
+        reason: v.optional(v.string()),
+      }),
+    ),
+  ),
   syncedAt: v.number(),
   mediaUrl: v.optional(v.string()),
   thumbnailUrl: v.optional(v.string()),
   children: v.optional(v.array(mediaChildValidator)),
   commentsEnabled: v.optional(v.boolean()),
+});
+
+export const mediaBreakdownRowValidator = v.object({
+  mediaId: v.string(),
+  metric: v.string(),
+  dimensionKey: v.string(),
+  dimensionValue: v.string(),
+  value: v.optional(v.number()),
+  state: v.union(
+    v.literal("value"),
+    v.literal("suppressed"),
+    v.literal("unavailable"),
+  ),
+  reason: v.optional(v.string()),
+  syncedAt: v.number(),
+});
+
+export const storyRowValidator = v.object({
+  storyId: v.string(),
+  mediaType: v.string(),
+  mediaUrl: v.optional(v.string()),
+  thumbnailUrl: v.optional(v.string()),
+  permalink: v.optional(v.string()),
+  timestamp: v.number(),
+  expiresAt: v.number(),
 });
 
 // ── Internal Queries & Mutations (for Sync & Token Actions) ──────────────────
@@ -73,6 +138,24 @@ export const getMembership = internalQuery({
       .first();
     if (!membership) return null;
     return { workspaceId: membership.workspaceId, role: membership.role };
+  },
+});
+
+/**
+ * Look up connection for a workspace and provider.
+ */
+export const getWorkspaceConnection = internalQuery({
+  args: {
+    workspaceId: v.id("workspaces"),
+    provider: providerValidator,
+  },
+  handler: async (ctx, { workspaceId, provider }) => {
+    return await ctx.db
+      .query("connections")
+      .withIndex("by_workspace_provider", (q) =>
+        q.eq("workspaceId", workspaceId).eq("provider", provider),
+      )
+      .first();
   },
 });
 
@@ -160,7 +243,10 @@ export const upsertAccountDaily = internalMutation({
       await ctx.db.patch(existing._id, {
         followersCount: row.followersCount,
         reach: row.reach,
-        profileViews: row.profileViews,
+        ...(row.profileViews !== undefined ? { profileViews: row.profileViews } : {}),
+        ...(row.totalInteractions !== undefined
+          ? { totalInteractions: row.totalInteractions }
+          : {}),
         accountsEngaged: row.accountsEngaged,
       });
     } else {
@@ -170,6 +256,76 @@ export const upsertAccountDaily = internalMutation({
       });
     }
     return 1;
+  },
+});
+
+/**
+ * Upsert a batch of metric rows into igMetricDaily by natural key:
+ * [workspaceId, date, metric, dimensionKeys, dimensionValues].
+ */
+export const upsertMetricBatch = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    rows: v.array(metricRowValidator),
+  },
+  returns: v.number(),
+  handler: async (ctx, { workspaceId, rows }) => {
+    let written = 0;
+    for (const row of rows) {
+      const candidates = await ctx.db
+        .query("igMetricDaily")
+        .withIndex("by_workspace_date_metric", (q) =>
+          q
+            .eq("workspaceId", workspaceId)
+            .eq("date", row.date)
+            .eq("metric", row.metric),
+        )
+        .collect();
+
+      const existing = candidates.find((c) => {
+        if (c.dimensionKeys.length !== row.dimensionKeys.length) return false;
+        if (c.dimensionValues.length !== row.dimensionValues.length) return false;
+        const keysMatch = c.dimensionKeys.every((k, i) => k === row.dimensionKeys[i]);
+        if (!keysMatch) return false;
+        return c.dimensionValues.every((v, i) => v === row.dimensionValues[i]);
+      });
+
+      if (existing !== undefined) {
+        await ctx.db.patch(existing._id, {
+          value: row.value,
+          state: row.state,
+          reason: row.reason,
+          syncedAt: row.syncedAt,
+        });
+      } else {
+        await ctx.db.insert("igMetricDaily", {
+          workspaceId,
+          ...row,
+        });
+      }
+      written++;
+    }
+    return written;
+  },
+});
+
+/**
+ * Check if a workspace already has completed backfilled historical metrics.
+ */
+export const hasMetricBackfill = internalQuery({
+  args: { workspaceId: v.id("workspaces") },
+  returns: v.boolean(),
+  handler: async (ctx, { workspaceId }) => {
+    const cutoffDate = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const oldRow = await ctx.db
+      .query("igMetricDaily")
+      .withIndex("by_workspace_date_metric", (q) =>
+        q.eq("workspaceId", workspaceId).lte("date", cutoffDate),
+      )
+      .first();
+    return oldRow !== null;
   },
 });
 
@@ -204,6 +360,17 @@ export const upsertMediaBatch = internalMutation({
           saves: row.saves,
           shares: row.shares,
           views: row.views,
+          ...(row.reposts !== undefined ? { reposts: row.reposts } : {}),
+          ...(row.profileVisits !== undefined ? { profileVisits: row.profileVisits } : {}),
+          ...(row.follows !== undefined ? { follows: row.follows } : {}),
+          ...(row.replies !== undefined ? { replies: row.replies } : {}),
+          ...(row.totalInteractions !== undefined ? { totalInteractions: row.totalInteractions } : {}),
+          ...(row.reelsAvgWatchTimeMs !== undefined ? { reelsAvgWatchTimeMs: row.reelsAvgWatchTimeMs } : {}),
+          ...(row.reelsVideoViewTotalTimeMs !== undefined ? { reelsVideoViewTotalTimeMs: row.reelsVideoViewTotalTimeMs } : {}),
+          ...(row.reelsSkipRate !== undefined ? { reelsSkipRate: row.reelsSkipRate } : {}),
+          ...(row.crosspostedViews !== undefined ? { crosspostedViews: row.crosspostedViews } : {}),
+          ...(row.facebookViews !== undefined ? { facebookViews: row.facebookViews } : {}),
+          ...(row.metricStates ? { metricStates: row.metricStates } : {}),
           syncedAt: row.syncedAt,
           mediaUrl: row.mediaUrl,
           thumbnailUrl: row.thumbnailUrl,
@@ -227,6 +394,254 @@ export const upsertMediaBatch = internalMutation({
       written++;
     }
     return written;
+  },
+});
+
+/**
+ * Upsert a batch of media breakdown rows into igMediaBreakdowns.
+ */
+export const upsertMediaBreakdownsBatch = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    rows: v.array(mediaBreakdownRowValidator),
+  },
+  returns: v.number(),
+  handler: async (ctx, { workspaceId, rows }) => {
+    let written = 0;
+    const grouped = new Map<string, typeof rows>();
+    for (const row of rows) {
+      const key = `${row.mediaId}::${row.metric}`;
+      const list = grouped.get(key) ?? [];
+      list.push(row);
+      grouped.set(key, list);
+    }
+
+    for (const [, groupRows] of grouped) {
+      const sample = groupRows[0];
+      const existing = await ctx.db
+        .query("igMediaBreakdowns")
+        .withIndex("by_workspace_media_metric", (q) =>
+          q
+            .eq("workspaceId", workspaceId)
+            .eq("mediaId", sample.mediaId)
+            .eq("metric", sample.metric),
+        )
+        .collect();
+
+      for (const ex of existing) {
+        await ctx.db.delete(ex._id);
+      }
+
+      for (const row of groupRows) {
+        await ctx.db.insert("igMediaBreakdowns", {
+          workspaceId,
+          ...row,
+        });
+        written++;
+      }
+    }
+    return written;
+  },
+});
+
+/**
+ * Upsert active stories in igStories, media stats in igMediaStats, and breakdowns in igMediaBreakdowns (G4).
+ */
+export const upsertStoriesAndMetrics = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    stories: v.array(storyRowValidator),
+    mediaRows: v.array(mediaRowValidator),
+    breakdownRows: v.array(mediaBreakdownRowValidator),
+    now: v.number(),
+  },
+  returns: v.object({
+    storiesUpserted: v.number(),
+    mediaUpserted: v.number(),
+    breakdownsUpserted: v.number(),
+  }),
+  handler: async (ctx, { workspaceId, stories, mediaRows, breakdownRows, now }) => {
+    let storiesUpserted = 0;
+    for (const story of stories) {
+      const existing = await ctx.db
+        .query("igStories")
+        .withIndex("by_workspace_story", (q) =>
+          q.eq("workspaceId", workspaceId).eq("storyId", story.storyId),
+        )
+        .first();
+
+      if (existing !== null) {
+        await ctx.db.patch(existing._id, {
+          mediaType: story.mediaType,
+          mediaUrl: story.mediaUrl ?? existing.mediaUrl,
+          thumbnailUrl: story.thumbnailUrl ?? existing.thumbnailUrl,
+          permalink: story.permalink ?? existing.permalink,
+          lastPolledAt: now,
+          pollCount: existing.pollCount + 1,
+        });
+      } else {
+        await ctx.db.insert("igStories", {
+          workspaceId,
+          storyId: story.storyId,
+          mediaType: story.mediaType,
+          mediaUrl: story.mediaUrl,
+          thumbnailUrl: story.thumbnailUrl,
+          permalink: story.permalink,
+          timestamp: story.timestamp,
+          expiresAt: story.expiresAt,
+          firstSeenAt: now,
+          lastPolledAt: now,
+          pollCount: 1,
+        });
+      }
+      storiesUpserted++;
+    }
+
+    // Upsert media stats for stories in igMediaStats
+    let mediaUpserted = 0;
+    for (const row of mediaRows) {
+      const existing = await ctx.db
+        .query("igMediaStats")
+        .withIndex("by_workspace_media", (q) =>
+          q.eq("workspaceId", workspaceId).eq("mediaId", row.mediaId),
+        )
+        .first();
+
+      if (existing !== null) {
+        await ctx.db.patch(existing._id, {
+          mediaType: row.mediaType,
+          caption: row.caption,
+          permalink: row.permalink,
+          publishedAt: row.publishedAt,
+          reach: row.reach,
+          likes: row.likes,
+          comments: row.comments,
+          saves: row.saves,
+          shares: row.shares,
+          views: row.views,
+          ...(row.reposts !== undefined ? { reposts: row.reposts } : {}),
+          ...(row.profileVisits !== undefined ? { profileVisits: row.profileVisits } : {}),
+          ...(row.follows !== undefined ? { follows: row.follows } : {}),
+          ...(row.replies !== undefined ? { replies: row.replies } : {}),
+          ...(row.totalInteractions !== undefined ? { totalInteractions: row.totalInteractions } : {}),
+          ...(row.facebookViews !== undefined ? { facebookViews: row.facebookViews } : {}),
+          ...(row.metricStates ? { metricStates: row.metricStates } : {}),
+          syncedAt: row.syncedAt,
+          mediaUrl: row.mediaUrl,
+          thumbnailUrl: row.thumbnailUrl,
+          mediaUrlSyncedAt: row.syncedAt,
+        });
+      } else {
+        await ctx.db.insert("igMediaStats", {
+          workspaceId,
+          ...row,
+          mediaUrlSyncedAt: row.syncedAt,
+        });
+      }
+      mediaUpserted++;
+    }
+
+    // Upsert media breakdowns in igMediaBreakdowns
+    let breakdownsUpserted = 0;
+    const grouped = new Map<string, typeof breakdownRows>();
+    for (const row of breakdownRows) {
+      const key = `${row.mediaId}::${row.metric}`;
+      const list = grouped.get(key) ?? [];
+      list.push(row);
+      grouped.set(key, list);
+    }
+
+    for (const [, groupRows] of grouped) {
+      const sample = groupRows[0];
+      const existing = await ctx.db
+        .query("igMediaBreakdowns")
+        .withIndex("by_workspace_media_metric", (q) =>
+          q
+            .eq("workspaceId", workspaceId)
+            .eq("mediaId", sample.mediaId)
+            .eq("metric", sample.metric),
+        )
+        .collect();
+
+      for (const ex of existing) {
+        await ctx.db.delete(ex._id);
+      }
+
+      for (const row of groupRows) {
+        await ctx.db.insert("igMediaBreakdowns", {
+          workspaceId,
+          ...row,
+        });
+        breakdownsUpserted++;
+      }
+    }
+
+    return {
+      storiesUpserted,
+      mediaUpserted,
+      breakdownsUpserted,
+    };
+  },
+});
+
+/**
+ * Archive expired stories that are no longer active and have passed expiresAt.
+ */
+export const archiveExpiredStories = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    now: v.number(),
+  },
+  returns: v.number(),
+  handler: async (ctx, { workspaceId, now }) => {
+    // Stories whose expiresAt is in the past and archivedAt is not yet set
+    const candidates = await ctx.db
+      .query("igStories")
+      .withIndex("by_workspace_expires", (q) =>
+        q.eq("workspaceId", workspaceId).lte("expiresAt", now),
+      )
+      .collect();
+
+    let archivedCount = 0;
+    for (const story of candidates) {
+      if (story.archivedAt === undefined) {
+        await ctx.db.patch(story._id, { archivedAt: now });
+        archivedCount++;
+      }
+    }
+    return archivedCount;
+  },
+});
+
+/**
+ * 13 months in milliseconds (~395 days).
+ * Stories older than 13 months are purged from igStories (G4 dopuna).
+ */
+const THIRTEEN_MONTHS_MS = 13 * 30.5 * 24 * 60 * 60 * 1000;
+
+export const sweepOldArchivedStories = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    now: v.number(),
+  },
+  returns: v.number(),
+  handler: async (ctx, { workspaceId, now }) => {
+    const cutoff = now - THIRTEEN_MONTHS_MS;
+    const oldStories = await ctx.db
+      .query("igStories")
+      .withIndex("by_workspace_timestamp", (q) =>
+        q.eq("workspaceId", workspaceId).lte("timestamp", cutoff),
+      )
+      .collect();
+
+    let deleted = 0;
+    for (const story of oldStories) {
+      if (story.archivedAt !== undefined && story.archivedAt < cutoff) {
+        await ctx.db.delete(story._id);
+        deleted++;
+      }
+    }
+    return deleted;
   },
 });
 
@@ -322,6 +737,7 @@ const dailyViewValidator = v.object({
   followersCount: v.number(),
   reach: v.number(),
   profileViews: v.number(),
+  totalInteractions: v.number(),
   accountsEngaged: v.number(),
 });
 
@@ -344,8 +760,72 @@ export const dailyHistory = query({
       date: r.date,
       followersCount: r.followersCount,
       reach: r.reach,
-      profileViews: r.profileViews,
+      profileViews: r.profileViews ?? 0,
+      totalInteractions: r.totalInteractions ?? 0,
       accountsEngaged: r.accountsEngaged,
+    }));
+  },
+});
+
+export const metricPointValidator = v.object({
+  date: v.string(),
+  dimensionKeys: v.array(v.string()),
+  dimensionValues: v.array(v.string()),
+  value: v.optional(v.number()),
+  state: v.union(
+    v.literal("value"),
+    v.literal("suppressed"),
+    v.literal("unavailable"),
+  ),
+  reason: v.optional(v.string()),
+});
+
+/**
+ * Get daily metric series for a specified metric and optional breakdown.
+ * Preserves 3 states: "value", "suppressed", "unavailable".
+ */
+export const metricSeries = query({
+  args: {
+    metric: v.string(),
+    from: v.string(),
+    to: v.string(),
+    dimensionKey: v.optional(v.string()),
+    dimensionValue: v.optional(v.string()),
+  },
+  returns: v.array(metricPointValidator),
+  handler: async (ctx, { metric, from, to, dimensionKey, dimensionValue }) => {
+    const { workspaceId } = await requireMembership(ctx);
+    const rows = await ctx.db
+      .query("igMetricDaily")
+      .withIndex("by_workspace_metric_date", (q) =>
+        q
+          .eq("workspaceId", workspaceId)
+          .eq("metric", metric)
+          .gte("date", from)
+          .lte("date", to),
+      )
+      .collect();
+
+    const filtered = rows.filter((r) => {
+      if (dimensionKey === undefined) {
+        // Default to overall totals (dimensionKeys is empty)
+        return r.dimensionKeys.length === 0;
+      }
+      const keyIdx = r.dimensionKeys.indexOf(dimensionKey);
+      if (keyIdx === -1) return false;
+      if (dimensionValue !== undefined) {
+        return r.dimensionValues[keyIdx] === dimensionValue;
+      }
+      return true;
+    });
+
+    return filtered.map((r) => ({
+      date: r.date,
+      dimensionKeys: r.dimensionKeys,
+      dimensionValues: r.dimensionValues,
+      value: r.value,
+      state: r.state,
+      reason: r.reason,
     }));
   },
 });
@@ -429,6 +909,168 @@ export const mediaList = query({
           }
         : {}),
     }));
+  },
+});
+
+export const mediaDetailValidator = v.object({
+  media: v.object({
+    _id: v.id("igMediaStats"),
+    mediaId: v.string(),
+    mediaType: v.string(),
+    caption: v.string(),
+    permalink: v.string(),
+    publishedAt: v.number(),
+    reach: v.number(),
+    likes: v.number(),
+    comments: v.number(),
+    saves: v.number(),
+    shares: v.number(),
+    views: v.number(),
+    reposts: v.optional(v.number()),
+    profileVisits: v.optional(v.number()),
+    follows: v.optional(v.number()),
+    replies: v.optional(v.number()),
+    totalInteractions: v.optional(v.number()),
+    reelsAvgWatchTimeMs: v.optional(v.number()),
+    reelsVideoViewTotalTimeMs: v.optional(v.number()),
+    reelsSkipRate: v.optional(v.number()),
+    crosspostedViews: v.optional(v.number()),
+    facebookViews: v.optional(v.number()),
+    syncedAt: v.number(),
+    deletedAt: v.optional(v.number()),
+    commentsEnabled: v.optional(v.boolean()),
+    children: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          mediaType: v.string(),
+        }),
+      ),
+    ),
+    metricStates: v.optional(
+      v.record(
+        v.string(),
+        v.object({
+          state: v.union(
+            v.literal("value"),
+            v.literal("suppressed"),
+            v.literal("unavailable"),
+          ),
+          reason: v.optional(v.string()),
+        }),
+      ),
+    ),
+  }),
+  breakdowns: v.array(
+    v.object({
+      _id: v.id("igMediaBreakdowns"),
+      mediaId: v.string(),
+      metric: v.string(),
+      dimensionKey: v.string(),
+      dimensionValue: v.string(),
+      value: v.optional(v.number()),
+      state: v.union(
+        v.literal("value"),
+        v.literal("suppressed"),
+        v.literal("unavailable"),
+      ),
+      reason: v.optional(v.string()),
+    }),
+  ),
+});
+
+/**
+ * Fetch detailed metrics, 3-state breakdown, and dimensional rows for a single post.
+ */
+export const getMediaDetail = query({
+  args: {
+    mediaId: v.string(),
+  },
+  returns: v.union(v.null(), mediaDetailValidator),
+  handler: async (ctx, { mediaId }) => {
+    const { workspaceId } = await requireMembership(ctx);
+    const media = await ctx.db
+      .query("igMediaStats")
+      .withIndex("by_workspace_media", (q) =>
+        q.eq("workspaceId", workspaceId).eq("mediaId", mediaId),
+      )
+      .first();
+
+    if (media === null) return null;
+
+    const breakdowns = await ctx.db
+      .query("igMediaBreakdowns")
+      .withIndex("by_workspace_media", (q) =>
+        q.eq("workspaceId", workspaceId).eq("mediaId", mediaId),
+      )
+      .collect();
+
+    return {
+      media: {
+        _id: media._id,
+        mediaId: media.mediaId,
+        mediaType: media.mediaType,
+        caption: media.caption,
+        permalink: media.permalink,
+        publishedAt: media.publishedAt,
+        reach: media.reach,
+        likes: media.likes,
+        comments: media.comments,
+        saves: media.saves,
+        shares: media.shares,
+        views: media.views,
+        ...(media.reposts !== undefined ? { reposts: media.reposts } : {}),
+        ...(media.profileVisits !== undefined
+          ? { profileVisits: media.profileVisits }
+          : {}),
+        ...(media.follows !== undefined ? { follows: media.follows } : {}),
+        ...(media.replies !== undefined ? { replies: media.replies } : {}),
+        ...(media.totalInteractions !== undefined
+          ? { totalInteractions: media.totalInteractions }
+          : {}),
+        ...(media.reelsAvgWatchTimeMs !== undefined
+          ? { reelsAvgWatchTimeMs: media.reelsAvgWatchTimeMs }
+          : {}),
+        ...(media.reelsVideoViewTotalTimeMs !== undefined
+          ? { reelsVideoViewTotalTimeMs: media.reelsVideoViewTotalTimeMs }
+          : {}),
+        ...(media.reelsSkipRate !== undefined
+          ? { reelsSkipRate: media.reelsSkipRate }
+          : {}),
+        ...(media.crosspostedViews !== undefined
+          ? { crosspostedViews: media.crosspostedViews }
+          : {}),
+        ...(media.facebookViews !== undefined
+          ? { facebookViews: media.facebookViews }
+          : {}),
+        syncedAt: media.syncedAt,
+        ...(media.deletedAt !== undefined
+          ? { deletedAt: media.deletedAt }
+          : {}),
+        ...(media.commentsEnabled !== undefined
+          ? { commentsEnabled: media.commentsEnabled }
+          : {}),
+        ...(media.children
+          ? {
+              children: media.children.map((c) => ({
+                id: c.id,
+                mediaType: c.mediaType,
+              })),
+            }
+          : {}),
+        ...(media.metricStates ? { metricStates: media.metricStates } : {}),
+      },
+      breakdowns: breakdowns.map((b) => ({
+        _id: b._id,
+        mediaId: b.mediaId,
+        metric: b.metric,
+        dimensionKey: b.dimensionKey,
+        dimensionValue: b.dimensionValue,
+        ...(b.value !== undefined ? { value: b.value } : {}),
+        state: b.state,
+        ...(b.reason !== undefined ? { reason: b.reason } : {}),
+      })),
+    };
   },
 });
 
@@ -782,5 +1424,443 @@ export const markMediaDeleted = internalMutation({
       await ctx.db.patch(id, { deletedAt: Date.now() });
     }
     return null;
+  },
+});
+
+// ── Instagram Audience Demographics (G2) ────────────────────────────────────
+
+export const demographicRowValidator = v.object({
+  metric: v.union(v.literal("follower"), v.literal("engaged")),
+  timeframe: v.string(),
+  dimensionKeys: v.array(v.string()),
+  dimensionValues: v.array(v.string()),
+  value: v.optional(v.number()),
+  state: v.union(
+    v.literal("value"),
+    v.literal("suppressed"),
+    v.literal("unavailable"),
+  ),
+  reason: v.optional(v.string()),
+  syncedAt: v.number(),
+});
+
+/**
+ * Upsert a batch of demographic rows into igDemographics.
+ */
+export const upsertDemographicsBatch = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    rows: v.array(demographicRowValidator),
+  },
+  returns: v.number(),
+  handler: async (ctx, { workspaceId, rows }) => {
+    let written = 0;
+
+    const grouped = new Map<string, typeof rows>();
+    for (const row of rows) {
+      const groupKey = `${row.metric}::${row.timeframe}::${row.dimensionKeys.join(",")}`;
+      const list = grouped.get(groupKey) ?? [];
+      list.push(row);
+      grouped.set(groupKey, list);
+    }
+
+    for (const [, groupRows] of grouped) {
+      const sample = groupRows[0];
+      const existingCandidates = await ctx.db
+        .query("igDemographics")
+        .withIndex("by_workspace_metric_timeframe", (q) =>
+          q
+            .eq("workspaceId", workspaceId)
+            .eq("metric", sample.metric)
+            .eq("timeframe", sample.timeframe),
+        )
+        .collect();
+
+      const matchingExisting = existingCandidates.filter((c) => {
+        if (c.dimensionKeys.length !== sample.dimensionKeys.length) return false;
+        return c.dimensionKeys.every((k, i) => k === sample.dimensionKeys[i]);
+      });
+
+      if (sample.state !== "value") {
+        for (const ex of matchingExisting) {
+          await ctx.db.delete(ex._id);
+        }
+        await ctx.db.insert("igDemographics", {
+          workspaceId,
+          ...sample,
+        });
+        written++;
+        continue;
+      }
+
+      const existingByVals = new Map<string, (typeof matchingExisting)[number]>();
+      for (const ex of matchingExisting) {
+        if (ex.state !== "value") {
+          await ctx.db.delete(ex._id);
+          continue;
+        }
+        const valKey = ex.dimensionValues.join("::");
+        existingByVals.set(valKey, ex);
+      }
+
+      const incomingValKeys = new Set<string>();
+      for (const row of groupRows) {
+        const valKey = row.dimensionValues.join("::");
+        incomingValKeys.add(valKey);
+
+        const existing = existingByVals.get(valKey);
+        if (existing) {
+          await ctx.db.patch(existing._id, {
+            value: row.value,
+            state: row.state,
+            reason: row.reason,
+            syncedAt: row.syncedAt,
+          });
+        } else {
+          await ctx.db.insert("igDemographics", {
+            workspaceId,
+            ...row,
+          });
+        }
+        written++;
+      }
+
+      for (const [valKey, ex] of existingByVals) {
+        if (!incomingValKeys.has(valKey)) {
+          await ctx.db.delete(ex._id);
+        }
+      }
+    }
+
+    return written;
+  },
+});
+
+export const ageGenderPointValidator = v.object({
+  age: v.string(),
+  gender: v.string(),
+  value: v.number(),
+});
+
+export const rankingItemValidator = v.object({
+  name: v.string(),
+  value: v.number(),
+});
+
+export const demographicsSummaryValidator = v.object({
+  metric: v.union(v.literal("follower"), v.literal("engaged")),
+  timeframe: v.string(),
+  state: v.union(
+    v.literal("value"),
+    v.literal("suppressed"),
+    v.literal("unavailable"),
+    v.literal("empty"),
+  ),
+  reason: v.optional(v.string()),
+  followersCount: v.number(),
+  hasConnection: v.boolean(),
+  ageGender: v.array(ageGenderPointValidator),
+  countries: v.array(rankingItemValidator),
+  cities: v.array(rankingItemValidator),
+  syncedAt: v.optional(v.number()),
+});
+
+/**
+ * Public query for audience demographics on /instagram/publika screen.
+ */
+export const getDemographicsSummary = query({
+  args: {
+    metric: v.union(v.literal("follower"), v.literal("engaged")),
+    timeframe: v.string(),
+  },
+  returns: demographicsSummaryValidator,
+  handler: async (ctx, { metric, timeframe }) => {
+    const { workspaceId } = await requireMembership(ctx);
+
+    const connection = await ctx.db
+      .query("connections")
+      .withIndex("by_workspace_provider", (q) =>
+        q.eq("workspaceId", workspaceId).eq("provider", "meta_ig"),
+      )
+      .unique();
+
+    const hasConnection = connection !== null && connection.status === "active";
+
+    const latestAccount = await ctx.db
+      .query("igAccountDaily")
+      .withIndex("by_workspace_date", (q) => q.eq("workspaceId", workspaceId))
+      .order("desc")
+      .first();
+
+    const followersCount = latestAccount?.followersCount ?? 0;
+
+    const rows = await ctx.db
+      .query("igDemographics")
+      .withIndex("by_workspace_metric_timeframe", (q) =>
+        q
+          .eq("workspaceId", workspaceId)
+          .eq("metric", metric)
+          .eq("timeframe", timeframe),
+      )
+      .collect();
+
+    if (rows.length === 0) {
+      return {
+        metric,
+        timeframe,
+        state: "empty" as const,
+        reason: undefined,
+        followersCount,
+        hasConnection,
+        ageGender: [],
+        countries: [],
+        cities: [],
+        syncedAt: undefined,
+      };
+    }
+
+    const suppressedRow = rows.find((r) => r.state === "suppressed");
+    if (suppressedRow) {
+      return {
+        metric,
+        timeframe,
+        state: "suppressed" as const,
+        reason:
+          suppressedRow.reason ??
+          (metric === "follower"
+            ? "Instagram ne isporučuje demografske podatke ispod 100 pratilaca."
+            : "Instagram ne isporučuje demografske podatke ispod 100 angažovanja u izabranom periodu."),
+        followersCount,
+        hasConnection,
+        ageGender: [],
+        countries: [],
+        cities: [],
+        syncedAt: suppressedRow.syncedAt,
+      };
+    }
+
+    const unavailableRow = rows.find((r) => r.state === "unavailable");
+    if (unavailableRow) {
+      return {
+        metric,
+        timeframe,
+        state: "unavailable" as const,
+        reason: unavailableRow.reason ?? "Meta API trenutno nije dostupan.",
+        followersCount,
+        hasConnection,
+        ageGender: [],
+        countries: [],
+        cities: [],
+        syncedAt: unavailableRow.syncedAt,
+      };
+    }
+
+    const ageGender: { age: string; gender: string; value: number }[] = [];
+    const countries: { name: string; value: number }[] = [];
+    const cities: { name: string; value: number }[] = [];
+    let syncedAt: number | undefined;
+
+    for (const r of rows) {
+      if (r.syncedAt && (!syncedAt || r.syncedAt > syncedAt)) {
+        syncedAt = r.syncedAt;
+      }
+      if (r.state !== "value" || typeof r.value !== "number") continue;
+
+      const keys = r.dimensionKeys.join(",");
+      if (keys === "age,gender") {
+        const age = r.dimensionValues[0] ?? "";
+        const gender = r.dimensionValues[1] ?? "";
+        if (age && gender) {
+          ageGender.push({ age, gender, value: r.value });
+        }
+      } else if (keys === "country") {
+        const country = r.dimensionValues[0] ?? "";
+        if (country) {
+          countries.push({ name: country, value: r.value });
+        }
+      } else if (keys === "city") {
+        const city = r.dimensionValues[0] ?? "";
+        if (city) {
+          cities.push({ name: city, value: r.value });
+        }
+      }
+    }
+
+    countries.sort((a, b) => b.value - a.value);
+    cities.sort((a, b) => b.value - a.value);
+
+    return {
+      metric,
+      timeframe,
+      state: "value" as const,
+      reason: undefined,
+      followersCount,
+      hasConnection,
+      ageGender,
+      countries,
+      cities,
+      syncedAt,
+    };
+  },
+});
+
+export const storyViewValidator = v.object({
+  _id: v.id("igStories"),
+  storyId: v.string(),
+  mediaType: v.string(),
+  mediaUrl: v.optional(v.string()),
+  thumbnailUrl: v.optional(v.string()),
+  permalink: v.optional(v.string()),
+  timestamp: v.number(),
+  expiresAt: v.number(),
+  firstSeenAt: v.number(),
+  lastPolledAt: v.number(),
+  pollCount: v.number(),
+  archivedAt: v.optional(v.number()),
+  stats: v.optional(
+    v.object({
+      reach: v.number(),
+      views: v.number(),
+      shares: v.number(),
+      totalInteractions: v.optional(v.number()),
+      reposts: v.optional(v.number()),
+      profileVisits: v.optional(v.number()),
+      follows: v.optional(v.number()),
+      replies: v.optional(v.number()),
+      facebookViews: v.optional(v.number()),
+      metricStates: v.optional(
+        v.record(
+          v.string(),
+          v.object({
+            state: v.union(
+              v.literal("value"),
+              v.literal("suppressed"),
+              v.literal("unavailable"),
+            ),
+            reason: v.optional(v.string()),
+          }),
+        ),
+      ),
+      syncedAt: v.number(),
+    }),
+  ),
+  breakdowns: v.array(
+    v.object({
+      metric: v.string(),
+      dimensionKey: v.string(),
+      dimensionValue: v.string(),
+      value: v.optional(v.number()),
+      state: v.union(
+        v.literal("value"),
+        v.literal("suppressed"),
+        v.literal("unavailable"),
+      ),
+      reason: v.optional(v.string()),
+    }),
+  ),
+});
+
+export const storiesOverviewValidator = v.object({
+  liveStories: v.array(storyViewValidator),
+  archivedStories: v.array(storyViewValidator),
+  hasConnection: v.boolean(),
+});
+
+/**
+ * Query active (live) and archived stories with stats and breakdown dimensions for /instagram/stories (G4).
+ */
+export const getStoriesOverview = query({
+  args: {
+    now: v.optional(v.number()),
+  },
+  returns: storiesOverviewValidator,
+  handler: async (ctx, { now }) => {
+    const { workspaceId } = await requireMembership(ctx);
+    const conn = await ctx.db
+      .query("connections")
+      .withIndex("by_workspace_provider", (q) =>
+        q.eq("workspaceId", workspaceId).eq("provider", "meta_ig"),
+      )
+      .first();
+    const hasConnection = conn !== null && conn.status === "active";
+
+    const allStories = await ctx.db
+      .query("igStories")
+      .withIndex("by_workspace_timestamp", (q) =>
+        q.eq("workspaceId", workspaceId),
+      )
+      .order("desc")
+      .take(100);
+
+    const currentTime = now ?? Date.now();
+    const liveStories: (typeof storyViewValidator.type)[] = [];
+    const archivedStories: (typeof storyViewValidator.type)[] = [];
+
+    for (const story of allStories) {
+      const stats = await ctx.db
+        .query("igMediaStats")
+        .withIndex("by_workspace_media", (q) =>
+          q.eq("workspaceId", workspaceId).eq("mediaId", story.storyId),
+        )
+        .first();
+
+      const breakdowns = await ctx.db
+        .query("igMediaBreakdowns")
+        .withIndex("by_workspace_media", (q) =>
+          q.eq("workspaceId", workspaceId).eq("mediaId", story.storyId),
+        )
+        .collect();
+
+      const item = {
+        _id: story._id,
+        storyId: story.storyId,
+        mediaType: story.mediaType,
+        mediaUrl: story.mediaUrl,
+        thumbnailUrl: story.thumbnailUrl,
+        permalink: story.permalink,
+        timestamp: story.timestamp,
+        expiresAt: story.expiresAt,
+        firstSeenAt: story.firstSeenAt,
+        lastPolledAt: story.lastPolledAt,
+        pollCount: story.pollCount,
+        archivedAt: story.archivedAt,
+        stats: stats
+          ? {
+              reach: stats.reach,
+              views: stats.views,
+              shares: stats.shares,
+              totalInteractions: stats.totalInteractions,
+              reposts: stats.reposts,
+              profileVisits: stats.profileVisits,
+              follows: stats.follows,
+              replies: stats.replies,
+              facebookViews: stats.facebookViews,
+              metricStates: stats.metricStates,
+              syncedAt: stats.syncedAt,
+            }
+          : undefined,
+        breakdowns: breakdowns.map((b) => ({
+          metric: b.metric,
+          dimensionKey: b.dimensionKey,
+          dimensionValue: b.dimensionValue,
+          value: b.value,
+          state: b.state,
+          reason: b.reason,
+        })),
+      };
+
+      const isLive = story.archivedAt === undefined && story.expiresAt > currentTime;
+      if (isLive) {
+        liveStories.push(item);
+      } else {
+        archivedStories.push(item);
+      }
+    }
+
+    return {
+      liveStories,
+      archivedStories,
+      hasConnection,
+    };
   },
 });

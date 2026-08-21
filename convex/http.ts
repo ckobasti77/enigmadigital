@@ -195,19 +195,71 @@ interface InstagramWebhookQuickReply {
   payload?: string;
 }
 
+interface InstagramWebhookAttachment {
+  type?: string;
+  payload?: { url?: string };
+  title?: string;
+}
+
+interface InstagramWebhookShare {
+  link?: string;
+  id?: string;
+}
+
+interface InstagramWebhookStory {
+  id?: string;
+  url?: string;
+}
+
+interface InstagramWebhookReaction {
+  mid?: string;
+  action?: "react" | "unreact";
+  reaction?: string;
+  emoji?: string;
+}
+
+interface InstagramWebhookRead {
+  mid?: string;
+  watermark?: number;
+}
+
+interface InstagramWebhookReferral {
+  ref?: string;
+  source?: string;
+  type?: string;
+  ad_id?: string;
+}
+
+interface InstagramWebhookOptin {
+  ref?: string;
+  user_token?: string;
+}
+
+interface InstagramWebhookMessageEdit {
+  mid?: string;
+  text?: string;
+  num_edit?: number;
+}
+
 interface InstagramWebhookMessage {
   mid?: string;
   text?: string;
   is_echo?: boolean;
   is_deleted?: boolean;
+  is_unsupported?: boolean;
   // Present when the message is a tapped quick reply rather than typed text.
   quick_reply?: InstagramWebhookQuickReply;
+  attachments?: InstagramWebhookAttachment[];
+  shares?: InstagramWebhookShare;
+  story?: InstagramWebhookStory;
+  reply_to?: { mid?: string };
 }
 
 interface InstagramWebhookPostback {
   mid?: string;
   title?: string;
   payload?: string;
+  referral?: InstagramWebhookReferral;
 }
 
 interface InstagramWebhookMessaging {
@@ -216,6 +268,11 @@ interface InstagramWebhookMessaging {
   timestamp?: number;
   message?: InstagramWebhookMessage;
   postback?: InstagramWebhookPostback;
+  reaction?: InstagramWebhookReaction;
+  read?: InstagramWebhookRead;
+  referral?: InstagramWebhookReferral;
+  optin?: InstagramWebhookOptin;
+  message_edit?: InstagramWebhookMessageEdit;
 }
 
 interface InstagramWebhookEntry {
@@ -223,6 +280,7 @@ interface InstagramWebhookEntry {
   time?: number;
   changes?: InstagramWebhookChange[];
   messaging?: InstagramWebhookMessaging[];
+  standby?: InstagramWebhookMessaging[];
 }
 
 interface InstagramWebhookPayload {
@@ -258,6 +316,7 @@ interface FacebookWebhookEntry {
   changes?: FacebookWebhookChange[];
   // Messaging is the one part that IS identical to Instagram, PSID for IGSID.
   messaging?: InstagramWebhookMessaging[];
+  standby?: InstagramWebhookMessaging[];
 }
 
 interface FacebookWebhookPayload {
@@ -334,11 +393,8 @@ async function scheduleTargetedRefresh(
  * The `messaging[]` half of a webhook, which Instagram and Facebook send in
  * exactly the same shape — a PSID where an IGSID would be.
  *
- * Three different things arrive here and only one of them is a message to
- * keyword-match: a button-template tap comes as its own `postback` event with
- * no `message` at all, and a quick-reply tap comes as an ordinary message
- * carrying the payload we minted. Both are taps, and both go to the tap
- * ingest rather than to the matcher.
+ * Handles inbound DMs, message echoes (sent from IG App), reactions, edits,
+ * postbacks and quick-reply taps, routing them to the inbox store and automation engine.
  */
 async function handleMessagingEvents(
   ctx: ActionCtx,
@@ -353,11 +409,105 @@ async function handleMessagingEvents(
   for (const event of events) {
     const senderId =
       typeof event.sender?.id === "string" ? event.sender.id : undefined;
-    // Nothing arriving from the account itself is ours to react to.
+
+    // 1. Reactions (message_reactions)
+    const reaction = event?.reaction;
+    if (reaction && typeof reaction === "object") {
+      const mid = typeof reaction.mid === "string" ? reaction.mid : undefined;
+      const action = reaction.action === "unreact" ? "unreact" : "react";
+      const emoji =
+        typeof reaction.reaction === "string"
+          ? reaction.reaction
+          : typeof reaction.emoji === "string"
+            ? reaction.emoji
+            : undefined;
+
+      if (mid) {
+        try {
+          await ctx.runMutation(internal.instagramInboxStore.recordReaction, {
+            platform,
+            accountId,
+            igsid: senderId || event.recipient?.id || "",
+            mid,
+            emoji,
+            action,
+            actorId: senderId || "",
+            isOurs: senderId === accountId,
+          });
+        } catch {
+          // Catch per-event
+        }
+      }
+      continue;
+    }
+
+    // 2. Message Edits (message_edit)
+    const messageEdit = event?.message_edit;
+    if (messageEdit && typeof messageEdit === "object") {
+      const mid =
+        typeof messageEdit.mid === "string" ? messageEdit.mid : undefined;
+      const text =
+        typeof messageEdit.text === "string" ? messageEdit.text : undefined;
+
+      if (mid && text !== undefined) {
+        try {
+          await ctx.runMutation(
+            internal.instagramInboxStore.recordMessageEdit,
+            {
+              platform,
+              accountId,
+              mid,
+              text,
+              editedAt: event.timestamp || Date.now(),
+            },
+          );
+        } catch {
+          // Catch per-event
+        }
+      }
+      continue;
+    }
+
+    // 3. Message Echoes (message_echoes — business sent from Instagram app or tool)
+    const message = event?.message;
+    if (message && message.is_echo === true) {
+      const recipientId =
+        typeof event.recipient?.id === "string"
+          ? event.recipient.id
+          : undefined;
+      const mid = typeof message.mid === "string" ? message.mid : undefined;
+      if (recipientId && mid) {
+        try {
+          const attachments = (message.attachments ?? []).flatMap((a) => {
+            const url = a.payload?.url;
+            const type = a.type ?? "image";
+            if (!url && type !== "like_heart") return [];
+            return [{ type, url, title: a.title }];
+          });
+
+          await ctx.runMutation(
+            internal.instagramInboxStore.recordEchoMessage,
+            {
+              platform,
+              accountId,
+              igsid: recipientId,
+              mid,
+              text: message.text,
+              attachments: attachments.length > 0 ? attachments : undefined,
+              sentAt: event.timestamp || Date.now(),
+            },
+          );
+        } catch {
+          // Catch per-event
+        }
+      }
+      continue;
+    }
+
+    // Nothing else arriving from the account itself is ours to react to.
     if (!senderId || senderId === accountId) continue;
 
-    // A button-template button comes back as its own event, with no
-    // `message` on it at all — so it has to be handled before that check.
+    // 4. Postbacks (Button template taps)
     const postback = event?.postback;
     if (postback && typeof postback === "object") {
       const postbackMid =
@@ -382,18 +532,44 @@ async function handleMessagingEvents(
       continue;
     }
 
-    const message = event?.message;
-    if (!message || typeof message !== "object") continue;
-
-    // is_echo marks a message the BUSINESS sent, echoed back to us.
-    if (message.is_echo === true || message.is_deleted === true) continue;
+    if (!message || typeof message !== "object" || message.is_deleted === true) {
+      continue;
+    }
 
     const mid = typeof message.mid === "string" ? message.mid : undefined;
     const text = typeof message.text === "string" ? message.text : "";
     if (!mid) continue;
 
-    // A tapped quick reply arrives as an ordinary message carrying the
-    // payload we minted. It is a tap, not something to keyword-match.
+    // 5. Inbound DM — Record to Inbox Store
+    try {
+      const attachments = (message.attachments ?? []).flatMap((a) => {
+        const url = a.payload?.url;
+        const type = a.type ?? "image";
+        if (!url && type !== "like_heart") return [];
+        return [{ type, url, title: a.title }];
+      });
+
+      await ctx.runMutation(
+        internal.instagramInboxStore.recordInboundMessage,
+        {
+          platform,
+          accountId,
+          igsid: senderId,
+          mid,
+          text: text.length > 0 ? text : undefined,
+          attachments: attachments.length > 0 ? attachments : undefined,
+          shares: message.shares,
+          story: message.story,
+          isUnsupported: message.is_unsupported === true,
+          sentAt: event.timestamp || Date.now(),
+          replyToMid: message.reply_to?.mid,
+        },
+      );
+    } catch {
+      // Catch per-event
+    }
+
+    // 6. Quick Reply Tap check for automation engine
     const quickReplyPayload =
       typeof message.quick_reply?.payload === "string"
         ? message.quick_reply.payload
@@ -407,17 +583,15 @@ async function handleMessagingEvents(
           mid,
           igsid: senderId,
           payload: quickReplyPayload,
-          // The chip's own label rides along as the message text.
           title: text.trim().length > 0 ? text : undefined,
         });
       } catch {
-        // Catch per-row so one bad event cannot abort the rest
+        // Catch per-row
       }
       continue;
     }
 
-    // SKIP when there is nothing to match a keyword against (attachment /
-    // reaction only).
+    // 7. Direct Message Keyword Match for automation engine
     if (text.trim().length === 0) continue;
 
     try {
@@ -463,6 +637,54 @@ http.route({
 
       const changes = Array.isArray(entry?.changes) ? entry.changes : [];
       for (const change of changes) {
+        if (change?.field === "mentions") {
+          const val = change?.value as
+            | (InstagramWebhookCommentValue & {
+                comment_id?: string;
+                media_id?: string;
+              })
+            | undefined;
+          if (!val || typeof val !== "object") continue;
+
+          const commentId =
+            typeof val.comment_id === "string" ? val.comment_id : undefined;
+          const mediaId =
+            typeof val.media_id === "string" ? val.media_id : undefined;
+          const text = typeof val.text === "string" ? val.text : "";
+
+          if (!mediaId && !commentId) continue;
+
+          try {
+            const recorded = await ctx.runMutation(
+              internal.igMentionsStore.recordWebhookMention,
+              {
+                accountId: igUserId,
+                commentId,
+                mediaId: mediaId ?? "",
+                text,
+              },
+            );
+
+            if (recorded !== null) {
+              await ctx.scheduler.runAfter(
+                0,
+                internal.igMentions.fetchMentionContext,
+                {
+                  mentionId: recorded.mentionId,
+                  workspaceId: recorded.workspaceId,
+                  igUserId: recorded.igUserId,
+                  kind: recorded.kind,
+                  commentId: recorded.commentId,
+                  mediaId: recorded.mediaId,
+                },
+              );
+            }
+          } catch {
+            // Catch per-row so one bad row cannot abort the rest
+          }
+          continue;
+        }
+
         if (change?.field !== "comments") continue;
 
         const val = change?.value;
@@ -532,10 +754,15 @@ http.route({
         }
       }
 
+      const messagingEvents = [
+        ...(Array.isArray(entry?.messaging) ? entry.messaging : []),
+        ...(Array.isArray(entry?.standby) ? entry.standby : []),
+      ];
+
       await handleMessagingEvents(ctx, {
         platform: "instagram",
         accountId: igUserId,
-        events: Array.isArray(entry?.messaging) ? entry.messaging : [],
+        events: messagingEvents,
       });
     }
 
@@ -641,10 +868,15 @@ http.route({
         }
       }
 
+      const messagingEvents = [
+        ...(Array.isArray(entry?.messaging) ? entry.messaging : []),
+        ...(Array.isArray(entry?.standby) ? entry.standby : []),
+      ];
+
       await handleMessagingEvents(ctx, {
         platform: "facebook",
         accountId: pageId,
-        events: Array.isArray(entry?.messaging) ? entry.messaging : [],
+        events: messagingEvents,
       });
     }
 
