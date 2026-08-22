@@ -21,6 +21,7 @@ import {
   buildFacebookLongLivedTokenUrl,
   buildFacebookTokenUrl,
   buildMeAccountsUrl,
+  buildPageAccessTokenUrl,
   buildPageInsightsUrl,
   buildPageNodeUrl,
   buildPagePostsUrl,
@@ -34,6 +35,7 @@ import {
   PAGE_INSIGHT_METRICS_CORE,
   PAGE_SUBSCRIBED_FIELDS,
   POST_INSIGHT_METRICS_CORE,
+  tokenExpiryMsFromDebug,
   type RawDebugTokenResponse,
   type RawFacebookTokenResponse,
   type RawFbCommentsResponse,
@@ -289,10 +291,10 @@ async function fetchTokenExpiry(
     );
     if (!res.ok) return undefined;
     const body = await readJson<RawDebugTokenResponse>(res);
-    const expires = body.data?.expires_at ?? 0;
-    const dataAccess = body.data?.data_access_expires_at ?? 0;
-    const seconds = expires > 0 ? expires : dataAccess;
-    return seconds > 0 ? seconds * 1000 : undefined;
+    return tokenExpiryMsFromDebug(
+      body.data?.expires_at,
+      body.data?.data_access_expires_at,
+    );
   } catch {
     return undefined;
   }
@@ -608,6 +610,39 @@ async function requireWorkspace(ctx: ActionCtx): Promise<Id<"workspaces">> {
   return member.workspaceId;
 }
 
+/**
+ * Like {@link requireWorkspace}, but also demands the `owner` role.
+ *
+ * Writing a new grant is the same class of action as `connections.save` /
+ * `remove`, which are owner-only (R1/6): a `client_viewer` exists in order to
+ * only look at things and must not be able to swap the token the whole
+ * workspace syncs with.
+ */
+async function requireOwnerWorkspace(
+  ctx: ActionCtx,
+): Promise<Id<"workspaces">> {
+  const userId = await getAuthUserId(ctx);
+  if (userId === null) {
+    throw new ConvexError({
+      code: "unauthorized",
+      message: "Niste prijavljeni.",
+    });
+  }
+  const member: {
+    workspaceId: Id<"workspaces">;
+    role: "owner" | "client_viewer";
+  } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
+    userId,
+  });
+  if (member === null || member.role !== "owner") {
+    throw new ConvexError({
+      code: "forbidden",
+      message: "Samo vlasnik radnog prostora može da menja pristup.",
+    });
+  }
+  return member.workspaceId;
+}
+
 type StoredConnection = {
   connectionId: Id<"connections">;
   pageId: string;
@@ -732,6 +767,116 @@ export const selectPage = action({
   },
 });
 
+// ── System User token (non-expiring) ─────────────────────────────────────────
+
+/**
+ * Connect a Page with a Meta System User token instead of the OAuth flow.
+ *
+ * The operator pastes the non-expiring System User token plus the Page id; the
+ * app mints a Page token from it (`GET /{page-id}?fields=access_token`) and
+ * stores THAT. It never calls `fb_exchange_token` or `/me/accounts` — those keep
+ * a USER token (and the Page tokens minted from it) alive, a problem a system
+ * user does not have. The stored row carries `authMode: "system_user"`, no user
+ * token, and no `expiresAt`, so the refresh cron skips it and the card says
+ * "Ne ističe".
+ *
+ * The OAuth path is untouched and still available; this is an additional way in.
+ */
+export const connectWithSystemUserToken = action({
+  args: { systemUserToken: v.string(), pageId: v.string() },
+  returns: v.object({
+    success: v.boolean(),
+    connectionId: v.id("connections"),
+    pageId: v.string(),
+    pageName: v.union(v.string(), v.null()),
+  }),
+  handler: async (
+    ctx,
+    { systemUserToken, pageId },
+  ): Promise<{
+    success: boolean;
+    connectionId: Id<"connections">;
+    pageId: string;
+    pageName: string | null;
+  }> => {
+    const workspaceId = await requireOwnerWorkspace(ctx);
+
+    const token = systemUserToken.trim();
+    if (token.length < 10) {
+      invalid("System User token nije ispravan.");
+    }
+    const normalizedPageId = pageId.trim();
+    if (!/^\d+$/.test(normalizedPageId)) {
+      invalid("Page ID mora biti broj (npr. 1234567890).");
+    }
+
+    const tracker = createUsageTracker();
+    try {
+      // Mint a Page token from the system user token. A system user that does
+      // not have this Page assigned as an asset gets no `access_token` back —
+      // which is exactly the misconfiguration to name out loud.
+      const res = await tracker.fetch(
+        buildPageAccessTokenUrl(normalizedPageId, token),
+      );
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        invalid(
+          `Iskivanje Page tokena nije uspelo: ${extractGraphApiError(body)}`,
+        );
+      }
+      const body = await readJson<{
+        access_token?: string;
+        name?: string;
+      }>(res);
+      const pageToken = body.access_token;
+      if (!pageToken) {
+        invalid(
+          "System User nema pristup toj stranici. Dodeli stranicu system useru u Business Settings, ili proveri Page ID.",
+        );
+      }
+
+      const connectionId: Id<"connections"> = await ctx.runMutation(
+        internal.facebookStore.saveSystemUserPageCredentials,
+        {
+          workspaceId,
+          pageId: normalizedPageId,
+          ...(body.name ? { pageName: body.name } : {}),
+          encryptedCredentials: await encryptCredentials(pageToken),
+        },
+      );
+
+      // A System User Page token reports `expires_at: 0` and no data-access
+      // window, so this is `undefined` ("never") — left unwritten on purpose so
+      // the card shows "Ne ističe". If Meta ever hands back a real date, it is
+      // recorded honestly.
+      const expiresAt = await fetchTokenExpiry(pageToken, tracker);
+      if (expiresAt !== undefined) {
+        await ctx.runMutation(internal.facebookStore.updateTokenExpiry, {
+          connectionId,
+          expiresAt,
+        });
+      }
+
+      await subscribePageToWebhook(normalizedPageId, pageToken, tracker);
+
+      try {
+        await ctx.runAction(internal.facebook.syncFacebook, { connectionId });
+      } catch {
+        // Errors are already recorded on the syncRuns row.
+      }
+
+      return {
+        success: true,
+        connectionId,
+        pageId: normalizedPageId,
+        pageName: body.name ?? null,
+      };
+    } finally {
+      await tracker.flush(ctx, workspaceId);
+    }
+  },
+});
+
 // ── Token refresh ────────────────────────────────────────────────────────────
 
 /**
@@ -764,6 +909,14 @@ export const refreshConnectionToken = internalAction({
     );
     if (conn === null || conn.provider !== "meta_fb") {
       return { skipped: true, reason: "Connection not found or not meta_fb" };
+    }
+
+    // A System User Page token has nothing to re-mint from and does not expire.
+    // Skipping it here (even under `force`) is the intent, not an accident —
+    // running the OAuth refresh against it would only fail on the missing user
+    // token below and risk flipping a perfectly good connection to "expired".
+    if (conn.authMode === "system_user") {
+      return { skipped: true, reason: "System user token — no refresh" };
     }
 
     const now = Date.now();

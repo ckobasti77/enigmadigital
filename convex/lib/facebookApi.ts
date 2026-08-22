@@ -198,6 +198,45 @@ export function buildDebugTokenUrl({
   return url.toString();
 }
 
+/**
+ * Mint a Page Access Token from a Meta System User token (the non-expiring path).
+ *
+ * `GET /{page-id}?fields=access_token,name` with a System User token that has the
+ * Page assigned as an asset in Business Settings returns a Page token OWNED by
+ * that system user — which inherits its "never expires" lifetime. This is the
+ * whole reason the System User path does not touch `fb_exchange_token` or
+ * `/me/accounts`: those exist to keep a USER token alive so a Page token minted
+ * from it stays alive, a problem a system user simply does not have.
+ */
+export function buildPageAccessTokenUrl(
+  pageId: string,
+  systemUserToken: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const url = new URL(`${FACEBOOK_GRAPH_BASE_URL}/${version}/${pageId}`);
+  url.searchParams.set("fields", "access_token,name");
+  url.searchParams.set("access_token", systemUserToken);
+  return url.toString();
+}
+
+/**
+ * When a token stops working, as ms since epoch — or `undefined` for "never".
+ *
+ * The pure core of `fetchTokenExpiry`, split out so it can be asserted without a
+ * network call: a long-lived Page token reports `expires_at: 0` ("never"), so
+ * the 90-day `data_access_expires_at` is the real clock when there is one; both
+ * zero (the System User case) means the token has no expiry at all.
+ */
+export function tokenExpiryMsFromDebug(
+  expiresAtSeconds: number | undefined,
+  dataAccessExpiresAtSeconds: number | undefined,
+): number | undefined {
+  const expires = expiresAtSeconds ?? 0;
+  const dataAccess = dataAccessExpiresAtSeconds ?? 0;
+  const seconds = expires > 0 ? expires : dataAccess;
+  return seconds > 0 ? seconds * 1000 : undefined;
+}
+
 /** Subscribe the Page to the app's webhook — `feed` and `messages`. */
 export function buildSubscribedAppsUrl(
   pageId: string,

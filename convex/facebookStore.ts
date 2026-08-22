@@ -176,6 +176,69 @@ export const saveConnectedCredentials = internalMutation({
   },
 });
 
+/**
+ * Write a Page token minted from a Meta System User token (the non-expiring path).
+ *
+ * Deliberately NOT a variant of `saveConnectedCredentials`: this path has no
+ * user token to store, and — crucially — must CLEAR any `encryptedUserCredentials`
+ * left over from a prior OAuth connection on the same row, so the daily refresh
+ * cron cannot try to extend a token that no longer applies. `authMode` is set to
+ * "system_user" so `refreshConnectionToken` skips the row on purpose and the
+ * Settings card knows to say "Ne ističe" and hide the refresh/picker controls.
+ *
+ * `expiresAt` is likewise cleared: a System User Page token has no expiry, and a
+ * stale date from a previous OAuth grant would make the card count down to a
+ * deadline that no longer exists.
+ */
+export const saveSystemUserPageCredentials = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    pageId: v.string(),
+    pageName: v.optional(v.string()),
+    encryptedCredentials: v.string(),
+  },
+  returns: v.id("connections"),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("connections")
+      .withIndex("by_workspace_provider", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("provider", "meta_fb"),
+      )
+      .first();
+
+    const patch = {
+      externalId: args.pageId,
+      ...(args.pageName !== undefined
+        ? { externalIdAlt: args.pageName }
+        : {}),
+      encryptedCredentials: args.encryptedCredentials,
+      // Patching to `undefined` removes the field in Convex — that is the point:
+      // a leftover user token or expiry from an earlier OAuth grant must not
+      // survive the switch to the System User token.
+      encryptedUserCredentials: undefined,
+      expiresAt: undefined,
+      authMode: "system_user" as const,
+      status: "active" as const,
+    };
+
+    if (existing !== null) {
+      await ctx.db.patch(existing._id, {
+        ...patch,
+        // A fresh grant invalidates any in-flight purge of the old one (R1/4c).
+        generation: (existing.generation ?? 0) + 1,
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("connections", {
+      workspaceId: args.workspaceId,
+      provider: "meta_fb",
+      ...patch,
+      generation: 1,
+    });
+  },
+});
+
 export const markConnectionExpired = internalMutation({
   args: { connectionId: v.id("connections") },
   returns: v.null(),

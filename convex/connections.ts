@@ -167,6 +167,14 @@ const connectionViewValidator = v.object({
   accountHandle: v.optional(v.union(v.string(), v.null())),
   lastSyncAt: v.union(v.number(), v.null()),
   expiresAt: v.union(v.number(), v.null()),
+  // meta_fb only: "system_user" marks a non-expiring System User Page token, so
+  // the card can hide the refresh/picker controls and say "Ne ističe". `null`
+  // reads as the OAuth path. Never any secret — just the mode.
+  authMode: v.union(
+    v.literal("oauth"),
+    v.literal("system_user"),
+    v.null(),
+  ),
 });
 
 /**
@@ -194,6 +202,7 @@ export const list = query({
       accountHandle: c.accountHandle ?? null,
       lastSyncAt: c.lastSyncAt ?? null,
       expiresAt: c.expiresAt ?? null,
+      authMode: c.authMode ?? null,
     }));
   },
 });

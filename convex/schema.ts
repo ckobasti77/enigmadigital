@@ -55,6 +55,16 @@ export default defineSchema({
     // provider data, and deleting it first orphans everything the purge has not
     // reached yet. See `lib/providers.ts`.
     status: connectionStatusValidator,
+    // meta_fb only: how the Page token was obtained. `undefined` reads as
+    // "oauth" (every row written before the System User path existed, and every
+    // connection made through Facebook Login). "system_user" marks a Page token
+    // minted from a non-expiring Meta System User token: it has NO
+    // `encryptedUserCredentials`, `refreshConnectionToken` deliberately skips it
+    // (there is nothing to re-mint from and nothing that expires), and the
+    // Settings card must say "Ne ističe" and hide the refresh/picker controls.
+    authMode: v.optional(
+      v.union(v.literal("oauth"), v.literal("system_user")),
+    ),
     expiresAt: v.optional(v.number()), // Meta long-lived tokens (60 days)
     lastSyncAt: v.optional(v.number()),
     // Bumped every time a fresh grant is written to this row (a reconnect). A

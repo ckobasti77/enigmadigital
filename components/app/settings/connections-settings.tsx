@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RevealGroup } from "@/components/motion/reveal";
 import { formatRelativeTime } from "@/lib/format";
+import { describeTokenExpiry } from "@/lib/token-expiry";
 import { GOOGLE_PERMISSIONS_URL } from "@/lib/policy-links";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackLine, FeedbackNote } from "@/components/app/feedback";
@@ -1280,6 +1281,7 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
   const setup = useQuery(api.facebookStore.setupInfo);
   const getOAuthUrl = useAction(api.facebook.getOAuthUrl);
   const refreshToken = useAction(api.facebook.refreshTokenNow);
+  const connectSystemUser = useAction(api.facebook.connectWithSystemUserToken);
   const removeConnection = useMutation(api.connections.remove);
   const pageInfo = useQuery(api.facebookStore.pageInfo);
 
@@ -1289,6 +1291,22 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [autoOpenPicker, setAutoOpenPicker] = useState(false);
+
+  // Way in: "oauth" is Facebook Login (the incumbent), "system_user" is the
+  // pasted non-expiring System User token. `editingAccess` reveals the connect
+  // controls again for an already-connected Page — e.g. to move it onto the
+  // System User token.
+  const isSystemUser = connection?.authMode === "system_user";
+  const [mode, setMode] = useState<"oauth" | "system_user">("oauth");
+  const [editingAccess, setEditingAccess] = useState(false);
+  const [suPageId, setSuPageId] = useState("");
+  const [suToken, setSuToken] = useState("");
+  const [savingSu, setSavingSu] = useState(false);
+
+  const suPageIdProblem =
+    suPageId.trim().length > 0 && !/^\d+$/.test(suPageId.trim())
+      ? "Page ID mora biti broj (npr. 1234567890)."
+      : null;
 
   // Isti sat kao na Instagram kartici: spoljni sistem se čita pretplatom, ne
   // pozivom u renderu. `null` do prvog otkucaja znači „još ne znam".
@@ -1359,6 +1377,42 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
     }
   }
 
+  async function handleConnectSystemUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingSu(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const res = await connectSystemUser({
+        systemUserToken: suToken.trim(),
+        pageId: suPageId.trim(),
+      });
+      setSuccessMessage(
+        res.pageName
+          ? `Facebook stranica „${res.pageName}” je povezana (System User token).`
+          : "Facebook stranica je povezana (System User token).",
+      );
+      setSuToken("");
+      setEditingAccess(false);
+    } catch (err) {
+      setError(
+        convexMessage(err, "Povezivanje System User tokenom nije uspelo."),
+      );
+    } finally {
+      setSavingSu(false);
+    }
+  }
+
+  /** Open the connect controls for an already-connected Page, prefilled. */
+  function startEditAccess() {
+    setMode(isSystemUser ? "system_user" : "oauth");
+    setSuPageId(connection?.externalId ?? "");
+    setSuToken("");
+    setError(null);
+    setSuccessMessage(null);
+    setEditingAccess(true);
+  }
+
   async function handleDisconnect() {
     if (!connection) return;
     setDisconnecting(true);
@@ -1420,44 +1474,57 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
                 </div>
                 <p className="font-mono text-micro text-text-muted">
                   ID {connection.externalId ?? "—"}
+                  {isSystemUser ? " · System User token" : ""}
                 </p>
                 <p className="text-micro text-text-muted">
-                  {connection.expiresAt
-                    ? `Token važi do ${new Date(
-                        connection.expiresAt,
-                      ).toLocaleDateString("sr-RS")} (${formatRelativeTime(
-                        connection.expiresAt,
-                      )})`
-                    : "Token nema rok trajanja — Meta ga poništava samo pri promeni lozinke ili povlačenju dozvole."}
+                  {(() => {
+                    const expiry = describeTokenExpiry(
+                      connection.expiresAt,
+                      now,
+                    );
+                    return expiry.kind === "never"
+                      ? expiry.neverText
+                      : `Token važi do ${new Date(
+                          connection.expiresAt as number,
+                        ).toLocaleDateString("sr-RS")} (${formatRelativeTime(
+                          connection.expiresAt as number,
+                        )})`;
+                  })()}
                 </p>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRefresh}
-                  disabled={refreshing || disconnecting}
-                >
-                  {refreshing ? (
-                    <LoaderCircle className="animate-spin" />
-                  ) : (
-                    <RefreshCw />
-                  )}
-                  Osveži token
-                </Button>
+                {/* Osvežavanje re-kuje Page token iz korisničkog tokena — a
+                    System User token nema šta da osveži i ne ističe. */}
+                {!isSystemUser && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefresh}
+                    disabled={refreshing || disconnecting}
+                  >
+                    {refreshing ? (
+                      <LoaderCircle className="animate-spin" />
+                    ) : (
+                      <RefreshCw />
+                    )}
+                    Osveži token
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={handleStartConnect}
-                  disabled={connecting || disconnecting}
+                  onClick={startEditAccess}
+                  disabled={connecting || disconnecting || savingSu}
                 >
-                  Ponovo poveži
+                  Izmeni pristup
                 </Button>
               </div>
             </div>
           )}
 
-          {isConnected && connection.externalId && (
+          {/* Izbor druge stranice ide preko /me/accounts, što traži korisnički
+              token — nedostupno kad je veza na System User tokenu. */}
+          {isConnected && !isSystemUser && connection.externalId && (
             <FacebookPagePicker
               currentPageId={connection.externalId}
               autoOpen={autoOpenPicker}
@@ -1472,34 +1539,185 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
           )}
 
           {/* Upozorenje pre nego što nastane problem — isto pravilo kao na
-              Instagram kartici. */}
+              Instagram kartici. Ne prikazuje se za System User token (ne ističe). */}
           {isConnected &&
-            connection.expiresAt != null &&
-            now !== null &&
-            connection.expiresAt - now < 14 * 24 * 60 * 60 * 1000 && (
+            describeTokenExpiry(connection.expiresAt, now).kind ===
+              "expiring" && (
               <FeedbackNote
                 tone="warning"
-                title={`Pristup ističe ${formatRelativeTime(connection.expiresAt)}`}
+                title={`Pristup ističe ${formatRelativeTime(connection.expiresAt as number)}`}
               >
                 Klikni „Osveži token” pre isteka da sinhronizacija ne stane.
               </FeedbackNote>
             )}
 
-          <FacebookSetupSteps webhookUrl={setup.webhookUrl} />
+          {/* Connect / edit panel: for a fresh Page, or when the operator opens
+              „Izmeni pristup” to switch an existing one (e.g. onto System User). */}
+          {(!isConnected || editingAccess) && (
+            <div className="space-y-4">
+              <div className="inline-flex rounded-lg border border-line-soft bg-surface-raised/30 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setMode("oauth")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    mode === "oauth"
+                      ? "bg-surface-raised text-foreground shadow-card"
+                      : "text-text-muted hover:text-foreground"
+                  }`}
+                >
+                  Facebook prijava
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("system_user")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    mode === "system_user"
+                      ? "bg-surface-raised text-foreground shadow-card"
+                      : "text-text-muted hover:text-foreground"
+                  }`}
+                >
+                  System User token
+                </button>
+              </div>
 
-          {!setup.appConfigured && (
-            <FeedbackNote
-              tone="warning"
-              title="Čeka se konfiguracija Meta aplikacije"
-            >
-              Bez{" "}
-              <code className="font-mono text-accent-400">FACEBOOK_APP_ID</code>{" "}
-              i{" "}
-              <code className="font-mono text-accent-400">
-                FACEBOOK_APP_SECRET
-              </code>{" "}
-              dugme ispod nema čime da pokrene prijavu.
-            </FeedbackNote>
+              {mode === "oauth" ? (
+                <>
+                  <FacebookSetupSteps webhookUrl={setup.webhookUrl} />
+
+                  {!setup.appConfigured && (
+                    <FeedbackNote
+                      tone="warning"
+                      title="Čeka se konfiguracija Meta aplikacije"
+                    >
+                      Bez{" "}
+                      <code className="font-mono text-accent-400">
+                        FACEBOOK_APP_ID
+                      </code>{" "}
+                      i{" "}
+                      <code className="font-mono text-accent-400">
+                        FACEBOOK_APP_SECRET
+                      </code>{" "}
+                      dugme ispod nema čime da pokrene prijavu.
+                    </FeedbackNote>
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    <Button
+                      size="sm"
+                      onClick={handleStartConnect}
+                      disabled={connecting || !setup.appConfigured}
+                    >
+                      {connecting ? (
+                        <LoaderCircle className="animate-spin" />
+                      ) : (
+                        <ExternalLink />
+                      )}
+                      {isConnected
+                        ? "Ponovo poveži"
+                        : "Poveži Facebook stranicu"}
+                    </Button>
+                    {editingAccess && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditingAccess(false)}
+                      >
+                        Otkaži
+                      </Button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <form onSubmit={handleConnectSystemUser}>
+                  <FormStack>
+                    <p className="rounded-lg border border-line-soft bg-surface-raised/20 p-4 text-xs leading-relaxed text-text-muted">
+                      System User token ne ističe. U Meta Business Settings dodeli
+                      ovu stranicu system useru (Assets → Pages), zatim nalepi
+                      token i Page ID ispod. Aplikacija iz njih iskuje neistekući
+                      Page token — bez ponovne prijave svakih 60 dana.
+                    </p>
+                    <FormGroup title="Stranica">
+                      <Field
+                        label="Page ID"
+                        error={suPageIdProblem}
+                        hint="Numerički ID stranice (Meta → About → Page ID)."
+                        required
+                      >
+                        {(field) => (
+                          <Input
+                            {...field}
+                            inputMode="numeric"
+                            placeholder="npr. 1234567890"
+                            value={suPageId}
+                            onChange={(event) =>
+                              setSuPageId(event.target.value)
+                            }
+                            disabled={savingSu}
+                            className="font-mono text-xs"
+                          />
+                        )}
+                      </Field>
+                    </FormGroup>
+                    <FormGroup title="Pristup">
+                      <Field label="System User Access Token" required>
+                        {(field) => (
+                          <Textarea
+                            {...field}
+                            rows={4}
+                            spellCheck={false}
+                            placeholder="EAA…"
+                            value={suToken}
+                            onChange={(event) => setSuToken(event.target.value)}
+                            disabled={savingSu}
+                            className="font-mono text-xs"
+                          />
+                        )}
+                      </Field>
+                    </FormGroup>
+
+                    <div className="flex items-center gap-3">
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={
+                          savingSu ||
+                          suToken.trim().length === 0 ||
+                          suPageId.trim().length === 0 ||
+                          suPageIdProblem !== null
+                        }
+                      >
+                        {savingSu ? (
+                          <>
+                            <LoaderCircle className="animate-spin" />
+                            Povezujem…
+                          </>
+                        ) : (
+                          <>
+                            <Check />
+                            {isConnected ? "Sačuvaj" : "Poveži stranicu"}
+                          </>
+                        )}
+                      </Button>
+                      {editingAccess && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEditingAccess(false);
+                            setSuToken("");
+                            setError(null);
+                          }}
+                        >
+                          Otkaži
+                        </Button>
+                      )}
+                    </div>
+                  </FormStack>
+                </form>
+              )}
+            </div>
           )}
 
           {missingVars.length > 0 && (
@@ -1517,21 +1735,6 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
               ))}
               . Bez nje webhook odbija dolazne pozive.
             </FeedbackNote>
-          )}
-
-          {!isConnected && (
-            <Button
-              size="sm"
-              onClick={handleStartConnect}
-              disabled={connecting || !setup.appConfigured}
-            >
-              {connecting ? (
-                <LoaderCircle className="animate-spin" />
-              ) : (
-                <ExternalLink />
-              )}
-              Poveži Facebook stranicu
-            </Button>
           )}
 
           {successMessage && (
@@ -1637,7 +1840,7 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
           <SavedCredentials
             detail={`Kredencijali sačuvani${
               connection?.externalId ? ` · nalog ${connection.externalId}` : ""
-            }`}
+            } · token ne ističe`}
             onEdit={startEdit}
           />
         </div>
