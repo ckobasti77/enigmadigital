@@ -1,7 +1,12 @@
 import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { generateSlug, shortLinkOrigin } from "./lib/orLink";
+import {
+  generateSlug,
+  shortLinkOrigin,
+  extractFbclidFromUrl,
+  formatFbc,
+} from "./lib/orLink";
 import { slugify } from "./lib/slug";
 import { utcDateKey } from "./lib/orMatch";
 import {
@@ -173,6 +178,50 @@ export const registerClick = internalMutation({
         date,
         automationId: link.automationId,
       });
+
+      // B3 & B-F1 & B-F2: Conversions API (CAPI) - website PageView event on short-link redirect
+      const eventTime = Math.floor(now / 1000);
+      const identKey = args.ipHash ? args.ipHash.slice(0, 12) : "anon";
+
+      // Deterministički event_id baziran na sekundi klika i identifikatoru posetioca.
+      // Pixel na odredišnoj stranici (web sajtu) mora poslati isti event_id u istoj sekundi
+      // kako bi Meta uspešno izvršila deduplikaciju između browser i server događaja.
+      const eventId = `r_${link._id}_${eventTime}_${identKey}`;
+
+      const clientUserAgent = args.userAgent?.slice(0, USER_AGENT_MAX)?.trim() || undefined;
+
+      // Extract fbclid from destinationUrl or referrer to create fbc (Meta click ID)
+      const fbclid =
+        extractFbclidFromUrl(link.destinationUrl) ||
+        extractFbclidFromUrl(args.referrer);
+      const fbc = fbclid ? formatFbc(fbclid, now) : undefined;
+
+      // args.ipHash NE prosleđujemo kao clientIpAddress jer je to heš, a Meta traži sirovu IP adresu.
+      // Oslanjamo se na user-agent i fbc identifikatore.
+      const capiEventDocId = await ctx.runMutation(
+        internal.metaCapiStore.recordCapiEvent,
+        {
+          workspaceId: link.workspaceId,
+          eventName: "PageView",
+          eventTime,
+          eventId,
+          actionSource: "website",
+          sourceKind: "link_redirect",
+          clientUserAgent,
+          fbc,
+        },
+      );
+
+      // Scheduled sending via ctx.scheduler.runAfter (only if event was successfully recorded)
+      if (capiEventDocId !== null) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.metaCapi.sendPendingCapiEventsAction,
+          {
+            workspaceId: link.workspaceId,
+          },
+        );
+      }
     }
 
     return { destinationUrl: link.destinationUrl, campaignSlug };

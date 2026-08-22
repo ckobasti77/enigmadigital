@@ -71,6 +71,20 @@ export const AD_FIELDS = [
   "updated_time",
 ] as const;
 
+export const CUSTOM_AUDIENCE_FIELDS = [
+  "id",
+  "name",
+  "subtype",
+  "description",
+  "approximate_count_lower_bound",
+  "approximate_count_upper_bound",
+  "operation_status",
+  "delivery_status",
+  "time_content_updated",
+  "retention_days",
+  "rule_aggregation",
+] as const;
+
 export const INSIGHTS_FIELDS = [
   "account_id",
   "campaign_id",
@@ -215,6 +229,339 @@ export function buildAdPreviewUrl(
   url.searchParams.set("ad_format", adFormat);
   url.searchParams.set("access_token", accessToken);
   return url.toString();
+}
+
+/** Build URL to list custom audiences under an ad account */
+export function buildCustomAudiencesUrl(
+  accountId: string,
+  accessToken: string,
+  limit: number = 500,
+  version: string = getMetaGraphVersion(),
+): string {
+  const actId = normalizeAdAccountId(accountId);
+  const url = new URL(
+    `${META_GRAPH_BASE_URL}/${version}/${actId}/customaudiences`,
+  );
+  url.searchParams.set("fields", CUSTOM_AUDIENCE_FIELDS.join(","));
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/** Build URL to create a new custom or lookalike audience */
+export function buildCustomAudienceCreateUrl(
+  accountId: string,
+  accessToken: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const actId = normalizeAdAccountId(accountId);
+  const url = new URL(
+    `${META_GRAPH_BASE_URL}/${version}/${actId}/customaudiences`,
+  );
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/** Build URL to upload customer list user data into a custom audience */
+export function buildCustomAudienceUsersUrl(
+  audienceId: string,
+  accessToken: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const cleanId = audienceId.trim();
+  const url = new URL(
+    `${META_GRAPH_BASE_URL}/${version}/${cleanId}/users`,
+  );
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/** Build URL to check Terms of Service (tos_accepted) for an ad account */
+export function buildAdAccountTosUrl(
+  accountId: string,
+  accessToken: string,
+  version: string = getMetaGraphVersion(),
+): string {
+  const actId = normalizeAdAccountId(accountId);
+  const url = new URL(`${META_GRAPH_BASE_URL}/${version}/${actId}`);
+  url.searchParams.set("fields", "tos_accepted");
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/**
+ * Parsira odgovor Meta Marketing API-ja za polje tos_accepted.
+ * Jedino mesto u celom kodu koje pristupa ključu za Custom Audience ToS.
+ */
+export function parseTosResponse(
+  json: unknown,
+): "accepted" | "not_accepted" {
+  if (!json || typeof json !== "object") return "not_accepted";
+  const data = json as { tos_accepted?: Record<string, unknown> };
+  const customTos = data.tos_accepted?.custom_audience_tos;
+  const isAccepted =
+    customTos === 1 || customTos === true || customTos === "1";
+  return isAccepted ? "accepted" : "not_accepted";
+}
+
+export const TOS_INSTRUCTIONS_SR = (actId?: string): string =>
+  `Kreiranje publike je blokirano jer vlasnik Meta Business naloga nije prihvatio Custom Audience Uslove korišćenja (Terms of Service).\n\n` +
+  `Kako da prihvatite uslove:\n` +
+  `1. Otvorite Meta Business Suite (business.facebook.com) kao vlasnik (Admin).\n` +
+  `2. Idite na Podešavanja poslovanja (Business Settings) > Nalozi za oglašavanje (Ad Accounts) > Izaberite nalog ${actId ? `act_${actId.replace(/^act_/, "")}` : ""}.\n` +
+  `3. Otvorite Meta Ads Manager > Publike (Audiences) ili link za prihvatanje uslova i potvrdite saglasnost.\n` +
+  `Nakon prihvatanja, ponovo pokrenite kreiranje publike.`;
+
+export const TOS_UNKNOWN_MESSAGE_SR = (reason?: string): string =>
+  `Ne mogu da proverim da li su uslovi korišćenja prihvaćeni.${reason ? ` Razlog: ${reason}.` : ""} Pokušajte ponovo za koji trenutak.`;
+
+// ── Lookalike Audience Validation ───────────────────────────────────────────
+
+export interface LookalikeSpecInput {
+  country?: string; // ISO 3166-1 alpha-2, e.g. "RS"
+  type?: string; // e.g. "similarity" | "reach"
+  ratio?: number; // 0.01 .. 0.20
+  location_spec?: unknown;
+}
+
+/**
+ * Validates Lookalike specification BEFORE any network calls.
+ *
+ * Rules:
+ *   1. Seed audience must have >= 100 people from one country (checked via approximateCountLower).
+ *      If approximateCountLower is unknown (undefined) -> BLOCKED (never assume).
+ *   2. lookalike_spec must contain EITHER `type` OR `ratio`, NEVER BOTH.
+ *   3. ratio must be strictly between 0.01 (1%) and 0.20 (20%).
+ */
+export function validateLookalikeSpec(
+  spec: LookalikeSpecInput,
+  seedAudience: { approximateCountLower?: number; name?: string },
+): void {
+  // 1. Seed audience check
+  if (
+    seedAudience.approximateCountLower === undefined ||
+    seedAudience.approximateCountLower === null ||
+    !Number.isFinite(seedAudience.approximateCountLower)
+  ) {
+    throw new Error(
+      `Seed publika "${seedAudience.name ?? "izabrana publika"}" nema poznatu procenu veličine (approximateCountLower je nepoznat). Meta zahteva potvrđenu veličinu od najmanje 100 korisnika iz iste zemlje pre kreiranja Lookalike publike.`,
+    );
+  }
+
+  if (seedAudience.approximateCountLower < 100) {
+    throw new Error(
+      `Seed publika "${seedAudience.name ?? "izabrana publika"}" ima procenjenu veličinu od samo ${seedAudience.approximateCountLower} korisnika. Za kreiranje Lookalike publike neophodno je najmanje 100 korisnika iz iste zemlje.`,
+    );
+  }
+
+  // 2. Either type OR ratio, NEVER BOTH
+  const hasType =
+    spec.type !== undefined && spec.type !== null && spec.type !== "";
+  const hasRatio = spec.ratio !== undefined && spec.ratio !== null;
+
+  if (hasType && hasRatio) {
+    throw new Error(
+      "Lookalike specifikacija ne sme sadržati i 'type' i 'ratio' istovremeno. Meta Marketing API zahteva isključivo jedno od ta dva polja (nikada oba).",
+    );
+  }
+
+  if (!hasType && !hasRatio) {
+    throw new Error(
+      "Lookalike specifikacija mora sadržati ili 'type' ili 'ratio'.",
+    );
+  }
+
+  // 3. Ratio range validation
+  if (hasRatio) {
+    const ratio = spec.ratio!;
+    if (
+      typeof ratio !== "number" ||
+      !Number.isFinite(ratio) ||
+      ratio < 0.01 ||
+      ratio > 0.2
+    ) {
+      throw new Error(
+        `Ratio za Lookalike publiku mora biti broj između 0.01 (1%) i 0.20 (20%). Dobijena vrednost: ${ratio}`,
+      );
+    }
+  }
+}
+
+// ── Audience Formatting Helpers (sr-Latn-RS) ────────────────────────────────
+
+const LOCALE = "sr-Latn-RS";
+const audienceIntFmt = new Intl.NumberFormat(LOCALE, {
+  maximumFractionDigits: 0,
+});
+
+export interface AudienceSizeFormatted {
+  label: string;
+  state: "value" | "thresholded" | "unavailable";
+  reason?: string;
+}
+
+/**
+ * Formats audience size according to strict guidelines:
+ *   - NEVER as a single number when range is available: "1.200 – 1.500".
+ *   - When only lower bound is known: "≥ 1.200".
+ *   - When only upper bound is known: "≤ 1.500".
+ *   - When below display threshold: thresholded state with explanation (never 0).
+ *   - When neither is known: "—" with reason.
+ */
+export function formatAudienceSize(
+  lower?: number | null,
+  upper?: number | null,
+): AudienceSizeFormatted {
+  const cleanLower =
+    lower !== undefined &&
+    lower !== null &&
+    Number.isFinite(lower) &&
+    lower >= 0
+      ? lower
+      : undefined;
+  const cleanUpper =
+    upper !== undefined &&
+    upper !== null &&
+    Number.isFinite(upper) &&
+    upper >= 0
+      ? upper
+      : undefined;
+
+  // Below display threshold check (Meta typically hides estimates for < 1000 users)
+  if (
+    cleanUpper !== undefined &&
+    cleanUpper < 1000 &&
+    cleanLower !== undefined &&
+    cleanLower < 100
+  ) {
+    return {
+      label: "—",
+      state: "thresholded",
+      reason:
+        "Publika je ispod praga prikaza (< 1.000 korisnika). Meta štiti privatnost korisnika.",
+    };
+  }
+
+  if (cleanLower !== undefined && cleanUpper !== undefined) {
+    if (cleanLower === cleanUpper) {
+      return {
+        label: audienceIntFmt.format(cleanLower),
+        state: "value",
+      };
+    }
+    return {
+      label: `${audienceIntFmt.format(cleanLower)} – ${audienceIntFmt.format(cleanUpper)}`,
+      state: "value",
+    };
+  }
+
+  if (cleanLower !== undefined && cleanUpper === undefined) {
+    return {
+      label: `≥ ${audienceIntFmt.format(cleanLower)}`,
+      state: "value",
+    };
+  }
+
+  if (cleanLower === undefined && cleanUpper !== undefined) {
+    return {
+      label: `≤ ${audienceIntFmt.format(cleanUpper)}`,
+      state: "value",
+    };
+  }
+
+  return {
+    label: "—",
+    state: "unavailable",
+    reason: "Meta nije poslala procenu veličine za ovu publiku.",
+  };
+}
+
+/** Returns formatted range string e.g. "1.200 – 1.500", "≥ 1.200", or "—" */
+export function formatAudienceRange(
+  lower?: number | null,
+  upper?: number | null,
+): string {
+  return formatAudienceSize(lower, upper).label;
+}
+
+/**
+ * Formats audience subtype enum string into localized Serbian label.
+ */
+export function formatAudienceSubtype(subtype?: string): string {
+  if (!subtype) return "Prilagođena";
+  switch (subtype.toUpperCase()) {
+    case "CUSTOM":
+      return "Korisnička lista";
+    case "LOOKALIKE":
+      return "Slična publika (Lookalike)";
+    case "WEBSITE":
+      return "Veb-sajt posetioci";
+    case "ENGAGEMENT":
+      return "Angažovanje";
+    case "APP":
+      return "Korisnici aplikacije";
+    case "OFFLINE_CONVERSION":
+      return "Ofajn konverzije";
+    case "VIDEO":
+      return "Video pregledi";
+    case "LEAD_GEN":
+      return "Obrasci za lidove";
+    case "IG_BUSINESS":
+      return "Instagram profil";
+    case "FB_PAGE":
+      return "Facebook stranica";
+    default:
+      return subtype;
+  }
+}
+
+/**
+ * Formats audience delivery and operation status.
+ */
+export function formatAudienceDeliveryStatus(
+  deliveryStatus?: string,
+  operationStatus?: string,
+): {
+  label: string;
+  tone: "success" | "warning" | "danger" | "progress" | "muted";
+} {
+  const status = (deliveryStatus || operationStatus || "").toUpperCase();
+  if (!status) return { label: "—", tone: "muted" };
+
+  if (
+    status.includes("READY") ||
+    status.includes("NORMAL") ||
+    status.includes("AVAILABLE") ||
+    status === "200"
+  ) {
+    return { label: "Spremna", tone: "success" };
+  }
+  if (
+    status.includes("POPULATING") ||
+    status.includes("UPDATING") ||
+    status.includes("PROCESSING")
+  ) {
+    return { label: "Popunjava se", tone: "progress" };
+  }
+  if (status.includes("TOO_SMALL") || status.includes("SMALL")) {
+    return { label: "Ispod praga", tone: "warning" };
+  }
+  if (
+    status.includes("ERROR") ||
+    status.includes("FAILED") ||
+    status.includes("REJECTED")
+  ) {
+    return { label: "Greška", tone: "danger" };
+  }
+  if (
+    status.includes("INACTIVE") ||
+    status.includes("DELETED") ||
+    status.includes("ARCHIVED")
+  ) {
+    return { label: "Neaktivna", tone: "muted" };
+  }
+
+  return { label: deliveryStatus || operationStatus || "—", tone: "muted" };
 }
 
 /**

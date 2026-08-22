@@ -91,3 +91,31 @@ export function isBotUserAgent(userAgent: string | null): boolean {
   const folded = userAgent.toLowerCase();
   return BOT_MARKERS.some((marker) => folded.includes(marker));
 }
+
+/**
+ * Formats fbclid into Meta fbc cookie string: "fb.1.<timestampMs>.<fbclid>"
+ */
+export function formatFbc(
+  fbclid: string,
+  timestampMs: number = Date.now(),
+): string {
+  const clean = fbclid.trim();
+  if (!clean) return "";
+  return `fb.1.${timestampMs}.${clean}`;
+}
+
+/**
+ * Extracts fbclid parameter from a URL or Referer header string.
+ */
+export function extractFbclidFromUrl(urlStr?: string): string | undefined {
+  if (!urlStr) return undefined;
+  try {
+    const url = new URL(urlStr);
+    const fbclid = url.searchParams.get("fbclid");
+    return fbclid ? fbclid.trim() : undefined;
+  } catch {
+    const match = urlStr.match(/[?&]fbclid=([^&#]+)/);
+    return match ? decodeURIComponent(match[1]).trim() : undefined;
+  }
+}
+

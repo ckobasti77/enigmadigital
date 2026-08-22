@@ -812,6 +812,21 @@ const META_ADS_STEPS: PurgeStep[] = [
       .query("metaAdsBackfill")
       .withIndex("by_workspace_scope", (q) => q.eq("workspaceId", ws)),
   ),
+  simple("adAudiences", (ctx, ws) =>
+    ctx.db
+      .query("adAudiences")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("metaAudienceTos", (ctx, ws) =>
+    ctx.db
+      .query("metaAudienceTos")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("capiEvents", (ctx, ws) =>
+    ctx.db
+      .query("capiEvents")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
 ];
 
 /**
@@ -852,6 +867,7 @@ export const PROVIDER_TABLE_PREFIXES = [
   "gads",
   "ad",
   "or",
+  "capi",
 ] as const;
 
 /**
@@ -871,6 +887,7 @@ export type ProviderPrefixedTable = Extract<
   | `gads${string}`
   | `ad${string}`
   | `or${string}`
+  | `capi${string}`
 >;
 
 type Disposition =
@@ -949,6 +966,9 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   adActionBreakdown: { purgedBy: ["meta_ads", "google_ads"] },
   metaAdsQuota: { purgedBy: ["meta_ads"] },
   metaAdsBackfill: { purgedBy: ["meta_ads"] },
+  adAudiences: { purgedBy: ["meta_ads"] },
+  metaAudienceTos: { purgedBy: ["meta_ads"] },
+  capiEvents: { purgedBy: ["meta_ads"] },
   adActions: {
     excluded:
       "Log radnji koje je operater sam izveo nad oglasima (pauza, budžet), a ne podataka preuzetih od providera. Nema `provider` kolonu ni vezu ka `adAccounts`, pa se ne može svesti na jednu platformu; ostaje kao revizioni trag.",

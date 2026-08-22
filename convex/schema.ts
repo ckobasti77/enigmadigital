@@ -1571,6 +1571,81 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
   }).index("by_workspace_scope", ["workspaceId", "scope"]),
 
+  // Meta Custom & Lookalike Audiences
+  adAudiences: defineTable({
+    workspaceId: v.id("workspaces"),
+    adAccountId: v.id("adAccounts"),
+    audienceId: v.string(), // Meta id
+    name: v.string(),
+    subtype: v.string(), // CUSTOM | LOOKALIKE | WEBSITE | ENGAGEMENT | ...
+    description: v.optional(v.string()),
+    approximateCountLower: v.optional(v.number()),
+    approximateCountUpper: v.optional(v.number()),
+    operationStatus: v.optional(v.string()),
+    deliveryStatus: v.optional(v.string()),
+    timeContentUpdated: v.optional(v.number()),
+    retentionDays: v.optional(v.number()),
+    ruleAggregation: v.optional(v.string()),
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_account", ["adAccountId"])
+    .index("by_upsert_key", ["adAccountId", "audienceId"]),
+
+  // Keš statusa prihvatanja Custom Audience Uslova korišćenja (ToS)
+  metaAudienceTos: defineTable({
+    workspaceId: v.id("workspaces"),
+    adAccountId: v.id("adAccounts"),
+    status: v.union(
+      v.literal("accepted"),
+      v.literal("not_accepted"),
+      v.literal("unknown"),
+    ),
+    lastError: v.optional(v.string()),
+    checkedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_account", ["adAccountId"]),
+
+  // Meta Conversions API (CAPI) događaji (B1, B-F1, B-F3)
+  capiEvents: defineTable({
+    workspaceId: v.id("workspaces"),
+    eventName: v.string(), // npr. "PageView", "ViewContent", "Lead", "Purchase"
+    eventTime: v.number(), // Unix timestamp u SEKUNDAMA
+    eventId: v.string(), // Deterministički ID za deduplikaciju sa Meta Pixelom
+    actionSource: v.union(
+      v.literal("website"),
+      v.literal("business_messaging"),
+    ),
+    sourceKind: v.union(
+      v.literal("link_redirect"),
+      v.literal("openreply_conversion"),
+    ),
+    hashedEmail: v.optional(v.string()), // 64 hex karaktera, mala slova SHA-256
+    hashedPhone: v.optional(v.string()), // 64 hex karaktera, mala slova SHA-256
+    // Sirova IP adresa posetioca. Izuzetak od pravila "samo heševi" jer Meta Conversions API
+    // protokol za polje client_ip_address eksplicitno zahteva neheširanu IPv4/IPv6 adresu.
+    clientIpAddress: v.optional(v.string()),
+    clientUserAgent: v.optional(v.string()), // User agent browsera
+    fbc: v.optional(v.string()), // Meta click ID u formatu "fb.1.<timestamp>.<fbclid>"
+    fbp: v.optional(v.string()), // Meta browser cookie u formatu "fb.1.<timestamp>.<random>"
+    status: v.union(
+      v.literal("pending"),
+      v.literal("sent"),
+      v.literal("rejected"),
+    ),
+    attempts: v.optional(v.number()), // Broj neuspelih pokušaja slanja batch-a (max 5)
+    lastAttemptAt: v.optional(v.number()), // Unix timestamp poslednjeg pokušaja u milisekundama
+    rejectReason: v.optional(v.string()), // Sanitizovan razlog odbijanja
+    metaResponse: v.optional(v.string()), // Sanitizovan odgovor Meta API-ja
+    sentAt: v.optional(v.number()), // Unix timestamp u milisekundama kada je poslato
+    syncedAt: v.number(), // Unix timestamp u milisekundama kada je ažuriran red
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_time", ["workspaceId", "eventTime"])
+    .index("by_event_id", ["workspaceId", "eventId"])
+    .index("by_status", ["workspaceId", "status"]),
+
   adActions: defineTable({
     workspaceId: v.id("workspaces"),
     userId: v.optional(v.id("users")),

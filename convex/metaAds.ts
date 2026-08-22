@@ -1,7 +1,7 @@
 "use node";
 
-import { internalAction, type ActionCtx } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { action, internalAction, type ActionCtx } from "./_generated/server";
+import { api, internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { decryptCredentials } from "./lib/crypto";
@@ -22,6 +22,14 @@ import {
   buildAdSetsUrl,
   buildAdsUrl,
   buildInsightsUrl,
+  buildCustomAudiencesUrl,
+  buildCustomAudienceCreateUrl,
+  buildCustomAudienceUsersUrl,
+  buildAdAccountTosUrl,
+  parseTosResponse,
+  TOS_INSTRUCTIONS_SR,
+  TOS_UNKNOWN_MESSAGE_SR,
+  validateLookalikeSpec,
   parseRateLimitHeaders,
   classifyMetaError,
   computeBreakdownHash,
@@ -40,6 +48,7 @@ import {
   type RawGraphApiResponse,
   type RateLimitStatus,
 } from "./lib/metaAdsApi";
+import { prepareHashedAudiencePayload, sanitizePii } from "./lib/metaAudienceHash";
 import { META_INSIGHTS_VERSION } from "./lib/metaAdsCatalog";
 import {
   createQuotaCollector,
@@ -774,6 +783,121 @@ export const syncAdsStructure = internalAction({
             },
           );
 
+          // 8. Fetch Custom Audiences & Check ToS (MA-Publike)
+          try {
+            // Check ToS first via unified gate
+            countCall();
+            await evaluateAudienceTos(
+              ctx,
+              {
+                workspaceId,
+                adAccountId,
+                actId: normalizedActId,
+                token: trimmedToken,
+              },
+              tracker,
+            );
+
+            // Fetch Audiences
+            const audiencesRes = await fetchAllPages<{
+              id: string;
+              name: string;
+              subtype: string;
+              description?: string;
+              approximate_count_lower_bound?: number | string;
+              approximate_count_upper_bound?: number | string;
+              operation_status?:
+                | { code?: number; description?: string }
+                | string;
+              delivery_status?:
+                | { code?: number; description?: string }
+                | string;
+              time_content_updated?: number | string;
+              retention_days?: number | string;
+              rule_aggregation?: string;
+            }>(
+              buildCustomAudiencesUrl(
+                normalizedActId,
+                trimmedToken,
+                500,
+                version,
+              ),
+              10,
+              countCall,
+              tracker,
+              collector,
+            );
+
+            const audiences = audiencesRes.data.map((aud) => {
+              const lower = toNumOrUndefined(aud.approximate_count_lower_bound);
+              const upper = toNumOrUndefined(aud.approximate_count_upper_bound);
+              const retDays = toNumOrUndefined(aud.retention_days);
+              const rawTime = toNumOrUndefined(aud.time_content_updated);
+              let timeUpdated: number | undefined;
+              if (rawTime !== undefined && rawTime > 0) {
+                timeUpdated = rawTime < 1e11 ? rawTime * 1000 : rawTime;
+              }
+
+              let opStatus: string | undefined;
+              if (
+                typeof aud.operation_status === "object" &&
+                aud.operation_status !== null
+              ) {
+                opStatus =
+                  aud.operation_status.description ||
+                  String(aud.operation_status.code || "");
+              } else if (typeof aud.operation_status === "string") {
+                opStatus = aud.operation_status;
+              }
+
+              let delivStatus: string | undefined;
+              if (
+                typeof aud.delivery_status === "object" &&
+                aud.delivery_status !== null
+              ) {
+                delivStatus =
+                  aud.delivery_status.description ||
+                  String(aud.delivery_status.code || "");
+              } else if (typeof aud.delivery_status === "string") {
+                delivStatus = aud.delivery_status;
+              }
+
+              return {
+                audienceId: aud.id,
+                name: aud.name || "Bez naziva",
+                subtype: aud.subtype || "CUSTOM",
+                description: aud.description || undefined,
+                approximateCountLower:
+                  lower !== undefined && lower >= 0 ? lower : undefined,
+                approximateCountUpper:
+                  upper !== undefined && upper >= 0 ? upper : undefined,
+                operationStatus: opStatus || undefined,
+                deliveryStatus: delivStatus || undefined,
+                timeContentUpdated: timeUpdated,
+                retentionDays:
+                  retDays !== undefined && retDays > 0 ? retDays : undefined,
+                ruleAggregation: aud.rule_aggregation || undefined,
+              };
+            });
+
+            if (audiences.length > 0) {
+              await ctx.runMutation(
+                internal.metaAdsStore.upsertAudiencesBatch,
+                {
+                  workspaceId,
+                  adAccountId,
+                  audiences,
+                  syncedAt: Date.now(),
+                },
+              );
+            }
+          } catch (audErr) {
+            console.warn(
+              "[Meta Ads Sync] Custom Audiences sync warning:",
+              sanitizeSyncError(audErr),
+            );
+          }
+
           console.log(
             `[Meta Ads Sync] Structure sync finished. API calls: ${apiCalls}, campaigns: ${campaigns.length}, adSets: ${adSets.length}, ads: ${ads.length}`,
           );
@@ -1305,3 +1429,577 @@ export const syncAllAdsInsights = internalAction({
     });
   },
 });
+
+// ── Custom & Lookalike Audience Actions ─────────────────────────────────────
+
+async function getMetaAdsAuth(
+  ctx: ActionCtx,
+  workspaceId?: Id<"workspaces">,
+): Promise<{
+  workspaceId: Id<"workspaces">;
+  connectionId: Id<"connections">;
+  token: string;
+  actId: string;
+  adAccountId: Id<"adAccounts">;
+}> {
+  const wsId =
+    workspaceId ??
+    ((await ctx.runQuery(api.workspaces.currentContext))?.workspace?.id as
+      | Id<"workspaces">
+      | undefined);
+  if (!wsId) {
+    throw new Error("Radni prostor nije izabran ili niste prijavljeni.");
+  }
+
+  const conn = await ctx.runQuery(internal.connections.getMetaAdsForWorkspace, {
+    workspaceId: wsId,
+  });
+  if (!conn || !conn.encryptedCredentials) {
+    throw new Error(
+      "Meta Ads nalog nije povezan za ovaj radni prostor. Povežite ga u Podešavanjima.",
+    );
+  }
+
+  const token = await decryptCredentials(conn.encryptedCredentials);
+  if (!token.trim()) {
+    throw new Error("Kredencijali za Meta Ads nisu validni.");
+  }
+
+  const account = await ctx.runQuery(internal.metaAdsStore.getAccounts, {
+    workspaceId: wsId,
+  });
+  const firstAct = account?.[0];
+  if (!firstAct) {
+    throw new Error("Meta Ad nalog nije pronađen u bazi.");
+  }
+
+  return {
+    workspaceId: wsId,
+    connectionId: conn._id,
+    token: token.trim(),
+    actId: normalizeAdAccountId(firstAct.externalId),
+    adAccountId: firstAct._id,
+  };
+}
+
+const AUDIENCE_TOS_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Unified gate for Custom Audience Terms of Service (ToS) (A1 & A2).
+ *
+ * Rules:
+ *   1. Check local cache (unless forceRefresh). "accepted" and "not_accepted" cached for 1h.
+ *   2. "unknown" is NEVER cached.
+ *   3. If fetch fails -> status: "unknown" with checkedAt: 0 (never cached).
+ *   4. If status is "not_accepted" and assertAccepted: throw Error(TOS_INSTRUCTIONS_SR(auth.actId)).
+ *   5. If status is "unknown" and assertAccepted: throw Error(TOS_UNKNOWN_MESSAGE_SR(reason)).
+ */
+export async function evaluateAudienceTos(
+  ctx: ActionCtx,
+  auth: {
+    workspaceId: Id<"workspaces">;
+    adAccountId: Id<"adAccounts">;
+    actId: string;
+    token: string;
+  },
+  tracker: UsageTracker,
+  options: {
+    forceRefresh?: boolean;
+    assertAccepted?: boolean;
+  } = {},
+): Promise<"accepted" | "not_accepted" | "unknown"> {
+  const version = getMetaGraphVersion();
+
+  // 1. Check local cache (unless forceRefresh)
+  if (!options.forceRefresh) {
+    const cached = await ctx.runQuery(
+      internal.metaAdsStore.getAudienceTosInternal,
+      { adAccountId: auth.adAccountId },
+    );
+    if (cached) {
+      if (
+        cached.status === "accepted" &&
+        Date.now() - cached.checkedAt < AUDIENCE_TOS_CACHE_TTL_MS
+      ) {
+        return "accepted";
+      }
+      if (
+        cached.status === "not_accepted" &&
+        Date.now() - cached.checkedAt < AUDIENCE_TOS_CACHE_TTL_MS
+      ) {
+        if (options.assertAccepted) {
+          throw new Error(TOS_INSTRUCTIONS_SR(auth.actId));
+        }
+        return "not_accepted";
+      }
+    }
+  }
+
+  // 2. Fetch from Meta Graph API
+  const tosUrl = buildAdAccountTosUrl(auth.actId, auth.token, version);
+  try {
+    const res = await tracker.fetch(tosUrl);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      const sanitizedErr = sanitizePii(extractMetaAdsError(errText));
+      console.warn("[Meta Ads ToS] Provera ToS-a nije uspela:", sanitizedErr);
+
+      // Record unknown with checkedAt: 0 so it is NEVER cached
+      await ctx.runMutation(internal.metaAdsStore.recordAudienceTos, {
+        workspaceId: auth.workspaceId,
+        adAccountId: auth.adAccountId,
+        status: "unknown",
+        lastError: sanitizedErr,
+        checkedAt: 0,
+      });
+
+      if (options.assertAccepted) {
+        throw new Error(TOS_UNKNOWN_MESSAGE_SR(sanitizedErr));
+      }
+      return "unknown";
+    }
+
+    const json = await res.json();
+    const status = parseTosResponse(json);
+
+    await ctx.runMutation(internal.metaAdsStore.recordAudienceTos, {
+      workspaceId: auth.workspaceId,
+      adAccountId: auth.adAccountId,
+      status,
+      lastError: undefined,
+      checkedAt: Date.now(),
+    });
+
+    if (status === "not_accepted" && options.assertAccepted) {
+      throw new Error(TOS_INSTRUCTIONS_SR(auth.actId));
+    }
+
+    return status;
+  } catch (err: unknown) {
+    if (
+      err instanceof Error &&
+      (err.message.includes("Custom Audience Uslove korišćenja") ||
+        err.message.includes("Ne mogu da proverim da li su uslovi"))
+    ) {
+      throw err;
+    }
+    const sanitizedMsg = sanitizePii(
+      err instanceof Error ? err.message : String(err),
+    );
+    await ctx.runMutation(internal.metaAdsStore.recordAudienceTos, {
+      workspaceId: auth.workspaceId,
+      adAccountId: auth.adAccountId,
+      status: "unknown",
+      lastError: sanitizedMsg,
+      checkedAt: 0,
+    });
+
+    if (options.assertAccepted) {
+      throw new Error(TOS_UNKNOWN_MESSAGE_SR(sanitizedMsg));
+    }
+    return "unknown";
+  }
+}
+
+/**
+ * On-demand action to check and refresh Custom Audience Terms of Service (ToS) status.
+ */
+export const checkAudienceTosAction = action({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    adAccountId: v.optional(v.id("adAccounts")),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    status: "accepted" | "not_accepted" | "unknown";
+    checkedAt?: number;
+    error?: string;
+  }> => {
+    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const tracker = createUsageTracker();
+
+    try {
+      const status = await evaluateAudienceTos(ctx, auth, tracker, {
+        forceRefresh: true,
+      });
+      return {
+        status,
+        checkedAt: status !== "unknown" ? Date.now() : undefined,
+      };
+    } catch (err: unknown) {
+      return {
+        status: "unknown",
+        error: sanitizePii(
+          err instanceof Error ? err.message : String(err),
+        ),
+      };
+    } finally {
+      await tracker.flush(ctx, auth.workspaceId);
+    }
+  },
+});
+
+/**
+ * On-demand action to sync all Custom and Lookalike audiences from Meta Marketing API.
+ */
+export const syncAudiencesAction = action({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    adAccountId: v.optional(v.id("adAccounts")),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ success: boolean; count: number; written: number }> => {
+    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const version = getMetaGraphVersion();
+    const tracker = createUsageTracker();
+    const collector = createQuotaCollector();
+
+    try {
+      // 1. Check ToS first via unified gate
+      await evaluateAudienceTos(ctx, auth, tracker);
+
+      // 2. Fetch custom audiences
+      const audUrl = buildCustomAudiencesUrl(
+        auth.actId,
+        auth.token,
+        500,
+        version,
+      );
+      const res = await fetchAllPages<{
+        id: string;
+        name: string;
+        subtype: string;
+        description?: string;
+        approximate_count_lower_bound?: number | string;
+        approximate_count_upper_bound?: number | string;
+        operation_status?: { code?: number; description?: string } | string;
+        delivery_status?: { code?: number; description?: string } | string;
+        time_content_updated?: number | string;
+        retention_days?: number | string;
+        rule_aggregation?: string;
+      }>(audUrl, 10, undefined, tracker, collector);
+
+      const audiences = res.data.map((aud) => {
+        const lower = toNumOrUndefined(aud.approximate_count_lower_bound);
+        const upper = toNumOrUndefined(aud.approximate_count_upper_bound);
+        const retDays = toNumOrUndefined(aud.retention_days);
+        const rawTime = toNumOrUndefined(aud.time_content_updated);
+        let timeUpdated: number | undefined;
+        if (rawTime !== undefined && rawTime > 0) {
+          timeUpdated = rawTime < 1e11 ? rawTime * 1000 : rawTime;
+        }
+
+        let opStatus: string | undefined;
+        if (
+          typeof aud.operation_status === "object" &&
+          aud.operation_status !== null
+        ) {
+          opStatus =
+            aud.operation_status.description ||
+            String(aud.operation_status.code || "");
+        } else if (typeof aud.operation_status === "string") {
+          opStatus = aud.operation_status;
+        }
+
+        let delivStatus: string | undefined;
+        if (
+          typeof aud.delivery_status === "object" &&
+          aud.delivery_status !== null
+        ) {
+          delivStatus =
+            aud.delivery_status.description ||
+            String(aud.delivery_status.code || "");
+        } else if (typeof aud.delivery_status === "string") {
+          delivStatus = aud.delivery_status;
+        }
+
+        return {
+          audienceId: aud.id,
+          name: aud.name || "Bez naziva",
+          subtype: aud.subtype || "CUSTOM",
+          description: aud.description || undefined,
+          approximateCountLower:
+            lower !== undefined && lower >= 0 ? lower : undefined,
+          approximateCountUpper:
+            upper !== undefined && upper >= 0 ? upper : undefined,
+          operationStatus: opStatus || undefined,
+          deliveryStatus: delivStatus || undefined,
+          timeContentUpdated: timeUpdated,
+          retentionDays:
+            retDays !== undefined && retDays > 0 ? retDays : undefined,
+          ruleAggregation: aud.rule_aggregation || undefined,
+        };
+      });
+
+      const written: number = await ctx.runMutation(
+        internal.metaAdsStore.upsertAudiencesBatch,
+        {
+          workspaceId: auth.workspaceId,
+          adAccountId: auth.adAccountId,
+          audiences,
+          syncedAt: Date.now(),
+        },
+      );
+
+      return {
+        success: true,
+        count: audiences.length,
+        written,
+      };
+    } finally {
+      await tracker.flush(ctx, auth.workspaceId);
+      await collector.flush(ctx, auth.workspaceId);
+    }
+  },
+});
+
+/**
+ * Creates a Custom Audience from a customer list with SHA-256 hashed identifiers.
+ * Enforces ToS Gate before any write.
+ */
+export const createCustomAudienceAction = action({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    name: v.string(),
+    description: v.optional(v.string()),
+    customerFileSource: v.optional(v.string()), // "USER_PROVIDED_ONLY"
+    users: v.optional(
+      v.array(
+        v.object({
+          email: v.optional(v.string()),
+          phone: v.optional(v.string()),
+          firstName: v.optional(v.string()),
+          lastName: v.optional(v.string()),
+          city: v.optional(v.string()),
+          country: v.optional(v.string()),
+          zip: v.optional(v.string()),
+        }),
+      ),
+    ),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ audienceId: string; name: string }> => {
+    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const version = getMetaGraphVersion();
+    const tracker = createUsageTracker();
+
+    try {
+      // 1. ToS Gate verification (throws if not accepted or unknown)
+      await evaluateAudienceTos(ctx, auth, tracker, { assertAccepted: true });
+
+      // 2. Create the custom audience document on Meta
+      const createUrl = buildCustomAudienceCreateUrl(
+        auth.actId,
+        auth.token,
+        version,
+      );
+      const createBody = new URLSearchParams();
+      createBody.set("name", args.name.trim());
+      createBody.set("subtype", "CUSTOM");
+      if (args.description) {
+        createBody.set("description", args.description.trim());
+      }
+      createBody.set(
+        "customer_file_source",
+        args.customerFileSource || "USER_PROVIDED_ONLY",
+      );
+
+      const createRes = await tracker.fetch(createUrl, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: createBody.toString(),
+      });
+
+      if (!createRes.ok) {
+        const errText = await createRes.text().catch(() => "");
+        throw new Error(
+          `Meta Marketing API greška pri kreiranju publike: ${extractMetaAdsError(errText)}`,
+        );
+      }
+
+      const createJson = (await createRes.json()) as { id?: string };
+      const audienceId = createJson.id;
+      if (!audienceId) {
+        throw new Error("Meta nije vratila ID za kreiranu publiku.");
+      }
+
+      // 3. Upload hashed users payload if provided
+      if (args.users && args.users.length > 0) {
+        const hashedPayload = await prepareHashedAudiencePayload(args.users);
+        if (hashedPayload.data.length > 0) {
+          const uploadUrl = buildCustomAudienceUsersUrl(
+            audienceId,
+            auth.token,
+            version,
+          );
+          const uploadBody = new URLSearchParams();
+          uploadBody.set(
+            "payload",
+            JSON.stringify({
+              schema: hashedPayload.schema,
+              data: hashedPayload.data,
+            }),
+          );
+
+          const uploadRes = await tracker.fetch(uploadUrl, {
+            method: "POST",
+            headers: { "content-type": "application/x-www-form-urlencoded" },
+            body: uploadBody.toString(),
+          });
+
+          if (!uploadRes.ok) {
+            const errText = await uploadRes.text().catch(() => "");
+            console.warn(
+              "[Meta Custom Audience] Upload korisnika greška:",
+              extractMetaAdsError(errText),
+            );
+          }
+        }
+      }
+
+      // 4. Save into local DB
+      await ctx.runMutation(internal.metaAdsStore.upsertAudiencesBatch, {
+        workspaceId: auth.workspaceId,
+        adAccountId: auth.adAccountId,
+        audiences: [
+          {
+            audienceId,
+            name: args.name.trim(),
+            subtype: "CUSTOM",
+            description: args.description?.trim(),
+            deliveryStatus: "POPULATING",
+            operationStatus: "NORMAL",
+            timeContentUpdated: Date.now(),
+          },
+        ],
+        syncedAt: Date.now(),
+      });
+
+      return {
+        audienceId,
+        name: args.name.trim(),
+      };
+    } finally {
+      await tracker.flush(ctx, auth.workspaceId);
+    }
+  },
+});
+
+/**
+ * Creates a Lookalike Audience.
+ * Validates seed audience size and spec before any network call.
+ * Enforces ToS Gate.
+ */
+export const createLookalikeAudienceAction = action({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    name: v.string(),
+    seedAudienceId: v.string(),
+    spec: v.object({
+      country: v.optional(v.string()),
+      type: v.optional(v.string()),
+      ratio: v.optional(v.number()),
+    }),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ audienceId: string; name: string }> => {
+    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const version = getMetaGraphVersion();
+    const tracker = createUsageTracker();
+
+    // 1. Fetch seed audience from database
+    const seedAudience = await ctx.runQuery(
+      internal.metaAdsStore.getAudienceById,
+      {
+        audienceId: args.seedAudienceId,
+        adAccountId: auth.adAccountId,
+      },
+    );
+
+    // 2. Strict validation of Lookalike spec and seed audience size PRE-CALL
+    validateLookalikeSpec(args.spec, {
+      approximateCountLower: seedAudience?.approximateCountLower,
+      name: seedAudience?.name,
+    });
+
+    try {
+      // 3. ToS Gate verification (throws if not accepted or unknown)
+      await evaluateAudienceTos(ctx, auth, tracker, { assertAccepted: true });
+
+      // 4. Create Lookalike Audience on Meta
+      const createUrl = buildCustomAudienceCreateUrl(
+        auth.actId,
+        auth.token,
+        version,
+      );
+      const createBody = new URLSearchParams();
+      createBody.set("name", args.name.trim());
+      createBody.set("subtype", "LOOKALIKE");
+      createBody.set("origin_audience_id", args.seedAudienceId);
+
+      const lookalikeSpec: Record<string, unknown> = {};
+      if (args.spec.country) {
+        lookalikeSpec.country = args.spec.country.toUpperCase().trim();
+      }
+      if (args.spec.type) {
+        lookalikeSpec.type = args.spec.type;
+      }
+      if (args.spec.ratio !== undefined) {
+        lookalikeSpec.ratio = args.spec.ratio;
+      }
+      createBody.set("lookalike_spec", JSON.stringify(lookalikeSpec));
+
+      const createRes = await tracker.fetch(createUrl, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: createBody.toString(),
+      });
+
+      if (!createRes.ok) {
+        const errText = await createRes.text().catch(() => "");
+        throw new Error(
+          `Meta Marketing API greška pri kreiranju Lookalike publike: ${extractMetaAdsError(errText)}`,
+        );
+      }
+
+      const createJson = (await createRes.json()) as { id?: string };
+      const audienceId = createJson.id;
+      if (!audienceId) {
+        throw new Error("Meta nije vratila ID za kreiranu Lookalike publiku.");
+      }
+
+      // 5. Save into local DB
+      await ctx.runMutation(internal.metaAdsStore.upsertAudiencesBatch, {
+        workspaceId: auth.workspaceId,
+        adAccountId: auth.adAccountId,
+        audiences: [
+          {
+            audienceId,
+            name: args.name.trim(),
+            subtype: "LOOKALIKE",
+            deliveryStatus: "POPULATING",
+            operationStatus: "NORMAL",
+            timeContentUpdated: Date.now(),
+          },
+        ],
+        syncedAt: Date.now(),
+      });
+
+      return {
+        audienceId,
+        name: args.name.trim(),
+      };
+    } finally {
+      await tracker.flush(ctx, auth.workspaceId);
+    }
+  },
+});
+

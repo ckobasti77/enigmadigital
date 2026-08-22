@@ -1,8 +1,10 @@
-import { query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import { requireMembership } from "./lib/auth";
 import { slugify } from "./lib/slug";
 import { getKeyEvents } from "./lib/ga4Catalog";
+import { hashEmail, hashPhone } from "./lib/metaAudienceHash";
 
 /**
  * UTM Attribution & Funnel Query Layer.
@@ -292,6 +294,74 @@ export const report = query({
         openreplyShareOfIgKeyEvents,
       },
       unmatchedGa4,
+    };
+  },
+});
+
+/**
+ * Records an OpenReply conversion event (B3b) and dispatches it to Meta Conversions API (CAPI).
+ * Action source: "business_messaging"
+ * Source kind: "openreply_conversion"
+ * PII is hashed immediately with SHA-256 (convex/lib/metaAudienceHash.ts) — zero raw PII is stored.
+ * Dispatch is scheduled via ctx.scheduler.runAfter.
+ */
+export const recordOpenReplyConversion = mutation({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    automationId: v.optional(v.string()),
+    campaignName: v.optional(v.string()),
+    eventName: v.optional(v.string()), // default "Lead"
+    email: v.optional(v.string()), // Raw email (hashed before store, NEVER stored raw)
+    phone: v.optional(v.string()), // Raw phone (hashed before store, NEVER stored raw)
+  },
+  returns: v.object({
+    success: v.boolean(),
+    eventId: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const { workspaceId } = await requireMembership(ctx);
+    const targetWs = args.workspaceId ?? workspaceId;
+
+    const now = Date.now();
+    const eventTime = Math.floor(now / 1000);
+    const eventName = args.eventName?.trim() || "Lead";
+
+    // Normalize & Hash PII using existing metaAudienceHash module (Rule: Zero raw PII in DB/logs)
+    const hashedEmail = args.email ? await hashEmail(args.email) : undefined;
+    const hashedPhone = args.phone ? await hashPhone(args.phone) : undefined;
+
+    // Deterministic eventId
+    const autoKey = args.automationId || args.campaignName || "direct";
+    const userKey = hashedEmail
+      ? hashedEmail.slice(0, 12)
+      : hashedPhone
+        ? hashedPhone.slice(0, 12)
+        : "anon";
+    const eventId = `or_conv_${slugify(autoKey)}_${eventTime}_${userKey}`;
+
+    await ctx.runMutation(internal.metaCapiStore.recordCapiEvent, {
+      workspaceId: targetWs,
+      eventName,
+      eventTime,
+      eventId,
+      actionSource: "business_messaging",
+      sourceKind: "openreply_conversion",
+      hashedEmail,
+      hashedPhone,
+    });
+
+    // Scheduled dispatch via ctx.scheduler.runAfter (never inline in HTTP action)
+    await ctx.scheduler.runAfter(
+      0,
+      internal.metaCapi.sendPendingCapiEventsAction,
+      {
+        workspaceId: targetWs,
+      },
+    );
+
+    return {
+      success: true,
+      eventId,
     };
   },
 });

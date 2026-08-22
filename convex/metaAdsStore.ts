@@ -2203,3 +2203,285 @@ export const quotaStatus = query({
     };
   },
 });
+
+// ── Custom & Lookalike Audiences ────────────────────────────────────────────
+
+export const audienceInputValidator = v.object({
+  audienceId: v.string(),
+  name: v.string(),
+  subtype: v.string(),
+  description: v.optional(v.string()),
+  approximateCountLower: v.optional(v.number()),
+  approximateCountUpper: v.optional(v.number()),
+  operationStatus: v.optional(v.string()),
+  deliveryStatus: v.optional(v.string()),
+  timeContentUpdated: v.optional(v.number()),
+  retentionDays: v.optional(v.number()),
+  ruleAggregation: v.optional(v.string()),
+});
+
+/**
+ * Batch upsert Meta Custom & Lookalike audiences.
+ * Follows Rule 1 (no 0 for undefined) and Rule 4 (defined keys only in patch).
+ */
+export const upsertAudiencesBatch = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    adAccountId: v.id("adAccounts"),
+    audiences: v.array(audienceInputValidator),
+    syncedAt: v.number(),
+  },
+  returns: v.number(),
+  handler: async (ctx, { workspaceId, adAccountId, audiences, syncedAt }) => {
+    let written = 0;
+
+    for (const aud of audiences) {
+      const existing = await ctx.db
+        .query("adAudiences")
+        .withIndex("by_upsert_key", (q) =>
+          q.eq("adAccountId", adAccountId).eq("audienceId", aud.audienceId),
+        )
+        .unique();
+
+      if (existing !== null) {
+        const patch: Record<string, unknown> = {
+          name: aud.name,
+          subtype: aud.subtype,
+          syncedAt,
+        };
+        if (aud.description !== undefined) patch.description = aud.description;
+        if (aud.approximateCountLower !== undefined) {
+          patch.approximateCountLower = aud.approximateCountLower;
+        }
+        if (aud.approximateCountUpper !== undefined) {
+          patch.approximateCountUpper = aud.approximateCountUpper;
+        }
+        if (aud.operationStatus !== undefined) {
+          patch.operationStatus = aud.operationStatus;
+        }
+        if (aud.deliveryStatus !== undefined) {
+          patch.deliveryStatus = aud.deliveryStatus;
+        }
+        if (aud.timeContentUpdated !== undefined) {
+          patch.timeContentUpdated = aud.timeContentUpdated;
+        }
+        if (aud.retentionDays !== undefined) {
+          patch.retentionDays = aud.retentionDays;
+        }
+        if (aud.ruleAggregation !== undefined) {
+          patch.ruleAggregation = aud.ruleAggregation;
+        }
+
+        await ctx.db.patch(existing._id, patch);
+        written++;
+      } else {
+        await ctx.db.insert("adAudiences", {
+          workspaceId,
+          adAccountId,
+          audienceId: aud.audienceId,
+          name: aud.name,
+          subtype: aud.subtype,
+          description: aud.description,
+          approximateCountLower: aud.approximateCountLower,
+          approximateCountUpper: aud.approximateCountUpper,
+          operationStatus: aud.operationStatus,
+          deliveryStatus: aud.deliveryStatus,
+          timeContentUpdated: aud.timeContentUpdated,
+          retentionDays: aud.retentionDays,
+          ruleAggregation: aud.ruleAggregation,
+          syncedAt,
+        });
+        written++;
+      }
+    }
+
+    return written;
+  },
+});
+
+/**
+ * Records Terms of Service status for an ad account.
+ */
+export const recordAudienceTos = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    adAccountId: v.id("adAccounts"),
+    status: v.union(
+      v.literal("accepted"),
+      v.literal("not_accepted"),
+      v.literal("unknown"),
+    ),
+    lastError: v.optional(v.string()),
+    checkedAt: v.number(),
+  },
+  returns: v.null(),
+  handler: async (
+    ctx,
+    { workspaceId, adAccountId, status, lastError, checkedAt },
+  ) => {
+    const existing = await ctx.db
+      .query("metaAudienceTos")
+      .withIndex("by_account", (q) => q.eq("adAccountId", adAccountId))
+      .unique();
+
+    const fields: {
+      status: "accepted" | "not_accepted" | "unknown";
+      checkedAt: number;
+      lastError?: string;
+    } = {
+      status,
+      checkedAt,
+    };
+    if (lastError !== undefined) {
+      fields.lastError = lastError;
+    }
+
+    if (existing !== null) {
+      await ctx.db.patch(existing._id, fields);
+    } else {
+      await ctx.db.insert("metaAudienceTos", {
+        workspaceId,
+        adAccountId,
+        ...fields,
+      });
+    }
+    return null;
+  },
+});
+
+/**
+ * Public query for audience ToS acceptance status.
+ * Rule 3: Date.now() is NOT called inside Convex query.
+ * When row does not exist, returns status: "unknown" (not "not_accepted").
+ */
+export const getAudienceTos = query({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    adAccountId: v.optional(v.id("adAccounts")),
+  },
+  returns: v.object({
+    status: v.union(
+      v.literal("accepted"),
+      v.literal("not_accepted"),
+      v.literal("unknown"),
+    ),
+    checkedAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    adAccountId: v.optional(v.id("adAccounts")),
+    accountName: v.optional(v.string()),
+    externalId: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const { workspaceId } = await requireMembership(ctx);
+    let account = null;
+    if (args.adAccountId) {
+      account = await ctx.db.get(args.adAccountId);
+    } else {
+      account = await ctx.db
+        .query("adAccounts")
+        .withIndex("by_workspace_provider", (q) =>
+          q.eq("workspaceId", workspaceId).eq("provider", "meta_ads"),
+        )
+        .first();
+    }
+    if (!account) {
+      return { status: "unknown" as const };
+    }
+    const tos = await ctx.db
+      .query("metaAudienceTos")
+      .withIndex("by_account", (q) => q.eq("adAccountId", account._id))
+      .unique();
+    return {
+      status: (tos?.status ?? "unknown") as
+        | "accepted"
+        | "not_accepted"
+        | "unknown",
+      checkedAt: tos?.checkedAt,
+      lastError: tos?.lastError,
+      adAccountId: account._id,
+      accountName: account.name,
+      externalId: account.externalId,
+    };
+  },
+});
+
+/**
+ * Internal query for audience ToS acceptance row.
+ */
+export const getAudienceTosInternal = internalQuery({
+  args: {
+    adAccountId: v.id("adAccounts"),
+  },
+  handler: async (ctx, { adAccountId }) => {
+    return await ctx.db
+      .query("metaAudienceTos")
+      .withIndex("by_account", (q) => q.eq("adAccountId", adAccountId))
+      .unique();
+  },
+});
+
+/**
+ * Public query listing custom and lookalike audiences for workspace.
+ */
+export const listAudiences = query({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    adAccountId: v.optional(v.id("adAccounts")),
+  },
+  handler: async (ctx, args) => {
+    const { workspaceId } = await requireMembership(ctx);
+
+    const rows = args.adAccountId
+      ? await ctx.db
+          .query("adAudiences")
+          .withIndex("by_account", (q) => q.eq("adAccountId", args.adAccountId!))
+          .collect()
+      : await ctx.db
+          .query("adAudiences")
+          .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+          .collect();
+
+    const sorted = rows.sort(
+      (a, b) =>
+        (b.timeContentUpdated ?? b.syncedAt) -
+        (a.timeContentUpdated ?? a.syncedAt),
+    );
+
+    let latestSyncedAt: number | undefined;
+    for (const row of rows) {
+      if (latestSyncedAt === undefined || row.syncedAt > latestSyncedAt) {
+        latestSyncedAt = row.syncedAt;
+      }
+    }
+
+    return {
+      audiences: sorted,
+      count: sorted.length,
+      syncedAt: latestSyncedAt,
+    };
+  },
+});
+
+/**
+ * Internal query to fetch audience by audienceId.
+ */
+export const getAudienceById = internalQuery({
+  args: {
+    audienceId: v.string(),
+    adAccountId: v.optional(v.id("adAccounts")),
+  },
+  handler: async (ctx, { audienceId, adAccountId }) => {
+    if (adAccountId) {
+      return await ctx.db
+        .query("adAudiences")
+        .withIndex("by_upsert_key", (q) =>
+          q.eq("adAccountId", adAccountId).eq("audienceId", audienceId),
+        )
+        .unique();
+    }
+    return await ctx.db
+      .query("adAudiences")
+      .filter((q) => q.eq(q.field("audienceId"), audienceId))
+      .first();
+  },
+});

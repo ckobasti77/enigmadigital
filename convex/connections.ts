@@ -401,6 +401,21 @@ export const getGa4ForWorkspace = internalQuery({
   },
 });
 
+/** Return Meta Ads connection for a workspace (internal for audiences/sync). */
+export const getMetaAdsForWorkspace = internalQuery({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const conn = await ctx.db
+      .query("connections")
+      .withIndex("by_workspace_provider", (q) =>
+        q.eq("workspaceId", workspaceId).eq("provider", "meta_ads"),
+      )
+      .first();
+    if (conn === null || conn.status === "disconnecting") return null;
+    return conn;
+  },
+});
+
 // ── manual trigger ───────────────────────────────────────────────────────────
 
 /**

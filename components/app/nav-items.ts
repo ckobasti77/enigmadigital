@@ -204,6 +204,12 @@ const EXTRA_SCREENS: Screen[] = [
     title: "Detalj objave",
     range: false,
   },
+  {
+    href: "/ads/publike",
+    section: "Kanali",
+    title: "Publike",
+    range: false,
+  },
 ];
 
 /**
@@ -326,6 +332,10 @@ export const channelTabs: Record<string, readonly ChannelTab[]> = {
   "/openreply": [
     { href: "/openreply", label: "Pregled" },
     { href: "/openreply/automatizacije", label: "Automatizacije" },
+  ],
+  "/ads": [
+    { href: "/ads", label: "Pregled" },
+    { href: "/ads/publike", label: "Publike" },
   ],
 } as const;
 

@@ -24,6 +24,7 @@ export const CRON_LOCKS = {
   adsHot: "meta:ads:hot",
   adsAll: "meta:ads:all",
   adRules: "meta:ads:rules",
+  capiDispatch: "meta:capi:dispatch",
 } as const;
 
 /**
@@ -38,6 +39,7 @@ export const CRON_LOCK_TTL_MS = 15 * 60 * 1000;
  * Run `body` while holding the named lock; do nothing at all if another run
  * still holds it.
  *
+ * Returns true if lock was acquired and body executed, false if skipped.
  * Skipping rather than waiting is deliberate — the next tick is the retry, and
  * a queue of waiting syncs is the pile-up this prevents.
  */
@@ -46,18 +48,19 @@ export async function withCronLock(
   name: string,
   body: () => Promise<void>,
   ttlMs: number = CRON_LOCK_TTL_MS,
-): Promise<void> {
+): Promise<boolean> {
   const acquired: boolean = await ctx.runMutation(internal.cronLocks.acquire, {
     name,
     ttlMs,
   });
   if (!acquired) {
     console.warn(`Preskočen prolaz „${name}” — prethodni još traje.`);
-    return;
+    return false;
   }
 
   try {
     await body();
+    return true;
   } finally {
     await ctx.runMutation(internal.cronLocks.release, { name });
   }
