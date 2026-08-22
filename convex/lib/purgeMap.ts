@@ -269,6 +269,17 @@ async function drainAdHierarchy(
     budget -= insights.length;
     if (budget <= 0) return { deleted, exhausted: false };
 
+    const actionBreakdowns = await ctx.db
+      .query("adActionBreakdown")
+      .withIndex("by_ad_date_type", (q) => q.eq("adId", ad._id))
+      .take(budget);
+    for (const ab of actionBreakdowns) {
+      await ctx.db.delete(ab._id);
+    }
+    deleted += actionBreakdowns.length;
+    budget -= actionBreakdowns.length;
+    if (budget <= 0) return { deleted, exhausted: false };
+
     await ctx.db.delete(ad._id);
     deleted++;
     budget--;
@@ -763,6 +774,7 @@ const GOOGLE_ADS_STEPS: PurgeStep[] = [
       "adSets",
       "ads",
       "adInsights",
+      "adActionBreakdown",
       "pinnedBattles",
     ],
     run: (ctx, ws, limit) => drainAdHierarchy(ctx, ws, "google_ads", limit),
@@ -777,6 +789,7 @@ const META_ADS_STEPS: PurgeStep[] = [
       "adSets",
       "ads",
       "adInsights",
+      "adActionBreakdown",
       "pinnedBattles",
     ],
     run: (ctx, ws, limit) => drainAdHierarchy(ctx, ws, "meta_ads", limit),
@@ -933,6 +946,7 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   adSets: { purgedBy: ["meta_ads", "google_ads"] },
   ads: { purgedBy: ["meta_ads", "google_ads"] },
   adInsights: { purgedBy: ["meta_ads", "google_ads"] },
+  adActionBreakdown: { purgedBy: ["meta_ads", "google_ads"] },
   metaAdsQuota: { purgedBy: ["meta_ads"] },
   metaAdsBackfill: { purgedBy: ["meta_ads"] },
   adActions: {

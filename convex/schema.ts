@@ -1481,28 +1481,26 @@ export default defineSchema({
     ),
     spend: v.number(),
     impressions: v.number(),
-    reach: v.number(),
-    frequency: v.number(),
     clicks: v.number(),
-    ctr: v.number(),
+    reach: v.optional(v.number()),
+    frequency: v.optional(v.number()),
+    ctr: v.optional(v.number()),
     uniqueCtr: v.optional(v.number()),
-    cpc: v.number(),
-    cpm: v.number(),
+    cpc: v.optional(v.number()),
+    cpm: v.optional(v.number()),
     cpp: v.optional(v.number()),
-    video3s: v.number(),
-    thruplay: v.number(),
-    videoP25: v.number(),
-    videoP50: v.number(),
-    videoP75: v.number(),
+    video3s: v.optional(v.number()),
+    thruplay: v.optional(v.number()),
+    videoP25: v.optional(v.number()),
+    videoP50: v.optional(v.number()),
+    videoP75: v.optional(v.number()),
     videoP95: v.optional(v.number()),
-    videoP100: v.number(),
-    hookRate: v.number(), // (video3s / impressions) computed at write time
-    holdRate: v.number(), // (thruplay / video3s) computed at write time
+    videoP100: v.optional(v.number()),
     outboundCtr: v.optional(v.number()),
-    results: v.number(), // konverzije/rezultati
-    costPerResult: v.number(), // CPA/CPL
-    conversionValue: v.number(), // purchase/lead value
-    roas: v.number(), // conversionValue / spend
+    results: v.optional(v.number()), // konverzije/rezultati (izostaje kad nalog nema konverzije)
+    costPerResult: v.optional(v.number()), // CPA/CPL (izvedena metrika, deriveRate)
+    conversionValue: v.optional(v.number()), // purchase/lead value
+    roas: v.optional(v.number()), // conversionValue / spend (izvedena metrika, deriveRate)
     searchImpressionShare: v.optional(v.number()),
     // Read-only echo iz Meta odgovora, npr. "7d_click,1d_view" (MA1). Kaže KOJA
     // je postavka atribucije dala ove brojeve; ne postavlja se nikad iz koda.
@@ -1510,12 +1508,35 @@ export default defineSchema({
     qualityRanking: v.optional(v.string()),
     engagementRanking: v.optional(v.string()),
     conversionRanking: v.optional(v.string()),
+    insightsVersion: v.optional(v.number()),
     syncedAt: v.optional(v.number()),
   })
     .index("by_workspace_date", ["workspaceId", "date"])
     .index("by_ad_date", ["adId", "date"])
     .index("by_ad_date_hash", ["adId", "date", "breakdownHash"])
     .index("by_upsert_key", ["adId", "date", "breakdownHash", "hour"]),
+
+  adActionBreakdown: defineTable({
+    workspaceId: v.id("workspaces"),
+    adId: v.id("ads"),
+    date: v.string(),
+    breakdownHash: v.string(),
+    actionType: v.string(),
+    window: v.string(), // "1d_click" | "7d_click" | "1d_view" | "7d_view" | "default"
+    count: v.optional(v.number()),
+    value: v.optional(v.number()), // iz action_values
+    costPer: v.optional(v.number()), // iz cost_per_action_type
+    syncedAt: v.number(),
+  })
+    .index("by_ws_date", ["workspaceId", "date"])
+    .index("by_ad_date_type", ["adId", "date", "actionType"])
+    .index("by_upsert_key", [
+      "adId",
+      "date",
+      "breakdownHash",
+      "actionType",
+      "window",
+    ]),
 
   // Kvota Meta Marketing API-ja: oba zaglavlja u jednom redu po workspace-u (MA1).
   // BUC procenti opisuju klizajući SAT, Insights-Throttle sekundu — zato oba,

@@ -5,7 +5,12 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import { formatDecimal, formatNumber, formatPercent } from "@/lib/format";
+import { formatMetric } from "@/convex/lib/metaAdsFormat";
+import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
 import { activatable } from "@/lib/activate";
+
+const spendDef = resolveMetric("spend")!;
+const cpaDef = resolveMetric("costPerResult")!;
 import { cn } from "@/lib/utils";
 import {
   ArrowDown,
@@ -30,6 +35,7 @@ export type CampaignRow = {
   name: string;
   provider?: "meta_ads" | "google_ads" | "meta" | "google" | string;
   accountName?: string;
+  currency?: string;
   objective?: string;
   status: string;
   dailyBudget?: number;
@@ -39,19 +45,19 @@ export type CampaignRow = {
   syncedAt?: number;
   spend: number;
   impressions: number;
-  reach: number;
+  reach?: number;
   clicks: number;
-  results: number;
-  conversionValue: number;
-  costPerResult: number;
-  roas: number;
+  results?: number;
+  conversionValue?: number;
+  costPerResult?: number;
+  roas?: number;
   hasConversionValue: boolean;
   ctr: number;
   cpc: number;
   cpm: number;
   frequency: number;
-  video3s: number;
-  thruplay: number;
+  video3s?: number;
+  thruplay?: number;
   dailySpend: Array<{ date: string; spend: number }>;
   adSetsCount: number;
   adsCount: number;
@@ -457,7 +463,7 @@ export function CampaignsTable({
 
                       {/* Spend */}
                       <TableCell className="text-right font-mono font-semibold tabular-nums text-foreground">
-                        {formatNumber(row.spend)} €
+                        {formatMetric(row.spend, spendDef, row.currency)}
                       </TableCell>
 
                       {/* Sparkline of daily spend */}
@@ -470,24 +476,24 @@ export function CampaignsTable({
                         </div>
                       </TableCell>
 
-                      {/* Results */}
-                      <TableCell className="text-right font-mono tabular-nums text-foreground">
-                        {formatNumber(row.results)}
-                      </TableCell>
+                       {/* Results */}
+                       <TableCell className="text-right font-mono tabular-nums text-foreground">
+                         {row.results !== undefined ? formatNumber(row.results) : "—"}
+                       </TableCell>
 
-                      {/* CPA / ROAS (ROAS ONLY when conversionValue > 0) */}
-                      <TableCell className="text-right font-mono tabular-nums">
-                        <div>
-                          <span className="text-foreground">
-                            {row.costPerResult > 0 ? `${formatNumber(row.costPerResult)} €` : "—"}
-                          </span>
-                          {row.hasConversionValue && (
-                            <span className="block text-micro font-semibold text-success">
-                              {row.roas.toFixed(2)}x
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
+                       {/* CPA / ROAS (ROAS ONLY when conversionValue > 0) */}
+                       <TableCell className="text-right font-mono tabular-nums">
+                         <div>
+                           <span className="text-foreground">
+                             {formatMetric(row.costPerResult, cpaDef, row.currency)}
+                           </span>
+                           {row.hasConversionValue && row.roas !== undefined && (
+                             <span className="block text-micro font-semibold text-success">
+                               {row.roas.toFixed(2)}x
+                             </span>
+                           )}
+                         </div>
+                       </TableCell>
 
                       {/* CTR */}
                       <TableCell className="text-right font-mono tabular-nums text-foreground">

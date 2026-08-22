@@ -5,7 +5,11 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import type { ChartConfig } from "@/components/ui/chart";
 import { formatNumber } from "@/lib/format";
+import { formatMetric } from "@/convex/lib/metaAdsFormat";
+import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
 import { Clock, Info } from "lucide-react";
+
+const spendDef = resolveMetric("spend")!;
 
 export type HourlyPoint = {
   hour: number;
@@ -24,9 +28,11 @@ const config = {
 export function HourlyChart({
   data,
   hasHourlyData,
+  currencyCode,
 }: {
   data: HourlyPoint[];
   hasHourlyData: boolean;
+  currencyCode?: string;
 }) {
   const chartData = useMemo(() => {
     return data.map((d) => ({
@@ -90,7 +96,7 @@ export function HourlyChart({
               axisLine={false}
               tickLine={false}
               tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
-              tickFormatter={(v: number) => `${formatNumber(v)} €`}
+              tickFormatter={(v: number) => formatMetric(v, spendDef, currencyCode)}
               ticks={spendTicks}
               interval={0}
               domain={[0, spendTicks[spendTicks.length - 1] * 1.1]}
@@ -106,7 +112,7 @@ export function HourlyChart({
                     <div className="mt-1.5 space-y-1">
                       <TooltipRow
                         label="Potrošnja"
-                        value={`${formatNumber(p.spend)} €`}
+                        value={formatMetric(p.spend, spendDef, currencyCode)}
                         color="var(--color-chart-1)"
                       />
                       <TooltipRow

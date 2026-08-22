@@ -96,7 +96,7 @@ export const getTargetForAction = internalQuery({
     let name = "";
     let status = "";
     let dailyBudget: number | undefined;
-    let currency = "EUR";
+    let currency = "";
     let internalId: string | undefined;
 
     // Today's date string YYYY-MM-DD
@@ -275,7 +275,7 @@ export const getTargetContext = query({
     let name = "";
     let status = "";
     let dailyBudget: number | undefined;
-    let currency = "EUR";
+    let currency = "";
     let spendToday = 0;
 
     if (args.targetType === "campaign") {

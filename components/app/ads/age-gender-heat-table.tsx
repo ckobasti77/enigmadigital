@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatNumber, formatPercent } from "@/lib/format";
+import { formatMetric } from "@/convex/lib/metaAdsFormat";
+import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
 import { cn } from "@/lib/utils";
+
+const spendDef = resolveMetric("spend")!;
 
 type CellMetric = "spend" | "impressions" | "ctr" | "results";
 
@@ -15,7 +19,13 @@ export type AgeGenderRow = {
   total: { spend: number; impressions: number; clicks: number; results: number; ctr: number };
 };
 
-export function AgeGenderHeatTable({ data }: { data: AgeGenderRow[] }) {
+export function AgeGenderHeatTable({
+  data,
+  currencyCode,
+}: {
+  data: AgeGenderRow[];
+  currencyCode?: string;
+}) {
   const [metric, setMetric] = useState<CellMetric>("spend");
 
   const maxValue = useMemo(() => {
@@ -32,7 +42,7 @@ export function AgeGenderHeatTable({ data }: { data: AgeGenderRow[] }) {
   }, [data, metric]);
 
   const formatVal = (val: number) => {
-    if (metric === "spend") return `${formatNumber(val)} €`;
+    if (metric === "spend") return formatMetric(val, spendDef, currencyCode);
     if (metric === "ctr") return formatPercent(val);
     return formatNumber(val);
   };

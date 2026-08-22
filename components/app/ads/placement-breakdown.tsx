@@ -2,7 +2,13 @@
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatNumber, formatPercent } from "@/lib/format";
+import { formatMetric } from "@/convex/lib/metaAdsFormat";
+import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
 import { Smartphone, Sparkles, Video, Globe, LayoutGrid } from "lucide-react";
+
+const spendDef = resolveMetric("spend")!;
+const cpaDef = resolveMetric("costPerResult")!;
+const cpcDef = resolveMetric("cpc")!;
 
 export type PlacementRow = {
   placement: string;
@@ -13,7 +19,7 @@ export type PlacementRow = {
   results: number;
   ctr: number;
   cpc: number;
-  cpa: number;
+  cpa?: number;
 };
 
 function formatPlacementName(platform: string, placement: string): { name: string; icon: typeof Smartphone } {
@@ -43,7 +49,13 @@ function formatPlacementName(platform: string, placement: string): { name: strin
   return { name: `${platform} / ${placement}`, icon: Smartphone };
 }
 
-export function PlacementBreakdown({ data }: { data: PlacementRow[] }) {
+export function PlacementBreakdown({
+  data,
+  currencyCode,
+}: {
+  data: PlacementRow[];
+  currencyCode?: string;
+}) {
   const totalSpend = data.reduce((acc, r) => acc + r.spend, 0);
 
   return (
@@ -87,7 +99,7 @@ export function PlacementBreakdown({ data }: { data: PlacementRow[] }) {
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-foreground">
-                      {formatNumber(row.spend)} €
+                      {formatMetric(row.spend, spendDef, currencyCode)}
                     </TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-text-muted">
                       <div className="flex items-center justify-end gap-1.5">
@@ -110,13 +122,15 @@ export function PlacementBreakdown({ data }: { data: PlacementRow[] }) {
                       {formatPercent(row.ctr)}
                     </TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-text-muted">
-                      {row.cpc > 0 ? `${formatNumber(row.cpc)} €` : "—"}
+                      {row.cpc !== undefined ? formatMetric(row.cpc, cpcDef, currencyCode) : "—"}
                     </TableCell>
                     <TableCell className="pr-4 text-right font-mono tabular-nums text-foreground">
                       {row.results > 0 ? (
                         <span>
                           {formatNumber(row.results)} ·{" "}
-                          <span className="text-text-muted">{formatNumber(row.cpa)} €</span>
+                          <span className="text-text-muted">
+                            {row.cpa !== undefined ? formatMetric(row.cpa, cpaDef, currencyCode) : "—"}
+                          </span>
                         </span>
                       ) : (
                         "0"

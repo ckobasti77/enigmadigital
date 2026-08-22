@@ -595,8 +595,8 @@ export const getEvaluationContext = internalQuery({
                   spend += ins.spend;
                   impressions += ins.impressions;
                   clicks += ins.clicks;
-                  convResults += ins.results;
-                  conversionValue += ins.conversionValue;
+                  if (ins.results !== undefined) convResults += ins.results;
+                  if (ins.conversionValue !== undefined) conversionValue += ins.conversionValue;
                 }
               }
             }
@@ -680,15 +680,15 @@ export const getEvaluationContext = internalQuery({
               )
               .collect();
 
-            for (const ins of insights) {
-              if (ins.breakdownHash === "none" && ins.hour === undefined) {
-                spend += ins.spend;
-                impressions += ins.impressions;
-                clicks += ins.clicks;
-                convResults += ins.results;
-                conversionValue += ins.conversionValue;
+              for (const ins of insights) {
+                if (ins.breakdownHash === "none" && ins.hour === undefined) {
+                  spend += ins.spend;
+                  impressions += ins.impressions;
+                  clicks += ins.clicks;
+                  if (ins.results !== undefined) convResults += ins.results;
+                  if (ins.conversionValue !== undefined) conversionValue += ins.conversionValue;
+                }
               }
-            }
           }
 
           const cooldownThreshold = args.now - rule.cooldownHours * 3600 * 1000;
@@ -766,8 +766,8 @@ export const getEvaluationContext = internalQuery({
                     spend += ins.spend;
                     impressions += ins.impressions;
                     clicks += ins.clicks;
-                    convResults += ins.results;
-                    conversionValue += ins.conversionValue;
+                    if (ins.results !== undefined) convResults += ins.results;
+                    if (ins.conversionValue !== undefined) conversionValue += ins.conversionValue;
                   }
                 }
               }

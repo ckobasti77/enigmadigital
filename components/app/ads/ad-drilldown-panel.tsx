@@ -11,6 +11,7 @@ import { PlacementBreakdown } from "./placement-breakdown";
 import { HourlyChart } from "./hourly-chart";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
 import { formatDecimal, formatNumber, formatPercent } from "@/lib/format";
+import { deriveRate } from "@/convex/lib/metaAdsCatalog";
 import { cn } from "@/lib/utils";
 import {
   X,
@@ -22,27 +23,37 @@ import {
   ExternalLink,
 } from "lucide-react";
 import Image from "next/image";
+import { formatMetric, formatRanking } from "@/convex/lib/metaAdsFormat";
+import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
 
-function formatRankingBadge(type: "Kvalitet" | "Angažovanje" | "Konverzija", ranking?: string) {
-  if (!ranking || ranking === "UNKNOWN") return null;
+const spendDef = resolveMetric("spend")!;
+const cpaDef = resolveMetric("costPerResult")!;
+const cpcDef = resolveMetric("cpc")!;
+const cpmDef = resolveMetric("cpm")!;
 
-  let text = ranking;
-  let toneClass = "bg-surface-raised text-text-muted border-line";
+function formatRankingBadge(type: "Kvalitet" | "Angažovanje" | "Konverzija", rawRanking?: string) {
+  const { label, known } = formatRanking(rawRanking);
 
-  if (ranking === "ABOVE_AVERAGE") {
-    text = "Iznad proseka";
+  if (!known) {
+    return (
+      <span
+        title="Meta još nema dovoljno podataka za rangiranje"
+        className="inline-flex items-center gap-1 rounded border border-line bg-surface-raised px-2 py-0.5 text-micro font-medium text-text-muted cursor-help"
+      >
+        <Award className="size-3 shrink-0" />
+        <span>{type}: {label}</span>
+      </span>
+    );
+  }
+
+  let toneClass = "bg-surface-raised text-text-primary border-line";
+  if (rawRanking === "ABOVE_AVERAGE") {
     toneClass = "bg-success/15 text-success border-success/30";
-  } else if (ranking === "AVERAGE") {
-    text = "Prosečno";
+  } else if (rawRanking === "AVERAGE") {
     toneClass = "bg-surface-raised text-text-primary border-line";
-  } else if (ranking.includes("BELOW_AVERAGE_BOTTOM_35")) {
-    text = "Donjih 35%";
+  } else if (rawRanking === "BELOW_AVERAGE_35") {
     toneClass = "bg-warning/15 text-warning border-warning/30";
-  } else if (ranking.includes("BELOW_AVERAGE_BOTTOM_20") || ranking.includes("BELOW_AVERAGE_BOTTOM_10")) {
-    text = "Donjih 10–20%";
-    toneClass = "bg-danger/15 text-danger border-danger/30";
-  } else if (ranking.includes("BELOW_AVERAGE")) {
-    text = "Ispod proseka";
+  } else if (rawRanking === "BELOW_AVERAGE_20" || rawRanking === "BELOW_AVERAGE_10") {
     toneClass = "bg-danger/15 text-danger border-danger/30";
   }
 
@@ -54,7 +65,7 @@ function formatRankingBadge(type: "Kvalitet" | "Angažovanje" | "Konverzija", ra
       )}
     >
       <Award className="size-3 shrink-0" />
-      <span>{type}: {text}</span>
+      <span>{type}: {label}</span>
     </span>
   );
 }
@@ -155,9 +166,13 @@ export function AdDrilldownPanel({
     );
   }
 
-  const { ad, adSet, campaign, coreMetrics, videoFunnel, rankings, hourlySeries, hasHourlyData, ageGenderMatrix, placementList } = data;
+  const { ad, adSet, campaign, coreMetrics, videoFunnel, rankings, hourlySeries, hasHourlyData, ageGenderMatrix, placementList, currency } = data;
 
-  const hasVideo = videoFunnel.video3s > 0 || videoFunnel.thruplay > 0 || videoFunnel.videoP25 > 0;
+  const hasVideo = Boolean(
+    (videoFunnel.video3s !== undefined && videoFunnel.video3s > 0) ||
+    (videoFunnel.thruplay !== undefined && videoFunnel.thruplay > 0) ||
+    (videoFunnel.videoP25 !== undefined && videoFunnel.videoP25 > 0),
+  );
 
   const isGoogleAds = (data as { provider?: string }).provider === "google_ads" || (data as { provider?: string }).provider === "google";
   const searchImpressionShare = (data as { searchImpressionShare?: number }).searchImpressionShare;
@@ -273,21 +288,43 @@ export function AdDrilldownPanel({
             <div className="grid grid-cols-2 divide-x divide-line-soft border-b border-line-soft bg-surface-raised/40">
               <div className="p-4 text-center sm:text-left">
                 <span className="text-xs text-text-muted">Hook Rate (3s / Impresije)</span>
-                <p className="mt-1 font-mono text-2xl sm:text-3xl font-bold tabular-nums text-accent-400">
-                  {formatPercent(videoFunnel.hookRate)}
-                </p>
+                {(() => {
+                  const hookRate = deriveRate(videoFunnel.video3s, videoFunnel.impressions);
+                  return (
+                    <p
+                      className={cn(
+                        "mt-1 font-mono text-2xl sm:text-3xl font-bold tabular-nums",
+                        hookRate !== undefined ? "text-accent-400" : "text-text-muted",
+                      )}
+                      title={hookRate === undefined ? "Nema dovoljno podataka" : undefined}
+                    >
+                      {hookRate !== undefined ? formatPercent(hookRate) : "—"}
+                    </p>
+                  );
+                })()}
                 <p className="mt-1 text-micro text-text-muted">
-                  {formatNumber(videoFunnel.video3s)} pregleda ≥ 3s
+                  {videoFunnel.video3s !== undefined ? `${formatNumber(videoFunnel.video3s)} pregleda ≥ 3s` : "—"}
                 </p>
               </div>
 
               <div className="p-4 text-center sm:text-left">
                 <span className="text-xs text-text-muted">Hold Rate (ThruPlay / 3s)</span>
-                <p className="mt-1 font-mono text-2xl sm:text-3xl font-bold tabular-nums text-foreground">
-                  {formatPercent(videoFunnel.holdRate)}
-                </p>
+                {(() => {
+                  const holdRate = deriveRate(videoFunnel.thruplay, videoFunnel.video3s);
+                  return (
+                    <p
+                      className={cn(
+                        "mt-1 font-mono text-2xl sm:text-3xl font-bold tabular-nums",
+                        holdRate !== undefined ? "text-foreground" : "text-text-muted",
+                      )}
+                      title={holdRate === undefined ? "Nema dovoljno podataka" : undefined}
+                    >
+                      {holdRate !== undefined ? formatPercent(holdRate) : "—"}
+                    </p>
+                  );
+                })()}
                 <p className="mt-1 text-micro text-text-muted">
-                  {formatNumber(videoFunnel.thruplay)} kompletnih ThruPlay
+                  {videoFunnel.thruplay !== undefined ? `${formatNumber(videoFunnel.thruplay)} kompletnih ThruPlay` : "—"}
                 </p>
               </div>
             </div>
@@ -301,13 +338,15 @@ export function AdDrilldownPanel({
                 <div>
                   <div className="flex justify-between text-text-muted mb-1 font-mono tabular-nums">
                     <span>25% videa</span>
-                    <span className="text-foreground">{formatNumber(videoFunnel.videoP25)}</span>
+                    <span className="text-foreground">
+                      {videoFunnel.videoP25 !== undefined ? formatNumber(videoFunnel.videoP25) : "—"}
+                    </span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-raised">
                     <div
                       className="h-full bg-chart-1"
                       style={{
-                        width: `${videoFunnel.impressions > 0 ? Math.min(100, (videoFunnel.videoP25 / videoFunnel.impressions) * 100) : 0}%`,
+                        width: `${videoFunnel.impressions > 0 && videoFunnel.videoP25 !== undefined ? Math.min(100, (videoFunnel.videoP25 / videoFunnel.impressions) * 100) : 0}%`,
                       }}
                     />
                   </div>
@@ -316,13 +355,15 @@ export function AdDrilldownPanel({
                 <div>
                   <div className="flex justify-between text-text-muted mb-1 font-mono tabular-nums">
                     <span>50% videa</span>
-                    <span className="text-foreground">{formatNumber(videoFunnel.videoP50)}</span>
+                    <span className="text-foreground">
+                      {videoFunnel.videoP50 !== undefined ? formatNumber(videoFunnel.videoP50) : "—"}
+                    </span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-raised">
                     <div
                       className="h-full bg-chart-1/80"
                       style={{
-                        width: `${videoFunnel.impressions > 0 ? Math.min(100, (videoFunnel.videoP50 / videoFunnel.impressions) * 100) : 0}%`,
+                        width: `${videoFunnel.impressions > 0 && videoFunnel.videoP50 !== undefined ? Math.min(100, (videoFunnel.videoP50 / videoFunnel.impressions) * 100) : 0}%`,
                       }}
                     />
                   </div>
@@ -331,13 +372,15 @@ export function AdDrilldownPanel({
                 <div>
                   <div className="flex justify-between text-text-muted mb-1 font-mono tabular-nums">
                     <span>75% videa</span>
-                    <span className="text-foreground">{formatNumber(videoFunnel.videoP75)}</span>
+                    <span className="text-foreground">
+                      {videoFunnel.videoP75 !== undefined ? formatNumber(videoFunnel.videoP75) : "—"}
+                    </span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-raised">
                     <div
                       className="h-full bg-chart-1/60"
                       style={{
-                        width: `${videoFunnel.impressions > 0 ? Math.min(100, (videoFunnel.videoP75 / videoFunnel.impressions) * 100) : 0}%`,
+                        width: `${videoFunnel.impressions > 0 && videoFunnel.videoP75 !== undefined ? Math.min(100, (videoFunnel.videoP75 / videoFunnel.impressions) * 100) : 0}%`,
                       }}
                     />
                   </div>
@@ -346,13 +389,15 @@ export function AdDrilldownPanel({
                 <div>
                   <div className="flex justify-between text-text-muted mb-1 font-mono tabular-nums">
                     <span>100% videa (Završeno)</span>
-                    <span className="text-foreground">{formatNumber(videoFunnel.videoP100)}</span>
+                    <span className="text-foreground">
+                      {videoFunnel.videoP100 !== undefined ? formatNumber(videoFunnel.videoP100) : "—"}
+                    </span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-raised">
                     <div
                       className="h-full bg-chart-1/40"
                       style={{
-                        width: `${videoFunnel.impressions > 0 ? Math.min(100, (videoFunnel.videoP100 / videoFunnel.impressions) * 100) : 0}%`,
+                        width: `${videoFunnel.impressions > 0 && videoFunnel.videoP100 !== undefined ? Math.min(100, (videoFunnel.videoP100 / videoFunnel.impressions) * 100) : 0}%`,
                       }}
                     />
                   </div>
@@ -371,7 +416,7 @@ export function AdDrilldownPanel({
             <div className="rounded-lg border border-line bg-surface/50 p-3">
               <span className="text-xs text-text-muted">Potrošnja</span>
               <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
-                {formatNumber(coreMetrics.spend)} €
+                {formatMetric(coreMetrics.spend, spendDef, currency)}
               </p>
             </div>
 
@@ -399,14 +444,14 @@ export function AdDrilldownPanel({
             <div className="rounded-lg border border-line bg-surface/50 p-3">
               <span className="text-xs text-text-muted">Rezultati (Konverzije)</span>
               <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
-                {formatNumber(coreMetrics.results)}
+                {coreMetrics.results !== undefined ? formatNumber(coreMetrics.results) : "—"}
               </p>
             </div>
 
             <div className="rounded-lg border border-line bg-surface/50 p-3">
               <span className="text-xs text-text-muted">CPA (Cena / rez.)</span>
               <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
-                {coreMetrics.costPerResult > 0 ? `${formatNumber(coreMetrics.costPerResult)} €` : "—"}
+                {coreMetrics.costPerResult !== undefined ? formatMetric(coreMetrics.costPerResult, cpaDef, currency) : "—"}
               </p>
             </div>
 
@@ -414,14 +459,14 @@ export function AdDrilldownPanel({
               <div className="rounded-lg border border-line bg-surface/50 p-3">
                 <span className="text-xs text-text-muted">ROAS</span>
                 <p className="mt-1 font-mono text-lg font-bold tabular-nums text-success">
-                  {coreMetrics.roas.toFixed(2)}x
+                  {coreMetrics.roas !== undefined ? `${coreMetrics.roas.toFixed(2)}x` : "—"}
                 </p>
               </div>
             ) : (
               <div className="rounded-lg border border-line bg-surface/50 p-3">
                 <span className="text-xs text-text-muted">CPC</span>
                 <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
-                  {coreMetrics.cpc > 0 ? `${formatNumber(coreMetrics.cpc)} €` : "—"}
+                  {coreMetrics.cpc !== undefined ? formatMetric(coreMetrics.cpc, cpcDef, currency) : "—"}
                 </p>
               </div>
             )}
@@ -429,7 +474,7 @@ export function AdDrilldownPanel({
             <div className="rounded-lg border border-line bg-surface/50 p-3">
               <span className="text-xs text-text-muted">CPM</span>
               <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
-                {coreMetrics.cpm > 0 ? `${formatNumber(coreMetrics.cpm)} €` : "—"}
+                {coreMetrics.cpm !== undefined ? formatMetric(coreMetrics.cpm, cpmDef, currency) : "—"}
               </p>
             </div>
           </div>
@@ -451,13 +496,13 @@ export function AdDrilldownPanel({
 
           <TabPanel id="ad-breakdown-panel" className="pt-2">
             {activeTab === "demographics" && (
-              <AgeGenderHeatTable data={ageGenderMatrix} />
+              <AgeGenderHeatTable data={ageGenderMatrix} currencyCode={currency} />
             )}
             {activeTab === "placements" && (
-              <PlacementBreakdown data={placementList} />
+              <PlacementBreakdown data={placementList} currencyCode={currency} />
             )}
             {activeTab === "hourly" && (
-              <HourlyChart data={hourlySeries} hasHourlyData={hasHourlyData} />
+              <HourlyChart data={hourlySeries} hasHourlyData={hasHourlyData} currencyCode={currency} />
             )}
           </TabPanel>
         </div>

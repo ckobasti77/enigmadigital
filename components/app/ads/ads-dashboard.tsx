@@ -29,8 +29,11 @@ import {
   Pin,
 } from "lucide-react";
 
-const formatEur = (v: number) => `${formatNumber(v)} €`;
-const formatCpa = (v: number) => (v > 0 ? formatEur(v) : "—");
+import { formatMetric } from "@/convex/lib/metaAdsFormat";
+import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
+
+const spendDef = resolveMetric("spend")!;
+const cpaDef = resolveMetric("costPerResult")!;
 const formatRoas = (v: number) => `${v.toFixed(2)}x`;
 
 export function AdsDashboard() {
@@ -123,9 +126,8 @@ export function AdsDashboard() {
                 label="Ukupna potrošnja"
                 icon={DollarSign}
                 value={report.totals.totalSpend}
-                format={formatEur}
-                valueClassName="text-accent-400"
-                note={`za ${report.totals.campaignsCount} ${
+                format={(v: number) => formatMetric(v, spendDef, report.totals.currency)}
+                note={`kroz ${report.totals.campaignsCount} ${
                   report.totals.campaignsCount === 1 ? "kampanju" : "kampanja"
                 }`}
               />
@@ -140,7 +142,7 @@ export function AdsDashboard() {
                 label="Prosečan CPA"
                 icon={TrendingUp}
                 value={report.totals.overallCpa}
-                format={formatCpa}
+                format={(v: number) => formatMetric(v, cpaDef, report.totals.currency)}
                 note="cena po konverziji"
               />
               <StatTile
@@ -174,7 +176,10 @@ export function AdsDashboard() {
               kojoj kampanji. */}
           <Reveal delay={0.05}>
             <ChartErrorBoundary>
-              <SpendChart campaigns={report.campaigns} />
+              <SpendChart
+                campaigns={report.campaigns}
+                currency={report.totals.currency}
+              />
             </ChartErrorBoundary>
           </Reveal>
 

@@ -11,9 +11,17 @@ import {
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AlertCircle, CheckCircle2, Clock, HelpCircle, ShieldAlert } from "lucide-react";
+import {
+  DEFAULT_THRESHOLD_IMPRESSIONS,
+  DEFAULT_THRESHOLD_CLICKS,
+  isVersionStatisticallyReliable,
+} from "./battle-verdict";
 
-export const DEFAULT_THRESHOLD_IMPRESSIONS = 1000;
-export const DEFAULT_THRESHOLD_CLICKS = 50;
+export {
+  DEFAULT_THRESHOLD_IMPRESSIONS,
+  DEFAULT_THRESHOLD_CLICKS,
+  isVersionStatisticallyReliable,
+};
 
 export interface EvidenceMeterProps {
   impressions: number;
@@ -24,15 +32,6 @@ export interface EvidenceMeterProps {
   isPendingActivation?: boolean;
   className?: string;
   showDetails?: boolean;
-}
-
-export function isVersionStatisticallyReliable(
-  impressions: number,
-  clicks: number,
-  thresholdImpressions = DEFAULT_THRESHOLD_IMPRESSIONS,
-  thresholdClicks = DEFAULT_THRESHOLD_CLICKS,
-): boolean {
-  return impressions >= thresholdImpressions && clicks >= thresholdClicks;
 }
 
 export function EvidenceMeter({

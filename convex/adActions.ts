@@ -43,12 +43,13 @@ import type { Id } from "./_generated/dataModel";
 
 // ── Environment & Safety Configuration ───────────────────────────────────────
 
-export function getBudgetBounds(): { minEur: number; maxEur: number } {
-  const envMin = parseFloat(process.env.BUDGET_MIN_EUR ?? "5");
-  const envMax = parseFloat(process.env.BUDGET_MAX_EUR ?? "5000");
-  const minEur = Number.isFinite(envMin) && envMin > 0 ? envMin : 5;
-  const maxEur = Number.isFinite(envMax) && envMax >= minEur ? envMax : 5000;
-  return { minEur, maxEur };
+export function getBudgetBounds(): { minBudget: number; maxBudget: number; limitCurrency: string } {
+  const envMin = parseFloat(process.env.BUDGET_MIN ?? process.env.BUDGET_MIN_EUR ?? "5");
+  const envMax = parseFloat(process.env.BUDGET_MAX ?? process.env.BUDGET_MAX_EUR ?? "5000");
+  const minBudget = Number.isFinite(envMin) && envMin > 0 ? envMin : 5;
+  const maxBudget = Number.isFinite(envMax) && envMax >= minBudget ? envMax : 5000;
+  const limitCurrency = (process.env.BUDGET_LIMIT_CURRENCY ?? "EUR").trim().toUpperCase();
+  return { minBudget, maxBudget, limitCurrency };
 }
 
 export function getMaxHookCopies(): number {
@@ -319,24 +320,54 @@ export const changeBudget = action({
     );
 
     // 4. GUARDRAILS ENFORCEMENT
-    const { minEur, maxEur } = getBudgetBounds();
+    const { minBudget, maxBudget, limitCurrency } = getBudgetBounds();
+    const accountCurrency = (target.currency || "").trim().toUpperCase();
 
-    if (args.newDailyBudget < minEur) {
+    // Nepoznata valuta NIJE dozvola da se nastavi. Granice budžeta su brojevi
+    // bez značenja dok se ne zna u čemu su izražene — a ovde se menja iznos
+    // koji se stvarno troši. Zato prazna valuta blokira, ne propušta.
+    if (!accountCurrency) {
       throw new ConvexError({
-        code: "guardrail_violation",
-        message: `Novi budžet (${args.newDailyBudget} €) je ispod minimalno dozvoljenog limita od ${minEur} € (BUDGET_MIN_EUR).`,
+        code: "currency_unknown",
+        message:
+          "Valuta naloga nije poznata, pa granice budžeta ne mogu da se provere. Pokreni sinhronizaciju naloga pa pokušaj ponovo.",
       });
     }
 
-    if (args.newDailyBudget > maxEur) {
+    if (accountCurrency !== limitCurrency) {
+      throw new ConvexError({
+        code: "currency_mismatch",
+        message: `Granica budzeta je zadata u ${limitCurrency}, a nalog radi u ${accountCurrency}. Podesi granicu u valuti naloga pre nego sto menjas budzet.`,
+      });
+    }
+
+    if (args.newDailyBudget < minBudget) {
       throw new ConvexError({
         code: "guardrail_violation",
-        message: `Novi budžet (${args.newDailyBudget} €) prelazi maksimalno dozvoljeni limit od ${maxEur} € (BUDGET_MAX_EUR).`,
+        message: `Novi budžet (${args.newDailyBudget} ${limitCurrency}) je ispod minimalno dozvoljenog limita od ${minBudget} ${limitCurrency} (BUDGET_MIN).`,
+      });
+    }
+
+    if (args.newDailyBudget > maxBudget) {
+      throw new ConvexError({
+        code: "guardrail_violation",
+        message: `Novi budžet (${args.newDailyBudget} ${limitCurrency}) prelazi maksimalno dozvoljeni limit od ${maxBudget} ${limitCurrency} (BUDGET_MAX).`,
       });
     }
 
     const currentBudget = target.dailyBudget;
-    if (currentBudget !== undefined && currentBudget > 0) {
+    // Bez poznatog trenutnog budzeta ograda od +/-50% ne postoji. Ranije se u
+    // tom slucaju preskakala, sto je znacilo da je nepoznato stanje bilo
+    // slabije zasticeno od poznatog. Sada blokira.
+    if (currentBudget === undefined || currentBudget <= 0) {
+      throw new ConvexError({
+        code: "current_budget_unknown",
+        message:
+          "Trenutni dnevni budžet nije poznat, pa ograda od ±50% ne može da se izračuna. Pokreni sinhronizaciju naloga pa pokušaj ponovo.",
+      });
+    }
+
+    {
       const minAllowed = Math.round(currentBudget * 0.5 * 100) / 100;
       const maxAllowed = Math.round(currentBudget * 1.5 * 100) / 100;
       const percentChange = Math.round(
@@ -344,9 +375,13 @@ export const changeBudget = action({
       );
 
       if (args.newDailyBudget < minAllowed || args.newDailyBudget > maxAllowed) {
+        const currDisplay = accountCurrency ? `${currentBudget} ${accountCurrency}` : `${currentBudget}`;
+        const newDisplay = accountCurrency ? `${args.newDailyBudget} ${accountCurrency}` : `${args.newDailyBudget}`;
+        const minDisplay = accountCurrency ? `${minAllowed} ${accountCurrency}` : `${minAllowed}`;
+        const maxDisplay = accountCurrency ? `${maxAllowed} ${accountCurrency}` : `${maxAllowed}`;
         throw new ConvexError({
           code: "guardrail_violation",
-          message: `Promena budžeta sa ${currentBudget} € na ${args.newDailyBudget} € (${percentChange > 0 ? "+" : ""}${percentChange}%) prelazi dozvoljenu granicu od ±50% po jednoj akciji (dozvoljeno: ${minAllowed} € – ${maxAllowed} €).`,
+          message: `Promena budžeta sa ${currDisplay} na ${newDisplay} (${percentChange > 0 ? "+" : ""}${percentChange}%) prelazi dozvoljenu granicu od ±50% po jednoj akciji (dozvoljeno: ${minDisplay} – ${maxDisplay}).`,
         });
       }
     }

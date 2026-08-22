@@ -28,9 +28,11 @@ import {
   extractConversionResults,
   extractConversionValue,
   extractVideoActionCount,
+  extractActionBreakdowns,
   parseHourlyString,
   extractMetaAdsError,
   runInsightsAsync,
+  toNumOrUndefined,
   MetaApiError,
   ASYNC_RANGE_DAY_THRESHOLD,
   type InsightsQueryParams,
@@ -38,6 +40,7 @@ import {
   type RawGraphApiResponse,
   type RateLimitStatus,
 } from "./lib/metaAdsApi";
+import { META_INSIGHTS_VERSION } from "./lib/metaAdsCatalog";
 import {
   createQuotaCollector,
   readGate as readAdsQuotaGate,
@@ -391,30 +394,29 @@ function transformInsightRow(
   };
   spend: number;
   impressions: number;
-  reach: number;
-  frequency: number;
   clicks: number;
-  ctr: number;
+  reach?: number;
+  frequency?: number;
+  ctr?: number;
   uniqueCtr?: number;
-  cpc: number;
-  cpm: number;
+  cpc?: number;
+  cpm?: number;
   cpp?: number;
-  video3s: number;
-  thruplay: number;
-  videoP25: number;
-  videoP50: number;
-  videoP75: number;
+  video3s?: number;
+  thruplay?: number;
+  videoP25?: number;
+  videoP50?: number;
+  videoP75?: number;
   videoP95?: number;
-  videoP100: number;
+  videoP100?: number;
   outboundCtr?: number;
-  results: number;
-  costPerResult: number;
-  conversionValue: number;
-  roas: number;
+  results?: number;
+  conversionValue?: number;
   attributionSetting?: string;
   qualityRanking?: string;
   engagementRanking?: string;
   conversionRanking?: string;
+  insightsVersion?: number;
 } {
   const date = raw.date_start ?? isoDay(Date.now());
   const hour = isHourly
@@ -438,16 +440,19 @@ function transformInsightRow(
 
   const breakdownHash = computeBreakdownHash(breakdown);
 
-  const spend = toNum(raw.spend);
-  const impressions = toNum(raw.impressions);
-  const reach = toNum(raw.reach);
-  const frequency = toNum(raw.frequency);
-  const clicks = toNum(raw.clicks);
-  const ctr = toNum(raw.ctr);
-  const uniqueCtr = raw.unique_ctr !== undefined ? toNum(raw.unique_ctr) : undefined;
-  const cpc = toNum(raw.cpc);
-  const cpm = toNum(raw.cpm);
-  const cpp = raw.cpp !== undefined ? toNum(raw.cpp) : undefined;
+  // Core metrics: spend, impressions, clicks are always returned by Meta and 0 is true zero
+  const spend = toNumOrUndefined(raw.spend) ?? 0;
+  const impressions = toNumOrUndefined(raw.impressions) ?? 0;
+  const clicks = toNumOrUndefined(raw.clicks) ?? 0;
+
+  // Optional metrics: omitted if not returned by Meta (never write 0 for unknown)
+  const reach = toNumOrUndefined(raw.reach);
+  const frequency = toNumOrUndefined(raw.frequency);
+  const ctr = toNumOrUndefined(raw.ctr);
+  const uniqueCtr = toNumOrUndefined(raw.unique_ctr);
+  const cpc = toNumOrUndefined(raw.cpc);
+  const cpm = toNumOrUndefined(raw.cpm);
+  const cpp = toNumOrUndefined(raw.cpp);
 
   const video3s = extractVideoActionCount(raw.video_3_sec_watched_actions);
   const thruplay = extractVideoActionCount(raw.video_thruplay_watched_actions);
@@ -459,15 +464,13 @@ function transformInsightRow(
 
   let outboundCtr: number | undefined;
   if (Array.isArray(raw.outbound_clicks_ctr) && raw.outbound_clicks_ctr.length > 0) {
-    outboundCtr = toNum(raw.outbound_clicks_ctr[0]?.value);
+    outboundCtr = toNumOrUndefined(raw.outbound_clicks_ctr[0]?.value);
   } else if (raw.outbound_clicks_ctr !== undefined) {
-    outboundCtr = toNum(raw.outbound_clicks_ctr);
+    outboundCtr = toNumOrUndefined(raw.outbound_clicks_ctr);
   }
 
   const results = extractConversionResults(raw.actions);
   const conversionValue = extractConversionValue(raw.action_values);
-  const costPerResult = results > 0 ? spend / results : 0;
-  const roas = spend > 0 ? conversionValue / spend : 0;
 
   return {
     adId,
@@ -477,9 +480,9 @@ function transformInsightRow(
     breakdown,
     spend,
     impressions,
+    clicks,
     reach,
     frequency,
-    clicks,
     ctr,
     uniqueCtr,
     cpc,
@@ -494,15 +497,14 @@ function transformInsightRow(
     videoP100,
     outboundCtr,
     results,
-    costPerResult,
     conversionValue,
-    roas,
     // Read-only: koja je postavka atribucije dala baš ove brojeve (MA1).
     // Kad ga Meta ne pošalje, ostaje undefined — ne izmišlja se vrednost.
     attributionSetting: raw.attribution_setting,
     qualityRanking: raw.quality_ranking,
     engagementRanking: raw.engagement_rate_ranking,
     conversionRanking: raw.conversion_rate_ranking,
+    insightsVersion: META_INSIGHTS_VERSION,
   };
 }
 
@@ -931,11 +933,50 @@ export const syncAdsInsights = internalAction({
               hourly: boolean,
             ): Promise<number> => {
               const rows = [];
+              const actionBreakdownRows = [];
+
               for (const raw of raws) {
                 if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
                 const adId = adIdMap[raw.ad_id] as Id<"ads">;
                 rows.push(transformInsightRow(raw, adId, hourly));
+
+                // Ekstrakcija razlaganja po tipu akcije i po prozoru atribucije (MA2)
+                const date = raw.date_start ?? isoDay(Date.now());
+                const breakdown =
+                  raw.age ||
+                  raw.gender ||
+                  raw.publisher_platform ||
+                  raw.platform_position ||
+                  raw.device_platform
+                    ? {
+                        age: raw.age,
+                        gender: raw.gender,
+                        platform: raw.publisher_platform,
+                        placement: raw.platform_position,
+                        device: raw.device_platform,
+                      }
+                    : undefined;
+                const breakdownHash = computeBreakdownHash(breakdown);
+
+                const extracted = extractActionBreakdowns(
+                  raw.actions,
+                  raw.action_values,
+                  raw.cost_per_action_type,
+                );
+                for (const item of extracted) {
+                  actionBreakdownRows.push({
+                    adId,
+                    date,
+                    breakdownHash,
+                    actionType: item.actionType,
+                    window: item.window,
+                    count: item.count,
+                    value: item.value,
+                    costPer: item.costPer,
+                  });
+                }
               }
+
               let written = 0;
               for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
                 written += await ctx.runMutation(
@@ -946,6 +987,17 @@ export const syncAdsInsights = internalAction({
                   },
                 );
               }
+
+              for (let i = 0; i < actionBreakdownRows.length; i += INSIGHTS_BATCH_CHUNK) {
+                await ctx.runMutation(
+                  internal.metaAdsStore.upsertActionBreakdownsBatch,
+                  {
+                    workspaceId,
+                    rows: actionBreakdownRows.slice(i, i + INSIGHTS_BATCH_CHUNK),
+                  },
+                );
+              }
+
               return written;
             };
 

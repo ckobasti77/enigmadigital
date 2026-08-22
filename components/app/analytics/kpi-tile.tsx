@@ -134,7 +134,7 @@ export function StatTile({
   valueClassName,
 }: {
   label: string;
-  value: number;
+  value: number | undefined;
   format: (v: number) => string;
   /** Šta broj znači — jedna linija, bez ponavljanja natpisa. */
   note: string;
@@ -151,14 +151,24 @@ export function StatTile({
           <Icon className="size-4 shrink-0 text-text-muted" aria-hidden />
         </div>
         <div>
-          <CountUp
-            value={value}
-            format={format}
-            className={cn(
-              "block font-mono text-2xl font-bold leading-none sm:text-3xl",
-              valueClassName ?? "text-foreground",
-            )}
-          />
+          {value !== undefined ? (
+            <CountUp
+              value={value}
+              format={format}
+              className={cn(
+                "block font-mono text-2xl font-bold leading-none sm:text-3xl",
+                valueClassName ?? "text-foreground",
+              )}
+            />
+          ) : (
+            <span
+              className={cn(
+                "block font-mono text-2xl font-bold leading-none sm:text-3xl text-text-muted",
+              )}
+            >
+              —
+            </span>
+          )}
           <p className="mt-1.5 text-xs text-text-muted">{note}</p>
         </div>
       </div>

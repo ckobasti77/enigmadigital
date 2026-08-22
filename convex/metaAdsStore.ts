@@ -8,6 +8,7 @@ import {
   determineGateState,
   quotaPeak,
 } from "./lib/metaAdsQuota";
+import { deriveRate, META_INSIGHTS_VERSION } from "./lib/metaAdsCatalog";
 
 /**
  * ============================================================================
@@ -21,8 +22,9 @@ import {
  *   - `adSets` upserted by natural key `[workspaceId, externalId]`
  *   - `ads` upserted by natural key `[workspaceId, externalId]`
  *   - `adInsights` upserted by composite key `[adId, date, breakdownHash, hour]`
+ *   - `adActionBreakdown` upserted by `[adId, date, breakdownHash, actionType, window]`
  *
- * hookRate and holdRate are computed at write time.
+ * hookRate and holdRate are derived at read time via `deriveRate`.
  * ============================================================================
  */
 
@@ -41,6 +43,7 @@ export const campaignInputValidator = v.object({
   status: v.string(),
   dailyBudget: v.optional(v.number()),
   lifetimeBudget: v.optional(v.number()),
+  searchImpressionShare: v.optional(v.number()),
   syncPriority: v.union(v.literal("hot"), v.literal("cold")),
 });
 
@@ -73,31 +76,33 @@ export const insightRowInputValidator = v.object({
   breakdown: v.optional(breakdownValidator),
   spend: v.number(),
   impressions: v.number(),
-  reach: v.number(),
-  frequency: v.number(),
   clicks: v.number(),
-  ctr: v.number(),
+  reach: v.optional(v.number()),
+  frequency: v.optional(v.number()),
+  ctr: v.optional(v.number()),
   uniqueCtr: v.optional(v.number()),
-  cpc: v.number(),
-  cpm: v.number(),
+  cpc: v.optional(v.number()),
+  cpm: v.optional(v.number()),
   cpp: v.optional(v.number()),
-  video3s: v.number(),
-  thruplay: v.number(),
-  videoP25: v.number(),
-  videoP50: v.number(),
-  videoP75: v.number(),
+  video3s: v.optional(v.number()),
+  thruplay: v.optional(v.number()),
+  videoP25: v.optional(v.number()),
+  videoP50: v.optional(v.number()),
+  videoP75: v.optional(v.number()),
   videoP95: v.optional(v.number()),
-  videoP100: v.number(),
+  videoP100: v.optional(v.number()),
   outboundCtr: v.optional(v.number()),
-  results: v.number(),
-  costPerResult: v.number(),
-  conversionValue: v.number(),
-  roas: v.number(),
+  results: v.optional(v.number()),
+  costPerResult: v.optional(v.number()),
+  conversionValue: v.optional(v.number()),
+  roas: v.optional(v.number()),
+  searchImpressionShare: v.optional(v.number()),
   /** Read-only echo iz Meta odgovora (MA1); undefined kada nije stiglo. */
   attributionSetting: v.optional(v.string()),
   qualityRanking: v.optional(v.string()),
   engagementRanking: v.optional(v.string()),
   conversionRanking: v.optional(v.string()),
+  insightsVersion: v.optional(v.number()),
 });
 
 // ── Internal Mutations ───────────────────────────────────────────────────────
@@ -171,16 +176,17 @@ export const upsertStructure = internalMutation({
         .unique();
 
       if (existing !== null) {
-        await ctx.db.patch(existing._id, {
+        const patchData: Record<string, unknown> = {
           accountId,
           name: c.name,
-          objective: c.objective,
           status: c.status,
-          dailyBudget: c.dailyBudget,
-          lifetimeBudget: c.lifetimeBudget,
           syncPriority: c.syncPriority,
           syncedAt: now,
-        });
+        };
+        if (c.objective !== undefined) patchData.objective = c.objective;
+        if (c.dailyBudget !== undefined) patchData.dailyBudget = c.dailyBudget;
+        if (c.lifetimeBudget !== undefined) patchData.lifetimeBudget = c.lifetimeBudget;
+        await ctx.db.patch(existing._id, patchData);
         campaignIdMap.set(c.externalId, existing._id);
       } else {
         const id = await ctx.db.insert("adCampaigns", {
@@ -228,15 +234,16 @@ export const upsertStructure = internalMutation({
         .unique();
 
       if (existing !== null) {
-        await ctx.db.patch(existing._id, {
+        const patchData: Record<string, unknown> = {
           campaignId,
           name: s.name,
           status: s.status,
-          targetingSummary: s.targetingSummary,
-          dailyBudget: s.dailyBudget,
-          lifetimeBudget: s.lifetimeBudget,
           syncedAt: now,
-        });
+        };
+        if (s.targetingSummary !== undefined) patchData.targetingSummary = s.targetingSummary;
+        if (s.dailyBudget !== undefined) patchData.dailyBudget = s.dailyBudget;
+        if (s.lifetimeBudget !== undefined) patchData.lifetimeBudget = s.lifetimeBudget;
+        await ctx.db.patch(existing._id, patchData);
         adSetIdMap.set(s.externalId, existing._id);
       } else {
         const id = await ctx.db.insert("adSets", {
@@ -281,15 +288,16 @@ export const upsertStructure = internalMutation({
         .unique();
 
       if (existing !== null) {
-        await ctx.db.patch(existing._id, {
+        const patchData: Record<string, unknown> = {
           adSetId,
           name: a.name,
           status: a.status,
-          creativeId: a.creativeId,
-          thumbnailUrl: a.thumbnailUrl,
-          previewUrl: a.previewUrl,
           syncedAt: now,
-        });
+        };
+        if (a.creativeId !== undefined) patchData.creativeId = a.creativeId;
+        if (a.thumbnailUrl !== undefined) patchData.thumbnailUrl = a.thumbnailUrl;
+        if (a.previewUrl !== undefined) patchData.previewUrl = a.previewUrl;
+        await ctx.db.patch(existing._id, patchData);
       } else {
         await ctx.db.insert("ads", {
           workspaceId,
@@ -343,7 +351,10 @@ export const updateCampaignPriorities = internalMutation({
 });
 
 /**
- * Batch upsert ad insights rows with computed hookRate, holdRate, and ROAS.
+ * Batch upsert ad insights rows with insightsVersion (MA3).
+ *
+ * Gradi patch objekat sa ISKLJUČIVO definisanim poljima jer slanje undefined polja u ctx.db.patch briše postojeće vrednosti u Convexu.
+ * roas i costPerResult se ne upisuju u bazu već se računaju pri čitanju preko deriveRate.
  */
 export const upsertInsightsBatch = internalMutation({
   args: {
@@ -356,24 +367,6 @@ export const upsertInsightsBatch = internalMutation({
     let written = 0;
 
     for (const row of rows) {
-      // Compute hookRate: video3s / impressions
-      const hookRate =
-        row.impressions > 0
-          ? Number((row.video3s / row.impressions).toFixed(6))
-          : 0;
-
-      // Compute holdRate: thruplay / video3s
-      const holdRate =
-        row.video3s > 0
-          ? Number((row.thruplay / row.video3s).toFixed(6))
-          : 0;
-
-      // Compute roas: conversionValue / spend
-      const roas =
-        row.spend > 0
-          ? Number((row.conversionValue / row.spend).toFixed(4))
-          : 0;
-
       // Natural key: adId + date + breakdownHash (+ hour if hourly)
       const existingCandidates = await ctx.db
         .query("adInsights")
@@ -387,56 +380,54 @@ export const upsertInsightsBatch = internalMutation({
       const existing =
         existingCandidates.find((c) => c.hour === row.hour) ?? null;
 
+      const data: Record<string, unknown> = {
+        spend: row.spend,
+        impressions: row.impressions,
+        clicks: row.clicks,
+        insightsVersion: row.insightsVersion ?? META_INSIGHTS_VERSION,
+        syncedAt: now,
+      };
+
+      if (row.breakdown !== undefined) data.breakdown = row.breakdown;
+      if (row.reach !== undefined) data.reach = row.reach;
+      if (row.frequency !== undefined) data.frequency = row.frequency;
+      if (row.ctr !== undefined) data.ctr = row.ctr;
+      if (row.uniqueCtr !== undefined) data.uniqueCtr = row.uniqueCtr;
+      if (row.cpc !== undefined) data.cpc = row.cpc;
+      if (row.cpm !== undefined) data.cpm = row.cpm;
+      if (row.cpp !== undefined) data.cpp = row.cpp;
+      if (row.video3s !== undefined) data.video3s = row.video3s;
+      if (row.thruplay !== undefined) data.thruplay = row.thruplay;
+      if (row.videoP25 !== undefined) data.videoP25 = row.videoP25;
+      if (row.videoP50 !== undefined) data.videoP50 = row.videoP50;
+      if (row.videoP75 !== undefined) data.videoP75 = row.videoP75;
+      if (row.videoP95 !== undefined) data.videoP95 = row.videoP95;
+      if (row.videoP100 !== undefined) data.videoP100 = row.videoP100;
+      if (row.outboundCtr !== undefined) data.outboundCtr = row.outboundCtr;
+      if (row.results !== undefined) data.results = row.results;
+      if (row.conversionValue !== undefined) data.conversionValue = row.conversionValue;
+      if (row.searchImpressionShare !== undefined) data.searchImpressionShare = row.searchImpressionShare;
+      if (row.attributionSetting !== undefined) data.attributionSetting = row.attributionSetting;
+      if (row.qualityRanking !== undefined) data.qualityRanking = row.qualityRanking;
+      if (row.engagementRanking !== undefined) data.engagementRanking = row.engagementRanking;
+      if (row.conversionRanking !== undefined) data.conversionRanking = row.conversionRanking;
+
       if (existing !== null) {
-        await ctx.db.patch(existing._id, {
-          breakdown: row.breakdown,
-          spend: row.spend,
-          impressions: row.impressions,
-          reach: row.reach,
-          frequency: row.frequency,
-          clicks: row.clicks,
-          ctr: row.ctr,
-          uniqueCtr: row.uniqueCtr,
-          cpc: row.cpc,
-          cpm: row.cpm,
-          cpp: row.cpp,
-          video3s: row.video3s,
-          thruplay: row.thruplay,
-          videoP25: row.videoP25,
-          videoP50: row.videoP50,
-          videoP75: row.videoP75,
-          videoP95: row.videoP95,
-          videoP100: row.videoP100,
-          hookRate,
-          holdRate,
-          outboundCtr: row.outboundCtr,
-          results: row.results,
-          costPerResult: row.costPerResult,
-          conversionValue: row.conversionValue,
-          roas,
-          attributionSetting: row.attributionSetting,
-          qualityRanking: row.qualityRanking,
-          engagementRanking: row.engagementRanking,
-          conversionRanking: row.conversionRanking,
-          syncedAt: now,
-        });
+        await ctx.db.patch(existing._id, data);
       } else {
         await ctx.db.insert("adInsights", {
           workspaceId,
           adId: row.adId,
           date: row.date,
           hour: row.hour,
-          breakdownHash: row.breakdownHash,
           breakdown: row.breakdown,
+          breakdownHash: row.breakdownHash,
           spend: row.spend,
           impressions: row.impressions,
-          reach: row.reach,
-          frequency: row.frequency,
           clicks: row.clicks,
-          ctr: row.ctr,
+          syncedAt: now,
+          reach: row.reach,
           uniqueCtr: row.uniqueCtr,
-          cpc: row.cpc,
-          cpm: row.cpm,
           cpp: row.cpp,
           video3s: row.video3s,
           thruplay: row.thruplay,
@@ -445,17 +436,79 @@ export const upsertInsightsBatch = internalMutation({
           videoP75: row.videoP75,
           videoP95: row.videoP95,
           videoP100: row.videoP100,
-          hookRate,
-          holdRate,
           outboundCtr: row.outboundCtr,
           results: row.results,
-          costPerResult: row.costPerResult,
           conversionValue: row.conversionValue,
-          roas,
+          searchImpressionShare: row.searchImpressionShare,
           attributionSetting: row.attributionSetting,
           qualityRanking: row.qualityRanking,
           engagementRanking: row.engagementRanking,
           conversionRanking: row.conversionRanking,
+        });
+      }
+      written++;
+    }
+
+    return written;
+  },
+});
+
+export const actionBreakdownInputValidator = v.object({
+  adId: v.id("ads"),
+  date: v.string(),
+  breakdownHash: v.string(),
+  actionType: v.string(),
+  window: v.string(), // "1d_click" | "7d_click" | "1d_view" | "7d_view" | "default"
+  count: v.optional(v.number()),
+  value: v.optional(v.number()),
+  costPer: v.optional(v.number()),
+});
+
+/**
+ * Batch upsert ad action breakdowns by type & attribution window (MA2/MA3).
+ *
+ * Gradi patch objekat sa ISKLJUČIVO definisanim poljima jer slanje undefined polja u ctx.db.patch briše postojeće vrednosti u Convexu.
+ */
+export const upsertActionBreakdownsBatch = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    rows: v.array(actionBreakdownInputValidator),
+  },
+  returns: v.number(),
+  handler: async (ctx, { workspaceId, rows }) => {
+    const now = Date.now();
+    let written = 0;
+
+    for (const row of rows) {
+      const existing = await ctx.db
+        .query("adActionBreakdown")
+        .withIndex("by_upsert_key", (q) =>
+          q
+            .eq("adId", row.adId)
+            .eq("date", row.date)
+            .eq("breakdownHash", row.breakdownHash)
+            .eq("actionType", row.actionType)
+            .eq("window", row.window),
+        )
+        .unique();
+
+      if (existing !== null) {
+        const patchData: Record<string, unknown> = { syncedAt: now };
+        if (row.count !== undefined) patchData.count = row.count;
+        if (row.value !== undefined) patchData.value = row.value;
+        if (row.costPer !== undefined) patchData.costPer = row.costPer;
+        await ctx.db.patch(existing._id, patchData);
+      } else {
+        await ctx.db.insert("adActionBreakdown", {
+          workspaceId,
+          adId: row.adId,
+          date: row.date,
+          breakdownHash: row.breakdownHash,
+          actionType: row.actionType,
+          window: row.window,
+          count: row.count,
+          value: row.value,
+          costPer: row.costPer,
           syncedAt: now,
         });
       }
@@ -463,6 +516,43 @@ export const upsertInsightsBatch = internalMutation({
     }
 
     return written;
+  },
+});
+
+/**
+ * Migracija: uklanja zaostala polja hookRate i holdRate iz adInsights dokumenata (MA2).
+ * Patchuje postojeće redove postavljanjem polja na undefined, bez brisanja redova.
+ */
+export const removeLegacyRatesMigration = internalMutation({
+  args: {
+    cursor: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  handler: async (ctx, { cursor, batchSize = 200 }) => {
+    const result = await ctx.db
+      .query("adInsights")
+      .paginate({ cursor: cursor ?? null, numItems: batchSize });
+
+    let patched = 0;
+    for (const row of result.page) {
+      const raw = row as unknown as Record<string, unknown>;
+      if ("hookRate" in raw || "holdRate" in raw) {
+        await ctx.db.patch(
+          row._id,
+          {
+            hookRate: undefined,
+            holdRate: undefined,
+          } as unknown as Record<string, unknown>,
+        );
+        patched++;
+      }
+    }
+
+    return {
+      patched,
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
+    };
   },
 });
 
@@ -547,6 +637,38 @@ export const listAccounts = query({
       .query("adAccounts")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .collect();
+  },
+});
+
+export const getAccountCurrency = query({
+  args: {
+    accountId: v.optional(v.union(v.id("adAccounts"), v.string())),
+  },
+  handler: async (ctx, { accountId }) => {
+    if (!accountId) return null;
+    const { workspaceId } = await requireMembership(ctx);
+
+    try {
+      const byId = await ctx.db.get(accountId as Id<"adAccounts">);
+      if (byId && byId.workspaceId === workspaceId) {
+        return byId.currency || null;
+      }
+    } catch {
+      // not a valid convex Id, fallback to externalId
+    }
+
+    const byExt = await ctx.db
+      .query("adAccounts")
+      .withIndex("by_workspace_external", (q) =>
+        q.eq("workspaceId", workspaceId).eq("externalId", accountId),
+      )
+      .unique();
+
+    if (byExt) {
+      return byExt.currency || null;
+    }
+
+    return null;
   },
 });
 
@@ -703,10 +825,10 @@ export const getCampaignsReport = query({
     // 3. For each campaign, aggregate metrics across its ads
     let totalSpend = 0;
     let totalImpressions = 0;
-    let totalReach = 0;
     let totalClicks = 0;
-    let totalResults = 0;
-    let totalConversionValue = 0;
+    let totalReach: number | undefined;
+    let totalResults: number | undefined;
+    let totalConversionValue: number | undefined;
 
     const campaignRows = await Promise.all(
       campaigns.map(async (campaign) => {
@@ -719,12 +841,12 @@ export const getCampaignsReport = query({
 
         let spend = 0;
         let impressions = 0;
-        let reach = 0;
         let clicks = 0;
-        let results = 0;
-        let conversionValue = 0;
-        let video3s = 0;
-        let thruplay = 0;
+        let reach: number | undefined;
+        let results: number | undefined;
+        let conversionValue: number | undefined;
+        let video3s: number | undefined;
+        let thruplay: number | undefined;
 
         const dailySpendMap = new Map<string, number>();
         for (const d of dateKeys) {
@@ -744,12 +866,12 @@ export const getCampaignsReport = query({
             if (row.breakdownHash === "none" && row.hour === undefined) {
               spend += row.spend;
               impressions += row.impressions;
-              reach += row.reach;
               clicks += row.clicks;
-              results += row.results;
-              conversionValue += row.conversionValue;
-              video3s += row.video3s;
-              thruplay += row.thruplay;
+              if (row.reach !== undefined) reach = (reach ?? 0) + row.reach;
+              if (row.results !== undefined) results = (results ?? 0) + row.results;
+              if (row.conversionValue !== undefined) conversionValue = (conversionValue ?? 0) + row.conversionValue;
+              if (row.video3s !== undefined) video3s = (video3s ?? 0) + row.video3s;
+              if (row.thruplay !== undefined) thruplay = (thruplay ?? 0) + row.thruplay;
 
               const currentDaily = dailySpendMap.get(row.date) ?? 0;
               dailySpendMap.set(row.date, currentDaily + row.spend);
@@ -759,18 +881,18 @@ export const getCampaignsReport = query({
 
         totalSpend += spend;
         totalImpressions += impressions;
-        totalReach += reach;
         totalClicks += clicks;
-        totalResults += results;
-        totalConversionValue += conversionValue;
+        if (reach !== undefined) totalReach = (totalReach ?? 0) + reach;
+        if (results !== undefined) totalResults = (totalResults ?? 0) + results;
+        if (conversionValue !== undefined) totalConversionValue = (totalConversionValue ?? 0) + conversionValue;
 
         const ctr = impressions > 0 ? clicks / impressions : 0;
         const cpc = clicks > 0 ? spend / clicks : 0;
         const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
-        const frequency = reach > 0 ? impressions / reach : 1;
-        const costPerResult = results > 0 ? spend / results : 0;
-        const roas = spend > 0 ? conversionValue / spend : 0;
-        const hasConversionValue = conversionValue > 0;
+        const frequency = reach !== undefined && reach > 0 ? impressions / reach : 1;
+        const costPerResult = deriveRate(spend, results);
+        const roas = deriveRate(conversionValue, spend);
+        const hasConversionValue = conversionValue !== undefined && conversionValue > 0;
 
         const dailySpend = dateKeys.map((date) => ({
           date,
@@ -785,6 +907,7 @@ export const getCampaignsReport = query({
           name: campaign.name,
           provider: account?.provider ?? "meta_ads",
           accountName: account?.name,
+          currency: account?.currency,
           objective: campaign.objective,
           status: campaign.status,
           dailyBudget: campaign.dailyBudget,
@@ -797,9 +920,9 @@ export const getCampaignsReport = query({
           reach,
           clicks,
           results,
-          conversionValue: Number(conversionValue.toFixed(2)),
-          costPerResult: Number(costPerResult.toFixed(2)),
-          roas: Number(roas.toFixed(2)),
+          conversionValue: conversionValue !== undefined ? Number(conversionValue.toFixed(2)) : undefined,
+          costPerResult: costPerResult !== undefined ? Number(costPerResult.toFixed(2)) : undefined,
+          roas: roas !== undefined ? Number(roas.toFixed(2)) : undefined,
           hasConversionValue,
           ctr: Number(ctr.toFixed(4)),
           cpc: Number(cpc.toFixed(2)),
@@ -815,9 +938,16 @@ export const getCampaignsReport = query({
     );
 
     const overallCtr = totalImpressions > 0 ? totalClicks / totalImpressions : 0;
-    const overallCpa = totalResults > 0 ? totalSpend / totalResults : 0;
-    const overallRoas = totalSpend > 0 ? totalConversionValue / totalSpend : 0;
-    const overallFrequency = totalReach > 0 ? totalImpressions / totalReach : 1;
+    const overallCpa = deriveRate(totalSpend, totalResults);
+    const overallRoas = deriveRate(totalConversionValue, totalSpend);
+    const overallFrequency = totalReach !== undefined && totalReach > 0 ? totalImpressions / totalReach : 1;
+
+    // Resolve unified workspace currency if all accounts share same currency
+    const uniqueCurrencies = Array.from(
+      new Set(accounts.map((a) => a.currency).filter(Boolean)),
+    );
+    const resolvedTotalsCurrency =
+      uniqueCurrencies.length === 1 ? uniqueCurrencies[0] : undefined;
 
     return {
       campaigns: campaignRows,
@@ -826,13 +956,14 @@ export const getCampaignsReport = query({
         totalImpressions,
         totalClicks,
         totalResults,
-        totalConversionValue: Number(totalConversionValue.toFixed(2)),
-        overallCpa: Number(overallCpa.toFixed(2)),
-        overallRoas: Number(overallRoas.toFixed(2)),
-        hasConversionValue: totalConversionValue > 0,
+        totalConversionValue: totalConversionValue !== undefined ? Number(totalConversionValue.toFixed(2)) : undefined,
+        overallCpa: overallCpa !== undefined ? Number(overallCpa.toFixed(2)) : undefined,
+        overallRoas: overallRoas !== undefined ? Number(overallRoas.toFixed(2)) : undefined,
+        hasConversionValue: totalConversionValue !== undefined && totalConversionValue > 0,
         overallCtr: Number(overallCtr.toFixed(4)),
         overallFrequency: Number(overallFrequency.toFixed(2)),
         campaignsCount: campaigns.length,
+        currency: resolvedTotalsCurrency,
       },
     };
   },
@@ -868,12 +999,12 @@ export const getCampaignHierarchy = query({
 
     let campSpend = 0;
     let campImpressions = 0;
-    let campReach = 0;
     let campClicks = 0;
-    let campResults = 0;
-    let campConversionValue = 0;
-    let campVideo3s = 0;
-    let campThruplay = 0;
+    let campReach: number | undefined;
+    let campResults: number | undefined;
+    let campConversionValue: number | undefined;
+    let campVideo3s: number | undefined;
+    let campThruplay: number | undefined;
 
     const adSetResults = await Promise.all(
       adSets.map(async (set) => {
@@ -886,12 +1017,12 @@ export const getCampaignHierarchy = query({
 
         let setSpend = 0;
         let setImpressions = 0;
-        let setReach = 0;
         let setClicks = 0;
-        let setResults = 0;
-        let setConversionValue = 0;
-        let setVideo3s = 0;
-        let setThruplay = 0;
+        let setReach: number | undefined;
+        let setResults: number | undefined;
+        let setConversionValue: number | undefined;
+        let setVideo3s: number | undefined;
+        let setThruplay: number | undefined;
 
         const adResults = await Promise.all(
           ads.map(async (ad) => {
@@ -904,12 +1035,12 @@ export const getCampaignHierarchy = query({
 
             let adSpend = 0;
             let adImpressions = 0;
-            let adReach = 0;
             let adClicks = 0;
-            let adResultsCount = 0;
-            let adConversionValue = 0;
-            let adVideo3s = 0;
-            let adThruplay = 0;
+            let adReach: number | undefined;
+            let adResultsCount: number | undefined;
+            let adConversionValue: number | undefined;
+            let adVideo3s: number | undefined;
+            let adThruplay: number | undefined;
             let qualityRanking = ad.status;
             let engagementRanking: string | undefined;
             let conversionRanking: string | undefined;
@@ -921,12 +1052,12 @@ export const getCampaignHierarchy = query({
               if (row.breakdownHash === "none" && row.hour === undefined) {
                 adSpend += row.spend;
                 adImpressions += row.impressions;
-                adReach += row.reach;
                 adClicks += row.clicks;
-                adResultsCount += row.results;
-                adConversionValue += row.conversionValue;
-                adVideo3s += row.video3s;
-                adThruplay += row.thruplay;
+                if (row.reach !== undefined) adReach = (adReach ?? 0) + row.reach;
+                if (row.results !== undefined) adResultsCount = (adResultsCount ?? 0) + row.results;
+                if (row.conversionValue !== undefined) adConversionValue = (adConversionValue ?? 0) + row.conversionValue;
+                if (row.video3s !== undefined) adVideo3s = (adVideo3s ?? 0) + row.video3s;
+                if (row.thruplay !== undefined) adThruplay = (adThruplay ?? 0) + row.thruplay;
 
                 if (row.qualityRanking) qualityRanking = row.qualityRanking;
                 if (row.engagementRanking) engagementRanking = row.engagementRanking;
@@ -939,21 +1070,21 @@ export const getCampaignHierarchy = query({
 
             setSpend += adSpend;
             setImpressions += adImpressions;
-            setReach += adReach;
             setClicks += adClicks;
-            setResults += adResultsCount;
-            setConversionValue += adConversionValue;
-            setVideo3s += adVideo3s;
-            setThruplay += adThruplay;
+            if (adReach !== undefined) setReach = (setReach ?? 0) + adReach;
+            if (adResultsCount !== undefined) setResults = (setResults ?? 0) + adResultsCount;
+            if (adConversionValue !== undefined) setConversionValue = (setConversionValue ?? 0) + adConversionValue;
+            if (adVideo3s !== undefined) setVideo3s = (setVideo3s ?? 0) + adVideo3s;
+            if (adThruplay !== undefined) setThruplay = (setThruplay ?? 0) + adThruplay;
 
             const adCtr = adImpressions > 0 ? adClicks / adImpressions : 0;
             const adCpc = adClicks > 0 ? adSpend / adClicks : 0;
             const adCpm = adImpressions > 0 ? (adSpend / adImpressions) * 1000 : 0;
-            const adFrequency = adReach > 0 ? adImpressions / adReach : 1;
-            const adCpa = adResultsCount > 0 ? adSpend / adResultsCount : 0;
-            const adRoas = adSpend > 0 ? adConversionValue / adSpend : 0;
-            const hookRate = adImpressions > 0 ? adVideo3s / adImpressions : 0;
-            const holdRate = adVideo3s > 0 ? adThruplay / adVideo3s : 0;
+            const adFrequency = adReach !== undefined && adReach > 0 ? adImpressions / adReach : 1;
+            const adCpa = deriveRate(adSpend, adResultsCount);
+            const adRoas = deriveRate(adConversionValue, adSpend);
+            const hookRate = deriveRate(adVideo3s, adImpressions);
+            const holdRate = deriveRate(adThruplay, adVideo3s);
 
             const dailySpend = dateKeys.map((date) => ({
               date,
@@ -975,18 +1106,18 @@ export const getCampaignHierarchy = query({
               reach: adReach,
               clicks: adClicks,
               results: adResultsCount,
-              conversionValue: Number(adConversionValue.toFixed(2)),
-              costPerResult: Number(adCpa.toFixed(2)),
-              roas: Number(adRoas.toFixed(2)),
-              hasConversionValue: adConversionValue > 0,
+              conversionValue: adConversionValue !== undefined ? Number(adConversionValue.toFixed(2)) : undefined,
+              costPerResult: adCpa !== undefined ? Number(adCpa.toFixed(2)) : undefined,
+              roas: adRoas !== undefined ? Number(adRoas.toFixed(2)) : undefined,
+              hasConversionValue: adConversionValue !== undefined && adConversionValue > 0,
               ctr: Number(adCtr.toFixed(4)),
               cpc: Number(adCpc.toFixed(2)),
               cpm: Number(adCpm.toFixed(2)),
               frequency: Number(adFrequency.toFixed(2)),
               video3s: adVideo3s,
               thruplay: adThruplay,
-              hookRate: Number(hookRate.toFixed(4)),
-              holdRate: Number(holdRate.toFixed(4)),
+              hookRate: hookRate !== undefined ? Number(hookRate.toFixed(4)) : undefined,
+              holdRate: holdRate !== undefined ? Number(holdRate.toFixed(4)) : undefined,
               qualityRanking,
               engagementRanking,
               conversionRanking,
@@ -997,17 +1128,17 @@ export const getCampaignHierarchy = query({
 
         campSpend += setSpend;
         campImpressions += setImpressions;
-        campReach += setReach;
         campClicks += setClicks;
-        campResults += setResults;
-        campConversionValue += setConversionValue;
-        campVideo3s += setVideo3s;
-        campThruplay += setThruplay;
+        if (setReach !== undefined) campReach = (campReach ?? 0) + setReach;
+        if (setResults !== undefined) campResults = (campResults ?? 0) + setResults;
+        if (setConversionValue !== undefined) campConversionValue = (campConversionValue ?? 0) + setConversionValue;
+        if (setVideo3s !== undefined) campVideo3s = (campVideo3s ?? 0) + setVideo3s;
+        if (setThruplay !== undefined) campThruplay = (campThruplay ?? 0) + setThruplay;
 
         const setCtr = setImpressions > 0 ? setClicks / setImpressions : 0;
-        const setCpa = setResults > 0 ? setSpend / setResults : 0;
-        const setRoas = setSpend > 0 ? setConversionValue / setSpend : 0;
-        const setFrequency = setReach > 0 ? setImpressions / setReach : 1;
+        const setCpa = deriveRate(setSpend, setResults);
+        const setRoas = deriveRate(setConversionValue, setSpend);
+        const setFrequency = setReach !== undefined && setReach > 0 ? setImpressions / setReach : 1;
 
         return {
           _id: set._id,
@@ -1023,10 +1154,10 @@ export const getCampaignHierarchy = query({
           reach: setReach,
           clicks: setClicks,
           results: setResults,
-          conversionValue: Number(setConversionValue.toFixed(2)),
-          costPerResult: Number(setCpa.toFixed(2)),
-          roas: Number(setRoas.toFixed(2)),
-          hasConversionValue: setConversionValue > 0,
+          conversionValue: setConversionValue !== undefined ? Number(setConversionValue.toFixed(2)) : undefined,
+          costPerResult: setCpa !== undefined ? Number(setCpa.toFixed(2)) : undefined,
+          roas: setRoas !== undefined ? Number(setRoas.toFixed(2)) : undefined,
+          hasConversionValue: setConversionValue !== undefined && setConversionValue > 0,
           ctr: Number(setCtr.toFixed(4)),
           frequency: Number(setFrequency.toFixed(2)),
           ads: adResults,
@@ -1035,9 +1166,9 @@ export const getCampaignHierarchy = query({
     );
 
     const campCtr = campImpressions > 0 ? campClicks / campImpressions : 0;
-    const campCpa = campResults > 0 ? campSpend / campResults : 0;
-    const campRoas = campSpend > 0 ? campConversionValue / campSpend : 0;
-    const campFrequency = campReach > 0 ? campImpressions / campReach : 1;
+    const campCpa = deriveRate(campSpend, campResults);
+    const campRoas = deriveRate(campConversionValue, campSpend);
+    const campFrequency = campReach !== undefined && campReach > 0 ? campImpressions / campReach : 1;
 
     return {
       campaign: {
@@ -1058,14 +1189,15 @@ export const getCampaignHierarchy = query({
         reach: campReach,
         clicks: campClicks,
         results: campResults,
-        conversionValue: Number(campConversionValue.toFixed(2)),
-        costPerResult: Number(campCpa.toFixed(2)),
-        roas: Number(campRoas.toFixed(2)),
-        hasConversionValue: campConversionValue > 0,
+        conversionValue: campConversionValue !== undefined ? Number(campConversionValue.toFixed(2)) : undefined,
+        costPerResult: campCpa !== undefined ? Number(campCpa.toFixed(2)) : undefined,
+        roas: campRoas !== undefined ? Number(campRoas.toFixed(2)) : undefined,
+        hasConversionValue: campConversionValue !== undefined && campConversionValue > 0,
         ctr: Number(campCtr.toFixed(4)),
         frequency: Number(campFrequency.toFixed(2)),
         video3s: campVideo3s,
         thruplay: campThruplay,
+        currency: account?.currency,
       },
       adSets: adSetResults,
     };
@@ -1124,25 +1256,26 @@ export const getAdDrilldown = query({
       });
     }
 
+
     let spend = 0;
     let impressions = 0;
-    let reach = 0;
+    let reach: number | undefined;
     let clicks = 0;
     let uniqueCtrSum = 0;
     let uniqueCtrCount = 0;
     let cppSum = 0;
     let cppCount = 0;
-    let video3s = 0;
-    let thruplay = 0;
-    let videoP25 = 0;
-    let videoP50 = 0;
-    let videoP75 = 0;
-    let videoP95 = 0;
-    let videoP100 = 0;
+    let video3s: number | undefined;
+    let thruplay: number | undefined;
+    let videoP25: number | undefined;
+    let videoP50: number | undefined;
+    let videoP75: number | undefined;
+    let videoP95: number | undefined;
+    let videoP100: number | undefined;
     let outboundCtrSum = 0;
     let outboundCtrCount = 0;
-    let results = 0;
-    let conversionValue = 0;
+    let results: number | undefined;
+    let conversionValue: number | undefined;
     let qualityRanking: string | undefined;
     let engagementRanking: string | undefined;
     let conversionRanking: string | undefined;
@@ -1184,17 +1317,17 @@ export const getAdDrilldown = query({
       if (row.breakdownHash === "none" && row.hour === undefined) {
         spend += row.spend;
         impressions += row.impressions;
-        reach += row.reach;
         clicks += row.clicks;
-        results += row.results;
-        conversionValue += row.conversionValue;
-        video3s += row.video3s;
-        thruplay += row.thruplay;
-        videoP25 += row.videoP25;
-        videoP50 += row.videoP50;
-        videoP75 += row.videoP75;
-        if (row.videoP95) videoP95 += row.videoP95;
-        videoP100 += row.videoP100;
+        if (row.reach !== undefined) reach = (reach ?? 0) + row.reach;
+        if (row.results !== undefined) results = (results ?? 0) + row.results;
+        if (row.conversionValue !== undefined) conversionValue = (conversionValue ?? 0) + row.conversionValue;
+        if (row.video3s !== undefined) video3s = (video3s ?? 0) + row.video3s;
+        if (row.thruplay !== undefined) thruplay = (thruplay ?? 0) + row.thruplay;
+        if (row.videoP25 !== undefined) videoP25 = (videoP25 ?? 0) + row.videoP25;
+        if (row.videoP50 !== undefined) videoP50 = (videoP50 ?? 0) + row.videoP50;
+        if (row.videoP75 !== undefined) videoP75 = (videoP75 ?? 0) + row.videoP75;
+        if (row.videoP95 !== undefined) videoP95 = (videoP95 ?? 0) + row.videoP95;
+        if (row.videoP100 !== undefined) videoP100 = (videoP100 ?? 0) + row.videoP100;
 
         if (row.uniqueCtr !== undefined) {
           uniqueCtrSum += row.uniqueCtr;
@@ -1218,9 +1351,9 @@ export const getAdDrilldown = query({
           dayEntry.spend += row.spend;
           dayEntry.impressions += row.impressions;
           dayEntry.clicks += row.clicks;
-          dayEntry.results += row.results;
-          dayEntry.video3s += row.video3s;
-          dayEntry.thruplay += row.thruplay;
+          if (row.results !== undefined) dayEntry.results = (dayEntry.results ?? 0) + row.results;
+          if (row.video3s !== undefined) dayEntry.video3s = (dayEntry.video3s ?? 0) + row.video3s;
+          if (row.thruplay !== undefined) dayEntry.thruplay = (dayEntry.thruplay ?? 0) + row.thruplay;
         }
       }
 
@@ -1232,7 +1365,7 @@ export const getAdDrilldown = query({
           entry.spend += row.spend;
           entry.impressions += row.impressions;
           entry.clicks += row.clicks;
-          entry.results += row.results;
+          if (row.results !== undefined) entry.results = (entry.results ?? 0) + row.results;
         }
       }
 
@@ -1256,7 +1389,7 @@ export const getAdDrilldown = query({
           genderEntry.spend += row.spend;
           genderEntry.impressions += row.impressions;
           genderEntry.clicks += row.clicks;
-          genderEntry.results += row.results;
+          if (row.results !== undefined) genderEntry.results += row.results;
           ageMap.set(gender, genderEntry);
         }
 
@@ -1277,7 +1410,7 @@ export const getAdDrilldown = query({
           entry.spend += row.spend;
           entry.impressions += row.impressions;
           entry.clicks += row.clicks;
-          entry.results += row.results;
+          if (row.results !== undefined) entry.results += row.results;
           placementData.set(key, entry);
         }
       }
@@ -1286,11 +1419,11 @@ export const getAdDrilldown = query({
     const ctr = impressions > 0 ? clicks / impressions : 0;
     const cpc = clicks > 0 ? spend / clicks : 0;
     const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
-    const frequency = reach > 0 ? impressions / reach : 1;
-    const costPerResult = results > 0 ? spend / results : 0;
-    const roas = spend > 0 ? conversionValue / spend : 0;
-    const hookRate = impressions > 0 ? video3s / impressions : 0;
-    const holdRate = video3s > 0 ? thruplay / video3s : 0;
+    const frequency = reach !== undefined && reach > 0 ? impressions / reach : 1;
+    const costPerResult = deriveRate(spend, results);
+    const roas = deriveRate(conversionValue, spend);
+    const hookRate = deriveRate(video3s, impressions);
+    const holdRate = deriveRate(thruplay, video3s);
     const uniqueCtr = uniqueCtrCount > 0 ? uniqueCtrSum / uniqueCtrCount : undefined;
     const cpp = cppCount > 0 ? cppSum / cppCount : undefined;
     const outboundCtr = outboundCtrCount > 0 ? outboundCtrSum / outboundCtrCount : undefined;
@@ -1342,7 +1475,7 @@ export const getAdDrilldown = query({
     const placementList = Array.from(placementData.values()).map((p) => {
       const pCtr = p.impressions > 0 ? p.clicks / p.impressions : 0;
       const pCpc = p.clicks > 0 ? p.spend / p.clicks : 0;
-      const pCpa = p.results > 0 ? p.spend / p.results : 0;
+      const pCpa = deriveRate(p.spend, p.results);
       return {
         placement: p.placement,
         platform: p.platform,
@@ -1352,7 +1485,7 @@ export const getAdDrilldown = query({
         results: p.results,
         ctr: Number(pCtr.toFixed(4)),
         cpc: Number(pCpc.toFixed(2)),
-        cpa: Number(pCpa.toFixed(2)),
+        cpa: pCpa !== undefined ? Number(pCpa.toFixed(2)) : undefined,
       };
     });
 
@@ -1420,18 +1553,18 @@ export const getAdDrilldown = query({
         cpm: Number(cpm.toFixed(2)),
         cpp: cpp ? Number(cpp.toFixed(2)) : undefined,
         results,
-        costPerResult: Number(costPerResult.toFixed(2)),
-        conversionValue: Number(conversionValue.toFixed(2)),
-        roas: Number(roas.toFixed(2)),
-        hasConversionValue: conversionValue > 0,
+        costPerResult: costPerResult !== undefined ? Number(costPerResult.toFixed(2)) : undefined,
+        conversionValue: conversionValue !== undefined ? Number(conversionValue.toFixed(2)) : undefined,
+        roas: roas !== undefined ? Number(roas.toFixed(2)) : undefined,
+        hasConversionValue: conversionValue !== undefined && conversionValue > 0,
         outboundCtr: outboundCtr ? Number(outboundCtr.toFixed(4)) : undefined,
       },
       videoFunnel: {
         impressions,
         video3s,
         thruplay,
-        hookRate: Number(hookRate.toFixed(4)),
-        holdRate: Number(holdRate.toFixed(4)),
+        hookRate: hookRate !== undefined ? Number(hookRate.toFixed(4)) : undefined,
+        holdRate: holdRate !== undefined ? Number(holdRate.toFixed(4)) : undefined,
         videoP25,
         videoP50,
         videoP75,
@@ -1449,6 +1582,8 @@ export const getAdDrilldown = query({
       ageGenderMatrix,
       placementList,
       provider: account?.provider ?? "meta_ads",
+      currency: account?.currency,
+      accountId: account?._id,
       searchImpressionShare: campaign?.searchImpressionShare,
     };
   },
@@ -1504,6 +1639,8 @@ export const getHookBattle = query({
       return null;
     }
 
+    const account = await ctx.db.get(campaign.accountId);
+
     const dateKeys = generateDateKeys(from, to);
 
     // Fetch all ads in this adSet
@@ -1536,17 +1673,17 @@ export const getHookBattle = query({
 
         let spend = 0;
         let impressions = 0;
-        let reach = 0;
         let clicks = 0;
-        let results = 0;
-        let conversionValue = 0;
-        let video3s = 0;
-        let thruplay = 0;
-        let videoP25 = 0;
-        let videoP50 = 0;
-        let videoP75 = 0;
-        let videoP95 = 0;
-        let videoP100 = 0;
+        let reach: number | undefined;
+        let results: number | undefined;
+        let conversionValue: number | undefined;
+        let video3s: number | undefined;
+        let thruplay: number | undefined;
+        let videoP25: number | undefined;
+        let videoP50: number | undefined;
+        let videoP75: number | undefined;
+        let videoP95: number | undefined;
+        let videoP100: number | undefined;
 
         const dailySpendMap = new Map<string, number>();
         const dailyHookMap = new Map<string, { video3s: number; impressions: number }>();
@@ -1559,24 +1696,24 @@ export const getHookBattle = query({
           if (row.breakdownHash === "none" && row.hour === undefined) {
             spend += row.spend;
             impressions += row.impressions;
-            reach += row.reach;
             clicks += row.clicks;
-            results += row.results;
-            conversionValue += row.conversionValue;
-            video3s += row.video3s;
-            thruplay += row.thruplay;
-            videoP25 += row.videoP25;
-            videoP50 += row.videoP50;
-            videoP75 += row.videoP75;
-            if (row.videoP95) videoP95 += row.videoP95;
-            videoP100 += row.videoP100;
+            if (row.reach !== undefined) reach = (reach ?? 0) + row.reach;
+            if (row.results !== undefined) results = (results ?? 0) + row.results;
+            if (row.conversionValue !== undefined) conversionValue = (conversionValue ?? 0) + row.conversionValue;
+            if (row.video3s !== undefined) video3s = (video3s ?? 0) + row.video3s;
+            if (row.thruplay !== undefined) thruplay = (thruplay ?? 0) + row.thruplay;
+            if (row.videoP25 !== undefined) videoP25 = (videoP25 ?? 0) + row.videoP25;
+            if (row.videoP50 !== undefined) videoP50 = (videoP50 ?? 0) + row.videoP50;
+            if (row.videoP75 !== undefined) videoP75 = (videoP75 ?? 0) + row.videoP75;
+            if (row.videoP95 !== undefined) videoP95 = (videoP95 ?? 0) + row.videoP95;
+            if (row.videoP100 !== undefined) videoP100 = (videoP100 ?? 0) + row.videoP100;
 
             const curSpend = dailySpendMap.get(row.date) ?? 0;
             dailySpendMap.set(row.date, curSpend + row.spend);
 
             const curHook = dailyHookMap.get(row.date) ?? { video3s: 0, impressions: 0 };
             dailyHookMap.set(row.date, {
-              video3s: curHook.video3s + row.video3s,
+              video3s: curHook.video3s + (row.video3s ?? 0),
               impressions: curHook.impressions + row.impressions,
             });
           }
@@ -1585,26 +1722,25 @@ export const getHookBattle = query({
         const ctr = impressions > 0 ? clicks / impressions : 0;
         const cpc = clicks > 0 ? spend / clicks : 0;
         const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
-        const frequency = reach > 0 ? impressions / reach : 1;
-        const costPerResult = results > 0 ? spend / results : 0;
-        const roas = spend > 0 ? conversionValue / spend : 0;
-        const hookRate = impressions > 0 ? video3s / impressions : 0;
-        const holdRate = video3s > 0 ? thruplay / video3s : 0;
+        const frequency = reach !== undefined && reach > 0 ? impressions / reach : 1;
+        const costPerResult = deriveRate(spend, results);
+        const roas = deriveRate(conversionValue, spend);
+        const hookRate = deriveRate(video3s, impressions);
+        const holdRate = deriveRate(thruplay, video3s);
 
-        // Retention checkpoints
-        // p25/p50/p75/p100 percentages relative to video3s (and relative to impressions)
-        const p25Pct = video3s > 0 ? videoP25 / video3s : (impressions > 0 ? videoP25 / impressions : 0);
-        const p50Pct = video3s > 0 ? videoP50 / video3s : (impressions > 0 ? videoP50 / impressions : 0);
-        const p75Pct = video3s > 0 ? videoP75 / video3s : (impressions > 0 ? videoP75 / impressions : 0);
-        const p100Pct = video3s > 0 ? videoP100 / video3s : (impressions > 0 ? videoP100 / impressions : 0);
+        // Retention checkpoints relative to video3s (or impressions if video3s undefined)
+        const p25Pct = video3s !== undefined && video3s > 0 && videoP25 !== undefined ? videoP25 / video3s : (impressions > 0 && videoP25 !== undefined ? videoP25 / impressions : 0);
+        const p50Pct = video3s !== undefined && video3s > 0 && videoP50 !== undefined ? videoP50 / video3s : (impressions > 0 && videoP50 !== undefined ? videoP50 / impressions : 0);
+        const p75Pct = video3s !== undefined && video3s > 0 && videoP75 !== undefined ? videoP75 / video3s : (impressions > 0 && videoP75 !== undefined ? videoP75 / impressions : 0);
+        const p100Pct = video3s !== undefined && video3s > 0 && videoP100 !== undefined ? videoP100 / video3s : (impressions > 0 && videoP100 !== undefined ? videoP100 / impressions : 0);
 
         const dailySeries = dateKeys.map((date) => {
           const hookData = dailyHookMap.get(date) ?? { video3s: 0, impressions: 0 };
-          const dayHookRate = hookData.impressions > 0 ? hookData.video3s / hookData.impressions : 0;
+          const dayHookRate = deriveRate(hookData.video3s, hookData.impressions);
           return {
             date,
             spend: Number((dailySpendMap.get(date) ?? 0).toFixed(2)),
-            hookRate: Number(dayHookRate.toFixed(4)),
+            hookRate: dayHookRate !== undefined ? Number(dayHookRate.toFixed(4)) : undefined,
           };
         });
 
@@ -1628,18 +1764,18 @@ export const getHookBattle = query({
           reach,
           clicks,
           results,
-          conversionValue: Number(conversionValue.toFixed(2)),
-          costPerResult: Number(costPerResult.toFixed(2)),
-          roas: Number(roas.toFixed(2)),
-          hasConversionValue: conversionValue > 0,
+          conversionValue: conversionValue !== undefined ? Number(conversionValue.toFixed(2)) : undefined,
+          costPerResult: costPerResult !== undefined ? Number(costPerResult.toFixed(2)) : undefined,
+          roas: roas !== undefined ? Number(roas.toFixed(2)) : undefined,
+          hasConversionValue: conversionValue !== undefined && conversionValue > 0,
           ctr: Number(ctr.toFixed(4)),
           cpc: Number(cpc.toFixed(2)),
           cpm: Number(cpm.toFixed(2)),
           frequency: Number(frequency.toFixed(2)),
           video3s,
           thruplay,
-          hookRate: Number(hookRate.toFixed(4)),
-          holdRate: Number(holdRate.toFixed(4)),
+          hookRate: hookRate !== undefined ? Number(hookRate.toFixed(4)) : undefined,
+          holdRate: holdRate !== undefined ? Number(holdRate.toFixed(4)) : undefined,
           videoRetention: {
             video3s,
             thruplay,
@@ -1673,7 +1809,9 @@ export const getHookBattle = query({
         name: campaign.name,
         objective: campaign.objective,
         status: campaign.status,
+        accountId: campaign.accountId,
       },
+      currency: account?.currency,
       from,
       to,
       isPinned,
@@ -1704,10 +1842,11 @@ export const pinBattle = mutation({
       .first();
 
     if (existing) {
-      await ctx.db.patch(existing._id, {
-        name,
+      const patchData: Record<string, unknown> = {
         pinnedAt: Date.now(),
-      });
+      };
+      if (name !== undefined) patchData.name = name;
+      await ctx.db.patch(existing._id, patchData);
       return existing._id;
     }
 
@@ -1832,27 +1971,44 @@ export const recordQuota = internalMutation({
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .unique();
 
-    const data = {
+    const data: Record<string, unknown> = {
       workspaceId,
       fetchedAt,
-      callCount: reading.callCount,
-      totalCpuTime: reading.totalCpuTime,
-      totalTime: reading.totalTime,
-      appIdUtilPct: reading.appIdUtilPct,
-      accIdUtilPct: reading.accIdUtilPct,
-      // Sloj se menja tek posle App Review-a: staro očitavanje je bolje od
-      // brisanja podatka kad ga jedan odgovor nije poslao.
-      tier: tier ?? existing?.tier,
-      regainMinutes,
-      blockedUntil,
       peakPct,
       state: state as "ok" | "warn" | "stop",
     };
+    if (reading.callCount !== undefined) data.callCount = reading.callCount;
+    if (reading.totalCpuTime !== undefined) data.totalCpuTime = reading.totalCpuTime;
+    if (reading.totalTime !== undefined) data.totalTime = reading.totalTime;
+    if (reading.appIdUtilPct !== undefined) data.appIdUtilPct = reading.appIdUtilPct;
+    if (reading.accIdUtilPct !== undefined) data.accIdUtilPct = reading.accIdUtilPct;
+    // Sloj se menja tek posle App Review-a: staro očitavanje je bolje od
+    // brisanja podatka kad ga jedan odgovor nije poslao.
+    if (tier !== undefined) {
+      data.tier = tier;
+    } else if (existing?.tier !== undefined) {
+      data.tier = existing.tier;
+    }
+    if (regainMinutes !== undefined) data.regainMinutes = regainMinutes;
+    if (blockedUntil !== undefined) data.blockedUntil = blockedUntil;
 
     if (existing !== null) {
       await ctx.db.patch(existing._id, data);
     } else {
-      await ctx.db.insert("metaAdsQuota", data);
+      await ctx.db.insert("metaAdsQuota", {
+        workspaceId,
+        fetchedAt,
+        peakPct,
+        state,
+        callCount: reading.callCount,
+        totalCpuTime: reading.totalCpuTime,
+        totalTime: reading.totalTime,
+        appIdUtilPct: reading.appIdUtilPct,
+        accIdUtilPct: reading.accIdUtilPct,
+        tier: tier,
+        regainMinutes,
+        blockedUntil,
+      });
     }
     return null;
   },

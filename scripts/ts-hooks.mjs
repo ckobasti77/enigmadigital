@@ -18,6 +18,18 @@ import { register } from "node:module";
 const CANDIDATES = [".ts", ".tsx", ".js", ".mjs", "/index.ts", "/index.js"];
 
 export async function resolve(specifier, context, next) {
+  if (specifier.startsWith("@/")) {
+    const rootUrl = new URL("../", import.meta.url);
+    const subPath = specifier.slice(2);
+    const base = new URL(subPath, rootUrl);
+    for (const ext of ["", ...CANDIDATES]) {
+      const candidate = new URL(base.href + ext);
+      if (existsSync(fileURLToPath(candidate))) {
+        return await next(candidate.href, context);
+      }
+    }
+  }
+
   if (specifier.startsWith(".") || specifier.startsWith("/")) {
     try {
       return await next(specifier, context);

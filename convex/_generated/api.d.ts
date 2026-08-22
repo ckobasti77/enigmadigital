@@ -54,6 +54,8 @@ import type * as lib_igPublish from "../lib/igPublish.js";
 import type * as lib_instagramApi from "../lib/instagramApi.js";
 import type * as lib_metaAdsApi from "../lib/metaAdsApi.js";
 import type * as lib_metaAdsBackfill from "../lib/metaAdsBackfill.js";
+import type * as lib_metaAdsCatalog from "../lib/metaAdsCatalog.js";
+import type * as lib_metaAdsFormat from "../lib/metaAdsFormat.js";
 import type * as lib_metaAdsQuota from "../lib/metaAdsQuota.js";
 import type * as lib_metaRateLimit from "../lib/metaRateLimit.js";
 import type * as lib_orButtons from "../lib/orButtons.js";
@@ -163,6 +165,8 @@ declare const fullApi: ApiFromModules<{
   "lib/instagramApi": typeof lib_instagramApi;
   "lib/metaAdsApi": typeof lib_metaAdsApi;
   "lib/metaAdsBackfill": typeof lib_metaAdsBackfill;
+  "lib/metaAdsCatalog": typeof lib_metaAdsCatalog;
+  "lib/metaAdsFormat": typeof lib_metaAdsFormat;
   "lib/metaAdsQuota": typeof lib_metaAdsQuota;
   "lib/metaRateLimit": typeof lib_metaRateLimit;
   "lib/orButtons": typeof lib_orButtons;

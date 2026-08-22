@@ -36,6 +36,11 @@ import {
   formatPercent,
   formatDateSpan,
 } from "@/lib/format";
+import { formatMetric } from "@/convex/lib/metaAdsFormat";
+import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
+
+const spendDef = resolveMetric("spend")!;
+const cpaDef = resolveMetric("costPerResult")!;
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -123,6 +128,7 @@ export function HookBattleView({
 
   const rawVersions = data?.versions;
   const versions = useMemo(() => rawVersions ?? [], [rawVersions]);
+  const accountCurrency = data?.currency;
 
   // Evaluate battle using deterministic rules
   const evaluation = useMemo(() => {
@@ -130,8 +136,9 @@ export function HookBattleView({
       versions as unknown as VersionBattleStats[],
       thresholdImp,
       thresholdClicks,
+      accountCurrency,
     );
-  }, [versions, thresholdImp, thresholdClicks]);
+  }, [versions, thresholdImp, thresholdClicks, accountCurrency]);
 
   // Identify worst performing active ad for "Pauziraj gubitnika"
   const loserVersion = useMemo(() => {
@@ -139,16 +146,26 @@ export function HookBattleView({
       (v) =>
         v.status === "ACTIVE" &&
         v.impressions > 0 &&
-        v._id !== evaluation.leaderId,
+        v._id !== evaluation.leaderId &&
+        (v.costPerResult !== undefined || v.hookRate !== undefined),
     );
     if (activeNonLeaders.length === 0) return null;
     return [...activeNonLeaders].sort((a, b) => {
-      if (a.results > 0 && b.results > 0) {
-        return b.costPerResult - a.costPerResult;
+      const aHasCpa = a.costPerResult !== undefined;
+      const bHasCpa = b.costPerResult !== undefined;
+      if (aHasCpa && bHasCpa) {
+        return (b.costPerResult as number) - (a.costPerResult as number);
       }
-      if (a.results === 0 && b.results > 0) return 1;
-      if (b.results === 0 && a.results > 0) return -1;
-      return a.hookRate - b.hookRate;
+      if (aHasCpa && !bHasCpa) return -1;
+      if (!aHasCpa && bHasCpa) return 1;
+      const aHook = a.hookRate;
+      const bHook = b.hookRate;
+      if (aHook !== undefined && bHook !== undefined) {
+        return aHook - bHook;
+      }
+      if (aHook !== undefined && bHook === undefined) return -1;
+      if (aHook === undefined && bHook !== undefined) return 1;
+      return 0;
     })[0];
   }, [versions, evaluation.leaderId]);
 
@@ -343,9 +360,16 @@ export function HookBattleView({
 
           {/* Verdict Text */}
           <div className="flex flex-col gap-1.5">
-            <p className="text-sm sm:text-base font-semibold leading-relaxed text-foreground">
-              {evaluation.verdict}
-            </p>
+            {evaluation.kind === "nedovoljno" ? (
+              <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
+                <p className="font-semibold">{evaluation.verdict}</p>
+                <p className="mt-1 text-text-muted">{evaluation.razlog}</p>
+              </div>
+            ) : (
+              <p className="text-sm sm:text-base font-semibold leading-relaxed text-foreground">
+                {evaluation.verdict}
+              </p>
+            )}
             {evaluation.recommendation && (
               <p className="text-xs text-text-muted font-medium flex items-center gap-1.5">
                 <TrendingUp className="size-3.5 text-accent-400 shrink-0" />
@@ -407,45 +431,63 @@ export function HookBattleView({
         </div>
       ) : (
         /* Side-by-Side Hook Battle Columns */
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between text-xs text-text-muted">
-            <span className="font-medium text-foreground">
-              Uporedni pregled po verzijama ({versions.length})
-            </span>
-            <span className="hidden sm:inline">
-              Cijan okvir označava trenutnog lidera
-            </span>
-          </div>
+        <div className="flex flex-col gap-6">
+          {/* 1. Evaluated versions with sufficient data */}
+          {(() => {
+            const dataVersions = versions.filter(
+              (v) =>
+                v.hookRate !== undefined ||
+                v.costPerResult !== undefined ||
+                v.results !== undefined,
+            );
+            const noDataVersions = versions.filter(
+              (v) =>
+                v.hookRate === undefined &&
+                v.costPerResult === undefined &&
+                v.results === undefined,
+            );
 
-          {/* Horizontal scroll container for 375px mobile responsiveness */}
-          <div className="overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
-            <div
-              className="grid gap-4 min-w-[700px] sm:min-w-0"
-              style={{
-                gridTemplateColumns: `repeat(${Math.max(versions.length, 1)}, minmax(240px, 1fr))`,
-              }}
-            >
-              {versions.map((version, index) => {
-                const isLeader = evaluation.leaderId === version._id;
-                const rankNumber = index + 1;
+            return (
+              <>
+                {dataVersions.length > 0 && (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between text-xs text-text-muted">
+                      <span className="font-medium text-foreground">
+                        Uporedni pregled po verzijama ({dataVersions.length})
+                      </span>
+                      <span className="hidden sm:inline">
+                        Cijan okvir označava trenutnog lidera
+                      </span>
+                    </div>
 
-                return (
-                  <Card
-                    key={version._id}
-                    className={cn(
-                      "flex flex-col gap-0 py-0 shadow-card transition-all duration-200 relative overflow-hidden border",
-                      isLeader
-                        ? "border-accent-400 ring-2 ring-accent-400/40 bg-accent-400/[0.03]"
-                        : "border-line bg-card hover:border-line-strong",
-                    )}
-                  >
-                    {/* Leader Top Ribbon */}
-                    {isLeader && (
-                      <div className="bg-accent-400 text-text-inverse text-micro font-bold py-1 px-3 flex items-center justify-center gap-1.5 heading-caps">
-                        <Crown className="size-3.5 fill-current" />
-                        <span>Vodeći hook</span>
-                      </div>
-                    )}
+                    <div className="overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+                      <div
+                        className="grid gap-4 min-w-[700px] sm:min-w-0"
+                        style={{
+                          gridTemplateColumns: `repeat(${Math.max(dataVersions.length, 1)}, minmax(240px, 1fr))`,
+                        }}
+                      >
+                        {dataVersions.map((version, index) => {
+                          const isLeader = evaluation.leaderId === version._id;
+                          const rankNumber = index + 1;
+
+                          return (
+                            <Card
+                              key={version._id}
+                              className={cn(
+                                "flex flex-col gap-0 py-0 shadow-card transition-all duration-200 relative overflow-hidden border",
+                                isLeader
+                                  ? "border-accent-400 ring-2 ring-accent-400/40 bg-accent-400/[0.03]"
+                                  : "border-line bg-card hover:border-line-strong",
+                              )}
+                            >
+                              {/* Leader Top Ribbon */}
+                              {isLeader && (
+                                <div className="bg-accent-400 text-text-inverse text-micro font-bold py-1 px-3 flex items-center justify-center gap-1.5 heading-caps">
+                                  <Crown className="size-3.5 fill-current" />
+                                  <span>Vodeći hook</span>
+                                </div>
+                              )}
 
                     {/* Column Header: Thumbnail + Name + Inline HookLabel */}
                     <div className="p-4 border-b border-line-soft flex flex-col gap-3">
@@ -514,11 +556,25 @@ export function HookBattleView({
                           Hook Rate (3s / Impresije)
                         </span>
                         <div className="flex items-baseline justify-between">
-                          <span className="font-mono text-3xl font-bold text-accent-400">
-                            {formatPercent(version.hookRate)}
+                          <span
+                            className={cn(
+                              "font-mono text-3xl font-bold",
+                              version.hookRate !== undefined
+                                ? "text-accent-400"
+                                : "text-text-muted",
+                            )}
+                            title={
+                              version.hookRate === undefined
+                                ? "Nema dovoljno podataka"
+                                : undefined
+                            }
+                          >
+                            {version.hookRate !== undefined
+                              ? formatPercent(version.hookRate)
+                              : "—"}
                           </span>
                           <span className="font-mono text-xs text-text-muted">
-                            {formatNumber(version.video3s)} / {formatNumber(version.impressions)}
+                            {version.video3s !== undefined ? formatNumber(version.video3s) : "—"} / {formatNumber(version.impressions)}
                           </span>
                         </div>
                       </div>
@@ -545,8 +601,20 @@ export function HookBattleView({
                       {/* 4. Hold Rate */}
                       <div className="px-4 py-2.5 flex items-center justify-between">
                         <span className="text-text-muted">Hold Rate (ThruPlay / 3s)</span>
-                        <span className="font-mono font-medium text-foreground">
-                          {version.video3s > 0
+                        <span
+                          className={cn(
+                            "font-mono font-medium",
+                            version.holdRate !== undefined
+                              ? "text-foreground"
+                              : "text-text-muted",
+                          )}
+                          title={
+                            version.holdRate === undefined
+                              ? "Nema dovoljno podataka"
+                              : undefined
+                          }
+                        >
+                          {version.holdRate !== undefined
                             ? formatPercent(version.holdRate)
                             : "—"}
                         </span>
@@ -569,16 +637,14 @@ export function HookBattleView({
                           <span
                             className={cn(
                               "font-bold",
-                              version.costPerResult > 0
+                              version.costPerResult !== undefined
                                 ? "text-foreground"
                                 : "text-text-muted",
                             )}
                           >
-                            {version.costPerResult > 0
-                              ? `${formatNumber(version.costPerResult)} €`
-                              : "—"}
+                            {formatMetric(version.costPerResult, cpaDef, accountCurrency)}
                           </span>
-                          {version.hasConversionValue && (
+                          {version.hasConversionValue && version.roas !== undefined && (
                             <span className="block text-micro text-success font-semibold">
                               {version.roas.toFixed(2)}x
                             </span>
@@ -591,10 +657,10 @@ export function HookBattleView({
                         <span className="text-text-muted">Potrošnja (Rezultati)</span>
                         <div className="text-right font-mono">
                           <span className="font-medium text-foreground">
-                            {formatNumber(version.spend)} €
+                            {formatMetric(version.spend, spendDef, accountCurrency)}
                           </span>
                           <span className="block text-micro text-text-muted">
-                            ({version.results} konv.)
+                            ({version.results !== undefined ? `${version.results} konv.` : "—"})
                           </span>
                         </div>
                       </div>
@@ -685,6 +751,81 @@ export function HookBattleView({
               })}
             </div>
           </div>
+        </div>
+      )}
+
+                {noDataVersions.length > 0 && (
+                  <div className="flex flex-col gap-3 pt-4 border-t border-line-soft">
+                    <div className="flex items-center justify-between text-xs text-text-muted">
+                      <span className="font-semibold text-warning/90 flex items-center gap-1.5">
+                        <span>Bez podataka ({noDataVersions.length})</span>
+                      </span>
+                      <span className="text-micro text-text-muted">
+                        Verzije oglasa bez zabeleženih video metrika ili rezultata
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+                      <div
+                        className="grid gap-4 min-w-[700px] sm:min-w-0 opacity-80"
+                        style={{
+                          gridTemplateColumns: `repeat(${Math.max(noDataVersions.length, 1)}, minmax(240px, 1fr))`,
+                        }}
+                      >
+                        {noDataVersions.map((version) => (
+                          <Card
+                            key={version._id}
+                            className="flex flex-col gap-0 py-0 shadow-card relative overflow-hidden border border-line-soft bg-surface/40"
+                          >
+                            <div className="p-4 border-b border-line-soft flex flex-col gap-3">
+                              <div className="relative aspect-video w-full rounded-md border border-line overflow-hidden bg-surface flex items-center justify-center">
+                                {version.thumbnailUrl ? (
+                                  <Image
+                                    src={version.thumbnailUrl}
+                                    alt={version.name}
+                                    fill
+                                    sizes="(max-width: 768px) 100vw, 300px"
+                                    className="object-cover"
+                                    unoptimized
+                                  />
+                                ) : (
+                                  <div className="flex flex-col items-center gap-1 text-text-muted">
+                                    <Play className="size-6 text-text-muted/60" />
+                                    <span className="text-micro">Video kreativa</span>
+                                  </div>
+                                )}
+                                <div className="absolute top-2 left-2 rounded bg-bg-950/80 px-2 py-0.5 text-micro font-medium text-warning border border-material-edge">
+                                  Bez podataka
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col gap-1 min-w-0">
+                                <HookLabelEditor
+                                  adId={version._id}
+                                  currentLabel={version.hookLabel}
+                                  fallbackName={version.name}
+                                />
+                                <p
+                                  className="text-xs text-text-muted truncate"
+                                  title={version.name}
+                                >
+                                  {version.name}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="p-4 text-center text-xs text-text-muted">
+                              Meta još uvek nije poslala podatke o video zadržavanju ili konverzijama za ovaj oglas.
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
 

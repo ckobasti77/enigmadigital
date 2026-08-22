@@ -38,31 +38,43 @@ import {
   type AdActionType,
   type AdTargetType,
 } from "./ad-action-dialog";
+import { formatMetric, formatRanking } from "@/convex/lib/metaAdsFormat";
+import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
 
-function formatRatingBadge(ranking?: string) {
-  if (!ranking || ranking === "UNKNOWN" || ranking === "UNSPECIFIED") {
-    return <span className="text-text-muted">—</span>;
+const spendDef = resolveMetric("spend")!;
+const cpaDef = resolveMetric("costPerResult")!;
+
+function formatRatingBadge(rawRanking?: string) {
+  const { label, known } = formatRanking(rawRanking);
+  if (!known) {
+    return (
+      <span
+        title="Meta još nema dovoljno podataka za rangiranje"
+        className="text-text-muted cursor-help"
+      >
+        —
+      </span>
+    );
   }
-  if (ranking === "ABOVE_AVERAGE") {
-    return <span className="text-success font-medium">Iznad proseka</span>;
+  if (rawRanking === "ABOVE_AVERAGE") {
+    return <span className="text-success font-medium">{label}</span>;
   }
-  if (ranking === "AVERAGE") {
-    return <span className="text-text-secondary font-medium">Prosečno</span>;
+  if (rawRanking === "AVERAGE") {
+    return <span className="text-text-secondary font-medium">{label}</span>;
   }
-  if (ranking === "BELOW_AVERAGE") {
-    return <span className="text-danger font-medium">Ispod proseka</span>;
-  }
-  return <span className="text-text-muted">{ranking}</span>;
+  return <span className="text-danger font-medium">{label}</span>;
 }
 
 function KeywordQualitySection({
   campaignId,
   from,
   to,
+  currency,
 }: {
   campaignId: Id<"adCampaigns">;
   from: string;
   to: string;
+  currency?: string;
 }) {
   const report = useQuery(api.googleAdsStore.getKeywordQualityReport, {
     campaignId,
@@ -163,7 +175,7 @@ function KeywordQualitySection({
                   {formatPercent(kw.ctr)}
                 </TableCell>
                 <TableCell className="text-right font-mono tabular-nums text-foreground">
-                  {formatNumber(kw.cost)} €
+                  {formatMetric(kw.cost, spendDef, currency)}
                 </TableCell>
                 <TableCell className="pr-5 text-right font-mono tabular-nums font-semibold text-foreground">
                   {formatNumber(kw.conversions)}
@@ -349,7 +361,7 @@ export function CampaignDetail({
               <div className="flex flex-col items-end rounded-lg border border-line bg-surface/40 px-3 py-2">
                 <span className="text-micro text-text-muted">Dnevni budžet</span>
                 <span className="font-mono text-sm font-semibold text-foreground">
-                  {formatNumber(campaign.dailyBudget)} € / dan
+                  {formatMetric(campaign.dailyBudget, spendDef, campaign.currency)} / dan
                 </span>
               </div>
             )}
@@ -424,21 +436,21 @@ export function CampaignDetail({
         <div className="rounded-lg border border-line bg-surface/50 p-3">
           <span className="text-xs text-text-muted">Potrošnja</span>
           <p className="mt-1 font-mono text-xl font-bold tabular-nums text-foreground">
-            {formatNumber(campaign.spend)} €
+            {formatMetric(campaign.spend, spendDef, campaign.currency)}
           </p>
         </div>
 
         <div className="rounded-lg border border-line bg-surface/50 p-3">
           <span className="text-xs text-text-muted">Rezultati</span>
           <p className="mt-1 font-mono text-xl font-bold tabular-nums text-foreground">
-            {formatNumber(campaign.results)}
+            {campaign.results !== undefined ? formatNumber(campaign.results) : "—"}
           </p>
         </div>
 
         <div className="rounded-lg border border-line bg-surface/50 p-3">
           <span className="text-xs text-text-muted">CPA (Cena / rez.)</span>
           <p className="mt-1 font-mono text-xl font-bold tabular-nums text-foreground">
-            {campaign.costPerResult > 0 ? `${formatNumber(campaign.costPerResult)} €` : "—"}
+            {formatMetric(campaign.costPerResult, cpaDef, campaign.currency)}
           </p>
         </div>
 
@@ -446,7 +458,7 @@ export function CampaignDetail({
           <div className="rounded-lg border border-line bg-surface/50 p-3">
             <span className="text-xs text-text-muted">ROAS</span>
             <p className="mt-1 font-mono text-xl font-bold tabular-nums text-success">
-              {campaign.roas.toFixed(2)}x
+              {campaign.roas !== undefined ? `${campaign.roas.toFixed(2)}x` : "—"}
             </p>
           </div>
         ) : (
@@ -486,7 +498,12 @@ export function CampaignDetail({
 
       {/* Google Ads Keyword Quality Score & Search Terms section */}
       {isGoogleAds && (
-        <KeywordQualitySection campaignId={campaignId} from={from} to={to} />
+        <KeywordQualitySection
+          campaignId={campaignId}
+          from={from}
+          to={to}
+          currency={campaign.currency}
+        />
       )}
 
       {/* Ad Sets / Ad Groups -> Ads Hierarchy */}
@@ -570,15 +587,15 @@ export function CampaignDetail({
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex flex-wrap items-center gap-4 text-xs font-mono tabular-nums text-text-muted">
                       <span>
-                        Potrošnja: <strong className="text-foreground">{formatNumber(set.spend)} €</strong>
+                        Potrošnja: <strong className="text-foreground">{formatMetric(set.spend, spendDef, campaign.currency)}</strong>
                       </span>
                       <span>
-                        Rezultati: <strong className="text-foreground">{formatNumber(set.results)}</strong>
+                        Rezultati: <strong className="text-foreground">{set.results !== undefined ? formatNumber(set.results) : "—"}</strong>
                       </span>
                       <span>
-                        CPA: <strong className="text-foreground">{set.costPerResult > 0 ? `${formatNumber(set.costPerResult)} €` : "—"}</strong>
+                        CPA: <strong className="text-foreground">{formatMetric(set.costPerResult, cpaDef, campaign.currency)}</strong>
                       </span>
-                      {set.hasConversionValue && (
+                      {set.hasConversionValue && set.roas !== undefined && (
                         <span>
                           ROAS: <strong className="text-success">{set.roas.toFixed(2)}x</strong>
                         </span>
@@ -693,7 +710,10 @@ export function CampaignDetail({
                           </TableRow>
                         ) : (
                           set.ads.map((ad) => {
-                            const hasAdVideo = ad.video3s > 0 || ad.thruplay > 0;
+                            const hasAdVideo = Boolean(
+                              (ad.video3s !== undefined && ad.video3s > 0) ||
+                              (ad.thruplay !== undefined && ad.thruplay > 0),
+                            );
                             return (
                               <TableRow
                                 key={ad._id}
@@ -744,7 +764,7 @@ export function CampaignDetail({
                                 </TableCell>
 
                                 <TableCell className="text-right font-mono tabular-nums font-medium text-foreground">
-                                  {formatNumber(ad.spend)} €
+                                  {formatMetric(ad.spend, spendDef, campaign.currency)}
                                 </TableCell>
 
                                 <TableCell className="text-right font-mono tabular-nums text-foreground">
@@ -756,15 +776,15 @@ export function CampaignDetail({
                                 </TableCell>
 
                                 <TableCell className="text-right font-mono tabular-nums text-foreground">
-                                  {formatNumber(ad.results)}
+                                  {ad.results !== undefined ? formatNumber(ad.results) : "—"}
                                 </TableCell>
 
                                 <TableCell className="text-right font-mono tabular-nums">
                                   <div>
                                     <span className="text-foreground">
-                                      {ad.costPerResult > 0 ? `${formatNumber(ad.costPerResult)} €` : "—"}
+                                      {formatMetric(ad.costPerResult, cpaDef, campaign.currency)}
                                     </span>
-                                    {ad.hasConversionValue && (
+                                    {ad.hasConversionValue && ad.roas !== undefined && (
                                       <span className="block text-micro text-success font-semibold">
                                         {ad.roas.toFixed(2)}x
                                       </span>
@@ -779,12 +799,20 @@ export function CampaignDetail({
                                     </span>
                                   ) : hasAdVideo ? (
                                     <div className="text-micro">
-                                      <span className="text-accent-400 font-medium">{formatPercent(ad.hookRate)}</span>
+                                      {ad.hookRate !== undefined ? (
+                                        <span className="text-accent-400 font-medium">{formatPercent(ad.hookRate)}</span>
+                                      ) : (
+                                        <span className="text-text-muted" title="Nema dovoljno podataka">—</span>
+                                      )}
                                       <span className="text-text-muted mx-1">/</span>
-                                      <span className="text-foreground">{formatPercent(ad.holdRate)}</span>
+                                      {ad.holdRate !== undefined ? (
+                                        <span className="text-foreground">{formatPercent(ad.holdRate)}</span>
+                                      ) : (
+                                        <span className="text-text-muted" title="Nema dovoljno podataka">—</span>
+                                      )}
                                     </div>
                                   ) : (
-                                    <span className="text-text-muted">—</span>
+                                    <span className="text-text-muted" title="Nema dovoljno podataka">—</span>
                                   )}
                                 </TableCell>
 

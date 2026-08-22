@@ -13,6 +13,8 @@
  * ============================================================================
  */
 
+import { isBreakdownComboAllowed } from "./metaAdsCatalog";
+
 export const DEFAULT_GRAPH_VERSION = "v25.0";
 export const META_GRAPH_BASE_URL = "https://graph.facebook.com";
 
@@ -252,6 +254,7 @@ export interface InsightsQueryParams {
   limit?: number;
   /** Only when a caller has a reason; otherwise Meta's "mixed" default stands. */
   actionReportTime?: ActionReportTime;
+  fields?: string[];
   accessToken: string;
   version?: string;
 }
@@ -264,7 +267,19 @@ export function buildInsightsUrl(params: InsightsQueryParams): string {
   const version = params.version ?? getMetaGraphVersion();
   const url = new URL(`${META_GRAPH_BASE_URL}/${version}/${targetId}/insights`);
 
-  url.searchParams.set("fields", INSIGHTS_FIELDS.join(","));
+  const requestedFields = params.fields ?? [...INSIGHTS_FIELDS];
+  let fieldsToSend = requestedFields;
+
+  if (params.breakdowns && params.breakdowns.length > 0) {
+    const check = isBreakdownComboAllowed(params.breakdowns, requestedFields);
+    if (!check.allowed && check.dropMetrics.length > 0) {
+      fieldsToSend = requestedFields.filter(
+        (f) => !check.dropMetrics.includes(f),
+      );
+    }
+  }
+
+  url.searchParams.set("fields", fieldsToSend.join(","));
   if (params.level) url.searchParams.set("level", params.level);
   if (params.datePreset) url.searchParams.set("date_preset", params.datePreset);
   if (params.timeRange) {
@@ -873,6 +888,109 @@ export function computeBreakdownHash(
 export interface RawActionValue {
   action_type: string;
   value: string | number;
+  "1d_click"?: string | number;
+  "7d_click"?: string | number;
+  "1d_view"?: string | number;
+  "7d_view"?: string | number;
+  [key: string]: unknown;
+}
+
+export interface ExtractedActionBreakdown {
+  actionType: string;
+  window: "default" | "1d_click" | "7d_click" | "1d_view" | "7d_view";
+  count?: number;
+  value?: number;
+  costPer?: number;
+}
+
+export function toNumOrUndefined(val: unknown): number | undefined {
+  if (val === undefined || val === null || val === "") return undefined;
+  if (typeof val === "number") return Number.isFinite(val) ? val : undefined;
+  if (typeof val === "string") {
+    const parsed = parseFloat(val);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Razlaže akcije po tipu i po prozoru atribucije (MA2).
+ *
+ * Za svaki prozor ("default", "1d_click", "7d_click", "1d_view", "7d_view"):
+ * Ako Meta nije poslala podatke za taj prozor, red se NE pravi.
+ * count/value/costPer su opcioni — nikada se ne upisuje 0 za odsustvo podatka.
+ */
+export function extractActionBreakdowns(
+  actions?: RawActionValue[],
+  actionValues?: RawActionValue[],
+  costPerAction?: RawActionValue[],
+): ExtractedActionBreakdown[] {
+  const windows: Array<"default" | "1d_click" | "7d_click" | "1d_view" | "7d_view"> = [
+    "default",
+    "1d_click",
+    "7d_click",
+    "1d_view",
+    "7d_view",
+  ];
+
+  const actionTypes = new Set<string>();
+  if (Array.isArray(actions)) {
+    for (const a of actions) {
+      if (a.action_type) actionTypes.add(a.action_type);
+    }
+  }
+  if (Array.isArray(actionValues)) {
+    for (const a of actionValues) {
+      if (a.action_type) actionTypes.add(a.action_type);
+    }
+  }
+  if (Array.isArray(costPerAction)) {
+    for (const a of costPerAction) {
+      if (a.action_type) actionTypes.add(a.action_type);
+    }
+  }
+
+  const results: ExtractedActionBreakdown[] = [];
+
+  for (const actionType of actionTypes) {
+    const act = Array.isArray(actions)
+      ? actions.find((a) => a.action_type === actionType)
+      : undefined;
+    const actVal = Array.isArray(actionValues)
+      ? actionValues.find((a) => a.action_type === actionType)
+      : undefined;
+    const actCost = Array.isArray(costPerAction)
+      ? costPerAction.find((a) => a.action_type === actionType)
+      : undefined;
+
+    for (const win of windows) {
+      let count: number | undefined;
+      let value: number | undefined;
+      let costPer: number | undefined;
+
+      if (win === "default") {
+        count = toNumOrUndefined(act?.value);
+        value = toNumOrUndefined(actVal?.value);
+        costPer = toNumOrUndefined(actCost?.value);
+      } else {
+        count = toNumOrUndefined(act?.[win]);
+        value = toNumOrUndefined(actVal?.[win]);
+        costPer = toNumOrUndefined(actCost?.[win]);
+      }
+
+      if (count !== undefined || value !== undefined || costPer !== undefined) {
+        results.push({
+          actionType,
+          window: win,
+          count,
+          value,
+          costPer,
+        });
+      }
+    }
+  }
+
+  return results;
 }
 
 export interface RawAdInsightRow {
@@ -934,18 +1052,10 @@ export interface RawGraphApiResponse<T> {
 
 // ── Metric Extractors ───────────────────────────────────────────────────────
 
-function toNum(val: unknown): number {
-  if (typeof val === "number") return Number.isFinite(val) ? val : 0;
-  if (typeof val === "string") {
-    const parsed = parseFloat(val);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  return 0;
-}
 
-/** Extract action sum for prioritized conversion types */
-export function extractConversionResults(actions?: RawActionValue[]): number {
-  if (!Array.isArray(actions) || actions.length === 0) return 0;
+/** Extract action sum for prioritized conversion types (returns undefined if missing) */
+export function extractConversionResults(actions?: RawActionValue[]): number | undefined {
+  if (!Array.isArray(actions) || actions.length === 0) return undefined;
 
   // Priority conversion action types
   const conversionKeys = [
@@ -964,22 +1074,27 @@ export function extractConversionResults(actions?: RawActionValue[]): number {
 
   for (const key of conversionKeys) {
     const found = actions.find((a) => a.action_type === key);
-    if (found) return toNum(found.value);
+    if (found) return toNumOrUndefined(found.value);
   }
 
   // Fallback: sum all offsite conversions if available
   let total = 0;
+  let hasAny = false;
   for (const a of actions) {
     if (a.action_type?.startsWith("offsite_conversion")) {
-      total += toNum(a.value);
+      const num = toNumOrUndefined(a.value);
+      if (num !== undefined) {
+        total += num;
+        hasAny = true;
+      }
     }
   }
-  return total;
+  return hasAny ? total : undefined;
 }
 
-/** Extract total purchase / lead value from action_values */
-export function extractConversionValue(actionValues?: RawActionValue[]): number {
-  if (!Array.isArray(actionValues) || actionValues.length === 0) return 0;
+/** Extract total purchase / lead value from action_values (returns undefined if missing) */
+export function extractConversionValue(actionValues?: RawActionValue[]): number | undefined {
+  if (!Array.isArray(actionValues) || actionValues.length === 0) return undefined;
 
   const valueKeys = [
     "purchase",
@@ -991,26 +1106,31 @@ export function extractConversionValue(actionValues?: RawActionValue[]): number 
 
   for (const key of valueKeys) {
     const found = actionValues.find((a) => a.action_type === key);
-    if (found) return toNum(found.value);
+    if (found) return toNumOrUndefined(found.value);
   }
 
   let sum = 0;
+  let hasAny = false;
   for (const v of actionValues) {
-    sum += toNum(v.value);
+    const num = toNumOrUndefined(v.value);
+    if (num !== undefined) {
+      sum += num;
+      hasAny = true;
+    }
   }
-  return sum;
+  return hasAny ? sum : undefined;
 }
 
-/** Extract video views action count from video actions array */
-export function extractVideoActionCount(actions?: RawActionValue[]): number {
-  if (!Array.isArray(actions) || actions.length === 0) return 0;
+/** Extract video views action count from video actions array (returns undefined for non-video ads) */
+export function extractVideoActionCount(actions?: RawActionValue[]): number | undefined {
+  if (!Array.isArray(actions) || actions.length === 0) return undefined;
   const found = actions.find(
     (a) =>
       a.action_type === "video_view" ||
-      a.action_type?.includes("video") ||
-      true,
+      a.action_type?.includes("video"),
   );
-  return found ? toNum(found.value) : toNum(actions[0]?.value);
+  const target = found ?? actions[0];
+  return target ? toNumOrUndefined(target.value) : undefined;
 }
 
 /** Parse hour integer (0..23) from Meta hourly breakdown string */

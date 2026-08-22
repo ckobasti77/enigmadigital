@@ -10,17 +10,17 @@ import { formatNumber, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface VideoRetentionData {
-  video3s: number;
-  thruplay: number;
-  videoP25: number;
-  videoP50: number;
-  videoP75: number;
+  video3s?: number;
+  thruplay?: number;
+  videoP25?: number;
+  videoP50?: number;
+  videoP75?: number;
   videoP95?: number;
-  videoP100: number;
-  p25Pct: number;
-  p50Pct: number;
-  p75Pct: number;
-  p100Pct: number;
+  videoP100?: number;
+  p25Pct?: number;
+  p50Pct?: number;
+  p75Pct?: number;
+  p100Pct?: number;
 }
 
 interface RetentionStripProps {
@@ -37,7 +37,10 @@ export function RetentionStrip({
   showLabels = true,
 }: RetentionStripProps) {
   const hasVideo = Boolean(
-    retention && (retention.video3s > 0 || retention.videoP25 > 0 || retention.thruplay > 0),
+    retention &&
+      ((retention.video3s !== undefined && retention.video3s > 0) ||
+        (retention.videoP25 !== undefined && retention.videoP25 > 0) ||
+        (retention.thruplay !== undefined && retention.thruplay > 0)),
   );
 
   if (!hasVideo || !retention) {
@@ -53,7 +56,13 @@ export function RetentionStrip({
     );
   }
 
-  const checkpoints = [
+  const checkpoints: {
+    label: string;
+    count?: number;
+    pct?: number;
+    color: string;
+    textColor: string;
+  }[] = [
     {
       label: "25%",
       count: retention.videoP25,
@@ -91,7 +100,10 @@ export function RetentionStrip({
           <div className="flex items-center justify-between text-micro text-text-muted font-medium">
             <span>Video zadržavanje</span>
             <span className="font-mono tabular-nums text-foreground/80">
-              3s: {formatPercent(retention.video3s / (impressions || 1))}
+              3s:{" "}
+              {retention.video3s !== undefined && impressions > 0
+                ? formatPercent(retention.video3s / impressions)
+                : "—"}
             </span>
           </div>
         )}
@@ -99,7 +111,11 @@ export function RetentionStrip({
         {/* Stepped Mini Bars */}
         <div className="grid grid-cols-4 gap-1.5 items-end h-10 rounded bg-surface-raised/40 p-1 border border-line-soft">
           {checkpoints.map((cp) => {
-            const fillHeightPct = Math.max(8, Math.min(100, Math.round(cp.pct * 100)));
+            const isKnown = cp.count !== undefined && cp.pct !== undefined;
+            const fillHeightPct = isKnown
+              ? Math.max(8, Math.min(100, Math.round((cp.pct as number) * 100)))
+              : 100;
+
             return (
               <Tooltip key={cp.label}>
                 <TooltipTrigger
@@ -107,13 +123,19 @@ export function RetentionStrip({
                     <div className="group/bar relative flex flex-col items-center justify-end h-full w-full cursor-pointer" />
                   }
                 >
-                  <div
-                    className={cn(
-                      "w-full rounded-xs transition-all duration-300 group-hover/bar:brightness-125",
-                      cp.color,
-                    )}
-                    style={{ height: `${fillHeightPct}%` }}
-                  />
+                  {isKnown ? (
+                    <div
+                      className={cn(
+                        "w-full rounded-xs transition-all duration-300 group-hover/bar:brightness-125",
+                        cp.color,
+                      )}
+                      style={{ height: `${fillHeightPct}%` }}
+                    />
+                  ) : (
+                    <div
+                      className="w-full h-full rounded-xs border border-dashed border-line-soft bg-surface-raised/80 bg-[repeating-linear-gradient(45deg,rgba(255,255,255,0.06),rgba(255,255,255,0.06)_4px,transparent_4px,transparent_8px)]"
+                    />
+                  )}
                   <span className="mt-0.5 text-micro font-mono tabular-nums text-text-muted group-hover/bar:text-foreground">
                     {cp.label}
                   </span>
@@ -122,9 +144,15 @@ export function RetentionStrip({
                   <p className="font-semibold text-foreground">
                     Zadržavanje do {cp.label} dužine
                   </p>
-                  <p className="text-text-muted mt-0.5">
-                    {formatNumber(cp.count)} pregleda ({formatPercent(cp.pct)})
-                  </p>
+                  {isKnown ? (
+                    <p className="text-text-muted mt-0.5">
+                      {formatNumber(cp.count as number)} pregleda ({formatPercent(cp.pct as number)})
+                    </p>
+                  ) : (
+                    <p className="text-text-muted mt-0.5">
+                      Meta nije poslala ovu metriku za ovaj oglas
+                    </p>
+                  )}
                 </TooltipContent>
               </Tooltip>
             );
@@ -135,7 +163,7 @@ export function RetentionStrip({
         <div className="grid grid-cols-4 gap-1 text-center font-mono tabular-nums text-micro">
           {checkpoints.map((cp) => (
             <span key={cp.label} className={cn("truncate", cp.textColor)}>
-              {formatPercent(cp.pct)}
+              {cp.pct !== undefined ? formatPercent(cp.pct) : "—"}
             </span>
           ))}
         </div>
