@@ -12,6 +12,10 @@ export const actionTypeValidator = v.union(
   v.literal("resume"),
   v.literal("budget_change"),
   v.literal("duplicate"),
+  // MA8 — kreiranje. Mora ostati u lockstep-u sa `adActions.action` u schema.ts.
+  v.literal("create_campaign"),
+  v.literal("create_adset"),
+  v.literal("create_ad"),
 );
 
 export const targetTypeValidator = v.union(
@@ -463,6 +467,40 @@ export const recordPendingAction = internalMutation({
     });
 
     return actionId;
+  },
+});
+
+/**
+ * Idempotencija za kreiranje (MA8).
+ *
+ * Kreacije nemaju postojeći objekat, pa `recordPendingAction` pending-guard
+ * (isti target, <5 min) štiti samo od konkurentnog duplog klika. Za „isti
+ * zahtev ponovo" (posle uspeha ili delimičnog pada), orkestrator ovim nađe
+ * najnoviji red za nonce-ključ `new:<requestId>:<tip>` i, ako je već `success`,
+ * preskoči taj objekat i ponovo upotrebi kreirani externalId iz `params`.
+ *
+ * Vraća status + apiResponse (odakle orkestrator čita `createdExternalId`).
+ */
+export const findLatestActionByTarget = internalQuery({
+  args: {
+    workspaceId: v.id("workspaces"),
+    targetType: targetTypeValidator,
+    targetId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query("adActions")
+      .withIndex("by_workspace_target", (q) =>
+        q
+          .eq("workspaceId", args.workspaceId)
+          .eq("targetType", args.targetType)
+          .eq("targetId", args.targetId),
+      )
+      .order("desc")
+      .first();
+
+    if (!row) return null;
+    return { status: row.status, apiResponse: row.apiResponse ?? null };
   },
 });
 

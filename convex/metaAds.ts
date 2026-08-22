@@ -26,10 +26,16 @@ import {
   buildCustomAudienceCreateUrl,
   buildCustomAudienceUsersUrl,
   buildAdAccountTosUrl,
+  buildAdPixelsUrl,
   parseTosResponse,
   TOS_INSTRUCTIONS_SR,
   TOS_UNKNOWN_MESSAGE_SR,
   validateLookalikeSpec,
+  PREVIEW_CACHE_MAX_AGE_MS,
+  buildAdPreviewUrl,
+  buildTargetingSearchUrl,
+  buildDeliveryEstimateUrl,
+  formatEstimateRange,
   parseRateLimitHeaders,
   classifyMetaError,
   computeBreakdownHash,
@@ -2002,4 +2008,358 @@ export const createLookalikeAudienceAction = action({
     }
   },
 });
+
+export interface AdPreviewResult {
+  success: boolean;
+  previewHtml?: string;
+  previewFetchedAt?: number;
+  isStale?: boolean;
+  ageSeconds?: number;
+  warning?: string;
+  error?: string;
+}
+
+/**
+ * Fetches or returns cached preview iframe HTML for an ad (C2).
+ * Cache TTL is strictly 12 hours (never 24h).
+ * Stale preview is returned if refresh fails, with relative age warning.
+ */
+export const getAdPreviewAction = action({
+  args: {
+    adId: v.id("ads"),
+    adFormat: v.optional(v.string()), // default "DESKTOP_FEED_STANDARD"
+    workspaceId: v.optional(v.id("workspaces")),
+  },
+  handler: async (ctx, args): Promise<AdPreviewResult> => {
+    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const ad: Doc<"ads"> | null = await ctx.runQuery(
+      api.metaAdsStore.getAdById,
+      { adId: args.adId },
+    );
+    if (!ad) {
+      throw new Error("Oglas nije pronađen.");
+    }
+
+    const format = args.adFormat?.trim() || "DESKTOP_FEED_STANDARD";
+    const existingCreative: Doc<"adCreatives"> | null = await ctx.runQuery(
+      internal.metaAdsStore.getAdCreativeByAdId,
+      { adId: args.adId },
+    );
+
+    const now = Date.now();
+    const fetchedAt = existingCreative?.previewFetchedAt ?? 0;
+    const ageMs = now - fetchedAt;
+
+    // Cache hit: valid for up to 12 hours (C2)
+    if (existingCreative?.previewHtml && ageMs < PREVIEW_CACHE_MAX_AGE_MS) {
+      return {
+        success: true,
+        previewHtml: existingCreative.previewHtml,
+        previewFetchedAt: fetchedAt,
+        isStale: false,
+        ageSeconds: Math.floor(ageMs / 1000),
+      };
+    }
+
+    // Refresh from Meta Graph API
+    const tracker = createUsageTracker();
+    const collector = createQuotaCollector();
+
+    try {
+      const url = buildAdPreviewUrl(ad.externalId, auth.token, format);
+      const res = await tracker.fetch(url);
+      const rateLimit = parseRateLimitHeaders(res.headers);
+      collector.record(rateLimit);
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw classifyMetaError(body, { httpStatus: res.status, rateLimit });
+      }
+
+      const json = (await res.json()) as { data?: { body?: string }[] };
+      const previewHtml = json.data?.[0]?.body;
+
+      if (!previewHtml) {
+        throw new Error("Meta nije vratila HTML sadržaj pregleda.");
+      }
+
+      // Save fresh preview to DB
+      await ctx.runMutation(internal.metaAdsStore.saveAdPreviewHtml, {
+        adId: args.adId,
+        creativeId: ad.creativeId || ad.externalId,
+        previewHtml,
+        previewFetchedAt: now,
+      });
+
+      return {
+        success: true,
+        previewHtml,
+        previewFetchedAt: now,
+        isStale: false,
+        ageSeconds: 0,
+      };
+    } catch (err: unknown) {
+      // Fallback: If stale preview exists, return it with warning (C2)
+      if (existingCreative?.previewHtml) {
+        return {
+          success: true,
+          previewHtml: existingCreative.previewHtml,
+          previewFetchedAt: fetchedAt,
+          isStale: true,
+          ageSeconds: Math.floor(ageMs / 1000),
+          warning: "Osvežavanje nije uspelo. Prikazan je poslednji sačuvani pregled.",
+        };
+      }
+
+      const errorMsg = sanitizePii(
+        extractMetaAdsError(err) ||
+          (err instanceof Error ? err.message : String(err)),
+      );
+      return {
+        success: false,
+        error: errorMsg,
+      };
+    } finally {
+      await tracker.flush(ctx, auth.workspaceId);
+      await collector.flush(ctx, auth.workspaceId);
+    }
+  },
+});
+
+export interface TargetingSearchResult {
+  success: boolean;
+  results: Array<{
+    id: string;
+    name: string;
+    range: {
+      lower?: number;
+      upper?: number;
+      formatted: string;
+    };
+    path?: string[];
+    topic?: string;
+    description?: string;
+  }>;
+  error?: string;
+}
+
+/**
+ * Read-only targeting search (C5).
+ * Strictly queries Meta targeting search endpoint; never mutates anything on Meta.
+ */
+export const searchTargetingAction = action({
+  args: {
+    query: v.string(),
+    type: v.optional(v.string()), // default "adinterest"
+    workspaceId: v.optional(v.id("workspaces")),
+  },
+  handler: async (ctx, args): Promise<TargetingSearchResult> => {
+    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const searchType = args.type?.trim() || "adinterest";
+    const q = args.query.trim();
+
+    if (!q) {
+      return { success: true, results: [] };
+    }
+
+    const tracker = createUsageTracker();
+    const collector = createQuotaCollector();
+
+    try {
+      const url = `${buildTargetingSearchUrl(auth.actId, q, searchType)}&access_token=${auth.token}`;
+      const res = await tracker.fetch(url);
+      const rateLimit = parseRateLimitHeaders(res.headers);
+      collector.record(rateLimit);
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw classifyMetaError(body, { httpStatus: res.status, rateLimit });
+      }
+
+      const json = (await res.json()) as {
+        data?: Array<{
+          id: string;
+          name: string;
+          audience_size_lower_bound?: number;
+          audience_size_upper_bound?: number;
+          path?: string[];
+          topic?: string;
+          description?: string;
+        }>;
+      };
+
+      const results = (json.data || []).map((item) => ({
+        id: item.id,
+        name: item.name,
+        range: formatEstimateRange(
+          item.audience_size_lower_bound,
+          item.audience_size_upper_bound,
+        ),
+        path: item.path,
+        topic: item.topic,
+        description: item.description,
+      }));
+
+      return {
+        success: true,
+        results,
+      };
+    } catch (err: unknown) {
+      const errorMsg = sanitizePii(
+        extractMetaAdsError(err) ||
+          (err instanceof Error ? err.message : String(err)),
+      );
+      return {
+        success: false,
+        error: errorMsg,
+        results: [],
+      };
+    } finally {
+      await tracker.flush(ctx, auth.workspaceId);
+      await collector.flush(ctx, auth.workspaceId);
+    }
+  },
+});
+
+export interface AdPixelsResult {
+  success: boolean;
+  pixels: Array<{ id: string; name: string }>;
+  error?: string;
+}
+
+/**
+ * Read-only lista piksela naloga (MA8) — za izbor promoted_object kod
+ * konverzionih ciljeva u čarobnjaku kreiranja. Ništa ne menja.
+ */
+export const listAdPixelsAction = action({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    accountExternalId: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<AdPixelsResult> => {
+    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const actId = args.accountExternalId
+      ? normalizeAdAccountId(args.accountExternalId)
+      : auth.actId;
+    const tracker = createUsageTracker();
+    try {
+      const res = await tracker.fetch(buildAdPixelsUrl(actId, auth.token));
+      const json = (await res.json().catch(() => ({}))) as {
+        data?: Array<{ id?: string; name?: string }>;
+        error?: unknown;
+      };
+      if (!res.ok || json.error) {
+        return {
+          success: false,
+          pixels: [],
+          error: sanitizePii(extractMetaAdsError(json.error ?? json)),
+        };
+      }
+      const pixels = (json.data ?? [])
+        .filter((p) => p.id)
+        .map((p) => ({ id: String(p.id), name: p.name || String(p.id) }));
+      return { success: true, pixels };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        pixels: [],
+        error: sanitizePii(
+          extractMetaAdsError(err) ||
+            (err instanceof Error ? err.message : String(err)),
+        ),
+      };
+    } finally {
+      await tracker.flush(ctx, auth.workspaceId);
+    }
+  },
+});
+
+export interface DeliveryEstimateResult {
+  success: boolean;
+  monthlyEstimate: { lower?: number; upper?: number; formatted: string };
+  dailyEstimate: { lower?: number; upper?: number; formatted: string };
+  error?: string;
+}
+
+/**
+ * Read-only reach / delivery estimate query (C4 & C5).
+ * Formats results strictly as ranges, never single numbers; returns "—" if unknown.
+ */
+export const getDeliveryEstimateAction = action({
+  args: {
+    targetingSpec: v.optional(v.any()),
+    optimizationGoal: v.optional(v.string()),
+    workspaceId: v.optional(v.id("workspaces")),
+  },
+  handler: async (ctx, args): Promise<DeliveryEstimateResult> => {
+    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const tracker = createUsageTracker();
+    const collector = createQuotaCollector();
+
+    try {
+      const params: Record<string, string | number | boolean> = {
+        access_token: auth.token,
+      };
+      if (args.targetingSpec) {
+        params.targeting_spec =
+          typeof args.targetingSpec === "string"
+            ? args.targetingSpec
+            : JSON.stringify(args.targetingSpec);
+      }
+      if (args.optimizationGoal) {
+        params.optimization_goal = args.optimizationGoal;
+      }
+
+      const url = buildDeliveryEstimateUrl(auth.actId, params);
+      const res = await tracker.fetch(url);
+      const rateLimit = parseRateLimitHeaders(res.headers);
+      collector.record(rateLimit);
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw classifyMetaError(body, { httpStatus: res.status, rateLimit });
+      }
+
+      const json = (await res.json()) as {
+        data?: Array<{
+          estimate_mau_lower_bound?: number;
+          estimate_mau_upper_bound?: number;
+          estimate_dau_lower_bound?: number;
+          estimate_dau_upper_bound?: number;
+        }>;
+      };
+
+      const first = json.data?.[0];
+      const monthlyEstimate = formatEstimateRange(
+        first?.estimate_mau_lower_bound,
+        first?.estimate_mau_upper_bound,
+      );
+      const dailyEstimate = formatEstimateRange(
+        first?.estimate_dau_lower_bound,
+        first?.estimate_dau_upper_bound,
+      );
+
+      return {
+        success: true,
+        monthlyEstimate,
+        dailyEstimate,
+      };
+    } catch (err: unknown) {
+      const errorMsg = sanitizePii(
+        extractMetaAdsError(err) ||
+          (err instanceof Error ? err.message : String(err)),
+      );
+      return {
+        success: false,
+        error: errorMsg,
+        monthlyEstimate: { formatted: "—" },
+        dailyEstimate: { formatted: "—" },
+      };
+    } finally {
+      await tracker.flush(ctx, auth.workspaceId);
+      await collector.flush(ctx, auth.workspaceId);
+    }
+  },
+});
+
 

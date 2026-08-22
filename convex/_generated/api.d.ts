@@ -57,6 +57,7 @@ import type * as lib_metaAdsBackfill from "../lib/metaAdsBackfill.js";
 import type * as lib_metaAdsCatalog from "../lib/metaAdsCatalog.js";
 import type * as lib_metaAdsFormat from "../lib/metaAdsFormat.js";
 import type * as lib_metaAdsQuota from "../lib/metaAdsQuota.js";
+import type * as lib_metaAdsWrite from "../lib/metaAdsWrite.js";
 import type * as lib_metaAudienceHash from "../lib/metaAudienceHash.js";
 import type * as lib_metaCapi from "../lib/metaCapi.js";
 import type * as lib_metaRateLimit from "../lib/metaRateLimit.js";
@@ -172,6 +173,7 @@ declare const fullApi: ApiFromModules<{
   "lib/metaAdsCatalog": typeof lib_metaAdsCatalog;
   "lib/metaAdsFormat": typeof lib_metaAdsFormat;
   "lib/metaAdsQuota": typeof lib_metaAdsQuota;
+  "lib/metaAdsWrite": typeof lib_metaAdsWrite;
   "lib/metaAudienceHash": typeof lib_metaAudienceHash;
   "lib/metaCapi": typeof lib_metaCapi;
   "lib/metaRateLimit": typeof lib_metaRateLimit;

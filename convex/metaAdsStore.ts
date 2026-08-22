@@ -287,6 +287,7 @@ export const upsertStructure = internalMutation({
         )
         .unique();
 
+      let currentAdId: Id<"ads">;
       if (existing !== null) {
         const patchData: Record<string, unknown> = {
           adSetId,
@@ -298,8 +299,9 @@ export const upsertStructure = internalMutation({
         if (a.thumbnailUrl !== undefined) patchData.thumbnailUrl = a.thumbnailUrl;
         if (a.previewUrl !== undefined) patchData.previewUrl = a.previewUrl;
         await ctx.db.patch(existing._id, patchData);
+        currentAdId = existing._id;
       } else {
-        await ctx.db.insert("ads", {
+        currentAdId = await ctx.db.insert("ads", {
           workspaceId,
           adSetId,
           externalId: a.externalId,
@@ -312,10 +314,191 @@ export const upsertStructure = internalMutation({
           syncedAt: now,
         });
       }
+
+      if (a.creativeId) {
+        const existingCreative = await ctx.db
+          .query("adCreatives")
+          .withIndex("by_upsert_key", (q) =>
+            q.eq("adId", currentAdId).eq("creativeId", a.creativeId!),
+          )
+          .first();
+
+        if (existingCreative !== null) {
+          await ctx.db.patch(existingCreative._id, {
+            name: a.name,
+            thumbnailUrl: a.thumbnailUrl,
+            syncedAt: now,
+          });
+        } else {
+          await ctx.db.insert("adCreatives", {
+            workspaceId,
+            adId: currentAdId,
+            creativeId: a.creativeId,
+            name: a.name,
+            thumbnailUrl: a.thumbnailUrl,
+            syncedAt: now,
+          });
+        }
+      }
+
       written++;
     }
 
     return written;
+  },
+});
+
+/**
+ * Public query for fetching a single ad by ID.
+ */
+export const getAdById = query({
+  args: {
+    adId: v.id("ads"),
+  },
+  handler: async (ctx, { adId }) => {
+    return await ctx.db.get(adId);
+  },
+});
+
+/**
+ * Upsert ad creatives (C1).
+ */
+export const upsertAdCreatives = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    creatives: v.array(
+      v.object({
+        adId: v.id("ads"),
+        creativeId: v.string(),
+        name: v.string(),
+        objectStoryId: v.optional(v.string()),
+        thumbnailUrl: v.optional(v.string()),
+        bodyText: v.optional(v.string()),
+        titleText: v.optional(v.string()),
+        callToActionType: v.optional(v.string()),
+        linkUrl: v.optional(v.string()),
+      }),
+    ),
+  },
+  returns: v.number(),
+  handler: async (ctx, { workspaceId, creatives }) => {
+    const now = Date.now();
+    let written = 0;
+    for (const c of creatives) {
+      const existing = await ctx.db
+        .query("adCreatives")
+        .withIndex("by_upsert_key", (q) =>
+          q.eq("adId", c.adId).eq("creativeId", c.creativeId),
+        )
+        .first();
+
+      if (existing !== null) {
+        await ctx.db.patch(existing._id, {
+          name: c.name,
+          objectStoryId: c.objectStoryId,
+          thumbnailUrl: c.thumbnailUrl,
+          bodyText: c.bodyText,
+          titleText: c.titleText,
+          callToActionType: c.callToActionType,
+          linkUrl: c.linkUrl,
+          syncedAt: now,
+        });
+      } else {
+        await ctx.db.insert("adCreatives", {
+          workspaceId,
+          adId: c.adId,
+          creativeId: c.creativeId,
+          name: c.name,
+          objectStoryId: c.objectStoryId,
+          thumbnailUrl: c.thumbnailUrl,
+          bodyText: c.bodyText,
+          titleText: c.titleText,
+          callToActionType: c.callToActionType,
+          linkUrl: c.linkUrl,
+          syncedAt: now,
+        });
+      }
+      written++;
+    }
+    return written;
+  },
+});
+
+/**
+ * Fetch an ad's creative by adId.
+ */
+export const getAdCreativeByAdId = internalQuery({
+  args: {
+    adId: v.id("ads"),
+  },
+  handler: async (ctx, { adId }) => {
+    return await ctx.db
+      .query("adCreatives")
+      .withIndex("by_ad", (q) => q.eq("adId", adId))
+      .first();
+  },
+});
+
+/**
+ * Public query for reading creative details and preview for an ad.
+ */
+export const getAdCreative = query({
+  args: {
+    adId: v.id("ads"),
+  },
+  handler: async (ctx, { adId }) => {
+    const { workspaceId } = await requireMembership(ctx);
+    const creative = await ctx.db
+      .query("adCreatives")
+      .withIndex("by_ad", (q) => q.eq("adId", adId))
+      .first();
+
+    if (!creative || creative.workspaceId !== workspaceId) {
+      return null;
+    }
+    return creative;
+  },
+});
+
+/**
+ * Save / cache fetched preview iframe HTML (C2).
+ */
+export const saveAdPreviewHtml = internalMutation({
+  args: {
+    adId: v.id("ads"),
+    creativeId: v.optional(v.string()),
+    previewHtml: v.string(),
+    previewFetchedAt: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { adId, creativeId, previewHtml, previewFetchedAt }) => {
+    const existing = await ctx.db
+      .query("adCreatives")
+      .withIndex("by_ad", (q) => q.eq("adId", adId))
+      .first();
+
+    const now = Date.now();
+    if (existing !== null) {
+      await ctx.db.patch(existing._id, {
+        previewHtml,
+        previewFetchedAt,
+        syncedAt: now,
+      });
+    } else {
+      const ad = await ctx.db.get(adId);
+      if (ad) {
+        await ctx.db.insert("adCreatives", {
+          workspaceId: ad.workspaceId,
+          adId,
+          creativeId: creativeId || ad.creativeId || ad.externalId,
+          name: ad.name,
+          previewHtml,
+          previewFetchedAt,
+          syncedAt: now,
+        });
+      }
+    }
+    return null;
   },
 });
 
@@ -669,6 +852,64 @@ export const getAccountCurrency = query({
     }
 
     return null;
+  },
+});
+
+/**
+ * Kontekst za čarobnjak kreiranja (MA8): Facebook stranica i Instagram nalog
+ * povezani u ovom radnom prostoru — potrebni za sastavljanje kreativa
+ * (object_story_spec.page_id / instagram_actor_id).
+ */
+export const getCreationContext = query({
+  args: {},
+  handler: async (ctx) => {
+    const { workspaceId } = await requireMembership(ctx);
+    const fb = await ctx.db
+      .query("connections")
+      .withIndex("by_workspace_provider", (q) =>
+        q.eq("workspaceId", workspaceId).eq("provider", "meta_fb"),
+      )
+      .first();
+    const ig = await ctx.db
+      .query("connections")
+      .withIndex("by_workspace_provider", (q) =>
+        q.eq("workspaceId", workspaceId).eq("provider", "meta_ig"),
+      )
+      .first();
+    return {
+      // meta_fb: externalId = Page ID, externalIdAlt = Page name.
+      fbPageId: fb?.externalId ?? null,
+      fbPageName: fb?.externalIdAlt ?? null,
+      // meta_ig: externalIdAlt = IG professional account ID (instagram_actor_id).
+      igActorId: ig?.externalIdAlt ?? ig?.externalId ?? null,
+      igHandle: ig?.accountHandle ?? null,
+    };
+  },
+});
+
+/**
+ * Objave Facebook stranice za promociju (object_story_id = fbPagePosts.postId,
+ * već u obliku <page_id>_<post_id>). Najnovije prvo, bez obrisanih.
+ */
+export const listPagePostsForCreative = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit }) => {
+    const { workspaceId } = await requireMembership(ctx);
+    const rows = await ctx.db
+      .query("fbPagePosts")
+      .withIndex("by_workspace_published", (q) => q.eq("workspaceId", workspaceId))
+      .order("desc")
+      .take(Math.min(limit ?? 30, 100));
+    return rows
+      .filter((r) => !r.deletedAt)
+      .map((r) => ({
+        objectStoryId: r.postId,
+        message: r.message,
+        pictureUrl: r.pictureUrl ?? null,
+        permalink: r.permalink,
+        statusType: r.statusType,
+        publishedAt: r.publishedAt,
+      }));
   },
 });
 

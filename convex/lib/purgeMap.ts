@@ -827,6 +827,11 @@ const META_ADS_STEPS: PurgeStep[] = [
       .query("capiEvents")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
   ),
+  simple("adCreatives", (ctx, ws) =>
+    ctx.db
+      .query("adCreatives")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
 ];
 
 /**
@@ -969,6 +974,7 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   adAudiences: { purgedBy: ["meta_ads"] },
   metaAudienceTos: { purgedBy: ["meta_ads"] },
   capiEvents: { purgedBy: ["meta_ads"] },
+  adCreatives: { purgedBy: ["meta_ads"] },
   adActions: {
     excluded:
       "Log radnji koje je operater sam izveo nad oglasima (pauza, budžet), a ne podataka preuzetih od providera. Nema `provider` kolonu ni vezu ka `adAccounts`, pa se ne može svesti na jednu platformu; ostaje kao revizioni trag.",

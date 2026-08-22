@@ -10,6 +10,7 @@ import { AudiencesTable } from "./audiences-table";
 import { CapiSection } from "./capi-section";
 import { CreateCustomAudienceDialog } from "./create-custom-audience-dialog";
 import { CreateLookalikeAudienceDialog } from "./create-lookalike-audience-dialog";
+import { TargetingSearchDialog } from "./targeting-search-dialog";
 import { formatRelativeTime } from "@/lib/format";
 import {
   Users,
@@ -19,6 +20,7 @@ import {
   RefreshCw,
   Loader2,
   ExternalLink,
+  Search,
 } from "lucide-react";
 
 export function AudiencesView() {
@@ -32,6 +34,7 @@ export function AudiencesView() {
   const [checkingTos, setCheckingTos] = useState(false);
   const [openCustomDialog, setOpenCustomDialog] = useState(false);
   const [openLookalikeDialog, setOpenLookalikeDialog] = useState(false);
+  const [openTargetingDialog, setOpenTargetingDialog] = useState(false);
   const [feedback, setFeedback] = useState<{
     tone: "success" | "danger" | "warning";
     message: string;
@@ -134,6 +137,16 @@ export function AudiencesView() {
               className={`mr-1.5 size-3.5 ${syncing ? "animate-spin" : ""}`}
             />
             {syncing ? "Sinhronizacija..." : "Osveži publike"}
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setOpenTargetingDialog(true)}
+            className="text-xs"
+          >
+            <Search className="mr-1.5 size-3.5" />
+            Istraži ciljanje
           </Button>
 
           <Button
@@ -376,6 +389,12 @@ export function AudiencesView() {
             message: "Lookalike publika je uspešno kreirana!",
           });
         }}
+      />
+
+      {/* Read-only Targeting Search Dialog (C5) */}
+      <TargetingSearchDialog
+        open={openTargetingDialog}
+        onOpenChange={setOpenTargetingDialog}
       />
     </div>
   );

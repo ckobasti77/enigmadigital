@@ -1464,6 +1464,26 @@ export default defineSchema({
     .index("by_workspace_external", ["workspaceId", "externalId"])
     .index("by_adset", ["adSetId"]),
 
+  // Meta Ads Kreativi i pregledi (C1)
+  adCreatives: defineTable({
+    workspaceId: v.id("workspaces"),
+    adId: v.id("ads"),
+    creativeId: v.string(), // Meta creative ID
+    name: v.string(),
+    objectStoryId: v.optional(v.string()),
+    thumbnailUrl: v.optional(v.string()),
+    bodyText: v.optional(v.string()),
+    titleText: v.optional(v.string()),
+    callToActionType: v.optional(v.string()),
+    linkUrl: v.optional(v.string()),
+    previewHtml: v.optional(v.string()),
+    previewFetchedAt: v.optional(v.number()),
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_ad", ["adId"])
+    .index("by_upsert_key", ["adId", "creativeId"]),
+
   adInsights: defineTable({
     workspaceId: v.id("workspaces"),
     adId: v.id("ads"),
@@ -1661,6 +1681,10 @@ export default defineSchema({
       v.literal("resume"),
       v.literal("budget_change"),
       v.literal("duplicate"),
+      // MA8 — kreiranje: svaki objekat je zaseban auditovani red.
+      v.literal("create_campaign"),
+      v.literal("create_adset"),
+      v.literal("create_ad"),
     ),
     status: v.union(
       v.literal("pending"),

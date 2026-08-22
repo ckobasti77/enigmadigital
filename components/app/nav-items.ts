@@ -210,6 +210,12 @@ const EXTRA_SCREENS: Screen[] = [
     title: "Publike",
     range: false,
   },
+  {
+    href: "/ads/nova-kampanja",
+    section: "Kanali",
+    title: "Nova kampanja",
+    range: false,
+  },
 ];
 
 /**

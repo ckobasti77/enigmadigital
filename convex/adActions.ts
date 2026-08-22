@@ -5,7 +5,7 @@ import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { decryptCredentials } from "./lib/crypto";
-import { createUsageTracker } from "./lib/metaRateLimit";
+import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
 import {
   getMetaGraphVersion,
   META_GRAPH_BASE_URL,
@@ -14,6 +14,22 @@ import {
   sanitizeApiResponse,
   type RawGraphApiResponse,
 } from "./lib/metaAdsApi";
+import {
+  validateCampaignInput,
+  validateAdSetInput,
+  validateAdInput,
+  evaluateCreateBudgetGate,
+  getMetaAdsMaxDailyBudget,
+  buildCampaignParams,
+  buildAdSetParams,
+  buildAdParams,
+  runValidateOnly,
+  runCreateWithValidateOnly,
+  type CampaignCreateInput,
+  type AdSetCreateInput,
+  type AdCreateInput,
+  type AdCreativeInput,
+} from "./lib/metaAdsWrite";
 import { sanitizeSyncError } from "./lib/runSync";
 import type { Id } from "./_generated/dataModel";
 
@@ -851,6 +867,600 @@ export const createHookVersion = action({
     } finally {
       await tracker.flush(ctx, workspaceId);
     }
+  },
+});
+
+// ── 5. Kreiranje kampanje / ad seta / oglasa (MA8) ───────────────────────────
+//
+// Jedini korak koji troši stvarni novac, pa je pod tvrdim ogradama:
+//   - assertWriteEnabled() prvi (ADS_WRITE_ENABLED === "true");
+//   - sve kod-validacije i budžet-kapija PRE ijednog poziva ka Meti;
+//   - svaki create ide kroz runCreateWithValidateOnly (validate_only, pa pravi);
+//   - sve se kreira PAUSED (builderi u metaAdsWrite.ts hardkoduju status);
+//   - audit red PRE mreže, po svakom objektu; idempotencija preko requestId nonce;
+//   - delimičan pad se OZNAČAVA (ne briše): sve je PAUSED, nula potrošnje.
+//
+// getMetaAdsMaxDailyBudget() se dokumentuje ovde uz ostale env ograde: gornja
+// granica dnevnog budžeta za NOVE kampanje, u valuti BUDGET_LIMIT_CURRENCY. Kad
+// nije postavljena, vraća null i kreiranje je ISKLJUČENO — odsustvo granice nije
+// dozvola.
+
+const creativeArgValidator = v.union(
+  v.object({
+    kind: v.literal("existing_post"),
+    objectStoryId: v.string(),
+  }),
+  v.object({
+    kind: v.literal("link"),
+    pageId: v.string(),
+    instagramActorId: v.optional(v.string()),
+    link: v.string(),
+    message: v.string(),
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
+    imageHash: v.optional(v.string()),
+    picture: v.optional(v.string()),
+    callToActionType: v.optional(v.string()),
+  }),
+);
+
+const campaignArgValidator = v.object({
+  name: v.string(),
+  objective: v.string(),
+  specialAdCategories: v.array(v.string()),
+});
+
+const adSetArgValidator = v.object({
+  name: v.string(),
+  dailyBudget: v.number(),
+  billingEvent: v.string(),
+  optimizationGoal: v.string(),
+  targeting: v.any(),
+  promotedObject: v.optional(
+    v.object({
+      pixelId: v.optional(v.string()),
+      customEventType: v.optional(v.string()),
+      pageId: v.optional(v.string()),
+    }),
+  ),
+});
+
+const adArgValidator = v.object({
+  name: v.string(),
+  creative: creativeArgValidator,
+});
+
+type CampaignArg = { name: string; objective: string; specialAdCategories: string[] };
+type AdSetArg = {
+  name: string;
+  dailyBudget: number;
+  billingEvent: string;
+  optimizationGoal: string;
+  targeting: unknown;
+  promotedObject?: { pixelId?: string; customEventType?: string; pageId?: string };
+};
+type AdArg = { name: string; creative: AdCreativeInput };
+
+function toCampaignInput(c: CampaignArg): CampaignCreateInput {
+  return {
+    name: c.name,
+    objective: c.objective,
+    specialAdCategories: c.specialAdCategories,
+  };
+}
+
+function toAdSetInput(s: AdSetArg): AdSetCreateInput {
+  return {
+    name: s.name,
+    dailyBudget: s.dailyBudget,
+    billingEvent: s.billingEvent,
+    optimizationGoal: s.optimizationGoal,
+    targeting: (s.targeting ?? {}) as Record<string, unknown>,
+    promotedObject: s.promotedObject,
+  };
+}
+
+function toAdInput(a: AdArg, adSetCreatedInThisFlow: boolean): AdCreateInput {
+  return { name: a.name, creative: a.creative, adSetCreatedInThisFlow };
+}
+
+function errMessage(e: unknown): string {
+  return e instanceof Error ? e.message : "Neispravni podaci.";
+}
+
+function summarizeTargeting(targeting?: Record<string, unknown>): string | undefined {
+  const geo = targeting?.geo_locations as { countries?: string[] } | undefined;
+  if (geo?.countries && geo.countries.length > 0) {
+    return geo.countries.join(", ");
+  }
+  return undefined;
+}
+
+interface ResolvedAccount {
+  actId: string;
+  accountConvexId: Id<"adAccounts">;
+  currency: string;
+}
+
+/** Nalazi izabrani Meta ad nalog za radni prostor (act_ id + valuta + Convex id). */
+async function resolveMetaAccount(
+  ctx: ActionCtx,
+  workspaceId: Id<"workspaces">,
+  accountExternalId: string,
+): Promise<ResolvedAccount> {
+  const accounts: Array<{ _id: Id<"adAccounts">; externalId: string; currency: string }> =
+    await ctx.runQuery(internal.metaAdsStore.getAccounts, {
+      workspaceId,
+      provider: "meta_ads",
+    });
+  const normalized = normalizeAdAccountId(accountExternalId);
+  const acc = accounts.find(
+    (a) => a.externalId === normalized || a.externalId === accountExternalId,
+  );
+  if (!acc) {
+    throw new ConvexError({
+      code: "missing_account",
+      message:
+        "Izabrani Meta nalog nije pronađen u ovom radnom prostoru. Pokreni sinhronizaciju naloga pa pokušaj ponovo.",
+    });
+  }
+  return {
+    actId: acc.externalId,
+    accountConvexId: acc._id,
+    currency: (acc.currency || "").trim(),
+  };
+}
+
+interface CreateStepResult {
+  externalId: string;
+  reused: boolean;
+}
+
+/**
+ * Kreira JEDAN objekat: idempotencija (preskoči već uspelo za isti nonce-ključ),
+ * audit PRE mreže, validate_only→pravi poziv, pa complete/fail. Baca na neuspeh.
+ */
+async function createOneObject(
+  ctx: ActionCtx,
+  tracker: UsageTracker,
+  step: {
+    workspaceId: Id<"workspaces">;
+    userId: Id<"users">;
+    targetType: "campaign" | "adset" | "ad";
+    targetId: string;
+    action: "create_campaign" | "create_adset" | "create_ad";
+    auditParams: string;
+    url: string;
+    body: URLSearchParams;
+  },
+): Promise<CreateStepResult> {
+  // Idempotencija: ako je isti nonce-ključ već uspeo, vrati kreirani id bez mreže.
+  const prior = await ctx.runQuery(internal.adActionsStore.findLatestActionByTarget, {
+    workspaceId: step.workspaceId,
+    targetType: step.targetType,
+    targetId: step.targetId,
+  });
+  if (prior?.status === "success" && prior.apiResponse) {
+    try {
+      const parsed = JSON.parse(prior.apiResponse) as { createdExternalId?: string };
+      if (parsed.createdExternalId) {
+        return { externalId: parsed.createdExternalId, reused: true };
+      }
+    } catch {
+      // pokvaren apiResponse ne sme da zaustavi kreiranje
+    }
+  }
+
+  const actionId: Id<"adActions"> = await ctx.runMutation(
+    internal.adActionsStore.recordPendingAction,
+    {
+      workspaceId: step.workspaceId,
+      userId: step.userId,
+      targetType: step.targetType,
+      targetId: step.targetId,
+      action: step.action,
+      params: step.auditParams,
+    },
+  );
+
+  try {
+    const res = await runCreateWithValidateOnly(tracker.fetch, step.url, step.body);
+    const externalId = typeof res.id === "string" ? res.id : "";
+    if (!externalId) {
+      throw new Error("Meta nije vratila ID kreiranog objekta.");
+    }
+    await ctx.runMutation(internal.adActionsStore.completeAction, {
+      actionId,
+      apiResponse: sanitizeApiResponse({ createdExternalId: externalId, raw: res }),
+    });
+    return { externalId, reused: false };
+  } catch (err: unknown) {
+    const msg = sanitizeSyncError(err);
+    await ctx.runMutation(internal.adActionsStore.failAction, { actionId, error: msg });
+    throw err instanceof Error ? err : new Error(msg);
+  }
+}
+
+/** Ogleda kreirane objekte (šta god da postoji) u lokalnu bazu, sve PAUSED. */
+async function mirrorCreatedToDb(
+  ctx: ActionCtx,
+  p: {
+    workspaceId: Id<"workspaces">;
+    accountConvexId: Id<"adAccounts">;
+    campaignInput: CampaignCreateInput;
+    adSetInput: AdSetCreateInput;
+    adInput: AdCreateInput;
+    campaignId?: string;
+    adSetId?: string;
+    adId?: string;
+  },
+): Promise<void> {
+  if (!p.campaignId) return;
+
+  const campaigns = [
+    {
+      externalId: p.campaignId,
+      name: p.campaignInput.name,
+      objective: p.campaignInput.objective,
+      status: "PAUSED",
+      syncPriority: "cold" as const,
+    },
+  ];
+
+  const adSets =
+    p.campaignId && p.adSetId
+      ? [
+          {
+            externalId: p.adSetId,
+            campaignExternalId: p.campaignId,
+            name: p.adSetInput.name,
+            status: "PAUSED",
+            dailyBudget: p.adSetInput.dailyBudget,
+            targetingSummary: summarizeTargeting(p.adSetInput.targeting),
+          },
+        ]
+      : [];
+
+  const ads =
+    p.adSetId && p.adId
+      ? [
+          {
+            externalId: p.adId,
+            adSetExternalId: p.adSetId,
+            name: p.adInput.name,
+            status: "PAUSED",
+          },
+        ]
+      : [];
+
+  await ctx.runMutation(internal.metaAdsStore.upsertStructure, {
+    workspaceId: p.workspaceId,
+    accountId: p.accountConvexId,
+    campaigns,
+    adSets,
+    ads,
+  });
+}
+
+export interface CreateCampaignFullResult {
+  status: "success" | "partial";
+  allPaused: true;
+  campaign?: { externalId: string; name: string };
+  adSet?: { externalId: string; name: string };
+  ad?: { externalId: string; name: string };
+  created?: { campaignId?: string; adSetId?: string };
+  failedAt?: "campaign" | "adset" | "ad";
+  message?: string;
+}
+
+export const createCampaignFull = action({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    accountExternalId: v.string(),
+    requestId: v.string(),
+    campaign: campaignArgValidator,
+    adSet: adSetArgValidator,
+    ad: adArgValidator,
+  },
+  handler: async (ctx, args): Promise<CreateCampaignFullResult> => {
+    // 1. KILL SWITCH
+    assertWriteEnabled();
+
+    // 2. Auth + izabrani nalog
+    const { userId, workspaceId, accessToken } = await resolveAuthAndToken(
+      ctx,
+      args.workspaceId,
+    );
+    const account = await resolveMetaAccount(ctx, workspaceId, args.accountExternalId);
+
+    // 3. Mapiranje ulaza
+    const campaignInput = toCampaignInput(args.campaign);
+    const adSetInput = toAdSetInput(args.adSet);
+    const adInput = toAdInput(args.ad, true);
+
+    // 4. Sloj A — kod-validacije PRE mreže (fail-fast)
+    try {
+      validateCampaignInput(campaignInput);
+      validateAdSetInput(adSetInput);
+      validateAdInput(adInput);
+    } catch (e) {
+      throw new ConvexError({ code: "validation_error", message: errMessage(e) });
+    }
+
+    // 5. Sloj A — budžet-kapija (valuta + META_ADS_MAX_DAILY_BUDGET + min)
+    const { minBudget, limitCurrency } = getBudgetBounds();
+    const gate = evaluateCreateBudgetGate({
+      accountCurrency: account.currency,
+      limitCurrency,
+      maxDailyBudget: getMetaAdsMaxDailyBudget(),
+      minBudget,
+      dailyBudget: adSetInput.dailyBudget ?? 0,
+    });
+    if (!gate.ok) {
+      throw new ConvexError({
+        code: gate.code ?? "budget_blocked",
+        message: gate.message ?? "Budžet nije dozvoljen.",
+      });
+    }
+
+    // 6. Sloj B — sekvencijalni validate_only → pravi poziv
+    const tracker = createUsageTracker();
+    const version = getMetaGraphVersion();
+    const base = `${META_GRAPH_BASE_URL}/${version}`;
+    const nonce = args.requestId;
+    const startTimeIso = new Date().toISOString();
+
+    let campaignId: string | undefined;
+    let adSetId: string | undefined;
+    let adId: string | undefined;
+
+    try {
+      // 6.1 KAMPANJA
+      try {
+        const body = buildCampaignParams(campaignInput);
+        body.set("access_token", accessToken);
+        const res = await createOneObject(ctx, tracker, {
+          workspaceId,
+          userId,
+          targetType: "campaign",
+          targetId: `new:${nonce}:campaign`,
+          action: "create_campaign",
+          auditParams: JSON.stringify({
+            name: campaignInput.name,
+            objective: campaignInput.objective,
+            specialAdCategories: campaignInput.specialAdCategories,
+            accountExternalId: account.actId,
+            createdStatus: "PAUSED",
+          }),
+          url: `${base}/${account.actId}/campaigns`,
+          body,
+        });
+        campaignId = res.externalId;
+      } catch (e) {
+        await mirrorCreatedToDb(ctx, {
+          workspaceId,
+          accountConvexId: account.accountConvexId,
+          campaignInput,
+          adSetInput,
+          adInput,
+          campaignId,
+          adSetId,
+          adId,
+        });
+        return {
+          status: "partial",
+          allPaused: true,
+          created: { campaignId, adSetId },
+          failedAt: "campaign",
+          message: errMessage(e),
+        };
+      }
+
+      // 6.2 AD SET (traži pravi campaignId)
+      try {
+        const body = buildAdSetParams(adSetInput, campaignId, startTimeIso);
+        body.set("access_token", accessToken);
+        const res = await createOneObject(ctx, tracker, {
+          workspaceId,
+          userId,
+          targetType: "adset",
+          targetId: `new:${nonce}:adset`,
+          action: "create_adset",
+          auditParams: JSON.stringify({
+            name: adSetInput.name,
+            campaignId,
+            dailyBudget: adSetInput.dailyBudget,
+            billingEvent: adSetInput.billingEvent,
+            optimizationGoal: adSetInput.optimizationGoal,
+            createdStatus: "PAUSED",
+          }),
+          url: `${base}/${account.actId}/adsets`,
+          body,
+        });
+        adSetId = res.externalId;
+      } catch (e) {
+        await mirrorCreatedToDb(ctx, {
+          workspaceId,
+          accountConvexId: account.accountConvexId,
+          campaignInput,
+          adSetInput,
+          adInput,
+          campaignId,
+          adSetId,
+          adId,
+        });
+        return {
+          status: "partial",
+          allPaused: true,
+          created: { campaignId, adSetId },
+          failedAt: "adset",
+          message: errMessage(e),
+        };
+      }
+
+      // 6.3 OGLAS (traži pravi adSetId)
+      try {
+        const body = buildAdParams(adInput, adSetId);
+        body.set("access_token", accessToken);
+        const res = await createOneObject(ctx, tracker, {
+          workspaceId,
+          userId,
+          targetType: "ad",
+          targetId: `new:${nonce}:ad`,
+          action: "create_ad",
+          auditParams: JSON.stringify({
+            name: adInput.name,
+            adSetId,
+            creativeKind: adInput.creative.kind,
+            createdStatus: "PAUSED",
+          }),
+          url: `${base}/${account.actId}/ads`,
+          body,
+        });
+        adId = res.externalId;
+      } catch (e) {
+        await mirrorCreatedToDb(ctx, {
+          workspaceId,
+          accountConvexId: account.accountConvexId,
+          campaignInput,
+          adSetInput,
+          adInput,
+          campaignId,
+          adSetId,
+          adId,
+        });
+        return {
+          status: "partial",
+          allPaused: true,
+          created: { campaignId, adSetId },
+          failedAt: "ad",
+          message: errMessage(e),
+        };
+      }
+
+      // 6.4 Sve uspelo — mirror u bazu
+      await mirrorCreatedToDb(ctx, {
+        workspaceId,
+        accountConvexId: account.accountConvexId,
+        campaignInput,
+        adSetInput,
+        adInput,
+        campaignId,
+        adSetId,
+        adId,
+      });
+
+      return {
+        status: "success",
+        allPaused: true,
+        campaign: { externalId: campaignId, name: campaignInput.name },
+        adSet: { externalId: adSetId, name: adSetInput.name },
+        ad: { externalId: adId, name: adInput.name },
+      };
+    } finally {
+      await tracker.flush(ctx, workspaceId);
+    }
+  },
+});
+
+export interface ValidateCampaignPlanResult {
+  ok: boolean;
+  gate: { ok: boolean; code?: string; message?: string };
+  campaign: { codeOk: boolean; metaValidateOk?: boolean; error?: string };
+  adSet: { codeOk: boolean; error?: string };
+  ad: { codeOk: boolean; error?: string };
+}
+
+/**
+ * Suvi prolaz za REZIME pre dugmeta: kod-validacije za sva tri objekta + kapija
+ * + Metin validate_only SAMO za kampanju (bez zavisnosti). Ad set i oglas Meta
+ * dodatno proverava tek pri kreiranju (validate_only im traži pravi roditeljski
+ * id, koga u suvom prolazu nema). Ništa se ne kreira.
+ */
+export const validateCampaignPlan = action({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    accountExternalId: v.string(),
+    campaign: campaignArgValidator,
+    adSet: adSetArgValidator,
+    ad: adArgValidator,
+  },
+  handler: async (ctx, args): Promise<ValidateCampaignPlanResult> => {
+    assertWriteEnabled();
+
+    const { workspaceId, accessToken } = await resolveAuthAndToken(ctx, args.workspaceId);
+    const account = await resolveMetaAccount(ctx, workspaceId, args.accountExternalId);
+
+    const campaignInput = toCampaignInput(args.campaign);
+    const adSetInput = toAdSetInput(args.adSet);
+    const adInput = toAdInput(args.ad, true);
+
+    const campaign: ValidateCampaignPlanResult["campaign"] = { codeOk: true };
+    const adSet: ValidateCampaignPlanResult["adSet"] = { codeOk: true };
+    const ad: ValidateCampaignPlanResult["ad"] = { codeOk: true };
+
+    try {
+      validateCampaignInput(campaignInput);
+    } catch (e) {
+      campaign.codeOk = false;
+      campaign.error = errMessage(e);
+    }
+    try {
+      validateAdSetInput(adSetInput);
+    } catch (e) {
+      adSet.codeOk = false;
+      adSet.error = errMessage(e);
+    }
+    try {
+      validateAdInput(adInput);
+    } catch (e) {
+      ad.codeOk = false;
+      ad.error = errMessage(e);
+    }
+
+    const { minBudget, limitCurrency } = getBudgetBounds();
+    const gateResult = evaluateCreateBudgetGate({
+      accountCurrency: account.currency,
+      limitCurrency,
+      maxDailyBudget: getMetaAdsMaxDailyBudget(),
+      minBudget,
+      dailyBudget: adSetInput.dailyBudget ?? 0,
+    });
+
+    // Metin validate_only samo za kampanju (bez zavisnosti), i to tek ako kod
+    // i kapija dozvoljavaju — inače nema svrhe trošiti poziv.
+    if (campaign.codeOk && gateResult.ok) {
+      const tracker = createUsageTracker();
+      const version = getMetaGraphVersion();
+      try {
+        const body = buildCampaignParams(campaignInput);
+        body.set("access_token", accessToken);
+        const vr = await runValidateOnly(
+          tracker.fetch,
+          `${META_GRAPH_BASE_URL}/${version}/${account.actId}/campaigns`,
+          body,
+        );
+        campaign.metaValidateOk = vr.ok;
+        if (!vr.ok && vr.error) campaign.error = vr.error;
+      } finally {
+        await tracker.flush(ctx, workspaceId);
+      }
+    }
+
+    const ok =
+      campaign.codeOk &&
+      adSet.codeOk &&
+      ad.codeOk &&
+      gateResult.ok &&
+      campaign.metaValidateOk !== false;
+
+    return {
+      ok,
+      gate: { ok: gateResult.ok, code: gateResult.code, message: gateResult.message },
+      campaign,
+      adSet,
+      ad,
+    };
   },
 });
 

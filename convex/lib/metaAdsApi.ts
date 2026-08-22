@@ -218,16 +218,19 @@ export function buildCreativeUrl(
   return url.toString();
 }
 
-/** Build URL to generate iframe ad preview */
+/** Build URL to generate iframe ad preview: GET /<ad_id>/previews?ad_format=<format> (C2) */
 export function buildAdPreviewUrl(
   adId: string,
-  accessToken: string,
+  accessToken?: string,
   adFormat: string = "DESKTOP_FEED_STANDARD",
   version: string = getMetaGraphVersion(),
 ): string {
-  const url = new URL(`${META_GRAPH_BASE_URL}/${version}/${adId}/previews`);
+  const cleanAdId = adId.trim().replace(/^act_/, "");
+  const url = new URL(`${META_GRAPH_BASE_URL}/${version}/${cleanAdId}/previews`);
   url.searchParams.set("ad_format", adFormat);
-  url.searchParams.set("access_token", accessToken);
+  if (accessToken) {
+    url.searchParams.set("access_token", accessToken);
+  }
   return url.toString();
 }
 
@@ -272,6 +275,21 @@ export function buildCustomAudienceUsersUrl(
   const url = new URL(
     `${META_GRAPH_BASE_URL}/${version}/${cleanId}/users`,
   );
+  url.searchParams.set("access_token", accessToken);
+  return url.toString();
+}
+
+/** Build URL to list conversion pixels under an ad account (MA8, read-only) */
+export function buildAdPixelsUrl(
+  accountId: string,
+  accessToken: string,
+  limit: number = 100,
+  version: string = getMetaGraphVersion(),
+): string {
+  const actId = normalizeAdAccountId(accountId);
+  const url = new URL(`${META_GRAPH_BASE_URL}/${version}/${actId}/adspixels`);
+  url.searchParams.set("fields", "id,name");
+  url.searchParams.set("limit", String(limit));
   url.searchParams.set("access_token", accessToken);
   return url.toString();
 }
@@ -1545,4 +1563,98 @@ export function sanitizeApiResponse(val: unknown): string {
     )
     .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer <redacted>");
 }
+
+/**
+ * ============================================================================
+ * META ADS KREATIVI, PREGLEDI I PROCENE (C1 - C6)
+ * ============================================================================
+ */
+
+/** 12 hours cache expiry for ad preview iframes (C2) */
+export const PREVIEW_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+export const AD_CREATIVE_FIELDS = [
+  "id",
+  "name",
+  "object_story_id",
+  "thumbnail_url",
+  "image_url",
+  "body",
+  "title",
+  "call_to_action_type",
+  "link_url",
+] as const;
+
+/**
+ * Builds URL for read-only GET /act_<account_id>/targetingsearch?q=<query>&type=<type>
+ */
+export function buildTargetingSearchUrl(
+  actId: string,
+  query: string,
+  type: string = "adinterest",
+  limit: number = 25,
+): string {
+  const cleanActId = normalizeAdAccountId(actId);
+  const version = getMetaGraphVersion();
+  const searchParams = new URLSearchParams({
+    q: query.trim(),
+    type: type.trim(),
+    limit: String(limit),
+  });
+  return `${META_GRAPH_BASE_URL}/${version}/${cleanActId}/targetingsearch?${searchParams.toString()}`;
+}
+
+/**
+ * Builds URL for GET /act_<account_id>/delivery_estimate
+ */
+export function buildDeliveryEstimateUrl(
+  actId: string,
+  params: Record<string, string | number | boolean>,
+): string {
+  const cleanActId = normalizeAdAccountId(actId);
+  const version = getMetaGraphVersion();
+  const searchParams = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    searchParams.set(k, String(v));
+  }
+  return `${META_GRAPH_BASE_URL}/${version}/${cleanActId}/delivery_estimate?${searchParams.toString()}`;
+}
+
+export interface EstimateRange {
+  lower?: number;
+  upper?: number;
+  formatted: string;
+}
+
+/**
+ * Formats reach / delivery estimates strictly as ranges (C4).
+ * Never returns a single number; returns "—" if boundaries are missing.
+ */
+export function formatEstimateRange(
+  lower?: number,
+  upper?: number,
+): EstimateRange {
+  if (lower === undefined && upper === undefined) {
+    return { formatted: "—" };
+  }
+  const formatNum = (n: number) => n.toLocaleString("sr-Latn-RS");
+  if (lower !== undefined && upper !== undefined) {
+    return {
+      lower,
+      upper,
+      formatted: `${formatNum(lower)} – ${formatNum(upper)}`,
+    };
+  }
+  if (lower !== undefined) {
+    return {
+      lower,
+      formatted: `≥ ${formatNum(lower)}`,
+    };
+  }
+  return {
+    upper,
+    formatted: `≤ ${formatNum(upper!)}`,
+  };
+}
+
 

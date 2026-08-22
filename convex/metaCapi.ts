@@ -284,6 +284,19 @@ export const sendPendingCapiEventsAction = internalAction({
     );
 
     if (!executed) {
+      // F: Kada je prolaz preskočen jer drugi proces drži bravu, zakazujemo sledeći
+      // prolaz za 5 sekundi. Pet sekundi je duže od tipičnog trajanja jednog batch-a,
+      // čime se izbegava gužva, a novi događaji pristigli tokom izvršavanja prvog
+      // dispečera ne ostaju zaglavljeni u "pending" statusu.
+      // Ako je red prazan, sledeći prolaz se odmah vraća bez zakazivanja novog prolaza.
+      await ctx.scheduler.runAfter(
+        5000,
+        internal.metaCapi.sendPendingCapiEventsAction,
+        {
+          workspaceId,
+        },
+      );
+
       return {
         success: true,
         sent: 0,

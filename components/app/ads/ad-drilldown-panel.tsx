@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AgeGenderHeatTable } from "./age-gender-heat-table";
 import { PlacementBreakdown } from "./placement-breakdown";
 import { HourlyChart } from "./hourly-chart";
+import { AdPreviewDialog } from "./ad-preview-dialog";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
 import { formatDecimal, formatNumber, formatPercent } from "@/lib/format";
 import { deriveRate } from "@/convex/lib/metaAdsCatalog";
@@ -115,6 +116,7 @@ export function AdDrilldownPanel({
   onClose: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<"demographics" | "placements" | "hourly">("demographics");
+  const [openPreviewDialog, setOpenPreviewDialog] = useState(false);
   const panelRef = usePanelDismiss(onClose);
 
   const data = useQuery(api.metaAdsStore.getAdDrilldown, {
@@ -260,17 +262,26 @@ export function AdDrilldownPanel({
           {formatRankingBadge("Kvalitet", rankings.qualityRanking)}
           {formatRankingBadge("Angažovanje", rankings.engagementRanking)}
           {formatRankingBadge("Konverzija", rankings.conversionRanking)}
-          {ad.previewUrl && (
+          {!isGoogleAds ? (
+            <button
+              type="button"
+              onClick={() => setOpenPreviewDialog(true)}
+              className="inline-flex items-center gap-1 text-xs text-accent-400 hover:underline transition-colors ml-auto font-medium"
+            >
+              <span>Meta pregled</span>
+              <ExternalLink className="size-3" />
+            </button>
+          ) : ad.previewUrl ? (
             <a
               href={ad.previewUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-accent-400 transition-colors ml-auto"
             >
-              <span>{isGoogleAds ? "Google pregled" : "Meta pregled"}</span>
+              <span>Google pregled</span>
               <ExternalLink className="size-3" />
             </a>
-          )}
+          ) : null}
         </div>
 
         {/* Video Funnel Section */}
@@ -506,6 +517,14 @@ export function AdDrilldownPanel({
             )}
           </TabPanel>
         </div>
+
+        {/* Ad Preview Modal with 12h caching & sandbox (C2, C3) */}
+        <AdPreviewDialog
+          open={openPreviewDialog}
+          onOpenChange={setOpenPreviewDialog}
+          adId={ad._id}
+          adName={ad.name}
+        />
       </div>
     </div>
   );
