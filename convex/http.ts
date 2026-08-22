@@ -4,7 +4,7 @@ import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { auth } from "./auth";
-import { appendUtm, isBotUserAgent } from "./lib/orLink";
+import { appendUtm, appendEventId, isBotUserAgent } from "./lib/orLink";
 import { decryptCredentials } from "./lib/crypto";
 import {
   allowsBackground,
@@ -919,7 +919,10 @@ http.route({
     }
 
     // UTM tags ride into GA4 from here; ones already on the destination win.
-    const target = appendUtm(result.destinationUrl, result.campaignSlug);
+    const target = appendEventId(
+      appendUtm(result.destinationUrl, result.campaignSlug),
+      result.eventId,
+    );
 
     return new Response(null, {
       status: 302,

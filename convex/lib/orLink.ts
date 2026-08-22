@@ -72,6 +72,29 @@ export function appendUtm(destinationUrl: string, campaignSlug: string): string 
   return url.toString();
 }
 
+/**
+ * Append the CAPI event_id to the destination URL as `eid`, so the Pixel on the
+ * landing page can read it and send the SAME event_id in its browser event —
+ * letting Meta deduplicate the server (CAPI) and browser (Pixel) hit into one.
+ *
+ * `eventId` undefined → return the URL UNCHANGED (no CAPI event was recorded, so
+ * there is nothing to dedup against; an empty `eid` would hand the Pixel a false
+ * key). A non-parseable URL is returned unchanged too, same as appendUtm.
+ */
+export function appendEventId(url: string, eventId: string | undefined): string {
+  if (eventId === undefined) return url;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
+  }
+
+  parsed.searchParams.set("eid", eventId);
+  return parsed.toString();
+}
+
 const BOT_MARKERS = [
   "bot",
   "crawler",

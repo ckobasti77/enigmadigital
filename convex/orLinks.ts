@@ -129,6 +129,7 @@ export const registerClick = internalMutation({
     v.object({
       destinationUrl: v.string(),
       campaignSlug: v.string(),
+      eventId: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -157,6 +158,11 @@ export const registerClick = internalMutation({
           windowMs: ROUTE_WINDOW_MS,
         })
       : false;
+
+    // Isti event_id koji je otišao u CAPI vraćamo pozivaocu SAMO ako je server
+    // događaj stvarno upisan — da ga doda na odredišni URL kao `eid`, gde ga
+    // Pixel pročita i pošalje isti ključ (dedup). Ostaje undefined inače.
+    let capiEventId: string | undefined;
 
     if (args.countClick && withinCap) {
       const now = Date.now();
@@ -214,6 +220,7 @@ export const registerClick = internalMutation({
 
       // Scheduled sending via ctx.scheduler.runAfter (only if event was successfully recorded)
       if (capiEventDocId !== null) {
+        capiEventId = eventId;
         await ctx.scheduler.runAfter(
           0,
           internal.metaCapi.sendPendingCapiEventsAction,
@@ -224,6 +231,10 @@ export const registerClick = internalMutation({
       }
     }
 
-    return { destinationUrl: link.destinationUrl, campaignSlug };
+    return {
+      destinationUrl: link.destinationUrl,
+      campaignSlug,
+      ...(capiEventId ? { eventId: capiEventId } : {}),
+    };
   },
 });

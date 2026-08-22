@@ -12,6 +12,7 @@
     "verify:ig-publish": "node --import ./scripts/ts-hooks.mjs scripts/verify-ig-publish-idempotency.ts",
     "verify:purge": "node --import ./scripts/ts-hooks.mjs scripts/verify-purge-coverage.ts",
     "verify:meta-token": "node --import ./scripts/ts-hooks.mjs scripts/test-meta-token.ts",
+    "verify:or-eventid": "node --import ./scripts/ts-hooks.mjs scripts/verify-or-eventid.ts",
     "deploy:convex": "npm run verify:purge && npx convex deploy"
   },
   "dependencies": {
