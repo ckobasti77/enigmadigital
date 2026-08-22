@@ -443,3 +443,179 @@ export async function fetchAccessToken(
   if (!token) throw new Error("YouTube OAuth nije vratio access token.");
   return token;
 }
+
+/**
+ * Read the YouTube OAuth App credentials from environment variables.
+ */
+export function getYouTubeClientId(): string | undefined {
+  return process.env.YOUTUBE_CLIENT_ID?.trim();
+}
+
+export function getYouTubeClientSecret(): string | undefined {
+  return process.env.YOUTUBE_CLIENT_SECRET?.trim();
+}
+
+export const YOUTUBE_OAUTH_AUTH_URL =
+  "https://accounts.google.com/o/oauth2/v2/auth";
+
+export const YOUTUBE_DEFAULT_REDIRECT_URI =
+  "https://digital.enigmait.rs/api/auth/callback/youtube";
+
+export const YOUTUBE_OAUTH_SCOPES = [
+  "https://www.googleapis.com/auth/youtube.readonly",
+  "https://www.googleapis.com/auth/youtube.force-ssl",
+  "https://www.googleapis.com/auth/yt-analytics.readonly",
+  "https://www.googleapis.com/auth/adwords",
+] as const;
+
+/**
+ * Compose the Google OAuth 2.0 authorization URL for YouTube.
+ */
+export function buildYouTubeAuthorizeUrl({
+  clientId,
+  redirectUri = YOUTUBE_DEFAULT_REDIRECT_URI,
+  state,
+}: {
+  clientId: string;
+  redirectUri?: string;
+  state: string;
+}): string {
+  const url = new URL(YOUTUBE_OAUTH_AUTH_URL);
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", YOUTUBE_OAUTH_SCOPES.join(" "));
+  url.searchParams.set("access_type", "offline");
+  url.searchParams.set("prompt", "consent");
+  url.searchParams.set("include_granted_scopes", "true");
+  url.searchParams.set("state", state);
+  return url.toString();
+}
+
+export type RawGoogleTokenResponse = {
+  access_token?: string;
+  expires_in?: number;
+  refresh_token?: string;
+  scope?: string;
+  token_type?: string;
+  error?: string;
+  error_description?: string;
+};
+
+/**
+ * Exchange an OAuth authorization code for Google access and refresh tokens.
+ * A missing refresh_token is treated as a hard failure because offline
+ * background syncing requires it.
+ */
+export async function exchangeCodeForTokens({
+  clientId,
+  clientSecret,
+  redirectUri,
+  code,
+}: {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  code: string;
+}): Promise<{ accessToken: string; refreshToken: string; expiresIn?: number }> {
+  const tokenParams = new URLSearchParams();
+  tokenParams.set("code", code);
+  tokenParams.set("client_id", clientId);
+  tokenParams.set("client_secret", clientSecret);
+  tokenParams.set("redirect_uri", redirectUri);
+  tokenParams.set("grant_type", "authorization_code");
+
+  const res = await fetch(YOUTUBE_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: tokenParams.toString(),
+  });
+
+  const body = await res.text().catch(() => "");
+  if (!res.ok) {
+    throw new Error(
+      `Google OAuth razmena koda nije uspela (${res.status}): ${extractYouTubeApiError(body)}`,
+    );
+  }
+
+  let data: RawGoogleTokenResponse;
+  try {
+    data = JSON.parse(body) as RawGoogleTokenResponse;
+  } catch {
+    throw new Error("Google OAuth odgovor nije validan JSON.");
+  }
+
+  if (!data.access_token) {
+    throw new Error("Google OAuth nije vratio access token.");
+  }
+
+  if (!data.refresh_token) {
+    throw new Error(
+      "Google OAuth nije vratio refresh token. Ponovo pokrenite povezivanje i potvrdite pristup.",
+    );
+  }
+
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresIn: data.expires_in,
+  };
+}
+
+export type YouTubeChannelProfile = {
+  channelId: string;
+  title: string;
+};
+
+/**
+ * Fetch the authenticated user's YouTube channel ID and title.
+ */
+export async function fetchMyChannelProfile(
+  accessToken: string,
+): Promise<YouTubeChannelProfile> {
+  const url = new URL(`${YOUTUBE_DATA_API_BASE_URL}/channels`);
+  url.searchParams.set("part", "id,snippet");
+  url.searchParams.set("mine", "true");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  const body = await res.text().catch(() => "");
+  if (!res.ok) {
+    throw new Error(
+      `Dohvatanje YouTube kanala nije uspelo (${res.status}): ${extractYouTubeApiError(body)}`,
+    );
+  }
+
+  let data: {
+    items?: Array<{
+      id?: string;
+      snippet?: {
+        title?: string;
+      };
+    }>;
+  };
+  try {
+    data = JSON.parse(body);
+  } catch {
+    throw new Error("Odgovor YouTube API-ja za kanal nije validan JSON.");
+  }
+
+  const item = data.items?.[0];
+  if (!item || !item.id) {
+    throw new Error(
+      "Nije pronađen YouTube kanal povezan sa ovim Google nalogom.",
+    );
+  }
+
+  const channelId = item.id;
+  const title = item.snippet?.title?.trim() || channelId;
+
+  return { channelId, title };
+}
+

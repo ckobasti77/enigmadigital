@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
+import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,6 +26,131 @@ function syncPill(status: HealthEntry["status"]) {
     case "stale":
       return <StatusPill tone="warning">Zastalo</StatusPill>;
   }
+}
+
+/**
+ * Kvota Meta Marketing API-ja (MA1).
+ *
+ * Prikazuje se samo kad je bar jedan poziv prošao — dok očitavanja nema,
+ * ovde bi „0 %” bio broj koji niko nije izmerio.
+ *
+ * Sloj pristupa je tu jer menja red veličine svega ostalog: na
+ * development pristupu satna kvota za insights je 600 + 400 × broj aktivnih
+ * oglasa, pa 60 % kod tri aktivna oglasa i 60 % kod trista znače potpuno
+ * različite stvari.
+ */
+/** Očitavanje starije od klizajućeg sata ne opisuje prozor koji još traje. */
+const QUOTA_TTL_MS = 60 * 60 * 1000;
+
+/**
+ * Sat koji otkucava, umesto `Date.now()` u telu komponente.
+ *
+ * Mora da bude ovde, a ne u Convex upitu: upit se ponovo računa tek kad se red
+ * promeni, pa bi „zastarelo” i „blokada je istekla” izvedeni na serveru ostali
+ * zamrznuti na vrednosti iz trenutka upisa — a red se menja tek kad prolaz
+ * prođe, što je upravo ono što blokada sprečava.
+ *
+ * `null` do prvog otkucaja, da render ostane čist (React purity).
+ */
+function useTickingNow(intervalMs: number): number | null {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    // Prvi otkucaj ide kroz makro-zadatak, ne sinhrono iz efekta, da render
+    // koji ga je zakazao ne povuče odmah još jedan.
+    const first = setTimeout(() => setNow(Date.now()), 0);
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, [intervalMs]);
+  return now;
+}
+
+function MetaAdsQuota() {
+  const quota = useQuery(api.metaAdsStore.quotaStatus);
+  const now = useTickingNow(30_000);
+  if (quota === undefined || quota === null) return null;
+
+  const stale = now !== null && now - quota.fetchedAt > QUOTA_TTL_MS;
+  // Do prvog otkucaja se veruje upisanom stanju; posle njega odlučuje vreme.
+  const blocked =
+    quota.blockedUntil !== undefined &&
+    quota.state === "stop" &&
+    (now === null || quota.blockedUntil > now);
+
+  const pct = Math.round(quota.peakPct);
+  const isDev = quota.tier === "development_access";
+  const tierLabel =
+    quota.tier === "development_access"
+      ? "Development pristup"
+      : quota.tier === "standard_access"
+        ? "Standardni pristup"
+        : undefined;
+
+  const barTone =
+    quota.state === "stop"
+      ? "bg-danger"
+      : quota.state === "warn"
+        ? "bg-warning"
+        : "bg-accent-400";
+
+  return (
+    <div className="mt-5 border-t border-line-soft pt-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="heading-caps text-micro font-medium text-text-muted">
+          Kvota Meta oglasa
+        </span>
+        <span className="font-mono text-sm tabular-nums text-foreground">
+          {pct} %
+        </span>
+      </div>
+
+      <div
+        className="mt-2 h-1 w-full overflow-hidden rounded-full bg-surface-raised"
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label="Iskorišćenost kvote Meta oglasa"
+      >
+        <div
+          className={`h-full rounded-full ${barTone} motion-safe:transition-[width] motion-safe:duration-500`}
+          style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+        />
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-micro text-text-muted">
+        {tierLabel && <span>{tierLabel}</span>}
+        {tierLabel && <span aria-hidden="true">·</span>}
+        <span>
+          očitano {formatRelativeTime(quota.fetchedAt, now ?? undefined)}
+        </span>
+        {stale && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span>očitavanje starije od sat vremena</span>
+          </>
+        )}
+      </div>
+
+      {/* Upisani `state` je „stop” od trenutka upisa; da li blokada JOŠ traje
+          zna se samo poređenjem sa trenutnim vremenom. */}
+      {blocked && (
+        <p className="mt-2 text-xs text-danger">
+          Meta trenutno ograničava pozive. Sinhronizacija se nastavlja kad
+          blokada istekne.
+        </p>
+      )}
+
+      {isDev && (
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          Na development pristupu kvota je 600 + 400 × broj aktivnih oglasa na
+          sat i puni se tek posle App Review-a.
+        </p>
+      )}
+    </div>
+  );
 }
 
 /** Last sync run per provider — status, when it ran, and error text if it failed. */
@@ -81,6 +208,8 @@ export function SyncHealth({ entries }: { entries: HealthEntry[] | undefined }) 
           </ul>
         )}
       </div>
+
+      <MetaAdsQuota />
     </section>
   );
 }

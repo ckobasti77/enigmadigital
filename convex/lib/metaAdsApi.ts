@@ -77,6 +77,10 @@ export const INSIGHTS_FIELDS = [
   "ad_name",
   "date_start",
   "date_stop",
+  // Read-only: tells us WHICH attribution setting produced these numbers.
+  // Meaningful only because we send use_unified_attribution_setting=true — it
+  // echoes back the ad set's own setting that was actually applied (MA1).
+  "attribution_setting",
   "spend",
   "impressions",
   "reach",
@@ -211,6 +215,32 @@ export function buildAdPreviewUrl(
   return url.toString();
 }
 
+/**
+ * The four windows we ask for on every insights call (MA1).
+ *
+ * `action_attribution_windows` defaults to "default" and, without it, Meta
+ * reports 7d_click alone — a number that does not match anything an operator
+ * sees in Ads Manager. Asking for the four standard windows makes the answer
+ * comparable; `use_unified_attribution_setting` below then makes it IDENTICAL
+ * to Ads Manager, because the documentation says so in as many words.
+ */
+export const ACTION_ATTRIBUTION_WINDOWS = [
+  "1d_click",
+  "7d_click",
+  "1d_view",
+  "7d_view",
+] as const;
+
+/**
+ * `action_report_time` — when an action is counted.
+ *
+ * Since 10.06.2025. Meta's own default is "mixed" (on-Meta actions by
+ * impression time, off-Meta by conversion time). We do NOT send it unless a
+ * caller explicitly asks: pinning it would silently diverge from whatever
+ * Ads Manager does next, which is the exact problem this task exists to fix.
+ */
+export type ActionReportTime = "impression" | "conversion" | "mixed" | "lifetime";
+
 export interface InsightsQueryParams {
   targetId: string; // accountId (act_...) or campaignId or adId
   level?: "account" | "campaign" | "adset" | "ad";
@@ -220,6 +250,8 @@ export interface InsightsQueryParams {
   breakdowns?: string[]; // e.g. ["age", "gender"] or ["publisher_platform", "platform_position"] or ["hourly_stats_aggregated_by_audience_time_zone"]
   filtering?: Array<{ field: string; operator: string; value: unknown }>;
   limit?: number;
+  /** Only when a caller has a reason; otherwise Meta's "mixed" default stands. */
+  actionReportTime?: ActionReportTime;
   accessToken: string;
   version?: string;
 }
@@ -248,6 +280,21 @@ export function buildInsightsUrl(params: InsightsQueryParams): string {
     url.searchParams.set("filtering", JSON.stringify(params.filtering));
   }
   url.searchParams.set("limit", String(params.limit ?? 500));
+
+  // ── Attribution (MA1) ────────────────────────────────────────────────────
+  // Both are MANDATORY on every insights request, hot pass included. They are
+  // set after the caller-supplied parameters on purpose: no call site can
+  // accidentally override them.
+  url.searchParams.set("use_unified_attribution_setting", "true");
+  url.searchParams.set(
+    "action_attribution_windows",
+    JSON.stringify(ACTION_ATTRIBUTION_WINDOWS),
+  );
+  // Left unset unless asked for — see ActionReportTime.
+  if (params.actionReportTime) {
+    url.searchParams.set("action_report_time", params.actionReportTime);
+  }
+
   url.searchParams.set("access_token", params.accessToken);
 
   return url.toString();
@@ -255,119 +302,540 @@ export function buildInsightsUrl(params: InsightsQueryParams): string {
 
 // ── Rate Limit Inspection ───────────────────────────────────────────────────
 
-export interface RateLimitStatus {
-  callCount: number;
-  totalCpuTime: number;
-  totalTime: number;
-  maxUsagePercent: number;
-  shouldBackoff: boolean;
-  estimatedTimeToRegainAccessSec: number;
+/**
+ * ============================================================================
+ * TRI MEHANIZMA, I ZAŠTO SE PARSIRAJU ODVOJENO (MA1)
+ * ============================================================================
+ *
+ * Meta ograničava Marketing API kroz tri nezavisna mehanizma. Mere različite
+ * stvari nad različitim prozorima, a samo dva se uopšte vide u zaglavljima:
+ *
+ *  1. X-Business-Use-Case-Usage — ključ je id naloga, a vrednost NIZ (jedan
+ *     unos po slučaju upotrebe: "ads_insights", "ads_management", …). Njegova
+ *     tri broja su PROCENTI (0-100) klizajućeg SATA, i Meta guši čim BILO KOJI
+ *     dođe do 100. To je i jedino zaglavlje koje kaže koliko blokada traje:
+ *     `estimated_time_to_regain_access`, u MINUTIMA — ne u sekundama. Čitanje
+ *     u sekundama (kako je ovde ranije stajalo) pretvara blokadu od 30 minuta
+ *     u pauzu od pola minuta, pa prolaz uleti pravo nazad u nju.
+ *
+ *  2. X-FB-Ads-Insights-Throttle — opterećenje PO SEKUNDI, ne po satu. Drugi
+ *     prozor, druga greška (error_code 4) i NEMA procene oporavka, zbog čega
+ *     ne može da se stopi s objektom iznad.
+ *
+ *  3. Bodovanje po nalogu (čitanje 1, pisanje 3, prozor 300 s). Ne pojavljuje
+ *     se ni u jednom zaglavlju, pa ovde ništa ne može da ga vidi.
+ *
+ * Na development sloju satna kvota za insights je
+ *   600 + 400 × broj aktivnih oglasa − 0.001 × greške korisnika
+ * pa petlja neuspelih poziva ne troši kvotu — ona je SMANJUJE. To je razlog
+ * zašto se 1487534 nikada ne ponavlja naslepo.
+ * ============================================================================
+ */
+
+/** Sloj pristupa koji Meta prijavi; sve drugo se prosleđuje doslovno. */
+export type MetaAdsTier = "development_access" | "standard_access" | string;
+
+/** Jedan unos iz X-Business-Use-Case-Usage, procenti nad klizajućim satom. */
+export interface MetaBucEntry {
+  /** "ads_insights" | "ads_management" | … */
+  type?: string;
+  callCount?: number;
+  totalCpuTime?: number;
+  totalTime?: number;
+  /** MINUTI. Meta ovo polje dokumentuje u minutima, ne u sekundama. */
+  estimatedTimeToRegainAccessMin?: number;
+  tier?: MetaAdsTier;
 }
 
+/** X-FB-Ads-Insights-Throttle — opterećenje po sekundi, bez procene oporavka. */
+export interface MetaInsightsThrottle {
+  appIdUtilPct?: number;
+  accIdUtilPct?: number;
+  tier?: MetaAdsTier;
+}
+
+export interface RateLimitStatus {
+  /** Netačno kada nijedno zaglavlje nije stiglo (CDN stranica, greška mreže). */
+  present: boolean;
+  /** Svi viđeni BUC unosi, nespojeni — tipovi ne znače istu stvar. */
+  buc: MetaBucEntry[];
+  throttle?: MetaInsightsThrottle;
+
+  // Vrhovi po onome što je stvarno stiglo. `undefined`, nikad 0, kada broj
+  // nije stigao — 0 bi se čitalo kao „ima još mesta”.
+  callCount?: number;
+  totalCpuTime?: number;
+  totalTime?: number;
+  appIdUtilPct?: number;
+  accIdUtilPct?: number;
+  /** max() pet procenata iznad; undefined kada nijedan nije stigao. */
+  maxUsagePercent?: number;
+  /** MINUTI do prestanka blokade. Dolazi isključivo iz BUC zaglavlja. */
+  estimatedTimeToRegainAccessMin?: number;
+  tier?: MetaAdsTier;
+
+  /** Meta je rekla da blokira (stigla je procena oporavka). */
+  blocked: boolean;
+  /** Potrošeno je dovoljno da paginacija treba da stane. */
+  shouldBackoff: boolean;
+}
+
+/** Samo procenti; negativna ili nekonačna vrednost nije očitavanje. */
+function toPct(value: unknown): number | undefined {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num) || num < 0) return undefined;
+  return Math.min(100, num);
+}
+
+function toMinutes(value: unknown): number | undefined {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num) || num < 0) return undefined;
+  return num;
+}
+
+/** max() koji „nije stiglo” tretira kao odsustvo, a ne kao nulu. */
+function maxDefined(
+  a: number | undefined,
+  b: number | undefined,
+): number | undefined {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  return Math.max(a, b);
+}
+
+/** Preko ovog procenta paginacija unutar jednog prolaza staje. */
+export const RATE_BACKOFF_PCT = 80;
+
 /**
- * Parses Meta Graph API usage headers:
- * - X-Business-Use-Case-Usage
- * - X-App-Usage
- * - X-Ad-Account-Usage
+ * Parsira OBA zaglavlja u jedno tipizovano očitavanje.
+ *
+ * X-App-Usage se namerno NE čita ovde: on opisuje aplikaciju preko svih
+ * proizvoda, već je uračunat u zajedničku kapiju kroz
+ * `metaRateLimit.parseUsageHeaders`, a mešanjem bi nastao broj za Oglase kome
+ * ne odgovara nijedan limit Oglasa.
  */
 export function parseRateLimitHeaders(headers: Headers): RateLimitStatus {
-  let callCount = 0;
-  let totalCpuTime = 0;
-  let totalTime = 0;
-  let maxUsagePercent = 0;
-  let estimatedTimeToRegainAccessSec = 0;
+  const status: RateLimitStatus = {
+    present: false,
+    buc: [],
+    blocked: false,
+    shouldBackoff: false,
+  };
 
-  // 1. X-Business-Use-Case-Usage header (JSON map of business objects)
-  const businessUsage = headers.get("x-business-use-case-usage");
-  if (businessUsage) {
+  // 1. X-Business-Use-Case-Usage: { "<id naloga>": [ {...}, {...} ] }
+  const bucHeader = headers.get("x-business-use-case-usage");
+  if (bucHeader) {
     try {
-      const parsed = JSON.parse(businessUsage) as Record<
-        string,
-        Array<{
-          call_count?: number;
-          total_cputime?: number;
-          total_time?: number;
-          estimated_time_to_regain_access?: number;
-          type?: string;
-        }>
-      >;
+      const parsed = JSON.parse(bucHeader) as Record<string, unknown>;
       for (const entries of Object.values(parsed)) {
-        for (const entry of entries) {
-          if (typeof entry.call_count === "number") {
-            callCount = Math.max(callCount, entry.call_count);
-            maxUsagePercent = Math.max(maxUsagePercent, entry.call_count);
-          }
-          if (typeof entry.total_cputime === "number") {
-            totalCpuTime = Math.max(totalCpuTime, entry.total_cputime);
-            maxUsagePercent = Math.max(maxUsagePercent, entry.total_cputime);
-          }
-          if (typeof entry.total_time === "number") {
-            totalTime = Math.max(totalTime, entry.total_time);
-            maxUsagePercent = Math.max(maxUsagePercent, entry.total_time);
-          }
-          if (typeof entry.estimated_time_to_regain_access === "number") {
-            estimatedTimeToRegainAccessSec = Math.max(
-              estimatedTimeToRegainAccessSec,
-              entry.estimated_time_to_regain_access,
-            );
-          }
+        if (!Array.isArray(entries)) continue;
+        for (const raw of entries) {
+          if (typeof raw !== "object" || raw === null) continue;
+          const obj = raw as Record<string, unknown>;
+          const entry: MetaBucEntry = {
+            type: typeof obj.type === "string" ? obj.type : undefined,
+            callCount: toPct(obj.call_count),
+            totalCpuTime: toPct(obj.total_cputime),
+            totalTime: toPct(obj.total_time),
+            estimatedTimeToRegainAccessMin: toMinutes(
+              obj.estimated_time_to_regain_access,
+            ),
+            tier:
+              typeof obj.ads_api_access_tier === "string"
+                ? obj.ads_api_access_tier
+                : undefined,
+          };
+          status.present = true;
+          status.buc.push(entry);
+          status.callCount = maxDefined(status.callCount, entry.callCount);
+          status.totalCpuTime = maxDefined(
+            status.totalCpuTime,
+            entry.totalCpuTime,
+          );
+          status.totalTime = maxDefined(status.totalTime, entry.totalTime);
+          status.estimatedTimeToRegainAccessMin = maxDefined(
+            status.estimatedTimeToRegainAccessMin,
+            entry.estimatedTimeToRegainAccessMin,
+          );
+          if (entry.tier && !status.tier) status.tier = entry.tier;
         }
       }
     } catch {
-      // Ignore header parsing failure
+      // Pokvareno zaglavlje ne vredi rušenja sinhronizacije.
     }
   }
 
-  // 2. X-App-Usage header: {"call_count":12,"total_cputime":10,"total_time":15}
-  const appUsage = headers.get("x-app-usage");
-  if (appUsage) {
+  // 2. X-FB-Ads-Insights-Throttle: {"app_id_util_pct":…, "acc_id_util_pct":…}
+  const throttleHeader = headers.get("x-fb-ads-insights-throttle");
+  if (throttleHeader) {
     try {
-      const parsed = JSON.parse(appUsage) as {
-        call_count?: number;
-        total_cputime?: number;
-        total_time?: number;
+      const obj = JSON.parse(throttleHeader) as Record<string, unknown>;
+      const throttle: MetaInsightsThrottle = {
+        appIdUtilPct: toPct(obj.app_id_util_pct),
+        accIdUtilPct: toPct(obj.acc_id_util_pct),
+        tier:
+          typeof obj.ads_api_access_tier === "string"
+            ? obj.ads_api_access_tier
+            : undefined,
       };
-      if (typeof parsed.call_count === "number") {
-        callCount = Math.max(callCount, parsed.call_count);
-        maxUsagePercent = Math.max(maxUsagePercent, parsed.call_count);
-      }
-      if (typeof parsed.total_cputime === "number") {
-        totalCpuTime = Math.max(totalCpuTime, parsed.total_cputime);
-        maxUsagePercent = Math.max(maxUsagePercent, parsed.total_cputime);
-      }
-      if (typeof parsed.total_time === "number") {
-        totalTime = Math.max(totalTime, parsed.total_time);
-        maxUsagePercent = Math.max(maxUsagePercent, parsed.total_time);
-      }
+      status.present = true;
+      status.throttle = throttle;
+      status.appIdUtilPct = throttle.appIdUtilPct;
+      status.accIdUtilPct = throttle.accIdUtilPct;
+      if (throttle.tier && !status.tier) status.tier = throttle.tier;
     } catch {
-      // Ignore header parsing failure
+      // Isto.
     }
   }
 
-  // 3. X-Ad-Account-Usage header: {"acc_id_util_pct": 25.5}
-  const adAccountUsage = headers.get("x-ad-account-usage");
-  if (adAccountUsage) {
-    try {
-      const parsed = JSON.parse(adAccountUsage) as { acc_id_util_pct?: number };
-      if (typeof parsed.acc_id_util_pct === "number") {
-        maxUsagePercent = Math.max(maxUsagePercent, parsed.acc_id_util_pct);
-      }
-    } catch {
-      // Ignore header parsing failure
-    }
+  status.maxUsagePercent = [
+    status.callCount,
+    status.totalCpuTime,
+    status.totalTime,
+    status.appIdUtilPct,
+    status.accIdUtilPct,
+  ].reduce<number | undefined>((acc, v) => maxDefined(acc, v), undefined);
+
+  status.blocked = (status.estimatedTimeToRegainAccessMin ?? 0) > 0;
+  status.shouldBackoff =
+    status.blocked || (status.maxUsagePercent ?? 0) >= RATE_BACKOFF_PCT;
+
+  return status;
+}
+
+// ── Error Classification ────────────────────────────────────────────────────
+
+/**
+ * `error_subcode` za „smanji količinu podataka koju tražiš”.
+ *
+ * Ovo NIJE gušenje. Kvota je netaknuta; jedan upit je bio prevelik. Backoff tu
+ * ne menja ništa, a na development sloju ponovljena greška doslovno oduzima od
+ * satne kvote (−0.001 × greške korisnika). Leče je samo uži opseg, manje
+ * razdvajanja ili asinhroni izveštaj.
+ */
+export const ERR_TOO_MUCH_DATA = 1487534;
+
+/** `error.code` 4 — opterećenje insights-a PO SEKUNDI. To jeste backoff. */
+export const ERR_INSIGHTS_THROTTLE = 4;
+
+export type MetaErrorKind =
+  /** 1487534 — suzi pitanje, nikada ne spavaj. */
+  | "too_much_data"
+  /** code 4 — opterećenje po sekundi; spavaj sekunde i probaj ponovo. */
+  | "insights_throttle"
+  /** BUC potrošen; spavaj `estimated_time_to_regain_access` MINUTA. */
+  | "buc_throttle"
+  | "other";
+
+/** Neuspeh Graph API-ja kao izuzetak, sa netaknutim kodovima. */
+export class MetaApiError extends Error {
+  readonly kind: MetaErrorKind;
+  readonly code?: number;
+  readonly subcode?: number;
+  readonly httpStatus?: number;
+  /** MINUTI, kada je odgovor to rekao. */
+  readonly retryAfterMin?: number;
+
+  constructor(
+    message: string,
+    init: {
+      kind: MetaErrorKind;
+      code?: number;
+      subcode?: number;
+      httpStatus?: number;
+      retryAfterMin?: number;
+    },
+  ) {
+    super(message);
+    this.name = "MetaApiError";
+    this.kind = init.kind;
+    this.code = init.code;
+    this.subcode = init.subcode;
+    this.httpStatus = init.httpStatus;
+    this.retryAfterMin = init.retryAfterMin;
   }
+}
 
-  const shouldBackoff =
-    maxUsagePercent >= 80 || estimatedTimeToRegainAccessSec > 0;
-
-  return {
-    callCount,
-    totalCpuTime,
-    totalTime,
-    maxUsagePercent,
-    shouldBackoff,
-    estimatedTimeToRegainAccessSec,
+interface RawErrorEnvelope {
+  error?: {
+    message?: string;
+    error_user_msg?: string;
+    code?: number;
+    error_subcode?: number;
   };
+}
+
+function readErrorEnvelope(body: unknown): RawErrorEnvelope["error"] {
+  if (typeof body === "string") {
+    try {
+      return (JSON.parse(body) as RawErrorEnvelope).error;
+    } catch {
+      return undefined;
+    }
+  }
+  if (typeof body === "object" && body !== null) {
+    return (body as RawErrorEnvelope).error;
+  }
+  return undefined;
+}
+
+/**
+ * Pretvara neuspeli Graph odgovor u tipizovanu grešku.
+ *
+ * Razdvajanje je važnije od poruke: 1487534 i code 4 stižu kroz isti HTTP
+ * status i izgledaju gotovo isto, a tretiranje prvog kao gušenja je način na
+ * koji sinhronizacija završi spavajući trideset minuta nad upitom koji bi
+ * popravila prepolovljenim opsegom datuma.
+ */
+export function classifyMetaError(
+  body: unknown,
+  opts: { httpStatus?: number; rateLimit?: RateLimitStatus } = {},
+): MetaApiError {
+  const err = readErrorEnvelope(body);
+  const message = extractMetaAdsError(body);
+  const code = err?.code;
+  const subcode = err?.error_subcode;
+
+  if (subcode === ERR_TOO_MUCH_DATA) {
+    return new MetaApiError(message, {
+      kind: "too_much_data",
+      code,
+      subcode,
+      httpStatus: opts.httpStatus,
+    });
+  }
+
+  // Procena oporavka u zaglavlju je Metina izjava o blokadi i njenom trajanju.
+  const regainMin = opts.rateLimit?.estimatedTimeToRegainAccessMin;
+  if (regainMin !== undefined && regainMin > 0) {
+    return new MetaApiError(message, {
+      kind: "buc_throttle",
+      code,
+      subcode,
+      httpStatus: opts.httpStatus,
+      retryAfterMin: regainMin,
+    });
+  }
+
+  if (code === ERR_INSIGHTS_THROTTLE) {
+    return new MetaApiError(message, {
+      kind: "insights_throttle",
+      code,
+      subcode,
+      httpStatus: opts.httpStatus,
+    });
+  }
+
+  return new MetaApiError(message, {
+    kind: "other",
+    code,
+    subcode,
+    httpStatus: opts.httpStatus,
+  });
+}
+
+// ── Async Insights Reports ──────────────────────────────────────────────────
+
+/**
+ * Doslovni `async_status` stringovi. „Job Completed” je JEDINI koji znači da su
+ * redovi tu.
+ */
+export const ASYNC_STATUS_COMPLETED = "Job Completed";
+export const ASYNC_STATUS_FAILED = "Job Failed";
+export const ASYNC_STATUS_SKIPPED = "Job Skipped";
+
+/** Meta poslu daje do sat vremena; ovo je dokumentovani plafon. */
+export const ASYNC_MAX_WAIT_MS = 60 * 60 * 1000;
+
+/** Opseg širi od ovoga ide asinhrono od početka. */
+export const ASYNC_RANGE_DAY_THRESHOLD = 30;
+
+const ASYNC_POLL_START_MS = 2_000;
+const ASYNC_POLL_MAX_MS = 60_000;
+
+/** Plafon stranica pri čitanju redova gotovog izveštaja. */
+const ASYNC_MAX_PAGES = 50;
+
+export interface AsyncInsightsResult<T> {
+  rows: T[];
+  /** Stalo se na plafonu stranica — prozor NIJE potpuno pokriven. */
+  truncated: boolean;
+}
+
+export interface AsyncInsightsOptions {
+  /** Plafon anketiranja po zidnom satu. Podrazumevano Metin sat. */
+  maxWaitMs?: number;
+  /** Ubrizgava se da bi i ovaj put išao kroz zajednički tracker (P2). */
+  fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
+  /** Poziva se posle svake ankete, da pozivalac može da beleži napredak. */
+  onPoll?: (status: string, percent?: number) => void;
+  /**
+   * Zaglavlja kvote SVAKOG odgovora asinhronog puta (MA1).
+   *
+   * Bez ovoga bi predaja posla, ankete i čitanje redova bili nevidljivi za
+   * `metaAdsQuota` — a to je najskuplji put u celom modulu, pa bi kapija
+   * prijavljivala „ok” baš kad je potrošnja najveća.
+   */
+  onRateLimit?: (status: RateLimitStatus) => void;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+const defaultSleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+function asyncJobUrl(
+  reportRunId: string,
+  accessToken: string,
+  version: string,
+  suffix: string,
+): URL {
+  const url = new URL(
+    `${META_GRAPH_BASE_URL}/${version}/${reportRunId}${suffix}`,
+  );
+  url.searchParams.set("access_token", accessToken);
+  return url;
+}
+
+/**
+ * Pokreće insights upit kao ASINHRONI izveštaj (MA1).
+ *
+ * Tri poziva, tim redom i nikako drugačije:
+ *   POST /<act_id>/insights            → { report_run_id }
+ *   GET  /<report_run_id>?fields=async_status,async_percent_completion
+ *   GET  /<report_run_id>/insights     → redovi
+ *
+ * Koristi se kada sinhroni poziv odgovori 1487534 i posle suženja opsega, i za
+ * svaki opseg širi od 30 dana. Parametri su isti oni koje pravi
+ * `buildInsightsUrl` — atribucija uključena — jer izveštaj koji odgovara na
+ * drugo pitanje od sinhronog puta je gori od nikakvog izveštaja.
+ */
+export async function runInsightsAsync<T = RawAdInsightRow>(
+  params: InsightsQueryParams,
+  opts: AsyncInsightsOptions = {},
+): Promise<AsyncInsightsResult<T>> {
+  const doFetch = opts.fetchImpl ?? fetch;
+  const sleep = opts.sleep ?? defaultSleep;
+  const version = params.version ?? getMetaGraphVersion();
+  const maxWaitMs = opts.maxWaitMs ?? ASYNC_MAX_WAIT_MS;
+
+  // Svaki odgovor nosi zaglavlja kvote — i onaj koji je pao. Čita se ovde, na
+  // jednom mestu, da nijedan od tri koraka ne ostane nevidljiv za kapiju.
+  const readHeaders = (headers: Headers): RateLimitStatus => {
+    const status = parseRateLimitHeaders(headers);
+    opts.onRateLimit?.(status);
+    return status;
+  };
+
+  // 1. Predaja posla. Isti URL koji bi napravio i sinhroni put, poslat kao POST
+  //    telo da dužina liste parametara ne udari u ograničenje dužine URL-a.
+  const submitUrl = new URL(buildInsightsUrl({ ...params, version }));
+  const body = new URLSearchParams();
+  submitUrl.searchParams.forEach((value, key) => body.set(key, value));
+
+  const submitRes = await doFetch(submitUrl.origin + submitUrl.pathname, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  const submitRate = readHeaders(submitRes.headers);
+  if (!submitRes.ok) {
+    const text = await submitRes.text().catch(() => "");
+    throw classifyMetaError(text, {
+      httpStatus: submitRes.status,
+      rateLimit: submitRate,
+    });
+  }
+  const submitJson = (await submitRes.json()) as { report_run_id?: string };
+  const reportRunId = submitJson.report_run_id;
+  if (!reportRunId) {
+    throw new MetaApiError(
+      "Meta nije vratila report_run_id za asinhroni izveštaj.",
+      { kind: "other" },
+    );
+  }
+
+  // 2. Anketiranje. Razmak raste da posao od dvadeset minuta ne košta dvadeset
+  //    minuta poziva — svaka anketa se plaća iz iste kvote koju izveštaj štiti.
+  const startedAt = Date.now();
+  let waitMs = ASYNC_POLL_START_MS;
+  let lastStatus = "";
+
+  while (Date.now() - startedAt < maxWaitMs) {
+    await sleep(waitMs);
+    waitMs = Math.min(ASYNC_POLL_MAX_MS, Math.round(waitMs * 1.6));
+
+    const statusUrl = asyncJobUrl(reportRunId, params.accessToken, version, "");
+    statusUrl.searchParams.set(
+      "fields",
+      "async_status,async_percent_completion",
+    );
+    const statusRes = await doFetch(statusUrl.toString());
+    const statusRate = readHeaders(statusRes.headers);
+    if (!statusRes.ok) {
+      const text = await statusRes.text().catch(() => "");
+      throw classifyMetaError(text, {
+        httpStatus: statusRes.status,
+        rateLimit: statusRate,
+      });
+    }
+    const statusJson = (await statusRes.json()) as {
+      async_status?: string;
+      async_percent_completion?: number;
+    };
+    lastStatus = statusJson.async_status ?? "";
+    opts.onPoll?.(lastStatus, statusJson.async_percent_completion);
+
+    // async_percent_completion dođe do 100 dok je status još „Job Running” — u
+    // tom trenutku redova NEMA. Status je jedini signal završetka, pa je jedini
+    // koji se ovde čita.
+    if (lastStatus === ASYNC_STATUS_COMPLETED) break;
+    if (
+      lastStatus === ASYNC_STATUS_FAILED ||
+      lastStatus === ASYNC_STATUS_SKIPPED
+    ) {
+      throw new MetaApiError(`Asinhroni izveštaj nije uspeo (${lastStatus}).`, {
+        kind: "other",
+      });
+    }
+  }
+
+  if (lastStatus !== ASYNC_STATUS_COMPLETED) {
+    throw new MetaApiError(
+      `Asinhroni izveštaj nije završen na vreme (poslednji status: ${lastStatus || "nepoznat"}).`,
+      { kind: "other" },
+    );
+  }
+
+  // 3. Čitanje redova, uz paginaciju.
+  const rows: T[] = [];
+  let nextUrl: string | undefined = asyncJobUrl(
+    reportRunId,
+    params.accessToken,
+    version,
+    "/insights",
+  ).toString();
+  let pages = 0;
+
+  while (nextUrl && pages < ASYNC_MAX_PAGES) {
+    pages++;
+    const res: Response = await doFetch(nextUrl);
+    const pageRate = readHeaders(res.headers);
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw classifyMetaError(text, {
+        httpStatus: res.status,
+        rateLimit: pageRate,
+      });
+    }
+    const json = (await res.json()) as RawGraphApiResponse<T>;
+    if (json.error) throw classifyMetaError(json, { rateLimit: pageRate });
+    rows.push(...(json.data ?? []));
+    nextUrl = json.paging?.next;
+  }
+
+  // Stalo se na plafonu stranica, a Meta je nudila još: pozivalac mora da zna
+  // da ovaj prozor NIJE potpun pre nego što ga upiše kao pokriven.
+  return { rows, truncated: nextUrl !== undefined };
 }
 
 // ── Breakdown Hasher ────────────────────────────────────────────────────────
@@ -415,6 +883,8 @@ export interface RawAdInsightRow {
   ad_name?: string;
   date_start?: string;
   date_stop?: string;
+  /** Read-only echo, e.g. "7d_click,1d_view". Never sent, only received. */
+  attribution_setting?: string;
   hourly_stats_aggregated_by_audience_time_zone?: string; // e.g. "00:00:00 - 00:59:59"
   age?: string;
   gender?: string;

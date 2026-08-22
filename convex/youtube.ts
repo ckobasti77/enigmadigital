@@ -1,18 +1,27 @@
-import { internalAction } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { v } from "convex/values";
-import { decryptCredentials } from "./lib/crypto";
-import { runSync } from "./lib/runSync";
+import { ConvexError, v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { decryptCredentials, encryptCredentials } from "./lib/crypto";
+import { runSync, sanitizeSyncError } from "./lib/runSync";
 import {
   YOUTUBE_ANALYTICS_REPORTS_URL,
   YOUTUBE_DATA_API_BASE_URL,
+  YOUTUBE_DEFAULT_REDIRECT_URI,
+  buildYouTubeAuthorizeUrl,
+  exchangeCodeForTokens,
   extractYouTubeApiError,
   fetchAccessToken,
+  fetchMyChannelProfile,
+  getYouTubeClientId,
+  getYouTubeClientSecret,
   parseYouTubeCredentials,
   youtubeApiErrorReason,
   isAnalyticsNoDataError,
   type YouTubeAnalyticsReport,
 } from "./lib/youtubeApi";
+
 
 /**
  * YouTube sync (Y2). Pulls a 90-day channel snapshot into `ytDailyTotals`,
@@ -450,3 +459,206 @@ export const syncAllYouTube = internalAction({
     }
   },
 });
+
+// ── OAuth Actions ────────────────────────────────────────────────────────────
+
+/** How long an authorize → callback round trip may take. */
+const OAUTH_STATE_TTL_MS = 15 * 60 * 1000;
+
+function randomNonce(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, "0");
+  }
+  return hex;
+}
+
+/**
+ * Public action (for authenticated workspace members): generate an OAuth state nonce
+ * and construct the Google OAuth 2.0 authorization URL for YouTube.
+ */
+export const youtubeAuthorizeUrl = action({
+  args: {
+    redirectUri: v.optional(v.string()),
+  },
+  handler: async (ctx, { redirectUri }): Promise<{ url: string }> => {
+    const clientId = getYouTubeClientId();
+    const clientSecret = getYouTubeClientSecret();
+    if (!clientId || !clientSecret) {
+      throw new ConvexError({
+        code: "invalid",
+        message:
+          "Čeka Google OAuth konfiguraciju — dodaj YOUTUBE_CLIENT_ID i YOUTUBE_CLIENT_SECRET u Convex env promenljive.",
+      });
+    }
+
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new ConvexError({
+        code: "unauthorized",
+        message: "Niste prijavljeni.",
+      });
+    }
+
+    const member: {
+      workspaceId: Id<"workspaces">;
+      role: "owner" | "client_viewer";
+    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
+      userId,
+    });
+    if (member === null) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Niste član aktivnog workspace-a.",
+      });
+    }
+
+    const effectiveRedirectUri = redirectUri ?? YOUTUBE_DEFAULT_REDIRECT_URI;
+    const nonce = randomNonce();
+    await ctx.runMutation(internal.youtubeStore.createOAuthState, {
+      workspaceId: member.workspaceId,
+      userId,
+      nonce,
+      redirectUri: effectiveRedirectUri,
+    });
+
+    const url = buildYouTubeAuthorizeUrl({
+      clientId,
+      redirectUri: effectiveRedirectUri,
+      state: nonce,
+    });
+
+    return { url };
+  },
+});
+
+export interface YouTubeOAuthResult {
+  success: boolean;
+  connectionId: Id<"connections">;
+  channelId: string;
+  channelTitle: string;
+}
+
+/**
+ * Complete OAuth from the PUBLIC callback route.
+ * 1. Atomically consumes the state nonce (immediately deleted from DB).
+ * 2. Checks state TTL (15 min).
+ * 3. Exchanges code for tokens.
+ * 4. Ensures refresh_token exists (errors and aborts if missing).
+ * 5. Fetches channel identity (channelId and title).
+ * 6. Slices JSON payload `{ clientId, clientSecret, refreshToken }` and encrypts it.
+ * 7. Saves connection row with status "active".
+ * 8. Triggers initial sync in background.
+ */
+export const completeOAuthFromCallback = action({
+  args: {
+    state: v.string(),
+    code: v.string(),
+  },
+  handler: async (ctx, { state, code }): Promise<YouTubeOAuthResult> => {
+    const stored: {
+      workspaceId: Id<"workspaces">;
+      redirectUri: string;
+      createdAt: number;
+    } | null = await ctx.runMutation(
+      internal.youtubeStore.consumeOAuthState,
+      { nonce: state },
+    );
+
+    if (stored === null) {
+      throw new ConvexError({
+        code: "invalid",
+        message:
+          "Nepoznat ili već iskorišćen state parametar. Pokreni povezivanje ponovo iz Podešavanja.",
+      });
+    }
+
+    if (Date.now() - stored.createdAt > OAUTH_STATE_TTL_MS) {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Autorizacija je istekla. Pokreni povezivanje ponovo.",
+      });
+    }
+
+    const clientId = getYouTubeClientId();
+    const clientSecret = getYouTubeClientSecret();
+    if (!clientId || !clientSecret) {
+      throw new ConvexError({
+        code: "invalid",
+        message:
+          "Čeka Google OAuth konfiguraciju — dodaj YOUTUBE_CLIENT_ID i YOUTUBE_CLIENT_SECRET u Convex env promenljive.",
+      });
+    }
+
+    // 1. Exchange authorization code for tokens
+    let tokens: { accessToken: string; refreshToken: string };
+    try {
+      tokens = await exchangeCodeForTokens({
+        clientId,
+        clientSecret,
+        redirectUri: stored.redirectUri,
+        code,
+      });
+    } catch (err) {
+      // Poruka zavrsava u URL-u pregledaca, pa prolazi kroz isti filter kao
+      // greske na `syncRuns` redovima.
+      throw new ConvexError({
+        code: "invalid",
+        message: err instanceof Error
+          ? sanitizeSyncError(err)
+          : "Razmena koda nije uspela.",
+      });
+    }
+
+    // 2. Fetch channel profile
+    let profile: { channelId: string; title: string };
+    try {
+      profile = await fetchMyChannelProfile(tokens.accessToken);
+    } catch (err) {
+      throw new ConvexError({
+        code: "invalid",
+        message: err instanceof Error
+          ? sanitizeSyncError(err)
+          : "Dohvatanje YouTube kanala nije uspelo.",
+      });
+    }
+
+    // 3. Construct JSON exactly as expected by parseYouTubeCredentials
+    const secretJson = JSON.stringify({
+      clientId,
+      clientSecret,
+      refreshToken: tokens.refreshToken,
+    });
+
+    const encryptedCredentials = await encryptCredentials(secretJson);
+
+    // 4. Save connection in active state
+    const connectionId: Id<"connections"> = await ctx.runMutation(
+      internal.youtubeStore.saveConnectedCredentials,
+      {
+        workspaceId: stored.workspaceId,
+        channelId: profile.channelId,
+        channelTitle: profile.title,
+        encryptedCredentials,
+      },
+    );
+
+    // 5. Trigger initial background sync.
+    //    Zakazano, ne cekano: callback ruta ceka ovu akciju da bi preusmerila
+    //    pregledac, a pun 90-dnevni prolaz je minutima duzi od onoga koliko
+    //    korisnik sme da gleda prazan ekran. Greske se ionako pisu na
+    //    `syncRuns`.
+    await ctx.scheduler.runAfter(0, internal.youtube.syncYouTube, {
+      connectionId,
+    });
+
+    return {
+      success: true,
+      connectionId,
+      channelId: profile.channelId,
+      channelTitle: profile.title,
+    };
+  },
+});
+

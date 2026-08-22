@@ -3,6 +3,11 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { providerValidator } from "./lib/providers";
 import { requireMembership } from "./lib/auth";
+import {
+  QUOTA_TTL_MS,
+  determineGateState,
+  quotaPeak,
+} from "./lib/metaAdsQuota";
 
 /**
  * ============================================================================
@@ -88,6 +93,8 @@ export const insightRowInputValidator = v.object({
   costPerResult: v.number(),
   conversionValue: v.number(),
   roas: v.number(),
+  /** Read-only echo iz Meta odgovora (MA1); undefined kada nije stiglo. */
+  attributionSetting: v.optional(v.string()),
   qualityRanking: v.optional(v.string()),
   engagementRanking: v.optional(v.string()),
   conversionRanking: v.optional(v.string()),
@@ -407,6 +414,7 @@ export const upsertInsightsBatch = internalMutation({
           costPerResult: row.costPerResult,
           conversionValue: row.conversionValue,
           roas,
+          attributionSetting: row.attributionSetting,
           qualityRanking: row.qualityRanking,
           engagementRanking: row.engagementRanking,
           conversionRanking: row.conversionRanking,
@@ -444,6 +452,7 @@ export const upsertInsightsBatch = internalMutation({
           costPerResult: row.costPerResult,
           conversionValue: row.conversionValue,
           roas,
+          attributionSetting: row.attributionSetting,
           qualityRanking: row.qualityRanking,
           engagementRanking: row.engagementRanking,
           conversionRanking: row.conversionRanking,
@@ -1782,3 +1791,259 @@ export const listPinnedBattles = query({
   },
 });
 
+// ── Kvota i backfill (MA1) ───────────────────────────────────────────────────
+
+const quotaReadingValidator = v.object({
+  callCount: v.optional(v.number()),
+  totalCpuTime: v.optional(v.number()),
+  totalTime: v.optional(v.number()),
+  appIdUtilPct: v.optional(v.number()),
+  accIdUtilPct: v.optional(v.number()),
+});
+
+/**
+ * Upiši poslednje očitavanje oba zaglavlja kvote. Jedan red po workspace-u.
+ *
+ * Polja koja nisu stigla ostaju `undefined` — nula bi značila „prazno, ima
+ * mesta”, a to očitavanje nije reklo.
+ */
+export const recordQuota = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    reading: quotaReadingValidator,
+    tier: v.optional(v.string()),
+    /** estimated_time_to_regain_access, u MINUTIMA. */
+    regainMinutes: v.optional(v.number()),
+    fetchedAt: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { workspaceId, reading, tier, regainMinutes, fetchedAt }) => {
+    const peakPct = quotaPeak(reading);
+    // Blokada koju je Meta izričito najavila nadjačava procente: dok traje,
+    // kapija je "stop" i kad procenti izgledaju pitomo.
+    const blockedUntil =
+      regainMinutes !== undefined && regainMinutes > 0
+        ? fetchedAt + regainMinutes * 60_000
+        : undefined;
+    const state = blockedUntil !== undefined ? "stop" : determineGateState(peakPct);
+
+    const existing = await ctx.db
+      .query("metaAdsQuota")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .unique();
+
+    const data = {
+      workspaceId,
+      fetchedAt,
+      callCount: reading.callCount,
+      totalCpuTime: reading.totalCpuTime,
+      totalTime: reading.totalTime,
+      appIdUtilPct: reading.appIdUtilPct,
+      accIdUtilPct: reading.accIdUtilPct,
+      // Sloj se menja tek posle App Review-a: staro očitavanje je bolje od
+      // brisanja podatka kad ga jedan odgovor nije poslao.
+      tier: tier ?? existing?.tier,
+      regainMinutes,
+      blockedUntil,
+      peakPct,
+      state: state as "ok" | "warn" | "stop",
+    };
+
+    if (existing !== null) {
+      await ctx.db.patch(existing._id, data);
+    } else {
+      await ctx.db.insert("metaAdsQuota", data);
+    }
+    return null;
+  },
+});
+
+const quotaGateValidator = v.object({
+  state: v.union(v.literal("ok"), v.literal("warn"), v.literal("stop")),
+  peakPct: v.number(),
+  stale: v.boolean(),
+  fetchedAt: v.optional(v.number()),
+  blockedUntil: v.optional(v.number()),
+  tier: v.optional(v.string()),
+});
+
+/**
+ * Kapija kvote za workspace. Prima `now` spolja jer upiti ne čitaju sat.
+ *
+ * TTL je sat vremena: BUC procenti opisuju klizajući sat, pa starije očitavanje
+ * ne govori ni o čemu što još traje. Blokada sa `blockedUntil` je izuzetak —
+ * ona važi do svog trenutka bez obzira na TTL.
+ */
+export const getQuotaGate = internalQuery({
+  args: { workspaceId: v.id("workspaces"), now: v.number() },
+  returns: quotaGateValidator,
+  handler: async (ctx, { workspaceId, now }) => {
+    const row = await ctx.db
+      .query("metaAdsQuota")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .unique();
+
+    if (row === null) {
+      return { state: "ok" as const, peakPct: 0, stale: true };
+    }
+
+    if (row.blockedUntil !== undefined && row.blockedUntil > now) {
+      return {
+        state: "stop" as const,
+        peakPct: row.peakPct,
+        stale: false,
+        fetchedAt: row.fetchedAt,
+        blockedUntil: row.blockedUntil,
+        tier: row.tier,
+      };
+    }
+
+    if (now - row.fetchedAt > QUOTA_TTL_MS) {
+      return {
+        state: "ok" as const,
+        peakPct: 0,
+        stale: true,
+        fetchedAt: row.fetchedAt,
+        tier: row.tier,
+      };
+    }
+
+    return {
+      state: determineGateState(row.peakPct),
+      peakPct: row.peakPct,
+      stale: false,
+      fetchedAt: row.fetchedAt,
+      tier: row.tier,
+    };
+  },
+});
+
+/** Dokle je backfill stigao za jedan scope; undefined pre prvog prolaza. */
+export const getBackfill = internalQuery({
+  args: { workspaceId: v.id("workspaces"), scope: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      oldestSyncedDate: v.string(),
+      completedAt: v.optional(v.number()),
+    }),
+  ),
+  handler: async (ctx, { workspaceId, scope }) => {
+    const row = await ctx.db
+      .query("metaAdsBackfill")
+      .withIndex("by_workspace_scope", (q) =>
+        q.eq("workspaceId", workspaceId).eq("scope", scope),
+      )
+      .unique();
+    if (row === null) return null;
+    return {
+      oldestSyncedDate: row.oldestSyncedDate,
+      completedAt: row.completedAt,
+    };
+  },
+});
+
+/**
+ * Pomeri backfill nazad za jedan scope.
+ *
+ * Piše se TEK kad su redovi upisani: prolaz koji je pao ne sme da preskoči
+ * dane koje nikada nije doneo. `oldestSyncedDate` se pomera samo unazad, osim
+ * kad plan izričito započne nov krug (`restarted`).
+ */
+export const advanceBackfill = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    scope: v.string(),
+    oldestSyncedDate: v.string(),
+    complete: v.boolean(),
+    restarted: v.boolean(),
+  },
+  returns: v.null(),
+  handler: async (
+    ctx,
+    { workspaceId, scope, oldestSyncedDate, complete, restarted },
+  ) => {
+    const existing = await ctx.db
+      .query("metaAdsBackfill")
+      .withIndex("by_workspace_scope", (q) =>
+        q.eq("workspaceId", workspaceId).eq("scope", scope),
+      )
+      .unique();
+
+    const completedAt = complete ? Date.now() : undefined;
+
+    if (existing === null) {
+      await ctx.db.insert("metaAdsBackfill", {
+        workspaceId,
+        scope,
+        oldestSyncedDate,
+        completedAt,
+      });
+      return null;
+    }
+
+    const goesDeeper = oldestSyncedDate < existing.oldestSyncedDate;
+    // Nov krug ponistava zavrsetak prethodnog: bez ovoga red zauvek tvrdi da je
+    // 28 dana pokriveno i kad je krug tek na sedmom danu.
+    const nextCompletedAt = complete
+      ? completedAt
+      : restarted
+        ? undefined
+        : existing.completedAt;
+    await ctx.db.patch(existing._id, {
+      oldestSyncedDate:
+        restarted || goesDeeper ? oldestSyncedDate : existing.oldestSyncedDate,
+      completedAt: nextCompletedAt,
+    });
+    return null;
+  },
+});
+
+/**
+ * Stanje kvote za Sync Health widget.
+ *
+ * Vraća `null` dok nijedan poziv nije prošao — widget tada ćuti umesto da
+ * prikaže nulu koju niko nije izmerio.
+ */
+export const quotaStatus = query({
+  args: {},
+  returns: v.union(
+    v.null(),
+    v.object({
+      state: v.union(v.literal("ok"), v.literal("warn"), v.literal("stop")),
+      peakPct: v.number(),
+      fetchedAt: v.number(),
+      tier: v.optional(v.string()),
+      blockedUntil: v.optional(v.number()),
+      callCount: v.optional(v.number()),
+      totalCpuTime: v.optional(v.number()),
+      totalTime: v.optional(v.number()),
+      appIdUtilPct: v.optional(v.number()),
+      accIdUtilPct: v.optional(v.number()),
+    }),
+  ),
+  handler: async (ctx) => {
+    const { workspaceId } = await requireMembership(ctx);
+    const row = await ctx.db
+      .query("metaAdsQuota")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .unique();
+    if (row === null) return null;
+
+    // Bez `Date.now()`: rezultat upita se kesira i ponovo racuna tek kad se red
+    // promeni, pa bi izvedeni "stale"/"blokirano" ostali zamrznuti na vrednosti
+    // iz trenutka upisa. Klijent ima sat; ovde idu samo cinjenice iz reda.
+    return {
+      state: row.state,
+      peakPct: row.peakPct,
+      fetchedAt: row.fetchedAt,
+      tier: row.tier,
+      blockedUntil: row.blockedUntil,
+      callCount: row.callCount,
+      totalCpuTime: row.totalCpuTime,
+      totalTime: row.totalTime,
+      appIdUtilPct: row.appIdUtilPct,
+      accIdUtilPct: row.accIdUtilPct,
+    };
+  },
+});

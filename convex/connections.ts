@@ -14,6 +14,10 @@ import { runSync } from "./lib/runSync";
 import { allowsManual, readGate } from "./lib/metaRateLimit";
 import { beginPurgeRun, clearFinishedRuns } from "./purge";
 import { purgeSteps } from "./lib/purgeMap";
+import {
+  readGate as readAdsQuotaGate,
+  allowsManual as adsQuotaAllowsManual,
+} from "./lib/metaAdsQuota";
 
 // ── credential validation (runs BEFORE encryption; never echoes the secret) ──
 
@@ -160,6 +164,7 @@ const connectionViewValidator = v.object({
   provider: providerValidator,
   status: connectionStatusValidator,
   externalId: v.union(v.string(), v.null()),
+  accountHandle: v.optional(v.union(v.string(), v.null())),
   lastSyncAt: v.union(v.number(), v.null()),
   expiresAt: v.union(v.number(), v.null()),
 });
@@ -186,6 +191,7 @@ export const list = query({
       provider: c.provider,
       status: c.status,
       externalId: c.externalId ?? null,
+      accountHandle: c.accountHandle ?? null,
       lastSyncAt: c.lastSyncAt ?? null,
       expiresAt: c.expiresAt ?? null,
     }));
@@ -453,6 +459,16 @@ export const syncNow = action({
     }
 
     if (authorized.provider === "meta_ads") {
+      // Ručno pokretanje prolazi i na „warn”, staje tek na „stop” (MA1) —
+      // uključujući blokadu koju je Meta izričito najavila.
+      const adsGate = await readAdsQuotaGate(ctx, authorized.workspaceId);
+      if (!adsQuotaAllowsManual(adsGate)) {
+        throw new Error(
+          adsGate.blockedUntil !== undefined
+            ? "Meta je ograničila Marketing API. Sačekaj da blokada istekne pa probaj ponovo."
+            : `Kvota Meta oglasa je iskorišćena ${Math.round(adsGate.peakPct)} %. Sačekaj da se prozor od sat vremena obnovi.`,
+        );
+      }
       await ctx.runAction(internal.metaAds.syncAdsStructure, { connectionId });
       await ctx.runAction(internal.metaAds.syncAdsInsights, {
         connectionId,

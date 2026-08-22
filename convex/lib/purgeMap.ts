@@ -785,6 +785,20 @@ const META_ADS_STEPS: PurgeStep[] = [
     tables: ["metaApiUsage"],
     run: (ctx, ws, limit) => drainMetaApiUsage(ctx, ws, "meta_ads", limit),
   },
+  // Očitavanje kvote i dokle je stigao backfill (MA1). Nisu podaci o publici,
+  // ali su vezani za nalog i posle prekida veze ne opisuju ništa: zastarelo
+  // očitavanje bi zadržalo kapiju, a stari `oldestSyncedDate` bi novoj vezi
+  // rekao da je 28 dana već pokriveno.
+  simple("metaAdsQuota", (ctx, ws) =>
+    ctx.db
+      .query("metaAdsQuota")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("metaAdsBackfill", (ctx, ws) =>
+    ctx.db
+      .query("metaAdsBackfill")
+      .withIndex("by_workspace_scope", (q) => q.eq("workspaceId", ws)),
+  ),
 ];
 
 /**
@@ -919,6 +933,8 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   adSets: { purgedBy: ["meta_ads", "google_ads"] },
   ads: { purgedBy: ["meta_ads", "google_ads"] },
   adInsights: { purgedBy: ["meta_ads", "google_ads"] },
+  metaAdsQuota: { purgedBy: ["meta_ads"] },
+  metaAdsBackfill: { purgedBy: ["meta_ads"] },
   adActions: {
     excluded:
       "Log radnji koje je operater sam izveo nad oglasima (pauza, budžet), a ne podataka preuzetih od providera. Nema `provider` kolonu ni vezu ka `adAccounts`, pa se ne može svesti na jednu platformu; ostaje kao revizioni trag.",

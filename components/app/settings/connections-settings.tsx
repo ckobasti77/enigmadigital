@@ -2006,14 +2006,20 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
 function YouTubeCard({ connection }: { connection?: ConnectionView }) {
   const save = useMutation(api.connections.save);
   const remove = useMutation(api.connections.remove);
+  const setup = useQuery(api.youtubeStore.setupInfo);
+  const getOAuthUrl = useAction(api.youtube.youtubeAuthorizeUrl);
+
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [channelId, setChannelId] = useState("");
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [refreshToken, setRefreshToken] = useState("");
   const [saving, setSaving] = useState(false);
-  const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const isConnected = connection !== undefined;
 
@@ -2027,6 +2033,45 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
           ? `Channel ID ima 24 znaka, uneto ${trimmedChannel.length}.`
           : null;
 
+  // Handle incoming OAuth callback status in URL parameters
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("yt_connected");
+    const channel = params.get("yt_channel");
+    const err = params.get("yt_error");
+
+    if (!connected && !err) return;
+
+    window.history.replaceState({}, "", window.location.pathname);
+
+    setTimeout(() => {
+      if (err) {
+        setError(err);
+        return;
+      }
+      setSuccessMessage(
+        channel
+          ? `YouTube kanal „${channel}” je uspešno povezan!`
+          : "YouTube kanal je uspešno povezan!",
+      );
+    }, 0);
+  }, []);
+
+  async function handleStartConnect() {
+    setError(null);
+    setSuccessMessage(null);
+    setConnecting(true);
+    try {
+      const redirectUri = `${window.location.origin}/api/auth/callback/youtube`;
+      const { url } = await getOAuthUrl({ redirectUri });
+      window.location.href = url;
+    } catch (err) {
+      setError(convexMessage(err, "Pokretanje Google autorizacije nije uspelo."));
+      setConnecting(false);
+    }
+  }
+
   function startEdit() {
     setChannelId(connection?.externalId ?? "");
     setClientId("");
@@ -2034,6 +2079,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
     setRefreshToken("");
     setError(null);
     setEditing(true);
+    setShowAdvanced(true);
   }
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
@@ -2059,6 +2105,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
       setClientSecret("");
       setRefreshToken("");
       setEditing(false);
+      setSuccessMessage("YouTube kredencijali su uspešno sačuvani.");
     } catch (err) {
       setError(convexMessage(err, "Čuvanje YouTube kredencijala nije uspelo."));
     } finally {
@@ -2072,6 +2119,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
     setError(null);
     try {
       await remove({ connectionId: connection._id });
+      setSuccessMessage("Veza sa YouTube kanalom je prekinuta.");
     } catch (err) {
       setError(convexMessage(err, "Prekidanje veze nije uspelo."));
     } finally {
@@ -2079,12 +2127,25 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
     }
   }
 
+  let statusNode: ReactNode;
+  if (setup === undefined) {
+    statusNode = <StatusPill tone="muted">Učitavanje…</StatusPill>;
+  } else if (!setup.isConfigured) {
+    statusNode = (
+      <StatusPill tone="warning">
+        Čeka Google OAuth — dodaj YOUTUBE_CLIENT_ID/SECRET u env
+      </StatusPill>
+    );
+  } else {
+    statusNode = connectionPill(connection?.status);
+  }
+
   return (
     <CardShell
       icon={SquarePlay}
       title="YouTube"
       subtitle="YouTube Data API i Analytics · OAuth (čitanje i upravljanje)"
-      status={connectionPill(connection?.status)}
+      status={statusNode}
     >
       {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
           Ne prikazuje ništa dok brisanja nema. */}
@@ -2097,118 +2158,334 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
         ih. Menja naslove, opise i sličice. Šalje video zapise.
       </p>
 
-      {isConnected && !editing ? (
+      {setup === undefined ? (
         <div className="mt-5">
-          <SavedCredentials
-            detail={`Kredencijali sačuvani${
-              connection?.externalId ? ` · kanal ${connection.externalId}` : ""
-            }`}
-            onEdit={startEdit}
-          />
+          <Skeleton className="h-14 w-full rounded-lg" />
         </div>
       ) : (
-        <form onSubmit={handleSave} className="mt-6">
-          <FormStack>
-            <FormGroup title="Kanal">
-              <Field label="Channel ID" error={channelProblem} required>
-                {(field) => (
-                  <Input
-                    {...field}
-                    placeholder="npr. UCabcdefghijklmnopqrstuv"
-                    value={channelId}
-                    onChange={(event) => setChannelId(event.target.value)}
-                    disabled={saving}
-                    className="font-mono text-xs"
-                    required
-                  />
-                )}
-              </Field>
-            </FormGroup>
+        <div className="mt-5 space-y-4">
+          {successMessage && <FeedbackNote tone="success" title={successMessage} />}
+          {error && <FeedbackNote tone="danger" title={error} />}
 
-            <FormGroup title="Pristup">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="OAuth Client ID" required>
-                  {(field) => (
-                    <Input
-                      {...field}
-                      placeholder="xxxx.apps.googleusercontent.com"
-                      value={clientId}
-                      onChange={(event) => setClientId(event.target.value)}
-                      disabled={saving}
-                      className="font-mono text-xs"
-                      required
-                    />
+          {isConnected ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 text-xs text-foreground">
+                    <Lock className="size-3.5 shrink-0 text-success" aria-hidden />
+                    <span className="truncate font-medium">
+                      {connection.accountHandle ?? connection.externalId ?? "YouTube kanal povezan"}
+                    </span>
+                  </div>
+                  {connection.accountHandle && connection.externalId && (
+                    <p className="font-mono text-[11px] text-text-muted">
+                      ID kanala: {connection.externalId}
+                    </p>
                   )}
-                </Field>
-                <Field label="OAuth Client Secret" required>
-                  {(field) => (
-                    <Input
-                      {...field}
-                      type="password"
-                      placeholder="GOCSPX-…"
-                      value={clientSecret}
-                      onChange={(event) => setClientSecret(event.target.value)}
-                      disabled={saving}
-                      className="font-mono text-xs"
-                      required
-                    />
-                  )}
-                </Field>
+                </div>
               </div>
 
-              <Field label="OAuth Refresh Token" required>
-                {(field) => (
-                  <Input
-                    {...field}
-                    type="password"
-                    placeholder="1//04…"
-                    value={refreshToken}
-                    onChange={(event) => setRefreshToken(event.target.value)}
-                    disabled={saving}
-                    className="font-mono text-xs"
-                    required
-                  />
-                )}
-              </Field>
-            </FormGroup>
+              {connection.status === "error" && (
+                <div className="space-y-3 rounded-lg border border-danger/30 bg-danger/5 p-4">
+                  <FeedbackNote
+                    tone="danger"
+                    title="Veza sa YouTube kanalom je prekinuta ili je token istekao."
+                  >
+                    Potrebno je ponovo autorizovati pristup kanalu kako bi se nastavila sinhronizacija i upravljanje.
+                  </FeedbackNote>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleStartConnect}
+                    disabled={connecting || !setup.isConfigured}
+                  >
+                    {connecting ? (
+                      <>
+                        <LoaderCircle className="animate-spin" />
+                        Preusmeravam…
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw />
+                        Poveži ponovo
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
 
-            {error && <FeedbackNote tone="danger" title={error} />}
+              <div className="rounded-lg border border-line-soft bg-surface-raised/20 p-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAdvanced((prev) => !prev);
+                    if (editing) setEditing(false);
+                  }}
+                  className="flex w-full items-center justify-between text-left text-xs font-medium text-text-muted hover:text-foreground transition-colors"
+                >
+                  <span>Napredno: Ručno podešavanje kredencijala</span>
+                  <span className="text-[11px] font-normal text-text-subtle">
+                    {showAdvanced || editing ? "Sakrij" : "Prikaži"}
+                  </span>
+                </button>
 
-            <div className="flex items-center gap-3">
-              <Button
-                type="submit"
-                size="sm"
-                disabled={saving || channelProblem !== null}
-              >
-                {saving ? (
-                  <>
-                    <LoaderCircle className="animate-spin" />
-                    Čuvam…
-                  </>
-                ) : (
-                  <>
-                    <Check />
-                    Sačuvaj
-                  </>
+                {(showAdvanced || editing) && (
+                  <div className="mt-3 space-y-3">
+                    <p className="text-xs text-text-muted">
+                      Preporučujemo automatsko povezivanje Google OAuth putem. Ručni unos koristite samo ukoliko koristite prilagođeni GCP projekat.
+                    </p>
+                    {!editing ? (
+                      <SavedCredentials
+                        detail={`Kredencijali sačuvani${
+                          connection.externalId ? ` · kanal ${connection.externalId}` : ""
+                        }`}
+                        onEdit={startEdit}
+                      />
+                    ) : (
+                      <form onSubmit={handleSave} className="mt-4">
+                        <FormStack>
+                          <FormGroup title="Kanal">
+                            <Field label="Channel ID" error={channelProblem} required>
+                              {(field) => (
+                                <Input
+                                  {...field}
+                                  placeholder="npr. UCabcdefghijklmnopqrstuv"
+                                  value={channelId}
+                                  onChange={(event) => setChannelId(event.target.value)}
+                                  disabled={saving}
+                                  className="font-mono text-xs"
+                                  required
+                                />
+                              )}
+                            </Field>
+                          </FormGroup>
+
+                          <FormGroup title="Pristup">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                              <Field label="OAuth Client ID" required>
+                                {(field) => (
+                                  <Input
+                                    {...field}
+                                    placeholder="xxxx.apps.googleusercontent.com"
+                                    value={clientId}
+                                    onChange={(event) => setClientId(event.target.value)}
+                                    disabled={saving}
+                                    className="font-mono text-xs"
+                                    required
+                                  />
+                                )}
+                              </Field>
+                              <Field label="OAuth Client Secret" required>
+                                {(field) => (
+                                  <Input
+                                    {...field}
+                                    type="password"
+                                    placeholder="GOCSPX-…"
+                                    value={clientSecret}
+                                    onChange={(event) => setClientSecret(event.target.value)}
+                                    disabled={saving}
+                                    className="font-mono text-xs"
+                                    required
+                                  />
+                                )}
+                              </Field>
+                            </div>
+
+                            <Field label="OAuth Refresh Token" required>
+                              {(field) => (
+                                <Input
+                                  {...field}
+                                  type="password"
+                                  placeholder="1//04…"
+                                  value={refreshToken}
+                                  onChange={(event) => setRefreshToken(event.target.value)}
+                                  disabled={saving}
+                                  className="font-mono text-xs"
+                                  required
+                                />
+                              )}
+                            </Field>
+                          </FormGroup>
+
+                          <div className="flex items-center gap-3">
+                            <Button
+                              type="submit"
+                              size="sm"
+                              disabled={saving || channelProblem !== null}
+                            >
+                              {saving ? (
+                                <>
+                                  <LoaderCircle className="animate-spin" />
+                                  Čuvam…
+                                </>
+                              ) : (
+                                <>
+                                  <Check />
+                                  Sačuvaj
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditing(false);
+                                setError(null);
+                              }}
+                            >
+                              Otkaži
+                            </Button>
+                          </div>
+                        </FormStack>
+                      </form>
+                    )}
+                  </div>
                 )}
-              </Button>
-              {isConnected && (
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 p-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-foreground">
+                    Google OAuth autorizacija
+                  </p>
+                  <p className="text-xs text-text-muted">
+                    Povežite YouTube kanal putem zvaničnog Google OAuth dijaloga.
+                  </p>
+                </div>
                 <Button
                   type="button"
-                  variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    setEditing(false);
-                    setError(null);
-                  }}
+                  onClick={handleStartConnect}
+                  disabled={connecting || !setup.isConfigured}
                 >
-                  Otkaži
+                  {connecting ? (
+                    <>
+                      <LoaderCircle className="animate-spin" />
+                      Preusmeravam…
+                    </>
+                  ) : (
+                    <>
+                      <SquarePlay />
+                      Poveži YouTube
+                    </>
+                  )}
                 </Button>
-              )}
-            </div>
-          </FormStack>
-        </form>
+              </div>
+
+              <div className="rounded-lg border border-line-soft bg-surface-raised/20 p-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced((prev) => !prev)}
+                  className="flex w-full items-center justify-between text-left text-xs font-medium text-text-muted hover:text-foreground transition-colors"
+                >
+                  <span>Napredno: Ručni unos OAuth kredencijala</span>
+                  <span className="text-[11px] font-normal text-text-subtle">
+                    {showAdvanced ? "Sakrij" : "Prikaži"}
+                  </span>
+                </button>
+
+                {showAdvanced && (
+                  <div className="mt-3 space-y-3">
+                    <p className="text-xs text-text-muted">
+                      Preporučujemo automatsko povezivanje dugmetom iznad. Ručni unos koristite samo ukoliko posedujete prilagođenu GCP aplikaciju sa sopstvenim klijentskim parametrima.
+                    </p>
+                    <form onSubmit={handleSave} className="mt-4">
+                      <FormStack>
+                        <FormGroup title="Kanal">
+                          <Field label="Channel ID" error={channelProblem} required>
+                            {(field) => (
+                              <Input
+                                {...field}
+                                placeholder="npr. UCabcdefghijklmnopqrstuv"
+                                value={channelId}
+                                onChange={(event) => setChannelId(event.target.value)}
+                                disabled={saving}
+                                className="font-mono text-xs"
+                                required
+                              />
+                            )}
+                          </Field>
+                        </FormGroup>
+
+                        <FormGroup title="Pristup">
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <Field label="OAuth Client ID" required>
+                              {(field) => (
+                                <Input
+                                  {...field}
+                                  placeholder="xxxx.apps.googleusercontent.com"
+                                  value={clientId}
+                                  onChange={(event) => setClientId(event.target.value)}
+                                  disabled={saving}
+                                  className="font-mono text-xs"
+                                  required
+                                />
+                              )}
+                            </Field>
+                            <Field label="OAuth Client Secret" required>
+                              {(field) => (
+                                <Input
+                                  {...field}
+                                  type="password"
+                                  placeholder="GOCSPX-…"
+                                  value={clientSecret}
+                                  onChange={(event) => setClientSecret(event.target.value)}
+                                  disabled={saving}
+                                  className="font-mono text-xs"
+                                  required
+                                />
+                              )}
+                            </Field>
+                          </div>
+
+                          <Field label="OAuth Refresh Token" required>
+                            {(field) => (
+                              <Input
+                                {...field}
+                                type="password"
+                                placeholder="1//04…"
+                                value={refreshToken}
+                                onChange={(event) => setRefreshToken(event.target.value)}
+                                disabled={saving}
+                                className="font-mono text-xs"
+                                required
+                              />
+                            )}
+                          </Field>
+                        </FormGroup>
+
+                        <div className="flex items-center gap-3">
+                          <Button
+                            type="submit"
+                            size="sm"
+                            disabled={saving || channelProblem !== null}
+                          >
+                            {saving ? (
+                              <>
+                                <LoaderCircle className="animate-spin" />
+                                Čuvam…
+                              </>
+                            ) : (
+                              <>
+                                <Check />
+                                Sačuvaj
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </FormStack>
+                    </form>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       )}
+
       {/* Podnožje za sinhronizaciju je isto kao na ostalim karticama:
           `connections.syncNow` odavno rutira i YouTube (Y2), samo je kartica
           ostala na tekstu iz Y1 koji je obećavao da sinhronizacija tek stiže. */}

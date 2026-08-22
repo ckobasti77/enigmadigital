@@ -51,3 +51,6 @@ next-env.d.ts
 # lokalni noćni run + git lock smeće
 overnight/
 _to_delete/
+# izlaz noćnih prolaza (logs/<modul>/<ID>.log) — lokalni artefakt, može da
+# sadrži isečke odgovora providera
+logs/

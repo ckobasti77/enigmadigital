@@ -23,16 +23,33 @@ import {
   buildAdsUrl,
   buildInsightsUrl,
   parseRateLimitHeaders,
+  classifyMetaError,
   computeBreakdownHash,
   extractConversionResults,
   extractConversionValue,
   extractVideoActionCount,
   parseHourlyString,
   extractMetaAdsError,
+  runInsightsAsync,
+  MetaApiError,
+  ASYNC_RANGE_DAY_THRESHOLD,
+  type InsightsQueryParams,
   type RawAdInsightRow,
   type RawGraphApiResponse,
   type RateLimitStatus,
 } from "./lib/metaAdsApi";
+import {
+  createQuotaCollector,
+  readGate as readAdsQuotaGate,
+  allowsBackground as adsQuotaAllowsBackground,
+  type MetaAdsQuotaCollector,
+} from "./lib/metaAdsQuota";
+import {
+  planBackfill,
+  narrowWindow,
+  windowDays,
+  type DateWindow,
+} from "./lib/metaAdsBackfill";
 
 /**
  * ============================================================================
@@ -59,19 +76,33 @@ import {
  */
 
 const INSIGHTS_BATCH_CHUNK = 100;
-const LOOKBACK_DAYS = 7; // Attribution restatement window (PLAN.md §7.3)
+
+/**
+ * Koliko dugo prolaz sme da spava U MESTU kad Meta najavi blokadu (MA1).
+ *
+ * `estimated_time_to_regain_access` ume da bude i trideset minuta, a Convex
+ * akcija toliko ne živi. Kraće blokade se odspavaju odmah; duže se ne spavaju
+ * nego se prolaz povlači, a `metaAdsQuota.blockedUntil` drži kapiju zatvorenom
+ * dok vreme ne prođe — sledeći cron tik je ponovni pokušaj.
+ */
+const INLINE_SLEEP_CAP_MS = 2 * 60_000;
+
+/** Backoff za error_code 4 (opterećenje po sekundi). Sekunde, ne minuti. */
+const INSIGHTS_THROTTLE_BACKOFF_MS = [5_000, 15_000];
+
+/**
+ * Koliko dugo se čeka asinhroni izveštaj unutar jedne akcije.
+ *
+ * Meta poslu daje sat vremena (ASYNC_MAX_WAIT_MS); akcija nema toliko, pa se
+ * ovde čeka kraće i, ako posao nije gotov, prolaz odustaje bez upisa. Sledeći
+ * prolaz šalje nov posao — report_run_id iz ovog se ne pamti.
+ */
+const ASYNC_ACTION_BUDGET_MS = 4 * 60_000;
 
 // ── Date Helpers ─────────────────────────────────────────────────────────────
 
 function isoDay(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
-}
-
-function getLookbackDates(days: number): { since: string; until: string } {
-  const now = Date.now();
-  const until = isoDay(now);
-  const since = isoDay(now - days * 86_400_000);
-  return { since, until };
 }
 
 function toNum(val: unknown): number {
@@ -83,35 +114,57 @@ function toNum(val: unknown): number {
   return 0;
 }
 
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Prolaz se povlači jer je Meta najavila blokadu dužu od onoga što se spava. */
+class MetaStandDownError extends Error {
+  constructor(readonly minutes: number) {
+    super(
+      `Meta je ograničila pozive; nastavak za ~${Math.ceil(minutes)} min.`,
+    );
+    this.name = "MetaStandDownError";
+  }
+}
+
 // ── HTTP Fetcher with Rate-Limit & Error Handling ────────────────────────────
 
 interface FetchMetaResult<T> {
   data: T[];
   rateLimit: RateLimitStatus;
   apiCalls: number;
+  /**
+   * Meta je nudila jos jednu stranicu, a petlja je stala (plafon stranica,
+   * backoff ili odbijen poziv). Redovi su tada NEPOTPUNI, pa pozivalac ne sme
+   * da upise prozor kao pokriven.
+   */
+  truncated: boolean;
 }
 
 async function fetchMetaGraphPage<T>(
   url: string,
   tracker: UsageTracker,
+  collector?: MetaAdsQuotaCollector,
 ): Promise<{ items: T[]; nextUrl?: string; rateLimit: RateLimitStatus }> {
   // Through the tracker, like every Meta call (P2). Ads is the heaviest caller
   // in the app — the hot pass runs every fifteen minutes and pages — and it was
   // the largest of the blind spots that made the gate report "ok" at 100 %.
   // `parseRateLimitHeaders` below reads the SAME headers for its own pagination
-  // brake; what it does not do is tell the shared gate, which is this file's
-  // half of the job.
+  // brake and, since MA1, for the Ads-specific quota row too.
   const res = await tracker.fetch(url);
   const rateLimit = parseRateLimitHeaders(res.headers);
+  collector?.record(rateLimit);
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(extractMetaAdsError(body));
+    // Tipizovano, ne golo Error: 1487534 i code 4 stižu kroz isti status i
+    // traže suprotne lekove (MA1).
+    throw classifyMetaError(body, { httpStatus: res.status, rateLimit });
   }
 
   const json = (await res.json()) as RawGraphApiResponse<T>;
   if (json.error) {
-    throw new Error(extractMetaAdsError(json));
+    throw classifyMetaError(json, { rateLimit });
   }
 
   const items = json.data ?? [];
@@ -127,17 +180,16 @@ async function fetchAllPages<T>(
   maxPages: number = 10,
   onCall: (() => void) | undefined,
   tracker: UsageTracker,
+  collector?: MetaAdsQuotaCollector,
 ): Promise<FetchMetaResult<T>> {
   const data: T[] = [];
   let currentUrl: string | undefined = initialUrl;
   let pageCount = 0;
   let lastRateLimit: RateLimitStatus = {
-    callCount: 0,
-    totalCpuTime: 0,
-    totalTime: 0,
-    maxUsagePercent: 0,
+    present: false,
+    buc: [],
+    blocked: false,
     shouldBackoff: false,
-    estimatedTimeToRegainAccessSec: 0,
   };
 
   while (currentUrl && pageCount < maxPages) {
@@ -152,7 +204,7 @@ async function fetchAllPages<T>(
       items: T[];
       nextUrl?: string;
       rateLimit: RateLimitStatus;
-    } = await fetchMetaGraphPage<T>(currentUrl, tracker);
+    } = await fetchMetaGraphPage<T>(currentUrl, tracker, collector);
 
     lastRateLimit = pageResult.rateLimit;
     data.push(...pageResult.items);
@@ -160,7 +212,7 @@ async function fetchAllPages<T>(
 
     if (pageResult.rateLimit.shouldBackoff) {
       console.warn(
-        `[Meta Ads API] Rate limit threshold reached (${pageResult.rateLimit.maxUsagePercent}%). Backing off pagination.`,
+        `[Meta Ads API] Rate limit threshold reached (${pageResult.rateLimit.maxUsagePercent ?? "?"}%). Backing off pagination.`,
       );
       break;
     }
@@ -170,7 +222,153 @@ async function fetchAllPages<T>(
     data,
     rateLimit: lastRateLimit,
     apiCalls: pageCount,
+    truncated: currentUrl !== undefined,
   };
+}
+
+// ── Jedan insights upit, sa razdvojenom obradom grešaka (MA1) ────────────────
+
+interface InsightsFetch {
+  rows: RawAdInsightRow[];
+  /** Prozor koji je STVARNO dohvaćen; undefined kad upit nije bio po datumu. */
+  covered?: DateWindow;
+  viaAsync: boolean;
+  /** Paginacija je odsečena — `covered` opisuje pitanje, ne odgovor. */
+  truncated: boolean;
+}
+
+/**
+ * Dohvati jedan insights upit i raspetljaj tri potpuno različita neuspeha.
+ *
+ * `error_subcode 1487534` ("previše podataka") NIJE gušenje: kvota je
+ * netaknuta, samo je jedan upit bio prevelik. Lek je uži opseg — jednom — pa
+ * asinhroni izveštaj. Backoff bi tu bio čista šteta: na development sloju
+ * ponovljena greška oduzima od satne kvote (−0.001 × greške korisnika).
+ *
+ * `error_code 4` jeste gušenje, ali po SEKUNDI: kratak backoff u sekundama i
+ * ponovni pokušaj istog upita.
+ *
+ * Gušenje po BUC-u je jedino koje ima trajanje, i to u MINUTIMA.
+ */
+async function fetchInsights(
+  base: InsightsQueryParams,
+  window: DateWindow | undefined,
+  opts: {
+    tracker: UsageTracker;
+    collector: MetaAdsQuotaCollector;
+    countCall: () => void;
+    maxPages?: number;
+    label: string;
+  },
+): Promise<InsightsFetch> {
+  const { tracker, collector, countCall, label } = opts;
+  const maxPages = opts.maxPages ?? 10;
+
+  const buildParams = (w?: DateWindow): InsightsQueryParams => ({
+    ...base,
+    ...(w ? { timeRange: { since: w.since, until: w.until } } : {}),
+  });
+
+  const runAsync = async (w?: DateWindow): Promise<InsightsFetch> => {
+    countCall();
+    const result = await runInsightsAsync<RawAdInsightRow>(buildParams(w), {
+      maxWaitMs: ASYNC_ACTION_BUDGET_MS,
+      fetchImpl: (input, init) => tracker.fetch(input, init),
+      // Asinhroni put je najskuplji u modulu; bez ovoga bi njegovih nekoliko
+      // desetina poziva bilo nevidljivo za kapiju kvote (MA1).
+      onRateLimit: (status) => collector.record(status),
+      onPoll: (status, percent) => {
+        console.log(
+          `[Meta Ads Async] ${label}: ${status}${percent !== undefined ? ` (${percent}%)` : ""}`,
+        );
+      },
+    });
+    return {
+      rows: result.rows,
+      covered: w,
+      viaAsync: true,
+      truncated: result.truncated,
+    };
+  };
+
+  // Opseg širi od 30 dana Meta ionako ne servira sinhrono — ide odmah asinhrono.
+  if (window && windowDays(window) > ASYNC_RANGE_DAY_THRESHOLD) {
+    return await runAsync(window);
+  }
+
+  let attemptWindow = window;
+  let narrowedOnce = false;
+  let throttleAttempt = 0;
+
+  for (;;) {
+    try {
+      const res = await fetchAllPages<RawAdInsightRow>(
+        buildInsightsUrl(buildParams(attemptWindow)),
+        maxPages,
+        countCall,
+        tracker,
+        collector,
+      );
+      return {
+        rows: res.data,
+        covered: attemptWindow,
+        viaAsync: false,
+        truncated: res.truncated,
+      };
+    } catch (err) {
+      if (!(err instanceof MetaApiError)) throw err;
+
+      // 1. Previše podataka — suzi opseg TAČNO jednom, pa asinhrono. Nikad
+      //    backoff: pauza ne čini upit manjim.
+      if (err.kind === "too_much_data") {
+        if (!narrowedOnce && attemptWindow) {
+          const narrower = narrowWindow(attemptWindow);
+          if (narrower) {
+            narrowedOnce = true;
+            attemptWindow = narrower;
+            console.warn(
+              `[Meta Ads API] ${label}: 1487534 — sužavam opseg na ${narrower.since}..${narrower.until}.`,
+            );
+            continue;
+          }
+        }
+        console.warn(
+          `[Meta Ads API] ${label}: 1487534 i posle suženja — prelazim na asinhroni izveštaj.`,
+        );
+        return await runAsync(attemptWindow);
+      }
+
+      // 2. Opterećenje insights-a po sekundi — kratak backoff i ponovo.
+      if (err.kind === "insights_throttle") {
+        const wait = INSIGHTS_THROTTLE_BACKOFF_MS[throttleAttempt];
+        if (wait === undefined) throw err;
+        throttleAttempt++;
+        console.warn(
+          `[Meta Ads API] ${label}: error_code 4 — pauza ${wait / 1000} s.`,
+        );
+        await sleep(wait);
+        continue;
+      }
+
+      // 3. BUC je potrošen. Trajanje je u MINUTIMA i Meta ga je izričito rekla.
+      if (err.kind === "buc_throttle") {
+        const minutes = err.retryAfterMin ?? 0;
+        const ms = minutes * 60_000;
+        if (ms > 0 && ms <= INLINE_SLEEP_CAP_MS) {
+          console.warn(
+            `[Meta Ads API] ${label}: BUC gušenje — spavam ${minutes} min.`,
+          );
+          await sleep(ms);
+          continue;
+        }
+        // Duže od onoga što akcija sme da prespava: povuci se. Kapija drži
+        // ostatak zahvaljujući `blockedUntil` iz istog očitavanja.
+        throw new MetaStandDownError(minutes);
+      }
+
+      throw err;
+    }
+  }
 }
 
 // ── Transform Insight Row Helper ─────────────────────────────────────────────
@@ -213,6 +411,7 @@ function transformInsightRow(
   costPerResult: number;
   conversionValue: number;
   roas: number;
+  attributionSetting?: string;
   qualityRanking?: string;
   engagementRanking?: string;
   conversionRanking?: string;
@@ -298,6 +497,9 @@ function transformInsightRow(
     costPerResult,
     conversionValue,
     roas,
+    // Read-only: koja je postavka atribucije dala baš ove brojeve (MA1).
+    // Kad ga Meta ne pošalje, ostaje undefined — ne izmišlja se vrednost.
+    attributionSetting: raw.attribution_setting,
     qualityRanking: raw.quality_ranking,
     engagementRanking: raw.engagement_rate_ranking,
     conversionRanking: raw.conversion_rate_ranking,
@@ -330,6 +532,9 @@ export const syncAdsStructure = internalAction({
     // Ads is the pass that spends the most of it (P2). One tracker per run,
     // flushed once — a mutation per HTTP call would cost more than the calls.
     const tracker = createUsageTracker();
+
+    // I kapija specifična za Oglase čita ista zaglavlja (MA1).
+    const collector = createQuotaCollector();
 
     // The reading is worth just as much on the failing path — a call that
     // came back 429 is exactly the one the gate needs to hear about (P2).
@@ -435,7 +640,13 @@ export const syncAdsStructure = internalAction({
             effective_status?: string;
             daily_budget?: string;
             lifetime_budget?: string;
-          }>(buildCampaignsUrl(normalizedActId, trimmedToken, 500, version), 10, countCall, tracker);
+          }>(
+            buildCampaignsUrl(normalizedActId, trimmedToken, 500, version),
+            10,
+            countCall,
+            tracker,
+            collector,
+          );
 
           // 4. Fetch 48h spend to classify hot vs cold campaigns
           const spend48hMap = new Map<string, number>();
@@ -451,7 +662,7 @@ export const syncAdsStructure = internalAction({
             const spendRes = await fetchAllPages<{
               campaign_id?: string;
               spend?: string | number;
-            }>(spend48hUrl, 5, countCall, tracker);
+            }>(spend48hUrl, 5, countCall, tracker, collector);
 
             for (const item of spendRes.data) {
               if (item.campaign_id) {
@@ -496,7 +707,13 @@ export const syncAdsStructure = internalAction({
             daily_budget?: string;
             lifetime_budget?: string;
             targeting?: Record<string, unknown>;
-          }>(buildAdSetsUrl(normalizedActId, trimmedToken, 500, version), 10, countCall, tracker);
+          }>(
+            buildAdSetsUrl(normalizedActId, trimmedToken, 500, version),
+            10,
+            countCall,
+            tracker,
+            collector,
+          );
 
           const adSets = adSetsRes.data.map((s) => ({
             externalId: s.id,
@@ -524,7 +741,13 @@ export const syncAdsStructure = internalAction({
               thumbnail_url?: string;
               image_url?: string;
             };
-          }>(buildAdsUrl(normalizedActId, trimmedToken, 500, version), 10, countCall, tracker);
+          }>(
+            buildAdsUrl(normalizedActId, trimmedToken, 500, version),
+            10,
+            countCall,
+            tracker,
+            collector,
+          );
 
           const ads = adsRes.data.map((a) => ({
             externalId: a.id,
@@ -558,6 +781,7 @@ export const syncAdsStructure = internalAction({
       );
     } finally {
       await tracker.flush(ctx, workspaceId);
+      await collector.flush(ctx, workspaceId);
     }
   },
 });
@@ -565,9 +789,44 @@ export const syncAdsStructure = internalAction({
 // ── Insights Sync Action ────────────────────────────────────────────────────
 
 /**
+ * Tri upita „vrućeg” prolaza: današnji dan po satu, pa dva razdvajanja.
+ * Isti spisak kao pre MA1 — nijedna metrika ni razdvajanje nisu dodati.
+ */
+const HOT_SCOPES: Array<{
+  key: string;
+  breakdowns?: string[];
+  hourly: boolean;
+}> = [
+  {
+    key: "hourly",
+    breakdowns: ["hourly_stats_aggregated_by_audience_time_zone"],
+    hourly: true,
+  },
+  { key: "demo", breakdowns: ["age", "gender"], hourly: false },
+  {
+    key: "placement",
+    breakdowns: ["publisher_platform", "platform_position"],
+    hourly: false,
+  },
+];
+
+/** Tri upita „hladnog” prolaza. Svaki napreduje kroz backfill nezavisno. */
+const COLD_SCOPES: Array<{ key: string; breakdowns?: string[] }> = [
+  { key: "daily", breakdowns: undefined },
+  { key: "demo", breakdowns: ["age", "gender"] },
+  {
+    key: "placement",
+    breakdowns: ["publisher_platform", "platform_position"],
+  },
+];
+
+/**
  * syncAdsInsights:
  * Mode "hot": Every 15 min for active/hot campaigns (today at ad-level, hourly + breakdowns)
- * Mode "cold_all": Every 6h for all campaigns (daily level with 7-day lookback + breakdowns)
+ * Mode "cold_all": Every 6h for all campaigns (daily level). Prozor je od MA1
+ * 28 dana — koliko traje restatement atribucije — ali se osvaja po 7 dana po
+ * prolazu, uz poslednja 3 dana koja se osvežavaju uvek. Vidi
+ * `convex/lib/metaAdsBackfill.ts`.
  */
 export const syncAdsInsights = internalAction({
   args: {
@@ -592,13 +851,17 @@ export const syncAdsInsights = internalAction({
     // flushed once — a mutation per HTTP call would cost more than the calls.
     const tracker = createUsageTracker();
 
+    // Uz zajedničku kapiju ide i kapija specifična za Oglase (MA1): ista
+    // zaglavlja, ali sa BUC tipovima, slojem pristupa i trajanjem blokade.
+    const collector = createQuotaCollector();
+
     // The reading is worth just as much on the failing path — a call that
     // came back 429 is exactly the one the gate needs to hear about (P2).
     try {
       await runSync(
         ctx,
         { workspaceId, provider: "meta_ads", connectionId },
-        async (): Promise<number> => {
+        async (): Promise<{ itemsWritten: number; note?: string }> => {
           if (!conn.encryptedCredentials) {
             throw new Error("Meta Ads nije povezan");
           }
@@ -630,7 +893,7 @@ export const syncAdsInsights = internalAction({
           const adExternalIds = Object.keys(adIdMap);
           if (adExternalIds.length === 0) {
             // No ads in workspace yet -> nothing to pull insights for
-            return 0;
+            return { itemsWritten: 0 };
           }
 
           const accounts = await ctx.runQuery(internal.metaAdsStore.getAccounts, {
@@ -639,20 +902,56 @@ export const syncAdsInsights = internalAction({
           });
 
           if (accounts.length === 0) {
-            return 0;
+            return { itemsWritten: 0 };
           }
 
           let totalWritten = 0;
+          let standDownNote: string | undefined;
 
           for (const account of accounts) {
-            // Six paged reads per account. Once Meta has refused, none of the
-            // remaining ones can land (P2).
-            if (tracker.throttled) break;
+            // Once Meta has refused, none of the remaining reads can land (P2).
+            if (tracker.throttled || standDownNote) break;
 
             const actId = normalizeAdAccountId(account.externalId);
 
+            const baseParams = (
+              breakdowns: string[] | undefined,
+            ): InsightsQueryParams => ({
+              targetId: actId,
+              level: "ad",
+              breakdowns,
+              limit: 500,
+              accessToken: trimmedToken,
+              version,
+            });
+
+            /** Upiši redove u komadima; vrati koliko ih je upisano. */
+            const writeRows = async (
+              raws: RawAdInsightRow[],
+              hourly: boolean,
+            ): Promise<number> => {
+              const rows = [];
+              for (const raw of raws) {
+                if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
+                const adId = adIdMap[raw.ad_id] as Id<"ads">;
+                rows.push(transformInsightRow(raw, adId, hourly));
+              }
+              let written = 0;
+              for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
+                written += await ctx.runMutation(
+                  internal.metaAdsStore.upsertInsightsBatch,
+                  {
+                    workspaceId,
+                    rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
+                  },
+                );
+              }
+              return written;
+            };
+
             if (mode === "hot") {
-              // Mode "hot": Fetch TODAY insights for active/hot campaigns
+              // Mode "hot": danas, na nivou oglasa. Prozor je jedan dan, pa
+              // backfill ovde nema šta da radi.
               const hotCampaigns = await ctx.runQuery(
                 internal.metaAdsStore.getCampaignsByPriority,
                 { workspaceId, priority: "hot" },
@@ -662,263 +961,132 @@ export const syncAdsInsights = internalAction({
                 continue;
               }
 
-              // 1. Fetch Today hourly insights at ad level
-              try {
-                const hourlyUrl = buildInsightsUrl({
-                  targetId: actId,
-                  level: "ad",
-                  datePreset: "today",
-                  breakdowns: [
-                    "hourly_stats_aggregated_by_audience_time_zone",
-                  ],
-                  limit: 500,
-                  accessToken: trimmedToken,
-                  version,
-                });
-
-                const hourlyRes = await fetchAllPages<RawAdInsightRow>(
-                  hourlyUrl,
-                  5,
-                  countCall,
-                  tracker,
-                );
-
-                const rows = [];
-                for (const raw of hourlyRes.data) {
-                  if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
-                  const adId = adIdMap[raw.ad_id] as Id<"ads">;
-                  rows.push(transformInsightRow(raw, adId, true));
-                }
-
-                for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
-                  totalWritten += await ctx.runMutation(
-                    internal.metaAdsStore.upsertInsightsBatch,
+              for (const scope of HOT_SCOPES) {
+                if (tracker.throttled || standDownNote) break;
+                try {
+                  const res = await fetchInsights(
                     {
-                      workspaceId,
-                      rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
+                      ...baseParams(scope.breakdowns),
+                      datePreset: "today",
+                    },
+                    undefined,
+                    {
+                      tracker,
+                      collector,
+                      countCall,
+                      maxPages: 5,
+                      label: `hot/${scope.key}`,
                     },
                   );
-                }
-              } catch (err) {
-                console.warn(
-                  "[Meta Ads Sync] Hot hourly insights warning:",
-                  sanitizeSyncError(err),
-                );
-              }
-
-              // 2. Fetch Today demographic breakdown (age, gender)
-              try {
-                const demoUrl = buildInsightsUrl({
-                  targetId: actId,
-                  level: "ad",
-                  datePreset: "today",
-                  breakdowns: ["age", "gender"],
-                  limit: 500,
-                  accessToken: trimmedToken,
-                  version,
-                });
-
-                const demoRes = await fetchAllPages<RawAdInsightRow>(
-                  demoUrl,
-                  5,
-                  countCall,
-                  tracker,
-                );
-
-                const rows = [];
-                for (const raw of demoRes.data) {
-                  if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
-                  const adId = adIdMap[raw.ad_id] as Id<"ads">;
-                  rows.push(transformInsightRow(raw, adId, false));
-                }
-
-                for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
-                  totalWritten += await ctx.runMutation(
-                    internal.metaAdsStore.upsertInsightsBatch,
-                    {
-                      workspaceId,
-                      rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
-                    },
+                  totalWritten += await writeRows(res.rows, scope.hourly);
+                } catch (err) {
+                  if (err instanceof MetaStandDownError) {
+                    standDownNote = err.message;
+                    break;
+                  }
+                  console.warn(
+                    `[Meta Ads Sync] hot/${scope.key} warning:`,
+                    sanitizeSyncError(err),
                   );
                 }
-              } catch (err) {
-                console.warn(
-                  "[Meta Ads Sync] Hot demographic breakdown warning:",
-                  sanitizeSyncError(err),
-                );
-              }
-
-              // 3. Fetch Today placement breakdown (publisher_platform, platform_position)
-              try {
-                const placementUrl = buildInsightsUrl({
-                  targetId: actId,
-                  level: "ad",
-                  datePreset: "today",
-                  breakdowns: ["publisher_platform", "platform_position"],
-                  limit: 500,
-                  accessToken: trimmedToken,
-                  version,
-                });
-
-                const placementRes = await fetchAllPages<RawAdInsightRow>(
-                  placementUrl,
-                  5,
-                  countCall,
-                  tracker,
-                );
-
-                const rows = [];
-                for (const raw of placementRes.data) {
-                  if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
-                  const adId = adIdMap[raw.ad_id] as Id<"ads">;
-                  rows.push(transformInsightRow(raw, adId, false));
-                }
-
-                for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
-                  totalWritten += await ctx.runMutation(
-                    internal.metaAdsStore.upsertInsightsBatch,
-                    {
-                      workspaceId,
-                      rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
-                    },
-                  );
-                }
-              } catch (err) {
-                console.warn(
-                  "[Meta Ads Sync] Hot placement breakdown warning:",
-                  sanitizeSyncError(err),
-                );
               }
             } else {
-              // Mode "cold_all": 7-day lookback window (attribution restatement)
-              const timeRange = getLookbackDates(LOOKBACK_DAYS);
+              // Mode "cold_all": 28-dnevni prozor restatement-a, osvajan po 7
+              // dana po prolazu (MA1). Svaki scope ima svoj red u
+              // `metaAdsBackfill` jer napreduju nezavisno — onaj koji padne ne
+              // sme da pomeri ostale.
+              const today = isoDay(Date.now());
 
-              // 1. Daily ad-level totals (no breakdown)
-              try {
-                const dailyUrl = buildInsightsUrl({
-                  targetId: actId,
-                  level: "ad",
-                  timeRange,
-                  timeIncrement: 1,
-                  limit: 500,
-                  accessToken: trimmedToken,
-                  version,
-                });
+              for (const scope of COLD_SCOPES) {
+                if (tracker.throttled || standDownNote) break;
 
-                const dailyRes = await fetchAllPages<RawAdInsightRow>(
-                  dailyUrl,
-                  10,
-                  countCall,
-                  tracker,
+                const backfillScope = `${account.externalId}:${scope.key}`;
+                const state = await ctx.runQuery(
+                  internal.metaAdsStore.getBackfill,
+                  { workspaceId, scope: backfillScope },
+                );
+                const plan = planBackfill(
+                  today,
+                  state?.oldestSyncedDate ?? undefined,
                 );
 
-                const rows = [];
-                for (const raw of dailyRes.data) {
-                  if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
-                  const adId = adIdMap[raw.ad_id] as Id<"ads">;
-                  rows.push(transformInsightRow(raw, adId, false));
+                // Poslednja 3 dana uvek; komad dubine samo dok 28 nije
+                // pokriveno. Kad se prozori dodiruju, plan ih spoji u jedan.
+                const windows: DateWindow[] = plan.chunk
+                  ? [plan.refresh, plan.chunk]
+                  : [plan.refresh];
+
+                let deepestCovered: string | undefined;
+                let failed = false;
+
+                for (const window of windows) {
+                  try {
+                    const res = await fetchInsights(
+                      {
+                        ...baseParams(scope.breakdowns),
+                        timeIncrement: 1,
+                      },
+                      window,
+                      {
+                        tracker,
+                        collector,
+                        countCall,
+                        maxPages: 10,
+                        label: `cold/${scope.key} ${window.since}..${window.until}`,
+                      },
+                    );
+                    totalWritten += await writeRows(res.rows, false);
+
+                    // Odsečena paginacija znači da su redovi za ovaj prozor
+                    // nepotpuni. Upisani jesu (bolje delimično nego ništa), ali
+                    // backfill se NE pomera — inače bi ovi dani bili zauvek
+                    // zapamćeni kao pokriveni brojevima kojih nema.
+                    if (res.truncated) {
+                      failed = true;
+                      console.warn(
+                        `[Meta Ads Sync] cold/${scope.key} ${window.since}..${window.until}: paginacija odsečena, backfill se ne pomera.`,
+                      );
+                      continue;
+                    }
+
+                    // Ako je opseg usput sužen, pomera se samo do onoga što je
+                    // stvarno stiglo — inače bi backfill preskočio dane koje
+                    // nikada nije doneo.
+                    const covered = res.covered?.since ?? window.since;
+                    if (
+                      deepestCovered === undefined ||
+                      covered < deepestCovered
+                    ) {
+                      deepestCovered = covered;
+                    }
+                  } catch (err) {
+                    failed = true;
+                    if (err instanceof MetaStandDownError) {
+                      standDownNote = err.message;
+                      break;
+                    }
+                    console.warn(
+                      `[Meta Ads Sync] cold/${scope.key} ${window.since}..${window.until} warning:`,
+                      sanitizeSyncError(err),
+                    );
+                  }
                 }
 
-                for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
-                  totalWritten += await ctx.runMutation(
-                    internal.metaAdsStore.upsertInsightsBatch,
+                if (!failed && deepestCovered !== undefined) {
+                  await ctx.runMutation(
+                    internal.metaAdsStore.advanceBackfill,
                     {
                       workspaceId,
-                      rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
+                      scope: backfillScope,
+                      oldestSyncedDate: deepestCovered,
+                      // Plan je nameravao da zatvori 28 dana; „zatvoreno” je
+                      // samo ako je najstariji dan koji je STVARNO stigao onaj
+                      // koji je plan tražio (suženje opsega ga pomera unapred).
+                      complete: plan.complete && deepestCovered === plan.nextOldest,
+                      restarted: plan.restarted,
                     },
                   );
                 }
-              } catch (err) {
-                console.warn(
-                  "[Meta Ads Sync] 7-day daily insights warning:",
-                  sanitizeSyncError(err),
-                );
-              }
-
-              // 2. Demographic breakdown over 7-day window
-              try {
-                const demoUrl = buildInsightsUrl({
-                  targetId: actId,
-                  level: "ad",
-                  timeRange,
-                  timeIncrement: 1,
-                  breakdowns: ["age", "gender"],
-                  limit: 500,
-                  accessToken: trimmedToken,
-                  version,
-                });
-
-                const demoRes = await fetchAllPages<RawAdInsightRow>(
-                  demoUrl,
-                  10,
-                  countCall,
-                  tracker,
-                );
-
-                const rows = [];
-                for (const raw of demoRes.data) {
-                  if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
-                  const adId = adIdMap[raw.ad_id] as Id<"ads">;
-                  rows.push(transformInsightRow(raw, adId, false));
-                }
-
-                for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
-                  totalWritten += await ctx.runMutation(
-                    internal.metaAdsStore.upsertInsightsBatch,
-                    {
-                      workspaceId,
-                      rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
-                    },
-                  );
-                }
-              } catch (err) {
-                console.warn(
-                  "[Meta Ads Sync] 7-day demographic breakdown warning:",
-                  sanitizeSyncError(err),
-                );
-              }
-
-              // 3. Placement breakdown over 7-day window
-              try {
-                const placementUrl = buildInsightsUrl({
-                  targetId: actId,
-                  level: "ad",
-                  timeRange,
-                  timeIncrement: 1,
-                  breakdowns: ["publisher_platform", "platform_position"],
-                  limit: 500,
-                  accessToken: trimmedToken,
-                  version,
-                });
-
-                const placementRes = await fetchAllPages<RawAdInsightRow>(
-                  placementUrl,
-                  10,
-                  countCall,
-                  tracker,
-                );
-
-                const rows = [];
-                for (const raw of placementRes.data) {
-                  if (!raw.ad_id || !adIdMap[raw.ad_id]) continue;
-                  const adId = adIdMap[raw.ad_id] as Id<"ads">;
-                  rows.push(transformInsightRow(raw, adId, false));
-                }
-
-                for (let i = 0; i < rows.length; i += INSIGHTS_BATCH_CHUNK) {
-                  totalWritten += await ctx.runMutation(
-                    internal.metaAdsStore.upsertInsightsBatch,
-                    {
-                      workspaceId,
-                      rows: rows.slice(i, i + INSIGHTS_BATCH_CHUNK),
-                    },
-                  );
-                }
-              } catch (err) {
-                console.warn(
-                  "[Meta Ads Sync] 7-day placement breakdown warning:",
-                  sanitizeSyncError(err),
-                );
               }
             }
           }
@@ -927,11 +1095,12 @@ export const syncAdsInsights = internalAction({
             `[Meta Ads Sync] ${mode} insights sync completed. API calls: ${apiCalls}, items written: ${totalWritten}`,
           );
 
-          return totalWritten;
+          return { itemsWritten: totalWritten, note: standDownNote };
         },
       );
     } finally {
       await tracker.flush(ctx, workspaceId);
+      await collector.flush(ctx, workspaceId);
     }
   },
 });
@@ -964,7 +1133,25 @@ async function shouldRunAds(
   if (conn === null) return false;
 
   const gate = await readGate(ctx, conn.workspaceId);
-  if (allowsBackground(gate)) return true;
+  if (!allowsBackground(gate)) {
+    await ctx.runMutation(internal.metaSyncStore.recordJob, {
+      workspaceId: conn.workspaceId,
+      provider: "meta_ads",
+      job,
+      ok: false,
+      skipReason:
+        gate.state === "backoff"
+          ? "Meta privremeno ograničava pozive; prolaz oglasa preskočen."
+          : "Potrošnja Meta limita je previsoka; prolaz oglasa preskočen.",
+    });
+    return false;
+  }
+
+  // Druga kapija, iz Ads zaglavlja (MA1). Zajednička kapija gleda X-App-Usage
+  // preko svih Meta proizvoda; ova gleda BUC po nalogu i opterećenje insights-a
+  // po sekundi, a Meta guši po onome što prvo dođe do 100 — pa mora obe.
+  const adsGate = await readAdsQuotaGate(ctx, conn.workspaceId);
+  if (adsQuotaAllowsBackground(adsGate)) return true;
 
   await ctx.runMutation(internal.metaSyncStore.recordJob, {
     workspaceId: conn.workspaceId,
@@ -972,9 +1159,9 @@ async function shouldRunAds(
     job,
     ok: false,
     skipReason:
-      gate.state === "backoff"
-        ? "Meta privremeno ograničava pozive; prolaz oglasa preskočen."
-        : "Potrošnja Meta limita je previsoka; prolaz oglasa preskočen.",
+      adsGate.blockedUntil !== undefined
+        ? "Meta je ograničila Marketing API; prolaz oglasa čeka isticanje blokade."
+        : `Potrošnja kvote Meta oglasa je ${Math.round(adsGate.peakPct)} %; prolaz oglasa preskočen.`,
   });
   return false;
 }

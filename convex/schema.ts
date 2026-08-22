@@ -79,7 +79,11 @@ export default defineSchema({
     nonce: v.string(),
     redirectUri: v.string(),
     createdAt: v.number(),
-  }).index("by_nonce", ["nonce"]),
+  })
+    .index("by_nonce", ["nonce"])
+    // Metenje isteklih nonce-ova ide kroz opseg po vremenu, ne kroz `.filter()`
+    // nad celom tabelom.
+    .index("by_createdAt", ["createdAt"]),
 
   // GA4 — daily aggregate + per channel/campaign (for UTM attribution).
   ga4Daily: defineTable({
@@ -235,6 +239,7 @@ export default defineSchema({
     compatible: v.boolean(),
     incompatible: v.array(v.string()),
     checkedAt: v.number(),
+    schemaVersion: v.optional(v.number()),
   }).index("by_workspace_combo", ["workspaceId", "comboKey"]),
 
   // GA4 podaci uživo za poslednjih 30 minuta (A5 §5.1).
@@ -1499,6 +1504,9 @@ export default defineSchema({
     conversionValue: v.number(), // purchase/lead value
     roas: v.number(), // conversionValue / spend
     searchImpressionShare: v.optional(v.number()),
+    // Read-only echo iz Meta odgovora, npr. "7d_click,1d_view" (MA1). Kaže KOJA
+    // je postavka atribucije dala ove brojeve; ne postavlja se nikad iz koda.
+    attributionSetting: v.optional(v.string()),
     qualityRanking: v.optional(v.string()),
     engagementRanking: v.optional(v.string()),
     conversionRanking: v.optional(v.string()),
@@ -1508,6 +1516,39 @@ export default defineSchema({
     .index("by_ad_date", ["adId", "date"])
     .index("by_ad_date_hash", ["adId", "date", "breakdownHash"])
     .index("by_upsert_key", ["adId", "date", "breakdownHash", "hour"]),
+
+  // Kvota Meta Marketing API-ja: oba zaglavlja u jednom redu po workspace-u (MA1).
+  // BUC procenti opisuju klizajući SAT, Insights-Throttle sekundu — zato oba,
+  // i zato `peakPct` uzima najveći, a ne prosek.
+  metaAdsQuota: defineTable({
+    workspaceId: v.id("workspaces"),
+    fetchedAt: v.number(),
+    // X-Business-Use-Case-Usage (procenti 0-100 nad klizajućim satom).
+    callCount: v.optional(v.number()),
+    totalCpuTime: v.optional(v.number()),
+    totalTime: v.optional(v.number()),
+    // X-FB-Ads-Insights-Throttle (opterećenje po sekundi).
+    appIdUtilPct: v.optional(v.number()),
+    accIdUtilPct: v.optional(v.number()),
+    // ads_api_access_tier: "development_access" | "standard_access".
+    tier: v.optional(v.string()),
+    // estimated_time_to_regain_access je u MINUTIMA; ovde se čuva i sirov broj
+    // i trenutak kad blokada ističe, da kapija ne mora ponovo da računa.
+    regainMinutes: v.optional(v.number()),
+    blockedUntil: v.optional(v.number()),
+    peakPct: v.number(),
+    state: v.union(v.literal("ok"), v.literal("warn"), v.literal("stop")),
+  }).index("by_workspace", ["workspaceId"]),
+
+  // Dokle je stigao postepeni povratak na 28-dnevni prozor restatement-a (MA1).
+  // Jedan red po (workspace, scope) jer dnevni/demografski/plasmanski upit
+  // napreduju nezavisno.
+  metaAdsBackfill: defineTable({
+    workspaceId: v.id("workspaces"),
+    scope: v.string(), // "daily" | "demo" | "placement"
+    oldestSyncedDate: v.string(), // "YYYY-MM-DD"
+    completedAt: v.optional(v.number()),
+  }).index("by_workspace_scope", ["workspaceId", "scope"]),
 
   adActions: defineTable({
     workspaceId: v.id("workspaces"),

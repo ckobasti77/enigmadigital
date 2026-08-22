@@ -76,6 +76,7 @@ const COMPAT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days cache for compatibility
 const CATALOG_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours metadata catalog refresh
 const CONFIG_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours configuration refresh
 export const GA4_DAILY_METRICS_VERSION = 2;
+export const GA4_COMPAT_VERSION = 2;
 
 /** Format timestamp to YYYY-MM-DD in the given IANA timezone. */
 function formatTzDate(ms: number, timeZone: string): string {
@@ -120,7 +121,7 @@ async function verifyRequestCompatibility(
   propertyId: string,
   token: string,
   request: ReportRequest,
-): Promise<void> {
+): Promise<string | undefined> {
   const comboKey = computeComboKey(request);
   const now = Date.now();
 
@@ -129,27 +130,47 @@ async function verifyRequestCompatibility(
     comboKey,
   });
 
-  if (cached !== null && now - cached.checkedAt <= COMPAT_TTL_MS) {
+  if (
+    cached !== null &&
+    cached.schemaVersion === GA4_COMPAT_VERSION &&
+    now - cached.checkedAt <= COMPAT_TTL_MS
+  ) {
     if (!cached.compatible) {
       throw new Error(
         `GA4 Data API ne podržava traženu kombinaciju dimenzija/metrika (${cached.incompatible.join(", ")}).`,
       );
     }
-    return;
+    return undefined;
   }
 
-  // Not in cache or expired -> run checkCompatibility
+  // Not in cache, schema version mismatch, or expired -> run checkCompatibility
   const compatibility = await checkCompatibility(propertyId, token, {
     dimensions: request.dimensions,
     metrics: request.metrics,
   });
 
-  const incompatibleDims = (compatibility.dimensionCompatibilities ?? [])
+  const requestedDims = new Set((request.dimensions ?? []).map((d) => d.name));
+  const requestedMetrics = new Set((request.metrics ?? []).map((m) => m.name));
+
+  const matchingDims = (compatibility.dimensionCompatibilities ?? []).filter(
+    (d) =>
+      d.dimensionMetadata?.apiName !== undefined &&
+      requestedDims.has(d.dimensionMetadata.apiName),
+  );
+
+  const matchingMetrics = (compatibility.metricCompatibilities ?? []).filter(
+    (m) =>
+      m.metricMetadata?.apiName !== undefined &&
+      requestedMetrics.has(m.metricMetadata.apiName),
+  );
+
+  const incompatibleDims = matchingDims
     .filter((d) => d.compatibility === "INCOMPATIBLE")
-    .map((d) => d.dimensionMetadata?.apiName ?? "nepoznata dimenzija");
-  const incompatibleMetrics = (compatibility.metricCompatibilities ?? [])
+    .map((d) => d.dimensionMetadata!.apiName!);
+
+  const incompatibleMetrics = matchingMetrics
     .filter((m) => m.compatibility === "INCOMPATIBLE")
-    .map((m) => m.metricMetadata?.apiName ?? "nepoznata metrika");
+    .map((m) => m.metricMetadata!.apiName!);
 
   const incompatible = [...incompatibleDims, ...incompatibleMetrics];
   const compatible = incompatible.length === 0;
@@ -160,6 +181,7 @@ async function verifyRequestCompatibility(
     compatible,
     incompatible,
     checkedAt: now,
+    schemaVersion: GA4_COMPAT_VERSION,
   });
 
   if (!compatible) {
@@ -167,6 +189,12 @@ async function verifyRequestCompatibility(
       `GA4 Data API ne podržava traženu kombinaciju dimenzija/metrika (${incompatible.join(", ")}).`,
     );
   }
+
+  if (matchingDims.length === 0 && matchingMetrics.length === 0) {
+    return "GA4 provera kompatibilnosti nije vratila status za tražene dimenzije/metrike; zahtev je prosleđen.";
+  }
+
+  return undefined;
 }
 
 interface MetricDailyConfig {
@@ -997,15 +1025,19 @@ export const syncGa4 = internalAction({
             ];
 
         // 8. Pre-flight Compatibility Check per request using mapWithConcurrency & 7d cache
-        await mapWithConcurrency(requestsToRun, 3, async (req) => {
-          await verifyRequestCompatibility(
-            ctx,
-            workspaceId,
-            propertyId,
-            token,
-            req,
-          );
-        });
+        const compatWarnings = await mapWithConcurrency(
+          requestsToRun,
+          3,
+          async (req) => {
+            return await verifyRequestCompatibility(
+              ctx,
+              workspaceId,
+              propertyId,
+              token,
+              req,
+            );
+          },
+        );
 
         // 9. Execute Batch Reports (max 5 per batch, concurrency 3)
         const batches: ReportRequest[][] = [];
@@ -1273,6 +1305,12 @@ export const syncGa4 = internalAction({
 
         // Notes for syncRuns
         const notes: string[] = [];
+        const uniqueCompatWarnings = Array.from(
+          new Set(compatWarnings.filter((w): w is string => Boolean(w))),
+        );
+        for (const warn of uniqueCompatWarnings) {
+          notes.push(warn);
+        }
         if (isWarn) {
           notes.push(
             `Delimično: kvota na ${gate.peakPct.toFixed(0)}%, prošireni izveštaji i kohorte preskočeni.`,

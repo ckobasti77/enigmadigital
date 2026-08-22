@@ -56,10 +56,10 @@ export const config = {
   // the whole exchange server-side via the one-time `state` nonce, so it needs
   // no auth context from the middleware.
   matcher: [
-    "/((?!.*\\..*|_next|api/auth/callback/instagram|api/auth/callback/facebook|r/|privacy(?:$|/)).*)",
+    "/((?!.*\\..*|_next|api/auth/callback/instagram|api/auth/callback/facebook|api/auth/callback/youtube|r/|privacy(?:$|/)).*)",
     "/",
     // Two lookaheads rather than one alternation: Next refuses a capturing
     // group inside a matcher, and `(instagram|facebook)` is one.
-    "/(api|trpc)((?!/auth/callback/instagram)(?!/auth/callback/facebook).*)",
+    "/(api|trpc)((?!/auth/callback/instagram)(?!/auth/callback/facebook)(?!/auth/callback/youtube).*)",
   ],
 };

@@ -619,10 +619,18 @@ export const recordCompat = internalMutation({
     compatible: v.boolean(),
     incompatible: v.array(v.string()),
     checkedAt: v.number(),
+    schemaVersion: v.optional(v.number()),
   },
   handler: async (
     ctx,
-    { workspaceId, comboKey, compatible, incompatible, checkedAt },
+    {
+      workspaceId,
+      comboKey,
+      compatible,
+      incompatible,
+      checkedAt,
+      schemaVersion,
+    },
   ) => {
     const existing = await ctx.db
       .query("ga4Compat")
@@ -636,6 +644,7 @@ export const recordCompat = internalMutation({
         compatible,
         incompatible,
         checkedAt,
+        schemaVersion,
       });
     } else {
       await ctx.db.insert("ga4Compat", {
@@ -644,8 +653,47 @@ export const recordCompat = internalMutation({
         compatible,
         incompatible,
         checkedAt,
+        schemaVersion,
       });
     }
+  },
+});
+
+/**
+ * Briše sve keširane zapise provere kompatibilnosti (`ga4Compat`) za zadati workspace.
+ * Paginirano i idempotentno.
+ *
+ * Ručno pokretanje preko Convex CLI:
+ * npx convex run ga4Store:clearGa4Compat '{"workspaceId": "<WORKSPACE_ID>"}'
+ */
+export const clearGa4Compat = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    deleted: v.number(),
+    isDone: v.boolean(),
+    continueCursor: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, { workspaceId, cursor, limit = 200 }) => {
+    const page = await ctx.db
+      .query("ga4Compat")
+      .withIndex("by_workspace_combo", (q) => q.eq("workspaceId", workspaceId))
+      .paginate({ cursor: cursor ?? null, numItems: limit });
+
+    let deleted = 0;
+    for (const doc of page.page) {
+      await ctx.db.delete(doc._id);
+      deleted++;
+    }
+
+    return {
+      deleted,
+      isDone: page.isDone,
+      continueCursor: page.continueCursor,
+    };
   },
 });
 
