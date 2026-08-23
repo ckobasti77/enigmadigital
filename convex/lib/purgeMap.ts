@@ -762,9 +762,84 @@ const GA4_STEPS: PurgeStep[] = [
 ];
 
 const GOOGLE_ADS_STEPS: PurgeStep[] = [
+  simple("gadsConversionActions", (ctx, ws) =>
+    ctx.db
+      .query("gadsConversionActions")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
   simple("gadsKeywordQuality", (ctx, ws) =>
     ctx.db
       .query("gadsKeywordQuality")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsQuota", (ctx, ws) =>
+    ctx.db
+      .query("gadsQuota")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsCustomerClients", (ctx, ws) =>
+    ctx.db
+      .query("gadsCustomerClients")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsBudgets", (ctx, ws) =>
+    ctx.db
+      .query("gadsBudgets")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsCampaignCriteria", (ctx, ws) =>
+    ctx.db
+      .query("gadsCampaignCriteria")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsSearchTerms", (ctx, ws) =>
+    ctx.db
+      .query("gadsSearchTerms")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsSharedSets", (ctx, ws) =>
+    ctx.db
+      .query("gadsSharedSets")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsSharedCriteria", (ctx, ws) =>
+    ctx.db
+      .query("gadsSharedCriteria")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsCampaignSharedSets", (ctx, ws) =>
+    ctx.db
+      .query("gadsCampaignSharedSets")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsGeographicView", (ctx, ws) =>
+    ctx.db
+      .query("gadsGeographicView")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsUserLocationView", (ctx, ws) =>
+    ctx.db
+      .query("gadsUserLocationView")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsDeviceStats", (ctx, ws) =>
+    ctx.db
+      .query("gadsDeviceStats")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsHourlyStats", (ctx, ws) =>
+    ctx.db
+      .query("gadsHourlyStats")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsAgeRangeView", (ctx, ws) =>
+    ctx.db
+      .query("gadsAgeRangeView")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsGenderView", (ctx, ws) =>
+    ctx.db
+      .query("gadsGenderView")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
   ),
   {
@@ -962,7 +1037,22 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   ga4Config: { purgedBy: ["ga4"] },
 
   // ── Ads ───────────────────────────────────────────────────────────────────
+  gadsConversionActions: { purgedBy: ["google_ads"] },
   gadsKeywordQuality: { purgedBy: ["google_ads"] },
+  gadsQuota: { purgedBy: ["google_ads"] },
+  gadsCustomerClients: { purgedBy: ["google_ads"] },
+  gadsBudgets: { purgedBy: ["google_ads"] },
+  gadsCampaignCriteria: { purgedBy: ["google_ads"] },
+  gadsSearchTerms: { purgedBy: ["google_ads"] },
+  gadsSharedSets: { purgedBy: ["google_ads"] },
+  gadsSharedCriteria: { purgedBy: ["google_ads"] },
+  gadsCampaignSharedSets: { purgedBy: ["google_ads"] },
+  gadsGeographicView: { purgedBy: ["google_ads"] },
+  gadsUserLocationView: { purgedBy: ["google_ads"] },
+  gadsDeviceStats: { purgedBy: ["google_ads"] },
+  gadsHourlyStats: { purgedBy: ["google_ads"] },
+  gadsAgeRangeView: { purgedBy: ["google_ads"] },
+  gadsGenderView: { purgedBy: ["google_ads"] },
   adAccounts: { purgedBy: ["meta_ads", "google_ads"] },
   adCampaigns: { purgedBy: ["meta_ads", "google_ads"] },
   adSets: { purgedBy: ["meta_ads", "google_ads"] },

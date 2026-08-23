@@ -642,14 +642,12 @@ export const syncGa4 = internalAction({
         } else {
           // Known property timezone: calculate calendar window in that timezone
           const candidates = lastNDatesInTz(BACKFILL_DAYS, propertyTz);
-          const existingRows = await ctx.runQuery(
-            internal.ga4Store.dailyDates,
-            {
+          const existingRows: Array<{ date: string; metricsVersion?: number }> =
+            await ctx.runQuery(internal.ga4Store.dailyDates, {
               workspaceId,
               since: candidates[0],
-            },
-          );
-          const existingMap = new Map(
+            });
+          const existingMap = new Map<string, number | undefined>(
             existingRows.map((r) => [r.date, r.metricsVersion]),
           );
           const lookbackCutoff =

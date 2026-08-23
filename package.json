@@ -14,6 +14,12 @@
     "verify:meta-token": "node --import ./scripts/ts-hooks.mjs scripts/test-meta-token.ts",
     "verify:or-eventid": "node --import ./scripts/ts-hooks.mjs scripts/verify-or-eventid.ts",
     "verify:capi-identity": "node --import ./scripts/ts-hooks.mjs scripts/verify-capi-identity.ts",
+    "verify:gads-transport": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-transport.ts",
+    "verify:gads-catalog": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-catalog.ts",
+    "verify:gads-structure": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-structure.ts",
+    "verify:gads-conversions": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-conversions.ts",
+    "verify:gads-keywords": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-keywords.ts",
+    "verify:gads-segments": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-segments.ts",
     "deploy:convex": "npm run verify:purge && npx convex deploy"
   },
   "dependencies": {

@@ -1429,6 +1429,9 @@ export default defineSchema({
     status: v.string(), // "ACTIVE", "PAUSED", "ARCHIVED"
     dailyBudget: v.optional(v.number()),
     lifetimeBudget: v.optional(v.number()),
+    budgetId: v.optional(v.string()), // Google Ads campaign budget resource ID / name
+    startDate: v.optional(v.string()),
+    endDate: v.optional(v.string()),
     searchImpressionShare: v.optional(v.number()), // Google Search Impression Share (0..1 or %)
     syncPriority: v.union(v.literal("hot"), v.literal("cold")),
     syncedAt: v.optional(v.number()),
@@ -1532,6 +1535,9 @@ export default defineSchema({
     conversionValue: v.optional(v.number()), // purchase/lead value
     roas: v.optional(v.number()), // conversionValue / spend (izvedena metrika, deriveRate)
     searchImpressionShare: v.optional(v.number()),
+    conversions: v.optional(v.number()), // primarne konverzije (decimalni broj float64, npr. 2.33)
+    allConversions: v.optional(v.number()), // sve konverzije uključujući sekundarne (decimalni broj)
+    allConversionsValue: v.optional(v.number()), // vrednost svih konverzija (kroz microsToUnits)
     // Read-only echo iz Meta odgovora, npr. "7d_click,1d_view" (MA1). Kaže KOJA
     // je postavka atribucije dala ove brojeve; ne postavlja se nikad iz koda.
     attributionSetting: v.optional(v.string()),
@@ -1813,10 +1819,10 @@ export default defineSchema({
     postClickQualityScore: v.optional(v.string()), // landing page experience
     searchPredictedCtr: v.optional(v.string()), // expected CTR
     status: v.optional(v.string()), // "ENABLED", "PAUSED", etc.
-    impressions: v.number(),
-    clicks: v.number(),
-    cost: v.number(),
-    conversions: v.number(),
+    impressions: v.optional(v.number()),
+    clicks: v.optional(v.number()),
+    cost: v.optional(v.number()),
+    conversions: v.optional(v.number()),
     date: v.string(), // "YYYY-MM-DD"
     syncedAt: v.number(),
   })
@@ -1827,6 +1833,373 @@ export default defineSchema({
     .index("by_workspace_keyword", ["workspaceId", "keywordId"])
     .index("by_workspace_date", ["workspaceId", "date"])
     .index("by_upsert_key", ["workspaceId", "keywordId", "date"]),
+
+  // Google Ads API 24h klizeća kvota po workspace-u i customer ID-ju
+  gadsQuota: defineTable({
+    workspaceId: v.id("workspaces"),
+    customerId: v.optional(v.string()),
+    accessLevel: v.string(), // "explorer" | "basic" | "standard"
+    dailyLimit: v.number(),
+    consumed24h: v.number(),
+    remaining24h: v.number(),
+    peakPct: v.number(),
+    state: v.union(v.literal("ok"), v.literal("warn"), v.literal("stop")),
+    operations: v.optional(
+      v.array(v.object({ timestamp: v.number(), count: v.number() })),
+    ),
+    lastCallAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_customer", ["workspaceId", "customerId"]),
+
+  // Google Ads Account Hierarchy (MCC & Client accounts under it) (GA3)
+  gadsCustomerClients: defineTable({
+    workspaceId: v.id("workspaces"),
+    clientCustomer: v.string(), // "customers/1234567890"
+    customerId: v.string(), // "1234567890" (normalized 10 digits)
+    descriptiveName: v.string(),
+    currencyCode: v.optional(v.string()),
+    timeZone: v.optional(v.string()),
+    manager: v.boolean(),
+    level: v.number(),
+    status: v.string(), // "ENABLED", "CANCELED", "SUSPENDED", "CLOSED", "UNKNOWN"
+    hidden: v.optional(v.boolean()),
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_customer", ["workspaceId", "customerId"]),
+
+  // Google Ads Conversion Actions (GA4 B1)
+  gadsConversionActions: defineTable({
+    workspaceId: v.id("workspaces"),
+    id: v.string(), // "123456789" (criterion/action id)
+    name: v.string(),
+    status: v.string(), // "ENABLED", "PAUSED", "REMOVED", "HIDDEN", "UNKNOWN"
+    category: v.optional(v.string()), // "DEFAULT", "PAGE_VIEW", "PURCHASE", "SIGNUP", "LEAD", etc.
+    type: v.optional(v.string()), // "WEBPAGE", "CALL_METRIC", "CLICK_TO_CALL", etc.
+    primaryForGoal: v.boolean(), // primary_for_goal
+    countingType: v.optional(v.string()), // "ONE_PER_CLICK", "MANY_PER_CLICK"
+    attributionModel: v.optional(v.string()), // "DATA_DRIVEN", "LAST_CLICK", etc.
+    clickThroughLookupWindowDays: v.optional(v.number()), // 1..90
+    viewThroughLookupWindowDays: v.optional(v.number()), // 1..30
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_status", ["workspaceId", "status"])
+    .index("by_workspace_action_id", ["workspaceId", "id"])
+    .index("by_upsert_key", ["workspaceId", "id"]),
+
+  // Google Ads Campaign Budgets (GA3 B2, B3, B4 & GA4 A1, A2)
+  // VAŽNO (B2): campaign_budget je zaseban objekat i MOŽE biti deljen između više
+  // kampanja (polje explicitlyShared). Ako se veže 1:1, isti novac se broji više puta.
+  // VAŽNO (GA4 A1/A2): monthlyCap (amount * 30.4) je izvedena vrednost pri čitanju i ne
+  // čuva se u bazi; spendingCapNotice je konstanta u kodu.
+  gadsBudgets: defineTable({
+    workspaceId: v.id("workspaces"),
+    budgetId: v.string(), // e.g. "customers/123/campaignBudgets/456" or "456"
+    name: v.string(),
+    amount: v.number(), // dnevni budžet u standardnim novčanim jedinicama (kroz microsToUnits; ako nedostaje, red se ne upisuje; 0 je 0)
+    totalAmount: v.optional(v.number()), // ukupan/lifetime budžet ako je definisan
+    status: v.optional(v.string()), // "ENABLED", "REMOVED", "UNKNOWN"
+    deliveryMethod: v.optional(v.string()), // "STANDARD", "ACCELERATED"
+    explicitlyShared: v.boolean(), // true ako je budžet eksplicitno deljen između više kampanja
+    referenceCount: v.optional(v.number()), // broj kampanja koje koriste ovaj budžet
+    maxDailySpend: v.number(), // amount * 2: maksimalna dnevna potrošnja (do 200% dnevnog budžeta)
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_budget", ["workspaceId", "budgetId"]),
+
+  // Google Ads Campaign Criteria / Ciljanje na nivou kampanje (GA3)
+  // Lokacije, jezici, raspored prikazivanja oglasa (ad schedule), uređaji, negativne ključne reči
+  gadsCampaignCriteria: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("adCampaigns")),
+    campaignExternalId: v.string(),
+    criterionId: v.string(),
+    type: v.string(), // "LOCATION", "LANGUAGE", "AD_SCHEDULE", "KEYWORD", "DEVICE", ...
+    negative: v.boolean(), // true za isključenja / negativne kriterijume
+    status: v.optional(v.string()),
+    bidModifier: v.optional(v.number()),
+    location: v.optional(
+      v.object({
+        geoTargetConstant: v.string(),
+        displayName: v.optional(v.string()),
+      }),
+    ),
+    language: v.optional(
+      v.object({
+        languageConstant: v.string(),
+        code: v.optional(v.string()),
+      }),
+    ),
+    adSchedule: v.optional(
+      v.object({
+        dayOfWeek: v.string(),
+        startHour: v.number(),
+        startMinute: v.string(),
+        endHour: v.number(),
+        endMinute: v.string(),
+      }),
+    ),
+    keyword: v.optional(
+      v.object({
+        text: v.string(),
+        matchType: v.string(),
+      }),
+    ),
+    device: v.optional(
+      v.object({
+        type: v.string(),
+      }),
+    ),
+    detailsSummary: v.optional(v.string()),
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_campaign", ["workspaceId", "campaignExternalId"])
+    .index("by_workspace_campaign_id", ["workspaceId", "campaignId"])
+    .index("by_upsert_key", ["workspaceId", "campaignExternalId", "criterionId"]),
+
+  // Google Ads Search Terms (search_term_view) (GA5)
+  // Stvarne pretrage korisnika koje su okinule prikaz oglasa, sa statusom i tipom podudaranja.
+  gadsSearchTerms: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("adCampaigns")),
+    campaignExternalId: v.string(),
+    adGroupId: v.optional(v.id("adSets")),
+    adGroupExternalId: v.string(),
+    searchTerm: v.string(),
+    status: v.string(), // "ADDED", "EXCLUDED", "NONE", "UNKNOWN"
+    matchType: v.optional(v.string()), // "EXACT", "PHRASE", "BROAD", "NEAR_EXACT", "NEAR_PHRASE", "UNKNOWN"
+    impressions: v.optional(v.number()),
+    clicks: v.optional(v.number()),
+    cost: v.optional(v.number()),
+    conversions: v.optional(v.number()),
+    allConversions: v.optional(v.number()),
+    date: v.string(), // "YYYY-MM-DD"
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_campaign", ["workspaceId", "campaignExternalId"])
+    .index("by_workspace_adgroup", ["workspaceId", "adGroupExternalId"])
+    .index("by_upsert_key", [
+      "workspaceId",
+      "campaignExternalId",
+      "adGroupExternalId",
+      "searchTerm",
+      "date",
+    ]),
+
+  // Google Ads Shared Sets (Deljene negativne liste) (shared_set) (GA5)
+  gadsSharedSets: defineTable({
+    workspaceId: v.id("workspaces"),
+    sharedSetId: v.string(), // npr. "123456" ili resource name
+    name: v.string(),
+    type: v.string(), // "NEGATIVE_KEYWORDS", etc.
+    status: v.optional(v.string()), // "ENABLED", "REMOVED", etc.
+    memberCount: v.optional(v.number()),
+    referenceCount: v.optional(v.number()),
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_set", ["workspaceId", "sharedSetId"])
+    .index("by_upsert_key", ["workspaceId", "sharedSetId"]),
+
+  // Google Ads Shared Criteria (Kriterijumi u deljenim listama) (shared_criterion) (GA5)
+  gadsSharedCriteria: defineTable({
+    workspaceId: v.id("workspaces"),
+    sharedSetId: v.string(),
+    criterionId: v.string(),
+    type: v.string(), // "KEYWORD", etc.
+    keywordText: v.optional(v.string()),
+    matchType: v.optional(v.string()), // "EXACT", "PHRASE", "BROAD"
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_set", ["workspaceId", "sharedSetId"])
+    .index("by_upsert_key", ["workspaceId", "sharedSetId", "criterionId"]),
+
+  // Google Ads Campaign Shared Sets (Povezivanje kampanja sa deljenim listama) (campaign_shared_set) (GA5)
+  gadsCampaignSharedSets: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("adCampaigns")),
+    campaignExternalId: v.string(),
+    sharedSetId: v.string(),
+    status: v.optional(v.string()), // "ENABLED", "REMOVED", etc.
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_campaign", ["workspaceId", "campaignExternalId"])
+    .index("by_workspace_set", ["workspaceId", "sharedSetId"])
+    .index("by_upsert_key", [
+      "workspaceId",
+      "campaignExternalId",
+      "sharedSetId",
+    ]),
+
+  // Google Ads Geographic View (Fizička lokacija prisustva korisnika) (geographic_view) (GA6 B1)
+  // VAŽNO: geographic_view = gde se korisnik FIZIČKI nalazio u trenutku pretrage/interakcije.
+  // Razlikuje se od user_location_view i ove dve dimenzije se nikada ne sabiraju niti mešaju.
+  gadsGeographicView: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("adCampaigns")),
+    campaignExternalId: v.string(),
+    countryCriterionId: v.optional(v.string()),
+    locationType: v.string(), // "LOCATION_OF_PRESENCE", "AREA_OF_INTEREST", etc.
+    impressions: v.optional(v.number()),
+    clicks: v.optional(v.number()),
+    cost: v.optional(v.number()),
+    conversions: v.optional(v.number()),
+    allConversions: v.optional(v.number()),
+    date: v.string(), // "YYYY-MM-DD"
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_campaign", ["workspaceId", "campaignExternalId"])
+    .index("by_upsert_key", [
+      "workspaceId",
+      "campaignExternalId",
+      "locationType",
+      "date",
+    ]),
+
+  // Google Ads User Location View (Lokacija interesovanja / targetiranja) (user_location_view) (GA6 B1)
+  // VAŽNO: user_location_view = za koju lokaciju se korisnik ZANIMAO (lokacija interesovanja).
+  // Nikada se ne sabira niti spaja sa geographic_view (fizičkim prisustvom).
+  gadsUserLocationView: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("adCampaigns")),
+    campaignExternalId: v.string(),
+    countryCriterionId: v.optional(v.string()),
+    targetingLocation: v.optional(v.boolean()),
+    impressions: v.optional(v.number()),
+    clicks: v.optional(v.number()),
+    cost: v.optional(v.number()),
+    conversions: v.optional(v.number()),
+    allConversions: v.optional(v.number()),
+    date: v.string(), // "YYYY-MM-DD"
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_campaign", ["workspaceId", "campaignExternalId"])
+    .index("by_upsert_key", [
+      "workspaceId",
+      "campaignExternalId",
+      "date",
+    ]),
+
+  // Google Ads Device Segments (Razlaganje po uređajima) (segments.device) (GA6 B2)
+  // Vrednosti: MOBILE, DESKTOP, TABLET, CONNECTED_TV, OTHER, UNKNOWN.
+  // "OTHER" i "UNKNOWN" se ne odbacuju i ne spajaju.
+  gadsDeviceStats: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("adCampaigns")),
+    campaignExternalId: v.string(),
+    device: v.string(), // "MOBILE", "DESKTOP", "TABLET", "CONNECTED_TV", "OTHER", "UNKNOWN"
+    impressions: v.optional(v.number()),
+    clicks: v.optional(v.number()),
+    cost: v.optional(v.number()),
+    conversions: v.optional(v.number()),
+    allConversions: v.optional(v.number()),
+    date: v.string(), // "YYYY-MM-DD"
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_campaign", ["workspaceId", "campaignExternalId"])
+    .index("by_upsert_key", [
+      "workspaceId",
+      "campaignExternalId",
+      "device",
+      "date",
+    ]),
+
+  // Google Ads Hourly & Day of Week Schedule Segments (segments.day_of_week & segments.hour) (GA6 B3)
+  // VAŽNO: Ovo su segmenti izveštaja (kada se stvarno trošilo), a NE AD_SCHEDULE kriterijumi kampanje (dozvola).
+  gadsHourlyStats: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("adCampaigns")),
+    campaignExternalId: v.string(),
+    dayOfWeek: v.string(), // "MONDAY", "TUESDAY", ...
+    hour: v.number(), // 0..23
+    impressions: v.optional(v.number()),
+    clicks: v.optional(v.number()),
+    cost: v.optional(v.number()),
+    conversions: v.optional(v.number()),
+    allConversions: v.optional(v.number()),
+    date: v.string(), // "YYYY-MM-DD"
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_campaign", ["workspaceId", "campaignExternalId"])
+    .index("by_upsert_key", [
+      "workspaceId",
+      "campaignExternalId",
+      "date",
+      "hour",
+    ]),
+
+  // Google Ads Age Range Demographics (age_range_view) (GA6 B4)
+  // VAŽNO: UNDETERMINED / UNKNOWN je validna i često velika kategorija koja se mora čuvati.
+  gadsAgeRangeView: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("adCampaigns")),
+    campaignExternalId: v.string(),
+    adGroupId: v.optional(v.id("adSets")),
+    adGroupExternalId: v.optional(v.string()),
+    criterionId: v.optional(v.string()),
+    ageRange: v.string(), // "AGE_RANGE_18_24", ..., "UNDETERMINED", "UNKNOWN"
+    impressions: v.optional(v.number()),
+    clicks: v.optional(v.number()),
+    cost: v.optional(v.number()),
+    conversions: v.optional(v.number()),
+    allConversions: v.optional(v.number()),
+    date: v.string(), // "YYYY-MM-DD"
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_campaign", ["workspaceId", "campaignExternalId"])
+    .index("by_upsert_key", [
+      "workspaceId",
+      "campaignExternalId",
+      "ageRange",
+      "date",
+    ]),
+
+  // Google Ads Gender Demographics (gender_view) (GA6 B4)
+  // VAŽNO: UNDETERMINED / UNKNOWN je validna i često velika kategorija koja se mora čuvati.
+  gadsGenderView: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("adCampaigns")),
+    campaignExternalId: v.string(),
+    adGroupId: v.optional(v.id("adSets")),
+    adGroupExternalId: v.optional(v.string()),
+    criterionId: v.optional(v.string()),
+    gender: v.string(), // "MALE", "FEMALE", "UNDETERMINED", "UNKNOWN"
+    impressions: v.optional(v.number()),
+    clicks: v.optional(v.number()),
+    cost: v.optional(v.number()),
+    conversions: v.optional(v.number()),
+    allConversions: v.optional(v.number()),
+    date: v.string(), // "YYYY-MM-DD"
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_campaign", ["workspaceId", "campaignExternalId"])
+    .index("by_upsert_key", [
+      "workspaceId",
+      "campaignExternalId",
+      "gender",
+      "date",
+    ]),
 
   // ── YouTube (Y2) ────────────────────────────────────────────────────────────
   // Channel-wide daily roll-up from the YouTube Analytics API.

@@ -372,26 +372,7 @@ export function resolveMetric(apiName: string): MetaMetricDef | undefined {
   return META_METRIC_CATALOG[apiName];
 }
 
-/**
- * Računa stopu (num / den).
- *
- * Pravilo (MA2):
- *   - Vraća `undefined` kad je `den` 0, negativan, `undefined`, ili kad je `num` `undefined`.
- *   - NIKADA ne vraća 0 za nepoznato / nedovoljno podataka.
- *   - Vraća 0 samo kada je `num === 0` a `den > 0` (prava nula).
- */
-export function deriveRate(num?: number, den?: number): number | undefined {
-  if (
-    num === undefined ||
-    den === undefined ||
-    den <= 0 ||
-    !Number.isFinite(num) ||
-    !Number.isFinite(den)
-  ) {
-    return undefined;
-  }
-  return num / den;
-}
+export { deriveRate } from "./rates";
 
 // ── Pravila kombinovanja razdvajanja i metrika (MA2) ────────────────────────
 

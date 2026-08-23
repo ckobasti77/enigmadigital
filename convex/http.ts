@@ -1098,7 +1098,7 @@ http.route({
     // nothing below this line runs (P2).
     if (
       childId !== undefined &&
-      !(media.children ?? []).some((child) => child.id === childId)
+      !(media.children ?? []).some((child: { id: string }) => child.id === childId)
     ) {
       return igMediaError("Slika nije pronađena.", 404);
     }
