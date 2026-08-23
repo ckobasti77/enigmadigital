@@ -121,6 +121,9 @@ export const registerClick = internalMutation({
     slug: v.string(),
     countClick: v.boolean(),
     ipHash: v.optional(v.string()),
+    // Sirova IP posetioca, ODVOJENA od ipHash. Ide ISKLJUČIVO u CAPI kao
+    // clientIpAddress; nikad u orLinkClicks, eventId, log ili URL.
+    clientIp: v.optional(v.string()),
     userAgent: v.optional(v.string()),
     referrer: v.optional(v.string()),
   },
@@ -202,8 +205,10 @@ export const registerClick = internalMutation({
         extractFbclidFromUrl(args.referrer);
       const fbc = fbclid ? formatFbc(fbclid, now) : undefined;
 
-      // args.ipHash NE prosleđujemo kao clientIpAddress jer je to heš, a Meta traži sirovu IP adresu.
-      // Oslanjamo se na user-agent i fbc identifikatore.
+      // Sirovu IP (args.clientIp) prosleđujemo kao clientIpAddress — Meta traži
+      // baš nehaširanu adresu za uparivanje; args.ipHash (heš) ostaje samo u
+      // orLinkClicks. Bez ijednog od IP/fbc/fbp/email/telefon događaj se ne
+      // upisuje (recordCapiEvent vrati null) — user-agent sam nije dovoljan.
       const capiEventDocId = await ctx.runMutation(
         internal.metaCapiStore.recordCapiEvent,
         {
@@ -213,6 +218,7 @@ export const registerClick = internalMutation({
           eventId,
           actionSource: "website",
           sourceKind: "link_redirect",
+          clientIpAddress: args.clientIp,
           clientUserAgent,
           fbc,
         },

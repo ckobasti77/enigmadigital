@@ -161,6 +161,26 @@ async function hashClientIp(request: Request): Promise<string | undefined> {
   return bufferToHex(digest).slice(0, 32);
 }
 
+/**
+ * The RAW client IP — the same source `hashClientIp` reads (first
+ * `x-forwarded-for` entry, then `x-real-ip`), but unhashed.
+ *
+ * This is the ONE place a raw address is read. It goes nowhere but Meta's
+ * Conversions API `client_ip_address`, which is the one field Meta requires to
+ * be unhashed for matching — a hash is refused there, so the salted digest that
+ * feeds `orLinkClicks` cannot double as an identifier. It must never be logged,
+ * put in a URL, or written to `orLinkClicks`; `registerClick` keeps it isolated
+ * to the `recordCapiEvent` call and the store drops it the moment sending ends.
+ */
+function extractClientIp(request: Request): string | undefined {
+  const forwarded = request.headers.get("x-forwarded-for");
+  return (
+    forwarded?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip")?.trim() ||
+    undefined
+  );
+}
+
 // ── Payload Types ────────────────────────────────────────────────────────────
 
 interface InstagramWebhookFrom {
@@ -910,6 +930,9 @@ http.route({
       slug,
       countClick,
       ipHash: countClick ? await hashClientIp(request) : undefined,
+      // Sirova IP samo za CAPI (client_ip_address); odvojena od heša i skuplja se
+      // samo za brojane klikove (isti bot-filter). registerClick je drži izolovanu.
+      clientIp: countClick ? extractClientIp(request) : undefined,
       userAgent: userAgent ?? undefined,
       referrer: request.headers.get("referer") ?? undefined,
     });

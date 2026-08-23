@@ -58,6 +58,43 @@ export interface CapiValidationResult {
 }
 
 /**
+ * The identifier fields a CAPI event can carry, in the shape they are stored on
+ * `capiEvents`. `clientUserAgent` is accepted so callers can pass the whole set
+ * verbatim, but it NEVER counts toward a match.
+ */
+export interface CapiIdentityFields {
+  hashedEmail?: string;
+  hashedPhone?: string;
+  clientIpAddress?: string;
+  clientUserAgent?: string;
+  fbc?: string;
+  fbp?: string;
+}
+
+/**
+ * Whether an event carries at least one identifier Meta will actually match on.
+ *
+ * `client_user_agent` is deliberately excluded: Meta does not treat it as a
+ * matching parameter, so an event carrying ONLY a user agent is rejected as
+ * unmatchable ("no customer information parameters … so broad that it is
+ * unlikely to be effective for matching"). It is still sent alongside a real
+ * identifier — it just can never be the sole reason to store or dispatch an event.
+ *
+ * This is the ONE definition of "matchable identity". Both the store gate
+ * (`recordCapiEvent`) and the pre-flight gate (`validateCapiEvent`) call it, so
+ * the two cannot drift apart.
+ */
+export function hasMatchableIdentity(id: CapiIdentityFields): boolean {
+  return Boolean(
+    id.hashedEmail?.trim() ||
+      id.hashedPhone?.trim() ||
+      id.clientIpAddress?.trim() ||
+      id.fbc?.trim() ||
+      id.fbp?.trim(),
+  );
+}
+
+/**
  * Pre-flight local validation of a single CAPI event before dispatch.
  * Meta Conversions API rejects the whole batch if any single item is invalid.
  */
@@ -119,22 +156,22 @@ export function validateCapiEvent(
     };
   }
 
-  const hasEmail =
-    Array.isArray(ud.em) && ud.em.length > 0 && ud.em.some(Boolean);
-  const hasPhone =
-    Array.isArray(ud.ph) && ud.ph.length > 0 && ud.ph.some(Boolean);
-  const hasIp = Boolean(ud.client_ip_address && ud.client_ip_address.trim());
-  const hasUserAgent = Boolean(
-    ud.client_user_agent && ud.client_user_agent.trim(),
-  );
-  const hasFbc = Boolean(ud.fbc && ud.fbc.trim());
-  const hasFbp = Boolean(ud.fbp && ud.fbp.trim());
+  // Ista definicija „identiteta za uparivanje" kao u recordCapiEvent —
+  // user-agent NIJE dovoljan (Meta ga ne priznaje kao parametar za uparivanje).
+  const matchable = hasMatchableIdentity({
+    hashedEmail: Array.isArray(ud.em) ? ud.em.find(Boolean) : undefined,
+    hashedPhone: Array.isArray(ud.ph) ? ud.ph.find(Boolean) : undefined,
+    clientIpAddress: ud.client_ip_address,
+    clientUserAgent: ud.client_user_agent,
+    fbc: ud.fbc,
+    fbp: ud.fbp,
+  });
 
-  if (!hasEmail && !hasPhone && !hasIp && !hasUserAgent && !hasFbc && !hasFbp) {
+  if (!matchable) {
     return {
       valid: false,
       reason:
-        "user_data mora sadržati bar jedan identifikator (heširani email, heširani telefon, IP adresa ili user-agent).",
+        "user_data mora sadržati bar jedan identifikator koji Meta koristi za uparivanje (heširani email, heširani telefon, IP adresa, fbc ili fbp). Samo user-agent nije dovoljan.",
     };
   }
 

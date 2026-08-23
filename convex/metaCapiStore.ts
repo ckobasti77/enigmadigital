@@ -5,7 +5,7 @@ import {
   query,
 } from "./_generated/server";
 import { requireMembership } from "./lib/auth";
-import { CAPI_MAX_BATCH_SIZE } from "./lib/metaCapi";
+import { CAPI_MAX_BATCH_SIZE, hasMatchableIdentity } from "./lib/metaCapi";
 
 /**
  * ============================================================================
@@ -40,15 +40,12 @@ export const recordCapiEvent = internalMutation({
   },
   returns: v.union(v.null(), v.id("capiEvents")),
   handler: async (ctx, args) => {
-    // B-F1(d): If no identifier is present, do not insert at all
-    const hasEmail = Boolean(args.hashedEmail?.trim());
-    const hasPhone = Boolean(args.hashedPhone?.trim());
-    const hasIp = Boolean(args.clientIpAddress?.trim());
-    const hasUserAgent = Boolean(args.clientUserAgent?.trim());
-    const hasFbc = Boolean(args.fbc?.trim());
-    const hasFbp = Boolean(args.fbp?.trim());
-
-    if (!hasEmail && !hasPhone && !hasIp && !hasUserAgent && !hasFbc && !hasFbp) {
+    // B-F1(d): Bez ijednog identifikatora koji Meta uparuje, događaj se NE upisuje.
+    // Samo user-agent NIJE dovoljan — Meta ga ne priznaje kao parametar za
+    // uparivanje, pa bi takav događaj pet puta pokušao i pao. Bolje da ga nema.
+    // clientUserAgent se i dalje upisuje (dole) i šalje uz pravi identifikator;
+    // samo prestaje da bude jedini razlog za upis.
+    if (!hasMatchableIdentity(args)) {
       return null;
     }
 
@@ -123,6 +120,11 @@ export const markCapiEventsSent = internalMutation({
           status: "sent",
           sentAt,
           metaResponse,
+          // Sirova IP se briše u istom potezu kojim se slanje zatvara. To je
+          // jedina nehaširana adresa u bazi (svestan izuzetak za Meta CAPI), i
+          // živi tačno onoliko koliko traje slanje — ni sekund duže. NE
+          // „popravljati" zadržavanjem: poslata je, više nije potrebna.
+          clientIpAddress: undefined,
           syncedAt: now,
         });
       }
@@ -153,12 +155,22 @@ export const recordCapiBatchFailure = internalMutation({
             lastAttemptAt: now,
             status: "rejected",
             rejectReason: `Pet neuspelih pokušaja slanja: ${errorReason}`,
+            // Razlog se pamti od PRVOG pokušaja, ne tek na petom — inače se bag
+            // dijagnostikuje ručno kroz logove.
+            metaResponse: errorReason,
+            // Konačno odbijeno: slanja više neće biti, sirova IP se briše (isti
+            // razlog kao u markCapiEventsSent — živi tačno koliko traje slanje).
+            clientIpAddress: undefined,
             syncedAt: now,
           });
         } else {
           await ctx.db.patch(docId, {
             attempts: nextAttempts,
             lastAttemptAt: now,
+            // Sanitizovani razlog pri SVAKOM neuspehu (ne samo na petom).
+            metaResponse: errorReason,
+            // IP se ovde NE briše: događaj ostaje „pending" i biće ponovo poslat,
+            // pa mu adresa i dalje treba dok slanje traje.
             syncedAt: now,
           });
         }
@@ -189,6 +201,9 @@ export const markCapiEventsRejected = internalMutation({
         await ctx.db.patch(item.id, {
           status: "rejected",
           rejectReason: item.reason,
+          // Odbijeno pre slanja (lokalna validacija) — događaj se nikad neće
+          // poslati, pa sirova IP više nije potrebna i briše se odmah.
+          clientIpAddress: undefined,
           syncedAt: now,
         });
       }
