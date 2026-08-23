@@ -1887,7 +1887,6 @@ export default defineSchema({
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_status", ["workspaceId", "status"])
-    .index("by_workspace_action_id", ["workspaceId", "id"])
     .index("by_upsert_key", ["workspaceId", "id"]),
 
   // Google Ads Campaign Budgets (GA3 B2, B3, B4 & GA4 A1, A2)
@@ -2005,7 +2004,6 @@ export default defineSchema({
     syncedAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"])
-    .index("by_workspace_set", ["workspaceId", "sharedSetId"])
     .index("by_upsert_key", ["workspaceId", "sharedSetId"]),
 
   // Google Ads Shared Criteria (Kriterijumi u deljenim listama) (shared_criterion) (GA5)
@@ -2019,7 +2017,6 @@ export default defineSchema({
     syncedAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"])
-    .index("by_workspace_set", ["workspaceId", "sharedSetId"])
     .index("by_upsert_key", ["workspaceId", "sharedSetId", "criterionId"]),
 
   // Google Ads Campaign Shared Sets (Povezivanje kampanja sa deljenim listama) (campaign_shared_set) (GA5)
@@ -2033,7 +2030,6 @@ export default defineSchema({
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_campaign", ["workspaceId", "campaignExternalId"])
-    .index("by_workspace_set", ["workspaceId", "sharedSetId"])
     .index("by_upsert_key", [
       "workspaceId",
       "campaignExternalId",
