@@ -49,7 +49,7 @@ export const resolveUserWorkspace = internalQuery({
           message: "Nemate pristup navedenom radnom prostoru.",
         });
       }
-      return { workspaceId: args.explicitWorkspaceId };
+      return { workspaceId: args.explicitWorkspaceId, role: membership.role };
     }
 
     const membership = await ctx.db
@@ -64,7 +64,7 @@ export const resolveUserWorkspace = internalQuery({
       });
     }
 
-    return { workspaceId: membership.workspaceId };
+    return { workspaceId: membership.workspaceId, role: membership.role };
   },
 });
 
@@ -84,6 +84,50 @@ export const getMetaConnectionForWorkspace = internalQuery({
       encryptedCredentials: conn.encryptedCredentials,
       status: conn.status,
       externalId: conn.externalId,
+    };
+  },
+});
+
+export const getGoogleAdsConnectionForWorkspace = internalQuery({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const conn = await ctx.db
+      .query("connections")
+      .withIndex("by_workspace_provider", (q) =>
+        q.eq("workspaceId", workspaceId).eq("provider", "google_ads"),
+      )
+      .first();
+
+    if (!conn) return null;
+    return {
+      _id: conn._id,
+      encryptedCredentials: conn.encryptedCredentials,
+      status: conn.status,
+      externalId: conn.externalId,
+      externalIdAlt: conn.externalIdAlt,
+    };
+  },
+});
+
+export const getGoogleAdsAccountForWorkspace = internalQuery({
+  args: {
+    workspaceId: v.id("workspaces"),
+    customerId: v.string(),
+  },
+  handler: async (ctx, { workspaceId, customerId }) => {
+    const account = await ctx.db
+      .query("adAccounts")
+      .withIndex("by_workspace_external", (q) =>
+        q.eq("workspaceId", workspaceId).eq("externalId", customerId),
+      )
+      .first();
+
+    if (!account) return null;
+    return {
+      _id: account._id,
+      externalId: account.externalId,
+      name: account.name,
+      currency: account.currency,
     };
   },
 });

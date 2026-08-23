@@ -23,10 +23,10 @@ import {
   validateCredentials,
 } from "../convex/connections";
 
+import { getGoogleAdsAccessToken } from "../convex/lib/googleAdsApi";
 import {
   GOOGLE_ADS_SCOPE,
   getGoogleAdsDeveloperToken,
-  getGoogleAdsAccessToken,
   normalizeCustomerId,
   buildSearchStreamUrl,
   buildGoogleAdsHeaders,
@@ -34,7 +34,7 @@ import {
   decamelizeRowKeys,
   microsToUnits,
   unitsToMicros,
-} from "../convex/lib/googleAdsApi";
+} from "../convex/lib/googleAdsShared";
 
 import {
   formatAssetPerformanceLabel,

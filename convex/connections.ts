@@ -19,7 +19,7 @@ import {
   allowsManual as adsQuotaAllowsManual,
 } from "./lib/metaAdsQuota";
 
-import { normalizeCustomerId } from "./lib/googleAdsApi";
+import { normalizeCustomerId } from "./lib/googleAdsShared";
 
 // ── credential validation (runs BEFORE encryption; never echoes the secret) ──
 

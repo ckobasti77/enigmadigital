@@ -29,7 +29,7 @@ import {
   resolveGoogleAdsMetric,
   deriveRate,
 } from "../convex/lib/googleAdsCatalog";
-import { microsToUnits } from "../convex/lib/googleAdsApi";
+import { microsToUnits } from "../convex/lib/googleAdsShared";
 import { TABLE_OWNERSHIP, PURGE_STEPS } from "../convex/lib/purgeMap";
 
 let failures = 0;

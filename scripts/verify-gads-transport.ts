@@ -18,7 +18,7 @@ import {
   normalizeCustomerId,
   unitsToMicros,
   DEFAULT_GOOGLE_ADS_API_VERSION,
-} from "../convex/lib/googleAdsApi";
+} from "../convex/lib/googleAdsShared";
 import {
   calculateOperationCost,
   calculateRollingQuota,

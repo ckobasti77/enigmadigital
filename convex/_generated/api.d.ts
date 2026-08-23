@@ -51,6 +51,8 @@ import type * as lib_googleAdsBackfill from "../lib/googleAdsBackfill.js";
 import type * as lib_googleAdsCatalog from "../lib/googleAdsCatalog.js";
 import type * as lib_googleAdsFormat from "../lib/googleAdsFormat.js";
 import type * as lib_googleAdsQuota from "../lib/googleAdsQuota.js";
+import type * as lib_googleAdsShared from "../lib/googleAdsShared.js";
+import type * as lib_googleAdsWrite from "../lib/googleAdsWrite.js";
 import type * as lib_igComments from "../lib/igComments.js";
 import type * as lib_igDemographics from "../lib/igDemographics.js";
 import type * as lib_igMediaMetrics from "../lib/igMediaMetrics.js";
@@ -173,6 +175,8 @@ declare const fullApi: ApiFromModules<{
   "lib/googleAdsCatalog": typeof lib_googleAdsCatalog;
   "lib/googleAdsFormat": typeof lib_googleAdsFormat;
   "lib/googleAdsQuota": typeof lib_googleAdsQuota;
+  "lib/googleAdsShared": typeof lib_googleAdsShared;
+  "lib/googleAdsWrite": typeof lib_googleAdsWrite;
   "lib/igComments": typeof lib_igComments;
   "lib/igDemographics": typeof lib_igDemographics;
   "lib/igMediaMetrics": typeof lib_igMediaMetrics;

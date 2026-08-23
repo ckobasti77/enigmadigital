@@ -30,7 +30,7 @@ import {
 } from "../convex/lib/googleAdsCatalog";
 import {
   microsToUnits,
-} from "../convex/lib/googleAdsApi";
+} from "../convex/lib/googleAdsShared";
 import {
   checkGoogleAdsQuota,
 } from "../convex/lib/googleAdsQuota";

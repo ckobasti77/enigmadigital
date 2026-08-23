@@ -32,6 +32,29 @@ import {
 } from "./lib/metaAdsWrite";
 import { sanitizeSyncError } from "./lib/runSync";
 import type { Id } from "./_generated/dataModel";
+import {
+  normalizeCustomerId,
+  buildMutateUrl,
+  buildGoogleAdsHeaders,
+  getGoogleAdsDeveloperToken,
+} from "./lib/googleAdsShared";
+import { getGoogleAdsAccessToken } from "./lib/googleAdsApi";
+import {
+  validateGoogleAdsCampaignInput,
+  validateGoogleAdsAdGroupInput,
+  validateGoogleAdsAdInput,
+  validateGoogleAdsFullCreateInput,
+  getGoogleAdsMaxDailyBudget,
+  evaluateGoogleAdsBudgetGate,
+  formatGoogleAdsBudgetConfirmation,
+  buildGoogleAdsCampaignMutatePayload,
+  buildGoogleAdsCampaignStatusMutatePayload,
+  buildGoogleAdsBudgetChangeMutatePayload,
+  runGoogleAdsValidateOnly,
+  runGoogleAdsMutateWithValidateOnly,
+  type GoogleAdsFullCampaignCreateInput,
+} from "./lib/googleAdsWrite";
+import { readGadsGate, checkGoogleAdsQuota } from "./lib/googleAdsQuota";
 
 /**
  * ============================================================================
@@ -1463,4 +1486,767 @@ export const validateCampaignPlan = action({
     };
   },
 });
+
+// ── 6. Google Ads Write Actions (GA8) ───────────────────────────────────────
+
+interface ResolvedGoogleAdsAuth {
+  userId: Id<"users">;
+  workspaceId: Id<"workspaces">;
+  accessToken: string;
+  developerToken: string;
+  customerId: string;
+  loginCustomerId?: string;
+}
+
+async function resolveGoogleAdsAuth(
+  ctx: ActionCtx,
+  explicitWorkspaceId?: Id<"workspaces">,
+): Promise<ResolvedGoogleAdsAuth> {
+  const userId = await getAuthUserId(ctx);
+  if (!userId) {
+    throw new ConvexError({
+      code: "unauthorized",
+      message: "Niste prijavljeni.",
+    });
+  }
+
+  const workspaceRes: { workspaceId: Id<"workspaces">; role?: string } =
+    await ctx.runQuery(internal.adActionsStore.resolveUserWorkspace, {
+      userId,
+      explicitWorkspaceId,
+    });
+  const workspaceId = workspaceRes.workspaceId;
+
+  // B7: Pisanje traži rolu owner. client_viewer ne piše.
+  if (workspaceRes.role !== "owner") {
+    throw new ConvexError({
+      code: "forbidden",
+      message: "Ovu radnju može da izvede samo vlasnik radnog prostora (owner).",
+    });
+  }
+
+  const conn: {
+    _id: Id<"connections">;
+    encryptedCredentials: string;
+    status: string;
+    externalId?: string;
+    externalIdAlt?: string;
+  } | null = await ctx.runQuery(
+    internal.adActionsStore.getGoogleAdsConnectionForWorkspace,
+    { workspaceId },
+  );
+
+  if (!conn || !conn.externalId) {
+    throw new ConvexError({
+      code: "missing_connection",
+      message: "Google Ads integracija nije povezana u ovom radnom prostoru.",
+    });
+  }
+
+  const customerId = normalizeCustomerId(conn.externalId);
+  const loginCustomerId = conn.externalIdAlt
+    ? normalizeCustomerId(conn.externalIdAlt)
+    : undefined;
+  const developerToken = getGoogleAdsDeveloperToken();
+
+  const plaintext = await decryptCredentials(conn.encryptedCredentials);
+  let sa: { client_email?: string; private_key?: string };
+  try {
+    sa = JSON.parse(plaintext);
+  } catch {
+    throw new ConvexError({
+      code: "invalid_credentials",
+      message: "Google Ads servisni nalog nije validan JSON format.",
+    });
+  }
+
+  if (!sa.client_email || !sa.private_key) {
+    throw new ConvexError({
+      code: "invalid_credentials",
+      message: "Google Ads servisni nalog ne sadrži client_email ili private_key.",
+    });
+  }
+
+  const accessToken = await getGoogleAdsAccessToken({
+    client_email: sa.client_email,
+    private_key: sa.private_key,
+  });
+
+  return {
+    userId,
+    workspaceId,
+    accessToken,
+    developerToken,
+    customerId,
+    loginCustomerId,
+  };
+}
+
+export interface CreateGoogleAdsCampaignResult {
+  status: "success";
+  allPaused: true;
+  campaign: { name: string };
+  confirmationWarning?: string;
+  result: unknown;
+}
+
+export const createGoogleAdsCampaignFull = action({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    campaign: v.object({
+      name: v.string(),
+      channelType: v.string(),
+      dailyBudget: v.number(),
+      startDate: v.optional(v.string()),
+      endDate: v.optional(v.string()),
+      biddingStrategyType: v.optional(v.string()),
+    }),
+    adGroup: v.optional(
+      v.object({
+        name: v.string(),
+        type: v.optional(v.string()),
+        cpcBid: v.optional(v.number()),
+      }),
+    ),
+    ad: v.optional(
+      v.object({
+        name: v.optional(v.string()),
+        headlines: v.array(v.string()),
+        descriptions: v.array(v.string()),
+        finalUrls: v.array(v.string()),
+        path1: v.optional(v.string()),
+        path2: v.optional(v.string()),
+      }),
+    ),
+    keywords: v.optional(
+      v.array(
+        v.object({
+          text: v.string(),
+          matchType: v.union(
+            v.literal("EXACT"),
+            v.literal("PHRASE"),
+            v.literal("BROAD"),
+          ),
+          cpcBid: v.optional(v.number()),
+        }),
+      ),
+    ),
+  },
+  handler: async (ctx, args): Promise<CreateGoogleAdsCampaignResult> => {
+    // 1. KILL SWITCH (B5)
+    assertWriteEnabled();
+
+    // 2. Auth & Role (B7: owner only) + Credentials
+    const auth = await resolveGoogleAdsAuth(ctx, args.workspaceId);
+    const {
+      userId,
+      workspaceId,
+      accessToken,
+      developerToken,
+      customerId,
+      loginCustomerId,
+    } = auth;
+
+    // 3. Pre-flight Validation
+    const fullInput: GoogleAdsFullCampaignCreateInput = {
+      customerId,
+      campaign: args.campaign,
+      adGroup: args.adGroup,
+      ad: args.ad,
+      keywords: args.keywords,
+    };
+    try {
+      validateGoogleAdsFullCreateInput(fullInput);
+    } catch (e: unknown) {
+      throw new ConvexError({
+        code: "validation_error",
+        message:
+          e instanceof Error
+            ? e.message
+            : "Neispravni podaci za Google Ads kampanju.",
+      });
+    }
+
+    // 4. Budget Gate (B4)
+    const account = await ctx.runQuery(
+      internal.adActionsStore.getGoogleAdsAccountForWorkspace,
+      { workspaceId, customerId },
+    );
+    const accountCurrency = account?.currency || "";
+    const { minBudget, limitCurrency } = getBudgetBounds();
+    const maxDailyBudget = getGoogleAdsMaxDailyBudget();
+
+    const gate = evaluateGoogleAdsBudgetGate({
+      accountCurrency,
+      limitCurrency,
+      maxDailyBudget,
+      minBudget,
+      dailyBudget: args.campaign.dailyBudget,
+    });
+
+    if (!gate.ok) {
+      throw new ConvexError({
+        code: gate.code || "budget_blocked",
+        message: gate.message || "Budžet nije dozvoljen.",
+      });
+    }
+
+    // 5. Pre-flight Quota Check (B1)
+    const quotaGate = await readGadsGate(ctx, workspaceId, customerId);
+    const quotaCheck = checkGoogleAdsQuota(
+      quotaGate.consumed24h,
+      quotaGate.dailyLimit,
+      2,
+    );
+    if (quotaCheck.skipped) {
+      throw new ConvexError({
+        code: "quota_exceeded",
+        message: `Google Ads kvota je prekoračena: ${quotaCheck.reason}`,
+      });
+    }
+
+    // 6. Record Pending Action in adActions (B6)
+    const actionId = await ctx.runMutation(
+      internal.adActionsStore.recordPendingAction,
+      {
+        workspaceId,
+        userId,
+        targetType: "campaign",
+        targetId: `new:gads:${Date.now()}:campaign`,
+        targetName: args.campaign.name,
+        action: "create_campaign",
+        params: JSON.stringify({
+          name: args.campaign.name,
+          channelType: args.campaign.channelType,
+          dailyBudget: args.campaign.dailyBudget,
+          currency: accountCurrency,
+          createdStatus: "PAUSED",
+        }),
+      },
+    );
+
+    // 7. Atomic Mutate Execution with validate_only first (B1, B2, B3)
+    const mutatePayload = buildGoogleAdsCampaignMutatePayload(fullInput);
+    const url = buildMutateUrl(customerId);
+    const headers = buildGoogleAdsHeaders({
+      developerToken,
+      accessToken,
+      loginCustomerId,
+    });
+
+    try {
+      const result = await runGoogleAdsMutateWithValidateOnly(
+        fetch,
+        url,
+        headers,
+        mutatePayload,
+      );
+
+      // 8. Complete Action on Success
+      await ctx.runMutation(internal.adActionsStore.completeAction, {
+        actionId,
+        apiResponse: JSON.stringify(result),
+      });
+
+      return {
+        status: "success",
+        allPaused: true,
+        campaign: { name: args.campaign.name },
+        confirmationWarning: gate.confirmationWarning,
+        result,
+      };
+    } catch (err: unknown) {
+      const errorMsg = sanitizeSyncError(err);
+      await ctx.runMutation(internal.adActionsStore.failAction, {
+        actionId,
+        error: errorMsg,
+      });
+      throw new ConvexError({
+        code: "execution_error",
+        message: errorMsg,
+      });
+    }
+  },
+});
+
+export interface ValidateGoogleAdsCampaignPlanResult {
+  ok: boolean;
+  gate: {
+    ok: boolean;
+    code?: string;
+    message?: string;
+    confirmationWarning?: string;
+  };
+  campaign: { codeOk: boolean; error?: string };
+  adGroup: { codeOk: boolean; error?: string };
+  ad: { codeOk: boolean; error?: string };
+  validateOnlyOk: boolean;
+  validateOnlyError?: string;
+}
+
+export const validateGoogleAdsCampaignPlan = action({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    campaign: v.object({
+      name: v.string(),
+      channelType: v.string(),
+      dailyBudget: v.number(),
+      startDate: v.optional(v.string()),
+      endDate: v.optional(v.string()),
+      biddingStrategyType: v.optional(v.string()),
+    }),
+    adGroup: v.optional(
+      v.object({
+        name: v.string(),
+        type: v.optional(v.string()),
+        cpcBid: v.optional(v.number()),
+      }),
+    ),
+    ad: v.optional(
+      v.object({
+        name: v.optional(v.string()),
+        headlines: v.array(v.string()),
+        descriptions: v.array(v.string()),
+        finalUrls: v.array(v.string()),
+        path1: v.optional(v.string()),
+        path2: v.optional(v.string()),
+      }),
+    ),
+    keywords: v.optional(
+      v.array(
+        v.object({
+          text: v.string(),
+          matchType: v.union(
+            v.literal("EXACT"),
+            v.literal("PHRASE"),
+            v.literal("BROAD"),
+          ),
+          cpcBid: v.optional(v.number()),
+        }),
+      ),
+    ),
+  },
+  handler: async (ctx, args): Promise<ValidateGoogleAdsCampaignPlanResult> => {
+    assertWriteEnabled();
+    const auth = await resolveGoogleAdsAuth(ctx, args.workspaceId);
+    const {
+      workspaceId,
+      accessToken,
+      developerToken,
+      customerId,
+      loginCustomerId,
+    } = auth;
+
+    const fullInput: GoogleAdsFullCampaignCreateInput = {
+      customerId,
+      campaign: args.campaign,
+      adGroup: args.adGroup,
+      ad: args.ad,
+      keywords: args.keywords,
+    };
+
+    const campaignRes = { codeOk: true, error: undefined as string | undefined };
+    const adGroupRes = { codeOk: true, error: undefined as string | undefined };
+    const adRes = { codeOk: true, error: undefined as string | undefined };
+
+    try {
+      validateGoogleAdsCampaignInput(args.campaign);
+    } catch (e: unknown) {
+      campaignRes.codeOk = false;
+      campaignRes.error = e instanceof Error ? e.message : "Neispravna kampanja.";
+    }
+
+    if (args.adGroup) {
+      try {
+        validateGoogleAdsAdGroupInput(args.adGroup);
+      } catch (e: unknown) {
+        adGroupRes.codeOk = false;
+        adGroupRes.error =
+          e instanceof Error ? e.message : "Neispravna ad grupa.";
+      }
+    }
+
+    if (args.ad) {
+      try {
+        validateGoogleAdsAdInput(args.ad);
+      } catch (e: unknown) {
+        adRes.codeOk = false;
+        adRes.error = e instanceof Error ? e.message : "Neispravan oglas.";
+      }
+    }
+
+    const account = await ctx.runQuery(
+      internal.adActionsStore.getGoogleAdsAccountForWorkspace,
+      { workspaceId, customerId },
+    );
+    const accountCurrency = account?.currency || "";
+    const { minBudget, limitCurrency } = getBudgetBounds();
+    const maxDailyBudget = getGoogleAdsMaxDailyBudget();
+
+    const gate = evaluateGoogleAdsBudgetGate({
+      accountCurrency,
+      limitCurrency,
+      maxDailyBudget,
+      minBudget,
+      dailyBudget: args.campaign.dailyBudget,
+    });
+
+    let validateOnlyOk = false;
+    let validateOnlyError: string | undefined;
+
+    if (campaignRes.codeOk && adGroupRes.codeOk && adRes.codeOk && gate.ok) {
+      try {
+        const mutatePayload = buildGoogleAdsCampaignMutatePayload(fullInput);
+        const url = buildMutateUrl(customerId);
+        const headers = buildGoogleAdsHeaders({
+          developerToken,
+          accessToken,
+          loginCustomerId,
+        });
+
+        const vr = await runGoogleAdsValidateOnly(
+          fetch,
+          url,
+          headers,
+          mutatePayload,
+        );
+        validateOnlyOk = vr.ok;
+        validateOnlyError = vr.error;
+      } catch (mutateErr: unknown) {
+        validateOnlyOk = false;
+        validateOnlyError =
+          mutateErr instanceof Error ? mutateErr.message : "Greška validacije.";
+      }
+    }
+
+    return {
+      ok:
+        campaignRes.codeOk &&
+        adGroupRes.codeOk &&
+        adRes.codeOk &&
+        gate.ok &&
+        validateOnlyOk,
+      gate: {
+        ok: gate.ok,
+        code: gate.code,
+        message: gate.message,
+        confirmationWarning: gate.confirmationWarning,
+      },
+      campaign: campaignRes,
+      adGroup: adGroupRes,
+      ad: adRes,
+      validateOnlyOk,
+      validateOnlyError,
+    };
+  },
+});
+
+export interface ChangeGoogleAdsBudgetResult {
+  success: boolean;
+  actionId: Id<"adActions">;
+  campaignId: string;
+  newDailyBudget: number;
+  confirmationWarning: string;
+}
+
+export const changeGoogleAdsBudget = action({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    campaignId: v.string(), // externalId
+    budgetId: v.string(), // externalId of budget
+    newDailyBudget: v.number(),
+  },
+  handler: async (ctx, args): Promise<ChangeGoogleAdsBudgetResult> => {
+    assertWriteEnabled();
+    if (args.newDailyBudget <= 0) {
+      throw new ConvexError({
+        code: "invalid_argument",
+        message: "Dnevni budžet mora biti veći od 0.",
+      });
+    }
+
+    const auth = await resolveGoogleAdsAuth(ctx, args.workspaceId);
+    const {
+      userId,
+      workspaceId,
+      accessToken,
+      developerToken,
+      customerId,
+      loginCustomerId,
+    } = auth;
+
+    const target = await ctx.runQuery(
+      internal.adActionsStore.getTargetForAction,
+      {
+        workspaceId,
+        targetType: "campaign",
+        targetId: args.campaignId,
+      },
+    );
+
+    const { minBudget, maxBudget, limitCurrency } = getBudgetBounds();
+    const accountCurrency = (target.currency || "").trim().toUpperCase();
+
+    if (!accountCurrency) {
+      throw new ConvexError({
+        code: "currency_unknown",
+        message:
+          "Valuta naloga nije poznata, pa granice budžeta ne mogu da se provere. Pokreni sinhronizaciju naloga pa pokušaj ponovo.",
+      });
+    }
+    if (accountCurrency !== limitCurrency) {
+      throw new ConvexError({
+        code: "currency_mismatch",
+        message: `Granica budžeta je zadata u ${limitCurrency}, a nalog radi u ${accountCurrency}. Podesi granicu u valuti naloga pre nego što menjaš budžet.`,
+      });
+    }
+    if (args.newDailyBudget < minBudget) {
+      throw new ConvexError({
+        code: "guardrail_violation",
+        message: `Novi budžet (${args.newDailyBudget} ${limitCurrency}) je ispod minimalno dozvoljenog limita od ${minBudget} ${limitCurrency} (BUDGET_MIN).`,
+      });
+    }
+    if (args.newDailyBudget > maxBudget) {
+      throw new ConvexError({
+        code: "guardrail_violation",
+        message: `Novi budžet (${args.newDailyBudget} ${limitCurrency}) prelazi maksimalno dozvoljeni limit od ${maxBudget} ${limitCurrency} (BUDGET_MAX).`,
+      });
+    }
+
+    const currentBudget = target.dailyBudget;
+    if (currentBudget === undefined || currentBudget <= 0) {
+      throw new ConvexError({
+        code: "current_budget_unknown",
+        message:
+          "Trenutni dnevni budžet nije poznat, pa ograda od ±50% ne može da se izračuna. Pokreni sinhronizaciju naloga pa pokušaj ponovo.",
+      });
+    }
+
+    const minAllowed = Math.round(currentBudget * 0.5 * 100) / 100;
+    const maxAllowed = Math.round(currentBudget * 1.5 * 100) / 100;
+    const percentChange = Math.round(
+      ((args.newDailyBudget - currentBudget) / currentBudget) * 100,
+    );
+
+    if (args.newDailyBudget < minAllowed || args.newDailyBudget > maxAllowed) {
+      throw new ConvexError({
+        code: "guardrail_violation",
+        message: `Promena budžeta sa ${currentBudget} na ${args.newDailyBudget} (${percentChange > 0 ? "+" : ""}${percentChange}%) prelazi dozvoljenu granicu od ±50% po jednoj akciji (dozvoljeno: ${minAllowed} – ${maxAllowed}).`,
+      });
+    }
+
+    const quotaGate = await readGadsGate(ctx, workspaceId, customerId);
+    const quotaCheck = checkGoogleAdsQuota(
+      quotaGate.consumed24h,
+      quotaGate.dailyLimit,
+      2,
+    );
+    if (quotaCheck.skipped) {
+      throw new ConvexError({
+        code: "quota_exceeded",
+        message: `Google Ads kvota je prekoračena: ${quotaCheck.reason}`,
+      });
+    }
+
+    const actionId = await ctx.runMutation(
+      internal.adActionsStore.recordPendingAction,
+      {
+        workspaceId,
+        userId,
+        targetType: "campaign",
+        targetId: args.campaignId,
+        targetName: target.name,
+        action: "budget_change",
+        params: JSON.stringify({
+          newDailyBudget: args.newDailyBudget,
+          previousDailyBudget: currentBudget,
+          budgetId: args.budgetId,
+        }),
+      },
+    );
+
+    const mutatePayload = buildGoogleAdsBudgetChangeMutatePayload(
+      customerId,
+      args.budgetId,
+      args.newDailyBudget,
+    );
+    const url = buildMutateUrl(customerId);
+    const headers = buildGoogleAdsHeaders({
+      developerToken,
+      accessToken,
+      loginCustomerId,
+    });
+
+    try {
+      const result = await runGoogleAdsMutateWithValidateOnly(
+        fetch,
+        url,
+        headers,
+        mutatePayload,
+      );
+
+      await ctx.runMutation(internal.adActionsStore.completeAction, {
+        actionId,
+        newDailyBudget: args.newDailyBudget,
+        apiResponse: JSON.stringify(result),
+      });
+
+      return {
+        success: true,
+        actionId,
+        campaignId: args.campaignId,
+        newDailyBudget: args.newDailyBudget,
+        confirmationWarning: formatGoogleAdsBudgetConfirmation(
+          args.newDailyBudget,
+          accountCurrency,
+        ),
+      };
+    } catch (err: unknown) {
+      const errorMsg = sanitizeSyncError(err);
+      await ctx.runMutation(internal.adActionsStore.failAction, {
+        actionId,
+        error: errorMsg,
+      });
+      throw new ConvexError({
+        code: "execution_error",
+        message: errorMsg,
+      });
+    }
+  },
+});
+
+export interface PauseResumeGoogleAdsResult {
+  success: boolean;
+  actionId: Id<"adActions">;
+  campaignId: string;
+  status: "ACTIVE" | "PAUSED";
+}
+
+export const pauseResumeGoogleAds = action({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+    campaignId: v.string(), // externalId
+    desiredStatus: v.union(
+      v.literal("ACTIVE"),
+      v.literal("PAUSED"),
+      v.literal("active"),
+      v.literal("paused"),
+    ),
+    channelType: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<PauseResumeGoogleAdsResult> => {
+    assertWriteEnabled();
+    const normalizedStatus = args.desiredStatus.toUpperCase() as
+      | "ACTIVE"
+      | "PAUSED";
+    const actionName = normalizedStatus === "PAUSED" ? "pause" : "resume";
+
+    // Video campaign check
+    if (
+      args.channelType &&
+      (args.channelType.toUpperCase() === "VIDEO" ||
+        args.channelType.toUpperCase().includes("VIDEO"))
+    ) {
+      throw new ConvexError({
+        code: "invalid_argument",
+        message:
+          "Video kampanje su samo za čitanje (READ-ONLY) u Google Ads API-ju. Izmena statusa Video kampanja nije podržana kroz API.",
+      });
+    }
+
+    const auth = await resolveGoogleAdsAuth(ctx, args.workspaceId);
+    const {
+      userId,
+      workspaceId,
+      accessToken,
+      developerToken,
+      customerId,
+      loginCustomerId,
+    } = auth;
+
+    const target = await ctx.runQuery(
+      internal.adActionsStore.getTargetForAction,
+      {
+        workspaceId,
+        targetType: "campaign",
+        targetId: args.campaignId,
+      },
+    );
+
+    const quotaGate = await readGadsGate(ctx, workspaceId, customerId);
+    const quotaCheck = checkGoogleAdsQuota(
+      quotaGate.consumed24h,
+      quotaGate.dailyLimit,
+      2,
+    );
+    if (quotaCheck.skipped) {
+      throw new ConvexError({
+        code: "quota_exceeded",
+        message: `Google Ads kvota je prekoračena: ${quotaCheck.reason}`,
+      });
+    }
+
+    const actionId = await ctx.runMutation(
+      internal.adActionsStore.recordPendingAction,
+      {
+        workspaceId,
+        userId,
+        targetType: "campaign",
+        targetId: args.campaignId,
+        targetName: target.name,
+        action: actionName,
+        params: JSON.stringify({
+          desiredStatus: normalizedStatus,
+          previousStatus: target.status,
+        }),
+      },
+    );
+
+    const mutatePayload = buildGoogleAdsCampaignStatusMutatePayload(
+      customerId,
+      args.campaignId,
+      normalizedStatus,
+      args.channelType,
+    );
+    const url = buildMutateUrl(customerId);
+    const headers = buildGoogleAdsHeaders({
+      developerToken,
+      accessToken,
+      loginCustomerId,
+    });
+
+    try {
+      const result = await runGoogleAdsMutateWithValidateOnly(
+        fetch,
+        url,
+        headers,
+        mutatePayload,
+      );
+
+      await ctx.runMutation(internal.adActionsStore.completeAction, {
+        actionId,
+        newStatus: normalizedStatus,
+        apiResponse: JSON.stringify(result),
+      });
+
+      return {
+        success: true,
+        actionId,
+        campaignId: args.campaignId,
+        status: normalizedStatus,
+      };
+    } catch (err: unknown) {
+      const errorMsg = sanitizeSyncError(err);
+      await ctx.runMutation(internal.adActionsStore.failAction, {
+        actionId,
+        error: errorMsg,
+      });
+      throw new ConvexError({
+        code: "execution_error",
+        message: errorMsg,
+      });
+    }
+  },
+});
+
 

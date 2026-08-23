@@ -19,7 +19,7 @@
  * ============================================================================
  */
 
-import { microsToUnits } from "./googleAdsApi";
+import { microsToUnits } from "./googleAdsShared";
 
 export const GOOGLE_ADS_CATALOG_VERSION = 1;
 
