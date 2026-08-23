@@ -77,10 +77,20 @@ export function SyncHealthWidget({
               statusText = "Čeka prvo pokretanje";
             } else {
               statusTone = health.status;
-              if (health.status === "ok") statusText = "Uspešno";
-              else if (health.status === "running") statusText = "U toku";
-              else if (health.status === "error") statusText = "Greška";
-              else if (health.status === "stale") statusText = "Zastalo";
+              if (health.status === "ok") {
+                if (health.note && health.note.startsWith("Delimično")) {
+                  statusTone = "stale";
+                  statusText = "Delimično";
+                } else {
+                  statusText = "Uspešno";
+                }
+              } else if (health.status === "running") {
+                statusText = "U toku";
+              } else if (health.status === "error") {
+                statusText = "Greška";
+              } else if (health.status === "stale") {
+                statusText = "Zastalo";
+              }
             }
 
             return (
@@ -114,6 +124,11 @@ export function SyncHealthWidget({
                     {health?.error && (
                       <p className="line-clamp-1 text-micro text-danger font-mono mt-0.5">
                         {health.error}
+                      </p>
+                    )}
+                    {!health?.error && health?.note && health.note.startsWith("Delimično") && (
+                      <p className="line-clamp-1 text-micro text-warning font-mono mt-0.5">
+                        {health.note}
                       </p>
                     )}
                   </div>

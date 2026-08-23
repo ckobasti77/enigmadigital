@@ -11,7 +11,10 @@ import { StatusPill, PROVIDER_LABELS } from "./status-pill";
 
 type HealthEntry = FunctionReturnType<typeof api.sync.health>[number];
 
-function syncPill(status: HealthEntry["status"]) {
+function syncPill(status: HealthEntry["status"], note?: string | null) {
+  if (status === "ok" && note && note.startsWith("Delimično")) {
+    return <StatusPill tone="warning">Delimično</StatusPill>;
+  }
   switch (status) {
     case "ok":
       return <StatusPill tone="success">Uspešno</StatusPill>;
@@ -184,7 +187,7 @@ export function SyncHealth({ entries }: { entries: HealthEntry[] | undefined }) 
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    {syncPill(entry.status)}
+                    {syncPill(entry.status, entry.note)}
                     <span className="text-sm text-foreground">
                       {PROVIDER_LABELS[entry.provider]}
                     </span>
@@ -198,6 +201,11 @@ export function SyncHealth({ entries }: { entries: HealthEntry[] | undefined }) 
                     <span>{formatRelativeTime(entry.startedAt)}</span>
                   </div>
                 </div>
+                {entry.note && (
+                  <p className="font-mono text-xs leading-relaxed text-text-muted">
+                    {entry.note}
+                  </p>
+                )}
                 {entry.error && (
                   <p className="font-mono text-xs leading-relaxed text-danger">
                     {entry.error}

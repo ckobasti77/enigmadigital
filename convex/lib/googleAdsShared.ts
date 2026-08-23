@@ -208,3 +208,124 @@ export function unitsToMicros(
   if (!Number.isFinite(units)) return undefined;
   return Math.round(units * MICROS_PER_UNIT);
 }
+
+export type GoogleAdsResourceOutcome =
+  | { resource: string; ok: true; rows: number }
+  | { resource: string; ok: false; reason: string };
+
+export interface GoogleAdsSyncSummary {
+  status: "Uspešno" | "Delimično" | "Greška";
+  totalResources: number;
+  successfulResources: number;
+  failedResources: number;
+  succeededQueries: number;
+  failedQueries: number;
+  failedResourceNames: string[];
+  outcomes: GoogleAdsResourceOutcome[];
+  itemsWritten: number;
+  currencyKnown: boolean;
+  note?: string;
+}
+
+/**
+ * Sanitizes any sensitive tokens, secrets, or keys from Google Ads error messages.
+ */
+export function defaultSanitizeGoogleAdsError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  return raw
+    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer [REDACTED]")
+    .replace(/ya29\.[A-Za-z0-9_-]+/g, "[REDACTED_TOKEN]")
+    .replace(/client_secret=[^&\s]+/gi, "client_secret=[REDACTED]")
+    .replace(/private_key=[^&\s]+/gi, "private_key=[REDACTED]")
+    .replace(/SECRET[A-Za-z0-9_]*/gi, "[REDACTED]")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Wraps a single GAQL query execution, capturing rows on success or sanitized error reason on failure.
+ *
+ * Rules (A2, A4):
+ *   - A query returning 0 rows is valid: { resource, ok: true, rows: 0 }.
+ *   - A failed query NEVER looks like an empty result: { resource, ok: false, reason: "<sanitized>" }.
+ *   - Never rethrows so other queries continue, but failure is recorded.
+ */
+export async function executeGaqlResource<T>(
+  resource: string,
+  outcomes: GoogleAdsResourceOutcome[],
+  fn: () => Promise<T[]>,
+  sanitizeFn: (err: unknown) => string = defaultSanitizeGoogleAdsError,
+): Promise<T[]> {
+  try {
+    const rows = await fn();
+    const count = Array.isArray(rows) ? rows.length : 0;
+    outcomes.push({ resource, ok: true, rows: count });
+    return rows;
+  } catch (err) {
+    const reason = sanitizeFn(err);
+    outcomes.push({ resource, ok: false, reason });
+    return [];
+  }
+}
+
+/**
+ * Evaluates the overall sync outcome across all queries and currency checks (A3).
+ *
+ * Rules:
+ *   - All queries succeeded & currency known -> "Uspešno"
+ *   - Some queries failed or currency unknown -> "Delimično" + details of failed resources
+ *   - Authentication or quota gate failed -> "Greška"
+ */
+export function summarizeGoogleAdsSync(params: {
+  outcomes: GoogleAdsResourceOutcome[];
+  itemsWritten: number;
+  currencyKnown: boolean;
+  authOrQuotaFailed?: boolean;
+  fatalError?: string;
+}): GoogleAdsSyncSummary {
+  const { outcomes, itemsWritten, currencyKnown, authOrQuotaFailed, fatalError } = params;
+  const totalResources = outcomes.length;
+  const failedOutcomes = outcomes.filter(
+    (o): o is { resource: string; ok: false; reason: string } => !o.ok,
+  );
+  const failedResources = failedOutcomes.length;
+  const successfulResources = totalResources - failedResources;
+  const failedResourceNames = failedOutcomes.map((o) => o.resource);
+
+  let status: "Uspešno" | "Delimično" | "Greška";
+  const noteParts: string[] = [];
+
+  if (authOrQuotaFailed || fatalError) {
+    status = "Greška";
+    if (fatalError) noteParts.push(fatalError);
+  } else if (failedResources > 0 || !currencyKnown) {
+    status = "Delimično";
+    if (failedResources > 0) {
+      noteParts.push(
+        `Delimično: ${failedResources}/${totalResources} neuspelih upita (${failedResourceNames.join(", ")})`,
+      );
+    }
+    if (!currencyKnown) {
+      noteParts.push("nalog nema poznatu valutu (upis naloga preskočen)");
+    }
+  } else {
+    status = "Uspešno";
+  }
+
+  const note = noteParts.length > 0 ? noteParts.join(" | ") : undefined;
+
+  return {
+    status,
+    totalResources,
+    successfulResources,
+    failedResources,
+    succeededQueries: successfulResources,
+    failedQueries: failedResources,
+    failedResourceNames,
+    outcomes,
+    itemsWritten,
+    currencyKnown,
+    note,
+  };
+}
+

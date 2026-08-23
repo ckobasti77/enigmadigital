@@ -22,6 +22,7 @@
     "verify:gads-segments": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-segments.ts",
     "verify:gads-assets": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-assets.ts",
     "verify:gads-write": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-write.ts",
+    "verify:gads-sync-report": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-sync-report.ts",
     "deploy:convex": "npm run verify:purge && npx convex deploy"
   },
   "dependencies": {

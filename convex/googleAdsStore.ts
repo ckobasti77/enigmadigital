@@ -546,11 +546,13 @@ export const gadsKeywordQualityInputValidator = v.object({
 export const upsertGoogleAdsData = internalMutation({
   args: {
     workspaceId: v.id("workspaces"),
-    account: v.object({
-      externalId: v.string(),
-      name: v.string(),
-      currency: v.string(),
-    }),
+    account: v.optional(
+      v.object({
+        externalId: v.string(),
+        name: v.string(),
+        currency: v.string(),
+      }),
+    ),
     conversionActions: v.optional(v.array(gadsConversionActionInputValidator)),
     customerClients: v.optional(v.array(gadsCustomerClientInputValidator)),
     budgets: v.optional(v.array(gadsBudgetInputValidator)),
@@ -607,34 +609,40 @@ export const upsertGoogleAdsData = internalMutation({
     const now = Date.now();
     let written = 0;
 
-    // 1. Upsert AdAccount (provider = "google_ads")
-    let accountId: Id<"adAccounts">;
-    const existingAccount = await ctx.db
-      .query("adAccounts")
-      .withIndex("by_workspace_external", (q) =>
-        q.eq("workspaceId", workspaceId).eq("externalId", account.externalId),
-      )
-      .unique();
+    // 1. Upsert AdAccount (provider = "google_ads") - Samo ako je valuta poznata (A1)
+    let accountId: Id<"adAccounts"> | undefined;
+    if (account && account.currency && account.currency.trim() !== "") {
+      const existingAccount = await ctx.db
+        .query("adAccounts")
+        .withIndex("by_workspace_external", (q) =>
+          q.eq("workspaceId", workspaceId).eq("externalId", account.externalId),
+        )
+        .unique();
 
-    if (existingAccount !== null) {
-      await ctx.db.patch(existingAccount._id, {
-        name: account.name,
-        currency: account.currency,
-        provider: "google_ads",
-        syncedAt: now,
-      });
-      accountId = existingAccount._id;
+      if (existingAccount !== null) {
+        await ctx.db.patch(existingAccount._id, {
+          name: account.name,
+          currency: account.currency.trim(),
+          provider: "google_ads",
+          syncedAt: now,
+        });
+        accountId = existingAccount._id;
+      } else {
+        accountId = await ctx.db.insert("adAccounts", {
+          workspaceId,
+          provider: "google_ads",
+          externalId: account.externalId,
+          name: account.name,
+          currency: account.currency.trim(),
+          syncedAt: now,
+        });
+      }
+      written++;
     } else {
-      accountId = await ctx.db.insert("adAccounts", {
-        workspaceId,
-        provider: "google_ads",
-        externalId: account.externalId,
-        name: account.name,
-        currency: account.currency,
-        syncedAt: now,
-      });
+      console.warn(
+        `[googleAdsStore] Nalog bez poznate valute se NE upisuje u adAccounts (${account?.externalId ?? "nepoznat ID"}).`,
+      );
     }
-    written++;
 
     // 2. Upsert Conversion Actions (GA4 B1)
     if (conversionActions && conversionActions.length > 0) {
@@ -762,9 +770,14 @@ export const upsertGoogleAdsData = internalMutation({
         )
         .unique();
 
+      const targetAccountId = accountId ?? existing?.accountId;
+      if (!targetAccountId) {
+        continue;
+      }
+
       if (existing !== null) {
         await ctx.db.patch(existing._id, {
-          accountId,
+          accountId: targetAccountId,
           name: c.name,
           objective: c.objective,
           status: c.status,
@@ -781,7 +794,7 @@ export const upsertGoogleAdsData = internalMutation({
       } else {
         const id = await ctx.db.insert("adCampaigns", {
           workspaceId,
-          accountId,
+          accountId: targetAccountId,
           externalId: c.externalId,
           name: c.name,
           objective: c.objective,
