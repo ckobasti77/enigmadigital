@@ -117,25 +117,116 @@ export function buildGoogleAdsHeaders(
 }
 
 /**
- * Extracts human-readable message from Google Ads API error response without leaking secrets.
+ * Izvlači čitljivu poruku iz Google Ads API greške, bez curenja tajni.
+ *
+ * Google Ads REST greška ima dva sloja:
+ *   1. `error.message` — generički gRPC opis ("Request contains an invalid argument.")
+ *   2. `error.details[].errors[]` — GoogleAdsFailure sa STVARNIM razlogom
+ *      (npr. "Error in query: unrecognized field metrics.conversions_value_micros.")
+ *      i sa `errorCode` (npr. { queryError: "UNRECOGNIZED_FIELD" }).
+ *
+ * Sloj 1 sam po sebi ne kaže ništa upotrebljivo. Zato uvek prvo tražimo sloj 2 i
+ * vraćamo ga; na sloj 1 padamo tek ako detalja nema. Nikada ne vraćamo generičku
+ * poruku dok postoji konkretna — nepoznat uzrok nije dozvoljen ishod.
  */
+function extractGoogleAdsFailureMessages(errorObj: unknown): string[] {
+  const messages: string[] = [];
+  const details = (errorObj as { details?: unknown[] } | undefined)?.details;
+  if (!Array.isArray(details)) return messages;
+
+  for (const detail of details) {
+    const errors = (detail as { errors?: unknown[] } | undefined)?.errors;
+    if (!Array.isArray(errors)) continue;
+
+    for (const err of errors) {
+      const e = err as {
+        message?: unknown;
+        errorCode?: Record<string, unknown>;
+        location?: { fieldPathElements?: Array<{ fieldName?: unknown }> };
+      };
+
+      const parts: string[] = [];
+
+      if (e.errorCode && typeof e.errorCode === "object") {
+        const codeKeys = Object.keys(e.errorCode);
+        if (codeKeys.length > 0) {
+          const key = codeKeys[0];
+          parts.push(`${key}=${String(e.errorCode[key])}`);
+        }
+      }
+
+      if (typeof e.message === "string" && e.message.trim() !== "") {
+        parts.push(e.message.trim());
+      }
+
+      const fieldPath = e.location?.fieldPathElements;
+      if (Array.isArray(fieldPath) && fieldPath.length > 0) {
+        const path = fieldPath
+          .map((el) => (typeof el?.fieldName === "string" ? el.fieldName : ""))
+          .filter((s) => s !== "")
+          .join(".");
+        if (path !== "") parts.push(`[polje: ${path}]`);
+      }
+
+      if (parts.length > 0) messages.push(parts.join(" "));
+    }
+  }
+
+  return messages;
+}
+
 export function extractGoogleAdsApiError(body: string, status?: number): string {
   try {
     const parsed = JSON.parse(body);
-    if (Array.isArray(parsed) && parsed[0]?.error?.message) {
-      return parsed[0].error.message;
-    }
-    if (parsed.error?.message) return parsed.error.message;
-    if (parsed[0]?.error?.details) {
-      return JSON.stringify(parsed[0].error.details);
-    }
-    if (parsed.error?.details) {
-      return JSON.stringify(parsed.error.details);
+    const errorObj = Array.isArray(parsed) ? parsed[0]?.error : parsed?.error;
+
+    if (errorObj) {
+      const detailed = extractGoogleAdsFailureMessages(errorObj);
+      if (detailed.length > 0) {
+        return detailed.join(" | ");
+      }
+      // Detalja nema — generička poruka sama po sebi ne objašnjava ništa,
+      // pa uz nju obavezno ide i sirovo telo odgovora (skraćeno).
+      const generic =
+        typeof errorObj.message === "string" && errorObj.message.trim() !== ""
+          ? errorObj.message.trim()
+          : "Google Ads API je odbio zahtev bez poruke.";
+      return `${generic} :: SIROVO=${body.slice(0, 900)}`;
     }
   } catch {
     // fall back to raw slice
   }
-  return `Google Ads API greška (${status ?? "status nepoznat"}): ${body.slice(0, 300)}`;
+  return `Google Ads API greška (${status ?? "status nepoznat"}): ${body.slice(0, 900)}`;
+}
+
+/**
+ * Iz Google Ads DATE/DATETIME vrednosti vraća samo datumski deo "YYYY-MM-DD".
+ *
+ * `campaign.start_date_time` / `campaign.end_date_time` stižu u obliku
+ * "yyyy-MM-dd HH:mm:ss" (u vremenskoj zoni naloga). Nama treba čist datum.
+ * Nepoznato ostaje nepoznato — nikada ne vraćamo današnji datum kao zamenu.
+ */
+export function gadsDatePart(value: string | undefined | null): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (trimmed === "") return undefined;
+  const match = trimmed.match(/^\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : undefined;
+}
+
+/**
+ * Pretvara Google Ads brojčanu vrednost (broj ili string) u broj.
+ *
+ * Za polja koja NISU u mikrojedinicama (npr. `metrics.conversions_value`).
+ * undefined / null / prazno / NaN -> undefined. Nula ostaje nula.
+ */
+export function gadsNumberOrUndefined(
+  value: number | string | undefined | null,
+): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === "string" && value.trim() === "") return undefined;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : undefined;
 }
 
 export function toSnakeCase(str: string): string {

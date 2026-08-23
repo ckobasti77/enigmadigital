@@ -37,17 +37,26 @@ export function isEmailAllowed(email?: string | null): boolean {
 }
 
 /**
- * Email magic-link sign-in via Resend.
- *
- * `authorize: undefined` gives magic-link semantics: clicking the link is enough,
- * the user never re-enters their email. RESEND_API_KEY / EMAIL_FROM / ALLOWED_EMAILS
- * live in the Convex deployment env.
+ * Generate a cryptographically random 6-digit numeric string (100000-999999).
  */
-const ResendMagicLink = Email({
+function generate6DigitCode(): string {
+  const buffer = new Uint32Array(1);
+  crypto.getRandomValues(buffer);
+  return (100000 + (buffer[0] % 900000)).toString();
+}
+
+/**
+ * Email 6-digit OTP sign-in via Resend.
+ *
+ * RESEND_API_KEY / EMAIL_FROM / ALLOWED_EMAILS live in the Convex deployment env.
+ */
+const ResendOTP = Email({
   id: "resend",
-  maxAge: 60 * 15, // link valid for 15 minutes
-  authorize: undefined,
-  async sendVerificationRequest({ identifier: rawEmail, url }) {
+  maxAge: 60 * 15, // code valid for 15 minutes
+  async generateVerificationToken() {
+    return generate6DigitCode();
+  },
+  async sendVerificationRequest({ identifier: rawEmail, token }) {
     const email = normalizeEmail(rawEmail);
 
     if (!isEmailAllowed(email)) {
@@ -60,7 +69,7 @@ const ResendMagicLink = Email({
 
     if (!apiKey) {
       console.warn(
-        `[auth] RESEND_API_KEY not set — magic link for ${email}: ${url}`,
+        `[auth] RESEND_API_KEY not set — OTP code for ${email}: ${token}`,
       );
       return;
     }
@@ -68,9 +77,9 @@ const ResendMagicLink = Email({
     const { error } = await new ResendClient(apiKey).emails.send({
       from,
       to: [email],
-      subject: "Prijava · Enigma Command Center",
-      html: magicLinkEmail(url),
-      text: `Prijavi se u Enigma Command Center:\n\n${url}\n\nLink važi 15 minuta. Ako nisi ti tražio/la prijavu, ignoriši ovu poruku.`,
+      subject: `Kod za prijavu: ${token} · Enigma Command Center`,
+      html: otpEmail(token),
+      text: `Tvoj jednokratni kod za prijavu u Enigma Command Center je: ${token}\n\nKod važi 15 minuta. Ako nisi ti tražio/la prijavu, ignoriši ovu poruku.`,
     });
 
     if (error) {
@@ -79,7 +88,7 @@ const ResendMagicLink = Email({
   },
 });
 
-function magicLinkEmail(url: string): string {
+function otpEmail(code: string): string {
   return `<!doctype html>
 <html lang="sr">
   <body style="margin:0;background:#070d19;padding:40px 16px;font-family:'Helvetica Neue',Arial,sans-serif;">
@@ -87,20 +96,20 @@ function magicLinkEmail(url: string): string {
       <tr>
         <td style="padding:32px 32px 8px;">
           <p style="margin:0;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#58c4ff;">Enigma · Command Center</p>
-          <h1 style="margin:16px 0 0;font-size:22px;line-height:1.25;color:#f3f7ff;font-weight:700;">Tvoj link za prijavu</h1>
-          <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:rgba(193,211,245,0.75);">Klikni na dugme ispod da se prijaviš. Link važi 15 minuta.</p>
+          <h1 style="margin:16px 0 0;font-size:22px;line-height:1.25;color:#f3f7ff;font-weight:700;">Tvoj kod za prijavu</h1>
+          <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:rgba(193,211,245,0.75);">Unesi sledeći 6-cifreni kod u aplikaciju da se prijaviš. Kod važi 15 minuta.</p>
         </td>
       </tr>
       <tr>
-        <td style="padding:24px 32px 8px;">
-          <a href="${url}" style="display:inline-block;background:#58c4ff;color:#0b1221;font-size:14px;font-weight:700;text-decoration:none;padding:12px 20px;border-radius:10px;">Prijavi se</a>
+        <td style="padding:24px 32px 16px;">
+          <div style="background:#0b1221;border:1px solid rgba(96,128,180,0.3);border-radius:10px;padding:18px 24px;text-align:center;">
+            <span style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,Courier,monospace;font-size:32px;font-weight:700;letter-spacing:0.35em;color:#58c4ff;display:inline-block;padding-left:0.35em;">${code}</span>
+          </div>
         </td>
       </tr>
       <tr>
-        <td style="padding:16px 32px 32px;">
-          <p style="margin:0;font-size:12px;line-height:1.6;color:rgba(148,170,210,0.6);">Ako dugme ne radi, kopiraj ovaj link:</p>
-          <p style="margin:6px 0 0;font-size:12px;line-height:1.6;word-break:break-all;"><a href="${url}" style="color:#58c4ff;">${url}</a></p>
-          <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:rgba(148,170,210,0.6);">Ako nisi ti tražio/la prijavu, slobodno ignoriši ovu poruku.</p>
+        <td style="padding:8px 32px 32px;">
+          <p style="margin:0;font-size:12px;line-height:1.6;color:rgba(148,170,210,0.6);">Ako nisi ti tražio/la prijavu, slobodno ignoriši ovu poruku.</p>
         </td>
       </tr>
     </table>
@@ -108,8 +117,15 @@ function magicLinkEmail(url: string): string {
 </html>`;
 }
 
+/**
+ * Jedini workspace u sistemu. Slug se koristi kao ključ pri bootstrap-u naloga,
+ * pa mora ostati nepromenjen — menjanje bi odvojilo nove korisnike od postojećih podataka.
+ */
+const WORKSPACE_SLUG = "enigma-it";
+const WORKSPACE_NAME = "Enigma IT";
+
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  providers: [ResendMagicLink],
+  providers: [ResendOTP],
   callbacks: {
     // Pre-session creation check: guarantees non-allowed users cannot get a session
     async beforeSessionCreation(ctx, { userId }) {
@@ -141,19 +157,41 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         .first();
 
       if (!existingMembership) {
-        const workspace = await db
+        // Projekat po dizajnu ima TAČNO JEDAN workspace (slug "enigma-it").
+        // Ranije se ovde čitao samo prvi pogodak; ako bi ih iz bilo kog razloga
+        // bilo više, novi korisnik bi tiho završio u pogrešnom (praznom)
+        // workspace-u i video prazan Command Center bez ijedne poruke o grešci.
+        // Zato sada čitamo SVE sa tim slug-om i biramo determinističko najstariji,
+        // a višak glasno prijavljujemo.
+        const existingWorkspaces = await db
           .query("workspaces")
-          .withIndex("by_slug", (q) => q.eq("slug", "enigma-it"))
-          .first();
+          .withIndex("by_slug", (q) => q.eq("slug", WORKSPACE_SLUG))
+          .collect();
 
         let workspaceId: Id<"workspaces">;
-        if (workspace !== null) {
-          workspaceId = workspace._id;
-        } else {
+
+        if (existingWorkspaces.length === 0) {
           workspaceId = await db.insert("workspaces", {
-            name: "Enigma IT",
-            slug: "enigma-it",
+            name: WORKSPACE_NAME,
+            slug: WORKSPACE_SLUG,
           });
+        } else {
+          const canonical = existingWorkspaces.reduce((oldest, candidate) =>
+            candidate._creationTime < oldest._creationTime ? candidate : oldest,
+          );
+          workspaceId = canonical._id;
+
+          if (existingWorkspaces.length > 1) {
+            const duplicates = existingWorkspaces
+              .filter((w) => w._id !== canonical._id)
+              .map((w) => w._id)
+              .join(", ");
+            console.warn(
+              `[auth] U bazi postoji ${existingWorkspaces.length} workspace-a sa slug-om "${WORKSPACE_SLUG}". ` +
+                `Novi član je pridružen najstarijem (${canonical._id}). ` +
+                `Višak koji treba očistiti: ${duplicates}.`,
+            );
+          }
         }
 
         await db.insert("members", {

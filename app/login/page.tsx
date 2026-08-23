@@ -2,14 +2,21 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { ArrowRight, LoaderCircle, MailCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  KeyRound,
+  LoaderCircle,
+  RotateCw,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/app/form-kit";
 import { FeedbackNote } from "@/components/app/feedback";
 import { Reveal } from "@/components/motion/reveal";
 
-type Status = "idle" | "sending" | "sent" | "error";
+type Step = "email" | "code";
+type Status = "idle" | "sending_code" | "verifying" | "error";
 
 /** Dovoljno da uhvati omašku u kucanju; ostalo proverava server. */
 function emailProblem(raw: string): string | null {
@@ -23,8 +30,12 @@ function emailProblem(raw: string): string | null {
 
 export default function LoginPage() {
   const { signIn } = useAuthActions();
+  const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [status, setStatus] = useState<Status>("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   // If the proxy forwarded an in-flight Instagram OAuth code to the login
   // page, park it so Settings can complete the exchange after sign-in.
@@ -44,31 +55,85 @@ export default function LoginPage() {
     window.history.replaceState({}, "", window.location.pathname);
   }, []);
 
-  // Greška u formatu stiže dok se kuca. Prazno polje nije greška dok se u
-  // njega ne pokuša ući praznim „Pošalji" — pa se ta poruka pojavi tek tada.
-  //
-  // Dugme namerno NIJE onemogućeno dok je polje prazno: prvo što čovek vidi na
-  // ovom ekranu ne sme da bude ugašen taster bez objašnjenja.
-  const [attempted, setAttempted] = useState(false);
-  const format = emailProblem(email);
-  const problem =
-    format ?? (attempted && email.trim().length === 0 ? "Unesi email." : null);
+  // Countdown timer for resending OTP
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setAttempted(true);
+  const [attemptedEmail, setAttemptedEmail] = useState(false);
+  const format = emailProblem(email);
+  const emailValidationProblem =
+    format ??
+    (attemptedEmail && email.trim().length === 0 ? "Unesi email." : null);
+
+  const [attemptedCode, setAttemptedCode] = useState(false);
+  const codeValidationProblem =
+    attemptedCode && code.trim().length < 6
+      ? "Unesi svih 6 cifara koda."
+      : null;
+
+  async function handleSendEmail(event?: FormEvent<HTMLFormElement>) {
+    if (event) event.preventDefault();
+    setAttemptedEmail(true);
+    setErrorMessage(null);
+
     const cleanEmail = email.trim().toLowerCase();
-    if (cleanEmail.length === 0 || format !== null || status === "sending") {
+    if (cleanEmail.length === 0 || format !== null || status === "sending_code") {
       return;
     }
-    setStatus("sending");
+
+    setStatus("sending_code");
     try {
       await signIn("resend", { email: cleanEmail });
-      setStatus("sent");
+      setStep("code");
+      setStatus("idle");
+      setCode("");
+      setAttemptedCode(false);
+      setResendCooldown(30);
     } catch (error) {
-      console.error("Sign-in failed", error);
+      console.error("Sending OTP failed", error);
       setStatus("error");
+      setErrorMessage(
+        error instanceof Error && error.message.includes("Pristup nije dozvoljen")
+          ? "Pristup nije dozvoljen za ovu email adresu."
+          : "Slanje koda nije uspelo. Proveri adresu i pokušaj ponovo.",
+      );
     }
+  }
+
+  async function handleVerifyCode(event?: FormEvent<HTMLFormElement>) {
+    if (event) event.preventDefault();
+    setAttemptedCode(true);
+    setErrorMessage(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = code.trim().replace(/\D/g, "");
+
+    if (cleanCode.length !== 6 || status === "verifying") {
+      return;
+    }
+
+    setStatus("verifying");
+    try {
+      await signIn("resend", { email: cleanEmail, code: cleanCode });
+      // On success, Convex Auth sets credentials and redirect is handled automatically
+    } catch (error) {
+      console.error("Code verification failed", error);
+      setStatus("error");
+      setErrorMessage(
+        "Kod nije ispravan ili je istekao. Proveri cifre ili zatraži novi kod.",
+      );
+    }
+  }
+
+  function handleCodeChange(raw: string) {
+    const digitsOnly = raw.replace(/\D/g, "").slice(0, 6);
+    setCode(digitsOnly);
+    setErrorMessage(null);
   }
 
   return (
@@ -79,38 +144,119 @@ export default function LoginPage() {
             Enigma · Command Center
           </p>
 
-          {status === "sent" ? (
+          {step === "code" ? (
             <div className="mt-6">
               <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-accent-400">
-                <MailCheck className="size-5" aria-hidden />
+                <KeyRound className="size-5" aria-hidden />
               </div>
-              <h1 className="mt-4 text-h2 text-foreground">Proveri inbox</h1>
+              <h1 className="mt-4 text-h2 text-foreground">Unesi 6-cifreni kod</h1>
               <p
                 role="status"
                 className="mt-2 text-sm leading-relaxed text-muted-foreground"
               >
-                Link za prijavu je poslat na{" "}
-                <span className="text-foreground">{email.trim()}</span>. Važi 15
-                minuta.
+                Kod za prijavu je poslat na{" "}
+                <span className="font-medium text-foreground">{email.trim()}</span>.
+                Važi 15 minuta.
               </p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setStatus("idle")}
-                className="mt-5 -ml-2.5"
-              >
-                Pošalji na drugu adresu
-              </Button>
+
+              <form onSubmit={handleVerifyCode} className="mt-6 space-y-4">
+                <Field label="Verifikacioni kod" error={codeValidationProblem}>
+                  {(field) => (
+                    <Input
+                      {...field}
+                      name="code"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      autoFocus
+                      placeholder="••••••"
+                      value={code}
+                      onChange={(e) => handleCodeChange(e.target.value)}
+                      disabled={status === "verifying"}
+                      className="h-12 text-center font-mono text-xl font-bold tracking-[0.4em] placeholder:tracking-[0.4em]"
+                    />
+                  )}
+                </Field>
+
+                <Button
+                  type="submit"
+                  disabled={status === "verifying" || code.length !== 6}
+                  className="h-11 w-full"
+                >
+                  {status === "verifying" ? (
+                    <>
+                      <LoaderCircle className="animate-spin" />
+                      Proveravam kod…
+                    </>
+                  ) : (
+                    <>
+                      Prijavi se
+                      <ArrowRight />
+                    </>
+                  )}
+                </Button>
+
+                {errorMessage && (
+                  <FeedbackNote tone="danger" title="Greška pri prijavi">
+                    {errorMessage}
+                  </FeedbackNote>
+                )}
+
+                <div className="flex flex-col gap-2 pt-2 border-t border-line-muted">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={resendCooldown > 0 || status === "sending_code" || status === "verifying"}
+                    onClick={() => handleSendEmail()}
+                    className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {status === "sending_code" ? (
+                      <>
+                        <LoaderCircle className="size-3.5 animate-spin mr-1.5" />
+                        Šaljem novi kod…
+                      </>
+                    ) : resendCooldown > 0 ? (
+                      <>
+                        <RotateCw className="size-3.5 mr-1.5 opacity-50" />
+                        Pošalji ponovo za {resendCooldown}s
+                      </>
+                    ) : (
+                      <>
+                        <RotateCw className="size-3.5 mr-1.5" />
+                        Nisi dobio kod? Pošalji ponovo
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setStep("email");
+                      setStatus("idle");
+                      setErrorMessage(null);
+                    }}
+                    className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowLeft className="size-3.5 mr-1.5" />
+                    Promeni email adresu
+                  </Button>
+                </div>
+              </form>
             </div>
           ) : (
             <>
               <h1 className="mt-5 text-h2 text-foreground">Prijava</h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Unesi email — stiže ti link za prijavu.
+                Unesi email — stiže ti 6-cifreni kod za prijavu.
               </p>
 
-              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-                <Field label="Email" error={problem}>
+              <form onSubmit={handleSendEmail} className="mt-6 space-y-4">
+                <Field label="Email" error={emailValidationProblem}>
                   {(field) => (
                     <Input
                       {...field}
@@ -121,8 +267,11 @@ export default function LoginPage() {
                       autoFocus
                       placeholder="ti@enigmait.rs"
                       value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      disabled={status === "sending"}
+                      onChange={(event) => {
+                        setEmail(event.target.value);
+                        setErrorMessage(null);
+                      }}
+                      disabled={status === "sending_code"}
                       className="h-11"
                     />
                   )}
@@ -130,26 +279,25 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
-                  disabled={status === "sending"}
+                  disabled={status === "sending_code"}
                   className="h-11 w-full"
                 >
-                  {status === "sending" ? (
+                  {status === "sending_code" ? (
                     <>
                       <LoaderCircle className="animate-spin" />
-                      Šaljem link…
+                      Šaljem kod…
                     </>
                   ) : (
                     <>
-                      Pošalji link
+                      Pošalji kod
                       <ArrowRight />
                     </>
                   )}
                 </Button>
 
-                {status === "error" && (
-                  <FeedbackNote tone="danger" title="Link nije poslat">
-                    Proveri adresu i pokušaj ponovo. Ako se ponovi, prijava
-                    preko emaila trenutno ne radi — javi se timu.
+                {errorMessage && (
+                  <FeedbackNote tone="danger" title="Kod nije poslat">
+                    {errorMessage}
                   </FeedbackNote>
                 )}
               </form>

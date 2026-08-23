@@ -7,6 +7,8 @@ import { decryptCredentials } from "./lib/crypto";
 import { runSync, sanitizeSyncError } from "./lib/runSync";
 import {
   microsToUnits,
+  gadsDatePart,
+  gadsNumberOrUndefined,
   normalizeCustomerId,
   getGoogleAdsDeveloperToken,
   executeGaqlResource,
@@ -482,8 +484,8 @@ export const syncGoogleAds = internalAction({
               "campaign.status",
               "campaign.advertising_channel_type",
               "campaign.campaign_budget",
-              "campaign.start_date",
-              "campaign.end_date",
+              "campaign.start_date_time",
+              "campaign.end_date_time",
             ],
             where: "campaign.status != 'REMOVED'",
           });
@@ -498,8 +500,8 @@ export const syncGoogleAds = internalAction({
             status?: number | string;
             advertising_channel_type?: number | string;
             campaign_budget?: string;
-            start_date?: string;
-            end_date?: string;
+            start_date_time?: string;
+            end_date_time?: string;
           };
         }>) {
           const externalId = String(row.campaign?.id || "");
@@ -536,8 +538,8 @@ export const syncGoogleAds = internalAction({
             status,
             dailyBudget,
             budgetId: cleanBudgetId || undefined,
-            startDate: row.campaign?.start_date,
-            endDate: row.campaign?.end_date,
+            startDate: gadsDatePart(row.campaign?.start_date_time),
+            endDate: gadsDatePart(row.campaign?.end_date_time),
             searchImpressionShare,
             syncPriority: status === "ACTIVE" ? "hot" : "cold",
           });
@@ -817,9 +819,9 @@ export const syncGoogleAds = internalAction({
               "metrics.average_cpc",
               "metrics.cost_micros",
               "metrics.conversions",
-              "metrics.conversions_value_micros",
+              "metrics.conversions_value",
               "metrics.all_conversions",
-              "metrics.all_conversions_value_micros",
+              "metrics.all_conversions_value",
             ],
             segments: ["segments.date"],
             dateRange: { startDate, endDate },
@@ -852,9 +854,9 @@ export const syncGoogleAds = internalAction({
             average_cpc?: number | string;
             cost_micros?: number | string;
             conversions?: number | string;
-            conversions_value_micros?: number | string;
+            conversions_value?: number | string;
             all_conversions?: number | string;
-            all_conversions_value_micros?: number | string;
+            all_conversions_value?: number | string;
           };
         }>) {
           const campaignExternalId = String(row.campaign?.id || "");
@@ -953,11 +955,13 @@ export const syncGoogleAds = internalAction({
               ? Number(rawAllConversions)
               : undefined;
 
-          const rawConversionsValue = row.metrics?.conversions_value_micros;
-          const conversionValue = microsToUnits(rawConversionsValue);
-
-          const rawAllConversionsValue = row.metrics?.all_conversions_value_micros;
-          const allConversionsValue = microsToUnits(rawAllConversionsValue);
+          // metrics.conversions_value i metrics.all_conversions_value su double
+          // u valuti naloga — NISU u mikrojedinicama. Deljenje sa milion ovde bi
+          // vrednost konverzija prijavilo 1.000.000 puta manjom.
+          const conversionValue = gadsNumberOrUndefined(row.metrics?.conversions_value);
+          const allConversionsValue = gadsNumberOrUndefined(
+            row.metrics?.all_conversions_value,
+          );
 
           const ctr =
             impressions !== undefined && impressions > 0 && clicks !== undefined
@@ -2004,9 +2008,7 @@ export const syncGoogleAds = internalAction({
               "asset.youtube_video_asset.youtube_video_title",
               "asset.call_asset.phone_number",
               "asset.source",
-              "asset.status",
             ],
-            where: "asset.status != 'REMOVED'",
           });
 
           return (await queryGaql(assetQuery)) as any[];
@@ -2045,7 +2047,10 @@ export const syncGoogleAds = internalAction({
           const call = a.call_asset ?? a.callAsset;
           const phoneNumber = call?.phone_number ?? call?.phoneNumber;
           const source = a.source ? String(a.source) : undefined;
-          const status = a.status ? String(a.status) : "ENABLED";
+          // Resurs `asset` u Google Ads API-ju NEMA polje `status` (asset je
+          // nepromenljiv i ne briše se). Ranije smo ga tražili u SELECT-u, što je
+          // rušilo ceo upit, a u nedostatku vrednosti upisivali "ENABLED" —
+          // izmišljena vrednost. Sada status jednostavno ostaje nepoznat.
 
           assetList.push({
             assetId,
@@ -2058,7 +2063,6 @@ export const syncGoogleAds = internalAction({
             youtubeVideoTitle,
             phoneNumber,
             source,
-            status,
           });
         }
 
@@ -2092,7 +2096,6 @@ export const syncGoogleAds = internalAction({
               "ad_group_ad_asset_view.field_type",
               "ad_group_ad_asset_view.performance_label",
               "ad_group_ad_asset_view.pinned_field",
-              "ad_group_ad_asset_view.status",
               "ad_group_ad_asset_view.enabled",
               "metrics.impressions",
               "metrics.clicks",
@@ -2188,7 +2191,6 @@ export const syncGoogleAds = internalAction({
             fieldType,
             performanceLabel: rawPerfLabel,
             pinnedField,
-            status: viewObj.status,
             enabled: viewObj.enabled,
             impressions,
             clicks,
