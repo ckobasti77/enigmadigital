@@ -313,3 +313,212 @@ export function formatLocationType(raw?: string | null): FormattedLocationType {
       return { label: "Nepoznato", known: false, raw: clean || "UNKNOWN" };
   }
 }
+
+export interface FormattedAssetPerformanceLabel {
+  readonly label: string;
+  readonly known: boolean;
+  readonly raw: string;
+}
+
+/**
+ * Formats ad_group_ad_asset_view.performance_label enum into localized label (GA7 B2).
+ *
+ * Values: BEST, GOOD, LOW, LEARNING, PENDING, UNKNOWN, UNSPECIFIED
+ * Rules:
+ *   - NIKAD ne mapiraj u broj i ne sortiraj kao ocenu.
+ *   - LEARNING i PENDING znače "još se meri", NE "loše".
+ *   - "UNKNOWN" ne nestaje iz rezultata i vraća { known: false }.
+ */
+export function formatAssetPerformanceLabel(
+  raw?: string | null,
+): FormattedAssetPerformanceLabel {
+  if (!raw || typeof raw !== "string") {
+    return { label: "Nepoznato", known: false, raw: "UNKNOWN" };
+  }
+
+  const clean = raw.trim().toUpperCase();
+
+  switch (clean) {
+    case "BEST":
+      return { label: "Najbolje", known: true, raw: "BEST" };
+    case "GOOD":
+      return { label: "Dobro", known: true, raw: "GOOD" };
+    case "LOW":
+      return { label: "Nisko", known: true, raw: "LOW" };
+    case "LEARNING":
+      return { label: "Učenje (meri se)", known: false, raw: "LEARNING" };
+    case "PENDING":
+      return { label: "Na čekanju", known: false, raw: "PENDING" };
+    case "UNKNOWN":
+    case "UNSPECIFIED":
+    default:
+      return { label: "Nepoznato", known: false, raw: clean || "UNKNOWN" };
+  }
+}
+
+export interface FormattedAssetFieldType {
+  readonly label: string;
+  readonly raw: string;
+}
+
+/**
+ * Formats asset field_type enum into Serbian description (GA7 B4).
+ */
+export function formatAssetFieldType(raw?: string | null): FormattedAssetFieldType {
+  if (!raw || typeof raw !== "string") {
+    return { label: "Nepoznato", raw: "UNKNOWN" };
+  }
+
+  const clean = raw.trim().toUpperCase();
+
+  switch (clean) {
+    case "HEADLINE":
+      return { label: "Naslov", raw: "HEADLINE" };
+    case "DESCRIPTION":
+      return { label: "Opis", raw: "DESCRIPTION" };
+    case "MARKETING_IMAGE":
+      return { label: "Marketinška slika", raw: "MARKETING_IMAGE" };
+    case "SQUARE_MARKETING_IMAGE":
+      return { label: "Kvadratna slika", raw: "SQUARE_MARKETING_IMAGE" };
+    case "PORTRAIT_MARKETING_IMAGE":
+      return { label: "Uspravna slika", raw: "PORTRAIT_MARKETING_IMAGE" };
+    case "LOGO":
+      return { label: "Logotip", raw: "LOGO" };
+    case "LANDSCAPE_LOGO":
+      return { label: "Položeni logotip", raw: "LANDSCAPE_LOGO" };
+    case "CALL_TO_ACTION_SELECTION":
+      return { label: "Poziv na akciju (CTA)", raw: "CALL_TO_ACTION_SELECTION" };
+    case "BUSINESS_NAME":
+      return { label: "Naziv preduzeća", raw: "BUSINESS_NAME" };
+    case "SITELINK":
+      return { label: "Sitelink (veza do stranice)", raw: "SITELINK" };
+    case "CALLOUT":
+      return { label: "Callout (istaknuti tekst)", raw: "CALLOUT" };
+    case "STRUCTURED_SNIPPET":
+      return { label: "Strukturisani isečak", raw: "STRUCTURED_SNIPPET" };
+    case "CALL":
+      return { label: "Telefonski poziv", raw: "CALL" };
+    case "LEAD_FORM":
+      return { label: "Obrazac za potencijalne klijente", raw: "LEAD_FORM" };
+    case "PROMOTION":
+      return { label: "Promocija", raw: "PROMOTION" };
+    case "PRICE":
+      return { label: "Cena", raw: "PRICE" };
+    case "APP":
+      return { label: "Aplikacija", raw: "APP" };
+    case "HOTEL_CALLOUT":
+      return { label: "Istaknuti detalji hotela", raw: "HOTEL_CALLOUT" };
+    default:
+      return { label: clean, raw: clean };
+  }
+}
+
+export interface FormattedAssetType {
+  readonly label: string;
+  readonly raw: string;
+}
+
+/**
+ * Formats asset.type enum into Serbian description (GA7 B4).
+ */
+export function formatAssetType(raw?: string | null): FormattedAssetType {
+  if (!raw || typeof raw !== "string") {
+    return { label: "Nepoznato", raw: "UNKNOWN" };
+  }
+
+  const clean = raw.trim().toUpperCase();
+
+  switch (clean) {
+    case "TEXT":
+      return { label: "Tekst", raw: "TEXT" };
+    case "IMAGE":
+      return { label: "Slika", raw: "IMAGE" };
+    case "YOUTUBE_VIDEO":
+    case "VIDEO":
+      return { label: "Video (YouTube)", raw: "YOUTUBE_VIDEO" };
+    case "MEDIA_BUNDLE":
+      return { label: "Medijski paket (HTML5/ZIP)", raw: "MEDIA_BUNDLE" };
+    case "CALL":
+      return { label: "Poziv", raw: "CALL" };
+    case "SITELINK":
+      return { label: "Sitelink", raw: "SITELINK" };
+    case "CALLOUT":
+      return { label: "Callout", raw: "CALLOUT" };
+    case "STRUCTURED_SNIPPET":
+      return { label: "Strukturisani isečak", raw: "STRUCTURED_SNIPPET" };
+    case "LEAD_FORM":
+      return { label: "Lead obrazac", raw: "LEAD_FORM" };
+    case "PROMOTION":
+      return { label: "Promocija", raw: "PROMOTION" };
+    case "PRICE":
+      return { label: "Cena", raw: "PRICE" };
+    case "APP":
+      return { label: "Aplikacija", raw: "APP" };
+    default:
+      return { label: clean, raw: clean };
+  }
+}
+
+export interface AssetCombinationCoverageResult {
+  readonly combinationImpressions: number;
+  readonly totalImpressions: number;
+  readonly hiddenImpressions: number;
+  readonly coverageRatio: number | undefined;
+  readonly coveragePct: number | undefined;
+  readonly notice: string;
+}
+
+/**
+ * Računa pokrivenost kombinacija asseta u odnosu na ukupne impresije oglasa (GA7 B3).
+ *
+ * Pravila:
+ *   - Google ne prikazuje sve kombinacije, već samo one sa dovoljnim obimom.
+ *   - Kad ukupan broj nije poznat ili je 0, coverageRatio i coveragePct su undefined (NIKAD 100).
+ */
+export function calculateAssetCombinationCoverage(
+  combinationImpressions?: number | null,
+  totalImpressions?: number | null,
+): AssetCombinationCoverageResult {
+  const safeCombinations = Math.max(
+    0,
+    combinationImpressions !== undefined &&
+      combinationImpressions !== null &&
+      Number.isFinite(combinationImpressions)
+      ? combinationImpressions
+      : 0,
+  );
+  const isTotalKnown =
+    totalImpressions !== undefined &&
+    totalImpressions !== null &&
+    Number.isFinite(totalImpressions) &&
+    totalImpressions > 0;
+
+  const safeTotal = isTotalKnown ? (totalImpressions as number) : 0;
+  const effectiveTotal = isTotalKnown ? Math.max(safeCombinations, safeTotal) : safeCombinations;
+  const hiddenImpressions = isTotalKnown ? Math.max(0, effectiveTotal - safeCombinations) : 0;
+
+  if (!isTotalKnown || effectiveTotal <= 0) {
+    return {
+      combinationImpressions: safeCombinations,
+      totalImpressions: effectiveTotal,
+      hiddenImpressions: 0,
+      coverageRatio: undefined,
+      coveragePct: undefined,
+      notice:
+        "Pokrivenost kombinacija asseta se ne može utvrditi jer ukupan broj impresija nije poznat ili je 0.",
+    };
+  }
+
+  const coverageRatio = Number((safeCombinations / effectiveTotal).toFixed(4));
+  const coveragePct = Number(((safeCombinations / effectiveTotal) * 100).toFixed(1));
+  const notice = `Prikazano ${safeCombinations} od ${effectiveTotal} impresija kombinacija (${coveragePct}%). Google izostavlja kombinacije sa malim brojem prikaza radi zaštite privatnosti.`;
+
+  return {
+    combinationImpressions: safeCombinations,
+    totalImpressions: effectiveTotal,
+    hiddenImpressions,
+    coverageRatio,
+    coveragePct,
+    notice,
+  };
+}

@@ -414,6 +414,10 @@ export {
   formatAgeRange,
   formatGender,
   formatLocationType,
+  formatAssetPerformanceLabel,
+  formatAssetFieldType,
+  formatAssetType,
+  calculateAssetCombinationCoverage,
 } from "./googleAdsFormat";
 
 // ── Pravila kompatibilnosti za GAQL (B2) ────────────────────────────────────

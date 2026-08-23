@@ -20,6 +20,7 @@
     "verify:gads-conversions": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-conversions.ts",
     "verify:gads-keywords": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-keywords.ts",
     "verify:gads-segments": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-segments.ts",
+    "verify:gads-assets": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-assets.ts",
     "deploy:convex": "npm run verify:purge && npx convex deploy"
   },
   "dependencies": {

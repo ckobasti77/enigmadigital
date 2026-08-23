@@ -1,3 +1,7 @@
+"use node";
+
+import { JWT } from "google-auth-library";
+
 /**
  * ============================================================================
  * GOOGLE ADS REST API TRANSPORT LAYER
@@ -6,13 +10,14 @@
  * Single source of truth for Google Ads API URL builders, customer ID
  * normalization, request header builders, and currency/micros converters.
  *
- * Pure functions only — NO network calls, NO credentials logging.
+ * Authentication uses Google Service Account JWT token exchange.
  *
  * Versioning:
  *   Default API version is "v25", overridable via GOOGLE_ADS_API_VERSION.
  * ============================================================================
  */
 
+export const GOOGLE_ADS_SCOPE = "https://www.googleapis.com/auth/adwords";
 export const DEFAULT_GOOGLE_ADS_API_VERSION = "v25";
 export const GOOGLE_ADS_BASE_URL = "https://googleads.googleapis.com";
 export const MICROS_PER_UNIT = 1_000_000;
@@ -26,6 +31,41 @@ export function getGoogleAdsApiVersion(): string {
     return envVersion;
   }
   return DEFAULT_GOOGLE_ADS_API_VERSION;
+}
+
+/**
+ * Retrieves GOOGLE_ADS_DEVELOPER_TOKEN from environment.
+ * Throws a clear error naming the variable if not configured (A3).
+ */
+export function getGoogleAdsDeveloperToken(): string {
+  const token = process.env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim();
+  if (!token) {
+    throw new Error(
+      "Nedostaje GOOGLE_ADS_DEVELOPER_TOKEN environment varijabla u Convex-u. Podesite GOOGLE_ADS_DEVELOPER_TOKEN u podešavanjima okruženja pre pokretanja sinhronizacije.",
+    );
+  }
+  return token;
+}
+
+/**
+ * Obtain OAuth2 access token for Google Ads via Service Account JWT exchange (A2).
+ * Scope: https://www.googleapis.com/auth/adwords
+ * Exchange: https://oauth2.googleapis.com/token
+ */
+export async function getGoogleAdsAccessToken(sa: {
+  client_email: string;
+  private_key: string;
+}): Promise<string> {
+  const client = new JWT({
+    email: sa.client_email,
+    key: sa.private_key,
+    scopes: [GOOGLE_ADS_SCOPE],
+  });
+  const { token } = await client.getAccessToken();
+  if (!token) {
+    throw new Error("Google Ads access token request returned no token.");
+  }
+  return token;
 }
 
 /**
@@ -88,6 +128,100 @@ export function buildGoogleAdsHeaders(
   }
 
   return headers;
+}
+
+/**
+ * Extracts human-readable message from Google Ads API error response without leaking secrets.
+ */
+export function extractGoogleAdsApiError(body: string, status?: number): string {
+  try {
+    const parsed = JSON.parse(body);
+    if (Array.isArray(parsed) && parsed[0]?.error?.message) {
+      return parsed[0].error.message;
+    }
+    if (parsed.error?.message) return parsed.error.message;
+    if (parsed[0]?.error?.details) {
+      return JSON.stringify(parsed[0].error.details);
+    }
+  } catch {
+    // fall back to raw slice
+  }
+  return `Google Ads API greška (${status ?? "status nepoznat"}): ${body.slice(0, 300)}`;
+}
+
+export function toSnakeCase(str: string): string {
+  return str.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, "");
+}
+
+/**
+ * Recursively decamelizes keys in Google Ads API response objects
+ * so that properties can be accessed by both snake_case and camelCase.
+ */
+export function decamelizeRowKeys(input: unknown): unknown {
+  if (typeof input !== "object" || input === null) {
+    return input;
+  }
+  if (Array.isArray(input)) {
+    return input.map(decamelizeRowKeys);
+  }
+  const output: Record<string, unknown> = {};
+  for (const key of Object.keys(input as Record<string, unknown>)) {
+    const snakeKey = toSnakeCase(key);
+    const value = (input as Record<string, unknown>)[key];
+    const transformedValue = decamelizeRowKeys(value);
+    output[snakeKey] = transformedValue;
+    if (snakeKey !== key) {
+      output[key] = transformedValue;
+    }
+  }
+  return output;
+}
+
+export interface QueryGoogleAdsParams {
+  customerId: string;
+  query: string;
+  accessToken: string;
+  developerToken: string;
+  loginCustomerId?: string;
+  version?: string;
+}
+
+/**
+ * Executes a GAQL query against Google Ads searchStream REST endpoint.
+ */
+export async function queryGoogleAdsSearchStream(
+  params: QueryGoogleAdsParams,
+): Promise<any[]> {
+  const url = buildSearchStreamUrl(params.customerId, params.version);
+  const headers = buildGoogleAdsHeaders({
+    developerToken: params.developerToken,
+    accessToken: params.accessToken,
+    loginCustomerId: params.loginCustomerId,
+  });
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ query: params.query }),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(extractGoogleAdsApiError(errorText, res.status));
+  }
+
+  const chunks = (await res.json()) as Array<{ results?: any[] }>;
+  const rows: any[] = [];
+  if (Array.isArray(chunks)) {
+    for (const chunk of chunks) {
+      if (chunk.results && Array.isArray(chunk.results)) {
+        for (const row of chunk.results) {
+          rows.push(decamelizeRowKeys(row));
+        }
+      }
+    }
+  }
+  return rows;
 }
 
 /**

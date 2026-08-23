@@ -18,7 +18,18 @@ import {
   formatAgeRange,
   formatGender,
   formatLocationType,
+  formatAssetPerformanceLabel,
+  formatAssetFieldType,
+  formatAssetType,
+  calculateAssetCombinationCoverage,
 } from "./lib/googleAdsFormat";
+
+export {
+  formatAssetPerformanceLabel,
+  formatAssetFieldType,
+  formatAssetType,
+  calculateAssetCombinationCoverage,
+};
 
 /**
  * ============================================================================
@@ -410,6 +421,48 @@ export const gadsGenderViewInputValidator = v.object({
   date: v.string(),
 });
 
+export const gadsAssetInputValidator = v.object({
+  assetId: v.string(),
+  name: v.optional(v.string()),
+  type: v.string(),
+  text: v.optional(v.string()),
+  imageUrl: v.optional(v.string()),
+  imageFileSize: v.optional(v.number()),
+  youtubeVideoId: v.optional(v.string()),
+  youtubeVideoTitle: v.optional(v.string()),
+  phoneNumber: v.optional(v.string()),
+  source: v.optional(v.string()),
+  status: v.optional(v.string()),
+});
+
+export const gadsAdGroupAdAssetViewInputValidator = v.object({
+  campaignExternalId: v.string(),
+  adGroupExternalId: v.string(),
+  adExternalId: v.string(),
+  assetExternalId: v.string(),
+  fieldType: v.string(),
+  performanceLabel: v.string(),
+  pinnedField: v.optional(v.string()),
+  status: v.optional(v.string()),
+  enabled: v.optional(v.boolean()),
+  impressions: v.optional(v.number()),
+  clicks: v.optional(v.number()),
+  cost: v.optional(v.number()),
+  conversions: v.optional(v.number()),
+  allConversions: v.optional(v.number()),
+  date: v.string(),
+});
+
+export const gadsAssetCombinationViewInputValidator = v.object({
+  campaignExternalId: v.string(),
+  adGroupExternalId: v.string(),
+  adExternalId: v.string(),
+  servedAssetIds: v.array(v.string()),
+  combinationHash: v.string(),
+  impressions: v.optional(v.number()),
+  date: v.string(),
+});
+
 export const gadsCampaignInputValidator = v.object({
   externalId: v.string(),
   name: v.string(),
@@ -517,6 +570,9 @@ export const upsertGoogleAdsData = internalMutation({
     hourlyStats: v.optional(v.array(gadsHourlyStatsInputValidator)),
     ageRangeViews: v.optional(v.array(gadsAgeRangeViewInputValidator)),
     genderViews: v.optional(v.array(gadsGenderViewInputValidator)),
+    assets: v.optional(v.array(gadsAssetInputValidator)),
+    adGroupAdAssetViews: v.optional(v.array(gadsAdGroupAdAssetViewInputValidator)),
+    assetCombinationViews: v.optional(v.array(gadsAssetCombinationViewInputValidator)),
   },
   returns: v.number(),
   handler: async (
@@ -543,6 +599,9 @@ export const upsertGoogleAdsData = internalMutation({
       hourlyStats,
       ageRangeViews,
       genderViews,
+      assets,
+      adGroupAdAssetViews,
+      assetCombinationViews,
     },
   ) => {
     const now = Date.now();
@@ -1429,11 +1488,182 @@ export const upsertGoogleAdsData = internalMutation({
       }
     }
 
+    // 17. Upsert Assets (GA7 B1)
+    if (assets && assets.length > 0) {
+      for (const a of assets) {
+        const existing = await ctx.db
+          .query("gadsAssets")
+          .withIndex("by_upsert_key", (q) =>
+            q.eq("workspaceId", workspaceId).eq("assetId", a.assetId),
+          )
+          .unique();
+
+        const aData: Record<string, unknown> = {
+          workspaceId,
+          assetId: a.assetId,
+          type: a.type,
+          cannotBeDeleted: true, // GA7 B1: asset se ne može obrisati u Google Ads-u
+          syncedAt: now,
+        };
+
+        if (a.name !== undefined) aData.name = a.name;
+        if (a.text !== undefined) aData.text = a.text;
+        if (a.imageUrl !== undefined) aData.imageUrl = a.imageUrl;
+        if (a.imageFileSize !== undefined) aData.imageFileSize = a.imageFileSize;
+        if (a.youtubeVideoId !== undefined) aData.youtubeVideoId = a.youtubeVideoId;
+        if (a.youtubeVideoTitle !== undefined) aData.youtubeVideoTitle = a.youtubeVideoTitle;
+        if (a.phoneNumber !== undefined) aData.phoneNumber = a.phoneNumber;
+        if (a.source !== undefined) aData.source = a.source;
+        if (a.status !== undefined) aData.status = a.status;
+
+        if (existing !== null) {
+          await ctx.db.patch(existing._id, aData);
+        } else {
+          await ctx.db.insert("gadsAssets", aData as any);
+        }
+        written++;
+      }
+    }
+
+    // 18. Upsert Ad Group Ad Asset Views (GA7 B2, B4)
+    if (adGroupAdAssetViews && adGroupAdAssetViews.length > 0) {
+      for (const av of adGroupAdAssetViews) {
+        const campaignId = campaignIdMap.get(av.campaignExternalId);
+        const adGroupId = adGroupIdMap.get(av.adGroupExternalId);
+        const adId = adIdMap.get(av.adExternalId);
+
+        const existing = await ctx.db
+          .query("gadsAdGroupAdAssetViews")
+          .withIndex("by_upsert_key", (q) =>
+            q
+              .eq("workspaceId", workspaceId)
+              .eq("adExternalId", av.adExternalId)
+              .eq("assetExternalId", av.assetExternalId)
+              .eq("fieldType", av.fieldType)
+              .eq("date", av.date),
+          )
+          .unique();
+
+        const avData: Record<string, unknown> = {
+          workspaceId,
+          campaignId,
+          campaignExternalId: av.campaignExternalId,
+          adGroupId,
+          adGroupExternalId: av.adGroupExternalId,
+          adId,
+          adExternalId: av.adExternalId,
+          assetExternalId: av.assetExternalId,
+          fieldType: av.fieldType,
+          performanceLabel: av.performanceLabel,
+          date: av.date,
+          syncedAt: now,
+        };
+
+        if (av.pinnedField !== undefined) avData.pinnedField = av.pinnedField;
+        if (av.status !== undefined) avData.status = av.status;
+        if (av.enabled !== undefined) avData.enabled = av.enabled;
+        if (av.impressions !== undefined) avData.impressions = av.impressions;
+        if (av.clicks !== undefined) avData.clicks = av.clicks;
+        if (av.cost !== undefined) avData.cost = av.cost;
+        if (av.conversions !== undefined) avData.conversions = av.conversions;
+        if (av.allConversions !== undefined) avData.allConversions = av.allConversions;
+
+        if (existing !== null) {
+          await ctx.db.patch(existing._id, avData);
+        } else {
+          await ctx.db.insert("gadsAdGroupAdAssetViews", avData as any);
+        }
+        written++;
+      }
+    }
+
+    // 19. Upsert Asset Combinations (GA7 B3)
+    if (assetCombinationViews && assetCombinationViews.length > 0) {
+      for (const ac of assetCombinationViews) {
+        const campaignId = campaignIdMap.get(ac.campaignExternalId);
+        const adGroupId = adGroupIdMap.get(ac.adGroupExternalId);
+        const adId = adIdMap.get(ac.adExternalId);
+
+        const existing = await ctx.db
+          .query("gadsAssetCombinationViews")
+          .withIndex("by_upsert_key", (q) =>
+            q
+              .eq("workspaceId", workspaceId)
+              .eq("adExternalId", ac.adExternalId)
+              .eq("combinationHash", ac.combinationHash)
+              .eq("date", ac.date),
+          )
+          .unique();
+
+        const acData: Record<string, unknown> = {
+          workspaceId,
+          campaignId,
+          campaignExternalId: ac.campaignExternalId,
+          adGroupId,
+          adGroupExternalId: ac.adGroupExternalId,
+          adId,
+          adExternalId: ac.adExternalId,
+          servedAssetIds: ac.servedAssetIds,
+          combinationHash: ac.combinationHash,
+          date: ac.date,
+          syncedAt: now,
+        };
+
+        if (ac.impressions !== undefined) acData.impressions = ac.impressions;
+
+        if (existing !== null) {
+          await ctx.db.patch(existing._id, acData);
+        } else {
+          await ctx.db.insert("gadsAssetCombinationViews", acData as any);
+        }
+        written++;
+      }
+    }
+
     return written;
   },
 });
 
 // ── Public Queries ───────────────────────────────────────────────────────────
+
+/**
+ * Dohvata podatke o Google Ads assetima, njihovim performansama i kombinacijama (GA7).
+ */
+export const getGoogleAdsAssets = query({
+  args: {
+    workspaceId: v.optional(v.id("workspaces")),
+  },
+  handler: async (ctx, args) => {
+    let wsId: Id<"workspaces">;
+    if (args.workspaceId) {
+      wsId = args.workspaceId;
+    } else {
+      const membership = await requireMembership(ctx);
+      wsId = membership.workspaceId;
+    }
+
+    const assets = await ctx.db
+      .query("gadsAssets")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", wsId))
+      .collect();
+
+    const assetViews = await ctx.db
+      .query("gadsAdGroupAdAssetViews")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", wsId))
+      .collect();
+
+    const combinationViews = await ctx.db
+      .query("gadsAssetCombinationViews")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", wsId))
+      .collect();
+
+    return {
+      assets,
+      assetViews,
+      combinationViews,
+    };
+  },
+});
 
 /**
  * Dohvata kompletnu strukturu Google Ads naloga za radni prostor (GA3).

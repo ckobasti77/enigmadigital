@@ -2197,6 +2197,97 @@ export default defineSchema({
       "date",
     ]),
 
+  // Google Ads Assets (asset) (GA7 B1)
+  // VAŽNO (B1): Google Ads asset se NE MOŽE obrisati u Google Ads-u — samo se raskida veza sa oglasom.
+  // Sam objekat ostaje zauvek. Nijedno dugme u aplikaciji ne sme obećavati brisanje asseta.
+  gadsAssets: defineTable({
+    workspaceId: v.id("workspaces"),
+    assetId: v.string(), // "12345678" ili resource name "customers/123/assets/456"
+    name: v.optional(v.string()),
+    type: v.string(), // "TEXT", "IMAGE", "VIDEO", "CALL", etc.
+    text: v.optional(v.string()), // za TEXT assete (naslovi, opisi)
+    imageUrl: v.optional(v.string()), // URL slike pune veličine
+    imageFileSize: v.optional(v.number()),
+    youtubeVideoId: v.optional(v.string()),
+    youtubeVideoTitle: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    source: v.optional(v.string()), // "ADVERTISER", "GOOGLE", etc.
+    status: v.optional(v.string()), // "ENABLED", "REMOVED", "UNKNOWN"
+    cannotBeDeleted: v.optional(v.boolean()), // true — trajna napomena o nemogućnosti brisanja (GA7 B1)
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_type", ["workspaceId", "type"])
+    .index("by_upsert_key", ["workspaceId", "assetId"]),
+
+  // Google Ads Ad Group Ad Asset View (ad_group_ad_asset_view) (GA7 B2, B4)
+  // Povezuje asset sa pojedinačnim oglasom unutar oglasne grupe.
+  // performance_label je enum (BEST, GOOD, LOW, LEARNING, PENDING, UNKNOWN) i NIKADA se ne mapira u broj niti sortira kao ocena.
+  gadsAdGroupAdAssetViews: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("adCampaigns")),
+    campaignExternalId: v.string(),
+    adGroupId: v.optional(v.id("adSets")),
+    adGroupExternalId: v.string(),
+    adId: v.optional(v.id("ads")),
+    adExternalId: v.string(),
+    assetExternalId: v.string(),
+    fieldType: v.string(), // "HEADLINE", "DESCRIPTION", "MARKETING_IMAGE", etc.
+    performanceLabel: v.string(), // "BEST", "GOOD", "LOW", "LEARNING", "PENDING", "UNKNOWN"
+    pinnedField: v.optional(v.string()), // "HEADLINE_1", "HEADLINE_2", etc.
+    status: v.optional(v.string()), // "ENABLED", "PAUSED", "REMOVED", etc.
+    enabled: v.optional(v.boolean()),
+    impressions: v.optional(v.number()),
+    clicks: v.optional(v.number()),
+    cost: v.optional(v.number()),
+    conversions: v.optional(v.number()),
+    allConversions: v.optional(v.number()),
+    date: v.string(), // "YYYY-MM-DD"
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_campaign", ["workspaceId", "campaignExternalId"])
+    .index("by_workspace_adgroup", ["workspaceId", "adGroupExternalId"])
+    .index("by_workspace_ad", ["workspaceId", "adExternalId"])
+    .index("by_workspace_asset", ["workspaceId", "assetExternalId"])
+    .index("by_workspace_field_type", ["workspaceId", "fieldType"])
+    .index("by_upsert_key", [
+      "workspaceId",
+      "adExternalId",
+      "assetExternalId",
+      "fieldType",
+      "date",
+    ]),
+
+  // Google Ads Asset Combination Views (ad_group_ad_asset_combination_view) (GA7 B3)
+  // Prikazuje kombinacije asseta koje su se stvarno prikazivale.
+  gadsAssetCombinationViews: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("adCampaigns")),
+    campaignExternalId: v.string(),
+    adGroupId: v.optional(v.id("adSets")),
+    adGroupExternalId: v.string(),
+    adId: v.optional(v.id("ads")),
+    adExternalId: v.string(),
+    servedAssetIds: v.array(v.string()), // npr. ["123", "456", "789"]
+    combinationHash: v.string(), // deterministički ključ sortiranih ID-jeva
+    impressions: v.optional(v.number()),
+    date: v.string(), // "YYYY-MM-DD"
+    syncedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_campaign", ["workspaceId", "campaignExternalId"])
+    .index("by_workspace_adgroup", ["workspaceId", "adGroupExternalId"])
+    .index("by_workspace_ad", ["workspaceId", "adExternalId"])
+    .index("by_upsert_key", [
+      "workspaceId",
+      "adExternalId",
+      "combinationHash",
+      "date",
+    ]),
+
   // ── YouTube (Y2) ────────────────────────────────────────────────────────────
   // Channel-wide daily roll-up from the YouTube Analytics API.
   ytDailyTotals: defineTable({

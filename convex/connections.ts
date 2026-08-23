@@ -19,6 +19,8 @@ import {
   allowsManual as adsQuotaAllowsManual,
 } from "./lib/metaAdsQuota";
 
+import { normalizeCustomerId } from "./lib/googleAdsApi";
+
 // ── credential validation (runs BEFORE encryption; never echoes the secret) ──
 
 const serviceAccountSchema = z.object({
@@ -33,7 +35,7 @@ function invalid(message: string): never {
   throw new ConvexError({ code: "invalid", message });
 }
 
-function assertServiceAccountJson(secret: string): void {
+export function assertServiceAccountJson(secret: string): void {
   let parsed: unknown;
   try {
     parsed = JSON.parse(secret);
@@ -54,20 +56,21 @@ function assertServiceAccountJson(secret: string): void {
 
 /**
  * Validate provider-specific credentials and return the normalized externalId
- * (GA4 property ID) or `undefined` when the provider has none (OpenReply).
+ * (GA4 property ID, Customer ID, etc.) and optional externalIdAlt (Manager ID, etc.)
  */
-function validateCredentials(
+export function validateCredentials(
   provider: Provider,
   externalId: string | undefined,
   secret: string,
-): string | undefined {
+  externalIdAlt?: string,
+): { externalId?: string; externalIdAlt?: string } {
   if (secret.length === 0) invalid("Kredencijal je prazan.");
   switch (provider) {
     case "ga4": {
       assertServiceAccountJson(secret);
       const id = (externalId ?? "").trim();
       if (!/^\d+$/.test(id)) invalid("GA4 property ID mora biti broj.");
-      return id;
+      return { externalId: id };
     }
     case "openreply": {
       invalid(
@@ -86,41 +89,20 @@ function validateCredentials(
       if (secret.length < 10) {
         invalid("Meta System User token nije ispravan.");
       }
-      return externalId?.trim() || undefined;
+      return { externalId: externalId?.trim() || undefined };
     }
     case "google_ads": {
-      let parsed: Record<string, unknown>;
-      try {
-        parsed = JSON.parse(secret);
-      } catch {
-        invalid("Google Ads kredencijali moraju biti validan JSON format.");
+      assertServiceAccountJson(secret);
+      const rawCustomerId = (externalId ?? "").trim();
+      if (!rawCustomerId) {
+        invalid("Customer ID je obavezan.");
       }
-      const devToken = String(
-        parsed.developerToken || parsed.developer_token || "",
-      ).trim();
-      const clientId = String(
-        parsed.clientId || parsed.client_id || "",
-      ).trim();
-      const clientSecret = String(
-        parsed.clientSecret || parsed.client_secret || "",
-      ).trim();
-      const refreshToken = String(
-        parsed.refreshToken || parsed.refresh_token || "",
-      ).trim();
-      const customerId = String(
-        parsed.customerId || parsed.customer_id || externalId || "",
-      )
-        .trim()
-        .replace(/-/g, "");
-
-      if (!devToken) invalid("Nedostaje Developer Token.");
-      if (!clientId || !clientSecret)
-        invalid("Nedostaju OAuth Client ID ili Client Secret.");
-      if (!refreshToken) invalid("Nedostaje OAuth Refresh Token.");
-      if (!customerId || !/^\d{10}$/.test(customerId)) {
-        invalid("Customer ID mora imati 10 cifara (npr. 123-456-7890).");
+      const customerId = normalizeCustomerId(rawCustomerId);
+      let loginCustomerId: string | undefined = undefined;
+      if (externalIdAlt && externalIdAlt.trim() !== "") {
+        loginCustomerId = normalizeCustomerId(externalIdAlt);
       }
-      return customerId;
+      return { externalId: customerId, externalIdAlt: loginCustomerId };
     }
     case "youtube": {
       let parsed: Record<string, unknown>;
@@ -149,10 +131,10 @@ function validateCredentials(
       if (!/^UC[A-Za-z0-9_-]{22}$/.test(channelId)) {
         invalid("Channel ID mora biti u obliku UC… (24 znaka).");
       }
-      return channelId;
+      return { externalId: channelId };
     }
     default:
-      return externalId?.trim() || undefined;
+      return { externalId: externalId?.trim() || undefined };
   }
 }
 
@@ -164,6 +146,7 @@ const connectionViewValidator = v.object({
   provider: providerValidator,
   status: connectionStatusValidator,
   externalId: v.union(v.string(), v.null()),
+  externalIdAlt: v.optional(v.union(v.string(), v.null())),
   accountHandle: v.optional(v.union(v.string(), v.null())),
   lastSyncAt: v.union(v.number(), v.null()),
   expiresAt: v.union(v.number(), v.null()),
@@ -199,6 +182,7 @@ export const list = query({
       provider: c.provider,
       status: c.status,
       externalId: c.externalId ?? null,
+      externalIdAlt: c.externalIdAlt ?? null,
       accountHandle: c.accountHandle ?? null,
       lastSyncAt: c.lastSyncAt ?? null,
       expiresAt: c.expiresAt ?? null,
@@ -222,16 +206,18 @@ export const save = mutation({
   args: {
     provider: providerValidator,
     externalId: v.optional(v.string()),
+    externalIdAlt: v.optional(v.string()),
     secret: v.string(),
   },
-  handler: async (ctx, { provider, externalId, secret }) => {
+  handler: async (ctx, { provider, externalId, externalIdAlt, secret }) => {
     const { workspaceId } = await requireOwner(ctx);
 
     const trimmedSecret = secret.trim();
-    const normalizedExternalId = validateCredentials(
+    const validated = validateCredentials(
       provider,
       externalId,
       trimmedSecret,
+      externalIdAlt,
     );
 
     const encryptedCredentials = await encryptCredentials(trimmedSecret);
@@ -257,8 +243,11 @@ export const save = mutation({
         // old generation stops the moment it next checks, so it cannot reach the
         // data this reconnect is about to sync.
         generation: (existing.generation ?? 0) + 1,
-        ...(normalizedExternalId !== undefined
-          ? { externalId: normalizedExternalId }
+        ...(validated.externalId !== undefined
+          ? { externalId: validated.externalId }
+          : {}),
+        ...(validated.externalIdAlt !== undefined
+          ? { externalIdAlt: validated.externalIdAlt }
           : {}),
       });
       return existing._id;
@@ -270,8 +259,11 @@ export const save = mutation({
       encryptedCredentials,
       status: "active",
       generation: 1,
-      ...(normalizedExternalId !== undefined
-        ? { externalId: normalizedExternalId }
+      ...(validated.externalId !== undefined
+        ? { externalId: validated.externalId }
+        : {}),
+      ...(validated.externalIdAlt !== undefined
+        ? { externalIdAlt: validated.externalIdAlt }
         : {}),
     });
   },

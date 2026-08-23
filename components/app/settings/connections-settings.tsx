@@ -1942,28 +1942,33 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
   const save = useMutation(api.connections.save);
   const remove = useMutation(api.connections.remove);
   const [editing, setEditing] = useState(false);
-  const [developerToken, setDeveloperToken] = useState("");
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [refreshToken, setRefreshToken] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [loginCustomerId, setLoginCustomerId] = useState("");
+  const [json, setJson] = useState("");
   const [saving, setSaving] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isConnected = connection !== undefined;
 
-  const customerProblem = customerIdProblem(customerId);
+  const customerProblem =
+    customerId.trim().length === 0
+      ? null
+      : customerIdProblem(customerId);
   const managerProblem = customerIdProblem(loginCustomerId);
+  const jsonProblem = serviceAccountProblem(json);
+
+  const canSave =
+    customerId.trim().length > 0 &&
+    json.trim().length > 0 &&
+    customerProblem === null &&
+    managerProblem === null &&
+    jsonProblem === null;
 
   function startEdit() {
     setCustomerId(connection?.externalId ?? "");
-    setDeveloperToken("");
-    setClientId("");
-    setClientSecret("");
-    setRefreshToken("");
-    setLoginCustomerId("");
+    setLoginCustomerId(connection?.externalIdAlt ?? "");
+    setJson("");
     setError(null);
     setEditing(true);
   }
@@ -1973,26 +1978,14 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
     setSaving(true);
     setError(null);
     try {
-      const payload = {
-        developerToken: developerToken.trim(),
-        clientId: clientId.trim(),
-        clientSecret: clientSecret.trim(),
-        refreshToken: refreshToken.trim(),
-        customerId: customerId.trim().replace(/-/g, ""),
-        loginCustomerId: loginCustomerId.trim().replace(/-/g, "") || undefined,
-      };
-
       await save({
         provider: "google_ads",
-        externalId: customerId.trim().replace(/-/g, "") || undefined,
-        secret: JSON.stringify(payload),
+        externalId: customerId.trim().replace(/-/g, ""),
+        externalIdAlt: loginCustomerId.trim().replace(/-/g, "") || undefined,
+        secret: json,
       });
 
-      setDeveloperToken("");
-      setClientId("");
-      setClientSecret("");
-      setRefreshToken("");
-      setLoginCustomerId("");
+      setJson("");
       setEditing(false);
     } catch (err) {
       setError(convexMessage(err, "Čuvanje Google Ads kredencijala nije uspelo."));
@@ -2014,22 +2007,12 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
     }
   }
 
-  // Determine status pill
-  let statusNode: ReactNode;
-  if (!isConnected) {
-    statusNode = (
-      <StatusPill tone="warning">Čeka Google Ads odobrenje</StatusPill>
-    );
-  } else {
-    statusNode = connectionPill(connection?.status);
-  }
-
   return (
     <CardShell
       icon={Megaphone}
       title="Google Ads"
-      subtitle="Google Ads API (GAQL) · OAuth + Developer Token"
-      status={statusNode}
+      subtitle="Service account · Google Ads API (GAQL)"
+      status={connectionPill(connection?.status)}
     >
       {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
           Ne prikazuje ništa dok brisanja nema. */}
@@ -2039,14 +2022,13 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
           <SavedCredentials
             detail={`Kredencijali sačuvani${
               connection?.externalId ? ` · nalog ${connection.externalId}` : ""
+            }${
+              connection?.externalIdAlt ? ` · MCC ${connection.externalIdAlt}` : ""
             }`}
             onEdit={startEdit}
           />
         </div>
       ) : (
-        // Šest polja, dve celine: ČIJI nalog i ČIME mu se pristupa. Razmak
-        // između te dve celine je veći od razmaka unutar njih, pa se forma
-        // čita kao dva pitanja umesto kao spisak od šest.
         <form onSubmit={handleSave} className="mt-6">
           <FormStack>
             <FormGroup title="Nalog">
@@ -2072,7 +2054,7 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
                 <Field
                   label="Manager (MCC) ID"
                   error={managerProblem}
-                  hint="Samo ako nalogom upravlja MCC."
+                  hint="Samo ako nalogom upravlja MCC (opciono)."
                 >
                   {(field) => (
                     <Input
@@ -2090,60 +2072,20 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
               </div>
             </FormGroup>
 
-            <FormGroup title="Pristup">
-              <Field label="Developer Token" required>
+            <FormGroup title="Servisni nalog">
+              <Field
+                label="JSON ključ servisnog naloga"
+                error={jsonProblem}
+                hint="Nalepiti ceo JSON sadržaj preuzet iz Google Cloud Console (IAM)."
+                required
+              >
                 {(field) => (
-                  <Input
+                  <Textarea
                     {...field}
-                    type="password"
-                    placeholder="Developer token iz Google Ads API centra"
-                    value={developerToken}
-                    onChange={(event) => setDeveloperToken(event.target.value)}
-                    disabled={saving}
-                    className="font-mono text-xs"
-                    required
-                  />
-                )}
-              </Field>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="OAuth Client ID" required>
-                  {(field) => (
-                    <Input
-                      {...field}
-                      placeholder="xxxx.apps.googleusercontent.com"
-                      value={clientId}
-                      onChange={(event) => setClientId(event.target.value)}
-                      disabled={saving}
-                      className="font-mono text-xs"
-                      required
-                    />
-                  )}
-                </Field>
-                <Field label="OAuth Client Secret" required>
-                  {(field) => (
-                    <Input
-                      {...field}
-                      type="password"
-                      placeholder="GOCSPX-…"
-                      value={clientSecret}
-                      onChange={(event) => setClientSecret(event.target.value)}
-                      disabled={saving}
-                      className="font-mono text-xs"
-                      required
-                    />
-                  )}
-                </Field>
-              </div>
-
-              <Field label="OAuth Refresh Token" required>
-                {(field) => (
-                  <Input
-                    {...field}
-                    type="password"
-                    placeholder="1//04…"
-                    value={refreshToken}
-                    onChange={(event) => setRefreshToken(event.target.value)}
+                    rows={6}
+                    placeholder='{"type": "service_account", "project_id": "...", ...}'
+                    value={json}
+                    onChange={(event) => setJson(event.target.value)}
                     disabled={saving}
                     className="font-mono text-xs"
                     required
@@ -2158,9 +2100,7 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
               <Button
                 type="submit"
                 size="sm"
-                disabled={
-                  saving || customerProblem !== null || managerProblem !== null
-                }
+                disabled={saving || !canSave}
               >
                 {saving ? (
                   <>

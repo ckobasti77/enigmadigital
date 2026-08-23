@@ -3,10 +3,15 @@
 import { internalAction } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
-import { GoogleAdsApi, enums } from "google-ads-api";
 import { decryptCredentials } from "./lib/crypto";
 import { runSync, sanitizeSyncError } from "./lib/runSync";
-import { microsToUnits, normalizeCustomerId } from "./lib/googleAdsApi";
+import {
+  microsToUnits,
+  normalizeCustomerId,
+  getGoogleAdsDeveloperToken,
+  getGoogleAdsAccessToken,
+  queryGoogleAdsSearchStream,
+} from "./lib/googleAdsApi";
 import { buildGaqlQuery } from "./lib/googleAdsCatalog";
 import { calculateGoogleAdsBackfillDepth } from "./lib/googleAdsBackfill";
 import {
@@ -15,61 +20,6 @@ import {
 } from "./lib/googleAdsQuota";
 
 import type { Id } from "./_generated/dataModel";
-
-interface GoogleAdsCredentials {
-  developerToken: string;
-  clientId: string;
-  clientSecret: string;
-  refreshToken: string;
-  customerId: string;
-  loginCustomerId?: string;
-}
-
-function parseCredentials(secretJson: string): GoogleAdsCredentials {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(secretJson);
-  } catch {
-    throw new Error("Google Ads kredencijali nisu validan JSON format.");
-  }
-
-  if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("Google Ads kredencijali moraju biti JSON objekat.");
-  }
-
-  const p = parsed as Record<string, unknown>;
-  const developerToken = String(p.developerToken || p.developer_token || "").trim();
-  const clientId = String(p.clientId || p.client_id || "").trim();
-  const clientSecret = String(p.clientSecret || p.client_secret || "").trim();
-  const refreshToken = String(p.refreshToken || p.refresh_token || "").trim();
-  const rawCustomerId = String(p.customerId || p.customer_id || "").trim();
-  const rawLoginCustomerId = String(p.loginCustomerId || p.login_customer_id || "").trim();
-
-  if (!developerToken) {
-    throw new Error("Nedostaje developer token (developer_token).");
-  }
-  if (!clientId || !clientSecret) {
-    throw new Error("Nedostaju OAuth client_id ili client_secret.");
-  }
-  if (!refreshToken) {
-    throw new Error("Nedostaje OAuth refresh_token.");
-  }
-  if (!rawCustomerId) {
-    throw new Error("Nedostaje customer_id.");
-  }
-
-  const customerId = normalizeCustomerId(rawCustomerId);
-  const loginCustomerId = rawLoginCustomerId ? normalizeCustomerId(rawLoginCustomerId) : undefined;
-
-  return {
-    developerToken,
-    clientId,
-    clientSecret,
-    refreshToken,
-    customerId,
-    loginCustomerId,
-  };
-}
 
 /**
  * Format date YYYY-MM-DD for N days ago.
@@ -85,9 +35,11 @@ function getLookbackDates(days = 7): { startDate: string; endDate: string } {
 }
 
 /**
- * Sync Google Ads structure and performance data for a specific connection (GA3).
+ * Sync Google Ads structure and performance data for a specific connection (GA3, GA7).
  *
  * Rules:
+ *   - Authentication via Google Service Account JSON & JWT exchange (A1, A2).
+ *   - Developer token loaded strictly from GOOGLE_ADS_DEVELOPER_TOKEN env variable (A3).
  *   - Pre-flight quota check (B1): if skipped, job does not run.
  *   - All GAQL queries are constructed via `buildGaqlQuery` (B5).
  *   - Budgets are separate entities and support explicitly_shared (B2).
@@ -106,6 +58,8 @@ export const syncGoogleAds = internalAction({
     const conn: {
       workspaceId: Id<"workspaces">;
       provider: string;
+      externalId?: string;
+      externalIdAlt?: string;
       encryptedCredentials: string;
     } | null = await ctx.runQuery(internal.connections.getForSync, {
       connectionId,
@@ -120,15 +74,40 @@ export const syncGoogleAds = internalAction({
 
     const { workspaceId, encryptedCredentials } = conn;
 
+    const rawCustomerId = conn.externalId;
+    if (!rawCustomerId || typeof rawCustomerId !== "string") {
+      throw new Error("Google Ads konekcija nema konfigurisan Customer ID.");
+    }
+    const customerId = normalizeCustomerId(rawCustomerId);
+    const loginCustomerId = conn.externalIdAlt ? normalizeCustomerId(conn.externalIdAlt) : undefined;
+
+    // A3: Proveri da li je GOOGLE_ADS_DEVELOPER_TOKEN podešen u environment varijablama
+    const developerToken = getGoogleAdsDeveloperToken();
+
+    // A1, A2: Dekriptuj i parsiraj Service Account JSON, pa preuzmi JWT access token
     const plaintext = await decryptCredentials(encryptedCredentials);
-    const creds = parseCredentials(plaintext);
+    let sa: { client_email?: string; private_key?: string };
+    try {
+      sa = JSON.parse(plaintext);
+    } catch {
+      throw new Error("Google Ads servisni nalog nije validan JSON format.");
+    }
+
+    if (!sa.client_email || !sa.private_key) {
+      throw new Error("Google Ads servisni nalog ne sadrži client_email ili private_key.");
+    }
+
+    const accessToken = await getGoogleAdsAccessToken({
+      client_email: sa.client_email,
+      private_key: sa.private_key,
+    });
 
     // ── B1) Pre-flight kvotna kapija ──────────────────────────────────────────
-    const gate = await readGadsGate(ctx, workspaceId, creds.customerId);
+    const gate = await readGadsGate(ctx, workspaceId, customerId);
     const quotaCheck = checkGoogleAdsQuota(gate.consumed24h, gate.dailyLimit, 1);
     if (quotaCheck.skipped) {
       console.warn(
-        `[syncGoogleAds] Sinhronizacija Google Ads naloga ${creds.customerId} za radni prostor ${workspaceId} je sprečena kvotnom kapijom: ${quotaCheck.reason}`,
+        `[syncGoogleAds] Sinhronizacija Google Ads naloga ${customerId} za radni prostor ${workspaceId} je sprečena kvotnom kapijom: ${quotaCheck.reason}`,
       );
       return {
         skipped: true,
@@ -142,17 +121,14 @@ export const syncGoogleAds = internalAction({
       ctx,
       { workspaceId, provider: "google_ads", connectionId },
       async (): Promise<number> => {
-        const client = new GoogleAdsApi({
-          client_id: creds.clientId,
-          client_secret: creds.clientSecret,
-          developer_token: creds.developerToken,
-        });
-
-        const customer = client.Customer({
-          customer_id: creds.customerId,
-          refresh_token: creds.refreshToken,
-          login_customer_id: creds.loginCustomerId || undefined,
-        });
+        const queryGaql = (query: string) =>
+          queryGoogleAdsSearchStream({
+            customerId,
+            query,
+            accessToken,
+            developerToken,
+            loginCustomerId,
+          });
 
         // ── 1. Query Conversion Actions FIRST (GA4 B1, B2) ───────────────────
         const conversionActions: Array<{
@@ -186,7 +162,7 @@ export const syncGoogleAds = internalAction({
             where: "conversion_action.status != 'REMOVED'",
           });
 
-          const caResults = await customer.query(conversionActionQuery);
+          const caResults = await queryGaql(conversionActionQuery);
 
           for (const row of caResults as Array<{
             conversion_action?: {
@@ -216,20 +192,17 @@ export const syncGoogleAds = internalAction({
             const rawStatus = ca.status;
             if (
               rawStatus === "PAUSED" ||
-              rawStatus === 3 ||
-              rawStatus === (enums as any)?.ConversionActionStatus?.PAUSED
+              rawStatus === 3
             ) {
               status = "PAUSED";
             } else if (
               rawStatus === "REMOVED" ||
-              rawStatus === 4 ||
-              rawStatus === (enums as any)?.ConversionActionStatus?.REMOVED
+              rawStatus === 4
             ) {
               status = "REMOVED";
             } else if (
               rawStatus === "HIDDEN" ||
-              rawStatus === 5 ||
-              rawStatus === (enums as any)?.ConversionActionStatus?.HIDDEN
+              rawStatus === 5
             ) {
               status = "HIDDEN";
             }
@@ -276,7 +249,7 @@ export const syncGoogleAds = internalAction({
 
         if (backfillResult.skipped) {
           console.warn(
-            `[syncGoogleAds] Dinamički backfill konverzija za nalog ${creds.customerId} je preskočen: ${backfillResult.reason}`,
+            `[syncGoogleAds] Dinamički backfill konverzija za nalog ${customerId} je preskočen: ${backfillResult.reason}`,
           );
         } else {
           lookbackDays = backfillResult.depth;
@@ -297,7 +270,7 @@ export const syncGoogleAds = internalAction({
           hidden?: boolean;
         }> = [];
 
-        let accountName = `Google Ads (${creds.customerId})`;
+        let accountName = `Google Ads (${customerId})`;
         let currencyCode = "EUR";
 
         try {
@@ -316,7 +289,7 @@ export const syncGoogleAds = internalAction({
             ],
           });
 
-          const ccResults = await customer.query(customerClientQuery);
+          const ccResults = await queryGaql(customerClientQuery);
 
           for (const row of ccResults as Array<{
             customer_client?: {
@@ -337,15 +310,15 @@ export const syncGoogleAds = internalAction({
             const cId = normalizeCustomerId(String(cc.id));
             const name = String(cc.descriptive_name || `Account ${cId}`);
             let status = "ENABLED";
-            if (cc.status === "CANCELED" || cc.status === enums.CustomerStatus.CANCELED) {
+            if (cc.status === "CANCELED" || cc.status === 3) {
               status = "CANCELED";
-            } else if (cc.status === "SUSPENDED" || cc.status === enums.CustomerStatus.SUSPENDED) {
+            } else if (cc.status === "SUSPENDED" || cc.status === 4) {
               status = "SUSPENDED";
-            } else if (cc.status === "CLOSED" || cc.status === enums.CustomerStatus.CLOSED) {
+            } else if (cc.status === "CLOSED" || cc.status === 5) {
               status = "CLOSED";
             }
 
-            if (cId === creds.customerId) {
+            if (cId === customerId) {
               accountName = name;
               if (cc.currency_code) currencyCode = cc.currency_code;
             }
@@ -394,7 +367,7 @@ export const syncGoogleAds = internalAction({
             where: "campaign_budget.status != 'REMOVED'",
           });
 
-          const budgetResults = await customer.query(budgetQuery);
+          const budgetResults = await queryGaql(budgetQuery);
 
           for (const row of budgetResults as Array<{
             campaign_budget?: {
@@ -417,15 +390,12 @@ export const syncGoogleAds = internalAction({
             const totalAmount = microsToUnits(b.total_amount_micros);
 
             let status = "ENABLED";
-            if (b.status === "REMOVED" || b.status === enums.BudgetStatus.REMOVED) {
+            if (b.status === "REMOVED" || b.status === 3) {
               status = "REMOVED";
             }
 
             let deliveryMethod = "STANDARD";
-            if (
-              b.delivery_method === "ACCELERATED" ||
-              b.delivery_method === enums.BudgetDeliveryMethod.ACCELERATED
-            ) {
+            if (b.delivery_method === "ACCELERATED" || b.delivery_method === 3) {
               deliveryMethod = "ACCELERATED";
             }
 
@@ -462,7 +432,7 @@ export const syncGoogleAds = internalAction({
             where: "campaign.status != 'REMOVED'",
           });
 
-          const campaignShareResults = await customer.query(campaignShareQuery);
+          const campaignShareResults = await queryGaql(campaignShareQuery);
 
           for (const row of campaignShareResults as Array<{
             campaign?: { id?: number | string };
@@ -510,7 +480,7 @@ export const syncGoogleAds = internalAction({
             where: "campaign.status != 'REMOVED'",
           });
 
-          const campaignsList = await customer.query(campaignQuery);
+          const campaignsList = await queryGaql(campaignQuery);
 
           for (const row of campaignsList as Array<{
             campaign?: {
@@ -530,9 +500,10 @@ export const syncGoogleAds = internalAction({
             let status = "PAUSED";
             const rawStatus = row.campaign?.status;
             if (
-              rawStatus === enums.CampaignStatus.ENABLED ||
               rawStatus === "ENABLED" ||
-              rawStatus === 2
+              rawStatus === 2 ||
+              rawStatus === "HOT" ||
+              rawStatus === "ACTIVE"
             ) {
               status = "ACTIVE";
             }
@@ -542,7 +513,6 @@ export const syncGoogleAds = internalAction({
               ? rawBudgetId.split("/").pop() || rawBudgetId
               : rawBudgetId;
 
-            // Pronalazimo pridruženi budžet ako postoji u listi
             const matchedBudget = budgetList.find(
               (b) => b.budgetId === cleanBudgetId || b.budgetId === rawBudgetId,
             );
@@ -598,7 +568,7 @@ export const syncGoogleAds = internalAction({
             ],
           });
 
-          const adGroupResults = await customer.query(adGroupQuery);
+          const adGroupResults = await queryGaql(adGroupQuery);
 
           for (const row of adGroupResults as Array<{
             campaign?: { id?: number | string; name?: string };
@@ -616,7 +586,6 @@ export const syncGoogleAds = internalAction({
 
             let agStatus = "PAUSED";
             if (
-              row.ad_group?.status === enums.AdGroupStatus.ENABLED ||
               row.ad_group?.status === "ENABLED" ||
               row.ad_group?.status === 2
             ) {
@@ -684,7 +653,7 @@ export const syncGoogleAds = internalAction({
             where: "campaign.status != 'REMOVED'",
           });
 
-          const criteriaResults = await customer.query(criteriaQuery);
+          const criteriaResults = await queryGaql(criteriaQuery);
 
           for (const row of criteriaResults as Array<{
             campaign?: { id?: number | string };
@@ -790,7 +759,7 @@ export const syncGoogleAds = internalAction({
           console.warn("Google Ads campaign_criterion query warning:", sanitizeSyncError(err));
         }
 
-        // ── 7. Query Ad Performance (ad_group_ad) with 7-day lookback ─────────
+        // ── 7. Query Ad Performance (ad_group_ad) with lookback ───────────────
         const adMap = new Map<
           string,
           {
@@ -856,7 +825,7 @@ export const syncGoogleAds = internalAction({
             ],
           });
 
-          const adResults = await customer.query(adResultsQuery);
+          const adResults = await queryGaql(adResultsQuery);
 
           for (const row of adResults as Array<{
             campaign?: { id?: number | string; name?: string; status?: number | string };
@@ -895,7 +864,6 @@ export const syncGoogleAds = internalAction({
             if (!campaignMap.has(campaignExternalId)) {
               let campStatus = "PAUSED";
               if (
-                row.campaign?.status === enums.CampaignStatus.ENABLED ||
                 row.campaign?.status === "ENABLED" ||
                 row.campaign?.status === 2
               ) {
@@ -914,7 +882,6 @@ export const syncGoogleAds = internalAction({
             if (!adGroupMap.has(adGroupExternalId)) {
               let agStatus = "PAUSED";
               if (
-                row.ad_group?.status === enums.AdGroupStatus.ENABLED ||
                 row.ad_group?.status === "ENABLED" ||
                 row.ad_group?.status === 2
               ) {
@@ -932,7 +899,6 @@ export const syncGoogleAds = internalAction({
             if (!adMap.has(adExternalId)) {
               let aStatus = "PAUSED";
               if (
-                row.ad_group_ad?.status === enums.AdGroupAdStatus.ENABLED ||
                 row.ad_group_ad?.status === "ENABLED" ||
                 row.ad_group_ad?.status === 2
               ) {
@@ -965,7 +931,6 @@ export const syncGoogleAds = internalAction({
 
             const spend = microsToUnits(row.metrics?.cost_micros);
 
-            // B3: conversions je decimalan broj (npr. 2.33), nikad se ne zaokružuje
             const rawConversions = row.metrics?.conversions;
             const conversions =
               rawConversions !== undefined &&
@@ -974,7 +939,6 @@ export const syncGoogleAds = internalAction({
                 ? Number(rawConversions)
                 : undefined;
 
-            // B4: all_conversions je odvojeno polje od conversions
             const rawAllConversions = row.metrics?.all_conversions;
             const allConversions =
               rawAllConversions !== undefined &&
@@ -1095,7 +1059,7 @@ export const syncGoogleAds = internalAction({
             where: "ad_group_criterion.status != 'REMOVED'",
           });
 
-          const keywordResults = await customer.query(keywordQuery);
+          const keywordResults = await queryGaql(keywordQuery);
 
           for (const row of keywordResults as Array<{
             campaign?: { id?: number | string };
@@ -1133,9 +1097,9 @@ export const syncGoogleAds = internalAction({
 
             const matchTypeRaw = row.ad_group_criterion?.keyword?.match_type;
             let matchType = "BROAD";
-            if (matchTypeRaw === enums.KeywordMatchType.EXACT || matchTypeRaw === "EXACT" || matchTypeRaw === 2) {
+            if (matchTypeRaw === "EXACT" || matchTypeRaw === 2) {
               matchType = "EXACT";
-            } else if (matchTypeRaw === enums.KeywordMatchType.PHRASE || matchTypeRaw === "PHRASE" || matchTypeRaw === 3) {
+            } else if (matchTypeRaw === "PHRASE" || matchTypeRaw === 3) {
               matchType = "PHRASE";
             }
 
@@ -1254,7 +1218,7 @@ export const syncGoogleAds = internalAction({
             ],
           });
 
-          const searchTermResults = await customer.query(searchTermQuery);
+          const searchTermResults = await queryGaql(searchTermQuery);
 
           for (const row of searchTermResults as Array<{
             campaign?: { id?: number | string };
@@ -1286,39 +1250,19 @@ export const syncGoogleAds = internalAction({
 
             let status = "NONE";
             const rawStatus = row.search_term_view?.status;
-            if (
-              rawStatus === "ADDED" ||
-              rawStatus === 2 ||
-              rawStatus === (enums as any)?.SearchTermTargetingStatus?.ADDED
-            ) {
+            if (rawStatus === "ADDED" || rawStatus === 2) {
               status = "ADDED";
-            } else if (
-              rawStatus === "EXCLUDED" ||
-              rawStatus === 3 ||
-              rawStatus === (enums as any)?.SearchTermTargetingStatus?.EXCLUDED
-            ) {
+            } else if (rawStatus === "EXCLUDED" || rawStatus === 3) {
               status = "EXCLUDED";
-            } else if (
-              rawStatus === "NONE" ||
-              rawStatus === 1 ||
-              rawStatus === (enums as any)?.SearchTermTargetingStatus?.NONE
-            ) {
+            } else if (rawStatus === "NONE" || rawStatus === 1) {
               status = "NONE";
             }
 
             let matchType = "BROAD";
             const rawMatchType = row.segments?.search_term_match_type;
-            if (
-              rawMatchType === "EXACT" ||
-              rawMatchType === 2 ||
-              rawMatchType === (enums as any)?.SearchTermMatchType?.EXACT
-            ) {
+            if (rawMatchType === "EXACT" || rawMatchType === 2) {
               matchType = "EXACT";
-            } else if (
-              rawMatchType === "PHRASE" ||
-              rawMatchType === 3 ||
-              rawMatchType === (enums as any)?.SearchTermMatchType?.PHRASE
-            ) {
+            } else if (rawMatchType === "PHRASE" || rawMatchType === 3) {
               matchType = "PHRASE";
             } else if (rawMatchType === "NEAR_EXACT" || rawMatchType === 4) {
               matchType = "NEAR_EXACT";
@@ -1398,7 +1342,7 @@ export const syncGoogleAds = internalAction({
             where: "shared_set.status != 'REMOVED'",
           });
 
-          const sharedSetResults = await customer.query(sharedSetQuery);
+          const sharedSetResults = await queryGaql(sharedSetQuery);
 
           for (const row of sharedSetResults as Array<{
             shared_set?: {
@@ -1418,7 +1362,7 @@ export const syncGoogleAds = internalAction({
             const type = String(ss.type || "NEGATIVE_KEYWORDS");
 
             let status = "ENABLED";
-            if (ss.status === "REMOVED" || ss.status === (enums as any)?.SharedSetStatus?.REMOVED) {
+            if (ss.status === "REMOVED" || ss.status === 3) {
               status = "REMOVED";
             }
 
@@ -1461,7 +1405,7 @@ export const syncGoogleAds = internalAction({
             ],
           });
 
-          const sharedCriteriaResults = await customer.query(sharedCriteriaQuery);
+          const sharedCriteriaResults = await queryGaql(sharedCriteriaQuery);
 
           for (const row of sharedCriteriaResults as Array<{
             shared_criterion?: {
@@ -1484,17 +1428,9 @@ export const syncGoogleAds = internalAction({
 
             let matchType = "BROAD";
             const rawMatchType = sc.keyword?.match_type;
-            if (
-              rawMatchType === "EXACT" ||
-              rawMatchType === 2 ||
-              rawMatchType === (enums as any)?.KeywordMatchType?.EXACT
-            ) {
+            if (rawMatchType === "EXACT" || rawMatchType === 2) {
               matchType = "EXACT";
-            } else if (
-              rawMatchType === "PHRASE" ||
-              rawMatchType === 3 ||
-              rawMatchType === (enums as any)?.KeywordMatchType?.PHRASE
-            ) {
+            } else if (rawMatchType === "PHRASE" || rawMatchType === 3) {
               matchType = "PHRASE";
             }
 
@@ -1528,7 +1464,7 @@ export const syncGoogleAds = internalAction({
             where: "campaign_shared_set.status != 'REMOVED'",
           });
 
-          const cssResults = await customer.query(campaignSharedSetQuery);
+          const cssResults = await queryGaql(campaignSharedSetQuery);
 
           for (const row of cssResults as Array<{
             campaign?: { id?: number | string };
@@ -1544,10 +1480,7 @@ export const syncGoogleAds = internalAction({
             const sharedSetId = rawSet.includes("/") ? rawSet.split("/").pop() || rawSet : rawSet;
 
             let status = "ENABLED";
-            if (
-              row.campaign_shared_set?.status === "REMOVED" ||
-              row.campaign_shared_set?.status === (enums as any)?.CampaignSharedSetStatus?.REMOVED
-            ) {
+            if (row.campaign_shared_set?.status === "REMOVED" || row.campaign_shared_set?.status === 3) {
               status = "REMOVED";
             }
 
@@ -1592,7 +1525,7 @@ export const syncGoogleAds = internalAction({
             where: "metrics.impressions > 0",
           });
 
-          const geoResults = await customer.query(geoQuery);
+          const geoResults = await queryGaql(geoQuery);
 
           for (const row of geoResults as Array<{
             campaign?: { id?: number | string };
@@ -1671,7 +1604,7 @@ export const syncGoogleAds = internalAction({
             where: "metrics.impressions > 0",
           });
 
-          const userLocResults = await customer.query(userLocQuery);
+          const userLocResults = await queryGaql(userLocQuery);
 
           for (const row of userLocResults as Array<{
             campaign?: { id?: number | string };
@@ -1748,7 +1681,7 @@ export const syncGoogleAds = internalAction({
             where: "campaign.status != 'REMOVED' AND metrics.impressions > 0",
           });
 
-          const deviceResults = await customer.query(deviceQuery);
+          const deviceResults = await queryGaql(deviceQuery);
 
           for (const row of deviceResults as Array<{
             campaign?: { id?: number | string };
@@ -1767,15 +1700,15 @@ export const syncGoogleAds = internalAction({
 
             const rawDev = row.segments?.device;
             let device = "UNKNOWN";
-            if (rawDev === "MOBILE" || rawDev === 2 || rawDev === (enums as any)?.Device?.MOBILE) {
+            if (rawDev === "MOBILE" || rawDev === 2) {
               device = "MOBILE";
-            } else if (rawDev === "DESKTOP" || rawDev === 3 || rawDev === (enums as any)?.Device?.DESKTOP) {
+            } else if (rawDev === "DESKTOP" || rawDev === 3) {
               device = "DESKTOP";
-            } else if (rawDev === "TABLET" || rawDev === 4 || rawDev === (enums as any)?.Device?.TABLET) {
+            } else if (rawDev === "TABLET" || rawDev === 4) {
               device = "TABLET";
-            } else if (rawDev === "CONNECTED_TV" || rawDev === 6 || rawDev === (enums as any)?.Device?.CONNECTED_TV) {
+            } else if (rawDev === "CONNECTED_TV" || rawDev === 6) {
               device = "CONNECTED_TV";
-            } else if (rawDev === "OTHER" || rawDev === 5 || rawDev === (enums as any)?.Device?.OTHER) {
+            } else if (rawDev === "OTHER" || rawDev === 5) {
               device = "OTHER";
             } else if (typeof rawDev === "string" && rawDev.trim() !== "") {
               device = rawDev.trim();
@@ -1834,7 +1767,7 @@ export const syncGoogleAds = internalAction({
             where: "campaign.status != 'REMOVED' AND metrics.impressions > 0",
           });
 
-          const hourlyResults = await customer.query(hourlyQuery);
+          const hourlyResults = await queryGaql(hourlyQuery);
 
           for (const row of hourlyResults as Array<{
             campaign?: { id?: number | string };
@@ -1914,7 +1847,7 @@ export const syncGoogleAds = internalAction({
             where: "metrics.impressions > 0",
           });
 
-          const ageResults = await customer.query(ageQuery);
+          const ageResults = await queryGaql(ageQuery);
 
           for (const row of ageResults as Array<{
             campaign?: { id?: number | string };
@@ -2004,7 +1937,7 @@ export const syncGoogleAds = internalAction({
             where: "metrics.impressions > 0",
           });
 
-          const genderResults = await customer.query(genderQuery);
+          const genderResults = await queryGaql(genderQuery);
 
           for (const row of genderResults as Array<{
             campaign?: { id?: number | string };
@@ -2061,13 +1994,325 @@ export const syncGoogleAds = internalAction({
           console.warn("Google Ads gender_view query warning:", sanitizeSyncError(err));
         }
 
-        // ── 19. Persist everything to Convex in atomic mutation ───────────────
+        // ── 19. Query Assets (asset) (GA7 B1) ────────────────────────────────
+        const assetList: Array<{
+          assetId: string;
+          name?: string;
+          type: string;
+          text?: string;
+          imageUrl?: string;
+          imageFileSize?: number;
+          youtubeVideoId?: string;
+          youtubeVideoTitle?: string;
+          phoneNumber?: string;
+          source?: string;
+          status?: string;
+        }> = [];
+
+        try {
+          const assetQuery = buildGaqlQuery({
+            resource: "asset",
+            fields: [
+              "asset.id",
+              "asset.name",
+              "asset.type",
+              "asset.text_asset.text",
+              "asset.image_asset.full_size.url",
+              "asset.image_asset.file_size",
+              "asset.youtube_video_asset.youtube_video_id",
+              "asset.youtube_video_asset.youtube_video_title",
+              "asset.call_asset.phone_number",
+              "asset.source",
+              "asset.status",
+            ],
+            where: "asset.status != 'REMOVED'",
+          });
+
+          const assetResults = await queryGaql(assetQuery);
+
+          for (const row of assetResults as Array<{
+            asset?: {
+              id?: number | string;
+              name?: string;
+              type?: string | number;
+              text_asset?: { text?: string };
+              textAsset?: { text?: string };
+              image_asset?: { full_size?: { url?: string }; fullSize?: { url?: string }; file_size?: number; fileSize?: number };
+              imageAsset?: { full_size?: { url?: string }; fullSize?: { url?: string }; file_size?: number; fileSize?: number };
+              youtube_video_asset?: { youtube_video_id?: string; youtubeVideoId?: string; youtube_video_title?: string; youtubeVideoTitle?: string };
+              youtubeVideoAsset?: { youtube_video_id?: string; youtubeVideoId?: string; youtube_video_title?: string; youtubeVideoTitle?: string };
+              call_asset?: { phone_number?: string; phoneNumber?: string };
+              callAsset?: { phone_number?: string; phoneNumber?: string };
+              source?: string | number;
+              status?: string | number;
+            };
+          }>) {
+            const a = row.asset;
+            if (!a || !a.id) continue;
+
+            const assetId = String(a.id);
+            const name = a.name ? String(a.name) : undefined;
+            const type = String(a.type || "TEXT");
+            const text = a.text_asset?.text ?? a.textAsset?.text;
+            const img = a.image_asset ?? a.imageAsset;
+            const imageUrl = img?.full_size?.url ?? img?.fullSize?.url;
+            const imageFileSize = img?.file_size ?? img?.fileSize;
+            const yt = a.youtube_video_asset ?? a.youtubeVideoAsset;
+            const youtubeVideoId = yt?.youtube_video_id ?? yt?.youtubeVideoId;
+            const youtubeVideoTitle = yt?.youtube_video_title ?? yt?.youtubeVideoTitle;
+            const call = a.call_asset ?? a.callAsset;
+            const phoneNumber = call?.phone_number ?? call?.phoneNumber;
+            const source = a.source ? String(a.source) : undefined;
+            const status = a.status ? String(a.status) : "ENABLED";
+
+            assetList.push({
+              assetId,
+              name,
+              type,
+              text,
+              imageUrl,
+              imageFileSize: typeof imageFileSize === "number" ? imageFileSize : undefined,
+              youtubeVideoId,
+              youtubeVideoTitle,
+              phoneNumber,
+              source,
+              status,
+            });
+          }
+        } catch (err) {
+          console.warn("Google Ads asset query warning:", sanitizeSyncError(err));
+        }
+
+        // ── 20. Query Ad Group Ad Asset Views (ad_group_ad_asset_view) (GA7 B2, B4) ─
+        const adGroupAdAssetViewList: Array<{
+          campaignExternalId: string;
+          adGroupExternalId: string;
+          adExternalId: string;
+          assetExternalId: string;
+          fieldType: string;
+          performanceLabel: string;
+          pinnedField?: string;
+          status?: string;
+          enabled?: boolean;
+          impressions?: number;
+          clicks?: number;
+          cost?: number;
+          conversions?: number;
+          allConversions?: number;
+          date: string;
+        }> = [];
+
+        try {
+          const assetViewQuery = buildGaqlQuery({
+            resource: "ad_group_ad_asset_view",
+            fields: [
+              "campaign.id",
+              "ad_group.id",
+              "ad_group_ad.ad.id",
+              "ad_group_ad_asset_view.asset",
+              "ad_group_ad_asset_view.field_type",
+              "ad_group_ad_asset_view.performance_label",
+              "ad_group_ad_asset_view.pinned_field",
+              "ad_group_ad_asset_view.status",
+              "ad_group_ad_asset_view.enabled",
+              "metrics.impressions",
+              "metrics.clicks",
+              "metrics.cost_micros",
+              "metrics.conversions",
+              "metrics.all_conversions",
+            ],
+            segments: ["segments.date"],
+            dateRange: { startDate, endDate },
+            where: [
+              "campaign.status != 'REMOVED'",
+              "ad_group.status != 'REMOVED'",
+              "ad_group_ad.status != 'REMOVED'",
+            ],
+          });
+
+          const assetViewResults = await queryGaql(assetViewQuery);
+
+          for (const row of assetViewResults as Array<{
+            campaign?: { id?: number | string };
+            ad_group?: { id?: number | string };
+            ad_group_ad?: { ad?: { id?: number | string } };
+            adGroupAd?: { ad?: { id?: number | string } };
+            ad_group_ad_asset_view?: {
+              asset?: string;
+              field_type?: string;
+              fieldType?: string;
+              performance_label?: string;
+              performanceLabel?: string;
+              pinned_field?: string;
+              pinnedField?: string;
+              status?: string;
+              enabled?: boolean;
+            };
+            adGroupAdAssetView?: {
+              asset?: string;
+              field_type?: string;
+              fieldType?: string;
+              performance_label?: string;
+              performanceLabel?: string;
+              pinned_field?: string;
+              pinnedField?: string;
+              status?: string;
+              enabled?: boolean;
+            };
+            metrics?: {
+              impressions?: number | string;
+              clicks?: number | string;
+              cost_micros?: number | string;
+              costMicros?: number | string;
+              conversions?: number | string;
+              all_conversions?: number | string;
+              allConversions?: number | string;
+            };
+            segments?: { date?: string };
+          }>) {
+            const campaignExternalId = String(row.campaign?.id || "");
+            const adGroupExternalId = String(row.ad_group?.id || "");
+            const adObj = row.ad_group_ad?.ad ?? row.adGroupAd?.ad;
+            const adExternalId = String(adObj?.id || "");
+            const viewObj = row.ad_group_ad_asset_view ?? row.adGroupAdAssetView;
+
+            if (!campaignExternalId || !adGroupExternalId || !adExternalId || !viewObj) {
+              continue;
+            }
+
+            const rawAsset = String(viewObj.asset || "");
+            const assetExternalId = rawAsset.includes("/")
+              ? rawAsset.split("/").pop() || rawAsset
+              : rawAsset;
+
+            if (!assetExternalId) continue;
+
+            const fieldType = String(viewObj.field_type ?? viewObj.fieldType ?? "HEADLINE");
+            const rawPerfLabel = String(viewObj.performance_label ?? viewObj.performanceLabel ?? "UNKNOWN");
+            const pinnedField = viewObj.pinned_field ?? viewObj.pinnedField;
+            const date = row.segments?.date || endDate;
+
+            const impressions = row.metrics?.impressions !== undefined ? Number(row.metrics.impressions) : undefined;
+            const clicks = row.metrics?.clicks !== undefined ? Number(row.metrics.clicks) : undefined;
+            const cost = microsToUnits(row.metrics?.cost_micros ?? row.metrics?.costMicros);
+            const conversions = row.metrics?.conversions !== undefined ? Number(row.metrics.conversions) : undefined;
+            const allConversions = (row.metrics?.all_conversions ?? row.metrics?.allConversions) !== undefined
+              ? Number(row.metrics?.all_conversions ?? row.metrics?.allConversions)
+              : undefined;
+
+            adGroupAdAssetViewList.push({
+              campaignExternalId,
+              adGroupExternalId,
+              adExternalId,
+              assetExternalId,
+              fieldType,
+              performanceLabel: rawPerfLabel,
+              pinnedField,
+              status: viewObj.status,
+              enabled: viewObj.enabled,
+              impressions,
+              clicks,
+              cost,
+              conversions,
+              allConversions,
+              date,
+            });
+          }
+        } catch (err) {
+          console.warn("Google Ads ad group ad asset view query warning:", sanitizeSyncError(err));
+        }
+
+        // ── 21. Query Asset Combinations (ad_group_ad_asset_combination_view) (GA7 B3) ─
+        const assetCombinationViewList: Array<{
+          campaignExternalId: string;
+          adGroupExternalId: string;
+          adExternalId: string;
+          servedAssetIds: string[];
+          combinationHash: string;
+          impressions?: number;
+          date: string;
+        }> = [];
+
+        try {
+          const comboQuery = buildGaqlQuery({
+            resource: "ad_group_ad_asset_combination_view",
+            fields: [
+              "campaign.id",
+              "ad_group.id",
+              "ad_group_ad.ad.id",
+              "ad_group_ad_asset_combination_view.served_assets",
+              "metrics.impressions",
+            ],
+            segments: ["segments.date"],
+            dateRange: { startDate, endDate },
+            where: [
+              "campaign.status != 'REMOVED'",
+              "ad_group.status != 'REMOVED'",
+              "ad_group_ad.status != 'REMOVED'",
+            ],
+          });
+
+          const comboResults = await queryGaql(comboQuery);
+
+          for (const row of comboResults as Array<{
+            campaign?: { id?: number | string };
+            ad_group?: { id?: number | string };
+            ad_group_ad?: { ad?: { id?: number | string } };
+            adGroupAd?: { ad?: { id?: number | string } };
+            ad_group_ad_asset_combination_view?: {
+              served_assets?: Array<{ asset?: string } | string>;
+              servedAssets?: Array<{ asset?: string } | string>;
+            };
+            adGroupAdAssetCombinationView?: {
+              served_assets?: Array<{ asset?: string } | string>;
+              servedAssets?: Array<{ asset?: string } | string>;
+            };
+            metrics?: { impressions?: number | string };
+            segments?: { date?: string };
+          }>) {
+            const campaignExternalId = String(row.campaign?.id || "");
+            const adGroupExternalId = String(row.ad_group?.id || "");
+            const adObj = row.ad_group_ad?.ad ?? row.adGroupAd?.ad;
+            const adExternalId = String(adObj?.id || "");
+            const comboObj =
+              row.ad_group_ad_asset_combination_view ?? row.adGroupAdAssetCombinationView;
+
+            if (!campaignExternalId || !adGroupExternalId || !adExternalId || !comboObj) {
+              continue;
+            }
+
+            const rawAssets = comboObj.served_assets ?? comboObj.servedAssets ?? [];
+            const servedAssetIds = rawAssets.map((item) => {
+              const resName = typeof item === "string" ? item : item.asset || "";
+              return resName.includes("/") ? resName.split("/").pop() || resName : resName;
+            }).filter(Boolean);
+
+            servedAssetIds.sort();
+            const combinationHash = servedAssetIds.join("|") || "unknown_combination";
+            const impressions = row.metrics?.impressions !== undefined ? Number(row.metrics.impressions) : undefined;
+            const date = row.segments?.date || endDate;
+
+            assetCombinationViewList.push({
+              campaignExternalId,
+              adGroupExternalId,
+              adExternalId,
+              servedAssetIds,
+              combinationHash,
+              impressions,
+              date,
+            });
+          }
+        } catch (err) {
+          console.warn("Google Ads asset combination query warning:", sanitizeSyncError(err));
+        }
+
+        // ── 22. Persist everything to Convex in atomic mutation ───────────────
         const written: number = await ctx.runMutation(
           internal.googleAdsStore.upsertGoogleAdsData,
           {
             workspaceId,
             account: {
-              externalId: creds.customerId,
+              externalId: customerId,
               name: accountName,
               currency: currencyCode,
             },
@@ -2090,6 +2335,9 @@ export const syncGoogleAds = internalAction({
             hourlyStats: hourlyStatsRows,
             ageRangeViews: ageRangeViewRows,
             genderViews: genderViewRows,
+            assets: assetList,
+            adGroupAdAssetViews: adGroupAdAssetViewList,
+            assetCombinationViews: assetCombinationViewList,
           },
         );
 

@@ -842,6 +842,21 @@ const GOOGLE_ADS_STEPS: PurgeStep[] = [
       .query("gadsGenderView")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
   ),
+  simple("gadsAssets", (ctx, ws) =>
+    ctx.db
+      .query("gadsAssets")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsAdGroupAdAssetViews", (ctx, ws) =>
+    ctx.db
+      .query("gadsAdGroupAdAssetViews")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("gadsAssetCombinationViews", (ctx, ws) =>
+    ctx.db
+      .query("gadsAssetCombinationViews")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
   {
     tables: [
       "adAccounts",
@@ -1053,6 +1068,9 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   gadsHourlyStats: { purgedBy: ["google_ads"] },
   gadsAgeRangeView: { purgedBy: ["google_ads"] },
   gadsGenderView: { purgedBy: ["google_ads"] },
+  gadsAssets: { purgedBy: ["google_ads"] },
+  gadsAdGroupAdAssetViews: { purgedBy: ["google_ads"] },
+  gadsAssetCombinationViews: { purgedBy: ["google_ads"] },
   adAccounts: { purgedBy: ["meta_ads", "google_ads"] },
   adCampaigns: { purgedBy: ["meta_ads", "google_ads"] },
   adSets: { purgedBy: ["meta_ads", "google_ads"] },
