@@ -20,7 +20,7 @@ import { formatRelativeTime } from "@/lib/format";
 export function WebhookSignatureNote({
   route,
 }: {
-  route: "instagram" | "facebook";
+  route: "instagram" | "facebook" | "threads";
 }) {
   const health = useQuery(api.webhookHealth.status);
   if (health === undefined) return null;

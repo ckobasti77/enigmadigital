@@ -54,6 +54,8 @@ export function manualRevokeMessage(provider: Provider): string {
     case "ga4":
     case "openreply":
       return "Opoziv nije uspeo posle više pokušaja.";
+    case "threads":
+      return "Opoziv nije uspeo posle više pokušaja. Ručno ukloni aplikaciju u podešavanjima Threads naloga.";
   }
 }
 
@@ -209,6 +211,7 @@ export async function revokeProviderAccess(
           "Meta Ads koristi System User token iz Business Manager-a — opoziv se radi tamo (Business settings → System users → Assets).",
       };
     case "openreply":
+    case "threads":
       return { status: "unsupported" };
   }
 }

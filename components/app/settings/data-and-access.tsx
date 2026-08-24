@@ -49,7 +49,13 @@ const STORED_BY_PROVIDER: Record<Provider, { name: string; stored: string }> = {
   },
   openreply: {
     name: "OpenReply",
-    stored: "Log poslatih poruka, praćeni linkovi i klikovi na njih.",
+    stored:
+      "Statistika direktnih poruka, klikova i konverzija sa automatizovanih odgovora.",
+  },
+  threads: {
+    name: "Threads",
+    stored:
+      "Statistika profila i objava, i odgovori koje obrađuju automatizacije.",
   },
 };
 

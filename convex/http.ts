@@ -344,6 +344,44 @@ interface FacebookWebhookPayload {
   entry?: FacebookWebhookEntry[];
 }
 
+// ── Threads Payload Types ───────────────────────────────────────────────────
+
+interface ThreadsWebhookRepliedTo {
+  id?: string;
+}
+
+interface ThreadsWebhookRootPost {
+  id?: string;
+}
+
+interface ThreadsWebhookReplyValue {
+  id?: string;
+  username?: string;
+  text?: string;
+  media_type?: string;
+  permalink?: string;
+  replied_to?: ThreadsWebhookRepliedTo | string;
+  root_post?: ThreadsWebhookRootPost | string;
+  shortcode?: string;
+  timestamp?: string | number;
+}
+
+interface ThreadsWebhookChange {
+  field?: string;
+  value?: ThreadsWebhookReplyValue;
+}
+
+interface ThreadsWebhookEntry {
+  id?: string;
+  time?: number;
+  changes?: ThreadsWebhookChange[];
+}
+
+interface ThreadsWebhookPayload {
+  object?: string;
+  entry?: ThreadsWebhookEntry[];
+}
+
 // ── Webhook Routes ───────────────────────────────────────────────────────────
 
 /**
@@ -898,6 +936,120 @@ http.route({
         accountId: pageId,
         events: messagingEvents,
       });
+    }
+
+    return new Response("ok", { status: 200 });
+  }),
+});
+
+// ── Threads Webhook Handshake & Routes ────────────────────────────────────────
+
+/**
+ * The `hub.challenge` handshake for Threads webhooks.
+ *
+ * Proverava `hub.mode === "subscribe"` i `hub.verify_token` protiv
+ * `process.env.THREADS_WEBHOOK_VERIFY_TOKEN`.
+ * Ako THREADS_WEBHOOK_VERIFY_TOKEN nije postavljen, vraća 503 (odbija verifikaciju).
+ * Na neslaganje vraća 403 bez otkrivanja detalja.
+ */
+function handleThreadsWebhookHandshake(request: Request): Response {
+  const expectedToken = process.env.THREADS_WEBHOOK_VERIFY_TOKEN?.trim();
+  if (!expectedToken) {
+    return new Response("Webhook nije konfigurisan", {
+      status: 503,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+
+  const searchParams = new URL(request.url).searchParams;
+  const mode = searchParams.get("hub.mode");
+  const verifyToken = searchParams.get("hub.verify_token");
+  const challenge = searchParams.get("hub.challenge");
+
+  if (mode === "subscribe" && verifyToken === expectedToken) {
+    return new Response(challenge ?? "", {
+      status: 200,
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+
+  return new Response("Forbidden", { status: 403 });
+}
+
+// Route 2d — GET: Threads Webhook Handshake / Challenge Verification
+http.route({
+  path: "/threads/webhook",
+  method: "GET",
+  handler: httpAction(async (_ctx, request) =>
+    handleThreadsWebhookHandshake(request),
+  ),
+});
+
+// Route 2e — POST: Threads Webhook Event Ingestion
+http.route({
+  path: "/threads/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const raw = await request.text();
+    const signature = request.headers.get("x-hub-signature-256");
+
+    if (!(await verifySignature(ctx, "threads", raw, signature))) {
+      return new Response("Invalid signature", { status: 401 });
+    }
+
+    let payload: ThreadsWebhookPayload;
+    try {
+      payload = JSON.parse(raw) as ThreadsWebhookPayload;
+    } catch {
+      return new Response("ok", { status: 200 });
+    }
+
+    const entries = Array.isArray(payload?.entry) ? payload.entry : [];
+    for (const entry of entries) {
+      const threadsUserId =
+        typeof entry?.id === "string" ? entry.id : undefined;
+
+      const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+      for (const change of changes) {
+        if (change?.field !== "replies") continue;
+
+        const val = change?.value;
+        if (!val || typeof val !== "object") continue;
+
+        const replyId = typeof val.id === "string" ? val.id : undefined;
+        if (!replyId) continue;
+
+        const username =
+          typeof val.username === "string" ? val.username : undefined;
+        const text = typeof val.text === "string" ? val.text : undefined;
+        const mediaType =
+          typeof val.media_type === "string" ? val.media_type : undefined;
+        const permalink =
+          typeof val.permalink === "string" ? val.permalink : undefined;
+        const shortcode =
+          typeof val.shortcode === "string" ? val.shortcode : undefined;
+        const timestamp = val.timestamp;
+        const repliedTo = val.replied_to;
+        const rootPost = val.root_post;
+
+        try {
+          await ctx.runMutation(internal.threadsStore.recordWebhookReply, {
+            id: replyId,
+            accountId: threadsUserId,
+            field: change.field,
+            username,
+            text,
+            mediaType,
+            permalink,
+            repliedTo,
+            rootPost,
+            shortcode,
+            timestamp,
+          });
+        } catch {
+          // Catch per-row so one bad row cannot abort the rest
+        }
+      }
     }
 
     return new Response("ok", { status: 200 });

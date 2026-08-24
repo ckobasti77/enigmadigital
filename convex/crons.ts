@@ -108,6 +108,12 @@ crons.cron(
   internal.facebook.refreshAllTokens,
   {},
 );
+crons.cron(
+  "refresh threads tokens",
+  "25 3 * * *",
+  internal.threads.refreshAllThreadsTokens,
+  {},
+);
 // Publishing is scheduled to the minute, so the queue is checked every minute.
 // The tick is cheap — one indexed read of what is due, and nothing at all when
 // nothing is. It doubles as the recovery path: a post whose direct run never

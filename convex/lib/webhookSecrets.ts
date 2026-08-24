@@ -21,7 +21,7 @@
  * ============================================================================
  */
 
-export type WebhookRoute = "instagram" | "facebook";
+export type WebhookRoute = "instagram" | "facebook" | "threads";
 
 /** Environment variables consulted for a route, in the order they are tried. */
 const CANDIDATE_VARS: Record<WebhookRoute, readonly string[]> = {
@@ -31,6 +31,8 @@ const CANDIDATE_VARS: Record<WebhookRoute, readonly string[]> = {
   // FIRST, because it is the variable the card tells people to set and the one
   // `getFacebookAppSecret()` already prefers.
   facebook: ["FACEBOOK_APP_SECRET", "META_APP_SECRET", "INSTAGRAM_APP_SECRET"],
+  // Threads App Secret
+  threads: ["THREADS_APP_SECRET", "META_APP_SECRET"],
 };
 
 /** Names of the variables a route will try — set or not. */

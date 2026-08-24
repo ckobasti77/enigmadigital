@@ -22,7 +22,11 @@ import {
  * is parsed, so there is no workspace to attribute a refusal to yet.
  */
 
-const routeValidator = v.union(v.literal("instagram"), v.literal("facebook"));
+const routeValidator = v.union(
+  v.literal("instagram"),
+  v.literal("facebook"),
+  v.literal("threads"),
+);
 
 /**
  * At most one failure write per route per minute (R1/5e).
@@ -108,7 +112,7 @@ export const status = query({
   handler: async (ctx) => {
     await requireMembership(ctx);
 
-    const routes: WebhookRoute[] = ["instagram", "facebook"];
+    const routes: WebhookRoute[] = ["instagram", "facebook", "threads"];
     const out = [];
     for (const route of routes) {
       const row = await ctx.db
