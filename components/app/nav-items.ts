@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import {
+  AtSign,
   Camera,
   GitMerge,
   LayoutDashboard,
@@ -63,6 +64,7 @@ export const navSections: NavSection[] = [
         icon: Users,
         range: true,
       },
+      { label: "Threads", href: "/threads", icon: AtSign, range: true, mobile: false },
       { label: "YouTube", href: "/youtube", icon: PlaySquare, range: true },
       { label: "Oglasi", href: "/ads", icon: Megaphone, range: true },
     ],
@@ -330,6 +332,9 @@ export const channelTabs: Record<string, readonly ChannelTab[]> = {
   "/facebook": [
     { href: "/facebook", label: "Pregled" },
     { href: "/facebook/komentari", label: "Komentari" },
+  ],
+  "/threads": [
+    { href: "/threads", label: "Pregled" },
   ],
   "/youtube": [
     { href: "/youtube", label: "Pregled" },

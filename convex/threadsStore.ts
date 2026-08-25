@@ -998,3 +998,431 @@ export const recordThreadsQuota = internalMutation({
   },
 });
 
+// ── Javni upiti za Threads kontrolnu tablu ───────────────────────────────────
+
+/**
+ * Pregled stanja naloga, poslednje sinhronizacije i kumulativnih metrika naloga (§5.4).
+ * Striktno čuva razliku između 0 (stvarna nula) i null (odsustvo podatka).
+ */
+export const accountOverview = query({
+  args: {
+    from: v.optional(v.string()),
+    to: v.optional(v.string()),
+  },
+  returns: v.object({
+    connected: v.boolean(),
+    username: v.union(v.string(), v.null()),
+    status: v.union(connectionStatusValidator, v.null()),
+    lastSync: v.union(
+      v.null(),
+      v.object({
+        startedAt: v.number(),
+        finishedAt: v.optional(v.number()),
+        status: v.union(v.literal("running"), v.literal("ok"), v.literal("error")),
+        error: v.optional(v.string()),
+        itemsWritten: v.number(),
+      }),
+    ),
+    // Metrike po nalogu (§5.4)
+    views: v.union(v.number(), v.null()),
+    dailyViews: v.array(
+      v.object({
+        date: v.string(),
+        views: v.union(v.number(), v.null()),
+      }),
+    ),
+    followersCount: v.union(v.number(), v.null()),
+    clicks: v.union(v.number(), v.null()),
+    replies: v.union(v.number(), v.null()),
+    quotes: v.union(v.number(), v.null()),
+    reposts: v.union(v.number(), v.null()),
+    likes: v.union(v.number(), v.null()),
+    totalsFetchedAt: v.union(v.number(), v.null()),
+  }),
+  handler: async (ctx, { from, to }) => {
+    const { workspaceId } = await requireMembership(ctx);
+
+    const connection = await ctx.db
+      .query("connections")
+      .withIndex("by_workspace_provider", (q) =>
+        q.eq("workspaceId", workspaceId).eq("provider", "threads"),
+      )
+      .first();
+
+    const connected = connection !== null && connection.status === "active";
+    const username = connection?.accountHandle ?? null;
+    const status = connection?.status ?? null;
+
+    const lastSyncRun = await ctx.db
+      .query("syncRuns")
+      .withIndex("by_workspace_provider", (q) =>
+        q.eq("workspaceId", workspaceId).eq("provider", "threads"),
+      )
+      .order("desc")
+      .first();
+
+    const lastSync = lastSyncRun
+      ? {
+          startedAt: lastSyncRun.startedAt,
+          finishedAt: lastSyncRun.finishedAt,
+          status: lastSyncRun.status,
+          error: lastSyncRun.error,
+          itemsWritten: lastSyncRun.itemsWritten,
+        }
+      : null;
+
+    // 1. Views iz threadsAccountDaily (jedina prava vremenska serija sa Threads API-ja)
+    const allDailyRows = await ctx.db
+      .query("threadsAccountDaily")
+      .withIndex("by_workspace_date", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+
+    const filteredDailyRows = allDailyRows
+      .filter((r) => {
+        if (from && r.date < from) return false;
+        if (to && r.date > to) return false;
+        return true;
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    let totalViews: number | null = null;
+    if (filteredDailyRows.length > 0) {
+      let sum = 0;
+      let hasAnyValue = false;
+      for (const row of filteredDailyRows) {
+        if (row.views !== undefined) {
+          sum += row.views;
+          hasAnyValue = true;
+        }
+      }
+      if (hasAnyValue) {
+        totalViews = sum;
+      }
+    }
+
+    const dailyViews = filteredDailyRows.map((r) => ({
+      date: r.date,
+      views: r.views !== undefined ? r.views : null,
+    }));
+
+    // 2. Followers count iz threadsFollowerSnapshots (najsvežiji snimak)
+    const latestSnapshot = await ctx.db
+      .query("threadsFollowerSnapshots")
+      .withIndex("by_workspace_date", (q) => q.eq("workspaceId", workspaceId))
+      .order("desc")
+      .first();
+
+    const followersCount =
+      latestSnapshot?.followersCount !== undefined
+        ? latestSnapshot.followersCount
+        : null;
+
+    // 3. Clicks iz threadsClicksByUrl za izabrani period
+    const allClicksRows = await ctx.db
+      .query("threadsClicksByUrl")
+      .withIndex("by_workspace_date", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+
+    const filteredClicks = allClicksRows.filter((r) => {
+      if (from && r.date < from) return false;
+      if (to && r.date > to) return false;
+      return true;
+    });
+
+    let totalClicks: number | null = null;
+    if (filteredClicks.length > 0) {
+      let sum = 0;
+      let hasAnyValue = false;
+      for (const row of filteredClicks) {
+        if (row.clicks !== undefined) {
+          sum += row.clicks;
+          hasAnyValue = true;
+        }
+      }
+      if (hasAnyValue) {
+        totalClicks = sum;
+      }
+    }
+
+    // 4. Totali naloga (likes, replies, quotes, reposts)
+    const totals = await ctx.db
+      .query("threadsAccountTotals")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .first();
+
+    return {
+      connected,
+      username,
+      status,
+      lastSync,
+      views: totalViews,
+      dailyViews,
+      followersCount,
+      clicks: totalClicks,
+      replies: totals?.replies !== undefined ? totals.replies : null,
+      quotes: totals?.quotes !== undefined ? totals.quotes : null,
+      reposts: totals?.reposts !== undefined ? totals.reposts : null,
+      likes: totals?.likes !== undefined ? totals.likes : null,
+      totalsFetchedAt: totals?.fetchedAt !== undefined ? totals.fetchedAt : null,
+    };
+  },
+});
+
+/**
+ * Istorija snimaka broja pratilaca iz threadsFollowerSnapshots za grafikon.
+ */
+export const followerHistory = query({
+  args: {
+    from: v.optional(v.string()),
+    to: v.optional(v.string()),
+  },
+  returns: v.array(
+    v.object({
+      date: v.string(),
+      takenAt: v.number(),
+      followersCount: v.union(v.number(), v.null()),
+    }),
+  ),
+  handler: async (ctx, { from, to }) => {
+    const { workspaceId } = await requireMembership(ctx);
+    const rows = await ctx.db
+      .query("threadsFollowerSnapshots")
+      .withIndex("by_workspace_date", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+
+    const filtered = rows
+      .filter((r) => {
+        if (from && r.date < from) return false;
+        if (to && r.date > to) return false;
+        return true;
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return filtered.map((r) => ({
+      date: r.date,
+      takenAt: r.takenAt,
+      followersCount: r.followersCount !== undefined ? r.followersCount : null,
+    }));
+  },
+});
+
+/**
+ * Lista Threads objava sa metrikama po objavi (§5.3).
+ * mediaType se čuva kao sirov string bez ikakvog mapiranja ili podrazumevanih vrednosti (B.7).
+ */
+export const mediaList = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("threadsPosts"),
+      mediaId: v.string(),
+      mediaType: v.string(),
+      mediaProductType: v.union(v.string(), v.null()),
+      text: v.union(v.string(), v.null()),
+      permalink: v.union(v.string(), v.null()),
+      timestamp: v.union(v.string(), v.null()),
+      username: v.union(v.string(), v.null()),
+      mediaUrl: v.union(v.string(), v.null()),
+      thumbnailUrl: v.union(v.string(), v.null()),
+      children: v.union(
+        v.array(
+          v.object({
+            id: v.string(),
+            mediaType: v.optional(v.string()),
+            mediaUrl: v.optional(v.string()),
+            thumbnailUrl: v.optional(v.string()),
+          }),
+        ),
+        v.null(),
+      ),
+      isQuotePost: v.union(v.boolean(), v.null()),
+      isReply: v.union(v.boolean(), v.null()),
+      hasReplies: v.union(v.boolean(), v.null()),
+      // Metrike po objavi (§5.3)
+      insights: v.union(
+        v.null(),
+        v.object({
+          date: v.string(),
+          views: v.union(v.number(), v.null()),
+          likes: v.union(v.number(), v.null()),
+          replies: v.union(v.number(), v.null()),
+          reposts: v.union(v.number(), v.null()),
+          quotes: v.union(v.number(), v.null()),
+          shares: v.union(v.number(), v.null()),
+        }),
+      ),
+      syncedAt: v.union(v.number(), v.null()),
+    }),
+  ),
+  handler: async (ctx, { limit = 50 }) => {
+    const { workspaceId } = await requireMembership(ctx);
+    const maxItems = limit > 0 ? Math.min(limit, 100) : 50;
+
+    const posts = await ctx.db
+      .query("threadsPosts")
+      .withIndex("by_workspace_timestamp", (q) =>
+        q.eq("workspaceId", workspaceId),
+      )
+      .order("desc")
+      .take(maxItems);
+
+    const results = [];
+    for (const post of posts) {
+      const insight = await ctx.db
+        .query("threadsPostInsights")
+        .withIndex("by_workspace_media", (q) =>
+          q.eq("workspaceId", workspaceId).eq("mediaId", post.mediaId),
+        )
+        .order("desc")
+        .first();
+
+      results.push({
+        _id: post._id,
+        mediaId: post.mediaId,
+        mediaType: post.mediaType,
+        mediaProductType: post.mediaProductType ?? null,
+        text: post.text ?? null,
+        permalink: post.permalink ?? null,
+        timestamp: post.timestamp ?? null,
+        username: post.username ?? null,
+        mediaUrl: post.mediaUrl ?? null,
+        thumbnailUrl: post.thumbnailUrl ?? null,
+        children: post.children ?? null,
+        isQuotePost: post.isQuotePost ?? null,
+        isReply: post.isReply ?? null,
+        hasReplies: post.hasReplies ?? null,
+        insights: insight
+          ? {
+              date: insight.date,
+              views: insight.views !== undefined ? insight.views : null,
+              likes: insight.likes !== undefined ? insight.likes : null,
+              replies: insight.replies !== undefined ? insight.replies : null,
+              reposts: insight.reposts !== undefined ? insight.reposts : null,
+              quotes: insight.quotes !== undefined ? insight.quotes : null,
+              shares: insight.shares !== undefined ? insight.shares : null,
+            }
+          : null,
+        syncedAt: post.syncedAt ?? null,
+      });
+    }
+
+    return results;
+  },
+});
+
+/**
+ * Demografski podaci o publici iz threadsDemographics.
+ * Obavezno poštuje limit od min 100 pratilaca (§5.4).
+ */
+export const demographicsSummary = query({
+  args: {},
+  returns: v.object({
+    state: v.union(
+      v.literal("value"),
+      v.literal("suppressed"),
+      v.literal("empty"),
+    ),
+    reason: v.optional(v.string()),
+    date: v.union(v.string(), v.null()),
+    takenAt: v.union(v.number(), v.null()),
+    ageGender: v.array(
+      v.object({
+        age: v.string(),
+        gender: v.string(),
+        value: v.number(),
+      }),
+    ),
+    countries: v.array(
+      v.object({
+        name: v.string(),
+        value: v.number(),
+      }),
+    ),
+    cities: v.array(
+      v.object({
+        name: v.string(),
+        value: v.number(),
+      }),
+    ),
+  }),
+  handler: async (ctx) => {
+    const { workspaceId } = await requireMembership(ctx);
+
+    const latestSnapshot = await ctx.db
+      .query("threadsFollowerSnapshots")
+      .withIndex("by_workspace_date", (q) => q.eq("workspaceId", workspaceId))
+      .order("desc")
+      .first();
+
+    const followersCount = latestSnapshot?.followersCount ?? 0;
+
+    const allDemo = await ctx.db
+      .query("threadsDemographics")
+      .withIndex("by_workspace_breakdown", (q) =>
+        q.eq("workspaceId", workspaceId),
+      )
+      .collect();
+
+    if (allDemo.length === 0) {
+      if (followersCount > 0 && followersCount < 100) {
+        return {
+          state: "suppressed" as const,
+          reason: `Threads demografija zahteva najmanje 100 pratilaca da bi bila dostupna (trenutno: ${followersCount}).`,
+          date: null,
+          takenAt: null,
+          ageGender: [],
+          countries: [],
+          cities: [],
+        };
+      }
+      return {
+        state: "empty" as const,
+        reason: "Nema zabeleženih demografskih podataka za Threads nalog.",
+        date: null,
+        takenAt: null,
+        ageGender: [],
+        countries: [],
+        cities: [],
+      };
+    }
+
+    const latestDate = allDemo.reduce(
+      (max, d) => (d.date > max ? d.date : max),
+      allDemo[0].date,
+    );
+    const latestRows = allDemo.filter((d) => d.date === latestDate);
+    const takenAt = latestRows[0]?.takenAt ?? null;
+
+    const ageGender: Array<{ age: string; gender: string; value: number }> = [];
+    const countries: Array<{ name: string; value: number }> = [];
+    const cities: Array<{ name: string; value: number }> = [];
+
+    for (const row of latestRows) {
+      const val = row.value ?? 0;
+      if (row.breakdown === "country") {
+        countries.push({ name: row.key, value: val });
+      } else if (row.breakdown === "city") {
+        cities.push({ name: row.key, value: val });
+      } else if (row.breakdown === "age" || row.breakdown === "gender") {
+        if (row.key.includes(".")) {
+          const [g, a] = row.key.split(".");
+          ageGender.push({ age: a, gender: g, value: val });
+        } else if (row.breakdown === "age") {
+          ageGender.push({ age: row.key, gender: "U", value: val });
+        }
+      }
+    }
+
+    return {
+      state: "value" as const,
+      date: latestDate,
+      takenAt,
+      ageGender,
+      countries,
+      cities,
+    };
+  },
+});
+
