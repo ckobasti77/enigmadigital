@@ -36,7 +36,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(settingsUrl);
   }
 
-  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  // `NEXT_PUBLIC_*` promenljive Next.js ubacuje u bundle pri build-u i NISU
+  // pouzdano dostupne u Route Handler-u u trenutku zahteva na Vercelu.
+  // Empirijski provereno 25.08.2026: bila je `undefined`, ruta je tiho ulazila u
+  // granu "nema koda" i nikada nije zvala Convex. Zato prvo serverska varijabla.
+  const convexUrl = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL;
 
   if (code && state && convexUrl) {
     try {

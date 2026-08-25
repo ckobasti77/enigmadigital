@@ -32,9 +32,32 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(settingsUrl);
   }
 
-  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  // `NEXT_PUBLIC_*` promenljive Next.js ubacuje u bundle pri build-u i NISU
+  // pouzdano dostupne u Route Handler-u u trenutku zahteva na Vercelu.
+  // Empirijski provereno 25.08.2026: bila je `undefined`, ruta je tiho ulazila u
+  // granu "nema koda" i nikada nije zvala Convex. Zato prvo serverska varijabla.
+  const convexUrl = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL;
 
-  if (!rawCode || !state || !convexUrl) {
+  // Tri različita uzroka NE SMEJU da dele jednu poruku — upravo zbog toga je ovaj
+  // kvar bio nevidljiv: nedostajao je `convexUrl`, a poruka je tvrdila da Meta nije
+  // vratila kod. Svaki uzrok se imenuje, i svaki se loguje na serveru, jer se query
+  // parametar gubi kad korisnika preusmeri na prijavu.
+  if (!convexUrl) {
+    console.error(
+      "[Threads OAuth callback] Convex URL nije definisan u okruženju. " +
+        "Postavi CONVEX_URL u Vercel env (Production).",
+    );
+    settingsUrl.searchParams.set(
+      "threads_error",
+      "Server nije podešen: nedostaje Convex URL. Javi administratoru.",
+    );
+    return NextResponse.redirect(settingsUrl);
+  }
+
+  if (!rawCode || !state) {
+    console.error(
+      "[Threads OAuth callback] Meta nije vratila code i/ili state parametar.",
+    );
     settingsUrl.searchParams.set(
       "threads_error",
       "Meta nije vratila autorizacioni kod ili state parametar. Pokreni povezivanje ponovo.",
