@@ -112,6 +112,7 @@ import type * as rules from "../rules.js";
 import type * as rulesStore from "../rulesStore.js";
 import type * as sync from "../sync.js";
 import type * as threads from "../threads.js";
+import type * as threadsAutomations from "../threadsAutomations.js";
 import type * as threadsPublish from "../threadsPublish.js";
 import type * as threadsPublishStore from "../threadsPublishStore.js";
 import type * as threadsReplies from "../threadsReplies.js";
@@ -245,6 +246,7 @@ declare const fullApi: ApiFromModules<{
   rulesStore: typeof rulesStore;
   sync: typeof sync;
   threads: typeof threads;
+  threadsAutomations: typeof threadsAutomations;
   threadsPublish: typeof threadsPublish;
   threadsPublishStore: typeof threadsPublishStore;
   threadsReplies: typeof threadsReplies;

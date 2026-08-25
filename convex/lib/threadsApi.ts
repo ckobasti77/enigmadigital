@@ -1305,3 +1305,74 @@ export async function deleteThreadsPost({
     },
   );
 }
+
+export const THREADS_MENTION_FIELDS =
+  "id,text,username,permalink,timestamp,media_type,media_url,shortcode,owner{id}";
+
+export const THREADS_MIN_MENTIONS_SINCE = 1688540400; // Threads launch epoch timestamp (5. jul 2023, §6)
+
+export interface RawThreadsMentionItem {
+  id: string;
+  text?: string;
+  username?: string;
+  permalink?: string;
+  timestamp?: string | number;
+  media_type?: string;
+  media_url?: string;
+  shortcode?: string;
+  owner?: { id?: string };
+}
+
+export interface RawThreadsMentionsResponse {
+  data?: RawThreadsMentionItem[];
+  paging?: {
+    cursors?: {
+      before?: string;
+      after?: string;
+    };
+    next?: string;
+  };
+}
+
+/**
+ * Čita javna spominjanja (mentions) našeg Threads naloga (§6).
+ * GET /{user-id}/mentions
+ *
+ * VAŽNO (§6):
+ *   - Koristi eksplicitni `{user-id}`, NIKADA `/me/mentions`.
+ *   - `since` mora biti ≥ 1688540400 (datum lansiranja Threads-a).
+ *   - Privatni nalozi se nikada ne vraćaju — to nije greška i ne sme se prijaviti kao greška.
+ */
+export async function getThreadsMentions({
+  accessToken,
+  userId,
+  since,
+  after,
+  limit = 50,
+  fields = THREADS_MENTION_FIELDS,
+}: {
+  accessToken: string;
+  userId: string;
+  since?: number;
+  after?: string;
+  limit?: number;
+  fields?: string;
+}): Promise<RawThreadsMentionsResponse> {
+  const effectiveSince =
+    since !== undefined
+      ? Math.max(since, THREADS_MIN_MENTIONS_SINCE)
+      : THREADS_MIN_MENTIONS_SINCE;
+
+  const params: Record<string, string> = {
+    fields,
+    since: String(effectiveSince),
+    limit: String(limit),
+  };
+  if (after) params.after = after;
+
+  return await threadsGet<RawThreadsMentionsResponse>(`${userId}/mentions`, {
+    accessToken,
+    params,
+  });
+}
+

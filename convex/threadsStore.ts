@@ -1,5 +1,7 @@
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
+
 import type { Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
 import { connectionStatusValidator } from "./lib/providers";
@@ -490,9 +492,21 @@ export const recordWebhookReply = internalMutation({
       });
     }
 
+    // Okidanje OpenReply procene pravila za Threads odgovore (TH8)
+    await ctx.scheduler.runAfter(
+      0,
+      internal.threadsAutomations.evaluateReplyTrigger,
+      {
+        workspaceId,
+        replyId: args.id,
+      },
+    );
+
     return null;
   },
 });
+
+
 
 
 // ── Pomoćne funkcije za konekciju ─────────────────────────────────────────────

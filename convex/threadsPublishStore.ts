@@ -389,6 +389,162 @@ export const createJob = mutation({
 });
 
 /**
+ * Interno kreiranje posla objavljivanja (koristi se iz threadsReplies i threadsAutomations).
+ */
+export const createJobDirect = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    userId: v.optional(v.id("users")),
+    mediaType: mediaTypeValidator,
+    text: v.optional(v.string()),
+    storageIds: v.optional(v.array(v.id("_storage"))),
+    scheduledFor: v.optional(v.number()),
+    replyToId: v.optional(v.string()),
+    replyControl: v.optional(replyControlValidator),
+    allowlistedCountryCodes: v.optional(v.array(v.string())),
+    altText: v.optional(v.string()),
+    linkAttachment: v.optional(v.string()),
+    quotePostId: v.optional(v.string()),
+    topicTag: v.optional(v.string()),
+    isSpoilerMedia: v.optional(v.boolean()),
+    isGhostPost: v.optional(v.boolean()),
+    enableReplyApprovals: v.optional(v.boolean()),
+    crossreshareToIg: v.optional(v.boolean()),
+    crossreshareToIgDarkMode: v.optional(v.boolean()),
+    locationId: v.optional(v.string()),
+    autoPublishText: v.optional(v.boolean()),
+    pollAttachment: v.optional(pollAttachmentValidator),
+  },
+  returns: v.id("threadsPublishJobs"),
+  handler: async (
+    ctx,
+    {
+      workspaceId,
+      userId,
+      mediaType,
+      text,
+      storageIds = [],
+      scheduledFor,
+      replyToId,
+      replyControl,
+      allowlistedCountryCodes,
+      altText,
+      linkAttachment,
+      quotePostId,
+      topicTag,
+      isSpoilerMedia,
+      isGhostPost,
+      enableReplyApprovals,
+      crossreshareToIg,
+      crossreshareToIgDarkMode,
+      locationId,
+      autoPublishText,
+      pollAttachment,
+    },
+  ) => {
+    const now = Date.now();
+
+    const countProblem = checkItemCount(mediaType, storageIds.length);
+    if (countProblem !== null) invalid(countProblem);
+
+    const trimmedText = text?.trim();
+    if (
+      mediaType === "TEXT" &&
+      (!trimmedText || trimmedText.length === 0) &&
+      !pollAttachment
+    ) {
+      invalid("Tekstualna objava mora imati tekst ili anketu.");
+    }
+
+    const textProblem = checkText({ mediaType, text: trimmedText });
+    if (textProblem !== null) invalid(textProblem);
+
+    const trimmedTopicTag = topicTag?.trim();
+    if (trimmedTopicTag) {
+      const tagProblem = checkTopicTag(trimmedTopicTag);
+      if (tagProblem !== null) invalid(tagProblem);
+    }
+
+    const trimmedLinkAttachment = linkAttachment?.trim();
+    if (trimmedLinkAttachment) {
+      const linkProblem = checkLinkAttachment({
+        mediaType,
+        linkAttachment: trimmedLinkAttachment,
+      });
+      if (linkProblem !== null) invalid(linkProblem);
+    }
+
+    if (pollAttachment) {
+      const pollProblem = checkPollAttachment({ mediaType, pollAttachment });
+      if (pollProblem !== null) invalid(pollProblem);
+    }
+
+    const trimmedReplyToId = replyToId?.trim();
+    const trimmedAltText = altText?.trim();
+    const trimmedQuotePostId = quotePostId?.trim();
+    const trimmedLocationId = locationId?.trim();
+    const dueAt = scheduledFor ?? now;
+
+    const jobId = await ctx.db.insert("threadsPublishJobs", {
+      workspaceId,
+      ...(userId ? { createdBy: userId } : {}),
+      createdAt: now,
+      updatedAt: now,
+      mediaType,
+      ...(trimmedText && trimmedText.length > 0 ? { text: trimmedText } : {}),
+      storageIds,
+      mediaUrls: storageIds.map(uploadUrlFor),
+      contentTypes: [],
+      ...(trimmedReplyToId && trimmedReplyToId.length > 0
+        ? { replyToId: trimmedReplyToId }
+        : {}),
+      ...(replyControl ? { replyControl } : {}),
+      ...(allowlistedCountryCodes && allowlistedCountryCodes.length > 0
+        ? { allowlistedCountryCodes }
+        : {}),
+      ...(trimmedAltText && trimmedAltText.length > 0
+        ? { altText: trimmedAltText }
+        : {}),
+      ...(trimmedLinkAttachment && trimmedLinkAttachment.length > 0
+        ? { linkAttachment: trimmedLinkAttachment }
+        : {}),
+      ...(trimmedQuotePostId && trimmedQuotePostId.length > 0
+        ? { quotePostId: trimmedQuotePostId }
+        : {}),
+      ...(trimmedTopicTag && trimmedTopicTag.length > 0
+        ? { topicTag: trimmedTopicTag }
+        : {}),
+      ...(isSpoilerMedia !== undefined ? { isSpoilerMedia } : {}),
+      ...(isGhostPost !== undefined ? { isGhostPost } : {}),
+      ...(enableReplyApprovals !== undefined ? { enableReplyApprovals } : {}),
+      ...(crossreshareToIg !== undefined ? { crossreshareToIg } : {}),
+      ...(crossreshareToIgDarkMode !== undefined
+        ? { crossreshareToIgDarkMode }
+        : {}),
+      ...(trimmedLocationId && trimmedLocationId.length > 0
+        ? { locationId: trimmedLocationId }
+        : {}),
+      ...(autoPublishText !== undefined ? { autoPublishText } : {}),
+      ...(pollAttachment ? { pollAttachment } : {}),
+      scheduledFor: dueAt,
+      status: "queued",
+      attempts: 0,
+    });
+
+    if (scheduledFor === undefined) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.threadsPublish.runPublishJob,
+        { jobId },
+      );
+    }
+
+    return jobId;
+  },
+});
+
+
+/**
  * Proverava da li već postoji aktivna objava sa istim skupom fajlova.
  */
 async function hasLiveJobWithSameFiles(

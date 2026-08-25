@@ -971,12 +971,28 @@ const THREADS_STEPS: PurgeStep[] = [
       .query("threadsQuota")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
   ),
+  simple("threadsAutomations", (ctx, ws) =>
+    ctx.db
+      .query("threadsAutomations")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("threadsProcessedReplies", (ctx, ws) =>
+    ctx.db
+      .query("threadsProcessedReplies")
+      .withIndex("by_workspace_reply", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("threadsAutomationLogs", (ctx, ws) =>
+    ctx.db
+      .query("threadsAutomationLogs")
+      .withIndex("by_workspace_created", (q) => q.eq("workspaceId", ws)),
+  ),
   {
     tables: ["threadsPublishJobs", "threadsPublishFiles"],
     run: drainThreadsPublishJobs,
   },
   { tables: ["threadsPublishUploads"], run: drainThreadsPublishUploads },
 ];
+
 
 const META_ADS_STEPS: PurgeStep[] = [
   {
@@ -1125,8 +1141,12 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   threadsPublishJobs: { purgedBy: ["threads"] },
   threadsPublishUploads: { purgedBy: ["threads"] },
   threadsPublishFiles: { purgedBy: ["threads"] },
+  threadsAutomations: { purgedBy: ["threads"] },
+  threadsProcessedReplies: { purgedBy: ["threads"] },
+  threadsAutomationLogs: { purgedBy: ["threads"] },
 
   // ── YouTube (YA2 / Y2-Y10) ────────────────────────────────────────────────
+
   ytDailyTotals: { purgedBy: ["youtube"] },
   ytVideoStats: { purgedBy: ["youtube"] },
   ytTrafficSources: { purgedBy: ["youtube"] },

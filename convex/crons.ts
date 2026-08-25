@@ -158,7 +158,19 @@ crons.interval(
   internal.threadsPublishStore.sweepExpiredUploads,
   {},
 );
+// Threads mentions polling (TH8): provera spominjanja našeg naloga na svakih 15 minuta.
+// Obrazloženje izbora intervala prema §8 (Rate limits):
+// Opšti budžet za Threads iznosi 4.800 × broj impresija (minimum 48.000) poziva na 24h.
+// Poziv GET /{user-id}/mentions troši opšti budžet, a interval od 15 minuta donosi 96 poziva na 24h
+// po nalogu (<0.2% ukupnog budžeta), što pruža brz odziv za OpenReply bez rizika od opterećenja kvote.
+crons.interval(
+  "poll threads mentions",
+  { minutes: 15 },
+  internal.threadsAutomations.pollAllThreadsMentions,
+  {},
+);
 // ── Meta: the three-level schedule (F6) ─────────────────────────────────────
+
 //
 // Level 1 is not here — it is triggered by the webhook, in `http.ts`.
 //

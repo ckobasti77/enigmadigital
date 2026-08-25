@@ -2699,8 +2699,9 @@ export default defineSchema({
   // objava stala i zbog čega nije otišla.
   threadsPublishJobs: defineTable({
     workspaceId: v.id("workspaces"),
-    createdBy: v.id("users"),
+    createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
+
     updatedAt: v.number(),
     // Tip objave na Threads-u (§4.2). TEXT nema medije, IMAGE/VIDEO tačno jedan,
     // CAROUSEL od 2 do 20 slajdova.
@@ -2815,6 +2816,97 @@ export default defineSchema({
   })
     .index("by_storage", ["storageId"])
     .index("by_job", ["jobId"]),
+
+  // ── Threads Automations (OpenReply za Threads — TH8) ────────────────────────
+  threadsAutomations: defineTable({
+    workspaceId: v.id("workspaces"),
+    name: v.string(),
+    // Okidači podržani u ovoj fazi (keyword search je TH14 jer traži App Review)
+    trigger: v.union(v.literal("reply_to_our_post"), v.literal("mention")),
+    keywords: v.array(v.string()), // lista ključnih reči
+    matchType: v.union(v.literal("exact"), v.literal("contains")), // podudaranje tačno / sadrži
+    caseSensitive: v.boolean(), // razlikovanje malih/velikih slova
+    matchAnyKeyword: v.boolean(), // true = bilo koja ključna reč, false = sve
+    matchAnyPost: v.boolean(), // true = bilo koja objava, false = samo `postId`
+    postId: v.optional(v.string()),
+    // Akcije
+    actionType: v.union(
+      v.literal("public_reply"),
+      v.literal("hide"),
+      v.literal("ignore"),
+      v.literal("approve_pending"),
+    ),
+    replyText: v.optional(v.string()), // Javni odgovor (tekst)
+    linkUrl: v.optional(v.string()), // Opcioni praćeni link uz javni odgovor
+    topicTag: v.optional(v.string()),
+    autoPublishText: v.optional(v.boolean()),
+    // OBAVEZNI zaštitni parametri iz upozorenja na kraju §9:
+    mode: v.union(v.literal("draft"), v.literal("live")), // draft je jedina dozvoljena početna vrednost
+    dailyLimit: v.number(), // Maksimalan broj akcija u 24h po pravilu
+    cooldownMinutesPerAuthor: v.number(), // Pauza pre ponovnog gađanja istog autora
+    maxRepliesPerThread: v.number(), // Maksimalan broj odgovora unutar iste niti/objave
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_active", ["workspaceId", "isActive"])
+    .index("by_workspace_trigger", ["workspaceId", "trigger"]),
+
+  // Evidencija obrađenih odgovora i spominjanja (sprečava višestruko okidanje nad istim autorom/odgovorom)
+  threadsProcessedReplies: defineTable({
+    workspaceId: v.id("workspaces"),
+    automationId: v.optional(v.id("threadsAutomations")),
+    replyId: v.string(), // ID komentara/odgovora/mentions-a
+    // OPCION namerno. Threads ne vrati uvek autora; upisivati string
+    // "unknown_author" značilo bi izmisliti identitet i strpati sve
+    // neidentifikovane autore u jednu kofu ovog indeksa. Odsustvo polja je
+    // jedini iskren zapis „ne znamo ko je“.
+    authorId: v.optional(v.string()),
+    rootPostId: v.optional(v.string()),
+    trigger: v.union(v.literal("reply_to_our_post"), v.literal("mention")),
+    actionType: v.string(),
+    mode: v.union(v.literal("draft"), v.literal("live")),
+    processedAt: v.number(),
+  })
+    .index("by_workspace_reply", ["workspaceId", "replyId"])
+    .index("by_workspace_author", ["workspaceId", "authorId"])
+    .index("by_workspace_author_time", ["workspaceId", "authorId", "processedAt"])
+    .index("by_workspace_root_post", ["workspaceId", "rootPostId"])
+    .index("by_workspace_automation", ["workspaceId", "automationId"]),
+
+  // Revizioni log evaluacije i izvršavanja Threads automatizacija
+  threadsAutomationLogs: defineTable({
+    workspaceId: v.id("workspaces"),
+    automationId: v.optional(v.id("threadsAutomations")),
+    trigger: v.union(v.literal("reply_to_our_post"), v.literal("mention")),
+    sourceReplyId: v.string(),
+    rootPostId: v.optional(v.string()),
+    authorId: v.optional(v.string()), // vidi threadsProcessedReplies.authorId
+    matchedKeyword: v.optional(v.string()),
+    mode: v.union(v.literal("draft"), v.literal("live")),
+    actionType: v.string(),
+    status: v.union(
+      v.literal("executed"),
+      v.literal("draft_simulated"),
+      v.literal("rejected_limit"),
+      v.literal("rejected_cooldown"),
+      v.literal("rejected_thread_limit"),
+      v.literal("failed"),
+      v.literal("skipped_no_match"),
+    ),
+    reason: v.optional(v.string()), // npr. "daily_limit_reached", "cooldown_active", "thread_limit_reached", "quota_exhausted", "api_error"
+    errorMessage: v.optional(v.string()),
+    jobId: v.optional(v.id("threadsPublishJobs")),
+    date: v.string(), // "YYYY-MM-DD" UTC
+    createdAt: v.number(),
+  })
+    .index("by_workspace_created", ["workspaceId", "createdAt"])
+    .index("by_workspace_automation", ["workspaceId", "automationId"])
+    .index("by_workspace_status", ["workspaceId", "status"])
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_reply", ["workspaceId", "sourceReplyId"]),
+
 
   // ── Brisanje preuzetih podataka (P3) ────────────────────────────────────────
   //
