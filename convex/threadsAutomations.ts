@@ -372,9 +372,10 @@ async function executeLiveAction(
     automation: Doc<"threadsAutomations">;
     replyId: string;
     rootPostId?: string;
-    authorId: string;
+    authorId?: string;
     matchedKeyword?: string;
     date: string;
+
   },
 ) {
   const {
