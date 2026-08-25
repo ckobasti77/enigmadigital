@@ -1248,6 +1248,60 @@ export function computeBreakdownHash(
   return parts.sort().join("|");
 }
 
+// ── Known Platforms and Placements (uključujući Threads — §10.1) ────────────
+
+/** Poznate Meta publisher platforme (uključujući Threads od 2026) */
+export const KNOWN_PUBLISHER_PLATFORMS = [
+  "facebook",
+  "instagram",
+  "threads",
+  "audience_network",
+  "messenger",
+] as const;
+
+/** Poznate pozicije po platformi */
+export const KNOWN_PLATFORM_POSITIONS: Record<string, readonly string[]> = {
+  threads: ["threads_stream"],
+  instagram: [
+    "stream",
+    "story",
+    "explore",
+    "reels",
+    "profile_feed",
+    "explore_home",
+    "ig_search",
+  ],
+  facebook: [
+    "feed",
+    "story",
+    "right_hand_column",
+    "marketplace",
+    "search",
+    "instream_video",
+    "reels",
+    "video_feeds",
+    "profile_feed",
+    "facebook_reels_overlay",
+  ],
+  messenger: ["messenger_home", "sponsored_messages", "story"],
+  audience_network: ["classic", "instream_video", "rewarded_video"],
+};
+
+/**
+ * Proverava da li je kombinacija platforme i pozicije poznata u sistemu.
+ * Ako nije poznata, placement se ipak čuva pod originalnim imenom, uz console.warn.
+ */
+export function isKnownPlacement(
+  platform?: string,
+  placement?: string,
+): boolean {
+  if (!platform) return false;
+  const knownPositions = KNOWN_PLATFORM_POSITIONS[platform.toLowerCase()];
+  if (!knownPositions) return false;
+  if (!placement) return true;
+  return knownPositions.includes(placement.toLowerCase());
+}
+
 // ── Types for Raw Graph API Responses ───────────────────────────────────────
 
 export interface RawActionValue {

@@ -18,6 +18,7 @@ import {
   validateCampaignInput,
   validateAdSetInput,
   validateAdInput,
+  validateThreadsPlacement,
   evaluateCreateBudgetGate,
   getMetaAdsMaxDailyBudget,
   buildCampaignParams,
@@ -917,6 +918,7 @@ const creativeArgValidator = v.union(
     kind: v.literal("link"),
     pageId: v.string(),
     instagramActorId: v.optional(v.string()),
+    threadsUserId: v.optional(v.string()),
     link: v.string(),
     message: v.string(),
     name: v.optional(v.string()),
@@ -972,7 +974,7 @@ function toCampaignInput(c: CampaignArg): CampaignCreateInput {
   };
 }
 
-function toAdSetInput(s: AdSetArg): AdSetCreateInput {
+function toAdSetInput(s: AdSetArg, campaignObjective?: string): AdSetCreateInput {
   return {
     name: s.name,
     dailyBudget: s.dailyBudget,
@@ -980,11 +982,21 @@ function toAdSetInput(s: AdSetArg): AdSetCreateInput {
     optimizationGoal: s.optimizationGoal,
     targeting: (s.targeting ?? {}) as Record<string, unknown>,
     promotedObject: s.promotedObject,
+    campaignObjective,
   };
 }
 
-function toAdInput(a: AdArg, adSetCreatedInThisFlow: boolean): AdCreateInput {
-  return { name: a.name, creative: a.creative, adSetCreatedInThisFlow };
+function toAdInput(
+  a: AdArg,
+  adSetCreatedInThisFlow: boolean,
+  targeting?: Record<string, unknown>,
+): AdCreateInput {
+  return {
+    name: a.name,
+    creative: a.creative,
+    adSetCreatedInThisFlow,
+    targeting,
+  };
 }
 
 function errMessage(e: unknown): string {
@@ -1198,14 +1210,15 @@ export const createCampaignFull = action({
 
     // 3. Mapiranje ulaza
     const campaignInput = toCampaignInput(args.campaign);
-    const adSetInput = toAdSetInput(args.adSet);
-    const adInput = toAdInput(args.ad, true);
+    const adSetInput = toAdSetInput(args.adSet, campaignInput.objective);
+    const adInput = toAdInput(args.ad, true, adSetInput.targeting);
 
     // 4. Sloj A — kod-validacije PRE mreže (fail-fast)
     try {
       validateCampaignInput(campaignInput);
       validateAdSetInput(adSetInput);
       validateAdInput(adInput);
+      validateThreadsPlacement(campaignInput.objective, adSetInput.targeting, adInput.creative);
     } catch (e) {
       throw new ConvexError({ code: "validation_error", message: errMessage(e) });
     }
@@ -1415,8 +1428,8 @@ export const validateCampaignPlan = action({
     const account = await resolveMetaAccount(ctx, workspaceId, args.accountExternalId);
 
     const campaignInput = toCampaignInput(args.campaign);
-    const adSetInput = toAdSetInput(args.adSet);
-    const adInput = toAdInput(args.ad, true);
+    const adSetInput = toAdSetInput(args.adSet, campaignInput.objective);
+    const adInput = toAdInput(args.ad, true, adSetInput.targeting);
 
     const campaign: ValidateCampaignPlanResult["campaign"] = { codeOk: true };
     const adSet: ValidateCampaignPlanResult["adSet"] = { codeOk: true };
@@ -1439,6 +1452,14 @@ export const validateCampaignPlan = action({
     } catch (e) {
       ad.codeOk = false;
       ad.error = errMessage(e);
+    }
+    if (adSet.codeOk) {
+      try {
+        validateThreadsPlacement(campaignInput.objective, adSetInput.targeting, adInput.creative);
+      } catch (e) {
+        adSet.codeOk = false;
+        adSet.error = errMessage(e);
+      }
     }
 
     const { minBudget, limitCurrency } = getBudgetBounds();

@@ -39,6 +39,7 @@ import {
   parseRateLimitHeaders,
   classifyMetaError,
   computeBreakdownHash,
+  isKnownPlacement,
   extractConversionResults,
   extractConversionValue,
   extractVideoActionCount,
@@ -391,6 +392,9 @@ async function fetchInsights(
 
 // ── Transform Insight Row Helper ─────────────────────────────────────────────
 
+/** Nepoznati placement-i o kojima je ovaj isolate već upozorio (vidi dole). */
+const warnedUnknownPlacements = new Set<string>();
+
 function transformInsightRow(
   raw: RawAdInsightRow,
   adId: Id<"ads">,
@@ -438,17 +442,35 @@ function transformInsightRow(
     ? parseHourlyString(raw.hourly_stats_aggregated_by_audience_time_zone)
     : undefined;
 
+  const platform = raw.publisher_platform;
+  const placement = raw.platform_position;
+
+  if (platform || placement) {
+    if (!isKnownPlacement(platform, placement)) {
+      // Jedno upozorenje po JEDINSTVENOJ kombinaciji, ne po redu: sync ume da
+      // vrati hiljade redova sa istim nepoznatim placement-om i tada se
+      // upozorenje utopi u sopstvenom ponavljanju.
+      const key = `${platform ?? ""}|${placement ?? ""}`;
+      if (!warnedUnknownPlacements.has(key)) {
+        warnedUnknownPlacements.add(key);
+        console.warn(
+          `[Meta Ads Sync] Nepoznat placement sa Meta API-ja: publisher_platform="${platform ?? ""}", platform_position="${placement ?? ""}". Beleži se pod originalnim imenom.`,
+        );
+      }
+    }
+  }
+
   const breakdown =
     raw.age ||
     raw.gender ||
-    raw.publisher_platform ||
-    raw.platform_position ||
+    platform ||
+    placement ||
     raw.device_platform
       ? {
           age: raw.age,
           gender: raw.gender,
-          platform: raw.publisher_platform,
-          placement: raw.platform_position,
+          platform,
+          placement,
           device: raw.device_platform,
         }
       : undefined;

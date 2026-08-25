@@ -88,6 +88,44 @@ export const CALL_TO_ACTION_TYPES = [
   "NO_BUTTON",
 ] as const;
 
+/** Dozvoljene platforme za placement (Meta Marketing API v25) */
+export const ALLOWED_PUBLISHER_PLATFORMS = [
+  "facebook",
+  "instagram",
+  "threads",
+  "audience_network",
+  "messenger",
+] as const;
+export type PublisherPlatform = (typeof ALLOWED_PUBLISHER_PLATFORMS)[number];
+
+/** Jedina postojeća vrednost za threads_positions (§10.1) */
+export const ALLOWED_THREADS_POSITIONS = ["threads_stream"] as const;
+
+/**
+ * Ciljevi kampanje podržani za Threads placement (§10.1):
+ * Reach, Traffic, Website Conversions, App Installs.
+ * U Meta ODAX terminologiji:
+ * - OUTCOME_AWARENESS (Reach)
+ * - OUTCOME_TRAFFIC (Traffic)
+ * - OUTCOME_SALES (Website Conversions)
+ * - OUTCOME_APP_PROMOTION (App Installs)
+ * (takođe podržani legacy nazivi REACH, TRAFFIC, CONVERSIONS, APP_INSTALLS)
+ */
+export const THREADS_ALLOWED_OBJECTIVES = [
+  "OUTCOME_AWARENESS",
+  "OUTCOME_TRAFFIC",
+  "OUTCOME_SALES",
+  "OUTCOME_APP_PROMOTION",
+  "REACH",
+  "TRAFFIC",
+  "CONVERSIONS",
+  "APP_INSTALLS",
+] as const;
+
+export function isObjectiveAllowedForThreads(objective: string): boolean {
+  return (THREADS_ALLOWED_OBJECTIVES as readonly string[]).includes(objective);
+}
+
 /**
  * Kompatibilnost `billing_event → optimization_goal`.
  *
@@ -154,6 +192,8 @@ export interface AdSetCreateInput {
   promotedObject?: PromotedObjectInput;
   /** ISO string; obavezan kada je zadat lifetimeBudget. */
   endTime?: string;
+  /** Opciono: cilj roditeljske kampanje za proveru kompatibilnosti placementa. */
+  campaignObjective?: string;
 }
 
 export type AdCreativeInput =
@@ -162,6 +202,12 @@ export type AdCreativeInput =
       kind: "link";
       pageId: string;
       instagramActorId?: string;
+      /**
+       * threads_user_id u object_story_spec je KO SE PRIKAZUJE KAO AUTOR oglasa
+       * na Threads platformi, a NE referenca na Threads objavu.
+       * (Threads oglas se NE MOŽE napraviti iz postojećeg posta — §10.1).
+       */
+      threadsUserId?: string;
       link: string;
       message: string;
       name?: string;
@@ -180,6 +226,8 @@ export interface AdCreateInput {
    * mi kreirali".
    */
   adSetCreatedInThisFlow: boolean;
+  /** Opciono: ciljanje ad seta za proveru Threads ograničenja na kreativ */
+  targeting?: Record<string, unknown>;
 }
 
 // ── Validacije (bacaju Error na srpskom, PRE mreže) ─────────────────────────
@@ -255,10 +303,12 @@ export function validateAdSetInput(input: AdSetCreateInput): void {
     );
   }
 
-  const geo =
+  const targeting =
     input.targeting && typeof input.targeting === "object"
-      ? (input.targeting as Record<string, unknown>).geo_locations
+      ? (input.targeting as Record<string, unknown>)
       : undefined;
+
+  const geo = targeting ? targeting.geo_locations : undefined;
   const hasGeo =
     geo !== undefined &&
     geo !== null &&
@@ -267,6 +317,95 @@ export function validateAdSetInput(input: AdSetCreateInput): void {
     throw new Error(
       "Ciljanje (targeting) mora sadržati bar geografske lokacije (geo_locations).",
     );
+  }
+
+  if (targeting) {
+    // 1. effective_threads_positions je READ-ONLY — nikada se ne šalje u zahtevu.
+    if (
+      "effective_threads_positions" in targeting &&
+      targeting.effective_threads_positions !== undefined
+    ) {
+      throw new Error(
+        "Polje „effective_threads_positions” je read-only parametar koji Meta vraća u odgovorima i ne sme se slati u zahtevu za kreiranje ad seta.",
+      );
+    }
+
+    const platforms = Array.isArray(targeting.publisher_platforms)
+      ? (targeting.publisher_platforms as string[])
+      : undefined;
+
+    const hasThreads = platforms && platforms.includes("threads");
+
+    if (hasThreads) {
+      // 2. Threads se NE kupuje sam: instagram mora biti u publisher_platforms
+      if (!platforms.includes("instagram")) {
+        throw new Error(
+          "Threads placement se ne može kupiti samostalno: ako je „threads” u publisher_platforms, „instagram” mora takođe biti izabran.",
+        );
+      }
+
+      // instagram_positions mora sadržati "stream"
+      const igPositions = Array.isArray(targeting.instagram_positions)
+        ? (targeting.instagram_positions as string[])
+        : [];
+      if (!igPositions.includes("stream")) {
+        throw new Error(
+          "Za Threads placement obavezna je i Instagram stream pozicija: instagram_positions mora sadržati „stream”.",
+        );
+      }
+
+      // 3. Provera cilja kampanje (§10.1: Reach, Traffic, Website Conversions, App Installs)
+      //
+      // Bez prosleđenog cilja provera se NE MOŽE izvesti. Ne obaramo zahtev —
+      // Advantage+ tok legitimno ume da ne nosi cilj na ovom nivou — ali se
+      // preskočena provera beleži, da „nismo proverili" ne izgleda kao
+      // „provereno i u redu".
+      if (!input.campaignObjective) {
+        console.warn(
+          "[Meta Ads] Threads placement je zatražen, ali cilj kampanje nije prosleđen — provera dozvoljenih ciljeva (§10.1) je PRESKOČENA, ne i položena.",
+        );
+      }
+
+      if (input.campaignObjective) {
+        if (!isObjectiveAllowedForThreads(input.campaignObjective)) {
+          throw new Error(
+            `Threads placement nije podržan za cilj kampanje „${input.campaignObjective}”. Podržani ciljevi su: Reach (OUTCOME_AWARENESS), Traffic (OUTCOME_TRAFFIC), Website Conversions (OUTCOME_SALES) i App Installs (OUTCOME_APP_PROMOTION).`,
+          );
+        }
+      }
+    }
+
+    // 4. threads_positions bez „threads" u publisher_platforms Meta TIHO
+    //    ignoriše — ad set se napravi, operater misli da Threads radi, a
+    //    Threads se nikada ne prikaže. Nema poruke greške koja bi to otkrila,
+    //    pa je ovo jedino mesto gde se može uhvatiti.
+    if (targeting.threads_positions !== undefined && !hasThreads) {
+      throw new Error(
+        "Zadate su threads_positions, ali „threads” nije u publisher_platforms. Meta bi takav zahtev prihvatila i tiho ignorisala Threads — dodaj „threads” u publisher_platforms ili ukloni threads_positions.",
+      );
+    }
+
+    // 5. threads_positions prima ISKLJUČIVO ["threads_stream"]
+    if (targeting.threads_positions !== undefined) {
+      if (!Array.isArray(targeting.threads_positions)) {
+        throw new Error(
+          "threads_positions mora biti niz koji sadrži isključivo „threads_stream”.",
+        );
+      }
+      const threadPositions = targeting.threads_positions as unknown[];
+      if (threadPositions.length === 0) {
+        throw new Error(
+          "threads_positions ne sme biti prazan niz. Jedina dozvoljena vrednost je [\"threads_stream\"].",
+        );
+      }
+      for (const pos of threadPositions) {
+        if (pos !== "threads_stream") {
+          throw new Error(
+            `Neispravna Threads pozicija „${String(pos)}”. Jedina dozvoljena vrednost za threads_positions je [\"threads_stream\"].`,
+          );
+        }
+      }
+    }
   }
 
   if (isConversionOptimizationGoal(input.optimizationGoal)) {
@@ -315,6 +454,19 @@ export function validateAdInput(input: AdCreateInput): void {
       "Oglas mora imati kreativ sa validnim object_story_spec ili object_story_id.",
     );
   }
+
+  // Threads oglas se NE MOŽE napraviti iz postojeće objave (§10.1).
+  if (input.targeting && typeof input.targeting === "object") {
+    const platforms = Array.isArray(input.targeting.publisher_platforms)
+      ? (input.targeting.publisher_platforms as string[])
+      : undefined;
+    if (platforms && platforms.includes("threads") && c.kind === "existing_post") {
+      throw new Error(
+        "Threads oglas se ne može napraviti iz postojeće objave (object_story_id nije dozvoljen uz Threads placement). Kreirajte novi oglas kroz link/object_story_spec.",
+      );
+    }
+  }
+
   if (c.kind === "existing_post") {
     if (!c.objectStoryId || !c.objectStoryId.trim()) {
       throw new Error(
@@ -351,6 +503,38 @@ export function validateAdInput(input: AdCreateInput): void {
     throw new Error(
       "Oglas mora imati kreativ sa validnim object_story_spec ili object_story_id.",
     );
+  }
+}
+
+/**
+ * Kompletna validacija Threads placement ograničenja (§10.1, §10.3).
+ * Proverava kompatibilnost cilja kampanje, placement konfiguracije i kreativa.
+ */
+export function validateThreadsPlacement(
+  campaignObjective?: string,
+  targeting?: Record<string, unknown>,
+  creative?: AdCreativeInput,
+): void {
+  if (!targeting || typeof targeting !== "object") return;
+
+  const platforms = Array.isArray(targeting.publisher_platforms)
+    ? (targeting.publisher_platforms as string[])
+    : undefined;
+
+  const hasThreads = platforms && platforms.includes("threads");
+
+  if (hasThreads) {
+    if (campaignObjective && !isObjectiveAllowedForThreads(campaignObjective)) {
+      throw new Error(
+        `Threads placement nije podržan za cilj kampanje „${campaignObjective}”. Podržani ciljevi su: Reach (OUTCOME_AWARENESS), Traffic (OUTCOME_TRAFFIC), Website Conversions (OUTCOME_SALES) i App Installs (OUTCOME_APP_PROMOTION).`,
+      );
+    }
+
+    if (creative && creative.kind === "existing_post") {
+      throw new Error(
+        "Threads oglas se ne može napraviti iz postojeće objave (object_story_id nije dozvoljen uz Threads placement). Kreirajte novi oglas kroz link/object_story_spec.",
+      );
+    }
   }
 }
 
@@ -497,7 +681,10 @@ export function buildAdSetParams(
   params.set("billing_event", input.billingEvent);
   params.set("optimization_goal", input.optimizationGoal);
   params.set("bid_strategy", "LOWEST_COST_WITHOUT_CAP");
-  params.set("targeting", JSON.stringify(input.targeting ?? {}));
+  // effective_threads_positions je READ-ONLY — nikada se ne šalje ka Meti
+  const targetingPayload = input.targeting ? { ...input.targeting } : {};
+  delete (targetingPayload as Record<string, unknown>).effective_threads_positions;
+  params.set("targeting", JSON.stringify(targetingPayload));
   params.set("start_time", startTimeIso);
   if (input.endTime && input.endTime.trim()) {
     params.set("end_time", input.endTime.trim());
@@ -547,6 +734,14 @@ export function buildCreativeObject(creative: AdCreativeInput): Record<string, u
   };
   if (creative.instagramActorId && creative.instagramActorId.trim()) {
     spec.instagram_actor_id = creative.instagramActorId.trim();
+  }
+  /**
+   * threads_user_id u object_story_spec je KO SE PRIKAZUJE KAO AUTOR oglasa
+   * na Threads platformi, a NE referenca na Threads objavu.
+   * (Threads oglas se NE MOŽE napraviti iz postojećeg posta — §10.1).
+   */
+  if (creative.threadsUserId && creative.threadsUserId.trim()) {
+    spec.threads_user_id = creative.threadsUserId.trim();
   }
   return { object_story_spec: spec };
 }

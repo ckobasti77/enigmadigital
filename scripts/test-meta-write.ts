@@ -3,17 +3,21 @@ import {
   validateCampaignInput,
   validateAdSetInput,
   validateAdInput,
+  validateThreadsPlacement,
+  isObjectiveAllowedForThreads,
   evaluateCreateBudgetGate,
   getMetaAdsMaxDailyBudget,
   buildCampaignParams,
   buildAdSetParams,
   buildAdParams,
+  buildCreativeObject,
   runCreateWithValidateOnly,
   type CampaignCreateInput,
   type AdSetCreateInput,
   type AdCreateInput,
   type CreateFetchImpl,
 } from "../convex/lib/metaAdsWrite";
+import { isKnownPlacement } from "../convex/lib/metaAdsApi";
 
 // ── Fiksture ─────────────────────────────────────────────────────────────────
 
@@ -325,7 +329,224 @@ async function runTests() {
   }
   console.log("  ✓ Pad provere → nema pravog poziva; prolaz → validate pa pravi (id)");
 
-  console.log("\n✅ SVI TESTOVI ZA META PISANJE (MA8) SU USPEŠNO PROŠLI!\n");
+  // ── Test 10: Threads placement pravila u targeting-u ─────────────────────
+  console.log("\n[Test 10] Threads placement pravila (§10.1):");
+  // 10a. threads_positions prima ISKLJUČIVO ["threads_stream"]
+  assert.throws(
+    () =>
+      validateAdSetInput({
+        ...validAdSet,
+        targeting: {
+          geo_locations: { countries: ["RS"] },
+          publisher_platforms: ["instagram", "threads"],
+          instagram_positions: ["stream"],
+          threads_positions: ["stream"], // loša pozicija
+        },
+      }),
+    /Jedina dozvoljena vrednost za threads_positions je \["threads_stream"\]/i,
+    "threads_positions van threads_stream mora baciti grešku",
+  );
+  assert.throws(
+    () =>
+      validateAdSetInput({
+        ...validAdSet,
+        targeting: {
+          geo_locations: { countries: ["RS"] },
+          publisher_platforms: ["instagram", "threads"],
+          instagram_positions: ["stream"],
+          threads_positions: [], // prazan niz
+        },
+      }),
+    /threads_positions ne sme biti prazan niz/i,
+    "Prazan threads_positions mora baciti grešku",
+  );
+  // 10b. Threads se NE kupuje sam: bez instagrama baca
+  assert.throws(
+    () =>
+      validateAdSetInput({
+        ...validAdSet,
+        targeting: {
+          geo_locations: { countries: ["RS"] },
+          publisher_platforms: ["threads"], // samo threads
+          threads_positions: ["threads_stream"],
+        },
+      }),
+    /Threads placement se ne može kupiti samostalno.*instagram.*mora/i,
+    "Kupovina Threads placement-a bez Instagrama mora baciti grešku",
+  );
+  // 10c. Bez instagram stream pozicije baca
+  assert.throws(
+    () =>
+      validateAdSetInput({
+        ...validAdSet,
+        targeting: {
+          geo_locations: { countries: ["RS"] },
+          publisher_platforms: ["instagram", "threads"],
+          instagram_positions: ["story"], // nema stream
+          threads_positions: ["threads_stream"],
+        },
+      }),
+    /instagram_positions mora sadržati „stream”/i,
+    "Instagram bez stream pozicije uz Threads mora baciti grešku",
+  );
+  // 10d. Ispravna kombinacija prolazi
+  assert.doesNotThrow(
+    () =>
+      validateAdSetInput({
+        ...validAdSet,
+        targeting: {
+          geo_locations: { countries: ["RS"] },
+          publisher_platforms: ["instagram", "threads"],
+          instagram_positions: ["stream"],
+          threads_positions: ["threads_stream"],
+        },
+      }),
+    "Ispravan Threads placement mora proći validaciju",
+  );
+  console.log("  ✓ threads_positions=['threads_stream'] jedino dozvoljeno; Threads bez IG ili IG stream-a odbijen");
+
+  // ── Test 11: effective_threads_positions je READ-ONLY ────────────────────
+  console.log("\n[Test 11] effective_threads_positions je read-only:");
+  assert.throws(
+    () =>
+      validateAdSetInput({
+        ...validAdSet,
+        targeting: {
+          geo_locations: { countries: ["RS"] },
+          effective_threads_positions: ["threads_stream"],
+        },
+      }),
+    /effective_threads_positions.*read-only/i,
+    "Slanje effective_threads_positions u ad set inputu mora baciti grešku",
+  );
+  // buildAdSetParams nikada ne šalje effective_threads_positions
+  const threadsAdSetParams = buildAdSetParams(
+    {
+      ...validAdSet,
+      targeting: {
+        geo_locations: { countries: ["RS"] },
+        publisher_platforms: ["instagram", "threads"],
+        instagram_positions: ["stream"],
+        threads_positions: ["threads_stream"],
+        effective_threads_positions: ["threads_stream"],
+      },
+    },
+    "camp_123",
+    START_TIME,
+  );
+  const targetingJson = JSON.parse(threadsAdSetParams.get("targeting")!);
+  assert.strictEqual(
+    targetingJson.effective_threads_positions,
+    undefined,
+    "buildAdSetParams mora ukloniti effective_threads_positions pre serijalizacije",
+  );
+  console.log("  ✓ effective_threads_positions se odbija u validaciji i čisti pre slanja ka Meti");
+
+  // ── Test 12: identitet oglasa i zabrana postojećeg posta ──────────────────
+  console.log("\n[Test 12] Identitet oglasa i zabrana postojećeg posta (§10.1):");
+  // 12a. threads_user_id se upisuje u object_story_spec kao autor
+  const creativeObj = buildCreativeObject({
+    kind: "link",
+    pageId: "fb_page_1",
+    instagramActorId: "ig_actor_1",
+    threadsUserId: "threads_user_123",
+    link: "https://example.rs",
+    message: "Promo tekst",
+    callToActionType: "LEARN_MORE",
+  });
+  const spec = (creativeObj as { object_story_spec: Record<string, unknown> }).object_story_spec;
+  assert.strictEqual(
+    spec.threads_user_id,
+    "threads_user_123",
+    "threads_user_id mora biti postavljen u object_story_spec kao autor",
+  );
+  assert.strictEqual(spec.page_id, "fb_page_1");
+  assert.strictEqual(spec.instagram_actor_id, "ig_actor_1");
+
+  // 12b. object_story_id se NE MOŽE koristiti za Threads oglas
+  assert.throws(
+    () =>
+      validateAdInput({
+        name: "Threads oglas iz posta",
+        creative: { kind: "existing_post", objectStoryId: "123_456" },
+        adSetCreatedInThisFlow: true,
+        targeting: {
+          geo_locations: { countries: ["RS"] },
+          publisher_platforms: ["instagram", "threads"],
+          instagram_positions: ["stream"],
+          threads_positions: ["threads_stream"],
+        },
+      }),
+    /Threads oglas se ne može napraviti iz postojeće objave/i,
+    "Promocija postojećeg posta za Threads placement mora biti odbijena sa jasnom porukom",
+  );
+  assert.throws(
+    () =>
+      validateThreadsPlacement(
+        "OUTCOME_TRAFFIC",
+        {
+          publisher_platforms: ["instagram", "threads"],
+          instagram_positions: ["stream"],
+        },
+        { kind: "existing_post", objectStoryId: "123_456" },
+      ),
+    /Threads oglas se ne može napraviti iz postojeće objave/i,
+    "validateThreadsPlacement mora odbiti existing_post uz threads placement",
+  );
+  console.log("  ✓ threads_user_id postavljen u object_story_spec; existing_post uz Threads odbijen");
+
+  // ── Test 13: validacija cilja kampanje uz Threads placement ──────────────
+  console.log("\n[Test 13] Validacija cilja kampanje za Threads (§10.1):");
+  // Dozvoljeni ciljevi: OUTCOME_AWARENESS, OUTCOME_TRAFFIC, OUTCOME_SALES, OUTCOME_APP_PROMOTION
+  assert.ok(isObjectiveAllowedForThreads("OUTCOME_AWARENESS"));
+  assert.ok(isObjectiveAllowedForThreads("OUTCOME_TRAFFIC"));
+  assert.ok(isObjectiveAllowedForThreads("OUTCOME_SALES"));
+  assert.ok(isObjectiveAllowedForThreads("OUTCOME_APP_PROMOTION"));
+  // Nedozvoljeni: OUTCOME_ENGAGEMENT, OUTCOME_LEADS
+  assert.ok(!isObjectiveAllowedForThreads("OUTCOME_ENGAGEMENT"));
+  assert.ok(!isObjectiveAllowedForThreads("OUTCOME_LEADS"));
+
+  assert.throws(
+    () =>
+      validateAdSetInput({
+        ...validAdSet,
+        campaignObjective: "OUTCOME_ENGAGEMENT",
+        targeting: {
+          geo_locations: { countries: ["RS"] },
+          publisher_platforms: ["instagram", "threads"],
+          instagram_positions: ["stream"],
+          threads_positions: ["threads_stream"],
+        },
+      }),
+    /Threads placement nije podržan za cilj kampanje „OUTCOME_ENGAGEMENT”/i,
+    "Nedozvoljen cilj kampanje uz Threads placement mora baciti grešku",
+  );
+  assert.doesNotThrow(
+    () =>
+      validateAdSetInput({
+        ...validAdSet,
+        campaignObjective: "OUTCOME_TRAFFIC",
+        targeting: {
+          geo_locations: { countries: ["RS"] },
+          publisher_platforms: ["instagram", "threads"],
+          instagram_positions: ["stream"],
+          threads_positions: ["threads_stream"],
+        },
+      }),
+    "Dozvoljen cilj kampanje (OUTCOME_TRAFFIC) uz Threads placement mora proći",
+  );
+  console.log("  ✓ OUTCOME_AWARENESS/TRAFFIC/SALES/APP_PROMOTION prolaze; OUTCOME_ENGAGEMENT/LEADS odbijeni");
+
+  // ── Test 14: prepoznavanje poznatih placement-a (isKnownPlacement) ────────
+  console.log("\n[Test 14] Prepoznavanje poznatih placement-a:");
+  assert.ok(isKnownPlacement("threads", "threads_stream"), "threads::threads_stream je poznat");
+  assert.ok(isKnownPlacement("instagram", "stream"), "instagram::stream je poznat");
+  assert.ok(isKnownPlacement("facebook", "feed"), "facebook::feed je poznat");
+  assert.ok(!isKnownPlacement("threads", "unknown_pos"), "threads::unknown_pos je nepoznat");
+  assert.ok(!isKnownPlacement("tiktok", "feed"), "tiktok je nepoznata platforma");
+  console.log("  ✓ threads_stream i standardni placementi prepoznati; nepoznati prijavljuju false za console.warn");
+
+  console.log("\n✅ SVI TESTOVI ZA META PISANJE I THREADS PLACEMENT SU USPEŠNO PROŠLI!\n");
 }
 
 runTests().catch((err) => {
