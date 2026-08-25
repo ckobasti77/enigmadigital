@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import {
   AtSign,
@@ -9,14 +9,17 @@ import {
   Clock,
   Eye,
   Heart,
+  LayoutDashboard,
   Link2,
   MessageCircle,
   Quote,
   RefreshCw,
   Repeat2,
+  Send,
   TriangleAlert,
   Unplug,
   Users,
+  Zap,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Reveal } from "@/components/motion/reveal";
@@ -31,6 +34,7 @@ import {
   TimelineChart,
   TimelineChartSkeleton,
 } from "@/components/app/timeline-chart";
+import { TabNav, TabPanel } from "@/components/app/tab-nav";
 import { Card } from "@/components/ui/card";
 import { formatNumber, formatRelativeTime } from "@/lib/format";
 import { ThreadsFollowsChart } from "./threads-follows-chart";
@@ -40,13 +44,20 @@ import {
 } from "./threads-content-grid";
 import { ThreadsDemographicsTable } from "./threads-demographics-table";
 import { ThreadsAttributionSection } from "./threads-attribution-section";
+import { ThreadsComposer } from "./threads-composer";
+import { ThreadsJobsPanel } from "./threads-jobs-panel";
+import { ThreadsRepliesModeration } from "./threads-replies-moderation";
+import { ThreadsAutomations } from "./threads-automations";
+
+type ThreadsTab = "overview" | "publish" | "moderation" | "automations";
 
 /**
  * Threads Dashboard.
- * Prikazuje stanje naloga, metrike po nalogu (§5.4), istoriju pratilaca,
- * mrežu objava sa metrikama po objavi (§5.3), demografiju i atribuciju klikova (§10.2).
+ * Integrisan pregled analitike, kompozera objava sa redom poslova,
+ * moderacije odgovora i pravila automatizacije (OpenReply).
  */
 export function ThreadsDashboard() {
+  const [tab, setTab] = useState<ThreadsTab>("overview");
   const { range } = useDateRange();
 
   const overview = useQuery(api.threadsStore.accountOverview, {
@@ -169,110 +180,156 @@ export function ThreadsDashboard() {
         </Card>
       </Reveal>
 
-      {/* ── Metrike po nalogu (§5.4) — 6 zasebnih kartica ─────────────────── */}
-      <Reveal delay={0.05}>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          {/* 1. Prikazi (views) */}
-          <StatTile
-            label="Prikazi (views)"
-            value={overview.views ?? undefined}
-            format={formatNumber}
-            note="Dnevna serija u periodu"
-            icon={Eye}
-          />
+      {/* ── Navigacija kroz sekcije kanala (TabNav) ───────────────────────── */}
+      <TabNav
+        tabs={[
+          { id: "overview", label: "Pregled i analitika", icon: LayoutDashboard },
+          { id: "publish", label: "Objavljivanje", icon: Send },
+          { id: "moderation", label: "Moderacija odgovora", icon: MessageCircle },
+          { id: "automations", label: "Automatizacije (OpenReply)", icon: Zap },
+        ]}
+        active={tab}
+        onChange={setTab}
+        panelId="threads-channel-panel"
+      />
 
-          {/* 2. Pratioci (followers_count) */}
-          <StatTile
-            label="Pratioci"
-            value={overview.followersCount ?? undefined}
-            format={formatNumber}
-            note="Trenutno stanje na nalogu"
-            icon={Users}
-          />
+      <TabPanel id="threads-channel-panel">
+        {tab === "overview" && (
+          <div className="flex flex-col gap-8">
+            {/* ── Metrike po nalogu (§5.4) — 6 zasebnih kartica ─────────────────── */}
+            <Reveal delay={0.05}>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+                {/* 1. Prikazi (views) */}
+                <StatTile
+                  label="Prikazi (views)"
+                  value={overview.views ?? undefined}
+                  format={formatNumber}
+                  note="Dnevna serija u periodu"
+                  icon={Eye}
+                />
 
-          {/* 3. Klikovi na linkove (clicks) */}
-          <StatTile
-            label="Klikovi na linkove"
-            value={overview.clicks ?? undefined}
-            format={formatNumber}
-            note="Zabeleženo u Threads-u"
-            icon={Link2}
-          />
+                {/* 2. Pratioci (followers_count) */}
+                <StatTile
+                  label="Pratioci"
+                  value={overview.followersCount ?? undefined}
+                  format={formatNumber}
+                  note="Trenutno stanje na nalogu"
+                  icon={Users}
+                />
 
-          {/* 4. Odgovori (replies) */}
-          <StatTile
-            label="Ukupno odgovora"
-            value={overview.replies ?? undefined}
-            format={formatNumber}
-            note="Kumulativno na nalogu"
-            icon={MessageCircle}
-          />
+                {/* 3. Klikovi na linkove (clicks) */}
+                <StatTile
+                  label="Klikovi na linkove"
+                  value={overview.clicks ?? undefined}
+                  format={formatNumber}
+                  note="Zabeleženo u Threads-u"
+                  icon={Link2}
+                />
 
-          {/* 5. Citati (quotes) */}
-          <StatTile
-            label="Ukupno citata"
-            value={overview.quotes ?? undefined}
-            format={formatNumber}
-            note="Kumulativno na nalogu"
-            icon={Quote}
-          />
+                {/* 4. Odgovori (replies) */}
+                <StatTile
+                  label="Ukupno odgovora"
+                  value={overview.replies ?? undefined}
+                  format={formatNumber}
+                  note="Kumulativno na nalogu"
+                  icon={MessageCircle}
+                />
 
-          {/* 6. Repostovi (reposts) */}
-          <StatTile
-            label="Ukupno repostova"
-            value={overview.reposts ?? undefined}
-            format={formatNumber}
-            note="Kumulativno na nalogu"
-            icon={Repeat2}
-          />
-        </div>
-      </Reveal>
+                {/* 5. Citati (quotes) */}
+                <StatTile
+                  label="Ukupno citata"
+                  value={overview.quotes ?? undefined}
+                  format={formatNumber}
+                  note="Kumulativno na nalogu"
+                  icon={Quote}
+                />
 
-      {/* ── Vremenska serija prikaza i Istorija pratilaca ─────────────────── */}
-      <Reveal delay={0.1}>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Prikazi kroz vreme */}
-          <TimelineChart
-            dates={overview.dailyViews.map((d) => d.date)}
-            syncId="threads-dashboard-views"
-            area={{
-              label: "Prikazi (views)",
-              color: "var(--color-accent-400)",
-              values: overview.dailyViews.map((d) => d.views),
-              format: formatNumber,
-              baseline: "zero",
-            }}
-            emptyReason="Threads API beleži preglede po danu; nema zabeleženih prikaza u izabranom periodu."
-          />
+                {/* 6. Repostovi (reposts) */}
+                <StatTile
+                  label="Ukupno repostova"
+                  value={overview.reposts ?? undefined}
+                  format={formatNumber}
+                  note="Kumulativno na nalogu"
+                  icon={Repeat2}
+                />
+              </div>
+            </Reveal>
 
-          {/* Istorija pratilaca iz snimaka */}
-          <ThreadsFollowsChart snapshots={followerHistory} />
-        </div>
-      </Reveal>
+            {/* ── Vremenska serija prikaza i Istorija pratilaca ─────────────────── */}
+            <Reveal delay={0.1}>
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                {/* Prikazi kroz vreme */}
+                <TimelineChart
+                  dates={overview.dailyViews.map((d) => d.date)}
+                  syncId="threads-dashboard-views"
+                  area={{
+                    label: "Prikazi (views)",
+                    color: "var(--color-accent-400)",
+                    values: overview.dailyViews.map((d) => d.views),
+                    format: formatNumber,
+                    baseline: "zero",
+                  }}
+                  emptyReason="Threads API beleži preglede po danu; nema zabeleženih prikaza u izabranom periodu."
+                />
 
-      {/* ── Mreža objava (§5.3) ─────────────────────────────────────────── */}
-      <Reveal delay={0.15}>
-        <ThreadsContentGrid media={media} />
-      </Reveal>
+                {/* Istorija pratilaca iz snimaka */}
+                <ThreadsFollowsChart snapshots={followerHistory} />
+              </div>
+            </Reveal>
 
-      {/* ── Demografija pratilaca (§5.4) ─────────────────────────────────── */}
-      <Reveal delay={0.2}>
-        <ThreadsDemographicsTable
-          state={demographics.state}
-          reason={demographics.reason}
-          ageGender={demographics.ageGender}
-          countries={demographics.countries}
-          cities={demographics.cities}
-        />
-      </Reveal>
+            {/* ── Mreža objava (§5.3) ─────────────────────────────────────────── */}
+            <Reveal delay={0.15}>
+              <ThreadsContentGrid media={media} />
+            </Reveal>
 
-      {/* ── Atribucija linkova i levak poseta (§10.2) ────────────────────── */}
-      <Reveal delay={0.25}>
-        <ThreadsAttributionSection
-          attributionSummary={attribution}
-          unmatchedUrls={unmatchedUrls}
-        />
-      </Reveal>
+            {/* ── Demografija pratilaca (§5.4) ─────────────────────────────────── */}
+            <Reveal delay={0.2}>
+              <ThreadsDemographicsTable
+                state={demographics.state}
+                reason={demographics.reason}
+                ageGender={demographics.ageGender}
+                countries={demographics.countries}
+                cities={demographics.cities}
+              />
+            </Reveal>
+
+            {/* ── Atribucija linkova i levak poseta (§10.2) ────────────────────── */}
+            <Reveal delay={0.25}>
+              <ThreadsAttributionSection
+                attributionSummary={attribution}
+                unmatchedUrls={unmatchedUrls}
+              />
+            </Reveal>
+          </div>
+        )}
+
+        {tab === "publish" && (
+          <div className="flex flex-col gap-8">
+            <Reveal>
+              <ThreadsComposer />
+            </Reveal>
+            <Reveal delay={0.05}>
+              <ThreadsJobsPanel />
+            </Reveal>
+          </div>
+        )}
+
+        {tab === "moderation" && (
+          <div className="flex flex-col gap-8">
+            <Reveal>
+              <ThreadsRepliesModeration />
+            </Reveal>
+          </div>
+        )}
+
+        {tab === "automations" && (
+          <div className="flex flex-col gap-8">
+            <Reveal>
+              <ThreadsAutomations />
+            </Reveal>
+          </div>
+        )}
+      </TabPanel>
     </div>
   );
 }
