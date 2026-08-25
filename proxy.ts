@@ -48,7 +48,14 @@ export const config = {
   // covers exactly /privacy and anything beneath it, and cannot quietly open a
   // future /privacy-settings route along with it.
   //
-  // BOTH callbacks are FULLY excluded (not just early-returned in
+  // Threads (TH2) was added to both matcher entries on 25.08.2026 after exactly
+  // the failure this comment predicts: the callback carried Meta's `?code=`,
+  // the middleware claimed it as a Convex Auth sign-in code, and the browser
+  // landed on /login — the route handler never ran and Convex never saw the
+  // exchange. Any FUTURE provider callback must be added here too, in BOTH
+  // entries, or it fails the same silent way.
+  //
+  // ALL callbacks are FULLY excluded (not just early-returned in
   // the handler) because convexAuthNextjsMiddleware itself intercepts any
   // request carrying a `?code=` query param and tries to verify it as a
   // Convex Auth sign-in code — swallowing Meta's authorization code and
@@ -56,10 +63,10 @@ export const config = {
   // the whole exchange server-side via the one-time `state` nonce, so it needs
   // no auth context from the middleware.
   matcher: [
-    "/((?!.*\\..*|_next|api/auth/callback/instagram|api/auth/callback/facebook|api/auth/callback/youtube|r/|privacy(?:$|/)|cookies(?:$|/)).*)",
+    "/((?!.*\\..*|_next|api/auth/callback/instagram|api/auth/callback/facebook|api/auth/callback/youtube|api/auth/callback/threads|r/|privacy(?:$|/)|cookies(?:$|/)).*)",
     "/",
     // Two lookaheads rather than one alternation: Next refuses a capturing
     // group inside a matcher, and `(instagram|facebook)` is one.
-    "/(api|trpc)((?!/auth/callback/instagram)(?!/auth/callback/facebook)(?!/auth/callback/youtube).*)",
+    "/(api|trpc)((?!/auth/callback/instagram)(?!/auth/callback/facebook)(?!/auth/callback/youtube)(?!/auth/callback/threads).*)",
   ],
 };
