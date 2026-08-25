@@ -144,6 +144,20 @@ crons.interval(
   internal.instagramPublishStore.sweepExpiredUploads,
   {},
 );
+// Threads objavljivanje poslova: provera reda svakog minuta za dospele i zaglavljene objave.
+crons.interval(
+  "publish scheduled threads posts",
+  { minutes: 1 },
+  internal.threadsPublishStore.enqueueDueJobs,
+  {},
+);
+// Oslobađanje diska od fajlova završenih i napuštenih Threads objava posle 24h.
+crons.interval(
+  "sweep threads upload files",
+  { hours: 1 },
+  internal.threadsPublishStore.sweepExpiredUploads,
+  {},
+);
 // ── Meta: the three-level schedule (F6) ─────────────────────────────────────
 //
 // Level 1 is not here — it is triggered by the webhook, in `http.ts`.

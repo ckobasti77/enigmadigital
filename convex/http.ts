@@ -1591,4 +1591,77 @@ http.route({
   }),
 });
 
+// Route 6 — GET: Threads upload source (/threads-upload/<storageId>)
+//
+// Meta fetcher preuzima fajlove za kreiranje Threads medijskih kontejnera sa ove
+// javne rute. Autorizacija se vrši preko threadsPublishFiles tabele.
+const THREADS_UPLOAD_CACHE_HEADER = "private, max-age=600";
+
+http.route({
+  pathPrefix: "/threads-upload/",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const raw = new URL(request.url).pathname
+      .slice("/threads-upload/".length)
+      .split("/")[0]
+      .trim();
+    if (raw.length === 0) {
+      return new Response("Fajl nije pronađen.", { status: 404 });
+    }
+
+    const storageId = decodeURIComponent(raw) as Id<"_storage">;
+
+    let authorized: { contentType: string | null } | null;
+    try {
+      authorized = await ctx.runQuery(
+        internal.threadsUploadAccess.authorizeUpload,
+        { storageId },
+      );
+    } catch {
+      return new Response("Fajl nije pronađen.", { status: 404 });
+    }
+    if (authorized === null) {
+      return new Response("Fajl nije pronađen.", { status: 404 });
+    }
+
+    const blob: Blob | null = await ctx.storage.get(storageId);
+    if (blob === null) {
+      return new Response("Fajl nije pronađen.", { status: 404 });
+    }
+
+    const contentType =
+      blob.type.length > 0
+        ? blob.type
+        : (authorized.contentType ?? "application/octet-stream");
+
+    const size = blob.size;
+    const range = parseRange(request.headers.get("range"), size);
+
+    if (range === null) {
+      return new Response(blob, {
+        status: 200,
+        headers: {
+          "Content-Type": contentType,
+          "Content-Length": String(size),
+          "Accept-Ranges": "bytes",
+          "Cache-Control": THREADS_UPLOAD_CACHE_HEADER,
+        },
+      });
+    }
+
+    const slice = blob.slice(range.start, range.end + 1);
+    return new Response(slice, {
+      status: 206,
+      headers: {
+        "Content-Type": contentType,
+        "Content-Length": String(range.end - range.start + 1),
+        "Content-Range": `bytes ${range.start}-${range.end}/${size}`,
+        "Accept-Ranges": "bytes",
+        "Cache-Control": THREADS_UPLOAD_CACHE_HEADER,
+      },
+    });
+  }),
+});
+
 export default http;
+

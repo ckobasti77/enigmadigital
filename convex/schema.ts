@@ -2687,6 +2687,135 @@ export default defineSchema({
     fetchedAt: v.number(),
   }).index("by_workspace", ["workspaceId"]),
 
+  // ── Threads objavljivanje: red poslova i praćenje stanja ─────────────────────
+  //
+  // Objavljivanje na Threads je asinhroni dvokoračni proces (ili trokoračni za
+  // Carousel): kreiranje kontejnera (ili više child kontejnera) -> čekanje na obradu
+  // (status FINISHED) -> slanje threads_publish zahteva. Kontejner na Meta strani
+  // živi 24h. Sve faze ovog toka se čuvaju u bazi kako bi cron i akcije mogli da
+  // nastave rad bez obzira na osvežavanje ili zatvaranje stranice u browseru.
+  //
+  // Redovi se nikada ne brišu pri neuspehu: operater mora da vidi na kom je koraku
+  // objava stala i zbog čega nije otišla.
+  threadsPublishJobs: defineTable({
+    workspaceId: v.id("workspaces"),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    // Tip objave na Threads-u (§4.2). TEXT nema medije, IMAGE/VIDEO tačno jedan,
+    // CAROUSEL od 2 do 20 slajdova.
+    mediaType: v.union(
+      v.literal("TEXT"),
+      v.literal("IMAGE"),
+      v.literal("VIDEO"),
+      v.literal("CAROUSEL"),
+    ),
+    // Tekstualni sadržaj objave. Do 500 karaktera (broji se u UTF-8 bajtovima zbog emojija).
+    text: v.optional(v.string()),
+    // Fajlovi u Convex storage-u poređani tačno po redosledu slajdova (prazan niz za TEXT).
+    storageIds: v.array(v.id("_storage")),
+    // Javne adrese `/threads-upload/<storageId>` sa kojih Meta preuzima fajlove.
+    mediaUrls: v.array(v.string()),
+    contentTypes: v.array(v.string()),
+    // Opcioni parametri za Threads objave (§4.2)
+    replyToId: v.optional(v.string()), // ID objave na koju se odgovara
+    replyControl: v.optional(
+      v.union(
+        v.literal("everyone"),
+        v.literal("accounts_you_follow"),
+        v.literal("mentioned_only"),
+        v.literal("parent_post_author_only"),
+        v.literal("followers_only"),
+      ),
+    ),
+    allowlistedCountryCodes: v.optional(v.array(v.string())), // Geo-gating po ISO 3166-1 alpha-2
+    altText: v.optional(v.string()), // Pristupačnost za medije (max 1000 karaktera, samo uz medij)
+    linkAttachment: v.optional(v.string()), // URL link prilog (samo text-only objave)
+    quotePostId: v.optional(v.string()), // Citiranje druge Threads objave
+    topicTag: v.optional(v.string()), // Jedan tag po objavi (1-50 karaktera, bez . i &)
+    isSpoilerMedia: v.optional(v.boolean()), // Zamućenje medija (samo IMAGE/VIDEO/CAROUSEL)
+    isGhostPost: v.optional(v.boolean()), // Post koji se automatski arhivira posle 24h
+    enableReplyApprovals: v.optional(v.boolean()), // Zahteva odobrenje odgovora
+    crossreshareToIg: v.optional(v.boolean()), // Automatski cross-share na Instagram Story
+    crossreshareToIgDarkMode: v.optional(v.boolean()), // Tamna tema za Instagram Story preview
+    locationId: v.optional(v.string()), // ID lokacije iz GET /location_search
+    autoPublishText: v.optional(v.boolean()), // Preskače publish korak za jednostavne tekstualne objave
+    // Anketa sa 2 do 4 opcije (Dodatak A.1). Dozvoljena samo uz tekstualne objave.
+    pollAttachment: v.optional(
+      v.object({
+        option_a: v.string(),
+        option_b: v.string(),
+        option_c: v.optional(v.string()),
+        option_d: v.optional(v.string()),
+      }),
+    ),
+    // ID glavnog Meta kontejnera dobijen iz POST /{user-id}/threads
+    containerId: v.optional(v.string()),
+    // ID-jevi child kontejnera za Carousel slajdove (čuvaju se redom kako se prave)
+    childContainerIds: v.optional(v.array(v.string())),
+    // Trenutak kada je kontejner poslat na obradu. Rok za čekanje teče odavde.
+    processingSince: v.optional(v.number()),
+    // Zakazano vreme objave (epoch ms).
+    scheduledFor: v.optional(v.number()),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("queued"),
+      v.literal("uploading"),
+      // Upisuje se PRE slanja POST /{user-id}/threads_publish poziva kako bi u slučaju
+      // prekida mreže sledeći prolaz proverio stanje na Meta serveru umesto duplog slanja.
+      v.literal("publishing"),
+      v.literal("processing"),
+      v.literal("published"),
+      v.literal("failed"),
+      v.literal("canceled"),
+    ),
+    attempts: v.number(),
+    // Vreme kada je akcija preuzela posao. Sprečava da se posao tretira kao aktivan ako je akcija umrla.
+    claimedAt: v.optional(v.number()),
+    // Vreme slanja threads_publish poziva (služi kao zaključavanje protiv dvostrukog objavljivanja).
+    publishStartedAt: v.optional(v.number()),
+    // Fence token iz claimJob funkcije — sprečava trku između dva konkurentna procesa.
+    runToken: v.optional(v.string()),
+    error: v.optional(v.string()),
+    publishedMediaId: v.optional(v.string()),
+    // Postoji na profilu ali ID nije mogao biti potvrđen
+    mediaIdUnconfirmed: v.optional(v.boolean()),
+    publishedAt: v.optional(v.number()),
+    // Vreme brisanja fajlova iz storage-a (nakon objave ili kroz 24h sweep).
+    filesDeletedAt: v.optional(v.number()),
+  })
+    .index("by_workspace_status", ["workspaceId", "status"])
+    .index("by_status_scheduled", ["status", "scheduledFor"])
+    .index("by_pending_files_created", ["filesDeletedAt", "createdAt"])
+    .index("by_status_claimed", ["status", "claimedAt"]),
+
+  // ── Threads objavljivanje: privremeno evidentirani uploadovani fajlovi ───────
+  //
+  // Pre nego što se posao (job) kreira, browser uploaduje fajl u storage i saznaje storageId.
+  // Ovaj red zatvara prazninu između uploada i poziva createJob. Kada createJob uspe,
+  // red se briše. Ako kreiranje ne uspe ili korisnik odustane, 24h sweep čisti siročiće.
+  threadsPublishUploads: defineTable({
+    workspaceId: v.id("workspaces"),
+    storageId: v.id("_storage"),
+    createdAt: v.number(),
+  })
+    .index("by_storage", ["storageId"])
+    .index("by_created", ["createdAt"])
+    .index("by_workspace", ["workspaceId"]),
+
+  // ── Threads objavljivanje: mapa fajla ka poslu za autorizaciju rute ──────────
+  //
+  // Javna ruta `/threads-upload/<storageId>` mora brzo da proveri da li fajl pripada
+  // aktivnom poslu objavljivanja pre serviranja bajtova Meta fetcher-u.
+  // Prisustvo reda ovde jeste autorizacija.
+  threadsPublishFiles: defineTable({
+    workspaceId: v.id("workspaces"),
+    storageId: v.id("_storage"),
+    jobId: v.id("threadsPublishJobs"),
+  })
+    .index("by_storage", ["storageId"])
+    .index("by_job", ["jobId"]),
+
   // ── Brisanje preuzetih podataka (P3) ────────────────────────────────────────
   //
   // One row per erasure of one provider's data from one workspace. It exists

@@ -85,15 +85,25 @@ export async function threadsPost<T>(
   path: string,
   {
     accessToken,
+    params,
     body,
     version = THREADS_API_VERSION,
   }: {
     accessToken: string;
+    params?: Record<string, string>;
     body?: unknown;
     version?: string;
   },
 ): Promise<T> {
-  const url = buildThreadsUrl(path, version);
+  const base = buildThreadsUrl(path, version);
+  const url = new URL(base);
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null && value !== "") {
+        url.searchParams.set(key, value);
+      }
+    }
+  }
   const headers = buildThreadsHeaders(accessToken);
   let requestBody: string | undefined;
 
@@ -101,7 +111,7 @@ export async function threadsPost<T>(
     requestBody = typeof body === "string" ? body : JSON.stringify(body);
   }
 
-  const res = await fetch(url, {
+  const res = await fetch(url.toString(), {
     method: "POST",
     headers,
     body: requestBody,
@@ -114,6 +124,46 @@ export async function threadsPost<T>(
 
   return (await res.json()) as T;
 }
+
+/**
+ * Tipizovani DELETE poziv ka Threads API-ju.
+ */
+export async function threadsDelete<T>(
+  path: string,
+  {
+    accessToken,
+    params,
+    version = THREADS_API_VERSION,
+  }: {
+    accessToken: string;
+    params?: Record<string, string>;
+    version?: string;
+  },
+): Promise<T> {
+  const base = buildThreadsUrl(path, version);
+  const url = new URL(base);
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null && value !== "") {
+        url.searchParams.set(key, value);
+      }
+    }
+  }
+  const headers = buildThreadsHeaders(accessToken);
+
+  const res = await fetch(url.toString(), {
+    method: "DELETE",
+    headers,
+  });
+
+  if (!res.ok) {
+    const bodyText = await res.text().catch(() => "");
+    throw new Error(extractThreadsApiError(bodyText, res.status));
+  }
+
+  return (await res.json()) as T;
+}
+
 
 /**
  * Korak 2 OAuth toka (odeljak 3.2):
@@ -800,4 +850,238 @@ export async function getThreadsPublishingLimit({
   userId: string;
 }): Promise<ThreadsPublishingLimit> {
   return await getThreadsPublishingLimitDetailed({ accessToken, userId });
+}
+
+// ── Objavljivanje i upravljanje objavama (§4.1, §4.2, §4.4) ─────────────────
+
+export interface CreateThreadsContainerParams {
+  media_type: "TEXT" | "IMAGE" | "VIDEO" | "CAROUSEL";
+  text?: string;
+  image_url?: string;
+  video_url?: string;
+  is_carousel_item?: boolean;
+  children?: string;
+  reply_to_id?: string;
+  reply_control?:
+    | "everyone"
+    | "accounts_you_follow"
+    | "mentioned_only"
+    | "parent_post_author_only"
+    | "followers_only";
+  allowlisted_country_codes?: string[] | string;
+  alt_text?: string;
+  link_attachment?: string;
+  quote_post_id?: string;
+  poll_attachment?:
+    | {
+        option_a: string;
+        option_b: string;
+        option_c?: string;
+        option_d?: string;
+      }
+    | string;
+  auto_publish_text?: boolean;
+  topic_tag?: string;
+  is_spoiler_media?: boolean;
+  is_ghost_post?: boolean;
+  enable_reply_approvals?: boolean;
+  crossreshare_to_ig?: boolean;
+  crossreshare_to_ig_dark_mode?: boolean;
+  location_id?: string;
+}
+
+/**
+ * Kreira medijski ili tekstualni kontejner na Threads-u (§4.2).
+ * POST /{user-id}/threads
+ *
+ * Polja koja nisu prosleđena se izostavljaju (ne šalju se prazni stringovi).
+ */
+export async function createThreadsContainer({
+  accessToken,
+  userId,
+  params,
+}: {
+  accessToken: string;
+  userId: string;
+  params: CreateThreadsContainerParams;
+}): Promise<{ id: string }> {
+  const queryParams: Record<string, string> = {
+    media_type: params.media_type,
+  };
+
+  if (params.text) queryParams.text = params.text;
+  if (params.image_url) queryParams.image_url = params.image_url;
+  if (params.video_url) queryParams.video_url = params.video_url;
+  if (params.is_carousel_item !== undefined) {
+    queryParams.is_carousel_item = String(params.is_carousel_item);
+  }
+  if (params.children) queryParams.children = params.children;
+  if (params.reply_to_id) queryParams.reply_to_id = params.reply_to_id;
+  if (params.reply_control) queryParams.reply_control = params.reply_control;
+  if (params.allowlisted_country_codes) {
+    queryParams.allowlisted_country_codes = Array.isArray(
+      params.allowlisted_country_codes,
+    )
+      ? params.allowlisted_country_codes.join(",")
+      : params.allowlisted_country_codes;
+  }
+  if (params.alt_text) queryParams.alt_text = params.alt_text;
+  if (params.link_attachment) queryParams.link_attachment = params.link_attachment;
+  if (params.quote_post_id) queryParams.quote_post_id = params.quote_post_id;
+  if (params.poll_attachment) {
+    queryParams.poll_attachment =
+      typeof params.poll_attachment === "string"
+        ? params.poll_attachment
+        : JSON.stringify(params.poll_attachment);
+  }
+  if (params.auto_publish_text !== undefined) {
+    queryParams.auto_publish_text = String(params.auto_publish_text);
+  }
+  if (params.topic_tag) queryParams.topic_tag = params.topic_tag;
+  if (params.is_spoiler_media !== undefined) {
+    queryParams.is_spoiler_media = String(params.is_spoiler_media);
+  }
+  if (params.is_ghost_post !== undefined) {
+    queryParams.is_ghost_post = String(params.is_ghost_post);
+  }
+  if (params.enable_reply_approvals !== undefined) {
+    queryParams.enable_reply_approvals = String(params.enable_reply_approvals);
+  }
+  if (params.crossreshare_to_ig !== undefined) {
+    queryParams.crossreshare_to_ig = String(params.crossreshare_to_ig);
+  }
+  if (params.crossreshare_to_ig_dark_mode !== undefined) {
+    queryParams.crossreshare_to_ig_dark_mode = String(
+      params.crossreshare_to_ig_dark_mode,
+    );
+  }
+  if (params.location_id) queryParams.location_id = params.location_id;
+
+  return await threadsPost<{ id: string }>(`${userId}/threads`, {
+    accessToken,
+    params: queryParams,
+  });
+}
+
+export type ThreadsContainerStatusVerdict =
+  | "FINISHED"
+  | "IN_PROGRESS"
+  | "ERROR"
+  | "EXPIRED"
+  | "PUBLISHED"
+  | "UNKNOWN";
+
+export interface ThreadsContainerStatusResponse {
+  id: string;
+  status: ThreadsContainerStatusVerdict;
+  rawStatus?: string;
+  errorMessage?: string;
+}
+
+export function parseThreadsContainerStatus(
+  status?: string,
+): ThreadsContainerStatusVerdict {
+  if (!status) return "UNKNOWN";
+  const upper = status.trim().toUpperCase();
+  if (upper === "FINISHED") return "FINISHED";
+  if (upper === "IN_PROGRESS") return "IN_PROGRESS";
+  if (upper === "ERROR") return "ERROR";
+  if (upper === "EXPIRED") return "EXPIRED";
+  if (upper === "PUBLISHED") return "PUBLISHED";
+  return "UNKNOWN";
+}
+
+/**
+ * Čita status obrade kontejnera (§4.1).
+ * GET /{container-id}?fields=status,error_message
+ *
+ * Vraća razdvojena stanja: FINISHED / IN_PROGRESS / ERROR / EXPIRED / PUBLISHED / UNKNOWN.
+ * error_message se sanitizuje i prenosi netaknut.
+ */
+export async function getThreadsContainerStatus({
+  accessToken,
+  containerId,
+}: {
+  accessToken: string;
+  containerId: string;
+}): Promise<ThreadsContainerStatusResponse> {
+  const raw = await threadsGet<{
+    id: string;
+    status?: string;
+    error_message?: string;
+  }>(containerId, {
+    accessToken,
+    params: {
+      fields: "status,error_message",
+    },
+  });
+
+  const parsedStatus = parseThreadsContainerStatus(raw.status);
+  return {
+    id: raw.id,
+    status: parsedStatus,
+    rawStatus: raw.status,
+    errorMessage: raw.error_message
+      ? sanitizeThreadsError(raw.error_message)
+      : undefined,
+  };
+}
+
+/**
+ * Objavljuje kreirani kontejner na Threads-u (§4.1).
+ * POST /{user-id}/threads_publish
+ */
+export async function publishThreadsContainer({
+  accessToken,
+  userId,
+  creationId,
+}: {
+  accessToken: string;
+  userId: string;
+  creationId: string;
+}): Promise<{ id: string }> {
+  return await threadsPost<{ id: string }>(`${userId}/threads_publish`, {
+    accessToken,
+    params: {
+      creation_id: creationId,
+    },
+  });
+}
+
+/**
+ * Kreira repost postojeće objave (§4.4).
+ * POST /{media-id}/repost
+ */
+export async function repostThreadsPost({
+  accessToken,
+  mediaId,
+}: {
+  accessToken: string;
+  mediaId: string;
+}): Promise<{ id?: string; media_type?: string }> {
+  return await threadsPost<{ id?: string; media_type?: string }>(
+    `${mediaId}/repost`,
+    {
+      accessToken,
+    },
+  );
+}
+
+/**
+ * Briše objavu na Threads-u (§4.4).
+ * DELETE /{media-id}
+ */
+export async function deleteThreadsPost({
+  accessToken,
+  mediaId,
+}: {
+  accessToken: string;
+  mediaId: string;
+}): Promise<{ success: boolean; deleted_id?: string }> {
+  return await threadsDelete<{ success: boolean; deleted_id?: string }>(
+    mediaId,
+    {
+      accessToken,
+    },
+  );
 }

@@ -172,7 +172,56 @@ async function drainIgPublishUploads(
   return { deleted: rows.length, exhausted: rows.length < page };
 }
 
+// ── Threads: redovi koji poseduju fajlove u storage-u ──────────────────────
+
+async function drainThreadsPublishJobs(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  limit: number,
+): Promise<StepResult> {
+  const page = Math.min(limit, 20);
+  const rows = await ctx.db
+    .query("threadsPublishJobs")
+    .withIndex("by_workspace_status", (q) => q.eq("workspaceId", workspaceId))
+    .take(page);
+  for (const row of rows) {
+    if (row.filesDeletedAt === undefined) {
+      for (const storageId of row.storageIds) {
+        await ctx.storage.delete(storageId).catch(() => {});
+      }
+    }
+    const fileRows = await ctx.db
+      .query("threadsPublishFiles")
+      .withIndex("by_job", (q) => q.eq("jobId", row._id))
+      .collect();
+    for (const fileRow of fileRows) {
+      await ctx.db.delete(fileRow._id);
+    }
+    await ctx.db.delete(row._id);
+  }
+  return { deleted: rows.length, exhausted: rows.length < page };
+}
+
+/** Uploadovani fajlovi koji nisu postali posao pre prekida veze. */
+async function drainThreadsPublishUploads(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  limit: number,
+): Promise<StepResult> {
+  const page = Math.min(limit, 50);
+  const rows = await ctx.db
+    .query("threadsPublishUploads")
+    .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+    .take(page);
+  for (const row of rows) {
+    await ctx.storage.delete(row.storageId).catch(() => {});
+    await ctx.db.delete(row._id);
+  }
+  return { deleted: rows.length, exhausted: rows.length < page };
+}
+
 // ── Ads: a five-level tree with no per-level provider column ────────────────
+
 
 /**
  * The ad hierarchy for ONE provider: accounts → campaigns → ad sets → ads →
@@ -922,6 +971,11 @@ const THREADS_STEPS: PurgeStep[] = [
       .query("threadsQuota")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
   ),
+  {
+    tables: ["threadsPublishJobs", "threadsPublishFiles"],
+    run: drainThreadsPublishJobs,
+  },
+  { tables: ["threadsPublishUploads"], run: drainThreadsPublishUploads },
 ];
 
 const META_ADS_STEPS: PurgeStep[] = [
@@ -1055,9 +1109,9 @@ type Disposition =
  * provider's step list.
  */
 export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
-  // ── Threads (TH3 / TH4) ───────────────────────────────────────────────────
-  // Sve što Threads sync upiše nestaje sa prekidom veze. Nijedna od ovih tabela
-  // ne opisuje ništa bez naloga sa kog je preuzeta.
+  // ── Threads (TH3 / TH4 / TH7) ─────────────────────────────────────────────
+  // Sve što Threads sync i publish upiše nestaje sa prekidom veze. Nijedna od ovih tabela
+  // ne opisuje ništa bez naloga sa kog je preuzeta ili posla koji je slao objavu.
   threadsPosts: { purgedBy: ["threads"] },
   threadsPostInsights: { purgedBy: ["threads"] },
   threadsAccountDaily: { purgedBy: ["threads"] },
@@ -1068,6 +1122,9 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   threadsReplies: { purgedBy: ["threads"] },
   threadsMentions: { purgedBy: ["threads"] },
   threadsQuota: { purgedBy: ["threads"] },
+  threadsPublishJobs: { purgedBy: ["threads"] },
+  threadsPublishUploads: { purgedBy: ["threads"] },
+  threadsPublishFiles: { purgedBy: ["threads"] },
 
   // ── YouTube (YA2 / Y2-Y10) ────────────────────────────────────────────────
   ytDailyTotals: { purgedBy: ["youtube"] },

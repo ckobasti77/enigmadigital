@@ -671,6 +671,9 @@ Dok se ne dokažu, kod NE SME da pretpostavlja ni `IMAGE`/`VIDEO`/`CAROUSEL` ni
 2. Reply approvals: `GET /{media-id}/pending_replies`, `POST /{reply-id}/manage_pending_reply`
 3. `poll_attachment` podpolja sa procentima
 4. `location` sa podpoljima
+5. `text_attachment`, `gif_attachment`, `text_entities` — tačna struktura podpolja i tipova za stilizovan tekst, GIPHY priloge i spoilere ostaje da se dokaže probe testom pre modelovanja u šemi
+6. `auto_publish_text=true` — da li `id` koji vrati `POST /{user-id}/threads` jeste ujedno i id objave, ili samo id kontejnera. Dokumentacija ne kaže. Do dokaza kod NE upisuje taj id kao `publishedMediaId`, nego traži objavu na profilu (`matchPublishedMedia`) i, ako je ne nađe nedvosmisleno, beleži `mediaIdUnconfirmed`.
+
 
 ### B.7 Pravilo za sav kod koji čita Threads objave
 

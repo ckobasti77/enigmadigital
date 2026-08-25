@@ -138,19 +138,51 @@ export function extractThreadsApiError(body: string, status?: number): string {
 
 /**
  * Uklanja sve osetljive tokene, ključeve i tajne iz poruka o greškama.
- * Filtrira `THQVJ...`, `Bearer ...`, `client_secret=...`, `access_token=...`, `code=...`.
+ *
+ * Prepisano 25.08.2026 posle stvarnog curenja. Meta je na neispravan
+ * `client_secret` vratila poruku `Invalid client_secret: THAAduwf23c6...` —
+ * dakle ECHO vrednosti koju smo poslali. Stara verzija je gađala samo
+ * `client_secret=` (query oblik) i prefiks `THQVJ`, pa je vrednost u obliku
+ * `client_secret: THAA...` prošla netaknuta: završila je u query stringu
+ * `?threads_error=`, u istoriji pregledača i na ekranu.
+ *
+ * Zato se sada redigujе po OBLIKU vrednosti, ne po susednoj reči. Redakcija
+ * koja zavisi od toga da li je provajder napisao `=` ili `: ` nije redakcija.
+ *
+ * Poslednje pravilo je mreža za nepoznato: svaki dovoljno dug neprozirni niz
+ * koji meša velika, mala slova i cifre je kandidat za tajnu i pada. Radije
+ * ćemo izgubiti jedan dugačak identifikator iz poruke nego propustiti jedan
+ * token.
  */
 export function sanitizeThreadsError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err);
-  return raw
-    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer [REDACTED]")
-    .replace(/THQVJ[A-Za-z0-9_-]+/g, "[REDACTED_THREADS_TOKEN]")
-    .replace(/client_secret=[^&\s]+/gi, "client_secret=[REDACTED]")
-    .replace(/access_token=[^&\s]+/gi, "access_token=[REDACTED]")
-    .replace(/code=[^&\s]+/gi, "code=[REDACTED]")
-    .replace(/SECRET[A-Za-z0-9_]*/gi, "[REDACTED]")
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    raw
+      // 1) Vrednost uz imenovani ključ — i `k=v` i `k: v` oblik. Kratke
+      //    vrednosti (`code: 101`) se ne diraju: prag je 6 karaktera.
+      .replace(
+        /\b(client_secret|app_secret|access_token|refresh_token|client_token|code)\b\s*[=:]\s*"?([A-Za-z0-9._~+/=-]{6,})"?/gi,
+        (_m, key: string) => `${key}=[REDACTED]`,
+      )
+      // 2) Authorization zaglavlje.
+      .replace(/Bearer\s+[A-Za-z0-9._~+/-]{10,}=*/gi, "Bearer [REDACTED]")
+      // 3) Poznati prefiksi Meta/Threads/Instagram tokena, ma gde se pojavili.
+      .replace(
+        /\b(TH[A-Za-z0-9]{2}|EAA|IGQ|IGAA)[A-Za-z0-9_-]{20,}/g,
+        "[REDACTED_TOKEN]",
+      )
+      // 4) App secret: hex niz od 32+ karaktera koji sadrži bar jedno slovo
+      //    (uslov za slovo čuva duge numeričke ID-jeve objava od redakcije).
+      .replace(/\b(?=[a-f0-9]*[a-f])[a-f0-9]{32,}\b/gi, "[REDACTED_SECRET]")
+      // 5) Mreža za nepoznate oblike: dug neprozirni niz sa mešavinom
+      //    velikih i malih slova i cifara.
+      .replace(
+        /\b(?=[A-Za-z0-9_-]*[A-Z])(?=[A-Za-z0-9_-]*[a-z])(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]{40,}\b/g,
+        "[REDACTED]",
+      )
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 export type ThreadsResourceOutcome =
