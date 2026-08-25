@@ -596,6 +596,27 @@ export const syncThreads = internalAction({
           shares?: number;
         }> = [];
 
+        // Dokazane `media_type` vrednosti (Dodatak B.5). Nazivi za sliku, video i
+        // carousel NISU dokazani, pa svaki tip van ovog skupa mora glasno da se prijavi —
+        // tako i saznajemo kako se zovu, umesto da ih pogađamo.
+        const POZNATI_MEDIA_TYPES = new Set(["TEXT_POST", "REPOST_FACADE"]);
+        const nepoznatiTipovi = new Set<string>();
+        for (const post of fetchedPosts) {
+          const mt = post.media_type;
+          if (typeof mt === "string" && mt !== "" && !POZNATI_MEDIA_TYPES.has(mt)) {
+            nepoznatiTipovi.add(mt);
+          }
+        }
+        if (nepoznatiTipovi.size > 0) {
+          console.warn(
+            `[Threads] NOVE media_type vrednosti (dosad nedokazane): ${Array.from(nepoznatiTipovi).join(", ")}. ` +
+              `Upisane su kako su stigle. Dopuniti Dodatak B.5 u threads-api-istrazivanje.md.`,
+          );
+        }
+
+        let postInsightsFailed = 0;
+        let postInsightsOk = 0;
+
         await executeThreadsResource("post_insights", outcomes, async () => {
           for (const post of fetchedPosts) {
             // REPOST_FACADE vraća prazan niz (linija 271) — preskačemo kao uredan ishod
@@ -647,13 +668,29 @@ export const syncThreads = internalAction({
                   ? { shares: metricsMap.shares }
                   : {}),
               });
+              postInsightsOk++;
             } catch (err) {
+              postInsightsFailed++;
               console.warn(
                 `[Threads post_insights fetch failed for ${post.id}]`,
                 sanitizeThreadsError(err),
               );
             }
           }
+
+          // Ako je SVAKI pokušaj pao, resurs je pao — prazan niz ovde bi izgledao
+          // kao "nalog nema metrike", a to nije isto što i "nismo uspeli da ih pročitamo".
+          if (postInsightsFailed > 0 && postInsightsOk === 0) {
+            throw new Error(
+              `Metrike po objavi nisu pročitane ni za jednu od ${postInsightsFailed} objava.`,
+            );
+          }
+          if (postInsightsFailed > 0) {
+            console.warn(
+              `[Threads] Metrike po objavi: ${postInsightsOk} uspešno, ${postInsightsFailed} neuspešno.`,
+            );
+          }
+
           return postInsightRows;
         });
 

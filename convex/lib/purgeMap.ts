@@ -871,6 +871,59 @@ const GOOGLE_ADS_STEPS: PurgeStep[] = [
   },
 ];
 
+const THREADS_STEPS: PurgeStep[] = [
+  simple("threadsPosts", (ctx, ws) =>
+    ctx.db
+      .query("threadsPosts")
+      .withIndex("by_workspace_media", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("threadsPostInsights", (ctx, ws) =>
+    ctx.db
+      .query("threadsPostInsights")
+      .withIndex("by_workspace_media", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("threadsAccountDaily", (ctx, ws) =>
+    ctx.db
+      .query("threadsAccountDaily")
+      .withIndex("by_workspace_date", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("threadsAccountTotals", (ctx, ws) =>
+    ctx.db
+      .query("threadsAccountTotals")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("threadsClicksByUrl", (ctx, ws) =>
+    ctx.db
+      .query("threadsClicksByUrl")
+      .withIndex("by_workspace_date", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("threadsFollowerSnapshots", (ctx, ws) =>
+    ctx.db
+      .query("threadsFollowerSnapshots")
+      .withIndex("by_workspace_date", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("threadsDemographics", (ctx, ws) =>
+    ctx.db
+      .query("threadsDemographics")
+      .withIndex("by_workspace_breakdown", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("threadsReplies", (ctx, ws) =>
+    ctx.db
+      .query("threadsReplies")
+      .withIndex("by_workspace_reply", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("threadsMentions", (ctx, ws) =>
+    ctx.db
+      .query("threadsMentions")
+      .withIndex("by_workspace_mention", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("threadsQuota", (ctx, ws) =>
+    ctx.db
+      .query("threadsQuota")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+];
+
 const META_ADS_STEPS: PurgeStep[] = [
   {
     tables: [
@@ -938,6 +991,7 @@ export const PURGE_STEPS: Partial<Record<Provider, PurgeStep[]>> = {
   meta_ads: META_ADS_STEPS,
   ga4: GA4_STEPS,
   google_ads: GOOGLE_ADS_STEPS,
+  threads: THREADS_STEPS,
 };
 
 /** The steps for a provider, or an empty list when it has no data of its own. */
@@ -963,6 +1017,7 @@ export const PROVIDER_TABLE_PREFIXES = [
   "ad",
   "or",
   "capi",
+  "threads",
 ] as const;
 
 /**
@@ -983,6 +1038,7 @@ export type ProviderPrefixedTable = Extract<
   | `ad${string}`
   | `or${string}`
   | `capi${string}`
+  | `threads${string}`
 >;
 
 type Disposition =
@@ -999,6 +1055,20 @@ type Disposition =
  * provider's step list.
  */
 export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
+  // ── Threads (TH3 / TH4) ───────────────────────────────────────────────────
+  // Sve što Threads sync upiše nestaje sa prekidom veze. Nijedna od ovih tabela
+  // ne opisuje ništa bez naloga sa kog je preuzeta.
+  threadsPosts: { purgedBy: ["threads"] },
+  threadsPostInsights: { purgedBy: ["threads"] },
+  threadsAccountDaily: { purgedBy: ["threads"] },
+  threadsAccountTotals: { purgedBy: ["threads"] },
+  threadsClicksByUrl: { purgedBy: ["threads"] },
+  threadsFollowerSnapshots: { purgedBy: ["threads"] },
+  threadsDemographics: { purgedBy: ["threads"] },
+  threadsReplies: { purgedBy: ["threads"] },
+  threadsMentions: { purgedBy: ["threads"] },
+  threadsQuota: { purgedBy: ["threads"] },
+
   // ── YouTube (YA2 / Y2-Y10) ────────────────────────────────────────────────
   ytDailyTotals: { purgedBy: ["youtube"] },
   ytVideoStats: { purgedBy: ["youtube"] },
