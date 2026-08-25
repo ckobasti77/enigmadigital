@@ -42,6 +42,7 @@ import { checkLinkAttachment, checkText, checkTopicTag } from "./lib/threadsPubl
 export const triggerValidator = v.union(
   v.literal("reply_to_our_post"),
   v.literal("mention"),
+  v.literal("keyword"),
 );
 
 export const matchTypeValidator = v.union(
@@ -58,12 +59,38 @@ export const actionTypeValidator = v.union(
 
 export const modeValidator = v.union(v.literal("draft"), v.literal("live"));
 
+/** Minimalna dozvoljena dužina ključne reči (§9: sprečavanje preširokog spam okidanja) */
+export const MIN_KEYWORD_LENGTH = 3;
+
+/**
+ * ── ZAŠTITA OD SPAMA ZA KEYWORD OKIDAČ (§9) ──────────────────────────────────
+ * Automatsko odgovaranje na tuđe objave na Threads-u po ključnoj reči nosi
+ * najveći operativni rizik za nalog. Ako automatizacija pošalje previše
+ * neželjenih odgovora na javne objave nepoznatih korisnika, Meta može
+ * trajno suspendovati Threads nalog.
+ *
+ * Izabrani plafoni za `keyword` okidač:
+ *   - Preporučeni podrazumevani dnevni limit: 20 odgovora / 24h
+ *   - Maksimalni dozvoljeni dnevni plafon: 50 odgovora / 24h
+ *   - Za poređenje, `reply_to_our_post` ima viši plafon jer korisnici sami
+ *     komentarišu NAŠU objavu i očekuju odgovor. Kod tuđih objava svaka poruka
+ *     je neočekivana i mora biti strogo ograničena.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+export const DEFAULT_KEYWORD_DAILY_LIMIT = 20;
+export const MAX_KEYWORD_DAILY_LIMIT = 50;
+
 export function utcDateKey(timestamp: number): string {
   return new Date(timestamp).toISOString().split("T")[0];
 }
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
  * Proverava podudaranje teksta sa definisanim ključnim rečima.
+ * Podržava `requireExactPhrase` za proveru na granicama reči / celih fraza.
  */
 export function matchThreadsKeywords(params: {
   text: string;
@@ -71,8 +98,16 @@ export function matchThreadsKeywords(params: {
   matchType: "exact" | "contains";
   caseSensitive: boolean;
   matchAnyKeyword: boolean;
+  requireExactPhrase?: boolean;
 }): { matched: boolean; matchedKeyword?: string } {
-  const { text, keywords, matchType, caseSensitive, matchAnyKeyword } = params;
+  const {
+    text,
+    keywords,
+    matchType,
+    caseSensitive,
+    matchAnyKeyword,
+    requireExactPhrase,
+  } = params;
 
   if (keywords.length === 0) {
     return { matched: true };
@@ -86,6 +121,13 @@ export function matchThreadsKeywords(params: {
 
     if (matchType === "exact") {
       return targetText.trim() === kw.trim();
+    } else if (requireExactPhrase) {
+      const escaped = escapeRegex(kw.trim());
+      const regex = new RegExp(
+        `(^|[^\\p{L}\\p{N}_])${escaped}([^\\p{L}\\p{N}_]|$)`,
+        caseSensitive ? "u" : "ui",
+      );
+      return regex.test(targetText);
     } else {
       return targetText.includes(kw.trim());
     }
@@ -355,6 +397,131 @@ export const evaluateMentionTrigger = internalAction({
         automation: auto,
         replyId: mentionId,
         rootPostId: mediaId,
+        authorId,
+        matchedKeyword,
+        date: reservation.date,
+      });
+    }
+  },
+});
+
+// ── Evaluacija okidača za ključne reči (keyword search, §9) ─────────────────
+
+/**
+ * Interna akcija za procenu pravila nad objavom pronađenom preko keyword search-a (§9).
+ * Prolazi kroz ISTI checkAndReserveExecution — dnevni limit, cooldown po autoru,
+ * threadsProcessedReplies, draft/live. Bez izuzetaka.
+ */
+export const evaluateKeywordTrigger = internalAction({
+  args: {
+    workspaceId: v.id("workspaces"),
+    post: v.object({
+      id: v.string(),
+      text: v.optional(v.string()),
+      username: v.optional(v.string()),
+      permalink: v.optional(v.string()),
+      timestamp: v.optional(v.union(v.string(), v.number())),
+      mediaType: v.optional(v.string()),
+    }),
+  },
+  handler: async (ctx, { workspaceId, post }) => {
+    const postText = post.text ?? "";
+    const authorId = post.username || undefined;
+    const postId = post.id;
+
+    const automations: Doc<"threadsAutomations">[] = await ctx.runQuery(
+      internal.threadsAutomations.getActiveAutomations,
+      { workspaceId, trigger: "keyword" },
+    );
+
+    for (const auto of automations) {
+      if (!auto.matchAnyPost && auto.postId) {
+        if (auto.postId !== postId) {
+          continue;
+        }
+      }
+
+      const { matched, matchedKeyword } = matchThreadsKeywords({
+        text: postText,
+        keywords: auto.keywords,
+        matchType: auto.matchType,
+        caseSensitive: auto.caseSensitive,
+        matchAnyKeyword: auto.matchAnyKeyword,
+        requireExactPhrase: auto.requireExactPhrase,
+      });
+
+      if (!matched) continue;
+
+      const reservation: {
+        allowed: boolean;
+        reason?: string;
+        date: string;
+      } = await ctx.runMutation(
+        internal.threadsAutomations.checkAndReserveExecution,
+        {
+          workspaceId,
+          automationId: auto._id,
+          authorId,
+          rootPostId: postId,
+          replyId: postId,
+          trigger: "keyword",
+          actionType: auto.actionType,
+          mode: auto.mode,
+          dailyLimit: auto.dailyLimit,
+          cooldownMinutesPerAuthor: auto.cooldownMinutesPerAuthor,
+          maxRepliesPerThread: auto.maxRepliesPerThread,
+        },
+      );
+
+      if (!reservation.allowed) {
+        let status: "rejected_limit" | "rejected_cooldown" | "rejected_thread_limit" =
+          "rejected_limit";
+        if (reservation.reason === "cooldown_active") {
+          status = "rejected_cooldown";
+        } else if (reservation.reason === "thread_limit_reached") {
+          status = "rejected_thread_limit";
+        }
+
+        await ctx.runMutation(internal.threadsAutomations.writeLog, {
+          workspaceId,
+          automationId: auto._id,
+          trigger: "keyword",
+          sourceReplyId: postId,
+          rootPostId: postId,
+          authorId,
+          matchedKeyword,
+          mode: auto.mode,
+          actionType: auto.actionType,
+          status,
+          reason: reservation.reason,
+          date: reservation.date,
+        });
+        continue;
+      }
+
+      if (auto.mode === "draft") {
+        await ctx.runMutation(internal.threadsAutomations.writeLog, {
+          workspaceId,
+          automationId: auto._id,
+          trigger: "keyword",
+          sourceReplyId: postId,
+          rootPostId: postId,
+          authorId,
+          matchedKeyword,
+          mode: "draft",
+          actionType: auto.actionType,
+          status: "draft_simulated",
+          reason: "Simulirano u draft režimu (akcija nije poslata)",
+          date: reservation.date,
+        });
+        continue;
+      }
+
+      await executeLiveAction(ctx, {
+        workspaceId,
+        automation: auto,
+        replyId: postId,
+        rootPostId: postId,
         authorId,
         matchedKeyword,
         date: reservation.date,
@@ -1232,6 +1399,7 @@ export const createAutomation = mutation({
     matchType: matchTypeValidator,
     caseSensitive: v.boolean(),
     matchAnyKeyword: v.boolean(),
+    requireExactPhrase: v.optional(v.boolean()),
     matchAnyPost: v.boolean(),
     postId: v.optional(v.string()),
     actionType: actionTypeValidator,
@@ -1260,6 +1428,14 @@ export const createAutomation = mutation({
       throw new ConvexError({
         code: "invalid",
         message: "Dnevni limit mora biti veći od 0.",
+      });
+    }
+
+    // Zaštita za `keyword` okidač: dnevni limit ima niži plafon (§9)
+    if (args.trigger === "keyword" && args.dailyLimit > MAX_KEYWORD_DAILY_LIMIT) {
+      throw new ConvexError({
+        code: "invalid",
+        message: `Maksimalni dozvoljeni dnevni limit za okidač po ključnoj reči je ${MAX_KEYWORD_DAILY_LIMIT} kako bi se sprečio rizik od blokade naloga (spam zaštita).`,
       });
     }
 
@@ -1308,6 +1484,24 @@ export const createAutomation = mutation({
       .map((k) => (args.caseSensitive ? k.trim() : k.trim().toLowerCase()))
       .filter((k) => k.length > 0);
 
+    // Zaštita za `keyword` okidač: obavezna minimalna dužina ključne reči (§9)
+    if (args.trigger === "keyword") {
+      if (cleanedKeywords.length === 0) {
+        throw new ConvexError({
+          code: "invalid",
+          message: "Okidač po ključnoj reči zahteva bar jednu definisanu reč.",
+        });
+      }
+      for (const kw of cleanedKeywords) {
+        if (kw.length < MIN_KEYWORD_LENGTH) {
+          throw new ConvexError({
+            code: "invalid",
+            message: `Ključna reč "${kw}" je prekratka. Za okidač po ključnoj reči svaka reč mora imati bar ${MIN_KEYWORD_LENGTH} karaktera (sprečavanje preširokog gađanja i spama).`,
+          });
+        }
+      }
+    }
+
     return await ctx.db.insert("threadsAutomations", {
       workspaceId,
       name: trimmedName,
@@ -1316,6 +1510,7 @@ export const createAutomation = mutation({
       matchType: args.matchType,
       caseSensitive: args.caseSensitive,
       matchAnyKeyword: args.matchAnyKeyword,
+      requireExactPhrase: args.requireExactPhrase,
       matchAnyPost: args.matchAnyPost,
       postId: args.postId?.trim() || undefined,
       actionType: args.actionType,
@@ -1346,6 +1541,7 @@ export const updateAutomation = mutation({
     matchType: v.optional(matchTypeValidator),
     caseSensitive: v.optional(v.boolean()),
     matchAnyKeyword: v.optional(v.boolean()),
+    requireExactPhrase: v.optional(v.boolean()),
     matchAnyPost: v.optional(v.boolean()),
     postId: v.optional(v.string()),
     actionType: v.optional(actionTypeValidator),
@@ -1388,15 +1584,35 @@ export const updateAutomation = mutation({
 
     if (args.keywords !== undefined) {
       const caseSens = args.caseSensitive ?? existing.caseSensitive;
-      patch.keywords = args.keywords
+      const cleaned = args.keywords
         .map((k) => (caseSens ? k.trim() : k.trim().toLowerCase()))
         .filter((k) => k.length > 0);
+
+      if (existing.trigger === "keyword") {
+        if (cleaned.length === 0) {
+          throw new ConvexError({
+            code: "invalid",
+            message: "Okidač po ključnoj reči zahteva bar jednu definisanu reč.",
+          });
+        }
+        for (const kw of cleaned) {
+          if (kw.length < MIN_KEYWORD_LENGTH) {
+            throw new ConvexError({
+              code: "invalid",
+              message: `Ključna reč "${kw}" je prekratka. Za okidač po ključnoj reči svaka reč mora imati bar ${MIN_KEYWORD_LENGTH} karaktera.`,
+            });
+          }
+        }
+      }
+      patch.keywords = cleaned;
     }
 
     if (args.matchType !== undefined) patch.matchType = args.matchType;
     if (args.caseSensitive !== undefined) patch.caseSensitive = args.caseSensitive;
     if (args.matchAnyKeyword !== undefined)
       patch.matchAnyKeyword = args.matchAnyKeyword;
+    if (args.requireExactPhrase !== undefined)
+      patch.requireExactPhrase = args.requireExactPhrase;
     if (args.matchAnyPost !== undefined) patch.matchAnyPost = args.matchAnyPost;
     if (args.postId !== undefined) patch.postId = args.postId.trim() || undefined;
     if (args.actionType !== undefined) patch.actionType = args.actionType;
@@ -1411,6 +1627,12 @@ export const updateAutomation = mutation({
         throw new ConvexError({
           code: "invalid",
           message: "Dnevni limit mora biti veći od 0.",
+        });
+      }
+      if (existing.trigger === "keyword" && args.dailyLimit > MAX_KEYWORD_DAILY_LIMIT) {
+        throw new ConvexError({
+          code: "invalid",
+          message: `Maksimalni dozvoljeni dnevni limit za okidač po ključnoj reči je ${MAX_KEYWORD_DAILY_LIMIT}.`,
         });
       }
       patch.dailyLimit = args.dailyLimit;

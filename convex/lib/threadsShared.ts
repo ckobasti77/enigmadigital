@@ -185,6 +185,39 @@ export function sanitizeThreadsError(err: unknown): string {
   );
 }
 
+/**
+ * Opisuje OBLIK odgovora, bez ijedne vrednosti iz njega.
+ *
+ * `JSON.stringify(raw)` u poruci greške je curenje: telo odgovora
+ * nosi `username` i `text` tuđih ljudi, a ta poruka završava u bazi, u
+ * logovima i na ekranu. Za dijagnostiku „oblik nije onakav kakav očekujemo“
+ * dovoljna su imena ključeva — sadržaj nije.
+ */
+export function describeThreadsShape(raw: unknown): string {
+  if (raw === null) return "null";
+  if (Array.isArray(raw)) return `niz[${raw.length}]`;
+  if (typeof raw !== "object") return typeof raw;
+
+  const obj = raw as Record<string, unknown>;
+  const parts = Object.keys(obj).map((key) => {
+    const value = obj[key];
+    if (Array.isArray(value)) {
+      const first = value[0];
+      const inner =
+        first !== null && typeof first === "object"
+          ? `{${Object.keys(first as Record<string, unknown>).join(",")}}`
+          : typeof first;
+      return `${key}: niz[${value.length}] od ${inner}`;
+    }
+    if (value !== null && typeof value === "object") {
+      return `${key}: {${Object.keys(value as Record<string, unknown>).join(",")}}`;
+    }
+    return `${key}: ${value === null ? "null" : typeof value}`;
+  });
+
+  return `{${parts.join(", ")}}`;
+}
+
 export type ThreadsResourceOutcome =
   | { resource: string; ok: true; rows: number }
   | { resource: string; ok: false; reason: string };

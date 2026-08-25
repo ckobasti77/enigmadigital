@@ -15,6 +15,7 @@ import {
   Quote,
   RefreshCw,
   Repeat2,
+  Search,
   Send,
   TriangleAlert,
   Unplug,
@@ -48,8 +49,14 @@ import { ThreadsComposer } from "./threads-composer";
 import { ThreadsJobsPanel } from "./threads-jobs-panel";
 import { ThreadsRepliesModeration } from "./threads-replies-moderation";
 import { ThreadsAutomations } from "./threads-automations";
+import { ThreadsSearch } from "./threads-search";
 
-type ThreadsTab = "overview" | "publish" | "moderation" | "automations";
+type ThreadsTab =
+  | "overview"
+  | "publish"
+  | "moderation"
+  | "automations"
+  | "search";
 
 /**
  * Threads Dashboard.
@@ -187,6 +194,7 @@ export function ThreadsDashboard() {
           { id: "publish", label: "Objavljivanje", icon: Send },
           { id: "moderation", label: "Moderacija odgovora", icon: MessageCircle },
           { id: "automations", label: "Automatizacije (OpenReply)", icon: Zap },
+          { id: "search", label: "Pretraga i otkrivanje", icon: Search },
         ]}
         active={tab}
         onChange={setTab}
@@ -326,6 +334,14 @@ export function ThreadsDashboard() {
           <div className="flex flex-col gap-8">
             <Reveal>
               <ThreadsAutomations />
+            </Reveal>
+          </div>
+        )}
+
+        {tab === "search" && (
+          <div className="flex flex-col gap-8">
+            <Reveal>
+              <ThreadsSearch />
             </Reveal>
           </div>
         )}

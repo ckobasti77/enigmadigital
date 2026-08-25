@@ -2824,16 +2824,21 @@ export default defineSchema({
     .index("by_storage", ["storageId"])
     .index("by_job", ["jobId"]),
 
-  // ── Threads Automations (OpenReply za Threads — TH8) ────────────────────────
+  // ── Threads Automations (OpenReply za Threads — TH8 / TH14) ────────────────
   threadsAutomations: defineTable({
     workspaceId: v.id("workspaces"),
     name: v.string(),
-    // Okidači podržani u ovoj fazi (keyword search je TH14 jer traži App Review)
-    trigger: v.union(v.literal("reply_to_our_post"), v.literal("mention")),
+    // Okidači: reply_to_our_post (webhook), mention (polling), keyword (search pretraga javnog sadržaja — traži App Review)
+    trigger: v.union(
+      v.literal("reply_to_our_post"),
+      v.literal("mention"),
+      v.literal("keyword"),
+    ),
     keywords: v.array(v.string()), // lista ključnih reči
     matchType: v.union(v.literal("exact"), v.literal("contains")), // podudaranje tačno / sadrži
     caseSensitive: v.boolean(), // razlikovanje malih/velikih slova
     matchAnyKeyword: v.boolean(), // true = bilo koja ključna reč, false = sve
+    requireExactPhrase: v.optional(v.boolean()), // podudaranje na granicama reči / celih fraza
     matchAnyPost: v.boolean(), // true = bilo koja objava, false = samo `postId`
     postId: v.optional(v.string()),
     // Akcije
@@ -2871,7 +2876,11 @@ export default defineSchema({
     // jedini iskren zapis „ne znamo ko je“.
     authorId: v.optional(v.string()),
     rootPostId: v.optional(v.string()),
-    trigger: v.union(v.literal("reply_to_our_post"), v.literal("mention")),
+    trigger: v.union(
+      v.literal("reply_to_our_post"),
+      v.literal("mention"),
+      v.literal("keyword"),
+    ),
     actionType: v.string(),
     mode: v.union(v.literal("draft"), v.literal("live")),
     processedAt: v.number(),
@@ -2886,7 +2895,11 @@ export default defineSchema({
   threadsAutomationLogs: defineTable({
     workspaceId: v.id("workspaces"),
     automationId: v.optional(v.id("threadsAutomations")),
-    trigger: v.union(v.literal("reply_to_our_post"), v.literal("mention")),
+    trigger: v.union(
+      v.literal("reply_to_our_post"),
+      v.literal("mention"),
+      v.literal("keyword"),
+    ),
     sourceReplyId: v.string(),
     rootPostId: v.optional(v.string()),
     authorId: v.optional(v.string()), // vidi threadsProcessedReplies.authorId
@@ -2942,6 +2955,26 @@ export default defineSchema({
     .index("by_workspace_link_date", ["workspaceId", "trackedLinkId", "date"])
     .index("by_workspace_url_date", ["workspaceId", "normalizedUrl", "date"])
     .index("by_workspace_matched", ["workspaceId", "isMatched"]),
+
+  // 12) threadsSearchUsage — brojanje upita za pretragu i lookup profila (§6)
+  // Keyword search (2.200 / 24h) i Profile lookup (1.000 / 24h) su odvojeni od kvota objavljivanja.
+  // Prazni rezultati se kod keyword search-a NE broje, pa se brojač uvećava samo kad je rezultat neprazan.
+  threadsSearchUsage: defineTable({
+    workspaceId: v.id("workspaces"),
+    action: v.union(
+      v.literal("keyword_search"),
+      v.literal("profile_lookup"),
+    ),
+    timestamp: v.number(),
+    resultCount: v.number(),
+    countedAgainstQuota: v.boolean(),
+  })
+    .index("by_workspace_action_time", [
+      "workspaceId",
+      "action",
+      "timestamp",
+    ])
+    .index("by_workspace_time", ["workspaceId", "timestamp"]),
 
 
 

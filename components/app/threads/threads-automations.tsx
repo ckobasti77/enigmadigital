@@ -67,7 +67,7 @@ type LogDoc = FunctionReturnType<
   typeof api.threadsAutomations.listAutomationLogs
 >[number];
 
-type TriggerType = "reply_to_our_post" | "mention";
+type TriggerType = "reply_to_our_post" | "mention" | "keyword";
 type MatchType = "exact" | "contains";
 type ActionType = "public_reply" | "hide" | "ignore" | "approve_pending";
 
@@ -617,6 +617,9 @@ function AutomationEditorDialog({
   const [matchAnyKeyword, setMatchAnyKeyword] = useState(
     existing?.matchAnyKeyword ?? true,
   );
+  const [requireExactPhrase, setRequireExactPhrase] = useState(
+    existing?.requireExactPhrase ?? false,
+  );
   const [matchAnyPost, setMatchAnyPost] = useState(
     existing?.matchAnyPost ?? true,
   );
@@ -633,7 +636,8 @@ function AutomationEditorDialog({
 
   // Zaštitni limiti (§9)
   const [dailyLimit, setDailyLimit] = useState(
-    existing?.dailyLimit?.toString() ?? "50",
+    existing?.dailyLimit?.toString() ??
+      (existing?.trigger === "keyword" ? "20" : "50"),
   );
   const [cooldown, setCooldown] = useState(
     existing?.cooldownMinutesPerAuthor?.toString() ?? "60",
@@ -653,6 +657,7 @@ function AutomationEditorDialog({
     setMatchType(existing?.matchType ?? "contains");
     setCaseSensitive(existing?.caseSensitive ?? false);
     setMatchAnyKeyword(existing?.matchAnyKeyword ?? true);
+    setRequireExactPhrase(existing?.requireExactPhrase ?? false);
     setMatchAnyPost(existing?.matchAnyPost ?? true);
     setPostId(existing?.postId ?? "");
     setActionType(existing?.actionType ?? "public_reply");
@@ -660,7 +665,10 @@ function AutomationEditorDialog({
     setLinkUrl(existing?.linkUrl ?? "");
     setTopicTag(existing?.topicTag ?? "");
     setAutoPublishText(existing?.autoPublishText ?? true);
-    setDailyLimit(existing?.dailyLimit?.toString() ?? "50");
+    setDailyLimit(
+      existing?.dailyLimit?.toString() ??
+        (existing?.trigger === "keyword" ? "20" : "50"),
+    );
     setCooldown(existing?.cooldownMinutesPerAuthor?.toString() ?? "60");
     setMaxPerThread(existing?.maxRepliesPerThread?.toString() ?? "2");
     setErrorMsg(null);
@@ -683,6 +691,17 @@ function AutomationEditorDialog({
       return;
     }
 
+    if (trigger === "keyword") {
+      for (const kw of keywords) {
+        if (kw.length < 3) {
+          setErrorMsg(
+            `Ključna reč "${kw}" je prekratka. Za okidač po ključnoj reči minimum je 3 karaktera (zaštita od spama).`,
+          );
+          return;
+        }
+      }
+    }
+
     if (actionType === "public_reply" && !replyText.trim()) {
       setErrorMsg("Tekst odgovora je obavezan za javni odgovor.");
       return;
@@ -696,6 +715,14 @@ function AutomationEditorDialog({
       setErrorMsg("Dnevni limit mora biti broj veći od 0.");
       return;
     }
+
+    if (trigger === "keyword" && dLimit > 50) {
+      setErrorMsg(
+        "Maksimalni dozvoljeni dnevni limit za okidač po ključnoj reči je 50 (zaštita naloga od suspenzije).",
+      );
+      return;
+    }
+
     if (isNaN(cd) || cd < 0) {
       setErrorMsg("Cooldown mora biti 0 ili pozitivan broj.");
       return;
@@ -717,6 +744,7 @@ function AutomationEditorDialog({
           matchType,
           caseSensitive,
           matchAnyKeyword,
+          requireExactPhrase,
           matchAnyPost,
           postId: matchAnyPost ? undefined : postId.trim() || undefined,
           actionType,
@@ -736,6 +764,7 @@ function AutomationEditorDialog({
           matchType,
           caseSensitive,
           matchAnyKeyword,
+          requireExactPhrase,
           matchAnyPost,
           postId: matchAnyPost ? undefined : postId.trim() || undefined,
           actionType,
@@ -811,6 +840,7 @@ function AutomationEditorDialog({
                   >
                     <option value="reply_to_our_post">Odgovor na našu objavu</option>
                     <option value="mention">Spominjanje naloga (@mention)</option>
+                    <option value="keyword">Ključna reč u javnom sadržaju (keyword search)</option>
                   </select>
                 </div>
 
@@ -832,6 +862,12 @@ function AutomationEditorDialog({
                   </select>
                 </div>
               </div>
+
+              {trigger === "keyword" && (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-micro text-amber-300">
+                  ⚠️ <strong>Zaštita naloga od spama (§9):</strong> Svaka ključna reč mora imati bar 3 karaktera. Preporučeni dnevni limit je 20 (maksimum 50).
+                </div>
+              )}
             </FormGroup>
 
             {/* Ključne reči */}
@@ -851,7 +887,7 @@ function AutomationEditorDialog({
                 )}
               </Field>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="matchTypeSelect" className="text-xs font-medium text-text-muted">Tip poklapanja</Label>
                   <select
@@ -866,6 +902,17 @@ function AutomationEditorDialog({
                     <option value="contains">Sadrži reč (contains)</option>
                     <option value="exact">Tačno poklapanje (exact)</option>
                   </select>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-line-soft bg-surface-raised/40 p-2.5">
+                  <Label htmlFor="exactPhrase" className="text-xs text-foreground">
+                    Cela fraza (granica reči)
+                  </Label>
+                  <Switch
+                    id="exactPhrase"
+                    checked={requireExactPhrase}
+                    onCheckedChange={setRequireExactPhrase}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between rounded-lg border border-line-soft bg-surface-raised/40 p-2.5">

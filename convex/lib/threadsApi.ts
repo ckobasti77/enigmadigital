@@ -1376,3 +1376,162 @@ export async function getThreadsMentions({
   });
 }
 
+// ── Keyword Search & Profile Lookup (§6) ────────────────────────────────────
+
+export const THREADS_KEYWORD_SEARCH_FIELDS =
+  "id,text,permalink,timestamp,media_type,media_url,shortcode,username";
+
+export interface RawThreadsKeywordSearchItem {
+  id: string;
+  text?: string;
+  username?: string;
+  permalink?: string;
+  timestamp?: string | number;
+  media_type?: string;
+  media_url?: string;
+  shortcode?: string;
+}
+
+export interface RawThreadsKeywordSearchResponse {
+  data?: RawThreadsKeywordSearchItem[];
+  paging?: {
+    cursors?: {
+      before?: string;
+      after?: string;
+    };
+    next?: string;
+  };
+}
+
+/**
+ * Pretraga javnog sadržaja po ključnoj reči (§6).
+ * GET /keyword_search
+ *
+ * VAŽNO (§2.1, §6):
+ *   - `q` je obavezno.
+ *   - `limit` je default 25, max 100.
+ *   - Polje `owner` se NE VRAĆA — ne traži ga i ne pretvaraj se da postoji.
+ *   - Bez App Review-a pretražuje SAMO sopstvene objave naloga.
+ *   - Pri neočekivanom obliku koristi se `describeThreadsShape(raw)`, NIKADA `JSON.stringify(raw)`,
+ *     jer telo odgovora nosi tuđi username i text.
+ */
+export async function searchThreadsKeyword({
+  accessToken,
+  q,
+  searchType,
+  searchMode,
+  mediaType,
+  authorUsername,
+  since,
+  until,
+  limit = 25,
+  fields = THREADS_KEYWORD_SEARCH_FIELDS,
+}: {
+  accessToken: string;
+  q: string;
+  searchType?: "TOP" | "RECENT";
+  searchMode?: "KEYWORD" | "TAG";
+  mediaType?: string;
+  authorUsername?: string;
+  since?: number;
+  until?: number;
+  limit?: number;
+  fields?: string;
+}): Promise<RawThreadsKeywordSearchResponse> {
+  const trimmedQ = q.trim();
+  if (!trimmedQ) {
+    throw new Error("Parametar 'q' (ključna reč) je obavezan za pretragu.");
+  }
+
+  const effectiveLimit = Math.min(Math.max(1, limit), 100);
+
+  const params: Record<string, string> = {
+    q: trimmedQ,
+    fields,
+    limit: String(effectiveLimit),
+  };
+
+  if (searchType) params.search_type = searchType;
+  if (searchMode) params.search_mode = searchMode;
+  if (mediaType) params.media_type = mediaType;
+  if (authorUsername) {
+    const cleanAuthor = authorUsername.replace(/^@/, "").trim();
+    if (cleanAuthor) params.author_username = cleanAuthor;
+  }
+  if (since !== undefined) params.since = String(since);
+  if (until !== undefined) params.until = String(until);
+
+  const raw = await threadsGet<unknown>("keyword_search", {
+    accessToken,
+    params,
+  });
+
+  if (
+    typeof raw !== "object" ||
+    raw === null ||
+    !("data" in raw) ||
+    !Array.isArray((raw as { data: unknown }).data)
+  ) {
+    throw new Error(
+      `[Threads API] Endpoint keyword_search vratio je neočekivan/nedokazan oblik odgovora. Pročitan oblik: ${describeThreadsShape(raw)}`,
+    );
+  }
+
+  return raw as RawThreadsKeywordSearchResponse;
+}
+
+export const THREADS_PROFILE_LOOKUP_FIELDS =
+  "follower_count,likes_count,quotes_count,reposts_count,views_count,is_verified";
+
+export interface RawThreadsProfileLookupResponse {
+  id?: string;
+  username?: string;
+  follower_count?: number;
+  likes_count?: number;
+  quotes_count?: number;
+  reposts_count?: number;
+  views_count?: number;
+  is_verified?: boolean;
+}
+
+/**
+ * Otkrivanje / lookup javnog profila (§6).
+ * GET /profile_lookup?username=...
+ *
+ * VAŽNO (§6):
+ *   - Samo javni profili, 18+, minimum 100 pratilaca.
+ *   - 1.000 zahteva / 24h.
+ *   - Vraća follower_count, likes_count, quotes_count, reposts_count, views_count, is_verified.
+ *   - Pri neočekivanom obliku koristi se `describeThreadsShape(raw)`, NIKADA `JSON.stringify(raw)`.
+ */
+export async function lookupThreadsProfile({
+  accessToken,
+  username,
+  fields = THREADS_PROFILE_LOOKUP_FIELDS,
+}: {
+  accessToken: string;
+  username: string;
+  fields?: string;
+}): Promise<RawThreadsProfileLookupResponse> {
+  const cleanUsername = username.replace(/^@/, "").trim();
+  if (!cleanUsername) {
+    throw new Error("Korisničko ime je obavezno za lookup profila.");
+  }
+
+  const raw = await threadsGet<unknown>("profile_lookup", {
+    accessToken,
+    params: {
+      username: cleanUsername,
+      fields,
+    },
+  });
+
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error(
+      `[Threads API] Endpoint profile_lookup vratio je neočekivan oblik odgovora. Pročitan oblik: ${describeThreadsShape(raw)}`,
+    );
+  }
+
+  return raw as RawThreadsProfileLookupResponse;
+}
+
