@@ -849,7 +849,15 @@ export const upsertThreadsData = internalMutation({
         }
         itemsWritten++;
       }
+
+      const clickDates = Array.from(new Set(args.clicksByUrl.map((c) => c.date)));
+      await ctx.scheduler.runAfter(
+        0,
+        internal.threadsFunnels.recomputeAttributionForDates,
+        { workspaceId, dates: clickDates },
+      );
     }
+
 
     // 6. threadsFollowerSnapshots (prirodni ključ: [workspaceId, date] — tačno jedan red po danu)
     if (args.followerSnapshots && args.followerSnapshots.length > 0) {

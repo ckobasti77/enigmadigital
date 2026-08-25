@@ -1,6 +1,8 @@
 import { internalMutation } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import {
   generateSlug,
   shortLinkOrigin,
@@ -16,7 +18,7 @@ import {
 } from "./publicRouteLimit";
 
 /**
- * OpenReply tracked short links (PLAN.md §4 / Step 4).
+ * OpenReply & Threads tracked short links (PLAN.md §4 / Step 4 & TH10).
  *
  * Default V8 runtime — no "use node": these run inside the send action's and
  * the /r/ HTTP action's transaction path and must stay cheap.
@@ -29,12 +31,95 @@ const REFERRER_MAX = 500;
 const SLUG_ATTEMPTS = 5;
 
 /**
+ * Pomoćna funkcija za get-or-create praćenog linka po (workspaceId, destinationUrl, channel).
+ */
+export async function ensureTrackedUrlHelper(
+  ctx: MutationCtx,
+  args: {
+    workspaceId: Id<"workspaces">;
+    destinationUrl: string;
+    channel?: string;
+    label?: string;
+    automationId?: Id<"orAutomations">;
+  },
+): Promise<string | null> {
+  const destinationUrl = args.destinationUrl.trim();
+  if (!destinationUrl) return null;
+
+  const origin = shortLinkOrigin();
+  if (!origin) return null;
+
+  const channel = args.channel ?? "threads";
+  const label = args.label?.trim() || undefined;
+
+  if (args.automationId) {
+    const existing = await ctx.db
+      .query("orTrackedLinks")
+      .withIndex("by_workspace_automation", (q) =>
+        q
+          .eq("workspaceId", args.workspaceId)
+          .eq("automationId", args.automationId!),
+      )
+      .first();
+
+    if (existing !== null) {
+      if (
+        existing.destinationUrl !== destinationUrl ||
+        existing.label !== label
+      ) {
+        await ctx.db.patch(existing._id, { destinationUrl, label });
+      }
+      return `${origin}/r/${existing.slug}`;
+    }
+  } else {
+    // Provera da li već postoji praćeni link za istu destinaciju i kanal
+    const existing = await ctx.db
+      .query("orTrackedLinks")
+      .withIndex("by_workspace_destination", (q) =>
+        q
+          .eq("workspaceId", args.workspaceId)
+          .eq("destinationUrl", destinationUrl),
+      )
+      .filter((q) => q.eq(q.field("channel"), channel))
+      .first();
+
+    if (existing !== null) {
+      return `${origin}/r/${existing.slug}`;
+    }
+  }
+
+  let slug: string | null = null;
+  for (let attempt = 0; attempt < SLUG_ATTEMPTS; attempt++) {
+    const candidate = generateSlug();
+    const clash = await ctx.db
+      .query("orTrackedLinks")
+      .withIndex("by_slug", (q) => q.eq("slug", candidate))
+      .first();
+    if (clash === null) {
+      slug = candidate;
+      break;
+    }
+  }
+  if (slug === null) {
+    return null;
+  }
+
+  await ctx.db.insert("orTrackedLinks", {
+    workspaceId: args.workspaceId,
+    ...(args.automationId ? { automationId: args.automationId } : {}),
+    channel,
+    slug,
+    destinationUrl,
+    label,
+    createdAt: Date.now(),
+  });
+
+  return `${origin}/r/${slug}`;
+}
+
+/**
  * Get-or-create the tracked link for an automation and return the short URL
  * to put in the DM, or null when there is nothing to track.
- *
- * The slug is stable for the lifetime of the automation: editing the link in
- * the UI repoints the existing slug instead of minting a new one, so short
- * links already sitting in DMs that were sent days ago keep resolving.
  */
 export const ensureTrackedLink = internalMutation({
   args: {
@@ -53,58 +138,34 @@ export const ensureTrackedLink = internalMutation({
       return null;
     }
 
-    const origin = shortLinkOrigin();
-    if (origin === null) {
-      return null;
-    }
-
-    const label = automation.linkLabel?.trim() || undefined;
-
-    const existing = await ctx.db
-      .query("orTrackedLinks")
-      .withIndex("by_workspace_automation", (q) =>
-        q
-          .eq("workspaceId", args.workspaceId)
-          .eq("automationId", args.automationId),
-      )
-      .first();
-
-    if (existing !== null) {
-      if (
-        existing.destinationUrl !== destinationUrl ||
-        existing.label !== label
-      ) {
-        await ctx.db.patch(existing._id, { destinationUrl, label });
-      }
-      return `${origin}/r/${existing.slug}`;
-    }
-
-    let slug: string | null = null;
-    for (let attempt = 0; attempt < SLUG_ATTEMPTS; attempt++) {
-      const candidate = generateSlug();
-      const clash = await ctx.db
-        .query("orTrackedLinks")
-        .withIndex("by_slug", (q) => q.eq("slug", candidate))
-        .first();
-      if (clash === null) {
-        slug = candidate;
-        break;
-      }
-    }
-    if (slug === null) {
-      return null;
-    }
-
-    await ctx.db.insert("orTrackedLinks", {
+    return await ensureTrackedUrlHelper(ctx, {
       workspaceId: args.workspaceId,
-      automationId: args.automationId,
-      slug,
       destinationUrl,
-      label,
-      createdAt: Date.now(),
+      channel: "instagram",
+      label: automation.linkLabel?.trim() || undefined,
+      automationId: args.automationId,
     });
+  },
+});
 
-    return `${origin}/r/${slug}`;
+/**
+ * Interna mutacija za kreiranje praćenog linka za zadatu destinaciju i kanal.
+ */
+export const ensureTrackedUrl = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    destinationUrl: v.string(),
+    channel: v.optional(v.string()),
+    label: v.optional(v.string()),
+  },
+  returns: v.union(v.null(), v.string()),
+  handler: async (ctx, args) => {
+    return await ensureTrackedUrlHelper(ctx, {
+      workspaceId: args.workspaceId,
+      destinationUrl: args.destinationUrl,
+      channel: args.channel ?? "threads",
+      label: args.label,
+    });
   },
 });
 
@@ -132,6 +193,7 @@ export const registerClick = internalMutation({
     v.object({
       destinationUrl: v.string(),
       campaignSlug: v.string(),
+      channel: v.string(),
       eventId: v.optional(v.string()),
     }),
   ),
@@ -144,9 +206,15 @@ export const registerClick = internalMutation({
       return null;
     }
 
-    const automation = await ctx.db.get(link.automationId);
+    const automation = link.automationId ? await ctx.db.get(link.automationId) : null;
     // Same slugify the Atribucija screen joins GA4 campaigns on.
-    const campaignSlug = automation === null ? "" : slugify(automation.name);
+    const campaignSlug =
+      automation !== null
+        ? slugify(automation.name)
+        : link.label
+          ? slugify(link.label)
+          : "threads";
+    const channel = link.channel ?? "instagram";
 
     // The redirect ALWAYS happens; only the click WRITE is capped (R1/2d). This
     // route is public and every hit inserts an `orLinkClicks` row with a rollup
@@ -173,7 +241,8 @@ export const registerClick = internalMutation({
 
       await ctx.db.insert("orLinkClicks", {
         workspaceId: link.workspaceId,
-        automationId: link.automationId,
+        ...(link.automationId ? { automationId: link.automationId } : {}),
+        channel,
         trackedLinkId: link._id,
         date,
         ipHash: args.ipHash,
@@ -182,11 +251,13 @@ export const registerClick = internalMutation({
         createdAt: now,
       });
 
-      await ctx.runMutation(internal.orRollup.recompute, {
-        workspaceId: link.workspaceId,
-        date,
-        automationId: link.automationId,
-      });
+      if (link.automationId) {
+        await ctx.runMutation(internal.orRollup.recompute, {
+          workspaceId: link.workspaceId,
+          date,
+          automationId: link.automationId,
+        });
+      }
 
       // B3 & B-F1 & B-F2: Conversions API (CAPI) - website PageView event on short-link redirect
       const eventTime = Math.floor(now / 1000);
@@ -240,6 +311,7 @@ export const registerClick = internalMutation({
     return {
       destinationUrl: link.destinationUrl,
       campaignSlug,
+      channel,
       ...(capiEventId ? { eventId: capiEventId } : {}),
     };
   },

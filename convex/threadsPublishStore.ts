@@ -26,6 +26,9 @@ import {
   retryDelayMs,
   type ThreadsPublishMediaType,
 } from "./lib/threadsPublish";
+import { isControlledDomain } from "./lib/urlNormalization";
+import { ensureTrackedUrlHelper } from "./orLinks";
+
 
 /** The `_storage` system table's row — size and content type, as stored. */
 type StorageMetadata = DocumentByName<SystemDataModel, "_storage">;
@@ -174,12 +177,94 @@ async function claimUploads(
   }
 }
 
+/**
+ * Automatski zamenjuje sve URL-ove koji vode ka našim domenima sa /r/ praćenim linkovima (TH10).
+ * Ako generisanje praćenog linka ne uspe, prekida kreiranje posla kako objava ne bi otišla neprimećeno nepropraćena.
+ */
+async function trackControlledUrls(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  content: { text?: string; linkAttachment?: string },
+): Promise<{ text?: string; linkAttachment?: string }> {
+  let text = content.text;
+  let linkAttachment = content.linkAttachment;
+
+  // 1. Obrada linkAttachment-a
+  if (linkAttachment && isControlledDomain(linkAttachment)) {
+    const shortUrl = await ensureTrackedUrlHelper(ctx, {
+      workspaceId,
+      destinationUrl: linkAttachment,
+      channel: "threads",
+    });
+    if (!shortUrl) {
+      invalid(
+        `Kreiranje praćenog /r/ linka nije uspelo za linkAttachment (${linkAttachment}). Objava je zaustavljena.`,
+      );
+    }
+    linkAttachment = shortUrl;
+  }
+
+  // 2. Obrada linkova unutar teksta objave
+  //
+  // Zamena ide po INDEKSU podudaranja, i unazad. `text.replace(rawUrl, ...)`
+  // menja PRVO pojavljivanje podniske u celom tekstu — a prvo pojavljivanje
+  // posle prve zamene ume da bude unutar upravo ubačenog kratkog linka.
+  // Dokazano na stvarnom slučaju:
+  //
+  //   ulaz:  "https://enigmait.rs/x i https://digital.enigmait.rs"
+  //   staro: "https://digital.enigmait.rs/r/BBB/r/AAA i https://digital.enigmait.rs"
+  //   novo:  "https://digital.enigmait.rs/r/AAA i https://digital.enigmait.rs/r/BBB"
+  //
+  // Prvi kratki link SADRŽI naš domen, pa je drugi `replace` pogodio njega
+  // umesto pravog URL-a — i objava bi otišla sa pokvarenim linkom, tiho.
+  // Unazad zato što zamena ne sme da pomeri indekse podudaranja koja tek
+  // dolaze na red.
+  if (text) {
+    const urlRegex = /https?:\/\/[^\s<>"'()]+/gi;
+    const matches = Array.from(text.matchAll(urlRegex));
+
+    const replacements: Array<{ start: number; end: number; shortUrl: string }> =
+      [];
+
+    for (const match of matches) {
+      const rawUrl = match[0];
+      if (match.index === undefined) continue;
+      if (!isControlledDomain(rawUrl)) continue;
+
+      const shortUrl = await ensureTrackedUrlHelper(ctx, {
+        workspaceId,
+        destinationUrl: rawUrl,
+        channel: "threads",
+      });
+      if (!shortUrl) {
+        invalid(
+          `Kreiranje praćenog /r/ linka nije uspelo za link u tekstu (${rawUrl}). Objava je zaustavljena.`,
+        );
+      }
+
+      replacements.push({
+        start: match.index,
+        end: match.index + rawUrl.length,
+        shortUrl,
+      });
+    }
+
+    for (let i = replacements.length - 1; i >= 0; i--) {
+      const { start, end, shortUrl } = replacements[i];
+      text = text.slice(0, start) + shortUrl + text.slice(end);
+    }
+  }
+
+  return { text, linkAttachment };
+}
+
 // ── Kreiranje posla za objavljivanje ─────────────────────────────────────────
 
 /**
  * Kreira novu Threads objavu (odmah ili zakazanu) uz detaljnu validaciju svih pravila.
  */
 export const createJob = mutation({
+
   args: {
     mediaType: mediaTypeValidator,
     text: v.optional(v.string()),
@@ -318,13 +403,20 @@ export const createJob = mutation({
     const trimmedReplyToId = replyToId?.trim();
     const trimmedQuotePostId = quotePostId?.trim();
 
+    // Zamena linkova ka našim domenima sa /r/ praćenim linkovima pre kreiranja posla (TH10)
+    const { text: finalText, linkAttachment: finalLinkAttachment } =
+      await trackControlledUrls(ctx, workspaceId, {
+        text: trimmedText,
+        linkAttachment: trimmedLinkAttachment,
+      });
+
     const jobId = await ctx.db.insert("threadsPublishJobs", {
       workspaceId,
       createdBy: userId,
       createdAt: now,
       updatedAt: now,
       mediaType,
-      ...(trimmedText && trimmedText.length > 0 ? { text: trimmedText } : {}),
+      ...(finalText && finalText.length > 0 ? { text: finalText } : {}),
       storageIds,
       mediaUrls: storageIds.map(uploadUrlFor),
       contentTypes,
@@ -338,9 +430,10 @@ export const createJob = mutation({
       ...(trimmedAltText && trimmedAltText.length > 0
         ? { altText: trimmedAltText }
         : {}),
-      ...(trimmedLinkAttachment && trimmedLinkAttachment.length > 0
-        ? { linkAttachment: trimmedLinkAttachment }
+      ...(finalLinkAttachment && finalLinkAttachment.length > 0
+        ? { linkAttachment: finalLinkAttachment }
         : {}),
+
       ...(trimmedQuotePostId && trimmedQuotePostId.length > 0
         ? { quotePostId: trimmedQuotePostId }
         : {}),
@@ -485,13 +578,20 @@ export const createJobDirect = internalMutation({
     const trimmedLocationId = locationId?.trim();
     const dueAt = scheduledFor ?? now;
 
+    // Zamena linkova ka našim domenima sa /r/ praćenim linkovima pre kreiranja posla (TH10)
+    const { text: finalText, linkAttachment: finalLinkAttachment } =
+      await trackControlledUrls(ctx, workspaceId, {
+        text: trimmedText,
+        linkAttachment: trimmedLinkAttachment,
+      });
+
     const jobId = await ctx.db.insert("threadsPublishJobs", {
       workspaceId,
       ...(userId ? { createdBy: userId } : {}),
       createdAt: now,
       updatedAt: now,
       mediaType,
-      ...(trimmedText && trimmedText.length > 0 ? { text: trimmedText } : {}),
+      ...(finalText && finalText.length > 0 ? { text: finalText } : {}),
       storageIds,
       mediaUrls: storageIds.map(uploadUrlFor),
       contentTypes: [],
@@ -505,8 +605,8 @@ export const createJobDirect = internalMutation({
       ...(trimmedAltText && trimmedAltText.length > 0
         ? { altText: trimmedAltText }
         : {}),
-      ...(trimmedLinkAttachment && trimmedLinkAttachment.length > 0
-        ? { linkAttachment: trimmedLinkAttachment }
+      ...(finalLinkAttachment && finalLinkAttachment.length > 0
+        ? { linkAttachment: finalLinkAttachment }
         : {}),
       ...(trimmedQuotePostId && trimmedQuotePostId.length > 0
         ? { quotePostId: trimmedQuotePostId }
@@ -514,6 +614,7 @@ export const createJobDirect = internalMutation({
       ...(trimmedTopicTag && trimmedTopicTag.length > 0
         ? { topicTag: trimmedTopicTag }
         : {}),
+
       ...(isSpoilerMedia !== undefined ? { isSpoilerMedia } : {}),
       ...(isGhostPost !== undefined ? { isGhostPost } : {}),
       ...(enableReplyApprovals !== undefined ? { enableReplyApprovals } : {}),

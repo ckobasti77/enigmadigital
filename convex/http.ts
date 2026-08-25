@@ -1095,9 +1095,10 @@ http.route({
 
     // UTM tags ride into GA4 from here; ones already on the destination win.
     const target = appendEventId(
-      appendUtm(result.destinationUrl, result.campaignSlug),
+      appendUtm(result.destinationUrl, result.campaignSlug, result.channel),
       result.eventId,
     );
+
 
     return new Response(null, {
       status: 302,

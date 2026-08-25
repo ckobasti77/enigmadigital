@@ -986,10 +986,16 @@ const THREADS_STEPS: PurgeStep[] = [
       .query("threadsAutomationLogs")
       .withIndex("by_workspace_created", (q) => q.eq("workspaceId", ws)),
   ),
+  simple("threadsLinkAttribution", (ctx, ws) =>
+    ctx.db
+      .query("threadsLinkAttribution")
+      .withIndex("by_workspace_date", (q) => q.eq("workspaceId", ws)),
+  ),
   {
     tables: ["threadsPublishJobs", "threadsPublishFiles"],
     run: drainThreadsPublishJobs,
   },
+
   { tables: ["threadsPublishUploads"], run: drainThreadsPublishUploads },
 ];
 
@@ -1144,6 +1150,8 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   threadsAutomations: { purgedBy: ["threads"] },
   threadsProcessedReplies: { purgedBy: ["threads"] },
   threadsAutomationLogs: { purgedBy: ["threads"] },
+  threadsLinkAttribution: { purgedBy: ["threads"] },
+
 
   // ── YouTube (YA2 / Y2-Y10) ────────────────────────────────────────────────
 

@@ -1279,18 +1279,22 @@ export default defineSchema({
 
   orTrackedLinks: defineTable({
     workspaceId: v.id("workspaces"),
-    automationId: v.id("orAutomations"),
+    automationId: v.optional(v.id("orAutomations")),
+    channel: v.optional(v.string()), // "instagram", "threads", itd.
     slug: v.string(),
     destinationUrl: v.string(),
     label: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_slug", ["slug"])
-    .index("by_workspace_automation", ["workspaceId", "automationId"]),
+    .index("by_workspace_automation", ["workspaceId", "automationId"])
+    .index("by_workspace_destination", ["workspaceId", "destinationUrl"])
+    .index("by_workspace_channel", ["workspaceId", "channel"]),
 
   orLinkClicks: defineTable({
     workspaceId: v.id("workspaces"),
-    automationId: v.id("orAutomations"),
+    automationId: v.optional(v.id("orAutomations")),
+    channel: v.optional(v.string()),
     trackedLinkId: v.id("orTrackedLinks"),
     date: v.string(), // "YYYY-MM-DD", UTC
     ipHash: v.optional(v.string()),
@@ -1301,7 +1305,10 @@ export default defineSchema({
     .index("by_workspace_created", ["workspaceId", "createdAt"])
     .index("by_workspace_date", ["workspaceId", "date"])
     .index("by_link", ["trackedLinkId"])
+    .index("by_workspace_link", ["workspaceId", "trackedLinkId"])
+    .index("by_workspace_channel", ["workspaceId", "channel"])
     .index("by_workspace_automation", ["workspaceId", "automationId"]),
+
 
   // Operations — one row per sync attempt (start/finish/fail); powers the
   // Sync Health widget. Latest-per-provider = withIndex(...).order("desc").first()
@@ -2906,6 +2913,36 @@ export default defineSchema({
     .index("by_workspace_status", ["workspaceId", "status"])
     .index("by_workspace_date", ["workspaceId", "date"])
     .index("by_workspace_reply", ["workspaceId", "sourceReplyId"]),
+
+  // ── Threads atribucija linkova i levak (funnel) (§10.2) ─────────────────────
+  //
+  // Spajanje dva nezavisna izvora klikova za isti link po (workspaceId, date):
+  //   1) threadsClicks: zabeleženo u Threads aplikaciji (GET /me/threads_insights?metric=clicks)
+  //   2) siteClicks: stvarni dolasci na sajt preko /r/ rute (orLinkClicks)
+  //
+  // PRAVILA (§10.2):
+  // - Nikada ne skladištimo odnos, razliku ili procenat u bazu.
+  // - Ako za određeni dan jedan izvor nije sinhronizovan, polje je ODSUTNO (undefined), nikada 0.
+  // - Nespojeni URL-ovi (linkovi koji nisu /r/ praćeni linkovi) se čuvaju sa trackedLinkId = undefined
+  //   i isMatched = false kako bi se rupa videla u UI-ju.
+  threadsLinkAttribution: defineTable({
+    workspaceId: v.id("workspaces"),
+    date: v.string(), // "YYYY-MM-DD", UTC
+    trackedLinkId: v.optional(v.id("orTrackedLinks")),
+    rawUrl: v.string(),
+    normalizedUrl: v.string(),
+    destinationUrl: v.optional(v.string()),
+    label: v.optional(v.string()),
+    threadsClicks: v.optional(v.number()), // Broj klikova u Threads aplikaciji
+    siteClicks: v.optional(v.number()), // Broj stvarnih dolazaka na sajt
+    isMatched: v.boolean(), // true ako je uspešno spojen sa praćenim linkom, false ako je nespojen
+    updatedAt: v.number(),
+  })
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_link_date", ["workspaceId", "trackedLinkId", "date"])
+    .index("by_workspace_url_date", ["workspaceId", "normalizedUrl", "date"])
+    .index("by_workspace_matched", ["workspaceId", "isMatched"]),
+
 
 
   // ── Brisanje preuzetih podataka (P3) ────────────────────────────────────────

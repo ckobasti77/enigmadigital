@@ -49,7 +49,11 @@ export function generateSlug(): string {
  * Existing values for those keys WIN (never overwrite).
  * Returns the input unchanged if it is not a parseable URL.
  */
-export function appendUtm(destinationUrl: string, campaignSlug: string): string {
+export function appendUtm(
+  destinationUrl: string,
+  campaignSlug: string,
+  channel: string = "instagram",
+): string {
   let url: URL;
   try {
     url = new URL(destinationUrl);
@@ -58,9 +62,9 @@ export function appendUtm(destinationUrl: string, campaignSlug: string): string 
   }
 
   const tags: Record<string, string> = {
-    utm_source: "instagram",
-    utm_medium: "dm",
-    utm_campaign: campaignSlug,
+    utm_source: channel === "threads" ? "threads" : "instagram",
+    utm_medium: channel === "threads" ? "social" : "dm",
+    utm_campaign: campaignSlug || channel,
   };
 
   for (const [key, value] of Object.entries(tags)) {
@@ -71,6 +75,7 @@ export function appendUtm(destinationUrl: string, campaignSlug: string): string 
 
   return url.toString();
 }
+
 
 /**
  * Append the CAPI event_id to the destination URL as `eid`, so the Pixel on the
