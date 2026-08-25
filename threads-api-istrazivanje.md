@@ -653,21 +653,26 @@ Postoje, ali su bila prazna jer su sve test objave bile tekstualne:
   (`option_a_votes_percentage`, `total_votes`, `expiration_timestamp`) **nisu potvrđeni** —
   verovatno traže eksplicitno navođenje kao podpolja.
 
-### B.5 `media_type` — stvarno viđene vrednosti
+### B.5 `media_type` — DOKAZANE vrednosti
 
-Potvrđeno: **`TEXT_POST`**, **`REPOST_FACADE`**
+Prolaz uživo TH15, 26.08.2026: objavljeno po jedno od svakog tipa sa @itenigma
+kroz aplikaciju, pa pročitano nazad kroz `GET /{user-id}/threads`.
 
-Obe verzije iz odeljka 11 bile su delimično pogrešne: tekst je `TEXT_POST` (verzija B),
-repost je `REPOST_FACADE` (verzija A). Zaključak: **nazivi se ne smeju izvoditi po analogiji.**
+| Tip objave | `media_type` u odgovoru |
+|---|---|
+| tekst | `TEXT_POST` |
+| slika | `IMAGE` |
+| video | `VIDEO` |
+| carousel | **`CAROUSEL_ALBUM`** |
+| repost | `REPOST_FACADE` |
 
-**NEPOZNATO i dalje:** nazivi za sliku, video i carousel. Probe nije pokrio te tipove jer
-`THREADS_PROBE_IMAGE_URL` i `THREADS_PROBE_VIDEO_URL` nisu bili postavljeni.
-Dok se ne dokažu, kod NE SME da pretpostavlja ni `IMAGE`/`VIDEO`/`CAROUSEL` ni
-`IMAGE_POST`/`CAROUSEL_ALBUM`.
+⚠ **Carousel je jedini tip kod kog se ulaz i izlaz razlikuju.** Pri kreiranju
+kontejnera šalje se `media_type=CAROUSEL` (§4.2), a nazad stiže
+`CAROUSEL_ALBUM`. Kod koji poredi to dvoje mora znati za obe vrednosti.
 
 ### B.6 Šta ostaje da se dokaže
 
-1. `media_type` za IMAGE, VIDEO, CAROUSEL — ponoviti probe sa URL-ovima medija
+1. ~~`media_type` za IMAGE, VIDEO, CAROUSEL~~ — **ZATVORENO 26.08.2026**, vidi B.5
 2. Reply approvals: `GET /{media-id}/pending_replies`, `POST /{reply-id}/manage_pending_reply`
 3. `poll_attachment` podpolja sa procentima
 4. `location` sa podpoljima

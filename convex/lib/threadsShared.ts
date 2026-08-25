@@ -395,11 +395,29 @@ export function parseThreadsPublishingLimit(raw: unknown): ThreadsPublishingLimi
 
 /**
  * Prijavljuje nepoznat media_type kroz console.warn (Dodatak B.5 i B.7).
- * Dozvoljene poznate vrednosti: "TEXT_POST", "REPOST_FACADE".
+ * DOKAZANE vrednosti (TH15 prolaz uživo, 26.08.2026 — objavljeno po jedno od
+ * svakog tipa sa @itenigma pa pročitano nazad kroz sync):
+ *
+ *   TEXT_POST       tekstualna objava
+ *   IMAGE           jedna slika
+ *   VIDEO           jedan video
+ *   CAROUSEL_ALBUM  carousel — PAŽNJA: NIJE "CAROUSEL", iako se pri kreiranju
+ *                   kontejnera šalje `media_type=CAROUSEL`. Ulaz i izlaz se
+ *                   razlikuju, i to je jedini tip kod kog je to slučaj.
+ *   REPOST_FACADE   repost
  */
+/** Vidi komentar iznad `checkAndLogMediaType` — sve su empirijski dokazane. */
+const KNOWN_THREADS_MEDIA_TYPES = new Set([
+  "TEXT_POST",
+  "IMAGE",
+  "VIDEO",
+  "CAROUSEL_ALBUM",
+  "REPOST_FACADE",
+]);
+
 export function checkAndLogMediaType(mediaType: string | undefined): void {
   if (!mediaType) return;
-  if (mediaType !== "TEXT_POST" && mediaType !== "REPOST_FACADE") {
+  if (!KNOWN_THREADS_MEDIA_TYPES.has(mediaType)) {
     console.warn(
       `[Threads API] Otkriven nepoznat/novi media_type: "${mediaType}". Zabeleži vrednost u dokumentaciju.`,
     );
