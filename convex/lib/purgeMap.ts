@@ -1061,25 +1061,49 @@ const META_ADS_STEPS: PurgeStep[] = [
 // ── Leads: lead mašina (LM1–LM10) ──────────────────────────────────────────
 
 const LEAD_STEPS: PurgeStep[] = [
-  // 1. Provenance ide prvi jer referencira entitete u sve tri preostale tabele
+  // 1. Signali (događaji i opažene činjenice)
+  simple("leadSignals", (ctx, ws) =>
+    ctx.db
+      .query("leadSignals")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  // 2. Dodele i statusi (vezani za firmu)
+  simple("leadAssignments", (ctx, ws) =>
+    ctx.db
+      .query("leadAssignments")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  // 3. Lista zabrane kontakta (suppression)
+  simple("leadSuppression", (ctx, ws) =>
+    ctx.db
+      .query("leadSuppression")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  // 4. Pravila bodovanja (ICP pravila radnog prostora)
+  simple("leadIcpRules", (ctx, ws) =>
+    ctx.db
+      .query("leadIcpRules")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  // 5. Istorijat tvrdnji (provenance)
   simple("leadFieldProvenance", (ctx, ws) =>
     ctx.db
       .query("leadFieldProvenance")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
   ),
-  // 2. Kontakti/identiteti koji referenciraju firmu i osobu
+  // 6. Kontakti i komunikacioni kanali (identiteti)
   simple("leadIdentities", (ctx, ws) =>
     ctx.db
       .query("leadIdentities")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
   ),
-  // 3. Osobe unutar firme
+  // 7. Fizička lica u firmama (osobe)
   simple("leadPeople", (ctx, ws) =>
     ctx.db
       .query("leadPeople")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
   ),
-  // 4. Korenska tabela firmi na kraju
+  // 8. Korenska tabela firmi na kraju
   simple("leadCompanies", (ctx, ws) =>
     ctx.db
       .query("leadCompanies")
@@ -1171,7 +1195,11 @@ type Disposition =
  */
 export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   // ── Leads (LM1–LM10) ───────────────────────────────────────────────────────
-  // Redosled brisanja prati zavisnosti: provenance → identiteti → osobe → firme.
+  // Redosled brisanja prati zavisnosti: signali → dodele → suppression → ICP pravila → provenance → identiteti → osobe → firme.
+  leadSignals: { purgedBy: ["leads"] },
+  leadAssignments: { purgedBy: ["leads"] },
+  leadSuppression: { purgedBy: ["leads"] },
+  leadIcpRules: { purgedBy: ["leads"] },
   leadFieldProvenance: { purgedBy: ["leads"] },
   leadIdentities: { purgedBy: ["leads"] },
   leadPeople: { purgedBy: ["leads"] },

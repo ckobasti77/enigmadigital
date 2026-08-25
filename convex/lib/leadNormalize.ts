@@ -283,3 +283,36 @@ export function normalizeCompanyWallUrl(url?: string | null): string | undefined
 
   return parts.join("/");
 }
+
+/**
+ * Sve dozvoljene vrste signala (§2.5). Ista lista koja u `convex/schema.ts`
+ * stoji kao `v.union` na `leadSignals.kind`.
+ *
+ * Postoji zato što `leadIcpRules.signalKind` NIJE union nego `v.string()` —
+ * pravilo sme da referiše bilo šta. Pravilo koje referiše nepostojeću vrstu
+ * signala se nikada ne okine, i to bez ijedne poruke: operater vidi pravilo
+ * na ekranu, veruje da radi, a ono ćuti. Svaka mutacija koja upisuje ili menja
+ * ICP pravilo MORA proveriti `signalKind` protiv ove liste i odbiti nepoznatu
+ * vrednost (LM6).
+ */
+export const LEAD_SIGNAL_KINDS = [
+  "nema_sajt",
+  "koristi_third_party_booking",
+  "samo_facebook",
+  "samo_instagram",
+  "visok_broj_recenzija",
+  "novootvorena_firma",
+  "landing_opened",
+  "r_link_clicked",
+  "komentar",
+  "dm",
+  "mention",
+  "pitao_cenu",
+  "ostalo",
+] as const;
+
+export type LeadSignalKind = (typeof LEAD_SIGNAL_KINDS)[number];
+
+export function isKnownLeadSignalKind(kind: string): kind is LeadSignalKind {
+  return (LEAD_SIGNAL_KINDS as readonly string[]).includes(kind);
+}

@@ -3294,4 +3294,178 @@ export default defineSchema({
       "entityId",
       "fieldName",
     ]),
+
+  // 5) leadSignals — pojedinačne opažene činjenice i događaji (§2.5, §4.1, §7)
+  //
+  // Jedan red = jedna opažena činjenica sa datumom i izvorom.
+  //
+  // Signali se NE sabiraju u broj koji se čuva u bazi (§0, §2.5). Ocena leada se
+  // računa dinamički pri čitanju (LM6).
+  //
+  // VAŽNO ZA `landing_opened` (§7):
+  // Svako otvaranje besplatne stranice beleži se kao ZASEBAN RED u ovoj tabeli,
+  // a ne kao brojač koji se uvećava. Samo tako ostaje odgovorljivo pitanje
+  // „koliko puta i TAČNO KADA je stranica otvorena", dok brojač to gubi.
+  //
+  // Za signale koji predstavljaju odnos (npr. ocena 9.4 od 10), čuvaju se
+  // `numerator` (9.4) i `denominator` (10) odvojeno. NIKADA se ne čuva već
+  // izračunata stopa (§0 pravilo #2).
+  leadSignals: defineTable({
+    workspaceId: v.id("workspaces"),
+    companyId: v.id("leadCompanies"),
+    // Opciono — signal može biti vezan za konkretnu osobu (npr. poslat DM, komentar, pitanje)
+    personId: v.optional(v.id("leadPeople")),
+
+    // Tip opaženog signala (§4.1, §7)
+    kind: v.union(
+      v.literal("nema_sajt"),
+      v.literal("koristi_third_party_booking"),
+      v.literal("samo_facebook"),
+      v.literal("samo_instagram"),
+      v.literal("visok_broj_recenzija"),
+      v.literal("novootvorena_firma"),
+      v.literal("landing_opened"),
+      v.literal("r_link_clicked"),
+      v.literal("komentar"),
+      v.literal("dm"),
+      v.literal("mention"),
+      v.literal("pitao_cenu"),
+      v.literal("ostalo"),
+    ),
+
+    // Opciona tekstualna vrednost (npr. naziv booking alata "Setmore", broj recenzija "133")
+    value: v.optional(v.string()),
+
+    // Brojilac i imenilac za ocene i odnose (npr. 9.4 i 10). NIKADA izračunata stopa.
+    numerator: v.optional(v.number()),
+    denominator: v.optional(v.number()),
+
+    // Vreme kada je signal opažen
+    observedAt: v.number(),
+    // Naziv izvora signala (npr. "landing_tracker", "instagram", "google_maps", "companywall")
+    source: v.string(),
+    // Opcioni URL izvora ili događaja
+    sourceUrl: v.optional(v.string()),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_company", ["workspaceId", "companyId"])
+    .index("by_workspace_kind", ["workspaceId", "kind"])
+    .index("by_workspace_company_kind", [
+      "workspaceId",
+      "companyId",
+      "kind",
+    ]),
+
+  // 6) leadIcpRules — podesiva pravila idealnog profila kupca (ICP) (§4)
+  //
+  // Definiše težine pojedinačnih signala za ose FIT (koliko firma odgovara profilu kupca)
+  // i INTENT (koliko je firma trenutno aktivna/zagrejana na tržištu).
+  //
+  // Težine žive u bazi podataka baš zato da bi se mogle menjati i kalibrisati
+  // bez potrebe za novim deploy-om koda.
+  //
+  // KLJUČNO PRAVILO (§0, §4):
+  // Rezultat bodovanja se NIKADA ne upisuje nazad u firmu niti u lead; ocena i
+  // lista signala („zašto") se računaju isključivo dinamički pri čitanju.
+  leadIcpRules: defineTable({
+    workspaceId: v.id("workspaces"),
+    name: v.string(),
+    // Osa kojoj pravilo doprinosi: profil kupca (fit) ili trenutna namera (intent)
+    axis: v.union(v.literal("fit"), v.literal("intent")),
+    // Tip signala na koji se pravilo odnosi (iz skupa signal kinds)
+    signalKind: v.string(),
+    // Težina pravila (doprinos ukupnom skoru na toj osi)
+    weight: v.number(),
+    // Da li je pravilo trenutno aktivno pri evaluaciji
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_axis", ["workspaceId", "axis"]),
+
+  // 7) leadSuppression — lista zabrane kontakta („ne diraj" lista) (§9.3)
+  //
+  // Čuva identifikatore privrednih subjekata i osoba kojima se ne sme slati
+  // ponuda niti inicirati prodajni kontakt (postojeći klijenti, odbijeni,
+  // zatražen opt-out, interni test unosi).
+  //
+  // KLJUČNO PRAVILO:
+  // Provera se radi PRI UVOZU podataka, a ne pri pozivanju. Time se sprečava da
+  // se sopstveni klijenti ili zaštićeni kontakti uopšte uvezu kao hladni leadovi.
+  // Sve vrednosti se čuvaju u strogo normalizovanom obliku (putem funkcija iz `leadNormalize.ts`).
+  leadSuppression: defineTable({
+    workspaceId: v.id("workspaces"),
+    // Razlog zabrane kontakta
+    kind: v.union(
+      v.literal("postojeci_klijent"),
+      v.literal("rekao_ne"),
+      v.literal("trazio_da_ga_ne_zovemo"),
+      v.literal("interno"),
+    ),
+    // Ključ po kom se vrši provera podudaranja pri uvozu
+    matchOn: v.union(
+      v.literal("pib"),
+      v.literal("domain"),
+      v.literal("phone"),
+      v.literal("email"),
+      v.literal("companyId"),
+    ),
+    // Normalizovana vrednost identifikatora (npr. +381... za telefon, čist domen bez www)
+    value: v.string(),
+    // Opciono obrazloženje zabrane kontakta
+    reason: v.optional(v.string()),
+    // Korisnik koji je uneo zabranu u sistem
+    addedBy: v.optional(v.id("users")),
+    addedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_match", ["workspaceId", "matchOn", "value"]),
+
+  // 8) leadAssignments — vlasništvo nad leadom, faza toka i ishod (§9.1)
+  //
+  // Sprečava koliziju unutar tima: svaki lead ima tačno jednog zaduženog člana
+  // tima, zabeležen datum poslednjeg dodira i planiran datum sledećeg koraka.
+  //
+  // KLJUČNO PRAVILO:
+  // `stage` (faza u prodajnom toku) i `outcome` (ishod) su DVE RAZLIČITE stvari i
+  // ne smeju se spajati u jedno polje. Na primer: „izgubljen" je faza (stage),
+  // dok je „nije se javio tri puta" ili „preskupo" konkretan ishod (outcome).
+  leadAssignments: defineTable({
+    workspaceId: v.id("workspaces"),
+    companyId: v.id("leadCompanies"),
+    // Član tima zadužen za komunikaciju sa leadom
+    ownerUserId: v.id("users"),
+
+    // Trenutna faza u prodajnom toku
+    stage: v.union(
+      v.literal("nov"),
+      v.literal("u_radu"),
+      v.literal("poslata_ponuda"),
+      v.literal("sastanak"),
+      v.literal("dobijen"),
+      v.literal("izgubljen"),
+      v.literal("odlozen"),
+    ),
+
+    // Datum poslednjeg kontakta sa leadom
+    lastTouchAt: v.optional(v.number()),
+    // Datum i vreme kada je planirana sledeća radnja
+    nextActionAt: v.optional(v.number()),
+    // Napomena za sledeći korak (npr. "Pozvati u 18h posle smene")
+    nextActionNote: v.optional(v.string()),
+
+    // Zabeležen ishod komunikacije
+    outcome: v.optional(v.string()),
+    // Vreme kada je ishod zabeležen
+    outcomeAt: v.optional(v.number()),
+
+    createdAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_owner", ["workspaceId", "ownerUserId"])
+    .index("by_workspace_stage", ["workspaceId", "stage"])
+    .index("by_workspace_next_action", ["workspaceId", "nextActionAt"])
+    .index("by_workspace_company", ["workspaceId", "companyId"]),
 });
