@@ -53,6 +53,7 @@ export function manualRevokeMessage(provider: Provider): string {
       return "Opoziv nije uspeo posle više pokušaja. System User token se opoziva u Business Manager-u: Business settings → System users → Assets.";
     case "ga4":
     case "openreply":
+    case "leads":
       return "Opoziv nije uspeo posle više pokušaja.";
     case "threads":
       return "Opoziv nije uspeo posle više pokušaja. Ručno ukloni aplikaciju u podešavanjima Threads naloga.";
@@ -212,6 +213,7 @@ export async function revokeProviderAccess(
       };
     case "openreply":
     case "threads":
+    case "leads":
       return { status: "unsupported" };
   }
 }

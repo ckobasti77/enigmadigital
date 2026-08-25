@@ -59,6 +59,7 @@ import type * as lib_igMediaMetrics from "../lib/igMediaMetrics.js";
 import type * as lib_igMetrics from "../lib/igMetrics.js";
 import type * as lib_igPublish from "../lib/igPublish.js";
 import type * as lib_instagramApi from "../lib/instagramApi.js";
+import type * as lib_leadNormalize from "../lib/leadNormalize.js";
 import type * as lib_metaAdsApi from "../lib/metaAdsApi.js";
 import type * as lib_metaAdsBackfill from "../lib/metaAdsBackfill.js";
 import type * as lib_metaAdsCatalog from "../lib/metaAdsCatalog.js";
@@ -196,6 +197,7 @@ declare const fullApi: ApiFromModules<{
   "lib/igMetrics": typeof lib_igMetrics;
   "lib/igPublish": typeof lib_igPublish;
   "lib/instagramApi": typeof lib_instagramApi;
+  "lib/leadNormalize": typeof lib_leadNormalize;
   "lib/metaAdsApi": typeof lib_metaAdsApi;
   "lib/metaAdsBackfill": typeof lib_metaAdsBackfill;
   "lib/metaAdsCatalog": typeof lib_metaAdsCatalog;

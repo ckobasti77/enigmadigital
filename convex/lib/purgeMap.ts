@@ -1058,6 +1058,35 @@ const META_ADS_STEPS: PurgeStep[] = [
   ),
 ];
 
+// ── Leads: lead mašina (LM1–LM10) ──────────────────────────────────────────
+
+const LEAD_STEPS: PurgeStep[] = [
+  // 1. Provenance ide prvi jer referencira entitete u sve tri preostale tabele
+  simple("leadFieldProvenance", (ctx, ws) =>
+    ctx.db
+      .query("leadFieldProvenance")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  // 2. Kontakti/identiteti koji referenciraju firmu i osobu
+  simple("leadIdentities", (ctx, ws) =>
+    ctx.db
+      .query("leadIdentities")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  // 3. Osobe unutar firme
+  simple("leadPeople", (ctx, ws) =>
+    ctx.db
+      .query("leadPeople")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  // 4. Korenska tabela firmi na kraju
+  simple("leadCompanies", (ctx, ws) =>
+    ctx.db
+      .query("leadCompanies")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+];
+
 /**
  * Provider → the ordered list of steps that empties it.
  *
@@ -1073,6 +1102,7 @@ export const PURGE_STEPS: Partial<Record<Provider, PurgeStep[]>> = {
   ga4: GA4_STEPS,
   google_ads: GOOGLE_ADS_STEPS,
   threads: THREADS_STEPS,
+  leads: LEAD_STEPS,
 };
 
 /** The steps for a provider, or an empty list when it has no data of its own. */
@@ -1099,6 +1129,8 @@ export const PROVIDER_TABLE_PREFIXES = [
   "or",
   "capi",
   "threads",
+  "lead",
+  "leads",
 ] as const;
 
 /**
@@ -1120,6 +1152,8 @@ export type ProviderPrefixedTable = Extract<
   | `or${string}`
   | `capi${string}`
   | `threads${string}`
+  | `lead${string}`
+  | `leads${string}`
 >;
 
 type Disposition =
@@ -1136,6 +1170,13 @@ type Disposition =
  * provider's step list.
  */
 export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
+  // ── Leads (LM1–LM10) ───────────────────────────────────────────────────────
+  // Redosled brisanja prati zavisnosti: provenance → identiteti → osobe → firme.
+  leadFieldProvenance: { purgedBy: ["leads"] },
+  leadIdentities: { purgedBy: ["leads"] },
+  leadPeople: { purgedBy: ["leads"] },
+  leadCompanies: { purgedBy: ["leads"] },
+
   // ── Threads (TH3 / TH4 / TH7) ─────────────────────────────────────────────
   // Sve što Threads sync i publish upiše nestaje sa prekidom veze. Nijedna od ovih tabela
   // ne opisuje ništa bez naloga sa kog je preuzeta ili posla koji je slao objavu.

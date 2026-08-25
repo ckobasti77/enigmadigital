@@ -17,6 +17,7 @@ export const providerValidator = v.union(
   v.literal("youtube"),
   v.literal("openreply"),
   v.literal("threads"),
+  v.literal("leads"),
 );
 
 export type Provider =
@@ -27,7 +28,8 @@ export type Provider =
   | "google_ads"
   | "youtube"
   | "openreply"
-  | "threads";
+  | "threads"
+  | "leads";
 
 /** V1 providers that have a Settings entry point in M2. */
 export const ALL_PROVIDERS: Provider[] = [
@@ -39,6 +41,7 @@ export const ALL_PROVIDERS: Provider[] = [
   "youtube",
   "openreply",
   "threads",
+  "leads",
 ];
 
 /**

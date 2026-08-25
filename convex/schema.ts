@@ -3109,4 +3109,189 @@ export default defineSchema({
     count: v.number(),
     cappedAt: v.optional(v.number()),
   }).index("by_workspace_route", ["workspaceId", "route"]),
+
+  // ── Lead mašina (LM1–LM10) ──────────────────────────────────────────────────
+
+  // 1) leadCompanies — korenski entitet firme (§2.1)
+  //
+  // Jedan red = jedna firma. Predstavlja jedinstveni entitet oko koga se vezuju
+  // osobe, kontakt identiteti, opaženi signali i istorijat pojedinačnih tvrdnji.
+  //
+  // Razdvajanje firme od kontakata i osoba sprečava propadanje baze u gomilu
+  // ponovljenih redova: ista firma može imati više lokacija, telefona, vlasnika
+  // i promena tokom vremena.
+  //
+  // Sva polja osim workspaceId, naziva, normalizovanog naziva, origin-a i vremena
+  // su opciona jer odsustvo polja predstavlja stvaran podatak (npr. firma nema sajt
+  // ili PIB još nije pronađen) — upisivanje lažnih podrazumevanih vrednosti ili
+  // praznih stringova bi pokvarilo deduplikaciju i bodovanje (§0).
+  leadCompanies: defineTable({
+    workspaceId: v.id("workspaces"),
+    createdBy: v.optional(v.id("users")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+
+    // Poslovno ime firme u originalnom obliku iz izvora
+    name: v.string(),
+    // Normalizovan naziv (mala slova, bez pravnih oblika poput DOO/PR/SZR, bez dijakritika).
+    // Neophodan za ključ #4 pri deduplikaciji; bez njega pretraga ne bi spojila "Šljivić DOO" i "Sljivic".
+    nameNormalized: v.string(),
+
+    // Zvanični poreski identifikacioni broj — najjači dedupe ključ (#1)
+    pib: v.optional(v.string()),
+    // Matični broj iz APR registra
+    maticniBroj: v.optional(v.string()),
+    // Šifra pretežne delatnosti (npr. "9602" za frizerske i kozmetičke salone)
+    sifraDelatnosti: v.optional(v.string()),
+
+    // Zvanični sajt i normalizovan domen (ključ #3 za deduplikaciju)
+    website: v.optional(v.string()),
+    domainNormalized: v.optional(v.string()),
+
+    // Lokacijski podaci — ulica, opština i grad
+    street: v.optional(v.string()),
+    municipality: v.optional(v.string()),
+    city: v.optional(v.string()),
+
+    // Stabilan CompanyWall URL — najčešći jedinstveni identifikator u uvezenim tabelama (§3 ključ #2)
+    companyWallUrl: v.optional(v.string()),
+    // Naziv izvora iz kog je firma prvi put uneta (npr. "google_maps", "companywall", "inbound_instagram")
+    firstSeenSource: v.optional(v.string()),
+
+    // Zastavica za sumnjive lokacije iz uvoza gde je u tekstu stajalo "(proveriti adresu)" (§5.2)
+    addressNeedsVerification: v.optional(v.boolean()),
+
+    // Poreklo unosa: "inbound" (samoinicijativni kontakt) ili "import" (ručni uvoz tabele).
+    // Neophodno jer se inbound leadovi u interfejsu vizuelno izdvajaju kao prioritetni (§1).
+    origin: v.union(v.literal("inbound"), v.literal("import")),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_pib", ["workspaceId", "pib"])
+    .index("by_workspace_companywall", ["workspaceId", "companyWallUrl"])
+    .index("by_workspace_domain", ["workspaceId", "domainNormalized"])
+    .index("by_workspace_name_city", ["workspaceId", "nameNormalized", "city"]),
+
+  // 2) leadPeople — fizičko lice vezano za firmu (§2.2)
+  //
+  // Jedan red = jedna osoba unutar firme.
+  //
+  // OSOBA BEZ FIRME NE POSTOJI: polje companyId je striktno obavezno. Ako uvoz
+  // naiđe na osobu bez firme, to je greška uvoznika a ne samostalni entitet.
+  // Razdvajanje osoba od same firme omogućava podršku za više suvlasnika, direktora
+  // ili promenu menadžmenta bez prepisivanja istorije firme.
+  leadPeople: defineTable({
+    workspaceId: v.id("workspaces"),
+    companyId: v.id("leadCompanies"),
+    name: v.string(),
+    // Uloga osobe u privrednom subjektu
+    role: v.union(
+      v.literal("vlasnik"),
+      v.literal("direktor"),
+      v.literal("menadzer"),
+      v.literal("nepoznato"),
+    ),
+    // Nivo sigurnosti uloge (npr. potvrđeno iz APR-a naspram slobodne procene iz napomene)
+    roleConfidence: v.union(
+      v.literal("potvrdjeno"),
+      v.literal("verovatno"),
+      v.literal("nepoznato"),
+    ),
+    createdAt: v.optional(v.number()),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_company", ["workspaceId", "companyId"]),
+
+  // 3) leadIdentities — pojedinačni kanali komunikacije (§2.3, §8)
+  //
+  // Jedan red = tačno jedan kontakt kanal (telefon, email, IG nalog, FB stranica, website).
+  //
+  // NIKADA se ne čuva više kontakata u jednom polju. Svaki kontakt nosi sopstveno
+  // poreklo i pravni osnov. Telefon centrale vezuje se direktno za firmu bez personId-ja,
+  // dok se lični mobilni telefon vezuje i za firmu i za konkretnu osobu.
+  //
+  // Polja lawfulBasis i sourceUrl su OBAVEZNA po ZZPL/GDPR pravilima (§8): bez
+  // zabeleženog pravnog osnova i izvora sistem ne poseduje pravnu odbranu za obradu.
+  leadIdentities: defineTable({
+    workspaceId: v.id("workspaces"),
+    companyId: v.id("leadCompanies"),
+    // Opciono — kontakt može pripadati firmi (centrala) ili konkretnoj osobi
+    personId: v.optional(v.id("leadPeople")),
+
+    kind: v.union(
+      v.literal("phone"),
+      v.literal("email"),
+      v.literal("instagram"),
+      v.literal("facebook"),
+      v.literal("website"),
+    ),
+    // Sirova vrednost kontakta
+    value: v.string(),
+    // Normalizovana vrednost (npr. +381... za telefone) za deduplikaciju po kontaktu (§3 ključ #5)
+    valueNormalized: v.optional(v.string()),
+
+    // Da li je kontakt operativno verifikovan (npr. uspešno poslat SMS/email)
+    isVerified: v.optional(v.boolean()),
+
+    // Pravni osnov obrade podataka o ličnosti po ZZPL/GDPR (§8) — OBAVEZNO
+    lawfulBasis: v.string(),
+    // Tačna URL adresa ili dokument odakle je kontakt preuzet (§8) — OBAVEZNO
+    sourceUrl: v.string(),
+
+    // Datum kada je lice obavešteno o obradi podataka (rok od 30 dana po ZZPL kada podaci nisu uzeti direktno)
+    dataSubjectNotifiedAt: v.optional(v.number()),
+    createdAt: v.optional(v.number()),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_kind_value", ["workspaceId", "kind", "valueNormalized"])
+    .index("by_workspace_company", ["workspaceId", "companyId"])
+    .index("by_person", ["personId"]),
+
+  // 4) leadFieldProvenance — istorija i poreklo svake pojedinačne tvrdnje (§2.4)
+  //
+  // KLJUČNO PRAVILO:
+  // Sukobljene tvrdnje se ČUVAJU obe i u korisničkom interfejsu prikazuju kao sukob.
+  // Spajanje (merge) ili ponovni uvoz nikada ne sme tiho da obriše niti prepiše tuđu tvrdnju!
+  //
+  // Primer iz stvarnih podataka (§2.4, §5): u tabeli za "Pro Team Borča" u koloni `Ime_osobe`
+  // stoji "Adaleta Krasnić", dok u napomeni istog reda piše "Vlasnik: Ana Krasnić".
+  // Bez tabele porekla, poslednji upis bi tiho pregazio prethodni i lažna ili konfliktna
+  // informacija bi ostala neprimećena. Tabela omogućava uvid u sve izvore koji su tvrdili
+  // određenu vrednost za bilo koje polje entiteta.
+  leadFieldProvenance: defineTable({
+    workspaceId: v.id("workspaces"),
+    // Tabela entiteta na koji se tvrdnja odnosi
+    entityTable: v.union(
+      v.literal("leadCompanies"),
+      v.literal("leadPeople"),
+      v.literal("leadIdentities"),
+    ),
+    // ID zapisa kao string (jer povezuje tri različite Convex tabele)
+    entityId: v.string(),
+    // Naziv polja čija se vrednost beleži (npr. "name", "role", "street", "phone")
+    fieldName: v.string(),
+    // Opažena vrednost u tekstualnom obliku
+    value: v.string(),
+
+    // Izvor tvrdnje (npr. "companywall", "apr", "google_maps", "user_edit")
+    source: v.string(),
+    // URL adresa izvora ako je dostupna
+    sourceUrl: v.optional(v.string()),
+    // Stepen pouzdanosti izvora
+    confidence: v.union(
+      v.literal("tacno"),
+      v.literal("priblizno"),
+      v.literal("nepoznato"),
+    ),
+    // Da li je tvrdnju pregledao i potvrdio čovek (operater)
+    humanConfirmed: v.boolean(),
+    // Vreme kada je činjenica opažena
+    observedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_entity_field", [
+      "workspaceId",
+      "entityTable",
+      "entityId",
+      "fieldName",
+    ]),
 });
