@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
+import { resolveServerConvexUrl } from "@/lib/server-convex-url";
 
 /**
  * Next.js Route Handler for the Facebook Login for Business redirect (F5).
@@ -34,9 +35,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(settingsUrl);
   }
 
-  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  // Razrešavanje i validacija Convex URL-a: `lib/server-convex-url.ts`.
+  // Ova ruta je do 25.08.2026 čitala SAMO `NEXT_PUBLIC_CONVEX_URL`, koju Next
+  // ubacuje pri build-u i koja u Route Handler-u na Vercelu ume da bude
+  // `undefined` — tada bi ruta tvrdila da Facebook nije vratio kod, iako jeste.
+  const resolved = resolveServerConvexUrl();
+  if (!resolved.ok) {
+    console.error("[Facebook OAuth callback]", resolved.logDetail);
+    settingsUrl.searchParams.set("fb_error", resolved.reason);
+    return NextResponse.redirect(settingsUrl);
+  }
+  const convexUrl = resolved.url;
 
-  if (!code || !state || !convexUrl) {
+  if (!code || !state) {
+    console.error(
+      "[Facebook OAuth callback] Facebook nije vratio code i/ili state parametar.",
+    );
     settingsUrl.searchParams.set(
       "fb_error",
       "Facebook nije vratio kod za autorizaciju. Pokreni povezivanje ponovo.",

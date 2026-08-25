@@ -3,6 +3,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import { sanitizeThreadsError } from "@/convex/lib/threadsShared";
+import { resolveServerConvexUrl } from "@/lib/server-convex-url";
 
 /**
  * Next.js Route Handler za Threads OAuth callback redirect.
@@ -32,27 +33,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(settingsUrl);
   }
 
-  // `NEXT_PUBLIC_*` promenljive Next.js ubacuje u bundle pri build-u i NISU
-  // pouzdano dostupne u Route Handler-u u trenutku zahteva na Vercelu.
-  // Empirijski provereno 25.08.2026: bila je `undefined`, ruta je tiho ulazila u
-  // granu "nema koda" i nikada nije zvala Convex. Zato prvo serverska varijabla.
-  const convexUrl = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL;
-
+  // Razrešavanje i VALIDACIJA Convex URL-a je u `lib/server-convex-url.ts` —
+  // tamo je i zapisano zašto validacija postoji (vrednost je jednom bila
+  // zalepljena zajedno sa labelom „Value: ", pa je uzrok bio nevidljiv).
+  //
   // Tri različita uzroka NE SMEJU da dele jednu poruku — upravo zbog toga je ovaj
   // kvar bio nevidljiv: nedostajao je `convexUrl`, a poruka je tvrdila da Meta nije
   // vratila kod. Svaki uzrok se imenuje, i svaki se loguje na serveru, jer se query
   // parametar gubi kad korisnika preusmeri na prijavu.
-  if (!convexUrl) {
-    console.error(
-      "[Threads OAuth callback] Convex URL nije definisan u okruženju. " +
-        "Postavi CONVEX_URL u Vercel env (Production).",
-    );
-    settingsUrl.searchParams.set(
-      "threads_error",
-      "Server nije podešen: nedostaje Convex URL. Javi administratoru.",
-    );
+  const resolved = resolveServerConvexUrl();
+  if (!resolved.ok) {
+    console.error("[Threads OAuth callback]", resolved.logDetail);
+    settingsUrl.searchParams.set("threads_error", resolved.reason);
     return NextResponse.redirect(settingsUrl);
   }
+  const convexUrl = resolved.url;
 
   if (!rawCode || !state) {
     console.error(

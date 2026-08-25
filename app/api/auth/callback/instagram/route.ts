@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
+import { resolveServerConvexUrl } from "@/lib/server-convex-url";
 
 /**
  * Next.js Route Handler for Instagram OAuth Redirect Callback.
@@ -36,13 +37,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(settingsUrl);
   }
 
-  // `NEXT_PUBLIC_*` promenljive Next.js ubacuje u bundle pri build-u i NISU
-  // pouzdano dostupne u Route Handler-u u trenutku zahteva na Vercelu.
-  // Empirijski provereno 25.08.2026: bila je `undefined`, ruta je tiho ulazila u
-  // granu "nema koda" i nikada nije zvala Convex. Zato prvo serverska varijabla.
-  const convexUrl = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL;
+  // Razrešavanje i validacija Convex URL-a: `lib/server-convex-url.ts`.
+  // Neispravna vrednost se ovde NE sme pretvoriti u tihi pad na legacy granu:
+  // legacy grana je za slučaj "nema state-a", a ne za pokvarenu konfiguraciju.
+  const resolvedConvex = resolveServerConvexUrl();
+  if (!resolvedConvex.ok) {
+    console.error("[Instagram OAuth callback]", resolvedConvex.logDetail);
+    settingsUrl.searchParams.set("ig_error", resolvedConvex.reason);
+    return NextResponse.redirect(settingsUrl);
+  }
+  const convexUrl = resolvedConvex.url;
 
-  if (code && state && convexUrl) {
+  if (code && state) {
     try {
       const client = new ConvexHttpClient(convexUrl);
       const result = await client.action(
