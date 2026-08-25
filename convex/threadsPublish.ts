@@ -629,10 +629,14 @@ export const runPublishJob = internalAction({
  */
 export const publishingLimit = action({
   args: {},
+  // `used`/`total` su OPCIONI namerno. Kvota koja nije pročitana nema
+  // vrednost — a `?? 0` / `?? 250` bi UI-ju rekli „0 od 250 iskorišćeno“,
+  // što je izmišljena tvrdnja u trenutku kada zapravo ništa ne znamo.
+  // Odsustvo polja je jedini iskren način da se to prenese.
   returns: v.object({
     connected: v.boolean(),
-    used: v.number(),
-    total: v.number(),
+    used: v.optional(v.number()),
+    total: v.optional(v.number()),
     replyUsed: v.optional(v.number()),
     replyTotal: v.optional(v.number()),
     deleteUsed: v.optional(v.number()),
@@ -643,8 +647,8 @@ export const publishingLimit = action({
     ctx,
   ): Promise<{
     connected: boolean;
-    used: number;
-    total: number;
+    used?: number;
+    total?: number;
     replyUsed?: number;
     replyTotal?: number;
     deleteUsed?: number;
@@ -675,7 +679,7 @@ export const publishingLimit = action({
       { workspaceId: member.workspaceId },
     );
     if (connection === null || !connection.threadsUserId) {
-      return { connected: false, used: 0, total: 250 };
+      return { connected: false };
     }
 
     let token: string;
@@ -684,8 +688,6 @@ export const publishingLimit = action({
     } catch {
       return {
         connected: true,
-        used: 0,
-        total: 250,
         error: "Pristupni token se ne može pročitati.",
       };
     }
@@ -698,8 +700,12 @@ export const publishingLimit = action({
 
       return {
         connected: true,
-        used: quota.publishing?.used ?? 0,
-        total: quota.publishing?.total ?? 250,
+        ...(quota.publishing?.used !== undefined
+          ? { used: quota.publishing.used }
+          : {}),
+        ...(quota.publishing?.total !== undefined
+          ? { total: quota.publishing.total }
+          : {}),
         ...(quota.reply?.used !== undefined
           ? { replyUsed: quota.reply.used }
           : {}),
@@ -716,8 +722,6 @@ export const publishingLimit = action({
     } catch (err) {
       return {
         connected: true,
-        used: 0,
-        total: 250,
         error: `Threads trenutno ne odgovara na pitanje o kvoti: ${sanitizeThreadsError(err)}`,
       };
     }
@@ -821,24 +825,41 @@ export const deletePost = action({
 
     const token = await decryptCredentials(connection.encryptedCredentials);
 
-    // Provera kvote za brisanje (100 u 24h)
+    // Provera kvote za brisanje (100 u 24h).
+    //
+    // Ranije je ovde stajalo `catch { /* dozvoli pokusaj brisanja */ }` —
+    // dakle: kvota se ne može pročitati, pa ipak briši. Brisanje je
+    // NEPOVRATNO; to je najgore moguće mesto za takvu pretpostavku.
+    // Nepoznato stanje nije dozvola da se nastavi.
+    let deleteQuota;
     try {
-      const quota = await getThreadsPublishingLimitDetailed({
+      deleteQuota = await getThreadsPublishingLimitDetailed({
         accessToken: token,
         userId: connection.threadsUserId,
       });
-      if (
-        quota.delete?.used !== undefined &&
-        quota.delete?.total !== undefined &&
-        quota.delete.used >= quota.delete.total
-      ) {
-        return {
-          success: false,
-          error: `Dnevna kvota za brisanje na Threads-u je popunjena (${quota.delete.used}/${quota.delete.total}). Pokušaj ponovo u sledećem prozoru.`,
-        };
-      }
-    } catch {
-      // Ako delete endpoint ne odgovara, dozvoli pokušaj brisanja
+    } catch (err) {
+      return {
+        success: false,
+        error: `Ne mogu da proverim Threads kvotu brisanja. Brisanje je zaustavljeno radi zaštite naloga: ${sanitizeThreadsError(err)}`,
+      };
+    }
+
+    const delUsed = deleteQuota.delete?.used;
+    const delTotal = deleteQuota.delete?.total;
+
+    if (delUsed === undefined || delTotal === undefined) {
+      return {
+        success: false,
+        error:
+          "Threads je odgovorio na proveru kvote brisanja, ali bez podataka o iskorišćenosti. Brisanje je zaustavljeno dok se kvota ne pročita.",
+      };
+    }
+
+    if (delUsed >= delTotal) {
+      return {
+        success: false,
+        error: `Dnevna kvota za brisanje na Threads-u je popunjena (${delUsed}/${delTotal}). Pokušaj ponovo u sledećem prozoru.`,
+      };
     }
 
     try {

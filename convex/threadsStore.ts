@@ -379,33 +379,121 @@ export const recordWebhookReply = internalMutation({
       hasUsername: Boolean(args.username),
     });
 
-    // TODO (FAZA 2 - Tabela za odgovore):
-    // Kada se u `convex/schema.ts` definise tabela za Threads odgovore (npr. `threadsReplies` sa indeksom "by_reply_id", ["replyId"]):
-    // 1. Provera postojanja odgovora po prirodnom kljucu (`id`):
-    //    const existing = await ctx.db
-    //      .query("threadsReplies")
-    //      .withIndex("by_reply_id", (q) => q.eq("replyId", args.id))
-    //      .first();
-    // 2. Idempotentni upis ako odgovor ne postoji:
-    //    if (existing === null) {
-    //      await ctx.db.insert("threadsReplies", {
-    //        replyId: args.id,
-    //        accountId: args.accountId,
-    //        username: args.username,
-    //        text: args.text,
-    //        mediaType: args.mediaType,
-    //        permalink: args.permalink,
-    //        repliedTo: typeof args.repliedTo === "object" && args.repliedTo !== null ? args.repliedTo.id : args.repliedTo,
-    //        rootPost: typeof args.rootPost === "object" && args.rootPost !== null ? args.rootPost.id : args.rootPost,
-    //        shortcode: args.shortcode,
-    //        timestamp: typeof args.timestamp === "string" ? new Date(args.timestamp).getTime() : (args.timestamp ?? Date.now()),
-    //        receivedAt: Date.now(),
-    //      });
-    //    }
+    let workspaceId: Id<"workspaces"> | undefined;
+    if (args.accountId) {
+      const conn = await ctx.db
+        .query("connections")
+        .withIndex("by_provider", (q) => q.eq("provider", "threads"))
+        .filter((q) => q.eq(q.field("externalId"), args.accountId))
+        .first();
+      workspaceId = conn?.workspaceId;
+    }
+
+    const rootPostId =
+      typeof args.rootPost === "object" && args.rootPost !== null
+        ? typeof args.rootPost.id === "string"
+          ? args.rootPost.id
+          : undefined
+        : typeof args.rootPost === "string"
+          ? args.rootPost
+          : undefined;
+
+    const repliedToId =
+      typeof args.repliedTo === "object" && args.repliedTo !== null
+        ? typeof args.repliedTo.id === "string"
+          ? args.repliedTo.id
+          : undefined
+        : typeof args.repliedTo === "string"
+          ? args.repliedTo
+          : undefined;
+
+    if (!workspaceId && rootPostId) {
+      const post = await ctx.db
+        .query("threadsPosts")
+        .withIndex("by_media", (q) => q.eq("mediaId", rootPostId))
+        .first();
+      workspaceId = post?.workspaceId;
+    }
+
+    if (!workspaceId && repliedToId) {
+      const post = await ctx.db
+        .query("threadsPosts")
+        .withIndex("by_media", (q) => q.eq("mediaId", repliedToId))
+        .first();
+
+      if (post) {
+        workspaceId = post.workspaceId;
+      } else {
+        const parentReply = await ctx.db
+          .query("threadsReplies")
+          .withIndex("by_reply_id", (q) => q.eq("replyId", repliedToId))
+          .first();
+        workspaceId = parentReply?.workspaceId;
+      }
+    }
+
+    if (!workspaceId) {
+      // Threads JE isporučio odgovor — samo ne umemo da ga pripišemo. Tiho
+      // `return null` ovde je bio kvar koji se ne vidi: aplikacija se ponaša
+      // kao da ništa nije stiglo, a webhook nema ponovno slanje. Neuspela
+      // operacija ne sme da izgleda kao prazan rezultat, pa se propuštanje
+      // beleži glasno — i to SAMO tehničkim ID-jevima, bez `username` i
+      // `text`, koji su tuđi lični podaci.
+      console.warn("[Threads webhook reply DROPPED — nepoznat workspace]", {
+        replyId: args.id,
+        accountId: args.accountId,
+        rootPostId,
+        repliedToId,
+        razlog:
+          "Nijedna threads konekcija, objava ni roditeljski odgovor ne odgovaraju ovim ID-jevima. Najverovatnije objava još nije sinhronizovana.",
+      });
+      return null;
+    }
+
+    const existing = await ctx.db
+      .query("threadsReplies")
+      .withIndex("by_reply_id", (q) => q.eq("replyId", args.id))
+      .first();
+
+    const ts =
+      typeof args.timestamp === "string"
+        ? Date.parse(args.timestamp) || args.timestamp
+        : (args.timestamp ?? Date.now());
+
+    if (existing === null) {
+      await ctx.db.insert("threadsReplies", {
+        workspaceId,
+        replyId: args.id,
+        username: args.username,
+        text: args.text,
+        mediaType: args.mediaType,
+        permalink: args.permalink,
+        shortcode: args.shortcode,
+        rootPostId,
+        repliedToId,
+        isReply: true,
+        source: "webhook",
+        timestamp: ts,
+        receivedAt: Date.now(),
+      });
+    } else {
+      // Idempotentno ažuriranje: ne prepisujemo naslepo postojeća polja praznim
+      await ctx.db.patch(existing._id, {
+        ...(args.username ? { username: args.username } : {}),
+        ...(args.text ? { text: args.text } : {}),
+        ...(args.mediaType ? { mediaType: args.mediaType } : {}),
+        ...(args.permalink ? { permalink: args.permalink } : {}),
+        ...(args.shortcode ? { shortcode: args.shortcode } : {}),
+        ...(rootPostId ? { rootPostId } : {}),
+        ...(repliedToId ? { repliedToId } : {}),
+        ...(ts ? { timestamp: ts } : {}),
+      });
+    }
 
     return null;
   },
 });
+
 
 // ── Pomoćne funkcije za konekciju ─────────────────────────────────────────────
 

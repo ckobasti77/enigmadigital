@@ -26,7 +26,9 @@ import {
   getThreadsClicksByUrl,
   getThreadsDemographics,
   getThreadsFollowersCount,
+  getThreadsOwnReplies,
   getThreadsPostInsights,
+  getThreadsPostReplies,
   getThreadsPostsPage,
   getThreadsProfile,
   getThreadsPublishingLimitDetailed,
@@ -35,6 +37,7 @@ import {
   refreshLongLivedToken,
   type RawThreadsPostItem,
 } from "./lib/threadsApi";
+
 
 /**
  * ============================================================================
@@ -963,8 +966,8 @@ export const syncThreads = internalAction({
           return demographicRows;
         });
 
-        // ── 9. Replies (GET /{media-id}/replies za objave iz koraka 2) ───────
-        const replyRows: Array<{
+        // ── 9. Post Replies (GET /{media-id}/replies za objave iz koraka 2) ──
+        const postReplyRows: Array<{
           replyId: string;
           text?: string;
           username?: string;
@@ -986,17 +989,21 @@ export const syncThreads = internalAction({
           receivedAt?: number;
         }> = [];
 
-        await executeThreadsResource("replies", outcomes, async () => {
+        let postRepliesAttempted = 0;
+        let postRepliesFailed = 0;
+
+        await executeThreadsResource("post_replies", outcomes, async () => {
           for (const post of fetchedPosts) {
             if (post.media_type === "REPOST_FACADE") continue;
+            postRepliesAttempted++;
             try {
-              const repliesResp = await getThreadsReplies({
+              const repliesResp = await getThreadsPostReplies({
                 accessToken,
                 mediaId: post.id,
               });
 
               for (const r of repliesResp.data ?? []) {
-                replyRows.push({
+                postReplyRows.push({
                   replyId: r.id,
                   ...(r.text !== undefined ? { text: r.text } : {}),
                   ...(r.username !== undefined ? { username: r.username } : {}),
@@ -1045,6 +1052,7 @@ export const syncThreads = internalAction({
                 });
               }
             } catch (err) {
+              postRepliesFailed++;
               console.warn(
                 `[Threads replies fetch failed for media ${post.id}]`,
                 sanitizeThreadsError(err),
@@ -1052,10 +1060,112 @@ export const syncThreads = internalAction({
             }
           }
 
-          return replyRows;
+          if (
+            postRepliesAttempted > 0 &&
+            postRepliesFailed === postRepliesAttempted
+          ) {
+            throw new Error(
+              `Odgovori na objave nisu pročitani ni za jednu od ${postRepliesAttempted} objava.`,
+            );
+          }
+
+          return postReplyRows;
         });
 
-        // ── 10. Quota (GET /{id}/threads_publishing_limit) ───────────────────
+        // ── 10. Own Replies (GET /{user-id}/replies) ────────────────────────
+        const ownReplyRows: Array<{
+          replyId: string;
+          text?: string;
+          username?: string;
+          permalink?: string;
+          timestamp?: string | number;
+          mediaType?: string;
+          mediaUrl?: string;
+          shortcode?: string;
+          ownerId?: string;
+          rootPostId?: string;
+          repliedToId?: string;
+          isReply?: boolean;
+          isReplyOwnedByMe?: boolean;
+          hasReplies?: boolean;
+          replyAudience?: string;
+          approvalStatus?: string;
+          hideStatus?: string;
+          source: string;
+          receivedAt?: number;
+        }> = [];
+
+        await executeThreadsResource("own_replies", outcomes, async () => {
+          const ownResp = await getThreadsOwnReplies({
+            accessToken,
+            userId,
+            since: sinceTimestamp,
+          });
+
+          for (const r of ownResp.data ?? []) {
+            ownReplyRows.push({
+              replyId: r.id,
+              ...(r.text !== undefined ? { text: r.text } : {}),
+              ...(r.username !== undefined ? { username: r.username } : {}),
+              ...(r.permalink !== undefined
+                ? { permalink: r.permalink }
+                : {}),
+              ...(r.timestamp !== undefined
+                ? { timestamp: r.timestamp }
+                : {}),
+              ...(r.media_type !== undefined
+                ? { mediaType: r.media_type }
+                : {}),
+              ...(r.media_url !== undefined
+                ? { mediaUrl: r.media_url }
+                : {}),
+              ...(r.shortcode !== undefined
+                ? { shortcode: r.shortcode }
+                : {}),
+              ...(r.owner?.id !== undefined
+                ? { ownerId: r.owner.id }
+                : {}),
+              ...(r.root_post?.id !== undefined
+                ? { rootPostId: r.root_post.id }
+                : {}),
+              ...(r.replied_to?.id !== undefined
+                ? { repliedToId: r.replied_to.id }
+                : {}),
+              ...(r.is_reply !== undefined ? { isReply: r.is_reply } : {}),
+              ...(r.is_reply_owned_by_me !== undefined
+                ? { isReplyOwnedByMe: r.is_reply_owned_by_me }
+                : {}),
+              ...(r.has_replies !== undefined
+                ? { hasReplies: r.has_replies }
+                : {}),
+              ...(r.reply_audience !== undefined
+                ? { replyAudience: r.reply_audience }
+                : {}),
+              ...(r.approval_status !== undefined
+                ? { approvalStatus: r.approval_status }
+                : {}),
+              ...(r.hide_status !== undefined
+                ? { hideStatus: r.hide_status }
+                : {}),
+              source: "sync",
+              receivedAt: Date.now(),
+            });
+          }
+
+          return ownReplyRows;
+        });
+
+        // Kombinovanje i dedup po replyId
+        const replyMap = new Map<string, (typeof postReplyRows)[number]>();
+        for (const r of postReplyRows) {
+          replyMap.set(r.replyId, r);
+        }
+        for (const r of ownReplyRows) {
+          replyMap.set(r.replyId, r);
+        }
+        const combinedReplies = Array.from(replyMap.values());
+
+        // ── 11. Quota (GET /{id}/threads_publishing_limit) ───────────────────
         let publishingLimit: ThreadsPublishingLimit | undefined = undefined;
 
         await executeThreadsResource("quota", outcomes, async () => {
@@ -1120,9 +1230,10 @@ export const syncThreads = internalAction({
                 : undefined,
             demographics:
               demographicRows.length > 0 ? demographicRows : undefined,
-            replies: replyRows.length > 0 ? replyRows : undefined,
+            replies: combinedReplies.length > 0 ? combinedReplies : undefined,
           },
         );
+
 
         const summary = summarizeThreadsSync({
           outcomes,

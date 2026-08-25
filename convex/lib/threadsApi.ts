@@ -749,23 +749,243 @@ export interface RawThreadsRepliesResponse {
 }
 
 /**
- * Čita prvi nivo odgovora za određenu objavu.
+ * Čita prvi nivo odgovora za određenu objavu (§5.2).
  * Resurs 9: GET /{media-id}/replies
  */
-export async function getThreadsReplies({
+export async function getThreadsPostReplies({
   accessToken,
   mediaId,
+  fields = THREADS_REPLY_FIELDS,
+  reverse,
+  after,
+  limit = 50,
 }: {
   accessToken: string;
   mediaId: string;
+  fields?: string;
+  reverse?: boolean;
+  after?: string;
+  limit?: number;
 }): Promise<RawThreadsRepliesResponse> {
+  const params: Record<string, string> = {
+    fields,
+    limit: String(limit),
+  };
+  if (reverse !== undefined) params.reverse = String(reverse);
+  if (after) params.after = after;
+
   return await threadsGet<RawThreadsRepliesResponse>(`${mediaId}/replies`, {
     accessToken,
+    params,
+  });
+}
+
+/** Kompatibilni alias za getThreadsPostReplies */
+export const getThreadsReplies = getThreadsPostReplies;
+
+/**
+ * Čita celu spljoštenu nit odgovora za određenu objavu (§5.2).
+ * GET /{media-id}/conversation
+ */
+export async function getThreadsConversation({
+  accessToken,
+  mediaId,
+  fields = THREADS_REPLY_FIELDS,
+  reverse,
+  after,
+  limit = 50,
+}: {
+  accessToken: string;
+  mediaId: string;
+  fields?: string;
+  reverse?: boolean;
+  after?: string;
+  limit?: number;
+}): Promise<RawThreadsRepliesResponse> {
+  const params: Record<string, string> = {
+    fields,
+    limit: String(limit),
+  };
+  if (reverse !== undefined) params.reverse = String(reverse);
+  if (after) params.after = after;
+
+  return await threadsGet<RawThreadsRepliesResponse>(
+    `${mediaId}/conversation`,
+    {
+      accessToken,
+      params,
+    },
+  );
+}
+
+/**
+ * Čita sve odgovore koje je naš nalog napisao (§5.2).
+ * GET /{user-id}/replies
+ *
+ * VAŽNO: Koristi eksplicitni userId naloga, NIKADA /me/replies (/me alias je nepouzdan).
+ */
+export async function getThreadsOwnReplies({
+  accessToken,
+  userId,
+  fields = THREADS_REPLY_FIELDS,
+  since,
+  after,
+  limit = 50,
+}: {
+  accessToken: string;
+  userId: string;
+  fields?: string;
+  since?: number;
+  after?: string;
+  limit?: number;
+}): Promise<RawThreadsRepliesResponse> {
+  const params: Record<string, string> = {
+    fields,
+    limit: String(limit),
+  };
+  if (since !== undefined) params.since = String(since);
+  if (after) params.after = after;
+
+  return await threadsGet<RawThreadsRepliesResponse>(`${userId}/replies`, {
+    accessToken,
+    params,
+  });
+}
+
+/**
+ * Upravlja vidljivošću odgovora (sakrivanje / otkrivanje, §5.2).
+ * POST /{reply-id}/manage_reply
+ */
+export async function manageThreadsReply({
+  accessToken,
+  replyId,
+  hide,
+}: {
+  accessToken: string;
+  replyId: string;
+  hide: boolean;
+}): Promise<{ success: boolean }> {
+  return await threadsPost<{ success: boolean }>(`${replyId}/manage_reply`, {
+    accessToken,
     params: {
-      fields: THREADS_REPLY_FIELDS,
+      hide: String(hide),
     },
   });
 }
+
+/**
+ * Čita odgovore koji čekaju odobrenje za konkretnu objavu (Dodatak A.2).
+ * GET /{media-id}/pending_replies
+ *
+ * VAŽNO (Dodatak A.2): /me/pending_replies NE POSTOJI — poziva se ISKLJUČIVO nad ID-jem objave.
+ * VAŽNO (Dodatak B.6): Tačan oblik odgovora nije empirijski dokazan. Ako odgovor ne sadrži
+ * očekivani format sa nizom `data`, funkcija BACA grešku sa jasnom porukom umesto vraćanja praznog niza.
+ */
+/**
+ * Opisuje OBLIK odgovora, bez ijedne vrednosti iz njega.
+ *
+ * `JSON.stringify(raw)` u poruci greške je curenje: telo `pending_replies`
+ * nosi `username` i `text` tuđih ljudi, a ta poruka završava u bazi, u
+ * logovima i na ekranu. Za dijagnostiku „oblik nije onakav kakav očekujemo“
+ * dovoljna su imena ključeva — sadržaj nije.
+ */
+export function describeThreadsShape(raw: unknown): string {
+  if (raw === null) return "null";
+  if (Array.isArray(raw)) return `niz[${raw.length}]`;
+  if (typeof raw !== "object") return typeof raw;
+
+  const obj = raw as Record<string, unknown>;
+  const parts = Object.keys(obj).map((key) => {
+    const value = obj[key];
+    if (Array.isArray(value)) {
+      const first = value[0];
+      const inner =
+        first !== null && typeof first === "object"
+          ? `{${Object.keys(first as Record<string, unknown>).join(",")}}`
+          : typeof first;
+      return `${key}: niz[${value.length}] od ${inner}`;
+    }
+    if (value !== null && typeof value === "object") {
+      return `${key}: {${Object.keys(value as Record<string, unknown>).join(",")}}`;
+    }
+    return `${key}: ${value === null ? "null" : typeof value}`;
+  });
+
+  return `{${parts.join(", ")}}`;
+}
+
+export async function getThreadsPendingReplies({
+  accessToken,
+  mediaId,
+  approvalStatus = "pending",
+  reverse,
+}: {
+  accessToken: string;
+  mediaId: string;
+  approvalStatus?: "pending" | "ignored";
+  reverse?: boolean;
+}): Promise<RawThreadsRepliesResponse> {
+  const params: Record<string, string> = {
+    approval_status: approvalStatus,
+  };
+  if (reverse !== undefined) params.reverse = String(reverse);
+
+  const raw = await threadsGet<unknown>(`${mediaId}/pending_replies`, {
+    accessToken,
+    params,
+  });
+
+  if (
+    typeof raw !== "object" ||
+    raw === null ||
+    !("data" in raw) ||
+    !Array.isArray((raw as { data: unknown }).data)
+  ) {
+    throw new Error(
+      `[Threads API] Endpoint ${mediaId}/pending_replies vratio je neočekivan/nedokazan oblik odgovora. Pročitan oblik: ${describeThreadsShape(raw)}`,
+    );
+  }
+
+  return raw as RawThreadsRepliesResponse;
+}
+
+/**
+ * Odobrava ili ignoriše odgovor na čekanju (Dodatak A.2).
+ * POST /{reply-id}/manage_pending_reply
+ *
+ * VAŽNO (Dodatak B.6): Tačan oblik odgovora nije empirijski dokazan. Ako odgovor ne sadrži
+ * boolean polje `success`, funkcija BACA grešku umesto pretpostavke uspeha.
+ */
+export async function managePendingReply({
+  accessToken,
+  replyId,
+  approve,
+}: {
+  accessToken: string;
+  replyId: string;
+  approve: boolean;
+}): Promise<{ success: boolean }> {
+  const raw = await threadsPost<unknown>(`${replyId}/manage_pending_reply`, {
+    accessToken,
+    params: {
+      approve: String(approve),
+    },
+  });
+
+  if (
+    typeof raw !== "object" ||
+    raw === null ||
+    !("success" in raw) ||
+    typeof (raw as { success: unknown }).success !== "boolean"
+  ) {
+    throw new Error(
+      `[Threads API] Endpoint ${replyId}/manage_pending_reply vratio je neočekivan/nedokazan oblik odgovora. Pročitan oblik: ${describeThreadsShape(raw)}`,
+    );
+  }
+
+  return raw as { success: boolean };
+}
+
 
 /**
  * Čita kvote naloga (Resurs 10):

@@ -114,6 +114,7 @@ import type * as sync from "../sync.js";
 import type * as threads from "../threads.js";
 import type * as threadsPublish from "../threadsPublish.js";
 import type * as threadsPublishStore from "../threadsPublishStore.js";
+import type * as threadsReplies from "../threadsReplies.js";
 import type * as threadsStore from "../threadsStore.js";
 import type * as threadsUploadAccess from "../threadsUploadAccess.js";
 import type * as webhookHealth from "../webhookHealth.js";
@@ -246,6 +247,7 @@ declare const fullApi: ApiFromModules<{
   threads: typeof threads;
   threadsPublish: typeof threadsPublish;
   threadsPublishStore: typeof threadsPublishStore;
+  threadsReplies: typeof threadsReplies;
   threadsStore: typeof threadsStore;
   threadsUploadAccess: typeof threadsUploadAccess;
   webhookHealth: typeof webhookHealth;
