@@ -327,3 +327,16 @@ export function parseThreadsPublishingLimit(raw: unknown): ThreadsPublishingLimi
 
   return result;
 }
+
+/**
+ * Prijavljuje nepoznat media_type kroz console.warn (Dodatak B.5 i B.7).
+ * Dozvoljene poznate vrednosti: "TEXT_POST", "REPOST_FACADE".
+ */
+export function checkAndLogMediaType(mediaType: string | undefined): void {
+  if (!mediaType) return;
+  if (mediaType !== "TEXT_POST" && mediaType !== "REPOST_FACADE") {
+    console.warn(
+      `[Threads API] Otkriven nepoznat/novi media_type: "${mediaType}". Zabeleži vrednost u dokumentaciju.`,
+    );
+  }
+}

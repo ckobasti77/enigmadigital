@@ -5,6 +5,7 @@ import { requireMembership } from "./lib/auth";
 import { connectionStatusValidator } from "./lib/providers";
 import { beginPurgeRun, clearFinishedRuns } from "./purge";
 import { getThreadsAppId, getThreadsAppSecret } from "./lib/threadsApi";
+import { checkAndLogMediaType } from "./lib/threadsShared";
 
 /**
  * ============================================================================
@@ -402,6 +403,487 @@ export const recordWebhookReply = internalMutation({
     //      });
     //    }
 
+    return null;
+  },
+});
+
+// ── Pomoćne funkcije za konekciju ─────────────────────────────────────────────
+
+/**
+ * Ažurira @username (accountHandle) na Threads konekciji.
+ */
+export const saveAccountHandle = internalMutation({
+  args: { connectionId: v.id("connections"), handle: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { connectionId, handle }) => {
+    const conn = await ctx.db.get(connectionId);
+    if (conn === null) return null;
+    const formatted = handle.startsWith("@") ? handle : `@${handle}`;
+    if (conn.accountHandle === formatted) return null;
+    await ctx.db.patch(connectionId, { accountHandle: formatted });
+    return null;
+  },
+});
+
+/**
+ * Vraća podatke o Threads konekciji po connectionId ili workspaceId.
+ */
+export const getThreadsConnection = internalQuery({
+  args: {
+    connectionId: v.optional(v.id("connections")),
+    workspaceId: v.optional(v.id("workspaces")),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      connectionId: v.id("connections"),
+      workspaceId: v.id("workspaces"),
+      userId: v.string(),
+      username: v.union(v.string(), v.null()),
+      encryptedCredentials: v.string(),
+      expiresAt: v.union(v.number(), v.null()),
+      status: connectionStatusValidator,
+    }),
+  ),
+  handler: async (ctx, { connectionId, workspaceId }) => {
+    let conn = null;
+    if (connectionId) {
+      conn = await ctx.db.get(connectionId);
+    } else if (workspaceId) {
+      conn = await ctx.db
+        .query("connections")
+        .withIndex("by_workspace_provider", (q) =>
+          q.eq("workspaceId", workspaceId).eq("provider", "threads"),
+        )
+        .first();
+    }
+    if (conn === null || conn.provider !== "threads" || !conn.externalId) {
+      return null;
+    }
+    return {
+      connectionId: conn._id,
+      workspaceId: conn.workspaceId,
+      userId: conn.externalId,
+      username: conn.accountHandle ?? null,
+      encryptedCredentials: conn.encryptedCredentials,
+      expiresAt: conn.expiresAt ?? null,
+      status: conn.status,
+    };
+  },
+});
+
+// ── Validatori za Threads tabele (TH3) ────────────────────────────────────────
+
+export const threadsPostRowValidator = v.object({
+  mediaId: v.string(),
+  mediaProductType: v.optional(v.string()),
+  mediaType: v.string(),
+  permalink: v.optional(v.string()),
+  ownerId: v.optional(v.string()),
+  username: v.optional(v.string()),
+  text: v.optional(v.string()),
+  timestamp: v.optional(v.string()),
+  shortcode: v.optional(v.string()),
+  isQuotePost: v.optional(v.boolean()),
+  quotedPostId: v.optional(v.string()),
+  repostedPostId: v.optional(v.string()),
+  pollAttachment: v.optional(v.any()),
+  hasReplies: v.optional(v.boolean()),
+  rootPostId: v.optional(v.string()),
+  repliedToId: v.optional(v.string()),
+  isReply: v.optional(v.boolean()),
+  isReplyOwnedByMe: v.optional(v.boolean()),
+  replyAudience: v.optional(v.string()),
+  mediaUrl: v.optional(v.string()),
+  thumbnailUrl: v.optional(v.string()),
+  children: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        mediaType: v.optional(v.string()),
+        mediaUrl: v.optional(v.string()),
+        thumbnailUrl: v.optional(v.string()),
+      }),
+    ),
+  ),
+  altText: v.optional(v.string()),
+  linkAttachmentUrl: v.optional(v.string()),
+  topicTag: v.optional(v.string()),
+  locationId: v.optional(v.string()),
+  hideStatus: v.optional(v.string()),
+  syncedAt: v.optional(v.number()),
+});
+
+export const threadsPostInsightRowValidator = v.object({
+  mediaId: v.string(),
+  date: v.string(),
+  views: v.optional(v.number()),
+  likes: v.optional(v.number()),
+  replies: v.optional(v.number()),
+  reposts: v.optional(v.number()),
+  quotes: v.optional(v.number()),
+  shares: v.optional(v.number()),
+  fetchedAt: v.optional(v.number()),
+});
+
+export const threadsAccountDailyRowValidator = v.object({
+  date: v.string(),
+  views: v.optional(v.number()),
+  fetchedAt: v.optional(v.number()),
+});
+
+export const threadsAccountTotalsValidator = v.object({
+  likes: v.optional(v.number()),
+  replies: v.optional(v.number()),
+  reposts: v.optional(v.number()),
+  quotes: v.optional(v.number()),
+  fetchedAt: v.number(),
+});
+
+export const threadsClicksByUrlRowValidator = v.object({
+  date: v.string(),
+  url: v.string(),
+  clicks: v.optional(v.number()),
+  fetchedAt: v.optional(v.number()),
+});
+
+export const threadsFollowerSnapshotRowValidator = v.object({
+  date: v.string(),
+  takenAt: v.number(),
+  followersCount: v.optional(v.number()),
+});
+
+export const threadsDemographicsRowValidator = v.object({
+  date: v.string(),
+  breakdown: v.union(
+    v.literal("country"),
+    v.literal("city"),
+    v.literal("age"),
+    v.literal("gender"),
+  ),
+  key: v.string(),
+  value: v.optional(v.number()),
+  takenAt: v.number(),
+});
+
+export const threadsReplyRowValidator = v.object({
+  replyId: v.string(),
+  text: v.optional(v.string()),
+  username: v.optional(v.string()),
+  permalink: v.optional(v.string()),
+  timestamp: v.optional(v.union(v.string(), v.number())),
+  mediaType: v.optional(v.string()),
+  mediaUrl: v.optional(v.string()),
+  shortcode: v.optional(v.string()),
+  ownerId: v.optional(v.string()),
+  rootPostId: v.optional(v.string()),
+  repliedToId: v.optional(v.string()),
+  isReply: v.optional(v.boolean()),
+  isReplyOwnedByMe: v.optional(v.boolean()),
+  hasReplies: v.optional(v.boolean()),
+  replyAudience: v.optional(v.string()),
+  approvalStatus: v.optional(v.string()),
+  hideStatus: v.optional(v.string()),
+  source: v.string(),
+  receivedAt: v.optional(v.number()),
+});
+
+// ── Glavna mutacija za perzistenciju (TH3) ────────────────────────────────────
+
+/**
+ * Jedna interna mutacija koja prima nizove i upisuje ih u tabele iz TH3,
+ * uvek upsertom po prirodnom ključu (nikad slepi `insert`).
+ */
+export const upsertThreadsData = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    posts: v.optional(v.array(threadsPostRowValidator)),
+    postInsights: v.optional(v.array(threadsPostInsightRowValidator)),
+    accountDaily: v.optional(v.array(threadsAccountDailyRowValidator)),
+    accountTotals: v.optional(threadsAccountTotalsValidator),
+    clicksByUrl: v.optional(v.array(threadsClicksByUrlRowValidator)),
+    followerSnapshots: v.optional(v.array(threadsFollowerSnapshotRowValidator)),
+    demographics: v.optional(v.array(threadsDemographicsRowValidator)),
+    replies: v.optional(v.array(threadsReplyRowValidator)),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let itemsWritten = 0;
+    const { workspaceId } = args;
+    const now = Date.now();
+
+    // 1. threadsPosts (prirodni ključ: [workspaceId, mediaId])
+    if (args.posts && args.posts.length > 0) {
+      for (const post of args.posts) {
+        checkAndLogMediaType(post.mediaType);
+        if (post.children) {
+          for (const ch of post.children) {
+            checkAndLogMediaType(ch.mediaType);
+          }
+        }
+
+        const existing = await ctx.db
+          .query("threadsPosts")
+          .withIndex("by_workspace_media", (q) =>
+            q.eq("workspaceId", workspaceId).eq("mediaId", post.mediaId),
+          )
+          .first();
+
+        if (existing !== null) {
+          await ctx.db.patch(existing._id, {
+            ...post,
+            syncedAt: post.syncedAt ?? now,
+          });
+        } else {
+          await ctx.db.insert("threadsPosts", {
+            workspaceId,
+            ...post,
+            syncedAt: post.syncedAt ?? now,
+          });
+        }
+        itemsWritten++;
+      }
+    }
+
+    // 2. threadsPostInsights (prirodni ključ: [workspaceId, mediaId, date])
+    if (args.postInsights && args.postInsights.length > 0) {
+      for (const insight of args.postInsights) {
+        const existing = await ctx.db
+          .query("threadsPostInsights")
+          .withIndex("by_workspace_media_date", (q) =>
+            q
+              .eq("workspaceId", workspaceId)
+              .eq("mediaId", insight.mediaId)
+              .eq("date", insight.date),
+          )
+          .first();
+
+        if (existing !== null) {
+          await ctx.db.patch(existing._id, {
+            ...insight,
+            fetchedAt: insight.fetchedAt ?? now,
+          });
+        } else {
+          await ctx.db.insert("threadsPostInsights", {
+            workspaceId,
+            ...insight,
+            fetchedAt: insight.fetchedAt ?? now,
+          });
+        }
+        itemsWritten++;
+      }
+    }
+
+    // 3. threadsAccountDaily (prirodni ključ: [workspaceId, date])
+    if (args.accountDaily && args.accountDaily.length > 0) {
+      for (const daily of args.accountDaily) {
+        const existing = await ctx.db
+          .query("threadsAccountDaily")
+          .withIndex("by_workspace_date", (q) =>
+            q.eq("workspaceId", workspaceId).eq("date", daily.date),
+          )
+          .first();
+
+        if (existing !== null) {
+          await ctx.db.patch(existing._id, {
+            ...daily,
+            fetchedAt: daily.fetchedAt ?? now,
+          });
+        } else {
+          await ctx.db.insert("threadsAccountDaily", {
+            workspaceId,
+            ...daily,
+            fetchedAt: daily.fetchedAt ?? now,
+          });
+        }
+        itemsWritten++;
+      }
+    }
+
+    // 4. threadsAccountTotals (prirodni ključ: [workspaceId])
+    if (args.accountTotals) {
+      const existing = await ctx.db
+        .query("threadsAccountTotals")
+        .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+        .first();
+
+      if (existing !== null) {
+        await ctx.db.patch(existing._id, {
+          ...args.accountTotals,
+        });
+      } else {
+        await ctx.db.insert("threadsAccountTotals", {
+          workspaceId,
+          ...args.accountTotals,
+        });
+      }
+      itemsWritten++;
+    }
+
+    // 5. threadsClicksByUrl (prirodni ključ: [workspaceId, date, url])
+    if (args.clicksByUrl && args.clicksByUrl.length > 0) {
+      for (const click of args.clicksByUrl) {
+        const existing = await ctx.db
+          .query("threadsClicksByUrl")
+          .withIndex("by_workspace_date_url", (q) =>
+            q
+              .eq("workspaceId", workspaceId)
+              .eq("date", click.date)
+              .eq("url", click.url),
+          )
+          .first();
+
+        if (existing !== null) {
+          await ctx.db.patch(existing._id, {
+            ...click,
+            fetchedAt: click.fetchedAt ?? now,
+          });
+        } else {
+          await ctx.db.insert("threadsClicksByUrl", {
+            workspaceId,
+            ...click,
+            fetchedAt: click.fetchedAt ?? now,
+          });
+        }
+        itemsWritten++;
+      }
+    }
+
+    // 6. threadsFollowerSnapshots (prirodni ključ: [workspaceId, date] — tačno jedan red po danu)
+    if (args.followerSnapshots && args.followerSnapshots.length > 0) {
+      for (const snapshot of args.followerSnapshots) {
+        const existing = await ctx.db
+          .query("threadsFollowerSnapshots")
+          .withIndex("by_workspace_date", (q) =>
+            q.eq("workspaceId", workspaceId).eq("date", snapshot.date),
+          )
+          .first();
+
+        if (existing !== null) {
+          await ctx.db.patch(existing._id, {
+            takenAt: snapshot.takenAt,
+            ...(snapshot.followersCount !== undefined
+              ? { followersCount: snapshot.followersCount }
+              : {}),
+          });
+        } else {
+          await ctx.db.insert("threadsFollowerSnapshots", {
+            workspaceId,
+            date: snapshot.date,
+            takenAt: snapshot.takenAt,
+            ...(snapshot.followersCount !== undefined
+              ? { followersCount: snapshot.followersCount }
+              : {}),
+          });
+        }
+        itemsWritten++;
+      }
+    }
+
+    // 7. threadsDemographics (prirodni ključ: [workspaceId, date, breakdown, key])
+    if (args.demographics && args.demographics.length > 0) {
+      for (const demo of args.demographics) {
+        const existing = await ctx.db
+          .query("threadsDemographics")
+          .withIndex("by_workspace_date_breakdown_key", (q) =>
+            q
+              .eq("workspaceId", workspaceId)
+              .eq("date", demo.date)
+              .eq("breakdown", demo.breakdown)
+              .eq("key", demo.key),
+          )
+          .first();
+
+        if (existing !== null) {
+          await ctx.db.patch(existing._id, {
+            ...(demo.value !== undefined ? { value: demo.value } : {}),
+            takenAt: demo.takenAt,
+          });
+        } else {
+          await ctx.db.insert("threadsDemographics", {
+            workspaceId,
+            ...demo,
+          });
+        }
+        itemsWritten++;
+      }
+    }
+
+    // 8. threadsReplies (prirodni ključ: [workspaceId, replyId])
+    if (args.replies && args.replies.length > 0) {
+      for (const reply of args.replies) {
+        checkAndLogMediaType(reply.mediaType);
+
+        const existing = await ctx.db
+          .query("threadsReplies")
+          .withIndex("by_workspace_reply", (q) =>
+            q.eq("workspaceId", workspaceId).eq("replyId", reply.replyId),
+          )
+          .first();
+
+        if (existing !== null) {
+          await ctx.db.patch(existing._id, {
+            ...reply,
+            receivedAt: reply.receivedAt ?? now,
+          });
+        } else {
+          await ctx.db.insert("threadsReplies", {
+            workspaceId,
+            ...reply,
+            receivedAt: reply.receivedAt ?? now,
+          });
+        }
+        itemsWritten++;
+      }
+    }
+
+    return itemsWritten;
+  },
+});
+
+// ── Kvote (Resurs 10, TH3) ───────────────────────────────────────────────────
+
+/**
+ * Upisuje podatke o kvotama u tabelu `threadsQuota` (prirodni ključ: [workspaceId]).
+ */
+export const recordThreadsQuota = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    postsUsed: v.optional(v.number()),
+    postsTotal: v.optional(v.number()),
+    repliesUsed: v.optional(v.number()),
+    repliesTotal: v.optional(v.number()),
+    deleteUsed: v.optional(v.number()),
+    deleteTotal: v.optional(v.number()),
+    locationSearchUsed: v.optional(v.number()),
+    locationSearchTotal: v.optional(v.number()),
+    keywordSearchUsed: v.optional(v.number()),
+    keywordSearchTotal: v.optional(v.number()),
+    profileLookupUsed: v.optional(v.number()),
+    profileLookupTotal: v.optional(v.number()),
+    quotaDurationSeconds: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { workspaceId, ...quotaFields } = args;
+    const existing = await ctx.db
+      .query("threadsQuota")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .first();
+
+    const now = Date.now();
+    if (existing !== null) {
+      await ctx.db.patch(existing._id, {
+        ...quotaFields,
+        fetchedAt: now,
+      });
+    } else {
+      await ctx.db.insert("threadsQuota", {
+        workspaceId,
+        ...quotaFields,
+        fetchedAt: now,
+      });
+    }
     return null;
   },
 });

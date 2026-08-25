@@ -114,6 +114,13 @@ crons.cron(
   internal.threads.refreshAllThreadsTokens,
   {},
 );
+// Daily cron (TH4): sync all Threads data (posts, insights, demographics, quota).
+crons.cron(
+  "sync threads",
+  "25 5 * * *",
+  internal.threads.syncAllThreads,
+  {},
+);
 // Publishing is scheduled to the minute, so the queue is checked every minute.
 // The tick is cheap — one indexed read of what is due, and nothing at all when
 // nothing is. It doubles as the recovery path: a post whose direct run never

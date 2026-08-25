@@ -2490,6 +2490,203 @@ export default defineSchema({
     syncedAt: v.number(),
   }).index("by_workspace_playlist", ["workspaceId", "playlistId"]), // upsert key
 
+  // ── Threads (T1–T10) ────────────────────────────────────────────────────────
+  // 1) threadsPosts — jedna objava (polja dokazana u Dodatku B.2)
+  threadsPosts: defineTable({
+    workspaceId: v.id("workspaces"),
+    mediaId: v.string(), // Threads API ID objave
+    mediaProductType: v.optional(v.string()), // "THREADS"
+    mediaType: v.string(), // TEXT_POST, REPOST_FACADE, itd. Čuva se kao string onakav kakav je stigao (NE union)
+    permalink: v.optional(v.string()),
+    ownerId: v.optional(v.string()), // owner{id}
+    username: v.optional(v.string()),
+    text: v.optional(v.string()),
+    timestamp: v.optional(v.string()), // ISO 8601 string
+    shortcode: v.optional(v.string()),
+    isQuotePost: v.optional(v.boolean()),
+    quotedPostId: v.optional(v.string()), // quoted_post{id}
+    repostedPostId: v.optional(v.string()), // reposted_post{id}
+    pollAttachment: v.optional(v.any()), // poll_attachment struktura
+    hasReplies: v.optional(v.boolean()),
+    rootPostId: v.optional(v.string()), // root_post{id}
+    repliedToId: v.optional(v.string()), // replied_to{id}
+    isReply: v.optional(v.boolean()),
+    isReplyOwnedByMe: v.optional(v.boolean()),
+    replyAudience: v.optional(v.string()),
+    // Polja koja postoje u API-ju ali su bila prazna na tekstualnim objavama (B.2)
+    mediaUrl: v.optional(v.string()),
+    thumbnailUrl: v.optional(v.string()),
+    children: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          mediaType: v.optional(v.string()),
+          mediaUrl: v.optional(v.string()),
+          thumbnailUrl: v.optional(v.string()),
+        }),
+      ),
+    ),
+    altText: v.optional(v.string()),
+    linkAttachmentUrl: v.optional(v.string()),
+    topicTag: v.optional(v.string()),
+    locationId: v.optional(v.string()),
+    hideStatus: v.optional(v.string()),
+    syncedAt: v.optional(v.number()),
+  })
+    .index("by_workspace_media", ["workspaceId", "mediaId"])
+    .index("by_workspace_timestamp", ["workspaceId", "timestamp"])
+    .index("by_media", ["mediaId"]),
+
+  // 2) threadsPostInsights — metrike po objavi (kumulativne, snimak stanja za `date`)
+  threadsPostInsights: defineTable({
+    workspaceId: v.id("workspaces"),
+    mediaId: v.string(),
+    date: v.string(), // "YYYY-MM-DD"
+    views: v.optional(v.number()),
+    likes: v.optional(v.number()),
+    replies: v.optional(v.number()),
+    reposts: v.optional(v.number()),
+    quotes: v.optional(v.number()),
+    shares: v.optional(v.number()),
+    fetchedAt: v.optional(v.number()),
+  })
+    .index("by_workspace_media_date", ["workspaceId", "mediaId", "date"])
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_media", ["workspaceId", "mediaId"]),
+
+  // 3) threadsAccountDaily — jedina prava vremenska serija sa Threads API-ja
+  threadsAccountDaily: defineTable({
+    workspaceId: v.id("workspaces"),
+    date: v.string(), // "YYYY-MM-DD"
+    views: v.optional(v.number()),
+    fetchedAt: v.optional(v.number()),
+  }).index("by_workspace_date", ["workspaceId", "date"]),
+
+  // 4) threadsAccountTotals — kumulativne metrike naloga
+  threadsAccountTotals: defineTable({
+    workspaceId: v.id("workspaces"),
+    likes: v.optional(v.number()),
+    replies: v.optional(v.number()),
+    reposts: v.optional(v.number()),
+    quotes: v.optional(v.number()),
+    fetchedAt: v.number(),
+  }).index("by_workspace", ["workspaceId"]),
+
+  // 5) threadsClicksByUrl — clicks razbijeno po URL-u (temelj za spajanje sa orLinkClicks)
+  threadsClicksByUrl: defineTable({
+    workspaceId: v.id("workspaces"),
+    date: v.string(), // "YYYY-MM-DD"
+    url: v.string(),
+    clicks: v.optional(v.number()),
+    fetchedAt: v.optional(v.number()),
+  })
+    .index("by_workspace_date_url", ["workspaceId", "date", "url"])
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_url", ["workspaceId", "url"]),
+
+  // 6) threadsFollowerSnapshots — dnevna istorija broja pratilaca
+  threadsFollowerSnapshots: defineTable({
+    workspaceId: v.id("workspaces"),
+    date: v.string(), // "YYYY-MM-DD"
+    takenAt: v.number(), // Unix timestamp u ms
+    followersCount: v.optional(v.number()),
+  })
+    .index("by_workspace_date", ["workspaceId", "date"])
+    .index("by_workspace_takenAt", ["workspaceId", "takenAt"]),
+
+  // 7) threadsDemographics — demografski podaci po kombinaciji
+  threadsDemographics: defineTable({
+    workspaceId: v.id("workspaces"),
+    date: v.string(), // "YYYY-MM-DD"
+    breakdown: v.union(
+      v.literal("country"),
+      v.literal("city"),
+      v.literal("age"),
+      v.literal("gender"),
+    ),
+    key: v.string(),
+    value: v.optional(v.number()),
+    takenAt: v.number(),
+  })
+    .index("by_workspace_date_breakdown_key", [
+      "workspaceId",
+      "date",
+      "breakdown",
+      "key",
+    ])
+    .index("by_workspace_date_breakdown", [
+      "workspaceId",
+      "date",
+      "breakdown",
+    ])
+    .index("by_workspace_breakdown", ["workspaceId", "breakdown"]),
+
+  // 8) threadsReplies — odgovori sa sync-a i webhook-a
+  threadsReplies: defineTable({
+    workspaceId: v.id("workspaces"),
+    replyId: v.string(), // Meta reply ID (prirodni ključ za dedup)
+    text: v.optional(v.string()),
+    username: v.optional(v.string()),
+    permalink: v.optional(v.string()),
+    timestamp: v.optional(v.union(v.string(), v.number())),
+    mediaType: v.optional(v.string()), // string, NE union
+    mediaUrl: v.optional(v.string()),
+    shortcode: v.optional(v.string()),
+    ownerId: v.optional(v.string()),
+    rootPostId: v.optional(v.string()), // root_post{id}
+    repliedToId: v.optional(v.string()), // replied_to{id}
+    isReply: v.optional(v.boolean()),
+    isReplyOwnedByMe: v.optional(v.boolean()),
+    hasReplies: v.optional(v.boolean()),
+    replyAudience: v.optional(v.string()),
+    approvalStatus: v.optional(v.string()),
+    hideStatus: v.optional(v.string()),
+    source: v.string(), // "webhook" | "sync"
+    receivedAt: v.optional(v.number()),
+  })
+    .index("by_reply_id", ["replyId"])
+    .index("by_workspace_reply", ["workspaceId", "replyId"])
+    .index("by_workspace_root_post", ["workspaceId", "rootPostId"])
+    .index("by_workspace_replied_to", ["workspaceId", "repliedToId"]),
+
+  // 9) threadsMentions — spominjanja sa webhook-a i sync-a
+  threadsMentions: defineTable({
+    workspaceId: v.id("workspaces"),
+    mentionId: v.string(), // Meta mention ID (prirodni ključ za dedup)
+    mediaId: v.optional(v.string()),
+    text: v.optional(v.string()),
+    username: v.optional(v.string()),
+    permalink: v.optional(v.string()),
+    timestamp: v.optional(v.union(v.string(), v.number())),
+    mediaType: v.optional(v.string()), // string, NE union
+    source: v.optional(v.string()), // "webhook" | "sync"
+    repliedAt: v.optional(v.number()),
+    replyText: v.optional(v.string()),
+    syncedAt: v.optional(v.number()),
+  })
+    .index("by_mention_id", ["mentionId"])
+    .index("by_workspace_mention", ["workspaceId", "mentionId"])
+    .index("by_workspace_media", ["workspaceId", "mediaId"]),
+
+  // 10) threadsQuota — kvote iz odeljka 8 (used i total odvojeno, bez izvedenih procenata)
+  threadsQuota: defineTable({
+    workspaceId: v.id("workspaces"),
+    postsUsed: v.optional(v.number()),
+    postsTotal: v.optional(v.number()),
+    repliesUsed: v.optional(v.number()),
+    repliesTotal: v.optional(v.number()),
+    deleteUsed: v.optional(v.number()),
+    deleteTotal: v.optional(v.number()),
+    locationSearchUsed: v.optional(v.number()),
+    locationSearchTotal: v.optional(v.number()),
+    keywordSearchUsed: v.optional(v.number()),
+    keywordSearchTotal: v.optional(v.number()),
+    profileLookupUsed: v.optional(v.number()),
+    profileLookupTotal: v.optional(v.number()),
+    quotaDurationSeconds: v.optional(v.number()),
+    fetchedAt: v.number(),
+  }).index("by_workspace", ["workspaceId"]),
+
   // ── Brisanje preuzetih podataka (P3) ────────────────────────────────────────
   //
   // One row per erasure of one provider's data from one workspace. It exists

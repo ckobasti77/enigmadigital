@@ -20,6 +20,7 @@ import {
   buildThreadsUrl,
   extractThreadsApiError,
   parseThreadsPublishingLimit,
+  sanitizeThreadsError,
   type ThreadsPublishingLimit,
 } from "./threadsShared";
 
@@ -259,6 +260,7 @@ export async function refreshLongLivedToken({
 
 /**
  * Čita profil prijavljenog Threads naloga (/me).
+ * Koristi se isključivo tokom OAuth callback-a da se sazna početni ID.
  */
 export async function getThreadsUserProfile({
   accessToken,
@@ -284,8 +286,511 @@ export async function getThreadsUserProfile({
 }
 
 /**
- * Čita kvote naloga jednim pozivom (odeljak 8):
- * GET /{user-id}/threads_publishing_limit
+ * Čita profil korisnika po eksplicitnom ID-ju (nikad /me).
+ * Resurs 1: GET /{id}?fields=id,username
+ */
+export async function getThreadsProfile({
+  accessToken,
+  userId,
+}: {
+  accessToken: string;
+  userId: string;
+}): Promise<{ id: string; username?: string }> {
+  return await threadsGet<{ id: string; username?: string }>(userId, {
+    accessToken,
+    params: {
+      fields: "id,username",
+    },
+  });
+}
+
+/**
+ * Polja dokazana u Dodatku B.2 za objave.
+ * NIKADA ne uključuje polja iz B.3 (url_attached, quoted_post_id, reposted_media_id, gif_attachment).
+ */
+export const THREADS_POST_FIELDS =
+  "id,media_product_type,media_type,permalink,owner{id},username,text,timestamp,shortcode,is_quote_post,quoted_post{id},reposted_post{id},poll_attachment,has_replies,root_post{id},replied_to{id},is_reply,is_reply_owned_by_me,reply_audience,media_url,thumbnail_url,children,alt_text,link_attachment_url,topic_tag,location_id,hide_status";
+
+export interface RawThreadsPostItem {
+  id: string;
+  media_product_type?: string;
+  media_type: string;
+  permalink?: string;
+  owner?: { id?: string };
+  username?: string;
+  text?: string;
+  timestamp?: string;
+  shortcode?: string;
+  is_quote_post?: boolean;
+  quoted_post?: { id?: string };
+  reposted_post?: { id?: string };
+  poll_attachment?: unknown;
+  has_replies?: boolean;
+  root_post?: { id?: string };
+  replied_to?: { id?: string };
+  is_reply?: boolean;
+  is_reply_owned_by_me?: boolean;
+  reply_audience?: string;
+  media_url?: string;
+  thumbnail_url?: string;
+  children?:
+    | {
+        data?: Array<{
+          id: string;
+          media_type?: string;
+          media_url?: string;
+          thumbnail_url?: string;
+        }>;
+      }
+    | Array<{
+        id: string;
+        media_type?: string;
+        media_url?: string;
+        thumbnail_url?: string;
+      }>;
+  alt_text?: string;
+  link_attachment_url?: string;
+  topic_tag?: string;
+  location_id?: string;
+  hide_status?: string;
+}
+
+export interface ThreadsPostsPageResponse {
+  data?: RawThreadsPostItem[];
+  paging?: {
+    cursors?: {
+      before?: string;
+      after?: string;
+    };
+    next?: string;
+  };
+}
+
+/**
+ * Čita objave korisnika sa kursor paginacijom i lookback prozorom.
+ * Resurs 2: GET /{id}/threads
+ */
+export async function getThreadsPostsPage({
+  accessToken,
+  userId,
+  since,
+  limit = 50,
+  after,
+}: {
+  accessToken: string;
+  userId: string;
+  since?: number;
+  limit?: number;
+  after?: string;
+}): Promise<ThreadsPostsPageResponse> {
+  const params: Record<string, string> = {
+    fields: THREADS_POST_FIELDS,
+    limit: String(limit),
+  };
+  if (since !== undefined) {
+    params.since = String(since);
+  }
+  if (after !== undefined) {
+    params.after = after;
+  }
+
+  return await threadsGet<ThreadsPostsPageResponse>(`${userId}/threads`, {
+    accessToken,
+    params,
+  });
+}
+
+export interface RawThreadsPostInsightsResponse {
+  data?: Array<{
+    name: string;
+    period?: string;
+    values?: Array<{ value?: number }>;
+    total_value?: { value?: number };
+    title?: string;
+    description?: string;
+    id?: string;
+  }>;
+}
+
+/**
+ * Čita kumulativne metrike po objavi (views, likes, replies, reposts, quotes, shares).
+ * Resurs 3: GET /{media-id}/insights?metric=views,likes,replies,reposts,quotes,shares
+ * NAPOMENA: Za REPOST_FACADE objave API vraća prazan niz (uredan ishod, ne greška).
+ */
+export async function getThreadsPostInsights({
+  accessToken,
+  mediaId,
+}: {
+  accessToken: string;
+  mediaId: string;
+}): Promise<RawThreadsPostInsightsResponse> {
+  return await threadsGet<RawThreadsPostInsightsResponse>(
+    `${mediaId}/insights`,
+    {
+      accessToken,
+      params: {
+        metric: "views,likes,replies,reposts,quotes,shares",
+      },
+    },
+  );
+}
+
+export interface RawThreadsAccountViewsResponse {
+  data?: Array<{
+    name: string;
+    period?: string;
+    values?: Array<{
+      value?: number;
+      end_time?: string;
+    }>;
+    total_value?: { value?: number };
+    title?: string;
+    description?: string;
+    id?: string;
+  }>;
+}
+
+/**
+ * Čita vremensku seriju pregleda po danu za nalog.
+ * Resurs 4: GET /{id}/threads_insights?metric=views
+ */
+export async function getThreadsAccountViews({
+  accessToken,
+  userId,
+  since,
+  until,
+}: {
+  accessToken: string;
+  userId: string;
+  since?: number;
+  until?: number;
+}): Promise<RawThreadsAccountViewsResponse> {
+  const params: Record<string, string> = {
+    metric: "views",
+  };
+  if (since !== undefined) params.since = String(since);
+  if (until !== undefined) params.until = String(until);
+
+  return await threadsGet<RawThreadsAccountViewsResponse>(
+    `${userId}/threads_insights`,
+    {
+      accessToken,
+      params,
+    },
+  );
+}
+
+export interface RawThreadsAccountTotalsResponse {
+  data?: Array<{
+    name: string;
+    period?: string;
+    values?: Array<{ value?: number }>;
+    total_value?: { value?: number };
+    title?: string;
+    description?: string;
+    id?: string;
+  }>;
+}
+
+/**
+ * Čita kumulativne metrike naloga (likes, replies, reposts, quotes).
+ * Resurs 5: GET /{id}/threads_insights?metric=likes,replies,reposts,quotes
+ */
+export async function getThreadsAccountTotals({
+  accessToken,
+  userId,
+}: {
+  accessToken: string;
+  userId: string;
+}): Promise<RawThreadsAccountTotalsResponse> {
+  return await threadsGet<RawThreadsAccountTotalsResponse>(
+    `${userId}/threads_insights`,
+    {
+      accessToken,
+      params: {
+        metric: "likes,replies,reposts,quotes",
+      },
+    },
+  );
+}
+
+export interface RawThreadsClicksResponse {
+  data?: Array<{
+    name: string;
+    period?: string;
+    values?: Array<{
+      value?: number | Record<string, number>;
+      end_time?: string;
+      dimension_values?: string[];
+    }>;
+    total_value?: {
+      value?: number;
+      breakdowns?: Array<{
+        dimension_keys?: string[];
+        results?: Array<{
+          dimension_values?: string[];
+          value?: number;
+        }>;
+      }>;
+    };
+    title?: string;
+    description?: string;
+    id?: string;
+  }>;
+}
+
+/**
+ * Čita klikove razbijene po URL-u.
+ * Resurs 6: GET /{id}/threads_insights?metric=clicks
+ */
+export async function getThreadsClicksByUrl({
+  accessToken,
+  userId,
+}: {
+  accessToken: string;
+  userId: string;
+}): Promise<RawThreadsClicksResponse> {
+  return await threadsGet<RawThreadsClicksResponse>(
+    `${userId}/threads_insights`,
+    {
+      accessToken,
+      params: {
+        metric: "clicks",
+      },
+    },
+  );
+}
+
+export interface RawThreadsFollowersCountResponse {
+  data?: Array<{
+    name: string;
+    period?: string;
+    values?: Array<{ value?: number }>;
+    total_value?: { value?: number };
+    title?: string;
+    description?: string;
+    id?: string;
+  }>;
+}
+
+/**
+ * Čita trenutno stanje broja pratilaca.
+ * Resurs 7: GET /{id}/threads_insights?metric=followers_count
+ */
+export async function getThreadsFollowersCount({
+  accessToken,
+  userId,
+}: {
+  accessToken: string;
+  userId: string;
+}): Promise<RawThreadsFollowersCountResponse> {
+  return await threadsGet<RawThreadsFollowersCountResponse>(
+    `${userId}/threads_insights`,
+    {
+      accessToken,
+      params: {
+        metric: "followers_count",
+      },
+    },
+  );
+}
+
+export interface RawThreadsDemographicsResponse {
+  data?: Array<{
+    name: string;
+    period?: string;
+    values?: Array<{
+      value?: number | Record<string, number>;
+      dimension_values?: string[];
+    }>;
+    total_value?: {
+      value?: number;
+      breakdowns?: Array<{
+        dimension_keys?: string[];
+        results?: Array<{
+          dimension_values?: string[];
+          value?: number;
+        }>;
+      }>;
+    };
+    title?: string;
+    description?: string;
+    id?: string;
+  }>;
+}
+
+/**
+ * Čita demografiju pratilaca za jedan specificiran breakdown ("country" | "city" | "age" | "gender").
+ * Resurs 8: GET /{id}/threads_insights?metric=follower_demographics&breakdown={breakdown}
+ * NAPOMENA: Zahteva min 100 pratilaca. Ako API to odbije (npr. greška ili <100), vraća null kao uredan ishod „nije dostupno".
+ */
+export async function getThreadsDemographics({
+  accessToken,
+  userId,
+  breakdown,
+}: {
+  accessToken: string;
+  userId: string;
+  breakdown: "country" | "city" | "age" | "gender";
+}): Promise<RawThreadsDemographicsResponse | null> {
+  try {
+    return await threadsGet<RawThreadsDemographicsResponse>(
+      `${userId}/threads_insights`,
+      {
+        accessToken,
+        params: {
+          metric: "follower_demographics",
+          breakdown,
+        },
+      },
+    );
+  } catch (err: unknown) {
+    const errMessage = err instanceof Error ? err.message : String(err);
+    const isDemographicsUnavailable =
+      errMessage.includes("100") ||
+      errMessage.toLowerCase().includes("follower") ||
+      errMessage.toLowerCase().includes("demographic") ||
+      errMessage.toLowerCase().includes("not enough data") ||
+      errMessage.toLowerCase().includes("insufficient");
+
+    if (isDemographicsUnavailable) {
+      console.log(
+        `[Threads demographics unavailable for ${breakdown} on ${userId}]: ${errMessage}`,
+      );
+      return null;
+    }
+
+    throw err;
+  }
+}
+
+export const THREADS_REPLY_FIELDS =
+  "id,text,username,permalink,timestamp,media_type,media_url,shortcode,owner{id},root_post{id},replied_to{id},is_reply,is_reply_owned_by_me,has_replies,reply_audience,hide_status";
+
+export interface RawThreadsReplyItem {
+  id: string;
+  text?: string;
+  username?: string;
+  permalink?: string;
+  timestamp?: string | number;
+  media_type?: string;
+  media_url?: string;
+  shortcode?: string;
+  owner?: { id?: string };
+  root_post?: { id?: string };
+  replied_to?: { id?: string };
+  is_reply?: boolean;
+  is_reply_owned_by_me?: boolean;
+  has_replies?: boolean;
+  reply_audience?: string;
+  hide_status?: string;
+  approval_status?: string;
+}
+
+export interface RawThreadsRepliesResponse {
+  data?: RawThreadsReplyItem[];
+  paging?: {
+    cursors?: {
+      before?: string;
+      after?: string;
+    };
+    next?: string;
+  };
+}
+
+/**
+ * Čita prvi nivo odgovora za određenu objavu.
+ * Resurs 9: GET /{media-id}/replies
+ */
+export async function getThreadsReplies({
+  accessToken,
+  mediaId,
+}: {
+  accessToken: string;
+  mediaId: string;
+}): Promise<RawThreadsRepliesResponse> {
+  return await threadsGet<RawThreadsRepliesResponse>(`${mediaId}/replies`, {
+    accessToken,
+    params: {
+      fields: THREADS_REPLY_FIELDS,
+    },
+  });
+}
+
+/**
+ * Čita kvote naloga (Resurs 10):
+ * Obavezna polja se traže zajedno: quota_usage,config,reply_quota_usage,reply_config
+ * Opciona (delete_*, location_search_*) se traže u zasebnim upitima jer umeju da vrate HTTP 500.
+ */
+export async function getThreadsPublishingLimitDetailed({
+  accessToken,
+  userId,
+}: {
+  accessToken: string;
+  userId: string;
+}): Promise<ThreadsPublishingLimit> {
+  // 1. Obavezna polja
+  const requiredRaw = await threadsGet<unknown>(
+    `${userId}/threads_publishing_limit`,
+    {
+      accessToken,
+      params: {
+        fields: "quota_usage,config,reply_quota_usage,reply_config",
+      },
+    },
+  );
+
+  const baseQuota = parseThreadsPublishingLimit(requiredRaw);
+
+  // 2. Opciono: delete kvota
+  try {
+    const deleteRaw = await threadsGet<unknown>(
+      `${userId}/threads_publishing_limit`,
+      {
+        accessToken,
+        params: {
+          fields: "delete_quota_usage,delete_config",
+        },
+      },
+    );
+    const deleteParsed = parseThreadsPublishingLimit(deleteRaw);
+    if (deleteParsed.delete) {
+      baseQuota.delete = deleteParsed.delete;
+    }
+  } catch (err) {
+    console.warn(
+      `[Threads delete_quota not supported or failed for ${userId}]`,
+      sanitizeThreadsError(err),
+    );
+  }
+
+  // 3. Opciono: location search kvota
+  try {
+    const locRaw = await threadsGet<unknown>(
+      `${userId}/threads_publishing_limit`,
+      {
+        accessToken,
+        params: {
+          fields: "location_search_quota_usage,location_search_config",
+        },
+      },
+    );
+    const locParsed = parseThreadsPublishingLimit(locRaw);
+    if (locParsed.locationSearch) {
+      baseQuota.locationSearch = locParsed.locationSearch;
+    }
+  } catch (err) {
+    console.warn(
+      `[Threads location_search_quota not supported or failed for ${userId}]`,
+      sanitizeThreadsError(err),
+    );
+  }
+
+  return baseQuota;
+}
+
+/**
+ * Čita kvote naloga jednim pozivom (kompatibilnost).
  */
 export async function getThreadsPublishingLimit({
   accessToken,
@@ -294,12 +799,5 @@ export async function getThreadsPublishingLimit({
   accessToken: string;
   userId: string;
 }): Promise<ThreadsPublishingLimit> {
-  const raw = await threadsGet<unknown>(`${userId}/threads_publishing_limit`, {
-    accessToken,
-    params: {
-      fields:
-        "quota_usage,config,reply_quota_usage,reply_config,delete_quota_usage,delete_config,location_search_quota_usage,location_search_config",
-    },
-  });
-  return parseThreadsPublishingLimit(raw);
+  return await getThreadsPublishingLimitDetailed({ accessToken, userId });
 }

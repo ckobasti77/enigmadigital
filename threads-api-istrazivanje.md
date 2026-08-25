@@ -601,3 +601,79 @@ Da bi se sporna tačka 5 (`media_type` vrednosti) uopšte mogla razrešiti, mora
 objave svih tipova: TEXT, IMAGE, VIDEO, CAROUSEL (min 2 deteta), quote, repost, reply.
 Za IMAGE/VIDEO/CAROUSEL potreban je javno dostupan URL medija.
 Quote i reply praviti nad **običnom** objavom, nikad nad ghost objavom.
+
+---
+
+## Dodatak B — DOKAZANA imena polja (probe, 25.08.2026)
+
+Rezultat pokretanja `scripts/probe-threads-fields.ts` nad nalogom `@itenigma`
+(ID `28983614471241198`). Ovo više nisu pretpostavke — ovo je ono što je API stvarno vratio.
+
+### B.1 Ponašanje API-ja na nepoznato polje — temelj svih zaključaka
+
+Kontrolna provera sa izmišljenim poljem vratila je grešku:
+
+```
+Tried accessing nonexisting field (ovo_polje_sigurno_ne_postoji_123)
+```
+
+**Threads API GREŠI na nepoznato polje.** Zato važi pravilo tumačenja:
+
+| Ishod probe | Značenje |
+|---|---|
+| HTTP 200, ključ prisutan | polje postoji i ima vrednost |
+| HTTP 200, ključ izostavljen | **polje POSTOJI, ali je `null` na toj objavi** — Meta ne šalje null ključeve |
+| `Tried accessing nonexisting field (X)` | polje X **ne postoji** |
+| druga poruka greške | polje postoji, ali zahtev nije ispravan (npr. traži podpolja) |
+
+### B.2 Polja koja SIGURNO postoje
+
+`id`, `media_product_type`, `media_type`, `permalink`, `owner{id}`, `username`, `text`,
+`timestamp`, `shortcode`, `is_quote_post`, `quoted_post{id}`, `reposted_post{id}`,
+`poll_attachment`, `has_replies`, `root_post{id}`, `replied_to{id}`, `is_reply`,
+`is_reply_owned_by_me`, `reply_audience`
+
+Postoje, ali su bila prazna jer su sve test objave bile tekstualne:
+`media_url`, `thumbnail_url`, `children`, `alt_text`, `link_attachment_url`,
+`topic_tag`, `location_id`, `hide_status`
+
+### B.3 Polja koja NE POSTOJE — nikada ih ne stavljati u `fields`
+
+- `url_attached`
+- `quoted_post_id`
+- `reposted_media_id`
+- `gif_attachment` — postoji kao parametar pri OBJAVLJIVANJU, ali se NE MOŽE ČITATI
+
+### B.4 Posebni slučajevi
+
+- `location` → *„An unknown error occurred"*. Poruka se razlikuje od „nonexisting field",
+  dakle polje postoji ali zahteva podpolja. Koristiti `location{id,name,city,country}`
+  ili se osloniti na `location_id`. **Nije dokazano — proveriti pre upotrebe.**
+- `poll_attachment` je vratio samo `{option_a, option_b}`. Procenti glasova
+  (`option_a_votes_percentage`, `total_votes`, `expiration_timestamp`) **nisu potvrđeni** —
+  verovatno traže eksplicitno navođenje kao podpolja.
+
+### B.5 `media_type` — stvarno viđene vrednosti
+
+Potvrđeno: **`TEXT_POST`**, **`REPOST_FACADE`**
+
+Obe verzije iz odeljka 11 bile su delimično pogrešne: tekst je `TEXT_POST` (verzija B),
+repost je `REPOST_FACADE` (verzija A). Zaključak: **nazivi se ne smeju izvoditi po analogiji.**
+
+**NEPOZNATO i dalje:** nazivi za sliku, video i carousel. Probe nije pokrio te tipove jer
+`THREADS_PROBE_IMAGE_URL` i `THREADS_PROBE_VIDEO_URL` nisu bili postavljeni.
+Dok se ne dokažu, kod NE SME da pretpostavlja ni `IMAGE`/`VIDEO`/`CAROUSEL` ni
+`IMAGE_POST`/`CAROUSEL_ALBUM`.
+
+### B.6 Šta ostaje da se dokaže
+
+1. `media_type` za IMAGE, VIDEO, CAROUSEL — ponoviti probe sa URL-ovima medija
+2. Reply approvals: `GET /{media-id}/pending_replies`, `POST /{reply-id}/manage_pending_reply`
+3. `poll_attachment` podpolja sa procentima
+4. `location` sa podpoljima
+
+### B.7 Pravilo za sav kod koji čita Threads objave
+
+`media_type` se čuva kao **string onakav kakav je stigao**, bez mapiranja u naš enum i bez
+podrazumevane vrednosti. Nepoznat tip se prikazuje kao nepoznat, ne kao „TEXT".
+Isti princip kao kod Google Ads-a: vrednost koja nije stigla ne sme da dobije izmišljenu zamenu.

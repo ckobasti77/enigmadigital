@@ -4,19 +4,36 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
+import { runSync } from "./lib/runSync";
 import {
   THREADS_REDIRECT_URI,
   THREADS_SCOPES,
   buildThreadsAuthorizeUrl,
+  executeThreadsResource,
   sanitizeThreadsError,
+  summarizeThreadsSync,
+  type ThreadsPublishingLimit,
+  type ThreadsResourceOutcome,
+  type ThreadsSyncSummary,
 } from "./lib/threadsShared";
 import {
   exchangeCodeForShortLivedToken,
   exchangeForLongLivedToken,
+  getThreadsAccountTotals,
+  getThreadsAccountViews,
   getThreadsAppId,
   getThreadsAppSecret,
+  getThreadsClicksByUrl,
+  getThreadsDemographics,
+  getThreadsFollowersCount,
+  getThreadsPostInsights,
+  getThreadsPostsPage,
+  getThreadsProfile,
+  getThreadsPublishingLimitDetailed,
+  getThreadsReplies,
   getThreadsUserProfile,
   refreshLongLivedToken,
+  type RawThreadsPostItem,
 } from "./lib/threadsApi";
 
 /**
@@ -346,6 +363,765 @@ export const refreshAllThreadsTokens = internalAction({
       } catch (err) {
         console.error(
           `[Threads token refresh failed for ${connectionId}]`,
+          sanitizeThreadsError(err),
+        );
+      }
+    }
+  },
+});
+
+/**
+ * Format date YYYY-MM-DD for today.
+ */
+function getTodayDateString(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+/**
+ * ============================================================================
+ * THREADS FULL SYNC (TH3 / TH4, V8 runtime, BEZ "use node")
+ * ============================================================================
+ *
+ * Sinhronizacija svih 10 resursa:
+ *   1. profile        GET /{id}?fields=id,username         -> username u connection
+ *   2. posts          GET /{id}/threads                    -> paginacija kursorom, lookback prozor po datumu
+ *   3. post_insights  GET /{media-id}/insights             -> za svaku objavu iz koraka 2 (views,likes,replies,reposts,quotes,shares)
+ *   4. account_views  GET /{id}/threads_insights?metric=views -> vremenska serija po danu
+ *   5. account_totals GET /{id}/threads_insights            -> likes,replies,reposts,quotes
+ *   6. clicks_by_url  GET /{id}/threads_insights?metric=clicks -> razbijeno po URL-u
+ *   7. followers      GET /{id}/threads_insights?metric=followers_count -> snapshot za današnji datum
+ *   8. demographics   GET /{id}/threads_insights?metric=follower_demographics -> 4 odvojena breakdown-a (country, city, age, gender)
+ *   9. replies        GET /{media-id}/replies za objave iz koraka 2 (source: "sync")
+ *  10. quota          GET /{id}/threads_publishing_limit -> obavezna polja u jednom upitu, opciona izolovano
+ * ============================================================================
+ */
+export const syncThreads = internalAction({
+  args: { connectionId: v.id("connections") },
+  handler: async (ctx, { connectionId }): Promise<ThreadsSyncSummary> => {
+    const conn: Doc<"connections"> | null = await ctx.runQuery(
+      internal.connections.getForSync,
+      { connectionId },
+    );
+
+    if (conn === null || conn.provider !== "threads") {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Threads konekcija nije pronađena.",
+      });
+    }
+
+    const { workspaceId, encryptedCredentials } = conn;
+
+    let accessToken: string;
+    try {
+      accessToken = await decryptCredentials(encryptedCredentials);
+    } catch {
+      await ctx.runMutation(internal.threadsStore.markConnectionExpired, {
+        connectionId,
+      });
+      throw new ConvexError({
+        code: "invalid",
+        message: "Dekripcija Threads tokena nije uspela.",
+      });
+    }
+
+    // Pročitaj i keširaj Threads user ID
+    let userId = conn.externalId;
+    try {
+      const meProfile = await getThreadsUserProfile({ accessToken });
+      if (meProfile.id) {
+        userId = meProfile.id;
+      }
+      if (meProfile.username) {
+        await ctx.runMutation(internal.threadsStore.saveAccountHandle, {
+          connectionId,
+          handle: meProfile.username,
+        });
+      }
+    } catch {
+      // Ako /me ne odgovori, oslanjamo se na sačuvani externalId
+    }
+
+    if (!userId) {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Threads konekcija nema konfigurisan User ID.",
+      });
+    }
+
+    const outcomes: ThreadsResourceOutcome[] = [];
+    let summaryResult: ThreadsSyncSummary | undefined;
+
+    const todayDateStr = getTodayDateString();
+    const lookbackDays = 30;
+    const sinceTimestamp = Math.floor(
+      (Date.now() - lookbackDays * 24 * 60 * 60 * 1000) / 1000,
+    );
+
+    await runSync(
+      ctx,
+      { workspaceId, provider: "threads", connectionId },
+      async (): Promise<{ itemsWritten: number; note?: string }> => {
+        // ── 1. Profile (GET /{id}?fields=id,username) ────────────────────────
+        await executeThreadsResource("profile", outcomes, async () => {
+          const prof = await getThreadsProfile({ accessToken, userId });
+          if (prof.username) {
+            await ctx.runMutation(internal.threadsStore.saveAccountHandle, {
+              connectionId,
+              handle: prof.username,
+            });
+          }
+          return [prof];
+        });
+
+        // ── 2. Posts (GET /{id}/threads) ─────────────────────────────────────
+        const fetchedPosts: RawThreadsPostItem[] = [];
+        await executeThreadsResource("posts", outcomes, async () => {
+          let afterCursor: string | undefined = undefined;
+          let pageCount = 0;
+          const MAX_PAGES = 10;
+
+          while (pageCount < MAX_PAGES) {
+            pageCount++;
+            const resp = await getThreadsPostsPage({
+              accessToken,
+              userId,
+              since: sinceTimestamp,
+              limit: 50,
+              after: afterCursor,
+            });
+
+            const items = resp.data ?? [];
+            for (const item of items) {
+              fetchedPosts.push(item);
+            }
+
+            afterCursor = resp.paging?.cursors?.after;
+            if (!resp.paging?.next || !afterCursor || items.length === 0) {
+              break;
+            }
+          }
+
+          return fetchedPosts;
+        });
+
+        const postRows = fetchedPosts.map((p) => {
+          const rawChildren = Array.isArray(p.children)
+            ? p.children
+            : Array.isArray(p.children?.data)
+              ? p.children?.data
+              : undefined;
+
+          const children = rawChildren?.map((c) => ({
+            id: String(c.id),
+            ...(c.media_type !== undefined
+              ? { mediaType: String(c.media_type) }
+              : {}),
+            ...(c.media_url !== undefined
+              ? { mediaUrl: String(c.media_url) }
+              : {}),
+            ...(c.thumbnail_url !== undefined
+              ? { thumbnailUrl: String(c.thumbnail_url) }
+              : {}),
+          }));
+
+          return {
+            mediaId: p.id,
+            ...(p.media_product_type !== undefined
+              ? { mediaProductType: p.media_product_type }
+              : {}),
+            mediaType: p.media_type,
+            ...(p.permalink !== undefined ? { permalink: p.permalink } : {}),
+            ...(p.owner?.id !== undefined ? { ownerId: p.owner.id } : {}),
+            ...(p.username !== undefined ? { username: p.username } : {}),
+            ...(p.text !== undefined ? { text: p.text } : {}),
+            ...(p.timestamp !== undefined ? { timestamp: p.timestamp } : {}),
+            ...(p.shortcode !== undefined ? { shortcode: p.shortcode } : {}),
+            ...(p.is_quote_post !== undefined
+              ? { isQuotePost: p.is_quote_post }
+              : {}),
+            ...(p.quoted_post?.id !== undefined
+              ? { quotedPostId: p.quoted_post.id }
+              : {}),
+            ...(p.reposted_post?.id !== undefined
+              ? { repostedPostId: p.reposted_post.id }
+              : {}),
+            ...(p.poll_attachment !== undefined
+              ? { pollAttachment: p.poll_attachment }
+              : {}),
+            ...(p.has_replies !== undefined
+              ? { hasReplies: p.has_replies }
+              : {}),
+            ...(p.root_post?.id !== undefined
+              ? { rootPostId: p.root_post.id }
+              : {}),
+            ...(p.replied_to?.id !== undefined
+              ? { repliedToId: p.replied_to.id }
+              : {}),
+            ...(p.is_reply !== undefined ? { isReply: p.is_reply } : {}),
+            ...(p.is_reply_owned_by_me !== undefined
+              ? { isReplyOwnedByMe: p.is_reply_owned_by_me }
+              : {}),
+            ...(p.reply_audience !== undefined
+              ? { replyAudience: p.reply_audience }
+              : {}),
+            ...(p.media_url !== undefined ? { mediaUrl: p.media_url } : {}),
+            ...(p.thumbnail_url !== undefined
+              ? { thumbnailUrl: p.thumbnail_url }
+              : {}),
+            ...(children !== undefined ? { children } : {}),
+            ...(p.alt_text !== undefined ? { altText: p.alt_text } : {}),
+            ...(p.link_attachment_url !== undefined
+              ? { linkAttachmentUrl: p.link_attachment_url }
+              : {}),
+            ...(p.topic_tag !== undefined ? { topicTag: p.topic_tag } : {}),
+            ...(p.location_id !== undefined
+              ? { locationId: p.location_id }
+              : {}),
+            ...(p.hide_status !== undefined
+              ? { hideStatus: p.hide_status }
+              : {}),
+          };
+        });
+
+        // ── 3. Post Insights (GET /{media-id}/insights) ──────────────────────
+        const postInsightRows: Array<{
+          mediaId: string;
+          date: string;
+          views?: number;
+          likes?: number;
+          replies?: number;
+          reposts?: number;
+          quotes?: number;
+          shares?: number;
+        }> = [];
+
+        await executeThreadsResource("post_insights", outcomes, async () => {
+          for (const post of fetchedPosts) {
+            // REPOST_FACADE vraća prazan niz (linija 271) — preskačemo kao uredan ishod
+            if (post.media_type === "REPOST_FACADE") {
+              continue;
+            }
+            try {
+              const insightsResp = await getThreadsPostInsights({
+                accessToken,
+                mediaId: post.id,
+              });
+
+              const metricsMap: Record<string, number> = {};
+              for (const item of insightsResp.data ?? []) {
+                let val: number | undefined = undefined;
+                if (typeof item.total_value?.value === "number") {
+                  val = item.total_value.value;
+                } else if (
+                  Array.isArray(item.values) &&
+                  item.values.length > 0 &&
+                  typeof item.values[0]?.value === "number"
+                ) {
+                  val = item.values[0].value;
+                }
+                if (val !== undefined) {
+                  metricsMap[item.name] = val;
+                }
+              }
+
+              postInsightRows.push({
+                mediaId: post.id,
+                date: todayDateStr,
+                ...(metricsMap.views !== undefined
+                  ? { views: metricsMap.views }
+                  : {}),
+                ...(metricsMap.likes !== undefined
+                  ? { likes: metricsMap.likes }
+                  : {}),
+                ...(metricsMap.replies !== undefined
+                  ? { replies: metricsMap.replies }
+                  : {}),
+                ...(metricsMap.reposts !== undefined
+                  ? { reposts: metricsMap.reposts }
+                  : {}),
+                ...(metricsMap.quotes !== undefined
+                  ? { quotes: metricsMap.quotes }
+                  : {}),
+                ...(metricsMap.shares !== undefined
+                  ? { shares: metricsMap.shares }
+                  : {}),
+              });
+            } catch (err) {
+              console.warn(
+                `[Threads post_insights fetch failed for ${post.id}]`,
+                sanitizeThreadsError(err),
+              );
+            }
+          }
+          return postInsightRows;
+        });
+
+        // ── 4. Account Views (GET /{id}/threads_insights?metric=views) ───────
+        const accountDailyRows: Array<{
+          date: string;
+          views?: number;
+        }> = [];
+
+        await executeThreadsResource("account_views", outcomes, async () => {
+          const viewsResp = await getThreadsAccountViews({
+            accessToken,
+            userId,
+            since: sinceTimestamp,
+          });
+
+          for (const item of viewsResp.data ?? []) {
+            if (item.name === "views" && Array.isArray(item.values)) {
+              for (const valItem of item.values) {
+                if (valItem.end_time && typeof valItem.value === "number") {
+                  const date = valItem.end_time.split("T")[0];
+                  accountDailyRows.push({
+                    date,
+                    views: valItem.value,
+                  });
+                }
+              }
+            }
+          }
+          return accountDailyRows;
+        });
+
+        // ── 5. Account Totals (GET /{id}/threads_insights?metric=likes,...) ──
+        let accountTotalsRow:
+          | {
+              likes?: number;
+              replies?: number;
+              reposts?: number;
+              quotes?: number;
+              fetchedAt: number;
+            }
+          | undefined = undefined;
+
+        await executeThreadsResource("account_totals", outcomes, async () => {
+          const totalsResp = await getThreadsAccountTotals({
+            accessToken,
+            userId,
+          });
+
+          const totalsMap: Record<string, number> = {};
+          for (const item of totalsResp.data ?? []) {
+            let val: number | undefined = undefined;
+            if (typeof item.total_value?.value === "number") {
+              val = item.total_value.value;
+            } else if (
+              Array.isArray(item.values) &&
+              item.values.length > 0 &&
+              typeof item.values[0]?.value === "number"
+            ) {
+              val = item.values[0].value;
+            }
+            if (val !== undefined) {
+              totalsMap[item.name] = val;
+            }
+          }
+
+          accountTotalsRow = {
+            ...(totalsMap.likes !== undefined ? { likes: totalsMap.likes } : {}),
+            ...(totalsMap.replies !== undefined
+              ? { replies: totalsMap.replies }
+              : {}),
+            ...(totalsMap.reposts !== undefined
+              ? { reposts: totalsMap.reposts }
+              : {}),
+            ...(totalsMap.quotes !== undefined
+              ? { quotes: totalsMap.quotes }
+              : {}),
+            fetchedAt: Date.now(),
+          };
+
+          return [accountTotalsRow];
+        });
+
+        // ── 6. Clicks by URL (GET /{id}/threads_insights?metric=clicks) ──────
+        const clicksByUrlRows: Array<{
+          date: string;
+          url: string;
+          clicks?: number;
+        }> = [];
+
+        await executeThreadsResource("clicks_by_url", outcomes, async () => {
+          const clicksResp = await getThreadsClicksByUrl({
+            accessToken,
+            userId,
+          });
+
+          for (const item of clicksResp.data ?? []) {
+            if (item.name === "clicks") {
+              if (
+                item.total_value?.breakdowns &&
+                item.total_value.breakdowns.length > 0
+              ) {
+                for (const breakdownObj of item.total_value.breakdowns) {
+                  for (const resItem of breakdownObj.results ?? []) {
+                    const urlVal = resItem.dimension_values?.[0];
+                    if (urlVal && typeof resItem.value === "number") {
+                      clicksByUrlRows.push({
+                        date: todayDateStr,
+                        url: urlVal,
+                        clicks: resItem.value,
+                      });
+                    }
+                  }
+                }
+              } else if (Array.isArray(item.values)) {
+                for (const valItem of item.values) {
+                  if (
+                    valItem.dimension_values?.[0] &&
+                    typeof valItem.value === "number"
+                  ) {
+                    const date = valItem.end_time
+                      ? valItem.end_time.split("T")[0]
+                      : todayDateStr;
+                    clicksByUrlRows.push({
+                      date,
+                      url: valItem.dimension_values[0],
+                      clicks: valItem.value,
+                    });
+                  } else if (
+                    typeof valItem.value === "object" &&
+                    valItem.value !== null
+                  ) {
+                    const date = valItem.end_time
+                      ? valItem.end_time.split("T")[0]
+                      : todayDateStr;
+                    for (const [url, count] of Object.entries(valItem.value)) {
+                      if (typeof count === "number") {
+                        clicksByUrlRows.push({
+                          date,
+                          url,
+                          clicks: count,
+                        });
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          return clicksByUrlRows;
+        });
+
+        // ── 7. Followers (GET /{id}/threads_insights?metric=followers_count) ─
+        const followerSnapshotRows: Array<{
+          date: string;
+          takenAt: number;
+          followersCount?: number;
+        }> = [];
+
+        await executeThreadsResource("followers", outcomes, async () => {
+          const followersResp = await getThreadsFollowersCount({
+            accessToken,
+            userId,
+          });
+
+          let followersCount: number | undefined = undefined;
+          for (const item of followersResp.data ?? []) {
+            if (item.name === "followers_count") {
+              if (typeof item.total_value?.value === "number") {
+                followersCount = item.total_value.value;
+              } else if (
+                Array.isArray(item.values) &&
+                item.values.length > 0 &&
+                typeof item.values[0]?.value === "number"
+              ) {
+                followersCount = item.values[0].value;
+              }
+            }
+          }
+
+          const snapshot = {
+            date: todayDateStr,
+            takenAt: Date.now(),
+            ...(followersCount !== undefined ? { followersCount } : {}),
+          };
+
+          followerSnapshotRows.push(snapshot);
+          return [snapshot];
+        });
+
+        // ── 8. Demographics (4 odvojena poziva: country, city, age, gender) ─
+        const demographicRows: Array<{
+          date: string;
+          breakdown: "country" | "city" | "age" | "gender";
+          key: string;
+          value?: number;
+          takenAt: number;
+        }> = [];
+
+        await executeThreadsResource("demographics", outcomes, async () => {
+          const breakdowns: Array<"country" | "city" | "age" | "gender"> = [
+            "country",
+            "city",
+            "age",
+            "gender",
+          ];
+
+          for (const b of breakdowns) {
+            const demoResp = await getThreadsDemographics({
+              accessToken,
+              userId,
+              breakdown: b,
+            });
+
+            if (!demoResp || !demoResp.data) continue;
+
+            for (const item of demoResp.data) {
+              if (
+                item.total_value?.breakdowns &&
+                item.total_value.breakdowns.length > 0
+              ) {
+                for (const breakdownObj of item.total_value.breakdowns) {
+                  for (const resItem of breakdownObj.results ?? []) {
+                    const key = resItem.dimension_values?.[0];
+                    if (key) {
+                      demographicRows.push({
+                        date: todayDateStr,
+                        breakdown: b,
+                        key,
+                        ...(typeof resItem.value === "number"
+                          ? { value: resItem.value }
+                          : {}),
+                        takenAt: Date.now(),
+                      });
+                    }
+                  }
+                }
+              } else if (Array.isArray(item.values)) {
+                for (const valItem of item.values) {
+                  if (valItem.dimension_values?.[0]) {
+                    demographicRows.push({
+                      date: todayDateStr,
+                      breakdown: b,
+                      key: valItem.dimension_values[0],
+                      ...(typeof valItem.value === "number"
+                        ? { value: valItem.value }
+                        : {}),
+                      takenAt: Date.now(),
+                    });
+                  } else if (
+                    typeof valItem.value === "object" &&
+                    valItem.value !== null
+                  ) {
+                    for (const [key, count] of Object.entries(valItem.value)) {
+                      demographicRows.push({
+                        date: todayDateStr,
+                        breakdown: b,
+                        key,
+                        ...(typeof count === "number" ? { value: count } : {}),
+                        takenAt: Date.now(),
+                      });
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          return demographicRows;
+        });
+
+        // ── 9. Replies (GET /{media-id}/replies za objave iz koraka 2) ───────
+        const replyRows: Array<{
+          replyId: string;
+          text?: string;
+          username?: string;
+          permalink?: string;
+          timestamp?: string | number;
+          mediaType?: string;
+          mediaUrl?: string;
+          shortcode?: string;
+          ownerId?: string;
+          rootPostId?: string;
+          repliedToId?: string;
+          isReply?: boolean;
+          isReplyOwnedByMe?: boolean;
+          hasReplies?: boolean;
+          replyAudience?: string;
+          approvalStatus?: string;
+          hideStatus?: string;
+          source: string;
+          receivedAt?: number;
+        }> = [];
+
+        await executeThreadsResource("replies", outcomes, async () => {
+          for (const post of fetchedPosts) {
+            if (post.media_type === "REPOST_FACADE") continue;
+            try {
+              const repliesResp = await getThreadsReplies({
+                accessToken,
+                mediaId: post.id,
+              });
+
+              for (const r of repliesResp.data ?? []) {
+                replyRows.push({
+                  replyId: r.id,
+                  ...(r.text !== undefined ? { text: r.text } : {}),
+                  ...(r.username !== undefined ? { username: r.username } : {}),
+                  ...(r.permalink !== undefined
+                    ? { permalink: r.permalink }
+                    : {}),
+                  ...(r.timestamp !== undefined
+                    ? { timestamp: r.timestamp }
+                    : {}),
+                  ...(r.media_type !== undefined
+                    ? { mediaType: r.media_type }
+                    : {}),
+                  ...(r.media_url !== undefined
+                    ? { mediaUrl: r.media_url }
+                    : {}),
+                  ...(r.shortcode !== undefined
+                    ? { shortcode: r.shortcode }
+                    : {}),
+                  ...(r.owner?.id !== undefined
+                    ? { ownerId: r.owner.id }
+                    : {}),
+                  ...(r.root_post?.id !== undefined
+                    ? { rootPostId: r.root_post.id }
+                    : {}),
+                  ...(r.replied_to?.id !== undefined
+                    ? { repliedToId: r.replied_to.id }
+                    : {}),
+                  ...(r.is_reply !== undefined ? { isReply: r.is_reply } : {}),
+                  ...(r.is_reply_owned_by_me !== undefined
+                    ? { isReplyOwnedByMe: r.is_reply_owned_by_me }
+                    : {}),
+                  ...(r.has_replies !== undefined
+                    ? { hasReplies: r.has_replies }
+                    : {}),
+                  ...(r.reply_audience !== undefined
+                    ? { replyAudience: r.reply_audience }
+                    : {}),
+                  ...(r.approval_status !== undefined
+                    ? { approvalStatus: r.approval_status }
+                    : {}),
+                  ...(r.hide_status !== undefined
+                    ? { hideStatus: r.hide_status }
+                    : {}),
+                  source: "sync",
+                  receivedAt: Date.now(),
+                });
+              }
+            } catch (err) {
+              console.warn(
+                `[Threads replies fetch failed for media ${post.id}]`,
+                sanitizeThreadsError(err),
+              );
+            }
+          }
+
+          return replyRows;
+        });
+
+        // ── 10. Quota (GET /{id}/threads_publishing_limit) ───────────────────
+        let publishingLimit: ThreadsPublishingLimit | undefined = undefined;
+
+        await executeThreadsResource("quota", outcomes, async () => {
+          publishingLimit = await getThreadsPublishingLimitDetailed({
+            accessToken,
+            userId,
+          });
+
+          await ctx.runMutation(internal.threadsStore.recordThreadsQuota, {
+            workspaceId,
+            ...(publishingLimit.publishing?.used !== undefined
+              ? { postsUsed: publishingLimit.publishing.used }
+              : {}),
+            ...(publishingLimit.publishing?.total !== undefined
+              ? { postsTotal: publishingLimit.publishing.total }
+              : {}),
+            ...(publishingLimit.reply?.used !== undefined
+              ? { repliesUsed: publishingLimit.reply.used }
+              : {}),
+            ...(publishingLimit.reply?.total !== undefined
+              ? { repliesTotal: publishingLimit.reply.total }
+              : {}),
+            ...(publishingLimit.delete?.used !== undefined
+              ? { deleteUsed: publishingLimit.delete.used }
+              : {}),
+            ...(publishingLimit.delete?.total !== undefined
+              ? { deleteTotal: publishingLimit.delete.total }
+              : {}),
+            ...(publishingLimit.locationSearch?.used !== undefined
+              ? { locationSearchUsed: publishingLimit.locationSearch.used }
+              : {}),
+            ...(publishingLimit.locationSearch?.total !== undefined
+              ? { locationSearchTotal: publishingLimit.locationSearch.total }
+              : {}),
+            ...(publishingLimit.publishing?.durationSeconds !== undefined
+              ? {
+                  quotaDurationSeconds:
+                    publishingLimit.publishing.durationSeconds,
+                }
+              : {}),
+          });
+
+          return [publishingLimit];
+        });
+
+        // ── Upis svih preuzetih podataka u bazu (TH3) ────────────────────────
+        const itemsWritten: number = await ctx.runMutation(
+          internal.threadsStore.upsertThreadsData,
+          {
+            workspaceId,
+            posts: postRows.length > 0 ? postRows : undefined,
+            postInsights:
+              postInsightRows.length > 0 ? postInsightRows : undefined,
+            accountDaily:
+              accountDailyRows.length > 0 ? accountDailyRows : undefined,
+            accountTotals: accountTotalsRow,
+            clicksByUrl:
+              clicksByUrlRows.length > 0 ? clicksByUrlRows : undefined,
+            followerSnapshots:
+              followerSnapshotRows.length > 0
+                ? followerSnapshotRows
+                : undefined,
+            demographics:
+              demographicRows.length > 0 ? demographicRows : undefined,
+            replies: replyRows.length > 0 ? replyRows : undefined,
+          },
+        );
+
+        const summary = summarizeThreadsSync({
+          outcomes,
+          itemsWritten,
+        });
+
+        summaryResult = summary;
+
+        return {
+          itemsWritten: summary.itemsWritten,
+          note: summary.note,
+        };
+      },
+    );
+
+    return summaryResult ?? summarizeThreadsSync({ outcomes, itemsWritten: 0 });
+  },
+});
+
+/**
+ * Dnevna sinhronizacija za sve aktivne Threads konekcije.
+ */
+export const syncAllThreads = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const connectionIds = await ctx.runQuery(
+      internal.connections.listByProvider,
+      { provider: "threads" },
+    );
+
+    for (const connectionId of connectionIds) {
+      try {
+        await ctx.runAction(internal.threads.syncThreads, { connectionId });
+      } catch (err) {
+        console.error(
+          `[Threads sync failed for connection ${connectionId}]`,
           sanitizeThreadsError(err),
         );
       }
