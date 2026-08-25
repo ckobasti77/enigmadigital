@@ -503,6 +503,11 @@ export const syncNow = action({
       return;
     }
 
+    if (authorized.provider === "threads") {
+      await ctx.runAction(internal.threads.syncThreads, { connectionId });
+      return;
+    }
+
     await runSync(
       ctx,
       {

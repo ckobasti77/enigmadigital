@@ -90,6 +90,7 @@ function manualRevokeLink(provider: Provider): {
     case "meta_ig":
     case "meta_fb":
     case "meta_ads":
+    case "threads":
       return {
         href: META_BUSINESS_APPS_URL,
         label: "facebook.com/settings → Business integrations",

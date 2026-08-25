@@ -64,6 +64,7 @@ const ORDER: Provider[] = [
   "ga4",
   "meta_ig",
   "meta_fb",
+  "threads",
   "meta_ads",
   "google_ads",
   "youtube",

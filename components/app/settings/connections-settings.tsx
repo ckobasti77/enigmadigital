@@ -17,6 +17,7 @@ import {
   Users,
   Megaphone,
   SquarePlay,
+  AtSign,
   RefreshCw,
   LoaderCircle,
   Lock,
@@ -33,7 +34,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { RevealGroup } from "@/components/motion/reveal";
 import { formatRelativeTime } from "@/lib/format";
 import { describeTokenExpiry } from "@/lib/token-expiry";
-import { GOOGLE_PERMISSIONS_URL } from "@/lib/policy-links";
+import {
+  GOOGLE_PERMISSIONS_URL,
+  META_BUSINESS_APPS_URL,
+} from "@/lib/policy-links";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackLine, FeedbackNote } from "@/components/app/feedback";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
@@ -2672,6 +2676,238 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
   );
 }
 
+// ── Threads (OAuth) ──────────────────────────────────────────────────────────
+
+function ThreadsCard({ connection }: { connection?: ConnectionView }) {
+  const remove = useMutation(api.connections.remove);
+  const setup = useQuery(api.threadsStore.setupInfo);
+  const getOAuthUrl = useAction(api.threads.threadsAuthorizeUrl);
+
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const isConnected = connection !== undefined;
+
+  // Handle incoming OAuth callback status in URL parameters
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("threads_connected");
+    const account = params.get("threads_account");
+    const err = params.get("threads_error");
+
+    if (!connected && !err) return;
+
+    window.history.replaceState({}, "", window.location.pathname);
+
+    setTimeout(() => {
+      if (err) {
+        setError(err);
+        return;
+      }
+      setSuccessMessage(
+        account
+          ? `Threads nalog „${account.startsWith("@") ? account : `@${account}`}” je uspešno povezan!`
+          : "Threads nalog je uspešno povezan!",
+      );
+    }, 0);
+  }, []);
+
+  async function handleStartConnect() {
+    setError(null);
+    setSuccessMessage(null);
+    setConnecting(true);
+    try {
+      const redirectUri = `${window.location.origin}/api/auth/callback/threads`;
+      const { url } = await getOAuthUrl({ redirectUri });
+      window.location.href = url;
+    } catch (err) {
+      setError(convexMessage(err, "Pokretanje Threads autorizacije nije uspelo."));
+      setConnecting(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!connection) return;
+    setDisconnecting(true);
+    setError(null);
+    try {
+      await remove({ connectionId: connection._id });
+      setSuccessMessage("Veza sa Threads nalogom je prekinuta.");
+    } catch (err) {
+      setError(convexMessage(err, "Prekidanje veze nije uspelo."));
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
+  let statusNode: ReactNode;
+  if (setup === undefined) {
+    statusNode = <StatusPill tone="muted">Učitavanje…</StatusPill>;
+  } else if (!setup.isConfigured) {
+    statusNode = (
+      <StatusPill tone="warning">
+        Čeka Threads OAuth — dodaj THREADS_APP_ID/SECRET u env
+      </StatusPill>
+    );
+  } else {
+    statusNode = connectionPill(connection?.status);
+  }
+
+  return (
+    <CardShell
+      icon={AtSign}
+      title="Threads"
+      subtitle="Threads API · OAuth (statistika profila, uvidi i odgovori)"
+      status={statusNode}
+    >
+      {/* Šta se dešava sa preuzetim podacima posle „Prekini vezu”. Ne prikazuje ništa dok brisanja nema. */}
+      <PurgeNotice provider="threads" />
+      <p className="mt-4 text-xs leading-relaxed text-text-muted">
+        Čita statistiku profila i objava (prikazi, lajkovi, odgovori, deljenja) i odgovore koje obrađuju automatizacije.
+      </p>
+
+      {setup === undefined ? (
+        <div className="mt-5">
+          <Skeleton className="h-14 w-full rounded-lg" />
+        </div>
+      ) : (
+        <div className="mt-5 space-y-4">
+          {successMessage && <FeedbackNote tone="success" title={successMessage} />}
+          {error && <FeedbackNote tone="danger" title={error} />}
+
+          {isConnected ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 text-xs text-foreground">
+                    <Lock className="size-3.5 shrink-0 text-success" aria-hidden />
+                    <span className="truncate font-medium">
+                      {connection.accountHandle
+                        ? (connection.accountHandle.startsWith("@")
+                            ? connection.accountHandle
+                            : `@${connection.accountHandle}`)
+                        : (connection.externalId
+                            ? `ID naloga: ${connection.externalId}`
+                            : "Threads nalog povezan")}
+                    </span>
+                  </div>
+                  {connection.accountHandle && connection.externalId && (
+                    <p className="font-mono text-[11px] text-text-muted">
+                      ID naloga: {connection.externalId}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {(connection.status === "error" || connection.status === "expired") && (
+                <div className="space-y-3 rounded-lg border border-danger/30 bg-danger/5 p-4">
+                  <FeedbackNote
+                    tone="danger"
+                    title={
+                      connection.status === "expired"
+                        ? "Pristup Threads nalogu je istekao."
+                        : "Veza sa Threads nalogom je prekinuta ili je token istekao."
+                    }
+                  >
+                    Potrebno je ponovo autorizovati pristup nalogu kako bi se nastavila sinhronizacija i upravljanje.
+                  </FeedbackNote>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleStartConnect}
+                    disabled={connecting || !setup.isConfigured}
+                  >
+                    {connecting ? (
+                      <>
+                        <LoaderCircle className="animate-spin" />
+                        Preusmeravam…
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw />
+                        Poveži ponovo
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 p-4">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-foreground">
+                  Threads OAuth autorizacija
+                </p>
+                <p className="text-xs text-text-muted">
+                  Povežite Threads nalog putem zvaničnog Meta OAuth dijaloga.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleStartConnect}
+                disabled={connecting || !setup.isConfigured}
+              >
+                {connecting ? (
+                  <>
+                    <LoaderCircle className="animate-spin" />
+                    Preusmeravam…
+                  </>
+                ) : (
+                  <>
+                    <AtSign />
+                    Poveži Threads
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <SyncFooter connection={connection} />
+      {isConnected && (
+        <DisconnectZone
+          provider="threads"
+          label="Threads nalogom"
+          busy={disconnecting}
+          onConfirm={handleDisconnect}
+          zoneDescription="Pristup se opoziva kod Meta servisa, pa se brišu kredencijali i svi podaci preuzeti sa Threads-a. Nepovratno."
+          dialogDescription={
+            <>
+              <span className="block">
+                Prekidanjem veze brišu se svi podaci preuzeti sa Threads-a:
+                statistika profila, objava, uvidi i odgovori koje obrađuju automatizacije.
+                Ova radnja je nepovratna.
+              </span>
+              <span className="mt-3 block">
+                Aplikacija pri tome sama opoziva pristup kod Meta servisa. Brisanje
+                ne teče trenutno — kartica pokazuje dokle je stiglo i javlja
+                kada je gotovo.
+              </span>
+              <span className="mt-3 block">
+                Ako opoziv ne prođe, možeš ga dovršiti i ručno, na{" "}
+                <a
+                  href={META_BUSINESS_APPS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-accent-400 underline underline-offset-2 transition-colors hover:text-accent-300"
+                >
+                  facebook.com/settings → Business integrations
+                </a>
+                .
+              </span>
+            </>
+          }
+        />
+      )}
+    </CardShell>
+  );
+}
+
 // ── page body ────────────────────────────────────────────────────────────────
 
 export function ConnectionsSettings() {
@@ -2688,7 +2924,7 @@ export function ConnectionsSettings() {
   );
 
   return (
-    // Osam kartica u nizu: razmak računa RevealGroup tako da poslednja
+    // Devet kartica u nizu: razmak računa RevealGroup tako da poslednja
     // završi unutar budžeta, umesto ručne lestvice koja ga je probijala.
     <RevealGroup className="mt-8 space-y-5">
       <Ga4Card connection={byProvider.get("ga4")} />
@@ -2696,6 +2932,7 @@ export function ConnectionsSettings() {
       <OpenReplyCard />
       <InstagramCard connection={byProvider.get("meta_ig")} />
       <FacebookCard connection={byProvider.get("meta_fb")} />
+      <ThreadsCard connection={byProvider.get("threads")} />
       <MetaAdsCard connection={byProvider.get("meta_ads")} />
       <GoogleAdsCard connection={byProvider.get("google_ads")} />
       <YouTubeCard connection={byProvider.get("youtube")} />
