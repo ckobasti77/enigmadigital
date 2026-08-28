@@ -235,9 +235,35 @@ export const registerClick = internalMutation({
     // Pixel pročita i pošalje isti ključ (dedup). Ostaje undefined inače.
     let capiEventId: string | undefined;
 
+    // Provera da li je ovaj link povezan sa besplatnom landing stranicom (LM7)
+    const landing = await ctx.db
+      .query("leadLandings")
+      .withIndex("by_tracked_link", (q) => q.eq("trackedLinkId", link._id))
+      .first();
+
     if (args.countClick && withinCap) {
       const now = Date.now();
       const date = utcDateKey(now);
+
+      // LM7 — Zaštita od višestrukog osvežavanja (debouncing):
+      // Ako isti posetilac (isti ipHash) osveži istu landing stranicu u roku od 60s,
+      // klik se beleži u orLinkClicks, ali se NE upisuje novi leadSignal.
+      let isRecentDuplicate = false;
+      if (landing !== null && args.ipHash) {
+        const sixtySecondsAgo = now - 60_000;
+        const recentClicks = await ctx.db
+          .query("orLinkClicks")
+          .withIndex("by_link", (q) => q.eq("trackedLinkId", link._id))
+          .order("desc")
+          .take(20);
+
+        isRecentDuplicate = recentClicks.some(
+          (c) =>
+            c.createdAt >= sixtySecondsAgo &&
+            c.isBot !== true &&
+            c.ipHash === args.ipHash,
+        );
+      }
 
       await ctx.db.insert("orLinkClicks", {
         workspaceId: link.workspaceId,
@@ -250,6 +276,24 @@ export const registerClick = internalMutation({
         referrer: args.referrer?.slice(0, REFERRER_MAX),
         createdAt: now,
       });
+
+      // LM7 — Upis signala za otvaranje landing stranice
+      if (landing !== null && !isRecentDuplicate) {
+        await ctx.db.insert("leadSignals", {
+          workspaceId: landing.workspaceId,
+          companyId: landing.companyId,
+          kind: "landing_opened",
+          // Identitet landinga, ne URL. Vezivanje signala za `sourceUrl` je
+          // izgledalo dovoljno dok se ne promeni odredišni URL — tada bi svi
+          // raniji signali prestali da se poklapaju i broj otvaranja bi tiho
+          // pao na nulu, a dva landinga ka istom URL-u bi se međusobno
+          // sabirala. ID se ne menja.
+          value: landing._id,
+          observedAt: now,
+          source: "landing_tracker",
+          sourceUrl: link.destinationUrl,
+        });
+      }
 
       if (link.automationId) {
         await ctx.runMutation(internal.orRollup.recompute, {
@@ -306,6 +350,30 @@ export const registerClick = internalMutation({
           },
         );
       }
+    } else if (landing !== null) {
+      // LM7 — za landing linkove beležimo i zahteve koji NISU brojani, da se
+      // mogu prebrojati u `landingStatus` bez uticaja na signale, CAPI i rollup.
+      //
+      // Ali postoje DVA razloga zašto zahtev nije brojan i oni nisu isti:
+      //   - bot / generator pregleda linka  → `isBot`
+      //   - čovek preko satnog limita `/r/` → `overCap`
+      // Ranije su oba upisivana kao `isBot: true`, pa bi u izveštaju pisalo da
+      // je stranicu otvorio bot iako ju je otvorio klijent. Netačan razlog
+      // odbacivanja je gori od nezabeleženog odbacivanja.
+      const now = Date.now();
+      const date = utcDateKey(now);
+      const jesteBot = !args.countClick;
+      await ctx.db.insert("orLinkClicks", {
+        workspaceId: link.workspaceId,
+        channel,
+        trackedLinkId: link._id,
+        date,
+        ipHash: args.ipHash,
+        userAgent: args.userAgent?.slice(0, USER_AGENT_MAX),
+        referrer: args.referrer?.slice(0, REFERRER_MAX),
+        ...(jesteBot ? { isBot: true } : { overCap: true }),
+        createdAt: now,
+      });
     }
 
     return {

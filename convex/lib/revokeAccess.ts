@@ -45,6 +45,7 @@ export function manualRevokeMessage(provider: Provider): string {
   switch (provider) {
     case "youtube":
     case "google_ads":
+    case "google_business":
       return "Opoziv nije uspeo posle više pokušaja. Ručno ukloni pristup aplikaciji na https://myaccount.google.com/permissions.";
     case "meta_ig":
     case "meta_fb":
@@ -176,7 +177,8 @@ export async function revokeProviderAccess(
 ): Promise<RevokeOutcome> {
   switch (provider) {
     case "youtube":
-    case "google_ads": {
+    case "google_ads":
+    case "google_business": {
       const refreshToken = readRefreshToken(secret);
       if (refreshToken === null) {
         return {

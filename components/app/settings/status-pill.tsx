@@ -12,6 +12,8 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   youtube: "YouTube",
   openreply: "OpenReply",
   threads: "Threads",
+  leads: "Lead mašina",
+  google_business: "Google Business",
 };
 
 type Tone = "success" | "warning" | "danger" | "muted" | "accent";

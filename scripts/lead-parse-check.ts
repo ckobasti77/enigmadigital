@@ -48,6 +48,8 @@ function maskLeadRowForDisplay(row: ParsedLeadRow): Record<string, unknown> {
     napomena: row.napomena ?? "[nema]",
     izvori: row.izvori.length > 0 ? row.izvori : "[prazno]",
     derivedSignals: row.derivedSignals.length > 0 ? row.derivedSignals : "[nema]",
+    // Polja koja parser NIJE pročitao nego zaključio — moraju da se vide.
+    derivedFields: row.derivedFields.length > 0 ? row.derivedFields : "[nema izvedenih]",
   };
 }
 
@@ -79,6 +81,9 @@ async function main(): Promise<void> {
 
   console.log("\n1. LISTOVI (SHEETOVI) I PREKLAPANJA:");
   console.log(`   Ukupno listova: ${result.sheets.length}`);
+  console.log(
+    `   PARSIRAN LIST: "${result.selectedSheet}" (razlog izbora: ${result.selectionReason})`,
+  );
   for (const sheet of result.sheets) {
     if (sheet.looksLikeDuplicateOf) {
       console.log(`   - "${sheet.name}": ${sheet.rowCount} redova -> [PREKLAPANJE: podskup lista "${sheet.looksLikeDuplicateOf}"]`);

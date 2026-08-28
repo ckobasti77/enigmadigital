@@ -23,6 +23,7 @@ import {
   normalizeCompanyWallUrl,
   LEAD_SIGNAL_KINDS,
 } from "./leadNormalize";
+import { deriveSignalsFromInboundText } from "./leadInboundDerive";
 
 // ── Tipovi podataka ──────────────────────────────────────────────────────────
 
@@ -53,6 +54,18 @@ export interface ParsedLeadRow {
   napomena?: string;
   izvori: string[];
   derivedSignals: string[];
+  /**
+   * Imena polja koja parser NIJE pročitao iz tabele nego ih je ZAKLJUČIO.
+   *
+   * Jedini slučaj danas: `grad` izveden iz beogradske opštine — iz „Jurija
+   * Gagarina 14lj, Novi Beograd" sledi grad „Beograd", što u fajlu ne piše.
+   *
+   * Postoji zato što je LM4 do sada POGAĐAO šta je izvedeno, heuristikom
+   * `opstina && grad === "Beograd"`. Poreklo podatka ne sme da bude nagađanje:
+   * onaj ko je zaključio mora i da kaže da je zaključio. `leadFieldProvenance`
+   * ovim poljima daje `confidence: "priblizno"`, nikada `"tacno"`.
+   */
+  derivedFields: string[];
 }
 
 export interface ParsedSheetInfo {
@@ -66,8 +79,25 @@ export interface SkippedRowInfo {
   razlog: string;
 }
 
+export type SheetSelectionReason =
+  | "trazen"
+  | "jedini"
+  | "najveci_bez_preklapanja"
+  | "najveci_iako_sve_preklapa";
+
 export interface LeadWorkbookParseResult {
   sheets: ParsedSheetInfo[];
+  /**
+   * Naziv lista iz kojeg su `rows` zaista pročitani.
+   *
+   * Postoji zato što je UI ranije PONAVLJAO pravilo izbora lista da bi
+   * pogodio šta je parser izabrao. Dva mesta sa istim pravilom znače da
+   * jedno pre ili kasnije počne da laže, a `leadImportRows.sourceSheet`
+   * je poreklo podatka — poreklo se ne pogađa. Ko je izabrao, taj i kaže.
+   */
+  selectedSheet: string;
+  /** Zašto je baš taj list izabran — UI ovo ispisuje doslovno. */
+  selectionReason: SheetSelectionReason;
   headerRowIndex: number;
   columns: string[];
   rows: ParsedLeadRow[];
@@ -245,22 +275,11 @@ export function deriveSignalsFromNote(
     izvori?: string[];
   },
 ): string[] {
-  const signals = new Set<string>();
-  const noteClean = (napomena ?? "").toLowerCase();
+  const baseSignals = deriveSignalsFromInboundText(napomena);
+  const signals = new Set<string>(baseSignals);
 
-  // nema_sajt
+  // Dodatne provere iz strukturiranih kolona (booking provajderi u izvorima, broj recenzija iz ocene)
   if (
-    /nema\s+(?:web\s*)?sajt|bez\s+sajta|nema\s+stranicu|nema\s+sajt\/drustvene\s+mreze/i.test(
-      noteClean,
-    )
-  ) {
-    signals.add("nema_sajt");
-  }
-
-  // koristi_third_party_booking
-  if (
-    /koristi\s+(?:setmore|dikidi|sredime|fresha|treatwell|booking)/i.test(noteClean) ||
-    /\b(?:setmore|dikidi|fresha|treatwell)\b/i.test(noteClean) ||
     extra?.izvori?.some((izvor) =>
       ["setmore", "dikidi", "fresha", "treatwell"].includes(izvor.toLowerCase()),
     )
@@ -268,41 +287,8 @@ export function deriveSignalsFromNote(
     signals.add("koristi_third_party_booking");
   }
 
-  // samo_facebook
-  if (
-    /ima\s+samo\s+facebook|samo\s+facebook|samo\s+fb|aktivan\s+samo\s+na\s+fb/i.test(
-      noteClean,
-    )
-  ) {
-    signals.add("samo_facebook");
-  }
-
-  // samo_instagram
-  if (
-    /ima\s+samo\s+instagram|samo\s+instagram|samo\s+ig|aktivan\s+samo\s+na\s+ig/i.test(
-      noteClean,
-    )
-  ) {
-    signals.add("samo_instagram");
-  }
-
-  // visok_broj_recenzija
-  if (
-    /\d+\s*pozitivn(?:e|ih)?\s*recenzij(?:a|e)|visok\s*broj\s*recenzija|mnogo\s*recenzija|preko\s*100\s*recenzija|100\+\s*recenzija/i.test(
-      noteClean,
-    ) ||
-    (extra?.ocena?.brojRecenzija !== undefined && extra.ocena.brojRecenzija >= 100)
-  ) {
+  if (extra?.ocena?.brojRecenzija !== undefined && extra.ocena.brojRecenzija >= 100) {
     signals.add("visok_broj_recenzija");
-  }
-
-  // novootvorena_firma
-  if (
-    /novootvoreni|novootvoreno|novootvorena|nova\s+firma|novi\s+salon|skoro\s+otvoren|tek\s+otvoreno/i.test(
-      noteClean,
-    )
-  ) {
-    signals.add("novootvorena_firma");
   }
 
   // Filtriraj strogo po LEAD_SIGNAL_KINDS (bez izmišljanja 'ostalo')
@@ -316,6 +302,8 @@ function parseLocationField(rawLokacija?: string): {
   ulica?: string;
   opstina?: string;
   grad?: string;
+  /** Polja koja su ZAKLJUČENA, ne pročitana — vidi `ParsedLeadRow.derivedFields`. */
+  derived?: string[];
 } {
   if (!rawLokacija) return {};
 
@@ -346,6 +334,7 @@ function parseLocationField(rawLokacija?: string): {
         ulica: part0 || undefined,
         opstina: part1 || undefined,
         grad: "Beograd",
+        derived: ["grad"],
       };
     }
 
@@ -368,7 +357,7 @@ function parseLocationField(rawLokacija?: string): {
       return { grad: parts[0] };
     }
     if (BEOGRADSKE_OPSTINE.has(partLower)) {
-      return { opstina: parts[0], grad: "Beograd" };
+      return { opstina: parts[0], grad: "Beograd", derived: ["grad"] };
     }
     return { ulica: parts[0] };
   }
@@ -755,11 +744,20 @@ function parseRowData(
   let opstina = fieldValues["opstina"];
   let grad = fieldValues["grad"];
 
+  // Polja koja su ZAKLJUČENA, ne pročitana. Beleže se ovde a ne pogađaju
+  // kasnije, da bi `leadFieldProvenance` mogao da im da nižu pouzdanost.
+  const derivedFields: string[] = [];
+
   if (fieldValues["lokacija"]) {
     const parsedLoc = parseLocationField(fieldValues["lokacija"]);
     if (!ulica && parsedLoc.ulica) ulica = parsedLoc.ulica;
     if (!opstina && parsedLoc.opstina) opstina = parsedLoc.opstina;
-    if (!grad && parsedLoc.grad) grad = parsedLoc.grad;
+    if (!grad && parsedLoc.grad) {
+      grad = parsedLoc.grad;
+      // Samo ako je grad STVARNO preuzet odavde — ako je kolona `grad` već bila
+      // popunjena, vrednost je pročitana i ne sme se označiti kao izvedena.
+      if (parsedLoc.derived?.includes("grad")) derivedFields.push("grad");
+    }
   }
 
   // 5. Telefon i telefonNapomena (§5.1 zamka 4)
@@ -913,6 +911,7 @@ function parseRowData(
     napomena,
     izvori: sourcesInfo.izvori,
     derivedSignals,
+    derivedFields,
   };
 
   return { parsed: parsedRow };
@@ -1085,11 +1084,14 @@ export function parseLeadWorkbook(
   // 3. Izaberi sheet koji se parsira
   let selectedInspection: SheetInspection | undefined;
 
+  let selectionReason: SheetSelectionReason;
+
   if (opts?.sheetName) {
     selectedInspection = sheetInspections.find((s) => s.name === opts.sheetName);
     if (!selectedInspection) {
       throw new Error(`Traženi list "${opts.sheetName}" ne postoji u fajlu.`);
     }
+    selectionReason = "trazen";
   } else {
     // Podrazumevano: izaberi list koji NIJE duplikat i ima najviše redova (master sheet)
     const nonDuplicates = sheetInspections.filter(
@@ -1100,10 +1102,15 @@ export function parseLeadWorkbook(
       // Sortiraj po broju redova opadajuće
       nonDuplicates.sort((a, b) => b.rows.length - a.rows.length);
       selectedInspection = nonDuplicates[0];
+      selectionReason =
+        sheetInspections.length === 1 ? "jedini" : "najveci_bez_preklapanja";
     } else if (sheetInspections.length > 0) {
       // Ako su svi označeni kao preklapanja, uzmi list sa najviše redova
       sheetInspections.sort((a, b) => b.rows.length - a.rows.length);
       selectedInspection = sheetInspections[0];
+      selectionReason = "najveci_iako_sve_preklapa";
+    } else {
+      selectionReason = "jedini";
     }
   }
 
@@ -1133,6 +1140,8 @@ export function parseLeadWorkbook(
 
   return {
     sheets: sheetsSummary,
+    selectedSheet: selectedInspection.name,
+    selectionReason,
     headerRowIndex: selectedInspection.headerRowIndex,
     columns: selectedInspection.columns,
     rows: selectedInspection.rows,

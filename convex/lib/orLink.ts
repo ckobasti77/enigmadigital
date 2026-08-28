@@ -100,17 +100,73 @@ export function appendEventId(url: string, eventId: string | undefined): string 
   return parsed.toString();
 }
 
+/**
+ * Kriptografski bezbedan, nepogodljiv slug za besplatne landing stranice (§7, LM7).
+ * Dužina je minimalno 10 karaktera (podrazumevano 12), generiše se iz Web Crypto API-ja
+ * uz odbacivanje modulo pristrasnosti (uniformna raspodela simbola).
+ */
+export function generateLandingSlug(length: number = 12): string {
+  const targetLength = Math.max(10, length);
+  let slug = "";
+  while (slug.length < targetLength) {
+    const bytes = new Uint8Array(targetLength);
+    crypto.getRandomValues(bytes);
+    for (const byte of bytes) {
+      if (byte >= SLUG_BYTE_CEILING) continue;
+      slug += SLUG_ALPHABET[byte % SLUG_ALPHABET.length];
+      if (slug.length === targetLength) break;
+    }
+  }
+  return slug;
+}
+
+/**
+ * Oznake koje znače da zahtev NIJE čovek.
+ *
+ * Poklapanje je po PODNIZU cele vrednosti `user-agent`, pa gola imena
+ * aplikacija ovde ne rade posao koji izgleda da rade: ugrađeni pregledači
+ * pravih ljudi nose isto ime. „linkedin" pogađa `LinkedInApp`, a to je čovek
+ * koji je kliknuo iz LinkedIn aplikacije, ne crawler. Zato ovde stoje
+ * ISKLJUČIVO tokeni koje nose sami generatori pregleda linka.
+ *
+ * Cena greške ide u oba smera i oba se vide: bot koji prođe filter upisuje
+ * lažno „otvorio stranicu", a čovek koji ne prođe upisuje se kao
+ * `isBot: true` i pojavljuje se u `landingStatus.botHitsIgnored`. Zato je
+ * pravilo: uzak filter, a odbačeno se broji i prikazuje.
+ */
 const BOT_MARKERS = [
+  // Generički crawler-i i alati komandne linije
   "bot",
   "crawler",
   "spider",
   "slurp",
-  "facebookexternalhit",
-  "preview",
   "headless",
   "curl",
   "wget",
   "python-requests",
+  "preview",
+
+  // Generatori pregleda linka u aplikacijama za poruke.
+  // Svaki unos je token koji nosi SAM fetcher, ne ime aplikacije:
+  // gola imena („viber", „whatsapp", „facebook", „slack", „discord",
+  // „linkedin", „twitter", „skype") su uklonjena jer pogađaju i ugrađene
+  // pregledače pravih ljudi.
+  "facebookexternalhit", // Facebook / Messenger unfurler
+  "facebot",             // stariji Facebook crawler
+  "meta-externalagent",  // Meta crawler
+  // WhatsApp i Viber stoje kao gola imena namerno: obe aplikacije otvaraju
+  // link u SISTEMSKOM pregledaču, pa ime aplikacije u `user-agent` znači
+  // fetcher, a ne čoveka. Facebook, Instagram, LinkedIn i Twitter imaju
+  // ugrađene pregledače koji nose ime aplikacije, pa se za njih koriste samo
+  // tokeni crawler-a.
+  "whatsapp",
+  "viber",
+  "telegrambot",         // TelegramBot (like TwitterBot)
+  "slackbot",            // Slackbot-LinkExpanding
+  "discordbot",          // Discordbot embed
+  "linkedinbot",         // LinkedInBot
+  "twitterbot",          // Twitterbot kartice
+  "skypeuripreview",     // Skype / Teams pregled linka
 ];
 
 /** True for obvious crawlers/preview bots that must not count as clicks. */

@@ -269,4 +269,18 @@ crons.cron(
   {},
 );
 
+// LM5: Ingest inbound leadova iz postojećih tabela (Threads, Instagram, Facebook, OpenReply).
+//
+// Interval od 15 minuta je izabran zato što:
+// 1. Inbound interakcije (komentari, DM poruke, spominjanja) predstavljaju "tople" signale namere
+//    gde je brzina trijaže ključna (operater treba da vidi kandidata u istom satu kada je postavio pitanje).
+// 2. Ne troši spoljne API kvote jer čita isključivo interne tabele koje već punimo zvaničnim API-jem/webhookovima.
+// 3. Interval od 15 minuta pruža optimalan balans između ažurnosti i minimalnog broja upita ka bazi.
+crons.interval(
+  "ingest inbound leads",
+  { minutes: 15 },
+  internal.leadInboundIngest.ingestAllInbound,
+  {},
+);
+
 export default crons;

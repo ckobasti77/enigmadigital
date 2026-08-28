@@ -10,6 +10,7 @@ import {
   PlaySquare,
   Settings,
   ShieldAlert,
+  Upload,
   Users,
 } from "lucide-react";
 
@@ -73,6 +74,12 @@ export const navSections: NavSection[] = [
     title: "Automatizacija",
     items: [
       {
+        label: "Leadovi",
+        href: "/leadovi",
+        icon: Users,
+        range: false,
+      },
+      {
         label: "OpenReply",
         href: "/openreply",
         icon: MessageCircleReply,
@@ -108,6 +115,12 @@ export type Screen = {
 };
 
 const EXTRA_SCREENS: Screen[] = [
+  {
+    href: "/leadovi/uvoz",
+    section: "Automatizacija",
+    title: "Uvoz leadova iz tabele",
+    range: false,
+  },
   {
     href: "/openreply/automatizacije",
     section: "Automatizacija",
@@ -226,6 +239,7 @@ const EXTRA_SCREENS: Screen[] = [
  * stavke bile aktivne istovremeno, a klizni indikator ne bi znao kuda ide.
  */
 const ROUTES: Array<{ href: string; item?: NavItem; screen: Screen }> = [
+  ...EXTRA_SCREENS.map((screen) => ({ href: screen.href, screen })),
   ...navSections.flatMap((section) =>
     section.items.map((item) => ({
       href: item.href,
@@ -238,7 +252,6 @@ const ROUTES: Array<{ href: string; item?: NavItem; screen: Screen }> = [
       },
     })),
   ),
-  ...EXTRA_SCREENS.map((screen) => ({ href: screen.href, screen })),
 ].sort((a, b) => b.href.length - a.href.length);
 
 function matches(pathname: string, href: string): boolean {

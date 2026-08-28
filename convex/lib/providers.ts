@@ -18,6 +18,11 @@ export const providerValidator = v.union(
   v.literal("openreply"),
   v.literal("threads"),
   v.literal("leads"),
+  // Google Business Profile (GB1). Zaseban provajder od `ga4`, `google_ads` i
+  // `youtube` iako svi idu kroz Google ekosistem: drugi OAuth opseg
+  // (`https://www.googleapis.com/auth/business.manage`), druga kvota (0/300 QPM)
+  // i zaseban postupak odobrenja.
+  v.literal("google_business"),
 );
 
 export type Provider =
@@ -29,7 +34,8 @@ export type Provider =
   | "youtube"
   | "openreply"
   | "threads"
-  | "leads";
+  | "leads"
+  | "google_business";
 
 /** V1 providers that have a Settings entry point in M2. */
 export const ALL_PROVIDERS: Provider[] = [
@@ -42,6 +48,7 @@ export const ALL_PROVIDERS: Provider[] = [
   "openreply",
   "threads",
   "leads",
+  "google_business",
 ];
 
 /**

@@ -1061,6 +1061,28 @@ const META_ADS_STEPS: PurgeStep[] = [
 // ── Leads: lead mašina (LM1–LM10) ──────────────────────────────────────────
 
 const LEAD_STEPS: PurgeStep[] = [
+  // 0. Staging redovi i uvozi (prvo staging pre glavnih tabela)
+  simple("leadImportRows", (ctx, ws) =>
+    ctx.db
+      .query("leadImportRows")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("leadImports", (ctx, ws) =>
+    ctx.db
+      .query("leadImports")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  // Inbound čekaonica (pre korenskih tabela firmi)
+  simple("leadInbound", (ctx, ws) =>
+    ctx.db
+      .query("leadInbound")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  simple("leadInboundCursor", (ctx, ws) =>
+    ctx.db
+      .query("leadInboundCursor")
+      .withIndex("by_workspace_source", (q) => q.eq("workspaceId", ws)),
+  ),
   // 1. Signali (događaji i opažene činjenice)
   simple("leadSignals", (ctx, ws) =>
     ctx.db
@@ -1072,6 +1094,12 @@ const LEAD_STEPS: PurgeStep[] = [
     ctx.db
       .query("leadAssignments")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+  // 2b. Istorijat CRM događaja i promena faza (LM8)
+  simple("leadStageEvents", (ctx, ws) =>
+    ctx.db
+      .query("leadStageEvents")
+      .withIndex("by_workspace_company", (q) => q.eq("workspaceId", ws)),
   ),
   // 3. Lista zabrane kontakta (suppression)
   simple("leadSuppression", (ctx, ws) =>
@@ -1103,10 +1131,25 @@ const LEAD_STEPS: PurgeStep[] = [
       .query("leadPeople")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
   ),
+  // 7b. Landing stranice za firme (LM7)
+  simple("leadLandings", (ctx, ws) =>
+    ctx.db
+      .query("leadLandings")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
   // 8. Korenska tabela firmi na kraju
   simple("leadCompanies", (ctx, ws) =>
     ctx.db
       .query("leadCompanies")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
+  ),
+];
+
+// ── Google Business Profile (GB1) ──────────────────────────────────────────
+export const GOOGLE_BUSINESS_STEPS: PurgeStep[] = [
+  simple("gbAccessState", (ctx, ws) =>
+    ctx.db
+      .query("gbAccessState")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
   ),
 ];
@@ -1127,6 +1170,7 @@ export const PURGE_STEPS: Partial<Record<Provider, PurgeStep[]>> = {
   google_ads: GOOGLE_ADS_STEPS,
   threads: THREADS_STEPS,
   leads: LEAD_STEPS,
+  google_business: GOOGLE_BUSINESS_STEPS,
 };
 
 /** The steps for a provider, or an empty list when it has no data of its own. */
@@ -1155,6 +1199,7 @@ export const PROVIDER_TABLE_PREFIXES = [
   "threads",
   "lead",
   "leads",
+  "gb",
 ] as const;
 
 /**
@@ -1178,6 +1223,7 @@ export type ProviderPrefixedTable = Extract<
   | `threads${string}`
   | `lead${string}`
   | `leads${string}`
+  | `gb${string}`
 >;
 
 type Disposition =
@@ -1194,15 +1240,24 @@ type Disposition =
  * provider's step list.
  */
 export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
+  // ── Google Business Profile (GB1) ─────────────────────────────────────────
+  gbAccessState: { purgedBy: ["google_business"] },
+
   // ── Leads (LM1–LM10) ───────────────────────────────────────────────────────
-  // Redosled brisanja prati zavisnosti: signali → dodele → suppression → ICP pravila → provenance → identiteti → osobe → firme.
+  // Redosled brisanja prati zavisnosti: staging → signali → dodele → suppression → ICP pravila → provenance → identiteti → osobe → firme.
+  leadImportRows: { purgedBy: ["leads"] },
+  leadImports: { purgedBy: ["leads"] },
+  leadInbound: { purgedBy: ["leads"] },
+  leadInboundCursor: { purgedBy: ["leads"] },
   leadSignals: { purgedBy: ["leads"] },
   leadAssignments: { purgedBy: ["leads"] },
+  leadStageEvents: { purgedBy: ["leads"] },
   leadSuppression: { purgedBy: ["leads"] },
   leadIcpRules: { purgedBy: ["leads"] },
   leadFieldProvenance: { purgedBy: ["leads"] },
   leadIdentities: { purgedBy: ["leads"] },
   leadPeople: { purgedBy: ["leads"] },
+  leadLandings: { purgedBy: ["leads"] },
   leadCompanies: { purgedBy: ["leads"] },
 
   // ── Threads (TH3 / TH4 / TH7) ─────────────────────────────────────────────

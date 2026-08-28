@@ -849,7 +849,14 @@ export default defineSchema({
   })
     .index("by_workspace_media", ["workspaceId", "mediaId"])
     .index("by_workspace_comment", ["workspaceId", "commentId"]) // upsert key
-    .index("by_workspace_timestamp", ["workspaceId", "timestamp"]),
+    .index("by_workspace_timestamp", ["workspaceId", "timestamp"])
+    // Ingest inbound leadova čita ovu tabelu u paketima, po redosledu nastanka.
+    // Convex svakom indeksu implicitno dodaje `_creationTime` kao poslednje
+    // polje, pa indeks sa SAMO `workspaceId` dozvoljava opseg
+    // `.gt("_creationTime", kursor)`. Sa indeksom koji ima još jedno polje
+    // ispred (npr. `replyId`) čitanje ide redosledom TOG polja, pa kursor po
+    // vremenu nastanka preskače zapise zauvek. (LM5.1)
+    .index("by_workspace_created", ["workspaceId"]),
 
   // Who did what to a comment, and when (F4).
   //
@@ -964,7 +971,14 @@ export default defineSchema({
   })
     .index("by_workspace_post", ["workspaceId", "postId"])
     .index("by_workspace_comment", ["workspaceId", "commentId"]) // upsert key
-    .index("by_workspace_timestamp", ["workspaceId", "timestamp"]),
+    .index("by_workspace_timestamp", ["workspaceId", "timestamp"])
+    // Ingest inbound leadova čita ovu tabelu u paketima, po redosledu nastanka.
+    // Convex svakom indeksu implicitno dodaje `_creationTime` kao poslednje
+    // polje, pa indeks sa SAMO `workspaceId` dozvoljava opseg
+    // `.gt("_creationTime", kursor)`. Sa indeksom koji ima još jedno polje
+    // ispred (npr. `replyId`) čitanje ide redosledom TOG polja, pa kursor po
+    // vremenu nastanka preskače zapise zauvek. (LM5.1)
+    .index("by_workspace_created", ["workspaceId"]),
 
   // Who did what to a Facebook comment, and when. Same contract as
   // `igModerationLogs`, plus the two actions Instagram cannot offer.
@@ -1230,7 +1244,14 @@ export default defineSchema({
     receivedAt: v.number(),
   })
     .index("by_workspace_mid", ["workspaceId", "mid"])
-    .index("by_workspace_platform", ["workspaceId", "platform"]), // erasure (R1/4g)
+    .index("by_workspace_platform", ["workspaceId", "platform"]) // erasure (R1/4g)
+    // Ingest inbound leadova čita ovu tabelu u paketima, po redosledu nastanka.
+    // Convex svakom indeksu implicitno dodaje `_creationTime` kao poslednje
+    // polje, pa indeks sa SAMO `workspaceId` dozvoljava opseg
+    // `.gt("_creationTime", kursor)`. Sa indeksom koji ima još jedno polje
+    // ispred (npr. `replyId`) čitanje ide redosledom TOG polja, pa kursor po
+    // vremenu nastanka preskače zapise zauvek. (LM5.1)
+    .index("by_workspace_created", ["workspaceId"]),
 
   // Button taps coming back from message buttons.
   orPostbacks: defineTable({
@@ -1300,6 +1321,15 @@ export default defineSchema({
     ipHash: v.optional(v.string()),
     userAgent: v.optional(v.string()),
     referrer: v.optional(v.string()),
+    // Zahtev prepoznat kao bot / generator pregleda linka (LM7). Beleži se samo
+    // za landing linkove, da bi se ignorisani zahtevi mogli prebrojati.
+    isBot: v.optional(v.boolean()),
+    // Zahtev koji JESTE izgledao kao čovek, ali je odbijen zato što je radni
+    // prostor prešao satni limit upisa na `/r/`. Zaseban razlog od `isBot`:
+    // ranije su i ovakvi zahtevi upisivani kao `isBot: true`, pa je čovek
+    // preko limita u izveštaju izgledao kao bot. Razlog odbacivanja koji nije
+    // istinit je gori od nezabeleženog odbacivanja.
+    overCap: v.optional(v.boolean()),
     createdAt: v.number(),
   })
     .index("by_workspace_created", ["workspaceId", "createdAt"])
@@ -2654,7 +2684,14 @@ export default defineSchema({
     .index("by_reply_id", ["replyId"])
     .index("by_workspace_reply", ["workspaceId", "replyId"])
     .index("by_workspace_root_post", ["workspaceId", "rootPostId"])
-    .index("by_workspace_replied_to", ["workspaceId", "repliedToId"]),
+    .index("by_workspace_replied_to", ["workspaceId", "repliedToId"])
+    // Ingest inbound leadova čita ovu tabelu u paketima, po redosledu nastanka.
+    // Convex svakom indeksu implicitno dodaje `_creationTime` kao poslednje
+    // polje, pa indeks sa SAMO `workspaceId` dozvoljava opseg
+    // `.gt("_creationTime", kursor)`. Sa indeksom koji ima još jedno polje
+    // ispred (npr. `replyId`) čitanje ide redosledom TOG polja, pa kursor po
+    // vremenu nastanka preskače zapise zauvek. (LM5.1)
+    .index("by_workspace_created", ["workspaceId"]),
 
   // 9) threadsMentions — spominjanja sa webhook-a i sync-a
   threadsMentions: defineTable({
@@ -2673,7 +2710,14 @@ export default defineSchema({
   })
     .index("by_mention_id", ["mentionId"])
     .index("by_workspace_mention", ["workspaceId", "mentionId"])
-    .index("by_workspace_media", ["workspaceId", "mediaId"]),
+    .index("by_workspace_media", ["workspaceId", "mediaId"])
+    // Ingest inbound leadova čita ovu tabelu u paketima, po redosledu nastanka.
+    // Convex svakom indeksu implicitno dodaje `_creationTime` kao poslednje
+    // polje, pa indeks sa SAMO `workspaceId` dozvoljava opseg
+    // `.gt("_creationTime", kursor)`. Sa indeksom koji ima još jedno polje
+    // ispred (npr. `replyId`) čitanje ide redosledom TOG polja, pa kursor po
+    // vremenu nastanka preskače zapise zauvek. (LM5.1)
+    .index("by_workspace_created", ["workspaceId"]),
 
   // 10) threadsQuota — kvote iz odeljka 8 (used i total odvojeno, bez izvedenih procenata)
   threadsQuota: defineTable({
@@ -3223,6 +3267,7 @@ export default defineSchema({
       v.literal("instagram"),
       v.literal("facebook"),
       v.literal("website"),
+      v.literal("threads"),
     ),
     // Sirova vrednost kontakta
     value: v.string(),
@@ -3376,6 +3421,10 @@ export default defineSchema({
     signalKind: v.string(),
     // Težina pravila (doprinos ukupnom skoru na toj osi)
     weight: v.number(),
+    // Zašto baš ova težina — jedna rečenica, vidljiva operateru pri izmeni.
+    // Broj bez obrazloženja se posle šest meseci menja nasumično, jer niko
+    // više ne zna na osnovu čega je postavljen.
+    rationale: v.optional(v.string()),
     // Da li je pravilo trenutno aktivno pri evaluaciji
     isActive: v.boolean(),
     createdAt: v.number(),
@@ -3468,4 +3517,335 @@ export default defineSchema({
     .index("by_workspace_stage", ["workspaceId", "stage"])
     .index("by_workspace_next_action", ["workspaceId", "nextActionAt"])
     .index("by_workspace_company", ["workspaceId", "companyId"]),
+
+  // 8b) leadStageEvents — istorijat promena faza, dodela, dodira i ishoda (§9.1, LM8)
+  leadStageEvents: defineTable({
+    workspaceId: v.id("workspaces"),
+    companyId: v.id("leadCompanies"),
+    // Šta se promenilo
+    kind: v.union(
+      v.literal("dodela"), // lead dobio ili promenio vlasnika
+      v.literal("faza"), // pomeren kroz tok
+      v.literal("dodir"), // zabeležen kontakt sa klijentom
+      v.literal("ishod"), // zabeležen ishod
+      v.literal("sledeci_korak"), // postavljen ili pomeren sledeći korak
+    ),
+    // Prethodna i nova vrednost — obe opcione, jer prva dodela nema prethodnu.
+    // Prazan string NIJE dozvoljen kao „nema prethodne".
+    fromValue: v.optional(v.string()),
+    toValue: v.optional(v.string()),
+    // Ko je izveo radnju. Obavezno: promena bez autora je promena bez odgovornosti.
+    actorUserId: v.id("users"),
+    note: v.optional(v.string()),
+    /**
+     * Da li je `occurredAt` vreme koje je čovek POTVRDIO, ili vreme unosa
+     * uzeto kao zamena.
+     *
+     * Postoji kao polje zato što je ranije stajalo kao tekst zalepljen u
+     * `note` („[automatsko_vreme] …"). Stanje sistema upisano u slobodan
+     * tekst na srpskom znači da svaki budući kod mora da parsira rečenicu da
+     * bi saznao činjenicu — a operater u međuvremenu čita tehničku oznaku u
+     * svojoj napomeni.
+     */
+    timeConfirmed: v.optional(v.boolean()),
+    occurredAt: v.number(),
+  })
+    .index("by_workspace_company", ["workspaceId", "companyId"])
+    .index("by_workspace_actor", ["workspaceId", "actorUserId"])
+    .index("by_workspace_kind", ["workspaceId", "kind"]),
+
+  // 9) leadImports — pojedinačni uvoz tabele lidova u staging (§5, LM3)
+  leadImports: defineTable({
+    workspaceId: v.id("workspaces"),
+    fileName: v.string(),
+    uploadedBy: v.optional(v.id("users")),
+    uploadedAt: v.number(),
+
+    // Status obrade uvoza u staging-u
+    status: v.union(
+      v.literal("parsiran"),
+      v.literal("u_pregledu"),
+      v.literal("primenjen"),
+      v.literal("ponisten"),
+      v.literal("neuspeo"),
+    ),
+
+    // Izabrani sheetovi i statistika parsiranja
+    sheetsChosen: v.array(v.string()),
+    headerRowIndex: v.number(),
+    rowsParsed: v.number(),
+    rowsSkipped: v.number(),
+    warnings: v.array(v.string()),
+
+    appliedAt: v.optional(v.number()),
+    revertedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_status", ["workspaceId", "status"]),
+
+  // 10) leadImportRows — pojedinačni red uvoza u staging-u (§5, LM3)
+  leadImportRows: defineTable({
+    workspaceId: v.id("workspaces"),
+    importId: v.id("leadImports"),
+    sourceSheet: v.string(),
+    sourceRowIndex: v.number(),
+
+    // Ceo parsirani red
+    parsed: v.object({
+      nazivFirme: v.optional(v.string()),
+      ulica: v.optional(v.string()),
+      opstina: v.optional(v.string()),
+      grad: v.optional(v.string()),
+      telefon: v.optional(v.string()),
+      telefonNapomena: v.optional(v.string()),
+      email: v.optional(v.string()),
+      sajt: v.optional(v.string()),
+      imeOsobe: v.optional(v.string()),
+      uloga: v.optional(v.string()),
+      ocena: v.optional(
+        v.object({
+          vrednost: v.optional(v.number()),
+          skala: v.optional(v.number()),
+          brojRecenzija: v.optional(v.number()),
+          izvor: v.optional(v.string()),
+        }),
+      ),
+      companyWallUrl: v.optional(v.string()),
+      companyWallTacnost: v.optional(
+        v.union(v.literal("tacno"), v.literal("priblizno")),
+      ),
+      pib: v.optional(v.string()),
+      maticniBroj: v.optional(v.string()),
+      sifraDelatnosti: v.optional(v.string()),
+      napomena: v.optional(v.string()),
+      izvori: v.array(v.string()),
+      derivedSignals: v.array(v.string()),
+      derivedFields: v.optional(v.array(v.string())),
+    }),
+
+    // Deduplikacija i spajanje
+    matchedCompanyId: v.optional(v.id("leadCompanies")),
+    matchedBy: v.optional(
+      v.union(
+        v.literal("pib"),
+        v.literal("companywall"),
+        v.literal("domain"),
+        v.literal("name_city"),
+        v.literal("phone"),
+      ),
+    ),
+
+    // Odluka operatera / sistema
+    decision: v.union(
+      v.literal("nova_firma"),
+      v.literal("spoji"),
+      v.literal("preskoci"),
+      v.literal("nerazreseno"),
+    ),
+
+    // Detektovani sukobi vrednosti
+    conflicts: v.array(
+      v.object({
+        field: v.string(),
+        postojeca: v.string(),
+        nova: v.string(),
+        izvor: v.string(),
+      }),
+    ),
+
+    // Ishod provere zabrane kontakta (suppression)
+    suppression: v.optional(
+      v.object({
+        suppressed: v.boolean(),
+        matchedOn: v.optional(
+          v.union(
+            v.literal("pib"),
+            v.literal("domain"),
+            v.literal("phone"),
+            v.literal("email"),
+            v.literal("companyId"),
+          ),
+        ),
+        unverifiable: v.optional(
+          v.array(
+            v.union(
+              v.literal("pib"),
+              v.literal("domain"),
+              v.literal("phone"),
+              v.literal("email"),
+              v.literal("companyId"),
+            ),
+          ),
+        ),
+      }),
+    ),
+
+    // ID kreirane firme ako je uvoz primenjen (potrebno za poništavanje / revert)
+    createdCompanyId: v.optional(v.id("leadCompanies")),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_import", ["workspaceId", "importId"])
+    .index("by_import_decision", ["importId", "decision"]),
+
+  // 11) leadInbound — čekaonica za inbound leadove sa platformi (LM5, §1, §2)
+  //
+  // Inbound je OSOBA BEZ POZNATE FIRME. Shema u leadCompanies i leadPeople zabranjuje
+  // osobu bez firme i traži obavezan naziv firme. Zato inbound NE ULAZI direktno
+  // u leadCompanies, već u ovu čekaonicu dok operater ne potvrdi firmu.
+  //
+  // Nijedan inbound zapis ne sme da izmisli naziv firme. Ako naziv nije poznat,
+  // polje ne postoji — ne upisuje se prazan string, ni handle, ni „Nepoznato".
+  leadInbound: defineTable({
+    workspaceId: v.id("workspaces"),
+    platform: v.union(
+      v.literal("instagram"),
+      v.literal("facebook"),
+      v.literal("threads"),
+    ),
+    kind: v.union(
+      v.literal("komentar"),
+      v.literal("odgovor"),
+      v.literal("dm"),
+      v.literal("mention"),
+    ),
+    // Stabilan ID događaja na platformi — jedini ključ protiv duplog upisa
+    externalId: v.string(),
+    // Autor: SAMO ID sa platforme i heš handle-a. Sirov handle, e-mail i
+    // broj telefona NE SMEJU da uđu u ovu tabelu.
+    authorPlatformId: v.optional(v.string()),
+    authorHandleHash: v.optional(v.string()),
+    // Tekst poruke je poslovni sadržaj i ostaje, ali se ne loguje nigde.
+    text: v.optional(v.string()),
+    occurredAt: v.number(),
+    sourceUrl: v.optional(v.string()),
+    // Ishod trijaže
+    status: v.union(
+      v.literal("nov"),
+      v.literal("povezan"),
+      v.literal("odbacen"),
+      v.literal("zabranjen_kontakt"),
+    ),
+    linkedCompanyId: v.optional(v.id("leadCompanies")),
+    linkedPersonId: v.optional(v.id("leadPeople")),
+
+    // Razlog odbacivanja. Postoji zato što je `dismissInbound` tražio obavezan
+    // razlog i zatim ga bacao — obavezno polje koje se ne čuva je pozorište.
+    dismissReason: v.optional(v.string()),
+    dismissedAt: v.optional(v.number()),
+    dismissedBy: v.optional(v.id("users")),
+
+    // Signali prepoznati iz teksta (koristi LEAD_SIGNAL_KINDS)
+    derivedSignals: v.array(v.string()),
+    // Ako autor nije mogao da se proveri na listi zabrane
+    suppressionUnverifiable: v.optional(v.array(v.string())),
+    createdAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_status", ["workspaceId", "status"])
+    .index("by_workspace_platform_external", [
+      "workspaceId",
+      "platform",
+      "externalId",
+    ])
+    .index("by_workspace_author", [
+      "workspaceId",
+      "platform",
+      "authorPlatformId",
+    ])
+    // Autor + status: bez ovoga se svaki novi komentar plaćao učitavanjem SVIH
+    // ranijih zapisa tog autora, samo da bi se našao jedan „povezan".
+    .index("by_workspace_author_status", [
+      "workspaceId",
+      "platform",
+      "authorPlatformId",
+      "status",
+    ]),
+
+  // 12) leadInboundCursor — evidencija dokle je ingest stigao po izvoru (LM5.1)
+  leadInboundCursor: defineTable({
+    workspaceId: v.id("workspaces"),
+    source: v.union(
+      v.literal("threadsReplies"),
+      v.literal("threadsMentions"),
+      v.literal("igComments"),
+      v.literal("fbComments"),
+      v.literal("orInboundMessages"),
+    ),
+    // Dokle je ingest stigao: _creationTime poslednjeg OBRAĐENOG dokumenta.
+    // Namerno _creationTime, a NE timestamp sa platforme: platformsko vreme
+    // može da stigne van redosleda i tada kursor preskoči zapise zauvek.
+    lastCreationTime: v.number(),
+    // ID poslednjeg obrađenog dokumenta.
+    //
+    // NE koristi se kao deo granice čitanja — granica je isključivo
+    // `.gt("_creationTime", lastCreationTime)` po indeksu `by_workspace_created`.
+    // Ostaje kao dijagnostika: kad ingest stane ili preskoči nešto, ovo je
+    // jedini zapis o tome NA KOM dokumentu je stao. Polje koje se ne koristi
+    // za logiku mora i da kaže da se ne koristi, inače sledeći čitalac
+    // pretpostavi da granica ima dva dela.
+    lastDocId: v.optional(v.string()),
+    lastRunAt: v.number(),
+    // Ishod poslednjeg prolaza — prazan prolaz i neuspeo prolaz NE SMEJU da
+    // izgledaju isto.
+    lastOutcome: v.union(
+      v.literal("obradjeno"),
+      v.literal("nema_novih"),
+      v.literal("greska"),
+    ),
+    lastError: v.optional(v.string()),
+  })
+    .index("by_workspace_source", ["workspaceId", "source"]),
+
+  // 13) leadLandings — praćenje besplatnih landing stranica za firme (§7, LM7)
+  leadLandings: defineTable({
+    workspaceId: v.id("workspaces"),
+    companyId: v.id("leadCompanies"),
+    // Praćeni link iza kog stoji besplatna stranica
+    trackedLinkId: v.id("orTrackedLinks"),
+    // Naslov/opis da operater zna koja je to stranica
+    label: v.optional(v.string()),
+    createdBy: v.optional(v.id("users")),
+    createdAt: v.number(),
+    // Kada je link STVARNO poslat klijentu. Različito od createdAt: stranica
+    // može da stoji napravljena dva dana pre nego što je iko dobije, i
+    // „nije otvorena" pre slanja ne znači isto što i posle slanja.
+    sentAt: v.optional(v.number()),
+    // Kako je poslat (telefonom, DM, mejlom) — slobodan tekst operatera
+    sentVia: v.optional(v.string()),
+    status: v.union(
+      v.literal("napravljena"),
+      v.literal("poslata"),
+      v.literal("arhivirana"),
+    ),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_company", ["workspaceId", "companyId"])
+    .index("by_tracked_link", ["trackedLinkId"]),
+
+  // ── Google Business Profile (GB1) ──────────────────────────────────────────
+  // Stanje pristupa API-ju po radnom prostoru, odvojeno od `connections`
+  // jer veza može da postoji (token je tu), a pristup da ne bude odobren (kvota 0 QPM).
+  gbAccessState: defineTable({
+    workspaceId: v.id("workspaces"),
+    // Šta smo POSLEDNJI PUT videli kao ishod poziva ka Google-u
+    lastOutcome: v.union(
+      v.literal("nikad_pozvano"),
+      v.literal("uspesno"),
+      v.literal("kvota_nula"),
+      v.literal("kvota_prekoracena"),
+      v.literal("servis_nije_ukljucen"),
+      v.literal("nema_dozvole"),
+      v.literal("nepoznato"),
+    ),
+    lastCheckedAt: v.optional(v.number()),
+    lastStatus: v.optional(v.number()),
+    lastReason: v.optional(v.string()), // sanitizovano, bez tokena
+    // Da li je iko IKADA dobio uspešan odgovor sa ovog API-ja u ovom
+    // radnom prostoru. Postoji da bi UI mogao da kaže „još nismo ni
+    // jednom uspeli" umesto da prikaže praznu tablu kao rezultat merenja.
+    everSucceededAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index("by_workspace", ["workspaceId"]),
 });
+

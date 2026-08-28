@@ -57,6 +57,16 @@ const STORED_BY_PROVIDER: Record<Provider, { name: string; stored: string }> = {
     stored:
       "Statistika profila i objava, i odgovori koje obrađuju automatizacije.",
   },
+  leads: {
+    name: "Lead mašina",
+    stored:
+      "Baza potencijalnih klijenata: firme, osobe, kontakt identiteti i istorijat tvrdnji.",
+  },
+  google_business: {
+    name: "Google Business Profile",
+    stored:
+      "Statistika profila i lokacija, prikazi, klikovi, ključne reči i recenzije.",
+  },
 };
 
 /** Redosled je isti kao redosled kartica iznad, da se panel čita kao rezime. */
