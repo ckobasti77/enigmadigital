@@ -1456,4 +1456,12 @@ export const EXTRA_TABLE_OWNERSHIP: Record<string, Disposition> = {
     excluded:
       "Brojači plafona javnih ruta (R1/2c, 2d). Bez PII; sami se resetuju po prozoru.",
   },
+  posts: {
+    excluded:
+      "Sopstveni sadržaj koji je operater napisao i objavio pod svojim imenom. Ne dolazi ni od jednog provajdera i prekid veze ga ne dodiruje. Briše se ručno, iz ekrana za pisanje.",
+  },
+  postRevisions: {
+    excluded:
+      "Istorija izmena sopstvenog sadržaja. Prati sudbinu `posts`; ograničava se zadržavanjem iz §5.2.",
+  },
 };

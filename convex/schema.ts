@@ -3847,5 +3847,61 @@ export default defineSchema({
     everSucceededAt: v.optional(v.number()),
     updatedAt: v.number(),
   }).index("by_workspace", ["workspaceId"]),
+
+  // ── Novosti / Blog (NV1) ──────────────────────────────────────────────────
+  posts: defineTable({
+    workspaceId: v.id("workspaces"),
+    slug: v.string(),
+    locale: v.string(), // "sr-Latn"
+    kind: v.union(v.literal("note"), v.literal("article")),
+    category: v.union(
+      v.literal("novac_rokovi"),
+      v.literal("odluke"),
+      v.literal("kako_radi"),
+      v.literal("greske"),
+      v.literal("ai_razvoj"),
+      v.literal("srpski_kontekst"),
+    ),
+    title: v.string(),
+    dek: v.string(),
+    body: v.string(), // markdown
+    coverStorageId: v.optional(v.id("_storage")),
+    coverAlt: v.optional(v.string()),
+    authorName: v.string(),
+    authorRole: v.optional(v.string()),
+    tags: v.array(v.string()),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("scheduled"),
+      v.literal("published"),
+      v.literal("archived"),
+    ),
+    publishedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+    reviewedAt: v.optional(v.number()),
+    seoTitle: v.optional(v.string()),
+    seoDescription: v.optional(v.string()),
+    canonicalUrl: v.optional(v.string()),
+    ogImageStorageId: v.optional(v.id("_storage")),
+    readingMinutes: v.optional(v.number()),
+    ownProofChecked: v.boolean(),
+    ownProofNote: v.optional(v.string()), // ČIME je ispunjeno, jednom rečenicom
+    humanizerPassedAt: v.optional(v.number()),
+    relatedSlugs: v.optional(v.array(v.string())),
+  })
+    .index("by_workspace_status_published", [
+      "workspaceId",
+      "status",
+      "publishedAt",
+    ])
+    .index("by_workspace_slug", ["workspaceId", "slug"])
+    .index("by_workspace_category", ["workspaceId", "category"]),
+
+  postRevisions: defineTable({
+    postId: v.id("posts"),
+    body: v.string(),
+    savedAt: v.number(),
+    note: v.optional(v.string()),
+  }).index("by_post", ["postId"]),
 });
 

@@ -283,4 +283,12 @@ crons.interval(
   {},
 );
 
+// NV1: Zadržavanje revizija postova (§5.2) — poslednjih 20 po postu ili sve mlađe od 180 dana.
+crons.interval(
+  "prune post revisions",
+  { hours: 24 },
+  internal.postsStore.pruneRevisions,
+  {},
+);
+
 export default crons;

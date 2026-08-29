@@ -7,6 +7,7 @@ import {
   LineChart,
   Megaphone,
   MessageCircleReply,
+  Newspaper,
   PlaySquare,
   Settings,
   ShieldAlert,
@@ -68,6 +69,7 @@ export const navSections: NavSection[] = [
       { label: "Threads", href: "/threads", icon: AtSign, range: true, mobile: false },
       { label: "YouTube", href: "/youtube", icon: PlaySquare, range: true },
       { label: "Oglasi", href: "/ads", icon: Megaphone, range: true },
+      { label: "Novosti", href: "/novosti", icon: Newspaper, range: false },
     ],
   },
   {
