@@ -115,7 +115,7 @@ export function NovostiDashboard() {
           title: p.title,
           dek: p.dek,
           body: existing?.body ?? "",
-          coverStorageId: p.coverStorageId,
+          coverStorageId: existing?.coverStorageId,
           coverAlt: p.coverAlt,
           authorName: p.authorName,
           authorRole: p.authorRole,

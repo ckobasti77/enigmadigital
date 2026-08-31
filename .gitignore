@@ -60,3 +60,6 @@ logs/
 .threads-probe-token.meta.json
 .threads-oauth-state
 
+
+# 100 skilova (~5 MB) - lokalni alati, ne kod projekta
+.claude/skills/

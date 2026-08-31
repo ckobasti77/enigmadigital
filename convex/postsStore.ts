@@ -227,6 +227,20 @@ export const updateDraft = mutation({
 
     await ctx.db.patch(args.postId, updates);
 
+    // Ako je post već objavljen, asinhrono osvežavamo Next.js ISR keš (§9).
+    // Mutacije ne smeju da rade mrežni poziv, a neuspeh osvežavanja ne sme da poništi izmene.
+    if (post.status === "published") {
+      const finalSlug = updates.slug ?? post.slug;
+      await ctx.scheduler.runAfter(0, internal.http.revalidatePost, {
+        slug: finalSlug,
+      });
+      if (updates.slug !== undefined && updates.slug !== post.slug) {
+        await ctx.scheduler.runAfter(0, internal.http.revalidatePost, {
+          slug: post.slug,
+        });
+      }
+    }
+
     return {
       success: true,
       updatedAt: now,
@@ -293,10 +307,22 @@ export const archive = mutation({
     }
 
     const now = Date.now();
+    const wasPublished = post.status === "published";
+
     await ctx.db.patch(args.postId, {
       status: "archived",
       updatedAt: now,
     });
+
+    // Arhiviranje objavljenog posta ga sklanja iz javnog upita, ali keširana
+    // stranica na enigmait.rs ostaje živa do isteka ISR prozora (sat vremena).
+    // Bez ovoga bi arhiviran tekst i dalje bio dostupan, a `unpublish` bi radio
+    // ono što `archive` ne radi — dve komande, dva različita ponašanja.
+    if (wasPublished) {
+      await ctx.scheduler.runAfter(0, internal.http.revalidatePost, {
+        slug: post.slug,
+      });
+    }
 
     return { success: true };
   },
@@ -372,6 +398,11 @@ export const publish = mutation({
       updatedAt: now,
     });
 
+    // Asinhrono osvežavanje Next.js ISR keša (§9).
+    await ctx.scheduler.runAfter(0, internal.http.revalidatePost, {
+      slug: post.slug,
+    });
+
     return {
       success: true,
       status: "published" as const,
@@ -405,6 +436,11 @@ export const unpublish = mutation({
     await ctx.db.patch(args.postId, {
       status: "draft",
       updatedAt: now,
+    });
+
+    // Asinhrono osvežavanje Next.js ISR keša nakon povlačenja posta (§9).
+    await ctx.scheduler.runAfter(0, internal.http.revalidatePost, {
+      slug: post.slug,
     });
 
     return {

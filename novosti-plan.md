@@ -751,3 +751,146 @@ a sadržaj posle njih. Rezultat je isti, mehanizam drugi.
 taj se render radi headless Chromiumom u `"use node"` akciji. Ne mešati dva
 motora u istoj seriji slajdova — cela serija ide kroz jedan, da razmaci ostanu
 identični.
+
+---
+
+## §19. Nalazi sa živog sajta enigmait.rs
+
+Provereno u pregledaču 29.08.2026, na početnoj i na `/services/web-development`.
+Sve niže je izmereno, ne pretpostavljeno.
+
+### §19.1. Paleta se poklapa — šablon je već na brendu
+
+`body` na enigmait.rs: pozadina `rgb(7,13,25)` = **`#070d19`**, tekst
+`rgb(243,247,255)` = **`#f3f7ff`**. Identično `--bg-950` i `--text-primary` iz
+enigmadigitala. Vizuelni sistem iz §18 ne treba menjati po bojama.
+
+### §19.2. Fontovi — ISPRAVKA §18.2
+
+Sajt NE koristi Inter. Učitani su:
+
+| Font | Uloga |
+|---|---|
+| **microgramma** | naslovi, težina 700 |
+| **aeonik** | telo teksta |
+| deltha, terminal, brokenConsole | akcenti |
+
+Šablon za slajdove mora da koristi **microgramma za naslove i aeonik za telo**,
+inače objave ne liče na sajt. Fajlovi se uzimaju iz enigmait repoa i ugrađuju
+base64 po §18.6.
+
+**Provera pre upotrebe:** oba fonta moraju imati č ć š ž đ. Ako microgramma
+nema našu dijakritiku, naslov ide u aeonik, a microgramma ostaje samo za
+kratke labele bez kvačica. To se vidi na prvom probnom renderu.
+
+### §19.3. Nedostaci na sajtu koji direktno obaraju plan objava
+
+Izmereno na obe testirane stranice:
+
+| Nalaz | Posledica |
+|---|---|
+| `<link rel=canonical>` — **ne postoji nigde** | §8 traži kanonik na svakom tekstu. Ovo nije samo blog problem, nedostaje na celom sajtu. |
+| `og:image` — **null** | Link ka sajtu deljen na Instagram, Threads, Facebook ili WhatsApp **nema sliku**. Ceo tok iz §13 i §17 vodi ljude na link koji izgleda prazno. |
+| `twitter:card` = `summary`, bez slike | mala kartica bez vizuala |
+| `hreflang` — nema ga, a u navigaciji stoji SR/EN prekidač | dve jezičke verzije se takmiče kao duplikat |
+| JSON-LD na servisnoj stranici — `@type` je `null` | strukturirani podaci se ne parsiraju |
+| JSON-LD na početnoj — na **engleskom**, a stranica je `lang="sr-Latn-RS"` | nesklad jezika u strukturiranim podacima |
+
+**Posledica za redosled:** `og:image` i kanonik nisu „lepo bi bilo" nego uslov
+da NV4 i NV5 uopšte imaju smisla. Prvi objavljeni tekst deljen na Threads bez
+og slike gubi najveći deo efekta.
+
+### §19.4. Otvorena pitanja — ne odluke, pitanja za Jovana
+
+**Naziv brenda.** `<title>` na svim stranicama je „**Enigma Digital**", logo
+kaže „**ENIGMA IT**", firma je Enigma IT, a društvene mreže su
+`enigmadigital.studio`. To je izbor, ne kvar — ali blog mora da zna pod kojim
+imenom se potpisuje (`authorName`, JSON-LD `publisher`, potpis na slajdu).
+
+**Telefon.** Sajt u podnožju nosi `tel:+442045771943` — broj iz Velike
+Britanije. Meta verifikacija je odbijena zato što priloženi dokument ne dokazuje
+vezu firme sa brojem `+381641303177`.
+
+Hipoteza, **nije potvrđena**: Meta pri proveri gleda i veb sajt, pa broj na
+sajtu koji se razlikuje od prijavljenog može biti deo razloga. Pre ponovnog
+slanja vredi uskladiti broj na sajtu sa onim koji se prijavljuje.
+
+---
+
+## §20. enigmait repo — stvarno stanje
+
+Pročitano direktno iz repoa 29.08.2026. Zamenjuje pretpostavke iz §19.
+
+### §20.1. Osnova
+
+| | |
+|---|---|
+| Next | **16.2.6** |
+| Convex | **nije instaliran** — NV4 ga dodaje |
+| Rute | `app/(pages)/...`, servisi su statični folderi; `/novosti/[slug]` je **prva dinamička ruta** |
+| Koren | `app/layout.tsx`, `lang="sr-Latn-RS"` |
+| Komponente | `app/_components/` |
+| Ostalo | GSAP, Lenis, three/R3F, nodemailer |
+
+### §20.2. Šta u SEO sloju ne postoji
+
+Provereno u repou, ne pretpostavljeno:
+
+- **nema `app/sitemap.ts`**
+- **nema `app/robots.ts`**
+- **nema `public/robots.txt` ni `public/sitemap.xml`**
+- `export const metadata` u `app/layout.tsx` sadrži **samo** `title` i `description`
+- nema `metadataBase` — bez nje se ni relativna OG slika ne razrešava
+- nema `openGraph`, nema `alternates.canonical`, nema `twitter`
+
+Sajt trenutno nema ni mapu ni robots. To nije blog rupa nego rupa celog sajta,
+i NV5 je popravlja za ceo sajt, ne samo za `/novosti`.
+
+### §20.3. ISPRAVKA §19.3 — hreflang NE treba
+
+Ranije sam zapisao „nema hreflang a postoji SR/EN prekidač". **Netačno.**
+
+`app/_components/LanguageProvider.tsx` menja jezik **u pregledaču**: prolazi kroz
+DOM, prevodi tekstualne čvorove kroz `lib/i18n` i pamti izbor u kolačiću.
+**Nema `/en` rute.** Postoji jedan URL, pa nema šta da se hreflang-uje.
+
+Posledica: Google i AI crawleri vide **samo srpski**. To je u skladu sa odlukom
+iz §0 i ništa se ne menja.
+
+### §20.4. Ali LanguageProvider će mrcvariti tekst posta
+
+`LanguageProvider` preskače samo `SCRIPT, STYLE, NOSCRIPT, SVG, CANVAS, CODE,
+PRE`. Telo blog teksta je obična proza u `<p>` i `<h2>` — **biće prevođeno**.
+
+Zahtev za NV4: stranica `/novosti/[slug]` mora da nosi eksplicitan izuzetak od
+prevođenja za telo teksta (npr. atribut koji `LanguageProvider` poštuje, ili
+`translate="no"`). Tekst koji je čovek napisao i pustio kroz humanizera ne sme
+da ga naknadno prepravlja DOM prevodilac.
+
+### §20.5. Fontovi nemaju našu dijakritiku — mereno iz font fajlova
+
+Izmereno kroz `fontTools`, čitanjem `cmap` tabele samih `.otf` fajlova:
+
+| Font | Glifova | Nedostaje |
+|---|---|---|
+| `aeonik-regular.otf` | **66** | **Š š Đ đ Č č Ć ć Ž ž — sve** |
+| `aeonik-light.otf` | 66 | sve |
+| `aeonik-bold.otf` | 66 | sve |
+| `microgramma-d-extended-bold.otf` | 230 | **Đ đ Č č Ć ć** |
+
+Aeonik je font tela teksta celog sajta i **nema nijedno naše slovo**. Pregledač
+ih zato vuče iz zamenskog lica (`aeonik Fallback`), pa se unutar iste reči
+mešaju dva pisma. Vizuelnu potvrdu na živom sajtu nisam dovršio — zum je pukao
+na tešku stranicu — ali tabela `cmap` je dokaz iz samog fajla, ne pretpostavka.
+
+**Dve posledice:**
+
+1. **Za sajt.** Ovo treba proveriti okom i, ako se vidi, nabaviti potpuniji rez
+   fonta. Nije deo NV serije, ali je veće od bloga.
+2. **Za renderer (§18.6).** Satori ne radi zamenu fonta kao pregledač — daje
+   prazan kvadratić. Zato slajdovi **ne mogu** koristiti aeonik ni microgrammu
+   dok se ne nabave rezovi sa dijakritikom. Do tada ostaje Inter, koji je
+   proveren i ima sva slova.
+
+Uz to su svi fajlovi `.otf` sa CFF konturama; Satori pouzdano radi sa TTF i
+WOFF, pa i posle nabavke rezova treba konvertovati.

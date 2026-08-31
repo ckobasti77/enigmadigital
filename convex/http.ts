@@ -1,6 +1,7 @@
 import { httpRouter } from "convex/server";
-import { httpAction } from "./_generated/server";
+import { httpAction, internalAction } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
+import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { auth } from "./auth";
@@ -1662,6 +1663,64 @@ http.route({
       },
     });
   }),
+});
+
+// ── Novosti On-Demand ISR Revalidation (§9) ───────────────────────────────────
+
+/**
+ * Poziva Next.js ISR revalidate rutu na `https://enigmait.rs/api/revalidate`.
+ *
+ * Tajna `NOVOSTI_REVALIDATE_SECRET` ide isključivo u zaglavlje `x-revalidate-secret`
+ * (nikada u URL, query string ili logove).
+ *
+ * Poziva se asinhrono preko Convex schedulera iz `postsStore.ts` nakon
+ * objavljivanja (`publish`), povlačenja (`unpublish`) i ažuriranja objavljenog posta (`updateDraft`).
+ */
+const REVALIDATE_ENDPOINT =
+  process.env.NOVOSTI_REVALIDATE_URL?.trim() ||
+  "https://www.enigmait.rs/api/revalidate";
+
+export const revalidatePost = internalAction({
+  args: {
+    slug: v.string(),
+  },
+  handler: async (_ctx, args) => {
+    const secret = process.env.NOVOSTI_REVALIDATE_SECRET?.trim();
+    if (!secret) {
+      console.error(
+        "Osvežavanje novosti nije konfigurisano: NOVOSTI_REVALIDATE_SECRET nije postavljen.",
+      );
+      return;
+    }
+
+    const path = `/novosti/${args.slug}`;
+    try {
+      // Direktno na www, NE na apex. `https://enigmait.rs` vraća 308 na www,
+      // a oslanjanje na to da `fetch` prenese zaglavlje `x-revalidate-secret`
+      // kroz preusmerenje na DRUGI host nije garantovano. Bez zaglavlja ruta
+      // vraća 401 i osvežavanje tiho prestane da radi.
+      const response = await fetch(REVALIDATE_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-revalidate-secret": secret,
+        },
+        body: JSON.stringify({ path }),
+      });
+
+      if (response.status !== 200) {
+        console.error(
+          `Neuspelo osvežavanje keša za putanju ${path}: HTTP status ${response.status}.`,
+        );
+      }
+    } catch (error) {
+      const reason =
+        error instanceof Error && error.message ? error.message : "nepoznat";
+      console.error(
+        `Neuspelo osvežavanje keša za putanju ${path}: greška pri mrežnom pozivu (${reason}).`,
+      );
+    }
+  },
 });
 
 export default http;

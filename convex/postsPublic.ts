@@ -30,7 +30,11 @@ export const publicPostSummaryValidator = v.object({
   category: postCategoryValidator,
   title: v.string(),
   dek: v.string(),
-  coverStorageId: v.optional(v.id("_storage")),
+  // URL, ne storageId. Iz storageId-a se URL NE MOŽE sastaviti sa strane
+  // klijenta — Convex nema javnu `/api/storage/<id>` rutu; URL isporučuje
+  // `ctx.storage.getUrl()` sa servera. Ranije je enigmait sam sklapao adresu
+  // i sve slike bi bile 404, uključujući og:image.
+  coverUrl: v.union(v.string(), v.null()),
   coverAlt: v.optional(v.string()),
   authorName: v.string(),
   authorRole: v.optional(v.string()),
@@ -50,7 +54,7 @@ export const publicPostDetailValidator = v.object({
   title: v.string(),
   dek: v.string(),
   body: v.string(),
-  coverStorageId: v.optional(v.id("_storage")),
+  coverUrl: v.union(v.string(), v.null()),
   coverAlt: v.optional(v.string()),
   authorName: v.string(),
   authorRole: v.optional(v.string()),
@@ -60,7 +64,7 @@ export const publicPostDetailValidator = v.object({
   seoTitle: v.optional(v.string()),
   seoDescription: v.optional(v.string()),
   canonicalUrl: v.optional(v.string()),
-  ogImageStorageId: v.optional(v.id("_storage")),
+  ogImageUrl: v.union(v.string(), v.null()),
   readingMinutes: v.optional(v.number()),
   relatedSlugs: v.optional(v.array(v.string())),
 });
@@ -168,8 +172,8 @@ export const listPublished = query({
       nextCursor = String(raw[raw.length - 1].publishedAt);
     }
 
-    return {
-      posts: page.map((post) => ({
+    const withUrls = await Promise.all(
+      page.map(async (post) => ({
         _id: post._id,
         _creationTime: post._creationTime,
         slug: post.slug,
@@ -178,7 +182,9 @@ export const listPublished = query({
         category: post.category,
         title: post.title,
         dek: post.dek,
-        coverStorageId: post.coverStorageId,
+        coverUrl: post.coverStorageId
+          ? await ctx.storage.getUrl(post.coverStorageId)
+          : null,
         coverAlt: post.coverAlt,
         authorName: post.authorName,
         authorRole: post.authorRole,
@@ -187,9 +193,9 @@ export const listPublished = query({
         updatedAt: post.updatedAt,
         readingMinutes: post.readingMinutes,
       })),
-      nextCursor,
-      hasMore,
-    };
+    );
+
+    return { posts: withUrls, nextCursor, hasMore };
   },
 });
 
@@ -247,7 +253,9 @@ export const getPublishedBySlug = query({
       title: post.title,
       dek: post.dek,
       body: post.body,
-      coverStorageId: post.coverStorageId,
+      coverUrl: post.coverStorageId
+        ? await ctx.storage.getUrl(post.coverStorageId)
+        : null,
       coverAlt: post.coverAlt,
       authorName: post.authorName,
       authorRole: post.authorRole,
@@ -257,7 +265,9 @@ export const getPublishedBySlug = query({
       seoTitle: post.seoTitle,
       seoDescription: post.seoDescription,
       canonicalUrl: post.canonicalUrl,
-      ogImageStorageId: post.ogImageStorageId,
+      ogImageUrl: post.ogImageStorageId
+        ? await ctx.storage.getUrl(post.ogImageStorageId)
+        : null,
       readingMinutes: post.readingMinutes,
       relatedSlugs: post.relatedSlugs,
     };
