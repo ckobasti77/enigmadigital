@@ -481,3 +481,99 @@ provenijenciju i dodele.
   ta promenljiva, ne pravi se druga
 - funkcije koje **ne primaju** `workspaceId` u `args` se ne diraju — one
   radni prostor izvode iz samog članstva i nemaju rupu
+
+---
+
+## §14. LT10 — Boja temperature koja se stvarno vidi + izmena u primenjenom uvozu
+
+### §14.1 Koren prva dva problema: šest CSS tokena ne postoji
+
+`components/app/leadovi/import-review-table.tsx`, `TEMP_CONFIG` (linije 57–94),
+koristi:
+
+```
+rowBg:   var(--temp-cold-row)   / --temp-warm-row   / --temp-hot-row
+hoverBg: var(--temp-cold-row-hover) / ... / --temp-hot-row-hover
+```
+
+**Nijedan od tih šest tokena nije definisan.** `app/globals.css` (linije 70–75)
+definiše samo `--temp-cold` / `--temp-warm` / `--temp-hot` i njihove
+`-bg` varijante. `grep -- "--temp-.*-row" app/globals.css` ne vraća ništa.
+
+Posledica: `background: var(--row-bg)` se ne razreši i ćelija ostaje
+**providna**. Zato:
+
+- red sa temperaturom nema boju;
+- lepljive kolone (`#`, `Temperatura`, `Akcije`) propuštaju sadržaj koji se
+  skroluje ispod njih — na snimku ekrana se kroz „Cold" i „Detalji" vidi
+  `Google/Setmore/SrediMe CompanyWall: h…`;
+- red `nova_firma` izgleda ispravno jer njegov `rowBg` je `var(--surface)`,
+  a taj token postoji.
+
+To nije problem `z-index`-a ni redosleda slojeva. Lepljiva ćelija mora imati
+**neprovidnu** pozadinu; providna lepljiva ćelija po definiciji propušta.
+
+### §14.2 Ispravka boja
+
+U `app/globals.css`, uz postojeće tokene (linije 70–75), dodati šest
+**neprovidnih** tokena izvedenih preko `color-mix`, da se sami prilagode i
+svetloj temi (blok od linije 668):
+
+```css
+--temp-cold-row:        color-mix(in srgb, var(--temp-cold) 12%, var(--surface));
+--temp-cold-row-hover:  color-mix(in srgb, var(--temp-cold) 18%, var(--surface));
+--temp-warm-row:        color-mix(in srgb, var(--temp-warm) 12%, var(--surface));
+--temp-warm-row-hover:  color-mix(in srgb, var(--temp-warm) 18%, var(--surface));
+--temp-hot-row:         color-mix(in srgb, var(--temp-hot)  12%, var(--surface));
+--temp-hot-row-hover:   color-mix(in srgb, var(--temp-hot)  18%, var(--surface));
+```
+
+`rgba()` **ne sme** — providna vrednost vraća isti kvar.
+
+### §14.3 Boja mora da se vidi i kad se skroluje udesno
+
+Sada je jedina traka temperature 3px leva ivica prve kolone. Ona odskroluje i
+red ostaje bez oznake.
+
+- **Traka i desno:** lepljiva ćelija `Temperatura` (linija 756) dobija 3px
+  ivicu u boji temperature na svojoj **levoj** strani. Ta kolona je uvek na
+  ekranu, pa je boja vidljiva u svakom položaju skrola.
+- **„Svetlucavost":** ceo red dobija tanak unutrašnji obrub u boji temperature
+  malog alfa (`inset 0 1px 0` i `inset 0 -1px 0`), tako da traka reda deluje
+  osvetljeno, a ne samo obojeno. Ne animira se — bez pulsiranja i bez
+  `transition` na boju pozadine duže od 150ms.
+- `nova_firma` **ne dobija ništa**: ni traku, ni obrub. Neutralno je
+  podrazumevano stanje, ne odluka.
+
+### §14.4 Izmena temperature u primenjenom uvozu
+
+Sada: `isReadOnly = importDoc?.status !== "u_pregledu"` (linija 137), pa
+primenjen uvoz prikazuje samo značku i dugme „Detalji" (linije 760–767).
+
+Odluka: u **primenjenom** uvozu red iz staging-a je istorija — menjati njega ne
+menja ništa stvarno. Temperatura koja važi živi na `leadCompanies`. Zato:
+
+- ako je uvoz primenjen **i** red ima firmu (`createdCompanyId` ili
+  `matchedCompanyId`), prikazuje se **izbornik** koji zove
+  `api.leadCrmStore.setCompanyTemperatura` za **tu firmu**, a ne
+  `setRowTemperatura`;
+- vrednost se čita sa **firme**, ne sa staging reda — inače ekran pokazuje
+  staru odluku kao da je trenutna;
+- ako red nema firmu (preskočen ili nerazrešen), ostaje značka bez kontrole i
+  ispod nje jedno prigušeno objašnjenje: „Red nije ušao u bazu."
+  Ne crta se kontrola koja ne može da radi.
+- uvoz u statusu `ponisten` ostaje potpuno bez kontrole.
+
+**Upit mora da isporuči temperaturu firme.** `listImportRows`
+(`convex/leadImportStore.ts:1405`) sada vraća goli `leadImportRows` red. Za
+primenjen uvoz treba da za svaki red dohvati firmu i doda dva polja:
+`firmaTemperatura` i `firmaId`. Ako firma ne postoji (obrisana posle uvoza),
+oba su `undefined` i prikaz to izričito kaže — ne pretvara se u „nova firma".
+
+### §14.5 Šta se NE radi
+
+- ne menja se `leads-table.tsx` (glavna tabela leadova) — tamo izmena već radi
+- ne menja se `import-row-dialog.tsx` osim ako ga ista `TEMP_CONFIG` ispravka
+  ne dodirne
+- ne dodaje se animacija, pulsiranje ni gradijent koji se kreće
+- ne menja se šema

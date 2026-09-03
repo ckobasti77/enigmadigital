@@ -74,6 +74,16 @@
   --temp-warm-bg: rgba(201, 133, 0,  0.10);
   --temp-hot-bg:  rgba(224, 74,  60,  0.10);
 
+  /* Pozadina reda tabele po temperaturi. NEPROVIDNE — providna vrednost
+     (rgba/transparent) bi propustila sadržaj kroz lepljive kolone. color-mix se
+     sam prilagodi promeni --surface, zato nije rgba. */
+  --temp-cold-row:       color-mix(in srgb, var(--temp-cold) 12%, var(--surface));
+  --temp-cold-row-hover: color-mix(in srgb, var(--temp-cold) 18%, var(--surface));
+  --temp-warm-row:       color-mix(in srgb, var(--temp-warm) 12%, var(--surface));
+  --temp-warm-row-hover: color-mix(in srgb, var(--temp-warm) 18%, var(--surface));
+  --temp-hot-row:        color-mix(in srgb, var(--temp-hot)  12%, var(--surface));
+  --temp-hot-row-hover:  color-mix(in srgb, var(--temp-hot)  18%, var(--surface));
+
   /* ── Charts — categorical ──────────────────────────────────────────────────
      Fixed order, never cycled: slot 1 is always slot 1, whatever the filter
      leaves on screen. A seventh series does not get a generated hue — it folds

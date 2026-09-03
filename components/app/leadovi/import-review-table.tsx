@@ -61,6 +61,9 @@ const TEMP_CONFIG: Record<
     rowBg: string;
     hoverBg: string;
     borderColor: string;
+    // Tanak unutrašnji obrub reda malog alfa („svetlucavost"). undefined za
+    // neutralnu „nova_firma" — ona ne dobija ni traku ni obrub.
+    ringColor: string | undefined;
     badgeClass: string;
   }
 > = {
@@ -69,6 +72,7 @@ const TEMP_CONFIG: Record<
     rowBg: "var(--surface)",
     hoverBg: "var(--surface-raised)",
     borderColor: "var(--line)",
+    ringColor: undefined,
     badgeClass: "border-line-soft text-text-muted bg-surface",
   },
   cold: {
@@ -76,6 +80,7 @@ const TEMP_CONFIG: Record<
     rowBg: "var(--temp-cold-row)",
     hoverBg: "var(--temp-cold-row-hover)",
     borderColor: "var(--temp-cold)",
+    ringColor: "color-mix(in srgb, var(--temp-cold) 22%, transparent)",
     badgeClass: "border-[var(--temp-cold)]/40 text-[var(--temp-cold)] bg-[var(--temp-cold-bg)]",
   },
   warm: {
@@ -83,6 +88,7 @@ const TEMP_CONFIG: Record<
     rowBg: "var(--temp-warm-row)",
     hoverBg: "var(--temp-warm-row-hover)",
     borderColor: "var(--temp-warm)",
+    ringColor: "color-mix(in srgb, var(--temp-warm) 22%, transparent)",
     badgeClass: "border-[var(--temp-warm)]/40 text-[var(--temp-warm)] bg-[var(--temp-warm-bg)]",
   },
   hot: {
@@ -90,6 +96,7 @@ const TEMP_CONFIG: Record<
     rowBg: "var(--temp-hot-row)",
     hoverBg: "var(--temp-hot-row-hover)",
     borderColor: "var(--temp-hot)",
+    ringColor: "color-mix(in srgb, var(--temp-hot) 22%, transparent)",
     badgeClass: "border-[var(--temp-hot)]/40 text-[var(--temp-hot)] bg-[var(--temp-hot-bg)]",
   },
 };
@@ -129,6 +136,7 @@ export function ImportReviewTable({
 
   const setRowDecisionMutation = useMutation(api.leadImportStore.setRowDecision);
   const setRowTemperaturaMutation = useMutation(api.leadImportStore.setRowTemperatura);
+  const setCompanyTemperaturaMutation = useMutation(api.leadCrmStore.setCompanyTemperatura);
   const setRowObrisanMutation = useMutation(api.leadImportStore.setRowObrisan);
   const revertImportMutation = useMutation(api.leadImportStore.revertImport);
   const setImportHiddenColumnsMutation = useMutation(api.leadImportStore.setImportHiddenColumns);
@@ -151,6 +159,31 @@ export function ImportReviewTable({
       if (selectedRow && selectedRow._id === rowId) {
         setSelectedRow((prev) => (prev ? { ...prev, temperatura } : null));
       }
+    } catch (err: unknown) {
+      if (err instanceof ConvexError) {
+        const data = err.data as { code?: string; message?: string };
+        setActionError(`[${data.code || "greška"}]: ${data.message || err.message}`);
+      } else if (err instanceof Error) {
+        setActionError(err.message);
+      } else {
+        setActionError(String(err));
+      }
+    }
+  };
+
+  // U primenjenom uvozu temperatura se piše u FIRMU (leadCompanies), ne u staging
+  // red. Bez lokalnog stanja — Convex reaktivno osvežava `firmaTemperatura`.
+  const handleCompanyTemperaturaChange = async (
+    companyId: Id<"leadCompanies">,
+    temperatura: TemperaturaType,
+  ) => {
+    try {
+      setActionError(null);
+      await setCompanyTemperaturaMutation({
+        workspaceId,
+        companyId,
+        temperatura,
+      });
     } catch (err: unknown) {
       if (err instanceof ConvexError) {
         const data = err.data as { code?: string; message?: string };
@@ -360,10 +393,19 @@ export function ImportReviewTable({
   const visibleColumns = allColumns.filter((col) => !hiddenSet.has(col));
 
   // Statistika za traku stanja
-  const countHot = visibleRows.filter((r) => r.temperatura === "hot").length;
-  const countWarm = visibleRows.filter((r) => r.temperatura === "warm").length;
-  const countCold = visibleRows.filter((r) => r.temperatura === "cold").length;
-  const countNovaFirma = visibleRows.filter((r) => r.temperatura === "nova_firma" || !r.temperatura).length;
+  // Brojaci MORAJU da citaju isti izvor kao i sam red: pre primene staging
+  // vrednost, posle primene zivu temperaturu firme. Inace traka stanja broji
+  // zamrznutu odluku dok redovi ispod nje prikazuju trenutnu — dva broja za
+  // istu stvar na istom ekranu.
+  const tempReda = (r: (typeof visibleRows)[number]): TemperaturaType =>
+    isPrimenjen && r.firmaId
+      ? ((r.firmaTemperatura as TemperaturaType) || "nova_firma")
+      : ((r.temperatura as TemperaturaType) || "nova_firma");
+
+  const countHot = visibleRows.filter((r) => tempReda(r) === "hot").length;
+  const countWarm = visibleRows.filter((r) => tempReda(r) === "warm").length;
+  const countCold = visibleRows.filter((r) => tempReda(r) === "cold").length;
+  const countNovaFirma = visibleRows.filter((r) => tempReda(r) === "nova_firma").length;
   const countNerazreseno = visibleRows.filter((r) => r.decision === "nerazreseno").length;
   const countMatched = visibleRows.filter((r) => !!r.matchedCompanyId).length;
 
@@ -666,8 +708,17 @@ export function ImportReviewTable({
               </TableHeader>
               <TableBody>
                 {visibleRows.map((row) => {
-                  const temp = (row.temperatura as TemperaturaType) || "nova_firma";
-                  const config = TEMP_CONFIG[temp] || TEMP_CONFIG.nova_firma;
+                  // U primenjenom uvozu boju reda nosi ŽIVA temperatura firme,
+                  // ne zamrznuta staging vrednost — inače bi red i kontrola iznad
+                  // pokazivali različite vrednosti (isti princip kao §3b).
+                  const stagingTemp = (row.temperatura as TemperaturaType) || "nova_firma";
+                  const effectiveTemp: TemperaturaType =
+                    isPrimenjen && row.firmaId
+                      ? ((row.firmaTemperatura as TemperaturaType) || "nova_firma")
+                      : stagingTemp;
+                  const config = TEMP_CONFIG[effectiveTemp] || TEMP_CONFIG.nova_firma;
+                  const isNeutral = effectiveTemp === "nova_firma";
+                  const hadCompanyLink = !!(row.createdCompanyId || row.matchedCompanyId);
 
                   return (
                     <TableRow
@@ -676,6 +727,7 @@ export function ImportReviewTable({
                         {
                           "--row-bg": config.rowBg,
                           "--row-hover-bg": config.hoverBg,
+                          "--row-ring": config.ringColor ?? "transparent",
                         } as React.CSSProperties
                       }
                       className="group/row transition-colors border-b border-line/60 bg-[var(--row-bg)] hover:bg-[var(--row-hover-bg)]"
@@ -685,8 +737,12 @@ export function ImportReviewTable({
                           i traka temperature prelazi na prvu ćeliju sa podacima. */}
                       {!fajlImaRedniBroj && (
                       <TableCell
-                        className="sticky left-0 z-20 w-12 min-w-[48px] max-w-[48px] text-center font-mono text-micro text-text-muted py-2 px-2 bg-[var(--row-bg)] group-hover/row:bg-[var(--row-hover-bg)] transition-colors shadow-[8px_0_12px_-6px_rgba(0,0,0,0.55),1px_0_0_0_var(--line)]"
-                        style={{ borderLeft: `3px solid ${config.borderColor}` }}
+                        className="sticky left-0 z-20 w-12 min-w-[48px] max-w-[48px] text-center font-mono text-micro text-text-muted py-2 px-2 bg-[var(--row-bg)] group-hover/row:bg-[var(--row-hover-bg)] transition-colors shadow-[8px_0_12px_-6px_rgba(0,0,0,0.55),1px_0_0_0_var(--line),inset_0_1px_0_0_var(--row-ring),inset_0_-1px_0_0_var(--row-ring)]"
+                        style={
+                          isNeutral
+                            ? undefined
+                            : { borderLeft: `3px solid ${config.borderColor}` }
+                        }
                       >
                         {row.sourceRowIndex}
                       </TableCell>
@@ -707,10 +763,12 @@ export function ImportReviewTable({
                               isFirstDataCol &&
                                 (fajlImaRedniBroj ? "sticky left-0" : "sticky left-12"),
                               isFirstDataCol &&
-                                "z-20 shadow-[8px_0_12px_-6px_rgba(0,0,0,0.55),1px_0_0_0_var(--line)] bg-[var(--row-bg)] group-hover/row:bg-[var(--row-hover-bg)] transition-colors",
+                                "z-20 shadow-[8px_0_12px_-6px_rgba(0,0,0,0.55),1px_0_0_0_var(--line),inset_0_1px_0_0_var(--row-ring),inset_0_-1px_0_0_var(--row-ring)] bg-[var(--row-bg)] group-hover/row:bg-[var(--row-hover-bg)] transition-colors",
+                              !isFirstDataCol &&
+                                "shadow-[inset_0_1px_0_0_var(--row-ring),inset_0_-1px_0_0_var(--row-ring)]",
                             )}
                             style={
-                              isFirstDataCol && fajlImaRedniBroj
+                              isFirstDataCol && fajlImaRedniBroj && !isNeutral
                                 ? { borderLeft: `3px solid ${config.borderColor}` }
                                 : undefined
                             }
@@ -752,21 +810,21 @@ export function ImportReviewTable({
                         );
                       })}
 
-                      {/* Sticky: Temperatura */}
-                      <TableCell className={cn(
-                        "sticky z-20 w-36 min-w-[140px] max-w-[140px] py-2 px-3 border-b border-line/60 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.55),-1px_0_0_0_var(--line)] bg-[var(--row-bg)] group-hover/row:bg-[var(--row-hover-bg)] transition-colors",
-                        isPrimenjen ? "right-[240px]" : "right-[100px]"
-                      )}>
-                        {isReadOnly ? (
-                          <span
-                            className={cn(
-                              "inline-flex rounded-md border px-2 py-0.5 text-xs font-medium",
-                              config.badgeClass,
-                            )}
-                          >
-                            {config.label}
-                          </span>
-                        ) : (
+                      {/* Sticky: Temperatura — uvek na ekranu, pa nosi 3px levu
+                          ivicu u boji temperature (vidljivu u svakom položaju
+                          skrola). „nova_firma" ne dobija ivicu. */}
+                      <TableCell
+                        className={cn(
+                          "sticky z-20 w-36 min-w-[140px] max-w-[140px] py-2 px-3 border-b border-line/60 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.55),-1px_0_0_0_var(--line),inset_0_1px_0_0_var(--row-ring),inset_0_-1px_0_0_var(--row-ring)] bg-[var(--row-bg)] group-hover/row:bg-[var(--row-hover-bg)] transition-colors",
+                          isPrimenjen ? "right-[240px]" : "right-[100px]"
+                        )}
+                        style={
+                          isNeutral
+                            ? undefined
+                            : { borderLeft: `3px solid ${config.borderColor}` }
+                        }
+                      >
+                        {!isReadOnly ? (
                           <select
                             value={row.temperatura || "nova_firma"}
                             onChange={(e) =>
@@ -788,12 +846,65 @@ export function ImportReviewTable({
                             <option value="warm">Warm</option>
                             <option value="hot">Hot</option>
                           </select>
+                        ) : isPrimenjen && row.firmaId ? (
+                          // Primenjen uvoz: menja se ŽIVA temperatura FIRME, ne
+                          // staging red. Vrednost se čita iz firmaTemperatura,
+                          // NIKAKO iz row.temperatura (stara odluka nije trenutna).
+                          <select
+                            value={row.firmaTemperatura || "nova_firma"}
+                            onChange={(e) =>
+                              handleCompanyTemperaturaChange(
+                                row.firmaId!,
+                                e.target.value as TemperaturaType,
+                              )
+                            }
+                            className={cn(
+                              "w-full rounded-md border px-2 py-1 text-xs font-medium outline-none transition-colors cursor-pointer",
+                              row.firmaTemperatura === "hot" && "border-[var(--temp-hot)]/40 bg-[var(--temp-hot-bg)] text-foreground font-semibold",
+                              row.firmaTemperatura === "warm" && "border-[var(--temp-warm)]/40 bg-[var(--temp-warm-bg)] text-foreground font-semibold",
+                              row.firmaTemperatura === "cold" && "border-[var(--temp-cold)]/40 bg-[var(--temp-cold-bg)] text-foreground font-semibold",
+                              (!row.firmaTemperatura || row.firmaTemperatura === "nova_firma") && "border-line-soft bg-surface-raised text-text-secondary",
+                            )}
+                          >
+                            <option value="nova_firma">Nova firma</option>
+                            <option value="cold">Cold</option>
+                            <option value="warm">Warm</option>
+                            <option value="hot">Hot</option>
+                          </select>
+                        ) : isPrimenjen ? (
+                          // Red bez žive firme: ne crta se kontrola koja ne može
+                          // da radi. Obrisano ≠ nepoznato — poseban tekst.
+                          <div className="flex flex-col gap-1">
+                            <span
+                              className={cn(
+                                "inline-flex w-fit rounded-md border px-2 py-0.5 text-xs font-medium",
+                                config.badgeClass,
+                              )}
+                            >
+                              {config.label}
+                            </span>
+                            <span className="text-micro text-text-muted">
+                              {hadCompanyLink
+                                ? "Firma je obrisana posle uvoza."
+                                : "Red nije ušao u bazu."}
+                            </span>
+                          </div>
+                        ) : (
+                          // Poništen (i svako drugo read-only stanje) — samo značka.
+                          <span
+                            className={cn(
+                              "inline-flex rounded-md border px-2 py-0.5 text-xs font-medium",
+                              config.badgeClass,
+                            )}
+                          >
+                            {config.label}
+                          </span>
                         )}
                       </TableCell>
 
                       {/* Sticky: Detalji + Obriši red */}
                       <TableCell className={cn(
-                        "sticky right-0 z-20 text-right py-2 px-3 border-b border-line/60 bg-[var(--row-bg)] group-hover/row:bg-[var(--row-hover-bg)] transition-colors",
+                        "sticky right-0 z-20 text-right py-2 px-3 border-b border-line/60 shadow-[inset_0_1px_0_0_var(--row-ring),inset_0_-1px_0_0_var(--row-ring)] bg-[var(--row-bg)] group-hover/row:bg-[var(--row-hover-bg)] transition-colors",
                         isPrimenjen ? "w-[240px] min-w-[240px] max-w-[240px]" : "w-[100px] min-w-[100px] max-w-[100px]"
                       )}>
                         <div className="flex items-center justify-end gap-1.5">

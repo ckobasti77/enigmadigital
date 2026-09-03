@@ -1424,21 +1424,54 @@ export const listImportRows = query({
       });
     }
 
-    if (args.decision) {
-      return await ctx.db
-        .query("leadImportRows")
-        .withIndex("by_import_decision", (q) =>
-          q.eq("importId", args.importId).eq("decision", args.decision!),
-        )
-        .collect();
-    }
+    const rows = args.decision
+      ? await ctx.db
+          .query("leadImportRows")
+          .withIndex("by_import_decision", (q) =>
+            q.eq("importId", args.importId).eq("decision", args.decision!),
+          )
+          .collect()
+      : await ctx.db
+          .query("leadImportRows")
+          .withIndex("by_workspace_import", (q) =>
+            q.eq("workspaceId", args.workspaceId).eq("importId", args.importId),
+          )
+          .collect();
 
-    return await ctx.db
-      .query("leadImportRows")
-      .withIndex("by_workspace_import", (q) =>
-        q.eq("workspaceId", args.workspaceId).eq("importId", args.importId),
-      )
-      .collect();
+    // U primenjenom uvozu staging red je istorija — temperatura koja VAŽI živi
+    // na leadCompanies. Zato svaki red dobija `firmaId` i `firmaTemperatura` sa
+    // žive firme (createdCompanyId ili matchedCompanyId), da ekran može da menja
+    // FIRMU, ne staging red. Ako firma ne postoji (obrisana posle uvoza), oba su
+    // undefined — prikaz to kaže izričito, NE pretvara u „nova firma".
+    const imp = await ctx.db.get(args.importId);
+    const applied = imp?.status === "primenjen";
+
+    type FirmaTemperatura =
+      | "nova_firma"
+      | "cold"
+      | "warm"
+      | "hot"
+      | undefined;
+
+    return await Promise.all(
+      rows.map(async (row) => {
+        let firmaId: Id<"leadCompanies"> | undefined = undefined;
+        let firmaTemperatura: FirmaTemperatura = undefined;
+
+        if (applied) {
+          const companyId = row.createdCompanyId ?? row.matchedCompanyId;
+          if (companyId) {
+            const company = await ctx.db.get(companyId);
+            if (company && company.workspaceId === args.workspaceId) {
+              firmaId = company._id;
+              firmaTemperatura = company.temperatura;
+            }
+          }
+        }
+
+        return { ...row, firmaId, firmaTemperatura };
+      }),
+    );
   },
 });
 
