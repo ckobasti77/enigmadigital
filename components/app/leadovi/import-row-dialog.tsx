@@ -102,8 +102,13 @@ const FIELD_LABELS: Record<string, string> = {
   napomena: "Napomena za prodaju",
 };
 
+// `StagingRowDoc["temperatura"]` sada ukljucuje `undefined`, jer stariji redovi
+// uvoza nemaju to polje. Odsustvo se cita kao "nova_firma" na jednom mestu
+// (`currentTemp`), a svuda dalje se radi sa ove cetiri stvarne vrednosti.
+type TemperaturaType = "nova_firma" | "cold" | "warm" | "hot";
+
 const TEMP_CONFIG: Record<
-  StagingRowDoc["temperatura"],
+  TemperaturaType,
   { label: string; chipClass: string; dotClass: string; borderClass: string }
 > = {
   nova_firma: {
@@ -194,7 +199,7 @@ export function ImportRowDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDecisionChange?: (decision: StagingRowDoc["decision"]) => void;
-  onTemperaturaChange?: (temperatura: StagingRowDoc["temperatura"]) => void;
+  onTemperaturaChange?: (temperatura: TemperaturaType) => void;
   onDeleteRow?: () => void;
   readOnly?: boolean;
   isApplied?: boolean;
@@ -240,12 +245,12 @@ export function ImportRowDialog({
     issueCount += 1;
   }
 
-  const currentTemp = row.temperatura || "nova_firma";
+  const currentTemp: TemperaturaType = row.temperatura || "nova_firma";
   const tempStyle = TEMP_CONFIG[currentTemp] || TEMP_CONFIG.nova_firma;
 
   const handleTempCycle = () => {
     if (readOnly) return;
-    const order: StagingRowDoc["temperatura"][] = [
+    const order: TemperaturaType[] = [
       "nova_firma",
       "cold",
       "warm",
@@ -414,7 +419,7 @@ export function ImportRowDialog({
 
   const displayTitle =
     parsed.nazivFirme ||
-    row.sirovo.find((s) => s.vrednost && s.vrednost.trim() !== "")?.vrednost ||
+    row.sirovo?.find((s) => s.vrednost && s.vrednost.trim() !== "")?.vrednost ||
     "Neimenovana firma";
 
   return (

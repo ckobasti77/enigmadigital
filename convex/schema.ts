@@ -3588,7 +3588,10 @@ export default defineSchema({
     rowsSkipped: v.number(),
     warnings: v.array(v.string()),
     // Kolone koje je čovek sklonio u staging koraku (§3)
-    skriveneKolone: v.array(v.string()),
+    // OPCIONO NAMERNO: uvozi napravljeni pre nego sto je sakrivanje kolona
+    // uvedeno nemaju ovo polje. Odsustvo znaci "nijedna kolona nije sakrivena",
+    // pa se svuda cita kao `?? []`.
+    skriveneKolone: v.optional(v.array(v.string())),
 
     appliedAt: v.optional(v.number()),
     revertedAt: v.optional(v.number()),
@@ -3638,20 +3641,33 @@ export default defineSchema({
     }),
 
     // Ceo red kako je stigao iz fajla, u izvornom redosledu kolona (§3)
-    sirovo: v.array(
-      v.object({ kolona: v.string(), vrednost: v.string() }),
+    //
+    // OPCIONO NAMERNO: redovi uvezeni pre nego sto je cuvanje sirovih kolona
+    // uvedeno nemaju ovo polje. Odsustvo znaci "nije zapamceno", ne "prazno" —
+    // prikaz to izricito kaze (`bezSirovihKolona`), ne crta praznu tabelu.
+    sirovo: v.optional(
+      v.array(v.object({ kolona: v.string(), vrednost: v.string() })),
     ),
 
     // Temperatura postavljena u staging koraku; prenosi se na lead pri uvozu (§3)
-    temperatura: v.union(
-      v.literal("nova_firma"),
-      v.literal("cold"),
-      v.literal("warm"),
-      v.literal("hot"),
+    //
+    // OPCIONO NAMERNO: stariji redovi nemaju polje. Odsustvo se cita kao
+    // "nova_firma" na mestu prikaza — to je stvarno podrazumevano stanje, a ne
+    // izmisljena vrednost, jer temperatura se dodeljuje tek ljudskom odlukom.
+    temperatura: v.optional(
+      v.union(
+        v.literal("nova_firma"),
+        v.literal("cold"),
+        v.literal("warm"),
+        v.literal("hot"),
+      ),
     ),
 
     // Meko brisanje (§3)
-    obrisan: v.boolean(),
+    //
+    // OPCIONO NAMERNO: stariji redovi nemaju polje. Odsustvo znaci "nije
+    // obrisan" — zato se svuda poredi `=== true` / `!== true`, nikad `!r.obrisan`.
+    obrisan: v.optional(v.boolean()),
 
     // Deduplikacija i spajanje
     matchedCompanyId: v.optional(v.id("leadCompanies")),

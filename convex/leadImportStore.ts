@@ -724,8 +724,14 @@ export const applyImport = mutation({
           companyWallUrl: p.companyWallUrl,
           firstSeenSource: p.izvori[0] ?? "import",
           origin: "import",
-          temperatura: r.temperatura,
-          temperaturaPromenjenaAt: r.temperatura !== "nova_firma" ? now : undefined,
+          // `r.temperatura` moze da nedostaje na starijim redovima. Odsustvo
+          // je isto sto i "nova_firma" — to je podrazumevano stanje, ne odluka.
+          // Vreme promene se upisuje SAMO kad je covek stvarno izabrao
+          // temperaturu; inace bi red bez ijedne odluke dobio lazan trenutak
+          // odlucivanja.
+          temperatura: r.temperatura ?? "nova_firma",
+          temperaturaPromenjenaAt:
+            r.temperatura && r.temperatura !== "nova_firma" ? now : undefined,
           createdAt: now,
           updatedAt: now,
           createdBy: ownerUserId,
