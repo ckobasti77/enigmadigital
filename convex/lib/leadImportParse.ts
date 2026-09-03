@@ -27,6 +27,11 @@ import { deriveSignalsFromInboundText } from "./leadInboundDerive";
 
 // ── Tipovi podataka ──────────────────────────────────────────────────────────
 
+export interface RawLeadCell {
+  kolona: string;
+  vrednost: string;
+}
+
 export interface ParsedLeadRating {
   vrednost?: number;
   skala?: number;
@@ -66,6 +71,11 @@ export interface ParsedLeadRow {
    * ovim poljima daje `confidence: "priblizno"`, nikada `"tacno"`.
    */
   derivedFields: string[];
+  /**
+   * SVE ćelije reda iz izvornog fajla u redosledu kolona (§2, §3).
+   * Uključuje prazne ćelije i kolone koje nisu mapirane na imenovana polja.
+   */
+  sirovo: RawLeadCell[];
 }
 
 export interface ParsedSheetInfo {
@@ -679,6 +689,7 @@ function parseSources(
 function parseRowData(
   row: unknown[],
   columnMap: Map<number, CanonicalColumnKey>,
+  rawColumns: string[],
   rowIndexDisplay: number,
 ): {
   parsed?: ParsedLeadRow;
@@ -891,6 +902,16 @@ function parseRowData(
     izvori: sourcesInfo.izvori,
   });
 
+  // 12. Konstrukcija sirovih ćelija (§2, §3): SVE ćelije reda u izvornom redosledu kolona iz fajla
+  const sirovo: RawLeadCell[] = rawColumns.map((colName, c) => {
+    const rawVal = row[c];
+    const strVal = rawVal !== undefined && rawVal !== null ? String(rawVal).trim() : "";
+    return {
+      kolona: colName,
+      vrednost: strVal,
+    };
+  });
+
   const parsedRow: ParsedLeadRow = {
     nazivFirme,
     ulica: ulica || undefined,
@@ -912,6 +933,7 @@ function parseRowData(
     izvori: sourcesInfo.izvori,
     derivedSignals,
     derivedFields,
+    sirovo,
   };
 
   return { parsed: parsedRow };
@@ -971,7 +993,12 @@ function inspectSheet(sheet: XLSX.WorkSheet, sheetName: string): SheetInspection
 
   for (let r = headerInfo.headerRowIndex + 1; r < rawRows.length; r++) {
     const row = rawRows[r];
-    const { parsed, skipped } = parseRowData(row, headerInfo.columnMap, r + 1);
+    const { parsed, skipped } = parseRowData(
+      row,
+      headerInfo.columnMap,
+      headerInfo.rawColumns,
+      r + 1,
+    );
 
     if (skipped) {
       skippedList.push(skipped);

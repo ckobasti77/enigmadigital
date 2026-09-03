@@ -62,6 +62,18 @@
   --warning: #fbbf24;
   --danger: #fb7185;
 
+  /* ── Temperatura leada (§5) ────────────────────────────────────────────────
+     Temperatura leada — jedina boja u tabeli koja nosi značenje.
+     Izvedene iz --chart-* palete, ali kao NAMENSKI tokeni u app/globals.css, da
+     se značenje ne veže za redni broj u grafikonu:
+     ------------------------------------------------------------------------ */
+  --temp-cold: #1c9dd6;   /* hladno plavo  */
+  --temp-warm: #c98500;   /* žuto-narandžasto */
+  --temp-hot:  #e04a3c;   /* crveno */
+  --temp-cold-bg: rgba(28, 157, 214, 0.10);
+  --temp-warm-bg: rgba(201, 133, 0,  0.10);
+  --temp-hot-bg:  rgba(224, 74,  60,  0.10);
+
   /* ── Charts — categorical ──────────────────────────────────────────────────
      Fixed order, never cycled: slot 1 is always slot 1, whatever the filter
      leaves on screen. A seventh series does not get a generated hue — it folds
@@ -310,6 +322,12 @@
   --color-chart-5: var(--chart-5);
   --color-chart-6: var(--chart-6);
   --color-chart-grid: var(--chart-grid);
+  --color-temp-cold: var(--temp-cold);
+  --color-temp-warm: var(--temp-warm);
+  --color-temp-hot: var(--temp-hot);
+  --color-temp-cold-bg: var(--temp-cold-bg);
+  --color-temp-warm-bg: var(--temp-warm-bg);
+  --color-temp-hot-bg: var(--temp-hot-bg);
 
   /* Semantic (shadcn) → utilities */
   --color-background: var(--background);

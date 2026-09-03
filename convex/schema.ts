@@ -3208,6 +3208,17 @@ export default defineSchema({
     // Poreklo unosa: "inbound" (samoinicijativni kontakt) ili "import" (ručni uvoz tabele).
     // Neophodno jer se inbound leadovi u interfejsu vizuelno izdvajaju kao prioritetni (§1).
     origin: v.union(v.literal("inbound"), v.literal("import")),
+
+    // Temperatura leada (§1, §3) — trajno polje na firmi
+    temperatura: v.optional(
+      v.union(
+        v.literal("nova_firma"),
+        v.literal("cold"),
+        v.literal("warm"),
+        v.literal("hot"),
+      ),
+    ),
+    temperaturaPromenjenaAt: v.optional(v.number()),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_pib", ["workspaceId", "pib"])
@@ -3576,6 +3587,8 @@ export default defineSchema({
     rowsParsed: v.number(),
     rowsSkipped: v.number(),
     warnings: v.array(v.string()),
+    // Kolone koje je čovek sklonio u staging koraku (§3)
+    skriveneKolone: v.array(v.string()),
 
     appliedAt: v.optional(v.number()),
     revertedAt: v.optional(v.number()),
@@ -3623,6 +3636,22 @@ export default defineSchema({
       derivedSignals: v.array(v.string()),
       derivedFields: v.optional(v.array(v.string())),
     }),
+
+    // Ceo red kako je stigao iz fajla, u izvornom redosledu kolona (§3)
+    sirovo: v.array(
+      v.object({ kolona: v.string(), vrednost: v.string() }),
+    ),
+
+    // Temperatura postavljena u staging koraku; prenosi se na lead pri uvozu (§3)
+    temperatura: v.union(
+      v.literal("nova_firma"),
+      v.literal("cold"),
+      v.literal("warm"),
+      v.literal("hot"),
+    ),
+
+    // Meko brisanje (§3)
+    obrisan: v.boolean(),
 
     // Deduplikacija i spajanje
     matchedCompanyId: v.optional(v.id("leadCompanies")),

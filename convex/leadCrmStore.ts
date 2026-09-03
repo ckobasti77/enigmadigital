@@ -768,7 +768,13 @@ export const getLeadCrm = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
@@ -839,7 +845,13 @@ export const listByOwner = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     const maxRows = Math.min(Math.max(args.limit ?? 50, 1), 200);
 
@@ -892,7 +904,13 @@ export const listByStage = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     const maxRows = Math.min(Math.max(args.limit ?? 50, 1), 200);
 
@@ -948,7 +966,13 @@ export const listOverdue = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     const maxRows = Math.min(Math.max(args.limit ?? 50, 1), 200);
     const now = Date.now();
@@ -1000,5 +1024,56 @@ export const listOverdue = query({
       pregledano: scanned.length,
       now,
     };
+  },
+});
+
+/**
+ * Postavlja temperaturu pojedinačne firme (§10.3).
+ *
+ * Upisuje:
+ * - `temperatura`: nova_firma | cold | warm | hot
+ * - `temperaturaPromenjenaAt`: trenutno vreme (Date.now())
+ * - `updatedAt`: trenutno vreme (Date.now())
+ *
+ * Povratak na "nova_firma" je dozvoljen i takođe beleži vreme odluke.
+ */
+export const setCompanyTemperatura = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    companyId: v.id("leadCompanies"),
+    temperatura: v.union(
+      v.literal("nova_firma"),
+      v.literal("cold"),
+      v.literal("warm"),
+      v.literal("hot"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Provera radnog prostora: requireMembership vraća prostor samog pozivaoca,
+    // pa poredimo sa args.workspaceId (NIKAKO args sa args).
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+
+    const company = await ctx.db.get(args.companyId);
+    if (!company || company.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Firma nije pronađena u ovom radnom prostoru.",
+      });
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(args.companyId, {
+      temperatura: args.temperatura,
+      temperaturaPromenjenaAt: now,
+      updatedAt: now,
+    });
+
+    return { success: true };
   },
 });

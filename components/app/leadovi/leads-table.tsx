@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import type { Id, Doc } from "@/convex/_generated/dataModel";
 import type { LeadStage } from "@/convex/leadCrmStore";
 import type { LeadScore, InvalidRule } from "@/convex/lib/leadScoring";
+
+type TemperaturaType = "nova_firma" | "cold" | "warm" | "hot";
 import {
   AlertCircle,
   AlertTriangle,
@@ -98,6 +101,34 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
   const [page, setPage] = useState<number>(1);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDirection>("desc");
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const setCompanyTemperaturaMutation = useMutation(
+    api.leadCrmStore.setCompanyTemperatura,
+  );
+
+  const handleTemperaturaChange = async (
+    companyId: Id<"leadCompanies">,
+    temperatura: TemperaturaType,
+  ) => {
+    try {
+      setActionError(null);
+      await setCompanyTemperaturaMutation({
+        workspaceId,
+        companyId,
+        temperatura,
+      });
+    } catch (err: unknown) {
+      if (err instanceof ConvexError) {
+        const data = err.data as { code?: string; message?: string };
+        setActionError(`[${data.code || "greška"}]: ${data.message || err.message}`);
+      } else if (err instanceof Error) {
+        setActionError(err.message);
+      } else {
+        setActionError(String(err));
+      }
+    }
+  };
 
   // Query za leadove po fazi
   const stageData = useQuery(
@@ -360,6 +391,13 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
         </div>
       )}
 
+      {/* Greška pri promeni temperature */}
+      {actionError && (
+        <FeedbackNote tone="danger" title="Greška pri promeni temperature">
+          {actionError}
+        </FeedbackNote>
+      )}
+
       {/* Glavna tabela leadova */}
       <Card className="border-line bg-surface">
         <CardContent className="p-0">
@@ -429,6 +467,9 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
 
                   {/* Faza toka */}
                   <TableHead className="w-28 font-semibold text-text-muted">Faza</TableHead>
+
+                  {/* Temperatura */}
+                  <TableHead className="w-32 font-semibold text-text-muted">Temperatura</TableHead>
 
                   {/* Vlasnik */}
                   <TableHead className="w-28 font-semibold text-text-muted">Vlasnik</TableHead>
@@ -503,6 +544,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
                       <TableCell><Skeleton className="h-8 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-8 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-8 w-28" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-32" /></TableCell>
@@ -511,7 +553,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
                   ))
                 ) : sortedItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-12 text-center text-text-muted">
+                    <TableCell colSpan={9} className="py-12 text-center text-text-muted">
                       {filterMode === "stage"
                         ? `Nema leadova u fazi „${leadStageLabel(selectedStage)}".`
                         : "Nema zaostalih leadova u radnom prostoru."}
@@ -538,7 +580,15 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
                     return (
                       <TableRow
                         key={assignment._id}
-                        className="border-line transition-colors hover:bg-surface-raised/60"
+                        className={cn(
+                          "border-line transition-colors hover:bg-surface-raised/60",
+                          company?.temperatura === "hot" &&
+                            "border-l-[3px] border-l-[var(--temp-hot)] bg-[var(--temp-hot-bg)]",
+                          company?.temperatura === "warm" &&
+                            "border-l-[3px] border-l-[var(--temp-warm)] bg-[var(--temp-warm-bg)]",
+                          company?.temperatura === "cold" &&
+                            "border-l-[3px] border-l-[var(--temp-cold)] bg-[var(--temp-cold-bg)]",
+                        )}
                       >
                         {/* 1. Firma i grad */}
                         <TableCell className="font-medium text-foreground">
@@ -602,7 +652,41 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
                           </span>
                         </TableCell>
 
-                        {/* 5. Vlasnik */}
+                        {/* 5. Temperatura */}
+                        <TableCell>
+                          {companyId ? (
+                            <select
+                              value={company?.temperatura || "nova_firma"}
+                              onChange={(e) =>
+                                handleTemperaturaChange(
+                                  companyId,
+                                  e.target.value as TemperaturaType,
+                                )
+                              }
+                              className={cn(
+                                "w-full rounded-md border px-2 py-1 text-xs font-medium outline-none transition-colors cursor-pointer",
+                                company?.temperatura === "hot" &&
+                                  "border-[var(--temp-hot)]/40 bg-[var(--temp-hot-bg)] text-foreground font-semibold",
+                                company?.temperatura === "warm" &&
+                                  "border-[var(--temp-warm)]/40 bg-[var(--temp-warm-bg)] text-foreground font-semibold",
+                                company?.temperatura === "cold" &&
+                                  "border-[var(--temp-cold)]/40 bg-[var(--temp-cold-bg)] text-foreground font-semibold",
+                                (!company?.temperatura ||
+                                  company?.temperatura === "nova_firma") &&
+                                  "border-line-soft bg-surface-raised text-text-secondary",
+                              )}
+                            >
+                              <option value="nova_firma" className="bg-surface text-foreground">Nova firma</option>
+                              <option value="cold" className="bg-surface text-foreground">Cold</option>
+                              <option value="warm" className="bg-surface text-foreground">Warm</option>
+                              <option value="hot" className="bg-surface text-foreground">Hot</option>
+                            </select>
+                          ) : (
+                            <span className="text-text-muted/60 select-none">—</span>
+                          )}
+                        </TableCell>
+
+                        {/* 6. Vlasnik */}
                         <TableCell className="text-xs text-text-muted">
                           <div className="flex items-center gap-1.5">
                             <User className="size-3.5 text-text-soft shrink-0" />

@@ -155,10 +155,10 @@ export function NovostiTable({
                 Naslov
               </TableHead>
               <TableHead className="w-[15%] text-xs font-semibold text-text-muted">
-                Vrsta (§3)
+                Vrsta
               </TableHead>
               <TableHead className="w-[20%] text-xs font-semibold text-text-muted">
-                Kategorija (§2)
+                Kategorija
               </TableHead>
               <TableHead className="w-[12%] text-xs font-semibold text-text-muted">
                 Status

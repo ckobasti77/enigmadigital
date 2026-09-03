@@ -37,6 +37,11 @@ import type { ParsedLeadRow } from "./lib/leadImportParse";
  * ============================================================================
  */
 
+export const rawLeadCellValidator = v.object({
+  kolona: v.string(),
+  vrednost: v.string(),
+});
+
 export const parsedLeadRowValidator = v.object({
   nazivFirme: v.optional(v.string()),
   ulica: v.optional(v.string()),
@@ -69,6 +74,8 @@ export const parsedLeadRowValidator = v.object({
   // Polja koja je parser ZAKLJUČIO, ne pročitao (vidi ParsedLeadRow.derivedFields).
   // Opciono zbog redova upisanih pre nego što je polje postojalo.
   derivedFields: v.optional(v.array(v.string())),
+  // SVE ćelije reda iz izvornog fajla u izvornom redosledu (§2, §3)
+  sirovo: v.optional(v.array(rawLeadCellValidator)),
 });
 
 export type RowConflict = {
@@ -427,6 +434,7 @@ export const createImport = mutation({
       rowsParsed: args.rows.length,
       rowsSkipped: args.skipped.length,
       warnings: args.warnings,
+      skriveneKolone: [],
     });
 
     for (let i = 0; i < args.rows.length; i++) {
@@ -480,7 +488,31 @@ export const createImport = mutation({
         importId,
         sourceSheet: sheetName,
         sourceRowIndex: rowIndex,
-        parsed: parsedRow,
+        parsed: {
+          nazivFirme: parsedRow.nazivFirme,
+          ulica: parsedRow.ulica,
+          opstina: parsedRow.opstina,
+          grad: parsedRow.grad,
+          telefon: parsedRow.telefon,
+          telefonNapomena: parsedRow.telefonNapomena,
+          email: parsedRow.email,
+          sajt: parsedRow.sajt,
+          imeOsobe: parsedRow.imeOsobe,
+          uloga: parsedRow.uloga,
+          ocena: parsedRow.ocena,
+          companyWallUrl: parsedRow.companyWallUrl,
+          companyWallTacnost: parsedRow.companyWallTacnost,
+          pib: parsedRow.pib,
+          maticniBroj: parsedRow.maticniBroj,
+          sifraDelatnosti: parsedRow.sifraDelatnosti,
+          napomena: parsedRow.napomena,
+          izvori: parsedRow.izvori,
+          derivedSignals: parsedRow.derivedSignals,
+          derivedFields: parsedRow.derivedFields,
+        },
+        sirovo: parsedRow.sirovo ?? [],
+        temperatura: "nova_firma",
+        obrisan: false,
         matchedCompanyId: matchRes.matchedCompanyId,
         matchedBy: matchRes.matchedBy,
         decision,
@@ -515,7 +547,13 @@ export const setRowDecision = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     const row = await ctx.db.get(args.rowId);
     if (!row || row.workspaceId !== args.workspaceId) {
@@ -543,6 +581,56 @@ export const setRowDecision = mutation({
  * - Izvedeni podaci dobijaju `confidence: "priblizno"` (Rule 3).
  * - Svi unosi dobijaju `origin: "import"`.
  */
+/**
+ * Osigurava da uvezena firma ima zaduženje u `leadAssignments` (§11.5).
+ * Ako već postoji zaduženje preko indeksa `by_workspace_company`, ne menja se ništa.
+ * Ako ne postoji, kreira se novi red sa fazom "nov", vremenima i događajem u `leadStageEvents`.
+ */
+async function ensureAssignment(
+  ctx: MutationCtx,
+  args: {
+    workspaceId: Id<"workspaces">;
+    companyId: Id<"leadCompanies">;
+    ownerUserId: Id<"users">;
+    actorUserId: Id<"users">;
+    now: number;
+  },
+): Promise<{ assignment: Doc<"leadAssignments">; created: boolean }> {
+  const existing = await ctx.db
+    .query("leadAssignments")
+    .withIndex("by_workspace_company", (q) =>
+      q.eq("workspaceId", args.workspaceId).eq("companyId", args.companyId),
+    )
+    .first();
+
+  if (existing) {
+    return { assignment: existing, created: false };
+  }
+
+  const assignmentId = await ctx.db.insert("leadAssignments", {
+    workspaceId: args.workspaceId,
+    companyId: args.companyId,
+    ownerUserId: args.ownerUserId,
+    stage: "nov",
+    createdAt: args.now,
+    updatedAt: args.now,
+  });
+
+  await ctx.db.insert("leadStageEvents", {
+    workspaceId: args.workspaceId,
+    companyId: args.companyId,
+    kind: "dodela",
+    fromValue: undefined,
+    toValue: String(args.ownerUserId),
+    actorUserId: args.actorUserId,
+    note: "Dodeljen pri uvozu tabele",
+    occurredAt: args.now,
+  });
+
+  const assignment = (await ctx.db.get(assignmentId))!;
+  return { assignment, created: true };
+}
+
 export const applyImport = mutation({
   args: {
     workspaceId: v.id("workspaces"),
@@ -550,6 +638,12 @@ export const applyImport = mutation({
   },
   handler: async (ctx, args) => {
     const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     const importDoc = await ctx.db.get(args.importId);
     if (!importDoc || importDoc.workspaceId !== args.workspaceId) {
@@ -585,10 +679,18 @@ export const applyImport = mutation({
     let mergedCount = 0;
     let skippedCount = 0;
     let unresolvedSkippedCount = 0;
+    let assignedCount = 0;
 
     const now = Date.now();
+    const ownerUserId = importDoc.uploadedBy ?? membership.userId;
 
     for (const r of rows) {
+      // 0. Preskoči meko obrisane redove (§1, §3, §6)
+      if (r.obrisan === true) {
+        skippedCount++;
+        continue;
+      }
+
       // 1. Nerazrešeni redovi se preskaču i broje posebno
       if (r.decision === "nerazreseno") {
         unresolvedSkippedCount++;
@@ -622,14 +724,27 @@ export const applyImport = mutation({
           companyWallUrl: p.companyWallUrl,
           firstSeenSource: p.izvori[0] ?? "import",
           origin: "import",
+          temperatura: r.temperatura,
+          temperaturaPromenjenaAt: r.temperatura !== "nova_firma" ? now : undefined,
           createdAt: now,
           updatedAt: now,
-          createdBy: importDoc.uploadedBy ?? membership.userId,
+          createdBy: ownerUserId,
         });
 
         await ctx.db.patch(r._id, { createdCompanyId: companyId });
         newCompaniesCount++;
         appliedCount++;
+
+        const assignmentRes = await ensureAssignment(ctx, {
+          workspaceId: args.workspaceId,
+          companyId,
+          ownerUserId,
+          actorUserId: membership.userId,
+          now,
+        });
+        if (assignmentRes.created) {
+          assignedCount++;
+        }
 
         // PROVENANCE ZAPISI ZA FIRMU (§2.4, Rule 3)
         // Naziv
@@ -941,11 +1056,24 @@ export const applyImport = mutation({
         if (!existing.municipality && p.opstina) patch.municipality = p.opstina;
         if (!existing.city && p.grad) patch.city = p.grad;
         if (!existing.companyWallUrl && p.companyWallUrl) patch.companyWallUrl = p.companyWallUrl;
+        if (r.temperatura && r.temperatura !== "nova_firma") {
+          patch.temperatura = r.temperatura;
+          patch.temperaturaPromenjenaAt = now;
+        }
         patch.updatedAt = now;
 
         await ctx.db.patch(targetCompanyId, patch);
 
-        // UVEK zabeleži poreklo dolaznih tvrdnji u leadFieldProvenance (§2.4)
+        const mergeAssignmentRes = await ensureAssignment(ctx, {
+          workspaceId: args.workspaceId,
+          companyId: targetCompanyId,
+          ownerUserId,
+          actorUserId: membership.userId,
+          now,
+        });
+        if (mergeAssignmentRes.created) {
+          assignedCount++;
+        }
         if (p.nazivFirme) {
           await ctx.db.insert("leadFieldProvenance", {
             workspaceId: args.workspaceId,
@@ -1083,6 +1211,7 @@ export const applyImport = mutation({
       mergedCount,
       skippedCount,
       unresolvedSkippedCount,
+      assignedCount,
     };
   },
 });
@@ -1102,7 +1231,13 @@ export const revertImport = mutation({
     importId: v.id("leadImports"),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     const importDoc = await ctx.db.get(args.importId);
     if (!importDoc || importDoc.workspaceId !== args.workspaceId) {
@@ -1128,6 +1263,7 @@ export const revertImport = mutation({
 
     let revertedCompaniesCount = 0;
     let skippedModifiedCount = 0;
+    let revertedAssignmentsCount = 0;
 
     const appliedTime = importDoc.appliedAt ?? 0;
 
@@ -1183,6 +1319,31 @@ export const revertImport = mutation({
               await ctx.db.delete(pr._id);
             }
 
+            // 4b. Dodele te firme
+            const assignments = await ctx.db
+              .query("leadAssignments")
+              .withIndex("by_workspace_company", (q) =>
+                q.eq("workspaceId", args.workspaceId).eq("companyId", company._id),
+              )
+              .collect();
+            for (const a of assignments) {
+              await ctx.db.delete(a._id);
+              revertedAssignmentsCount++;
+            }
+
+            // 4c. Događaji faze koje je kreirao ovaj uvoz
+            const stageEvents = await ctx.db
+              .query("leadStageEvents")
+              .withIndex("by_workspace_company", (q) =>
+                q.eq("workspaceId", args.workspaceId).eq("companyId", company._id),
+              )
+              .collect();
+            for (const ev of stageEvents) {
+              if (ev.kind === "dodela" && ev.note === "Dodeljen pri uvozu tabele") {
+                await ctx.db.delete(ev._id);
+              }
+            }
+
             // 5. Sama firma
             await ctx.db.delete(company._id);
             revertedCompaniesCount++;
@@ -1201,6 +1362,7 @@ export const revertImport = mutation({
     return {
       revertedCompaniesCount,
       skippedModifiedCount,
+      revertedAssignmentsCount,
     };
   },
 });
@@ -1216,7 +1378,13 @@ export const getImport = query({
     importId: v.id("leadImports"),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
     const doc = await ctx.db.get(args.importId);
     if (!doc || doc.workspaceId !== args.workspaceId) {
       return null;
@@ -1242,7 +1410,13 @@ export const listImportRows = query({
     ),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     if (args.decision) {
       return await ctx.db
@@ -1270,12 +1444,128 @@ export const listImports = query({
     workspaceId: v.id("workspaces"),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     return await ctx.db
       .query("leadImports")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
       .order("desc")
       .collect();
+  },
+});
+
+/**
+ * Postavlja temperaturu pojedinačnog reda u staging-u (§1, §3, §6).
+ */
+export const setRowTemperatura = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    rowId: v.id("leadImportRows"),
+    temperatura: v.union(
+      v.literal("nova_firma"),
+      v.literal("cold"),
+      v.literal("warm"),
+      v.literal("hot"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Poredi se sa radnim prostorom POZIVAOCA, ne sa onim iz argumenata.
+    // `requireMembership` vraća workspace samog korisnika i ne gleda nijedan
+    // argument; ako se `args.workspaceId` poredi sam sa sobom, provera je
+    // prazna — pozivalac prosto pošalje tuđi id i prođe.
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+
+    const row = await ctx.db.get(args.rowId);
+    if (!row || row.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Red uvoza nije pronađen.",
+      });
+    }
+
+    await ctx.db.patch(args.rowId, { temperatura: args.temperatura });
+    return { success: true };
+  },
+});
+
+/**
+ * Postavlja meko brisanje za pojedinačni red u staging-u (§1, §3, §6).
+ */
+export const setRowObrisan = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    rowId: v.id("leadImportRows"),
+    obrisan: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    // Poredi se sa radnim prostorom POZIVAOCA, ne sa onim iz argumenata.
+    // `requireMembership` vraća workspace samog korisnika i ne gleda nijedan
+    // argument; ako se `args.workspaceId` poredi sam sa sobom, provera je
+    // prazna — pozivalac prosto pošalje tuđi id i prođe.
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+
+    const row = await ctx.db.get(args.rowId);
+    if (!row || row.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Red uvoza nije pronađen.",
+      });
+    }
+
+    await ctx.db.patch(args.rowId, { obrisan: args.obrisan });
+    return { success: true };
+  },
+});
+
+/**
+ * Ažurira skrivene kolone za ceo uvoz (§3, §6).
+ */
+export const setImportHiddenColumns = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    importId: v.id("leadImports"),
+    skriveneKolone: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Poredi se sa radnim prostorom POZIVAOCA, ne sa onim iz argumenata.
+    // `requireMembership` vraća workspace samog korisnika i ne gleda nijedan
+    // argument; ako se `args.workspaceId` poredi sam sa sobom, provera je
+    // prazna — pozivalac prosto pošalje tuđi id i prođe.
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+
+    const imp = await ctx.db.get(args.importId);
+    if (!imp || imp.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Uvoz nije pronađen.",
+      });
+    }
+
+    await ctx.db.patch(args.importId, { skriveneKolone: args.skriveneKolone });
+    return { success: true };
   },
 });

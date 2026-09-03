@@ -92,25 +92,21 @@ export function PublishReadinessPanel({
           <div className="flex items-center gap-2">
             <FileCheck2 className="size-4 text-accent-400" />
             <h3 className="heading-caps text-micro font-medium text-foreground">
-              Spremnost za objavu (§4 Kapije)
+              Spremnost za objavu
             </h3>
           </div>
-          <p className="mt-1 text-xs text-text-muted">
-            Ovo su blokade, ne upozorenja. Publish mutacija odbija objavu dok
-            sve četiri kapije nisu ispunjene.
-          </p>
         </div>
 
         <div className="flex items-center gap-2">
           {gates.allPassed ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success">
               <CheckCircle2 className="size-3.5" />
-              Sve kapije ispunjene
+              Spremno za objavu
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/15 px-2.5 py-1 text-xs font-medium text-warning">
               <Lock className="size-3.5" />
-              Blokirano ({[
+              Nedostaje ({[
                 gates.ownProof.passed,
                 gates.humanizer.passed,
                 gates.coverAlt.passed,
@@ -125,7 +121,7 @@ export function PublishReadinessPanel({
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {/* Kapija 1 */}
         <GateItem
-          title="1. Vlasnički dokaz (§2.2, §4.1)"
+          title="1. Vlasnički dokaz"
           passed={gates.ownProof.passed}
           reason={gates.ownProof.reason}
           extraNote={gates.ownProof.note}
@@ -133,7 +129,7 @@ export function PublishReadinessPanel({
 
         {/* Kapija 2 */}
         <GateItem
-          title="2. Humanizer provera (§4.2)"
+          title="2. Humanizer provera"
           passed={gates.humanizer.passed}
           reason={
             gates.humanizer.passed && gates.humanizer.timestamp
@@ -158,14 +154,14 @@ export function PublishReadinessPanel({
 
         {/* Kapija 3 */}
         <GateItem
-          title="3. Naslovna slika i ALT opis (§4.3)"
+          title="3. Naslovna slika i ALT opis"
           passed={gates.coverAlt.passed}
           reason={gates.coverAlt.reason}
         />
 
         {/* Kapija 4 */}
         <GateItem
-          title="4. Podnaslov / dek (§4.4)"
+          title="4. Podnaslov / dek"
           passed={gates.dek.passed}
           reason={gates.dek.reason}
         />
@@ -223,11 +219,9 @@ export function PublishReadinessPanel({
             <span>Post mora prvo biti kreiran/sačuvan kao nacrt.</span>
           ) : !gates.allPassed ? (
             <span>
-              Dugme je zaključano dok sve četiri kapije ne budu zelene.
             </span>
           ) : (
             <span className="text-success">
-              Svi uslovi su ispunjeni. Post je spreman za objavu na sajtu.
             </span>
           )}
         </div>

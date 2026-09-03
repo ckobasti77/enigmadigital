@@ -1,27 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
-  AlertCircle,
   AlertTriangle,
   ArrowLeft,
   Building2,
-  CheckCircle2,
-  ChevronRight,
   ExternalLink,
-  Info,
   LoaderCircle,
-  Phone,
   Play,
   RotateCcw,
-  ShieldAlert,
-  Sparkles,
+  X,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -46,11 +40,8 @@ import { IMPORT_STATUS_LABELS } from "./lead-labels";
 import { cn } from "@/lib/utils";
 import {
   ImportRowDialog,
-  formatRatingDisplay,
   type StagingRowDoc,
 } from "./import-row-dialog";
-
-type DecisionType = "nova_firma" | "spoji" | "preskoci" | "nerazreseno";
 
 type ApplyResult = {
   appliedCount: number;
@@ -58,32 +49,49 @@ type ApplyResult = {
   mergedCount: number;
   skippedCount: number;
   unresolvedSkippedCount: number;
+  assignedCount: number;
 };
 
-const MATCHED_BY_TEXT: Record<string, string> = {
-  pib: "PIB",
-  companywall: "CompanyWall URL",
-  domain: "Domen / sajt",
-  name_city: "Naziv i grad",
-  phone: "Telefon",
-};
+type TemperaturaType = "nova_firma" | "cold" | "warm" | "hot";
 
-/** Zaseban skup vrednosti od `matchedBy` — ne sme da deli isti rečnik. */
-const SUPPRESSION_MATCH_TEXT: Record<string, string> = {
-  pib: "PIB",
-  domain: "domen",
-  phone: "telefon",
-  email: "e-mail",
-  companyId: "firma već na listi",
-};
-
-/** Kratki nazivi polja za oznaku „nije moglo da se proveri". */
-const SUPPRESSION_FIELD_TEXT: Record<string, string> = {
-  pib: "PIB",
-  domain: "domen",
-  phone: "telefon",
-  email: "e-mail",
-  companyId: "firma",
+const TEMP_CONFIG: Record<
+  TemperaturaType,
+  {
+    label: string;
+    rowBg: string;
+    hoverBg: string;
+    borderColor: string;
+    badgeClass: string;
+  }
+> = {
+  nova_firma: {
+    label: "Nova firma",
+    rowBg: "var(--surface)",
+    hoverBg: "var(--surface-raised)",
+    borderColor: "var(--line)",
+    badgeClass: "border-line-soft text-text-muted bg-surface",
+  },
+  cold: {
+    label: "Cold",
+    rowBg: "var(--temp-cold-row)",
+    hoverBg: "var(--temp-cold-row-hover)",
+    borderColor: "var(--temp-cold)",
+    badgeClass: "border-[var(--temp-cold)]/40 text-[var(--temp-cold)] bg-[var(--temp-cold-bg)]",
+  },
+  warm: {
+    label: "Warm",
+    rowBg: "var(--temp-warm-row)",
+    hoverBg: "var(--temp-warm-row-hover)",
+    borderColor: "var(--temp-warm)",
+    badgeClass: "border-[var(--temp-warm)]/40 text-[var(--temp-warm)] bg-[var(--temp-warm-bg)]",
+  },
+  hot: {
+    label: "Hot",
+    rowBg: "var(--temp-hot-row)",
+    hoverBg: "var(--temp-hot-row-hover)",
+    borderColor: "var(--temp-hot)",
+    badgeClass: "border-[var(--temp-hot)]/40 text-[var(--temp-hot)] bg-[var(--temp-hot-bg)]",
+  },
 };
 
 export function ImportReviewTable({
@@ -96,35 +104,150 @@ export function ImportReviewTable({
   onBack?: () => void;
 }) {
   const [selectedRow, setSelectedRow] = useState<StagingRowDoc | null>(null);
-  const [decisionFilter, setDecisionFilter] = useState<DecisionType | undefined>(undefined);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [applyDialogOpen, setApplyDialogOpen] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [applyResult, setApplyResult] = useState<ApplyResult | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [isReverting, setIsReverting] = useState(false);
+  const [revertError, setRevertError] = useState<string | null>(null);
+  const [revertResult, setRevertResult] = useState<{
+    revertedCompaniesCount: number;
+    cleanedRowsCount: number;
+    skippedCompaniesCount: number;
+  } | null>(null);
 
   const importDoc = useQuery(api.leadImportStore.getImport, {
     workspaceId,
     importId,
   });
 
-  // Query za ukupan zbir po odlukama
   const allRows = useQuery(api.leadImportStore.listImportRows, {
     workspaceId,
     importId,
   });
 
-  // Query sa server-side filterom po odluci
-  const filteredRows = useQuery(api.leadImportStore.listImportRows, {
-    workspaceId,
-    importId,
-    decision: decisionFilter,
-  });
-
   const setRowDecisionMutation = useMutation(api.leadImportStore.setRowDecision);
+  const setRowTemperaturaMutation = useMutation(api.leadImportStore.setRowTemperatura);
+  const setRowObrisanMutation = useMutation(api.leadImportStore.setRowObrisan);
+  const revertImportMutation = useMutation(api.leadImportStore.revertImport);
+  const setImportHiddenColumnsMutation = useMutation(api.leadImportStore.setImportHiddenColumns);
   const applyImportMutation = useMutation(api.leadImportStore.applyImport);
 
-  const handleDecisionChange = async (rowId: Id<"leadImportRows">, decision: DecisionType) => {
+  const isReadOnly = importDoc?.status !== "u_pregledu";
+  const isPrimenjen = importDoc?.status === "primenjen";
+
+  const handleTemperaturaChange = async (
+    rowId: Id<"leadImportRows">,
+    temperatura: TemperaturaType,
+  ) => {
+    try {
+      setActionError(null);
+      await setRowTemperaturaMutation({
+        workspaceId,
+        rowId,
+        temperatura,
+      });
+      if (selectedRow && selectedRow._id === rowId) {
+        setSelectedRow((prev) => (prev ? { ...prev, temperatura } : null));
+      }
+    } catch (err: unknown) {
+      if (err instanceof ConvexError) {
+        const data = err.data as { code?: string; message?: string };
+        setActionError(`[${data.code || "greška"}]: ${data.message || err.message}`);
+      } else if (err instanceof Error) {
+        setActionError(err.message);
+      } else {
+        setActionError(String(err));
+      }
+    }
+  };
+
+  const handleRowDelete = async (rowId: Id<"leadImportRows">) => {
+    try {
+      setActionError(null);
+      await setRowObrisanMutation({
+        workspaceId,
+        rowId,
+        obrisan: true,
+      });
+      if (selectedRow && selectedRow._id === rowId) {
+        setSelectedRow(null);
+      }
+    } catch (err: unknown) {
+      if (err instanceof ConvexError) {
+        const data = err.data as { code?: string; message?: string };
+        setActionError(`[${data.code || "greška"}]: ${data.message || err.message}`);
+      } else if (err instanceof Error) {
+        setActionError(err.message);
+      } else {
+        setActionError(String(err));
+      }
+    }
+  };
+
+  const handleHideColumn = async (colName: string) => {
+    try {
+      setActionError(null);
+      const currentHidden = importDoc?.skriveneKolone ?? [];
+      const updated = Array.from(new Set([...currentHidden, colName]));
+      await setImportHiddenColumnsMutation({
+        workspaceId,
+        importId,
+        skriveneKolone: updated,
+      });
+    } catch (err: unknown) {
+      if (err instanceof ConvexError) {
+        const data = err.data as { code?: string; message?: string };
+        setActionError(`[${data.code || "greška"}]: ${data.message || err.message}`);
+      } else if (err instanceof Error) {
+        setActionError(err.message);
+      } else {
+        setActionError(String(err));
+      }
+    }
+  };
+
+  const handleRestoreAll = async () => {
+    if (!allRows) return;
+    try {
+      setActionError(null);
+      const hiddenCols = importDoc?.skriveneKolone ?? [];
+      if (hiddenCols.length > 0) {
+        await setImportHiddenColumnsMutation({
+          workspaceId,
+          importId,
+          skriveneKolone: [],
+        });
+      }
+      const deletedRows = allRows.filter((r) => r.obrisan === true);
+      if (deletedRows.length > 0) {
+        await Promise.all(
+          deletedRows.map((r) =>
+            setRowObrisanMutation({
+              workspaceId,
+              rowId: r._id,
+              obrisan: false,
+            }),
+          ),
+        );
+      }
+    } catch (err: unknown) {
+      if (err instanceof ConvexError) {
+        const data = err.data as { code?: string; message?: string };
+        setActionError(`[${data.code || "greška"}]: ${data.message || err.message}`);
+      } else if (err instanceof Error) {
+        setActionError(err.message);
+      } else {
+        setActionError(String(err));
+      }
+    }
+  };
+
+  const handleDecisionChange = async (
+    rowId: Id<"leadImportRows">,
+    decision: StagingRowDoc["decision"],
+  ) => {
     try {
       setActionError(null);
       await setRowDecisionMutation({
@@ -132,7 +255,6 @@ export function ImportReviewTable({
         rowId,
         decision,
       });
-      // Ako je otvoren dijalog za taj red, ažuriramo i lokalno stanje dijaloga
       if (selectedRow && selectedRow._id === rowId) {
         setSelectedRow((prev) => (prev ? { ...prev, decision } : null));
       }
@@ -179,13 +301,7 @@ export function ImportReviewTable({
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-9 w-32" />
         </div>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-20 w-full" />
-        </div>
+        <Skeleton className="h-10 w-full" />
         <Skeleton className="h-96 w-full" />
       </div>
     );
@@ -207,18 +323,53 @@ export function ImportReviewTable({
     );
   }
 
-  const isReadOnly = importDoc.status !== "u_pregledu";
+  // Filtriranje redova: samo oni koji nisu meko obrisani
+  const visibleRows = allRows.filter((r) => r.obrisan !== true);
+  const deletedRows = allRows.filter((r) => r.obrisan === true);
 
-  // Brojači odluka iz allRows
-  const countNovaFirma = allRows.filter((r) => r.decision === "nova_firma").length;
-  const countSpoji = allRows.filter((r) => r.decision === "spoji").length;
-  const countPreskoci = allRows.filter((r) => r.decision === "preskoci").length;
-  const countNerazreseno = allRows.filter((r) => r.decision === "nerazreseno").length;
-  const totalRowsCount = allRows.length;
+  // Kolone su UNIJA svih redova, u redosledu prvog pojavljivanja.
+  //
+  // Ranije se uzimao prvi red koji ima `sirovo` i njegove kolone su bile CELA
+  // tabela. Parser danas dopunjava svaki red do dužine zaglavlja, pa bi to
+  // uglavnom radilo — ali „uglavnom radi jer se drugi fajl ponaša lepo" nije
+  // garancija. Jedan kraći red na pogrešnom mestu i tabela tiho izgubi kolone.
+  const kolonaRedosled: string[] = [];
+  const vidjene = new Set<string>();
+  for (const r of allRows) {
+    for (const c of r.sirovo ?? []) {
+      if (!vidjene.has(c.kolona)) {
+        vidjene.add(c.kolona);
+        kolonaRedosled.push(c.kolona);
+      }
+    }
+  }
+  const allColumns: string[] = kolonaRedosled;
+
+  // Uvoz napravljen pre nego što je čuvanje sirovih kolona uvedeno nema šta da
+  // prikaže. To NIJE isto što i prazan uvoz i ne sme tako da izgleda.
+  const bezSirovihKolona = allRows.length > 0 && allColumns.length === 0;
+
+  // Fajl često već ima svoju kolonu rednog broja. Kad je ima, interni redni
+  // broj je druga kolona sa istim značenjem jedna do druge — čovek gleda dva
+  // broja i pita se koji je pravi. Prikazuje se samo kad fajl svoj nema.
+  const fajlImaRedniBroj = allColumns.some(
+    (c) => ["#", "br", "br.", "redni broj", "rb", "no", "no."].includes(c.trim().toLowerCase()),
+  );
+  const hiddenColumns: string[] = importDoc.skriveneKolone ?? [];
+  const hiddenSet = new Set(hiddenColumns);
+  const visibleColumns = allColumns.filter((col) => !hiddenSet.has(col));
+
+  // Statistika za traku stanja
+  const countHot = visibleRows.filter((r) => r.temperatura === "hot").length;
+  const countWarm = visibleRows.filter((r) => r.temperatura === "warm").length;
+  const countCold = visibleRows.filter((r) => r.temperatura === "cold").length;
+  const countNovaFirma = visibleRows.filter((r) => r.temperatura === "nova_firma" || !r.temperatura).length;
+  const countNerazreseno = visibleRows.filter((r) => r.decision === "nerazreseno").length;
+  const countMatched = visibleRows.filter((r) => !!r.matchedCompanyId).length;
 
   return (
     <div className="space-y-6">
-      {/* Gornja traka */}
+      {/* Gornja traka sa nazivom i dugmetom za primenu */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           {onBack && (
@@ -240,7 +391,7 @@ export function ImportReviewTable({
             <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted mt-0.5">
               <span>Status: <span className="font-medium text-foreground">{IMPORT_STATUS_LABELS[importDoc.status] ?? importDoc.status}</span></span>
               <span>·</span>
-              <span>Ukupno redova: {totalRowsCount}</span>
+              <span>Ukupno u fajlu: {allRows.length}</span>
               {importDoc.rowsSkipped > 0 && (
                 <>
                   <span>·</span>
@@ -262,21 +413,19 @@ export function ImportReviewTable({
               className="bg-accent-500 hover:bg-accent-600 text-text-inverse font-semibold"
             >
               <Play className="size-4 mr-1.5" />
-              Primeni uvoz
+              Primeni uvoz ({visibleRows.length})
             </Button>
           </div>
         )}
       </div>
 
       {actionError && (
-        <FeedbackNote tone="danger" title="Greška pri promeni odluke">
+        <FeedbackNote tone="danger" title="Greška pri radnji">
           {actionError}
         </FeedbackNote>
       )}
 
-      {/* Izveštaj parsera se ne gubi kad red uđe u staging: upozorenja su
-          sačuvana na uvozu i moraju da se vide i kad se uvoz otvori iz
-          istorije, mesecima kasnije. */}
+      {/* Upozorenja parsera */}
       {importDoc.warnings.length > 0 && (
         <FeedbackNote
           tone="warning"
@@ -326,7 +475,7 @@ export function ImportReviewTable({
               <span className="font-semibold text-text-muted">
                 {applyResult.skippedCount}
               </span>{" "}
-              — Preskočeno po odluci operatera.
+              — Preskočeno (uključujući obrisane redove).
             </div>
             <div className="rounded border border-warning/30 bg-warning/5 p-2">
               <span className="font-semibold text-warning">
@@ -338,293 +487,358 @@ export function ImportReviewTable({
         </FeedbackNote>
       )}
 
-      {/* Traka sa statistikom i filterima */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <button
-          type="button"
-          onClick={() => setDecisionFilter(undefined)}
-          className={cn(
-            "flex flex-col items-start rounded-xl border p-3 text-left transition-colors",
-            decisionFilter === undefined
-              ? "border-accent-400/50 bg-surface-raised ring-1 ring-accent-400/30"
-              : "border-line bg-surface hover:border-line-strong",
+      {/* Traka stanja iznad tabele (§6: brojevi, bez pasusa) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-2.5 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-text-secondary">
+          <span className="font-semibold text-foreground">
+            {visibleRows.length} {visibleRows.length === 1 ? "red" : "redova"}
+          </span>
+          {deletedRows.length > 0 && (
+            <>
+              <span>·</span>
+              <span className="text-warning font-medium">
+                {deletedRows.length} sklonjeno
+              </span>
+            </>
           )}
-        >
-          <span className="text-micro font-medium text-text-muted">Svi redovi</span>
-          <span className="text-lg font-bold text-foreground">{totalRowsCount}</span>
-        </button>
+          {hiddenColumns.length > 0 && (
+            <>
+              <span>·</span>
+              <span className="text-text-muted font-medium">
+                {hiddenColumns.length} {hiddenColumns.length === 1 ? "kolona skrivena" : "kolone skrivene"}
+              </span>
+            </>
+          )}
+          {countHot > 0 && (
+            <>
+              <span>·</span>
+              <span className="text-[var(--temp-hot)] font-medium">
+                {countHot} vrelo
+              </span>
+            </>
+          )}
+          {countWarm > 0 && (
+            <>
+              <span>·</span>
+              <span className="text-[var(--temp-warm)] font-medium">
+                {countWarm} toplo
+              </span>
+            </>
+          )}
+          {countCold > 0 && (
+            <>
+              <span>·</span>
+              <span className="text-[var(--temp-cold)] font-medium">
+                {countCold} hladno
+              </span>
+            </>
+          )}
+          {countMatched > 0 && (
+            <>
+              <span>·</span>
+              <span className="text-accent-400 font-medium">
+                {countMatched} već u bazi
+              </span>
+            </>
+          )}
+          {countNerazreseno > 0 && (
+            <>
+              <span>·</span>
+              <span className="text-warning font-medium">
+                {countNerazreseno} nerazrešeno
+              </span>
+            </>
+          )}
+        </div>
 
-        <button
-          type="button"
-          onClick={() => setDecisionFilter("nova_firma")}
-          className={cn(
-            "flex flex-col items-start rounded-xl border p-3 text-left transition-colors",
-            decisionFilter === "nova_firma"
-              ? "border-accent-400 bg-accent-400/10 ring-1 ring-accent-400"
-              : "border-line bg-surface hover:border-line-strong",
-          )}
-        >
-          <span className="text-micro font-medium text-accent-400">Nova firma</span>
-          <span className="text-lg font-bold text-foreground">{countNovaFirma}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setDecisionFilter("spoji")}
-          className={cn(
-            "flex flex-col items-start rounded-xl border p-3 text-left transition-colors",
-            decisionFilter === "spoji"
-              ? "border-success bg-success/10 ring-1 ring-success"
-              : "border-line bg-surface hover:border-line-strong",
-          )}
-        >
-          <span className="text-micro font-medium text-success">Spoji</span>
-          <span className="text-lg font-bold text-foreground">{countSpoji}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setDecisionFilter("preskoci")}
-          className={cn(
-            "flex flex-col items-start rounded-xl border p-3 text-left transition-colors",
-            decisionFilter === "preskoci"
-              ? "border-line-strong bg-surface-raised ring-1 ring-line-strong"
-              : "border-line bg-surface hover:border-line-strong",
-          )}
-        >
-          <span className="text-micro font-medium text-text-muted">Preskoči</span>
-          <span className="text-lg font-bold text-foreground">{countPreskoci}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setDecisionFilter("nerazreseno")}
-          className={cn(
-            "flex flex-col items-start rounded-xl border p-3 text-left transition-colors",
-            decisionFilter === "nerazreseno"
-              ? "border-warning bg-warning/10 ring-1 ring-warning"
-              : "border-line bg-surface hover:border-line-strong",
-          )}
-        >
-          <div className="flex items-center gap-1">
-            <span className="text-micro font-medium text-warning">Nerazrešeno</span>
-            {countNerazreseno > 0 && <AlertTriangle className="size-3 text-warning" />}
+        {(deletedRows.length > 0 || hiddenColumns.length > 0) && !isReadOnly && (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleRestoreAll}
+              className="h-7 text-xs text-accent-400 hover:text-accent-300 hover:bg-accent-400/10"
+            >
+              <RotateCcw className="size-3 mr-1" />
+              Vrati sve
+            </Button>
           </div>
-          <span className="text-lg font-bold text-warning">{countNerazreseno}</span>
-        </button>
-      </div>
-
-      {/* Tabela sa redovima staging uvoza */}
-      <div className="rounded-xl border border-line bg-surface overflow-hidden">
-        {filteredRows === undefined ? (
-          <div className="p-6 space-y-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : filteredRows.length === 0 ? (
-          <div className="py-16 text-center text-sm text-text-muted">
-            Nema redova koji odgovaraju izabranom filteru.
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="border-line bg-surface-raised/60 hover:bg-surface-raised/60">
-                <TableHead className="w-12 text-center text-text-muted">#</TableHead>
-                <TableHead>Firma i lokacija</TableHead>
-                <TableHead>Telefon i sajt</TableHead>
-                <TableHead>Ocena</TableHead>
-                <TableHead>Spajanje / Zabrana</TableHead>
-                <TableHead className="w-44">Odluka</TableHead>
-                <TableHead className="w-20 text-right">Detalji</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRows.map((row, index) => {
-                const { parsed, suppression, conflicts, matchedBy, matchedCompanyId, decision } = row;
-                const isGradDerived = parsed.derivedFields?.includes("grad");
-
-                return (
-                  <TableRow
-                    key={row._id}
-                    className="border-line/60 hover:bg-surface-raised/40 transition-colors"
-                  >
-                    {/* Redni broj */}
-                    <TableCell className="text-center font-mono text-micro text-text-muted">
-                      {row.sourceRowIndex}
-                    </TableCell>
-
-                    {/* Firma i lokacija */}
-                    <TableCell className="max-w-[260px]">
-                      <div className="font-medium text-foreground truncate">
-                        {parsed.nazivFirme || "—"}
-                      </div>
-                      <div className="flex items-center gap-1.5 text-xs text-text-muted truncate mt-0.5">
-                        <span>{parsed.ulica || parsed.opstina || parsed.grad || "—"}</span>
-                        {parsed.grad && (
-                          <span className="text-text-secondary">
-                            ({parsed.grad}
-                            {isGradDerived && (
-                              <span className="ml-1 inline-block rounded bg-accent-400/20 px-1 py-0.2 text-[9px] text-accent-400 font-medium">
-                                izvedeno
-                              </span>
-                            )}
-                            )
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-
-                    {/* Telefon i sajt */}
-                    <TableCell className="max-w-[220px]">
-                      <div className="text-xs font-medium text-foreground">
-                        {parsed.telefon || "—"}
-                      </div>
-                      {parsed.telefonNapomena && (
-                        <div className="flex items-center gap-1 text-[11px] text-warning truncate mt-0.5">
-                          <Phone className="size-3 shrink-0" />
-                          <span className="truncate" title={parsed.telefonNapomena}>
-                            {parsed.telefonNapomena}
-                          </span>
-                        </div>
-                      )}
-                      {parsed.sajt && (
-                        <div className="text-micro text-text-muted truncate mt-0.5">
-                          <a
-                            href={parsed.sajt.startsWith("http") ? parsed.sajt : `https://${parsed.sajt}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-accent-400 hover:underline"
-                          >
-                            {parsed.sajt}
-                            <ExternalLink className="size-2.5" />
-                          </a>
-                        </div>
-                      )}
-                    </TableCell>
-
-                    {/* Ocena */}
-                    <TableCell className="text-xs text-text-secondary">
-                      {formatRatingDisplay(parsed.ocena)}
-                    </TableCell>
-
-                    {/* Spajanje / Zabrana kontakta */}
-                    <TableCell className="max-w-[240px]">
-                      <div className="space-y-1">
-                        {matchedCompanyId && (
-                          <div className="flex items-center gap-1 text-micro text-text-secondary">
-                            <Building2 className="size-3 text-accent-400 shrink-0" />
-                            <span>
-                              Spojeno po:{" "}
-                              <span className="font-semibold text-foreground">
-                                {matchedBy ? MATCHED_BY_TEXT[matchedBy] ?? matchedBy : "podudaranju"}
-                              </span>
-                            </span>
-                          </div>
-                        )}
-
-                        {conflicts && conflicts.length > 0 && (
-                          <span className="inline-flex items-center gap-1 rounded bg-warning/15 px-1.5 py-0.5 text-[11px] font-medium text-warning">
-                            <AlertTriangle className="size-3 shrink-0" />
-                            {conflicts.length === 1 ? "1 sukob" : `${conflicts.length} sukoba`}
-                          </span>
-                        )}
-
-                        {/* ZABRANA KONTAKTA — DVA RAZLIČITA STANJA */}
-                        {suppression === undefined && (
-                          <div className="inline-flex items-center gap-1 rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning">
-                            <AlertCircle className="size-3 shrink-0" />
-                            <span>Provera zabrane nije zabeležena</span>
-                          </div>
-                        )}
-
-                        {suppression?.suppressed === true && (
-                          <div className="inline-flex items-center gap-1 rounded border border-danger/30 bg-danger/10 px-1.5 py-0.5 text-[11px] font-medium text-danger">
-                            <ShieldAlert className="size-3 shrink-0" />
-                            <span>
-                              Zabrana kontakta ({suppression.matchedOn ? SUPPRESSION_MATCH_TEXT[suppression.matchedOn] ?? suppression.matchedOn : "nezabeležen kriterijum"})
-                            </span>
-                          </div>
-                        )}
-
-                        {suppression?.unverifiable && suppression.unverifiable.length > 0 && (
-                          <div className="inline-flex items-center gap-1 rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning">
-                            <AlertCircle className="size-3 shrink-0" />
-                            <span>
-                              Nije moglo da se proveri:{" "}
-                              {suppression.unverifiable
-                                .map((u) => SUPPRESSION_FIELD_TEXT[u] ?? u)
-                                .join(", ")}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-
-                    {/* Birač odluke */}
-                    <TableCell>
-                      {isReadOnly ? (
-                        <span
-                          className={cn(
-                            "inline-flex rounded-md border px-2 py-1 text-xs font-medium",
-                            decision === "nova_firma" && "border-accent-400/40 text-accent-400 bg-accent-400/10",
-                            decision === "spoji" && "border-success/40 text-success bg-success/10",
-                            decision === "preskoci" && "border-line text-text-muted bg-surface",
-                            decision === "nerazreseno" && "border-warning/40 text-warning bg-warning/10",
-                          )}
-                        >
-                          {decision === "nova_firma" && "Nova firma"}
-                          {decision === "spoji" && "Spoji"}
-                          {decision === "preskoci" && "Preskoči"}
-                          {decision === "nerazreseno" && "Nerazrešeno"}
-                        </span>
-                      ) : (
-                        <select
-                          value={decision}
-                          onChange={(e) =>
-                            handleDecisionChange(
-                              row._id,
-                              e.target.value as DecisionType,
-                            )
-                          }
-                          className={cn(
-                            "w-full rounded-lg border px-2 py-1 text-xs font-medium outline-none transition-colors",
-                            decision === "nova_firma" && "border-accent-400/40 bg-accent-400/10 text-accent-400",
-                            decision === "spoji" && "border-success/40 bg-success/10 text-success",
-                            decision === "preskoci" && "border-line-soft bg-surface-raised text-text-muted",
-                            decision === "nerazreseno" && "border-warning/40 bg-warning/10 text-warning font-semibold",
-                          )}
-                        >
-                          <option value="nova_firma">Nova firma</option>
-                          <option value="spoji">Spoji</option>
-                          <option value="preskoci">Preskoči</option>
-                          <option value="nerazreseno">Nerazrešeno</option>
-                        </select>
-                      )}
-                    </TableCell>
-
-                    {/* Dugme za detalje */}
-                    <TableCell className="text-right">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedRow(row)}
-                        className="h-7 px-2 text-xs"
-                      >
-                        Detalji
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
         )}
       </div>
 
-      {/* Dijalog detalja jednog reda */}
+      {/* Dinamička tabela sa horizontalnim scroll-om i lepljivim kolonama (§5, §6) */}
+      <div className="rounded-xl border border-line bg-surface overflow-hidden">
+        {visibleRows.length === 0 ? (
+          <div className="py-16 text-center text-sm text-text-muted space-y-2">
+            <div>
+              {deletedRows.length > 0
+                ? `Svi redovi su sklonjeni (${deletedRows.length} redova).`
+                : "Fajl ne sadrži nijedan red."}
+            </div>
+            {deletedRows.length > 0 && !isReadOnly && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRestoreAll}
+                className="mt-2 text-xs"
+              >
+                <RotateCcw className="size-3.5 mr-1" />
+                Vrati sklonjene redove
+              </Button>
+            )}
+          </div>
+        ) : bezSirovihKolona ? (
+          <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+            <p className="text-sm text-text-secondary">
+              Ovaj uvoz nema zapamćene kolone iz fajla.
+            </p>
+            <p className="max-w-md text-xs leading-relaxed text-text-muted">
+              Napravljen je pre nego što je čuvanje sirovih kolona uvedeno, pa
+              nema šta da se prikaže. Redovi postoje i mogu se primeniti, ali se
+              tabela iz fajla ne može rekonstruisati unazad. Za pun prikaz
+              otpremi fajl ponovo.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table className="border-collapse">
+              <TableHeader>
+                <TableRow className="border-b border-line bg-surface-raised hover:bg-surface-raised">
+                  {/* Sticky: Redni broj — samo kad ga fajl sam nema */}
+                  {!fajlImaRedniBroj && (
+                  <TableHead className="sticky left-0 z-30 w-12 min-w-[48px] max-w-[48px] text-center font-mono text-micro text-text-muted bg-surface-raised border-b border-line shadow-[8px_0_12px_-6px_rgba(0,0,0,0.55),1px_0_0_0_var(--line)]">
+                    #
+                  </TableHead>
+                  )}
+
+                  {/* Dinamičke kolone iz fajla */}
+                  {visibleColumns.map((colName, colIdx) => {
+                    const isFirstCol = colIdx === 0;
+                    return (
+                      <TableHead
+                        key={colName}
+                        className={cn(
+                          "group/col min-w-[160px] max-w-[260px] py-2.5 px-3 text-xs font-semibold text-text-secondary bg-surface-raised border-b border-line select-none",
+                          isFirstCol &&
+                            (fajlImaRedniBroj
+                              ? "sticky left-0 z-30 shadow-[8px_0_12px_-6px_rgba(0,0,0,0.55),1px_0_0_0_var(--line)]"
+                              : "sticky left-12 z-30 shadow-[8px_0_12px_-6px_rgba(0,0,0,0.55),1px_0_0_0_var(--line)]"),
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="truncate" title={colName}>
+                            {colName}
+                          </span>
+                          {!isReadOnly && (
+                            <button
+                              type="button"
+                              onClick={() => handleHideColumn(colName)}
+                              className="opacity-0 group-hover/col:opacity-100 p-0.5 rounded hover:bg-surface-overlay text-text-muted hover:text-danger transition-all shrink-0"
+                              title={`Skloni kolonu "${colName}"`}
+                              aria-label={`Skloni kolonu ${colName}`}
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </TableHead>
+                    );
+                  })}
+
+                  {/* Sticky: Temperatura */}
+                  <TableHead className={cn(
+                    "sticky z-30 w-36 min-w-[140px] max-w-[140px] text-xs font-semibold text-text-secondary bg-surface-raised border-b border-line shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.55),-1px_0_0_0_var(--line)]",
+                    isPrimenjen ? "right-[240px]" : "right-[100px]"
+                  )}>
+                    Temperatura
+                  </TableHead>
+
+                  {/* Sticky: Detalji / Akcije */}
+                  <TableHead className={cn(
+                    "sticky right-0 z-30 text-right text-xs font-semibold text-text-secondary bg-surface-raised border-b border-line",
+                    isPrimenjen ? "w-[240px] min-w-[240px] max-w-[240px]" : "w-[100px] min-w-[100px] max-w-[100px]"
+                  )}>
+                    Akcije
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleRows.map((row) => {
+                  const temp = (row.temperatura as TemperaturaType) || "nova_firma";
+                  const config = TEMP_CONFIG[temp] || TEMP_CONFIG.nova_firma;
+
+                  return (
+                    <TableRow
+                      key={row._id}
+                      style={
+                        {
+                          "--row-bg": config.rowBg,
+                          "--row-hover-bg": config.hoverBg,
+                        } as React.CSSProperties
+                      }
+                      className="group/row transition-colors border-b border-line/60 bg-[var(--row-bg)] hover:bg-[var(--row-hover-bg)]"
+                    >
+                      {/* Sticky: Redni broj sa 3px levom ivicom temperature.
+                          Kad fajl ima svoju kolonu rednog broja, ova se ne crta
+                          i traka temperature prelazi na prvu ćeliju sa podacima. */}
+                      {!fajlImaRedniBroj && (
+                      <TableCell
+                        className="sticky left-0 z-20 w-12 min-w-[48px] max-w-[48px] text-center font-mono text-micro text-text-muted py-2 px-2 bg-[var(--row-bg)] group-hover/row:bg-[var(--row-hover-bg)] transition-colors shadow-[8px_0_12px_-6px_rgba(0,0,0,0.55),1px_0_0_0_var(--line)]"
+                        style={{ borderLeft: `3px solid ${config.borderColor}` }}
+                      >
+                        {row.sourceRowIndex}
+                      </TableCell>
+                      )}
+
+                      {/* Dinamičke ćelije iz row.sirovo */}
+                      {visibleColumns.map((colName, colIdx) => {
+                        const isFirstDataCol = colIdx === 0;
+                        const rawCell = row.sirovo?.find((c) => c.kolona === colName);
+                        const rawVal = rawCell?.vrednost ?? "";
+                        const cleanVal = rawVal.replace(/\r?\n/g, " ").trim();
+
+                        return (
+                          <TableCell
+                            key={colName}
+                            className={cn(
+                              "min-w-[160px] max-w-[260px] py-2 px-3 text-xs text-foreground",
+                              isFirstDataCol &&
+                                (fajlImaRedniBroj ? "sticky left-0" : "sticky left-12"),
+                              isFirstDataCol &&
+                                "z-20 shadow-[8px_0_12px_-6px_rgba(0,0,0,0.55),1px_0_0_0_var(--line)] bg-[var(--row-bg)] group-hover/row:bg-[var(--row-hover-bg)] transition-colors",
+                            )}
+                            style={
+                              isFirstDataCol && fajlImaRedniBroj
+                                ? { borderLeft: `3px solid ${config.borderColor}` }
+                                : undefined
+                            }
+                          >
+                            {cleanVal ? (
+                              <span className="truncate block" title={rawVal}>
+                                {cleanVal}
+                              </span>
+                            ) : (
+                              <span className="text-text-muted/60 select-none">—</span>
+                            )}
+
+                            {/* Tihe oznake na prvoj koloni sa podacima */}
+                            {isFirstDataCol && (
+                              <div className="flex flex-col gap-0.5 mt-1">
+                                {row.matchedCompanyId && (
+                                  <div className="flex items-center gap-1 text-[11px] text-accent-300 font-medium">
+                                    <Building2 className="size-3 shrink-0" />
+                                    <span className="truncate">već postoji u bazi</span>
+                                    <Link
+                                      href={`/leadovi?companyId=${row.matchedCompanyId}`}
+                                      target="_blank"
+                                      className="inline-flex items-center text-accent-400 hover:underline shrink-0"
+                                      title="Otvori firmu u bazi"
+                                    >
+                                      <ExternalLink className="size-2.5" />
+                                    </Link>
+                                  </div>
+                                )}
+                                {row.decision === "nerazreseno" && (
+                                  <div className="flex items-center gap-1 text-[11px] text-warning/90 font-medium">
+                                    <AlertTriangle className="size-3 shrink-0 text-warning" />
+                                    <span>nerazrešeno</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+
+                      {/* Sticky: Temperatura */}
+                      <TableCell className={cn(
+                        "sticky z-20 w-36 min-w-[140px] max-w-[140px] py-2 px-3 border-b border-line/60 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.55),-1px_0_0_0_var(--line)] bg-[var(--row-bg)] group-hover/row:bg-[var(--row-hover-bg)] transition-colors",
+                        isPrimenjen ? "right-[240px]" : "right-[100px]"
+                      )}>
+                        {isReadOnly ? (
+                          <span
+                            className={cn(
+                              "inline-flex rounded-md border px-2 py-0.5 text-xs font-medium",
+                              config.badgeClass,
+                            )}
+                          >
+                            {config.label}
+                          </span>
+                        ) : (
+                          <select
+                            value={row.temperatura || "nova_firma"}
+                            onChange={(e) =>
+                              handleTemperaturaChange(
+                                row._id,
+                                e.target.value as TemperaturaType,
+                              )
+                            }
+                            className={cn(
+                              "w-full rounded-md border px-2 py-1 text-xs font-medium outline-none transition-colors cursor-pointer",
+                              row.temperatura === "hot" && "border-[var(--temp-hot)]/40 bg-[var(--temp-hot-bg)] text-foreground font-semibold",
+                              row.temperatura === "warm" && "border-[var(--temp-warm)]/40 bg-[var(--temp-warm-bg)] text-foreground font-semibold",
+                              row.temperatura === "cold" && "border-[var(--temp-cold)]/40 bg-[var(--temp-cold-bg)] text-foreground font-semibold",
+                              (!row.temperatura || row.temperatura === "nova_firma") && "border-line-soft bg-surface-raised text-text-secondary",
+                            )}
+                          >
+                            <option value="nova_firma">Nova firma</option>
+                            <option value="cold">Cold</option>
+                            <option value="warm">Warm</option>
+                            <option value="hot">Hot</option>
+                          </select>
+                        )}
+                      </TableCell>
+
+                      {/* Sticky: Detalji + Obriši red */}
+                      <TableCell className={cn(
+                        "sticky right-0 z-20 text-right py-2 px-3 border-b border-line/60 bg-[var(--row-bg)] group-hover/row:bg-[var(--row-hover-bg)] transition-colors",
+                        isPrimenjen ? "w-[240px] min-w-[240px] max-w-[240px]" : "w-[100px] min-w-[100px] max-w-[100px]"
+                      )}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isPrimenjen && row.createdCompanyId && (
+                            <Link
+                              href={`/leadovi/${row.createdCompanyId}`}
+                              className="inline-flex items-center gap-1 rounded-md border border-accent-400/40 bg-accent-400/10 px-2 py-1 text-xs font-medium text-accent-400 hover:bg-accent-400/20 transition-colors shrink-0"
+                              title="Otvori u leadovima"
+                            >
+                              <span>Otvori u leadovima</span>
+                              <ExternalLink className="size-3" />
+                            </Link>
+                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedRow(row)}
+                            className="h-7 px-2 text-xs font-medium border-line-soft hover:border-line-strong hover:bg-surface-raised"
+                          >
+                            Detalji
+                          </Button>
+                          {!isReadOnly && (
+                            <button
+                              type="button"
+                              onClick={() => handleRowDelete(row._id)}
+                              className="p-1.5 rounded-md text-text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                              title="Skloni red iz uvoza"
+                              aria-label="Skloni red"
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+
+      {/* Modal detalja pojedinačnog reda (LT5) */}
       <ImportRowDialog
         row={selectedRow}
         open={selectedRow !== null}
@@ -636,39 +850,67 @@ export function ImportReviewTable({
             handleDecisionChange(selectedRow._id, newDecision);
           }
         }}
+        onTemperaturaChange={(newTemp) => {
+          if (selectedRow) {
+            handleTemperaturaChange(selectedRow._id, newTemp);
+          }
+        }}
+        onDeleteRow={() => {
+          if (selectedRow) {
+            handleRowDelete(selectedRow._id);
+          }
+        }}
         readOnly={isReadOnly}
+        isApplied={isPrimenjen}
       />
 
-      {/* Dijalog potvrde pre primene uvoza (§FAZA D) */}
+      {/* Dijalog potvrde pre primene uvoza */}
       <Dialog open={applyDialogOpen} onOpenChange={setApplyDialogOpen}>
         <DialogPopup className="max-w-md">
           <DialogClose />
           <DialogHeader>
             <DialogTitle>Potvrda primene uvoza u bazu</DialogTitle>
             <DialogDescription>
-              Pregledajte strukturu odluka pre konačne primene u glavne tabele sistema.
+              Pregledajte strukturu uvoza pre konačnog upisa u glavne tabele sistema.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-sm">
             <div className="rounded-lg border border-line bg-surface p-3.5 space-y-2.5">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-text-muted">Kao nove firme:</span>
-                <span className="font-semibold text-accent-400">{countNovaFirma} redova</span>
+                <span className="text-text-muted">Ukupno redova za uvoz:</span>
+                <span className="font-semibold text-accent-400">{visibleRows.length} redova</span>
               </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-text-muted">Spajanje sa postojećim:</span>
-                <span className="font-semibold text-success">{countSpoji} redova</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-text-muted">Preskače se po odluci:</span>
-                <span className="font-semibold text-text-muted">{countPreskoci} redova</span>
-              </div>
-              <div className="pt-2 border-t border-line-soft flex justify-between items-center text-xs">
-                <span className="font-medium text-warning">
-                  Nerazrešeni redovi (BIĆE PRESKOČENI):
-                </span>
-                <span className="font-bold text-warning">{countNerazreseno} redova</span>
+              {deletedRows.length > 0 && (
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-text-muted">Sklonjeno (neće se uvesti):</span>
+                  <span className="font-semibold text-warning">{deletedRows.length} redova</span>
+                </div>
+              )}
+              {hiddenColumns.length > 0 && (
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-text-muted">Skrivene kolone:</span>
+                  <span className="font-semibold text-text-muted">{hiddenColumns.length}</span>
+                </div>
+              )}
+              <div className="pt-2 border-t border-line-soft space-y-1 text-xs">
+                <div className="text-micro font-medium text-text-muted mb-1">Raspodela temperature:</div>
+                <div className="flex justify-between text-micro">
+                  <span className="text-[var(--temp-hot)] font-medium">Hot (Vrelo):</span>
+                  <span className="font-semibold text-foreground">{countHot}</span>
+                </div>
+                <div className="flex justify-between text-micro">
+                  <span className="text-[var(--temp-warm)] font-medium">Warm (Toplo):</span>
+                  <span className="font-semibold text-foreground">{countWarm}</span>
+                </div>
+                <div className="flex justify-between text-micro">
+                  <span className="text-[var(--temp-cold)] font-medium">Cold (Hladno):</span>
+                  <span className="font-semibold text-foreground">{countCold}</span>
+                </div>
+                <div className="flex justify-between text-micro">
+                  <span className="text-text-muted font-medium">Nova firma (bez oznake):</span>
+                  <span className="font-semibold text-foreground">{countNovaFirma}</span>
+                </div>
               </div>
             </div>
 
@@ -708,7 +950,7 @@ export function ImportReviewTable({
                   Primenjujem uvoz...
                 </>
               ) : (
-                "Potvrdi i primeni"
+                `Potvrdi i uvezi (${visibleRows.length})`
               )}
             </Button>
           </DialogFooter>

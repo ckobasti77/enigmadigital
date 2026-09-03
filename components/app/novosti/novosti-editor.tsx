@@ -567,8 +567,8 @@ export function NovostiEditor({
       <FormStack>
         {/* Grupa 1: Osnovni podaci i kategorizacija (§2, §3) */}
         <FormGroup
-          title="1. Osnovni podaci i kategorizacija"
-          description="Naslov, slug, podnaslov i raspodela po jednoj od 6 obaveznih tema (§2)."
+          title="Osnovno"
+          description="Naslov, slug, podnaslov i raspodela po jednoj od 6 obaveznih tema."
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
@@ -609,7 +609,7 @@ export function NovostiEditor({
           <div className="grid gap-4 sm:grid-cols-2">
             {/* Vrsta posta (§3) */}
             <Field
-              label="Vrsta posta (§3)"
+              label="Vrsta posta"
               hint={`${currentKindConfig.wordRange} — ${currentKindConfig.description}`}
             >
               {({ id }) => (
@@ -630,7 +630,7 @@ export function NovostiEditor({
 
             {/* Kategorija tema (§2) */}
             <Field
-              label="Kategorija teme (§2)"
+              label="Kategorija teme"
               hint="Nijedna tema ne sme da nosi više od trećine objava u mesecu."
             >
               {({ id }) => (
@@ -652,7 +652,7 @@ export function NovostiEditor({
 
           {/* Podnaslov (Dek) — Kapija 4 */}
           <Field
-            label="Podnaslov / Dek (§4.4)"
+            label="Podnaslov / Dek"
             required
             action={<CharCount value={dek.length} max={250} />}
             hint="1–2 rečenice: ide u vrh posta, na karticu u listi i u SEO meta opis. Ne sme biti prazan."
@@ -671,7 +671,7 @@ export function NovostiEditor({
 
         {/* Grupa 2: Sadržaj i telo posta (Markdown + Humanizer) */}
         <FormGroup
-          title="2. Sadržaj teksta (Markdown)"
+          title="Tekst"
           description={`Ukupno reči: ${wordsCount} (Preporučeni opseg za ${currentKindConfig.label}: ${currentKindConfig.wordRange}).`}
           control={
             <Button
@@ -717,7 +717,7 @@ export function NovostiEditor({
                   </span>
                 ) : (
                   <span className="font-medium text-warning">
-                    Nije pokrenuta ili čeka verifikaciju (§4.2)
+                    Nije pokrenuta
                   </span>
                 )}
               </span>
@@ -735,7 +735,7 @@ export function NovostiEditor({
 
         {/* Grupa 3: Pravilo jedinstvenosti (§2.2, §4.1) */}
         <FormGroup
-          title="3. Pravilo jedinstvenosti (§2.2)"
+          title="Šta je ovde tvoje?"
           description="Svaki post mora da odgovori na jedno pitanje pre objave: šta je ovde moje?"
           boxed
         >
@@ -754,7 +754,7 @@ export function NovostiEditor({
                   htmlFor="own-proof-checkbox"
                   className="cursor-pointer text-xs font-semibold text-foreground"
                 >
-                  Šta je ovde moje? (§2.2)
+                  Šta je ovde tvoje?
                 </Label>
                 <p className="text-xs text-text-muted">
                   Prihvatljiv odgovor je tačno jedan od: sopstveni podatak,
@@ -783,7 +783,7 @@ export function NovostiEditor({
 
         {/* Grupa 4: Naslovna slika i ALT opis (§4.3, §11) */}
         <FormGroup
-          title="4. Naslovna slika i dijagrami (§11)"
+          title="Slika"
           description="Otpremanje u Convex storage. Kada slika postoji, coverAlt je OBAVEZAN."
         >
           <input
@@ -826,7 +826,7 @@ export function NovostiEditor({
                   required
                   error={
                     !coverAlt.trim()
-                      ? "ALT opis ne sme ostati prazan kada slika postoji (§4 kapija odbija objavu)."
+                      ? "ALT opis ne sme ostati prazan kada slika postoji."
                       : null
                   }
                   hint="Pristupačnost i SEO opis slike za pretraživače i čitače ekrana."
@@ -886,7 +886,8 @@ export function NovostiEditor({
 
         {/* Grupa 5: Autor, tagovi i SEO polja */}
         <FormGroup
-          title="5. Autor, oznake i SEO"
+          collapsible
+          title="Autor, oznake i SEO"
           description="Metapodaci koji hrane pretraživače, RSS i sitemap."
         >
           <div className="grid gap-4 sm:grid-cols-2">
@@ -915,7 +916,7 @@ export function NovostiEditor({
 
           <Field
             label="Tagovi (odvojeni zarezom)"
-            hint="Tagovi se pretražuju u memoriji, ne indeksiraju se u bazi (§5.1)."
+            hint="Tagovi se pretražuju u memoriji, ne indeksiraju se u bazi."
           >
             {({ id }) => (
               <Input
@@ -976,8 +977,9 @@ export function NovostiEditor({
         {/* Grupa 6: Revizije i istorija promena */}
         {postId && (
           <FormGroup
-            title="6. Zabeleži reviziju sadržaja (§5.2)"
-            description="Čuva trenutnu verziju tela posta u postRevisions tabeli."
+            collapsible
+            title="Istorija verzija"
+            description="Čuva trenutnu verziju tela posta, da se možeš vratiti na nju."
           >
             <div className="flex flex-wrap items-center gap-3">
               <Input
@@ -1016,7 +1018,7 @@ export function NovostiEditor({
         {/* Opasna zona: Vraćanje u nacrt ili arhiviranje */}
         {postId && (
           <DangerZone
-            title="Upravljanje statusom posta"
+            title="Status"
             description="Pomeranje posta iz javnog prikaza u arhivu ili nazad u nacrt."
           >
             <div className="flex items-center gap-2">
@@ -1056,7 +1058,7 @@ export function NovostiEditor({
               <div className="flex items-center gap-2">
                 <Sparkles className="size-4 text-accent-400" />
                 <h4 className="text-sm font-semibold text-foreground">
-                  Humanizer provera teksta (§4)
+                  Provera stila
                 </h4>
               </div>
               <Button

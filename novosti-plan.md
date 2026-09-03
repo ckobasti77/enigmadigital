@@ -64,7 +64,7 @@ podaci putuju. Ovde dijagram nosi tekst.
 Najvredniji format, jer se piše dok se dešava i niko drugi ga nema.
 
 **E. AI u razvoju** — ne „šta je AI", nego šta se stvarno desilo kad je AI
-pisao deo koda: gde je pomoglo, gde je pukло, i kako se to hvata.
+pisao deo koda: gde je pomoglo, gde je puklo, i kako se to hvata.
 
 **F. Srpski kontekst** — PDV na digitalne usluge, PIB i APR, plaćanje, .rs
 hosting, ugovor sa domaćim klijentom, verifikacije kod Mete i Gugla. Niko ovo

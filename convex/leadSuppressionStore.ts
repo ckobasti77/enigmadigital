@@ -307,7 +307,13 @@ export const removeSuppression = mutation({
     id: v.id("leadSuppression"),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     const row = await ctx.db.get(args.id);
     if (row === null || row.workspaceId !== args.workspaceId) {
@@ -330,7 +336,13 @@ export const listSuppression = query({
     workspaceId: v.id("workspaces"),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     return await ctx.db
       .query("leadSuppression")

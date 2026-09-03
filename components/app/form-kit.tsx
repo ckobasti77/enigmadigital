@@ -41,6 +41,7 @@ export function FormGroup({
   children,
   className,
   boxed = false,
+  collapsible = false,
 }: {
   title: string;
   /** Samo kada grupa nosi posledicu koju naslov ne može da kaže. */
@@ -50,7 +51,51 @@ export function FormGroup({
   className?: string;
   /** Uokviri grupu — za celine koje se uključuju i isključuju. */
   boxed?: boolean;
+  /**
+   * Grupa koja se otvara klikom, zatvorena po ulasku.
+   *
+   * Za celine koje NE trebaju dok se piše — SEO polja, istorija revizija.
+   * Forma koja sve pokaže odjednom natera čoveka da pročita i ono što mu
+   * u tom trenutku ne treba, pa ceo ekran deluje teže nego što jeste.
+   * Podrazumevano je `false`, pa se nijedan postojeći ekran ne menja.
+   */
+  collapsible?: boolean;
 }) {
+  if (collapsible) {
+    return (
+      <details
+        className={cn(
+          "group rounded-xl border border-line bg-surface/40",
+          className,
+        )}
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3">
+          <h3 className="heading-caps text-micro font-medium text-text-muted">
+            {title}
+          </h3>
+          <svg
+            className="size-4 shrink-0 text-text-muted transition-transform group-open:rotate-180"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            aria-hidden="true"
+          >
+            <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </summary>
+        <div className="space-y-3 border-t border-line px-4 py-4">
+          {description && (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {description}
+            </p>
+          )}
+          {children}
+        </div>
+      </details>
+    );
+  }
+
   return (
     <section
       className={cn(

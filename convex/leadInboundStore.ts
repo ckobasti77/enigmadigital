@@ -614,7 +614,13 @@ export const listInbound = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     const maxLimit = Math.min(args.limit ?? 100, 500);
 
@@ -652,7 +658,13 @@ export const getInbound = query({
     inboundId: v.id("leadInbound"),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     const record = await ctx.db.get(args.inboundId);
     if (!record || record.workspaceId !== args.workspaceId) {

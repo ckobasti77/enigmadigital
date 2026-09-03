@@ -46,7 +46,13 @@ export const listGaps = query({
     sampleLimit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     const safeLimit = Math.min(
       Math.max(args.sampleLimit ?? MAX_GAPS_SAMPLE_DEFAULT, 1),
@@ -193,7 +199,13 @@ export const listCompaniesWithGap = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireMembership(ctx);
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
 
     const maxLimit = Math.min(Math.max(args.limit ?? 50, 1), 200);
 
