@@ -28,6 +28,26 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_workspace", ["workspaceId"]),
 
+  // Pozivnice za registraciju. SIROV TOKEN SE NIKAD NE UPISUJE — u bazi stoji
+  // samo SHA-256 heš (hex). Sirovi token postoji tačno jednom, u povratnoj
+  // vrednosti `createInvite`, i odatle u linku; ako se link izgubi, pravi se nova.
+  invites: defineTable({
+    workspaceId: v.id("workspaces"),
+    email: v.string(), // normalizovan: trim + lowercase
+    tokenHash: v.string(), // SHA-256 sirovog tokena, hex
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    expiresAt: v.number(), // createdAt + 7 dana
+    // Kratki prozor u kome je token proveren i registracija sme da prođe.
+    readyUntil: v.optional(v.number()),
+    usedAt: v.optional(v.number()),
+    usedByUserId: v.optional(v.id("users")),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_token_hash", ["tokenHash"])
+    .index("by_workspace_email", ["workspaceId", "email"]),
+
   // Per-integration credentials. The secret (token / service account JSON /
   // connection string) is AES-256-GCM encrypted before write; the plaintext is
   // decrypted ONLY inside "use node" sync actions and never returned by a query.

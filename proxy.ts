@@ -48,6 +48,13 @@ export const config = {
   // covers exactly /privacy and anything beneath it, and cannot quietly open a
   // future /privacy-settings route along with it.
   //
+  // `pozivnica` is the same kind of exception: the registracija-preko-pozivnice
+  // ekran (`/pozivnica/<token>`) is opened by someone who by definition does NOT
+  // yet have a nalog. Without this exclusion the middleware would redirect every
+  // anonymous invite click to /login — the whole flow would be dead on arrival,
+  // exactly like `privacy` was. The token check happens client-side via the
+  // public `getInvite` query, so no auth context is needed here.
+  //
   // Threads (TH2) was added to both matcher entries on 25.08.2026 after exactly
   // the failure this comment predicts: the callback carried Meta's `?code=`,
   // the middleware claimed it as a Convex Auth sign-in code, and the browser
@@ -63,7 +70,7 @@ export const config = {
   // the whole exchange server-side via the one-time `state` nonce, so it needs
   // no auth context from the middleware.
   matcher: [
-    "/((?!.*\\..*|_next|api/auth/callback/instagram|api/auth/callback/facebook|api/auth/callback/youtube|api/auth/callback/threads|r/|privacy(?:$|/)|cookies(?:$|/)).*)",
+    "/((?!.*\\..*|_next|api/auth/callback/instagram|api/auth/callback/facebook|api/auth/callback/youtube|api/auth/callback/threads|r/|privacy(?:$|/)|cookies(?:$|/)|pozivnica(?:$|/)).*)",
     "/",
     // Two lookaheads rather than one alternation: Next refuses a capturing
     // group inside a matcher, and `(instagram|facebook)` is one.

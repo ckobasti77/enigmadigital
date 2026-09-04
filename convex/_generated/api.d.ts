@@ -38,6 +38,7 @@ import type * as instagramInboxStore from "../instagramInboxStore.js";
 import type * as instagramPublish from "../instagramPublish.js";
 import type * as instagramPublishStore from "../instagramPublishStore.js";
 import type * as instagramStore from "../instagramStore.js";
+import type * as invitesStore from "../invitesStore.js";
 import type * as leadCrmStore from "../leadCrmStore.js";
 import type * as leadDetailStore from "../leadDetailStore.js";
 import type * as leadExportStore from "../leadExportStore.js";
@@ -196,6 +197,7 @@ declare const fullApi: ApiFromModules<{
   instagramPublish: typeof instagramPublish;
   instagramPublishStore: typeof instagramPublishStore;
   instagramStore: typeof instagramStore;
+  invitesStore: typeof invitesStore;
   leadCrmStore: typeof leadCrmStore;
   leadDetailStore: typeof leadDetailStore;
   leadExportStore: typeof leadExportStore;

@@ -1,22 +1,24 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { History, Link2, ShieldCheck } from "lucide-react";
+import { History, KeyRound, Link2, ShieldCheck } from "lucide-react";
 import {
   ConnectionsSettings,
   ConnectionsSettingsSkeleton,
 } from "@/components/app/settings/connections-settings";
 import { ActionAuditLog } from "@/components/app/settings/action-audit-log";
 import { ModerationAuditLog } from "@/components/app/settings/moderation-audit-log";
+import { InvitesPanel } from "@/components/app/settings/invites-panel";
 import { PageHeader } from "@/components/app/page-header";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
 
-type Tab = "connections" | "audit" | "moderation";
+type Tab = "connections" | "audit" | "moderation" | "access";
 
 const TABS: readonly TabItem<Tab>[] = [
   { id: "connections", label: "Integracije", icon: Link2 },
   { id: "audit", label: "Istorija akcija", icon: History },
   { id: "moderation", label: "Moderacija", icon: ShieldCheck },
+  { id: "access", label: "Pristup", icon: KeyRound },
 ];
 
 const COPY: Record<Tab, { title: string; blurb: string }> = {
@@ -34,6 +36,11 @@ const COPY: Record<Tab, { title: string; blurb: string }> = {
     title: "Moderacija",
     blurb:
       "Ko je i kada odgovorio, sakrio ili obrisao komentar na Instagramu i Facebook stranici — uključujući i radnje koje je Meta odbila.",
+  },
+  access: {
+    title: "Pristup",
+    blurb:
+      "Pozivnice za registraciju. Unesi email, prosledi link ručno — osoba se registruje sa tačno tom adresom. Bez pozivnice nema novog naloga.",
   },
 };
 
@@ -63,8 +70,10 @@ export default function SettingsPage() {
           </Suspense>
         ) : tab === "audit" ? (
           <ActionAuditLog />
-        ) : (
+        ) : tab === "moderation" ? (
           <ModerationAuditLog />
+        ) : (
+          <InvitesPanel />
         )}
       </TabPanel>
     </div>

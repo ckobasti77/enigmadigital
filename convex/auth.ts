@@ -1,5 +1,6 @@
 import { convexAuth } from "@convex-dev/auth/server";
 import { Email } from "@convex-dev/auth/providers/Email";
+import { Password } from "@convex-dev/auth/providers/Password";
 import { Resend as ResendClient } from "resend";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
@@ -15,9 +16,9 @@ export function normalizeEmail(email: string): string {
 /**
  * Check if an email is present in the ALLOWED_EMAILS environment variable.
  * FAILS CLOSED: If ALLOWED_EMAILS is missing, empty, or whitespace-only,
- * all access is denied.
+ * the allowlist denies. (This is only ONE half of `isEmailAllowed`.)
  */
-export function isEmailAllowed(email?: string | null): boolean {
+export function isEmailInAllowlist(email?: string | null): boolean {
   if (!email) return false;
   const normalized = normalizeEmail(email);
   if (!normalized) return false;
@@ -37,6 +38,52 @@ export function isEmailAllowed(email?: string | null): boolean {
 }
 
 /**
+ * Da li adresa sme da napravi sesiju: ILI je u `ALLOWED_EMAILS`, ILI za nju
+ * postoji pozivnica sa otvorenim prozorom (`readyUntil > now`), još neiskorišćena
+ * i nepovučena. `pripremiRegistraciju` otvara taj prozor tik pre `signUp`-a, pa
+ * niko ne može da se registruje bez važećeg invite linka — a otvoreni ekran
+ * „Postavi lozinku" više ne postoji.
+ *
+ * ASINHRONA je i prima `ctx` jer mora da čita `invites`. `sendVerificationRequest`
+ * (samo slanje koda, bez `ctx.db`) i dalje koristi sinhroni `isEmailInAllowlist`.
+ */
+export async function isEmailAllowed(
+  ctx: { db: MutationCtx["db"] },
+  email?: string | null,
+): Promise<boolean> {
+  if (!email) return false;
+  const normalized = normalizeEmail(email);
+  if (!normalized) return false;
+
+  if (isEmailInAllowlist(normalized)) return true;
+
+  const now = Date.now();
+  const workspaces = await ctx.db
+    .query("workspaces")
+    .withIndex("by_slug", (q) => q.eq("slug", WORKSPACE_SLUG))
+    .collect();
+
+  for (const ws of workspaces) {
+    const invites = await ctx.db
+      .query("invites")
+      .withIndex("by_workspace_email", (q) =>
+        q.eq("workspaceId", ws._id).eq("email", normalized),
+      )
+      .collect();
+    const vazeca = invites.some(
+      (inv) =>
+        inv.readyUntil !== undefined &&
+        inv.readyUntil > now &&
+        inv.usedAt === undefined &&
+        inv.revokedAt === undefined,
+    );
+    if (vazeca) return true;
+  }
+
+  return false;
+}
+
+/**
  * Generate a cryptographically random 6-digit numeric string (100000-999999).
  */
 function generate6DigitCode(): string {
@@ -50,8 +97,32 @@ function generate6DigitCode(): string {
  *
  * RESEND_API_KEY / EMAIL_FROM / ALLOWED_EMAILS live in the Convex deployment env.
  */
-const ResendOTP = Email({
-  id: "resend",
+type OtpNamena = "prijava" | "potvrda" | "reset";
+
+const OTP_TEKST: Record<OtpNamena, { naslov: string; uvod: string }> = {
+  prijava: {
+    naslov: "Tvoj kod za prijavu",
+    uvod: "Unesi sledeći 6-cifreni kod u aplikaciju da se prijaviš.",
+  },
+  potvrda: {
+    naslov: "Potvrdi svoju adresu",
+    uvod:
+      "Unesi sledeći 6-cifreni kod da potvrdiš adresu. Ovo se traži samo jednom — posle toga se prijavljuješ lozinkom.",
+  },
+  reset: {
+    naslov: "Promena lozinke",
+    uvod: "Unesi sledeći 6-cifreni kod da postaviš novu lozinku.",
+  },
+};
+
+/**
+ * Jedan te isti OTP mehanizam, tri namene. Svaka mora imati SVOJ `id`, jer
+ * Convex Auth razlikuje provajdere po njemu — dva provajdera sa istim id-om
+ * tiho gaze jedan drugog.
+ */
+function makeResendOTP(id: string, namena: OtpNamena) {
+  return Email({
+  id,
   maxAge: 60 * 15, // code valid for 15 minutes
   async generateVerificationToken() {
     return generate6DigitCode();
@@ -59,7 +130,9 @@ const ResendOTP = Email({
   async sendVerificationRequest({ identifier: rawEmail, token }) {
     const email = normalizeEmail(rawEmail);
 
-    if (!isEmailAllowed(email)) {
+    // Ovde nema `ctx.db` (samo se šalje kod), pa proveravamo isključivo allowlistu.
+    // Sesija se i dalje NE pravi bez pune provere u `beforeSessionCreation`.
+    if (!isEmailInAllowlist(email)) {
       console.warn(`[auth] Sign-in attempt denied for email: ${email}`);
       throw new Error("Pristup nije dozvoljen za ovu email adresu.");
     }
@@ -77,18 +150,25 @@ const ResendOTP = Email({
     const { error } = await new ResendClient(apiKey).emails.send({
       from,
       to: [email],
-      subject: `Kod za prijavu: ${token} · Enigma Command Center`,
-      html: otpEmail(token),
-      text: `Tvoj jednokratni kod za prijavu u Enigma Command Center je: ${token}\n\nKod važi 15 minuta. Ako nisi ti tražio/la prijavu, ignoriši ovu poruku.`,
+      subject: `${OTP_TEKST[namena].naslov}: ${token} · Enigma Command Center`,
+      html: otpEmail(token, namena),
+      text: `${OTP_TEKST[namena].uvod}\n\nKod: ${token}\n\nKod važi 15 minuta. Ako nisi ti tražio/la ovo, ignoriši poruku.`,
     });
 
     if (error) {
       throw new Error(`Resend failed: ${JSON.stringify(error)}`);
     }
   },
-});
+  });
+}
 
-function otpEmail(code: string): string {
+/** Kod za prijavu bez lozinke — ostaje kao rezervni put ulaska. */
+const ResendOTP = makeResendOTP("resend", "prijava");
+/** Kod za postavljanje nove lozinke kad je zaboravljena. */
+const PasswordReset = makeResendOTP("password-reset", "reset");
+
+function otpEmail(code: string, namena: OtpNamena): string {
+  const { naslov, uvod } = OTP_TEKST[namena];
   return `<!doctype html>
 <html lang="sr">
   <body style="margin:0;background:#070d19;padding:40px 16px;font-family:'Helvetica Neue',Arial,sans-serif;">
@@ -96,8 +176,8 @@ function otpEmail(code: string): string {
       <tr>
         <td style="padding:32px 32px 8px;">
           <p style="margin:0;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#58c4ff;">Enigma · Command Center</p>
-          <h1 style="margin:16px 0 0;font-size:22px;line-height:1.25;color:#f3f7ff;font-weight:700;">Tvoj kod za prijavu</h1>
-          <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:rgba(193,211,245,0.75);">Unesi sledeći 6-cifreni kod u aplikaciju da se prijaviš. Kod važi 15 minuta.</p>
+          <h1 style="margin:16px 0 0;font-size:22px;line-height:1.25;color:#f3f7ff;font-weight:700;">${naslov}</h1>
+          <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:rgba(193,211,245,0.75);">${uvod} Kod važi 15 minuta.</p>
         </td>
       </tr>
       <tr>
@@ -109,7 +189,7 @@ function otpEmail(code: string): string {
       </tr>
       <tr>
         <td style="padding:8px 32px 32px;">
-          <p style="margin:0;font-size:12px;line-height:1.6;color:rgba(148,170,210,0.6);">Ako nisi ti tražio/la prijavu, slobodno ignoriši ovu poruku.</p>
+          <p style="margin:0;font-size:12px;line-height:1.6;color:rgba(148,170,210,0.6);">Ako nisi ti ovo tražio/la, slobodno ignoriši ovu poruku.</p>
         </td>
       </tr>
     </table>
@@ -124,15 +204,66 @@ function otpEmail(code: string): string {
 const WORKSPACE_SLUG = "enigma-it";
 const WORKSPACE_NAME = "Enigma IT";
 
+/**
+ * Prijava email + lozinka.
+ *
+ * `verify` NAMERNO NIJE postavljen. Ranije je bio (jednokratni kod pri
+ * postavljanju lozinke, radi povezivanja naloga preko adrese), ali registracija
+ * sada ide isključivo preko pozivnice: `createInvite` odbija svaku adresu koja
+ * već ima nalog, pa je svaki `signUp` preko pozivnice uvek NOV korisnik — nema
+ * čega da se povezuje, a i ne sme da se traži kod (§7: „odmah ulogovan"). Bez
+ * `verify`, `signUp` odmah pravi sesiju, a `beforeSessionCreation` je i dalje
+ * puni gate (pušta samo allowlistu ILI adresu sa otvorenim invite prozorom).
+ */
+const EnigmaPassword = Password({
+  id: "password",
+
+  // Normalizacija mora i ovde: allowlist proverava malim slovima, a korisnik
+  // kuca kako mu dođe.
+  profile(params) {
+    return { email: normalizeEmail(String(params.email ?? "")) };
+  },
+
+  // Pravila lozinke (§5). ISTA logika je i na klijentu u `lib/password-rules.ts`
+  // (živi checklist), ali OVDE je jedini pravi gate — server ne veruje ekranu.
+  // Svaka provera baca svoju poruku (KOJE pravilo nije ispunjeno).
+  validatePasswordRequirements(password: string) {
+    if (!password || password.length < 8) {
+      throw new Error("Lozinka mora imati bar 8 znakova.");
+    }
+    if (password.length > 128) {
+      throw new Error("Lozinka može imati najviše 128 znakova.");
+    }
+    if (!/\p{Lu}/u.test(password)) {
+      throw new Error("Lozinka mora sadržati bar jedno veliko slovo.");
+    }
+    if (!/\p{Ll}/u.test(password)) {
+      throw new Error("Lozinka mora sadržati bar jedno malo slovo.");
+    }
+    if (!/[0-9]/.test(password)) {
+      throw new Error("Lozinka mora sadržati bar jednu cifru.");
+    }
+    if (!/[^\p{L}\p{N}]/u.test(password)) {
+      throw new Error(
+        "Lozinka mora sadržati bar jedan znak koji nije slovo ni cifra.",
+      );
+    }
+  },
+
+  reset: PasswordReset,
+});
+
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  providers: [ResendOTP],
+  // ResendOTP OSTAJE. Ako lozinka zakaže ili se zaboravi, ulaz preko koda je
+  // i dalje tu — nova prijava se dodaje, stara se ne uklanja.
+  providers: [ResendOTP, EnigmaPassword],
   callbacks: {
     // Pre-session creation check: guarantees non-allowed users cannot get a session
     async beforeSessionCreation(ctx, { userId }) {
       const db = (ctx as unknown as MutationCtx).db;
       const user = await db.get(userId as Id<"users">);
       const email = user?.email ? normalizeEmail(user.email) : null;
-      if (!email || !isEmailAllowed(email)) {
+      if (!email || !(await isEmailAllowed({ db }, email))) {
         throw new Error("Pristup nije dozvoljen za ovu email adresu.");
       }
     },
@@ -144,8 +275,41 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       const rawEmail =
         profile?.email ?? (await db.get(userId as Id<"users">))?.email;
       const email = rawEmail ? normalizeEmail(rawEmail as string) : null;
-      if (!email || !isEmailAllowed(email)) {
+      if (!email || !(await isEmailAllowed({ db }, email))) {
         throw new Error("Pristup nije dozvoljen za ovu email adresu.");
+      }
+
+      // Ako je adresa prošla zbog pozivnice (a ne allowliste), obeleži je
+      // iskorišćenom: upiši `usedAt` i `usedByUserId`. Radi i za nov i za
+      // postojeći nalog — pozivnica je potrošena čim je registracija prošla.
+      {
+        const now = Date.now();
+        const workspaces = await db
+          .query("workspaces")
+          .withIndex("by_slug", (q) => q.eq("slug", WORKSPACE_SLUG))
+          .collect();
+        for (const ws of workspaces) {
+          const invites = await db
+            .query("invites")
+            .withIndex("by_workspace_email", (q) =>
+              q.eq("workspaceId", ws._id).eq("email", email),
+            )
+            .collect();
+          const aktivna = invites.find(
+            (inv) =>
+              inv.readyUntil !== undefined &&
+              inv.readyUntil > now &&
+              inv.usedAt === undefined &&
+              inv.revokedAt === undefined,
+          );
+          if (aktivna) {
+            await db.patch(aktivna._id, {
+              usedAt: now,
+              usedByUserId: userId as Id<"users">,
+            });
+            break;
+          }
+        }
       }
 
       if (existingUserId) return; // returning user — nothing to do

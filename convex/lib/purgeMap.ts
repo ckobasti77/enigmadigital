@@ -1419,6 +1419,10 @@ export const EXTRA_TABLE_OWNERSHIP: Record<string, Disposition> = {
     excluded:
       "Članstvo korisnika u radnom prostoru, ne podaci providera. Ostaje dok postoji nalog.",
   },
+  invites: {
+    excluded:
+      "Sopstvena kontrola pristupa (pozivnice za registraciju), ne podaci preuzeti od providera. Prekid veze sa Meta/Google ih ne dodiruje; ostaju dok postoji nalog.",
+  },
   connections: {
     excluded:
       "Sam red kredencijala. Njega briše `connections.remove` / završnica purge-a (`deleteConnectionRow`), a ne korak brisanja — on je ono što POKREĆE brisanje.",
