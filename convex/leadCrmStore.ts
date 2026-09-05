@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
@@ -41,6 +41,52 @@ export type LeadStage =
   | "dobijen"
   | "izgubljen"
   | "odlozen";
+
+/**
+ * Zatvorena lista ishoda komunikacije (§9). Ishod je RAZLOG/REZULTAT razgovora
+ * i namerno je odvojen od faze (`stage`): „dobijen"/„izgubljen" su faze, ne
+ * ishodi. Slobodan tekst je ranije značio da „nije zainteresovan" i „ne zanima
+ * ga" budu dva različita ishoda i da statistika ne postoji — zato zatvorena
+ * lista + odvojena slobodna napomena (`note` arg u `recordOutcome`).
+ *
+ * `LEAD_OUTCOME_CODES` je jedini izvor istine za skup. `LEAD_OUTCOME_VALIDATOR`
+ * i tip `LeadOutcome` se izvode odavde i izvoze za prompt B (forma sa izbornikom)
+ * i za prikaz (`leadOutcomeLabel` u `components/app/leadovi/lead-labels.ts`).
+ *
+ * NAPOMENA: `recordOutcome` argument `outcome` ostaje `v.string()`, a pripadnost
+ * ovom skupu se proverava u handleru. Prava `v.union` na argumentu bi oborila
+ * `tsc` jer jedini pozivalac (`lead-actions-panel.tsx`) šalje slobodan string, a
+ * ta komponenta ostaje na slobodnom tekstu do prompta B.
+ */
+export const LEAD_OUTCOME_CODES = [
+  "nije_se_javio",
+  "zainteresovan",
+  "nije_zainteresovan",
+  "preskupo",
+  "nema_potrebe",
+  "konkurencija",
+  "postojeci_klijent",
+  "trazeno_da_se_ne_zove",
+  "ostalo",
+] as const;
+
+export type LeadOutcome = (typeof LEAD_OUTCOME_CODES)[number];
+
+export const LEAD_OUTCOME_VALIDATOR = v.union(
+  v.literal("nije_se_javio"),
+  v.literal("zainteresovan"),
+  v.literal("nije_zainteresovan"),
+  v.literal("preskupo"),
+  v.literal("nema_potrebe"),
+  v.literal("konkurencija"),
+  v.literal("postojeci_klijent"),
+  v.literal("trazeno_da_se_ne_zove"),
+  v.literal("ostalo"),
+);
+
+export function isLeadOutcome(value: string): value is LeadOutcome {
+  return (LEAD_OUTCOME_CODES as readonly string[]).includes(value);
+}
 
 /**
  * Dodeljuje lead određenom članu tima (ili menja postojećeg vlasnika).
@@ -577,6 +623,18 @@ export const recordOutcome = mutation({
       });
     }
 
+    // Zatvorena lista (§9). Detalji razgovora idu u `note`, ne u ishod — tako
+    // dva operatera ne prave dva različita ishoda za istu stvar. Provera je
+    // ovde, a ne kao `v.union` na argumentu, jer jedini pozivalac još šalje
+    // slobodan tekst (vidi LEAD_OUTCOME_CODES).
+    if (!isLeadOutcome(cleanOutcome)) {
+      throw new ConvexError({
+        code: "invalid",
+        message:
+          "Ishod mora biti iz zatvorene liste. Detalje razgovora upišite u napomenu.",
+      });
+    }
+
     const cleanNote = args.note?.trim() || undefined;
     const now = Date.now();
     const effectiveOutcomeAt = args.outcomeAt ?? now;
@@ -836,6 +894,110 @@ export const getLeadCrm = query({
 });
 
 /**
+ * Dohvata kontakte i kontekst za JEDAN red tabele leadova (§3): telefone,
+ * mejlove, osobe, signale i poslednji dodir. Tabela je danas jednobojna jer
+ * nema čime da radi — broj telefona živi u `leadIdentities`, ne na
+ * `leadCompanies` — pa se ovde vraća sve u istom paketu (bez dodatnih upita po
+ * otvorenom redu na klijentu, §2/O4).
+ *
+ * GRANICA (§3): svaki red radi ~4 dodatna čitanja (telefoni/mejlovi/osobe/
+ * signali) + jedan upit za poslednji dodir. Prihvatljivo dok liste čitaju do
+ * ~50 redova. AKO SE GRANICA IKAD DIGNE IZNAD 50, ovo se MORA prebaciti na
+ * denormalizovana polja (na `leadCompanies`/`leadAssignments`), a ne rešavati
+ * po redu — zapisano kao uslov, da se ne otkrije tek kad uspori.
+ * (Trenutni cap listi je 200; ako se približi radu na tolikom broju redova,
+ * denormalizacija je već potrebna.)
+ *
+ * PRAZNO vs NEPOZNATO (§3): ovde se uvek vraćaju nizovi. Prazan niz
+ * (`telefoni: []`) znači „nema u bazi" i po njemu se NE crta dugme za poziv.
+ * „Nije učitano" je `undefined` na nivou celog rezultata upita, ne ovde.
+ */
+async function hydrateLeadRowExtras(
+  ctx: QueryCtx,
+  workspaceId: Id<"workspaces">,
+  companyId: Id<"leadCompanies">,
+) {
+  const HYDRATE_CAP = 200;
+
+  // Osobe + mapa personId -> ime. Iz iste liste se popunjava ime na
+  // identitetu, bez dodatnog `ctx.db.get` po svakom telefonu/mejlu.
+  const peopleDocs = await ctx.db
+    .query("leadPeople")
+    .withIndex("by_workspace_company", (q) =>
+      q.eq("workspaceId", workspaceId).eq("companyId", companyId),
+    )
+    .take(HYDRATE_CAP);
+
+  const imePoOsobi = new Map<Id<"leadPeople">, string>();
+  for (const person of peopleDocs) imePoOsobi.set(person._id, person.name);
+
+  const osobe = peopleDocs.map((person) => ({
+    name: person.name,
+    role: person.role,
+    roleConfidence: person.roleConfidence,
+  }));
+
+  // Identiteti redom kojim su upisani (default asc `_creationTime`).
+  const identityDocs = await ctx.db
+    .query("leadIdentities")
+    .withIndex("by_workspace_company", (q) =>
+      q.eq("workspaceId", workspaceId).eq("companyId", companyId),
+    )
+    .take(HYDRATE_CAP);
+
+  const telefoni: { value: string; personName?: string }[] = [];
+  const emailovi: { value: string; personName?: string }[] = [];
+  for (const identity of identityDocs) {
+    if (identity.kind !== "phone" && identity.kind !== "email") continue;
+    const entry: { value: string; personName?: string } = {
+      value: identity.value,
+    };
+    // Ime SAMO kad identitet nosi `personId` — centralni/firma broj nema
+    // vlasnika, pa se ne pogađa čiji je (§3).
+    if (identity.personId) {
+      const ime = imePoOsobi.get(identity.personId);
+      if (ime) entry.personName = ime;
+    }
+    (identity.kind === "phone" ? telefoni : emailovi).push(entry);
+  }
+
+  // Signali: koje vrste postoje (distinct, prvo-viđeni redosled). Tabela već
+  // broji signale; ovde se vraća koji su. Ponovljeni „komentar" kao više
+  // istih čipova je šum, pa distinct.
+  const signalDocs = await ctx.db
+    .query("leadSignals")
+    .withIndex("by_workspace_company", (q) =>
+      q.eq("workspaceId", workspaceId).eq("companyId", companyId),
+    )
+    .take(HYDRATE_CAP);
+  const signaliSet = new Set<string>();
+  for (const signal of signalDocs) signaliSet.add(signal.kind);
+  const signali = [...signaliSet];
+
+  // Poslednji dodir = poslednje zabeležen „dodir" (po redosledu upisa, što
+  // prati način na koji `logTouch` dodaje red). `leadStageEvents` nema polje
+  // `channel`; `logTouch` upisuje kanal u `toValue`, napomenu u `note`.
+  const lastTouch = await ctx.db
+    .query("leadStageEvents")
+    .withIndex("by_workspace_company", (q) =>
+      q.eq("workspaceId", workspaceId).eq("companyId", companyId),
+    )
+    .order("desc")
+    .filter((q) => q.eq(q.field("kind"), "dodir"))
+    .first();
+
+  const poslednjiDodir = lastTouch
+    ? {
+        channel: lastTouch.toValue ?? "",
+        note: lastTouch.note,
+        occurredAt: lastTouch.occurredAt,
+      }
+    : undefined;
+
+  return { telefoni, emailovi, osobe, signali, poslednjiDodir };
+}
+
+/**
  * Lista leadova po vlasniku (koristi indeks "by_workspace_owner", nikad pun sken).
  */
 export const listByOwner = query({
@@ -874,9 +1036,15 @@ export const listByOwner = query({
     const items = await Promise.all(
       assignments.map(async (assignment) => {
         const company = await ctx.db.get(assignment.companyId);
+        const extras = await hydrateLeadRowExtras(
+          ctx,
+          args.workspaceId,
+          assignment.companyId,
+        );
         return {
           assignment,
           company,
+          ...extras,
           isOverdue:
             assignment.nextActionAt !== undefined &&
             assignment.nextActionAt < now,
@@ -932,9 +1100,15 @@ export const listByStage = query({
     const items = await Promise.all(
       assignments.map(async (assignment) => {
         const company = await ctx.db.get(assignment.companyId);
+        const extras = await hydrateLeadRowExtras(
+          ctx,
+          args.workspaceId,
+          assignment.companyId,
+        );
         return {
           assignment,
           company,
+          ...extras,
           isOverdue:
             assignment.nextActionAt !== undefined &&
             assignment.nextActionAt < now,
@@ -1007,9 +1181,15 @@ export const listOverdue = query({
     const items = await Promise.all(
       sliced.map(async (assignment) => {
         const company = await ctx.db.get(assignment.companyId);
+        const extras = await hydrateLeadRowExtras(
+          ctx,
+          args.workspaceId,
+          assignment.companyId,
+        );
         return {
           assignment,
           company,
+          ...extras,
           // Nema grane sa nulom: u ovoj listi su samo leadovi sa planiranim
           // korakom, pa je kašnjenje uvek stvarna vrednost.
           delayMs: now - assignment.nextActionAt!,

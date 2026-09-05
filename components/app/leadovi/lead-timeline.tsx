@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { FeedbackNote } from "@/components/app/feedback";
-import { leadSignalLabel, leadStageLabel } from "./lead-labels";
+import { leadOutcomeLabel, leadSignalLabel, leadStageLabel } from "./lead-labels";
 import { formatDateTime, formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -188,7 +188,7 @@ export function LeadTimeline({
                         {/* Ishod ili sledeći korak vrednost */}
                         {event.kind === "ishod" && event.toValue && (
                           <div className="mt-0.5 text-xs text-foreground">
-                            Ishod: <strong>{event.toValue}</strong>
+                            Ishod: <strong>{leadOutcomeLabel(event.toValue)}</strong>
                           </div>
                         )}
 

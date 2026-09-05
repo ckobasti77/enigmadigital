@@ -3,10 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle,
   Clock,
-  FileSpreadsheet,
-  Plus,
+  SlidersHorizontal,
   ShieldAlert,
   Upload,
   Users,
@@ -21,9 +19,10 @@ import { FeedbackNote } from "@/components/app/feedback";
 import { LeadsTable } from "./leads-table";
 import { GapsPanel } from "./gaps-panel";
 import { OverduePanel } from "./overdue-panel";
+import { ScoringRulesPanel } from "./scoring-rules-panel";
 import { LeadExportDialog } from "./lead-export-dialog";
 
-type Tab = "leads" | "gaps" | "overdue";
+type Tab = "leads" | "gaps" | "overdue" | "scoring";
 
 export function LeadsDashboard() {
   const { workspace, isLoading } = useWorkspace();
@@ -78,6 +77,7 @@ export function LeadsDashboard() {
           { id: "leads", label: "Tabela leadova", icon: Users },
           { id: "gaps", label: "Rupe u podacima", icon: ShieldAlert },
           { id: "overdue", label: "Zaostali koraci", icon: Clock },
+          { id: "scoring", label: "Ocenjivanje", icon: SlidersHorizontal },
         ]}
         trailing={
           <div className="flex items-center gap-2">
@@ -106,6 +106,7 @@ export function LeadsDashboard() {
         )}
         {tab === "gaps" && <GapsPanel workspaceId={workspaceId} />}
         {tab === "overdue" && <OverduePanel workspaceId={workspaceId} />}
+        {tab === "scoring" && <ScoringRulesPanel workspaceId={workspaceId} />}
       </TabPanel>
     </div>
   );

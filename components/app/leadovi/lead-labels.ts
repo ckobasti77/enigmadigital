@@ -6,6 +6,7 @@
  * uvoza. Ovde stoji jedan rečnik da ne bi svaki ekran pravio svoj.
  */
 import type { LeadSignalKind } from "@/convex/lib/leadNormalize";
+import type { LeadOutcome } from "@/convex/leadCrmStore";
 
 export const LEAD_SIGNAL_LABELS: Record<LeadSignalKind, string> = {
   nema_sajt: "nema sajt",
@@ -54,6 +55,32 @@ export const LEAD_STAGE_LABELS: Record<string, string> = {
 
 export function leadStageLabel(stage: string): string {
   return LEAD_STAGE_LABELS[stage] ?? stage;
+}
+
+/**
+ * Ishodi komunikacije — zatvorena lista (§9). Ključevi su kodovi iz
+ * `LEAD_OUTCOME_CODES` (convex/leadCrmStore.ts); `Record<LeadOutcome, string>`
+ * obavezuje da svaki kod ima natpis (novi kod bez natpisa obara `tsc`).
+ */
+export const LEAD_OUTCOME_LABELS: Record<LeadOutcome, string> = {
+  nije_se_javio: "Nije se javio",
+  zainteresovan: "Zainteresovan",
+  nije_zainteresovan: "Nije zainteresovan",
+  preskupo: "Preskupo",
+  nema_potrebe: "Nema potrebe",
+  konkurencija: "Kod konkurencije",
+  postojeci_klijent: "Postojeći klijent",
+  trazeno_da_se_ne_zove: "Tražio da ga ne zovemo",
+  ostalo: "Ostalo",
+};
+
+/**
+ * Ishod van zatvorene liste (stari, slobodno-tekstualni zapisi) se prikazuje
+ * KAKAV JESTE — nikad kao „nepoznato" (§9). Tiho preimenovanje bi sakrilo
+ * legacy vrednost i falsifikovalo istoriju.
+ */
+export function leadOutcomeLabel(outcome: string): string {
+  return (LEAD_OUTCOME_LABELS as Record<string, string>)[outcome] ?? outcome;
 }
 
 /** Vrste rupa u podacima (§9.2) */
