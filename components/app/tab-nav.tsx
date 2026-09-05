@@ -7,6 +7,8 @@ export type TabItem<T extends string> = {
   id: T;
   label: string;
   icon?: ComponentType<{ className?: string }>;
+  /** Opciona oznaka uz natpis (npr. brojač hitnih stavki). */
+  badge?: ReactNode;
 };
 
 /**
@@ -106,6 +108,7 @@ export function TabNav<T extends string>({
             >
               {Icon && <Icon className="size-4" />}
               <span>{tab.label}</span>
+              {tab.badge}
             </button>
           );
         })}

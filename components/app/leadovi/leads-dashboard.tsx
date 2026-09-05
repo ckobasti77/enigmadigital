@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import {
+  CalendarClock,
   Clock,
   SlidersHorizontal,
   ShieldAlert,
@@ -21,13 +24,34 @@ import { GapsPanel } from "./gaps-panel";
 import { OverduePanel } from "./overdue-panel";
 import { ScoringRulesPanel } from "./scoring-rules-panel";
 import { LeadExportDialog } from "./lead-export-dialog";
+import {
+  MeetingsPanel,
+  groupMeetings,
+  meetingsBadgeCount,
+  type MeetingItem,
+} from "./meetings-panel";
 
-type Tab = "leads" | "gaps" | "overdue" | "scoring";
+type Tab = "leads" | "gaps" | "overdue" | "meetings" | "scoring";
 
 export function LeadsDashboard() {
   const { workspace, isLoading } = useWorkspace();
   const [tab, setTab] = useState<Tab>("leads");
   const [invalidRules, setInvalidRules] = useState<InvalidRule[]>([]);
+
+  // Brojač na jezičku „Sastanci" (§4). Ista query se koristi i unutar panela —
+  // Convex klijent deduplikuje na jednu pretplatu. `"skip"` dok radni prostor
+  // nije spreman poštuje pravila hukova (poziva se pri svakom renderu).
+  const wsId = workspace?.id as Id<"workspaces"> | undefined;
+  const meetingsData = useQuery(
+    api.leadCrmStore.listMeetings,
+    wsId ? { workspaceId: wsId } : "skip",
+  );
+  const meetingsBadge = useMemo(() => {
+    if (!meetingsData) return 0;
+    return meetingsBadgeCount(
+      groupMeetings(meetingsData.items as MeetingItem[], meetingsData.now),
+    );
+  }, [meetingsData]);
 
   if (isLoading || !workspace) {
     return <LeadsDashboardSkeleton />;
@@ -77,6 +101,17 @@ export function LeadsDashboard() {
           { id: "leads", label: "Tabela leadova", icon: Users },
           { id: "gaps", label: "Rupe u podacima", icon: ShieldAlert },
           { id: "overdue", label: "Zaostali koraci", icon: Clock },
+          {
+            id: "meetings",
+            label: "Sastanci",
+            icon: CalendarClock,
+            badge:
+              meetingsBadge > 0 ? (
+                <span className="ml-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-danger px-1.5 py-px text-micro font-bold text-white tabular-nums">
+                  {meetingsBadge}
+                </span>
+              ) : undefined,
+          },
           { id: "scoring", label: "Ocenjivanje", icon: SlidersHorizontal },
         ]}
         trailing={
@@ -106,6 +141,7 @@ export function LeadsDashboard() {
         )}
         {tab === "gaps" && <GapsPanel workspaceId={workspaceId} />}
         {tab === "overdue" && <OverduePanel workspaceId={workspaceId} />}
+        {tab === "meetings" && <MeetingsPanel workspaceId={workspaceId} />}
         {tab === "scoring" && <ScoringRulesPanel workspaceId={workspaceId} />}
       </TabPanel>
     </div>

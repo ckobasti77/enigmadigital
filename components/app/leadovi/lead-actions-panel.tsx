@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id, Doc } from "@/convex/_generated/dataModel";
-import type { LeadStage } from "@/convex/leadCrmStore";
+import type { LeadStage, LeadOutcome } from "@/convex/leadCrmStore";
+import { LEAD_OUTCOME_CODES } from "@/convex/leadCrmStore";
 import {
   Activity,
   AlertCircle,
@@ -33,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { FeedbackNote } from "@/components/app/feedback";
 import { useWorkspace } from "@/components/app/workspace-provider";
-import { LEAD_STAGE_LABELS, leadStageLabel } from "./lead-labels";
+import { LEAD_STAGE_LABELS, leadStageLabel, LEAD_OUTCOME_LABELS, leadOutcomeLabel } from "./lead-labels";
 import { formatDateTime } from "@/lib/format";
 import { ConvexError } from "convex/values";
 
@@ -90,8 +91,9 @@ export function LeadActionsPanel({
   const [nextActionDate, setNextActionDate] = useState("");
   const [nextActionNote, setNextActionNote] = useState("");
 
-  // Form states: Ishod
-  const [outcomeText, setOutcomeText] = useState("");
+  // Form states: Ishod — ishod je KOD iz zatvorene liste (§9), objašnjenje je
+  // slobodan tekst u `outcomeNote`. `""` znači da kod još nije izabran.
+  const [outcomeCode, setOutcomeCode] = useState<LeadOutcome | "">("");
   const [outcomeNote, setOutcomeNote] = useState("");
 
   // Form states: Dodela
@@ -203,9 +205,8 @@ export function LeadActionsPanel({
   // 4. Beleženje ishoda
   const handleRecordOutcome = async () => {
     setErrorMsg(null);
-    const cleanOutcome = outcomeText.trim();
-    if (!cleanOutcome) {
-      setErrorMsg("Unesite ishod razgovora.");
+    if (!outcomeCode) {
+      setErrorMsg("Izaberite ishod razgovora iz liste.");
       return;
     }
 
@@ -214,7 +215,7 @@ export function LeadActionsPanel({
       const res = await recordOutcome({
         workspaceId,
         companyId,
-        outcome: cleanOutcome,
+        outcome: outcomeCode,
         note: outcomeNote.trim() || undefined,
       });
 
@@ -226,7 +227,7 @@ export function LeadActionsPanel({
         });
         setActiveModal("suppressionConfirm");
       } else {
-        setOutcomeText("");
+        setOutcomeCode("");
         setOutcomeNote("");
         setActiveModal(null);
       }
@@ -246,9 +247,9 @@ export function LeadActionsPanel({
         workspaceId,
         companyId,
         kind: "rekao_ne",
-        reason: `Dodato nakon ishoda „${outcomeText.trim()}"`,
+        reason: `Dodato nakon ishoda „${outcomeCode ? leadOutcomeLabel(outcomeCode) : ""}"`,
       });
-      setOutcomeText("");
+      setOutcomeCode("");
       setOutcomeNote("");
       setSuppressionProposal(null);
       setActiveModal(null);
@@ -351,6 +352,8 @@ export function LeadActionsPanel({
               variant="outline"
               onClick={() => {
                 setErrorMsg(null);
+                setOutcomeCode("");
+                setOutcomeNote("");
                 setActiveModal("outcome");
               }}
               className="flex flex-col items-center justify-center gap-1.5 h-auto py-3 text-xs border-line hover:border-line-strong hover:bg-surface-raised cursor-pointer"
@@ -662,19 +665,33 @@ export function LeadActionsPanel({
 
           <div className="flex flex-col gap-3 py-2">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-foreground">Ishod:</label>
-              <Input
-                placeholder="Npr. dogovoren_ugovor, preskupo, rekao_ne, nije_zainteresovan..."
-                value={outcomeText}
-                onChange={(e) => setOutcomeText(e.target.value)}
-                className="text-xs"
-              />
+              <label className="text-xs font-semibold text-foreground">
+                Ishod <span className="text-danger font-bold">* (izaberi iz liste)</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {LEAD_OUTCOME_CODES.map((code) => (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => setOutcomeCode(code)}
+                    className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-all cursor-pointer text-left ${
+                      outcomeCode === code
+                        ? "border-accent-400 bg-accent-400/10 text-accent-400 ring-1 ring-accent-400"
+                        : "border-line bg-surface-raised text-text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {LEAD_OUTCOME_LABELS[code]}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-foreground">Dodatno obrazloženje:</label>
+              <label className="text-xs font-semibold text-foreground">
+                Dodatno obrazloženje (slobodan tekst):
+              </label>
               <Textarea
-                placeholder="Detalji o ishodu..."
+                placeholder="Detalji o ishodu — objašnjenje ide ovde, ne u sam ishod..."
                 value={outcomeNote}
                 onChange={(e) => setOutcomeNote(e.target.value)}
                 rows={3}

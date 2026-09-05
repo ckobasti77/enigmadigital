@@ -5,6 +5,7 @@ import type { Doc } from "@/convex/_generated/dataModel";
 import {
   Activity,
   Calendar,
+  CalendarClock,
   Clock,
   ExternalLink,
   Flame,
@@ -82,6 +83,8 @@ export function LeadTimeline({
         return "Zabeležen ishod";
       case "sledeci_korak":
         return "Postavljen sledeći korak";
+      case "sastanak":
+        return "Sastanak (zakazan/otkazan)";
       default:
         return kind;
     }
@@ -99,6 +102,8 @@ export function LeadTimeline({
         return <Activity className="size-3.5 text-purple-400" />;
       case "sledeci_korak":
         return <Calendar className="size-3.5 text-amber-400" />;
+      case "sastanak":
+        return <CalendarClock className="size-3.5 text-amber-400" />;
       default:
         return <Clock className="size-3.5 text-text-muted" />;
     }
@@ -200,6 +205,23 @@ export function LeadTimeline({
                                 ? event.toValue
                                 : formatDateTime(Number(event.toValue))}
                             </strong>
+                          </div>
+                        )}
+
+                        {event.kind === "sastanak" && (
+                          <div className="mt-0.5 text-xs text-foreground">
+                            {event.toValue ? (
+                              <>
+                                Sastanak zakazan za:{" "}
+                                <strong>
+                                  {isNaN(Number(event.toValue))
+                                    ? event.toValue
+                                    : formatDateTime(Number(event.toValue))}
+                                </strong>
+                              </>
+                            ) : (
+                              <span className="text-danger">Sastanak otkazan</span>
+                            )}
                           </div>
                         )}
 

@@ -50,13 +50,14 @@ export type LeadStage =
  * lista + odvojena slobodna napomena (`note` arg u `recordOutcome`).
  *
  * `LEAD_OUTCOME_CODES` je jedini izvor istine za skup. `LEAD_OUTCOME_VALIDATOR`
- * i tip `LeadOutcome` se izvode odavde i izvoze za prompt B (forma sa izbornikom)
- * i za prikaz (`leadOutcomeLabel` u `components/app/leadovi/lead-labels.ts`).
+ * i tip `LeadOutcome` se izvode odavde: validator zaključava argument
+ * `recordOutcome.outcome` (granica mutacije prima samo kod iz ovog skupa), forma
+ * u `lead-actions-panel.tsx` bira kod iz njega, a prikaz koristi
+ * `leadOutcomeLabel` (`components/app/leadovi/lead-labels.ts`).
  *
- * NAPOMENA: `recordOutcome` argument `outcome` ostaje `v.string()`, a pripadnost
- * ovom skupu se proverava u handleru. Prava `v.union` na argumentu bi oborila
- * `tsc` jer jedini pozivalac (`lead-actions-panel.tsx`) šalje slobodan string, a
- * ta komponenta ostaje na slobodnom tekstu do prompta B.
+ * `isLeadOutcome` razlikuje kod iz zatvorene liste od starih, slobodno-
+ * tekstualnih zapisa u bazi — te stare vrednosti se prikazuju KAKVE JESU
+ * (`leadOutcomeLabel` pada na sirovu vrednost), nikad kao „nepoznato".
  */
 export const LEAD_OUTCOME_CODES = [
   "nije_se_javio",
@@ -585,7 +586,7 @@ export const recordOutcome = mutation({
   args: {
     workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
-    outcome: v.string(),
+    outcome: LEAD_OUTCOME_VALIDATOR,
     outcomeAt: v.optional(v.number()),
     note: v.optional(v.string()),
   },
@@ -615,25 +616,11 @@ export const recordOutcome = mutation({
       });
     }
 
-    const cleanOutcome = args.outcome.trim();
-    if (!cleanOutcome) {
-      throw new ConvexError({
-        code: "invalid",
-        message: "Ishod komunikacije ne sme biti prazan.",
-      });
-    }
-
-    // Zatvorena lista (§9). Detalji razgovora idu u `note`, ne u ishod — tako
-    // dva operatera ne prave dva različita ishoda za istu stvar. Provera je
-    // ovde, a ne kao `v.union` na argumentu, jer jedini pozivalac još šalje
-    // slobodan tekst (vidi LEAD_OUTCOME_CODES).
-    if (!isLeadOutcome(cleanOutcome)) {
-      throw new ConvexError({
-        code: "invalid",
-        message:
-          "Ishod mora biti iz zatvorene liste. Detalje razgovora upišite u napomenu.",
-      });
-    }
+    // Zatvorenu listu (§9) sada nameće `LEAD_OUTCOME_VALIDATOR` na samom
+    // argumentu, pa je ovde nema šta re-proveravati: `args.outcome` je već
+    // jedan od `LEAD_OUTCOME_CODES`. Detalji razgovora idu u `note`, ne u
+    // ishod — tako dva operatera ne prave dva različita ishoda za istu stvar.
+    const cleanOutcome = args.outcome;
 
     const cleanNote = args.note?.trim() || undefined;
     const now = Date.now();
@@ -812,6 +799,241 @@ export const addToSuppressionFromOutcome = mutation({
     return {
       success: true,
       suppressed: true,
+    };
+  },
+});
+
+/**
+ * Zakazuje (ili menja) sastanak sa firmom (§4/O1).
+ *
+ * Sastanak je dogovoren termin sa drugom stranom i zaseban je od `nextActionAt`.
+ *
+ * Pravila:
+ * - NE menja `stage` automatski. Prelazak u „Sastanak" se predlaže na ekranu, ali
+ *   ga bira čovek — tiha promena faze bi prepisala rad.
+ * - Termin u prošlosti se DOZVOLJAVA (beleži se sastanak koji je bio), ali odgovor
+ *   nosi `uProslosti: true` da ekran to jasno kaže.
+ * - `meetingSetAt` beleži KAD je sastanak dogovoren (za istoriju).
+ * - Upisuje `leadStageEvents` kind "sastanak" — istorija mora znati da je dogovoren.
+ */
+export const setMeeting = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    companyId: v.id("leadCompanies"),
+    meetingAt: v.number(),
+    meetingNote: v.optional(v.string()),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    uProslosti: v.boolean(),
+    meetingAt: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+
+    const company = await ctx.db.get(args.companyId);
+    if (!company || company.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Firma nije pronađena u ovom radnom prostoru.",
+      });
+    }
+
+    const cleanNote = args.meetingNote?.trim() || undefined;
+    const now = Date.now();
+    const uProslosti = args.meetingAt < now;
+
+    const existing = await ctx.db
+      .query("leadAssignments")
+      .withIndex("by_workspace_company", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("companyId", args.companyId),
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        meetingAt: args.meetingAt,
+        meetingNote: cleanNote,
+        meetingSetAt: now,
+        updatedAt: now,
+      });
+    } else {
+      // Bez tihog vlasništva (§9.1): kreiranje dodele upisuje „dodela" događaj,
+      // pa se posle dopunjuju polja sastanka.
+      const assignmentId = await createAssignmentWithEvent(ctx, {
+        workspaceId: args.workspaceId,
+        companyId: args.companyId,
+        actorUserId: membership.userId,
+        now,
+        razlog: "zakazivanje sastanka",
+      });
+      await ctx.db.patch(assignmentId, {
+        meetingAt: args.meetingAt,
+        meetingNote: cleanNote,
+        meetingSetAt: now,
+        updatedAt: now,
+      });
+    }
+
+    await ctx.db.insert("leadStageEvents", {
+      workspaceId: args.workspaceId,
+      companyId: args.companyId,
+      kind: "sastanak",
+      toValue: String(args.meetingAt),
+      actorUserId: membership.userId,
+      note: cleanNote,
+      occurredAt: now,
+    });
+
+    return {
+      success: true,
+      uProslosti,
+      meetingAt: args.meetingAt,
+    };
+  },
+});
+
+/**
+ * Otkazuje zakazan sastanak (§4).
+ *
+ * Otkazano ≠ nikad zakazano: briše se `meetingAt` (i `meetingNote`, koja opisuje
+ * otkazan termin), ali se `meetingSetAt` ZADRŽAVA i upisuje se događaj u istoriju.
+ */
+export const clearMeeting = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    companyId: v.id("leadCompanies"),
+    note: v.optional(v.string()),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    changed: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+
+    const company = await ctx.db.get(args.companyId);
+    if (!company || company.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Firma nije pronađena u ovom radnom prostoru.",
+      });
+    }
+
+    const existing = await ctx.db
+      .query("leadAssignments")
+      .withIndex("by_workspace_company", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("companyId", args.companyId),
+      )
+      .first();
+
+    // Nema šta da se otkaže — nije greška, samo ništa nije promenjeno.
+    if (!existing || existing.meetingAt === undefined) {
+      return { success: true, changed: false };
+    }
+
+    const now = Date.now();
+    const previousMeetingAt = existing.meetingAt;
+    const cleanNote = args.note?.trim() || undefined;
+
+    await ctx.db.patch(existing._id, {
+      meetingAt: undefined,
+      meetingNote: undefined,
+      // meetingSetAt se NAMERNO ne dira — dokaz da je sastanak nekad postojao.
+      updatedAt: now,
+    });
+
+    await ctx.db.insert("leadStageEvents", {
+      workspaceId: args.workspaceId,
+      companyId: args.companyId,
+      kind: "sastanak",
+      fromValue: String(previousMeetingAt),
+      // toValue izostaje: sastanka više nema.
+      actorUserId: membership.userId,
+      note: cleanNote,
+      occurredAt: now,
+    });
+
+    return { success: true, changed: true };
+  },
+});
+
+/**
+ * Lista firmi sa zakazanim (ili prošlim) sastankom — hrani jezičak „Sastanci"
+ * i njegov brojač (§4).
+ *
+ * Koristi indeks "by_workspace_meeting". `gt("meetingAt", 0)` preskače redove bez
+ * sastanka (`undefined` se u indeksu sortira pre svih brojeva), pa se ne skenira
+ * gomila dodela koje nemaju sastanak.
+ *
+ * Grupisanje po danima (danas/sutra/ove nedelje) se NE radi ovde: server je UTC,
+ * a „danas" je lokalni pojam — zato se vraća sirov `meetingAt` i računa na klijentu.
+ * `ishodZabelezen` je jedini izvedeni znak: sastanak je „bez ishoda" ako ishod
+ * nije zabeležen u trenutku sastanka ili posle njega.
+ */
+export const listMeetings = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+
+    const maxRows = Math.min(Math.max(args.limit ?? 200, 1), 500);
+
+    const scanned = await ctx.db
+      .query("leadAssignments")
+      .withIndex("by_workspace_meeting", (q) =>
+        q.eq("workspaceId", args.workspaceId).gt("meetingAt", 0),
+      )
+      .take(maxRows + 1);
+
+    const mozdaImaJos = scanned.length > maxRows;
+    const assignments = mozdaImaJos ? scanned.slice(0, maxRows) : scanned;
+
+    const now = Date.now();
+
+    const items = await Promise.all(
+      assignments.map(async (assignment) => {
+        const company = await ctx.db.get(assignment.companyId);
+        // Sken je ograničen na `meetingAt > 0`, pa je ovde uvek definisan.
+        const meetingAt = assignment.meetingAt!;
+        return {
+          assignment,
+          company,
+          meetingAt,
+          meetingNote: assignment.meetingNote,
+          uProslosti: meetingAt < now,
+          ishodZabelezen:
+            assignment.outcomeAt !== undefined &&
+            assignment.outcomeAt >= meetingAt,
+        };
+      }),
+    );
+
+    return {
+      items,
+      count: items.length,
+      mozdaImaJos,
+      now,
     };
   },
 });

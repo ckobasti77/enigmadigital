@@ -3540,6 +3540,13 @@ export default defineSchema({
     // Vreme kada je ishod zabeležen
     outcomeAt: v.optional(v.number()),
 
+    // Sastanak (§4/O1) — dogovoren termin sa drugom stranom. NAMERNO odvojen od
+    // `nextActionAt` ("kad se sledeći put javljam"): sastanak i sledeći korak
+    // postoje istovremeno, guranje oba u jedno polje trajno gubi jedno.
+    meetingAt: v.optional(v.number()), // dogovoren termin
+    meetingNote: v.optional(v.string()), // gde/kako, jedna rečenica
+    meetingSetAt: v.optional(v.number()), // kad je dogovoren (za istoriju; ostaje i posle otkazivanja)
+
     createdAt: v.optional(v.number()),
     updatedAt: v.optional(v.number()),
   })
@@ -3547,6 +3554,7 @@ export default defineSchema({
     .index("by_workspace_owner", ["workspaceId", "ownerUserId"])
     .index("by_workspace_stage", ["workspaceId", "stage"])
     .index("by_workspace_next_action", ["workspaceId", "nextActionAt"])
+    .index("by_workspace_meeting", ["workspaceId", "meetingAt"])
     .index("by_workspace_company", ["workspaceId", "companyId"]),
 
   // 8b) leadStageEvents — istorijat promena faza, dodela, dodira i ishoda (§9.1, LM8)
@@ -3560,6 +3568,7 @@ export default defineSchema({
       v.literal("dodir"), // zabeležen kontakt sa klijentom
       v.literal("ishod"), // zabeležen ishod
       v.literal("sledeci_korak"), // postavljen ili pomeren sledeći korak
+      v.literal("sastanak"), // sastanak dogovoren ili otkazan (§4)
     ),
     // Prethodna i nova vrednost — obe opcione, jer prva dodela nema prethodnu.
     // Prazan string NIJE dozvoljen kao „nema prethodne".
