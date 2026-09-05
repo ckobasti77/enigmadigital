@@ -2,35 +2,46 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useMutation, useQuery } from "convex/react";
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
   Eye,
   EyeOff,
   KeyRound,
   LoaderCircle,
   RotateCw,
+  ShieldPlus,
+  X,
 } from "lucide-react";
+import { api } from "@/convex/_generated/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/app/form-kit";
 import { FeedbackNote } from "@/components/app/feedback";
 import { Reveal } from "@/components/motion/reveal";
-import { prvaGreskaLozinke } from "@/lib/password-rules";
+import { cn } from "@/lib/utils";
+import {
+  PASSWORD_RULES,
+  prvaGreskaLozinke,
+  lozinkaValjana,
+} from "@/lib/password-rules";
 
 /**
  * Ekrani prijave.
  *
- * `lozinka`      — podrazumevani ulaz: email + lozinka, bez ijednog maila.
+ * `lozinka`      — podrazumevani i JEDINI ulaz: email + lozinka. Prijava se nikad
+ *                  ne radi kodom (§11).
  * `zaboravljena` — traženje koda za promenu lozinke.
- * `kod`          — 6-cifreni kod. Koristi se za DVE stvari (prijava kodom i
- *                  reset lozinke), pa `kodNamena` mora da kaže za koju.
+ * `kod`          — 6-cifreni kod za reset lozinke (kod → nova lozinka).
+ * `adminSetup`   — pravljenje PRVOG admin naloga (setup šifra + email + lozinka).
+ * `adminKod`     — potvrda adrese kodom, tik posle pravljenja admin naloga.
  *
- * Postavljanje lozinke više NIJE ovde — nov nalog se pravi isključivo preko
- * pozivnice (`/pozivnica/<token>`).
+ * Postavljanje lozinke za obične korisnike ide isključivo preko pozivnice
+ * (`/pozivnica/<token>`), ne odavde.
  */
-type Ekran = "lozinka" | "zaboravljena" | "kod";
-type KodNamena = "prijava" | "reset";
+type Ekran = "lozinka" | "zaboravljena" | "kod" | "adminSetup" | "adminKod";
 type Status = "idle" | "radim" | "error";
 
 /** Dovoljno da uhvati omašku u kucanju; ostalo proverava server. */
@@ -43,18 +54,36 @@ function emailProblem(raw: string): string | null {
   return null;
 }
 
-/** Ista pravila kao na serveru (convex/auth.ts §5) — da server ne odbije ono što je ekran pustio. */
-function lozinkaProblem(value: string): string | null {
-  return prvaGreskaLozinke(value);
-}
-
 /**
- * Poruka se izvodi iz onoga što je server stvarno rekao. Uzrok koji nije
- * potvrđen se ne pogađa: „pogrešna lozinka" i „nalog još nema lozinku" nisu
- * ista stvar i ne smeju da izgledaju isto.
+ * Poruka se izvodi iz onoga što je server stvarno rekao. `ConvexError` nosi
+ * poruku u `data.message`; nepoznat uzrok se prikazuje KAO nepoznat, a
+ * „server nije odgovorio" ima svoju poruku i nikad se ne meša sa pogrešnim
+ * unosom (§7). Nijedna od poruka se ne svodi na drugu.
  */
 function porukaGreske(error: unknown, podrazumevana: string): string {
+  const data = (error as { data?: unknown } | null)?.data;
+  if (data && typeof data === "object" && "message" in data) {
+    const m = (data as { message?: unknown }).message;
+    if (typeof m === "string" && m.length > 0) return m;
+  }
+
   const tekst = error instanceof Error ? error.message : String(error);
+
+  if (/Failed to fetch|NetworkError|Load failed|ERR_|network|timeout/i.test(tekst)) {
+    return "Server nije odgovorio. Proveri vezu i pokušaj ponovo za koji trenutak.";
+  }
+  if (tekst.includes("Greška servera")) {
+    return "Greška servera. Pokušaj ponovo za koji trenutak.";
+  }
+  if (tekst.includes("Setup nije konfigurisan")) {
+    return "Setup nije konfigurisan na serveru.";
+  }
+  if (tekst.includes("Setup šifra")) {
+    return "Setup šifra nije tačna.";
+  }
+  if (tekst.includes("Admin nalog već postoji")) {
+    return "Admin nalog već postoji. Prijavi se lozinkom.";
+  }
   if (tekst.includes("Pristup nije dozvoljen")) {
     return "Pristup nije dozvoljen za ovu email adresu.";
   }
@@ -75,14 +104,20 @@ function porukaGreske(error: unknown, podrazumevana: string): string {
 
 export default function LoginPage() {
   const { signIn } = useAuthActions();
+  const trebaSetup = useQuery(api.invitesStore.trebaSetup);
+  const pripremiAdminSetup = useMutation(api.invitesStore.pripremiAdminSetup);
 
   const [ekran, setEkran] = useState<Ekran>("lozinka");
-  const [kodNamena, setKodNamena] = useState<KodNamena>("prijava");
 
   const [email, setEmail] = useState("");
   const [lozinka, setLozinka] = useState("");
   const [novaLozinka, setNovaLozinka] = useState("");
   const [kod, setKod] = useState("");
+
+  // Bootstrap admina.
+  const [setupKod, setSetupKod] = useState("");
+  const [adminLozinka, setAdminLozinka] = useState("");
+  const [adminPotvrda, setAdminPotvrda] = useState("");
 
   const [prikaziLozinku, setPrikaziLozinku] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
@@ -119,7 +154,12 @@ export default function LoginPage() {
   const formatEmail = emailProblem(email);
   const emailGreska =
     formatEmail ?? (pokusano && email.trim().length === 0 ? "Unesi email." : null);
-  const novaLozinkaGreska = lozinkaProblem(novaLozinka);
+  const novaLozinkaGreska = prvaGreskaLozinke(novaLozinka);
+  const adminLozinkaGreska = prvaGreskaLozinke(adminLozinka);
+  const adminPotvrdaGreska =
+    adminPotvrda.length > 0 && adminPotvrda !== adminLozinka
+      ? "Lozinke se ne poklapaju."
+      : null;
   const kodGreska = pokusano && kod.length > 0 && kod.length < 6
     ? "Unesi svih 6 cifara koda."
     : null;
@@ -162,7 +202,6 @@ export default function LoginPage() {
     setStatus("radim");
     try {
       await signIn("password", { email: cleanEmail, flow: "reset" });
-      setKodNamena("reset");
       setKod("");
       setNovaLozinka("");
       idiNa("kod");
@@ -174,46 +213,22 @@ export default function LoginPage() {
     }
   }
 
-  // ── Kod na email umesto lozinke ──────────────────────────────────────────
-  async function posaljiKodZaPrijavu() {
-    setPokusano(true);
-    setErrorMessage(null);
-    if (!cleanEmail || formatEmail || zauzet) return;
-
-    setStatus("radim");
-    try {
-      await signIn("resend", { email: cleanEmail });
-      setKodNamena("prijava");
-      setKod("");
-      idiNa("kod");
-      setResendCooldown(30);
-    } catch (error) {
-      console.error("Slanje koda nije uspelo");
-      setStatus("error");
-      setErrorMessage(porukaGreske(error, "Slanje koda nije uspelo. Proveri adresu."));
-    }
-  }
-
-  // ── Potvrda koda ─────────────────────────────────────────────────────────
-  async function potvrdiKod(event?: FormEvent<HTMLFormElement>) {
+  // ── Potvrda koda za reset lozinke ────────────────────────────────────────
+  async function potvrdiResetKod(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     setPokusano(true);
     setErrorMessage(null);
     if (kod.length !== 6 || zauzet) return;
-    if (kodNamena === "reset" && (novaLozinka.length === 0 || novaLozinkaGreska)) return;
+    if (novaLozinka.length === 0 || novaLozinkaGreska) return;
 
     setStatus("radim");
     try {
-      if (kodNamena === "prijava") {
-        await signIn("resend", { email: cleanEmail, code: kod });
-      } else {
-        await signIn("password", {
-          email: cleanEmail,
-          code: kod,
-          newPassword: novaLozinka,
-          flow: "reset-verification",
-        });
-      }
+      await signIn("password", {
+        email: cleanEmail,
+        code: kod,
+        newPassword: novaLozinka,
+        flow: "reset-verification",
+      });
       // Uspeh: sesija je postavljena, preusmeravanje ide samo.
     } catch (error) {
       console.error("Potvrda koda nije uspela");
@@ -224,9 +239,93 @@ export default function LoginPage() {
     }
   }
 
-  async function posaljiKodPonovo() {
-    if (kodNamena === "prijava") return posaljiKodZaPrijavu();
-    return traziKodZaReset();
+  // ── Bootstrap: napravi prvi admin nalog ──────────────────────────────────
+  async function napraviAdminNalog(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    setPokusano(true);
+    setErrorMessage(null);
+    if (!cleanEmail || formatEmail || zauzet) return;
+    if (setupKod.trim().length === 0) {
+      setStatus("error");
+      setErrorMessage("Unesi setup šifru.");
+      return;
+    }
+    if (!lozinkaValjana(adminLozinka)) {
+      setStatus("error");
+      setErrorMessage(prvaGreskaLozinke(adminLozinka) ?? "Lozinka ne ispunjava pravila.");
+      return;
+    }
+    if (adminLozinka !== adminPotvrda) {
+      setStatus("error");
+      setErrorMessage("Lozinke se ne poklapaju.");
+      return;
+    }
+
+    setStatus("radim");
+    try {
+      // 1) Otvori prozor za bootstrap (proverava šifru, upisuje red u `invites`).
+      await pripremiAdminSetup({ setupCode: setupKod, email: cleanEmail });
+      // 2) Napravi nalog. Sa uključenim `verify`, ovo šalje kod umesto da odmah
+      //    napravi sesiju → prelazimo na korak unosa koda.
+      const res = await signIn("password", {
+        email: cleanEmail,
+        password: adminLozinka,
+        flow: "signUp",
+      });
+      if (res.signingIn) return; // ako je (retko) odmah ulogovan, redirect ide sam
+      setKod("");
+      idiNa("adminKod");
+      setResendCooldown(30);
+    } catch (error) {
+      console.error("Pravljenje admin naloga nije uspelo");
+      setStatus("error");
+      setErrorMessage(porukaGreske(error, "Pravljenje naloga nije prošlo. Pokušaj ponovo."));
+    }
+  }
+
+  // ── Bootstrap: potvrda adrese kodom ──────────────────────────────────────
+  async function potvrdiAdminKod(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    setPokusano(true);
+    setErrorMessage(null);
+    if (kod.length !== 6 || zauzet) return;
+
+    setStatus("radim");
+    try {
+      await signIn("password", {
+        email: cleanEmail,
+        code: kod,
+        flow: "email-verification",
+      });
+      // Uspeh: sesija je postavljena, preusmeravanje ide samo.
+    } catch (error) {
+      console.error("Potvrda admin koda nije uspela");
+      setStatus("error");
+      setErrorMessage(
+        porukaGreske(error, "Kod nije ispravan ili je istekao. Zatraži novi."),
+      );
+    }
+  }
+
+  // Ponovno slanje admin koda = ponovni `signUp` (nalog već postoji, pa se samo
+  // pošalje nov kod, bez greške).
+  async function posaljiAdminKodPonovo() {
+    if (zauzet || resendCooldown > 0) return;
+    setErrorMessage(null);
+    setStatus("radim");
+    try {
+      await signIn("password", {
+        email: cleanEmail,
+        password: adminLozinka,
+        flow: "signUp",
+      });
+      setStatus("idle");
+      setResendCooldown(30);
+    } catch (error) {
+      console.error("Ponovno slanje admin koda nije uspelo");
+      setStatus("error");
+      setErrorMessage(porukaGreske(error, "Slanje koda nije uspelo. Pokušaj ponovo."));
+    }
   }
 
   const emailPolje = (disabled: boolean) => (
@@ -289,6 +388,55 @@ export default function LoginPage() {
     </Field>
   );
 
+  const kodPolje = (onChange: (v: string) => void, value: string) => (
+    <Field label="Verifikacioni kod" error={kodGreska}>
+      {(field) => (
+        <Input
+          {...field}
+          name="code"
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          pattern="[0-9]*"
+          maxLength={6}
+          autoFocus
+          placeholder="••••••"
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value.replace(/\D/g, "").slice(0, 6));
+            setErrorMessage(null);
+          }}
+          disabled={zauzet}
+          className="h-12 text-center font-mono text-xl font-bold tracking-[0.4em] placeholder:tracking-[0.4em]"
+        />
+      )}
+    </Field>
+  );
+
+  const lozinkaChecklist = (value: string) => (
+    <ul className="space-y-1">
+      {PASSWORD_RULES.map((rule) => {
+        const ok = rule.test(value);
+        return (
+          <li
+            key={rule.id}
+            className={cn(
+              "flex items-center gap-2 text-xs",
+              ok ? "text-success" : "text-text-muted",
+            )}
+          >
+            {ok ? (
+              <Check className="size-3.5 shrink-0" aria-hidden />
+            ) : (
+              <X className="size-3.5 shrink-0 opacity-50" aria-hidden />
+            )}
+            <span>{rule.label}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
   const greskaBlok = (naslov: string) =>
     errorMessage ? (
       <FeedbackNote tone="danger" title={naslov}>
@@ -304,55 +452,27 @@ export default function LoginPage() {
             Enigma · Command Center
           </p>
 
-          {/* ─────────── Kod ─────────── */}
+          {/* ─────────── Reset lozinke: kod + nova lozinka ─────────── */}
           {ekran === "kod" ? (
             <div className="mt-6">
               <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-accent-400">
                 <KeyRound className="size-5" aria-hidden />
               </div>
-              <h1 className="mt-4 text-h2 text-foreground">
-                {kodNamena === "reset" ? "Nova lozinka" : "Unesi 6-cifreni kod"}
-              </h1>
+              <h1 className="mt-4 text-h2 text-foreground">Nova lozinka</h1>
               <p role="status" className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {kodNamena === "reset"
-                  ? "Unesi kod sa mejla i novu lozinku."
-                  : "Kod za prijavu je poslat."}{" "}
-                Poslat je na{" "}
+                Unesi kod sa mejla i novu lozinku. Poslat je na{" "}
                 <span className="font-medium text-foreground">{cleanEmail}</span>. Važi 15 minuta.
               </p>
 
-              <form onSubmit={potvrdiKod} className="mt-6 space-y-4">
-                <Field label="Verifikacioni kod" error={kodGreska}>
-                  {(field) => (
-                    <Input
-                      {...field}
-                      name="code"
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      pattern="[0-9]*"
-                      maxLength={6}
-                      autoFocus
-                      placeholder="••••••"
-                      value={kod}
-                      onChange={(e) => {
-                        setKod(e.target.value.replace(/\D/g, "").slice(0, 6));
-                        setErrorMessage(null);
-                      }}
-                      disabled={zauzet}
-                      className="h-12 text-center font-mono text-xl font-bold tracking-[0.4em] placeholder:tracking-[0.4em]"
-                    />
-                  )}
-                </Field>
-
-                {kodNamena === "reset" &&
-                  lozinkaPolje(
-                    "Nova lozinka",
-                    novaLozinka,
-                    setNovaLozinka,
-                    novaLozinkaGreska,
-                    "new-password",
-                  )}
+              <form onSubmit={potvrdiResetKod} className="mt-6 space-y-4">
+                {kodPolje(setKod, kod)}
+                {lozinkaPolje(
+                  "Nova lozinka",
+                  novaLozinka,
+                  setNovaLozinka,
+                  novaLozinkaGreska,
+                  "new-password",
+                )}
 
                 <Button
                   type="submit"
@@ -366,13 +486,13 @@ export default function LoginPage() {
                     </>
                   ) : (
                     <>
-                      {kodNamena === "reset" ? "Sačuvaj i prijavi se" : "Prijavi se"}
+                      Sačuvaj i prijavi se
                       <ArrowRight />
                     </>
                   )}
                 </Button>
 
-                {greskaBlok("Greška pri prijavi")}
+                {greskaBlok("Greška pri promeni lozinke")}
 
                 <div className="flex flex-col gap-2 border-t border-line-muted pt-2">
                   <Button
@@ -380,7 +500,7 @@ export default function LoginPage() {
                     variant="ghost"
                     size="sm"
                     disabled={resendCooldown > 0 || zauzet}
-                    onClick={() => posaljiKodPonovo()}
+                    onClick={() => traziKodZaReset()}
                     className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
                   >
                     {resendCooldown > 0 ? (
@@ -407,6 +527,168 @@ export default function LoginPage() {
                     Nazad na prijavu
                   </Button>
                 </div>
+              </form>
+            </div>
+          ) : ekran === "adminKod" ? (
+            /* ─────────── Bootstrap: potvrda adrese kodom ─────────── */
+            <div className="mt-6">
+              <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-accent-400">
+                <ShieldPlus className="size-5" aria-hidden />
+              </div>
+              <h1 className="mt-4 text-h2 text-foreground">Potvrdi adresu</h1>
+              <p role="status" className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Poslali smo 6-cifreni kod na{" "}
+                <span className="font-medium text-foreground">{cleanEmail}</span>. Unesi ga da
+                završiš pravljenje admin naloga. Važi 15 minuta.
+              </p>
+
+              <form onSubmit={potvrdiAdminKod} className="mt-6 space-y-4">
+                {kodPolje(setKod, kod)}
+
+                <Button
+                  type="submit"
+                  disabled={zauzet || kod.length !== 6}
+                  className="h-11 w-full"
+                >
+                  {zauzet ? (
+                    <>
+                      <LoaderCircle className="animate-spin" />
+                      Proveravam…
+                    </>
+                  ) : (
+                    <>
+                      Napravi nalog
+                      <ArrowRight />
+                    </>
+                  )}
+                </Button>
+
+                {greskaBlok("Greška pri potvrdi")}
+
+                <div className="flex flex-col gap-2 border-t border-line-muted pt-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={resendCooldown > 0 || zauzet}
+                    onClick={() => posaljiAdminKodPonovo()}
+                    className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {resendCooldown > 0 ? (
+                      <>
+                        <RotateCw className="mr-1.5 size-3.5 opacity-50" />
+                        Pošalji ponovo za {resendCooldown}s
+                      </>
+                    ) : (
+                      <>
+                        <RotateCw className="mr-1.5 size-3.5" />
+                        Nisi dobio kod? Pošalji ponovo
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => idiNa("lozinka")}
+                    className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowLeft className="mr-1.5 size-3.5" />
+                    Nazad na prijavu
+                  </Button>
+                </div>
+              </form>
+            </div>
+          ) : ekran === "adminSetup" ? (
+            /* ─────────── Bootstrap: pravljenje admin naloga ─────────── */
+            <div className="mt-6">
+              <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-accent-400">
+                <ShieldPlus className="size-5" aria-hidden />
+              </div>
+              <h1 className="mt-4 text-h2 text-foreground">Napravi admin nalog</h1>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Prvi nalog se pravi jednokratnom setup šifrom sa servera. Posle
+                njega ostale pozivaš iz aplikacije.
+              </p>
+
+              <form onSubmit={napraviAdminNalog} className="mt-6 space-y-4">
+                <Field label="Setup šifra">
+                  {(field) => (
+                    <Input
+                      {...field}
+                      name="setup-code"
+                      type="password"
+                      autoComplete="off"
+                      required
+                      placeholder="Šifra sa servera"
+                      value={setupKod}
+                      onChange={(e) => {
+                        setSetupKod(e.target.value);
+                        setErrorMessage(null);
+                      }}
+                      disabled={zauzet}
+                      className="h-11"
+                    />
+                  )}
+                </Field>
+
+                {emailPolje(zauzet)}
+
+                {lozinkaPolje(
+                  "Lozinka",
+                  adminLozinka,
+                  setAdminLozinka,
+                  null,
+                  "new-password",
+                )}
+                {lozinkaChecklist(adminLozinka)}
+
+                {lozinkaPolje(
+                  "Potvrdi lozinku",
+                  adminPotvrda,
+                  setAdminPotvrda,
+                  adminPotvrdaGreska,
+                  "new-password",
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={
+                    zauzet ||
+                    !cleanEmail ||
+                    !!formatEmail ||
+                    setupKod.trim().length === 0 ||
+                    !lozinkaValjana(adminLozinka) ||
+                    adminLozinka !== adminPotvrda
+                  }
+                  className="h-11 w-full"
+                >
+                  {zauzet ? (
+                    <>
+                      <LoaderCircle className="animate-spin" />
+                      Pravim nalog…
+                    </>
+                  ) : (
+                    <>
+                      Napravi admin nalog
+                      <ArrowRight />
+                    </>
+                  )}
+                </Button>
+
+                {greskaBlok("Pravljenje naloga nije prošlo")}
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => idiNa("lozinka")}
+                  className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <ArrowLeft className="mr-1.5 size-3.5" />
+                  Nazad na prijavu
+                </Button>
               </form>
             </div>
           ) : ekran === "zaboravljena" ? (
@@ -490,16 +772,19 @@ export default function LoginPage() {
                   >
                     Zaboravio sam lozinku
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={zauzet}
-                    onClick={() => posaljiKodZaPrijavu()}
-                    className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    Pošalji mi kod na email umesto toga
-                  </Button>
+
+                  {trebaSetup === true && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => idiNa("adminSetup")}
+                      className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <ShieldPlus className="mr-1.5 size-3.5" />
+                      Napravi admin nalog
+                    </Button>
+                  )}
                 </div>
               </form>
             </>

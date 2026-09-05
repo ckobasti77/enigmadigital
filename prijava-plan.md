@@ -146,3 +146,127 @@ kao rezervni ulaz.
 - ne prave se uloge ni dozvole (svi članovi su i dalje `owner`)
 - ne šalje se mail sa pozivnicom — link se prosleđuje ručno
 - lozinka ne ide u env, ni u log, ni u URL, ni u poruku greške
+
+---
+
+# DRUGI KRUG — konačan model pristupa (§11–§16)
+
+## §11. Pravilo koje sve određuje
+
+**Kod na email postoji za tačno dve stvari: potvrdu pri registraciji i promenu
+zaboravljene lozinke. Prijava se NIKAD ne radi kodom.**
+
+Zato `ResendOTP` (provajder `"resend"`) i dugme „Pošalji mi kod na email
+umesto toga" **nestaju**. Prijava je isključivo email + lozinka.
+
+## §12. Dve greške u postojećem kodu koje se ovde ispravljaju
+
+### §12.1 Kolega se može registrovati, ali se ne može ponovo prijaviti
+
+`isEmailAllowed` (convex/auth.ts) pušta adresu samo ako je u `ALLOWED_EMAILS`
+ILI ima pozivnicu sa `readyUntil > now` **i `usedAt === undefined`**.
+
+`afterUserCreatedOrUpdated` upisuje `usedAt` čim registracija prođe. Sledeći
+put kad se kolega prijavi, pozivnica je iskorišćena, adresa nije u allowlisti —
+`beforeSessionCreation` ga odbija. **Registruje se jednom i više nikad ne ulazi.**
+
+Ispravno pravilo: **ko je već član radnog prostora, sme da se prijavi.**
+
+```
+isEmailAllowed(ctx, userId, email):
+  1. postoji `members` red za tog userId            → DA   (obična prijava)
+  2. postoji pozivnica sa otvorenim readyUntil      → DA   (registracija u toku)
+  3. email je u ALLOWED_EMAILS                      → DA   (nasleđeno, bezopasno)
+  inače                                             → NE
+```
+
+`beforeSessionCreation` dobija `userId`, pa se članstvo čita direktno.
+`afterUserCreatedOrUpdated` ga takođe ima.
+
+### §12.2 Vlasnik ne može sebi da postavi lozinku
+
+`createInvite` odbija svaku adresu koja već ima nalog. Vlasnik nalog ima, pa je
+zaključan van sistema lozinkom. Rešava §13.
+
+## §13. Bootstrap: pravljenje prvog admin naloga
+
+**Uslov pojavljivanja:** u bazi ne postoji **nijedan `authAccounts` red sa
+`provider === "password"`**. To je iskren uslov — znači „još niko ne može da
+uđe lozinkom". Postojeći `users` red od OTP prijave ga NE blokira.
+
+Indeks: `authAccounts.providerAndAccountId` na `["provider", "providerAccountId"]`.
+
+**Šifra za setup:** `ADMIN_SETUP_CODE` u Convex env-u. Nije lozinka naloga —
+to je jednokratni ključ koji otvara ekran za pravljenje admina.
+- ako promenljiva nije postavljena ili je prazna → ekran to **izričito kaže**
+  („Setup nije konfigurisan na serveru"), ne pravi se tiho ništa
+- poređenje ide nad celim stringom, bez ranog izlaza na prvoj različitoj
+  cifri
+- vrednost se **nikad** ne loguje, ne vraća klijentu i ne stavlja u poruku greške
+
+**Tok:**
+1. `/login` zove javni upit `trebaSetup()` → `boolean`. Kad je `true`, prikazuje
+   dugme **„Napravi admin nalog"**.
+2. Ekran: setup šifra, email, lozinka, potvrda lozinke.
+3. Mutacija `pripremiAdminSetup({ setupCode, email })`:
+   - ponovo proverava da nijedan `password` nalog ne postoji (uslov se mogao
+     promeniti između učitavanja ekrana i klika)
+   - proverava šifru
+   - upisuje **bootstrap red u istu `invites` tabelu** (`readyUntil = now + 10 min`,
+     `createdBy` = sam userId kad postoji, inače polje ostaje prazno)
+
+   Namerno se koristi ista tabela i isti prozor kao za pozivnice — jedan
+   mehanizam, jedan put kroz kod, jedno mesto za grešku.
+4. `signIn("password", { email, password, flow: "signUp" })`
+5. Stiže kod za potvrdu → unos → nalog napravljen, korisnik ulogovan.
+
+**Vlasnikov postojeći nalog se ČUVA.** `verify` je postavljen na Password
+provajderu, pa Convex Auth radi `shouldLinkViaEmail: true`
+(`Password.js:69`) i lozinku kači na **postojeći** `users` red. Bez toga bi
+nastao drugi korisnik, a `leadAssignments.ownerUserId` i sve ostalo ostalo bi
+na starom.
+
+Kad admin nalog postoji, `trebaSetup()` vraća `false` i dugme se više ne crta.
+
+## §14. Kod za potvrdu mora da stigne i onome ko nije u allowlisti
+
+`Password` provajder dobija `verify: PasswordVerify`
+(`makeResendOTP("password-verify", "potvrda")`).
+
+`sendVerificationRequest` trenutno proverava samo `isEmailInAllowlist`. Kolega
+nije u allowlisti, pa mu kod za potvrdu **ne bi bio poslat** — registracija bi
+stala bez objašnjenja.
+
+`sendVerificationRequest` **dobija `ctx`** kao drugi argument
+(`@convex-dev/auth/dist/server/implementation/signIn.js:98`). Preko
+`ctx.runQuery` sme da pročita da li za tu adresu postoji pozivnica sa otvorenim
+prozorom. Pravilo: **allowlist ILI otvoren invite prozor ILI postojeći član.**
+
+Ako čitanje iz bilo kog razloga ne uspe → **odbija se** (fail closed), i to se
+kaže kao greška servera, ne kao „adresa nije dozvoljena".
+
+## §15. Ekran registracije — tri polja
+
+`email` (popunjen iz pozivnice), `lozinka`, `potvrda lozinke`.
+
+**Email se mora poklopiti sa adresom iz pozivnice.** Polje je popunjeno i
+zaključano; ako se ipak pošalje druga vrednost, server odbija — poređenje se
+radi i na serveru, nad normalizovanom adresom (trim + lowercase).
+
+**Pravila lozinke** (min 8, veliko slovo, malo slovo, cifra, specijalan znak)
+se prikazuju kao **živi checklist** koji se čekira dok korisnik kuca, a poruka
+greške kaže **koje** pravilo fali — nikad „lozinka je loša".
+
+Neslaganje potvrde javlja se **pri kucanju**, ne tek pri slanju.
+
+**Uspeh:** posle unetog koda korisnik je ulogovan i preusmeren. Ako
+preusmeravanje ne krene za 3 sekunde, ekran to kaže i ponudi link.
+
+## §16. Šta se briše
+
+- `ResendOTP` provajder i sve njegove upotrebe
+- ekran `kod` u `app/login/page.tsx` u nameni `"prijava"`
+- dugme „Pošalji mi kod na email umesto toga"
+
+Ostaje: prijava lozinkom, „Zaboravio sam lozinku" (kod → nova lozinka),
+registracija preko pozivnice (kod za potvrdu), i bootstrap admina.

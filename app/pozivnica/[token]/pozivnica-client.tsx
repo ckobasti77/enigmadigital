@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import {
+  ArrowLeft,
   ArrowRight,
   Check,
   Eye,
   EyeOff,
   KeyRound,
   LoaderCircle,
+  RotateCw,
   X,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -86,13 +88,16 @@ export function PozivnicaClient({ token }: { token: string }) {
   const { signIn } = useAuthActions();
   const router = useRouter();
 
+  const [korak, setKorak] = useState<"lozinka" | "kod">("lozinka");
   const [lozinka, setLozinka] = useState("");
   const [potvrda, setPotvrda] = useState("");
+  const [kod, setKod] = useState("");
   const [prikaziLozinku, setPrikaziLozinku] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pokusano, setPokusano] = useState(false);
   const [sporoPreusmeravanje, setSporoPreusmeravanje] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const zauzet = status === "radim";
   const email = inviteState?.status === "vazi" ? inviteState.email ?? "" : "";
@@ -108,6 +113,20 @@ export function PozivnicaClient({ token }: { token: string }) {
     const t = window.setTimeout(() => setSporoPreusmeravanje(true), 3000);
     return () => window.clearTimeout(t);
   }, [status]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
+
+  // Neslaganje potvrde se javlja pri kucanju — vidi `potvrdaGreska` gore.
+  const kodGreska =
+    pokusano && kod.length > 0 && kod.length < 6
+      ? "Unesi svih 6 cifara koda."
+      : null;
 
   async function napraviNalog(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
@@ -129,14 +148,60 @@ export function PozivnicaClient({ token }: { token: string }) {
 
     setStatus("radim");
     try {
-      // 1) Otvori prozor registracije (ponovna provera heša, roka, iskorišćenosti).
-      await pripremiRegistraciju({ token });
-      // 2) Odmah zatim napravi nalog — bez `verify` u provajderu, ovo pravi sesiju.
-      await signIn("password", { email, password: lozinka, flow: "signUp" });
+      // 1) Otvori prozor registracije (ponovna provera heša, roka, iskorišćenosti;
+      //    server proverava i da adresa odgovara pozivnici — §15).
+      await pripremiRegistraciju({ token, email });
+      // 2) Napravi nalog. Sa uključenim `verify`, ovo šalje kod za potvrdu umesto
+      //    da odmah napravi sesiju → prelazimo na korak unosa koda.
+      const res = await signIn("password", { email, password: lozinka, flow: "signUp" });
+      if (res.signingIn) {
+        // Ako je (retko) odmah ulogovan, preusmeravamo bez koraka koda.
+        setStatus("uspeh");
+        router.push("/");
+        return;
+      }
+      setKod("");
+      setPokusano(false);
+      setStatus("idle");
+      setKorak("kod");
+      setResendCooldown(30);
+    } catch (error) {
+      console.error("Registracija preko pozivnice nije uspela");
+      setStatus("error");
+      setErrorMessage(porukaGreske(error));
+    }
+  }
+
+  async function potvrdiKod(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    setPokusano(true);
+    setErrorMessage(null);
+    if (kod.length !== 6 || zauzet) return;
+
+    setStatus("radim");
+    try {
+      await signIn("password", { email, code: kod, flow: "email-verification" });
       setStatus("uspeh");
       router.push("/");
     } catch (error) {
-      console.error("Registracija preko pozivnice nije uspela");
+      console.error("Potvrda koda nije uspela");
+      setStatus("error");
+      setErrorMessage(porukaGreske(error));
+    }
+  }
+
+  // Ponovno slanje koda = ponovni `signUp` (nalog već postoji posle prvog koraka,
+  // pa se samo pošalje nov kod, bez greške).
+  async function posaljiKodPonovo() {
+    if (zauzet || resendCooldown > 0) return;
+    setErrorMessage(null);
+    setStatus("radim");
+    try {
+      await signIn("password", { email, password: lozinka, flow: "signUp" });
+      setStatus("idle");
+      setResendCooldown(30);
+    } catch (error) {
+      console.error("Ponovno slanje koda nije uspelo");
       setStatus("error");
       setErrorMessage(porukaGreske(error));
     }
@@ -176,6 +241,133 @@ export function PozivnicaClient({ token }: { token: string }) {
                 Idi na prijavu
               </Button>
             </div>
+          ) : korak === "kod" ? (
+            /* ─────────── Potvrda adrese kodom ─────────── */
+            <div className="mt-6">
+              <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-accent-400">
+                <KeyRound className="size-5" aria-hidden />
+              </div>
+              <h1 className="mt-4 text-h2 text-foreground">Potvrdi adresu</h1>
+              <p role="status" className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Poslali smo 6-cifreni kod na{" "}
+                <span className="font-medium text-foreground">{email}</span>. Unesi ga da
+                završiš registraciju. Kod se traži samo ovaj jednom. Važi 15 minuta.
+              </p>
+
+              <form onSubmit={potvrdiKod} className="mt-6 space-y-4">
+                <Field label="Verifikacioni kod" error={kodGreska}>
+                  {(field) => (
+                    <Input
+                      {...field}
+                      name="code"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      autoFocus
+                      placeholder="••••••"
+                      value={kod}
+                      onChange={(e) => {
+                        setKod(e.target.value.replace(/\D/g, "").slice(0, 6));
+                        setErrorMessage(null);
+                      }}
+                      disabled={zauzet || status === "uspeh"}
+                      className="h-12 text-center font-mono text-xl font-bold tracking-[0.4em] placeholder:tracking-[0.4em]"
+                    />
+                  )}
+                </Field>
+
+                <Button
+                  type="submit"
+                  disabled={zauzet || status === "uspeh" || kod.length !== 6}
+                  className="h-11 w-full"
+                >
+                  {zauzet ? (
+                    <>
+                      <LoaderCircle className="animate-spin" />
+                      Proveravam…
+                    </>
+                  ) : (
+                    <>
+                      Napravi nalog
+                      <ArrowRight />
+                    </>
+                  )}
+                </Button>
+
+                {status === "uspeh" && (
+                  <FeedbackNote
+                    tone={sporoPreusmeravanje ? "warning" : "progress"}
+                    title={
+                      sporoPreusmeravanje
+                        ? "Nalog je napravljen, ali preusmeravanje kasni"
+                        : "Nalog je napravljen. Prebacujem te u aplikaciju…"
+                    }
+                    action={
+                      sporoPreusmeravanje ? (
+                        <a
+                          href="/"
+                          className="text-xs font-medium text-accent-400 underline underline-offset-2"
+                        >
+                          Uđi ručno
+                        </a>
+                      ) : undefined
+                    }
+                  >
+                    {sporoPreusmeravanje
+                      ? "Ako te ne prebaci automatski, klikni na link."
+                      : undefined}
+                  </FeedbackNote>
+                )}
+
+                {status === "error" && errorMessage && pokusano && (
+                  <FeedbackNote tone="danger" title="Potvrda nije prošla">
+                    {errorMessage}
+                  </FeedbackNote>
+                )}
+
+                {status !== "uspeh" && (
+                  <div className="flex flex-col gap-2 border-t border-line-muted pt-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={resendCooldown > 0 || zauzet}
+                      onClick={() => posaljiKodPonovo()}
+                      className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      {resendCooldown > 0 ? (
+                        <>
+                          <RotateCw className="mr-1.5 size-3.5 opacity-50" />
+                          Pošalji ponovo za {resendCooldown}s
+                        </>
+                      ) : (
+                        <>
+                          <RotateCw className="mr-1.5 size-3.5" />
+                          Nisi dobio kod? Pošalji ponovo
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setKorak("lozinka");
+                        setStatus("idle");
+                        setErrorMessage(null);
+                        setPokusano(false);
+                      }}
+                      className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <ArrowLeft className="mr-1.5 size-3.5" />
+                      Nazad
+                    </Button>
+                  </div>
+                )}
+              </form>
+            </div>
           ) : (
             /* ─────────── Registracija ─────────── */
             <>
@@ -184,8 +376,8 @@ export function PozivnicaClient({ token }: { token: string }) {
               </div>
               <h1 className="mt-4 text-h2 text-foreground">Napravi nalog</h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Pozivnica važi za adresu ispod. Postavi lozinku i ušao/la si —
-                bez ijednog koda na mejl.
+                Pozivnica važi za adresu ispod. Postavi lozinku, pa potvrdi adresu
+                jednim kodom sa mejla — traži se samo pri registraciji.
               </p>
 
               <form onSubmit={napraviNalog} className="mt-6 space-y-4">

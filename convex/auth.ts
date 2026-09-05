@@ -2,8 +2,9 @@ import { convexAuth } from "@convex-dev/auth/server";
 import { Email } from "@convex-dev/auth/providers/Email";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { Resend as ResendClient } from "resend";
+import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
+import type { ActionCtx, MutationCtx } from "./_generated/server";
 
 /**
  * Normalize email: trim and lowercase so allowlist checks cannot be bypassed
@@ -38,25 +39,39 @@ export function isEmailInAllowlist(email?: string | null): boolean {
 }
 
 /**
- * Da li adresa sme da napravi sesiju: ILI je u `ALLOWED_EMAILS`, ILI za nju
- * postoji pozivnica sa otvorenim prozorom (`readyUntil > now`), još neiskorišćena
- * i nepovučena. `pripremiRegistraciju` otvara taj prozor tik pre `signUp`-a, pa
- * niko ne može da se registruje bez važećeg invite linka — a otvoreni ekran
- * „Postavi lozinku" više ne postoji.
+ * Da li ovaj korisnik sme da napravi sesiju. Redosled je namerno ovakav (§12.1):
  *
- * ASINHRONA je i prima `ctx` jer mora da čita `invites`. `sendVerificationRequest`
- * (samo slanje koda, bez `ctx.db`) i dalje koristi sinhroni `isEmailInAllowlist`.
+ *   1. postoji `members` red za taj `userId`      → DA  (obična prijava člana)
+ *   2. postoji pozivnica sa otvorenim prozorom    → DA  (registracija u toku)
+ *   3. email je u `ALLOWED_EMAILS`                 → DA  (nasleđeno)
+ *   inače                                         → NE
+ *
+ * Prva stavka je ISPRAVKA: ranije se gledala samo neiskorišćena pozivnica, pa se
+ * kolega registrovao jednom (čime se pozivnica označi iskorišćenom) i posle više
+ * nikad nije mogao da uđe. Ko je već član, uvek sme.
+ *
+ * Prima `userId` jer i `beforeSessionCreation` i `afterUserCreatedOrUpdated` ga
+ * imaju — članstvo se čita direktno po njemu, ne po adresi. `sendVerificationRequest`
+ * nema `userId` (nema sesije), pa tamo članstvo ide preko email→user→members
+ * (`invitesStore.smeDaDobijeKod`).
  */
 export async function isEmailAllowed(
   ctx: { db: MutationCtx["db"] },
+  userId: Id<"users">,
   email?: string | null,
 ): Promise<boolean> {
+  // 1. već je član radnog prostora
+  const member = await ctx.db
+    .query("members")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .first();
+  if (member !== null) return true;
+
   if (!email) return false;
   const normalized = normalizeEmail(email);
   if (!normalized) return false;
 
-  if (isEmailInAllowlist(normalized)) return true;
-
+  // 2. otvoren invite prozor (`pripremiRegistraciju` ga otvara tik pre `signUp`-a)
   const now = Date.now();
   const workspaces = await ctx.db
     .query("workspaces")
@@ -79,6 +94,9 @@ export async function isEmailAllowed(
     );
     if (vazeca) return true;
   }
+
+  // 3. nasleđena allowlista
+  if (isEmailInAllowlist(normalized)) return true;
 
   return false;
 }
@@ -127,13 +145,33 @@ function makeResendOTP(id: string, namena: OtpNamena) {
   async generateVerificationToken() {
     return generate6DigitCode();
   },
-  async sendVerificationRequest({ identifier: rawEmail, token }) {
+  async sendVerificationRequest(
+    { identifier: rawEmail, token }: { identifier: string; token: string },
+    ctx?: ActionCtx,
+  ) {
     const email = normalizeEmail(rawEmail);
 
-    // Ovde nema `ctx.db` (samo se šalje kod), pa proveravamo isključivo allowlistu.
-    // Sesija se i dalje NE pravi bez pune provere u `beforeSessionCreation`.
-    if (!isEmailInAllowlist(email)) {
-      console.warn(`[auth] Sign-in attempt denied for email: ${email}`);
+    // Ovaj kod se šalje SAMO za potvrdu pri registraciji i reset lozinke (§14).
+    // Kolega nije u allowlisti, pa provera ne sme da bude samo allowlista — inače
+    // mu kod nikad ne bi stigao. Pravilo: allowlist ILI otvoren invite prozor ILI
+    // postojeći član. Čitanje ide preko `ctx.runQuery` (ovo je action-ctx, drugi
+    // argument koji Convex Auth prosleđuje). Ako čitanje ne uspe → ODBIJ
+    // (fail-closed), i to KAO GREŠKA SERVERA — nikad kao „adresa nije dozvoljena".
+    if (!ctx) {
+      throw new Error("Greška servera: provera pristupa trenutno nije dostupna.");
+    }
+    let dozvoljeno: boolean;
+    try {
+      dozvoljeno = await ctx.runQuery(internal.invitesStore.smeDaDobijeKod, {
+        email,
+      });
+    } catch {
+      throw new Error(
+        "Greška servera pri proveri pristupa. Pokušaj ponovo za koji trenutak.",
+      );
+    }
+    if (!dozvoljeno) {
+      console.warn(`[auth] Verification code denied for email: ${email}`);
       throw new Error("Pristup nije dozvoljen za ovu email adresu.");
     }
 
@@ -162,8 +200,8 @@ function makeResendOTP(id: string, namena: OtpNamena) {
   });
 }
 
-/** Kod za prijavu bez lozinke — ostaje kao rezervni put ulaska. */
-const ResendOTP = makeResendOTP("resend", "prijava");
+/** Kod za potvrdu adrese pri registraciji (§14). Traži se tačno jednom. */
+const PasswordVerify = makeResendOTP("password-verify", "potvrda");
 /** Kod za postavljanje nove lozinke kad je zaboravljena. */
 const PasswordReset = makeResendOTP("password-reset", "reset");
 
@@ -201,19 +239,20 @@ function otpEmail(code: string, namena: OtpNamena): string {
  * Jedini workspace u sistemu. Slug se koristi kao ključ pri bootstrap-u naloga,
  * pa mora ostati nepromenjen — menjanje bi odvojilo nove korisnike od postojećih podataka.
  */
-const WORKSPACE_SLUG = "enigma-it";
-const WORKSPACE_NAME = "Enigma IT";
+export const WORKSPACE_SLUG = "enigma-it";
+export const WORKSPACE_NAME = "Enigma IT";
 
 /**
  * Prijava email + lozinka.
  *
- * `verify` NAMERNO NIJE postavljen. Ranije je bio (jednokratni kod pri
- * postavljanju lozinke, radi povezivanja naloga preko adrese), ali registracija
- * sada ide isključivo preko pozivnice: `createInvite` odbija svaku adresu koja
- * već ima nalog, pa je svaki `signUp` preko pozivnice uvek NOV korisnik — nema
- * čega da se povezuje, a i ne sme da se traži kod (§7: „odmah ulogovan"). Bez
- * `verify`, `signUp` odmah pravi sesiju, a `beforeSessionCreation` je i dalje
- * puni gate (pušta samo allowlistu ILI adresu sa otvorenim invite prozorom).
+ * `verify: PasswordVerify` je postavljen (§14): `signUp` NE pravi odmah sesiju,
+ * nego pošalje 6-cifreni kod za potvrdu adrese, pa klijent zove
+ * `flow: "email-verification"` sa kodom i tek tada nastaje sesija. Tok je zato
+ * dvokoračan (lozinka → kod → ulogovan) i za registraciju preko pozivnice i za
+ * bootstrap admina. `shouldLinkViaEmail` (Password.js) postaje `true` kad je
+ * `verify` postavljen, pa se lozinka kači na POSTOJEĆI `users` red iste
+ * (verifikovane) adrese — time se čuva vlasnikov nalog pri bootstrap-u (§223).
+ * `beforeSessionCreation` je i dalje puni gate.
  */
 const EnigmaPassword = Password({
   id: "password",
@@ -250,20 +289,23 @@ const EnigmaPassword = Password({
     }
   },
 
+  verify: PasswordVerify,
   reset: PasswordReset,
 });
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  // ResendOTP OSTAJE. Ako lozinka zakaže ili se zaboravi, ulaz preko koda je
-  // i dalje tu — nova prijava se dodaje, stara se ne uklanja.
-  providers: [ResendOTP, EnigmaPassword],
+  // Prijava je ISKLJUČIVO email + lozinka (§11). Kod na email postoji samo za
+  // potvrdu pri registraciji (`verify`) i reset lozinke (`reset`) — prijava se
+  // nikad ne radi kodom, pa `ResendOTP` provajder više ne postoji.
+  providers: [EnigmaPassword],
   callbacks: {
     // Pre-session creation check: guarantees non-allowed users cannot get a session
     async beforeSessionCreation(ctx, { userId }) {
       const db = (ctx as unknown as MutationCtx).db;
-      const user = await db.get(userId as Id<"users">);
+      const typedUserId = userId as Id<"users">;
+      const user = await db.get(typedUserId);
       const email = user?.email ? normalizeEmail(user.email) : null;
-      if (!email || !(await isEmailAllowed({ db }, email))) {
+      if (!(await isEmailAllowed({ db }, typedUserId, email))) {
         throw new Error("Pristup nije dozvoljen za ovu email adresu.");
       }
     },
@@ -272,17 +314,17 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
     // Bootstraps or attaches workspace membership (PLAN.md §3).
     async afterUserCreatedOrUpdated(ctx, { userId, existingUserId, profile }) {
       const db = (ctx as unknown as MutationCtx).db;
-      const rawEmail =
-        profile?.email ?? (await db.get(userId as Id<"users">))?.email;
+      const typedUserId = userId as Id<"users">;
+      const rawEmail = profile?.email ?? (await db.get(typedUserId))?.email;
       const email = rawEmail ? normalizeEmail(rawEmail as string) : null;
-      if (!email || !(await isEmailAllowed({ db }, email))) {
+      if (!(await isEmailAllowed({ db }, typedUserId, email))) {
         throw new Error("Pristup nije dozvoljen za ovu email adresu.");
       }
 
       // Ako je adresa prošla zbog pozivnice (a ne allowliste), obeleži je
       // iskorišćenom: upiši `usedAt` i `usedByUserId`. Radi i za nov i za
       // postojeći nalog — pozivnica je potrošena čim je registracija prošla.
-      {
+      if (email) {
         const now = Date.now();
         const workspaces = await db
           .query("workspaces")
@@ -305,7 +347,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           if (aktivna) {
             await db.patch(aktivna._id, {
               usedAt: now,
-              usedByUserId: userId as Id<"users">,
+              usedByUserId: typedUserId,
             });
             break;
           }
@@ -314,7 +356,6 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 
       if (existingUserId) return; // returning user — nothing to do
 
-      const typedUserId = userId as Id<"users">;
       const existingMembership = await db
         .query("members")
         .withIndex("by_user", (q) => q.eq("userId", typedUserId))
