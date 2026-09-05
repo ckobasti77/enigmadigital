@@ -257,3 +257,47 @@ export function pluralSr(
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
   return many;
 }
+
+// ── relative days (lead CRM) ─────────────────────────────────────────────────
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function startOfLocalDay(timestamp: number): number {
+  const d = new Date(timestamp);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/**
+ * Razlika u LOKALNIM danima: 23:50 i 00:10 sutradan su jedan dan razmaka, ne
+ * nula. Pozitivno kad je `later` posle `earlier`. Zaokružuje se, ne seče, da
+ * prelaz na letnje/zimsko vreme ne pravi „0,96 dana”.
+ */
+export function localDayDiff(later: number, earlier: number): number {
+  return Math.round(
+    (startOfLocalDay(later) - startOfLocalDay(earlier)) / DAY_MS,
+  );
+}
+
+/** „danas” / „juče” / „pre 12 dana” — celi lokalni dani, nikad „pre 0 dana”. */
+export function formatDaysAgo(timestamp: number, now = Date.now()): string {
+  const days = localDayDiff(now, timestamp);
+  if (days <= 0) return "danas";
+  if (days === 1) return "juče";
+  return `pre ${days} ${pluralSr(days, "dan", "dana", "dana")}`;
+}
+
+const weekdayDateFmt = new Intl.DateTimeFormat(LOCALE, {
+  weekday: "short",
+  day: "2-digit",
+  month: "2-digit",
+});
+
+/** „danas” / „sutra” / „juče” / „pet, 12.09.” — dan u odnosu na sada. */
+export function formatDayRelative(timestamp: number, now = Date.now()): string {
+  const days = localDayDiff(timestamp, now);
+  if (days === 0) return "danas";
+  if (days === 1) return "sutra";
+  if (days === -1) return "juče";
+  return weekdayDateFmt.format(new Date(timestamp));
+}

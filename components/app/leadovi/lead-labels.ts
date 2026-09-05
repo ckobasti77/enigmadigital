@@ -149,3 +149,21 @@ export function confidenceLabel(conf: string): string {
 }
 
 
+
+/**
+ * Kanali dodira (`logTouch.channel`). Kanal je slobodan string u bazi, pa se
+ * nepoznata vrednost ispisuje kakva jeste — nikad kao „ostalo”.
+ */
+export const LEAD_TOUCH_CHANNEL_LABELS: Record<string, string> = {
+  poziv: "Poziv",
+  email: "E-mail",
+  instagram_dm: "Instagram DM",
+  sastanak: "Sastanak",
+  sms: "SMS",
+  beleska: "Beleška",
+  ostalo: "Ostalo",
+};
+
+export function leadTouchChannelLabel(channel: string): string {
+  return LEAD_TOUCH_CHANNEL_LABELS[channel] ?? channel;
+}

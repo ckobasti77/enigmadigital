@@ -20,13 +20,15 @@ type LeadScoreCellProps = {
   axis: "fit" | "intent";
   score?: ScoredAxis;
   className?: string;
+  /** Jedan red bez trake — za kompaktnu gustinu tabele (§7). */
+  compact?: boolean;
 };
 
-export function LeadScoreCell({ axis, score, className }: LeadScoreCellProps) {
+export function LeadScoreCell({ axis, score, className, compact = false }: LeadScoreCellProps) {
   const [open, setOpen] = useState(false);
 
   if (!score) {
-    return <Skeleton className="h-9 w-24 rounded-lg" />;
+    return <Skeleton className={compact ? "h-7 w-20 rounded-md" : "h-9 w-24 rounded-lg"} />;
   }
 
   const isFit = axis === "fit";
@@ -73,6 +75,28 @@ export function LeadScoreCell({ axis, score, className }: LeadScoreCellProps) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
+          compact ? (
+            <button
+              type="button"
+              className={cn(
+                "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2 text-xs transition-all hover:ring-1 hover:ring-accent-400/30",
+                getScoreColor(),
+                className,
+              )}
+              title={`Bodovanje (${axisTitle})`}
+            >
+              <span className="text-micro font-semibold uppercase tracking-wider text-text-muted">
+                {isFit ? "Fit" : "Intent"}
+              </span>
+              <span className="font-mono font-semibold tabular-nums">
+                {nemaPravila
+                  ? "bez pravila"
+                  : isUnmeasured
+                    ? "bez signala"
+                    : `${percentage}%`}
+              </span>
+            </button>
+          ) : (
           <button
             type="button"
             className={cn(
@@ -118,6 +142,7 @@ export function LeadScoreCell({ axis, score, className }: LeadScoreCellProps) {
               </div>
             )}
           </button>
+          )
         }
       />
 
