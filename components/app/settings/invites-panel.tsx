@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Check, Copy, LoaderCircle, Plus } from "lucide-react";
+import { Check, Copy, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
@@ -61,6 +61,7 @@ export function InvitesPanel() {
   );
   const createInvite = useMutation(api.invitesStore.createInvite);
   const revokeInvite = useMutation(api.invitesStore.revokeInvite);
+  const deleteInvite = useMutation(api.invitesStore.deleteInvite);
 
   const [email, setEmail] = useState("");
   const [radim, setRadim] = useState(false);
@@ -68,6 +69,7 @@ export function InvitesPanel() {
   const [nova, setNova] = useState<NovaPozivnica | null>(null);
   const [kopirano, setKopirano] = useState(false);
   const [povlacim, setPovlacim] = useState<string | null>(null);
+  const [brisem, setBrisem] = useState<string | null>(null);
 
   const link = nova
     ? `${
@@ -115,6 +117,19 @@ export function InvitesPanel() {
       setGreska(porukaGreske(error));
     } finally {
       setPovlacim(null);
+    }
+  }
+
+  async function obrisi(inviteId: Id<"invites">) {
+    if (!workspaceId || brisem) return;
+    setBrisem(inviteId);
+    try {
+      await deleteInvite({ workspaceId, inviteId });
+    } catch (error) {
+      console.error("Brisanje pozivnice nije uspelo");
+      setGreska(porukaGreske(error));
+    } finally {
+      setBrisem(null);
     }
   }
 
@@ -277,7 +292,21 @@ export function InvitesPanel() {
                             )}
                           </Button>
                         ) : (
-                          <span className="text-xs text-text-muted">—</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={brisem === inv._id}
+                            onClick={() => obrisi(inv._id)}
+                            className="text-text-muted hover:text-danger"
+                            aria-label="Obriši pozivnicu iz istorije"
+                          >
+                            {brisem === inv._id ? (
+                              <LoaderCircle className="size-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="size-3.5" />
+                            )}
+                          </Button>
                         )}
                       </TableCell>
                     </TableRow>

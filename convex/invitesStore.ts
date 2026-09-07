@@ -114,21 +114,34 @@ export const createInvite = mutation({
       });
     }
 
-    // Razlikuj POTVRĐEN nalog od ZAGLAVLJENE registracije.
+    // Odbij SAMO potvrđenog, AKTIVNOG člana. Sve ostalo je adresa koja sme opet
+    // da se pozove — i to čistimo do kraja.
     //
-    // Convex Auth (v0.0.95) u koraku 1 (unos lozinke) commit-uje i `users` red i
-    // `authAccounts` (password) red PRE nego što pošalje kod. Ako slanje koda
-    // pukne (ili korisnik odustane), ostaje poluispečen nalog: `users` red +
-    // password red, ali `emailVerificationTime` je NEPOSTAVLJEN — takav nalog ne
-    // može da se prijavi (login ga vraća na potvrdu). Zato prisustvo password
-    // reda NIJE dokaz postojećeg korisnika; jedini pouzdan znak je potvrđen email.
+    // Tri stanja koja `users` red za istu adresu može da ima:
+    //   • potvrđen (emailVerificationTime) + ima `members` red  → pravi, upotrebljiv
+    //     nalog → ODBIJ (upućuje na „Zaboravio sam lozinku").
+    //   • potvrđen ALI bez `members` reda → UKLONJEN član (removeMember briše
+    //     članstvo i login, a `users` red ostavlja). Sme ponovo da se pozove.
+    //   • nepotvrđen → ZAGLAVLJENA registracija. Convex Auth (v0.0.95) u koraku 1
+    //     commit-uje `users` + `authAccounts` password red PRE slanja koda; ako kod
+    //     pukne, ostaje poluispečen nalog koji ne može da se prijavi. Sme opet.
+    //
+    // U oba „sme opet" slučaja resetujemo sve (login zapisi + članstvo + `users`
+    // red) da nova registracija krene čisto: da ostane stari password red, `signUp`
+    // sa drugom lozinkom bi pukao sa „account already exists"; da ostane potvrđen
+    // `users` red, `signUp` bi se zakačio na njega i preskočio pravljenje članstva.
     const postojeciKorisnik = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", email))
       .first();
     if (postojeciKorisnik !== null) {
-      if (postojeciKorisnik.emailVerificationTime !== undefined) {
-        // Potvrđen, upotrebljiv nalog → nema šta da se poziva.
+      const clanstva = await ctx.db
+        .query("members")
+        .withIndex("by_user", (q) => q.eq("userId", postojeciKorisnik._id))
+        .collect();
+      const jeAktivanClan = clanstva.length > 0;
+
+      if (postojeciKorisnik.emailVerificationTime !== undefined && jeAktivanClan) {
         throw new ConvexError({
           code: "conflict",
           message:
@@ -136,17 +149,7 @@ export const createInvite = mutation({
         });
       }
 
-      // Zaglavljena registracija: očisti sve login zapise + članstvo + `users`
-      // red, da kolega može čisto da se registruje sa NOVOM lozinkom preko nove
-      // pozivnice. (Da ostane stari password red, `signUp` sa drugom lozinkom bi
-      // pukao sa „account already exists".) Poluispečen nalog nema istoriju koju
-      // bi `users` red čuvao, pa ga bezbedno brišemo — za razliku od
-      // `removeMember`, koji `users` red čuva.
       await deleteLoginMachinery(ctx, postojeciKorisnik._id);
-      const clanstva = await ctx.db
-        .query("members")
-        .withIndex("by_user", (q) => q.eq("userId", postojeciKorisnik._id))
-        .collect();
       for (const clan of clanstva) await ctx.db.delete(clan._id);
       await ctx.db.delete(postojeciKorisnik._id);
     }
@@ -333,6 +336,44 @@ export const revokeInvite = mutation({
     if (inv.revokedAt !== undefined) return null; // već povučena — idempotentno
 
     await ctx.db.patch(args.inviteId, { revokedAt: Date.now() });
+    return null;
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// deleteInvite — ukloni ZAVRŠENU pozivnicu iz spiska (čišćenje istorije).
+//
+// Za razliku od `revokeInvite` (koje samo obeleži `revokedAt`, red ostaje kao
+// trag), ovo BRIŠE red. Dozvoljeno je samo za završena stanja
+// (iskorišćena/istekla/povučena); važeću pozivnicu prvo povuci, da se aktivan
+// pristup ne obriše slučajno. Ništa ne zavisi od `invites` reda kao stranog
+// ključa, pa je brisanje bezopasno.
+// ─────────────────────────────────────────────────────────────────────────────
+export const deleteInvite = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    inviteId: v.id("invites"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({ code: "forbidden" });
+    }
+
+    const inv = await ctx.db.get(args.inviteId);
+    if (inv === null) return null; // već obrisana — idempotentno
+    if (inv.workspaceId !== args.workspaceId) {
+      throw new ConvexError({ code: "forbidden" });
+    }
+    if (classifyInvite(inv, Date.now()) === "vazi") {
+      throw new ConvexError({
+        code: "conflict",
+        message: "Važeća pozivnica se ne briše. Prvo je povuci.",
+      });
+    }
+
+    await ctx.db.delete(args.inviteId);
     return null;
   },
 });
