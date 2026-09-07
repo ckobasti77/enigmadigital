@@ -9,6 +9,7 @@ import {
 import { ActionAuditLog } from "@/components/app/settings/action-audit-log";
 import { ModerationAuditLog } from "@/components/app/settings/moderation-audit-log";
 import { InvitesPanel } from "@/components/app/settings/invites-panel";
+import { MembersPanel } from "@/components/app/settings/members-panel";
 import { PageHeader } from "@/components/app/page-header";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
 
@@ -73,7 +74,10 @@ export default function SettingsPage() {
         ) : tab === "moderation" ? (
           <ModerationAuditLog />
         ) : (
-          <InvitesPanel />
+          <div className="space-y-10">
+            <MembersPanel />
+            <InvitesPanel />
+          </div>
         )}
       </TabPanel>
     </div>

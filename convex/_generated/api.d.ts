@@ -112,6 +112,7 @@ import type * as lib_ytCaptions from "../lib/ytCaptions.js";
 import type * as lib_ytQuota from "../lib/ytQuota.js";
 import type * as lib_ytThumbnail from "../lib/ytThumbnail.js";
 import type * as lib_ytUpload from "../lib/ytUpload.js";
+import type * as membersStore from "../membersStore.js";
 import type * as metaAds from "../metaAds.js";
 import type * as metaAdsStore from "../metaAdsStore.js";
 import type * as metaCapi from "../metaCapi.js";
@@ -271,6 +272,7 @@ declare const fullApi: ApiFromModules<{
   "lib/ytQuota": typeof lib_ytQuota;
   "lib/ytThumbnail": typeof lib_ytThumbnail;
   "lib/ytUpload": typeof lib_ytUpload;
+  membersStore: typeof membersStore;
   metaAds: typeof metaAds;
   metaAdsStore: typeof metaAdsStore;
   metaCapi: typeof metaCapi;

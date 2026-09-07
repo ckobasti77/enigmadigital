@@ -2,7 +2,7 @@ import { internalQuery, mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { requireMembership } from "./lib/auth";
+import { deleteLoginMachinery, requireMembership } from "./lib/auth";
 import {
   normalizeEmail,
   isEmailInAllowlist,
@@ -114,17 +114,41 @@ export const createInvite = mutation({
       });
     }
 
-    // Osoba sa tom adresom već ima nalog → nema šta da se poziva. Ovo ujedno
-    // sprečava da signUp preko pozivnice napravi dupliran `users` red.
+    // Razlikuj POTVRĐEN nalog od ZAGLAVLJENE registracije.
+    //
+    // Convex Auth (v0.0.95) u koraku 1 (unos lozinke) commit-uje i `users` red i
+    // `authAccounts` (password) red PRE nego što pošalje kod. Ako slanje koda
+    // pukne (ili korisnik odustane), ostaje poluispečen nalog: `users` red +
+    // password red, ali `emailVerificationTime` je NEPOSTAVLJEN — takav nalog ne
+    // može da se prijavi (login ga vraća na potvrdu). Zato prisustvo password
+    // reda NIJE dokaz postojećeg korisnika; jedini pouzdan znak je potvrđen email.
     const postojeciKorisnik = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", email))
       .first();
     if (postojeciKorisnik !== null) {
-      throw new ConvexError({
-        code: "conflict",
-        message: "Osoba sa tom adresom već ima nalog.",
-      });
+      if (postojeciKorisnik.emailVerificationTime !== undefined) {
+        // Potvrđen, upotrebljiv nalog → nema šta da se poziva.
+        throw new ConvexError({
+          code: "conflict",
+          message:
+            'Osoba sa tom adresom već ima nalog. Ako je zaboravila lozinku, neka koristi „Zaboravio sam lozinku".',
+        });
+      }
+
+      // Zaglavljena registracija: očisti sve login zapise + članstvo + `users`
+      // red, da kolega može čisto da se registruje sa NOVOM lozinkom preko nove
+      // pozivnice. (Da ostane stari password red, `signUp` sa drugom lozinkom bi
+      // pukao sa „account already exists".) Poluispečen nalog nema istoriju koju
+      // bi `users` red čuvao, pa ga bezbedno brišemo — za razliku od
+      // `removeMember`, koji `users` red čuva.
+      await deleteLoginMachinery(ctx, postojeciKorisnik._id);
+      const clanstva = await ctx.db
+        .query("members")
+        .withIndex("by_user", (q) => q.eq("userId", postojeciKorisnik._id))
+        .collect();
+      for (const clan of clanstva) await ctx.db.delete(clan._id);
+      await ctx.db.delete(postojeciKorisnik._id);
     }
 
     // Već postoji važeća neiskorišćena pozivnica → ne pravimo tiho drugu.

@@ -102,6 +102,52 @@ export async function isEmailAllowed(
 }
 
 /**
+ * Potroši otvorenu pozivnicu za `email` — upiši `usedAt`/`usedByUserId`. Zove se
+ * ISKLJUČIVO iz `beforeSessionCreation`, tj. tek kad se sesija stvarno pravi
+ * (korak 2: potvrda koda), a NE iz `afterUserCreatedOrUpdated` (korak 1: unos
+ * lozinke). Zašto je to bitno: `sendVerificationRequest` (korak 1) traži
+ * pozivnicu sa `usedAt === undefined`; ako je potrošimo pre slanja koda, kod
+ * nikad ne stigne, a pozivnica ostane spaljena (prvobitni bug).
+ *
+ * Piše se SAMO kad postoji otvorena pozivnica (`readyUntil > now`, bez `usedAt`,
+ * bez `revokedAt`). Obična prijava postojećeg člana nema otvorenu pozivnicu, pa
+ * ništa ne upisuje. Prekinuta registracija ostavlja `readyUntil` bez `usedAt`;
+ * prozor istekne sam i pozivnica ponovo važi (`classifyInvite` ne gleda
+ * `readyUntil`).
+ */
+async function consumeOpenInvite(
+  db: MutationCtx["db"],
+  userId: Id<"users">,
+  email: string | null,
+): Promise<void> {
+  if (!email) return;
+  const now = Date.now();
+  const workspaces = await db
+    .query("workspaces")
+    .withIndex("by_slug", (q) => q.eq("slug", WORKSPACE_SLUG))
+    .collect();
+  for (const ws of workspaces) {
+    const invites = await db
+      .query("invites")
+      .withIndex("by_workspace_email", (q) =>
+        q.eq("workspaceId", ws._id).eq("email", email),
+      )
+      .collect();
+    const aktivna = invites.find(
+      (inv) =>
+        inv.readyUntil !== undefined &&
+        inv.readyUntil > now &&
+        inv.usedAt === undefined &&
+        inv.revokedAt === undefined,
+    );
+    if (aktivna) {
+      await db.patch(aktivna._id, { usedAt: now, usedByUserId: userId });
+      return;
+    }
+  }
+}
+
+/**
  * Generate a cryptographically random 6-digit numeric string (100000-999999).
  */
 function generate6DigitCode(): string {
@@ -308,6 +354,12 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       if (!(await isEmailAllowed({ db }, typedUserId, email))) {
         throw new Error("Pristup nije dozvoljen za ovu email adresu.");
       }
+
+      // Sesija se stvarno pravi → tek SADA se pozivnica troši. Radi se posle
+      // kapije iznad i samo kad postoji otvorena pozivnica; obična prijava člana
+      // ne upisuje ništa. (Premešteno iz `afterUserCreatedOrUpdated`, koje se
+      // okida u koraku 1 pre slanja koda — vidi `consumeOpenInvite`.)
+      await consumeOpenInvite(db, typedUserId, email);
     },
 
     // Fires once right after user document creation or update.
@@ -321,38 +373,10 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         throw new Error("Pristup nije dozvoljen za ovu email adresu.");
       }
 
-      // Ako je adresa prošla zbog pozivnice (a ne allowliste), obeleži je
-      // iskorišćenom: upiši `usedAt` i `usedByUserId`. Radi i za nov i za
-      // postojeći nalog — pozivnica je potrošena čim je registracija prošla.
-      if (email) {
-        const now = Date.now();
-        const workspaces = await db
-          .query("workspaces")
-          .withIndex("by_slug", (q) => q.eq("slug", WORKSPACE_SLUG))
-          .collect();
-        for (const ws of workspaces) {
-          const invites = await db
-            .query("invites")
-            .withIndex("by_workspace_email", (q) =>
-              q.eq("workspaceId", ws._id).eq("email", email),
-            )
-            .collect();
-          const aktivna = invites.find(
-            (inv) =>
-              inv.readyUntil !== undefined &&
-              inv.readyUntil > now &&
-              inv.usedAt === undefined &&
-              inv.revokedAt === undefined,
-          );
-          if (aktivna) {
-            await db.patch(aktivna._id, {
-              usedAt: now,
-              usedByUserId: typedUserId,
-            });
-            break;
-          }
-        }
-      }
+      // NAPOMENA: pozivnica se NE troši ovde. Ovaj callback se okida u koraku 1
+      // (createAccount, pre slanja koda), a `sendVerificationRequest` u istom
+      // koraku traži još-otvorenu pozivnicu da bi kod uopšte poslao. Trošenje je
+      // zato u `beforeSessionCreation` (korak 2), preko `consumeOpenInvite`.
 
       if (existingUserId) return; // returning user — nothing to do
 
