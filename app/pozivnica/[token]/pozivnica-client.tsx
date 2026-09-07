@@ -100,7 +100,17 @@ export function PozivnicaClient({ token }: { token: string }) {
   const [resendCooldown, setResendCooldown] = useState(0);
 
   const zauzet = status === "radim";
-  const email = inviteState?.status === "vazi" ? inviteState.email ?? "" : "";
+
+  // Adresa iz pozivnice se „zaključa" čim jednom stigne. Bez ovoga: u trenutku
+  // uspešne potvrde koda sesija se napravi → pozivnica dobije `usedAt` →
+  // reaktivni `getInvite` prestane da bude „vazi" → `inviteState.email` nestane
+  // baš dok preusmeravamo. Zaključana vrednost preživljava tu tranziciju.
+  const [email, setEmail] = useState("");
+  useEffect(() => {
+    if (inviteState?.status === "vazi" && inviteState.email) {
+      setEmail(inviteState.email);
+    }
+  }, [inviteState]);
 
   // Neslaganje potvrde se javlja PRI KUCANJU, ne tek pri slanju (§6).
   const potvrdaGreska =
@@ -222,8 +232,14 @@ export function PozivnicaClient({ token }: { token: string }) {
               <div className="h-24 w-full animate-pulse rounded bg-surface-raised" />
               <span className="sr-only">Učitavam pozivnicu…</span>
             </div>
-          ) : inviteState.status !== "vazi" ? (
+          ) : inviteState.status !== "vazi" && status !== "uspeh" ? (
             /* ─────────── Nevažeća pozivnica ─────────── */
+            /* `status !== "uspeh"`: pri uspešnoj potvrdi koda pozivnica se
+               potroši (dobije `usedAt`) i reaktivni upit je proglasi
+               „iskorišćenom" u istom trenu kad preusmeravamo. Bez ove zaštite
+               bi na 0.2 s bljesnuo ekran „pozivnica iskorišćena" pre nego što
+               `router.push("/")` odradi. Kad smo uspeli, ostajemo na koraku sa
+               porukom o preusmeravanju. */
             <div className="mt-6">
               <FeedbackNote
                 tone="danger"
