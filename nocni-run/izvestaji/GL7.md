@@ -226,6 +226,31 @@ Posle push-a (Vercel build) i posle prvog uvoza sa koordinatama (GL5):
 
 ---
 
+## Dorada posle prve isporuke (zahtev korisnika)
+
+Posle prvog pregleda Jovan je tražio dve izmene — obe urađene:
+
+1. **CELO telo pina nosi temperaturu** (ne više „telo uvek crveno, temperatura
+   u krugu"). Sada: hot = crveno, warm = ćilibar, cold = plavo, nova firma =
+   neutralan slate (`mix(--text-muted, --bg-950, 0.15)`, bez temperature). U
+   glavi je **beli „prozor"** (krug) na svakom pinu, sa tankom tamnijom ivicom
+   da se čita i na svetlom (nova) telu. Izabran = blago svetlije telo + ×1,25.
+   Klaster ostaje **crven** (Google stil, ne meša se sa temperaturom — kao i
+   pre). Legenda (`PinIkonica`) prati: četiri pina obojena po temperaturi.
+2. **Panel (bočni „tab") svetluca u boji temperature** firme na koju je čovek
+   kliknuo — ivica u tinti temperature + meki sjaj čija jačina (`--sjaj`)
+   **pulsira** (GSAP `sine.inOut`, `yoyo`, `repeat: -1`, 1,15 s). Boja:
+   `--temp-hot/warm/cold`, a za novu firmu `--text-muted`. Pod
+   `prefers-reduced-motion` sjaj je **statičan** (bez pulsa). `--temp-hot` red i
+   crveni pin se poklapaju, pa panel i pin „drže istu boju".
+
+Vizuelno provereno istim zasebnim `<canvas>` renderom (v. Provera): pinovi po
+temperaturi sa belim prozorom + četiri panela sa obojenim sjajem. Izmenjeni su
+`leads-map-pin.ts` (telo po temperaturi, beli prozor), `leads-map-canvas.tsx`
+(`pinBojeIz` — telo po temperaturi, nova = slate), `leads-map.tsx`
+(`PinIkonica` + prosleđivanje `temperatura` panelu) i `leads-map-panel.tsx`
+(svetlucanje). `typecheck`/`build`/`eslint` čisti.
+
 ## Poznati rizici i šta NIJE urađeno
 
 - **MapLibre integracija nije viđena u živoj mapi** (nema prijave/podataka u

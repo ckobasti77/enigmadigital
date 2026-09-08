@@ -198,17 +198,18 @@ function citajTokene(): Tokeni {
 }
 
 /**
- * Boje pina izvedene iz tokena: telo je UVEK crveno (`--temp-hot`), krug u
- * glavi nosi temperaturu (hot je namerno isti kao telo → pin „pun"). Nijedna
- * heks vrednost — sve iz tokena.
+ * Boje pina izvedene iz tokena: CELO telo nosi temperaturu (hot/warm/cold), a
+ * „nova firma" dobija neutralan slate (bez temperature). Beli „prozor" u glavi
+ * je `--text-primary`. Nijedna heks vrednost — sve iz tokena.
  */
 function pinBojeIz(t: Tokeni): PinBoje {
   return {
-    telo: t.hot,
     hot: t.hot,
     warm: t.warm,
     cold: t.cold,
-    nova: t.text,
+    // Neutralan svetao slate — vidljiv na tamnoj mapi, ne liči ni na jednu
+    // temperaturu, a dovoljno taman da se beli prozor u glavi čita.
+    nova: mix(t.textMuted, t.bg950, 0.15),
     belo: t.text,
     tamno: t.bg950,
   };

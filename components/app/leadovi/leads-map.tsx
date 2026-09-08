@@ -137,28 +137,35 @@ function GreskaMape({ poruka, onRetry }: { poruka: string; onRetry: () => void }
 }
 
 /**
- * Legenda pina (GL7): telo je uvek crveno, krug u glavi nosi temperaturu —
- * isto kao pin na mapi. Četiri pina, ne četiri kvadratića; „visina = fit" je
- * uklonjeno (visina više ne postoji, fit je u kartici i panelu).
+ * Legenda pina (GL7): CELO telo nosi temperaturu — isto kao pin na mapi —
+ * sa belim „prozorom" u glavi. Četiri pina, ne četiri kvadratića; „visina =
+ * fit" je uklonjeno (visina više ne postoji, fit je u kartici i panelu).
  */
 function PinIkonica({ temp }: { temp: Temperatura }) {
-  const krug =
+  const telo =
     temp === "hot"
       ? "var(--temp-hot)"
       : temp === "warm"
         ? "var(--temp-warm)"
         : temp === "cold"
           ? "var(--temp-cold)"
-          : "var(--text-primary)";
+          : "color-mix(in srgb, var(--text-muted) 85%, var(--bg-950))";
   return (
     <svg viewBox="0 0 24 32" width="13" height="17" className="shrink-0" aria-hidden>
       <path
         d="M12 2C7 2 3 6 3 11c0 6.5 9 19 9 19s9-12.5 9-19c0-5-4-9-9-9z"
-        fill="var(--temp-hot)"
-        stroke="color-mix(in srgb, var(--temp-hot) 60%, var(--bg-950))"
+        fill={telo}
+        stroke={`color-mix(in srgb, ${telo} 60%, var(--bg-950))`}
         strokeWidth="1"
       />
-      <circle cx="12" cy="11" r="4.3" fill={krug} stroke="var(--text-primary)" strokeWidth="1.2" />
+      <circle
+        cx="12"
+        cy="11"
+        r="4.3"
+        fill="var(--text-primary)"
+        stroke={`color-mix(in srgb, ${telo} 70%, var(--bg-950))`}
+        strokeWidth="1"
+      />
     </svg>
   );
 }
@@ -410,6 +417,7 @@ function LeadsMapAll({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
                 <LeadsMapPanel
                   workspaceId={workspaceId}
                   companyId={selectedId as Id<"leadCompanies">}
+                  temperatura={izabrana.temperatura}
                   onClose={() => setNav({ firma: null })}
                   className="absolute inset-y-3 right-3 z-20 w-[min(380px,calc(100%-1.5rem))]"
                 />

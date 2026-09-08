@@ -16,7 +16,7 @@ import { useWorkspace } from "@/components/app/workspace-provider";
 import { useNow } from "@/components/app/use-now";
 import { DUR_REDUCED, DUR_UI, EASE_UI, MOTION_QUERIES } from "@/lib/motion";
 import { holdCssTransition, releaseCssTransition } from "@/components/motion/css-transition";
-import { StageChip } from "./lead-chips";
+import { StageChip, type Temperatura } from "./lead-chips";
 import { LeadRowActions, type RowDialogKind } from "./lead-row-actions";
 import { LeadExpandedRow } from "./lead-expanded-row";
 import { LeadCallStrip } from "./lead-call-strip";
@@ -36,15 +36,31 @@ gsap.registerPlugin(useGSAP);
  * Ulaz: klizanje sa desne ivice (16 px) uz opacity, `DUR_UI`/`EASE_UI` — panel
  * je „srednje težine" (kartica), bez prebačaja. Pod `prefers-reduced-motion`
  * samo kratak fade.
+ *
+ * Panel svetluca (pulsira meki sjaj + tinta ivice) u BOJI TEMPERATURE firme na
+ * koju je čovek kliknuo — vizuelno vezuje panel za obojeni pin. Pod
+ * `prefers-reduced-motion` sjaj je statičan (bez pulsa).
  */
+
+/** Boja sjaja/ivice panela po temperaturi izabrane firme. */
+const SJAJ_BOJA: Record<Temperatura, string> = {
+  hot: "var(--temp-hot)",
+  warm: "var(--temp-warm)",
+  cold: "var(--temp-cold)",
+  nova_firma: "var(--text-muted)",
+};
+
 export function LeadsMapPanel({
   workspaceId,
   companyId,
+  temperatura,
   onClose,
   className,
 }: {
   workspaceId: Id<"workspaces">;
   companyId: Id<"leadCompanies">;
+  /** Temperatura izabrane firme — boja u kojoj panel svetluca. */
+  temperatura?: Temperatura;
   onClose: () => void;
   className?: string;
 }) {
@@ -56,6 +72,8 @@ export function LeadsMapPanel({
   const [dialog, setDialog] = useState<LeadRowDialogState | null>(null);
   const [pozivBroj, setPozivBroj] = useState<string | null>(null);
   const [greska, setGreska] = useState<string | null>(null);
+
+  const boja = temperatura ? SJAJ_BOJA[temperatura] : null;
 
   useGSAP(
     () => {
@@ -82,6 +100,29 @@ export function LeadsMapPanel({
     { scope: ref, dependencies: [companyId] },
   );
 
+  // Svetlucanje panela u boji temperature (ambijentni sloj). Animira samo
+  // `--sjaj` (jačinu sjaja), koji box-shadow čita — bez alokacija, jedan
+  // element. Pod reduced-motion: statičan sjaj, bez pulsa.
+  useGSAP(
+    () => {
+      const el = ref.current;
+      if (!el || !boja) return;
+      const mm = gsap.matchMedia();
+      mm.add(MOTION_QUERIES, (ctx) => {
+        if (ctx.conditions?.still) {
+          gsap.set(el, { "--sjaj": 0.6 });
+          return;
+        }
+        gsap.fromTo(
+          el,
+          { "--sjaj": 0.35 },
+          { "--sjaj": 1, duration: 1.15, ease: "sine.inOut", repeat: -1, yoyo: true },
+        );
+      });
+    },
+    { scope: ref, dependencies: [companyId, boja] },
+  );
+
   const item = data?.item as LeadRowItem | null | undefined;
   const company = item?.company ?? null;
 
@@ -97,6 +138,16 @@ export function LeadsMapPanel({
         "flex flex-col overflow-hidden rounded-xl border border-line bg-surface/95 text-xs shadow-(--elev-3) backdrop-blur-md",
         className,
       )}
+      // Ivica u tinti temperature + meki sjaj čija jačina (`--sjaj`) pulsira
+      // (GSAP gore). Inline nadjačava `border-line`/`shadow-(--elev-3)`.
+      style={
+        boja
+          ? {
+              borderColor: `color-mix(in srgb, ${boja} 45%, var(--line))`,
+              boxShadow: `var(--elev-3), 0 0 calc(var(--sjaj, 0.5) * 22px) calc(var(--sjaj, 0.5) * 1px) ${boja}`,
+            }
+          : undefined
+      }
       onKeyDown={(e) => {
         if (e.key === "Escape") onClose();
       }}

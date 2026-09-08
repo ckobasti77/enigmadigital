@@ -8,19 +8,18 @@ import { mix, withAlpha } from "./leads-map-color";
  * SLIKE PINA (GL7) — Google-stil kap
  * ============================================================================
  *
- * Umesto heksagonalnih prizmi (GL3/GL4, „visina = fit"), lead je sada crveni
- * pin kao na Google mapama. Slike se crtaju u `<canvas>` pri montiranju stila
+ * Umesto heksagonalnih prizmi (GL3/GL4, „visina = fit"), lead je sada pin kao
+ * na Google mapama. Slike se crtaju u `<canvas>` pri montiranju stila
  * (`style.load` briše sve slike, pa se dodaju ponovo posle svakog `setStyle`),
  * `pixelRatio` gušće za oštrinu na nagnutoj mapi — ne PNG fajl.
  *
- * Telo pina je UVEK crveno (`--temp-hot`); temperatura se čita iz kruga u
- * glavi:
- *  - hot  → crven krug u crvenom telu („pun") sa svetlom (belom) ivicom;
- *  - warm → ćilibar krug;
- *  - cold → plav krug;
- *  - nova firma → beo krug.
- * Izabran pin dobija svetliji krug (posebna slika) i uvećava se kroz
- * `icon-size` u sloju (nije ovde).
+ * CELO TELO pina nosi temperaturu (Google-stil obojeni pin):
+ *  - hot  → crveno (`--temp-hot`);
+ *  - warm → ćilibar (`--temp-warm`);
+ *  - cold → plavo (`--temp-cold`);
+ *  - nova firma → neutralan slate (bez temperature).
+ * U glavi je beo „prozor" (krug) na svakom pinu, sa tankom tamnijom ivicom
+ * tela. Izabran pin je blago svetliji + veći (×1,25, pečeno u `pin-sel-*`).
  *
  * Senka je zasebna meka elipsa (`pin-senka`), poravnata sa TLOM
  * (`icon-pitch-alignment: map`), ispod pina — daje pinu oslonac na nagnutoj
@@ -28,16 +27,15 @@ import { mix, withAlpha } from "./leads-map-color";
  */
 
 export type PinBoje = {
-  /** `--temp-hot` — telo pina (i klaster). */
-  telo: string;
-  /** Krug u glavi po temperaturi. `hot` je namerno isti kao telo. */
+  /** Telo pina po temperaturi. */
   hot: string;
   warm: string;
   cold: string;
+  /** Neutralan slate — telo „nove firme" (bez temperature). */
   nova: string;
-  /** `--text-primary` — bela ivica kruga i mešanje za „svetliji". */
+  /** `--text-primary` — beli krug u glavi i mešanje za „svetliji" (izbor). */
   belo: string;
-  /** `--bg-950` — tamnija ivica tela i boja senke. */
+  /** `--bg-950` — tamnija ivica tela, ivica kruga i boja senke. */
   tamno: string;
 };
 
@@ -55,7 +53,8 @@ export function pinIme(temp: Temperatura, izabran: boolean): string {
 
 export const PIN_SENKA_IME = "pin-senka";
 
-function bojaKruga(temp: Temperatura, b: PinBoje): string {
+/** Boja tela pina po temperaturi. */
+function teloZa(temp: Temperatura, b: PinBoje): string {
   switch (temp) {
     case "hot":
       return b.hot;
@@ -100,26 +99,28 @@ function crtajPin(temp: Temperatura, izabran: boolean, b: PinBoje): ImageData {
   const theta = Math.acos(r / d);
   const a1 = Math.PI / 2 - theta;
   const a2 = Math.PI / 2 + theta;
+  // Telo = boja temperature. Izabran → blago svetlije (uz veći oblik).
+  const telo = teloZa(temp, b);
   ctx.beginPath();
   ctx.moveTo(cx, tipY);
   ctx.lineTo(cx + r * Math.cos(a1), cy + r * Math.sin(a1));
   ctx.arc(cx, cy, r, a1, a2, true); // duži luk preko vrha
   ctx.closePath();
-  ctx.fillStyle = b.telo;
+  ctx.fillStyle = izabran ? mix(telo, b.belo, 0.18) : telo;
   ctx.fill();
   ctx.lineJoin = "round";
   ctx.lineWidth = 1.5;
-  ctx.strokeStyle = mix(b.telo, b.tamno, 0.4); // tanka tamnija ivica
+  ctx.strokeStyle = mix(telo, b.tamno, 0.4); // tanka tamnija ivica
   ctx.stroke();
 
-  // Krug u glavi. Izabran → svetliji krug + jača bela ivica.
-  const osnovna = bojaKruga(temp, b);
+  // Beli „prozor" u glavi (Google stil), sa tankom tamnijom ivicom da se čita
+  // i na svetlom telu (nova firma).
   ctx.beginPath();
   ctx.arc(cx, cy, PIN.krugR * k, 0, 2 * Math.PI);
-  ctx.fillStyle = izabran ? mix(osnovna, b.belo, 0.35) : osnovna;
+  ctx.fillStyle = b.belo;
   ctx.fill();
-  ctx.lineWidth = izabran ? 2 : 1.5;
-  ctx.strokeStyle = b.belo; // svetla ivica (za hot je to „svetlija ivica")
+  ctx.lineWidth = 1.25;
+  ctx.strokeStyle = mix(telo, b.tamno, 0.3);
   ctx.stroke();
 
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
