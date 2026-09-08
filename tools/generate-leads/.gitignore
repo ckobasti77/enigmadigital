@@ -1,0 +1,5 @@
+# Radni folder runova. U njemu su nazivi firmi, adrese, telefoni, mejlovi i
+# imena ljudi — to ne sme da uđe u repo (plan §0 pravilo 6). Sve u out/ je
+# privremeno: `kandidati.json` se briše posle slanja, ostalo ostaje samo kao
+# trag poslednjeg runa na toj mašini.
+out/
