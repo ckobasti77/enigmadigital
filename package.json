@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "convex:dev": "convex dev",
+    "prebuild": "node scripts/copy-maplibre-worker.mjs",
+    "postinstall": "node scripts/copy-maplibre-worker.mjs",
     "build": "npm run verify:purge && next build",
     "start": "next start",
     "lint": "eslint",

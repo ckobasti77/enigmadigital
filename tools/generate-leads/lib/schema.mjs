@@ -256,6 +256,12 @@ export function validirajTelo(telo) {
     neprazan(telo.upit.nisa, "upit.nisa", g);
     broj(telo.upit.brojTrazen, "upit.brojTrazen", g, { min: 1, max: 50, ceo: true });
     enumeracija(telo.upit.filterSajt, FILTERI_SAJTA, "upit.filterSajt", g);
+    // `nisaOpis` je opcion; `z.string().trim().min(1).max(1200)` (GL6 §4).
+    if (telo.upit.nisaOpis !== undefined) {
+      if (neprazan(telo.upit.nisaOpis, "upit.nisaOpis", g)) {
+        if (telo.upit.nisaOpis.trim().length > 1200) g.dodaj("upit.nisaOpis", "too_big");
+      }
+    }
   }
 
   if (!jeObjekat(telo.izvor)) {

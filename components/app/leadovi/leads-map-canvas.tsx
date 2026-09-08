@@ -7,6 +7,7 @@ import {
   LngLatBounds,
   Map as MapLibreMap,
   NavigationControl,
+  setWorkerUrl,
   type GeoJSONSource,
   type LayerSpecification,
   type MapGeoJSONFeature,
@@ -101,6 +102,30 @@ const STILOVI = [
     url: "https://tiles.openfreemap.org/styles/positron",
   },
 ];
+
+/**
+ * Worker URL se postavlja RUČNO (GL6 §1). `maplibre-gl@6.8` sam izvodi URL
+ * workera iz `import.meta.url`, koji u Next/Turbopack bundlu pokazuje na
+ * `/_next/static/chunks/…` — pa worker traži fajl koji tamo ne postoji, 404
+ * ostaje tih i mapa je prazno platno. Fajlove u `public/maplibre/` stavlja
+ * `scripts/copy-maplibre-worker.mjs` (prebuild + postinstall). Poziva se
+ * jednom po modulu, pre prvog `new MapLibreMap(...)`.
+ */
+let workerNamesten = false;
+function namestiWorker() {
+  if (workerNamesten) return;
+  workerNamesten = true;
+  setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
+}
+
+/**
+ * Ako posle ovoliko ms od `setStyle` stil još nije učitan (`isStyleLoaded()`
+ * ostaje `false`) a nijedna greška stila nije javljena, tretiramo worker kao
+ * mrtav i prelazimo u stanje (b) — tiho prazno platno se ne sme ponoviti
+ * (GL6 §1.5). Kraće od `STIL_ROK_MS`, jer ovo hvata slučaj u kome stil JESTE
+ * stigao ali ga worker ne obrađuje.
+ */
+const WORKER_ROK_MS = 15_000;
 
 /** Beograd — podrazumevani centar kad nema tačaka (plan §8). */
 const BEOGRAD: [number, number] = [20.4573, 44.8125];
@@ -202,10 +227,12 @@ function citajTokene(): Tokeni {
   const surfaceRaised = t("--surface-raised");
   const text = t("--text-primary");
   const textMuted = t("--text-muted");
-  // „Nova firma" nema svoj token boje — ni u tabeli nema boju (neutralan
-  // čip). Ovde je prigušen slate: pola puta između prigušenog teksta i
-  // uzdignute površine, da se vidi kao tačka a ne kao temperatura.
-  const nova = mix(textMuted, surfaceRaised, 0.55);
+  // „Nova firma" nema svoj token boje. Mora da bude VIDLJIVA svetla tačka
+  // (svetlija od kopna, kao i natpisi mesta), ali NEUTRALNA — plavo-siva, da
+  // se ne pomeša ni sa jednom temperaturom (GL6 §2). Prigušen tekst blago
+  // posvetljen ka `--text-primary` daje baš takav neutralan, svetao slate.
+  // (Ranije `mix(textMuted, surfaceRaised, 0.55)` — pretamno, „skoro kao tlo".)
+  const nova = mix(textMuted, text, 0.15);
   return {
     hot,
     warm,
@@ -261,11 +288,22 @@ function bojaZa(temp: Temperatura, t: Tokeni): { boja: string; svetla: string } 
 // ── Stil ─────────────────────────────────────────────────────────────────────
 
 /**
- * Isti „slate" override za oba izvora: pozadina i kopno na `--bg-*`, voda
- * tamnija od kopna, putevi na `--line`, natpisi na prigušen tekst. Širine
- * linija i redosled slojeva ostaju kakvi jesu u izvornom stilu.
+ * Isti „slate" override za oba izvora. Cilj (GL6 §2): na zoomu 12–15 jasno se
+ * vidi šta je voda, šta kopno, gde su glavni putevi.
+ *
+ *  - kopno: `mix(--surface, --surface-raised)` — dovoljno svetao slate;
+ *  - voda: `--bg-950` — najtamnije, ≥ 8 % svetline ispod kopna (Sava/Dunav se
+ *    jasno vide, a ne ~4 jedinice kao ranije `bg-950` vs `bg-900`);
+ *  - glavni putevi: `mix(--line, --text-muted, 0.4)` — BEZ alfe (opaque),
+ *    vidljiviji od sporednih koji ostaju na prigušenom `--line`;
+ *  - natpisi mesta: `--text-primary` sa jačim halom — čitljivi.
+ *
+ * Tokeni ostaju izvor — nijedna nova heks vrednost. Širine linija i redosled
+ * slojeva iz izvornog stila ostaju.
  */
 function slateOverride(style: StyleSpecification, t: Tokeni): StyleSpecification {
+  const kopno = mix(t.surface, t.surfaceRaised, 0.5);
+  const glavniPut = mix(t.line, t.textMuted, 0.4);
   const layers = style.layers.map((layer): LayerSpecification => {
     const id = layer.id.toLowerCase();
     switch (layer.type) {
@@ -287,7 +325,8 @@ function slateOverride(style: StyleSpecification, t: Tokeni): StyleSpecification
           ...layer,
           paint: {
             ...(layer.paint ?? {}),
-            "fill-color": voda ? t.bg950 : uzdignuto ? t.bg800 : t.bg900,
+            // Voda najtamnija; parkovi/zgrade najsvetliji blok; ostalo kopno.
+            "fill-color": voda ? t.bg950 : uzdignuto ? t.surfaceRaised : kopno,
             ...(id.includes("building") ? { "fill-outline-color": t.lineSoft } : {}),
           },
         };
@@ -295,16 +334,25 @@ function slateOverride(style: StyleSpecification, t: Tokeni): StyleSpecification
       case "fill-extrusion":
         return {
           ...layer,
-          paint: { ...(layer.paint ?? {}), "fill-extrusion-color": t.bg800 },
+          paint: { ...(layer.paint ?? {}), "fill-extrusion-color": t.surfaceRaised },
         };
       case "line": {
         const voda = id.includes("water");
         const granica = id.includes("boundary") || id.includes("admin");
+        // CARTO/OpenFreeMap glavne puteve imenuju „motorway/trunk/primary" ili
+        // „major" — oni dobijaju opaque boju; sporedni ostaju prigušeni.
+        const glavni = /motorway|trunk|primary|major/.test(id);
         return {
           ...layer,
           paint: {
             ...(layer.paint ?? {}),
-            "line-color": voda ? t.bg800 : granica ? t.textMuted : t.line,
+            "line-color": voda
+              ? t.bg950
+              : granica
+                ? t.textMuted
+                : glavni
+                  ? glavniPut
+                  : t.line,
           },
         };
       }
@@ -313,9 +361,9 @@ function slateOverride(style: StyleSpecification, t: Tokeni): StyleSpecification
           ...layer,
           paint: {
             ...(layer.paint ?? {}),
-            "text-color": id.includes("place") ? t.textSecondary : t.textMuted,
+            "text-color": id.includes("place") ? t.text : t.textMuted,
             "text-halo-color": t.bg950,
-            "text-halo-width": 1,
+            "text-halo-width": 1.2,
           },
         };
       default:
@@ -558,9 +606,17 @@ export function LeadsMapCanvas({
     let stilIndex = 0;
     let ucitan = false;
     let uklonjena = false;
+    let zavrsenGreskom = false;
     let rok: ReturnType<typeof setTimeout> | null = null;
+    // Watchdog mrtvog workera (GL6 §1.5): 15 s od `setStyle`. Odvojen od `rok`
+    // jer hvata slučaj u kome stil stigne ali ga worker ne obradi — tada
+    // `style.load` može i da javi „ready", a platno ostane prazno.
+    let rokWorker: ReturnType<typeof setTimeout> | null = null;
     let raf: number | null = null;
 
+    // Bez ovoga worker traži nepostojeći `/_next/static/chunks/…worker.mjs`
+    // (GL6 §1). Mora pre prvog `new MapLibreMap`.
+    namestiWorker();
     cb().onStyleState({ faza: "loading" });
 
     let map: MapLibreMap;
@@ -608,7 +664,9 @@ export function LeadsMapCanvas({
     );
 
     const zavrsiSaGreskom = (poruka: string) => {
+      zavrsenGreskom = true;
       if (rok) clearTimeout(rok);
+      if (rokWorker) clearTimeout(rokWorker);
       cb().onStyleState({ faza: "error", poruka });
     };
 
@@ -640,9 +698,17 @@ export function LeadsMapCanvas({
 
     const ucitajStil = () => {
       if (rok) clearTimeout(rok);
+      if (rokWorker) clearTimeout(rokWorker);
       rok = setTimeout(() => {
         if (!ucitan && !uklonjena) probajSledeci("izvor nije odgovorio u roku od 20 s");
       }, STIL_ROK_MS);
+      // Mrtav worker: stil (i „ready") može da stigne, ali `isStyleLoaded()`
+      // ostaje `false` jer se nijedna pločica/glif ne obradi. Tada stanje (b).
+      rokWorker = setTimeout(() => {
+        if (uklonjena || zavrsenGreskom) return;
+        if (map.isStyleLoaded()) return;
+        zavrsiSaGreskom("Mapa se nije učitala do kraja (worker ne odgovara).");
+      }, WORKER_ROK_MS);
       cb().onStyleState({ faza: "loading" });
       // Nov stil briše sve slojeve; three sloj se skida uredno pre toga.
       ukloniThree();
@@ -653,7 +719,7 @@ export function LeadsMapCanvas({
     };
 
     const probajSledeci = (razlog: string) => {
-      if (uklonjena || ucitan) return;
+      if (uklonjena || ucitan || zavrsenGreskom) return;
       if (stilIndex + 1 >= STILOVI.length) {
         zavrsiSaGreskom(
           `Nijedan izvor mape nije dostupan (${STILOVI[stilIndex].izvor}: ${razlog}).`,
@@ -825,6 +891,7 @@ export function LeadsMapCanvas({
       uklonjena = true;
       reducedMq.removeEventListener("change", naPromenuPokreta);
       if (rok) clearTimeout(rok);
+      if (rokWorker) clearTimeout(rokWorker);
       if (raf !== null) cancelAnimationFrame(raf);
       letRef.current?.kill();
       letRef.current = null;

@@ -68,7 +68,13 @@ export function objasniStatus(status) {
     case 429:
       return "Prekoračen je plafon uvoza za ovaj sat (30 po radnom prostoru). Sačekaj do punog sata i pošalji ponovo iz sačuvanog JSON-a.";
     case 404:
-      return "Ruta nije nađena. ENIGMA_INGEST_URL mora da se završava sa /generate-leads/ingest i da bude na .convex.site domenu.";
+      return (
+        "Ruta nije nađena. ENIGMA_INGEST_URL mora da se završava sa " +
+        "/generate-leads/ingest i da bude na .convex.site hostu. Ako je deployment " +
+        "u EU regionu, host nosi region: <deployment>.eu-west-1.convex.site (bez " +
+        "regiona vraća 404). Tačan host je HTTP Actions URL u Convex dashboardu " +
+        "(Settings → URL & Deploy Key)."
+      );
     default:
       return `Aplikacija je vratila ${status}. JSON je sačuvan lokalno, pa se slanje može ponoviti bez novog trošenja Places kvote.`;
   }

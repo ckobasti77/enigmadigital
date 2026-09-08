@@ -27,15 +27,45 @@ const POLJA = [
   "nextPageToken",
 ].join(",");
 
-/** Bez dijakritika i interpunkcije — poređenje grada sa adresom mora da radi
- *  i za „Kraljevo" i za „KRALjEVO" i za „Kruševac / Krusevac". */
+/**
+ * Ćirilica → latinica bez dijakritika, u jednom koraku (GL6 §3). Places bez
+ * `languageCode` vraća čas „Београд" čas „Belgrade", pa poređenje grada sa
+ * adresom mora da radi za oba pisma: „Београд" i „Beograd" moraju da daju isti
+ * ključ. Digrafi (ђ, љ, њ, џ) idu prvi jer daju dva latinična slova; ostalo je
+ * 1:1 na latinicu bez dijakritika.
+ */
+const CIRILICA = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", ђ: "dj", е: "e", ж: "z", з: "z",
+  и: "i", ј: "j", к: "k", л: "l", љ: "lj", м: "m", н: "n", њ: "nj", о: "o",
+  п: "p", р: "r", с: "s", т: "t", ћ: "c", у: "u", ф: "f", х: "h", ц: "c",
+  ч: "c", џ: "dz", ш: "s",
+};
+const LATINICA = { č: "c", ć: "c", ž: "z", š: "s", đ: "dj" };
+
+/** Bez pisma, dijakritika i interpunkcije — poređenje grada sa adresom mora da
+ *  radi i za „Kraljevo" i za „KRALjEVO" i za „Kruševac / Krusevac" i za
+ *  „Београд / Belgrade". */
 export function uprosti(tekst) {
-  const zamene = { č: "c", ć: "c", ž: "z", š: "s", đ: "dj" };
-  return String(tekst ?? "")
-    .toLowerCase()
-    .replace(/[čćžšđ]/g, (ch) => zamene[ch] ?? ch)
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+  const s = String(tekst ?? "").toLowerCase();
+  let latinicno = "";
+  for (const ch of s) latinicno += CIRILICA[ch] ?? LATINICA[ch] ?? ch;
+  return latinicno.replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+/**
+ * Uprošćena lista prihvatljivih naziva grada (kanonski + alijasi), bez praznih.
+ * Ista lista se koristi u otkrivanju i u self-testu — filter grada se ne piše
+ * dvaput (GL6 §3).
+ */
+export function prihvatljiviGradovi(grad, gradAlijasi = []) {
+  return [grad, ...gradAlijasi].map(uprosti).filter(Boolean);
+}
+
+/** Da li `formattedAddress` pripada nekom od prihvatljivih (uprošćenih) gradova. */
+export function uGradu(formattedAddress, prihvatljiviUprosceni) {
+  const adresa = uprosti(formattedAddress ?? "");
+  if (!adresa) return false;
+  return prihvatljiviUprosceni.some((g) => g && adresa.includes(g));
 }
 
 /** Greška Places poziva — nosi status, da poruka runa može da ga imenuje. */
@@ -56,7 +86,10 @@ export class PlacesGreska extends Error {
 export async function pretraziStranu({ apiKey, upit, pageToken, signal }) {
   const telo = {
     textQuery: upit,
-    languageCode: "sr",
+    // `sr-Latn` + `RS`: bez ovoga Places vraća čas ćirilicu čas engleski, pa
+    // filter grada nikad ne prođe (GL6 §3). Latinica je i ono što aplikacija
+    // prikazuje, pa nema naknadne transliteracije naziva.
+    languageCode: "sr-Latn",
     regionCode: "RS",
     pageSize: 20,
   };
@@ -105,7 +138,7 @@ export async function pretraziStranu({ apiKey, upit, pageToken, signal }) {
  * @param {number} args.ciljKandidata    koliko kandidata je dovoljno
  * @param {number} args.maxStrana        gornja granica strana PO UPITU (kvota)
  * @param {(poruka: string) => void} [args.log]
- * @returns {Promise<{kandidati: object[], pozivi: number, iscrpljeno: boolean, vanGrada: number, zatvoreni: number}>}
+ * @returns {Promise<{kandidati: object[], pozivi: number, iscrpljeno: boolean, vanGrada: number, zatvoreni: number, pregledano: number, primeriVanGrada: string[]}>}
  */
 export async function otkrijKandidate({
   apiKey,
@@ -121,9 +154,15 @@ export async function otkrijKandidate({
   let pozivi = 0;
   let vanGrada = 0;
   let zatvoreni = 0;
+  // Koliko je JEDINSTVENIH mesta uopšte pregledano (posle dedupa) — imenilac za
+  // upozorenje „grad je odbacio većinu" (GL6 §3).
+  let pregledano = 0;
+  // Prva tri odbačena oblika adrese (BEZ imena firme) — da čovek vidi ZAŠTO je
+  // filter grada odbacio kandidata: skoro uvek je grad drugačije napisan.
+  const primeriVanGrada = [];
   let iscrpljeno = true;
 
-  const prihvatljivi = [grad, ...gradAlijasi].map(uprosti).filter(Boolean);
+  const prihvatljivi = prihvatljiviGradovi(grad, gradAlijasi);
 
   for (const upit of upiti) {
     let pageToken = null;
@@ -145,6 +184,7 @@ export async function otkrijKandidate({
         const placeId = mesto.id;
         if (!placeId || viđeni.has(placeId)) continue;
         viđeni.add(placeId);
+        pregledano += 1;
 
         // Trajno zatvorene firme nisu leadovi. Privremeno zatvorene ostaju.
         if (mesto.businessStatus === "CLOSED_PERMANENTLY") {
@@ -152,9 +192,11 @@ export async function otkrijKandidate({
           continue;
         }
 
-        const adresa = uprosti(mesto.formattedAddress ?? "");
-        if (!prihvatljivi.some((g) => adresa.includes(g))) {
+        if (!uGradu(mesto.formattedAddress, prihvatljivi)) {
           vanGrada += 1;
+          if (primeriVanGrada.length < 3 && mesto.formattedAddress) {
+            primeriVanGrada.push(mesto.formattedAddress);
+          }
           continue;
         }
 
@@ -172,7 +214,15 @@ export async function otkrijKandidate({
       if (kandidati.length >= ciljKandidata) {
         // Stali smo zato što je dosta, ne zato što je Places presušio — grad
         // NIJE iscrpljen i `iscrpljen: true` bi bila lažna tvrdnja (§O10).
-        return { kandidati, pozivi, iscrpljeno: false, vanGrada, zatvoreni };
+        return {
+          kandidati,
+          pozivi,
+          iscrpljeno: false,
+          vanGrada,
+          zatvoreni,
+          pregledano,
+          primeriVanGrada,
+        };
       }
 
       if (!sledecaStrana) break;
@@ -181,5 +231,5 @@ export async function otkrijKandidate({
     }
   }
 
-  return { kandidati, pozivi, iscrpljeno, vanGrada, zatvoreni };
+  return { kandidati, pozivi, iscrpljeno, vanGrada, zatvoreni, pregledano, primeriVanGrada };
 }

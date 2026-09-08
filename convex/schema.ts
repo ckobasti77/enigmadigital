@@ -3690,6 +3690,12 @@ export default defineSchema({
     // pa se svuda cita kao `?? []`.
     skriveneKolone: v.optional(v.array(v.string())),
 
+    // Predlog opisa niše koji je skill /generate-leads poslao uz uvoz (GL6 §4).
+    // OPCIONO NAMERNO: samo uvozi iz skilla imaju ovo; XLSX/CSV uvozi nikad.
+    // `applyImport` ga upisuje u nišu SAMO ako niša još nema opis (opis čoveka
+    // se ne prepisuje).
+    nisaOpis: v.optional(v.string()),
+
     appliedAt: v.optional(v.number()),
     revertedAt: v.optional(v.number()),
     error: v.optional(v.string()),

@@ -32,6 +32,7 @@ import process from "node:process";
 import * as env from "./lib/env.mjs";
 import * as izlaz from "./lib/izlaz.mjs";
 import { nadjiNisu, normalizujSlug, upitiNise } from "./lib/nise.mjs";
+import { alijasiGrada } from "./lib/gradovi.mjs";
 import { otkrijKandidate, PlacesGreska } from "./lib/places.mjs";
 import { geokodiraj, RAZMAK_MS, sacekaj, userAgent } from "./lib/nominatim.mjs";
 import { proveriSajt } from "./lib/sajt.mjs";
@@ -111,11 +112,14 @@ function komandaProveriEnv() {
 async function komandaDiscover(args) {
   const { GOOGLE_PLACES_API_KEY } = env.trazi(["GOOGLE_PLACES_API_KEY"]);
 
-  // „Zemun|Beograd": prvi je kanonski naziv (ide u upit i u telo), ostali su
-  // dodatna imena prihvatljiva u adresi — Places za beogradske opštine često
-  // vraća adresu sa „Beograd".
+  // Grad: `alijasiGrada` daje kanonski naziv (ide u upit i u telo) i ugrađene
+  // alijase (egzonimi + beogradske opštine — GL6 §3). „Zemun|Beograd" i dalje
+  // radi: prvi deo se razrešava kroz alijase, ostali se DODAJU kao ručni
+  // alijasi prihvatljivi u adresi.
   const gradUnos = trazenArgument(args, "grad");
-  const [grad, ...gradAlijasi] = gradUnos.split("|").map((d) => d.trim()).filter(Boolean);
+  const [prviDeo, ...rucniAlijasi] = gradUnos.split("|").map((d) => d.trim()).filter(Boolean);
+  const { kanonski: grad, alijasi: ugradjeniAlijasi } = alijasiGrada(prviDeo);
+  const gradAlijasi = [...new Set([...ugradjeniAlijasi, ...rucniAlijasi])];
 
   const nisaUnos = trazenArgument(args, "nisa");
   const broj = Number(trazenArgument(args, "broj"));
@@ -156,6 +160,20 @@ async function komandaDiscover(args) {
     typeof args.run === "string" && args.run.trim().length > 0
       ? args.run.trim()
       : izlaz.napraviRunId(new Date(pokrenutAt), normalizujSlug(grad), nisaSlug);
+
+  // Dva `discover`-a istog dana u isti folder su prepisala run.json i
+  // kandidati.json preko runa koji je već imao popunjen firme.json (GL6 §4).
+  // Zato: ako firme.json postoji i NIJE prazan, discover odbija bez `--force`.
+  if (!args.force && izlaz.postojiFajl(runId, "firme.json")) {
+    const postojece = izlaz.citajJson(runId, "firme.json");
+    if (Array.isArray(postojece) && postojece.length > 0) {
+      throw new Error(
+        `out/${runId}/ već ima popunjen firme.json (${postojece.length} firmi). ` +
+          "discover bi prepisao run.json i kandidati.json preko tog runa i izgubio ga. " +
+          "Dodaj --force da svesno prepišeš, ili --run <nov-id> za nov folder.",
+      );
+    }
+  }
 
   ispisi(`Run: ${runId}`);
   ispisi(`Grad: ${grad}${gradAlijasi.length > 0 ? ` (adresa sme da glasi i: ${gradAlijasi.join(", ")})` : ""}`);
@@ -225,6 +243,22 @@ async function komandaDiscover(args) {
       ? "Places je iscrpeo sve upite — više kandidata za ovaj grad i nišu nema."
       : "Places NIJE iscrpljen (stalo se na cilju ili na kapi strana).",
   );
+
+  // Kad grad odbaci većinu pregledanih, uzrok je gotovo uvek pogrešno napisan
+  // grad ili nedostajući alijas — a ne „grad nema takvih firmi" (GL6 §3).
+  // Prikaz prva tri odbačena oblika adrese (bez imena firme) štedi sat traženja.
+  if (rezultat.pregledano > 0 && rezultat.vanGrada * 2 > rezultat.pregledano) {
+    ispisi("");
+    ispisi(
+      `UPOZORENJE: filter grada je odbacio ${rezultat.vanGrada} od ${rezultat.pregledano} pregledanih (> 50 %).`,
+    );
+    ispisi(
+      `Adresa mora da sadrži „${grad}"` +
+        (gradAlijasi.length > 0 ? ` ili alijas (${gradAlijasi.join(", ")})` : "") +
+        ". Prva tri odbačena oblika adrese:",
+    );
+    for (const adresa of rezultat.primeriVanGrada) ispisi(`  ${adresa}`);
+  }
 
   if (rezultat.kandidati.length === 0) {
     ispisi("");
@@ -611,11 +645,12 @@ async function komandaSend(args) {
     );
   }
   if (stanje.nisa.opis) {
-    // Ingest šema nema polje za opis niše, pa opis ne putuje sa uvozom. Ovde
-    // stoji samo putokaz; tekst se nalepi ručno u Leadovi → Niše → Opis.
+    // Opis niše sada putuje sa uvozom (GL6 §4) i upisuje se pri „Primeni",
+    // samo ako niša još nema opis (kao opisAutor „claude"). Lokalna kopija
+    // ostaje u nisa-opis.txt.
     napomene.push(
-      `Predlog opisa niše „${stanje.nisa.naziv}" je na mašini koja je pokrenula skill ` +
-        `(tools/generate-leads/out/${runId}/nisa-opis.txt) — ingest ga ne prenosi.`,
+      `Opis niše „${stanje.nisa.naziv}" putuje sa uvozom i upisuje se u nišu pri „Primeni" ` +
+        `(samo ako niša još nema opis). Kopija: tools/generate-leads/out/${runId}/nisa-opis.txt.`,
     );
   }
 
@@ -626,6 +661,10 @@ async function komandaSend(args) {
       nisa: stanje.nisa.slug,
       brojTrazen: stanje.brojTrazen,
       filterSajt: stanje.filterSajt,
+      // Opis niše putuje sa uvozom (GL6 §4). Granica šeme je 1200 znakova.
+      ...(stanje.nisa.opis
+        ? { nisaOpis: stanje.nisa.opis.trim().slice(0, 1200) }
+        : {}),
     },
     izvor: {
       skill: "generate-leads",

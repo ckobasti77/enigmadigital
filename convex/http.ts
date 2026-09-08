@@ -1899,6 +1899,9 @@ http.route({
         fileName,
         rows,
         warnings,
+        // Opis niše (GL6 §4): upisuje se u nišu tek pri „Primeni", i to samo
+        // ako niša nema opis. Odsustvo = skill nije poslao opis.
+        nisaOpis: telo.upit.nisaOpis,
       },
     );
 

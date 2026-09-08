@@ -27,7 +27,13 @@ export const PROMENLJIVE = {
   },
   ENIGMA_INGEST_URL: {
     cemu: "adresa ingest rute",
-    gde: "https://<deployment>.convex.site/generate-leads/ingest",
+    // EU deployment ima region u hostu: `<deployment>.eu-west-1.convex.site`.
+    // Bez regiona `<deployment>.convex.site` vraća 404. Tačan host: Convex
+    // dashboard → Settings → URL & Deploy Key → HTTP Actions URL.
+    gde:
+      "https://<deployment>.convex.site/generate-leads/ingest ILI (EU region) " +
+      "https://<deployment>.eu-west-1.convex.site/generate-leads/ingest — tačan " +
+      "host je HTTP Actions URL u Convex dashboardu (Settings → URL & Deploy Key)",
   },
   ENIGMA_CONTACT_EMAIL: {
     cemu: "kontakt u User-Agent zaglavlju (Nominatim i provera sajtova)",

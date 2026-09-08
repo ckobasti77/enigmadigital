@@ -142,8 +142,10 @@ function Legenda({ className }: { className?: string }) {
     { temp: "warm", boja: "bg-temp-warm" },
     { temp: "cold", boja: "bg-temp-cold" },
     {
+      // Isti recept kao heksagon „Nova firma" u canvasu (GL6 §2): prigušen
+      // tekst blago posvetljen ka text-primary — svetao neutralan slate.
       temp: "nova_firma",
-      boja: "bg-[color-mix(in_srgb,var(--text-muted)_45%,var(--surface-raised))]",
+      boja: "bg-[color-mix(in_srgb,var(--text-primary)_15%,var(--text-muted))]",
     },
   ];
   return (

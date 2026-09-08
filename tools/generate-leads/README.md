@@ -34,8 +34,15 @@ ugrađen).
 | --- | --- | --- |
 | `GOOGLE_PLACES_API_KEY` | Places Text Search (otkrivanje kandidata) | Google Cloud → APIs & Services → Credentials |
 | `ENIGMA_INGEST_TOKEN` | Bearer token za slanje | `digital.enigmait.rs` → Podešavanja → Pristup → Tokeni za uvoz |
-| `ENIGMA_INGEST_URL` | adresa ingest rute | `https://<deployment>.convex.site/generate-leads/ingest` |
+| `ENIGMA_INGEST_URL` | adresa ingest rute | vidi ispod tabele (pazi na EU region) |
 | `ENIGMA_CONTACT_EMAIL` | kontakt u `User-Agent` (Nominatim, provera sajtova) | poslovni email |
+
+**`ENIGMA_INGEST_URL` — pazi na region.** Konačan oblik je
+`https://<deployment>.convex.site/generate-leads/ingest`, ali **EU deployment
+nosi region u hostu**: `https://<deployment>.eu-west-1.convex.site/generate-leads/ingest`.
+Bez regiona (`<deployment>.convex.site`) ruta vraća **404**. Tačan host je
+**HTTP Actions URL** u Convex dashboardu: **Settings → URL & Deploy Key →
+HTTP Actions URL** — prekopiraj ga i dodaj `/generate-leads/ingest`.
 
 ```powershell
 [Environment]::SetEnvironmentVariable("ENIGMA_INGEST_TOKEN", "<token>", "User")
@@ -60,12 +67,23 @@ node run.mjs send       --run 2026-09-08-beograd-frizerski-saloni --dry-run
 node run.mjs send       --run 2026-09-08-beograd-frizerski-saloni
 ```
 
-Beogradske opštine: `--grad "Zemun|Beograd"` — prvi je kanonski naziv (ide u
-upit i u uvoz), ostali se prihvataju u adresi, jer Places za opštine često vraća
-adresu sa „Beograd".
+Gradovi imaju **ugrađene alijase** (`lib/gradovi.mjs`): „Beograd" prihvata i
+„Belgrade" i sve beogradske opštine u adresi; „Zemun" (i ostale opštine) su
+kanonski naziv, ali prihvataju i adresu koja glasi „Beograd"; „Niš" prihvata
+„Nis"/„Nish". Ćirilica („Београд") uvek prolazi — filter je transliteruje.
+`--grad "A|B"` i dalje radi kao **dopuna**: ručni alijasi se dodaju ugrađenima.
+
+Ako filter grada odbaci **više od pola** pregledanih kandidata, `discover`
+ispiše upozorenje i **prva tri odbačena oblika adrese** — skoro uvek je uzrok
+pogrešno napisan grad, a ne „grad nema takvih firmi".
 
 Nepoznata niša: `discover` staje i traži `--upiti "frizerski salon,hair salon"`.
 Upiti se ne pogađaju — pogrešan upit troši Places kvotu na pogrešne firme.
+
+Ista niša + grad + dan daju isti `run-id`. Ako u tom folderu već postoji
+popunjen `firme.json`, `discover` **odbija** da piše (da ne prepiše gotov run
+preko `run.json`/`kandidati.json`). Dodaj `--force` da svesno prepišeš, ili
+`--run <nov-id>` za nov folder.
 
 ## Radni folder
 
@@ -114,14 +132,12 @@ Nijedna poruka ne sadrži sirov telefon, mejl ni ime osobe (plan §0 pravilo 6).
 
 ## Opis niše
 
-`lib/nise.mjs` nosi opis svake niše (3–4 rečenice, napisao ih Claude). **Ingest
-šema nema polje za taj opis** — red nosi samo slug niše. Zato `send` upisuje
-tekst u `out/<run-id>/nisa-opis.txt` i ispiše putanju; u aplikaciju se nalepi
-ručno (Leadovi → Niše → Opis), čime opis dobija `opisAutor: "covek"`.
-
-Da bi opis putovao sa uvozom i ostao zapisan kao `opisAutor: "claude"`, ingest
-šema bi morala da dobije polje (npr. `upit.nisaOpis`) i `upsertNicheBySlug` da
-ga upiše pri prvom pravljenju niše. To je izmena u Convexu, ne u skillu.
+`lib/nise.mjs` nosi opis svake niše (3–4 rečenice, napisao ih Claude). Opis
+**putuje sa uvozom** (`upit.nisaOpis`, granica 1200 znakova — GL6 §4). Pri
+kliku **Primeni**, `applyImport` ga upiše u nišu kao `opisAutor: "claude"` —
+ali **samo ako niša još nema opis**. Opis koji je čovek ranije uneo se
+**nikad ne prepisuje**. `send` uz to čuva lokalnu kopiju u
+`out/<run-id>/nisa-opis.txt`.
 
 ## Testovi
 

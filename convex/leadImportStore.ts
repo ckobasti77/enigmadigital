@@ -196,6 +196,9 @@ function roleConfidenceFromSource(
  * „Frizeri i berberi" ne sme da izgubi to ime zato što je skill poslao svoj
  * slobodan tekst.
  */
+/** Zapisano u `opisModel` kad opis niše dolazi iz skilla (GL6 §4). */
+const GENERATE_LEADS_OPIS_MODEL = "Claude (generate-leads skill)";
+
 async function upsertNicheBySlug(
   ctx: MutationCtx,
   args: {
@@ -203,6 +206,8 @@ async function upsertNicheBySlug(
     slug: string;
     createdBy?: Id<"users">;
     now: number;
+    /** Predlog opisa iz skilla (GL6 §4). Upisuje se SAMO ako niša nema opis. */
+    opis?: string;
   },
 ): Promise<Id<"niches"> | undefined> {
   const slug = normalizeNicheSlug(args.slug);
@@ -210,13 +215,32 @@ async function upsertNicheBySlug(
   // jednu — bolje bez niše nego u pogrešnoj.
   if (!slug) return undefined;
 
+  // Opis se upisuje kao autorstvo „claude" SAMO kad ga je skill poslao i kad
+  // niša nema svoj opis. Opis čoveka se NIKAD ne prepisuje (GL6 §4).
+  const opisIzSkilla =
+    typeof args.opis === "string" && args.opis.trim().length > 0
+      ? args.opis.trim()
+      : undefined;
+
   const existing = await ctx.db
     .query("niches")
     .withIndex("by_workspace_slug", (q) =>
       q.eq("workspaceId", args.workspaceId).eq("slug", slug),
     )
     .first();
-  if (existing !== null) return existing._id;
+  if (existing !== null) {
+    // Postojeća niša: dopuni opis samo ako ga nema (prazan ili odsutan).
+    const bezOpisa = !existing.opis || existing.opis.trim().length === 0;
+    if (opisIzSkilla && bezOpisa) {
+      await ctx.db.patch(existing._id, {
+        opis: opisIzSkilla,
+        opisAutor: "claude",
+        opisModel: GENERATE_LEADS_OPIS_MODEL,
+        updatedAt: args.now,
+      });
+    }
+    return existing._id;
+  }
 
   // Naziv se izvodi iz sluga („frizerski-saloni" -> „Frizerski saloni"). To je
   // radni naziv dok ga čovek ne prepravi na ekranu Niše (GL2).
@@ -233,6 +257,9 @@ async function upsertNicheBySlug(
     createdBy: args.createdBy,
     createdAt: args.now,
     updatedAt: args.now,
+    ...(opisIzSkilla
+      ? { opis: opisIzSkilla, opisAutor: "claude" as const, opisModel: GENERATE_LEADS_OPIS_MODEL }
+      : {}),
   });
 }
 
@@ -565,6 +592,8 @@ async function createImportCore(
     skippedCount: number;
     warnings: string[];
     sourceSheet?: string;
+    /** Predlog opisa niše iz skilla (GL6 §4). Samo `createImportFromIngest`. */
+    nisaOpis?: string;
   },
 ): Promise<{ importId: Id<"leadImports">; rowsCount: number }> {
   const sheetName = args.sourceSheet ?? args.sheetsChosen[0] ?? "Sheet1";
@@ -581,6 +610,9 @@ async function createImportCore(
     rowsSkipped: args.skippedCount,
     warnings: args.warnings,
     skriveneKolone: [],
+    ...(args.nisaOpis && args.nisaOpis.trim().length > 0
+      ? { nisaOpis: args.nisaOpis.trim() }
+      : {}),
   });
 
   for (let i = 0; i < args.rows.length; i++) {
@@ -735,6 +767,9 @@ export const createImportFromIngest = internalMutation({
     fileName: v.string(),
     rows: v.array(parsedLeadRowValidator),
     warnings: v.array(v.string()),
+    // Predlog opisa niše iz skilla (GL6 §4). `applyImport` ga upisuje u nišu
+    // samo ako niša još nema opis.
+    nisaOpis: v.optional(v.string()),
   },
   returns: v.object({
     importId: v.id("leadImports"),
@@ -755,6 +790,7 @@ export const createImportFromIngest = internalMutation({
       // Skill ne preskače redove tiho: ono što nije ušlo, izveštaj imenuje.
       skippedCount: 0,
       warnings: args.warnings,
+      nisaOpis: args.nisaOpis,
     });
   },
 });
@@ -1149,6 +1185,7 @@ export const applyImport = mutation({
               slug: p.nisa,
               createdBy: ownerUserId,
               now,
+              opis: importDoc.nisaOpis,
             })
           : undefined;
 
@@ -1545,6 +1582,7 @@ export const applyImport = mutation({
             slug: p.nisa,
             createdBy: ownerUserId,
             now,
+            opis: importDoc.nisaOpis,
           });
           if (nicheId) patch.nicheId = nicheId;
         }

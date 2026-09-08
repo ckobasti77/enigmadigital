@@ -5,8 +5,10 @@ import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import type { LeadStage, LeadOutcome } from "@/convex/leadCrmStore";
-import { LEAD_OUTCOME_CODES } from "@/convex/leadCrmStore";
+import type { LeadStage } from "@/convex/leadCrmStore";
+// Vrednost (ne tip) — iz lib modula da se ceo `leadCrmStore` (koji uvozi
+// `_generated/server`) ne povuče u browser bundle (GL6 §5).
+import { LEAD_OUTCOME_CODES, type LeadOutcome } from "@/convex/lib/leadOutcomes";
 import { CalendarX2, ShieldAlert, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";

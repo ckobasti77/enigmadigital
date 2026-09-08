@@ -240,8 +240,8 @@ poziva. Run tada NIJE propao — reci šta je vraćeno i gde je JSON.
 - „Nedostupni izvori: …" ili „svi izvori dostupni"
 - „Places poziva: N"
 - Link ka uvozu: `https://digital.enigmait.rs/leadovi/uvoz?import=<id>`
-- Ako postoji `out/<run-id>/nisa-opis.txt`: „Opis niše je predložen u tom
-  fajlu — ingest ga ne prenosi, nalepi ga u Leadovi → Niše → Opis."
+- Ako postoji `out/<run-id>/nisa-opis.txt`: „Opis niše putuje sa uvozom i
+  upisuje se pri „Primeni" — samo ako niša još nema opis. Kopija je u tom fajlu."
 
 ## Greške i šta znače
 

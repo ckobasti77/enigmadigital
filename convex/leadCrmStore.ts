@@ -43,51 +43,17 @@ export type LeadStage =
   | "odlozen";
 
 /**
- * Zatvorena lista ishoda komunikacije (§9). Ishod je RAZLOG/REZULTAT razgovora
- * i namerno je odvojen od faze (`stage`): „dobijen"/„izgubljen" su faze, ne
- * ishodi. Slobodan tekst je ranije značio da „nije zainteresovan" i „ne zanima
- * ga" budu dva različita ishoda i da statistika ne postoji — zato zatvorena
- * lista + odvojena slobodna napomena (`note` arg u `recordOutcome`).
- *
- * `LEAD_OUTCOME_CODES` je jedini izvor istine za skup. `LEAD_OUTCOME_VALIDATOR`
- * i tip `LeadOutcome` se izvode odavde: validator zaključava argument
- * `recordOutcome.outcome` (granica mutacije prima samo kod iz ovog skupa), forma
- * u `lead-actions-panel.tsx` bira kod iz njega, a prikaz koristi
- * `leadOutcomeLabel` (`components/app/leadovi/lead-labels.ts`).
- *
- * `isLeadOutcome` razlikuje kod iz zatvorene liste od starih, slobodno-
- * tekstualnih zapisa u bazi — te stare vrednosti se prikazuju KAKVE JESU
- * (`leadOutcomeLabel` pada na sirovu vrednost), nikad kao „nepoznato".
+ * Zatvorena lista ishoda komunikacije (§9) živi u `./lib/leadOutcomes` (GL6 §5):
+ * komponenta koja je uvozi kao VREDNOST ne sme da povuče ovaj server-modul u
+ * browser bundle. Ovde se samo re-eksportuje da postojeći Convex uvozi rade.
  */
-export const LEAD_OUTCOME_CODES = [
-  "nije_se_javio",
-  "zainteresovan",
-  "nije_zainteresovan",
-  "preskupo",
-  "nema_potrebe",
-  "konkurencija",
-  "postojeci_klijent",
-  "trazeno_da_se_ne_zove",
-  "ostalo",
-] as const;
-
-export type LeadOutcome = (typeof LEAD_OUTCOME_CODES)[number];
-
-export const LEAD_OUTCOME_VALIDATOR = v.union(
-  v.literal("nije_se_javio"),
-  v.literal("zainteresovan"),
-  v.literal("nije_zainteresovan"),
-  v.literal("preskupo"),
-  v.literal("nema_potrebe"),
-  v.literal("konkurencija"),
-  v.literal("postojeci_klijent"),
-  v.literal("trazeno_da_se_ne_zove"),
-  v.literal("ostalo"),
-);
-
-export function isLeadOutcome(value: string): value is LeadOutcome {
-  return (LEAD_OUTCOME_CODES as readonly string[]).includes(value);
-}
+export {
+  LEAD_OUTCOME_CODES,
+  LEAD_OUTCOME_VALIDATOR,
+  isLeadOutcome,
+  type LeadOutcome,
+} from "./lib/leadOutcomes";
+import { LEAD_OUTCOME_VALIDATOR } from "./lib/leadOutcomes";
 
 /**
  * Dodeljuje lead određenom članu tima (ili menja postojećeg vlasnika).

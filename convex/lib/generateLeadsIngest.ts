@@ -134,6 +134,10 @@ export const generateLeadsIngestSchema = z.object({
     nisa: neprazan,
     brojTrazen: z.number().int().min(1).max(50),
     filterSajt: z.enum(["ima", "nema", "svejedno"]),
+    // Predlog opisa niše (GL6 §4). `applyImport` ga upisuje u nišu samo ako
+    // niša još nema opis; opis čoveka se ne prepisuje. Granica 1200 znakova
+    // = jedna mutacija ne sme da primi „roman" umesto opisa.
+    nisaOpis: z.string().trim().min(1).max(1200).optional(),
   }),
   izvor: z.object({
     skill: z.literal("generate-leads"),

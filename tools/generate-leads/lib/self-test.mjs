@@ -10,6 +10,8 @@
  *   1. SKOR (§6) — 8 slučajeva, uključujući dva „nije moguće proceniti".
  *   2. NIŠE — 10 mapiranja slobodnog teksta i stabilnost slugova (slug mora da
  *      preživi `normalizeNicheSlug` iz Convexa, jer se po njemu radi upsert).
+ *   3b. FILTER GRADA (GL6 §3) — 6 oblika adrese (latinica, ćirilica, engleski,
+ *      opština, drugi grad, prazno) kroz `uGradu` + `alijasiGrada`.
  *   3. ŠEMA — 3 JSON primera kroz OBE kopije šeme (`lib/schema.mjs` i zod iz
  *      `convex/lib/generateLeadsIngest.ts`); presude i putanje polja moraju da
  *      se poklope. Ovo je jedina odbrana od dve kopije koje se razilaze.
@@ -28,6 +30,8 @@ import { NISE, nadjiNisu, normalizujSlug, upitiNise } from "./nise.mjs";
 import { klasifikuj, proveriSajt } from "./sajt.mjs";
 import { oceniTelefonOsobe, oceniOsobe, traka } from "./skor.mjs";
 import { validirajTelo } from "./schema.mjs";
+import { prihvatljiviGradovi, uGradu } from "./places.mjs";
+import { alijasiGrada } from "./gradovi.mjs";
 
 const TELEFON = "+381 60 000 0000";
 
@@ -273,7 +277,14 @@ function testNise(prijavi) {
 
 const okvir = (redovi) => ({
   verzija: 1,
-  upit: { grad: "Beograd", nisa: "frizerski-saloni", brojTrazen: 5, filterSajt: "nema" },
+  upit: {
+    grad: "Beograd",
+    nisa: "frizerski-saloni",
+    brojTrazen: 5,
+    filterSajt: "nema",
+    // Opcion opis niše (GL6 §4) — exercise polja kroz obe kopije šeme.
+    nisaOpis: "Izmišljeni opis niše za self-test, kraći od 1200 znakova.",
+  },
   izvor: { skill: "generate-leads", verzijaSkilla: "1.0.0", pokrenutAt: 1_757_000_000_000 },
   redovi,
   izvestaj: {
@@ -418,6 +429,16 @@ const PRIMERI = [
     ocekujem: "pada",
     polja: ["redovi.0.osobe: too_big"],
   },
+  {
+    naziv: "4. opis niše duži od 1200 znakova",
+    telo: (() => {
+      const t = okvir([{ nazivFirme: "Test Salon 9", grad: "Beograd", nisa: "frizerski-saloni" }]);
+      t.upit.nisaOpis = "x".repeat(1201);
+      return t;
+    })(),
+    ocekujem: "pada",
+    polja: ["upit.nisaOpis: too_big"],
+  },
 ];
 
 /** Zod šema iz Convexa — jedini izvor istine. `null` kad se ne može učitati. */
@@ -500,6 +521,63 @@ async function testSema(prijavi, strogo) {
     "šema: iste granice (redovi, osobe, platforme)",
     `Convex: ${modul.MAX_INGEST_ROWS}/${modul.MAX_PEOPLE_PER_ROW}/${modul.MAX_PLATFORMS_PER_ROW}, ` +
       `skill: ${nase.MAX_INGEST_ROWS}/${nase.MAX_PEOPLE_PER_ROW}/${nase.MAX_PLATFORMS_PER_ROW}`,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3b. Filter grada (GL6 §3) — 6 oblika adrese, bez mreže
+// ─────────────────────────────────────────────────────────────────────────────
+
+function testFilterGrada(prijavi) {
+  // Pretraga „Beograd": kanonski + egzonim + opštine kao alijasi.
+  const bg = alijasiGrada("Beograd");
+  const bgPrihvatljivi = prihvatljiviGradovi(bg.kanonski, bg.alijasi);
+
+  const SLUCAJEVI = [
+    { naziv: "latinica", adresa: "Knez Mihailova 1, Beograd, Srbija", ocekujem: true },
+    { naziv: "ćirilica", adresa: "Кнез Михаилова 1, Београд, Србија", ocekujem: true },
+    { naziv: "engleski egzonim", adresa: "Knez Mihailova 1, Belgrade, Serbia", ocekujem: true },
+    { naziv: "opština bez reči Beograd", adresa: "Glavna 5, Zemun", ocekujem: true },
+    { naziv: "drugi grad", adresa: "Zmaj Jovina 1, Novi Sad, Srbija", ocekujem: false },
+    { naziv: "prazna adresa", adresa: "", ocekujem: false },
+  ];
+
+  for (const s of SLUCAJEVI) {
+    prijavi(
+      uGradu(s.adresa, bgPrihvatljivi) === s.ocekujem,
+      `filter grada (Beograd): ${s.naziv}`,
+      `očekivano ${s.ocekujem}, dobijeno ${uGradu(s.adresa, bgPrihvatljivi)} za „${s.adresa}"`,
+    );
+  }
+
+  // Opština uneta kao grad: „Zemun" je kanonski, „Beograd" je alijas —
+  // ali čist Novi Sad ne prolazi kroz Zemun.
+  const zemun = alijasiGrada("Zemun");
+  prijavi(zemun.kanonski === "Zemun", "filter grada: Zemun je kanonski", `dobijeno ${zemun.kanonski}`);
+  const zemunPrihvatljivi = prihvatljiviGradovi(zemun.kanonski, zemun.alijasi);
+  prijavi(
+    uGradu("Glavna 5, Zemun, Beograd", zemunPrihvatljivi) === true,
+    `filter grada: Zemun prihvata adresu sa „Beograd"`,
+    "adresa opštine sa gradom nije prošla",
+  );
+  prijavi(
+    uGradu("Zmaj Jovina 1, Novi Sad", zemunPrihvatljivi) === false,
+    "filter grada: Zemun ne prihvata Novi Sad",
+    "drugi grad je prošao kroz opštinu",
+  );
+
+  // Egzonim za Niš i transliteracija ćirilice na kanonski.
+  const nis = alijasiGrada("Nis");
+  prijavi(nis.kanonski === "Niš", `filter grada: „Nis" → kanonski „Niš"`, `dobijeno ${nis.kanonski}`);
+  const nisCir = alijasiGrada("Ниш");
+  prijavi(nisCir.kanonski === "Niš", `filter grada: „Ниш" → kanonski „Niš"`, `dobijeno ${nisCir.kanonski}`);
+
+  // Nepoznat grad: doslovno, bez ugrađenih alijasa.
+  const nepoznat = alijasiGrada("Kruševac");
+  prijavi(
+    nepoznat.kanonski === "Kruševac" && nepoznat.alijasi.length === 0,
+    "filter grada: nepoznat grad se koristi doslovno",
+    `dobijeno ${nepoznat.kanonski} / ${JSON.stringify(nepoznat.alijasi)}`,
   );
 }
 
@@ -628,6 +706,7 @@ export async function pokreniSelfTest({ strogo = false } = {}) {
 
   testSkor(prijavi);
   testNise(prijavi);
+  testFilterGrada(prijavi);
   await testSema(prijavi, strogo);
   await testSajt(prijavi);
 
