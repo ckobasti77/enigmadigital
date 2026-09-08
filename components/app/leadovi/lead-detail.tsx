@@ -45,6 +45,7 @@ import { LinkChip, type LinkChipVrsta } from "@/components/app/link-chip";
 import { SiteStatusBadge } from "./site-status-badge";
 import { PhoneConfidence } from "./phone-confidence";
 import { PhoneConfidenceDialog } from "./phone-confidence-dialog";
+import { LeadsMap } from "./leads-map";
 import {
   googleMapsHref,
   identityKindToVrsta,
@@ -662,6 +663,15 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
                     </span>
                   )}
                 </div>
+
+                {/* Mini mapa (GL3, plan §8): jedna tačka, bez klastera; firma
+                    bez koordinata dobija red koji kaže zašto ih nema. */}
+                <LeadsMap
+                  mode="single"
+                  workspaceId={workspaceId}
+                  company={company}
+                  fit={score?.fit}
+                />
 
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Globe className="size-3.5 shrink-0 text-text-muted" />

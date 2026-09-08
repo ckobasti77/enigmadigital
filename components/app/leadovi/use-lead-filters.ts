@@ -55,6 +55,20 @@ export type MultiGrupa =
   | "platforma"
   | "dodir";
 
+/**
+ * Navigacioni ključevi (GL3): jezičak i izabrana firma na mapi. NISU filteri —
+ * ne ulaze u `LeadFilters`, u preset ni u broj aktivnih grupa. Preset koji bi
+ * pamtio jezičak bi otvarao mapu i onome ko je hteo tabelu.
+ */
+export const NAV_KLJUCEVI = ["tab", "firma"] as const;
+
+export type LeadNav = {
+  /** Sirova vrednost iz URL-a; ekran sam odlučuje koji jezičci postoje. */
+  tab: string | null;
+  /** `leadCompanies` id firme koju mapa centrira i otvara u panelu. */
+  firma: string | null;
+};
+
 /** Svi ključevi koje ovaj hook drži u URL-u. Ostali parametri se ne diraju. */
 export const FILTER_KLJUCEVI = [
   "faza",
@@ -218,18 +232,45 @@ export function useLeadFilters() {
     [searchParams],
   );
 
+  const nav = useMemo<LeadNav>(
+    () => ({
+      tab: searchParams.get("tab")?.trim() || null,
+      firma: searchParams.get("firma")?.trim() || null,
+    }),
+    [searchParams],
+  );
+
+  /**
+   * Jedan upis za filtere I navigaciju. Dva uzastopna `router.replace` u istom
+   * prolazu čitaju istu, zastarelu adresu, pa drugi pregazi prvi — zato
+   * „primeni preset pa pređi na tabelu" mora da bude JEDAN upis.
+   */
   const upisi = useCallback(
-    (sledeci: LeadFilters) => {
+    (sledeci: LeadFilters, navDelta?: Partial<LeadNav>) => {
       // Parametri koji nisu naši (npr. `?import=`) se prenose netaknuti —
       // filter traka nije vlasnik cele adrese.
       const p = new URLSearchParams(searchParams.toString());
       for (const kljuc of FILTER_KLJUCEVI) p.delete(kljuc);
       const nas = new URLSearchParams(filtersToQuery(sledeci));
       for (const [k, val] of nas.entries()) p.set(k, val);
+      if (navDelta) {
+        for (const kljuc of NAV_KLJUCEVI) {
+          if (!(kljuc in navDelta)) continue;
+          const val = navDelta[kljuc];
+          if (val) p.set(kljuc, val);
+          else p.delete(kljuc);
+        }
+      }
       const qs = p.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
     [searchParams, router, pathname],
+  );
+
+  /** Menja samo jezičak / firmu; filteri ostaju kakvi jesu. */
+  const setNav = useCallback(
+    (navDelta: Partial<LeadNav>) => upisi(filters, navDelta),
+    [filters, upisi],
   );
 
   const toggle = useCallback(
@@ -273,10 +314,16 @@ export function useLeadFilters() {
 
   const clearAll = useCallback(() => upisi(PRAZNI_FILTERI), [upisi]);
 
-  /** Otvara sačuvan preset — preset JE query string, ne kopija stanja. */
+  /**
+   * Otvara sačuvan preset — preset JE query string, ne kopija stanja. Opcioni
+   * `navDelta` menja jezičak u istom upisu (vidi `upisi`).
+   */
   const applyQuery = useCallback(
-    (qs: string) => {
-      upisi(parseLeadFilters(new URLSearchParams(qs.replace(/^\?/, ""))));
+    (qs: string, navDelta?: Partial<LeadNav>) => {
+      upisi(
+        parseLeadFilters(new URLSearchParams(qs.replace(/^\?/, ""))),
+        navDelta,
+      );
     },
     [upisi],
   );
@@ -287,9 +334,11 @@ export function useLeadFilters() {
 
   return {
     filters,
+    nav,
     args,
     queryString,
     aktivnihGrupa,
+    setNav,
     toggle,
     setZaostali,
     setKoord,

@@ -4,6 +4,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
 import { hydrateLeadRowExtras, LEAD_STAGE_VALIDATOR } from "./leadCrmStore";
+import { scoreLead, type LeadSignalInput } from "./lib/leadScoring";
 
 /**
  * ============================================================================
@@ -685,6 +686,200 @@ export const countLeadsByFacet = query({
       koord: { da: koordDa, ne: koordSkup.length - koordDa },
       tel,
       dodir,
+    };
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAPA (GL3) — plan §8
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Signali se za mapu čitaju jednim indeksnim prolazom po radnom prostoru i
+ * grupišu po firmi — isti obrazac kao identiteti u `ucitajOsnovu`. Upit po
+ * firmi bi za 2000 tačaka bio 2000 upita. Kad se granica dosegne, rezultat
+ * nosi `signaliOdseceni: true`, pa mapa kaže da su neke visine nepotpune
+ * umesto da tiho nacrta niži heksagon.
+ */
+const SIGNAL_SCAN_CAP = 8000;
+
+/**
+ * Firme za mapu: samo one sa koordinatama, kroz ISTE filtere kao tabela
+ * (`ucitajOsnovu` + `napraviTestove` — deljeni helperi, ne kopija).
+ *
+ * Fit skor se računa PRI ČITANJU kroz `scoreLead` (§0 pravilo 2), sa pravilima
+ * učitanim jednom po pozivu. `fit` je procenat 0–100 ili `null` kad se ne može
+ * izmeriti — i tada `fitRazlog` kaže zašto: „bez pravila" (nema aktivnog Fit
+ * pravila) ili „bez signala" (nijedan signal nije pogodio pravilo). Nula ovde
+ * ne postoji ni u jednom od ta dva slučaja (§0 pravilo 1).
+ *
+ * `bezKoordinata` je broj firmi u ISTOM preseku koje nemaju `lat`/`lng` —
+ * mapa ih ne crta, ali ih ne prećutkuje.
+ */
+export const listLeadsForMap = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+    ...FILTER_ARGS,
+  },
+  handler: async (ctx, args) => {
+    await proveriPristup(ctx, args.workspaceId);
+
+    const now = Date.now();
+    const { redovi, prekoracen, identitetiOdseceni, nise, pregledano } =
+      await ucitajOsnovu(ctx, args.workspaceId, trazeIdentitete(args));
+
+    const testovi = napraviTestove(args, now);
+    const pogodjeni = redovi.filter((red) => prolaziSve(testovi, red));
+
+    const saKoordinatama = pogodjeni.filter(
+      (red) =>
+        red.company !== null &&
+        red.company.lat !== undefined &&
+        red.company.lng !== undefined,
+    );
+    const bezKoordinata = pogodjeni.length - saKoordinatama.length;
+    // Koliko firmi u CELOM (pregledanom) radnom prostoru ima koordinate —
+    // razlika između „skill još nije puštan" (nula) i „ove firme iz preseka
+    // ih nemaju" (veće od nule), koju prazno stanje mape mora da ispiše.
+    let saKoordinatamaUkupno = 0;
+    for (const red of redovi) {
+      if (red.company?.lat !== undefined && red.company?.lng !== undefined) {
+        saKoordinatamaUkupno++;
+      }
+    }
+
+    // Pravila jednom po pozivu, ne po firmi.
+    const rules = await ctx.db
+      .query("leadIcpRules")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
+      .collect();
+
+    let signaliOdseceni = false;
+    const signaliPoFirmi = new Map<string, LeadSignalInput[]>();
+    if (saKoordinatama.length > 0) {
+      const signalDocs = await ctx.db
+        .query("leadSignals")
+        .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
+        .take(SIGNAL_SCAN_CAP + 1);
+      signaliOdseceni = signalDocs.length > SIGNAL_SCAN_CAP;
+      for (const signal of signalDocs.slice(0, SIGNAL_SCAN_CAP)) {
+        const key = String(signal.companyId);
+        let lista = signaliPoFirmi.get(key);
+        if (!lista) {
+          lista = [];
+          signaliPoFirmi.set(key, lista);
+        }
+        lista.push({ kind: signal.kind, observedAt: signal.observedAt });
+      }
+    }
+
+    const nazivPoNisi = new Map<string, string>();
+    for (const nisa of nise) nazivPoNisi.set(String(nisa._id), nisa.naziv);
+
+    const tacke = saKoordinatama.map((red) => {
+      // Filtrirano gore; TypeScript to ne vidi kroz `filter`.
+      const company = red.company as Doc<"leadCompanies">;
+      const score = scoreLead(
+        signaliPoFirmi.get(String(company._id)) ?? [],
+        rules,
+        now,
+      );
+      const fitRazlog =
+        score.fit.maxPoints === 0
+          ? ("bez_pravila" as const)
+          : score.fit.signalsCounted === 0
+            ? ("bez_signala" as const)
+            : null;
+
+      return {
+        companyId: company._id,
+        naziv: company.name,
+        grad: company.city ?? null,
+        lat: company.lat as number,
+        lng: company.lng as number,
+        // `null` = čovek još nije odlučio (polje ne postoji); ekran to crta
+        // kao „Nova firma", isto kao tabela.
+        temperatura: company.temperatura ?? null,
+        fit:
+          fitRazlog === null
+            ? Math.round((score.fit.points / score.fit.maxPoints) * 100)
+            : null,
+        fitRazlog,
+        fitBodovi: score.fit.points,
+        fitMax: score.fit.maxPoints,
+        faza: red.assignment.stage,
+        nisa: company.nicheId
+          ? (nazivPoNisi.get(String(company.nicheId)) ?? null)
+          : null,
+        nisaSlug: red.nisaSlug,
+        imaSajt: company.imaSajt ?? null,
+        poslednjiDodirAt: red.assignment.lastTouchAt ?? null,
+        // Sastanak ide uz tačku jer je već učitan sa dodelom; GL4 (§9) crta
+        // beacon za sastanke u narednih 7 dana i ne treba mu novi upit.
+        sastanakAt: red.assignment.meetingAt ?? null,
+      };
+    });
+
+    return {
+      tacke,
+      bezKoordinata,
+      saKoordinatamaUkupno,
+      ukupno: pogodjeni.length,
+      prekoracen,
+      identitetiOdseceni,
+      signaliOdseceni,
+      pregledano,
+      now,
+    };
+  },
+});
+
+/**
+ * Jedan red tabele po firmi — za bočni panel mape, koji ponovo koristi
+ * `lead-row-actions` i prošireni red, pa mu treba TAČNO oblik reda tabele
+ * (`hydrateLeadRowExtras`, kao u `listLeadsFiltered`). Vraća `null` kad firma
+ * nema dodelu: takva firma nije u tabeli, pa nije ni na mapi.
+ */
+export const getLeadRow = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+    companyId: v.id("leadCompanies"),
+  },
+  handler: async (ctx, args) => {
+    await proveriPristup(ctx, args.workspaceId);
+
+    const company = await ctx.db.get(args.companyId);
+    if (!company || company.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Firma nije pronađena u ovom radnom prostoru.",
+      });
+    }
+
+    const assignment = await ctx.db
+      .query("leadAssignments")
+      .withIndex("by_workspace_company", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("companyId", args.companyId),
+      )
+      .first();
+    if (!assignment) return null;
+
+    const now = Date.now();
+    const extras = await hydrateLeadRowExtras(
+      ctx,
+      args.workspaceId,
+      args.companyId,
+    );
+
+    return {
+      item: {
+        assignment,
+        company,
+        ...extras,
+        isOverdue:
+          assignment.nextActionAt !== undefined && assignment.nextActionAt < now,
+      },
+      now,
     };
   },
 });

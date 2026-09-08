@@ -76,12 +76,19 @@ export function LeadExpandedRow({
   now,
   onCall,
   onOpenDialog,
+  stacked = false,
 }: {
   workspaceId: Id<"workspaces">;
   item: LeadRowItem;
   now: number;
   onCall: (phone: string) => void;
   onOpenDialog: (kind: RowDialogKind) => void;
+  /**
+   * Jedna kolona bez obzira na širinu ekrana — za uzak bočni panel (mapa,
+   * GL3), gde bi `md:`/`xl:` prelomi po ŠIRINI PROZORA nagurali četiri
+   * kolone u 380 px.
+   */
+  stacked?: boolean;
 }) {
   const { assignment, company } = item;
   const companyId = assignment.companyId;
@@ -136,7 +143,12 @@ export function LeadExpandedRow({
   }, [item.platforme, company?.website]);
 
   return (
-    <div className="grid gap-x-8 gap-y-5 px-4 py-4 text-xs md:grid-cols-2 xl:grid-cols-[1.25fr_1fr_1.15fr_1fr]">
+    <div
+      className={cn(
+        "grid gap-x-8 gap-y-5 px-4 py-4 text-xs",
+        !stacked && "md:grid-cols-2 xl:grid-cols-[1.25fr_1fr_1.15fr_1fr]",
+      )}
+    >
       {/* Kontakt */}
       <Section title="Kontakt">
         {/* NAJVAŽNIJA OSOBA, ne ceo spisak (§7.4): profil ima sve, ovde stoji

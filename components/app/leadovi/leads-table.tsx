@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import type { LeadStage } from "@/convex/leadCrmStore";
 import type { LeadScore, InvalidRule } from "@/convex/lib/leadScoring";
 import {
   ArrowDown,
@@ -48,15 +47,8 @@ import { LeadFilterBar } from "./lead-filter-bar";
 import { SiteStatusBadge } from "./site-status-badge";
 import { useLeadFilters } from "./use-lead-filters";
 import { LinkChip } from "@/components/app/link-chip";
-import {
-  AssignDialog,
-  MeetingDialog,
-  NextActionDialog,
-  OutcomeDialog,
-  StageDialog,
-  TouchDialog,
-  getErrorMessage,
-} from "./lead-quick-dialogs";
+import { getErrorMessage } from "./lead-quick-dialogs";
+import { LeadRowDialogs, type LeadRowDialogState } from "./lead-row-dialogs";
 import { leadSignalLabel } from "./lead-labels";
 import {
   ROW_EDGE_CLASS,
@@ -95,11 +87,6 @@ function readDensity(): Density {
 type SortKey = "fit" | "intent" | "name" | "lastTouch" | "nextAction" | "signals";
 type SortDirection = "asc" | "desc";
 type Density = "compact" | "comfortable";
-
-type DialogState =
-  | { kind: "meeting"; item: LeadRowItem; calledPhone?: string }
-  | { kind: "nextAction" | "outcome" | "touch" | "assign"; item: LeadRowItem }
-  | { kind: "stage"; item: LeadRowItem; stage: LeadStage };
 
 type LeadsTableProps = {
   workspaceId: Id<"workspaces">;
@@ -187,7 +174,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
     assignmentId: string;
     phone: string;
   } | null>(null);
-  const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [dialog, setDialog] = useState<LeadRowDialogState | null>(null);
 
   const changeDensity = (next: Density) => {
     setDensity(next);
@@ -869,54 +856,11 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
         )}
 
         {/* Dijalozi radnji iz reda — jedan primerak, vezan za izabrani red */}
-        {dialog && (() => {
-          const base = {
-            workspaceId,
-            companyId: dialog.item.assignment.companyId,
-            companyName: dialog.item.company?.name ?? "Nepoznata firma",
-            open: true,
-            onOpenChange: (open: boolean) => {
-              if (!open) setDialog(null);
-            },
-          };
-          const a = dialog.item.assignment;
-          switch (dialog.kind) {
-            case "meeting":
-              return (
-                <MeetingDialog
-                  {...base}
-                  current={
-                    a.meetingAt !== undefined
-                      ? { meetingAt: a.meetingAt, meetingNote: a.meetingNote }
-                      : null
-                  }
-                  currentStage={a.stage}
-                  calledPhone={dialog.calledPhone}
-                />
-              );
-            case "nextAction":
-              return (
-                <NextActionDialog
-                  {...base}
-                  current={
-                    a.nextActionAt !== undefined
-                      ? { nextActionAt: a.nextActionAt, nextActionNote: a.nextActionNote }
-                      : null
-                  }
-                />
-              );
-            case "outcome":
-              return <OutcomeDialog {...base} />;
-            case "touch":
-              return <TouchDialog {...base} />;
-            case "assign":
-              return <AssignDialog {...base} currentOwnerUserId={a.ownerUserId} />;
-            case "stage":
-              return (
-                <StageDialog {...base} currentStage={a.stage} initialStage={dialog.stage} />
-              );
-          }
-        })()}
+        <LeadRowDialogs
+          workspaceId={workspaceId}
+          dialog={dialog}
+          onClose={() => setDialog(null)}
+        />
       </div>
     </TooltipProvider>
   );

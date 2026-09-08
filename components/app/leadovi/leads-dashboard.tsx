@@ -8,6 +8,7 @@ import {
   CalendarClock,
   Clock,
   Compass,
+  Map as MapIcon,
   SlidersHorizontal,
   ShieldAlert,
   Upload,
@@ -25,6 +26,7 @@ import { GapsPanel } from "./gaps-panel";
 import { OverduePanel } from "./overdue-panel";
 import { ScoringRulesPanel } from "./scoring-rules-panel";
 import { NichesPanel } from "./niches-panel";
+import { LeadsMap } from "./leads-map";
 import { useLeadFilters } from "./use-lead-filters";
 import { LeadExportDialog } from "./lead-export-dialog";
 import {
@@ -34,12 +36,30 @@ import {
   type MeetingItem,
 } from "./meetings-panel";
 
-type Tab = "leads" | "niche" | "gaps" | "overdue" | "meetings" | "scoring";
+type Tab = "leads" | "map" | "niche" | "gaps" | "overdue" | "meetings" | "scoring";
+
+const TABOVI: readonly Tab[] = [
+  "leads",
+  "map",
+  "niche",
+  "gaps",
+  "overdue",
+  "meetings",
+  "scoring",
+];
+
+function jeTab(raw: string | null): raw is Tab {
+  return raw !== null && (TABOVI as readonly string[]).includes(raw);
+}
 
 export function LeadsDashboard() {
   const { workspace, isLoading } = useWorkspace();
-  const { applyQuery } = useLeadFilters();
-  const [tab, setTab] = useState<Tab>("leads");
+  const { applyQuery, nav, setNav } = useLeadFilters();
+  // Jezičak živi u URL-u (GL3): `?tab=map&firma=<id>` iz profila mora da
+  // otvori mapu sa panelom, a kopiran link isti jezičak. Tabela je
+  // podrazumevana i ne upisuje se. Nepoznata vrednost = tabela.
+  const tab: Tab = jeTab(nav.tab) ? nav.tab : "leads";
+  const setTab = (next: Tab) => setNav({ tab: next === "leads" ? null : next });
   const [invalidRules, setInvalidRules] = useState<InvalidRule[]>([]);
 
   // Brojač na jezičku „Sastanci" (§4). Ista query se koristi i unutar panela —
@@ -103,6 +123,7 @@ export function LeadsDashboard() {
         onChange={setTab}
         tabs={[
           { id: "leads", label: "Tabela leadova", icon: Users },
+          { id: "map", label: "Mapa", icon: MapIcon },
           { id: "niche", label: "Niše", icon: Compass },
           { id: "gaps", label: "Rupe u podacima", icon: ShieldAlert },
           { id: "overdue", label: "Zaostali koraci", icon: Clock },
@@ -144,12 +165,14 @@ export function LeadsDashboard() {
             onInvalidRulesFound={setInvalidRules}
           />
         )}
+        {tab === "map" && <LeadsMap mode="all" workspaceId={workspaceId} />}
         {tab === "niche" && (
           <NichesPanel
             workspaceId={workspaceId}
             onShowCompanies={(slug) => {
-              applyQuery(`nisa=${encodeURIComponent(slug)}`);
-              setTab("leads");
+              // Filter i jezičak u JEDNOM upisu — dva `router.replace` zaredom
+              // bi drugi pregazio prvi (vidi `upisi` u hooku).
+              applyQuery(`nisa=${encodeURIComponent(slug)}`, { tab: null });
             }}
           />
         )}
