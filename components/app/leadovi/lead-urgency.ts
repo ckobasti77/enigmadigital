@@ -21,7 +21,13 @@ export type LeadRowPerson = {
   name: string;
   role: string;
   roleConfidence: string;
+  /** §6: `undefined` = nije procenjivano. Nikad 0 kao „ne znamo”. */
+  verovatnoca?: number;
+  /** §6: pokušano i odustalo — nije isto što i „nije procenjivano”. */
+  nijeMoguceProceniti?: boolean;
 };
+/** Kanal koji nije telefon ni mejl (IG, FB, TikTok, Threads, sajt). */
+export type LeadRowPlatform = { kind: string; value: string };
 export type LeadRowTouch = { channel: string; note?: string; occurredAt: number };
 
 /**
@@ -34,6 +40,7 @@ export type LeadRowItem = {
   company: Doc<"leadCompanies"> | null;
   telefoni: LeadRowContact[];
   emailovi: LeadRowContact[];
+  platforme: LeadRowPlatform[];
   osobe: LeadRowPerson[];
   signali: string[];
   poslednjiDodir?: LeadRowTouch;

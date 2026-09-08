@@ -1,10 +1,7 @@
 "use client";
 
-import type { ComponentType } from "react";
-import { Mail, Phone } from "lucide-react";
 import type { LeadStage } from "@/convex/leadCrmStore";
 import { leadStageLabel } from "./lead-labels";
-import { mailHref, telHref } from "./lead-urgency";
 import { cn } from "@/lib/utils";
 
 export const ALL_STAGES: readonly LeadStage[] = [
@@ -102,46 +99,8 @@ export function TemperatureSelect({
   );
 }
 
-/**
- * Jedan kontakt kao link koji otvara `tel:` / `mailto:` (§2/O2): aplikacija
- * ne zove i ne šalje ništa sama, samo predaje broj operativnom sistemu.
+/*
+ * `ContactLink` je obrisan u GL2. Zamenio ga je `components/app/link-chip.tsx`
+ * (`LinkChip`), koji pokriva i telefon i mejl i sve platforme, i uz to ume da
+ * kopira vrednost — vidi plan §7.2.
  */
-export function ContactLink({
-  kind,
-  value,
-  personName,
-  onClick,
-  className,
-}: {
-  kind: "phone" | "email";
-  value: string;
-  personName?: string;
-  onClick?: () => void;
-  className?: string;
-}) {
-  const Icon: ComponentType<{ className?: string }> =
-    kind === "phone" ? Phone : Mail;
-  return (
-    <a
-      href={kind === "phone" ? telHref(value) : mailHref(value)}
-      onClick={onClick}
-      className={cn(
-        "group/contact inline-flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-xs text-foreground transition-colors hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-        className,
-      )}
-    >
-      <Icon className="size-3.5 shrink-0 text-accent-400" />
-      <span
-        className={cn(
-          "truncate font-medium group-hover/contact:underline",
-          kind === "phone" && "font-mono tabular-nums",
-        )}
-      >
-        {value}
-      </span>
-      {personName && (
-        <span className="truncate text-micro text-text-muted">{personName}</span>
-      )}
-    </a>
-  );
-}

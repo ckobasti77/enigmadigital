@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import {
   CalendarClock,
   Clock,
+  Compass,
   SlidersHorizontal,
   ShieldAlert,
   Upload,
@@ -23,6 +24,8 @@ import { LeadsTable } from "./leads-table";
 import { GapsPanel } from "./gaps-panel";
 import { OverduePanel } from "./overdue-panel";
 import { ScoringRulesPanel } from "./scoring-rules-panel";
+import { NichesPanel } from "./niches-panel";
+import { useLeadFilters } from "./use-lead-filters";
 import { LeadExportDialog } from "./lead-export-dialog";
 import {
   MeetingsPanel,
@@ -31,10 +34,11 @@ import {
   type MeetingItem,
 } from "./meetings-panel";
 
-type Tab = "leads" | "gaps" | "overdue" | "meetings" | "scoring";
+type Tab = "leads" | "niche" | "gaps" | "overdue" | "meetings" | "scoring";
 
 export function LeadsDashboard() {
   const { workspace, isLoading } = useWorkspace();
+  const { applyQuery } = useLeadFilters();
   const [tab, setTab] = useState<Tab>("leads");
   const [invalidRules, setInvalidRules] = useState<InvalidRule[]>([]);
 
@@ -99,6 +103,7 @@ export function LeadsDashboard() {
         onChange={setTab}
         tabs={[
           { id: "leads", label: "Tabela leadova", icon: Users },
+          { id: "niche", label: "Niše", icon: Compass },
           { id: "gaps", label: "Rupe u podacima", icon: ShieldAlert },
           { id: "overdue", label: "Zaostali koraci", icon: Clock },
           {
@@ -137,6 +142,15 @@ export function LeadsDashboard() {
           <LeadsTable
             workspaceId={workspaceId}
             onInvalidRulesFound={setInvalidRules}
+          />
+        )}
+        {tab === "niche" && (
+          <NichesPanel
+            workspaceId={workspaceId}
+            onShowCompanies={(slug) => {
+              applyQuery(`nisa=${encodeURIComponent(slug)}`);
+              setTab("leads");
+            }}
           />
         )}
         {tab === "gaps" && <GapsPanel workspaceId={workspaceId} />}

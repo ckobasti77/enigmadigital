@@ -3914,6 +3914,10 @@ export default defineSchema({
     opisAutor: v.optional(v.union(v.literal("claude"), v.literal("covek"))),
     opisAt: v.optional(v.number()),
     opisModel: v.optional(v.string()),
+    // OPCIONO NAMERNO (GL2): KOJI čovek je poslednji dirnuo opis. Odsustvo
+    // znači „opis nije pisao čovek" (skill) ili „napisan je pre nego što smo
+    // počeli da beležimo autora". Bedž tada piše „Čovek", ne izmišlja ime.
+    opisAutorUserId: v.optional(v.id("users")),
     // OPCIONO NAMERNO: šifre delatnosti (APR) su korisne za pretragu, ali ih
     // skill često nema. Odsustvo znači „nisu poznate", prazan niz „nema ih".
     sifreDelatnosti: v.optional(v.array(v.string())),

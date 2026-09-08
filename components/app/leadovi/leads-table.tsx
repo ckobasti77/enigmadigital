@@ -16,7 +16,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Info,
   Rows2,
   Rows4,
@@ -44,12 +43,11 @@ import { LeadExportDialog } from "./lead-export-dialog";
 import { LeadRowActions, type RowDialogKind } from "./lead-row-actions";
 import { LeadExpandedRow } from "./lead-expanded-row";
 import { LeadCallStrip } from "./lead-call-strip";
-import {
-  ALL_STAGES,
-  StageChip,
-  TemperatureSelect,
-  type Temperatura,
-} from "./lead-chips";
+import { StageChip, TemperatureSelect, type Temperatura } from "./lead-chips";
+import { LeadFilterBar } from "./lead-filter-bar";
+import { SiteStatusBadge } from "./site-status-badge";
+import { useLeadFilters } from "./use-lead-filters";
+import { LinkChip } from "@/components/app/link-chip";
 import {
   AssignDialog,
   MeetingDialog,
@@ -59,12 +57,10 @@ import {
   TouchDialog,
   getErrorMessage,
 } from "./lead-quick-dialogs";
-import { leadStageLabel, leadSignalLabel } from "./lead-labels";
+import { leadSignalLabel } from "./lead-labels";
 import {
   ROW_EDGE_CLASS,
-  UNTOUCHED_LIMIT_DAYS,
   isMeetingSoon,
-  isMeetingToday,
   isMeetingUnresolved,
   isNextActionOverdue,
   isUntouchedTooLong,
@@ -99,7 +95,6 @@ function readDensity(): Density {
 type SortKey = "fit" | "intent" | "name" | "lastTouch" | "nextAction" | "signals";
 type SortDirection = "asc" | "desc";
 type Density = "compact" | "comfortable";
-type Focus = "overdue" | "meetingToday" | "untouched" | null;
 
 type DialogState =
   | { kind: "meeting"; item: LeadRowItem; calledPhone?: string }
@@ -173,60 +168,10 @@ function SortHead({
   );
 }
 
-/**
- * Jedan broj u traci iznad tabele (§7). Nula NIJE dugme: filter na prazan
- * skup nema šta da uradi, pa se ne crta kontrola koja ne može da radi.
- */
-function FocusChip({
-  count,
-  label,
-  tone,
-  active,
-  onToggle,
-}: {
-  count: number;
-  label: string;
-  tone: "danger" | "warning";
-  active: boolean;
-  onToggle: () => void;
-}) {
-  if (count === 0) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft px-2.5 py-1 text-text-muted">
-        <span className="font-mono tabular-nums">0</span>
-        <span>{label}</span>
-      </span>
-    );
-  }
-  const idle =
-    tone === "danger"
-      ? "border-danger/40 text-danger hover:bg-danger/10"
-      : "border-warning/40 text-warning hover:bg-warning/10";
-  const on =
-    tone === "danger"
-      ? "border-danger bg-danger/15 text-danger ring-1 ring-danger/40"
-      : "border-warning bg-warning/15 text-warning ring-1 ring-warning/40";
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onToggle}
-      className={cn(
-        "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 font-medium transition-colors",
-        active ? on : idle,
-      )}
-    >
-      <span className="font-mono font-bold tabular-nums">{count}</span>
-      <span>{label}</span>
-    </button>
-  );
-}
-
 export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps) {
   const { user } = useWorkspace();
-  const [filterMode, setFilterMode] = useState<"stage" | "overdue">("stage");
-  const [selectedStage, setSelectedStage] = useState<LeadStage>("nov");
-  const [focus, setFocus] = useState<Focus>(null);
+  // Izvor istine za filtere je URL (GL2, plan §7.1) — ne `useState` ovde.
+  const { filters, args, aktivnihGrupa, clearAll } = useLeadFilters();
   const [page, setPage] = useState<number>(1);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDirection>("desc");
@@ -269,63 +214,28 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
     }
   };
 
-  const stageData = useQuery(
-    api.leadCrmStore.listByStage,
-    filterMode === "stage"
-      ? { workspaceId, stage: selectedStage, limit: 200 }
-      : "skip",
-  );
+  const activeData = useQuery(api.leadFiltersStore.listLeadsFiltered, {
+    workspaceId,
+    ...args,
+    strana: page,
+    poStrani: PAGE_SIZE,
+  });
 
-  const overdueData = useQuery(
-    api.leadCrmStore.listOverdue,
-    filterMode === "overdue" ? { workspaceId, limit: 200 } : "skip",
-  );
-
-  const activeData = filterMode === "stage" ? stageData : overdueData;
   const isLoading = activeData === undefined;
   const now = useNow();
 
-  const rawItems: LeadRowItem[] = useMemo(() => {
+  const totalItems = activeData?.ukupno ?? 0;
+  const totalPages = activeData?.ukupnoStrana ?? 1;
+  // Server sam skraćuje traženu stranu na poslednju koja postoji, pa promena
+  // filtera ne traži nikakvo „vrati na prvu stranu” u efektu: `strana` iz
+  // odgovora je uvek strana koja stvarno postoji, i dugmad računaju od nje.
+  const validPage = activeData?.strana ?? page;
+
+  // Straničenje je sada na serveru: upit vraća tačno jednu stranu.
+  const currentPageItems: LeadRowItem[] = useMemo(() => {
     if (!activeData) return [];
     return activeData.items as LeadRowItem[];
   }, [activeData]);
-
-  // Traka iznad tabele broji UČITANU listu — jedini skup koji postoji bez
-  // novog upita. Brojevi važe za ono što je na ekranu, i to se i piše.
-  const counts = useMemo(() => {
-    let overdue = 0;
-    let meetingToday = 0;
-    let untouched = 0;
-    for (const item of rawItems) {
-      if (isNextActionOverdue(item.assignment, now)) overdue++;
-      if (isMeetingToday(item.assignment, now)) meetingToday++;
-      if (isUntouchedTooLong(item.assignment, now)) untouched++;
-    }
-    return { overdue, meetingToday, untouched };
-  }, [rawItems, now]);
-
-  const focusedItems = useMemo(() => {
-    if (!focus) return rawItems;
-    return rawItems.filter((item) => {
-      switch (focus) {
-        case "overdue":
-          return isNextActionOverdue(item.assignment, now);
-        case "meetingToday":
-          return isMeetingToday(item.assignment, now);
-        case "untouched":
-          return isUntouchedTooLong(item.assignment, now);
-      }
-    });
-  }, [rawItems, focus, now]);
-
-  const totalItems = focusedItems.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
-  const validPage = Math.min(Math.max(page, 1), totalPages);
-
-  const currentPageItems = useMemo(() => {
-    const start = (validPage - 1) * PAGE_SIZE;
-    return focusedItems.slice(start, start + PAGE_SIZE);
-  }, [focusedItems, validPage]);
 
   // Tvrda granica SCORE_COMPANIES_LIMIT (100): ocene se traže SAMO za ID-jeve na tekućoj strani
   const currentPageCompanyIds = useMemo(() => {
@@ -428,18 +338,6 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
     }
   };
 
-  const resetView = () => {
-    setPage(1);
-    setFocus(null);
-    setExpanded(new Set());
-    setCallStrip(null);
-  };
-
-  const toggleFocus = (next: Exclude<Focus, null>) => {
-    setFocus((cur) => (cur === next ? null : next));
-    setPage(1);
-  };
-
   const toggleExpanded = (assignmentId: string) => {
     setExpanded((cur) => {
       const next = new Set(cur);
@@ -449,14 +347,10 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
     });
   };
 
-  // Upit vraća najviše `granica` redova. Ako ih ima još, „od 200 leadova"
-  // nije ukupan broj u toj fazi nego broj koji je stigao — a tabela bez ove
-  // razlike tvrdi da je to sve što postoji.
-  const odsecenoNaGranici = activeData?.mozdaImaJos === true;
-  const granica =
-    activeData && "granica" in activeData
-      ? (activeData.granica as number | undefined)
-      : undefined;
+  // Filter čita najviše 2000 dodela po radnom prostoru. Preko toga lista nije
+  // potpuna, i to se piše — odsečena lista i potpuna lista izgledaju isto.
+  const odsecenoNaGranici = activeData?.prekoracen === true;
+  const pregledano = activeData?.pregledano;
 
   const startItemIndex = (validPage - 1) * PAGE_SIZE + 1;
   const endItemIndex = Math.min(validPage * PAGE_SIZE, totalItems);
@@ -464,138 +358,53 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
   const cell = density === "compact" ? "px-2 py-1" : "px-3 py-2.5";
   const selfUserId = user?.id;
 
-  const emptyMessage = (() => {
-    if (focus === "overdue") {
-      return `Nijedan od ${rawItems.length} učitanih leadova nije zaostao.`;
-    }
-    if (focus === "meetingToday") {
-      return `Nijedan od ${rawItems.length} učitanih leadova nema sastanak danas.`;
-    }
-    if (focus === "untouched") {
-      return `Svi učitani leadovi imaju dodir u poslednjih ${UNTOUCHED_LIMIT_DAYS} dana.`;
-    }
-    return filterMode === "stage"
-      ? `Nema leadova u fazi „${leadStageLabel(selectedStage)}".`
-      : "Nema zaostalih leadova u radnom prostoru.";
-  })();
+  const emptyMessage =
+    aktivnihGrupa > 0
+      ? "Nijedan lead ne odgovara ovom preseku filtera."
+      : "U radnom prostoru još nema nijednog dodeljenog leada.";
 
   return (
     <TooltipProvider delay={150}>
       <div className="flex flex-col gap-5">
-        {/* Kontrole filtera (faze i zaostali) */}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <div className="mr-1 text-xs font-semibold text-text-muted">Faze toka:</div>
-            {ALL_STAGES.map((stage) => {
-              const isSelected = filterMode === "stage" && selectedStage === stage;
-              return (
-                <button
-                  key={stage}
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() => {
-                    setFilterMode("stage");
-                    setSelectedStage(stage);
-                    resetView();
-                  }}
-                  className={cn(
-                    "cursor-pointer rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                    isSelected
-                      ? "bg-accent-400 font-semibold text-text-inverse shadow-sm"
-                      : "border border-line bg-surface-raised text-text-muted hover:border-line-strong hover:text-foreground",
-                  )}
-                >
-                  {leadStageLabel(stage)}
-                </button>
-              );
-            })}
+        {/* Filteri (GL2, §7.1) — izvor istine je URL, ne stanje ove tabele */}
+        <LeadFilterBar workspaceId={workspaceId} />
 
-            <div className="mx-1 h-4 w-px bg-line" />
-
-            <button
-              type="button"
-              aria-pressed={filterMode === "overdue"}
-              onClick={() => {
-                setFilterMode("overdue");
-                resetView();
-              }}
-              className={cn(
-                "flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                filterMode === "overdue"
-                  ? "bg-danger font-semibold text-text-inverse shadow-sm"
-                  : "border border-line bg-surface-raised text-danger hover:border-danger/40 hover:bg-danger/10",
-              )}
-            >
-              <Clock className="size-3.5" />
-              <span>Samo zaostali</span>
-            </button>
-          </div>
-
-          {/* Informacija o straničenju i izvoz */}
-          <div className="flex items-center gap-3">
-            {!isLoading && totalItems > 0 && (
-              <div className="text-xs text-text-muted">
-                Prikazano{" "}
-                <strong className="tabular-nums">
-                  {startItemIndex}–{endItemIndex}
-                </strong>{" "}
-                od <strong className="tabular-nums">{totalItems}</strong>{" "}
-                {focus ? "izdvojenih" : odsecenoNaGranici ? "učitanih leadova" : "leadova"}
-              </div>
-            )}
+        {/* Straničenje, gustina i izvoz */}
+        <div className="flex flex-wrap items-center gap-3">
+          {!isLoading && totalItems > 0 && (
+            <div className="text-xs text-text-muted">
+              Prikazano{" "}
+              <strong className="tabular-nums">
+                {startItemIndex}–{endItemIndex}
+              </strong>{" "}
+              od <strong className="tabular-nums">{totalItems}</strong>{" "}
+              {odsecenoNaGranici ? "pregledanih leadova" : "leadova"}
+            </div>
+          )}
+          <div className="ml-auto flex items-center gap-3">
+            <SegmentedToggle
+              ariaLabel="Gustina tabele"
+              value={density}
+              onChange={changeDensity}
+              options={[
+                { value: "compact", label: "Kompaktno", icon: Rows4 },
+                { value: "comfortable", label: "Udobno", icon: Rows2 },
+              ]}
+            />
             <LeadExportDialog
               workspaceId={workspaceId}
-              initialStage={filterMode === "stage" ? selectedStage : undefined}
+              initialStage={filters.faza.length === 1 ? filters.faza[0] : undefined}
             />
           </div>
         </div>
 
-        {/* Traka hitnosti (§7): brojevi koji filtriraju + gustina */}
-        {!isLoading && rawItems.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-text-muted">U učitanoj listi:</span>
-            <FocusChip
-              count={counts.overdue}
-              label={pluralSr(counts.overdue, "zaostao", "zaostala", "zaostalih")}
-              tone="danger"
-              active={focus === "overdue"}
-              onToggle={() => toggleFocus("overdue")}
-            />
-            <FocusChip
-              count={counts.meetingToday}
-              label={`${pluralSr(counts.meetingToday, "sastanak", "sastanka", "sastanaka")} danas`}
-              tone="warning"
-              active={focus === "meetingToday"}
-              onToggle={() => toggleFocus("meetingToday")}
-            />
-            <FocusChip
-              count={counts.untouched}
-              label={`bez dodira ${UNTOUCHED_LIMIT_DAYS}+ dana`}
-              tone="danger"
-              active={focus === "untouched"}
-              onToggle={() => toggleFocus("untouched")}
-            />
-            <div className="ml-auto">
-              <SegmentedToggle
-                ariaLabel="Gustina tabele"
-                value={density}
-                onChange={changeDensity}
-                options={[
-                  { value: "compact", label: "Kompaktno", icon: Rows4 },
-                  { value: "comfortable", label: "Udobno", icon: Rows2 },
-                ]}
-              />
-            </div>
-          </div>
-        )}
-
         {/* Lista je odsečena na granici upita — to se ne prećutkuje */}
         {odsecenoNaGranici && (
           <FeedbackNote tone="warning" title="Lista nije potpuna">
-            Učitano je {rawItems.length} leadova, koliko upit najviše vraća
-            {granica !== undefined ? ` (granica: ${granica})` : ""}. Ima ih još
-            iza te granice. Brojevi u traci, strane i sortiranje odnose se samo
-            na učitani deo — suzi filter po fazi da bi video ostale.
+            Filter je pregledao {pregledano} dodela, koliko upit najviše čita.
+            Ima ih još iza te granice — broj pogodaka, strane i brojevi uz
+            chipove važe samo za pregledani deo. Suzi filter (npr. po fazi ili
+            gradu) da bi lista bila potpuna.
           </FeedbackNote>
         )}
 
@@ -675,7 +484,14 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
                 ) : sortedItems.length === 0 ? (
                   <TableRow className="hover:bg-transparent">
                     <TableCell colSpan={COLUMN_COUNT} className="whitespace-normal py-12 text-center text-text-muted">
-                      {emptyMessage}
+                      <div className="flex flex-col items-center gap-2">
+                        <span>{emptyMessage}</span>
+                        {aktivnihGrupa > 0 && (
+                          <Button size="xs" variant="outline" onClick={clearAll}>
+                            Očisti filtere
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -759,6 +575,41 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
                             {density === "comfortable" && company?.addressNeedsVerification && (
                               <span className="text-micro text-warning">(proveriti adresu)</span>
                             )}
+
+                            {/* Sajt: čip + bedž stanja (§7.4). Bedž bez čipa
+                                postoji namerno — firma bez upisanog URL-a
+                                može da ima proveru stanja. */}
+                            {density === "comfortable" &&
+                              (company?.website ? (
+                                <LinkChip
+                                  vrsta="website"
+                                  size="sm"
+                                  href={
+                                    company.website.startsWith("http")
+                                      ? company.website
+                                      : `https://${company.website}`
+                                  }
+                                  suffix={
+                                    <SiteStatusBadge
+                                      status={company.sajtStatus}
+                                      https={company.sajtHttps}
+                                      proverenAt={company.sajtProverenAt}
+                                      napomena={company.sajtNapomena}
+                                      size="sm"
+                                    />
+                                  }
+                                  className="w-fit"
+                                />
+                              ) : (
+                                <SiteStatusBadge
+                                  status={company?.sajtStatus}
+                                  https={company?.sajtHttps}
+                                  proverenAt={company?.sajtProverenAt}
+                                  napomena={company?.sajtNapomena}
+                                  size="sm"
+                                  className="w-fit"
+                                />
+                              ))}
                           </div>
                         </TableCell>
 
@@ -995,7 +846,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                onClick={() => setPage(Math.max(validPage - 1, 1))}
                 disabled={validPage <= 1}
                 className="cursor-pointer gap-1 text-xs"
               >
@@ -1006,7 +857,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                onClick={() => setPage(Math.min(validPage + 1, totalPages))}
                 disabled={validPage >= totalPages}
                 className="cursor-pointer gap-1 text-xs"
               >

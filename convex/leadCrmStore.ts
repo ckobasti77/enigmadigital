@@ -1134,7 +1134,7 @@ export const getLeadCrm = query({
  * (`telefoni: []`) znači „nema u bazi" i po njemu se NE crta dugme za poziv.
  * „Nije učitano" je `undefined` na nivou celog rezultata upita, ne ovde.
  */
-async function hydrateLeadRowExtras(
+export async function hydrateLeadRowExtras(
   ctx: QueryCtx,
   workspaceId: Id<"workspaces">,
   companyId: Id<"leadCompanies">,
@@ -1153,12 +1153,6 @@ async function hydrateLeadRowExtras(
   const imePoOsobi = new Map<Id<"leadPeople">, string>();
   for (const person of peopleDocs) imePoOsobi.set(person._id, person.name);
 
-  const osobe = peopleDocs.map((person) => ({
-    name: person.name,
-    role: person.role,
-    roleConfidence: person.roleConfidence,
-  }));
-
   // Identiteti redom kojim su upisani (default asc `_creationTime`).
   const identityDocs = await ctx.db
     .query("leadIdentities")
@@ -1169,8 +1163,17 @@ async function hydrateLeadRowExtras(
 
   const telefoni: { value: string; personName?: string }[] = [];
   const emailovi: { value: string; personName?: string }[] = [];
+  // Platforme (GL2, §7.4): sve što nije telefon ni mejl, u redosledu upisa.
+  const platforme: { kind: string; value: string }[] = [];
+  // Najveća procena verovatnoće po osobi (§6) i izričito „nije moguće".
+  const verovatnocaPoOsobi = new Map<Id<"leadPeople">, number>();
+  const nijeMogucePoOsobi = new Set<Id<"leadPeople">>();
+
   for (const identity of identityDocs) {
-    if (identity.kind !== "phone" && identity.kind !== "email") continue;
+    if (identity.kind !== "phone" && identity.kind !== "email") {
+      platforme.push({ kind: identity.kind, value: identity.value });
+      continue;
+    }
     const entry: { value: string; personName?: string } = {
       value: identity.value,
     };
@@ -1179,9 +1182,45 @@ async function hydrateLeadRowExtras(
     if (identity.personId) {
       const ime = imePoOsobi.get(identity.personId);
       if (ime) entry.personName = ime;
+      if (identity.kind === "phone") {
+        if (identity.verovatnoca !== undefined) {
+          const trenutna = verovatnocaPoOsobi.get(identity.personId);
+          if (trenutna === undefined || identity.verovatnoca > trenutna) {
+            verovatnocaPoOsobi.set(identity.personId, identity.verovatnoca);
+          }
+        }
+        if (identity.nijeMoguceProceniti === true) {
+          nijeMogucePoOsobi.add(identity.personId);
+        }
+      }
     }
     (identity.kind === "phone" ? telefoni : emailovi).push(entry);
   }
+
+  // Rangiranje osoba po §6: vlasnik > direktor > menadžer > nepoznato, a
+  // unutar iste uloge veća verovatnoća telefona. Prva u nizu je „najbolja
+  // osoba" koju prošireni red pokazuje.
+  const RANG_ULOGE: Record<string, number> = {
+    vlasnik: 0,
+    direktor: 1,
+    menadzer: 2,
+    nepoznato: 3,
+  };
+  const osobe = peopleDocs
+    .map((person) => ({
+      name: person.name,
+      role: person.role,
+      roleConfidence: person.roleConfidence,
+      // `undefined` = nije procenjivano; `nijeMoguceProceniti` = pokušano i
+      // odustalo. Nula ovde ne postoji ni u jednom od ta dva slučaja.
+      verovatnoca: verovatnocaPoOsobi.get(person._id),
+      nijeMoguceProceniti: nijeMogucePoOsobi.has(person._id) ? true : undefined,
+    }))
+    .sort((a, b) => {
+      const rang = (RANG_ULOGE[a.role] ?? 9) - (RANG_ULOGE[b.role] ?? 9);
+      if (rang !== 0) return rang;
+      return (b.verovatnoca ?? -1) - (a.verovatnoca ?? -1);
+    });
 
   // Signali: koje vrste postoje (distinct, prvo-viđeni redosled). Tabela već
   // broji signale; ovde se vraća koji su. Ponovljeni „komentar" kao više
@@ -1216,7 +1255,7 @@ async function hydrateLeadRowExtras(
       }
     : undefined;
 
-  return { telefoni, emailovi, osobe, signali, poslednjiDodir };
+  return { telefoni, emailovi, platforme, osobe, signali, poslednjiDodir };
 }
 
 /**

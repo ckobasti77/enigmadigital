@@ -92,9 +92,16 @@ export const listNiches = query({
         ? ((await ctx.db.get(nisa.createdBy))?.email ?? null)
         : null;
 
+      // Ko je poslednji pisao opis. Kad polja nema, bedž piše „Čovek" bez
+      // imena — izmišljeno ime bi bilo gore od priznanja da ga ne znamo.
+      const opisAutorEmail = nisa.opisAutorUserId
+        ? ((await ctx.db.get(nisa.opisAutorUserId))?.email ?? null)
+        : null;
+
       zapisi.push({
         ...nisa,
         createdByEmail: autorEmail,
+        opisAutorEmail,
         platforme,
         brojaci: {
           firmi: firme.length,
@@ -235,6 +242,7 @@ export const updateNicheOpis = mutation({
       opis: opis || undefined,
       opisAutor: opis ? "covek" : undefined,
       opisAt: opis ? now : undefined,
+      opisAutorUserId: opis ? membership.userId : undefined,
       opisModel: undefined,
       updatedAt: now,
     });

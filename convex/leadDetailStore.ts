@@ -1,4 +1,4 @@
-import { query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { requireMembership } from "./lib/auth";
 
@@ -185,8 +185,123 @@ export const getLeadDetail = query({
       people,
       identities,
       provenanceByField,
+      // Sekcija „Poreklo" (GL2, §7.4). `provenanceByField` je mapa sa više
+      // ključeva-alijasa po istom redu i bez `value`, pa se iz nje ne da
+      // nacrtati spisak „koje polje je odakle" — ovde stiže ravan niz.
+      companyProvenance: companyProvs
+        .map((prov) => ({
+          fieldName: prov.fieldName,
+          value: prov.value,
+          source: prov.source,
+          sourceUrl: prov.sourceUrl,
+          confidence: prov.confidence,
+          humanConfirmed: prov.humanConfirmed,
+          observedAt: prov.observedAt,
+        }))
+        .sort((a, b) => b.observedAt - a.observedAt),
       signals,
       signalsTruncated,
     };
+  },
+});
+
+/**
+ * Čovek ispravlja procenu verovatnoće da telefon pripada baš toj osobi
+ * (GL2, plan §6).
+ *
+ * PRAVILA:
+ * 1. Obrazloženje je OBAVEZNO. Broj bez razloga je za mesec dana neproverljiv,
+ *    a upravo zato skill svoju procenu uvek isporučuje sa obrazloženjem.
+ * 2. „Nije moguće proceniti" i broj se isključuju. Ako čovek kaže da procena
+ *    nije moguća, stari broj se BRIŠE — ostavljen bi se čitao kao važeći.
+ * 3. Piše se samo na `kind: "phone"`. Verovatnoća na e-mailu ili sajtu nema
+ *    značenje iz §6.
+ * 4. Telefon bez `personId` nema čiju pripadnost da meri — procena vezanosti
+ *    broja za osobu bez osobe je broj bez tvrdnje.
+ */
+export const setPhoneConfidence = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    identityId: v.id("leadIdentities"),
+    // Ili broj 0–95, ili izričito „nije moguće proceniti" — nikad oboje.
+    verovatnoca: v.optional(v.number()),
+    nijeMoguceProceniti: v.optional(v.boolean()),
+    obrazlozenje: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+
+    const identity = await ctx.db.get(args.identityId);
+    if (!identity || identity.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Kontakt nije pronađen u ovom radnom prostoru.",
+      });
+    }
+    if (identity.kind !== "phone") {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Verovatnoća se procenjuje samo za broj telefona.",
+      });
+    }
+    if (!identity.personId) {
+      throw new ConvexError({
+        code: "invalid",
+        message:
+          "Ovaj broj nije vezan ni za jednu osobu, pa nema čiju pripadnost da meri.",
+      });
+    }
+
+    const obrazlozenje = args.obrazlozenje.trim();
+    if (!obrazlozenje) {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Napiši zašto menjaš procenu — broj bez obrazloženja se ne čuva.",
+      });
+    }
+
+    const nijeMoguce = args.nijeMoguceProceniti === true;
+    if (nijeMoguce && args.verovatnoca !== undefined) {
+      throw new ConvexError({
+        code: "invalid",
+        message: `Ili broj, ili „nije moguće proceniti" — ne oboje.`,
+      });
+    }
+    if (!nijeMoguce) {
+      if (args.verovatnoca === undefined) {
+        throw new ConvexError({
+          code: "invalid",
+          message: `Unesi procenu (0–95) ili označi „nije moguće proceniti".`,
+        });
+      }
+      if (
+        !Number.isFinite(args.verovatnoca) ||
+        args.verovatnoca < 0 ||
+        args.verovatnoca > 95
+      ) {
+        throw new ConvexError({
+          code: "invalid",
+          message:
+            "Procena ide od 0 do 95 — 100 bi značilo da smo pozvali i potvrdili.",
+        });
+      }
+    }
+
+    await ctx.db.patch(args.identityId, {
+      verovatnoca: nijeMoguce ? undefined : Math.round(args.verovatnoca!),
+      nijeMoguceProceniti: nijeMoguce ? true : undefined,
+      verovatnocaObrazlozenje: obrazlozenje,
+      verovatnocaIzvor: "covek",
+      verovatnocaAt: Date.now(),
+    });
+
+    return null;
   },
 });

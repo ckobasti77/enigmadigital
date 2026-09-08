@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -16,7 +16,10 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { FeedbackLine } from "@/components/app/feedback";
-import { ContactLink } from "./lead-chips";
+import { LinkChip, type LinkChipVrsta } from "@/components/app/link-chip";
+import { PhoneConfidence } from "./phone-confidence";
+import { SiteStatusBadge } from "./site-status-badge";
+import { identityKindToVrsta, platformHref } from "./platform-links";
 import {
   leadSignalLabel,
   leadTouchChannelLabel,
@@ -28,6 +31,8 @@ import {
   isMeetingUnresolved,
   isNextActionOverdue,
   isUntouchedTooLong,
+  mailHref,
+  telHref,
   type LeadRowItem,
 } from "./lead-urgency";
 import {
@@ -109,54 +114,121 @@ export function LeadExpandedRow({
   const touch = item.poslednjiDodir;
   const untouchedTooLong = isUntouchedTooLong(assignment, now);
 
+  const najbolja = item.osobe[0];
+  const ostalihOsoba = Math.max(0, item.osobe.length - 1);
+
+  // Čipovi platformi: kanali iz `leadIdentities` + sajt sa same firme kad
+  // nije upisan i kao kanal. Duplikat po adresi se izbacuje — isti sajt dva
+  // puta u redu izgleda kao dva različita sajta.
+  const platformeZaPrikaz = useMemo(() => {
+    const out: { vrsta: LinkChipVrsta; href: string }[] = [];
+    const videni = new Set<string>();
+    const dodaj = (vrsta: LinkChipVrsta | null, value?: string | null) => {
+      if (!vrsta || !value) return;
+      const href = platformHref(vrsta, value);
+      if (!href || videni.has(href)) return;
+      videni.add(href);
+      out.push({ vrsta, href });
+    };
+    for (const p of item.platforme) dodaj(identityKindToVrsta(p.kind), p.value);
+    dodaj("website", company?.website);
+    return out;
+  }, [item.platforme, company?.website]);
+
   return (
     <div className="grid gap-x-8 gap-y-5 px-4 py-4 text-xs md:grid-cols-2 xl:grid-cols-[1.25fr_1fr_1.15fr_1fr]">
       {/* Kontakt */}
       <Section title="Kontakt">
-        {item.osobe.length > 0 ? (
-          <ul className="flex flex-col gap-1">
-            {item.osobe.map((p, i) => (
-              <li key={`${p.name}-${i}`} className="flex flex-wrap items-center gap-1.5">
-                <User className="size-3 shrink-0 text-text-muted" aria-hidden />
-                <span className="font-medium text-foreground">{p.name}</span>
-                <span className="rounded border border-line bg-surface-raised px-1.5 py-px text-micro text-text-muted">
-                  {personRoleLabel(p.role)}
-                  {p.roleConfidence === "verovatno" && " · verovatno"}
-                </span>
-              </li>
-            ))}
-          </ul>
+        {/* NAJVAŽNIJA OSOBA, ne ceo spisak (§7.4): profil ima sve, ovde stoji
+            ona kojoj se zove. Poredak dolazi sa servera — uloga pa
+            verovatnoća telefona (§6). */}
+        {najbolja ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <User className="size-3 shrink-0 text-text-muted" aria-hidden />
+            <span className="font-medium text-foreground">{najbolja.name}</span>
+            <span className="rounded border border-line bg-surface-raised px-1.5 py-px text-micro text-text-muted">
+              {personRoleLabel(najbolja.role)}
+              {najbolja.roleConfidence === "verovatno" && " · verovatno"}
+            </span>
+            <PhoneConfidence
+              compact
+              verovatnoca={najbolja.verovatnoca}
+              nijeMoguceProceniti={najbolja.nijeMoguceProceniti}
+            />
+            {ostalihOsoba > 0 && (
+              <span className="text-micro text-text-muted">
+                +{ostalihOsoba} u profilu
+              </span>
+            )}
+          </div>
         ) : (
           <Empty>Nema kontakt osobe u bazi.</Empty>
         )}
 
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-wrap gap-1">
           {item.telefoni.length > 0 ? (
             item.telefoni.map((t) => (
-              <ContactLink
+              <LinkChip
                 key={t.value}
-                kind="phone"
-                value={t.value}
-                personName={t.personName}
-                onClick={() => onCall(t.value)}
-                className="-mx-1.5"
+                vrsta="phone"
+                href={telHref(t.value)}
+                label={t.value}
+                title={
+                  t.personName
+                    ? `Telefon: ${t.value} (${t.personName})`
+                    : `Telefon firme: ${t.value}`
+                }
+                onOpen={() => onCall(t.value)}
               />
             ))
           ) : (
             <Empty>Nema broja telefona u bazi.</Empty>
           )}
+        </div>
+        <div className="flex flex-wrap gap-1">
           {item.emailovi.length > 0 ? (
             item.emailovi.map((e) => (
-              <ContactLink
+              <LinkChip
                 key={e.value}
-                kind="email"
-                value={e.value}
-                personName={e.personName}
-                className="-mx-1.5"
+                vrsta="email"
+                href={mailHref(e.value)}
+                label={e.value}
+                title={
+                  e.personName
+                    ? `E-mail: ${e.value} (${e.personName})`
+                    : `E-mail firme: ${e.value}`
+                }
               />
             ))
           ) : (
             <Empty>Nema e-mail adrese u bazi.</Empty>
+          )}
+        </div>
+
+        {/* Platforme (§7.4): red čipova. Sajt nosi bedž stanja. */}
+        <div className="flex flex-wrap gap-1">
+          {platformeZaPrikaz.length > 0 ? (
+            platformeZaPrikaz.map((p) => (
+              <LinkChip
+                key={`${p.vrsta}-${p.href}`}
+                vrsta={p.vrsta}
+                href={p.href}
+                size="sm"
+                suffix={
+                  p.vrsta === "website" ? (
+                    <SiteStatusBadge
+                      status={company?.sajtStatus}
+                      https={company?.sajtHttps}
+                      proverenAt={company?.sajtProverenAt}
+                      napomena={company?.sajtNapomena}
+                      size="sm"
+                    />
+                  ) : undefined
+                }
+              />
+            ))
+          ) : (
+            <Empty>Nema nijedne platforme u bazi.</Empty>
           )}
         </div>
       </Section>

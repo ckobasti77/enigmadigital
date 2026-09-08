@@ -43,6 +43,7 @@ import type * as invitesStore from "../invitesStore.js";
 import type * as leadCrmStore from "../leadCrmStore.js";
 import type * as leadDetailStore from "../leadDetailStore.js";
 import type * as leadExportStore from "../leadExportStore.js";
+import type * as leadFiltersStore from "../leadFiltersStore.js";
 import type * as leadGapFillStore from "../leadGapFillStore.js";
 import type * as leadGapsStore from "../leadGapsStore.js";
 import type * as leadImportStore from "../leadImportStore.js";
@@ -206,6 +207,7 @@ declare const fullApi: ApiFromModules<{
   leadCrmStore: typeof leadCrmStore;
   leadDetailStore: typeof leadDetailStore;
   leadExportStore: typeof leadExportStore;
+  leadFiltersStore: typeof leadFiltersStore;
   leadGapFillStore: typeof leadGapFillStore;
   leadGapsStore: typeof leadGapsStore;
   leadImportStore: typeof leadImportStore;

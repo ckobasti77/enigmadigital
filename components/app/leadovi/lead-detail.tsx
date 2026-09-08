@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { GapType } from "@/convex/leadGapsStore";
 import {
   AlertTriangle,
@@ -41,6 +41,15 @@ import { LeadActionBar } from "./lead-action-bar";
 import { LeadGapFillDialog } from "./lead-gap-fill-dialog";
 import { ProvenanceBadge } from "./provenance-badge";
 import { StageChip, TemperatureSelect } from "./lead-chips";
+import { LinkChip, type LinkChipVrsta } from "@/components/app/link-chip";
+import { SiteStatusBadge } from "./site-status-badge";
+import { PhoneConfidence } from "./phone-confidence";
+import { PhoneConfidenceDialog } from "./phone-confidence-dialog";
+import {
+  googleMapsHref,
+  identityKindToVrsta,
+  platformHref,
+} from "./platform-links";
 import { getErrorMessage } from "./lead-quick-dialogs";
 import { leadGapLabel, personRoleLabel } from "./lead-labels";
 import {
@@ -48,6 +57,7 @@ import {
   isMeetingSoon,
   isMeetingUnresolved,
   isNextActionOverdue,
+  telHref,
   type LeadRowContact,
   type NextUpTone,
 } from "./lead-urgency";
@@ -118,6 +128,10 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
   const now = useNow();
   const [tab, setTab] = useState<ProfileTab>("istorija");
   const [gapToFill, setGapToFill] = useState<GapType | null>(null);
+  const [procenaZa, setProcenaZa] = useState<{
+    identity: Doc<"leadIdentities">;
+    personName: string;
+  } | null>(null);
   const [temperatureError, setTemperatureError] = useState<string | null>(null);
   const setCompanyTemperatura = useMutation(api.leadCrmStore.setCompanyTemperatura);
 
@@ -129,6 +143,51 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
   const score = useQuery(api.leadScoringStore.scoreCompany, { workspaceId, companyId });
   // 4. Landing tracker status (§7)
   const landing = useQuery(api.leadLandingStore.landingStatus, { workspaceId, companyId });
+
+  // Telefoni po osobi (§7.4): procena verovatnoće ima smisla samo kad broj
+  // nosi `personId` — broj centrale nema čiju pripadnost da meri.
+  const phonesByPerson = useMemo(() => {
+    const map = new Map<string, Doc<"leadIdentities">[]>();
+    if (!detail) return map;
+    for (const identity of detail.identities) {
+      if (identity.kind !== "phone" || !identity.personId) continue;
+      const key = String(identity.personId);
+      const lista = map.get(key) ?? [];
+      lista.push(identity);
+      map.set(key, lista);
+    }
+    return map;
+  }, [detail]);
+
+  // Platforme (§7.4): kanali iz identiteta + sajt, Google Maps iz `placeId` i
+  // CompanyWall sa same firme. Duplikat po adresi se izbacuje.
+  const platforms = useMemo(() => {
+    const out: { vrsta: LinkChipVrsta; href: string }[] = [];
+    if (!detail) return out;
+    const videni = new Set<string>();
+    const dodaj = (vrsta: LinkChipVrsta | null, href: string | null) => {
+      if (!vrsta || !href || videni.has(href)) return;
+      videni.add(href);
+      out.push({ vrsta, href });
+    };
+    for (const identity of detail.identities) {
+      if (identity.kind === "phone" || identity.kind === "email") continue;
+      const vrsta = identityKindToVrsta(identity.kind);
+      dodaj(vrsta, vrsta ? platformHref(vrsta, identity.value) : null);
+    }
+    dodaj(
+      "website",
+      detail.company.website ? platformHref("website", detail.company.website) : null,
+    );
+    dodaj("google_maps", googleMapsHref(detail.company.placeId));
+    dodaj(
+      "companywall",
+      detail.company.companyWallUrl
+        ? platformHref("companywall", detail.company.companyWallUrl)
+        : null,
+    );
+    return out;
+  }, [detail]);
 
   // Telefoni i mejlovi za traku radnji — iz identiteta koji su već učitani,
   // sa imenom osobe samo kad identitet nosi `personId` (isto pravilo kao §3).
@@ -403,26 +462,131 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
                   </div>
                 ) : (
                   <ul className="flex flex-col divide-y divide-line-soft">
-                    {detail.people.map((p) => (
-                      <li key={p._id} className="flex flex-wrap items-center gap-2 py-2 text-xs first:pt-0 last:pb-0">
-                        <User className="size-3.5 text-text-muted" aria-hidden />
-                        <span className="font-semibold text-foreground">{p.name}</span>
-                        <span className="rounded border border-line bg-surface-raised px-1.5 py-px text-micro text-text-muted">
-                          {personRoleLabel(p.role)}
-                          {p.roleConfidence === "verovatno" && " · verovatno"}
-                          {p.roleConfidence === "nepoznato" && " · pouzdanost nepoznata"}
-                        </span>
-                        <ProvenanceBadge
-                          provenance={prov[`person_${p._id}`] ?? prov[String(p._id)]}
-                          fieldName="Osoba"
-                          compact
-                        />
-                      </li>
-                    ))}
+                    {detail.people.map((p) => {
+                      const phones = phonesByPerson.get(String(p._id)) ?? [];
+                      return (
+                        <li
+                          key={p._id}
+                          className="flex flex-col gap-2 py-3 text-xs first:pt-0 last:pb-0"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <User className="size-3.5 text-text-muted" aria-hidden />
+                            <span className="font-semibold text-foreground">{p.name}</span>
+                            <span className="rounded border border-line bg-surface-raised px-1.5 py-px text-micro text-text-muted">
+                              {personRoleLabel(p.role)}
+                              {p.roleConfidence === "verovatno" && " · verovatno"}
+                              {p.roleConfidence === "nepoznato" && " · pouzdanost nepoznata"}
+                            </span>
+                            {/* Izvor uloge, ne samo ime: „vlasnik po APR-u" i
+                                „vlasnik po napomeni iz tabele" nisu isto. */}
+                            <ProvenanceBadge
+                              provenance={
+                                prov[`person_${p._id}_role`] ?? prov[`${p._id}:role`]
+                              }
+                              fieldName="Uloga"
+                              compact
+                            />
+                            <ProvenanceBadge
+                              provenance={prov[`person_${p._id}`] ?? prov[String(p._id)]}
+                              fieldName="Osoba"
+                              compact
+                            />
+                          </div>
+
+                          {phones.length === 0 ? (
+                            <span className="text-micro text-text-muted">
+                              Nema broja vezanog za ovu osobu.
+                            </span>
+                          ) : (
+                            <ul className="flex flex-col gap-2">
+                              {phones.map((identity) => (
+                                <li
+                                  key={identity._id}
+                                  className="flex flex-col gap-1.5 rounded-lg border border-line-soft bg-surface-raised/30 p-2.5"
+                                >
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <LinkChip
+                                      vrsta="phone"
+                                      href={telHref(identity.value)}
+                                      label={identity.value}
+                                    />
+                                    <Button
+                                      size="xs"
+                                      variant="ghost"
+                                      onClick={() =>
+                                        setProcenaZa({ identity, personName: p.name })
+                                      }
+                                      className="text-text-muted hover:text-foreground"
+                                    >
+                                      Ispravi procenu
+                                    </Button>
+                                  </div>
+                                  {identity.verovatnoca === undefined &&
+                                  identity.nijeMoguceProceniti !== true ? (
+                                    <span className="text-micro text-text-muted">
+                                      Verovatnoća nije procenjivana.
+                                    </span>
+                                  ) : (
+                                    <PhoneConfidence
+                                      verovatnoca={identity.verovatnoca}
+                                      nijeMoguceProceniti={identity.nijeMoguceProceniti}
+                                      obrazlozenje={identity.verovatnocaObrazlozenje}
+                                      izvor={identity.verovatnocaIzvor}
+                                    />
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </CardContent>
             </Card>
+
+            {/* ── Platforme (§7.4) ── */}
+            <Card className="border-line bg-surface">
+              <CardHeader className="border-b border-line pb-3">
+                <CardTitle className="text-sm font-semibold text-foreground">
+                  Platforme ({platforms.length})
+                </CardTitle>
+                <CardDescription className="text-xs text-text-muted">
+                  Gde ova firma postoji na internetu. Google Maps link se pravi iz
+                  sačuvanog `placeId` — jedinog Places podatka koji smemo da čuvamo.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4">
+                {platforms.length === 0 ? (
+                  <p className="text-xs text-text-muted">
+                    Nema nijedne zabeležene platforme za ovu firmu.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {platforms.map((p) => (
+                      <LinkChip
+                        key={p.href}
+                        vrsta={p.vrsta}
+                        href={p.href}
+                        suffix={
+                          p.vrsta === "website" ? (
+                            <SiteStatusBadge
+                              status={company.sajtStatus}
+                              https={company.sajtHttps}
+                              proverenAt={company.sajtProverenAt}
+                              napomena={company.sajtNapomena}
+                              size="sm"
+                            />
+                          ) : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <LeadIdentitiesPanel
               identities={detail.identities}
               people={detail.people}
@@ -503,21 +667,89 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
                   <Globe className="size-3.5 shrink-0 text-text-muted" />
                   {company.website ? (
                     <>
-                      <a
-                        href={company.website.startsWith("http") ? company.website : `https://${company.website}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex max-w-[260px] items-center gap-0.5 truncate text-accent-400 hover:underline"
-                      >
-                        <span>{company.website.replace(/^https?:\/\//, "")}</span>
-                        <ExternalLink className="size-2.5 shrink-0" />
-                      </a>
+                      <LinkChip
+                        vrsta="website"
+                        href={
+                          company.website.startsWith("http")
+                            ? company.website
+                            : `https://${company.website}`
+                        }
+                        suffix={
+                          <SiteStatusBadge
+                            status={company.sajtStatus}
+                            https={company.sajtHttps}
+                            proverenAt={company.sajtProverenAt}
+                            napomena={company.sajtNapomena}
+                          />
+                        }
+                      />
                       <ProvenanceBadge provenance={prov.website ?? prov["leadCompanies:website"]} fieldName="Sajt" compact />
                     </>
                   ) : (
                     <span className="text-text-muted">Sajt nije zabeležen.</span>
                   )}
                 </div>
+
+                {/* Postojanje sajta (§7.4): „ne" i „nikad provereno" nisu isto,
+                    pa se ne pišu istom rečenicom. */}
+                <p className="text-micro text-text-muted">
+                  {company.imaSajt === undefined
+                    ? "Postojanje sajta nije proveravano."
+                    : company.imaSajt === "da"
+                      ? `Ima sajt: da${company.imaSajtNapomena ? ` (${company.imaSajtNapomena})` : ""}`
+                      : company.imaSajt === "ne"
+                        ? `Ima sajt: ne${company.imaSajtNapomena ? ` (proveren: ${company.imaSajtNapomena})` : ""}`
+                        : `Ima sajt: nepoznato${company.imaSajtNapomena ? ` — ${company.imaSajtNapomena}` : ""}`}
+                </p>
+              </div>
+
+              {/* ── Poreklo po poljima (§7.4) ── */}
+              <div className="flex flex-col gap-2 border-t border-line-soft pt-3">
+                <h4 className="text-micro font-semibold uppercase tracking-wider text-text-muted">
+                  Poreklo ({detail.companyProvenance.length})
+                </h4>
+                {detail.companyProvenance.length === 0 ? (
+                  <p className="text-text-muted">
+                    Nijedno polje ove firme nema zabeleženo poreklo. Podaci su
+                    ušli pre nego što se poreklo beležilo, ili su uneti ručno.
+                  </p>
+                ) : (
+                  <ul className="flex flex-col divide-y divide-line-soft">
+                    {detail.companyProvenance.map((p, i) => (
+                      <li
+                        key={`${p.fieldName}-${p.observedAt}-${i}`}
+                        className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5 first:pt-0 last:pb-0"
+                      >
+                        <span className="min-w-32 font-mono text-micro text-text-muted">
+                          {p.fieldName}
+                        </span>
+                        <span
+                          className={cn(
+                            "min-w-0 flex-1 text-foreground",
+                            // Izveštaj skilla je pasus, ne vrednost polja —
+                            // seče se na dva reda da ne raznese karticu.
+                            p.fieldName === "izvestajSkilla" &&
+                              "line-clamp-2 italic text-text-muted",
+                          )}
+                          title={p.value}
+                        >
+                          {p.value}
+                        </span>
+                        <ProvenanceBadge
+                          provenance={{
+                            source: p.source,
+                            sourceUrl: p.sourceUrl,
+                            confidence: p.confidence,
+                            humanConfirmed: p.humanConfirmed,
+                            observedAt: p.observedAt,
+                          }}
+                          fieldName={p.fieldName}
+                          compact
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-x-6 gap-y-1 border-t border-line-soft pt-3 text-micro text-text-muted">
@@ -699,6 +931,18 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
           </Card>
         )}
       </TabPanel>
+
+      {procenaZa && (
+        <PhoneConfidenceDialog
+          workspaceId={workspaceId}
+          identity={procenaZa.identity}
+          personName={procenaZa.personName}
+          open
+          onOpenChange={(open) => {
+            if (!open) setProcenaZa(null);
+          }}
+        />
+      )}
 
       {gapToFill && (
         <LeadGapFillDialog
