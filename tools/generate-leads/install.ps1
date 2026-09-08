@@ -1,5 +1,5 @@
-# ============================================================================
-# Globalna instalacija skilla /generate-leads (plan §10.1)
+﻿# ============================================================================
+# Globalna instalacija skilla /generate-leads (plan par.10.1)
 # ============================================================================
 #
 # Kopira SKILL.md u %USERPROFILE%\.claude\skills\generate-leads\ i u KOPIJI
@@ -9,7 +9,7 @@
 # Pokretanje (iz bilo kog foldera):
 #   powershell -ExecutionPolicy Bypass -File "<repo>\tools\generate-leads\install.ps1"
 #
-# NE UPISUJE NIJEDNU TAJNU. Ključevi i tokeni žive u promenljivama okruženja
+# NE UPISUJE NIJEDNU TAJNU. Kljucevi i tokeni zive u promenljivama okruzenja
 # (`run.mjs proveri-env` ih nabraja), nikad u fajlu skilla.
 
 $ErrorActionPreference = "Stop"
@@ -20,7 +20,7 @@ $repoPath = (Resolve-Path (Join-Path $alatDir "..\..")).Path
 
 $izvor = Join-Path $alatDir "SKILL.md"
 if (-not (Test-Path $izvor)) {
-    throw "Nema SKILL.md u $alatDir — pokreni skriptu iz repoa."
+    throw "Nema SKILL.md u $alatDir - pokreni skriptu iz repoa."
 }
 
 $ciljDir  = Join-Path $env:USERPROFILE ".claude\skills\generate-leads"
@@ -38,10 +38,10 @@ $sadrzaj = Get-Content -Path $izvor -Raw -Encoding UTF8
 $sadrzaj = $sadrzaj.Replace("{{REPO_PATH}}", $putanjaZaSkill)
 
 if ($sadrzaj -match "\{\{REPO_PATH\}\}") {
-    throw "Zamena putanje nije uspela — u kopiji je ostao {{REPO_PATH}}."
+    throw "Zamena putanje nije uspela - u kopiji je ostao {{REPO_PATH}}."
 }
 
-# UTF8 bez BOM-a: Claude Code čita SKILL.md kao tekst, a BOM ume da završi u
+# UTF8 bez BOM-a: Claude Code cita SKILL.md kao tekst, a BOM ume da zavrsi u
 # prvom redu frontmattera i pokvari ga.
 $bezBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($ciljFajl, $sadrzaj, $bezBom)
