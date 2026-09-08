@@ -136,34 +136,48 @@ function GreskaMape({ poruka, onRetry }: { poruka: string; onRetry: () => void }
   );
 }
 
+/**
+ * Legenda pina (GL7): telo je uvek crveno, krug u glavi nosi temperaturu —
+ * isto kao pin na mapi. Četiri pina, ne četiri kvadratića; „visina = fit" je
+ * uklonjeno (visina više ne postoji, fit je u kartici i panelu).
+ */
+function PinIkonica({ temp }: { temp: Temperatura }) {
+  const krug =
+    temp === "hot"
+      ? "var(--temp-hot)"
+      : temp === "warm"
+        ? "var(--temp-warm)"
+        : temp === "cold"
+          ? "var(--temp-cold)"
+          : "var(--text-primary)";
+  return (
+    <svg viewBox="0 0 24 32" width="13" height="17" className="shrink-0" aria-hidden>
+      <path
+        d="M12 2C7 2 3 6 3 11c0 6.5 9 19 9 19s9-12.5 9-19c0-5-4-9-9-9z"
+        fill="var(--temp-hot)"
+        stroke="color-mix(in srgb, var(--temp-hot) 60%, var(--bg-950))"
+        strokeWidth="1"
+      />
+      <circle cx="12" cy="11" r="4.3" fill={krug} stroke="var(--text-primary)" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
 function Legenda({ className }: { className?: string }) {
-  const stavke: { temp: Temperatura; boja: string }[] = [
-    { temp: "hot", boja: "bg-temp-hot" },
-    { temp: "warm", boja: "bg-temp-warm" },
-    { temp: "cold", boja: "bg-temp-cold" },
-    {
-      // Isti recept kao heksagon „Nova firma" u canvasu (GL6 §2): prigušen
-      // tekst blago posvetljen ka text-primary — svetao neutralan slate.
-      temp: "nova_firma",
-      boja: "bg-[color-mix(in_srgb,var(--text-primary)_15%,var(--text-muted))]",
-    },
-  ];
+  const temperature: Temperatura[] = ["hot", "warm", "cold", "nova_firma"];
   return (
     <div
       className={cn(
-        "flex flex-col gap-1.5 rounded-lg border border-line bg-surface/90 px-3 py-2 text-micro text-text-muted shadow-(--elev-1) backdrop-blur-sm",
+        "flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line bg-surface/90 px-3 py-2 text-micro text-text-muted shadow-(--elev-1) backdrop-blur-sm",
         className,
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        {stavke.map((s) => (
-          <span key={s.temp} className="inline-flex items-center gap-1.5">
-            <span className={cn("size-2 rounded-[2px]", s.boja)} aria-hidden />
-            {TEMPERATURA_LABELS[s.temp]}
-          </span>
-        ))}
-      </div>
-      <span>visina = fit skor (20 m za 0 %, 400 m za 100 %)</span>
+      {temperature.map((temp) => (
+        <span key={temp} className="inline-flex items-center gap-1">
+          <PinIkonica temp={temp} />
+          {TEMPERATURA_LABELS[temp]}
+        </span>
+      ))}
     </div>
   );
 }

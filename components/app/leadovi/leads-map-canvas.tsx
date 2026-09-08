@@ -14,27 +14,36 @@ import {
   type StyleSpecification,
 } from "maplibre-gl";
 import type { Temperatura } from "./lead-chips";
-import { heksPoluprecnikM, visinaZa } from "./leads-map-geo";
+import { mix } from "./leads-map-color";
+import {
+  dodajPinSlike,
+  pinIme,
+  PIN_SENKA_IME,
+  type PinBoje,
+} from "./leads-map-pin";
 import { letiDoTacke, type Let } from "./leads-map-fly";
 import { LeadsThreeLayer, type ThreeTacka } from "./leads-map-three-layer";
 import { cn } from "@/lib/utils";
 
 /**
  * ============================================================================
- * MAPA LEADOVA — MapLibre sloj (GL3) — plan §8
+ * MAPA LEADOVA — MapLibre sloj (GL3, pinovi u GL7) — plan §8
  * ============================================================================
  *
  * Ovaj fajl zna samo za MapLibre: stil, izvore, slojeve, kameru i događaje.
  * Stanja ekrana (učitava se / greška / nema tačaka / panel / kartica) crta
  * omotač `leads-map.tsx`; odavde izlaze samo činjenice preko callback-ova.
  *
+ * GL7: heksagonalne prizme (visina = fit) su zamenjene Google-stil pinovima.
+ * Lead je crveni pin (`symbol` sloj sa slikom iz `map.addImage`); temperatura
+ * se čita iz kruga u glavi pina, ne iz boje/visine prizme. Fit ostaje u hover
+ * kartici i panelu, ne u geometriji.
+ *
  * NIŠTA LEPO NE SME DA BUDE LAŽNO:
- *  - visina heksagona = fit skor iz `scoreLead` (20 m za 0 %, 400 m za 100 %);
- *    firma bez merljivog fita dobija NAJNIŽI heksagon, ne srednji;
- *  - boja = temperatura iz baze, kroz `--temp-*` tokene pročitane sa
- *    `document.documentElement` pri montiranju — nijedna boja nije upisana
- *    ovde;
- *  - broj na klasteru je stvaran broj tačaka koje je supercluster spojio.
+ *  - boja kruga u glavi = temperatura iz baze, kroz `--temp-*` tokene;
+ *  - broj na klasteru je stvaran broj tačaka koje je supercluster spojio;
+ *  - izbor uvećava pin (×1,25) i stavlja ga u prvi plan (`symbol-sort-key`),
+ *    ništa se ne izmišlja.
  *
  * STIL: prvo CARTO dark-matter, pa OpenFreeMap positron. Oba prolaze kroz
  * isti „slate" override (pozadina, kopno, voda, putevi, natpisi na tokene
@@ -142,8 +151,8 @@ const TURA_PAUZA_MS = 2000;
 const SASTANAK_USKORO_MS = 7 * 24 * 60 * 60 * 1000;
 
 const SRC_TACKE = "leadovi-tacke";
-const SRC_HEKS = "leadovi-heks";
-const L_HEKS = "leadovi-heks";
+const L_SENKA = "leadovi-senka";
+const L_PIN = "leadovi-pin";
 const L_KLASTER = "leadovi-klaster";
 const L_KLASTER_BROJ = "leadovi-klaster-broj";
 
@@ -153,136 +162,70 @@ type Tokeni = {
   hot: string;
   warm: string;
   cold: string;
-  nova: string;
-  hotSvetla: string;
-  warmSvetla: string;
-  coldSvetla: string;
-  novaSvetla: string;
-  accent: string;
   surface: string;
   surfaceRaised: string;
   line: string;
   lineSoft: string;
   text: string;
-  textSecondary: string;
   textMuted: string;
   bg950: string;
-  bg900: string;
-  bg800: string;
   /** `--warning` — beacon sastanka u three.js sloju (GL4). */
   warning: string;
 };
-
-function parseColor(input: string): [number, number, number, number] | null {
-  const s = input.trim();
-  const hex = s.match(/^#([0-9a-f]{3,8})$/i);
-  if (hex) {
-    let h = hex[1];
-    if (h.length === 3 || h.length === 4) {
-      h = h
-        .split("")
-        .map((c) => c + c)
-        .join("");
-    }
-    if (h.length !== 6 && h.length !== 8) return null;
-    const n = parseInt(h.slice(0, 6), 16);
-    const a = h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1;
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255, a];
-  }
-  const rgb = s.match(
-    /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+%?))?\s*\)$/i,
-  );
-  if (rgb) {
-    const a =
-      rgb[4] === undefined
-        ? 1
-        : rgb[4].endsWith("%")
-          ? parseFloat(rgb[4]) / 100
-          : parseFloat(rgb[4]);
-    return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3]), a];
-  }
-  return null;
-}
-
-/** Linearno mešanje dve CSS boje (alfa se ignoriše — ekstruzije je ne koriste). */
-function mix(a: string, b: string, t: number): string {
-  const pa = parseColor(a);
-  const pb = parseColor(b);
-  if (!pa || !pb) return a;
-  const c = (i: 0 | 1 | 2) => Math.round(pa[i] + (pb[i] - pa[i]) * t);
-  return `rgb(${c(0)}, ${c(1)}, ${c(2)})`;
-}
 
 /**
  * Tokeni se čitaju sa `:root` pri montiranju, ne prepisuju ovde. Kad token
  * ne postoji, upisuje se CSS ključna reč `gray` — namerno ružno, da se rupa
  * u `globals.css` vidi, a ne da je tiho zakrpi „približna" heks vrednost.
+ * Mešanje boja (`mix`) je u `leads-map-color.ts` (deljeno sa crtanjem pina).
  */
 function citajTokene(): Tokeni {
   const cs = getComputedStyle(document.documentElement);
   const t = (ime: string) => cs.getPropertyValue(ime).trim() || "gray";
-  const hot = t("--temp-hot");
-  const warm = t("--temp-warm");
-  const cold = t("--temp-cold");
-  const surfaceRaised = t("--surface-raised");
-  const text = t("--text-primary");
-  const textMuted = t("--text-muted");
-  // „Nova firma" nema svoj token boje. Mora da bude VIDLJIVA svetla tačka
-  // (svetlija od kopna, kao i natpisi mesta), ali NEUTRALNA — plavo-siva, da
-  // se ne pomeša ni sa jednom temperaturom (GL6 §2). Prigušen tekst blago
-  // posvetljen ka `--text-primary` daje baš takav neutralan, svetao slate.
-  // (Ranije `mix(textMuted, surfaceRaised, 0.55)` — pretamno, „skoro kao tlo".)
-  const nova = mix(textMuted, text, 0.15);
   return {
-    hot,
-    warm,
-    cold,
-    nova,
-    hotSvetla: mix(hot, text, 0.3),
-    warmSvetla: mix(warm, text, 0.3),
-    coldSvetla: mix(cold, text, 0.3),
-    novaSvetla: mix(nova, text, 0.3),
-    accent: t("--accent-400"),
+    hot: t("--temp-hot"),
+    warm: t("--temp-warm"),
+    cold: t("--temp-cold"),
     surface: t("--surface"),
-    surfaceRaised,
+    surfaceRaised: t("--surface-raised"),
     line: t("--line"),
     lineSoft: t("--line-soft"),
-    text,
-    textSecondary: t("--text-secondary"),
-    textMuted,
+    text: t("--text-primary"),
+    textMuted: t("--text-muted"),
     bg950: t("--bg-950"),
-    bg900: t("--bg-900"),
-    bg800: t("--bg-800"),
     warning: t("--warning"),
   };
 }
 
-/** Tačke za three.js sloj: hot, „sastanak uskoro" i visina heksagona. */
+/**
+ * Boje pina izvedene iz tokena: telo je UVEK crveno (`--temp-hot`), krug u
+ * glavi nosi temperaturu (hot je namerno isti kao telo → pin „pun"). Nijedna
+ * heks vrednost — sve iz tokena.
+ */
+function pinBojeIz(t: Tokeni): PinBoje {
+  return {
+    telo: t.hot,
+    hot: t.hot,
+    warm: t.warm,
+    cold: t.cold,
+    nova: t.text,
+    belo: t.text,
+    tamno: t.bg950,
+  };
+}
+
+/** Tačke za three.js sloj: hot (prsten) i „sastanak uskoro" (beacon). */
 function threeTacke(tacke: MapPoint[], now: number): ThreeTacka[] {
   return tacke.map((p) => ({
     companyId: p.companyId,
     lng: p.lng,
     lat: p.lat,
-    visinaM: visinaZa(p.fit),
     hot: p.temperatura === "hot",
     sastanakUskoro:
       p.sastanakAt !== null &&
       p.sastanakAt >= now &&
       p.sastanakAt - now <= SASTANAK_USKORO_MS,
   }));
-}
-
-function bojaZa(temp: Temperatura, t: Tokeni): { boja: string; svetla: string } {
-  switch (temp) {
-    case "hot":
-      return { boja: t.hot, svetla: t.hotSvetla };
-    case "warm":
-      return { boja: t.warm, svetla: t.warmSvetla };
-    case "cold":
-      return { boja: t.cold, svetla: t.coldSvetla };
-    default:
-      return { boja: t.nova, svetla: t.novaSvetla };
-  }
 }
 
 // ── Stil ─────────────────────────────────────────────────────────────────────
@@ -391,45 +334,36 @@ function nadjiFont(style: StyleSpecification): string[] {
   return prvi ?? ["Open Sans Regular"];
 }
 
-// ── Geometrija ───────────────────────────────────────────────────────────────
+// ── Geometrija / izvor tačaka ─────────────────────────────────────────────────
 
-function heksagon(
-  p: MapPoint,
-  id: number,
-  zoom: number,
-  t: Tokeni,
-): GeoJSON.Feature<GeoJSON.Polygon> {
-  const r = heksPoluprecnikM(p.lat, zoom);
-  const dLat = r / 111_320;
-  const dLng = r / (111_320 * Math.cos((p.lat * Math.PI) / 180));
-  const prsten: [number, number][] = [];
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 3) * i;
-    prsten.push([p.lng + dLng * Math.cos(a), p.lat + dLat * Math.sin(a)]);
-  }
-  prsten.push(prsten[0]);
-  const { boja, svetla } = bojaZa(p.temperatura, t);
-  return {
-    type: "Feature",
-    id,
-    geometry: { type: "Polygon", coordinates: [prsten] },
-    properties: { companyId: p.companyId, visina: visinaZa(p.fit), boja, svetla },
-  };
-}
-
-function kolekcijaTacaka(tacke: MapPoint[]): GeoJSON.FeatureCollection<GeoJSON.Point> {
+/**
+ * Kolekcija tačaka za `symbol` sloj pina. Izbor se nosi kroz PODATKE
+ * (`izabran`, `icon`), ne kroz `feature-state` — jer `icon-image`,
+ * `icon-size` i `symbol-sort-key` su layout svojstva koja ne primaju
+ * feature-state. Promena izbora → nov `setData`.
+ */
+function kolekcijaTacaka(
+  tacke: MapPoint[],
+  selectedId: string | null,
+): GeoJSON.FeatureCollection<GeoJSON.Point> {
   return {
     type: "FeatureCollection",
-    features: tacke.map((p, i) => ({
-      type: "Feature",
-      id: i,
-      geometry: { type: "Point", coordinates: [p.lng, p.lat] },
-      properties: { companyId: p.companyId, temp: p.temperatura },
-    })),
+    features: tacke.map((p, i) => {
+      const izabran = p.companyId === selectedId;
+      return {
+        type: "Feature",
+        id: i,
+        geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+        properties: {
+          companyId: p.companyId,
+          temp: p.temperatura,
+          izabran,
+          icon: pinIme(p.temperatura, izabran),
+        },
+      };
+    }),
   };
 }
-
-const PRAZNO: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
 // ── Slojevi ──────────────────────────────────────────────────────────────────
 
@@ -438,35 +372,56 @@ function dodajSlojeve(
   t: Tokeni,
   mode: "all" | "single",
   tacke: MapPoint[],
+  selectedId: string | null,
 ) {
   if (map.getSource(SRC_TACKE)) return;
 
   map.addSource(SRC_TACKE, {
     type: "geojson",
-    data: kolekcijaTacaka(tacke),
+    data: kolekcijaTacaka(tacke, selectedId),
     cluster: mode === "all",
     clusterRadius: 44,
     clusterMaxZoom: 15,
   });
-  map.addSource(SRC_HEKS, { type: "geojson", data: PRAZNO });
 
+  // Senka — na TLU (icon-pitch-alignment: map), ispod pina; daje pinu oslonac
+  // na nagnutoj mapi. Samo za tačke koje nisu u klasteru.
   map.addLayer({
-    id: L_HEKS,
-    type: "fill-extrusion",
-    source: SRC_HEKS,
-    paint: {
-      "fill-extrusion-color": [
-        "case",
-        ["boolean", ["feature-state", "selected"], false],
-        ["get", "svetla"],
-        ["boolean", ["feature-state", "hover"], false],
-        ["get", "svetla"],
-        ["get", "boja"],
-      ],
-      "fill-extrusion-height": ["get", "visina"],
-      "fill-extrusion-base": 0,
-      "fill-extrusion-opacity": 0.9,
-      "fill-extrusion-vertical-gradient": true,
+    id: L_SENKA,
+    type: "symbol",
+    source: SRC_TACKE,
+    filter: ["!", ["has", "point_count"]],
+    layout: {
+      "icon-image": PIN_SENKA_IME,
+      "icon-anchor": "center",
+      "icon-pitch-alignment": "map",
+      "icon-rotation-alignment": "map",
+      "icon-allow-overlap": true,
+      "icon-ignore-placement": true,
+      "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 0.85, 14, 1.0, 17, 1.2],
+    },
+    paint: { "icon-opacity": 0.6 },
+  });
+
+  // Pin — billboard (icon-pitch/rotation-alignment: viewport), šiljak (anchor
+  // bottom) na tački; uspravan na nagnutoj mapi kao u Google-u. `allow-overlap`
+  // da pin ne nestane zbog suseda; izabran u prvom planu (symbol-sort-key).
+  map.addLayer({
+    id: L_PIN,
+    type: "symbol",
+    source: SRC_TACKE,
+    filter: ["!", ["has", "point_count"]],
+    layout: {
+      "icon-image": ["get", "icon"],
+      "icon-anchor": "bottom",
+      "icon-pitch-alignment": "viewport",
+      "icon-rotation-alignment": "viewport",
+      "icon-allow-overlap": true,
+      "icon-ignore-placement": true,
+      // Izabran u prvom planu; njegovo uvećanje (×1,25) je u sAMOJ slici
+      // (`pin-sel-*`), pa `icon-size` ostaje čisto po zoomu.
+      "symbol-sort-key": ["case", ["get", "izabran"], 1, 0],
+      "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 0.85, 14, 1.0, 17, 1.15],
     },
   });
 
@@ -474,18 +429,20 @@ function dodajSlojeve(
 
   const font = nadjiFont(map.getStyle());
 
+  // Klaster u istom jeziku kao pin: crven krug, bela tanka ivica, beo broj,
+  // tri veličine (2–9, 10–49, 50+). Boja se ne meša sa temperaturom.
   map.addLayer({
     id: L_KLASTER,
     type: "circle",
     source: SRC_TACKE,
     filter: ["has", "point_count"],
     paint: {
-      "circle-color": t.surfaceRaised,
-      "circle-opacity": 0.94,
-      "circle-radius": ["step", ["get", "point_count"], 15, 10, 19, 50, 24, 200, 30],
-      "circle-stroke-color": t.accent,
-      "circle-stroke-width": 1.5,
-      "circle-stroke-opacity": 0.85,
+      "circle-color": t.hot,
+      "circle-opacity": 0.95,
+      "circle-radius": ["step", ["get", "point_count"], 16, 10, 20, 50, 26],
+      "circle-stroke-color": t.text,
+      "circle-stroke-width": 2,
+      "circle-stroke-opacity": 0.9,
       "circle-pitch-alignment": "viewport",
     },
   });
@@ -497,7 +454,7 @@ function dodajSlojeve(
     layout: {
       "text-field": ["get", "point_count_abbreviated"],
       "text-font": font,
-      "text-size": 12,
+      "text-size": 13,
       "text-allow-overlap": true,
       "text-ignore-placement": true,
     },
@@ -542,7 +499,6 @@ export function LeadsMapCanvas({
   const cbRef = useRef({ onSelect, onOpenProfile, onHover, onStyleState, onTuraKraj });
   /** Firma na koju je čovek KLIKNUO — za nju se kamera ne pomera. */
   const klikRef = useRef<string | null>(null);
-  const prethodniIzborRef = useRef<number | null>(null);
 
   useEffect(() => {
     tackeRef.current = tacke;
@@ -595,6 +551,7 @@ export function LeadsMapCanvas({
 
     const tokeni = citajTokene();
     tokeniRef.current = tokeni;
+    const pinBoje = pinBojeIz(tokeni);
     const reducedMq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const still = reducedMq.matches;
     // Promena podešavanja usred sesije se prenosi na three sloj (puls i
@@ -738,40 +695,26 @@ export function LeadsMapCanvas({
       probajSledeci(e.error?.message ?? "nepoznata greška");
     });
 
-    // ── Heksagoni: samo za tačke koje TRENUTNO nisu u klasteru ──
-    const osveziHeks = () => {
+    // ── Skup tačaka koje TRENUTNO nisu u klasteru → three.js sloj ──
+    // Pinove crta MapLibre iz izvora sam (symbol sloj sa filterom !point_count);
+    // ovde samo skupljamo id-jeve nekластерisanih tačaka da prsten/beacon three
+    // sloja pulsira baš pod pinovima koji se vide (pod klasterom bi bio šum).
+    const osveziVidljive = () => {
       raf = null;
-      if (uklonjena) return;
-      const src = map.getSource(SRC_HEKS) as GeoJSONSource | undefined;
-      if (!src || !map.getSource(SRC_TACKE)) return;
+      if (uklonjena || !map.getSource(SRC_TACKE)) return;
       const feats = map.querySourceFeatures(SRC_TACKE, {
         filter: ["!", ["has", "point_count"]],
       });
-      const zoom = map.getZoom();
       const videni = new Set<string>();
-      const out: GeoJSON.Feature<GeoJSON.Polygon>[] = [];
       for (const f of feats) {
         const companyId = f.properties?.companyId as string | undefined;
-        if (!companyId || videni.has(companyId)) continue;
-        videni.add(companyId);
-        const unos = indeksRef.current.get(companyId);
-        if (!unos) continue;
-        out.push(heksagon(unos.p, unos.id, zoom, tokeni));
+        if (companyId) videni.add(companyId);
       }
-      src.setData({ type: "FeatureCollection", features: out });
-      // Stanje izbora se ponovo upisuje — `setData` ne sme da ga izgubi.
-      const izabran = selectedRef.current
-        ? indeksRef.current.get(selectedRef.current)
-        : undefined;
-      if (izabran) {
-        map.setFeatureState({ source: SRC_HEKS, id: izabran.id }, { selected: true });
-      }
-      // three.js sloj crta samo isti skup — prsten pod klasterom bi bio šum.
       threeRef.current?.setVidljive(videni);
     };
     const zakaziOsvezi = () => {
       if (raf !== null || uklonjena) return;
-      raf = requestAnimationFrame(osveziHeks);
+      raf = requestAnimationFrame(osveziVidljive);
     };
     map.on("move", zakaziOsvezi);
     map.on("sourcedata", (e) => {
@@ -784,17 +727,16 @@ export function LeadsMapCanvas({
       if (uklonjena) return;
       ucitan = true;
       if (rok) clearTimeout(rok);
-      dodajSlojeve(map, tokeni, mode, tackeRef.current);
+      // Slike pina + senku stil briše pri `setStyle`, pa se dodaju ponovo,
+      // PRE slojeva koji ih koriste (GL7 §4).
+      dodajPinSlike(map, pinBoje);
+      dodajSlojeve(map, tokeni, mode, tackeRef.current, selectedRef.current);
       if (threeDozvoljen) {
-        // Posle heksagona, u istom GL kontekstu (renderingMode 3d deli
-        // dubinu, pa heksagon zaklanja donji deo snopa).
-        const sloj = new LeadsThreeLayer(
-          { hot: tokeni.hot, accent: tokeni.accent, warning: tokeni.warning },
-          still,
-        );
+        // Umeće se ISPOD sloja pina (`beforeId`), pa prsten/beacon stoje na
+        // tlu ispod pina, a ne preko njega.
+        const sloj = new LeadsThreeLayer({ hot: tokeni.hot, warning: tokeni.warning }, still);
         sloj.setData(threeTacke(tackeRef.current, Date.now()));
-        sloj.setIzabrana(selectedRef.current);
-        map.addLayer(sloj);
+        map.addLayer(sloj, L_PIN);
         threeRef.current = sloj;
       }
       spremnaRef.current = true;
@@ -806,44 +748,32 @@ export function LeadsMapCanvas({
     // ── Interakcija (samo puna mapa) ──
     if (mode === "all") {
       const canvas = map.getCanvas();
-      let hoverId: number | null = null;
-      const skiniHover = () => {
-        if (hoverId !== null) {
-          map.setFeatureState({ source: SRC_HEKS, id: hoverId }, { hover: false });
-          hoverId = null;
-        }
-      };
       const companyIdOd = (f: MapGeoJSONFeature | undefined) =>
         (f?.properties?.companyId as string | undefined) ?? null;
 
-      map.on("mousemove", L_HEKS, (e) => {
-        const f = e.features?.[0];
-        const companyId = companyIdOd(f);
-        if (!f || !companyId) return;
+      // Hover: samo kartica (uvećanje bi tražilo feature-state u layout
+      // svojstvima, što symbol sloj ne prima — izbor uvećava kroz podatke).
+      map.on("mousemove", L_PIN, (e) => {
+        const companyId = companyIdOd(e.features?.[0]);
+        if (!companyId) return;
         const unos = indeksRef.current.get(companyId);
         if (!unos) return;
-        if (hoverId !== unos.id) {
-          skiniHover();
-          hoverId = unos.id;
-          map.setFeatureState({ source: SRC_HEKS, id: hoverId }, { hover: true });
-        }
         canvas.style.cursor = "pointer";
         if (!turaAktivnaRef.current) {
           cb().onHover?.({ point: unos.p, x: e.point.x, y: e.point.y });
         }
       });
-      map.on("mouseleave", L_HEKS, () => {
-        skiniHover();
+      map.on("mouseleave", L_PIN, () => {
         canvas.style.cursor = "";
         if (!turaAktivnaRef.current) cb().onHover?.(null);
       });
-      map.on("click", L_HEKS, (e) => {
+      map.on("click", L_PIN, (e) => {
         const companyId = companyIdOd(e.features?.[0]);
         if (!companyId) return;
         klikRef.current = companyId;
         cb().onSelect?.(companyId);
       });
-      map.on("dblclick", L_HEKS, (e) => {
+      map.on("dblclick", L_PIN, (e) => {
         const companyId = companyIdOd(e.features?.[0]);
         if (!companyId) return;
         // Bez ovoga dvoklik i otvara profil i zumira mapu ispod njega.
@@ -874,12 +804,12 @@ export function LeadsMapCanvas({
           });
       });
 
-      // Klik u prazno zatvara panel. Isti klik na heksagon/klaster je već
-      // obrađen gore, pa se ovde proverava da li je ispod kursora bilo šta.
+      // Klik u prazno zatvara panel. Isti klik na pin/klaster je već obrađen
+      // gore, pa se ovde proverava da li je ispod kursora bilo šta.
       map.on("click", (e) => {
-        if (!map.getLayer(L_HEKS) || !map.getLayer(L_KLASTER)) return;
+        if (!map.getLayer(L_PIN) || !map.getLayer(L_KLASTER)) return;
         const pogodjeno = map.queryRenderedFeatures(e.point, {
-          layers: [L_HEKS, L_KLASTER],
+          layers: [L_PIN, L_KLASTER],
         });
         if (pogodjeno.length === 0 && selectedRef.current) cb().onSelect?.(null);
       });
@@ -899,18 +829,17 @@ export function LeadsMapCanvas({
       // geometrije, materijale i renderer dok kontekst još živi.
       ukloniThree();
       spremnaRef.current = false;
-      prethodniIzborRef.current = null;
       mapRef.current = null;
       map.remove();
     };
   }, [retryKey, mode]);
 
-  // ── Podaci → izvor tačaka + three.js sloj ──
+  // ── Podaci → izvor tačaka (sa trenutnim izborom) + three.js sloj ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !spremnaRef.current) return;
     const src = map.getSource(SRC_TACKE) as GeoJSONSource | undefined;
-    src?.setData(kolekcijaTacaka(tacke));
+    src?.setData(kolekcijaTacaka(tacke, selectedRef.current));
     threeRef.current?.setData(threeTacke(tacke, Date.now()));
   }, [tacke, spremna]);
 
@@ -949,20 +878,19 @@ export function LeadsMapCanvas({
     });
   }, [idsKey, spremna, letiDo]);
 
-  // ── Izbor: stanje heksagona + prostor za panel + kamera kad izbor nije klik ──
+  // ── Izbor: veći pin u prvom planu (kroz podatke) + prostor za panel +
+  //    kamera kad izbor NIJE klik na mapu ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !spremnaRef.current) return;
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const duration = still ? 0 : 450;
 
-    if (prethodniIzborRef.current !== null) {
-      map.setFeatureState(
-        { source: SRC_HEKS, id: prethodniIzborRef.current },
-        { selected: false },
-      );
-      prethodniIzborRef.current = null;
-    }
+    // Pin izbora se menja kroz PODATKE: `icon` na svetliju sliku, `izabran`
+    // uvećava (`icon-size`) i diže u prvi plan (`symbol-sort-key`). Symbol
+    // layout svojstva ne primaju feature-state, pa nema drugog puta.
+    const src = map.getSource(SRC_TACKE) as GeoJSONSource | undefined;
+    src?.setData(kolekcijaTacaka(tackeRef.current, selectedId));
 
     // Padding se NE upisuje trajno (`setPadding` bi mapu odmah pomerio za
     // pola panela); ide samo uz pokret kamere koji je ionako potreban, a
@@ -971,7 +899,6 @@ export function LeadsMapCanvas({
     const bezPanela = { top: 0, bottom: 0, left: 0, right: 0 };
 
     const unos = selectedId ? indeksRef.current.get(selectedId) : undefined;
-    threeRef.current?.setIzabrana(unos ? selectedId : null);
     if (!unos) {
       klikRef.current = null;
       if ((map.getPadding().right ?? 0) > 0) {
@@ -980,8 +907,6 @@ export function LeadsMapCanvas({
       }
       return;
     }
-    map.setFeatureState({ source: SRC_HEKS, id: unos.id }, { selected: true });
-    prethodniIzborRef.current = unos.id;
 
     const center: [number, number] = [unos.p.lng, unos.p.lat];
     if (klikRef.current === selectedId) {
@@ -1068,9 +993,11 @@ export function LeadsMapCanvas({
           stani();
           return;
         }
-        // Kartica firme na koju je kamera sletela — iznad vrha heksagona.
+        // Kartica firme na koju je kamera sletela — iznad vrha pina. Šiljak je
+        // na projektovanoj tački; vrh glave je ~44 px iznad njega (visina pina
+        // × icon-size na fokus zumu), pa kartica ide iznad toga.
         const px = map.project([unos.p.lng, unos.p.lat]);
-        cb().onHover?.({ point: unos.p, x: px.x, y: px.y - 28 });
+        cb().onHover?.({ point: unos.p, x: px.x, y: px.y - 44 });
         await cekaj();
         if (otkazan) return;
         cb().onHover?.(null);
