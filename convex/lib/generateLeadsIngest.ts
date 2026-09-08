@@ -125,6 +125,12 @@ export const parsedLeadRowSchema = z.object({
   platforme: z.array(platformaSchema).max(MAX_PLATFORMS_PER_ROW).optional(),
   osobe: z.array(osobaSchema).max(MAX_PEOPLE_PER_ROW).optional(),
   izvestajSkilla: neprazan.optional(),
+
+  // ── GL8 (režim „obogati", plan §5, §2) ─────────────────────────────────────
+  // ID postojeće firme iz izvoza aplikacije (`company_id` kolona). Ostaje
+  // string — `matchRowToExistingCompany` ga kroz `ctx.db.normalizeId` pretvara
+  // u Id i proverava da firma pripada radnom prostoru pre spajanja.
+  postojecaFirmaId: neprazan.optional(),
 });
 
 export const generateLeadsIngestSchema = z.object({
@@ -138,6 +144,12 @@ export const generateLeadsIngestSchema = z.object({
     // niša još nema opis; opis čoveka se ne prepisuje. Granica 1200 znakova
     // = jedna mutacija ne sme da primi „roman" umesto opisa.
     nisaOpis: z.string().trim().min(1).max(1200).optional(),
+    // Režim skilla (GL8, plan §5). Odsustvo se čita kao „otkrivanje" (klasičan
+    // Places tok); „obogati" je dopuna postojeće tabele/izvoza.
+    rezim: z.enum(["otkrivanje", "obogati"]).optional(),
+    // Naziv fajla iz kojeg je „obogati" tok krenuo (GL8) — samo za prikaz
+    // porekla i za `fileName` uvoza u istoriji.
+    izvorFajl: neprazan.optional(),
   }),
   izvor: z.object({
     skill: z.literal("generate-leads"),

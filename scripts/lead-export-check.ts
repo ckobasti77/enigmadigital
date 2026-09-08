@@ -99,7 +99,7 @@ async function main(): Promise<void> {
   const linije = csv.split("\r\n");
 
   proveri("fajl počinje UTF-8 BOM-om", csv.charCodeAt(0) === 0xfeff, String(csv.charCodeAt(0)));
-  proveri("zaglavlje ima 19 kanonskih kolona", linije[0].replace(/^﻿/, "").split(",").length === CANONICAL_CSV_COLUMNS.length, linije[0]);
+  proveri(`zaglavlje ima ${CANONICAL_CSV_COLUMNS.length} kanonskih kolona`, linije[0].replace(/^﻿/, "").split(",").length === CANONICAL_CSV_COLUMNS.length, linije[0]);
   proveri("red podataka ima isti broj kolona", (linije[1].match(/,/g) ?? []).length >= CANONICAL_CSV_COLUMNS.length - 1, String((linije[1].match(/,/g) ?? []).length));
   proveri("nula recenzija je u fajlu kao 0", linije[1].includes(",0,"), linije[1]);
   proveri("dijakritika je očuvana", csv.includes("Šljivić"), "");

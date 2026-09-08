@@ -329,6 +329,8 @@ export const exportLeads = query({
       const sourcesStr = Array.from(sourceSet).join(";");
 
       const row: CanonicalLeadExportRow = {
+        // GL8 (plan §2): ID firme, da „obogati" tok spoji dopunu sa baš njom.
+        company_id: String(company._id),
         naziv_firme: company.name,
         ulica: company.street || "",
         opstina: company.municipality || "",

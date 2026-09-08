@@ -40,6 +40,9 @@ import { oceniOsobe, traka } from "./lib/skor.mjs";
 import { validirajTelo } from "./lib/schema.mjs";
 import { objasniStatus, posalji } from "./lib/ingest.mjs";
 import { pokreniSelfTest } from "./lib/self-test.mjs";
+import { ucitajFajl } from "./lib/tabela.mjs";
+import { promenjeneFirme } from "./lib/obogati.mjs";
+import { basename } from "node:path";
 
 /** Verzija skilla — ide u `izvor.verzijaSkilla` i u User-Agent. */
 export const VERZIJA = "1.0.0";
@@ -274,6 +277,151 @@ async function komandaDiscover(args) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ucitaj (režim „obogati", GL8 §1, §2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Najčešći neprazan grad iz učitanih firmi (za `upit.grad`). */
+function najcesciGrad(firme) {
+  const brojac = new Map();
+  for (const f of firme) {
+    const g = typeof f.grad === "string" ? f.grad.trim() : "";
+    if (g) brojac.set(g, (brojac.get(g) ?? 0) + 1);
+  }
+  let najbolji = "";
+  let najvise = 0;
+  for (const [g, n] of brojac.entries()) {
+    if (n > najvise) { najvise = n; najbolji = g; }
+  }
+  return najbolji;
+}
+
+async function komandaUcitaj(args) {
+  // Ulaz je ILI postojeća tabela (`--fajl`) ILI izvoz iz aplikacije (`--izvoz`).
+  const putanja =
+    typeof args.fajl === "string" && args.fajl.trim()
+      ? args.fajl.trim()
+      : typeof args.izvoz === "string" && args.izvoz.trim()
+        ? args.izvoz.trim()
+        : null;
+  if (!putanja) {
+    throw new Error(
+      'Nedostaje ulaz. Prosledi --fajl "<putanja.xlsx|.csv>" ili --izvoz "<csv iz aplikacije>".',
+    );
+  }
+
+  // Niša ne postoji u tabeli; skill je prosleđuje (STOP tačka u SKILL.md).
+  const nisaUnos = trazenArgument(args, "nisa");
+  const nisa = nadjiNisu(nisaUnos);
+  const nisaSlug = nisa ? nisa.slug : normalizujSlug(nisaUnos);
+  if (!nisaSlug) {
+    throw new Error("Od naziva niše ne može da se napravi slug. Napiši je slovima ili ciframa.");
+  }
+
+  const list = typeof args.list === "string" ? args.list.trim() : undefined;
+
+  const { firme: sveFirme, izvestaj } = await ucitajFajl(putanja, { list });
+  if (sveFirme.length === 0) {
+    throw new Error(
+      `Nijedna firma nije pročitana iz „${basename(putanja)}". Proveri da fajl ima red zaglavlja sa „Ime/Naziv" i „Telefon".`,
+    );
+  }
+
+  // Serije: --od/--do (1-indeksirano, uključivo) da se 100 firmi radi u delovima.
+  const od = args.od !== undefined ? Number(args.od) : 1;
+  const doK = args.do !== undefined ? Number(args.do) : sveFirme.length;
+  if (!Number.isInteger(od) || !Number.isInteger(doK) || od < 1 || doK < od) {
+    throw new Error(`--od/--do moraju biti celi brojevi, 1 ≤ od ≤ do (dobijeno od=${args.od}, do=${args.do}).`);
+  }
+  const serija = od > 1 || doK < sveFirme.length;
+  const firme = sveFirme.slice(od - 1, doK);
+  if (firme.length === 0) {
+    throw new Error(`Opseg --od ${od} --do ${doK} je van tabele (ima ${sveFirme.length} firmi).`);
+  }
+
+  const grad = typeof args.grad === "string" && args.grad.trim()
+    ? args.grad.trim()
+    : najcesciGrad(firme);
+  if (!grad) {
+    throw new Error(
+      "Ne mogu da odredim grad iz tabele (nijedan red nema grad). Dodaj --grad \"<grad>\".",
+    );
+  }
+
+  const naziv = basename(putanja);
+  const nazivBezExt = naziv.replace(/\.[^.]+$/, "");
+  const pokrenutAt = Date.now();
+  const osnovniRunId = izlaz.napraviRunId(new Date(pokrenutAt), "obogati", normalizujSlug(nazivBezExt) || "tabela");
+  const runId =
+    typeof args.run === "string" && args.run.trim()
+      ? args.run.trim()
+      : serija
+        ? `${osnovniRunId}-${od}-${doK}`
+        : osnovniRunId;
+
+  // Kolizija sa već popunjenim runom (isto pravilo kao discover, GL6 §4).
+  if (!args.force && izlaz.postojiFajl(runId, "firme.json")) {
+    const postojece = izlaz.citajJson(runId, "firme.json");
+    if (Array.isArray(postojece) && postojece.length > 0) {
+      throw new Error(
+        `out/${runId}/ već ima popunjen firme.json (${postojece.length} firmi). ` +
+          "Dodaj --force da svesno prepišeš, ili --run <nov-id> za nov folder.",
+      );
+    }
+  }
+
+  const stanje = {
+    runId,
+    verzijaSkilla: VERZIJA,
+    pokrenutAt,
+    rezim: "obogati",
+    izvorFajl: naziv,
+    grad: { kanonski: grad, alijasi: [] },
+    nisa: {
+      slug: nisaSlug,
+      naziv: nisa ? nisa.naziv : nisaUnos,
+      upiti: [],
+      opis: nisa ? nisa.opis : null,
+      sifreDelatnosti: nisa ? nisa.sifreDelatnosti : [],
+    },
+    brojTrazen: firme.length,
+    filterSajt: "svejedno",
+    places: { pozivi: 0, kandidata: firme.length, vanGrada: 0, zatvoreni: 0, iscrpljeno: false },
+    nedostupniIzvori: [],
+    koraci: { ucitaj: pokrenutAt },
+  };
+
+  izlaz.upisiJson(runId, "run.json", stanje);
+  izlaz.upisiJson(runId, "firme.json", firme);
+  // Snimak stanja posle učitavanja — `send` po njemu zna šta je Claude dopunio.
+  izlaz.upisiJson(runId, "firme.ulaz.json", firme);
+
+  ispisi(`Run: ${runId}  (režim: obogati)`);
+  ispisi(`Fajl: ${naziv}${list ? ` · list „${list}"` : ""}`);
+  ispisi(`Grad (najčešći u tabeli): ${grad}  ·  niša: ${nisaSlug}`);
+  ispisi("");
+  ispisi(`Firmi u fajlu: ${izvestaj.redova}${serija ? ` · ova serija: ${firme.length} (redovi ${od}–${doK})` : ""}.`);
+  ispisi(`  sa osobom iz tabele: ${izvestaj.saOsobom}`);
+  ispisi(`  sa CompanyWall linkom: ${izvestaj.saCompanyWall}`);
+  ispisi(`  sa telefonom: ${izvestaj.saTelefonom}`);
+  if (izvestaj.preskoceniBezNaziva.length > 0) {
+    ispisi(
+      `  UPOZORENJE: ${izvestaj.preskoceniBezNaziva.length} redova bez naziva je preskočeno (redovi: ${izvestaj.preskoceniBezNaziva.join(", ")}).`,
+    );
+  }
+  ispisi("");
+  ispisi(
+    `Sada za svaku firmu uradi ISTO što i u discover toku (sajt sa tri izvora, ` +
+      `CompanyWall/APR, 011info, profili) i dopuni out/${runId}/firme.json. ` +
+      `Vrednosti iz tabele PROVERI i upiši dokaze; ništa iz tabele ne briši.`,
+  );
+  ispisi(
+    `Zatim: check-site → geocode → score → send --run ${runId} ` +
+      `(send šalje samo redove sa promenom; --sve šalje sve).`,
+  );
+  return 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // check-site
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -503,6 +651,8 @@ const POLJA_REDA = [
   "platforme",
   "osobe",
   "izvestajSkilla",
+  // GL8: ID postojeće firme iz izvoza aplikacije (režim „obogati").
+  "postojecaFirmaId",
 ];
 
 const POLJA_OSOBE = [
@@ -604,9 +754,28 @@ async function komandaSend(args) {
   stanje.places = stanje.places ?? {};
   stanje.nedostupniIzvori = stanje.nedostupniIzvori ?? [];
 
+  // Režim „obogati" (GL8 §3): šalju se SAMO redovi sa bar jednom novom ili
+  // promenjenom vrednošću u odnosu na snimak posle `ucitaj` (`firme.ulaz.json`).
+  // `--sve` šalje sve. Red bez promene se ne šalje — nema šta da doda firmi.
+  const jeObogati = stanje.rezim === "obogati";
+  const posaljiSve = args.sve === true || args.sve === "true";
+  let firmeZaSlanje = firme;
+  let bezPromene = 0;
+  if (jeObogati && !posaljiSve) {
+    let ulaz = [];
+    try {
+      ulaz = izlaz.citajJson(runId, "firme.ulaz.json");
+    } catch {
+      ulaz = [];
+    }
+    const razlika = promenjeneFirme(Array.isArray(ulaz) ? ulaz : [], firme);
+    firmeZaSlanje = razlika.promenjeni;
+    bezPromene = razlika.bezPromene;
+  }
+
   // `rang` upisuje `score`. Bez njega bi validacija pala na putanji koja ne
-  // kaže šta je uzrok — ovo kaže.
-  const bezRanga = firme.some((f) =>
+  // kaže šta je uzrok — ovo kaže. Proverava se samo ono što se stvarno šalje.
+  const bezRanga = firmeZaSlanje.some((f) =>
     (f.osobe ?? []).some((o) => o.rang !== 1 && o.rang !== 2 && o.rang !== 3),
   );
   if (bezRanga) {
@@ -615,7 +784,14 @@ async function komandaSend(args) {
     );
   }
 
-  const redovi = firme.map((firma) => napraviRed(firma, stanje.nisa.slug));
+  // Prazno u režimu „obogati" nije greška: nijedan red nije promenjen.
+  if (jeObogati && !posaljiSve && firmeZaSlanje.length === 0 && firme.length > 0) {
+    ispisi(`Nijedna firma nema novu ili promenjenu vrednost (bez promene: ${bezPromene}).`);
+    ispisi("Ništa se ne šalje. Za slanje svih redova bez obzira na promenu dodaj --sve.");
+    return 0;
+  }
+
+  const redovi = firmeZaSlanje.map((firma) => napraviRed(firma, stanje.nisa.slug));
 
   // 0 firmi nije greška i nema šta da se šalje: prazan uvoz ne sme da napravi
   // red u istoriji (GL1, zod `redovi.min(1)`).
@@ -638,11 +814,14 @@ async function komandaSend(args) {
   const iscrpljen = redovi.length < stanje.brojTrazen && Boolean(stanje.places.iscrpljeno);
 
   const napomene = [];
-  if (redovi.length < stanje.brojTrazen && !iscrpljen) {
+  if (!jeObogati && redovi.length < stanje.brojTrazen && !iscrpljen) {
     napomene.push(
       `Poslato ${redovi.length} od ${stanje.brojTrazen} traženih; Places nije iscrpljen, ` +
         `neobrađenih kandidata: ${neobradjeni}.`,
     );
+  }
+  if (jeObogati && bezPromene > 0) {
+    napomene.push(`Bez promene (nije poslato): ${bezPromene}.`);
   }
   if (stanje.nisa.opis) {
     // Opis niše sada putuje sa uvozom (GL6 §4) i upisuje se pri „Primeni",
@@ -665,6 +844,10 @@ async function komandaSend(args) {
       ...(stanje.nisa.opis
         ? { nisaOpis: stanje.nisa.opis.trim().slice(0, 1200) }
         : {}),
+      // Režim „obogati" (GL8 §3): aplikacija po ovome crta bedževe „+N polja"
+      // i „sukob" u pregledu uvoza i pravi naziv „obogati · <fajl>".
+      ...(stanje.rezim ? { rezim: stanje.rezim } : {}),
+      ...(stanje.izvorFajl ? { izvorFajl: stanje.izvorFajl } : {}),
     },
     izvor: {
       skill: "generate-leads",
@@ -787,11 +970,21 @@ const POMOC = `/generate-leads — deterministički deo (v${VERZIJA})
 
   node run.mjs proveri-env
   node run.mjs discover --grad "Beograd" --nisa frizeri --broj 25 --sajt nema
+  node run.mjs ucitaj   --fajl "tabela.xlsx" --nisa frizeri [--list "Svi lidovi (100)"]
+  node run.mjs ucitaj   --izvoz "izvoz.csv"  --nisa frizeri
   node run.mjs check-site --run <run-id>
   node run.mjs geocode   --run <run-id>
   node run.mjs score     --run <run-id>
-  node run.mjs send      --run <run-id> [--dry-run]
+  node run.mjs send      --run <run-id> [--dry-run] [--sve]
   node run.mjs self-test
+
+Opcije za ucitaj (režim „obogati"):
+  --fajl "putanja.xlsx|.csv"   postojeća tabela salona
+  --izvoz "izvoz.csv"          CSV „Izvezi" iz aplikacije (nosi company_id)
+  --nisa frizeri               niša za upit (tabela je nema)
+  --list "Svi lidovi (100)"    tačan list u XLSX-u (podrazumevano prvi)
+  --grad "Beograd"             preglasi grad (podrazumevano najčešći iz tabele)
+  --od 1 --do 25               rad u serijama; svaka serija je svoj run-id
 
 Opcije za discover:
   --grad "Zemun|Beograd"   prvi je kanonski naziv, ostali se prihvataju u adresi
@@ -811,6 +1004,8 @@ async function glavna() {
       return komandaProveriEnv();
     case "discover":
       return await komandaDiscover(args);
+    case "ucitaj":
+      return await komandaUcitaj(args);
     case "check-site":
       return await komandaCheckSite(args);
     case "geocode":

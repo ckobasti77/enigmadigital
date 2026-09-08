@@ -176,6 +176,8 @@ function proveriRed(red, putanja, g) {
     "imaSajtNapomena",
     "sajtNapomena",
     "izvestajSkilla",
+    // GL8: ID postojeće firme iz izvoza aplikacije (režim „obogati").
+    "postojecaFirmaId",
   ]) {
     opcioniNeprazan(red, kljuc, putanja, g);
   }
@@ -262,6 +264,11 @@ export function validirajTelo(telo) {
         if (telo.upit.nisaOpis.trim().length > 1200) g.dodaj("upit.nisaOpis", "too_big");
       }
     }
+    // GL8: režim skilla i naziv izvora, oba opciona.
+    if (telo.upit.rezim !== undefined) {
+      enumeracija(telo.upit.rezim, ["otkrivanje", "obogati"], "upit.rezim", g);
+    }
+    opcioniNeprazan(telo.upit, "izvorFajl", "upit", g);
   }
 
   if (!jeObjekat(telo.izvor)) {

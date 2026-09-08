@@ -19,6 +19,11 @@
  */
 
 export const CANONICAL_CSV_COLUMNS = [
+  // GL8 (plan §2): ID firme kao PRVA kolona. Skill /generate-leads u režimu
+  // „obogati" čita ovaj izvoz nazad i po ovom ID-u spaja dopunu sa baš tom
+  // firmom (`postojecaFirmaId` → `matchRowToExistingCompany` ključ #0).
+  // `companywall_url` je već bio u izvozu (ne duplira se).
+  "company_id",
   "naziv_firme",
   "ulica",
   "opstina",
@@ -43,6 +48,8 @@ export const CANONICAL_CSV_COLUMNS = [
 export type CanonicalCsvColumn = (typeof CANONICAL_CSV_COLUMNS)[number];
 
 export interface CanonicalLeadExportRow {
+  // GL8: ID firme u ovom radnom prostoru (za režim „obogati").
+  company_id?: string | null;
   naziv_firme?: string | null;
   ulica?: string | null;
   opstina?: string | null;

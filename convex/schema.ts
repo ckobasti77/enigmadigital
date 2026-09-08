@@ -3696,6 +3696,15 @@ export default defineSchema({
     // se ne prepisuje).
     nisaOpis: v.optional(v.string()),
 
+    // Režim skilla /generate-leads (GL8, plan §5): „otkrivanje" je klasičan
+    // Places tok, „obogati" je dopuna postojeće tabele/izvoza.
+    // OPCIONO NAMERNO: uvozi iz fajla i stariji uvozi nemaju ovo polje;
+    // odsustvo se čita kao klasičan uvoz, pa pregled ne crta „obogati" bedževe.
+    rezim: v.optional(v.union(v.literal("otkrivanje"), v.literal("obogati"))),
+    // Naziv fajla iz kojeg je „obogati" tok krenuo (GL8). OPCIONO NAMERNO:
+    // postoji samo za režim „obogati"; samo za prikaz porekla u istoriji.
+    izvorFajl: v.optional(v.string()),
+
     appliedAt: v.optional(v.number()),
     revertedAt: v.optional(v.number()),
     error: v.optional(v.string()),
@@ -3802,6 +3811,13 @@ export default defineSchema({
         ),
       ),
       izvestajSkilla: v.optional(v.string()),
+
+      // ID postojeće firme koju „obogati" tok dopunjuje (GL8, plan §5, §2).
+      // OPCIONO NAMERNO: postoji samo kad je red došao iz izvoza aplikacije sa
+      // `company_id` kolonom. `matchRowToExistingCompany` ga koristi kao ključ
+      // #0 (ispred PIB-a), uz proveru da firma pripada tom radnom prostoru.
+      // Čuva se kao string; `ctx.db.normalizeId` ga bezbedno pretvara u Id.
+      postojecaFirmaId: v.optional(v.string()),
     }),
 
     // Ceo red kako je stigao iz fajla, u izvornom redosledu kolona (§3)
@@ -3837,6 +3853,9 @@ export default defineSchema({
     matchedCompanyId: v.optional(v.id("leadCompanies")),
     matchedBy: v.optional(
       v.union(
+        // GL8: red iz izvoza aplikacije nosi `company_id`; to je najjači ključ,
+        // jači od PIB-a, jer je to ID baš te firme u ovom radnom prostoru.
+        v.literal("postojeca_firma"),
         v.literal("pib"),
         v.literal("companywall"),
         v.literal("domain"),

@@ -63,9 +63,11 @@ const DECISION_LABELS: Record<
 };
 
 const MATCHED_BY_LABELS: Record<
-  "pib" | "companywall" | "domain" | "name_city" | "phone",
+  "postojeca_firma" | "pib" | "companywall" | "domain" | "name_city" | "phone",
   string
 > = {
+  // GL8: red iz izvoza aplikacije nosi ID baš te firme (režim „obogati").
+  postojeca_firma: "ID firme (iz izvoza)",
   pib: "PIB",
   companywall: "CompanyWall URL",
   domain: "Domen / sajt",

@@ -85,6 +85,51 @@ popunjen `firme.json`, `discover` **odbija** da piše (da ne prepiše gotov run
 preko `run.json`/`kandidati.json`). Dodaj `--force` da svesno prepišeš, ili
 `--run <nov-id>` za nov folder.
 
+## Obogaćivanje postojeće tabele (režim „obogati")
+
+Drugi ulaz: kreni od tabele koju već imaš (XLSX/CSV) ili od „Izvezi CSV" iz
+aplikacije, dopuni svaki red kao u `discover` toku, i pošalji — aplikacija
+spaja dopunu sa postojećim firmama. **Places se ne zove** (kvota je nula);
+trebaju samo `ENIGMA_INGEST_*` i `ENIGMA_CONTACT_EMAIL`.
+
+```
+# 1) učitaj tabelu (čita SAMO prvi list XLSX-a; --list bira drugi)
+node run.mjs ucitaj --fajl "Belgrade_Salon_Leads_100_companywall.xlsx" --nisa frizeri
+# ili izvoz iz aplikacije (nosi company_id, pa se spaja baš sa tom firmom):
+node run.mjs ucitaj --izvoz "izvoz.csv" --nisa frizeri
+
+# 2) Claude za svaku firmu radi ISTO što i u discover toku i dopuni firme.json;
+#    vrednosti iz tabele PROVERI (upiši dokaze), ništa iz tabele ne briši
+
+node run.mjs check-site --run 2026-09-08-obogati-belgrade_salon_leads_100_companywall
+node run.mjs geocode    --run 2026-09-08-obogati-belgrade_salon_leads_100_companywall
+node run.mjs score      --run 2026-09-08-obogati-belgrade_salon_leads_100_companywall
+node run.mjs send       --run 2026-09-08-obogati-belgrade_salon_leads_100_companywall
+```
+
+**Šta se šalje.** `send` u ovom režimu šalje SAMO redove koji imaju bar jednu
+NOVU ili PROMENJENU vrednost u odnosu na snimak posle `ucitaj`
+(`firme.ulaz.json`). Red bez promene se preskače i broji („bez promene: N").
+`--sve` šalje sve, bez obzira na promenu.
+
+**Serije.** Za veliku tabelu radi u delovima: `ucitaj … --od 1 --do 25`. Svaka
+serija je svoj run-id (`…-obogati-<fajl>-1-25`), pa se rade nezavisno.
+100 firmi znači ~100 otvaranja CompanyWall-a + ~60 provera sajta — traje osetno,
+zato serije.
+
+**Šta se vidi u pregledu.** Uvoz se zove `generate-leads · obogati · <fajl> ·
+<datum>`. Svaki red nosi bedž **„+N polja"** (šta dopuna donosi) i **„N sukoba"**
+ako ih ima; iznad tabele je filter **„samo sa sukobom"**. Sukob je ista osoba
+sa drugom ulogom ili drugim telefonom, ili sajt koji prelazi „nema" → „ima".
+Postojeće firme se pri „Primeni" **dopunjuju, ne prepisuju**; ista osoba se ne
+duplira (dobija veći `roleConfidence` i telefon ako ga nije imala).
+
+**Mapiranje kolona** je isto kao u aplikaciji: `Ime_Salona`→naziv,
+`Lokacija`→ulica/opština/grad (po zarezu), `Telefon`, `Ime_osobe`+`Pozicija`→
+osoba (`ulogaIzvor: "tabela"`), `Ocena` („4,8 (120 recenzija)")→vrednost+broj
+recenzija, `Napomena_za_prodaju`→napomena, `Izvor_podataka`→CompanyWall URL ili
+izvor. Zaglavlje se traži automatski (naslovni red iznad njega se preskoči).
+
 ## Radni folder
 
 `out/<run-id>/` (nije u gitu):
@@ -93,7 +138,8 @@ preko `run.json`/`kandidati.json`). Dodaj `--force` da svesno prepišeš, ili
 | --- | --- | --- |
 | `run.json` | stanje runa: grad, niša, cilj, filter, Places pozivi, nedostupni izvori | `discover` |
 | `kandidati.json` | Places rezultati, **privremeno** — briše se posle uspešnog slanja | `discover` |
-| `firme.json` | ono što je Claude pročitao sa stranica; ulaz za skor i slanje | Claude |
+| `firme.json` | ono što je Claude pročitao sa stranica; ulaz za skor i slanje | Claude / `ucitaj` |
+| `firme.ulaz.json` | snimak tabele odmah posle `ucitaj` — `send` po njemu zna šta je dopunjeno (režim „obogati") | `ucitaj` |
 | `payload.json` | telo koje je poslato (ili bi bilo, uz `--dry-run` / posle greške) | `send` |
 | `nisa-opis.txt` | predlog opisa niše koji ingest ne prenosi | `send` |
 

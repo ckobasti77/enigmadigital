@@ -24,8 +24,11 @@
 
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { join, dirname } from "node:path";
 
 import { ispisi, ispisiGresku } from "./izlaz.mjs";
+import { ucitajMatricu, parsirajOcenu, ucitajFajl } from "./tabela.mjs";
+import { promenjeneFirme, firmaPromenjena } from "./obogati.mjs";
 import { NISE, nadjiNisu, normalizujSlug, upitiNise } from "./nise.mjs";
 import { klasifikuj, proveriSajt } from "./sajt.mjs";
 import { oceniTelefonOsobe, oceniOsobe, traka } from "./skor.mjs";
@@ -439,6 +442,34 @@ const PRIMERI = [
     ocekujem: "pada",
     polja: ["upit.nisaOpis: too_big"],
   },
+  {
+    // GL8: režim „obogati" sa `izvorFajl` i redom koji nosi `postojecaFirmaId`.
+    naziv: "5. obogati: rezim + izvorFajl + postojecaFirmaId",
+    telo: (() => {
+      const t = okvir([
+        {
+          nazivFirme: "Test Salon 10",
+          grad: "Beograd",
+          nisa: "frizerski-saloni",
+          postojecaFirmaId: "k1234567890abcdefghij000",
+        },
+      ]);
+      t.upit.rezim = "obogati";
+      t.upit.izvorFajl = "Belgrade_Salon_Leads.xlsx";
+      return t;
+    })(),
+    ocekujem: "prolazi",
+  },
+  {
+    naziv: "6. nepoznat režim se odbija",
+    telo: (() => {
+      const t = okvir([{ nazivFirme: "Test Salon 11", grad: "Beograd", nisa: "frizerski-saloni" }]);
+      t.upit.rezim = "nesto";
+      return t;
+    })(),
+    ocekujem: "pada",
+    polja: ["upit.rezim: invalid_value"],
+  },
 ];
 
 /** Zod šema iz Convexa — jedini izvor istine. `null` kad se ne može učitati. */
@@ -686,6 +717,119 @@ async function testSajt(prijavi) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 5. Učitavanje tabele (režim „obogati", GL8 §1) — bez mreže
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Matrica kao Jovanova tabela: naslov u redu 1, zaglavlje u redu 2. */
+const UZORAK_MATRICA = [
+  ["Svi lidovi (5)"],
+  ["#", "Ime_Salona", "Lokacija", "Telefon", "Ime_osobe", "Pozicija", "Ocena", "Napomena_za_prodaju", "Izvor_podataka"],
+  ["1", "Test Salon 1", "Izmisljena 1, Vracar, Beograd", "+381 60 000 0001", "Test Osoba 1", "vlasnik", "4,8 (120 recenzija)", "nema sajt", "https://www.companywall.rs/firma/test-salon-1"],
+  ["2", "Test Salon 2", "Izmisljena 2, Zemun", "+381 60 000 0002", "", "", "4.8", "salon bez sajta", "google maps"],
+  ["3", "Test Salon 3", "Novi Sad", "+381 60 000 0003", "Test Osoba 3", "direktor", "", "", "011info"],
+  ["4", "Test Salon 4", "Izmisljena 4, Zvezdara, Beograd", "+381 60 000 0004", "Test Osoba 4", "menadzer", "5,0 (10 recenzija)", "hitno pozvati", "sajt firme"],
+  ["5", "Test Salon 5", "Izmisljena 5, Nis", "+381 60 000 0005", "", "", "3,9", "", "companywall.rs/firma/test-salon-5"],
+];
+
+async function testUcitaj(prijavi, strogo) {
+  const { firme, izvestaj } = ucitajMatricu(UZORAK_MATRICA, { izvorFajl: "uzorak.csv" });
+
+  prijavi(firme.length === 5, "ucitaj: 5 firmi iz matrice", `dobijeno ${firme.length}`);
+  prijavi(izvestaj.saOsobom === 3, "ucitaj: 3 firme sa osobom", `dobijeno ${izvestaj.saOsobom}`);
+  prijavi(izvestaj.saTelefonom === 5, "ucitaj: 5 sa telefonom", `dobijeno ${izvestaj.saTelefonom}`);
+  prijavi(izvestaj.saCompanyWall === 2, "ucitaj: 2 sa CompanyWall linkom", `dobijeno ${izvestaj.saCompanyWall}`);
+
+  const f1 = firme[0];
+  prijavi(f1.nazivFirme === "Test Salon 1", `ucitaj: naziv iz Ime_Salona`, `dobijeno ${f1.nazivFirme}`);
+  prijavi(f1.ulica === "Izmisljena 1" && f1.opstina === "Vracar" && f1.grad === "Beograd",
+    `ucitaj: Lokacija razlozena na ulicu/opstinu/grad`,
+    `dobijeno ${JSON.stringify({ u: f1.ulica, o: f1.opstina, g: f1.grad })}`);
+  prijavi(f1.poreklo === "tabela", `ucitaj: poreklo je „tabela"`, `dobijeno ${f1.poreklo}`);
+  prijavi(f1.sourceUrl === "tabela:uzorak.csv#3", `ucitaj: sourceUrl = tabela:<fajl>#<red>`, `dobijeno ${f1.sourceUrl}`);
+  prijavi(Array.isArray(f1.izvori) && f1.izvori[0] === "tabela:uzorak.csv#3",
+    `ucitaj: izvori nose marker porekla`,
+    `dobijeno ${JSON.stringify(f1.izvori)}`);
+  prijavi(/companywall\.rs\/firma\/test-salon-1/.test(f1.companyWallUrl ?? ""),
+    `ucitaj: CompanyWall URL iz Izvor_podataka`, `dobijeno ${f1.companyWallUrl}`);
+  prijavi(Array.isArray(f1.osobe) && f1.osobe[0].ulogaIzvor === "tabela" && f1.osobe[0].rang === 1,
+    `ucitaj: Ime_osobe+Pozicija → osoba sa ulogaIzvor „tabela"`,
+    `dobijeno ${JSON.stringify(f1.osobe)}`);
+
+  // Ocena regex: „4,8 (120 recenzija)" i implicitni brojevi.
+  const o1 = f1.ocena;
+  prijavi(o1 && o1.vrednost === 4.8 && o1.brojRecenzija === 120,
+    `ucitaj: Ocena „4,8 (120 recenzija)" → {4.8, 120}`, `dobijeno ${JSON.stringify(o1)}`);
+  prijavi(firme[1].ocena && firme[1].ocena.vrednost === 4.8 && firme[1].ocena.brojRecenzija === undefined,
+    `ucitaj: Ocena „4.8" → samo vrednost`, `dobijeno ${JSON.stringify(firme[1].ocena)}`);
+  prijavi(firme[2].ocena === undefined, `ucitaj: prazna Ocena → undefined`, `dobijeno ${JSON.stringify(firme[2].ocena)}`);
+
+  // Direktne provere parsirajOcenu (§5).
+  prijavi(JSON.stringify(parsirajOcenu("4,8 (120 recenzija)")) === JSON.stringify({ vrednost: 4.8, brojRecenzija: 120 }),
+    `ucitaj: parsirajOcenu „4,8 (120 recenzija)"`, JSON.stringify(parsirajOcenu("4,8 (120 recenzija)")));
+  prijavi(JSON.stringify(parsirajOcenu("4.8")) === JSON.stringify({ vrednost: 4.8 }),
+    `ucitaj: parsirajOcenu „4.8"`, JSON.stringify(parsirajOcenu("4.8")));
+  prijavi(parsirajOcenu("") === undefined, `ucitaj: parsirajOcenu prazno → undefined`, String(parsirajOcenu("")));
+
+  // Red bez naziva se preskače (upozorenje sa brojem reda).
+  const saPraznim = [
+    UZORAK_MATRICA[1],
+    ["9", "", "Neka ulica, Beograd", "+381 60 000 0009", "", "", "", "", ""],
+    ["10", "Test Salon X", "Neka ulica, Beograd", "+381 60 000 0010", "", "", "", "", ""],
+  ];
+  const bezNaziva = ucitajMatricu(saPraznim, { izvorFajl: "x.csv" });
+  prijavi(bezNaziva.firme.length === 1 && bezNaziva.izvestaj.preskoceniBezNaziva.length === 1,
+    "ucitaj: red bez naziva se preskače i broji",
+    `firmi ${bezNaziva.firme.length}, preskočeno ${JSON.stringify(bezNaziva.izvestaj.preskoceniBezNaziva)}`);
+
+  // company_id iz izvoza aplikacije → postojecaFirmaId.
+  const izvozMatrica = [
+    ["company_id", "naziv_firme", "grad", "telefon", "companywall_url"],
+    ["k1234567890abcdefghij000", "Test Salon 1", "Beograd", "+381 60 000 0001", ""],
+  ];
+  const izvoz = ucitajMatricu(izvozMatrica, { izvorFajl: "izvoz.csv" });
+  prijavi(izvoz.firme[0]?.postojecaFirmaId === "k1234567890abcdefghij000",
+    "ucitaj: company_id → postojecaFirmaId (za --izvoz)", `dobijeno ${izvoz.firme[0]?.postojecaFirmaId}`);
+
+  // End-to-end nad zapisanim CSV fixture-om (bez mreže, čist Node).
+  const fixture = join(dirname(fileURLToPath(import.meta.url)), "..", "test", "uzorak.csv");
+  if (existsSync(fixture)) {
+    const izFajla = await ucitajFajl(fixture, {});
+    prijavi(izFajla.firme.length === 5, "ucitaj: CSV fixture daje 5 firmi", `dobijeno ${izFajla.firme.length}`);
+  } else if (strogo) {
+    prijavi(false, "ucitaj: CSV fixture postoji", `nema ${fixture}`);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. Razlika ulaz ↔ izlaz („samo promenjeni", GL8 §3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function testObogatiRazlika(prijavi) {
+  const ulaz = [
+    { nazivFirme: "Test Salon 1", grad: "Beograd", telefon: "+381 60 000 0001", poreklo: "tabela", sourceUrl: "tabela:x#3", izvori: ["tabela:x#3"] },
+    { nazivFirme: "Test Salon 2", grad: "Beograd", telefon: "+381 60 000 0002", poreklo: "tabela", sourceUrl: "tabela:x#4", izvori: ["tabela:x#4"] },
+  ];
+  // Izlaz: prva firma dobila novu vrednost (imaSajt), druga netaknuta.
+  const izlaz = [
+    { ...ulaz[0], imaSajt: "ne", imaSajtNapomena: "sva tri izvora potvrđuju odsustvo" },
+    { ...ulaz[1] },
+  ];
+
+  prijavi(firmaPromenjena(ulaz[0], izlaz[0]) === true, "obogati: nova vrednost = promena", "nije prepoznata promena");
+  prijavi(firmaPromenjena(ulaz[1], izlaz[1]) === false, "obogati: bez promene = nepromenjeno", "lažna promena");
+
+  const r = promenjeneFirme(ulaz, izlaz);
+  prijavi(r.promenjeni.length === 1 && r.bezPromene === 1,
+    "obogati: šalje se samo promenjeni red",
+    `promenjeni ${r.promenjeni.length}, bez promene ${r.bezPromene}`);
+
+  // Marker porekla (`tabela:...`) i radna polja ne broje se kao promena.
+  const samoMarker = { ...ulaz[0], sourceUrl: "tabela:x#3", izvori: ["tabela:x#3"] };
+  prijavi(firmaPromenjena(ulaz[0], samoMarker) === false,
+    "obogati: isti marker porekla nije promena", "marker se broji kao promena");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Pokretanje
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -709,6 +853,8 @@ export async function pokreniSelfTest({ strogo = false } = {}) {
   testFilterGrada(prijavi);
   await testSema(prijavi, strogo);
   await testSajt(prijavi);
+  await testUcitaj(prijavi, strogo);
+  testObogatiRazlika(prijavi);
 
   ispisi("");
   if (pali.length === 0) {

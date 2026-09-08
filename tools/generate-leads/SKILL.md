@@ -243,6 +243,65 @@ poziva. Run tada NIJE propao — reci šta je vraćeno i gde je JSON.
 - Ako postoji `out/<run-id>/nisa-opis.txt`: „Opis niše putuje sa uvozom i
   upisuje se pri „Primeni" — samo ako niša još nema opis. Kopija je u tom fajlu."
 
+## Obogaćivanje postojeće tabele (režim „obogati")
+
+Drugi ulaz: umesto da tražiš nove firme preko Placesa, kreni od tabele koju
+Jovan već ima (XLSX/CSV) ili od „Izvezi CSV" iz same aplikacije, dopuni svaki
+red kao u `discover` toku, i pošalji — aplikacija spaja dopunu sa postojećim
+firmama.
+
+**Okidači:** „/generate-leads obogati <fajl>", „obogati postojeće leadove",
+„dopuni tabelu".
+
+**Places se u ovom režimu NE zove.** Trošak Places kvote je nula. Potrebne su
+samo `ENIGMA_INGEST_URL`, `ENIGMA_INGEST_TOKEN` i `ENIGMA_CONTACT_EMAIL`
+(za `check-site`/`geocode`). `GOOGLE_PLACES_API_KEY` nije potreban.
+
+### Tok
+
+1. **`proveri-env`** (kao korak 0 gore).
+2. **Učitaj tabelu:**
+   ```
+   node "{{REPO_PATH}}/tools/generate-leads/run.mjs" ucitaj --fajl "<putanja.xlsx|.csv>" --nisa <niša> [--list "Svi lidovi (100)"]
+   ```
+   Ili izvoz iz aplikacije (nosi `company_id`, pa se spaja baš sa tom firmom):
+   ```
+   node "{{REPO_PATH}}/tools/generate-leads/run.mjs" ucitaj --izvoz "<izvoz.csv>" --nisa <niša>
+   ```
+   Čita SAMO prvi list XLSX-a (ostali listovi su batchevi); `--list` bira tačan.
+   Pravi `out/<run-id>/firme.json` (isti oblik kao `discover`) i njegov snimak
+   `firme.ulaz.json`. Run-id: `<datum>-obogati-<naziv fajla>`.
+3. **STOP — rezime tabele.** Komanda ispiše koliko ima redova, sa osobom, sa
+   CompanyWall linkom, sa telefonom, i koji su redovi bez naziva preskočeni.
+   **Reci Jovanu koliko će trajati pre nego što kreneš:** 100 firmi znači ~100
+   otvaranja CompanyWall-a + ~60 provera sajta i traje osetno. Ako je tabela
+   velika, radi u serijama: `ucitaj … --od 1 --do 25` (svaka serija je svoj
+   run-id). Pitaj da li da nastaviš.
+4. **Za svaku firmu uradi ISTO što i u `discover` toku** (§3: sajt sa tri
+   izvora, CompanyWall/APR, 011info, sajt firme, profili), sa dva dodatka:
+   - **Proveri vrednosti iz tabele** (telefon, osoba, uloga) i upiši `dokazi`
+     za njih kao za svaku drugu vrednost.
+   - **Ne briši ništa iz tabele.** Ako izvor kaže drugačije, obe vrednosti idu
+     dalje: nova kao primarna, stara u `napomena` sa „tabela je imala: …".
+     Aplikacija to prikaže kao sukob.
+5. **`check-site` → `geocode` → `score`** (kao gore).
+6. **Slanje:**
+   ```
+   node "{{REPO_PATH}}/tools/generate-leads/run.mjs" send --run <run-id> [--dry-run]
+   ```
+   U ovom režimu `send` šalje SAMO redove koji imaju bar jednu NOVU ili
+   PROMENJENU vrednost u odnosu na `firme.ulaz.json`. Red bez promene se
+   preskače i broji („bez promene: N"). Zastavica `--sve` šalje sve.
+
+### Šta Jovan vidi u pregledu uvoza
+
+Uvoz se zove `generate-leads · obogati · <naziv fajla> · <datum>`. Svaki red
+nosi bedž **„+N polja"** (šta dopuna donosi) i, ako postoji, **„N sukoba"**.
+Iznad tabele je filter **„samo sa sukobom"** — tako se 100 redova pregleda za
+pet minuta. Sukob nastaje kad se ista osoba vraća sa drugom ulogom ili drugim
+telefonom, ili kad sajt prelazi „nema" → „ima". Ništa ne ulazi u bazu dok Jovan
+ne klikne **Primeni**; postojeće firme se dopunjuju, ne prepisuju.
+
 ## Greške i šta znače
 
 | Poruka | Značenje |

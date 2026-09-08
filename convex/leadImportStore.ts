@@ -136,6 +136,9 @@ export const parsedLeadRowValidator = v.object({
     ),
   ),
   izvestajSkilla: v.optional(v.string()),
+
+  // GL8: ID postojeće firme iz izvoza aplikacije (režim „obogati").
+  postojecaFirmaId: v.optional(v.string()),
 });
 
 export type RowConflict = {
@@ -147,7 +150,13 @@ export type RowConflict = {
 
 export type RowMatchResult = {
   matchedCompanyId?: Id<"leadCompanies">;
-  matchedBy?: "pib" | "companywall" | "domain" | "name_city" | "phone";
+  matchedBy?:
+    | "postojeca_firma"
+    | "pib"
+    | "companywall"
+    | "domain"
+    | "name_city"
+    | "phone";
 };
 
 // ── Pomoćne funkcije ──────────────────────────────────────────────────────────
@@ -305,6 +314,24 @@ export async function matchRowToExistingCompany(
   workspaceId: Id<"workspaces">,
   parsed: ParsedLeadRow,
 ): Promise<RowMatchResult> {
+  // 0. Postojeća firma po ID-u iz izvoza aplikacije (GL8, plan §5, §2).
+  //
+  // Najjači ključ: to je baš ta firma u ovom radnom prostoru, ne pogodak po
+  // sličnosti. `normalizeId` bezbedno odbija string koji nije ispravan Convex
+  // Id (npr. iz tuđeg deploya) — vraća `null` umesto izuzetka. Provera
+  // `workspaceId` je obavezna: id iz tuđeg radnog prostora ne sme da spoji
+  // podatke preko granice (§0 pravilo 9).
+  if (parsed.postojecaFirmaId) {
+    const cleanId = parsed.postojecaFirmaId.trim();
+    const normId = cleanId ? ctx.db.normalizeId("leadCompanies", cleanId) : null;
+    if (normId) {
+      const match = await ctx.db.get(normId);
+      if (match !== null && match.workspaceId === workspaceId) {
+        return { matchedCompanyId: match._id, matchedBy: "postojeca_firma" };
+      }
+    }
+  }
+
   // 1. PIB
   if (parsed.pib) {
     const cleanPib = parsed.pib.trim();
@@ -548,6 +575,89 @@ export async function detectRowConflicts(
           }
         }
       }
+
+      // ── GL8 (režim „obogati", plan §4) ────────────────────────────────────
+      //
+      // Skill može da dopuni firmu koja već postoji: osobe (`parsed.osobe`),
+      // procenu telefona i stanje sajta. Nova osoba NIJE sukob — to je dopuna.
+      // Sukob je samo kad se ista osoba (isto normalizovano ime) vraća sa
+      // DRUGOM ulogom ili DRUGIM telefonom, i kad stanje sajta prelazi
+      // „ne" → „da". Svaki takav sukob nosi `izvor` = `sourceUrl` NOVE vrednosti
+      // (§2.4: obe se čuvaju, čovek presuđuje).
+      if (parsed.osobe && parsed.osobe.length > 0) {
+        const existingPeople = await ctx.db
+          .query("leadPeople")
+          .withIndex("by_workspace_company", (q) =>
+            q.eq("workspaceId", workspaceId).eq("companyId", matchedCompanyId),
+          )
+          .collect();
+        const poImenu = new Map(
+          existingPeople.map((p) => [normalizeCompanyName(p.name), p] as const),
+        );
+
+        // Telefoni po osobi se učitavaju samo kad zaista ima osobe sa brojem.
+        const trebaTelefone = parsed.osobe.some((o) => o.telefon);
+        const identiteti = trebaTelefone
+          ? await ctx.db
+              .query("leadIdentities")
+              .withIndex("by_workspace_company", (q) =>
+                q.eq("workspaceId", workspaceId).eq("companyId", matchedCompanyId),
+              )
+              .collect()
+          : [];
+
+        for (const osoba of parsed.osobe) {
+          const imeNorm = normalizeCompanyName(osoba.ime);
+          if (!imeNorm) continue;
+          const postojeca = poImenu.get(imeNorm);
+          if (!postojeca) continue; // nova osoba je dopuna, ne sukob
+
+          const novaUloga = mapRole(osoba.uloga);
+          if (
+            postojeca.role !== "nepoznato" &&
+            novaUloga !== "nepoznato" &&
+            postojeca.role !== novaUloga
+          ) {
+            conflicts.push({
+              field: "osobaUloga",
+              postojeca: `${postojeca.name}: ${postojeca.role}`,
+              nova: `${osoba.ime}: ${novaUloga}`,
+              izvor: osoba.ulogaIzvor,
+            });
+          }
+
+          if (osoba.telefon) {
+            const novNorm = normalizePhoneRs(osoba.telefon);
+            if (novNorm) {
+              const telOsobe = identiteti.filter(
+                (i) => i.kind === "phone" && i.personId === postojeca._id,
+              );
+              const razlicit =
+                telOsobe.length > 0 &&
+                telOsobe.every((i) => (i.valueNormalized ?? i.value) !== novNorm);
+              if (razlicit) {
+                conflicts.push({
+                  field: "osobaTelefon",
+                  postojeca: telOsobe.map((i) => i.value).join(", "),
+                  nova: osoba.telefon,
+                  izvor: osoba.telefonSourceUrl ?? "generate-leads",
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // Stanje sajta prelazi „nema" → „ima" — vredna promena za prodaju sajtova,
+      // ali i tvrdnja suprotna od one koju je firma već nosila.
+      if (parsed.imaSajt === "da" && existing.imaSajt === "ne") {
+        conflicts.push({
+          field: "imaSajt",
+          postojeca: "ne",
+          nova: "da",
+          izvor: parsed.sajt ?? parsed.imaSajtNapomena ?? "generate-leads",
+        });
+      }
     }
   }
 
@@ -594,6 +704,10 @@ async function createImportCore(
     sourceSheet?: string;
     /** Predlog opisa niše iz skilla (GL6 §4). Samo `createImportFromIngest`. */
     nisaOpis?: string;
+    /** Režim skilla (GL8, plan §5). „obogati" menja prikaz pregleda i `fileName`. */
+    rezim?: "otkrivanje" | "obogati";
+    /** Naziv fajla iz kojeg je „obogati" krenuo (GL8). */
+    izvorFajl?: string;
   },
 ): Promise<{ importId: Id<"leadImports">; rowsCount: number }> {
   const sheetName = args.sourceSheet ?? args.sheetsChosen[0] ?? "Sheet1";
@@ -612,6 +726,10 @@ async function createImportCore(
     skriveneKolone: [],
     ...(args.nisaOpis && args.nisaOpis.trim().length > 0
       ? { nisaOpis: args.nisaOpis.trim() }
+      : {}),
+    ...(args.rezim ? { rezim: args.rezim } : {}),
+    ...(args.izvorFajl && args.izvorFajl.trim().length > 0
+      ? { izvorFajl: args.izvorFajl.trim() }
       : {}),
   });
 
@@ -701,6 +819,8 @@ async function createImportCore(
         platforme: parsedRow.platforme,
         osobe: parsedRow.osobe,
         izvestajSkilla: parsedRow.izvestajSkilla,
+        // GL8: prosleđuje se u red kad je uvoz došao iz izvoza aplikacije.
+        postojecaFirmaId: parsedRow.postojecaFirmaId,
       },
       sirovo: parsedRow.sirovo ?? [],
       temperatura: "nova_firma",
@@ -770,6 +890,9 @@ export const createImportFromIngest = internalMutation({
     // Predlog opisa niše iz skilla (GL6 §4). `applyImport` ga upisuje u nišu
     // samo ako niša još nema opis.
     nisaOpis: v.optional(v.string()),
+    // Režim skilla (GL8, plan §5) i naziv izvornog fajla za režim „obogati".
+    rezim: v.optional(v.union(v.literal("otkrivanje"), v.literal("obogati"))),
+    izvorFajl: v.optional(v.string()),
   },
   returns: v.object({
     importId: v.id("leadImports"),
@@ -780,6 +903,8 @@ export const createImportFromIngest = internalMutation({
       workspaceId: args.workspaceId,
       uploadedBy: args.uploadedBy,
       fileName: args.fileName,
+      rezim: args.rezim,
+      izvorFajl: args.izvorFajl,
       // Nema listova ni zaglavlja — nema fajla. `headerRowIndex: -1` daje
       // `sourceRowIndex` 1, 2, 3… (jer je formula `headerRowIndex + 2 + i`),
       // što je red u poslatoj listi. Lažan „Sheet1" bi tvrdio da fajl postoji.
@@ -976,7 +1101,7 @@ async function attachSkillData(
     });
   }
 
-  // ── Osobe -> leadPeople + telefon sa procenom (plan §4.4, §6) ─────────────
+  // ── Osobe -> leadPeople + telefon sa procenom (plan §4.4, §6; GL8 §4) ──────
   const osobe = [...(p.osobe ?? [])].sort((a, b) => a.rang - b.rang);
   if (osobe.length > 0) {
     const postojeceOsobe = await ctx.db
@@ -985,44 +1110,30 @@ async function attachSkillData(
         q.eq("workspaceId", workspaceId).eq("companyId", companyId),
       )
       .collect();
-    const zauzetaImena = new Set(
-      postojeceOsobe.map((o) => normalizeCompanyName(o.name)),
+    // Ime -> postojeća osoba: ista osoba (isto normalizovano ime) se NE duplira
+    // (GL8 §4), nego dopunjuje. Karta se dopunjuje i za osobe napravljene u
+    // ovom istom prolazu, da se isto ime u dve stavke ne upiše dvaput.
+    const poImenu = new Map(
+      postojeceOsobe.map((o) => [normalizeCompanyName(o.name), o._id] as const),
+    );
+    // Osobe koje već imaju bar jedan telefon — takvoj se drugi ne dodaje
+    // automatski (§4: „telefon … ako ga nema").
+    const osobeSaTelefonom = new Set(
+      postojeciIdentiteti
+        .filter((i) => i.kind === "phone" && i.personId)
+        .map((i) => String(i.personId)),
     );
 
-    for (const osoba of osobe) {
-      const imeNorm = normalizeCompanyName(osoba.ime);
-      if (!imeNorm || zauzetaImena.has(imeNorm)) continue;
-      zauzetaImena.add(imeNorm);
-
-      const potvrdjenost = roleConfidenceFromSource(osoba.ulogaIzvor);
-      const personId = await ctx.db.insert("leadPeople", {
-        workspaceId,
-        companyId,
-        name: osoba.ime,
-        role: mapRole(osoba.uloga),
-        roleConfidence: potvrdjenost,
-        createdAt: now,
-      });
-
-      await ctx.db.insert("leadFieldProvenance", {
-        workspaceId,
-        entityTable: "leadPeople",
-        entityId: personId,
-        fieldName: "name",
-        value: osoba.ime,
-        source: osoba.ulogaIzvor,
-        // Ime iz APR/CompanyWall zapisa je pročitano; ime izvučeno sa sajta ili
-        // iz bioa je pročitano iz teksta koji ga ne tvrdi zvanično.
-        confidence: potvrdjenost === "potvrdjeno" ? "tacno" : "priblizno",
-        humanConfirmed: true,
-        observedAt: now,
-      });
-
-      if (!osoba.telefon) continue;
-
+    // Upis telefona osobe: isti oblik za novu i za postojeću osobu. Vraća true
+    // kad je telefon zaista upisan (pa osoba od tada „ima telefon").
+    const upisiTelefonOsobe = async (
+      personId: Id<"leadPeople">,
+      osoba: NonNullable<Doc<"leadImportRows">["parsed"]["osobe"]>[number],
+    ): Promise<boolean> => {
+      if (!osoba.telefon) return false;
       const telefonNorm = normalizePhoneRs(osoba.telefon) ?? osoba.telefon;
       const kljucTelefona = kljucIdentiteta("phone", telefonNorm);
-      if (zauzeti.has(kljucTelefona)) continue;
+      if (zauzeti.has(kljucTelefona)) return false;
       zauzeti.add(kljucTelefona);
 
       // `verovatnoca` i `nijeMoguceProceniti` se prenose kakvi jesu: broj ILI
@@ -1033,7 +1144,7 @@ async function attachSkillData(
       const imaProcenu =
         osoba.verovatnoca !== undefined || osoba.nijeMoguceProceniti === true;
 
-      await ctx.db.insert("leadIdentities", {
+      const phoneId = await ctx.db.insert("leadIdentities", {
         workspaceId,
         companyId,
         personId,
@@ -1049,6 +1160,87 @@ async function attachSkillData(
         verovatnocaAt: imaProcenu ? now : undefined,
         nijeMoguceProceniti: osoba.nijeMoguceProceniti,
       });
+      // Poreklo za svako novo polje (GL8 §4): telefon osobe ima svoj izvor.
+      await ctx.db.insert("leadFieldProvenance", {
+        workspaceId,
+        entityTable: "leadIdentities",
+        entityId: phoneId,
+        fieldName: "value",
+        value: osoba.telefon,
+        source: osoba.telefonSourceUrl ?? "generate-leads",
+        confidence: "priblizno",
+        humanConfirmed: true,
+        observedAt: now,
+      });
+      return true;
+    };
+
+    for (const osoba of osobe) {
+      const imeNorm = normalizeCompanyName(osoba.ime);
+      if (!imeNorm) continue;
+
+      const potvrdjenost = roleConfidenceFromSource(osoba.ulogaIzvor);
+      const postojeciId = poImenu.get(imeNorm);
+
+      // Osoba koja već postoji (GL8 §4): ne duplira se. Dobija veći
+      // `roleConfidence` ako novi izvor (APR/CompanyWall) to opravdava, i
+      // telefon sa procenom ako ga još nema. Svaka promena → red u provenance.
+      if (postojeciId) {
+        const postojeca = await ctx.db.get(postojeciId);
+        if (postojeca && postojeca.roleConfidence !== "potvrdjeno" && potvrdjenost === "potvrdjeno") {
+          const novaUloga = mapRole(osoba.uloga);
+          await ctx.db.patch(postojeciId, {
+            roleConfidence: "potvrdjeno",
+            // Poznatu ulogu ne gazimo; popravljamo samo kad je bila „nepoznato".
+            ...(postojeca.role === "nepoznato" && novaUloga !== "nepoznato"
+              ? { role: novaUloga }
+              : {}),
+          });
+          await ctx.db.insert("leadFieldProvenance", {
+            workspaceId,
+            entityTable: "leadPeople",
+            entityId: postojeciId,
+            fieldName: "role",
+            value: osoba.uloga,
+            source: osoba.ulogaIzvor,
+            confidence: "tacno",
+            humanConfirmed: true,
+            observedAt: now,
+          });
+        }
+        if (!osobeSaTelefonom.has(String(postojeciId))) {
+          const upisan = await upisiTelefonOsobe(postojeciId, osoba);
+          if (upisan) osobeSaTelefonom.add(String(postojeciId));
+        }
+        continue;
+      }
+
+      const personId = await ctx.db.insert("leadPeople", {
+        workspaceId,
+        companyId,
+        name: osoba.ime,
+        role: mapRole(osoba.uloga),
+        roleConfidence: potvrdjenost,
+        createdAt: now,
+      });
+      poImenu.set(imeNorm, personId);
+
+      await ctx.db.insert("leadFieldProvenance", {
+        workspaceId,
+        entityTable: "leadPeople",
+        entityId: personId,
+        fieldName: "name",
+        value: osoba.ime,
+        source: osoba.ulogaIzvor,
+        // Ime iz APR/CompanyWall zapisa je pročitano; ime izvučeno sa sajta ili
+        // iz bioa je pročitano iz teksta koji ga ne tvrdi zvanično.
+        confidence: potvrdjenost === "potvrdjeno" ? "tacno" : "priblizno",
+        humanConfirmed: true,
+        observedAt: now,
+      });
+
+      const upisan = await upisiTelefonOsobe(personId, osoba);
+      if (upisan) osobeSaTelefonom.add(String(personId));
     }
   }
 

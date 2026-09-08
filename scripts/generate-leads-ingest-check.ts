@@ -198,6 +198,32 @@ const SLUCAJEVI: Slucaj[] = [
     ocekujem: "pada",
     ocekivanoPolje: "redovi.0.osobe.0.telefonSourceUrl",
   },
+  {
+    // GL8 (plan §5, §2): režim „obogati" sa `izvorFajl` u upitu i redom koji
+    // nosi `postojecaFirmaId` iz izvoza aplikacije. Zod ovo PROPUŠTA; provera
+    // da ID zaista pripada radnom prostoru je u mutaciji (`matchRowToExisting-
+    // Company` → `ctx.db.normalizeId` + poređenje `workspaceId`), pa se NE može
+    // dokazati bez baze. Ručno na produkciji: pošalji `postojecaFirmaId` iz
+    // TUĐEG radnog prostora — red mora da padne na „nova_firma" (ne spoji se),
+    // jer provera vlasništva odbija strani ID.
+    naziv: "6. Rezim obogati sa postojecaFirmaId (zod propusta)",
+    telo: {
+      ...OKVIR,
+      upit: { ...OKVIR.upit, rezim: "obogati", izvorFajl: "Belgrade_Salon_Leads.xlsx" },
+      redovi: [{ ...PUN_RED, postojecaFirmaId: "k1234567890abcdefghij000" }],
+    },
+    ocekujem: "prolazi",
+  },
+  {
+    naziv: "7. Nepoznat rezim se odbija",
+    telo: {
+      ...OKVIR,
+      upit: { ...OKVIR.upit, rezim: "nesto" },
+      redovi: [PUN_RED],
+    },
+    ocekujem: "pada",
+    ocekivanoPolje: "upit.rezim",
+  },
 ];
 
 function main(): void {

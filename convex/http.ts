@@ -1853,7 +1853,13 @@ http.route({
       year: "numeric",
       timeZone: "Europe/Belgrade",
     });
-    const fileName = `generate-leads · ${telo.upit.grad} · ${telo.upit.nisa} · ${datum}`;
+    // Režim „obogati" (GL8, plan §5) menja naziv u istoriji: umesto grada i
+    // niše nosi naziv izvornog fajla, jer je uvoz dopuna postojeće tabele.
+    const rezim = telo.upit.rezim;
+    const fileName =
+      rezim === "obogati"
+        ? `generate-leads · obogati · ${telo.upit.izvorFajl ?? "tabela"} · ${datum}`
+        : `generate-leads · ${telo.upit.grad} · ${telo.upit.nisa} · ${datum}`;
 
     // 5. Upozorenja: sve što uvoz čini nepotpunim mora da stoji iznad tabele,
     //    a ne samo u terminalu koji je Jovan već zatvorio.
@@ -1902,6 +1908,9 @@ http.route({
         // Opis niše (GL6 §4): upisuje se u nišu tek pri „Primeni", i to samo
         // ako niša nema opis. Odsustvo = skill nije poslao opis.
         nisaOpis: telo.upit.nisaOpis,
+        // Režim i izvorni fajl (GL8): pregled uvoza crta „obogati" bedževe.
+        rezim: telo.upit.rezim,
+        izvorFajl: telo.upit.izvorFajl,
       },
     );
 

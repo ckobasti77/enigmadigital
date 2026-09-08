@@ -264,6 +264,7 @@ export function ImportReviewTable({
   onBack?: () => void;
 }) {
   const [selectedRow, setSelectedRow] = useState<StagingRowDoc | null>(null);
+  const [samoSukob, setSamoSukob] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [applyDialogOpen, setApplyDialogOpen] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
@@ -513,6 +514,34 @@ export function ImportReviewTable({
   const visibleRows = allRows.filter((r) => r.obrisan !== true);
   const deletedRows = allRows.filter((r) => r.obrisan === true);
 
+  // Režim „obogati" (GL8 §4): red pokazuje šta je NOVO i šta je SUKOB, pa se
+  // 100 redova pregleda za pet minuta. Filter „samo sa sukobom" izdvaja redove
+  // koje čovek MORA da presudi.
+  const jeObogati = importDoc.rezim === "obogati";
+  const countSukob = visibleRows.filter((r) => r.conflicts.length > 0).length;
+  const prikazaniRedovi =
+    jeObogati && samoSukob
+      ? visibleRows.filter((r) => r.conflicts.length > 0)
+      : visibleRows;
+
+  // Broj novih/dopunjenih grupa polja koje red nosi (za bedž „+N polja").
+  // Približna mera „koliko ovaj red dodaje" — tačan spisak je u „Detalji".
+  const brojNovih = (p: StagingRowDoc["parsed"]): number => {
+    let n = 0;
+    if (p.nisa) n += 1;
+    if (p.imaSajt !== undefined || p.sajtStatus !== undefined) n += 1;
+    if (p.koordinate) n += 1;
+    if ((p.osobe?.length ?? 0) > 0) n += 1;
+    if ((p.platforme?.length ?? 0) > 0) n += 1;
+    if (p.telefon) n += 1;
+    if (p.email) n += 1;
+    if (p.pib) n += 1;
+    if (p.maticniBroj) n += 1;
+    if (p.sifraDelatnosti) n += 1;
+    if (p.ocena) n += 1;
+    return n;
+  };
+
   // Kolone su UNIJA svih redova, u redosledu prvog pojavljivanja.
   //
   // Ranije se uzimao prvi red koji ima `sirovo` i njegove kolone su bile CELA
@@ -760,6 +789,26 @@ export function ImportReviewTable({
               </span>
             </>
           )}
+          {jeObogati && countSukob > 0 && (
+            <>
+              <span>·</span>
+              <button
+                type="button"
+                onClick={() => setSamoSukob((v) => !v)}
+                aria-pressed={samoSukob}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium transition-colors",
+                  samoSukob
+                    ? "border-warning/50 bg-warning/10 text-warning"
+                    : "border-line-soft text-text-secondary hover:border-line-strong hover:bg-surface-raised",
+                )}
+                title="Prikaži samo redove sa sukobom vrednosti"
+              >
+                <AlertTriangle className="size-3" />
+                {samoSukob ? `samo sa sukobom (${countSukob})` : `sukobi: ${countSukob}`}
+              </button>
+            </>
+          )}
         </div>
 
         {(deletedRows.length > 0 || hiddenColumns.length > 0) && !isReadOnly && (
@@ -887,7 +936,17 @@ export function ImportReviewTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleRows.map((row) => {
+                {prikazaniRedovi.length === 0 && samoSukob && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={visibleColumns.length + (fajlImaRedniBroj ? 0 : 1) + (imaSkillPodatke ? SKILL_KOLONE.length : 0) + 2}
+                      className="py-8 text-center text-sm text-text-muted"
+                    >
+                      Nijedan red nema sukob. Isključi filter „samo sa sukobom“ da vidiš sve.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {prikazaniRedovi.map((row) => {
                   // U primenjenom uvozu boju reda nosi ŽIVA temperatura firme,
                   // ne zamrznuta staging vrednost — inače bi red i kontrola iznad
                   // pokazivali različite vrednosti (isti princip kao §3b).
@@ -982,6 +1041,21 @@ export function ImportReviewTable({
                                   <div className="flex items-center gap-1 text-[11px] text-warning/90 font-medium">
                                     <AlertTriangle className="size-3 shrink-0 text-warning" />
                                     <span>nerazrešeno</span>
+                                  </div>
+                                )}
+                                {/* GL8 „obogati": šta red donosi i da li ima sukob. */}
+                                {jeObogati && brojNovih(row.parsed) > 0 && (
+                                  <div className="flex items-center gap-1 text-[11px] text-success font-medium">
+                                    <span className="inline-flex rounded border border-success/40 bg-success/10 px-1 py-px">
+                                      +{brojNovih(row.parsed)} polja
+                                    </span>
+                                  </div>
+                                )}
+                                {jeObogati && row.conflicts.length > 0 && (
+                                  <div className="flex items-center gap-1 text-[11px] text-warning font-medium">
+                                    <span className="inline-flex rounded border border-warning/40 bg-warning/10 px-1 py-px">
+                                      {row.conflicts.length} {row.conflicts.length === 1 ? "sukob" : "sukoba"}
+                                    </span>
                                   </div>
                                 )}
                               </div>

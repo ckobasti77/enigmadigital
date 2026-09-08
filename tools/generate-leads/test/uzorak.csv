@@ -1,0 +1,7 @@
+Svi lidovi (5)
+#,Ime_Salona,Lokacija,Telefon,Ime_osobe,Pozicija,Ocena,Napomena_za_prodaju,Izvor_podataka
+1,Test Salon 1,"Izmisljena 1, Vracar, Beograd",+381 60 000 0001,Test Osoba 1,vlasnik,"4,8 (120 recenzija)",nema sajt,https://www.companywall.rs/firma/test-salon-1
+2,Test Salon 2,"Izmisljena 2, Zemun",+381 60 000 0002,,,4.8,salon bez sajta,google maps
+3,Test Salon 3,Novi Sad,+381 60 000 0003,Test Osoba 3,direktor,,,011info
+4,Test Salon 4,"Izmisljena 4, Zvezdara, Beograd",+381 60 000 0004,Test Osoba 4,menadzer,"5,0 (10 recenzija)",hitno pozvati,sajt firme
+5,Test Salon 5,"Izmisljena 5, Nis",+381 60 000 0005,,,"3,9",,companywall.rs/firma/test-salon-5

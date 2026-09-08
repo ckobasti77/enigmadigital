@@ -117,6 +117,16 @@ export interface ParsedLeadRow {
     rang: number;
   }>;
   izvestajSkilla?: string;
+
+  /**
+   * ID postojeće firme koju „obogati" tok dopunjuje (GL8, plan §5, §2).
+   *
+   * Parser tabele ga nikad ne postavlja — dolazi samo iz izvoza aplikacije,
+   * gde je `company_id` prva kolona. `matchRowToExistingCompany` ga koristi kao
+   * ključ #0, ispred PIB-a, uz proveru pripadnosti radnom prostoru. String je,
+   * ne `Id`, jer u telo stiže kao tekst; provera formata je u match funkciji.
+   */
+  postojecaFirmaId?: string;
 }
 
 export interface ParsedSheetInfo {
