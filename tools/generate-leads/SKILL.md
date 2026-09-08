@@ -108,11 +108,13 @@ pretraga nisu isto; ne nastavljaj sa nula kandidata kao da grad nema firmi.
 Pročitaj `out/<run-id>/kandidati.json`. Za svakog kandidata, **redom, dok ne
 ispuniš `broj`**:
 
-1. **Postojanje sajta.** „Nema sajt" sme da se tvrdi tek kad SVA TRI izvora to
-   potvrde: Places nema `websiteUri` **I** CompanyWall/011info nemaju sajt **I**
-   web pretraga „naziv + grad" ne vraća sopstveni domen. Ako je bilo koji izvor
-   nedostupan → `imaSajt: "nepoznato"` + `imaSajtNapomena` koji imenuje izvor
-   koji nije proveren. Nikad „ne" iz neznanja.
+1. **Postojanje sajta — OBAVEZNO za SVAKU firmu.** „Nema sajt" je glavni
+   prodajni signal Enigme, pa `imaSajt` mora da postoji za svaku firmu (`send`
+   odbija slanje ako ijednoj fali). „Nema sajt" sme da se tvrdi tek kad SVA TRI
+   izvora to potvrde: Places nema `websiteUri` **I** CompanyWall/011info nemaju
+   sajt **I** web pretraga „naziv + grad" ne vraća sopstveni domen. Ako je bilo
+   koji izvor nedostupan → `imaSajt: "nepoznato"` + `imaSajtNapomena` koji imenuje
+   proverene i neproverene izvore. Nikad „ne" iz neznanja.
 2. **Filter.** `nema` → uzimaš samo `imaSajt: "ne"`. `ima` → samo `"da"`.
    `svejedno` → sve, uključujući `"nepoznato"`. (`nepoznato` ulazi SAMO kod
    `svejedno`.)
@@ -279,6 +281,11 @@ samo `ENIGMA_INGEST_URL`, `ENIGMA_INGEST_TOKEN` i `ENIGMA_CONTACT_EMAIL`
    run-id). Pitaj da li da nastaviš.
 4. **Za svaku firmu uradi ISTO što i u `discover` toku** (§3: sajt sa tri
    izvora, CompanyWall/APR, 011info, sajt firme, profili), sa dva dodatka:
+   - **Postojanje sajta je OBAVEZNO po firmi** (kao u §3.1). Bez Placesa, tri
+     izvora su: **CompanyWall polje „sajt", 011info, web pretraga „naziv + grad"
+     (WebSearch)**. Rezultat: `imaSajt` = `da`/`ne`/`nepoznato` + `imaSajtNapomena`
+     koja imenuje proverene izvore. `send` odbija slanje ako ijednoj firmi fali
+     `imaSajt` (osim uz `--dozvoli-bez-sajta`).
    - **Proveri vrednosti iz tabele** (telefon, osoba, uloga) i upiši `dokazi`
      za njih kao za svaku drugu vrednost.
    - **Ne briši ništa iz tabele.** Ako izvor kaže drugačije, obe vrednosti idu
@@ -292,6 +299,24 @@ samo `ENIGMA_INGEST_URL`, `ENIGMA_INGEST_TOKEN` i `ENIGMA_CONTACT_EMAIL`
    U ovom režimu `send` šalje SAMO redove koji imaju bar jednu NOVU ili
    PROMENJENU vrednost u odnosu na `firme.ulaz.json`. Red bez promene se
    preskače i broji („bez promene: N"). Zastavica `--sve` šalje sve.
+
+### Brzi prolaz: samo neka polja (`--polja`)
+
+Kad treba da se za sto firmi popuni SAMO jedno-dva polja (npr. `imaSajt`), a ne
+da se sve istražuje iz početka, `ucitaj` prima `--polja`:
+
+```
+node "{{REPO_PATH}}/tools/generate-leads/run.mjs" ucitaj --fajl "<tabela.xlsx>" --nisa <niša> --polja sajt
+```
+
+- Dozvoljena polja: `sajt`, `osobe`, `platforme`, `koordinate` (podskup, zarezom
+  razdvojeno: `--polja sajt,osobe`).
+- Claude istražuje **SAMO ta polja** po firmi; ostalo se ne dira.
+- `send` šalje samo ta polja (+ ključeve za spajanje) i poredi ulaz↔izlaz samo
+  po njima; aplikacija pri „Primeni" dira samo ta polja i ne prepisuje ostatak
+  praznim.
+- Kad `--polja` uključuje `sajt`, `imaSajt` je i dalje obavezan; kad ne uključuje,
+  `imaSajt` se ne traži (nije ni predmet tog prolaza).
 
 ### Šta Jovan vidi u pregledu uvoza
 

@@ -1911,6 +1911,8 @@ http.route({
         // Režim i izvorni fajl (GL8): pregled uvoza crta „obogati" bedževe.
         rezim: telo.upit.rezim,
         izvorFajl: telo.upit.izvorFajl,
+        // Podskup polja koje „obogati --polja" tok dopunjuje (GL9, plan §4).
+        polja: telo.upit.polja,
       },
     );
 

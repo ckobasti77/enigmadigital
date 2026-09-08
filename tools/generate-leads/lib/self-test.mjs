@@ -28,7 +28,7 @@ import { join, dirname } from "node:path";
 
 import { ispisi, ispisiGresku } from "./izlaz.mjs";
 import { ucitajMatricu, parsirajOcenu, ucitajFajl } from "./tabela.mjs";
-import { promenjeneFirme, firmaPromenjena } from "./obogati.mjs";
+import { promenjeneFirme, firmaPromenjena, firmeBezImaSajt } from "./obogati.mjs";
 import { NISE, nadjiNisu, normalizujSlug, upitiNise } from "./nise.mjs";
 import { klasifikuj, proveriSajt } from "./sajt.mjs";
 import { oceniTelefonOsobe, oceniOsobe, traka } from "./skor.mjs";
@@ -62,7 +62,7 @@ const SKOR_SLUCAJEVI = [
     ocekujem: { nijeMoguceProceniti: true },
   },
   {
-    naziv: "Isti broj kao broj salona (fiksni)",
+    naziv: "Isti broj kao broj salona (fiksni, DOO)",
     osoba: {
       telefon: TELEFON,
       uloga: "vlasnik",
@@ -70,10 +70,12 @@ const SKOR_SLUCAJEVI = [
         brojUBiouSalonaJedinaOsoba: true,
         vrstaBroja: "fiksni",
         istiBrojKaoSalon: true,
+        // GL9 §3: za DOO isti broj kao salon I DALJE oduzima 25 (za razliku od
+        // PR-a). 15 − 20 − 25 − 10 = −40, a pod je 0: procena POSTOJI i kaže
+        // „skoro sigurno nije njen lični broj". To nije „nije moguće proceniti".
+        pravniOblik: "doo_vise_osnivaca",
       },
     },
-    // 15 − 20 − 25 = −30, a pod je 0: procena POSTOJI i kaže „skoro sigurno
-    // nije njen lični broj". To nije isto što i „nije moguće proceniti".
     ocekujem: { verovatnoca: 0, traka: "nisko" },
   },
   {
@@ -132,6 +134,23 @@ const SKOR_SLUCAJEVI = [
       dokazi: { vrstaBroja: "mobilni", pravniOblik: "pr", dvaNezavisnaIzvora: true },
     },
     ocekujem: { nijeMoguceProceniti: true },
+  },
+  {
+    // GL9 §3: preduzetnik (PR) sa istim brojem kao salon — broj firme JESTE broj
+    // vlasnika, pa istiBrojKaoSalon NE oduzima 25. 45 + 15 + 10 + 5 = 75.
+    naziv: "PR + isti broj kao salon → broj firme je broj vlasnika",
+    osoba: {
+      telefon: TELEFON,
+      uloga: "vlasnik",
+      dokazi: {
+        brojUAprZapisuOsobe: true,
+        vrstaBroja: "mobilni",
+        pravniOblik: "pr",
+        istiBrojKaoSalon: true,
+        dvaNezavisnaIzvora: true,
+      },
+    },
+    ocekujem: { verovatnoca: 75, traka: "visoko" },
   },
 ];
 
@@ -469,6 +488,36 @@ const PRIMERI = [
     })(),
     ocekujem: "pada",
     polja: ["upit.rezim: invalid_value"],
+  },
+  {
+    // GL9 §4: „obogati --polja sajt" — podskup polja se propušta.
+    naziv: "7. obogati --polja sajt (podskup polja)",
+    telo: (() => {
+      const t = okvir([
+        {
+          nazivFirme: "Test Salon 12",
+          grad: "Beograd",
+          nisa: "frizerski-saloni",
+          imaSajt: "ne",
+          imaSajtNapomena: "sva tri izvora potvrđuju odsustvo",
+        },
+      ]);
+      t.upit.rezim = "obogati";
+      t.upit.polja = ["sajt", "osobe"];
+      return t;
+    })(),
+    ocekujem: "prolazi",
+  },
+  {
+    naziv: "8. nepoznato polje u --polja se odbija",
+    telo: (() => {
+      const t = okvir([{ nazivFirme: "Test Salon 13", grad: "Beograd", nisa: "frizerski-saloni" }]);
+      t.upit.rezim = "obogati";
+      t.upit.polja = ["sajt", "nesto"];
+      return t;
+    })(),
+    ocekujem: "pada",
+    polja: ["upit.polja.1: invalid_value"],
   },
 ];
 
@@ -827,6 +876,29 @@ function testObogatiRazlika(prijavi) {
   const samoMarker = { ...ulaz[0], sourceUrl: "tabela:x#3", izvori: ["tabela:x#3"] };
   prijavi(firmaPromenjena(ulaz[0], samoMarker) === false,
     "obogati: isti marker porekla nije promena", "marker se broji kao promena");
+
+  // GL9 §4: „--polja sajt" poredi SAMO sajt-polja. Promena osobe je van obima i
+  // ne pokreće slanje; promena imaSajt pokreće.
+  const uzOsobu = {
+    ...ulaz[1],
+    osobe: [{ ime: "Test Osoba 1", uloga: "vlasnik", ulogaIzvor: "tabela", rang: 1 }],
+  };
+  prijavi(firmaPromenjena(ulaz[1], uzOsobu, ["sajt"]) === false,
+    "obogati --polja sajt: promena van obima se ne broji",
+    "promena osobe je lažno pokrenula slanje u --polja sajt");
+  const uzSajt = { ...ulaz[1], imaSajt: "ne", imaSajtNapomena: "sva tri izvora" };
+  prijavi(firmaPromenjena(ulaz[1], uzSajt, ["sajt"]) === true,
+    "obogati --polja sajt: promena imaSajt se broji",
+    "promena imaSajt nije prepoznata u --polja sajt");
+
+  // GL9 §4: `firmeBezImaSajt` — `send` po njemu odbija slanje bez imaSajt.
+  prijavi(
+    JSON.stringify(firmeBezImaSajt([{ imaSajt: "ne" }, {}, { imaSajt: "da" }])) === JSON.stringify([2]),
+    "send: firmeBezImaSajt nalazi firmu bez imaSajt (1-indeksirano)",
+    `dobijeno ${JSON.stringify(firmeBezImaSajt([{ imaSajt: "ne" }, {}, { imaSajt: "da" }]))}`);
+  prijavi(firmeBezImaSajt([{ imaSajt: "ne" }, { imaSajt: "nepoznato" }]).length === 0,
+    "send: sve firme imaju imaSajt → prazno",
+    "lažno prijavljena firma bez imaSajt");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

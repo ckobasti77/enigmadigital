@@ -24,6 +24,8 @@ const VRSTE_PLATFORMI = ["instagram", "facebook", "tiktok", "website", "threads"
 const IMA_SAJT = ["da", "ne", "nepoznato"];
 const STATUSI_SAJTA = ["radi", "ne_radi", "parkiran", "preusmerava_na_drustvene", "nepoznato"];
 const FILTERI_SAJTA = ["ima", "nema", "svejedno"];
+// GL9 §4: podskup polja koje „obogati --polja" tok dopunjuje.
+const POLJA_OBOGATI = ["sajt", "osobe", "platforme", "koordinate"];
 
 /** Sakupljač grešaka. Putanja + `code`, isti oblik koji ruta vraća u 400. */
 class Greske {
@@ -269,6 +271,15 @@ export function validirajTelo(telo) {
       enumeracija(telo.upit.rezim, ["otkrivanje", "obogati"], "upit.rezim", g);
     }
     opcioniNeprazan(telo.upit, "izvorFajl", "upit", g);
+    // GL9 §4: podskup polja („obogati --polja"). `z.array(enum).min(1).optional()`.
+    if (telo.upit.polja !== undefined) {
+      if (!Array.isArray(telo.upit.polja)) {
+        g.dodaj("upit.polja", "invalid_type");
+      } else {
+        telo.upit.polja.forEach((el, i) => enumeracija(el, POLJA_OBOGATI, `upit.polja.${i}`, g));
+        if (telo.upit.polja.length < 1) g.dodaj("upit.polja", "too_small");
+      }
+    }
   }
 
   if (!jeObjekat(telo.izvor)) {

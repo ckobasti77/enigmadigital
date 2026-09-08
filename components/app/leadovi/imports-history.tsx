@@ -192,7 +192,7 @@ export function ImportsHistory({
               <TableHead>Datum uvoza</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Parsirano</TableHead>
-              <TableHead className="text-right">Preskočeno</TableHead>
+              <TableHead className="text-right">Preskočeno / Nerazrešeno</TableHead>
               <TableHead className="text-right">Radnje</TableHead>
             </TableRow>
           </TableHeader>
@@ -247,10 +247,16 @@ export function ImportsHistory({
                     {imp.rowsParsed}
                   </TableCell>
 
-                  {/* Broj preskočenih */}
+                  {/* Preskočeno (pri parsiranju) / Nerazrešeno (odluka) — GL9 §1.
+                      Nerazrešeni redovi se pri primeni preskaču; broj ostaje da
+                      podseti da 41 firma čeka „Primeni preostale". */}
                   <TableCell className="text-right font-mono text-xs">
                     <span className={cn(imp.rowsSkipped > 0 ? "text-warning" : "text-text-muted")}>
                       {imp.rowsSkipped}
+                    </span>
+                    <span className="text-text-muted"> / </span>
+                    <span className={cn(imp.nerazresenoCount > 0 ? "text-warning" : "text-text-muted")}>
+                      {imp.nerazresenoCount}
                     </span>
                   </TableCell>
 
@@ -272,6 +278,18 @@ export function ImportsHistory({
 
                       {imp.status === "primenjen" && (
                         <>
+                          {imp.nerazresenoCount > 0 && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onSelectImport(imp._id)}
+                              className="h-8 text-xs border-warning/40 text-warning hover:bg-warning/10"
+                            >
+                              <AlertTriangle className="size-3.5 mr-1" />
+                              Reši preostale ({imp.nerazresenoCount})
+                            </Button>
+                          )}
                           <Button
                             type="button"
                             variant="outline"

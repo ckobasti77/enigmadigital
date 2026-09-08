@@ -708,6 +708,8 @@ async function createImportCore(
     rezim?: "otkrivanje" | "obogati";
     /** Naziv fajla iz kojeg je „obogati" krenuo (GL8). */
     izvorFajl?: string;
+    /** Podskup polja koje „obogati --polja" tok dopunjuje (GL9, plan §4). */
+    polja?: Array<"sajt" | "osobe" | "platforme" | "koordinate">;
   },
 ): Promise<{ importId: Id<"leadImports">; rowsCount: number }> {
   const sheetName = args.sourceSheet ?? args.sheetsChosen[0] ?? "Sheet1";
@@ -731,6 +733,7 @@ async function createImportCore(
     ...(args.izvorFajl && args.izvorFajl.trim().length > 0
       ? { izvorFajl: args.izvorFajl.trim() }
       : {}),
+    ...(args.polja && args.polja.length > 0 ? { polja: args.polja } : {}),
   });
 
   for (let i = 0; i < args.rows.length; i++) {
@@ -893,6 +896,17 @@ export const createImportFromIngest = internalMutation({
     // Režim skilla (GL8, plan §5) i naziv izvornog fajla za režim „obogati".
     rezim: v.optional(v.union(v.literal("otkrivanje"), v.literal("obogati"))),
     izvorFajl: v.optional(v.string()),
+    // Podskup polja koje „obogati --polja" tok dopunjuje (GL9, plan §4).
+    polja: v.optional(
+      v.array(
+        v.union(
+          v.literal("sajt"),
+          v.literal("osobe"),
+          v.literal("platforme"),
+          v.literal("koordinate"),
+        ),
+      ),
+    ),
   },
   returns: v.object({
     importId: v.id("leadImports"),
@@ -905,6 +919,7 @@ export const createImportFromIngest = internalMutation({
       fileName: args.fileName,
       rezim: args.rezim,
       izvorFajl: args.izvorFajl,
+      polja: args.polja,
       // Nema listova ni zaglavlja — nema fajla. `headerRowIndex: -1` daje
       // `sourceRowIndex` 1, 2, 3… (jer je formula `headerRowIndex + 2 + i`),
       // što je red u poslatoj listi. Lažan „Sheet1" bi tvrdio da fajl postoji.
@@ -951,6 +966,16 @@ export const setRowDecision = mutation({
       throw new ConvexError({
         code: "not_found",
         message: "Red uvoza nije pronađen.",
+      });
+    }
+
+    // Red koji je već ušao u bazu (GL9 §1) ne menja odluku — inače bi „Primeni
+    // preostale" mogao dvaput da ga upiše. Nerazrešeni redovi na primenjenom
+    // uvozu NEMAJU `primenjenAt`, pa ostaju uređivi.
+    if (row.primenjenAt !== undefined) {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Ovaj red je već primenjen u bazu i ne može da promeni odluku.",
       });
     }
 
@@ -1042,17 +1067,29 @@ async function attachSkillData(
     companyId: Id<"leadCompanies">;
     p: Doc<"leadImportRows">["parsed"];
     now: number;
+    /**
+     * Podskup polja koje „obogati --polja" tok dopunjuje (GL9, plan §4).
+     * `undefined` = pun uvoz (dira sve). Kad je zadat, dira SAMO ta polja i
+     * nikad ne prepisuje ostatak — red koji je istražio samo sajt ne sme da
+     * obriše osobe/platforme koje firma već ima.
+     */
+    polja?: Array<"sajt" | "osobe" | "platforme" | "koordinate">;
   },
 ): Promise<void> {
-  const { workspaceId, companyId, p, now } = args;
+  const { workspaceId, companyId, p, now, polja } = args;
+
+  // Kad je uvoz ograničen na podskup polja, dira se samo to polje; inače sve.
+  const diraj = (polje: "sajt" | "osobe" | "platforme" | "koordinate") =>
+    polja === undefined || polja.includes(polje);
 
   // Ništa od ovoga ne postoji u uvozu iz tabele — izlaz pre ijednog čitanja.
   const imaSadrzaj =
-    (p.platforme?.length ?? 0) > 0 ||
-    (p.osobe?.length ?? 0) > 0 ||
-    p.imaSajt !== undefined ||
-    p.sajtStatus !== undefined ||
-    p.sajtHttps !== undefined;
+    (diraj("platforme") && (p.platforme?.length ?? 0) > 0) ||
+    (diraj("osobe") && (p.osobe?.length ?? 0) > 0) ||
+    (diraj("sajt") &&
+      (p.imaSajt !== undefined ||
+        p.sajtStatus !== undefined ||
+        p.sajtHttps !== undefined));
   if (!imaSadrzaj) return;
 
   const postojeciIdentiteti = await ctx.db
@@ -1076,7 +1113,7 @@ async function attachSkillData(
   //
   // Svaka nosi svoj `sourceUrl` (stranica na kojoj smo je videli), jer je
   // izvor po ZZPL/GDPR obavezan i nikad ne sme biti Google Places (plan §O3).
-  for (const platforma of p.platforme ?? []) {
+  for (const platforma of diraj("platforme") ? p.platforme ?? [] : []) {
     const vrednost = platforma.url.trim();
     if (!vrednost) continue;
 
@@ -1102,7 +1139,9 @@ async function attachSkillData(
   }
 
   // ── Osobe -> leadPeople + telefon sa procenom (plan §4.4, §6; GL8 §4) ──────
-  const osobe = [...(p.osobe ?? [])].sort((a, b) => a.rang - b.rang);
+  const osobe = diraj("osobe")
+    ? [...(p.osobe ?? [])].sort((a, b) => a.rang - b.rang)
+    : [];
   if (osobe.length > 0) {
     const postojeceOsobe = await ctx.db
       .query("leadPeople")
@@ -1124,25 +1163,84 @@ async function attachSkillData(
         .map((i) => String(i.personId)),
     );
 
-    // Upis telefona osobe: isti oblik za novu i za postojeću osobu. Vraća true
-    // kad je telefon zaista upisan (pa osoba od tada „ima telefon").
-    const upisiTelefonOsobe = async (
+    // Telefon osobe: ILI se procena upiše na broj koji VEĆ POSTOJI (GL9 §2 —
+    // 87 spojenih firmi ima broj iz prvog uvoza tabele, pa procena dosad nije
+    // imala gde da se upiše i „ima procenu" je bilo samo 5), ILI se, ako broja
+    // nema a osoba još nema nijedan, ubacuje nov identitet. Vraća true kad
+    // osoba od tada „ima telefon" (pa se drugi ne dodaje automatski).
+    const obradiTelefonOsobe = async (
       personId: Id<"leadPeople">,
       osoba: NonNullable<Doc<"leadImportRows">["parsed"]["osobe"]>[number],
+      personVecImaTelefon: boolean,
     ): Promise<boolean> => {
       if (!osoba.telefon) return false;
       const telefonNorm = normalizePhoneRs(osoba.telefon) ?? osoba.telefon;
-      const kljucTelefona = kljucIdentiteta("phone", telefonNorm);
-      if (zauzeti.has(kljucTelefona)) return false;
-      zauzeti.add(kljucTelefona);
 
       // `verovatnoca` i `nijeMoguceProceniti` se prenose kakvi jesu: broj ILI
       // izričito odustajanje. Nikad izmišljena nula, nikad „50 %" kao sredina
       // (§0 pravilo 4, plan §6). Vreme i izvor procene se upisuju samo kad
-      // procena zaista postoji — inače bi red bez procene nosio trenutak u
-      // kome je navodno procenjivana.
+      // procena zaista postoji.
       const imaProcenu =
         osoba.verovatnoca !== undefined || osoba.nijeMoguceProceniti === true;
+
+      // Da li taj broj već postoji na firmi (isti normalizovan oblik).
+      // `postojeciIdentiteti` je snimak baze s početka; broj iz prvog uvoza je
+      // upisan sa `valueNormalized` = sirov string, pa se poredi normalizovano
+      // sa obe strane.
+      const uporedjivo = (i: Doc<"leadIdentities">) => {
+        const sirova = i.valueNormalized ?? i.value;
+        return normalizePhoneRs(sirova) ?? sirova;
+      };
+      const postojeciTel = postojeciIdentiteti.find(
+        (i) => i.kind === "phone" && uporedjivo(i) === telefonNorm,
+      );
+
+      // ── Broj već postoji → upiši procenu na njega (GL9 §2). ──────────────
+      if (postojeciTel) {
+        if (!imaProcenu) return true; // nema procene za upis; broj već postoji
+        // Ljudska procena je konačna — skill je ne dira.
+        if (postojeciTel.verovatnocaIzvor === "covek") return true;
+        // Raniju procenu skilla prepisuje samo novija (verovatnocaAt).
+        if (
+          postojeciTel.verovatnocaIzvor === "skill" &&
+          now <= (postojeciTel.verovatnocaAt ?? 0)
+        ) {
+          return true;
+        }
+
+        await ctx.db.patch(postojeciTel._id, {
+          verovatnoca: osoba.verovatnoca,
+          verovatnocaObrazlozenje: osoba.obrazlozenje,
+          verovatnocaIzvor: "skill" as const,
+          verovatnocaAt: now,
+          nijeMoguceProceniti: osoba.nijeMoguceProceniti,
+          // Ako identitet nije bio vezan ni za koga, veži ga za nađenu osobu.
+          ...(postojeciTel.personId ? {} : { personId }),
+        });
+        await ctx.db.insert("leadFieldProvenance", {
+          workspaceId,
+          entityTable: "leadIdentities",
+          entityId: postojeciTel._id,
+          fieldName: "verovatnoca",
+          // Vrednost porekla je procena, ne broj — sirov telefon se ne ponavlja.
+          value:
+            osoba.verovatnoca !== undefined
+              ? String(Math.round(osoba.verovatnoca))
+              : "nije moguće proceniti",
+          source: osoba.telefonSourceUrl ?? "generate-leads",
+          confidence: "priblizno",
+          humanConfirmed: true,
+          observedAt: now,
+        });
+        return true;
+      }
+
+      // ── Broja nema → nov identitet, ali samo ako osoba još nema telefon. ──
+      // „telefon … ako ga nema" (§4): drugi broj se ne dodaje automatski.
+      if (personVecImaTelefon) return false;
+      const kljucTelefona = kljucIdentiteta("phone", telefonNorm);
+      if (zauzeti.has(kljucTelefona)) return false;
+      zauzeti.add(kljucTelefona);
 
       const phoneId = await ctx.db.insert("leadIdentities", {
         workspaceId,
@@ -1208,10 +1306,11 @@ async function attachSkillData(
             observedAt: now,
           });
         }
-        if (!osobeSaTelefonom.has(String(postojeciId))) {
-          const upisan = await upisiTelefonOsobe(postojeciId, osoba);
-          if (upisan) osobeSaTelefonom.add(String(postojeciId));
-        }
+        // Procena telefona se upisuje i kad osoba VEĆ ima broj (GL9 §2: procena
+        // ide na postojeći identitet), pa se `obradiTelefonOsobe` zove uvek.
+        const vecImaTelefon = osobeSaTelefonom.has(String(postojeciId));
+        const upisan = await obradiTelefonOsobe(postojeciId, osoba, vecImaTelefon);
+        if (upisan) osobeSaTelefonom.add(String(postojeciId));
         continue;
       }
 
@@ -1239,7 +1338,7 @@ async function attachSkillData(
         observedAt: now,
       });
 
-      const upisan = await upisiTelefonOsobe(personId, osoba);
+      const upisan = await obradiTelefonOsobe(personId, osoba, false);
       if (upisan) osobeSaTelefonom.add(String(personId));
     }
   }
@@ -1250,11 +1349,13 @@ async function attachSkillData(
   // ništa: to znači da neki izvor nije odgovorio, a signal bi tvrdio da firma
   // sajt nema i podigao joj Fit ocenu na osnovu NAŠE greške u proveri.
   const signaliSajta: LeadSignalKind[] = [];
-  if (p.imaSajt === "ne") signaliSajta.push("nema_sajt");
-  if (p.sajtStatus === "ne_radi" || p.sajtStatus === "parkiran") {
-    signaliSajta.push("sajt_ne_radi");
+  if (diraj("sajt")) {
+    if (p.imaSajt === "ne") signaliSajta.push("nema_sajt");
+    if (p.sajtStatus === "ne_radi" || p.sajtStatus === "parkiran") {
+      signaliSajta.push("sajt_ne_radi");
+    }
+    if (p.sajtHttps === false) signaliSajta.push("sajt_bez_https");
   }
-  if (p.sajtHttps === false) signaliSajta.push("sajt_bez_https");
 
   // Signal koji je već stigao kroz `derivedSignals` u ovom istom redu se ne
   // udvaja. Stariji signal iste vrste od ranijeg uvoza se NE dira — bodovanje
@@ -1292,41 +1393,40 @@ async function attachSkillData(
   }
 }
 
-export const applyImport = mutation({
-  args: {
-    workspaceId: v.id("workspaces"),
-    importId: v.id("leadImports"),
+/**
+ * Jezgro primene uvoza: prolazi kroz redove i upisuje ih u glavne tabele.
+ * Deljeno između prve primene (`applyImport`) i naknadne „Primeni preostale"
+ * (`applyRemainingRows`), jer se u režimu „obogati" nerazrešeni redovi rešavaju
+ * tek POSLE prve primene (GL9 §1) — a oba puta moraju da rade isti upis.
+ *
+ * `samoNeprimenjeni` preskače redove koji već nose `primenjenAt` (primenjene u
+ * ranijem krugu); inače je ponašanje isto. Svaki stvarno primenjen red dobija
+ * `primenjenAt`, pa i „Primeni preostale" i `revertImport` znaju koji su redovi
+ * ušli i u kom krugu.
+ */
+async function applyRows(
+  ctx: MutationCtx,
+  params: {
+    workspaceId: Id<"workspaces">;
+    importDoc: Doc<"leadImports">;
+    ownerUserId: Id<"users">;
+    actorUserId: Id<"users">;
+    now: number;
+    samoNeprimenjeni: boolean;
   },
-  handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
-    const importDoc = await ctx.db.get(args.importId);
-    if (!importDoc || importDoc.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "not_found",
-        message: "Uvoz nije pronađen.",
-      });
-    }
-
-    if (importDoc.status === "primenjen") {
-      throw new ConvexError({
-        code: "invalid",
-        message: "Ovaj uvoz je već primenjen u bazi.",
-      });
-    }
-
-    if (importDoc.status === "ponisten") {
-      throw new ConvexError({
-        code: "invalid",
-        message: "Poništen uvoz se ne može primeniti.",
-      });
-    }
+): Promise<{
+  appliedCount: number;
+  newCompaniesCount: number;
+  mergedCount: number;
+  skippedCount: number;
+  unresolvedSkippedCount: number;
+  assignedCount: number;
+}> {
+    const { importDoc, ownerUserId, now, samoNeprimenjeni } = params;
+    // Aliasi: telo petlje je izvučeno iz `applyImport` bez ijedne izmene, pa
+    // `args.workspaceId` i `membership.userId` moraju i dalje da postoje.
+    const args = { workspaceId: params.workspaceId, importId: importDoc._id };
+    const membership = { userId: params.actorUserId };
 
     const rows = await ctx.db
       .query("leadImportRows")
@@ -1342,10 +1442,10 @@ export const applyImport = mutation({
     let unresolvedSkippedCount = 0;
     let assignedCount = 0;
 
-    const now = Date.now();
-    const ownerUserId = importDoc.uploadedBy ?? membership.userId;
-
     for (const r of rows) {
+      // Redovi primenjeni u ranijem krugu se preskaču („Primeni preostale", GL9 §1).
+      if (samoNeprimenjeni && r.primenjenAt !== undefined) continue;
+
       // 0. Preskoči meko obrisane redove (§1, §3, §6)
       if (r.obrisan === true) {
         skippedCount++;
@@ -1425,7 +1525,7 @@ export const applyImport = mutation({
           sajtNapomena: p.sajtNapomena,
         });
 
-        await ctx.db.patch(r._id, { createdCompanyId: companyId });
+        await ctx.db.patch(r._id, { createdCompanyId: companyId, primenjenAt: now });
         newCompaniesCount++;
         appliedCount++;
 
@@ -1715,6 +1815,7 @@ export const applyImport = mutation({
           companyId,
           p,
           now,
+          polja: importDoc.polja,
         });
 
         if (p.ocena && p.ocena.vrednost !== undefined && p.ocena.skala !== undefined) {
@@ -1944,17 +2045,17 @@ export const applyImport = mutation({
           companyId: targetCompanyId,
           p,
           now,
+          polja: importDoc.polja,
         });
+
+        // Red je stvarno primenjen — beleži se krug (GL9 §1), da „Primeni
+        // preostale" ne dira ovaj red drugi put i da `revertImport` zna kad je ušao.
+        await ctx.db.patch(r._id, { primenjenAt: now });
 
         mergedCount++;
         appliedCount++;
       }
     }
-
-    await ctx.db.patch(args.importId, {
-      status: "primenjen",
-      appliedAt: now,
-    });
 
     return {
       appliedCount,
@@ -1964,6 +2065,110 @@ export const applyImport = mutation({
       unresolvedSkippedCount,
       assignedCount,
     };
+}
+
+export const applyImport = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    importId: v.id("leadImports"),
+  },
+  handler: async (ctx, args) => {
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+
+    const importDoc = await ctx.db.get(args.importId);
+    if (!importDoc || importDoc.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Uvoz nije pronađen.",
+      });
+    }
+
+    if (importDoc.status === "primenjen") {
+      throw new ConvexError({
+        code: "invalid",
+        message:
+          "Ovaj uvoz je već primenjen u bazi. Redove koji su ostali nerazrešeni primeni preko „Primeni preostale“.",
+      });
+    }
+
+    if (importDoc.status === "ponisten") {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Poništen uvoz se ne može primeniti.",
+      });
+    }
+
+    const now = Date.now();
+    const rezultat = await applyRows(ctx, {
+      workspaceId: args.workspaceId,
+      importDoc,
+      ownerUserId: importDoc.uploadedBy ?? membership.userId,
+      actorUserId: membership.userId,
+      now,
+      samoNeprimenjeni: false,
+    });
+
+    await ctx.db.patch(args.importId, {
+      status: "primenjen",
+      appliedAt: now,
+    });
+
+    return rezultat;
+  },
+});
+
+/**
+ * „Primeni preostale (N)" (GL9 §1): primenjuje SAMO rešene redove bez
+ * `primenjenAt` na uvozu koji je već primenjen. Tako 41 red koji je pri prvoj
+ * primeni bio nerazrešen može da se reši i uđe u bazu, umesto da ostane zauvek
+ * van nje. Status ostaje „primenjen"; `appliedAt` se NE pomera — prvi krug je
+ * referenca za toleranciju u `revertImport`, a svaki red nosi svoj `primenjenAt`.
+ */
+export const applyRemainingRows = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    importId: v.id("leadImports"),
+  },
+  handler: async (ctx, args) => {
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+
+    const importDoc = await ctx.db.get(args.importId);
+    if (!importDoc || importDoc.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Uvoz nije pronađen.",
+      });
+    }
+
+    // Pre prve primene se koristi „Primeni uvoz"; „preostali" postoje tek posle.
+    if (importDoc.status !== "primenjen") {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Preostali redovi se primenjuju tek posle prve primene uvoza.",
+      });
+    }
+
+    const now = Date.now();
+    return await applyRows(ctx, {
+      workspaceId: args.workspaceId,
+      importDoc,
+      ownerUserId: importDoc.uploadedBy ?? membership.userId,
+      actorUserId: membership.userId,
+      now,
+      samoNeprimenjeni: true,
+    });
   },
 });
 
@@ -2022,9 +2227,15 @@ export const revertImport = mutation({
       if (r.createdCompanyId) {
         const company = await ctx.db.get(r.createdCompanyId);
         if (company && company.workspaceId === args.workspaceId) {
-          // Ako je firma izmenjena posle uvoza (uz toleranciju od 10 sekundi pri upisu),
+          // Referenca je trenutak kad je BAŠ OVAJ red primenjen (GL9 §1): red
+          // primenjen u drugom krugu („Primeni preostale") ima `primenjenAt`
+          // mnogo posle `appliedAt`, pa bi ga fiksna referenca lažno proglasila
+          // „izmenjenim posle uvoza" i preskočila. Uvoz mora da poništi sve što
+          // je napravio, bez obzira u kom je krugu red ušao.
+          const refTime = r.primenjenAt ?? appliedTime;
+          // Ako je firma izmenjena posle primene (uz toleranciju od 10 sekundi pri upisu),
           // ne brišemo je već je preskačemo radi bezbednosti podataka
-          if (company.updatedAt > appliedTime + 10_000) {
+          if (company.updatedAt > refTime + 10_000) {
             skippedModifiedCount++;
           } else {
             // 1. Signali firme
@@ -2248,11 +2459,27 @@ export const listImports = query({
       });
     }
 
-    return await ctx.db
+    const imports = await ctx.db
       .query("leadImports")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
       .order("desc")
       .collect();
+
+    // Broj nerazrešenih redova po uvozu (GL9 §1): istorija ga prikazuje u koloni
+    // „Preskočeno / Nerazrešeno" i, za primenjen uvoz sa nerazrešenima, nudi
+    // dugme „Reši preostale". Nerazrešen red nikad nema `primenjenAt`, pa je broj
+    // po odluci dovoljan (indeks `by_import_decision`).
+    return await Promise.all(
+      imports.map(async (imp) => {
+        const nerazreseni = await ctx.db
+          .query("leadImportRows")
+          .withIndex("by_import_decision", (q) =>
+            q.eq("importId", imp._id).eq("decision", "nerazreseno"),
+          )
+          .collect();
+        return { ...imp, nerazresenoCount: nerazreseni.length };
+      }),
+    );
   },
 });
 

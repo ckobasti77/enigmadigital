@@ -3705,6 +3705,21 @@ export default defineSchema({
     // postoji samo za režim „obogati"; samo za prikaz porekla u istoriji.
     izvorFajl: v.optional(v.string()),
 
+    // Podskup polja koje „obogati --polja" tok dopunjuje (GL9, plan §4/§5).
+    // OPCIONO NAMERNO: postoji samo kad je skill poslao `upit.polja`; odsustvo =
+    // pun uvoz (dopunjuje sva polja). `attachSkillData` po njemu dira samo ta
+    // polja i nikad ne prepisuje ostatak praznim.
+    polja: v.optional(
+      v.array(
+        v.union(
+          v.literal("sajt"),
+          v.literal("osobe"),
+          v.literal("platforme"),
+          v.literal("koordinate"),
+        ),
+      ),
+    ),
+
     appliedAt: v.optional(v.number()),
     revertedAt: v.optional(v.number()),
     error: v.optional(v.string()),
@@ -3911,6 +3926,13 @@ export default defineSchema({
 
     // ID kreirane firme ako je uvoz primenjen (potrebno za poništavanje / revert)
     createdCompanyId: v.optional(v.id("leadCompanies")),
+
+    // Vreme kada je OVAJ red stvarno primenjen u bazu (GL9, plan §1). OPCIONO
+    // NAMERNO: odsustvo = red još nije primenjen (bio je nerazrešen u trenutku
+    // primene, ili uvoz još nije primenjen). „Primeni preostale" primenjuje samo
+    // rešene redove bez ovog polja; `revertImport` poništava sve što je uvoz
+    // napravio bez obzira u koliko je krugova primenjen.
+    primenjenAt: v.optional(v.number()),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_import", ["workspaceId", "importId"])

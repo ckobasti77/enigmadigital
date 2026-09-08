@@ -40,7 +40,11 @@ export const PRAZNI_DOKAZI = {
   brojUBiouSalonaJedinaOsoba: false,
   /** B: `mobilni` (+15), `fiksni` (−20), `nepoznato` (0). */
   vrstaBroja: "nepoznato",
-  /** B −25: isti broj se pojavljuje kao broj salona (Places/011info/sajt). */
+  /**
+   * B −25: isti broj se pojavljuje kao broj salona (Places/011info/sajt).
+   * NE oduzima za `pravniOblik: "pr"` — kod preduzetnika je broj firme ujedno
+   * broj vlasnika, pa isti broj nije kontra-dokaz (GL9 §3, plan §6).
+   */
   istiBrojKaoSalon: false,
   /** C: `pr` (+10), `doo_vise_osnivaca` (−10), ostalo 0. */
   pravniOblik: "nepoznato",
@@ -81,7 +85,9 @@ const GRUPA_A = [
 /** Kontra-dokazi, od najjačeg ka najslabijem — druga rečenica citira prvi koji važi. */
 const KONTRA = [
   {
-    vazi: (d) => d.istiBrojKaoSalon === true,
+    // Za preduzetnika (PR) isti broj kao salon NIJE kontra-dokaz: firma i vlasnik
+    // su ista pravna ličnost, pa je broj firme ujedno broj vlasnika (GL9 §3).
+    vazi: (d) => d.istiBrojKaoSalon === true && d.pravniOblik !== "pr",
     poeni: -25,
     recenica: "Isti broj je prijavljen i kao broj firme, pa je verovatnije linija firme nego lični.",
   },
@@ -157,9 +163,21 @@ export function oceniTelefonOsobe(osoba) {
   const verovatnoca = Math.max(0, Math.min(MAX_VEROVATNOCA, skor));
   const kontra = KONTRA.find((k) => k.vazi(dokazi));
 
+  // Druga rečenica: najjači kontra-dokaz koji važi; za PR sa istim brojem kao
+  // salon to nije kontra-dokaz, nego objašnjenje zašto broj firme JESTE lični
+  // (GL9 §3); inače „Nema kontra-dokaza.".
+  let drugaRecenica;
+  if (kontra) {
+    drugaRecenica = kontra.recenica;
+  } else if (dokazi.istiBrojKaoSalon === true && dokazi.pravniOblik === "pr") {
+    drugaRecenica = "Firma je preduzetnička radnja, pa je broj firme ujedno broj vlasnika.";
+  } else {
+    drugaRecenica = "Nema kontra-dokaza.";
+  }
+
   return {
     verovatnoca,
-    obrazlozenje: `${aDokazi[0].recenica} ${kontra ? kontra.recenica : "Nema kontra-dokaza."}`,
+    obrazlozenje: `${aDokazi[0].recenica} ${drugaRecenica}`,
   };
 }
 

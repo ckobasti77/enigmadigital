@@ -196,6 +196,7 @@ export function ImportRowDialog({
   onDeleteRow,
   readOnly = false,
   isApplied = false,
+  canEditDecision = false,
 }: {
   row: StagingRowDoc | null;
   open: boolean;
@@ -205,6 +206,11 @@ export function ImportRowDialog({
   onDeleteRow?: () => void;
   readOnly?: boolean;
   isApplied?: boolean;
+  /**
+   * GL9 §1: da li ovaj red sme da promeni odluku. Pre primene svi mogu; posle
+   * primene samo redovi koji još nisu ušli u bazu (nerazrešeni pri prvoj primeni).
+   */
+  canEditDecision?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<"podaci" | "sirovo" | "trag">(
     "podaci",
@@ -879,11 +885,31 @@ export function ImportRowDialog({
                     {DECISION_LABELS[decision]?.label || decision}
                   </span>
                   <span className="text-xs text-text-muted">
-                    {isApplied && decision === "nova_firma"
+                    {isApplied && decision === "nova_firma" && row.primenjenAt !== undefined
                       ? "Napravljen je novi unos firme."
                       : DECISION_LABELS[decision]?.description}
                   </span>
                 </div>
+
+                {/* GL9 §1: promena odluke — pre primene za sve, a na primenjenom
+                    uvozu samo za redove koji još nisu ušli u bazu. */}
+                {canEditDecision && onDecisionChange && (
+                  <div className="mt-2.5 flex items-center gap-2 pt-2.5 border-t border-line-soft">
+                    <label className="text-micro text-text-muted">Promeni odluku:</label>
+                    <select
+                      value={decision}
+                      onChange={(e) =>
+                        onDecisionChange(e.target.value as StagingRowDoc["decision"])
+                      }
+                      className="rounded-md border border-line-soft bg-surface-raised px-2 py-1 text-xs font-medium text-foreground outline-none cursor-pointer"
+                    >
+                      <option value="nova_firma">Nova firma</option>
+                      <option value="spoji">Dopuna postojeće firme</option>
+                      <option value="preskoci">Preskoči</option>
+                      <option value="nerazreseno">Nerazrešeno</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Izvori podataka */}

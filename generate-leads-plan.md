@@ -326,7 +326,12 @@ proceniti"** (`nijeMoguceProceniti: true`, bez broja).
 - +15 mobilni prefiks (06x) — lični brojevi su skoro uvek mobilni
 - −20 fiksni (011, 021, 0xx bez 6) — verovatno linija lokala
 - −25 isti broj se pojavljuje kao broj salona na Placesu/011info/sajtu
-  (to je linija salona, ne osobe)
+  (to je linija salona, ne osobe) — **oduzima SAMO kad `pravniOblik !== "pr"`**;
+  za preduzetnika (PR) firma i vlasnik su ista pravna ličnost, pa je broj firme
+  ujedno broj vlasnika i ne oduzima ništa. Obrazloženje tada glasi „Firma je
+  preduzetnička radnja, pa je broj firme ujedno broj vlasnika." Tipičan PR (APR
+  zapis + mobilni + PR + dva izvora) tako daje 45+15+10+5 = 75; DOO sa istim
+  dokazima ostaje 50 (GL9 §3).
 
 **C — Kontekst**
 - +10 pravni oblik PR (preduzetnik) — vlasnik i firma su ista osoba

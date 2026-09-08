@@ -150,6 +150,14 @@ export const generateLeadsIngestSchema = z.object({
     // Naziv fajla iz kojeg je „obogati" tok krenuo (GL8) — samo za prikaz
     // porekla i za `fileName` uvoza u istoriji.
     izvorFajl: neprazan.optional(),
+    // Podskup polja koje „obogati --polja" tok dopunjuje (GL9, plan §4). Odsustvo
+    // = pun uvoz (sva polja). Kad je prisutan, `attachSkillData` dira samo ta
+    // polja i ne prepisuje ostatak praznim — tako 100 firmi dobija samo `imaSajt`
+    // za par minuta, umesto punog ponovnog istraživanja.
+    polja: z
+      .array(z.enum(["sajt", "osobe", "platforme", "koordinate"]))
+      .min(1)
+      .optional(),
   }),
   izvor: z.object({
     skill: z.literal("generate-leads"),

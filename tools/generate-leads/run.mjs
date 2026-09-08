@@ -41,7 +41,7 @@ import { validirajTelo } from "./lib/schema.mjs";
 import { objasniStatus, posalji } from "./lib/ingest.mjs";
 import { pokreniSelfTest } from "./lib/self-test.mjs";
 import { ucitajFajl } from "./lib/tabela.mjs";
-import { promenjeneFirme } from "./lib/obogati.mjs";
+import { promenjeneFirme, firmeBezImaSajt } from "./lib/obogati.mjs";
 import { basename } from "node:path";
 
 /** Verzija skilla — ide u `izvor.verzijaSkilla` i u User-Agent. */
@@ -319,6 +319,25 @@ async function komandaUcitaj(args) {
 
   const list = typeof args.list === "string" ? args.list.trim() : undefined;
 
+  // GL9 §4: `--polja sajt` (ili „sajt,osobe,koordinate") ograničava tok na
+  // podskup — Claude istražuje SAMO ta polja, `send` šalje samo njih, a
+  // aplikacija dira samo njih. Cilj: 100 firmi dobija `imaSajt` za par minuta.
+  const DOZVOLJENA_POLJA = ["sajt", "osobe", "platforme", "koordinate"];
+  let polja;
+  if (typeof args.polja === "string" && args.polja.trim()) {
+    const trazena = args.polja
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const nepoznata = trazena.filter((p) => !DOZVOLJENA_POLJA.includes(p));
+    if (nepoznata.length > 0) {
+      throw new Error(
+        `--polja prima samo: ${DOZVOLJENA_POLJA.join(", ")} (nepoznato: ${nepoznata.join(", ")}).`,
+      );
+    }
+    polja = [...new Set(trazena)];
+  }
+
   const { firme: sveFirme, izvestaj } = await ucitajFajl(putanja, { list });
   if (sveFirme.length === 0) {
     throw new Error(
@@ -388,6 +407,7 @@ async function komandaUcitaj(args) {
     places: { pozivi: 0, kandidata: firme.length, vanGrada: 0, zatvoreni: 0, iscrpljeno: false },
     nedostupniIzvori: [],
     koraci: { ucitaj: pokrenutAt },
+    ...(polja && polja.length > 0 ? { polja } : {}),
   };
 
   izlaz.upisiJson(runId, "run.json", stanje);
@@ -398,6 +418,9 @@ async function komandaUcitaj(args) {
   ispisi(`Run: ${runId}  (režim: obogati)`);
   ispisi(`Fajl: ${naziv}${list ? ` · list „${list}"` : ""}`);
   ispisi(`Grad (najčešći u tabeli): ${grad}  ·  niša: ${nisaSlug}`);
+  if (polja && polja.length > 0) {
+    ispisi(`Polja (ograničeno na): ${polja.join(", ")} — istražuje se i šalje SAMO to.`);
+  }
   ispisi("");
   ispisi(`Firmi u fajlu: ${izvestaj.redova}${serija ? ` · ova serija: ${firme.length} (redovi ${od}–${doK})` : ""}.`);
   ispisi(`  sa osobom iz tabele: ${izvestaj.saOsobom}`);
@@ -409,11 +432,23 @@ async function komandaUcitaj(args) {
     );
   }
   ispisi("");
-  ispisi(
-    `Sada za svaku firmu uradi ISTO što i u discover toku (sajt sa tri izvora, ` +
-      `CompanyWall/APR, 011info, profili) i dopuni out/${runId}/firme.json. ` +
-      `Vrednosti iz tabele PROVERI i upiši dokaze; ništa iz tabele ne briši.`,
-  );
+  if (polja && polja.length > 0) {
+    ispisi(
+      `Istraži SAMO polja: ${polja.join(", ")} — za svaku firmu, i dopuni ` +
+        `out/${runId}/firme.json. Ostala polja ne diraj. ` +
+        (polja.includes("sajt")
+          ? `Za „sajt": provera postojanja je OBAVEZNA (imaSajt = da/ne/nepoznato ` +
+            `sa tri izvora: CompanyWall polje sajt, 011info, web pretraga „naziv + grad").`
+          : ``),
+    );
+  } else {
+    ispisi(
+      `Sada za svaku firmu uradi ISTO što i u discover toku (sajt sa tri izvora, ` +
+        `CompanyWall/APR, 011info, profili) i dopuni out/${runId}/firme.json. ` +
+        `imaSajt (da/ne/nepoznato) je OBAVEZAN po firmi. ` +
+        `Vrednosti iz tabele PROVERI i upiši dokaze; ništa iz tabele ne briši.`,
+    );
+  }
   ispisi(
     `Zatim: check-site → geocode → score → send --run ${runId} ` +
       `(send šalje samo redove sa promenom; --sve šalje sve).`,
@@ -575,6 +610,10 @@ async function komandaGeocode(args) {
 
 function komandaScore(args) {
   const runId = trazenArgument(args, "run");
+  // `--ponovo` (GL9 §3): preračunaj verovatnoće nad dokazima koji su VEĆ u
+  // firme.json, bez ponovnog čitanja izvora — npr. kad se promeni pravilo §6 (PR)
+  // i treba osvežiti procene za sto već istraženih firmi.
+  const ponovo = args.ponovo === true || args.ponovo === "true";
   const stanje = izlaz.citajJson(runId, "run.json");
   const firme = izlaz.citajJson(runId, "firme.json");
 
@@ -610,6 +649,13 @@ function komandaScore(args) {
   ispisi(`  „nije moguće proceniti": ${zbir.bezProcene}`);
   ispisi("");
   ispisi("Procena je pravilo iz plana §6 nad dokazima koje si upisao, ne procena modela.");
+  if (ponovo) {
+    ispisi("");
+    ispisi(
+      "Preračunato nad postojećim dokazima — nijedan izvor nije ponovo čitan. " +
+        `Da procene odu na već upisane brojeve, pošalji: send --run ${runId} --sve.`,
+    );
+  }
   return 0;
 }
 
@@ -667,6 +713,19 @@ const POLJA_OSOBE = [
   "rang",
 ];
 
+// GL9 §4: grupe polja za „obogati --polja". Kad je run ograničen, šalju se SAMO
+// ove grupe + ključevi po kojima aplikacija spaja red sa firmom.
+const POLJA_GRUPE_SEND = {
+  sajt: ["sajt", "imaSajt", "imaSajtNapomena", "sajtStatus", "sajtHttps", "sajtProverenAt", "sajtNapomena"],
+  osobe: ["osobe"],
+  platforme: ["platforme"],
+  koordinate: ["koordinate"],
+};
+// Ključevi po kojima aplikacija spaja red sa postojećom firmom — uvek se šalju,
+// jer bez njih dopuna ne zna na koju firmu ide. Telefon se namerno NE šalje u
+// „--polja" režimu koji ne dira osobe: dodavanje broja bi izašlo iz obima.
+const KLJUC_POLJA = ["nazivFirme", "grad", "opstina", "ulica", "postojecaFirmaId", "companyWallUrl", "pib"];
+
 /** Prazan string bi pao na `neprazan` u šemi; odsustvo polja je ispravan zapis
  *  za „ne znamo" (§0 pravilo 1). */
 function ociscen(vrednost) {
@@ -686,7 +745,33 @@ function uzmi(izvor, kljucevi) {
   return cilj;
 }
 
-function napraviRed(firma, nisaSlug) {
+function napraviRed(firma, nisaSlug, polja) {
+  // GL9 §4: „--polja" red nosi SAMO ključeve za spajanje + tražene grupe polja.
+  // Ostatak se ne šalje, pa aplikacija ne prepisuje ostatak praznim.
+  if (Array.isArray(polja) && polja.length > 0) {
+    const red = uzmi(firma, KLJUC_POLJA);
+    red.izvori = Array.isArray(firma.izvori) ? firma.izvori.map(ociscen).filter(Boolean) : [];
+    red.derivedSignals = [];
+    for (const grupa of polja) {
+      if (grupa === "osobe") {
+        if (Array.isArray(firma.osobe)) {
+          const osobe = firma.osobe.map((o) => uzmi(o, POLJA_OSOBE));
+          if (osobe.length > 0) red.osobe = osobe;
+        }
+      } else if (grupa === "platforme") {
+        if (Array.isArray(firma.platforme)) {
+          const platforme = firma.platforme
+            .map((p) => uzmi(p, ["vrsta", "url", "sourceUrl"]))
+            .filter((p) => p.vrsta && p.url && p.sourceUrl);
+          if (platforme.length > 0) red.platforme = platforme;
+        }
+      } else {
+        Object.assign(red, uzmi(firma, POLJA_GRUPE_SEND[grupa] ?? []));
+      }
+    }
+    return red;
+  }
+
   const red = uzmi(firma, POLJA_REDA);
 
   red.nisa = red.nisa ?? nisaSlug;
@@ -744,11 +829,17 @@ function rezimeKontakata(redovi) {
 async function komandaSend(args) {
   const runId = trazenArgument(args, "run");
   const suvo = args["dry-run"] === true || args["dry-run"] === "true";
+  const dozvoliBezSajta =
+    args["dozvoli-bez-sajta"] === true || args["dozvoli-bez-sajta"] === "true";
 
   const stanje = izlaz.citajJson(runId, "run.json");
   const firme = izlaz.citajJson(runId, "firme.json");
 
   if (!Array.isArray(firme)) throw new Error(`out/${runId}/firme.json nije lista.`);
+
+  // GL9 §4: podskup polja („obogati --polja") — utiče na razliku, na to šta se
+  // šalje i na telo (upit.polja). `undefined` = pun uvoz.
+  const polja = Array.isArray(stanje.polja) && stanje.polja.length > 0 ? stanje.polja : undefined;
 
   // Star ili ručno pravljen `run.json` ne sme da obori komandu na `undefined`.
   stanje.places = stanje.places ?? {};
@@ -768,9 +859,25 @@ async function komandaSend(args) {
     } catch {
       ulaz = [];
     }
-    const razlika = promenjeneFirme(Array.isArray(ulaz) ? ulaz : [], firme);
+    const razlika = promenjeneFirme(Array.isArray(ulaz) ? ulaz : [], firme, polja);
     firmeZaSlanje = razlika.promenjeni;
     bezPromene = razlika.bezPromene;
+  }
+
+  // GL9 §4: „Nema sajt" je glavni prodajni signal Enigme — `send` odbija slanje
+  // ako ijednoj firmi fali `imaSajt`. Zahtev važi za pun uvoz i za „--polja sajt";
+  // kad je run ograničen na polja bez sajta, `imaSajt` se i ne istražuje pa se ne
+  // traži. `--dozvoli-bez-sajta` je svesni izlaz iz pravila.
+  const traziImaSajt = polja === undefined || polja.includes("sajt");
+  if (traziImaSajt && !dozvoliBezSajta) {
+    const bez = firmeBezImaSajt(firmeZaSlanje);
+    if (bez.length > 0) {
+      ispisiGresku(
+        `imaSajt fali kod ${bez.length} firmi — vrati se na korak sajta (§3.4) ili pošalji sa --dozvoli-bez-sajta.`,
+      );
+      ispisiGresku("„Nema sajt“ je glavni prodajni signal i ne sme da ostane neproveren.");
+      return 1;
+    }
   }
 
   // `rang` upisuje `score`. Bez njega bi validacija pala na putanji koja ne
@@ -791,7 +898,7 @@ async function komandaSend(args) {
     return 0;
   }
 
-  const redovi = firmeZaSlanje.map((firma) => napraviRed(firma, stanje.nisa.slug));
+  const redovi = firmeZaSlanje.map((firma) => napraviRed(firma, stanje.nisa.slug, polja));
 
   // 0 firmi nije greška i nema šta da se šalje: prazan uvoz ne sme da napravi
   // red u istoriji (GL1, zod `redovi.min(1)`).
@@ -848,6 +955,8 @@ async function komandaSend(args) {
       // i „sukob" u pregledu uvoza i pravi naziv „obogati · <fajl>".
       ...(stanje.rezim ? { rezim: stanje.rezim } : {}),
       ...(stanje.izvorFajl ? { izvorFajl: stanje.izvorFajl } : {}),
+      // Podskup polja (GL9 §4): aplikacija po ovome dira samo ta polja.
+      ...(polja ? { polja } : {}),
     },
     izvor: {
       skill: "generate-leads",
@@ -974,8 +1083,8 @@ const POMOC = `/generate-leads — deterministički deo (v${VERZIJA})
   node run.mjs ucitaj   --izvoz "izvoz.csv"  --nisa frizeri
   node run.mjs check-site --run <run-id>
   node run.mjs geocode   --run <run-id>
-  node run.mjs score     --run <run-id>
-  node run.mjs send      --run <run-id> [--dry-run] [--sve]
+  node run.mjs score     --run <run-id> [--ponovo]
+  node run.mjs send      --run <run-id> [--dry-run] [--sve] [--dozvoli-bez-sajta]
   node run.mjs self-test
 
 Opcije za ucitaj (režim „obogati"):
@@ -985,6 +1094,12 @@ Opcije za ucitaj (režim „obogati"):
   --list "Svi lidovi (100)"    tačan list u XLSX-u (podrazumevano prvi)
   --grad "Beograd"             preglasi grad (podrazumevano najčešći iz tabele)
   --od 1 --do 25               rad u serijama; svaka serija je svoj run-id
+  --polja sajt[,osobe,…]       istraži i šalji SAMO ta polja (sajt|osobe|
+                               platforme|koordinate) — brzi prolaz za imaSajt
+
+Opcije za score i send:
+  --ponovo                     score preračuna procene nad postojećim dokazima
+  --dozvoli-bez-sajta          send šalje i kad nekoj firmi fali imaSajt
 
 Opcije za discover:
   --grad "Zemun|Beograd"   prvi je kanonski naziv, ostali se prihvataju u adresi

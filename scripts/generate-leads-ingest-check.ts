@@ -224,6 +224,26 @@ const SLUCAJEVI: Slucaj[] = [
     ocekujem: "pada",
     ocekivanoPolje: "upit.rezim",
   },
+  {
+    // GL9 §4: „obogati --polja" — podskup polja koje aplikacija dopunjuje.
+    naziv: "8. obogati sa upit.polja (podskup, zod propusta)",
+    telo: {
+      ...OKVIR,
+      upit: { ...OKVIR.upit, rezim: "obogati", polja: ["sajt", "osobe"] },
+      redovi: [PUN_RED],
+    },
+    ocekujem: "prolazi",
+  },
+  {
+    naziv: "9. Nepoznato polje u upit.polja se odbija",
+    telo: {
+      ...OKVIR,
+      upit: { ...OKVIR.upit, rezim: "obogati", polja: ["sajt", "nesto"] },
+      redovi: [PUN_RED],
+    },
+    ocekujem: "pada",
+    ocekivanoPolje: "upit.polja",
+  },
 ];
 
 function main(): void {

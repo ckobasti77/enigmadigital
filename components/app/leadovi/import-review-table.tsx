@@ -265,6 +265,7 @@ export function ImportReviewTable({
 }) {
   const [selectedRow, setSelectedRow] = useState<StagingRowDoc | null>(null);
   const [samoSukob, setSamoSukob] = useState(false);
+  const [samoNerazreseno, setSamoNerazreseno] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [applyDialogOpen, setApplyDialogOpen] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
@@ -295,6 +296,7 @@ export function ImportReviewTable({
   const revertImportMutation = useMutation(api.leadImportStore.revertImport);
   const setImportHiddenColumnsMutation = useMutation(api.leadImportStore.setImportHiddenColumns);
   const applyImportMutation = useMutation(api.leadImportStore.applyImport);
+  const applyRemainingRowsMutation = useMutation(api.leadImportStore.applyRemainingRows);
 
   const isReadOnly = importDoc?.status !== "u_pregledu";
   const isPrimenjen = importDoc?.status === "primenjen";
@@ -481,6 +483,31 @@ export function ImportReviewTable({
     }
   };
 
+  // GL9 §1: „Primeni preostale" — primenjuje rešene redove koji su pri prvoj
+  // primeni bili nerazrešeni (nemaju `primenjenAt`). Uvoz ostaje „primenjen".
+  const handleApplyRemaining = async () => {
+    setIsApplying(true);
+    setApplyError(null);
+    try {
+      const res = await applyRemainingRowsMutation({
+        workspaceId,
+        importId,
+      });
+      setApplyResult(res);
+    } catch (err: unknown) {
+      if (err instanceof ConvexError) {
+        const data = err.data as { code?: string; message?: string };
+        setApplyError(`[${data.code || "greška"}]: ${data.message || err.message}`);
+      } else if (err instanceof Error) {
+        setApplyError(err.message);
+      } else {
+        setApplyError(String(err));
+      }
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
   if (importDoc === undefined || allRows === undefined) {
     return (
       <div className="space-y-6">
@@ -519,10 +546,30 @@ export function ImportReviewTable({
   // koje čovek MORA da presudi.
   const jeObogati = importDoc.rezim === "obogati";
   const countSukob = visibleRows.filter((r) => r.conflicts.length > 0).length;
-  const prikazaniRedovi =
-    jeObogati && samoSukob
-      ? visibleRows.filter((r) => r.conflicts.length > 0)
-      : visibleRows;
+
+  // GL9 §1: na primenjenom uvozu redovi bez `primenjenAt` su ostali van baze
+  // (bili nerazrešeni). Mogu se rešiti i primeniti „Primeni preostale".
+  const neprimenjeni = visibleRows.filter((r) => r.primenjenAt === undefined);
+  const neprimenjeniReseni = neprimenjeni.filter(
+    (r) => r.decision === "nova_firma" || r.decision === "spoji",
+  ).length;
+  // Redovi koji će se STVARNO primeniti pri „Primeni uvoz" (rešeni; nerazrešeni
+  // i preskočeni se preskaču). Ide u tekst dugmeta kad ima nerazrešenih (GL9 §1).
+  const primenljiviRedovi = visibleRows.filter(
+    (r) => r.decision === "nova_firma" || r.decision === "spoji",
+  ).length;
+  // Odluka se može menjati na redovima pre primene, i na neprimenjenim redovima
+  // primenjenog uvoza (setRowDecision to i traži).
+  const canEditDecision = (r: (typeof visibleRows)[number]): boolean =>
+    !isReadOnly || (isPrimenjen && r.primenjenAt === undefined);
+
+  let prikazaniRedovi = visibleRows;
+  if (jeObogati && samoSukob) {
+    prikazaniRedovi = prikazaniRedovi.filter((r) => r.conflicts.length > 0);
+  }
+  if (samoNerazreseno) {
+    prikazaniRedovi = prikazaniRedovi.filter((r) => r.decision === "nerazreseno");
+  }
 
   // Broj novih/dopunjenih grupa polja koje red nosi (za bedž „+N polja").
   // Približna mera „koliko ovaj red dodaje" — tačan spisak je u „Detalji".
@@ -648,6 +695,31 @@ export function ImportReviewTable({
             >
               <Play className="size-4 mr-1.5" />
               Primeni uvoz ({visibleRows.length})
+            </Button>
+          </div>
+        )}
+
+        {/* GL9 §1: primenjen uvoz sa rešenim redovima koji još nisu ušli u bazu
+            (rešeni posle prve primene) — „Primeni preostale". */}
+        {isPrimenjen && neprimenjeniReseni > 0 && (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              onClick={handleApplyRemaining}
+              disabled={isApplying}
+              className="bg-accent-500 hover:bg-accent-600 text-text-inverse font-semibold"
+            >
+              {isApplying ? (
+                <>
+                  <LoaderCircle className="animate-spin size-4 mr-1.5" />
+                  Primenjujem...
+                </>
+              ) : (
+                <>
+                  <Play className="size-4 mr-1.5" />
+                  Primeni preostale ({neprimenjeniReseni})
+                </>
+              )}
             </Button>
           </div>
         )}
@@ -784,9 +856,25 @@ export function ImportReviewTable({
           {countNerazreseno > 0 && (
             <>
               <span>·</span>
-              <span className="text-warning font-medium">
-                {countNerazreseno} nerazrešeno
-              </span>
+              {/* GL9 §1: filter „samo nerazrešeni" — izdvaja redove koje treba
+                  presuditi (i posle primene, da se 41 firma reši i primeni). */}
+              <button
+                type="button"
+                onClick={() => setSamoNerazreseno((v) => !v)}
+                aria-pressed={samoNerazreseno}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium transition-colors",
+                  samoNerazreseno
+                    ? "border-warning/50 bg-warning/10 text-warning"
+                    : "border-line-soft text-text-secondary hover:border-line-strong hover:bg-surface-raised",
+                )}
+                title="Prikaži samo nerazrešene redove"
+              >
+                <AlertTriangle className="size-3" />
+                {samoNerazreseno
+                  ? `samo nerazrešeni (${countNerazreseno})`
+                  : `nerazrešeno: ${countNerazreseno}`}
+              </button>
             </>
           )}
           {jeObogati && countSukob > 0 && (
@@ -936,13 +1024,15 @@ export function ImportReviewTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {prikazaniRedovi.length === 0 && samoSukob && (
+                {prikazaniRedovi.length === 0 && (samoSukob || samoNerazreseno) && (
                   <TableRow>
                     <TableCell
                       colSpan={visibleColumns.length + (fajlImaRedniBroj ? 0 : 1) + (imaSkillPodatke ? SKILL_KOLONE.length : 0) + 2}
                       className="py-8 text-center text-sm text-text-muted"
                     >
-                      Nijedan red nema sukob. Isključi filter „samo sa sukobom“ da vidiš sve.
+                      {samoNerazreseno && !samoSukob
+                        ? "Nijedan red nije nerazrešen. Isključi filter „samo nerazrešeni“ da vidiš sve."
+                        : "Nijedan red ne ispunjava filter. Isključi filter da vidiš sve."}
                     </TableCell>
                   </TableRow>
                 )}
@@ -1234,6 +1324,7 @@ export function ImportReviewTable({
         }}
         readOnly={isReadOnly}
         isApplied={isPrimenjen}
+        canEditDecision={selectedRow ? canEditDecision(selectedRow) : false}
       />
 
       {/* Dijalog potvrde pre primene uvoza */}
@@ -1288,7 +1379,7 @@ export function ImportReviewTable({
 
             {countNerazreseno > 0 && (
               <FeedbackNote tone="warning" title="Upozorenje: nerazrešeni redovi">
-                U tabeli postoji {countNerazreseno} nerazrešenih redova. Svi redovi u stanju „nerazrešeno“ ostaće neupisani u bazu dok ih operater ručno ne razreši.
+                {countNerazreseno} {countNerazreseno === 1 ? "red je" : "redova je"} nerazrešeno i neće biti primenjeno. Primenjuje se {primenljiviRedovi} rešenih. Nerazrešene možeš rešiti i posle, preko „Primeni preostale“.
               </FeedbackNote>
             )}
 
@@ -1307,7 +1398,7 @@ export function ImportReviewTable({
               onClick={() => setApplyDialogOpen(false)}
               disabled={isApplying}
             >
-              Otkaži
+              {countNerazreseno > 0 ? "Odustani i reši ih" : "Otkaži"}
             </Button>
             <Button
               type="button"
@@ -1321,6 +1412,8 @@ export function ImportReviewTable({
                   <LoaderCircle className="animate-spin size-4 mr-1.5" />
                   Primenjujem uvoz...
                 </>
+              ) : countNerazreseno > 0 ? (
+                `Primeni ostalih ${primenljiviRedovi}`
               ) : (
                 `Potvrdi i uvezi (${visibleRows.length})`
               )}
