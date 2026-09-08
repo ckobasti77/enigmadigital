@@ -139,8 +139,17 @@ const WORKER_ROK_MS = 15_000;
 /** Beograd — podrazumevani centar kad nema tačaka (plan §8). */
 const BEOGRAD: [number, number] = [20.4573, 44.8125];
 const POCETNI_ZOOM = 11;
-const PITCH = 55;
-const BEARING = -15;
+/**
+ * Mapa počinje iz PTIČIJE perspektive (odozgo, nagib 0). Nagib se menja
+ * SREDNJIM klikom (točkić) + vučenje (vidi handler); kamera-pokreti čuvaju
+ * trenutni nagib, ne vraćaju ga na fiksnu vrednost.
+ */
+const POCETNI_PITCH = 0;
+const MAX_PITCH = 68;
+/** Sever je FIKSIRAN na gore — mapa se ne rotira. */
+const BEARING = 0;
+/** Osetljivost nagiba srednjim klikom: stepeni po pikselu vertikalnog vučenja. */
+const PITCH_OSETLJIVOST = 0.4;
 
 const STIL_ROK_MS = 20_000;
 const FIT_PADDING_PX = 56;
@@ -525,9 +534,11 @@ export function LeadsMapCanvas({
       if (!map) return null;
       letRef.current?.kill();
       const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      // Čuva trenutni nagib (koji je čovek namestio srednjim klikom) i drži
+      // sever na gore.
       const let_ = letiDoTacke(
         map,
-        { ...cilj, pitch: PITCH, bearing: BEARING },
+        { ...cilj, pitch: map.getPitch(), bearing: BEARING },
         { reducedMotion: still },
       );
       letRef.current = let_;
@@ -583,17 +594,20 @@ export function LeadsMapCanvas({
         container,
         center: BEOGRAD,
         zoom: POCETNI_ZOOM,
-        pitch: PITCH,
+        pitch: POCETNI_PITCH,
         bearing: BEARING,
+        maxPitch: MAX_PITCH,
         // Atribucija se dodaje ručno dole LEVO: desno stoji bočni panel, koji
         // bi je prekrio — a mora da bude vidljiva (plan §8, §O4).
         attributionControl: false,
         maplibreLogo: false,
         dragPan: mode === "all",
-        dragRotate: mode === "all",
+        // Sever je zaključan na gore — nema rotacije. Nagib se menja srednjim
+        // klikom (handler dole), ne desnim vučenjem.
+        dragRotate: false,
         keyboard: mode === "all",
         touchPitch: mode === "all",
-        pitchWithRotate: mode === "all",
+        pitchWithRotate: false,
       });
     } catch {
       cb().onStyleState({
@@ -605,7 +619,10 @@ export function LeadsMapCanvas({
     }
     mapRef.current = map;
 
-    if (mode === "single") map.touchZoomRotate.disableRotation();
+    // Sever uvek na gore — rotacija isključena i na dodir (dva prsta).
+    map.touchZoomRotate.disableRotation();
+    // Srednji klik (točkić) menja nagib; handler se vezuje niže (samo `all`).
+    let odjaviPitch: (() => void) | null = null;
     map.addControl(
       new AttributionControl({
         compact: false,
@@ -752,6 +769,48 @@ export function LeadsMapCanvas({
       const companyIdOd = (f: MapGeoJSONFeature | undefined) =>
         (f?.properties?.companyId as string | undefined) ?? null;
 
+      // ── Srednji klik (točkić) + vučenje = nagib (ptičija ↔ iz ugla) ──
+      // Sever ostaje zaključan; ovo menja SAMO pitch. Levo/desno dugme mape se
+      // ne diraju. Vučenje NAGORE povećava nagib, NADOLE ga spljošti.
+      let pitchAktivan = false;
+      let pitchY0 = 0;
+      let pitch0 = 0;
+      const naPitchDown = (e: MouseEvent) => {
+        if (e.button !== 1) return;
+        e.preventDefault(); // bez Chrome auto-scroll kruga
+        pitchAktivan = true;
+        pitchY0 = e.clientY;
+        pitch0 = map.getPitch();
+        canvas.style.cursor = "ns-resize";
+      };
+      const naPitchMove = (e: MouseEvent) => {
+        if (!pitchAktivan) return;
+        const dy = pitchY0 - e.clientY;
+        const nov = Math.max(
+          0,
+          Math.min(map.getMaxPitch(), pitch0 + dy * PITCH_OSETLJIVOST),
+        );
+        map.setPitch(nov);
+      };
+      const naPitchUp = () => {
+        if (!pitchAktivan) return;
+        pitchAktivan = false;
+        canvas.style.cursor = "";
+      };
+      const naAux = (e: MouseEvent) => {
+        if (e.button === 1) e.preventDefault();
+      };
+      canvas.addEventListener("mousedown", naPitchDown);
+      canvas.addEventListener("auxclick", naAux);
+      window.addEventListener("mousemove", naPitchMove);
+      window.addEventListener("mouseup", naPitchUp);
+      odjaviPitch = () => {
+        canvas.removeEventListener("mousedown", naPitchDown);
+        canvas.removeEventListener("auxclick", naAux);
+        window.removeEventListener("mousemove", naPitchMove);
+        window.removeEventListener("mouseup", naPitchUp);
+      };
+
       // Hover: samo kartica (uvećanje bi tražilo feature-state u layout
       // svojstvima, što symbol sloj ne prima — izbor uvećava kroz podatke).
       map.on("mousemove", L_PIN, (e) => {
@@ -824,6 +883,7 @@ export function LeadsMapCanvas({
       if (rok) clearTimeout(rok);
       if (rokWorker) clearTimeout(rokWorker);
       if (raf !== null) cancelAnimationFrame(raf);
+      odjaviPitch?.();
       letRef.current?.kill();
       letRef.current = null;
       // Sloj se skida PRE `map.remove()`, da `onRemove` uredno oslobodi
@@ -873,7 +933,9 @@ export function LeadsMapCanvas({
     map.fitBounds(granice, {
       padding: FIT_PADDING_PX,
       maxZoom: FOKUS_ZOOM,
-      pitch: PITCH,
+      // Čuva trenutni nagib (ptičija ili ugao koji je čovek namestio); sever
+      // ostaje na gore.
+      pitch: map.getPitch(),
       bearing: BEARING,
       duration,
     });

@@ -251,6 +251,31 @@ temperaturi sa belim prozorom + četiri panela sa obojenim sjajem. Izmenjeni su
 (`PinIkonica` + prosleđivanje `temperatura` panelu) i `leads-map-panel.tsx`
 (svetlucanje). `typecheck`/`build`/`eslint` čisti.
 
+## Dorada 2 — ponašanje kamere (zahtev korisnika)
+
+Tri izmene kamere u `leads-map-canvas.tsx`:
+
+1. **Početno iz ptičije perspektive** — `POCETNI_PITCH = 0` (odozgo), umesto
+   ranijeg nagiba 55. Mapa se otvara ravno, gledana pravo nadole.
+2. **Srednji klik (točkić) + vučenje = nagib** — nov handler nad canvasom:
+   `mousedown` sa `button === 1` počinje, vučenje NAGORE povećava nagib
+   (do `maxPitch` 68), NADOLE ga spljošti; `setPitch` direktno. `preventDefault`
+   na srednji `mousedown`/`auxclick` gasi Chrome auto-scroll. Listeneri se
+   uredno skidaju u cleanup-u (`odjaviPitch`). Kamera-pokreti (`fitBounds`, let
+   do firme, prelet) sada **čuvaju trenutni nagib** (`map.getPitch()`), pa se
+   korisnikov ugao ne poništava. Kompas u kontrolama (`visualizePitch`) i dalje
+   služi kao „vrati na ptičiju" (reset nagiba na 0).
+3. **Sever fiksiran na gore, bez rotacije** — `BEARING = 0`, `dragRotate: false`,
+   `pitchWithRotate: false`, `map.touchZoomRotate.disableRotation()` (sada za
+   OBA moda, ne samo mini-mapu). Svi kamera-pokreti drže `bearing: 0`.
+
+`typecheck`/`build`/`eslint` čisti. Nije viđeno u živoj mapi (nema prijave);
+`setPitch`/`disableRotation`/`dragRotate:false` su standardni MapLibre API.
+**Provera na produkciji:** mapa se otvara ravno (odozgo); srednji klik +
+vučenje gore/dole naginje/spljošti; levo dugme i dalje pomera, točkić zumira;
+desni klik i dva prsta **ne rotiraju** mapu (sever ostaje na gore); klik na
+kompas vraća na ptičiju perspektivu.
+
 ## Poznati rizici i šta NIJE urađeno
 
 - **MapLibre integracija nije viđena u živoj mapi** (nema prijave/podataka u
