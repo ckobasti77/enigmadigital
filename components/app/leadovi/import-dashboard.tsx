@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { FileSpreadsheet, History, Plus, Upload } from "lucide-react";
 import { useWorkspace } from "@/components/app/workspace-provider";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -16,7 +17,20 @@ type Tab = "staging" | "history";
 export function ImportDashboard() {
   const { workspace, isLoading } = useWorkspace();
   const [tab, setTab] = useState<Tab>("staging");
-  const [activeImportId, setActiveImportId] = useState<Id<"leadImports"> | null>(null);
+
+  // `/leadovi/uvoz?import=<id>` — link koji `/generate-leads/ingest` vrati
+  // skillu na kraju runa (GL1, plan §5). Bez ovoga bi taj link otvarao prazan
+  // ekran „Novi uvoz", a poruka u terminalu bi tvrdila da vodi na uvoz.
+  //
+  // Čita se SAMO kao početna vrednost: čim čovek klikne „Započni novi uvoz",
+  // odlučuje njegov klik, ne stari parametar u adresi.
+  const searchParams = useSearchParams();
+  const [activeImportId, setActiveImportId] = useState<Id<"leadImports"> | null>(
+    () => {
+      const iz = searchParams.get("import");
+      return iz ? (iz as Id<"leadImports">) : null;
+    },
+  );
 
   if (isLoading || !workspace) {
     return <ImportDashboardSkeleton />;
@@ -98,7 +112,7 @@ export function ImportDashboard() {
   );
 }
 
-function ImportDashboardSkeleton() {
+export function ImportDashboardSkeleton() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between border-b border-line pb-px">

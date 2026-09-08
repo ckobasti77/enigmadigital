@@ -10,6 +10,7 @@ import { ActionAuditLog } from "@/components/app/settings/action-audit-log";
 import { ModerationAuditLog } from "@/components/app/settings/moderation-audit-log";
 import { InvitesPanel } from "@/components/app/settings/invites-panel";
 import { MembersPanel } from "@/components/app/settings/members-panel";
+import { IngestTokensPanel } from "@/components/app/settings/ingest-tokens-panel";
 import { PageHeader } from "@/components/app/page-header";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
 
@@ -41,7 +42,7 @@ const COPY: Record<Tab, { title: string; blurb: string }> = {
   access: {
     title: "Pristup",
     blurb:
-      "Pozivnice za registraciju. Unesi email, prosledi link ručno — osoba se registruje sa tačno tom adresom. Bez pozivnice nema novog naloga.",
+      "Članovi, pozivnice za registraciju i tokeni kojima se skill predstavlja aplikaciji. Pozivnicu prosleđuješ ručno — osoba se registruje sa tačno tom adresom; bez pozivnice nema novog naloga.",
   },
 };
 
@@ -77,6 +78,8 @@ export default function SettingsPage() {
           <div className="space-y-10">
             <MembersPanel />
             <InvitesPanel />
+            {/* Sekcija se sama ne crta osim vlasniku (GL1, plan §5). */}
+            <IngestTokensPanel />
           </div>
         )}
       </TabPanel>

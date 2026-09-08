@@ -297,6 +297,12 @@ export function normalizeCompanyWallUrl(url?: string | null): string | undefined
  */
 export const LEAD_SIGNAL_KINDS = [
   "nema_sajt",
+  // GL1 (plan §3.8, §4.4): sajt koji ne odgovara ili je parkiran nije isto što
+  // i „nema sajt" — postoji domen, postoji nečije ulaganje koje je propalo — a
+  // za prodaju izrade sajta je skoro jednako jak povod. `sajt_bez_https` je
+  // konkretna zamerka koja se ispravlja u jednom danu.
+  "sajt_ne_radi",
+  "sajt_bez_https",
   "koristi_third_party_booking",
   "samo_facebook",
   "samo_instagram",
@@ -315,4 +321,38 @@ export type LeadSignalKind = (typeof LEAD_SIGNAL_KINDS)[number];
 
 export function isKnownLeadSignalKind(kind: string): kind is LeadSignalKind {
   return (LEAD_SIGNAL_KINDS as readonly string[]).includes(kind);
+}
+
+/**
+ * Slug niše: „Frizerski saloni" -> „frizerski-saloni" (GL1, plan §4.3).
+ *
+ * NE koristi `normalizeCompanyName`: ona skida pravne oblike privrednih
+ * subjekata (DOO, PR, AD…), a niša nije firma — „auto delovi ad hoc" bi tako
+ * tiho izgubila reč. Ovde se skidaju samo dijakritici i sve što nije slovo,
+ * cifra ili crtica.
+ *
+ * Vraća prazan string kad od ulaza ne ostane nijedan znak (npr. samo
+ * interpunkcija). Pozivalac to mora da odbije — prazan slug bi spojio sve
+ * takve niše u jednu.
+ */
+export function normalizeNicheSlug(raw?: string | null): string {
+  if (!raw) return "";
+
+  // Dijakritici se preslikavaju izričito, istim stilom kao ostatak fajla —
+  // `normalize("NFD")` + opseg kombinujućih znakova radi isto, ali se u kodu
+  // vidi kao regex sa nevidljivim kvačicama i niko ga posle ne sme dirati.
+  const zamene: Record<string, string> = {
+    č: "c",
+    ć: "c",
+    ž: "z",
+    š: "s",
+    đ: "dj",
+  };
+
+  return raw
+    .toLowerCase()
+    .replace(/[čćžšđ]/g, (ch) => zamene[ch] ?? ch)
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
 }

@@ -10,6 +10,8 @@ import type { LeadOutcome } from "@/convex/leadCrmStore";
 
 export const LEAD_SIGNAL_LABELS: Record<LeadSignalKind, string> = {
   nema_sajt: "nema sajt",
+  sajt_ne_radi: "sajt ne radi ili je parkiran",
+  sajt_bez_https: "sajt bez HTTPS-a",
   koristi_third_party_booking: "koristi tuđi sistem za zakazivanje",
   samo_facebook: "samo Facebook",
   samo_instagram: "samo Instagram",
@@ -131,6 +133,8 @@ export const IDENTITY_KIND_LABELS: Record<string, string> = {
   facebook: "Facebook",
   website: "Veb sajt",
   threads: "Threads",
+  // GL1 (plan §O12): TikTok je za deo malih firmi jedini kanal.
+  tiktok: "TikTok",
 };
 
 export function identityKindLabel(kind: string): string {

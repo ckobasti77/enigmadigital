@@ -76,6 +76,47 @@ export interface ParsedLeadRow {
    * Uključuje prazne ćelije i kolone koje nisu mapirane na imenovana polja.
    */
   sirovo: RawLeadCell[];
+
+  /**
+   * ── Polja koja puni SAMO `/generate-leads` skill (GL1, plan §4.4) ─────────
+   *
+   * Parser tabele (`parseLeadWorkbook`) ih nikad ne postavlja — XLSX/CSV fajl
+   * nema kolonu „status sajta" ni koordinate. Odsustvo znači „ovaj red nije
+   * došao iz skilla", ne „skill nije našao"; za drugo postoje izričite
+   * vrednosti (`imaSajt: "nepoznato"`, `nijeMoguceProceniti: true`).
+   */
+  placeId?: string;
+  /** Slug niše; `applyImport` radi upsert u `niches` po njemu. */
+  nisa?: string;
+  imaSajt?: "da" | "ne" | "nepoznato";
+  imaSajtNapomena?: string;
+  sajtStatus?:
+    | "radi"
+    | "ne_radi"
+    | "parkiran"
+    | "preusmerava_na_drustvene"
+    | "nepoznato";
+  sajtHttps?: boolean;
+  sajtProverenAt?: number;
+  sajtNapomena?: string;
+  koordinate?: { lat: number; lng: number; izvor: "nominatim" };
+  platforme?: Array<{
+    vrsta: "instagram" | "facebook" | "tiktok" | "website" | "threads";
+    url: string;
+    sourceUrl: string;
+  }>;
+  osobe?: Array<{
+    ime: string;
+    uloga: string;
+    ulogaIzvor: string;
+    telefon?: string;
+    telefonSourceUrl?: string;
+    verovatnoca?: number;
+    nijeMoguceProceniti?: boolean;
+    obrazlozenje?: string;
+    rang: number;
+  }>;
+  izvestajSkilla?: string;
 }
 
 export interface ParsedSheetInfo {

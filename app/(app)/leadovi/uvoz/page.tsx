@@ -1,5 +1,9 @@
+import { Suspense } from "react";
 import { PageHeader } from "@/components/app/page-header";
-import { ImportDashboard } from "@/components/app/leadovi/import-dashboard";
+import {
+  ImportDashboard,
+  ImportDashboardSkeleton,
+} from "@/components/app/leadovi/import-dashboard";
 
 export default function LeadImportPage() {
   return (
@@ -7,7 +11,11 @@ export default function LeadImportPage() {
       <PageHeader description="Uvoz Excel i CSV tabele sa lidovima, provera staging-a i primena u bazu podataka." />
 
       <div className="flex flex-1 flex-col">
-        <ImportDashboard />
+        {/* `useSearchParams` (`?import=<id>` iz `/generate-leads/ingest`) traži
+            Suspense granicu na statičkim rutama. */}
+        <Suspense fallback={<ImportDashboardSkeleton />}>
+          <ImportDashboard />
+        </Suspense>
       </div>
     </div>
   );

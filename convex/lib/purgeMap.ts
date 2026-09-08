@@ -1259,6 +1259,15 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   leadPeople: { purgedBy: ["leads"] },
   leadLandings: { purgedBy: ["leads"] },
   leadCompanies: { purgedBy: ["leads"] },
+  // Imenovani URL-ovi filtera koje je operater sam sačuvao (GL1, plan §O8) —
+  // nijedan podatak ne dolazi od provajdera, samo tekst pretrage koji je čovek
+  // napisao. Ista klasa kao `rules`: prekid veze ih ne dodiruje, brišu se
+  // ručno sa ekrana. Preset koji pokazuje na nišu koje više nema i dalje je
+  // ispravan link — vrati nula redova, što je istina, ne kvar.
+  leadFilterPresets: {
+    excluded:
+      "Sopstveni sačuvani pogledi na tabelu leadova (naziv + search deo URL-a). Ne dolaze ni od jednog provajdera; brišu se ručno iz trake filtera.",
+  },
 
   // ── Threads (TH3 / TH4 / TH7) ─────────────────────────────────────────────
   // Sve što Threads sync i publish upiše nestaje sa prekidom veze. Nijedna od ovih tabela
@@ -1467,5 +1476,21 @@ export const EXTRA_TABLE_OWNERSHIP: Record<string, Disposition> = {
   postRevisions: {
     excluded:
       "Istorija izmena sopstvenog sadržaja. Prati sudbinu `posts`; ograničava se zadržavanjem iz §5.2.",
+  },
+
+  // ── /generate-leads (GL1) ─────────────────────────────────────────────────
+  // Sve troje su sopstvena mašinerija, ne podaci preuzeti od providera — isti
+  // razlog zbog koga su `invites` i `rules` izuzeti.
+  niches: {
+    excluded:
+      "Sopstvena taksonomija tržišta (naziv, opis, šifre delatnosti) koju je napisao operater ili skill koji radi na njegovoj mašini. Prekid veze sa Meta/Google je ne dodiruje. Kad `leads` purge obriše firme, niša namerno ostaje kao entitet sa nula firmi — brisanje leadova nije brisanje podele tržišta.",
+  },
+  nichePlatforms: {
+    excluded:
+      "Spisak mesta na kojima se niša traži (nalog, imenik, grupa). Operaterov sopstveni radni materijal, prati sudbinu `niches`; briše se iz ekrana Niše.",
+  },
+  ingestTokens: {
+    excluded:
+      "Sopstvena kontrola pristupa za `POST /generate-leads/ingest` — samo SHA-256 heš, nikad sirov token. Ista klasa kao `invites`: prekid veze sa provajderom ne sme da opozove token, jer token nije njihov. Opoziva se ručno iz Podešavanja.",
   },
 };

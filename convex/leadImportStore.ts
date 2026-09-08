@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
@@ -8,6 +8,7 @@ import {
   normalizeDomain,
   normalizePhoneRs,
   normalizeCompanyWallUrl,
+  normalizeNicheSlug,
   LEAD_SIGNAL_KINDS,
   type LeadSignalKind,
 } from "./lib/leadNormalize";
@@ -76,6 +77,65 @@ export const parsedLeadRowValidator = v.object({
   derivedFields: v.optional(v.array(v.string())),
   // SVE ćelije reda iz izvornog fajla u izvornom redosledu (§2, §3)
   sirovo: v.optional(v.array(rawLeadCellValidator)),
+
+  // ── Polja koja puni SAMO `/generate-leads` skill (GL1, plan §4.4) ──────────
+  // Sva su opciona: uvoz iz XLSX/CSV fajla ih nema i nikad neće imati.
+  placeId: v.optional(v.string()),
+  nisa: v.optional(v.string()),
+  imaSajt: v.optional(
+    v.union(v.literal("da"), v.literal("ne"), v.literal("nepoznato")),
+  ),
+  imaSajtNapomena: v.optional(v.string()),
+  sajtStatus: v.optional(
+    v.union(
+      v.literal("radi"),
+      v.literal("ne_radi"),
+      v.literal("parkiran"),
+      v.literal("preusmerava_na_drustvene"),
+      v.literal("nepoznato"),
+    ),
+  ),
+  sajtHttps: v.optional(v.boolean()),
+  sajtProverenAt: v.optional(v.number()),
+  sajtNapomena: v.optional(v.string()),
+  koordinate: v.optional(
+    v.object({
+      lat: v.number(),
+      lng: v.number(),
+      izvor: v.literal("nominatim"),
+    }),
+  ),
+  platforme: v.optional(
+    v.array(
+      v.object({
+        vrsta: v.union(
+          v.literal("instagram"),
+          v.literal("facebook"),
+          v.literal("tiktok"),
+          v.literal("website"),
+          v.literal("threads"),
+        ),
+        url: v.string(),
+        sourceUrl: v.string(),
+      }),
+    ),
+  ),
+  osobe: v.optional(
+    v.array(
+      v.object({
+        ime: v.string(),
+        uloga: v.string(),
+        ulogaIzvor: v.string(),
+        telefon: v.optional(v.string()),
+        telefonSourceUrl: v.optional(v.string()),
+        verovatnoca: v.optional(v.number()),
+        nijeMoguceProceniti: v.optional(v.boolean()),
+        obrazlozenje: v.optional(v.string()),
+        rang: v.number(),
+      }),
+    ),
+  ),
+  izvestajSkilla: v.optional(v.string()),
 });
 
 export type RowConflict = {
@@ -105,6 +165,75 @@ function mapRole(rawRole?: string): "vlasnik" | "direktor" | "menadzer" | "nepoz
     return "menadzer";
   }
   return "nepoznato";
+}
+
+/**
+ * Uloga osobe kakvu je skill prijavio + odakle je zna.
+ *
+ * `potvrdjeno` SAMO kad uloga stiže iz zvaničnog registra (APR) ili
+ * CompanyWalla koji ga prepisuje. Ime vlasnika napisano u Instagram biou je
+ * verovatno tačno, ali nije potvrda — a razlika između te dve reči je razlika
+ * između „znamo" i „mislimo da znamo" (§0 pravilo 4).
+ */
+function roleConfidenceFromSource(
+  ulogaIzvor: string,
+): "potvrdjeno" | "verovatno" {
+  const lower = ulogaIzvor.toLowerCase();
+  return lower.includes("companywall") || lower.includes("apr")
+    ? "potvrdjeno"
+    : "verovatno";
+}
+
+/**
+ * Nalazi ili pravi nišu po slugu (GL1, plan §4.4, §7.3).
+ *
+ * Skill zna slug, ne `Id<"niches">`. Upsert je po slugu unutar radnog prostora
+ * — dva uvoza iste niše ne smeju da naprave dve niše, jer bi tabela onda
+ * pokazivala „frizerski saloni (12)" i „frizerski saloni (7)" jedno pored
+ * drugog i nijedan broj ne bi bio tačan.
+ *
+ * `naziv` se pri pogotku NE prepisuje: čovek koji je nišu preimenovao u
+ * „Frizeri i berberi" ne sme da izgubi to ime zato što je skill poslao svoj
+ * slobodan tekst.
+ */
+async function upsertNicheBySlug(
+  ctx: MutationCtx,
+  args: {
+    workspaceId: Id<"workspaces">;
+    slug: string;
+    createdBy?: Id<"users">;
+    now: number;
+  },
+): Promise<Id<"niches"> | undefined> {
+  const slug = normalizeNicheSlug(args.slug);
+  // Prazan slug (npr. ulaz od same interpunkcije) bi spojio sve takve niše u
+  // jednu — bolje bez niše nego u pogrešnoj.
+  if (!slug) return undefined;
+
+  const existing = await ctx.db
+    .query("niches")
+    .withIndex("by_workspace_slug", (q) =>
+      q.eq("workspaceId", args.workspaceId).eq("slug", slug),
+    )
+    .first();
+  if (existing !== null) return existing._id;
+
+  // Naziv se izvodi iz sluga („frizerski-saloni" -> „Frizerski saloni"). To je
+  // radni naziv dok ga čovek ne prepravi na ekranu Niše (GL2).
+  const naziv = slug
+    .split("-")
+    .filter((deo) => deo.length > 0)
+    .join(" ")
+    .replace(/^./, (ch) => ch.toUpperCase());
+
+  return await ctx.db.insert("niches", {
+    workspaceId: args.workspaceId,
+    slug,
+    naziv,
+    createdBy: args.createdBy,
+    createdAt: args.now,
+    updatedAt: args.now,
+  });
 }
 
 function extractBookingToolName(note?: string): string | undefined {
@@ -407,6 +536,158 @@ export async function detectRowConflicts(
  * KRITIČNO PRAVILO:
  * Ova funkcija NIŠTA ne dira u tabeli `leadCompanies`!
  */
+/**
+ * Jezgro uvoza: pravi `leadImports` red i po jedan `leadImportRows` red za
+ * svaki parsirani red, uz spajanje, sukobe i proveru zabrane kontakta.
+ *
+ * OBIČNA FUNKCIJA, NE CONVEX FUNKCIJA. Dva puta vode ovamo — čovek koji je
+ * otpremio tabelu (`createImport`) i skill koji je poslao rezultat na
+ * `/generate-leads/ingest` (`createImportFromIngest`) — i jedini način da oba
+ * puta zaista rade isto jeste da izvršavaju isti kod. Druga kopija ove logike
+ * bi se razišla prvog dana kad se dedupe pravilo promeni na jednom mestu, i to
+ * bi se videlo tek kao duplirana firma u bazi.
+ *
+ * `uploadedBy` je ovde ARGUMENT, ne `requireMembership(ctx).userId`: ingest
+ * nema sesiju, pa vlasnika daje token (`ingestTokens.createdBy`). Provera
+ * pripadnosti radnom prostoru ostaje na pozivaocu — mutacija koja prima
+ * `workspaceId` mora da ga poredi sa članstvom pozivaoca, a interna mutacija
+ * ga izvodi iz samog tokena.
+ */
+async function createImportCore(
+  ctx: MutationCtx,
+  args: {
+    workspaceId: Id<"workspaces">;
+    uploadedBy: Id<"users"> | undefined;
+    fileName: string;
+    sheetsChosen: string[];
+    headerRowIndex: number;
+    rows: ParsedLeadRow[];
+    skippedCount: number;
+    warnings: string[];
+    sourceSheet?: string;
+  },
+): Promise<{ importId: Id<"leadImports">; rowsCount: number }> {
+  const sheetName = args.sourceSheet ?? args.sheetsChosen[0] ?? "Sheet1";
+
+  const importId = await ctx.db.insert("leadImports", {
+    workspaceId: args.workspaceId,
+    fileName: args.fileName,
+    uploadedBy: args.uploadedBy,
+    uploadedAt: Date.now(),
+    status: "u_pregledu",
+    sheetsChosen: args.sheetsChosen,
+    headerRowIndex: args.headerRowIndex,
+    rowsParsed: args.rows.length,
+    rowsSkipped: args.skippedCount,
+    warnings: args.warnings,
+    skriveneKolone: [],
+  });
+
+  for (let i = 0; i < args.rows.length; i++) {
+    const parsedRow = args.rows[i];
+    const rowIndex = args.headerRowIndex + 2 + i; // 1-indexed stvarni red
+
+    // 1. Spajanje sa postojećom firmom
+    const matchRes = await matchRowToExistingCompany(
+      ctx,
+      args.workspaceId,
+      parsedRow,
+    );
+
+    // 2. Detekcija sukoba
+    const conflicts = await detectRowConflicts(
+      ctx,
+      args.workspaceId,
+      parsedRow,
+      matchRes.matchedCompanyId,
+    );
+
+    // 3. Provera zabrane kontakta (suppression)
+    const suppRes = await isSuppressed(ctx, {
+      workspaceId: args.workspaceId,
+      pib: parsedRow.pib,
+      domain: parsedRow.sajt,
+      phone: parsedRow.telefon,
+      email: parsedRow.email,
+      companyId: matchRes.matchedCompanyId,
+    });
+
+    // 4. Određivanje početne odluke
+    let decision: "nova_firma" | "spoji" | "preskoci" | "nerazreseno" = "nova_firma";
+
+    if (suppRes.suppressed) {
+      decision = "preskoci";
+    } else if (suppRes.unverifiable && suppRes.unverifiable.length > 0) {
+      // PRAVILO: Nepoznato stanje nije dozvola -> nerazreseno
+      decision = "nerazreseno";
+    } else if (conflicts.length > 0) {
+      // Ako ima sukoba, čovek mora da potvrdi
+      decision = "nerazreseno";
+    } else if (matchRes.matchedCompanyId) {
+      decision = "spoji";
+    } else {
+      decision = "nova_firma";
+    }
+
+    await ctx.db.insert("leadImportRows", {
+      workspaceId: args.workspaceId,
+      importId,
+      sourceSheet: sheetName,
+      sourceRowIndex: rowIndex,
+      parsed: {
+        nazivFirme: parsedRow.nazivFirme,
+        ulica: parsedRow.ulica,
+        opstina: parsedRow.opstina,
+        grad: parsedRow.grad,
+        telefon: parsedRow.telefon,
+        telefonNapomena: parsedRow.telefonNapomena,
+        email: parsedRow.email,
+        sajt: parsedRow.sajt,
+        imeOsobe: parsedRow.imeOsobe,
+        uloga: parsedRow.uloga,
+        ocena: parsedRow.ocena,
+        companyWallUrl: parsedRow.companyWallUrl,
+        companyWallTacnost: parsedRow.companyWallTacnost,
+        pib: parsedRow.pib,
+        maticniBroj: parsedRow.maticniBroj,
+        sifraDelatnosti: parsedRow.sifraDelatnosti,
+        napomena: parsedRow.napomena,
+        izvori: parsedRow.izvori,
+        derivedSignals: parsedRow.derivedSignals,
+        derivedFields: parsedRow.derivedFields,
+        // GL1: polja iz skilla. `undefined` prolazi kroz Convex kao odsustvo
+        // polja, pa red iz XLSX-a i dalje upisuje tačno ono što je i ranije.
+        placeId: parsedRow.placeId,
+        nisa: parsedRow.nisa,
+        imaSajt: parsedRow.imaSajt,
+        imaSajtNapomena: parsedRow.imaSajtNapomena,
+        sajtStatus: parsedRow.sajtStatus,
+        sajtHttps: parsedRow.sajtHttps,
+        sajtProverenAt: parsedRow.sajtProverenAt,
+        sajtNapomena: parsedRow.sajtNapomena,
+        koordinate: parsedRow.koordinate,
+        platforme: parsedRow.platforme,
+        osobe: parsedRow.osobe,
+        izvestajSkilla: parsedRow.izvestajSkilla,
+      },
+      sirovo: parsedRow.sirovo ?? [],
+      temperatura: "nova_firma",
+      obrisan: false,
+      matchedCompanyId: matchRes.matchedCompanyId,
+      matchedBy: matchRes.matchedBy,
+      decision,
+      conflicts,
+      suppression: {
+        suppressed: suppRes.suppressed,
+        matchedOn: suppRes.matchedOn,
+        unverifiable: suppRes.unverifiable,
+      },
+    });
+  }
+
+  return { importId, rowsCount: args.rows.length };
+}
+
 export const createImport = mutation({
   args: {
     workspaceId: v.id("workspaces"),
@@ -421,111 +702,60 @@ export const createImport = mutation({
   handler: async (ctx, args) => {
     const membership = await requireMembership(ctx);
 
-    const sheetName = args.sourceSheet ?? args.sheetsChosen[0] ?? "Sheet1";
-
-    const importId = await ctx.db.insert("leadImports", {
+    return await createImportCore(ctx, {
       workspaceId: args.workspaceId,
-      fileName: args.fileName,
       uploadedBy: membership.userId,
-      uploadedAt: Date.now(),
-      status: "u_pregledu",
+      fileName: args.fileName,
       sheetsChosen: args.sheetsChosen,
       headerRowIndex: args.headerRowIndex,
-      rowsParsed: args.rows.length,
-      rowsSkipped: args.skipped.length,
+      rows: args.rows as ParsedLeadRow[],
+      skippedCount: args.skipped.length,
       warnings: args.warnings,
-      skriveneKolone: [],
+      sourceSheet: args.sourceSheet,
     });
+  },
+});
 
-    for (let i = 0; i < args.rows.length; i++) {
-      const parsedRow = args.rows[i] as ParsedLeadRow;
-      const rowIndex = args.headerRowIndex + 2 + i; // 1-indexed stvarni red
-
-      // 1. Spajanje sa postojećom firmom
-      const matchRes = await matchRowToExistingCompany(
-        ctx,
-        args.workspaceId,
-        parsedRow,
-      );
-
-      // 2. Detekcija sukoba
-      const conflicts = await detectRowConflicts(
-        ctx,
-        args.workspaceId,
-        parsedRow,
-        matchRes.matchedCompanyId,
-      );
-
-      // 3. Provera zabrane kontakta (suppression)
-      const suppRes = await isSuppressed(ctx, {
-        workspaceId: args.workspaceId,
-        pib: parsedRow.pib,
-        domain: parsedRow.sajt,
-        phone: parsedRow.telefon,
-        email: parsedRow.email,
-        companyId: matchRes.matchedCompanyId,
-      });
-
-      // 4. Određivanje početne odluke
-      let decision: "nova_firma" | "spoji" | "preskoci" | "nerazreseno" = "nova_firma";
-
-      if (suppRes.suppressed) {
-        decision = "preskoci";
-      } else if (suppRes.unverifiable && suppRes.unverifiable.length > 0) {
-        // PRAVILO: Nepoznato stanje nije dozvola -> nerazreseno
-        decision = "nerazreseno";
-      } else if (conflicts.length > 0) {
-        // Ako ima sukoba, čovek mora da potvrdi
-        decision = "nerazreseno";
-      } else if (matchRes.matchedCompanyId) {
-        decision = "spoji";
-      } else {
-        decision = "nova_firma";
-      }
-
-      await ctx.db.insert("leadImportRows", {
-        workspaceId: args.workspaceId,
-        importId,
-        sourceSheet: sheetName,
-        sourceRowIndex: rowIndex,
-        parsed: {
-          nazivFirme: parsedRow.nazivFirme,
-          ulica: parsedRow.ulica,
-          opstina: parsedRow.opstina,
-          grad: parsedRow.grad,
-          telefon: parsedRow.telefon,
-          telefonNapomena: parsedRow.telefonNapomena,
-          email: parsedRow.email,
-          sajt: parsedRow.sajt,
-          imeOsobe: parsedRow.imeOsobe,
-          uloga: parsedRow.uloga,
-          ocena: parsedRow.ocena,
-          companyWallUrl: parsedRow.companyWallUrl,
-          companyWallTacnost: parsedRow.companyWallTacnost,
-          pib: parsedRow.pib,
-          maticniBroj: parsedRow.maticniBroj,
-          sifraDelatnosti: parsedRow.sifraDelatnosti,
-          napomena: parsedRow.napomena,
-          izvori: parsedRow.izvori,
-          derivedSignals: parsedRow.derivedSignals,
-          derivedFields: parsedRow.derivedFields,
-        },
-        sirovo: parsedRow.sirovo ?? [],
-        temperatura: "nova_firma",
-        obrisan: false,
-        matchedCompanyId: matchRes.matchedCompanyId,
-        matchedBy: matchRes.matchedBy,
-        decision,
-        conflicts,
-        suppression: {
-          suppressed: suppRes.suppressed,
-          matchedOn: suppRes.matchedOn,
-          unverifiable: suppRes.unverifiable,
-        },
-      });
-    }
-
-    return { importId, rowsCount: args.rows.length };
+/**
+ * Uvoz koji je poslao `/generate-leads` skill kroz `POST /generate-leads/ingest`
+ * (GL1, plan §5, §O2).
+ *
+ * INTERNA: jedini pozivalac je HTTP akcija, koja je već proverila Bearer token
+ * i iz njega izvela `workspaceId` i `uploadedBy`. Zato ovde nema
+ * `requireMembership` — nema sesije koju bi proverio; ono što token tvrdi je
+ * jedina tvrdnja koja postoji, i ona se proverava PRE poziva.
+ *
+ * Skill NE piše u `leadCompanies`. Uvoz nastaje sa `status: "u_pregledu"` i
+ * ide kroz istu ljudsku potvrdu kao otpremljena tabela (§O2).
+ */
+export const createImportFromIngest = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    uploadedBy: v.id("users"),
+    fileName: v.string(),
+    rows: v.array(parsedLeadRowValidator),
+    warnings: v.array(v.string()),
+  },
+  returns: v.object({
+    importId: v.id("leadImports"),
+    rowsCount: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    return await createImportCore(ctx, {
+      workspaceId: args.workspaceId,
+      uploadedBy: args.uploadedBy,
+      fileName: args.fileName,
+      // Nema listova ni zaglavlja — nema fajla. `headerRowIndex: -1` daje
+      // `sourceRowIndex` 1, 2, 3… (jer je formula `headerRowIndex + 2 + i`),
+      // što je red u poslatoj listi. Lažan „Sheet1" bi tvrdio da fajl postoji.
+      sheetsChosen: [],
+      headerRowIndex: -1,
+      sourceSheet: "generate-leads",
+      rows: args.rows as ParsedLeadRow[],
+      // Skill ne preskače redove tiho: ono što nije ušlo, izveštaj imenuje.
+      skippedCount: 0,
+      warnings: args.warnings,
+    });
   },
 });
 
@@ -631,6 +861,209 @@ async function ensureAssignment(
   return { assignment, created: true };
 }
 
+/**
+ * Prenosi na firmu ono što uz stari (tabelarni) uvoz ne postoji: platforme,
+ * do tri osobe sa procenom telefona i signale o stanju sajta (GL1, plan §4.4).
+ *
+ * ISTA funkcija se zove i za novu firmu i za spajanje sa postojećom, i sve
+ * provere postojanja idu PROTIV BAZE, ne protiv skupa koji smo sami napunili u
+ * ovom prolazu. Dve kopije ovog koda — jedna za „nova_firma", druga za „spoji"
+ * — razišle bi se prvog dana kad se doda polje, a razlika bi se videla tek kao
+ * profil firme kome posle spajanja fali pola podataka.
+ *
+ * Ništa se ne prepisuje: postojeći identitet, postojeća osoba i postojeći
+ * telefon ostaju kakvi jesu. Uvoz dopunjuje, ne gazi (§2.4).
+ */
+async function attachSkillData(
+  ctx: MutationCtx,
+  args: {
+    workspaceId: Id<"workspaces">;
+    companyId: Id<"leadCompanies">;
+    p: Doc<"leadImportRows">["parsed"];
+    now: number;
+  },
+): Promise<void> {
+  const { workspaceId, companyId, p, now } = args;
+
+  // Ništa od ovoga ne postoji u uvozu iz tabele — izlaz pre ijednog čitanja.
+  const imaSadrzaj =
+    (p.platforme?.length ?? 0) > 0 ||
+    (p.osobe?.length ?? 0) > 0 ||
+    p.imaSajt !== undefined ||
+    p.sajtStatus !== undefined ||
+    p.sajtHttps !== undefined;
+  if (!imaSadrzaj) return;
+
+  const postojeciIdentiteti = await ctx.db
+    .query("leadIdentities")
+    .withIndex("by_workspace_company", (q) =>
+      q.eq("workspaceId", workspaceId).eq("companyId", companyId),
+    )
+    .collect();
+
+  // Ključ je (vrsta, normalizovana vrednost): isti Instagram handle upisan dva
+  // puta je jedan nalog, a isti string kao telefon i kao handle nije.
+  const kljucIdentiteta = (kind: string, value: string) =>
+    `${kind}::${value.toLowerCase()}`;
+  const zauzeti = new Set(
+    postojeciIdentiteti.map((i) =>
+      kljucIdentiteta(i.kind, i.valueNormalized ?? i.value),
+    ),
+  );
+
+  // ── Platforme -> leadIdentities ───────────────────────────────────────────
+  //
+  // Svaka nosi svoj `sourceUrl` (stranica na kojoj smo je videli), jer je
+  // izvor po ZZPL/GDPR obavezan i nikad ne sme biti Google Places (plan §O3).
+  for (const platforma of p.platforme ?? []) {
+    const vrednost = platforma.url.trim();
+    if (!vrednost) continue;
+
+    const normalizovano =
+      platforma.vrsta === "website"
+        ? normalizeDomain(vrednost)
+        : vrednost.toLowerCase().replace(/^@+/, "");
+    const kljuc = kljucIdentiteta(platforma.vrsta, normalizovano || vrednost);
+    if (zauzeti.has(kljuc)) continue;
+    zauzeti.add(kljuc);
+
+    await ctx.db.insert("leadIdentities", {
+      workspaceId,
+      companyId,
+      kind: platforma.vrsta,
+      value: vrednost,
+      valueNormalized: normalizovano || undefined,
+      // Javno objavljen poslovni profil, ne podatak dobijen od same osobe.
+      lawfulBasis: "public_record",
+      sourceUrl: platforma.sourceUrl,
+      createdAt: now,
+    });
+  }
+
+  // ── Osobe -> leadPeople + telefon sa procenom (plan §4.4, §6) ─────────────
+  const osobe = [...(p.osobe ?? [])].sort((a, b) => a.rang - b.rang);
+  if (osobe.length > 0) {
+    const postojeceOsobe = await ctx.db
+      .query("leadPeople")
+      .withIndex("by_workspace_company", (q) =>
+        q.eq("workspaceId", workspaceId).eq("companyId", companyId),
+      )
+      .collect();
+    const zauzetaImena = new Set(
+      postojeceOsobe.map((o) => normalizeCompanyName(o.name)),
+    );
+
+    for (const osoba of osobe) {
+      const imeNorm = normalizeCompanyName(osoba.ime);
+      if (!imeNorm || zauzetaImena.has(imeNorm)) continue;
+      zauzetaImena.add(imeNorm);
+
+      const potvrdjenost = roleConfidenceFromSource(osoba.ulogaIzvor);
+      const personId = await ctx.db.insert("leadPeople", {
+        workspaceId,
+        companyId,
+        name: osoba.ime,
+        role: mapRole(osoba.uloga),
+        roleConfidence: potvrdjenost,
+        createdAt: now,
+      });
+
+      await ctx.db.insert("leadFieldProvenance", {
+        workspaceId,
+        entityTable: "leadPeople",
+        entityId: personId,
+        fieldName: "name",
+        value: osoba.ime,
+        source: osoba.ulogaIzvor,
+        // Ime iz APR/CompanyWall zapisa je pročitano; ime izvučeno sa sajta ili
+        // iz bioa je pročitano iz teksta koji ga ne tvrdi zvanično.
+        confidence: potvrdjenost === "potvrdjeno" ? "tacno" : "priblizno",
+        humanConfirmed: true,
+        observedAt: now,
+      });
+
+      if (!osoba.telefon) continue;
+
+      const telefonNorm = normalizePhoneRs(osoba.telefon) ?? osoba.telefon;
+      const kljucTelefona = kljucIdentiteta("phone", telefonNorm);
+      if (zauzeti.has(kljucTelefona)) continue;
+      zauzeti.add(kljucTelefona);
+
+      // `verovatnoca` i `nijeMoguceProceniti` se prenose kakvi jesu: broj ILI
+      // izričito odustajanje. Nikad izmišljena nula, nikad „50 %" kao sredina
+      // (§0 pravilo 4, plan §6). Vreme i izvor procene se upisuju samo kad
+      // procena zaista postoji — inače bi red bez procene nosio trenutak u
+      // kome je navodno procenjivana.
+      const imaProcenu =
+        osoba.verovatnoca !== undefined || osoba.nijeMoguceProceniti === true;
+
+      await ctx.db.insert("leadIdentities", {
+        workspaceId,
+        companyId,
+        personId,
+        kind: "phone",
+        value: osoba.telefon,
+        valueNormalized: telefonNorm,
+        lawfulBasis: "legitimni interes — javno objavljen poslovni kontakt",
+        sourceUrl: osoba.telefonSourceUrl ?? "generate-leads",
+        createdAt: now,
+        verovatnoca: osoba.verovatnoca,
+        verovatnocaObrazlozenje: osoba.obrazlozenje,
+        verovatnocaIzvor: imaProcenu ? "skill" : undefined,
+        verovatnocaAt: imaProcenu ? now : undefined,
+        nijeMoguceProceniti: osoba.nijeMoguceProceniti,
+      });
+    }
+  }
+
+  // ── Signali o sajtu (plan §3.8, §4.4) ─────────────────────────────────────
+  //
+  // `nema_sajt` SAMO za `imaSajt === "ne"`. Za `"nepoznato"` se ne upisuje
+  // ništa: to znači da neki izvor nije odgovorio, a signal bi tvrdio da firma
+  // sajt nema i podigao joj Fit ocenu na osnovu NAŠE greške u proveri.
+  const signaliSajta: LeadSignalKind[] = [];
+  if (p.imaSajt === "ne") signaliSajta.push("nema_sajt");
+  if (p.sajtStatus === "ne_radi" || p.sajtStatus === "parkiran") {
+    signaliSajta.push("sajt_ne_radi");
+  }
+  if (p.sajtHttps === false) signaliSajta.push("sajt_bez_https");
+
+  // Signal koji je već stigao kroz `derivedSignals` u ovom istom redu se ne
+  // udvaja. Stariji signal iste vrste od ranijeg uvoza se NE dira — bodovanje
+  // uzima najskoriji po vrsti, pa novo opažanje ionako pobeđuje.
+  const izReda = new Set(p.derivedSignals);
+
+  for (const sig of signaliSajta) {
+    if (izReda.has(sig)) continue;
+    await ctx.db.insert("leadSignals", {
+      workspaceId,
+      companyId,
+      kind: sig,
+      // Zašto baš ovaj signal — rečenica koju je skill već napisao
+      // („302 -> instagram.com/…", „timeout posle 8 s").
+      value: sig === "nema_sajt" ? p.imaSajtNapomena : p.sajtNapomena,
+      source: "generate-leads",
+      observedAt: p.sajtProverenAt ?? now,
+    });
+  }
+
+  // Izveštaj skilla po firmi ostaje kao poreklo: staging red je istorija tog
+  // uvoza, a profil firme mora da može da kaže odakle podatak posle primene.
+  if (p.izvestajSkilla) {
+    await ctx.db.insert("leadFieldProvenance", {
+      workspaceId,
+      entityTable: "leadCompanies",
+      entityId: companyId,
+      fieldName: "izvestajSkilla",
+      value: p.izvestajSkilla,
+      source: "generate-leads",
+      confidence: "priblizno",
+      humanConfirmed: true,
+      observedAt: now,
+    });
+  }
+}
+
 export const applyImport = mutation({
   args: {
     workspaceId: v.id("workspaces"),
@@ -709,6 +1142,16 @@ export const applyImport = mutation({
       if (r.decision === "nova_firma") {
         const companyName = p.nazivFirme || "Nepoznata firma";
 
+        // Niša se upsert-uje po slugu PRE upisa firme, jer firma nosi njen id.
+        const nicheId = p.nisa
+          ? await upsertNicheBySlug(ctx, {
+              workspaceId: args.workspaceId,
+              slug: p.nisa,
+              createdBy: ownerUserId,
+              now,
+            })
+          : undefined;
+
         const companyId = await ctx.db.insert("leadCompanies", {
           workspaceId: args.workspaceId,
           name: companyName,
@@ -735,6 +1178,22 @@ export const applyImport = mutation({
           createdAt: now,
           updatedAt: now,
           createdBy: ownerUserId,
+
+          // GL1 (plan §4.4): podaci iz skilla. Svako polje koje skill nije
+          // poslao ostaje `undefined` — što u Convexu znači da polja NEMA, a to
+          // je tačna tvrdnja „nije proveravano".
+          nicheId,
+          placeId: p.placeId,
+          lat: p.koordinate?.lat,
+          lng: p.koordinate?.lng,
+          koordinateIzvor: p.koordinate ? p.koordinate.izvor : undefined,
+          koordinateAt: p.koordinate ? now : undefined,
+          imaSajt: p.imaSajt,
+          imaSajtNapomena: p.imaSajtNapomena,
+          sajtStatus: p.sajtStatus,
+          sajtHttps: p.sajtHttps,
+          sajtProverenAt: p.sajtProverenAt,
+          sajtNapomena: p.sajtNapomena,
         });
 
         await ctx.db.patch(r._id, { createdCompanyId: companyId });
@@ -1021,6 +1480,14 @@ export const applyImport = mutation({
           });
         }
 
+        // Platforme, osobe sa procenom telefona i signali o sajtu (GL1).
+        await attachSkillData(ctx, {
+          workspaceId: args.workspaceId,
+          companyId,
+          p,
+          now,
+        });
+
         if (p.ocena && p.ocena.vrednost !== undefined && p.ocena.skala !== undefined) {
           await ctx.db.insert("leadSignals", {
             workspaceId: args.workspaceId,
@@ -1062,6 +1529,45 @@ export const applyImport = mutation({
         if (!existing.municipality && p.opstina) patch.municipality = p.opstina;
         if (!existing.city && p.grad) patch.city = p.grad;
         if (!existing.companyWallUrl && p.companyWallUrl) patch.companyWallUrl = p.companyWallUrl;
+
+        // GL1: dopuna praznih polja iz skilla, istim pravilom kao gore —
+        // postojeća vrednost se NE gazi.
+        if (!existing.placeId && p.placeId) patch.placeId = p.placeId;
+        if (existing.lat === undefined && p.koordinate) {
+          patch.lat = p.koordinate.lat;
+          patch.lng = p.koordinate.lng;
+          patch.koordinateIzvor = p.koordinate.izvor;
+          patch.koordinateAt = now;
+        }
+        if (!existing.nicheId && p.nisa) {
+          const nicheId = await upsertNicheBySlug(ctx, {
+            workspaceId: args.workspaceId,
+            slug: p.nisa,
+            createdBy: ownerUserId,
+            now,
+          });
+          if (nicheId) patch.nicheId = nicheId;
+        }
+        // Stanje sajta je OPAŽANJE SA DATUMOM, ne trajna činjenica: svežija
+        // provera pobeđuje stariju, jer sajt koji je juče radio danas može biti
+        // mrtav. Zato se ovde prepisuje — ali samo ako je novija.
+        if (
+          p.sajtProverenAt !== undefined &&
+          p.sajtProverenAt >= (existing.sajtProverenAt ?? 0)
+        ) {
+          patch.imaSajt = p.imaSajt ?? existing.imaSajt;
+          patch.imaSajtNapomena = p.imaSajtNapomena;
+          patch.sajtStatus = p.sajtStatus;
+          patch.sajtHttps = p.sajtHttps;
+          patch.sajtProverenAt = p.sajtProverenAt;
+          patch.sajtNapomena = p.sajtNapomena;
+        } else if (existing.imaSajt === undefined && p.imaSajt !== undefined) {
+          // Skill nije zabeležio kad je proveravao, ali firma o sajtu nema
+          // nikakav podatak — bolje nešto sa poznatim poreklom nego ništa.
+          patch.imaSajt = p.imaSajt;
+          patch.imaSajtNapomena = p.imaSajtNapomena;
+        }
+
         if (r.temperatura && r.temperatura !== "nova_firma") {
           patch.temperatura = r.temperatura;
           patch.temperaturaPromenjenaAt = now;
@@ -1201,6 +1707,15 @@ export const applyImport = mutation({
           });
         }
 
+        // Platforme, osobe i signali o sajtu — isti put kao za novu firmu, sa
+        // proverom postojanja, da spajanje ne izgubi ono što novi uvoz nosi.
+        await attachSkillData(ctx, {
+          workspaceId: args.workspaceId,
+          companyId: targetCompanyId,
+          p,
+          now,
+        });
+
         mergedCount++;
         appliedCount++;
       }
@@ -1316,12 +1831,24 @@ export const revertImport = mutation({
             }
 
             // 4. Istorijat tvrdnji (provenance)
+            //
+            // NE samo za samu firmu: `applyImport` upisuje poreklo i za svaku
+            // osobu i za svaki telefon/mejl. Ranije su ti redovi ostajali posle
+            // poništavanja — poreklo bez entiteta na koji pokazuje, koje se u
+            // bazi nikad više ne pročita, a broji se u kvoti. Sa GL1 ih po
+            // firmi ima do tri puta više (tri osobe + njihovi telefoni), pa je
+            // spisak id-jeva sada izričit.
+            const obrisaniEntiteti = new Set<string>([
+              company._id as string,
+              ...idents.map((i) => i._id as string),
+              ...people.map((pe) => pe._id as string),
+            ]);
             const provs = await ctx.db
               .query("leadFieldProvenance")
               .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
-              .filter((q) => q.eq(q.field("entityId"), company._id))
               .collect();
             for (const pr of provs) {
+              if (!obrisaniEntiteti.has(pr.entityId)) continue;
               await ctx.db.delete(pr._id);
             }
 

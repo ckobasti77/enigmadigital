@@ -36,7 +36,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { FeedbackNote } from "@/components/app/feedback";
-import { IMPORT_STATUS_LABELS } from "./lead-labels";
+import { IMPORT_STATUS_LABELS, identityKindLabel } from "./lead-labels";
 import { cn } from "@/lib/utils";
 import {
   ImportRowDialog,
@@ -53,6 +53,67 @@ type ApplyResult = {
 };
 
 type TemperaturaType = "nova_firma" | "cold" | "warm" | "hot";
+
+/**
+ * Kolone koje puni SAMO `/generate-leads` skill (GL1, plan §4.4).
+ *
+ * Uvoz iz XLSX/CSV fajla ih nikad nema, pa se cela grupa i ne crta za takav
+ * uvoz — pet praznih kolona iznad svakog reda su šum, ne informacija. Kad
+ * uvoz ima bar jedan red sa tim podacima, kolone se pojavljuju i red koji ih
+ * nema piše „—", nikad prazno.
+ */
+const SKILL_KOLONE = [
+  "Niša",
+  "Sajt",
+  "Koord.",
+  "Osobe",
+  "Platforme",
+] as const;
+
+/** Natpis za stanje sajta u jednoj ćeliji (plan §3.8). */
+function opisSajta(parsed: {
+  imaSajt?: "da" | "ne" | "nepoznato";
+  sajtStatus?:
+    | "radi"
+    | "ne_radi"
+    | "parkiran"
+    | "preusmerava_na_drustvene"
+    | "nepoznato";
+}): { tekst: string; tone: "muted" | "signal" | "neutral" } {
+  // Odsustvo `imaSajt` znači „nikad proveravano" i to NIJE „nepoznato" —
+  // „nepoznato" je izričita tvrdnja da je provera pokušana i pala (§0 pravilo 4).
+  if (parsed.imaSajt === undefined) {
+    return { tekst: "—", tone: "muted" };
+  }
+  if (parsed.imaSajt === "ne") {
+    return { tekst: "nema", tone: "signal" };
+  }
+  if (parsed.imaSajt === "nepoznato") {
+    return { tekst: "nepoznato", tone: "muted" };
+  }
+
+  switch (parsed.sajtStatus) {
+    case "radi":
+      return { tekst: "ima · radi", tone: "neutral" };
+    case "ne_radi":
+      return { tekst: "ima · ne radi", tone: "signal" };
+    case "parkiran":
+      return { tekst: "ima · parkiran", tone: "signal" };
+    case "preusmerava_na_drustvene":
+      return { tekst: "ima · vodi na mrežu", tone: "signal" };
+    case "nepoznato":
+      return { tekst: "ima · provera pala", tone: "muted" };
+    default:
+      return { tekst: "ima", tone: "neutral" };
+  }
+}
+
+/** Boja ćelije stanja sajta. „Ne radi" je prilika za prodaju, ne greška. */
+const SAJT_TONE_CLASS: Record<"muted" | "signal" | "neutral", string> = {
+  muted: "text-text-muted",
+  signal: "text-accent-400 font-medium",
+  neutral: "text-foreground",
+};
 
 const TEMP_CONFIG: Record<
   TemperaturaType,
@@ -100,6 +161,98 @@ const TEMP_CONFIG: Record<
     badgeClass: "border-[var(--temp-hot)]/40 text-[var(--temp-hot)] bg-[var(--temp-hot-bg)]",
   },
 };
+
+/** Pet ćelija koje popunjava samo skill: niša, sajt, koordinate, osobe, platforme. */
+function SkillCells({ parsed }: { parsed: StagingRowDoc["parsed"] }) {
+  const cellClass =
+    "min-w-[110px] max-w-[220px] py-2 px-3 text-xs shadow-[inset_0_1px_0_0_var(--row-ring),inset_0_-1px_0_0_var(--row-ring)]";
+  const prazno = <span className="text-text-muted/60 select-none">—</span>;
+
+  const sajt = opisSajta(parsed);
+  const osobe = parsed.osobe ?? [];
+  const platforme = parsed.platforme ?? [];
+
+  return (
+    <>
+      {/* Niša */}
+      <TableCell className={cn(cellClass, "text-foreground")}>
+        {parsed.nisa ? (
+          <span className="truncate block font-mono text-[11px]" title={parsed.nisa}>
+            {parsed.nisa}
+          </span>
+        ) : (
+          prazno
+        )}
+      </TableCell>
+
+      {/* Sajt */}
+      <TableCell className={cn(cellClass, SAJT_TONE_CLASS[sajt.tone])}>
+        <span
+          className="truncate block"
+          title={parsed.sajtNapomena ?? parsed.imaSajtNapomena ?? undefined}
+        >
+          {sajt.tekst}
+        </span>
+        {parsed.sajtHttps === false && (
+          <span className="mt-0.5 block text-[11px] text-accent-400">bez HTTPS</span>
+        )}
+      </TableCell>
+
+      {/* Koordinate — ✓ ili —, bez brojeva: geografska širina u tabeli nikome
+          ništa ne znači, a pitanje je samo „hoće li se videti na mapi". */}
+      <TableCell className={cn(cellClass, "text-center")}>
+        {parsed.koordinate ? (
+          <span
+            className="text-success"
+            title={`${parsed.koordinate.lat.toFixed(5)}, ${parsed.koordinate.lng.toFixed(5)} (${parsed.koordinate.izvor})`}
+          >
+            ✓
+          </span>
+        ) : (
+          prazno
+        )}
+      </TableCell>
+
+      {/* Osobe — ime + procena. „nije moguće proceniti" NIJE nula i ne piše se
+          kao broj (§0 pravilo 4, plan §6). */}
+      <TableCell className={cn(cellClass, "text-foreground")}>
+        {osobe.length === 0 ? (
+          prazno
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            {[...osobe]
+              .sort((a, b) => a.rang - b.rang)
+              .map((osoba, i) => (
+                <span key={`${osoba.ime}-${i}`} className="truncate block">
+                  {osoba.ime}
+                  {osoba.verovatnoca !== undefined ? (
+                    <span className="ml-1 font-mono text-[11px] tabular-nums text-accent-400">
+                      {Math.round(osoba.verovatnoca)} %
+                    </span>
+                  ) : osoba.nijeMoguceProceniti ? (
+                    <span className="ml-1 text-[11px] text-text-muted">
+                      bez procene
+                    </span>
+                  ) : null}
+                </span>
+              ))}
+          </div>
+        )}
+      </TableCell>
+
+      {/* Platforme — samo vrste, jedan red. Pun link je u „Detalji". */}
+      <TableCell className={cn(cellClass, "text-text-secondary")}>
+        {platforme.length === 0 ? (
+          prazno
+        ) : (
+          <span className="truncate block" title={platforme.map((p) => p.url).join("\n")}>
+            {platforme.map((p) => identityKindLabel(p.vrsta)).join(" · ")}
+          </span>
+        )}
+      </TableCell>
+    </>
+  );
+}
 
 export function ImportReviewTable({
   workspaceId,
@@ -409,6 +562,16 @@ export function ImportReviewTable({
   const countNerazreseno = visibleRows.filter((r) => r.decision === "nerazreseno").length;
   const countMatched = visibleRows.filter((r) => !!r.matchedCompanyId).length;
 
+  // Kolone skilla se crtaju samo kad ih bar jedan red zaista ima (GL1).
+  const imaSkillPodatke = allRows.some(
+    (r) =>
+      r.parsed.nisa !== undefined ||
+      r.parsed.imaSajt !== undefined ||
+      r.parsed.koordinate !== undefined ||
+      (r.parsed.osobe?.length ?? 0) > 0 ||
+      (r.parsed.platforme?.length ?? 0) > 0,
+  );
+
   return (
     <div className="space-y-6">
       {/* Gornja traka sa nazivom i dugmetom za primenu */}
@@ -478,10 +641,16 @@ export function ImportReviewTable({
               <li key={i}>{w}</li>
             ))}
           </ul>
-          <p className="mt-2 text-micro text-text-muted">
-            List: {importDoc.sheetsChosen.join(", ") || "nije zabeležen"} · zaglavlje u redu{" "}
-            {importDoc.headerRowIndex + 1}
-          </p>
+          {/* List i red zaglavlja postoje samo za uvoz IZ FAJLA. Uvoz koji je
+              poslao skill nema ni jedno ni drugo, pa bi ovde pisalo „List: nije
+              zabeležen · zaglavlje u redu 0" — dva podatka o fajlu koji ne
+              postoji. */}
+          {importDoc.sheetsChosen.length > 0 && (
+            <p className="mt-2 text-micro text-text-muted">
+              List: {importDoc.sheetsChosen.join(", ")} · zaglavlje u redu{" "}
+              {importDoc.headerRowIndex + 1}
+            </p>
+          )}
         </FeedbackNote>
       )}
 
@@ -689,6 +858,17 @@ export function ImportReviewTable({
                     );
                   })}
 
+                  {/* Kolone iz skilla (GL1) — samo kad uvoz ima te podatke */}
+                  {imaSkillPodatke &&
+                    SKILL_KOLONE.map((naslov) => (
+                      <TableHead
+                        key={`skill-${naslov}`}
+                        className="min-w-[110px] max-w-[220px] py-2.5 px-3 text-xs font-semibold text-accent-300 bg-surface-raised border-b border-line select-none"
+                      >
+                        {naslov}
+                      </TableHead>
+                    ))}
+
                   {/* Sticky: Temperatura */}
                   <TableHead className={cn(
                     "sticky z-30 w-36 min-w-[140px] max-w-[140px] text-xs font-semibold text-text-secondary bg-surface-raised border-b border-line shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.55),-1px_0_0_0_var(--line)]",
@@ -809,6 +989,13 @@ export function ImportReviewTable({
                           </TableCell>
                         );
                       })}
+
+                      {/* Ćelije iz skilla (GL1). Red bez tih podataka piše „—",
+                          ne prazno: prazna ćelija se čita kao „nema", a ovde
+                          znači „nije stiglo iz ovog izvora". */}
+                      {imaSkillPodatke && (
+                        <SkillCells parsed={row.parsed} />
+                      )}
 
                       {/* Sticky: Temperatura — uvek na ekranu, pa nosi 3px levu
                           ivicu u boji temperature (vidljivu u svakom položaju

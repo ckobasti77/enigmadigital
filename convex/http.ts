@@ -5,14 +5,28 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { auth } from "./auth";
-import { appendUtm, appendEventId, isBotUserAgent } from "./lib/orLink";
+import {
+  appendUtm,
+  appendEventId,
+  isBotUserAgent,
+  shortLinkOrigin,
+} from "./lib/orLink";
 import { decryptCredentials } from "./lib/crypto";
 import {
   allowsBackground,
   createUsageTracker,
   readGate,
 } from "./lib/metaRateLimit";
-import { IG_MEDIA_HOURLY_CAP, ROUTE_WINDOW_MS } from "./publicRouteLimit";
+import {
+  GENERATE_LEADS_HOURLY_CAP,
+  IG_MEDIA_HOURLY_CAP,
+  ROUTE_WINDOW_MS,
+} from "./publicRouteLimit";
+import {
+  generateLeadsIngestSchema,
+  greskeValidacije,
+} from "./lib/generateLeadsIngest";
+import { sha256Hex } from "./lib/metaAudienceHash";
 import {
   signatureFailureReason,
   signatureSecrets,
@@ -1721,6 +1735,186 @@ export const revalidatePost = internalAction({
       );
     }
   },
+});
+
+// Route 7 — POST: prijem rezultata `/generate-leads` skilla (GL1, plan §5)
+//
+// Skill radi na Jovanovoj mašini i nema sesiju, pa se predstavlja Bearer
+// tokenom iz `ingestTokens`. Ono što pošalje NE ULAZI u `leadCompanies`: pravi
+// se `leadImports` red sa `status: "u_pregledu"` i ide kroz isti pregled i istu
+// ljudsku potvrdu kao otpremljena tabela (plan §O2).
+//
+// Ruta je na Convex `.site` domenu, ne na Next-u — `proxy.ts` se ne dira.
+//
+// NIŠTA IZ ZAHTEVA SE NE LOGUJE: ni token, ni njegov heš, ni telo. Telo nosi
+// telefone, mejlove i imena ljudi (§0 pravilo 6), a token je lozinka.
+
+/** Odgovor sa JSON telom i bez keširanja — ovo nikad ne sme da se servira iz keša. */
+function ingestOdgovor(telo: unknown, status: number): Response {
+  return new Response(JSON.stringify(telo), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+/**
+ * Adresa aplikacije za link koji se vraća skillu.
+ *
+ * Namerno ista funkcija koju koriste `/r/` linkovi: `*.convex.site` u
+ * terminalu je tačan, ali vodi na Convex, ne na ekran za pregled uvoza.
+ */
+function ingestPregledUrl(importId: string): string {
+  const origin = shortLinkOrigin() ?? "https://digital.enigmait.rs";
+  return `${origin}/leadovi/uvoz?import=${importId}`;
+}
+
+http.route({
+  path: "/generate-leads/ingest",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    // 1. Token. „Nema zaglavlja", „nije Bearer", „nepoznat token" i „opozvan
+    //    token" daju ISTI odgovor: razlika bi pogađaču potvrdila šta je pogodio.
+    const authHeader = request.headers.get("authorization") ?? "";
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.slice("Bearer ".length).trim()
+      : "";
+
+    if (!token) {
+      return ingestOdgovor({ greska: "neispravan token" }, 401);
+    }
+
+    const tokenHash = await sha256Hex(token);
+    const tokenRow = await ctx.runQuery(
+      internal.ingestTokensStore.findValidTokenByHash,
+      { tokenHash },
+    );
+
+    if (tokenRow === null) {
+      return ingestOdgovor({ greska: "neispravan token" }, 401);
+    }
+
+    // 2. Plafon po satu. `claimPublicRouteCall` traži `MutationCtx`, a ovo je
+    //    akcija — ide preko `claimRouteCall` omotača, isto kao `/ig-media/`.
+    //    Broji se PRE parsiranja tela: zahtev koji je stigao je već potrošio
+    //    posao, bez obzira na to da li je telo ispravno.
+    const withinCap = await ctx.runMutation(
+      internal.publicRouteLimit.claimRouteCall,
+      {
+        workspaceId: tokenRow.workspaceId,
+        route: "generate-leads",
+        limit: GENERATE_LEADS_HOURLY_CAP,
+        windowMs: ROUTE_WINDOW_MS,
+      },
+    );
+
+    if (!withinCap) {
+      return ingestOdgovor(
+        {
+          greska: "previše zahteva",
+          detalj: `Najviše ${GENERATE_LEADS_HOURLY_CAP} uvoza na sat po radnom prostoru. Sačekaj do kraja tekućeg sata.`,
+        },
+        429,
+      );
+    }
+
+    // 3. Telo. Neispravan JSON i neispravan oblik su dve različite poruke, ali
+    //    nijedna ne citira vrednost iz tela.
+    let sirovoTelo: unknown;
+    try {
+      sirovoTelo = await request.json();
+    } catch {
+      return ingestOdgovor(
+        { greska: "telo nije ispravan JSON", polja: [] },
+        400,
+      );
+    }
+
+    const parsed = generateLeadsIngestSchema.safeParse(sirovoTelo);
+    if (!parsed.success) {
+      return ingestOdgovor(
+        {
+          greska: "telo ne odgovara očekivanom obliku",
+          polja: greskeValidacije(parsed.error),
+        },
+        400,
+      );
+    }
+
+    const telo = parsed.data;
+
+    // 4. Naziv uvoza koji čovek vidi u istoriji. Datum je lokalni srpski zapis
+    //    — istorija uvoza se čita, ne parsira.
+    const datum = new Date().toLocaleDateString("sr-RS", {
+      day: "numeric",
+      month: "numeric",
+      year: "numeric",
+      timeZone: "Europe/Belgrade",
+    });
+    const fileName = `generate-leads · ${telo.upit.grad} · ${telo.upit.nisa} · ${datum}`;
+
+    // 5. Upozorenja: sve što uvoz čini nepotpunim mora da stoji iznad tabele,
+    //    a ne samo u terminalu koji je Jovan već zatvorio.
+    const warnings: string[] = [];
+    for (const izvor of telo.izvestaj.nedostupniIzvori) {
+      warnings.push(`Izvor nedostupan tokom pretrage: ${izvor}.`);
+    }
+    if (telo.izvestaj.iscrpljen) {
+      warnings.push(
+        `Grad je iscrpljen za ovaj upit: nađeno ${telo.izvestaj.nadjeno} od ${telo.izvestaj.trazeno} traženih firmi. Nijedna firma nije dopunjena iz drugog grada.`,
+      );
+    }
+    if (telo.izvestaj.napomena) {
+      warnings.push(telo.izvestaj.napomena);
+    }
+    warnings.push(
+      `Skill ${telo.izvor.verzijaSkilla}, filter sajta „${telo.upit.filterSajt}", Places poziva: ${telo.izvestaj.placesPozivi}.`,
+    );
+
+    // 6. Redovi. `sirovo` se pravi ovde jer ekran za pregled crta kolone baš iz
+    //    njega: bez toga bi uvoz iz skilla otvorio poruku „nema zapamćene
+    //    kolone iz fajla", što je tačno za XLSX a besmisleno za JSON. Ovo JESTE
+    //    „red kako je stigao" — samo je izvor JSON, ne tabela.
+    const rows = telo.redovi.map((red) => ({
+      ...red,
+      sirovo: [
+        { kolona: "Naziv firme", vrednost: red.nazivFirme ?? "" },
+        { kolona: "Grad", vrednost: red.grad ?? "" },
+        { kolona: "Ulica", vrednost: red.ulica ?? "" },
+        { kolona: "Telefon", vrednost: red.telefon ?? "" },
+        { kolona: "E-mail", vrednost: red.email ?? "" },
+        { kolona: "Sajt", vrednost: red.sajt ?? "" },
+        { kolona: "PIB", vrednost: red.pib ?? "" },
+        { kolona: "Izveštaj skilla", vrednost: red.izvestajSkilla ?? "" },
+      ],
+    }));
+
+    const rezultat = await ctx.runMutation(
+      internal.leadImportStore.createImportFromIngest,
+      {
+        workspaceId: tokenRow.workspaceId,
+        uploadedBy: tokenRow.createdBy,
+        fileName,
+        rows,
+        warnings,
+      },
+    );
+
+    await ctx.runMutation(internal.ingestTokensStore.markTokenUsed, {
+      tokenId: tokenRow.tokenId,
+    });
+
+    return ingestOdgovor(
+      {
+        importId: rezultat.importId,
+        rowsCount: rezultat.rowsCount,
+        url: ingestPregledUrl(rezultat.importId),
+      },
+      200,
+    );
+  }),
 });
 
 export default http;

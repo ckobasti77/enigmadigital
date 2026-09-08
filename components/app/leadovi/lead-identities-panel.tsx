@@ -66,6 +66,26 @@ function FacebookIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+/**
+ * TikTok nota. `lucide-react` nema brend ikonice, pa se crta ovde — isti
+ * pristup kao `InstagramIcon` i `FacebookIcon` iznad.
+ */
+function TikTokIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
+    </svg>
+  );
+}
+
 export function LeadIdentitiesPanel({
   identities,
   people,
@@ -96,6 +116,8 @@ export function LeadIdentitiesPanel({
         return <InstagramIcon className="size-4 text-pink-400" />;
       case "facebook":
         return <FacebookIcon className="size-4 text-blue-400" />;
+      case "tiktok":
+        return <TikTokIcon className="size-4 text-text-secondary" />;
       case "website":
         return <Globe className="size-4 text-success" />;
       default:

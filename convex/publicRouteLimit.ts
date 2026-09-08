@@ -31,6 +31,17 @@ export const IG_MEDIA_HOURLY_CAP = 60;
 export const R_HOURLY_CAP = 60;
 
 /**
+ * Uvoza koje `/generate-leads/ingest` sme da napravi po radnom prostoru na sat
+ * (GL1, plan §5).
+ *
+ * Jedan zahtev je do 200 redova i jedna mutacija koja za svaki red radi
+ * spajanje, sukobe i proveru zabrane kontakta. Trideset je daleko iznad
+ * stvarnog korišćenja (jedan skill run = jedan poziv), a dovoljno nisko da
+ * ukraden token ne može da zatrpa staging pre nego što se opozove.
+ */
+export const GENERATE_LEADS_HOURLY_CAP = 30;
+
+/**
  * Claim one call against a route's hourly budget. Returns `true` when it is
  * within the ceiling (and counts it), `false` when the ceiling is reached.
  *

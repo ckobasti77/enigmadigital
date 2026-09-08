@@ -3239,12 +3239,57 @@ export default defineSchema({
       ),
     ),
     temperaturaPromenjenaAt: v.optional(v.number()),
+
+    // ── /generate-leads dopune (GL1, plan §4.1) ──────────────────────────────
+    //
+    // OPCIONO NAMERNO (sva polja ispod): firme uvezene pre GL1 nemaju nijedno
+    // od njih, a i posle GL1 skill sme da ne nađe podatak. Odsustvo znači
+    // „nikad nije ni proveravano" i to je drugačije od vrednosti „nepoznato",
+    // koja znači „proveravano, ali izvor nije odgovorio" (§0 pravilo 4).
+
+    // Koordinate iz Nominatima (OSM), NIKAD iz Google Placesa (plan §O4).
+    lat: v.optional(v.number()),
+    lng: v.optional(v.number()),
+    koordinateIzvor: v.optional(
+      v.union(v.literal("nominatim"), v.literal("rucno")),
+    ),
+    koordinateAt: v.optional(v.number()),
+
+    // Jedino Places polje koje se sme trajno čuvati (plan §3, §O3).
+    placeId: v.optional(v.string()),
+
+    // Niša kojoj firma pripada. Najviše jedna po firmi (plan §O7).
+    nicheId: v.optional(v.id("niches")),
+
+    // Postoji li sajt uopšte (plan §3.4). „ne" tvrdi odsustvo i zahteva da su
+    // SVA tri izvora rekla „nema"; „nepoznato" znači da je neki izvor bio
+    // nedostupan — koji, piše u `imaSajtNapomena`.
+    imaSajt: v.optional(
+      v.union(v.literal("da"), v.literal("ne"), v.literal("nepoznato")),
+    ),
+    imaSajtNapomena: v.optional(v.string()),
+
+    // Stanje sajta koji postoji (plan §3.8). `ne_radi` je kvar sajta;
+    // `nepoznato` je kvar NAŠE provere — dve različite stvari.
+    sajtStatus: v.optional(
+      v.union(
+        v.literal("radi"),
+        v.literal("ne_radi"),
+        v.literal("parkiran"),
+        v.literal("preusmerava_na_drustvene"),
+        v.literal("nepoznato"),
+      ),
+    ),
+    sajtHttps: v.optional(v.boolean()),
+    sajtProverenAt: v.optional(v.number()),
+    sajtNapomena: v.optional(v.string()),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_pib", ["workspaceId", "pib"])
     .index("by_workspace_companywall", ["workspaceId", "companyWallUrl"])
     .index("by_workspace_domain", ["workspaceId", "domainNormalized"])
-    .index("by_workspace_name_city", ["workspaceId", "nameNormalized", "city"]),
+    .index("by_workspace_name_city", ["workspaceId", "nameNormalized", "city"])
+    .index("by_workspace_niche", ["workspaceId", "nicheId"]),
 
   // 2) leadPeople — fizičko lice vezano za firmu (§2.2)
   //
@@ -3299,6 +3344,8 @@ export default defineSchema({
       v.literal("facebook"),
       v.literal("website"),
       v.literal("threads"),
+      // GL1 (plan §O12): TikTok je za male srpske firme čest jedini kanal.
+      v.literal("tiktok"),
     ),
     // Sirova vrednost kontakta
     value: v.string(),
@@ -3316,6 +3363,23 @@ export default defineSchema({
     // Datum kada je lice obavešteno o obradi podataka (rok od 30 dana po ZZPL kada podaci nisu uzeti direktno)
     dataSubjectNotifiedAt: v.optional(v.number()),
     createdAt: v.optional(v.number()),
+
+    // ── Verovatnoća da je telefon baš od te osobe (GL1, plan §6) ─────────────
+    //
+    // Računa je skill po fiksnom pravilniku, aplikacija je samo prikazuje i
+    // dozvoljava čoveku da je ispravi. Aplikacija NE poziva nikakav LLM.
+    //
+    // OPCIONO NAMERNO: postoji samo za `kind: "phone"` sa `personId`. Odsustvo
+    // znači „nije ni procenjivano". To NIJE isto što i `nijeMoguceProceniti:
+    // true`, koje znači „pokušano i odustalo jer nema nijednog dokaza" — nula
+    // ovde ne postoji ni u jednom od ta dva slučaja (§0 pravilo 4).
+    verovatnoca: v.optional(v.number()), // 0–100, kapirano na 95
+    verovatnocaObrazlozenje: v.optional(v.string()), // tačno dve rečenice, bez sirovog broja
+    verovatnocaIzvor: v.optional(
+      v.union(v.literal("skill"), v.literal("covek")),
+    ),
+    verovatnocaAt: v.optional(v.number()),
+    nijeMoguceProceniti: v.optional(v.boolean()),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_kind_value", ["workspaceId", "kind", "valueNormalized"])
@@ -3395,6 +3459,10 @@ export default defineSchema({
     // Tip opaženog signala (§4.1, §7)
     kind: v.union(
       v.literal("nema_sajt"),
+      // GL1 (plan §4.4): mrtav ili parkiran sajt je skoro jednako dobar lead
+      // kao nikakav sajt, a sajt bez HTTPS-a je konkretan povod za poziv.
+      v.literal("sajt_ne_radi"),
+      v.literal("sajt_bez_https"),
       v.literal("koristi_third_party_booking"),
       v.literal("samo_facebook"),
       v.literal("samo_instagram"),
@@ -3667,6 +3735,67 @@ export default defineSchema({
       izvori: v.array(v.string()),
       derivedSignals: v.array(v.string()),
       derivedFields: v.optional(v.array(v.string())),
+
+      // ── /generate-leads dopune (GL1, plan §4.4) ────────────────────────────
+      // OPCIONO NAMERNO (sve ispod): redovi uvezeni iz tabele (CSV/XLSX) nemaju
+      // nijedno od ovih polja i nikad ih neće imati. Odsustvo znači „ovaj uvoz
+      // nije došao od skilla", a prikaz to piše kao „—", ne kao prazno.
+      placeId: v.optional(v.string()),
+      nisa: v.optional(v.string()), // slug niše; `applyImport` radi upsert po njemu
+      imaSajt: v.optional(
+        v.union(v.literal("da"), v.literal("ne"), v.literal("nepoznato")),
+      ),
+      imaSajtNapomena: v.optional(v.string()),
+      sajtStatus: v.optional(
+        v.union(
+          v.literal("radi"),
+          v.literal("ne_radi"),
+          v.literal("parkiran"),
+          v.literal("preusmerava_na_drustvene"),
+          v.literal("nepoznato"),
+        ),
+      ),
+      sajtHttps: v.optional(v.boolean()),
+      sajtProverenAt: v.optional(v.number()),
+      sajtNapomena: v.optional(v.string()),
+      koordinate: v.optional(
+        v.object({
+          lat: v.number(),
+          lng: v.number(),
+          izvor: v.literal("nominatim"),
+        }),
+      ),
+      platforme: v.optional(
+        v.array(
+          v.object({
+            vrsta: v.union(
+              v.literal("instagram"),
+              v.literal("facebook"),
+              v.literal("tiktok"),
+              v.literal("website"),
+              v.literal("threads"),
+            ),
+            url: v.string(),
+            sourceUrl: v.string(),
+          }),
+        ),
+      ),
+      osobe: v.optional(
+        v.array(
+          v.object({
+            ime: v.string(),
+            uloga: v.string(),
+            ulogaIzvor: v.string(),
+            telefon: v.optional(v.string()),
+            telefonSourceUrl: v.optional(v.string()),
+            verovatnoca: v.optional(v.number()),
+            nijeMoguceProceniti: v.optional(v.boolean()),
+            obrazlozenje: v.optional(v.string()),
+            rang: v.number(), // 1 | 2 | 3, već rangirano od skilla
+          }),
+        ),
+      ),
+      izvestajSkilla: v.optional(v.string()),
     }),
 
     // Ceo red kako je stigao iz fajla, u izvornom redosledu kolona (§3)
@@ -3761,6 +3890,96 @@ export default defineSchema({
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_import", ["workspaceId", "importId"])
     .index("by_import_decision", ["importId", "decision"]),
+
+  // ── /generate-leads: niše, tokeni za uvoz, preseti filtera (GL1) ──────────
+
+  // 10b) niches — niša kao entitet, ne kao slobodan tekst na firmi (plan §O7).
+  //
+  // Jedna firma ima najviše jednu nišu. Niša nosi opis (ko su ti ljudi, gde su
+  // na mreži, čime ih se dobija) i spisak platformi na kojima se traže.
+  //
+  // `opisAutor` postoji zato što tekst koji je napisao Claude i tekst koji je
+  // napisao čovek nemaju istu težinu, a posle mesec dana se ne razlikuju ni po
+  // čemu ako se ne zabeleži. `opisModel` beleži KOJI model — „Claude" za godinu
+  // dana neće značiti isto što danas.
+  niches: defineTable({
+    workspaceId: v.id("workspaces"),
+    // Normalizovan ključ (npr. "frizerski-saloni"), jedinstven po radnom prostoru.
+    // Skill radi upsert po njemu, pa isti upit dva puta ne pravi dve niše.
+    slug: v.string(),
+    naziv: v.string(),
+    // OPCIONO NAMERNO: niša napravljena iz ingesta može biti bez opisa dok ga
+    // neko ne napiše. Odsustvo znači „nema opisa", ne „prazan opis".
+    opis: v.optional(v.string()),
+    opisAutor: v.optional(v.union(v.literal("claude"), v.literal("covek"))),
+    opisAt: v.optional(v.number()),
+    opisModel: v.optional(v.string()),
+    // OPCIONO NAMERNO: šifre delatnosti (APR) su korisne za pretragu, ali ih
+    // skill često nema. Odsustvo znači „nisu poznate", prazan niz „nema ih".
+    sifreDelatnosti: v.optional(v.array(v.string())),
+    createdBy: v.optional(v.id("users")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_slug", ["workspaceId", "slug"]),
+
+  // 10c) nichePlatforms — gde se niša traži (nalozi, imenici, grupe).
+  nichePlatforms: defineTable({
+    workspaceId: v.id("workspaces"),
+    nicheId: v.id("niches"),
+    platforma: v.union(
+      v.literal("instagram"),
+      v.literal("facebook"),
+      v.literal("tiktok"),
+      v.literal("google_maps"),
+      v.literal("011info"),
+      v.literal("companywall"),
+      v.literal("drugo"),
+    ),
+    // OPCIONO NAMERNO: „Instagram" kao kanal postoji i bez konkretnog URL-a
+    // (npr. „pretraga po hešteg #frizerbeograd"), pa se URL ne izmišlja.
+    url: v.optional(v.string()),
+    napomena: v.optional(v.string()),
+    redosled: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_niche", ["nicheId"]),
+
+  // 10d) ingestTokens — Bearer tokeni za `POST /generate-leads/ingest` (plan §5).
+  //
+  // SIROV TOKEN SE NIKAD NE UPISUJE: u bazi stoji samo SHA-256 heš, isti
+  // obrazac kao `invites`. Sirov token izlazi iz sistema tačno jednom — kao
+  // povratna vrednost `createIngestToken` — i odatle u env promenljivu na
+  // Jovanovoj mašini.
+  ingestTokens: defineTable({
+    workspaceId: v.id("workspaces"),
+    tokenHash: v.string(), // SHA-256 hex
+    naziv: v.string(),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    // OPCIONO NAMERNO: token koji nikad nije upotrebljen nema `lastUsedAt`.
+    // Odsustvo znači „nijednom", što se i piše — ne datum epohe.
+    lastUsedAt: v.optional(v.number()),
+    // OPCIONO NAMERNO: odsustvo = token važi. Opozvan token ostaje kao trag.
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_hash", ["tokenHash"])
+    .index("by_workspace", ["workspaceId"]),
+
+  // 10e) leadFilterPresets — imenovani URL-ovi filtera, deli ih ceo workspace (plan §O8).
+  //
+  // `query` je SIROV search deo URL-a bez vodećeg `?`. Preset je link, ne
+  // kopija stanja: kad se filteri prošire, stari preset i dalje znači ono što
+  // je tada značio, umesto da tiho izgubi dimenziju koje nema u novom obliku.
+  leadFilterPresets: defineTable({
+    workspaceId: v.id("workspaces"),
+    naziv: v.string(),
+    query: v.string(),
+    createdBy: v.optional(v.id("users")),
+    createdAt: v.number(),
+  }).index("by_workspace", ["workspaceId"]),
 
   // 11) leadInbound — čekaonica za inbound leadove sa platformi (LM5, §1, §2)
   //

@@ -52,6 +52,22 @@ export const DEFAULT_ICP_RULES: ReadonlyArray<{
     comment: "Firma bez sajta ima primarnu i najočigledniju potrebu za izradom web prezentacije, što je bazična usluga agencije.",
   },
   {
+    name: "Sajt ne radi ili je parkiran",
+    axis: "fit",
+    signalKind: "sajt_ne_radi",
+    weight: 28,
+    // Firma je nekad platila domen i sajt, pa je danas mrtav ili parkiran — potreba je ista kao kod firme bez sajta, a razgovor je lakši jer je odluka o ulaganju već jednom doneta.
+    comment: "Firma je nekad platila domen i sajt, pa je danas mrtav ili parkiran — potreba je ista kao kod firme bez sajta, a razgovor je lakši jer je odluka o ulaganju već jednom doneta.",
+  },
+  {
+    name: "Sajt bez HTTPS-a",
+    axis: "fit",
+    signalKind: "sajt_bez_https",
+    weight: 12,
+    // Sajt bez sertifikata pretraživači i pregledači izričito označavaju kao nebezbedan, što je merljiva šteta po ugled firme i konkretan, proverljiv povod za poziv.
+    comment: "Sajt bez sertifikata pretraživači i pregledači izričito označavaju kao nebezbedan, što je merljiva šteta po ugled firme i konkretan, proverljiv povod za poziv.",
+  },
+  {
     name: "Koristi booking treće strane",
     axis: "fit",
     signalKind: "koristi_third_party_booking",
@@ -492,5 +508,106 @@ export const seedDefaultIcpRules = mutation({
     }
 
     return { seeded: true, count };
+  },
+});
+
+/**
+ * Koja podrazumevana pravila radni prostor NEMA (po `signalKind`).
+ *
+ * Postoji zato što `seedDefaultIcpRules` staje na prvom postojećem pravilu:
+ * radni prostor koji je pravila zasejao pre GL1 nikad ne bi dobio
+ * `sajt_ne_radi` ni `sajt_bez_https`, a signali bi se uredno upisivali i tiho
+ * ne bi ulazili ni u jedan zbir. Ekran mora da vidi taj nedostatak da bi mogao
+ * da ga ponudi — dugme koje se crta „za svaki slučaj" krši pravilo da se ne
+ * crta kontrola koja nema šta da uradi.
+ */
+export const missingDefaultIcpRules = query({
+  args: { workspaceId: v.id("workspaces") },
+  returns: v.array(
+    v.object({
+      signalKind: v.string(),
+      name: v.string(),
+      axis: v.union(v.literal("fit"), v.literal("intent")),
+      weight: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+
+    const existing = await ctx.db
+      .query("leadIcpRules")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
+      .collect();
+
+    // Poređenje ide po `signalKind`, ne po nazivu: čovek sme da preimenuje
+    // pravilo, i to ne znači da pravilo fali.
+    const pokriveno = new Set(existing.map((r) => r.signalKind));
+
+    return DEFAULT_ICP_RULES.filter(
+      (rule) => !pokriveno.has(rule.signalKind),
+    ).map((rule) => ({
+      signalKind: rule.signalKind as string,
+      name: rule.name,
+      axis: rule.axis,
+      weight: rule.weight,
+    }));
+  },
+});
+
+/**
+ * Dodaje SAMO ona podrazumevana pravila čiji `signalKind` u radnom prostoru ne
+ * postoji. Postojeća pravila se ne diraju — ni težina, ni naziv, ni stanje.
+ *
+ * Radni prostor koji je pravila zasejao pre nego što je signal uveden inače
+ * ostaje bez njega zauvek, jer `seedDefaultIcpRules` po dizajnu ne prepisuje
+ * ništa kad pravila već postoje.
+ */
+export const addMissingDefaultIcpRules = mutation({
+  args: { workspaceId: v.id("workspaces") },
+  returns: v.object({
+    added: v.number(),
+    addedNames: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+
+    const existing = await ctx.db
+      .query("leadIcpRules")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
+      .collect();
+    const pokriveno = new Set(existing.map((r) => r.signalKind));
+
+    const now = Date.now();
+    const addedNames: string[] = [];
+
+    for (const rule of DEFAULT_ICP_RULES) {
+      if (pokriveno.has(rule.signalKind)) continue;
+      await ctx.db.insert("leadIcpRules", {
+        workspaceId: args.workspaceId,
+        name: rule.name,
+        axis: rule.axis,
+        signalKind: rule.signalKind,
+        weight: rule.weight,
+        rationale: rule.comment,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      addedNames.push(rule.name);
+    }
+
+    return { added: addedNames.length, addedNames };
   },
 });

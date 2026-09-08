@@ -51,12 +51,18 @@ type Axis = "fit" | "intent";
 
 /**
  * Broj podrazumevanih pravila (DEFAULT_ICP_RULES u convex/leadScoringStore.ts:
- * 6 za Fit + 6 za Intent). Ne uvozi se odatle jer taj modul povlači Convex
+ * 8 za Fit + 6 za Intent). Ne uvozi se odatle jer taj modul povlači Convex
  * server (`./_generated/server`) u klijentski bundle. Ako se skup ikada promeni,
  * stvarni broj ubačenih pravila stiže iz `seed(...)` i prikazuje se u potvrdi —
  * on je merodavan, ova konstanta je samo najava.
  */
-const DEFAULT_RULE_COUNT = 12;
+const DEFAULT_RULE_COUNT = 14;
+
+/** Koliko podrazumevanih pravila ima svaka osa — prati DEFAULT_ICP_RULES. */
+const DEFAULT_RULE_COUNT_BY_AXIS: Record<Axis, number> = {
+  fit: 8,
+  intent: 6,
+};
 
 const AXIS_META: Record<
   Axis,
@@ -195,14 +201,20 @@ export function ScoringRulesPanel({
             ekranu, ali ne ulazi u zbir.
           </p>
         </div>
-        <Button
-          size="sm"
-          className="gap-1.5"
-          onClick={() => setForm({ mode: "new" })}
-        >
-          <Plus className="size-3.5" />
-          <span>Dodaj pravilo</span>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <MissingDefaultsButton
+            workspaceId={workspaceId}
+            onNotice={setNotice}
+          />
+          <Button
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setForm({ mode: "new" })}
+          >
+            <Plus className="size-3.5" />
+            <span>Dodaj pravilo</span>
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -221,6 +233,83 @@ export function ScoringRulesPanel({
 
       {dialogs}
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Dopuna podrazumevanih pravila (GL1)                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * „Dodaj nedostajuća podrazumevana pravila".
+ *
+ * Postoji zato što `seedDefaultIcpRules` staje na prvom postojećem pravilu:
+ * radni prostor koji je pravila zasejao pre nego što je signal uveden nikad ga
+ * ne bi dobio, signali bi se uredno upisivali i tiho ne bi ulazili ni u jedan
+ * zbir. To je najgora vrsta kvara — ekran izgleda ispravno.
+ *
+ * Dugme se NE crta kad ništa ne fali. Kontrola koja nema šta da uradi je
+ * obećanje koje se ne ispunjava klikom.
+ */
+function MissingDefaultsButton({
+  workspaceId,
+  onNotice,
+}: {
+  workspaceId: Id<"workspaces">;
+  onNotice: (notice: Notice) => void;
+}) {
+  const missing = useQuery(api.leadScoringStore.missingDefaultIcpRules, {
+    workspaceId,
+  });
+  const addMissing = useMutation(api.leadScoringStore.addMissingDefaultIcpRules);
+  const [radim, setRadim] = useState(false);
+
+  // `undefined` je „još se učita", `[]` je „ništa ne fali" — nijedno nije razlog
+  // da se dugme nacrta.
+  if (missing === undefined || missing.length === 0) return null;
+
+  async function handleAdd() {
+    setRadim(true);
+    try {
+      const res = await addMissing({ workspaceId });
+      onNotice({
+        tone: "success",
+        title:
+          res.added === 1
+            ? `Dodato je pravilo „${res.addedNames[0]}”.`
+            : `Dodato je ${res.added} pravila: ${res.addedNames.join(", ")}.`,
+      });
+    } catch (err) {
+      onNotice({
+        tone: "danger",
+        title:
+          err instanceof Error
+            ? err.message
+            : "Dodavanje podrazumevanih pravila nije uspelo.",
+      });
+    } finally {
+      setRadim(false);
+    }
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="gap-1.5"
+      disabled={radim}
+      onClick={handleAdd}
+      title={`Fali: ${missing.map((m) => m.name).join(", ")}`}
+    >
+      {radim ? (
+        <Loader2 className="size-3.5 animate-spin" />
+      ) : (
+        <Plus className="size-3.5" />
+      )}
+      <span>
+        Dodaj nedostajuća podrazumevana pravila ({missing.length})
+      </span>
+    </Button>
   );
 }
 
@@ -316,7 +405,7 @@ function EmptyScoring({
                     </span>
                   </div>
                   <p className="mt-1 text-micro leading-relaxed text-text-muted">
-                    6 pravila
+                    {DEFAULT_RULE_COUNT_BY_AXIS[axis]} pravila
                   </p>
                 </div>
               );
