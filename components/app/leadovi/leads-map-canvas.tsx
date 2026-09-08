@@ -507,8 +507,6 @@ export function LeadsMapCanvas({
   const selectedRef = useRef(selectedId);
   const paddingRef = useRef(paddingRight);
   const cbRef = useRef({ onSelect, onOpenProfile, onHover, onStyleState, onTuraKraj });
-  /** Firma na koju je čovek KLIKNUO — za nju se kamera ne pomera. */
-  const klikRef = useRef<string | null>(null);
 
   useEffect(() => {
     tackeRef.current = tacke;
@@ -830,7 +828,6 @@ export function LeadsMapCanvas({
       map.on("click", L_PIN, (e) => {
         const companyId = companyIdOd(e.features?.[0]);
         if (!companyId) return;
-        klikRef.current = companyId;
         cb().onSelect?.(companyId);
       });
       map.on("dblclick", L_PIN, (e) => {
@@ -958,12 +955,10 @@ export function LeadsMapCanvas({
     // Padding se NE upisuje trajno (`setPadding` bi mapu odmah pomerio za
     // pola panela); ide samo uz pokret kamere koji je ionako potreban, a
     // vraća se kad se panel zatvori — i to samo ako je ranije i postavljen.
-    const saPanelom = { top: 0, bottom: 0, left: 0, right: paddingRef.current };
     const bezPanela = { top: 0, bottom: 0, left: 0, right: 0 };
 
     const unos = selectedId ? indeksRef.current.get(selectedId) : undefined;
     if (!unos) {
-      klikRef.current = null;
       if ((map.getPadding().right ?? 0) > 0) {
         letRef.current?.kill();
         map.easeTo({ padding: bezPanela, duration });
@@ -971,25 +966,14 @@ export function LeadsMapCanvas({
       return;
     }
 
-    const center: [number, number] = [unos.p.lng, unos.p.lat];
-    if (klikRef.current === selectedId) {
-      // Klik: kamera miruje — osim ako je panel prekrio baš tu tačku.
-      const px = map.project(center);
-      const sirina = map.getContainer().clientWidth;
-      if (px.x > sirina - paddingRef.current - 24) {
-        letRef.current?.kill();
-        map.easeTo({ center, padding: saPanelom, duration });
-      }
-    } else {
-      // Izbor iz tabele / profila / URL-a: let (GL4, plan §9).
-      letiDo({
-        lng: unos.p.lng,
-        lat: unos.p.lat,
-        zoom: Math.max(map.getZoom(), FOKUS_ZOOM - 0.5),
-        paddingRight: paddingRef.current,
-      });
-    }
-    klikRef.current = null;
+    // Svaki izbor — klik na pin, tabela, profil ili URL — leti na tačku sa
+    // istim zumom (GL4, plan §9).
+    letiDo({
+      lng: unos.p.lng,
+      lat: unos.p.lat,
+      zoom: Math.max(map.getZoom(), FOKUS_ZOOM - 0.5),
+      paddingRight: paddingRef.current,
+    });
   }, [selectedId, spremna, letiDo]);
 
   // ── Prelet hot firmi (GL4, plan §9) ──
