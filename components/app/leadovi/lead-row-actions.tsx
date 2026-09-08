@@ -13,6 +13,8 @@ import {
   Ellipsis,
   ExternalLink,
   Mail,
+  MapPin,
+  MapPinOff,
   Phone,
   PhoneCall,
   Tag,
@@ -407,6 +409,21 @@ export function LeadRowActions({
             <ExternalLink />
             Otvori profil
           </DropdownMenuItem>
+          {/* GL4: otvara mapu sa letom do firme. Firma bez koordinata nema
+              gde da se pokaže — stavka je onemogućena i kaže zašto. */}
+          {company?.lat !== undefined && company?.lng !== undefined ? (
+            <DropdownMenuItem
+              render={<Link href={`/leadovi?tab=map&firma=${companyId}`} />}
+            >
+              <MapPin />
+              Prikaži na mapi
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem disabled>
+              <MapPinOff />
+              Nema koordinata za mapu
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

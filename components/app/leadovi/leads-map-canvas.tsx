@@ -1,7 +1,7 @@
 "use client";
 
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AttributionControl,
   LngLatBounds,
@@ -13,6 +13,9 @@ import {
   type StyleSpecification,
 } from "maplibre-gl";
 import type { Temperatura } from "./lead-chips";
+import { heksPoluprecnikM, visinaZa } from "./leads-map-geo";
+import { letiDoTacke, type Let } from "./leads-map-fly";
+import { LeadsThreeLayer, type ThreeTacka } from "./leads-map-three-layer";
 import { cn } from "@/lib/utils";
 
 /**
@@ -76,6 +79,13 @@ export type LeadsMapCanvasProps = {
   paddingRight?: number;
   /** Promena vrednosti ponovo pravi mapu od nule (dugme „Pokušaj ponovo"). */
   retryKey: number;
+  /**
+   * „Preleti hot firme" (GL4): redosled firmi za obilazak. Dok nije `null`,
+   * kamera leti od jedne do druge sa pauzom od 2 s i otvara karticu svake;
+   * klik bilo gde, Esc ili prevlačenje mape prekidaju.
+   */
+  tura?: string[] | null;
+  onTuraKraj?: () => void;
   className?: string;
 };
 
@@ -98,15 +108,13 @@ const POCETNI_ZOOM = 11;
 const PITCH = 55;
 const BEARING = -15;
 
-/** Visina heksagona u metrima: fit 0 % → 20 m, 100 % → 400 m (plan §8). */
-const VISINA_MIN_M = 20;
-const VISINA_MAX_M = 400;
-/** Poluprečnik heksagona u pikselima ekrana — u metrima zavisi od zooma. */
-const HEKS_PX = 13;
-
 const STIL_ROK_MS = 20_000;
 const FIT_PADDING_PX = 56;
 const FOKUS_ZOOM = 15;
+/** Pauza na svakoj firmi tokom preleta (plan §9). */
+const TURA_PAUZA_MS = 2000;
+/** Sastanak „uskoro" za beacon (plan §9): u narednih 7 dana. */
+const SASTANAK_USKORO_MS = 7 * 24 * 60 * 60 * 1000;
 
 const SRC_TACKE = "leadovi-tacke";
 const SRC_HEKS = "leadovi-heks";
@@ -136,6 +144,8 @@ type Tokeni = {
   bg950: string;
   bg900: string;
   bg800: string;
+  /** `--warning` — beacon sastanka u three.js sloju (GL4). */
+  warning: string;
 };
 
 function parseColor(input: string): [number, number, number, number] | null {
@@ -216,7 +226,23 @@ function citajTokene(): Tokeni {
     bg950: t("--bg-950"),
     bg900: t("--bg-900"),
     bg800: t("--bg-800"),
+    warning: t("--warning"),
   };
+}
+
+/** Tačke za three.js sloj: hot, „sastanak uskoro" i visina heksagona. */
+function threeTacke(tacke: MapPoint[], now: number): ThreeTacka[] {
+  return tacke.map((p) => ({
+    companyId: p.companyId,
+    lng: p.lng,
+    lat: p.lat,
+    visinaM: visinaZa(p.fit),
+    hot: p.temperatura === "hot",
+    sastanakUskoro:
+      p.sastanakAt !== null &&
+      p.sastanakAt >= now &&
+      p.sastanakAt - now <= SASTANAK_USKORO_MS,
+  }));
 }
 
 function bojaZa(temp: Temperatura, t: Tokeni): { boja: string; svetla: string } {
@@ -319,23 +345,13 @@ function nadjiFont(style: StyleSpecification): string[] {
 
 // ── Geometrija ───────────────────────────────────────────────────────────────
 
-function visinaZa(fit: number | null): number {
-  if (fit === null) return VISINA_MIN_M;
-  const f = Math.min(100, Math.max(0, fit)) / 100;
-  return VISINA_MIN_M + f * (VISINA_MAX_M - VISINA_MIN_M);
-}
-
-function metaraPoPikselu(lat: number, zoom: number): number {
-  return (156_543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom);
-}
-
 function heksagon(
   p: MapPoint,
   id: number,
   zoom: number,
   t: Tokeni,
 ): GeoJSON.Feature<GeoJSON.Polygon> {
-  const r = HEKS_PX * metaraPoPikselu(p.lat, zoom);
+  const r = heksPoluprecnikM(p.lat, zoom);
   const dLat = r / 111_320;
   const dLng = r / (111_320 * Math.cos((p.lat * Math.PI) / 180));
   const prsten: [number, number][] = [];
@@ -453,12 +469,20 @@ export function LeadsMapCanvas({
   onStyleState,
   paddingRight = 0,
   retryKey,
+  tura = null,
+  onTuraKraj,
   className,
 }: LeadsMapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const tokeniRef = useRef<Tokeni | null>(null);
   const spremnaRef = useRef(false);
+  /** three.js sloj (GL4) — nov primerak posle svakog `style.load`. */
+  const threeRef = useRef<LeadsThreeLayer | null>(null);
+  /** Aktivan let kamere (GL4) — nov let ubija prethodni. */
+  const letRef = useRef<Let | null>(null);
+  /** Dok traje prelet, hover sa miša ne prepisuje karticu obilaska. */
+  const turaAktivnaRef = useRef(false);
   // Bump posle svakog `style.load` — efekti podataka i kamere čekaju na njega.
   const [spremna, setSpremna] = useState(0);
 
@@ -467,7 +491,7 @@ export function LeadsMapCanvas({
   const indeksRef = useRef(new Map<string, { p: MapPoint; id: number }>());
   const selectedRef = useRef(selectedId);
   const paddingRef = useRef(paddingRight);
-  const cbRef = useRef({ onSelect, onOpenProfile, onHover, onStyleState });
+  const cbRef = useRef({ onSelect, onOpenProfile, onHover, onStyleState, onTuraKraj });
   /** Firma na koju je čovek KLIKNUO — za nju se kamera ne pomera. */
   const klikRef = useRef<string | null>(null);
   const prethodniIzborRef = useRef<number | null>(null);
@@ -483,8 +507,29 @@ export function LeadsMapCanvas({
     paddingRef.current = paddingRight;
   }, [paddingRight]);
   useEffect(() => {
-    cbRef.current = { onSelect, onOpenProfile, onHover, onStyleState };
-  }, [onSelect, onOpenProfile, onHover, onStyleState]);
+    cbRef.current = { onSelect, onOpenProfile, onHover, onStyleState, onTuraKraj };
+  }, [onSelect, onOpenProfile, onHover, onStyleState, onTuraKraj]);
+
+  /**
+   * Jedini ulaz za let kamere: ubija prethodni let, pa kreće nov. Pod
+   * `prefers-reduced-motion` je to skok (`jumpTo`), ne let.
+   */
+  const letiDo = useCallback(
+    (cilj: { lng: number; lat: number; zoom: number; paddingRight: number }): Let | null => {
+      const map = mapRef.current;
+      if (!map) return null;
+      letRef.current?.kill();
+      const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const let_ = letiDoTacke(
+        map,
+        { ...cilj, pitch: PITCH, bearing: BEARING },
+        { reducedMotion: still },
+      );
+      letRef.current = let_;
+      return let_;
+    },
+    [],
+  );
 
   const idsKey = useMemo(
     () =>
@@ -502,7 +547,12 @@ export function LeadsMapCanvas({
 
     const tokeni = citajTokene();
     tokeniRef.current = tokeni;
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reducedMq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const still = reducedMq.matches;
+    // Promena podešavanja usred sesije se prenosi na three sloj (puls i
+    // beacon se gase/pale bez ponovnog učitavanja).
+    const naPromenuPokreta = () => threeRef.current?.setReducedMotion(reducedMq.matches);
+    reducedMq.addEventListener("change", naPromenuPokreta);
     const cb = () => cbRef.current;
 
     let stilIndex = 0;
@@ -562,12 +612,40 @@ export function LeadsMapCanvas({
       cb().onStyleState({ faza: "error", poruka });
     };
 
+    // three.js sloj (GL4) samo na punoj mapi, samo uz WebGL2, i samo dok ga
+    // `?three=0` ne isključi (izlaz za nuždu bez deploya). `getContext` na
+    // canvasu koji već ima webgl2 kontekst vraća taj isti kontekst; `null`
+    // znači da mapa radi na nečem drugom i sloj se ne montira.
+    let threeDozvoljen = mode === "all";
+    if (threeDozvoljen) {
+      const param = new URLSearchParams(window.location.search).get("three");
+      if (param === "0") threeDozvoljen = false;
+    }
+    if (threeDozvoljen && !map.getCanvas().getContext("webgl2")) {
+      threeDozvoljen = false;
+      console.info("[leads-map] three.js sloj preskočen: WebGL2 nije dostupan.");
+    }
+
+    const ukloniThree = () => {
+      const sloj = threeRef.current;
+      if (!sloj) return;
+      threeRef.current = null;
+      try {
+        if (map.getLayer(sloj.id)) map.removeLayer(sloj.id);
+        else sloj.onRemove();
+      } catch {
+        /* stil je već srušen — resursi umiru sa kontekstom */
+      }
+    };
+
     const ucitajStil = () => {
       if (rok) clearTimeout(rok);
       rok = setTimeout(() => {
         if (!ucitan && !uklonjena) probajSledeci("izvor nije odgovorio u roku od 20 s");
       }, STIL_ROK_MS);
       cb().onStyleState({ faza: "loading" });
+      // Nov stil briše sve slojeve; three sloj se skida uredno pre toga.
+      ukloniThree();
       map.setStyle(STILOVI[stilIndex].url, {
         diff: false,
         transformStyle: (_prethodni, sledeci) => slateOverride(sledeci, tokeni),
@@ -622,6 +700,8 @@ export function LeadsMapCanvas({
       if (izabran) {
         map.setFeatureState({ source: SRC_HEKS, id: izabran.id }, { selected: true });
       }
+      // three.js sloj crta samo isti skup — prsten pod klasterom bi bio šum.
+      threeRef.current?.setVidljive(videni);
     };
     const zakaziOsvezi = () => {
       if (raf !== null || uklonjena) return;
@@ -639,6 +719,18 @@ export function LeadsMapCanvas({
       ucitan = true;
       if (rok) clearTimeout(rok);
       dodajSlojeve(map, tokeni, mode, tackeRef.current);
+      if (threeDozvoljen) {
+        // Posle heksagona, u istom GL kontekstu (renderingMode 3d deli
+        // dubinu, pa heksagon zaklanja donji deo snopa).
+        const sloj = new LeadsThreeLayer(
+          { hot: tokeni.hot, accent: tokeni.accent, warning: tokeni.warning },
+          still,
+        );
+        sloj.setData(threeTacke(tackeRef.current, Date.now()));
+        sloj.setIzabrana(selectedRef.current);
+        map.addLayer(sloj);
+        threeRef.current = sloj;
+      }
       spremnaRef.current = true;
       setSpremna((n) => n + 1);
       cb().onStyleState({ faza: "ready", izvor: STILOVI[stilIndex].izvor });
@@ -670,12 +762,14 @@ export function LeadsMapCanvas({
           map.setFeatureState({ source: SRC_HEKS, id: hoverId }, { hover: true });
         }
         canvas.style.cursor = "pointer";
-        cb().onHover?.({ point: unos.p, x: e.point.x, y: e.point.y });
+        if (!turaAktivnaRef.current) {
+          cb().onHover?.({ point: unos.p, x: e.point.x, y: e.point.y });
+        }
       });
       map.on("mouseleave", L_HEKS, () => {
         skiniHover();
         canvas.style.cursor = "";
-        cb().onHover?.(null);
+        if (!turaAktivnaRef.current) cb().onHover?.(null);
       });
       map.on("click", L_HEKS, (e) => {
         const companyId = companyIdOd(e.features?.[0]);
@@ -729,8 +823,14 @@ export function LeadsMapCanvas({
 
     return () => {
       uklonjena = true;
+      reducedMq.removeEventListener("change", naPromenuPokreta);
       if (rok) clearTimeout(rok);
       if (raf !== null) cancelAnimationFrame(raf);
+      letRef.current?.kill();
+      letRef.current = null;
+      // Sloj se skida PRE `map.remove()`, da `onRemove` uredno oslobodi
+      // geometrije, materijale i renderer dok kontekst još živi.
+      ukloniThree();
       spremnaRef.current = false;
       prethodniIzborRef.current = null;
       mapRef.current = null;
@@ -738,12 +838,13 @@ export function LeadsMapCanvas({
     };
   }, [retryKey, mode]);
 
-  // ── Podaci → izvor tačaka ──
+  // ── Podaci → izvor tačaka + three.js sloj ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !spremnaRef.current) return;
     const src = map.getSource(SRC_TACKE) as GeoJSONSource | undefined;
     src?.setData(kolekcijaTacaka(tacke));
+    threeRef.current?.setData(threeTacke(tacke, Date.now()));
   }, [tacke, spremna]);
 
   // ── Kamera: kad se promeni SKUP tačaka (ne na svaki render) ──
@@ -759,17 +860,17 @@ export function LeadsMapCanvas({
       ? indeksRef.current.get(selectedRef.current)
       : undefined;
     if (fokus) {
-      map.easeTo({
-        center: [fokus.p.lng, fokus.p.lat],
+      // Firma iz URL-a: let (GL4), ne `easeTo`.
+      letiDo({
+        lng: fokus.p.lng,
+        lat: fokus.p.lat,
         zoom: FOKUS_ZOOM,
-        pitch: PITCH,
-        bearing: BEARING,
-        padding: { top: 0, bottom: 0, left: 0, right: paddingRef.current },
-        duration,
+        paddingRight: paddingRef.current,
       });
       return;
     }
 
+    letRef.current?.kill();
     const granice = new LngLatBounds();
     for (const p of lista) granice.extend([p.lng, p.lat]);
     map.fitBounds(granice, {
@@ -779,7 +880,7 @@ export function LeadsMapCanvas({
       bearing: BEARING,
       duration,
     });
-  }, [idsKey, spremna]);
+  }, [idsKey, spremna, letiDo]);
 
   // ── Izbor: stanje heksagona + prostor za panel + kamera kad izbor nije klik ──
   useEffect(() => {
@@ -803,9 +904,11 @@ export function LeadsMapCanvas({
     const bezPanela = { top: 0, bottom: 0, left: 0, right: 0 };
 
     const unos = selectedId ? indeksRef.current.get(selectedId) : undefined;
+    threeRef.current?.setIzabrana(unos ? selectedId : null);
     if (!unos) {
       klikRef.current = null;
       if ((map.getPadding().right ?? 0) > 0) {
+        letRef.current?.kill();
         map.easeTo({ padding: bezPanela, duration });
       }
       return;
@@ -819,18 +922,99 @@ export function LeadsMapCanvas({
       const px = map.project(center);
       const sirina = map.getContainer().clientWidth;
       if (px.x > sirina - paddingRef.current - 24) {
+        letRef.current?.kill();
         map.easeTo({ center, padding: saPanelom, duration });
       }
     } else {
-      map.easeTo({
-        center,
+      // Izbor iz tabele / profila / URL-a: let (GL4, plan §9).
+      letiDo({
+        lng: unos.p.lng,
+        lat: unos.p.lat,
         zoom: Math.max(map.getZoom(), FOKUS_ZOOM - 0.5),
-        padding: saPanelom,
-        duration,
+        paddingRight: paddingRef.current,
       });
     }
     klikRef.current = null;
-  }, [selectedId, spremna]);
+  }, [selectedId, spremna, letiDo]);
+
+  // ── Prelet hot firmi (GL4, plan §9) ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !spremnaRef.current || !tura || tura.length === 0) return;
+    const cb = () => cbRef.current;
+    let otkazan = false;
+    let pauza: ReturnType<typeof setTimeout> | null = null;
+    let nastaviPauzu: (() => void) | null = null;
+
+    const stani = () => {
+      if (otkazan) return;
+      otkazan = true;
+      turaAktivnaRef.current = false;
+      if (pauza) clearTimeout(pauza);
+      nastaviPauzu?.();
+      letRef.current?.kill();
+      document.removeEventListener("pointerdown", naPointer, true);
+      document.removeEventListener("keydown", naTaster);
+      map.off("dragstart", stani);
+      cb().onHover?.(null);
+      cb().onTuraKraj?.();
+    };
+    const naTaster = (e: KeyboardEvent) => {
+      if (e.key === "Escape") stani();
+    };
+    // Klik BILO GDE prekida — zato `capture` na dokumentu, pre nego što bilo
+    // ko drugi obradi klik. Izuzetak je samo dugme „Zaustavi prelet": njega
+    // gasi njegov sopstveni klik. Da ga i ovaj listener ugasi na pointerdown,
+    // React bi dugme pre klika već prekrojio u „Preleti", pa bi klik odmah
+    // pokrenuo NOV prelet.
+    const naPointer = (e: PointerEvent) => {
+      const cilj = e.target as Element | null;
+      if (cilj?.closest?.("[data-tura-stop]")) return;
+      stani();
+    };
+    document.addEventListener("pointerdown", naPointer, true);
+    document.addEventListener("keydown", naTaster);
+    map.on("dragstart", stani);
+    turaAktivnaRef.current = true;
+
+    const cekaj = () =>
+      new Promise<void>((resolve) => {
+        nastaviPauzu = resolve;
+        pauza = setTimeout(resolve, TURA_PAUZA_MS);
+      });
+
+    void (async () => {
+      for (const companyId of tura) {
+        if (otkazan) return;
+        const unos = indeksRef.current.get(companyId);
+        if (!unos) continue;
+        const let_ = letiDo({
+          lng: unos.p.lng,
+          lat: unos.p.lat,
+          zoom: FOKUS_ZOOM,
+          paddingRight: paddingRef.current,
+        });
+        if (!let_) return;
+        const ishod = await let_.gotov;
+        if (otkazan) return;
+        if (ishod === "prekinut") {
+          stani();
+          return;
+        }
+        // Kartica firme na koju je kamera sletela — iznad vrha heksagona.
+        const px = map.project([unos.p.lng, unos.p.lat]);
+        cb().onHover?.({ point: unos.p, x: px.x, y: px.y - 28 });
+        await cekaj();
+        if (otkazan) return;
+        cb().onHover?.(null);
+      }
+      stani();
+    })();
+
+    return () => {
+      stani();
+    };
+  }, [tura, spremna, letiDo]);
 
   return (
     <div

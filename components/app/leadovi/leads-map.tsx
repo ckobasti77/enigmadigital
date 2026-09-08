@@ -21,7 +21,9 @@ import {
   ExternalLink,
   LoaderCircle,
   MapPinOff,
+  Plane,
   RefreshCw,
+  Square,
   Table2,
   TriangleAlert,
 } from "lucide-react";
@@ -174,6 +176,8 @@ function LeadsMapAll({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const [stil, setStil] = useState<MapStyleState>({ faza: "loading" });
   const [retryKey, setRetryKey] = useState(0);
   const [hover, setHover] = useState<MapHover | null>(null);
+  // Prelet hot firmi (GL4): redosled id-jeva dok traje, inače `null`.
+  const [tura, setTura] = useState<string[] | null>(null);
   const okvirRef = useRef<HTMLDivElement>(null);
 
   const tacke = useMemo<MapPoint[]>(
@@ -184,6 +188,21 @@ function LeadsMapAll({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
       })),
     [data],
   );
+
+  // Hot firme za prelet: najveći fit prvi, pa po nazivu — obilazak kreće od
+  // najizglednijih, a redosled je isti pri svakom pokretanju.
+  const hotIds = useMemo(
+    () =>
+      tacke
+        .filter((t) => t.temperatura === "hot")
+        .sort(
+          (a, b) =>
+            (b.fit ?? -1) - (a.fit ?? -1) || a.naziv.localeCompare(b.naziv, "sr-RS"),
+        )
+        .map((t) => t.companyId),
+    [tacke],
+  );
+  const onTuraKraj = useCallback(() => setTura(null), []);
 
   const selectedId = nav.firma;
   const izabrana = useMemo(
@@ -242,6 +261,44 @@ function LeadsMapAll({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
             {stil.faza === "ready" && stil.izvor === "openfreemap" && (
               <span className="text-micro">· rezervni izvor mape (OpenFreeMap)</span>
             )}
+
+            {/* Prelet hot firmi (GL4). Nula nije dugme: bez hot firmi u
+                preseku dugme je onemogućeno i kaže zašto. */}
+            <span
+              className="ml-auto"
+              title={
+                hotIds.length === 0 ? "nema hot firmi u ovom preseku" : undefined
+              }
+            >
+              {tura ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  data-tura-stop
+                  onClick={() => setTura(null)}
+                  className="gap-1.5 text-xs"
+                >
+                  <Square className="size-3" aria-hidden />
+                  Zaustavi prelet
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={hotIds.length === 0 || stil.faza !== "ready"}
+                  onClick={() => setTura(hotIds)}
+                  className="gap-1.5 text-xs"
+                >
+                  <Plane className="size-3.5" aria-hidden />
+                  Preleti hot firme
+                  {hotIds.length > 0 && (
+                    <span className="font-mono tabular-nums opacity-80">
+                      ({hotIds.length})
+                    </span>
+                  )}
+                </Button>
+              )}
+            </span>
           </>
         )}
       </div>
@@ -314,6 +371,8 @@ function LeadsMapAll({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
                 onStyleState={onStyleState}
                 paddingRight={PANEL_SIRINA_PX + PANEL_RAZMAK_PX * 2}
                 retryKey={retryKey}
+                tura={tura}
+                onTuraKraj={onTuraKraj}
               />
               {stil.faza === "loading" && <UcitavanjeMape tekst="Učitavam mapu…" />}
               {stil.faza === "error" && (
