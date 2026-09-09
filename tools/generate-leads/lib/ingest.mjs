@@ -117,3 +117,32 @@ export function objasniStatus(status) {
       return `Aplikacija je vratila ${status}. JSON je sačuvan lokalno, pa se slanje može ponoviti bez novog trošenja Places kvote.`;
   }
 }
+
+/**
+ * Ljudska poruka za odgovor rute `/generate-leads/snimak` koji nije 200 (GL12
+ * §3). Imenuje TAČAN slučaj (401/404/413/415/429), kao `objasniStatus` za
+ * ingest — da pad uploada odmah kaže da li je token, ruta, veličina, tip ili
+ * plafon, a ne „upload nije uspeo".
+ */
+export function objasniStatusSnimka(status) {
+  switch (status) {
+    case 0:
+      return "Nema veze sa aplikacijom. Proveri internet i ENIGMA_INGEST_URL (host mora biti .convex.site).";
+    case 401:
+      return "Token nije prihvaćen (ista lozinka kao ingest). Obnovi ENIGMA_INGEST_TOKEN u Podešavanja → Pristup → Tokeni za uvoz.";
+    case 404:
+      return (
+        "Ruta /generate-leads/snimak ne postoji na ovom deploymentu. Najčešće znači da " +
+        "produkcioni Convex NIJE na GL10 kodu (deploy nije prošao) — proveri `npm run deploy:convex` " +
+        "ili Vercel build log. Drugi uzrok: EU region izostavljen iz hosta (<deployment>.eu-west-1.convex.site)."
+      );
+    case 413:
+      return "Snimak je veći od 400 KB. audit-site pravi JPEG ≤ 300 KB; test-slika je ~1 KB, pa 413 ovde ne bi trebalo da se javi.";
+    case 415:
+      return "Tip slike nije dozvoljen. Ruta prima image/webp, image/png i image/jpeg.";
+    case 429:
+      return "Prekoračen plafon snimaka za ovaj sat (300 po radnom prostoru). Sačekaj do punog sata pa ponovi send.";
+    default:
+      return `Ruta je vratila ${status}. Snimci nisu poslati; ocena bez snimka se aplikaciji ne šalje sa sudom.`;
+  }
+}

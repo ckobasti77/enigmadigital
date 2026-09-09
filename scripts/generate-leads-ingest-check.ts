@@ -337,7 +337,71 @@ const SLUCAJEVI: Slucaj[] = [
     },
     ocekujem: "prolazi",
   },
+  {
+    // GL12 §1: TAČAN oblik tela iz pale GL10 run-e — `sajtOcena` sa Lighthouse i
+    // `tehnologije`, a `claude: 0` i `snimci: 0` (sud i snimci su ispali pre
+    // slanja). Ovo šema PROPUŠTA i, što je ključno, NE odbacuje `sajtOcena`.
+    // Zaključak (dokazan `assertOcenaPreziviParse` ispod): ako je isto telo
+    // stiglo na produkciju a `leadSiteAudits` je ostao prazan, uzrok NIJE šema
+    // — nego to što produkcioni Convex nije bio na GL10 kodu (deploy nije prošao),
+    // pa je STARA zod šema tiho odbacila nepoznat `sajtOcena`.
+    naziv: "14. sajtOcena: incident GL10 (Lighthouse + tehnologije, bez suda i snimaka) prolazi",
+    telo: {
+      ...OKVIR,
+      redovi: [
+        {
+          ...PUN_RED,
+          sajtOcena: {
+            url: "https://primer-nepostojeci.rs/",
+            auditedAt: 1_757_000_000_000,
+            verzijaSkilla: "1.0.0",
+            lighthouse: { mobile: { performance: 40, seo: 60 }, desktop: { performance: 90 } },
+            tehnologije: [{ ime: "WordPress", kategorija: "CMS", pouzdanost: 100 }],
+            cms: "WordPress",
+          },
+        },
+      ],
+    },
+    ocekujem: "prolazi",
+  },
 ];
+
+/**
+ * GL12 §1: dokaz da tekuća šema NE guta `sajtOcena` (za razliku od stare šeme na
+ * produkciji, koja bi je odbacila kao nepoznato polje). Parsira incident-telo i
+ * potvrđuje da `parsed.data.redovi[0].sajtOcena` i dalje nosi Lighthouse i
+ * tehnologije — tj. da bi `applyImport` dobio ocenu i upisao red u `leadSiteAudits`.
+ */
+function assertOcenaPreziviParse(problemi: string[]): void {
+  const incident = SLUCAJEVI.find((s) => s.naziv.startsWith("14."));
+  if (!incident) {
+    problemi.push("assertOcenaPreziviParse: slučaj 14 (incident) nije nađen.");
+    return;
+  }
+  const rez = generateLeadsIngestSchema.safeParse(incident.telo);
+  if (!rez.success) {
+    problemi.push("assertOcenaPreziviParse: incident-telo bi trebalo da prođe, ali pada.");
+    return;
+  }
+  const oc = rez.data.redovi[0]?.sajtOcena;
+  const ok =
+    oc !== undefined &&
+    oc.lighthouse?.mobile?.performance === 40 &&
+    (oc.tehnologije?.length ?? 0) === 1 &&
+    oc.claude === undefined;
+  if (!ok) {
+    problemi.push(
+      "assertOcenaPreziviParse: `sajtOcena` je izgubljen ili izmenjen kroz parse — šema guta ocenu.",
+    );
+    return;
+  }
+  console.log(
+    "  ✓ incident-telo: `sajtOcena` (Lighthouse + tehnologije) preživi parse → applyImport bi upisao leadSiteAudits.",
+  );
+  console.log(
+    "    (Prazan leadSiteAudits na produkciji za isto telo => prod Convex nije na GL10 kodu, ne greška šeme.)",
+  );
+}
 
 function main(): void {
   const problemi: string[] = [];
@@ -391,6 +455,8 @@ function main(): void {
       `  ✓ ${slucaj.naziv} -> 200, redova: ${rezultat.data.redovi.length}`,
     );
   }
+
+  assertOcenaPreziviParse(problemi);
 
   console.log("");
 

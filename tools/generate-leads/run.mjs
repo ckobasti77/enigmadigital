@@ -16,6 +16,7 @@
  *
  * Komande:
  *   proveri-env                          sve četiri promenljive (§10.1)
+ *   proveri-rutu --snimak                dijagnostika rute za snimke (GL12 §3)
  *   discover --grad --nisa --broj [--sajt] [--upiti] [--faktor] [--max-strana]
  *   check-site --run <id>                status sajta za svaku firmu (§3.8)
  *   geocode --run <id>                   koordinate iz Nominatima (§3.6)
@@ -38,7 +39,7 @@ import { geokodiraj, RAZMAK_MS, sacekaj, userAgent } from "./lib/nominatim.mjs";
 import { proveriSajt } from "./lib/sajt.mjs";
 import { oceniOsobe, traka } from "./lib/skor.mjs";
 import { validirajTelo } from "./lib/schema.mjs";
-import { objasniStatus, posalji, posaljiSnimak } from "./lib/ingest.mjs";
+import { objasniStatus, objasniStatusSnimka, posalji, posaljiSnimak } from "./lib/ingest.mjs";
 import { pokreniSelfTest } from "./lib/self-test.mjs";
 import { ucitajFajl } from "./lib/tabela.mjs";
 import {
@@ -47,6 +48,8 @@ import {
   firmeSaSajtomBezOcene,
   oceneBezSuda,
   oceneBezMobilnog,
+  oceneBezSnimka,
+  rezimeOcena,
 } from "./lib/obogati.mjs";
 import { auditSajta, ispisiIzvestajOcene, PODRAZUMEVANI_DELOVI } from "./lib/audit.mjs";
 import { osveziOtiske } from "./lib/otisci.mjs";
@@ -873,6 +876,11 @@ async function komandaSend(args) {
     args["dozvoli-bez-ocene"] === true || args["dozvoli-bez-ocene"] === "true";
   const dozvoliBezSuda =
     args["dozvoli-bez-suda"] === true || args["dozvoli-bez-suda"] === "true";
+  // GL12 §2: svesno slanje bez suda tamo gde snimci NISU stigli u aplikaciju.
+  // Za razliku od `--dozvoli-bez-ocene`/`--dozvoli-bez-suda` (koji propuštaju
+  // nepotpun run kroz GL11 čuvare), `--bez-suda` uklanja `claude` iz reda čiji
+  // snimci nisu uploadovani i ispisuje koliko je sudova izostavljeno.
+  const bezSuda = args["bez-suda"] === true || args["bez-suda"] === "true";
 
   const stanje = izlaz.citajJson(runId, "run.json");
   const firme = izlaz.citajJson(runId, "firme.json");
@@ -985,9 +993,10 @@ async function komandaSend(args) {
   // GL10: iz `sajtOcena` u telo NE ide ništa lokalno (putanje fajlova, tekst
   // stranice) — samo brojevi, tehnologije, sud i ID-jevi snimaka. Ukupna ocena
   // se ne šalje: aplikacija je računa pri čitanju.
-  for (const red of redovi) {
-    if (red.sajtOcena) red.sajtOcena = ocenaZaTelo(red.sajtOcena);
-  }
+  //
+  // Čišćenje se radi TEK posle `posaljiSnimke()`: toj funkciji trebaju lokalne
+  // putanje (`snimci.desktop`/`.mobile`) da bi uopšte imala šta da pošalje, a
+  // ID-jevi koje šema traži uz Claudeov sud postoje tek posle uploada.
 
   // 0 firmi nije greška i nema šta da se šalje: prazan uvoz ne sme da napravi
   // red u istoriji (GL1, zod `redovi.min(1)`).
@@ -1068,7 +1077,16 @@ async function komandaSend(args) {
     },
   };
 
-  const provera = validirajTelo(telo);
+  // GL12 §2: rezime ocene PRE slanja — „ocena: N, sud: N, snimci: N". Ovako se
+  // gubitak suda ili snimaka vidi pre nego što telo ode, ne tek u aplikaciji.
+  const ocenaRezime = rezimeOcena(telo.redovi);
+  if (ocenaRezime.ocena > 0) {
+    ispisi(
+      `Ocena sajta u telu — ocena: ${ocenaRezime.ocena}, sud: ${ocenaRezime.sud}, snimci: ${ocenaRezime.snimci} (slika).`,
+    );
+  }
+
+  const provera = validirajTelo(teloZaProveruPreUploada(telo));
   if (!provera.ok) {
     const putanja = izlaz.upisiJson(runId, "payload.json", telo);
     ispisiGresku("Telo ne odgovara ingest šemi. Aplikacija bi vratila 400 sa istim spiskom:");
@@ -1090,7 +1108,7 @@ async function komandaSend(args) {
   const kontakti = rezimeKontakata(redovi);
 
   if (suvo) {
-    const putanja = izlaz.upisiJson(runId, "payload.json", telo);
+    const putanja = izlaz.upisiJson(runId, "payload.json", teloZaProveruPreUploada(telo));
     ispisi(`Proba (--dry-run). Ništa nije poslato.`);
     ispisi(`Telo: ${putanja}`);
     ispisi("");
@@ -1106,26 +1124,75 @@ async function komandaSend(args) {
   ]);
 
   // GL10 (plan §4.3): snimci idu PRE tela, ≤ 2 po firmi; njihovi ID-jevi ulaze
-  // u `sajtOcena.snimci`. Pad uploada ne ruši slanje — ocena ide bez slike, a
-  // `greske` to kaže (i Claudeov sud tada NE sme da ide, plan §3).
+  // u `sajtOcena.snimci`. GL12 §3: `posaljiSnimke` ispisuje po firmi i vraća
+  // zbir, ali NIKAD ne izbacuje Claudeov sud — ta odluka je ovde (§2).
   const snimci = await posaljiSnimke(runId, telo.redovi, {
     url: ENIGMA_INGEST_URL,
     token: ENIGMA_INGEST_TOKEN,
   });
   if (snimci.pokusano > 0) {
     ispisi(`Snimci: poslato ${snimci.poslato} od ${snimci.pokusano}${snimci.neuspelo > 0 ? ` (neuspelo ${snimci.neuspelo})` : ""}.`);
-    if (snimci.sudUklonjen > 0) {
-      ispisi(`  PAŽNJA: kod ${snimci.sudUklonjen} firmi nijedan snimak nije prošao, pa Claudeov sud NIJE poslat (bez snimka nema suda).`);
-    }
-    // Telo je promenjeno (ID-jevi) — validacija još jednom pre slanja.
-    const ponovo = validirajTelo(telo);
-    if (!ponovo.ok) {
-      const putanja = izlaz.upisiJson(runId, "payload.json", telo);
-      ispisiGresku("Telo posle uploada snimaka ne prolazi šemu:");
-      for (const polje of ponovo.polja) ispisiGresku(`  ${polje}`);
-      ispisiGresku(`Ništa nije poslato. Telo je sačuvano: ${putanja}`);
+  }
+
+  // GL12 §3: nijedan snimak nije prošao a ima ih na disku → prekid. To je skoro
+  // sigurno token/ruta/plafon (ne podatak), pa slanje staje i imenuje slučaj —
+  // umesto da svih 50 ocena ode bez suda. `--bez-suda` je svesni izlaz.
+  if (!bezSuda && snimci.pokusano > 0 && snimci.poslato === 0) {
+    ispisiGresku(
+      `Nijedan snimak nije poslat (pokušano ${snimci.pokusano}). Verovatno token, ruta ili plafon — ne podatak.`,
+    );
+    ispisiGresku(objasniStatusSnimka(snimci.zadnjiStatus ?? 0));
+    ispisiGresku("Dijagnostika rute: node run.mjs proveri-rutu --snimak");
+    ispisiGresku(
+      "Ništa nije poslato. Sud bez snimka aplikacija ne prima. Svesni izlaz iz pravila: --bez-suda.",
+    );
+    return 1;
+  }
+
+  // Sada su ID-jevi tu: lokalne putanje ispadaju, u telo ostaju samo ID-jevi.
+  for (const red of telo.redovi) {
+    if (red.sajtOcena) red.sajtOcena = ocenaZaTelo(red.sajtOcena);
+  }
+
+  // GL12 §2: red sa Claudeovim sudom ali bez ijednog ID-a snimka bi oborio
+  // ingest šemu (refine „sud bez snimka"). `send` NIKAD ne briše sud tiho da bi
+  // prošlo: ili staje sa tačnom komandom, ili — uz `--bez-suda` — svesno uklanja
+  // sud tim firmama i ispisuje koliko.
+  const bezSnimka = oceneBezSnimka(telo.redovi);
+  if (bezSnimka.length > 0) {
+    if (!bezSuda) {
+      ispisiGresku(
+        `Snimci nisu poslati (${bezSnimka.length} firmi). Sud bez snimka aplikacija ne prima.`,
+      );
+      ispisiGresku(
+        `Pokreni: node run.mjs audit-site --samo snimci --run ${runId} pa ponovo send.`,
+      );
+      ispisiGresku("Svesni izlaz iz pravila: --bez-suda (uklanja sud tim firmama).");
       return 1;
     }
+    let izostavljeno = 0;
+    for (const poz of bezSnimka) {
+      const ocena = telo.redovi[poz - 1]?.sajtOcena;
+      if (!ocena?.claude) continue;
+      delete ocena.claude;
+      const greske = Array.isArray(ocena.greske) ? [...ocena.greske] : [];
+      greske.push("Claudeov sud izostavljen (--bez-suda): snimci nisu stigli u aplikaciju");
+      ocena.greske = [...new Set(greske)];
+      izostavljeno += 1;
+    }
+    ispisi(
+      `--bez-suda: izostavljeno ${izostavljeno} Claudeovih sudova (snimci nisu u aplikaciji).`,
+    );
+  }
+
+  // Telo je promenjeno (ID-jevi) — validacija još jednom pre slanja.
+  const ponovo = validirajTelo(telo);
+  if (!ponovo.ok) {
+    const putanja = izlaz.upisiJson(runId, "payload.json", telo);
+    ispisiGresku("Telo posle uploada snimaka ne prolazi šemu:");
+    for (const polje of ponovo.polja) ispisiGresku(`  ${polje}`);
+    ispisiGresku(`Ništa nije poslato. Telo je sačuvano: ${putanja}`);
+    return 1;
   }
 
   const odgovor = await posalji({
@@ -1203,14 +1270,40 @@ function ocenaZaTelo(ocena) {
 }
 
 /**
+ * Telo kakvo bi bilo da je upload snimaka već prošao — za provere PRE uploada
+ * (prva validacija i `--dry-run`). Lokalne putanje ispadaju, a Claudeov sud se
+ * izostavlja tamo gde snimak još nema ID: pravilo „nema suda bez snimka" se
+ * proverava tek posle uploada, kad ID-jevi postoje.
+ */
+function teloZaProveruPreUploada(telo) {
+  return {
+    ...telo,
+    redovi: telo.redovi.map((red) => {
+      if (!red.sajtOcena) return red;
+      const ocena = ocenaZaTelo(red.sajtOcena);
+      if (ocena.claude && !(ocena.snimci?.desktopId || ocena.snimci?.mobilniId)) {
+        const bezSuda = { ...ocena };
+        delete bezSuda.claude;
+        return { ...red, sajtOcena: bezSuda };
+      }
+      return { ...red, sajtOcena: ocena };
+    }),
+  };
+}
+
+/**
  * Šalje snimke (početna stranica, desktop + mobilni) za svaki red sa
  * `sajtOcena` i upisuje ID-jeve u `red.sajtOcena.snimci`. Lokalne putanje
- * se čitaju iz `out/<run>/sajt/<slug>/`. Bez ijednog prošlog snimka Claudeov
- * sud se UKLANJA iz reda (plan §3: ne ocenjuje se sajt koji nije viđen), a
- * `greske` dobija razlog.
+ * se čitaju iz `out/<run>/sajt/<slug>/`.
+ *
+ * GL12 §3: ispis po firmi („snimci: 2/2 poslata" ili „pao: razlog"), zbir sa
+ * `zadnjiStatus` (za `objasniStatusSnimka`). Ova funkcija NIKAD ne uklanja
+ * Claudeov sud — kad snimak ne prođe samo upiše `greske` i briše `snimci` red;
+ * odluku o sudu donosi `komandaSend` (§2), da bi gubitak suda bio vidljiv i
+ * zaustavljiv, a ne tih.
  */
 async function posaljiSnimke(runId, redovi, { url, token }) {
-  const zbir = { pokusano: 0, poslato: 0, neuspelo: 0, sudUklonjen: 0 };
+  const zbir = { pokusano: 0, poslato: 0, neuspelo: 0, zadnjiStatus: 0 };
   const koren = izlaz.putanjaRuna(runId);
 
   for (const red of redovi) {
@@ -1219,6 +1312,9 @@ async function posaljiSnimke(runId, redovi, { url, token }) {
     const lokalno = ocena.snimci ?? {};
     const greske = Array.isArray(ocena.greske) ? [...ocena.greske] : [];
     const ids = {};
+    let firmaPokusano = 0;
+    let firmaPoslato = 0;
+    let firmaRazlog = "";
 
     for (const [kljuc, ciljKljuc] of [["desktop", "desktopId"], ["mobile", "mobilniId"]]) {
       // Već poslato (ponovni `send` iz sačuvanog stanja) — ne šalje se dvaput.
@@ -1231,12 +1327,15 @@ async function posaljiSnimke(runId, redovi, { url, token }) {
       const putanja = join(koren, rel);
       if (!existsSync(putanja)) {
         greske.push(`snimak ${kljuc}: fajl ne postoji lokalno`);
+        firmaRazlog = firmaRazlog || `${kljuc}: fajl ne postoji lokalno`;
         continue;
       }
       const bajtovi = readFileSync(putanja);
       zbir.pokusano += 1;
+      firmaPokusano += 1;
       if (bajtovi.length > 400 * 1024) {
         greske.push(`snimak ${kljuc}: veći od 400 KB, nije poslat`);
+        firmaRazlog = firmaRazlog || `${kljuc}: veći od 400 KB`;
         zbir.neuspelo += 1;
         continue;
       }
@@ -1245,23 +1344,29 @@ async function posaljiSnimke(runId, redovi, { url, token }) {
       if (rez.ok && rez.storageId) {
         ids[ciljKljuc] = rez.storageId;
         zbir.poslato += 1;
+        firmaPoslato += 1;
       } else {
         greske.push(`snimak ${kljuc}: upload nije uspeo (${rez.status || rez.greska})`);
+        firmaRazlog = firmaRazlog || `${kljuc}: HTTP ${rez.status || rez.greska}`;
         zbir.neuspelo += 1;
+        if (rez.status) zbir.zadnjiStatus = rez.status;
       }
     }
 
-    if (Object.keys(ids).length > 0) {
-      ocena.snimci = ids;
-    } else {
-      delete ocena.snimci;
-      if (ocena.claude) {
-        delete ocena.claude;
-        greske.push("Claudeov sud nije poslat: nijedan snimak nije stigao u aplikaciju");
-        zbir.sudUklonjen += 1;
+    if (Object.keys(ids).length > 0) ocena.snimci = ids;
+    else delete ocena.snimci;
+    if (greske.length > 0) ocena.greske = [...new Set(greske)];
+
+    // Ispis po firmi (§3): domen nije lični podatak. Preskoči firme bez ijednog
+    // lokalnog snimka koje ni ne pokušavamo (npr. Lighthouse-only ocena).
+    if (firmaPokusano > 0 || firmaRazlog) {
+      const domen = domenOd(ocena.url) || "(bez domena)";
+      if (firmaPoslato === firmaPokusano && firmaPokusano > 0) {
+        ispisi(`  ${domen}: snimci ${firmaPoslato}/${firmaPokusano} poslata`);
+      } else {
+        ispisi(`  ${domen}: snimci ${firmaPoslato}/${firmaPokusano} — pao: ${firmaRazlog}`);
       }
     }
-    if (greske.length > 0) ocena.greske = [...new Set(greske)];
   }
 
   // Sačuvaj ID-jeve u firme.json da ponovni `send` ne šalje slike opet.
@@ -1284,6 +1389,54 @@ async function posaljiSnimke(runId, redovi, { url, token }) {
   }
 
   return zbir;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// proveri-rutu (GL12 §3) — dijagnostika rute za snimke, bez pravog runa
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Najmanji validan PNG (1×1, providan) kao Base64 — ~70 bajtova. Ruta ne
+ * proverava strukturu slike, samo MIME + veličinu; ovo je „prava" slika da
+ * test bude iskren, a ostaje daleko ispod granice od 400 KB.
+ */
+const TEST_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+/**
+ * `proveri-rutu --snimak`: pošalje jednu test-sliku na `/generate-leads/snimak`
+ * i ispiše status. Dijagnostika BEZ pravog runa (§3) — imenuje slučaj
+ * (401/404/…) kad ruta ne primi sliku, pa se pre `send`-a zna da li snimci uopšte
+ * mogu da prođu (posle deploya obavezno proveriti).
+ */
+async function komandaProveriRutu(args) {
+  const snimak = args.snimak === true || args.snimak === "true";
+  if (!snimak) {
+    throw new Error("proveri-rutu za sada podržava samo --snimak.");
+  }
+  const { ENIGMA_INGEST_URL, ENIGMA_INGEST_TOKEN } = env.trazi([
+    "ENIGMA_INGEST_URL",
+    "ENIGMA_INGEST_TOKEN",
+  ]);
+  const bajtovi = Buffer.from(TEST_PNG_BASE64, "base64");
+  const rez = await posaljiSnimak({
+    url: ENIGMA_INGEST_URL,
+    token: ENIGMA_INGEST_TOKEN,
+    bajtovi,
+    tip: "image/png",
+  });
+  if (rez.ok && rez.storageId) {
+    ispisi(
+      `Ruta /generate-leads/snimak radi (HTTP ${rez.status}). Test-slika je primljena i upisana u storage.`,
+    );
+    ispisi("Snimci mogu da se šalju. (Test-slika je siroče u storage-u; briše je purge.)");
+    return 0;
+  }
+  ispisiGresku(
+    `Ruta /generate-leads/snimak nije primila test-sliku (status ${rez.status || rez.greska}).`,
+  );
+  ispisiGresku(objasniStatusSnimka(rez.status));
+  return 1;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1607,6 +1760,7 @@ function ispisiRezime(telo, kontakti, stanje, dodatno = {}) {
 const POMOC = `/generate-leads — deterministički deo (v${VERZIJA})
 
   node run.mjs proveri-env
+  node run.mjs proveri-rutu --snimak
   node run.mjs discover --grad "Beograd" --nisa frizeri --broj 25 --sajt nema
   node run.mjs ucitaj   --fajl "tabela.xlsx" --nisa frizeri [--list "Svi lidovi (100)"]
   node run.mjs ucitaj   --izvoz "izvoz.csv"  --nisa frizeri
@@ -1614,7 +1768,7 @@ const POMOC = `/generate-leads — deterministički deo (v${VERZIJA})
   node run.mjs audit-site --run <run-id> [--samo lighthouse,tehnologije,snimci] [--iznova]
   node run.mjs geocode   --run <run-id>
   node run.mjs score     --run <run-id> [--ponovo]
-  node run.mjs send      --run <run-id> [--dry-run] [--sve] [--dozvoli-bez-sajta] [--dozvoli-bez-ocene] [--dozvoli-bez-suda]
+  node run.mjs send      --run <run-id> [--dry-run] [--sve] [--dozvoli-bez-sajta] [--dozvoli-bez-ocene] [--dozvoli-bez-suda] [--bez-suda]
   node run.mjs oceni-sajt https://primer.rs [--firma <companyId>] [--samo …]
   node run.mjs oceni-sajtove --izvoz "izvoz.csv" [--od 1 --do 25]
   node run.mjs osvezi-otiske
@@ -1639,6 +1793,12 @@ Opcije za score i send:
   --dozvoli-bez-sajta          send šalje i kad nekoj firmi fali imaSajt
   --dozvoli-bez-ocene          send šalje i kad firma sa sajtom nema ocenu
   --dozvoli-bez-suda           send šalje i kad ocena nema Claudeov sud
+  --bez-suda                   send svesno uklanja sud firmama čiji snimci nisu
+                               stigli u aplikaciju (i ispisuje koliko)
+
+Dijagnostika:
+  proveri-rutu --snimak        pošalji test-sliku na /generate-leads/snimak i
+                               ispiši status (posle deploya obavezno pre send-a)
 
 Opcije za audit-site:
   --nastavi                    (podrazumevano) preskoči keš mlađi od 24 h
@@ -1660,6 +1820,8 @@ async function glavna() {
   switch (komanda) {
     case "proveri-env":
       return komandaProveriEnv();
+    case "proveri-rutu":
+      return await komandaProveriRutu(args);
     case "discover":
       return await komandaDiscover(args);
     case "ucitaj":

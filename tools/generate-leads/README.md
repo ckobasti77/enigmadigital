@@ -211,6 +211,24 @@ run. Fajlovi: `out/<run>/sajt/<domen>/` (`psi.mobile.json`, `psi.desktop.json`,
 `pocetna.mobile.jpg`, `pocetna.tekst.txt`). U aplikaciju idu samo brojevi,
 imena tehnologija, Claudeove rečenice i dva snimka — ne HTML ni tekst.
 
+**Posle deploya proveri rutu za snimke pre `send`-a.** Snimci se šalju na
+`POST /generate-leads/snimak` (isti token kao ingest, zaseban plafon **300/sat**
+po radnom prostoru = 150 firmi × 2 slike). Ta ruta postoji tek kad je
+produkcioni Convex na GL10+ kodu; Convex se deployuje kroz Vercel build
+(`CONVEX_DEPLOY_KEY`, videti glavni `README.md`), a to zna da ne prođe. Ako
+ruta vrati **404**, snimci ne mogu da se pošalju i `send` bi stao na sudu bez
+snimka — zato posle svakog deploya prvo:
+
+```
+node run.mjs proveri-rutu --snimak
+```
+
+Vraća „ruta radi" (200) ili imenuje slučaj (401 token, 404 ruta/deploy, 415
+tip, 429 plafon). Ako je 404 uzrok neuspeo Convex deploy, ponovi deploy
+(`npm run deploy:convex` iz korena repoa, ili proveri Vercel build log) pa
+ponovi proveru. `send` bez ovoga i dalje ne gubi sud tiho — staje i traži
+popravku — ali ovo je brža dijagnostika bez pravog runa.
+
 U aplikaciji: profil firme → jezičak **Sajt** (pojas kvaliteta, Lighthouse
 pločice, Claudeova rubrika, tehnologije, snimci, istorija ocena); filteri
 **Kvalitet sajta**, **CMS**, **Spor sajt**, **Preporučena ponuda**; tab Niše

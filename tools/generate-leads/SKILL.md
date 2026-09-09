@@ -89,11 +89,27 @@ Ova pravila su iznad tokova. Ako se sudare sa nečim niže, važe ona.
 5. **Rubrika (Claudeov sud) se popunjava odmah posle `audit-site`**, u serijama
    od 10 firmi; posle svake serije snimi `firme.json`. Ne ostavljaj audit bez
    suda za kasnije — treći izvor ocene nije opcion.
+6. **Kod skilla se ne menja dok run traje** (GL12). Ako neka komanda ne radi,
+   run se **prekida**, greška se prijavljuje, i tek onda se menja kod — u
+   **zasebnoj sesiji**. Nikad ne diraj `run.mjs`/`lib/*` da bi „propustio" telo
+   kroz proveru; to je uzrok GL10 rupe (sud tiho izbačen da bi slanje prošlo).
 
-`send` sada odbija nepotpun run (GL11): firma sa sajtom koji radi bez ocene →
+`send` odbija nepotpun run (GL11): firma sa sajtom koji radi bez ocene →
 „Pokreni: audit-site --run <id>" (izlaz `--dozvoli-bez-ocene`); ocena bez
 Claudeovog suda → „Popuni rubriku po §4b" (izlaz `--dozvoli-bez-suda`); PSI bez
 mobilnog ne blokira, ali ide u `sajtOcena.greske` i u rezime.
+
+`send` NIKAD ne izbacuje Claudeov sud tiho (GL12): ako snimci nisu stigli u
+aplikaciju, a red ima sud, `send` **staje** („Snimci nisu poslati (N firmi)…
+Pokreni: audit-site --samo snimci --run <id> pa ponovo send."). Ako nijedan
+snimak nije prošao a ima ih na disku → prekid uz imenovan uzrok (token/ruta/
+plafon) i predlog `proveri-rutu --snimak`. Svesni izlaz je `--bez-suda` (uklanja
+sud tim firmama i ispiše koliko). Rezime pre slanja kaže „ocena: N, sud: N,
+snimci: N" — da se gubitak vidi pre slanja.
+
+**Posle svakog deploya** (kad je prod tek dobio nov Convex kod) prvo pokreni
+`proveri-rutu --snimak`: ako ruta vrati 404, prod Convex NIJE na tom kodu i
+`send` bi tiho izgubio ocene — sačekaj da deploy prođe pre slanja.
 
 ## Tok
 
@@ -340,9 +356,15 @@ node "{{REPO_PATH}}/tools/generate-leads/run.mjs" send --run <run-id>
 Ispisuje: „Poslato X redova (traženo Y). Places poziva: N. Nedostupni izvori: …"
 i URL uvoza. Posle uspešnog slanja skripta briše `kandidati.json` (Places podaci
 se ne čuvaju). Ako redovi nose `sajtOcena`, `send` prvo šalje snimke (≤ 2 po
-firmi, `POST /generate-leads/snimak`) pa telo; snimak koji ne prođe ne ruši
-slanje — ocena ide bez slike, `greske` to kaže, a Claudeov sud se tada NE
-šalje (bez snimka nema suda).
+firmi, `POST /generate-leads/snimak`) pa telo, i pre slanja ispiše rezime
+„ocena: N, sud: N, snimci: N".
+
+Snimak koji ne prođe ne ruši ostatak, ali sud bez snimka aplikacija ne prima
+(refine u šemi): zato `send` **staje** ako ijedan red ima sud bez ijednog
+poslatog snimka, sa tačnom komandom za popravku. Ako nijedan snimak nije prošao
+a ima ih na disku, `send` prekida i imenuje uzrok (token/ruta/plafon); pokreni
+dijagnostiku `proveri-rutu --snimak`. Da svesno pošalješ ocene bez suda tim
+firmama: `--bez-suda` (ispiše koliko je sudova izostavljeno).
 
 Ako aplikacija vrati status koji nije 200, telo ostaje u
 `out/<run-id>/payload.json` i slanje se ponavlja bez ijednog novog Places

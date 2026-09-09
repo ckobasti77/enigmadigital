@@ -35,6 +35,8 @@ import {
   firmeSaSajtomBezOcene,
   oceneBezSuda,
   oceneBezMobilnog,
+  oceneBezSnimka,
+  rezimeOcena,
 } from "./obogati.mjs";
 import { NISE, nadjiNisu, normalizujSlug, upitiNise } from "./nise.mjs";
 import { klasifikuj, proveriSajt } from "./sajt.mjs";
@@ -1023,6 +1025,38 @@ function testObogatiRazlika(prijavi) {
     JSON.stringify(oceneBezMobilnog(mob)) === JSON.stringify([2]),
     "send: oceneBezMobilnog nalazi Lighthouse bez mobilnog izveštaja",
     `dobijeno ${JSON.stringify(oceneBezMobilnog(mob))}`);
+
+  // GL12 §2: `oceneBezSnimka` — posle uploada, red sa sudom ali bez ID-a snimka.
+  // Ovo je slučaj koji je oborio GL10 run: sud + snimci:0 → refine bi vratio 400,
+  // pa `send` staje umesto da tiho izbaci sud.
+  const bezSnimka = [
+    { sajtOcena: { url: "https://a.rs", claude: { model: "x" }, snimci: { desktopId: "kg2a" } } }, // ok
+    { sajtOcena: { url: "https://b.rs", claude: { model: "x" } } }, // sud bez ijednog snimka
+    { sajtOcena: { url: "https://c.rs", claude: { model: "x" }, snimci: {} } }, // prazan snimci = bez snimka
+    { sajtOcena: { url: "https://d.rs" } }, // bez suda — refine ga ne dira
+    {}, // bez ocene
+  ];
+  prijavi(
+    JSON.stringify(oceneBezSnimka(bezSnimka)) === JSON.stringify([2, 3]),
+    "send: oceneBezSnimka nalazi sud bez ID-a snimka (1-indeksirano)",
+    `dobijeno ${JSON.stringify(oceneBezSnimka(bezSnimka))}`);
+  prijavi(
+    oceneBezSnimka([{ sajtOcena: { claude: { model: "x" }, snimci: { mobilniId: "kg2m" } } }]).length === 0,
+    "send: sud sa mobilnim ID-em nije „bez snimka”",
+    "lažno prijavljen sud sa snimkom");
+
+  // GL12 §2: `rezimeOcena` — „ocena: N, sud: N, snimci: N" (slika) pre slanja.
+  const zaRezime = [
+    { sajtOcena: { url: "https://a.rs", claude: { model: "x" }, snimci: { desktop: "sajt/a/d.jpg", mobile: "sajt/a/m.jpg" } } },
+    { sajtOcena: { url: "https://b.rs", snimci: { desktopId: "kg2b" } } }, // ocena bez suda, jedan snimak (ID)
+    { sajtOcena: { url: "https://c.rs" } }, // ocena bez suda i bez snimka
+    {}, // nije ocena
+  ];
+  const rez = rezimeOcena(zaRezime);
+  prijavi(
+    rez.ocena === 3 && rez.sud === 1 && rez.snimci === 3,
+    "send: rezimeOcena broji ocenu/sud/snimke (lokalne putanje i ID-jevi)",
+    `dobijeno ${JSON.stringify(rez)}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

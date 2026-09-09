@@ -17,6 +17,9 @@ Radiš bez čoveka (headless `-p` run, noć). Pravila:
 - Svaka funkcija sa `workspaceId` argumentom poredi
   `membership.workspaceId !== args.workspaceId`.
 - Poruke ka korisniku: srpski, latinica. Bez „Uskoro", bez mrtvih dugmadi.
+- Kod skilla (`tools/generate-leads/`) se ne menja dok run traje: ako komanda
+  ne radi, run se prekida i greška prijavljuje, pa se kod menja u zasebnoj
+  sesiji — nikad da bi telo „prošlo" proveru (uzrok GL10 rupe).
 
 ZAVRŠNI KORACI (obavezni, ovim redom, ne preskaču se):
 

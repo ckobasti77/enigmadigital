@@ -70,6 +70,44 @@ export function oceneBezMobilnog(firme) {
   return bez;
 }
 
+/**
+ * Ocene koje imaju Claudeov sud, a NEMAJU nijedan ID snimka (GL12 §2). Ovo se
+ * proverava TEK posle uploada snimaka (kad ID-jevi postoje ili ne postoje): red
+ * sa `claude` bez `snimci.desktopId`/`.mobilniId` bi oborio ingest šemu (refine
+ * „sud bez snimka") — pa `send` staje, umesto da tiho izbaci sud da bi prošlo.
+ * Vraća 1-indeksirane pozicije (bez ijednog ličnog podatka — §0 pravilo 6).
+ */
+export function oceneBezSnimka(redovi) {
+  const bez = [];
+  (redovi ?? []).forEach((red, i) => {
+    const o = red?.sajtOcena;
+    if (o && o.claude && !(o.snimci?.desktopId || o.snimci?.mobilniId)) bez.push(i + 1);
+  });
+  return bez;
+}
+
+/**
+ * Rezime ocene u telu PRE slanja (GL12 §2): koliko redova nosi ocenu, koliko
+ * ima Claudeov sud, koliko slika (desktop + mobilni, bilo kao lokalna putanja
+ * bilo kao već upisan ID). Cilj je da se gubitak suda/snimaka vidi PRE slanja,
+ * ne tek u aplikaciji. Čista funkcija — broji iz podataka, ne dira disk.
+ */
+export function rezimeOcena(redovi) {
+  let ocena = 0;
+  let sud = 0;
+  let snimci = 0;
+  for (const red of redovi ?? []) {
+    const o = red?.sajtOcena;
+    if (!o) continue;
+    ocena += 1;
+    if (o.claude) sud += 1;
+    const s = o.snimci ?? {};
+    if (s.desktop || s.desktopId) snimci += 1;
+    if (s.mobile || s.mobilniId) snimci += 1;
+  }
+  return { ocena, sud, snimci };
+}
+
 /** Stabilan ključ firme: ID iz izvoza, pa placeId, pa naziv+grad. */
 export function kljucFirme(firma) {
   if (firma.postojecaFirmaId) return `id:${String(firma.postojecaFirmaId).trim()}`;
