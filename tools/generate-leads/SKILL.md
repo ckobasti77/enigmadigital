@@ -65,6 +65,36 @@ telefona sam (skripta je računa iz dokaza koje si upisao).
 7. **Ne piši u aplikaciju mimo `send`.** Skill nikad ne dira `leadCompanies` —
    uvoz ide u staging i čovek ga primenjuje.
 
+## Pravila izvršavanja — pre svih tokova
+
+Ova pravila su iznad tokova. Ako se sudare sa nečim niže, važe ona.
+
+1. **Jedini dozvoljeni put su komande `run.mjs`.** Ne piši sopstvene skripte
+   (`.mjs`, `.ps1`, `.py`) niti pomoćne fajlove u `out/` (npr. `gen.mjs`,
+   `cw.mjs`, `nalazi.tsv`, `podaci.md`). Sav tvoj rad su čitanje stranica i upis
+   u `firme.json`. Ako ti komanda fali za nešto što treba da uradiš — **STANI i
+   reci koja komanda fali**, ne improvizuj paralelni tok.
+2. **Nijedan korak se ne preskače.** Redosled u `discover` toku:
+   `discover → čitanje izvora po firmi → check-site → audit-site → rubrika →
+   geocode → score → send`. `audit-site` i rubrika su **obavezni** kad je filter
+   `ima` ili `svejedno` (i kad je `--polja sajtOcena`).
+3. **Posle svakog koraka pročitaj `out/<run-id>/run.json` (`koraci`)** i potvrdi
+   da je korak zapisan (`checkSite`, `auditSite`, `send`…). Ako ključa nema —
+   korak nije urađen, ma šta pisalo drugde. `audit-site` upisuje `firme.json` i
+   `koraci.auditSite` posle SVAKE firme, pa prekid ne gubi urađeno.
+4. **Za svaku firmu moraju biti otvoreni CompanyWall/APR i (za Beograd)
+   011info**, ili u `nedostupniIzvori` mora pisati zašto nisu (blokada, nema
+   pogodaka). „Nije pretraživan" je dozvoljen ishod **samo uz razlog**, nikad kao
+   podrazumevano.
+5. **Rubrika (Claudeov sud) se popunjava odmah posle `audit-site`**, u serijama
+   od 10 firmi; posle svake serije snimi `firme.json`. Ne ostavljaj audit bez
+   suda za kasnije — treći izvor ocene nije opcion.
+
+`send` sada odbija nepotpun run (GL11): firma sa sajtom koji radi bez ocene →
+„Pokreni: audit-site --run <id>" (izlaz `--dozvoli-bez-ocene`); ocena bez
+Claudeovog suda → „Popuni rubriku po §4b" (izlaz `--dozvoli-bez-suda`); PSI bez
+mobilnog ne blokira, ali ide u `sajtOcena.greske` i u rezime.
+
 ## Tok
 
 ### 0. Provera okruženja
@@ -218,11 +248,17 @@ node "{{REPO_PATH}}/tools/generate-leads/run.mjs" score     --run <run-id>
 
 ### 4b. Ocena sajta — OBAVEZNO kad je filter `ima` ili `svejedno`
 
-Za svaku firmu sa `sajtStatus: "radi"` (posle `check-site`):
+Ovo ide **odmah posle `check-site`** (pre `geocode`/`score`). Za svaku firmu sa
+`sajtStatus: "radi"`:
 
 ```
 node "{{REPO_PATH}}/tools/generate-leads/run.mjs" audit-site --run <run-id>
 ```
+
+`audit-site` je nastavljiv i idempotentan (GL11): upisuje `firme.json` i
+`koraci.auditSite` posle SVAKE firme, ne ponavlja PSI/otiske/snimke mlađe od
+24 h, a mobilni PSI pri padu ponavlja jednom posle 5 s. Ponovni poziv nad istim
+runom dovršava samo ono što fali. `--iznova` briše keš i ocenjuje iz početka.
 
 Skripta radi tri stvari po firmi i upisuje `sajtOcena` u `firme.json`:
 Lighthouse preko PageSpeed Insights (mobile + desktop), otiske tehnologija

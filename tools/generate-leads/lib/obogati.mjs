@@ -27,6 +27,49 @@ export function firmeBezImaSajt(firme) {
   return bez;
 }
 
+/**
+ * Firme koje IMAJU sajt koji radi, a nemaju ocenu sajta (GL11 §1). Kad je
+ * filter `ima`/`svejedno` (ili `--polja sajtOcena`), audit-site je obavezan; ovo
+ * je čuvar u `send`-u koji staje ako je audit preskočen ili prekinut usred posla
+ * (uzrok GL10 rupe: `sajtOcena` prazna kod svih 50 iako je audit delom urađen na
+ * disku). Vraća 1-indeksirane pozicije (bez ijednog ličnog podatka — §0 pr. 6).
+ */
+export function firmeSaSajtomBezOcene(firme) {
+  const bez = [];
+  (firme ?? []).forEach((f, i) => {
+    if (f?.imaSajt === "da" && f?.sajtStatus === "radi" && !f?.sajtOcena) bez.push(i + 1);
+  });
+  return bez;
+}
+
+/**
+ * Ocene bez Claudeovog suda (GL11 §1). Treći izvor ocene (sud nad snimcima) je
+ * obavezan; `send` staje ako ijedna `sajtOcena` nema `claude`. Vraća
+ * 1-indeksirane pozicije.
+ */
+export function oceneBezSuda(firme) {
+  const bez = [];
+  (firme ?? []).forEach((f, i) => {
+    if (f?.sajtOcena && !f.sajtOcena.claude) bez.push(i + 1);
+  });
+  return bez;
+}
+
+/**
+ * Ocene čiji Lighthouse nema mobilni izveštaj (GL11 §1). Mobilni je nosilac
+ * ocene (0,25 težine) i signala `sajt_spor`, pa njegovo odsustvo NE blokira
+ * slanje, ali se upisuje u `sajtOcena.greske` i ulazi u rezime `send`-a. Vraća
+ * 1-indeksirane pozicije.
+ */
+export function oceneBezMobilnog(firme) {
+  const bez = [];
+  (firme ?? []).forEach((f, i) => {
+    const lh = f?.sajtOcena?.lighthouse;
+    if (lh && !lh.mobile) bez.push(i + 1);
+  });
+  return bez;
+}
+
 /** Stabilan ključ firme: ID iz izvoza, pa placeId, pa naziv+grad. */
 export function kljucFirme(firma) {
   if (firma.postojecaFirmaId) return `id:${String(firma.postojecaFirmaId).trim()}`;

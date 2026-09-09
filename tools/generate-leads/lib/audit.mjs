@@ -38,7 +38,34 @@ const HTML_KES_MS = 60 * 60 * 1000;
 const HTML_TIMEOUT_MS = 15000;
 const HTML_MAX_BAJTOVA = 2 * 1024 * 1024;
 
+// GL11 §2: „nastavi" ne ponavlja artefakt (PSI/otiske/snimak) mlađi od 24 h —
+// isti poziv `audit-site` nad istim runom je idempotentan i ne ide na mrežu.
+const KES_MS = 24 * 60 * 60 * 1000;
+// PSI mobilni je obavezan (nosilac ocene): pad → 1 ponovni pokušaj posle 5 s.
+const PSI_RETRY_MS = 5000;
+
 const sacekaj = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Da li fajl postoji i mlađi je od `maxMs` (keš je „svež"). */
+function svezFajl(putanja, maxMs) {
+  try {
+    return existsSync(putanja) && Date.now() - statSync(putanja).mtimeMs < maxMs;
+  } catch {
+    return false;
+  }
+}
+
+/** Upiše listu tehnologija u ocenu i izvede CMS/e-commerce/booking iz nje. */
+function primeniTehnologije(ocena, tehnologije) {
+  ocena.tehnologije = tehnologije;
+  const cms = prvaUKategoriji(tehnologije, "CMS");
+  const ecom = prvaUKategoriji(tehnologije, "Ecommerce");
+  const booking = prvaUKategoriji(tehnologije, "Appointment scheduling");
+  if (cms) ocena.cms = cms;
+  if (ecom) ocena.eCommerce = ecom;
+  if (booking) ocena.booking = booking;
+  return cms;
+}
 
 /**
  * HTML početne stranice + zaglavlja, sa keširanjem na disku (1 h). Jedan
@@ -107,9 +134,12 @@ async function preuzmiHtml(url, { dir, userAgent }) {
  * @param {string} o.userAgent
  * @param {string} o.verzijaSkilla
  * @param {object} [o.postojeca]     prethodna `sajtOcena` (zadržava delove koji se ne rade ponovo)
+ * @param {boolean} [o.nastavi]      (podrazumevano true) preskoči keš mlađi od 24 h
+ * @param {boolean} [o.iznova]       ignoriši keš i oceni iz početka
  * @param {(m: string) => void} [o.log]
  */
-export async function auditSajta(url, { runId, delovi, apiKey, userAgent, verzijaSkilla, postojeca, log = () => {} }) {
+export async function auditSajta(url, { runId, delovi, apiKey, userAgent, verzijaSkilla, postojeca, nastavi = true, iznova = false, log = () => {} }) {
+  const koristiKes = nastavi && !iznova;
   const slug = slugDomena(url);
   const rel = join("sajt", slug);
   const dir = join(putanjaRuna(runId), rel);
@@ -128,62 +158,116 @@ export async function auditSajta(url, { runId, delovi, apiKey, userAgent, verzij
     ...(postojeca?.claude ? { claude: postojeca.claude } : {}),
   };
 
-  // ── 1. Tehnologije (HTML jednom, keš 1 h) ────────────────────────────────
+  // ── 1. Tehnologije (HTML jednom, keš 1 h; „nastavi" ne ponavlja mlađe od 24 h) ─
   if (delovi.includes("tehnologije")) {
-    const html = await preuzmiHtml(url, { dir, userAgent });
-    if (html.greska) {
-      greske.push(html.greska);
-    } else {
-      if (html.finalUrl) ocena.url = html.finalUrl;
+    const tehPut = join(dir, "tehnologije.json");
+    if (koristiKes && svezFajl(tehPut, KES_MS)) {
       try {
-        const tehnologije = prepoznajTehnologije({ html: html.html, headers: html.headers }, ucitajOtiske());
-        ocena.tehnologije = tehnologije;
-        ocena.formaZaTermin = imaFormuZaTermin(html.html);
-        const cms = prvaUKategoriji(tehnologije, "CMS");
-        const ecom = prvaUKategoriji(tehnologije, "Ecommerce");
-        const booking = prvaUKategoriji(tehnologije, "Appointment scheduling");
-        if (cms) ocena.cms = cms;
-        if (ecom) ocena.eCommerce = ecom;
-        if (booking) ocena.booking = booking;
-        writeFileSync(join(dir, "tehnologije.json"), `${JSON.stringify(tehnologije, null, 2)}\n`, "utf8");
-        log(`tehnologije: ${tehnologije.length}${cms ? ` · CMS ${cms}` : ""}${html.izKesa ? " (HTML iz keša)" : ""}`);
-      } catch (err) {
-        greske.push(`tehnologije: ${String(err?.message ?? "greška").split("\n")[0]}`);
+        const tehnologije = JSON.parse(readFileSync(tehPut, "utf8"));
+        const cms = primeniTehnologije(ocena, tehnologije);
+        // formaZaTermin i konačni URL iz keširanog HTML-a ako je tu; inače iz
+        // prethodne ocene (bez ponovnog čitanja stranice).
+        const kesHtml = join(dir, "html.cache.html");
+        if (existsSync(kesHtml)) ocena.formaZaTermin = imaFormuZaTermin(readFileSync(kesHtml, "utf8"));
+        else if (typeof postojeca?.formaZaTermin === "boolean") ocena.formaZaTermin = postojeca.formaZaTermin;
+        try {
+          const meta = JSON.parse(readFileSync(join(dir, "html.cache.json"), "utf8"));
+          if (typeof meta.finalUrl === "string") ocena.url = meta.finalUrl;
+        } catch {
+          if (typeof postojeca?.url === "string") ocena.url = postojeca.url;
+        }
+        log(`tehnologije: ${tehnologije.length}${cms ? ` · CMS ${cms}` : ""} (iz keša)`);
+      } catch {
+        greske.push("tehnologije: keš pokvaren, oceni ponovo sa --iznova");
+      }
+    } else {
+      const html = await preuzmiHtml(url, { dir, userAgent });
+      if (html.greska) {
+        greske.push(html.greska);
+      } else {
+        if (html.finalUrl) ocena.url = html.finalUrl;
+        try {
+          const tehnologije = prepoznajTehnologije({ html: html.html, headers: html.headers }, ucitajOtiske());
+          const cms = primeniTehnologije(ocena, tehnologije);
+          ocena.formaZaTermin = imaFormuZaTermin(html.html);
+          writeFileSync(tehPut, `${JSON.stringify(tehnologije, null, 2)}\n`, "utf8");
+          log(`tehnologije: ${tehnologije.length}${cms ? ` · CMS ${cms}` : ""}${html.izKesa ? " (HTML iz keša)" : ""}`);
+        } catch (err) {
+          greske.push(`tehnologije: ${String(err?.message ?? "greška").split("\n")[0]}`);
+        }
       }
     }
   }
 
   // ── 2. Lighthouse (PSI mobile + desktop) ─────────────────────────────────
   if (delovi.includes("lighthouse")) {
-    if (!apiKey) {
-      greske.push("PSI: nema PAGESPEED_API_KEY");
-    } else {
-      const lighthouse = {};
-      for (let i = 0; i < STRATEGIJE.length; i += 1) {
-        const strategija = STRATEGIJE[i];
-        if (i > 0) await sacekaj(RAZMAK_MS);
-        const rez = await pokreniPsi(ocena.url, { apiKey, strategija });
-        if (!rez.ok) {
-          greske.push(rez.greska);
-          log(`${rez.greska}`);
-          continue;
+    const lighthouse = {};
+    let mrezaPozvana = false;
+    for (const strategija of STRATEGIJE) {
+      const psiPut = join(dir, `psi.${strategija}.json`);
+      // Keš mlađi od 24 h: bez mreže, bez ključa.
+      if (koristiKes && svezFajl(psiPut, KES_MS)) {
+        try {
+          const p = JSON.parse(readFileSync(psiPut, "utf8"));
+          if (p && p.kategorije) {
+            lighthouse[strategija] = p.kategorije;
+            if (p.terenski && !lighthouse.terenski) lighthouse.terenski = p.terenski;
+            log(`PSI ${strategija}: iz keša`);
+            continue;
+          }
+        } catch {
+          // pokvaren keš → poziv ide dalje
         }
-        lighthouse[strategija] = rez.kategorije;
-        if (rez.terenski && !lighthouse.terenski) lighthouse.terenski = rez.terenski;
-        writeFileSync(
-          join(dir, `psi.${strategija}.json`),
-          `${JSON.stringify({ kategorije: rez.kategorije, terenski: rez.terenski ?? null, finalUrl: rez.finalUrl ?? null, verzijaLighthousea: rez.verzijaLighthousea ?? null, sada: rez.sada }, null, 2)}\n`,
-          "utf8",
-        );
-        const k = rez.kategorije;
-        log(`PSI ${strategija}: perf ${k.performance ?? "—"} · a11y ${k.accessibility ?? "—"} · bp ${k.bestPractices ?? "—"} · seo ${k.seo ?? "—"}`);
       }
-      if (Object.keys(lighthouse).length > 0) ocena.lighthouse = lighthouse;
+      if (!apiKey) {
+        greske.push(`PSI ${strategija}: nema PAGESPEED_API_KEY`);
+        continue;
+      }
+      if (mrezaPozvana) await sacekaj(RAZMAK_MS);
+      mrezaPozvana = true;
+      let rez = await pokreniPsi(ocena.url, { apiKey, strategija });
+      // Mobilni je nosilac ocene: pad → 1 ponovni pokušaj posle 5 s (GL11 §2).
+      if (!rez.ok && strategija === "mobile") {
+        log(`PSI mobile pao (${rez.greska}); ponovni pokušaj za ${PSI_RETRY_MS / 1000} s`);
+        await sacekaj(PSI_RETRY_MS);
+        rez = await pokreniPsi(ocena.url, { apiKey, strategija });
+      }
+      if (!rez.ok) {
+        greske.push(rez.greska);
+        log(`${rez.greska}`);
+        continue;
+      }
+      lighthouse[strategija] = rez.kategorije;
+      if (rez.terenski && !lighthouse.terenski) lighthouse.terenski = rez.terenski;
+      writeFileSync(
+        join(dir, `psi.${strategija}.json`),
+        `${JSON.stringify({ kategorije: rez.kategorije, terenski: rez.terenski ?? null, finalUrl: rez.finalUrl ?? null, verzijaLighthousea: rez.verzijaLighthousea ?? null, sada: rez.sada }, null, 2)}\n`,
+        "utf8",
+      );
+      const k = rez.kategorije;
+      log(`PSI ${strategija}: perf ${k.performance ?? "—"} · a11y ${k.accessibility ?? "—"} · bp ${k.bestPractices ?? "—"} · seo ${k.seo ?? "—"}`);
     }
+    if (Object.keys(lighthouse).length > 0) ocena.lighthouse = lighthouse;
+    if (!lighthouse.mobile) greske.push("PSI mobile nedostaje");
   }
 
-  // ── 3. Snimci (Playwright) ───────────────────────────────────────────────
+  // ── 3. Snimci (Playwright; keš mlađi od 24 h se ne ponavlja) ──────────────
   if (delovi.includes("snimci")) {
+    const dPut = join(dir, "pocetna.desktop.jpg");
+    const mPut = join(dir, "pocetna.mobile.jpg");
+    const tPut = join(dir, "pocetna.tekst.txt");
+    if (koristiKes && (svezFajl(dPut, KES_MS) || svezFajl(mPut, KES_MS))) {
+      const snimci = {};
+      if (existsSync(dPut)) snimci.desktop = join(rel, "pocetna.desktop.jpg").replace(/\\/g, "/");
+      if (existsSync(mPut)) snimci.mobile = join(rel, "pocetna.mobile.jpg").replace(/\\/g, "/");
+      if (existsSync(tPut)) snimci.tekst = join(rel, "pocetna.tekst.txt").replace(/\\/g, "/");
+      // Linkove i broj stranica zadržavamo iz prethodne ocene (nisu na disku).
+      if (typeof postojeca?.snimci?.kontaktUrl === "string") snimci.kontaktUrl = postojeca.snimci.kontaktUrl;
+      if (typeof postojeca?.snimci?.ponudaUrl === "string") snimci.ponudaUrl = postojeca.snimci.ponudaUrl;
+      snimci.stranica = typeof postojeca?.snimci?.stranica === "number" ? postojeca.snimci.stranica : 1;
+      ocena.snimci = snimci;
+      log(`snimci: iz keša (${[snimci.desktop && "desktop", snimci.mobile && "mobilni"].filter(Boolean).join(", ")})`);
+    } else {
     const pw = await proveriPlaywright();
     if (!pw.ok) {
       // STOP sa uputstvom (plan §1.3): to je stanje mašine, ne sajta.
@@ -208,6 +292,7 @@ export async function auditSajta(url, { runId, delovi, apiKey, userAgent, verzij
       }
     } catch (err) {
       greske.push(`snimak: ${String(err?.message ?? "greška").split("\n")[0]}`);
+    }
     }
   }
 

@@ -41,11 +41,17 @@ import { validirajTelo } from "./lib/schema.mjs";
 import { objasniStatus, posalji, posaljiSnimak } from "./lib/ingest.mjs";
 import { pokreniSelfTest } from "./lib/self-test.mjs";
 import { ucitajFajl } from "./lib/tabela.mjs";
-import { promenjeneFirme, firmeBezImaSajt } from "./lib/obogati.mjs";
+import {
+  promenjeneFirme,
+  firmeBezImaSajt,
+  firmeSaSajtomBezOcene,
+  oceneBezSuda,
+  oceneBezMobilnog,
+} from "./lib/obogati.mjs";
 import { auditSajta, ispisiIzvestajOcene, PODRAZUMEVANI_DELOVI } from "./lib/audit.mjs";
 import { osveziOtiske } from "./lib/otisci.mjs";
 import { basename } from "node:path";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 /** Verzija skilla — ide u `izvor.verzijaSkilla` i u User-Agent. */
@@ -479,6 +485,22 @@ function domenOd(url) {
   }
 }
 
+/**
+ * Domeni firmi na 1-indeksiranim pozicijama — za poruke čuvara u `send`-u.
+ * Domen NIJE lični podatak (§0 pr. 6); imena, telefoni i mejlovi se ne ispisuju.
+ * Najviše 8 domena, ostali kao „(+N)".
+ */
+function domeniFirmi(firme, pozicije) {
+  const domeni = [];
+  for (const poz of pozicije) {
+    const f = firme[poz - 1];
+    const sajt = typeof f?.sajt === "string" ? f.sajt : typeof f?.sajtOcena?.url === "string" ? f.sajtOcena.url : "";
+    if (sajt) domeni.push(domenOd(sajt));
+  }
+  if (domeni.length > 8) return [...domeni.slice(0, 8), `(+${domeni.length - 8})`];
+  return domeni;
+}
+
 async function komandaCheckSite(args) {
   const runId = trazenArgument(args, "run");
   const { ENIGMA_CONTACT_EMAIL } = env.trazi(["ENIGMA_CONTACT_EMAIL"]);
@@ -847,6 +869,10 @@ async function komandaSend(args) {
   const suvo = args["dry-run"] === true || args["dry-run"] === "true";
   const dozvoliBezSajta =
     args["dozvoli-bez-sajta"] === true || args["dozvoli-bez-sajta"] === "true";
+  const dozvoliBezOcene =
+    args["dozvoli-bez-ocene"] === true || args["dozvoli-bez-ocene"] === "true";
+  const dozvoliBezSuda =
+    args["dozvoli-bez-suda"] === true || args["dozvoli-bez-suda"] === "true";
 
   const stanje = izlaz.citajJson(runId, "run.json");
   const firme = izlaz.citajJson(runId, "firme.json");
@@ -894,6 +920,46 @@ async function komandaSend(args) {
       ispisiGresku("„Nema sajt“ je glavni prodajni signal i ne sme da ostane neproveren.");
       return 1;
     }
+  }
+
+  // GL11 §1: kad je audit-site obavezan (filter „ima"/„svejedno" tj. pun uvoz,
+  // ili „--polja sajtOcena"), `send` ne sme da pusti nepotpun run. Poruke navode
+  // TAČNU komandu koja rešava problem; imenuju se samo brojevi i domeni (§0 pr. 6).
+  const traziOcenu = polja === undefined || polja.includes("sajtOcena");
+  if (traziOcenu) {
+    if (!dozvoliBezOcene) {
+      const bez = firmeSaSajtomBezOcene(firmeZaSlanje);
+      if (bez.length > 0) {
+        const domeni = domeniFirmi(firmeZaSlanje, bez);
+        ispisiGresku(
+          `${bez.length} firmi ima sajt koji radi, a nema ocenu. Pokreni: node run.mjs audit-site --run ${runId}`,
+        );
+        if (domeni.length > 0) ispisiGresku(`  domeni: ${domeni.join(", ")}`);
+        ispisiGresku("Svesni izlaz iz pravila: --dozvoli-bez-ocene.");
+        return 1;
+      }
+    }
+    if (!dozvoliBezSuda) {
+      const bez = oceneBezSuda(firmeZaSlanje);
+      if (bez.length > 0) {
+        const domeni = domeniFirmi(firmeZaSlanje, bez);
+        ispisiGresku(`${bez.length} ocena nema Claudeov sud. Popuni rubriku po SKILL.md §4b (Rubrika).`);
+        if (domeni.length > 0) ispisiGresku(`  domeni: ${domeni.join(", ")}`);
+        ispisiGresku("Svesni izlaz iz pravila: --dozvoli-bez-suda.");
+        return 1;
+      }
+    }
+  }
+
+  // GL11 §1: PSI mobilni ne blokira, ali se beleži — u `sajtOcena.greske` (da uđe
+  // u telo i u aplikaciju) i u rezime `send`-a.
+  const bezMobilnog = traziOcenu ? oceneBezMobilnog(firmeZaSlanje) : [];
+  for (const poz of bezMobilnog) {
+    const ocena = firmeZaSlanje[poz - 1]?.sajtOcena;
+    if (!ocena) continue;
+    const greske = Array.isArray(ocena.greske) ? ocena.greske : [];
+    if (!greske.includes("PSI mobile nedostaje")) greske.push("PSI mobile nedostaje");
+    ocena.greske = greske;
   }
 
   // `rang` upisuje `score`. Bez njega bi validacija pala na putanji koja ne
@@ -1028,7 +1094,7 @@ async function komandaSend(args) {
     ispisi(`Proba (--dry-run). Ništa nije poslato.`);
     ispisi(`Telo: ${putanja}`);
     ispisi("");
-    ispisiRezime(telo, kontakti, stanje);
+    ispisiRezime(telo, kontakti, stanje, { bezMobilnog: bezMobilnog.length });
     ispisi("");
     ispisi("kandidati.json je i dalje tu — briše se tek posle stvarnog slanja.");
     return 0;
@@ -1237,10 +1303,22 @@ function deloviAudita(args) {
 async function komandaAuditSite(args) {
   const runId = trazenArgument(args, "run");
   const delovi = deloviAudita(args);
+  // GL11 §2: `--iznova` briše keš sajtova za run; `--nastavi` (podrazumevano) ne
+  // ponavlja artefakte mlađe od 24 h. Idempotentnost: isti poziv nad istim runom
+  // ne ide na mrežu ako je sve svеže.
+  const iznova = args.iznova === true || args.iznova === "true";
   const stanje = izlaz.citajJson(runId, "run.json");
   const firme = izlaz.citajJson(runId, "firme.json");
   if (!Array.isArray(firme) || firme.length === 0) {
     throw new Error(`out/${runId}/firme.json je prazan.`);
+  }
+
+  if (iznova) {
+    const sajtDir = join(izlaz.putanjaRuna(runId), "sajt");
+    if (existsSync(sajtDir)) {
+      rmSync(sajtDir, { recursive: true, force: true });
+      ispisi("--iznova: keš sajtova za ovaj run je obrisan.");
+    }
   }
 
   const trazeneEnv = ["ENIGMA_CONTACT_EMAIL"];
@@ -1248,7 +1326,13 @@ async function komandaAuditSite(args) {
   const envVrednosti = env.trazi(trazeneEnv);
   const ua = userAgent(envVrednosti.ENIGMA_CONTACT_EMAIL, VERZIJA);
 
+  const zaOcenu = firme.filter(
+    (f) => typeof f.sajt === "string" && f.sajt.trim() && f.sajtStatus === "radi",
+  ).length;
+
   let ocenjeno = 0;
+  let bezPsi = 0;
+  let bezSnimaka = 0;
   const preskoceno = { bezSajta: 0, neRadi: 0 };
   const zbirGresaka = {};
 
@@ -1265,7 +1349,6 @@ async function komandaAuditSite(args) {
       continue;
     }
 
-    ispisi(`  firma ${i + 1}: ${domenOd(sajt)}`);
     const rezultat = await auditSajta(sajt, {
       runId,
       delovi,
@@ -1273,14 +1356,38 @@ async function komandaAuditSite(args) {
       userAgent: ua,
       verzijaSkilla: VERZIJA,
       postojeca: firma.sajtOcena,
+      nastavi: true,
+      iznova,
       log: (m) => ispisi(`    ${m}`),
     });
     firma.sajtOcena = rezultat.ocena;
     ocenjeno += 1;
+
+    const lh = rezultat.ocena.lighthouse ?? {};
+    const psiDelovi = [lh.mobile && "mobile", lh.desktop && "desktop"].filter(Boolean);
+    if (!lh.mobile) bezPsi += 1;
+    const sn = rezultat.ocena.snimci ?? {};
+    const snN = typeof sn.stranica === "number" ? sn.stranica : [sn.desktop, sn.mobile].filter(Boolean).length;
+    if (!sn.desktop && !sn.mobile) bezSnimaka += 1;
+    const tehN = Array.isArray(rezultat.ocena.tehnologije) ? rezultat.ocena.tehnologije.length : 0;
+
+    // GL11 §2: napredak po firmi (domen je jedini ne-lični detalj).
+    ispisi(
+      `[${ocenjeno}/${zaOcenu}] ${domenOd(sajt)} — ` +
+        `${psiDelovi.length > 0 ? `PSI ✓ ${psiDelovi.join("/")}` : "PSI ✗"} · ` +
+        `tehnologije ${tehN} · snimci ${snN}`,
+    );
+
     for (const g of rezultat.ocena.greske ?? []) {
       const kljuc = g.split(":")[0];
       zbirGresaka[kljuc] = (zbirGresaka[kljuc] ?? 0) + 1;
     }
+
+    // GL11 §2: upis posle SVAKE firme — prekid ne gubi ono što je urađeno
+    // (uzrok GL10 rupe: prazan `sajtOcena` iako je audit delom bio na disku).
+    stanje.koraci = { ...stanje.koraci, auditSite: Date.now() };
+    izlaz.upisiJson(runId, "run.json", stanje);
+    izlaz.upisiJson(runId, "firme.json", firme);
   }
 
   stanje.koraci = { ...stanje.koraci, auditSite: Date.now() };
@@ -1288,7 +1395,12 @@ async function komandaAuditSite(args) {
   izlaz.upisiJson(runId, "firme.json", firme);
 
   ispisi("");
-  ispisi(`Ocenjeno sajtova: ${ocenjeno} od ${firme.length} firmi (delovi: ${delovi.join(", ")}).`);
+  ispisi(
+    `Ocenjeno ${ocenjeno}` +
+      (delovi.includes("lighthouse") ? `, bez PSI ${bezPsi}` : "") +
+      (delovi.includes("snimci") ? `, bez snimaka ${bezSnimaka}` : "") +
+      ` (od ${firme.length} firmi, delovi: ${delovi.join(", ")}).`,
+  );
   if (preskoceno.bezSajta > 0) ispisi(`  bez upisanog sajta: ${preskoceno.bezSajta}`);
   if (preskoceno.neRadi > 0) ispisi(`  sajtStatus nije „radi" (nije ocenjivano): ${preskoceno.neRadi}`);
   for (const [k, n] of Object.entries(zbirGresaka).sort()) ispisi(`  greška „${k}": ${n}`);
@@ -1461,11 +1573,16 @@ async function komandaOsveziOtiske() {
   return 0;
 }
 
-function ispisiRezime(telo, kontakti, stanje) {
+function ispisiRezime(telo, kontakti, stanje, dodatno = {}) {
   ispisi(
     `Poslato ${telo.izvestaj.nadjeno} redova (traženo ${telo.izvestaj.trazeno}). ` +
       `Places poziva: ${telo.izvestaj.placesPozivi}.`,
   );
+  if (dodatno.bezMobilnog > 0) {
+    ispisi(
+      `PSI mobilni nedostaje kod ${dodatno.bezMobilnog} ocena (upisano u sajtOcena.greske; mobilni je nosilac ocene).`,
+    );
+  }
   ispisi(
     `Telefona: ${kontakti.telefona}, sa procenom: ${kontakti.saProcenom}. ` +
       `Mejlova: ${kontakti.mejlova}. Platformi: ${kontakti.platformi}. Bez ikakvog kontakta: ${kontakti.bezKontakta}.`,
@@ -1494,10 +1611,10 @@ const POMOC = `/generate-leads — deterministički deo (v${VERZIJA})
   node run.mjs ucitaj   --fajl "tabela.xlsx" --nisa frizeri [--list "Svi lidovi (100)"]
   node run.mjs ucitaj   --izvoz "izvoz.csv"  --nisa frizeri
   node run.mjs check-site --run <run-id>
-  node run.mjs audit-site --run <run-id> [--samo lighthouse,tehnologije,snimci]
+  node run.mjs audit-site --run <run-id> [--samo lighthouse,tehnologije,snimci] [--iznova]
   node run.mjs geocode   --run <run-id>
   node run.mjs score     --run <run-id> [--ponovo]
-  node run.mjs send      --run <run-id> [--dry-run] [--sve] [--dozvoli-bez-sajta]
+  node run.mjs send      --run <run-id> [--dry-run] [--sve] [--dozvoli-bez-sajta] [--dozvoli-bez-ocene] [--dozvoli-bez-suda]
   node run.mjs oceni-sajt https://primer.rs [--firma <companyId>] [--samo …]
   node run.mjs oceni-sajtove --izvoz "izvoz.csv" [--od 1 --do 25]
   node run.mjs osvezi-otiske
@@ -1520,6 +1637,12 @@ Opcije za ucitaj (režim „obogati"):
 Opcije za score i send:
   --ponovo                     score preračuna procene nad postojećim dokazima
   --dozvoli-bez-sajta          send šalje i kad nekoj firmi fali imaSajt
+  --dozvoli-bez-ocene          send šalje i kad firma sa sajtom nema ocenu
+  --dozvoli-bez-suda           send šalje i kad ocena nema Claudeov sud
+
+Opcije za audit-site:
+  --nastavi                    (podrazumevano) preskoči keš mlađi od 24 h
+  --iznova                     obriši keš sajtova za run i oceni iz početka
 
 Opcije za discover:
   --grad "Zemun|Beograd"   prvi je kanonski naziv, ostali se prihvataju u adresi

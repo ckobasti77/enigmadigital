@@ -28,7 +28,14 @@ import { join, dirname } from "node:path";
 
 import { ispisi, ispisiGresku } from "./izlaz.mjs";
 import { ucitajMatricu, parsirajOcenu, ucitajFajl } from "./tabela.mjs";
-import { promenjeneFirme, firmaPromenjena, firmeBezImaSajt } from "./obogati.mjs";
+import {
+  promenjeneFirme,
+  firmaPromenjena,
+  firmeBezImaSajt,
+  firmeSaSajtomBezOcene,
+  oceneBezSuda,
+  oceneBezMobilnog,
+} from "./obogati.mjs";
 import { NISE, nadjiNisu, normalizujSlug, upitiNise } from "./nise.mjs";
 import { klasifikuj, proveriSajt } from "./sajt.mjs";
 import { oceniTelefonOsobe, oceniOsobe, traka } from "./skor.mjs";
@@ -38,6 +45,9 @@ import { alijasiGrada } from "./gradovi.mjs";
 import { kvalitetSajta, pojasKvaliteta } from "./ocena.mjs";
 import { parsirajPsi } from "./psi.mjs";
 import { prepoznajTehnologije, imaFormuZaTermin, VENDOR_DIR } from "./otisci.mjs";
+import { auditSajta, PODRAZUMEVANI_DELOVI } from "./audit.mjs";
+import { putanjaRuna } from "./izlaz.mjs";
+import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 
 const TELEFON = "+381 60 000 0000";
 
@@ -981,6 +991,38 @@ function testObogatiRazlika(prijavi) {
   prijavi(firmeBezImaSajt([{ imaSajt: "ne" }, { imaSajt: "nepoznato" }]).length === 0,
     "send: sve firme imaju imaSajt → prazno",
     "lažno prijavljena firma bez imaSajt");
+
+  // GL11 §1: čuvari ocene sajta u `send`-u.
+  const zaOcenu = [
+    { imaSajt: "da", sajtStatus: "radi" }, // ima sajt koji radi, a bez ocene
+    { imaSajt: "da", sajtStatus: "radi", sajtOcena: { url: "https://a.rs", claude: { model: "x" } } },
+    { imaSajt: "ne" }, // nema sajt — nije predmet čuvara ocene
+    { imaSajt: "da", sajtStatus: "ne_radi" }, // sajt ne radi — ne ocenjuje se
+  ];
+  prijavi(
+    JSON.stringify(firmeSaSajtomBezOcene(zaOcenu)) === JSON.stringify([1]),
+    "send: firmeSaSajtomBezOcene nalazi sajt koji radi bez ocene (1-indeksirano)",
+    `dobijeno ${JSON.stringify(firmeSaSajtomBezOcene(zaOcenu))}`);
+
+  const sud = [
+    { sajtOcena: { url: "https://a.rs", claude: { model: "x" } } },
+    { sajtOcena: { url: "https://b.rs" } }, // ocena bez suda
+    {}, // bez ocene — nije predmet čuvara suda
+  ];
+  prijavi(
+    JSON.stringify(oceneBezSuda(sud)) === JSON.stringify([2]),
+    "send: oceneBezSuda nalazi ocenu bez Claudeovog suda",
+    `dobijeno ${JSON.stringify(oceneBezSuda(sud))}`);
+
+  const mob = [
+    { sajtOcena: { lighthouse: { mobile: { performance: 40 }, desktop: { seo: 60 } } } },
+    { sajtOcena: { lighthouse: { desktop: { seo: 60 } } } }, // bez mobilnog
+    { sajtOcena: {} }, // bez lighthousea — ne broji se kao „bez mobilnog"
+  ];
+  prijavi(
+    JSON.stringify(oceneBezMobilnog(mob)) === JSON.stringify([2]),
+    "send: oceneBezMobilnog nalazi Lighthouse bez mobilnog izveštaja",
+    `dobijeno ${JSON.stringify(oceneBezMobilnog(mob))}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1125,6 +1167,60 @@ async function testOcenaSajta(prijavi, strogo) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 8. audit-site idempotentnost nad keširanim folderom (GL11 §2, bez mreže)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Napravi lažno `out/<run>/sajt/<slug>/` stablo sa svežim artefaktima i dokaži da
+ * `auditSajta({ nastavi:true })` sve pokupi iz keša — bez mreže i bez Playwrighta
+ * (svež snimak preskače `proveriPlaywright`) — i da je idempotentan.
+ */
+async function testAuditKes(prijavi) {
+  const runId = "_selftest/audit-kes";
+  const url = "https://primer-kes-nepostojeci.rs/";
+  const slug = "primer-kes-nepostojeci-rs";
+  const dir = join(putanjaRuna(runId), "sajt", slug);
+
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "psi.mobile.json"),
+      JSON.stringify({ kategorije: { performance: 42, seo: 61 }, terenski: null, sada: Date.now() }),
+    );
+    writeFileSync(
+      join(dir, "psi.desktop.json"),
+      JSON.stringify({ kategorije: { performance: 90, seo: 65 }, terenski: null, sada: Date.now() }),
+    );
+    writeFileSync(
+      join(dir, "tehnologije.json"),
+      JSON.stringify([{ ime: "WordPress", kategorija: "CMS", verzija: "6.5", pouzdanost: 100 }]),
+    );
+    writeFileSync(join(dir, "html.cache.html"), "<html><head></head><body>x</body></html>");
+    writeFileSync(join(dir, "html.cache.json"), JSON.stringify({ finalUrl: url, headers: {}, preuzetoAt: Date.now() }));
+    writeFileSync(join(dir, "pocetna.desktop.jpg"), Buffer.from([255, 216, 255]));
+    writeFileSync(join(dir, "pocetna.mobile.jpg"), Buffer.from([255, 216, 255]));
+    writeFileSync(join(dir, "pocetna.tekst.txt"), "tekst");
+
+    // apiKey namerno izostavljen: keš ne sme da traži ključ ni mrežu.
+    const opcije = { runId, delovi: [...PODRAZUMEVANI_DELOVI], userAgent: "test", verzijaSkilla: "1.0.0", nastavi: true };
+    const prvi = await auditSajta(url, opcije);
+    const o = prvi.ocena;
+
+    prijavi(o.cms === "WordPress" && o.tehnologije?.length === 1, "audit-kes: tehnologije iz keša", `cms ${o.cms}, teh ${o.tehnologije?.length}`);
+    prijavi(o.lighthouse?.mobile?.performance === 42 && o.lighthouse?.desktop?.performance === 90, "audit-kes: PSI mobile+desktop iz keša", JSON.stringify(o.lighthouse));
+    prijavi(Boolean(o.snimci?.desktop && o.snimci?.mobile), "audit-kes: snimci iz keša (bez Playwrighta)", JSON.stringify(o.snimci));
+    prijavi(!o.greske || o.greske.length === 0, "audit-kes: bez grešaka (sve iz keša)", JSON.stringify(o.greske));
+
+    // Idempotentnost: drugi poziv daje isti rezultat (bez `auditedAt`).
+    const drugi = await auditSajta(url, opcije);
+    const bezVremena = (x) => JSON.stringify({ ...x.ocena, auditedAt: 0 });
+    prijavi(bezVremena(prvi) === bezVremena(drugi), "audit-kes: idempotentan (isti poziv, isti rezultat)", "rezultat se razlikuje između dva poziva");
+  } finally {
+    rmSync(putanjaRuna("_selftest"), { recursive: true, force: true });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Pokretanje
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1151,6 +1247,7 @@ export async function pokreniSelfTest({ strogo = false } = {}) {
   await testUcitaj(prijavi, strogo);
   testObogatiRazlika(prijavi);
   await testOcenaSajta(prijavi, strogo);
+  await testAuditKes(prijavi);
 
   ispisi("");
   if (pali.length === 0) {
