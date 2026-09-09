@@ -52,4 +52,13 @@ Write-Host ""
 Write-Host "Provera okruzenja (ne prikazuje vrednosti):"
 Write-Host "  node `"$putanjaZaSkill/tools/generate-leads/run.mjs`" proveri-env"
 Write-Host ""
+# Ocena sajta (GL10) trazi Playwright Chromium za snimke ekrana. Instalira se
+# JEDNOM po masini; skripta to NE radi sama (moze da potraje i vuce ~150 MB).
+$chromiumDir = Join-Path $env:LOCALAPPDATA "ms-playwright"
+if (-not (Test-Path $chromiumDir)) {
+    Write-Host "Za ocenu sajta (snimci ekrana) instaliraj Chromium JEDNOM, iz korena repoa:"
+    Write-Host "  cd `"$repoPath`"; npm install; npx playwright install chromium"
+    Write-Host "Bez toga audit-site radi samo sa --samo lighthouse,tehnologije."
+    Write-Host ""
+}
 Write-Host "Skill se poziva sa /generate-leads u novoj Claude Code sesiji."

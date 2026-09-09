@@ -1,4 +1,5 @@
 import type { Doc } from "@/convex/_generated/dataModel";
+import { pojasKvaliteta, POJAS_NATPISI } from "@/convex/lib/siteScore";
 import { cn } from "@/lib/utils";
 
 /**
@@ -48,11 +49,23 @@ function kratakDatum(ts: number): string {
   });
 }
 
+/**
+ * Pojas kvaliteta sajta (GL10, plan §5.2) — boja iz temperaturne palete, isto
+ * pravilo kao stanje sajta: loš sajt je prodajni signal, ne greška. Broj ide
+ * u `title`, ne u bedž (tabela ima 25 redova; „loš" je dovoljno za pogled).
+ */
+const POJAS_TONOVI = {
+  los: "border-temp-hot/50 bg-temp-hot-bg text-foreground",
+  srednji: "border-temp-warm/50 bg-temp-warm-bg text-foreground",
+  dobar: "border-success/40 bg-success/10 text-foreground",
+} as const;
+
 export function SiteStatusBadge({
   status,
   https,
   proverenAt,
   napomena,
+  kvalitet,
   size = "md",
   className,
 }: {
@@ -61,10 +74,18 @@ export function SiteStatusBadge({
   https?: boolean;
   proverenAt?: number;
   napomena?: string;
+  /**
+   * Ukupna ocena sajta 0–100 iz poslednje ocene (GL10). `undefined` = nikad
+   * ocenjivano; `null` = ocenjivano, ali nijedan izvor nije dao broj.
+   */
+  kvalitet?: number | null;
   size?: "sm" | "md";
   className?: string;
 }) {
   if (!status) return null;
+
+  const pojas =
+    typeof kvalitet === "number" ? pojasKvaliteta(kvalitet) : null;
 
   const delovi = [OBJASNJENJA[status]];
   if (https === false) delovi.push("Sajt je bez HTTPS-a.");
@@ -72,6 +93,11 @@ export function SiteStatusBadge({
     delovi.push(`Provereno ${new Date(proverenAt).toLocaleString("sr-RS")}.`);
   }
   if (napomena?.trim()) delovi.push(napomena.trim());
+  if (pojas !== null && typeof kvalitet === "number") {
+    delovi.push(`Kvalitet sajta: ${POJAS_NATPISI[pojas]} ${kvalitet}/100.`);
+  } else if (kvalitet === null) {
+    delovi.push("Sajt je ocenjivan, ali nijedan izvor nije dao broj.");
+  }
 
   return (
     <span
@@ -81,11 +107,14 @@ export function SiteStatusBadge({
         size === "sm"
           ? "px-1 py-px text-micro"
           : "px-1.5 py-0.5 text-micro",
-        TONOVI[status],
+        pojas !== null ? POJAS_TONOVI[pojas] : TONOVI[status],
         className,
       )}
     >
       <span>{NATPISI[status]}</span>
+      {pojas !== null && (
+        <span className="font-normal">· {POJAS_NATPISI[pojas]}</span>
+      )}
       {https === false && (
         <span className="font-normal text-warning">· bez HTTPS-a</span>
       )}

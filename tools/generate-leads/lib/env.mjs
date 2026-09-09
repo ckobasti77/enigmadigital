@@ -39,6 +39,15 @@ export const PROMENLJIVE = {
     cemu: "kontakt u User-Agent zaglavlju (Nominatim i provera sajtova)",
     gde: "tvoj poslovni email",
   },
+  // GL10 (sajt-ocena-plan.md §1.1, §7): Lighthouse preko PageSpeed Insights.
+  // Bez ključa PSI radi sa anonimnom kvotom koja se potroši za desetak
+  // poziva, pa je ključ obavezan za `audit-site`; ostale komande ga ne traže.
+  PAGESPEED_API_KEY: {
+    cemu: "PageSpeed Insights API (Lighthouse za ocenu sajta)",
+    gde:
+      `Google Cloud → APIs & Services → Library → „PageSpeed Insights API" → Enable → ` +
+      "Credentials → nov ključ ograničen na taj API (Places ključ se ne deli)",
+  },
 };
 
 export class EnvGreska extends Error {

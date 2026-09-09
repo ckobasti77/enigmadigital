@@ -82,6 +82,109 @@ const osobaSchema = z
     path: ["telefonSourceUrl"],
   });
 
+// ── GL10: ocena sajta (sajt-ocena-plan.md §2.1, §4.4) ────────────────────────
+//
+// Ista granica kao `sajtOcenaValidator` u `siteAudit.ts`. Brojevi su opcioni
+// (PSI ume da ne vrati kategoriju), ali kad postoje, moraju biti u opsegu —
+// „performance: 250" je greška skilla, ne podatak.
+const ocena0do100 = z.number().min(0).max(100);
+
+const lighthouseKategorijeSchema = z.object({
+  performance: ocena0do100.optional(),
+  accessibility: ocena0do100.optional(),
+  bestPractices: ocena0do100.optional(),
+  seo: ocena0do100.optional(),
+  lcpMs: z.number().nonnegative().optional(),
+  cls: z.number().nonnegative().optional(),
+  inpMs: z.number().nonnegative().optional(),
+  tbtMs: z.number().nonnegative().optional(),
+});
+
+const lighthouseSchema = z.object({
+  mobile: lighthouseKategorijeSchema.optional(),
+  desktop: lighthouseKategorijeSchema.optional(),
+  terenski: z
+    .object({
+      lcpMs: z.number().nonnegative().optional(),
+      cls: z.number().nonnegative().optional(),
+      inpMs: z.number().nonnegative().optional(),
+      ocena: z.enum(["FAST", "AVERAGE", "SLOW"]).optional(),
+    })
+    .optional(),
+});
+
+const tehnologijaSchema = z.object({
+  ime: neprazan,
+  kategorija: neprazan,
+  verzija: neprazan.optional(),
+  pouzdanost: ocena0do100,
+});
+
+/** Ocena 1–5 SA obrazloženjem — ocena bez razloga je zabranjena planom §3. */
+const claudeOcenaSchema = z.object({
+  ocena: z.number().int().min(1).max(5),
+  obrazlozenje: neprazan,
+});
+
+export const PREPORUCENE_PONUDE = [
+  "nov_sajt",
+  "redizajn",
+  "webshop",
+  "zakazivanje",
+  "seo",
+  "brzina",
+  "nista",
+] as const;
+
+const claudeSudSchema = z.object({
+  model: neprazan,
+  ocene: z.object({
+    prviUtisak: claudeOcenaSchema,
+    jasnocaPonude: claudeOcenaSchema,
+    putDoKontakta: claudeOcenaSchema,
+    mobilnaUpotrebljivost: claudeOcenaSchema,
+    azurnost: claudeOcenaSchema,
+  }),
+  glavneMane: z.array(neprazan).max(3),
+  prilikaZaEnigmu: neprazan,
+  preporucenaPonuda: z.enum(PREPORUCENE_PONUDE),
+  klikovaDoKontakta: z.number().int().nonnegative().optional(),
+  ocenjenoAt: z.number().optional(),
+});
+
+export const sajtOcenaSchema = z
+  .object({
+    url: neprazan,
+    auditedAt: z.number(),
+    verzijaSkilla: neprazan,
+    lighthouse: lighthouseSchema.optional(),
+    tehnologije: z.array(tehnologijaSchema).max(100).optional(),
+    cms: neprazan.optional(),
+    eCommerce: neprazan.optional(),
+    booking: neprazan.optional(),
+    formaZaTermin: z.boolean().optional(),
+    claude: claudeSudSchema.optional(),
+    snimci: z
+      .object({
+        desktopId: neprazan.optional(),
+        mobilniId: neprazan.optional(),
+      })
+      .optional(),
+    greske: z.array(neprazan).optional(),
+  })
+  // Claudeov sud bez snimka je ZABRANJEN (plan §1.3, §3): ne sme da se
+  // ocenjuje sajt koji nije viđen. Bar jedan snimak mora da postoji uz sud.
+  .refine(
+    (o) =>
+      o.claude === undefined ||
+      o.snimci?.desktopId !== undefined ||
+      o.snimci?.mobilniId !== undefined,
+    {
+      message: "Claudeov sud bez snimka nije dozvoljen (plan §3)",
+      path: ["claude"],
+    },
+  );
+
 export const parsedLeadRowSchema = z.object({
   nazivFirme: neprazan.optional(),
   ulica: neprazan.optional(),
@@ -131,6 +234,9 @@ export const parsedLeadRowSchema = z.object({
   // string — `matchRowToExistingCompany` ga kroz `ctx.db.normalizeId` pretvara
   // u Id i proverava da firma pripada radnom prostoru pre spajanja.
   postojecaFirmaId: neprazan.optional(),
+
+  // ── GL10 (ocena sajta, plan §4.4) ──────────────────────────────────────────
+  sajtOcena: sajtOcenaSchema.optional(),
 });
 
 export const generateLeadsIngestSchema = z.object({
@@ -155,9 +261,12 @@ export const generateLeadsIngestSchema = z.object({
     // polja i ne prepisuje ostatak praznim — tako 100 firmi dobija samo `imaSajt`
     // za par minuta, umesto punog ponovnog istraživanja.
     polja: z
-      .array(z.enum(["sajt", "osobe", "platforme", "koordinate"]))
+      .array(z.enum(["sajt", "osobe", "platforme", "koordinate", "sajtOcena"]))
       .min(1)
       .optional(),
+    // Da li niša traži zakazivanje (GL10, plan §2.3) — iz `lib/nise.mjs`.
+    // `applyImport` ga upisuje u nišu samo ako niša to polje još nema.
+    nisaTrebaZakazivanje: z.boolean().optional(),
   }),
   izvor: z.object({
     skill: z.literal("generate-leads"),

@@ -1,0 +1,4 @@
+izvor: https://github.com/enthec/webappanalyzer (src/technologies + src/categories.json)
+commit: 2b5eed3a5eede8b2415fcd0b27c003d625ad88d3
+preuzeto: 2026-09-09T00:10:16.245Z
+licenca: MIT (vidi LICENSE u ovom folderu)

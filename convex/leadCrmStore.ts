@@ -3,6 +3,7 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
+import { ucitajPoslednjeOcene } from "./leadSiteAuditsStore";
 
 /**
  * ============================================================================
@@ -1221,7 +1222,13 @@ export async function hydrateLeadRowExtras(
       }
     : undefined;
 
-  return { telefoni, emailovi, platforme, osobe, signali, poslednjiDodir };
+  // Poslednja ocena sajta (GL10, plan §5.2) — sažetak za bedž u tabeli; jedan
+  // `get` samo kad firma ima pokazivač. `null` = sajt nikad nije ocenjivan.
+  const companyDoc = await ctx.db.get(companyId);
+  const ocene = await ucitajPoslednjeOcene(ctx, [companyDoc]);
+  const sajtOcena = ocene.get(String(companyId)) ?? null;
+
+  return { telefoni, emailovi, platforme, osobe, signali, poslednjiDodir, sajtOcena };
 }
 
 /**

@@ -44,6 +44,11 @@ export type LeadRowItem = {
   osobe: LeadRowPerson[];
   signali: string[];
   poslednjiDodir?: LeadRowTouch;
+  /**
+   * Sažetak poslednje ocene sajta (GL10). `null`/odsustvo = nikad ocenjivano;
+   * `kvalitet: null` = ocenjivano, ali nijedan izvor nije dao broj.
+   */
+  sajtOcena?: { kvalitet: number | null } | null;
   isOverdue?: boolean;
   delayMs?: number;
 };

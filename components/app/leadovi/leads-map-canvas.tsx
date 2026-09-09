@@ -65,6 +65,8 @@ export type MapPoint = {
   faza: string;
   nisa: string | null;
   imaSajt: string | null;
+  /** Ukupna ocena sajta 0–100 iz poslednje ocene (GL10); `null` = bez ocene. */
+  sajtKvalitet: number | null;
   poslednjiDodirAt: number | null;
   sastanakAt: number | null;
 };

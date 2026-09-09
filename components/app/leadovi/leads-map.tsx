@@ -38,6 +38,7 @@ import { LeadsMapPanel } from "./leads-map-panel";
 import { StageChip, TEMPERATURA_LABELS, type Temperatura } from "./lead-chips";
 import { filtersToQuery, useLeadFilters } from "./use-lead-filters";
 import type { MapHover, MapPoint, MapStyleState } from "./leads-map-canvas";
+import { pojasKvaliteta, POJAS_NATPISI } from "@/convex/lib/siteScore";
 import { pluralSr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -577,6 +578,19 @@ function HoverKartica({
           </span>
         </span>
         <StageChip stage={point.faza} className="px-1.5 py-px text-micro" />
+        {/* Kvalitet sajta (GL10, plan §5.4): samo kad ocena postoji; boja pina
+            ostaje temperatura. */}
+        {point.sajtKvalitet !== null && (
+          <span className="rounded-md border border-line bg-surface-raised px-1.5 py-px text-micro">
+            <span className="text-text-muted">Sajt </span>
+            <span className="font-semibold text-foreground">
+              {POJAS_NATPISI[pojasKvaliteta(point.sajtKvalitet)]}
+            </span>{" "}
+            <span className="font-mono tabular-nums text-foreground">
+              {point.sajtKvalitet}
+            </span>
+          </span>
+        )}
       </div>
     </div>
   );
@@ -620,6 +634,8 @@ function LeadsMapSingle({ company, fit }: Extract<LeadsMapProps, { mode: "single
         faza: "",
         nisa: null,
         imaSajt: company.imaSajt ?? null,
+        // Mini mapa u profilu nema pristup oceni (profil je crta zasebno).
+        sajtKvalitet: null,
         poslednjiDodirAt: null,
         sastanakAt: null,
       },

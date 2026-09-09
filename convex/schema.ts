@@ -5,6 +5,7 @@ import {
   connectionStatusValidator,
   providerValidator,
 } from "./lib/providers";
+import { sajtOcenaFields, sajtOcenaValidator } from "./lib/siteAudit";
 
 // Multi-tenant from day one (PLAN.md §3). V1 is single-user, but every future
 // table carries a `workspaceId`, so onboarding clients later needs no migration.
@@ -3283,6 +3284,13 @@ export default defineSchema({
     sajtHttps: v.optional(v.boolean()),
     sajtProverenAt: v.optional(v.number()),
     sajtNapomena: v.optional(v.string()),
+
+    // Pokazivač na POSLEDNJU ocenu sajta u `leadSiteAudits` (GL10, plan §2.2),
+    // da lista i filteri ne čitaju istoriju. OPCIONO NAMERNO: odsustvo = sajt
+    // nikad nije ocenjivan. Ukupna ocena se ne čuva ovde — računa se pri
+    // čitanju iz same ocene (`convex/lib/siteScore.ts`).
+    poslednjaOcenaSajtaAt: v.optional(v.number()),
+    poslednjaOcenaSajtaId: v.optional(v.id("leadSiteAudits")),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_pib", ["workspaceId", "pib"])
@@ -3463,6 +3471,14 @@ export default defineSchema({
       // kao nikakav sajt, a sajt bez HTTPS-a je konkretan povod za poziv.
       v.literal("sajt_ne_radi"),
       v.literal("sajt_bez_https"),
+      // GL10 (sajt-ocena-plan.md §2.3): sajt POSTOJI i radi, ali ga treba
+      // popraviti — prodaja redizajna, brzine, SEO-a ili zakazivanja.
+      v.literal("sajt_spor"),
+      v.literal("sajt_los_seo"),
+      v.literal("sajt_slab_ux"),
+      v.literal("sajt_bez_puta_do_kontakta"),
+      v.literal("sajt_zastarela_tehnologija"),
+      v.literal("sajt_bez_zakazivanja"),
       v.literal("koristi_third_party_booking"),
       v.literal("samo_facebook"),
       v.literal("samo_instagram"),
@@ -3716,9 +3732,16 @@ export default defineSchema({
           v.literal("osobe"),
           v.literal("platforme"),
           v.literal("koordinate"),
+          // GL10: ocena sajta (Lighthouse + tehnologije + Claudeov sud).
+          v.literal("sajtOcena"),
         ),
       ),
     ),
+
+    // Da li niša ovog uvoza traži zakazivanje (GL10, plan §2.3). OPCIONO
+    // NAMERNO: samo uvozi iz skilla ga nose; `applyImport` ga upisuje u nišu
+    // SAMO ako niša to polje još nema (čovekova odluka se ne prepisuje).
+    nisaTrebaZakazivanje: v.optional(v.boolean()),
 
     appliedAt: v.optional(v.number()),
     revertedAt: v.optional(v.number()),
@@ -3833,6 +3856,12 @@ export default defineSchema({
       // #0 (ispred PIB-a), uz proveru da firma pripada tom radnom prostoru.
       // Čuva se kao string; `ctx.db.normalizeId` ga bezbedno pretvara u Id.
       postojecaFirmaId: v.optional(v.string()),
+
+      // Ocena sajta iz skilla (GL10, sajt-ocena-plan.md §4.4). OPCIONO
+      // NAMERNO: postoji samo kad je skill pokrenuo `audit-site` za tu firmu.
+      // `applyImport` je upisuje kao NOV dokument u `leadSiteAudits` (istorija
+      // se čuva, stara ocena se nikad ne prepisuje).
+      sajtOcena: v.optional(sajtOcenaValidator),
     }),
 
     // Ceo red kako je stigao iz fajla, u izvornom redosledu kolona (§3)
@@ -3968,6 +3997,11 @@ export default defineSchema({
     // OPCIONO NAMERNO: šifre delatnosti (APR) su korisne za pretragu, ali ih
     // skill često nema. Odsustvo znači „nisu poznate", prazan niz „nema ih".
     sifreDelatnosti: v.optional(v.array(v.string())),
+    // Da li firme u ovoj niši žive od zakazivanja termina (frizeri, kozmetika,
+    // stomatolozi, teretane) — GL10, plan §2.3. Signal `sajt_bez_zakazivanja`
+    // se upisuje SAMO kad je ovo `true`. OPCIONO NAMERNO: odsustvo = niko nije
+    // rekao, pa se signal ne izvodi (nepoznato ≠ poznato).
+    trebaZakazivanje: v.optional(v.boolean()),
     createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -4031,6 +4065,26 @@ export default defineSchema({
     createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
   }).index("by_workspace", ["workspaceId"]),
+
+  // 10f) leadSiteAudits — ocena sajta firme (GL10, sajt-ocena-plan.md §2.1).
+  //
+  // JEDAN RED = JEDNA OCENA; istorija se čuva, „poslednja" je najveći
+  // `auditedAt` (pokazivač je na firmi). Tri nezavisna izvora u jednom
+  // dokumentu — Lighthouse (PSI), tehnologije (otisci), Claudeov sud nad
+  // snimcima — svaki opcion, jer svaki ume da padne posebno. Ukupna ocena se
+  // ne čuva: računa se pri čitanju iz `convex/lib/siteScore.ts`.
+  //
+  // HTML sajta i tekst stranice se NE čuvaju (plan §6) — samo brojevi, imena
+  // tehnologija, Claudeove rečenice i dva snimka u storage-u.
+  leadSiteAudits: defineTable({
+    workspaceId: v.id("workspaces"),
+    companyId: v.id("leadCompanies"),
+    // Ko je ocenio. Danas samo skill; aplikacija ne pokreće Lighthouse ni LLM.
+    izvor: v.literal("skill"),
+    ...sajtOcenaFields,
+  })
+    .index("by_company", ["companyId", "auditedAt"])
+    .index("by_workspace", ["workspaceId"]),
 
   // 11) leadInbound — čekaonica za inbound leadove sa platformi (LM5, §1, §2)
   //

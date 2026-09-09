@@ -43,6 +43,7 @@ import { ProvenanceBadge } from "./provenance-badge";
 import { StageChip, TemperatureSelect } from "./lead-chips";
 import { LinkChip, type LinkChipVrsta } from "@/components/app/link-chip";
 import { SiteStatusBadge } from "./site-status-badge";
+import { SiteAuditPanel } from "./site-audit-panel";
 import { PhoneConfidence } from "./phone-confidence";
 import { PhoneConfidenceDialog } from "./phone-confidence-dialog";
 import { LeadsMap } from "./leads-map";
@@ -76,7 +77,7 @@ type LeadDetailProps = {
   companyId: Id<"leadCompanies">;
 };
 
-type ProfileTab = "istorija" | "kontakti" | "firma" | "landing" | "rupe";
+type ProfileTab = "istorija" | "kontakti" | "firma" | "sajt" | "landing" | "rupe";
 
 const NEXT_UP_TONE: Record<NextUpTone, { box: string; icon: typeof ArrowRight; ink: string }> = {
   danger: { box: "border-danger/40 bg-danger/5", icon: CircleAlert, ink: "text-danger" },
@@ -420,6 +421,16 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
           { id: "istorija", label: "Istorija", icon: ScrollText, badge: <TabBadge count={historyCount} /> },
           { id: "kontakti", label: "Kontakti", icon: Contact, badge: <TabBadge count={detail.identities.length} /> },
           { id: "firma", label: "Firma i poreklo", icon: Landmark },
+          // GL10 (plan §5.1): ocena sajta. Bedž samo kad ocena postoji.
+          {
+            id: "sajt",
+            label: "Sajt",
+            icon: Globe,
+            badge:
+              company.poslednjaOcenaSajtaAt !== undefined ? (
+                <span className="ml-0.5 inline-flex size-1.5 rounded-full bg-accent-400" aria-label="ocenjen" />
+              ) : undefined,
+          },
           { id: "landing", label: "Landing", icon: Send },
           { id: "rupe", label: "Rupe u podacima", icon: FileSearch, badge: <TabBadge count={gaps.length} /> },
         ]}
@@ -775,6 +786,10 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {tab === "sajt" && (
+          <SiteAuditPanel workspaceId={workspaceId} companyId={companyId} company={company} />
         )}
 
         {tab === "landing" && (

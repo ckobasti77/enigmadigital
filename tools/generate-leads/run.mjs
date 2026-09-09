@@ -38,11 +38,15 @@ import { geokodiraj, RAZMAK_MS, sacekaj, userAgent } from "./lib/nominatim.mjs";
 import { proveriSajt } from "./lib/sajt.mjs";
 import { oceniOsobe, traka } from "./lib/skor.mjs";
 import { validirajTelo } from "./lib/schema.mjs";
-import { objasniStatus, posalji } from "./lib/ingest.mjs";
+import { objasniStatus, posalji, posaljiSnimak } from "./lib/ingest.mjs";
 import { pokreniSelfTest } from "./lib/self-test.mjs";
 import { ucitajFajl } from "./lib/tabela.mjs";
 import { promenjeneFirme, firmeBezImaSajt } from "./lib/obogati.mjs";
+import { auditSajta, ispisiIzvestajOcene, PODRAZUMEVANI_DELOVI } from "./lib/audit.mjs";
+import { osveziOtiske } from "./lib/otisci.mjs";
 import { basename } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
 
 /** Verzija skilla — ide u `izvor.verzijaSkilla` i u User-Agent. */
 export const VERZIJA = "1.0.0";
@@ -104,7 +108,7 @@ function komandaProveriEnv() {
   ispisi("");
 
   if (nedostaju.length > 0) throw new env.EnvGreska(nedostaju);
-  ispisi("Sve četiri promenljive postoje. (Vrednosti se namerno ne prikazuju.)");
+  ispisi(`Svih ${imena.length} promenljivih postoji. (Vrednosti se namerno ne prikazuju.)`);
   return 0;
 }
 
@@ -219,6 +223,7 @@ async function komandaDiscover(args) {
       upiti,
       opis: nisa ? nisa.opis : null,
       sifreDelatnosti: nisa ? nisa.sifreDelatnosti : [],
+      ...(nisa && typeof nisa.trebaZakazivanje === "boolean" ? { trebaZakazivanje: nisa.trebaZakazivanje } : {}),
     },
     brojTrazen: broj,
     filterSajt,
@@ -322,7 +327,8 @@ async function komandaUcitaj(args) {
   // GL9 §4: `--polja sajt` (ili „sajt,osobe,koordinate") ograničava tok na
   // podskup — Claude istražuje SAMO ta polja, `send` šalje samo njih, a
   // aplikacija dira samo njih. Cilj: 100 firmi dobija `imaSajt` za par minuta.
-  const DOZVOLJENA_POLJA = ["sajt", "osobe", "platforme", "koordinate"];
+  // GL10: `sajtOcena` = samo ocena sajta (Lighthouse + tehnologije + sud).
+  const DOZVOLJENA_POLJA = ["sajt", "osobe", "platforme", "koordinate", "sajtOcena"];
   let polja;
   if (typeof args.polja === "string" && args.polja.trim()) {
     const trazena = args.polja
@@ -401,6 +407,7 @@ async function komandaUcitaj(args) {
       upiti: [],
       opis: nisa ? nisa.opis : null,
       sifreDelatnosti: nisa ? nisa.sifreDelatnosti : [],
+      ...(nisa && typeof nisa.trebaZakazivanje === "boolean" ? { trebaZakazivanje: nisa.trebaZakazivanje } : {}),
     },
     brojTrazen: firme.length,
     filterSajt: "svejedno",
@@ -439,6 +446,10 @@ async function komandaUcitaj(args) {
         (polja.includes("sajt")
           ? `Za „sajt": provera postojanja je OBAVEZNA (imaSajt = da/ne/nepoznato ` +
             `sa tri izvora: CompanyWall polje sajt, 011info, web pretraga „naziv + grad").`
+          : ``) +
+        (polja.includes("sajtOcena")
+          ? ` Za „sajtOcena": pokreni check-site pa audit-site --run ${runId}, ` +
+            `pa popuni Claudeov sud po rubrici iz SKILL.md.`
           : ``),
     );
   } else {
@@ -699,6 +710,8 @@ const POLJA_REDA = [
   "izvestajSkilla",
   // GL8: ID postojeće firme iz izvoza aplikacije (režim „obogati").
   "postojecaFirmaId",
+  // GL10: ocena sajta.
+  "sajtOcena",
 ];
 
 const POLJA_OSOBE = [
@@ -720,6 +733,9 @@ const POLJA_GRUPE_SEND = {
   osobe: ["osobe"],
   platforme: ["platforme"],
   koordinate: ["koordinate"],
+  // GL10: ocena sajta ide sa `sajt` (URL) da aplikacija zna na koji sajt se
+  // odnosi i kad firma u bazi još nema `website`.
+  sajtOcena: ["sajt", "sajtOcena"],
 };
 // Ključevi po kojima aplikacija spaja red sa postojećom firmom — uvek se šalju,
 // jer bez njih dopuna ne zna na koju firmu ide. Telefon se namerno NE šalje u
@@ -900,6 +916,13 @@ async function komandaSend(args) {
 
   const redovi = firmeZaSlanje.map((firma) => napraviRed(firma, stanje.nisa.slug, polja));
 
+  // GL10: iz `sajtOcena` u telo NE ide ništa lokalno (putanje fajlova, tekst
+  // stranice) — samo brojevi, tehnologije, sud i ID-jevi snimaka. Ukupna ocena
+  // se ne šalje: aplikacija je računa pri čitanju.
+  for (const red of redovi) {
+    if (red.sajtOcena) red.sajtOcena = ocenaZaTelo(red.sajtOcena);
+  }
+
   // 0 firmi nije greška i nema šta da se šalje: prazan uvoz ne sme da napravi
   // red u istoriji (GL1, zod `redovi.min(1)`).
   if (redovi.length === 0) {
@@ -957,6 +980,11 @@ async function komandaSend(args) {
       ...(stanje.izvorFajl ? { izvorFajl: stanje.izvorFajl } : {}),
       // Podskup polja (GL9 §4): aplikacija po ovome dira samo ta polja.
       ...(polja ? { polja } : {}),
+      // GL10 (plan §2.3): da li niša traži zakazivanje — iz lib/nise.mjs.
+      // Aplikacija ga upisuje u nišu samo ako niša to još nema.
+      ...(typeof stanje.nisa.trebaZakazivanje === "boolean"
+        ? { nisaTrebaZakazivanje: stanje.nisa.trebaZakazivanje }
+        : {}),
     },
     izvor: {
       skill: "generate-leads",
@@ -1011,6 +1039,29 @@ async function komandaSend(args) {
     "ENIGMA_INGEST_TOKEN",
   ]);
 
+  // GL10 (plan §4.3): snimci idu PRE tela, ≤ 2 po firmi; njihovi ID-jevi ulaze
+  // u `sajtOcena.snimci`. Pad uploada ne ruši slanje — ocena ide bez slike, a
+  // `greske` to kaže (i Claudeov sud tada NE sme da ide, plan §3).
+  const snimci = await posaljiSnimke(runId, telo.redovi, {
+    url: ENIGMA_INGEST_URL,
+    token: ENIGMA_INGEST_TOKEN,
+  });
+  if (snimci.pokusano > 0) {
+    ispisi(`Snimci: poslato ${snimci.poslato} od ${snimci.pokusano}${snimci.neuspelo > 0 ? ` (neuspelo ${snimci.neuspelo})` : ""}.`);
+    if (snimci.sudUklonjen > 0) {
+      ispisi(`  PAŽNJA: kod ${snimci.sudUklonjen} firmi nijedan snimak nije prošao, pa Claudeov sud NIJE poslat (bez snimka nema suda).`);
+    }
+    // Telo je promenjeno (ID-jevi) — validacija još jednom pre slanja.
+    const ponovo = validirajTelo(telo);
+    if (!ponovo.ok) {
+      const putanja = izlaz.upisiJson(runId, "payload.json", telo);
+      ispisiGresku("Telo posle uploada snimaka ne prolazi šemu:");
+      for (const polje of ponovo.polja) ispisiGresku(`  ${polje}`);
+      ispisiGresku(`Ništa nije poslato. Telo je sačuvano: ${putanja}`);
+      return 1;
+    }
+  }
+
   const odgovor = await posalji({
     url: ENIGMA_INGEST_URL,
     token: ENIGMA_INGEST_TOKEN,
@@ -1049,6 +1100,367 @@ async function komandaSend(args) {
   return 0;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GL10: ocena sajta — pomoćne funkcije za `send`
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Polja ocene koja idu u telo (bez lokalnih putanja, teksta stranice i sl.). */
+const POLJA_OCENE = [
+  "url",
+  "auditedAt",
+  "verzijaSkilla",
+  "lighthouse",
+  "tehnologije",
+  "cms",
+  "eCommerce",
+  "booking",
+  "formaZaTermin",
+  "claude",
+  "snimci",
+  "greske",
+];
+
+function ocenaZaTelo(ocena) {
+  const cista = uzmi(ocena, POLJA_OCENE);
+  // `snimci` u firme.json nosi lokalne putanje (`desktop`, `mobile`) i, posle
+  // uploada, ID-jeve (`desktopId`, `mobilniId`). U telo idu SAMO ID-jevi.
+  if (cista.snimci && typeof cista.snimci === "object") {
+    const s = {};
+    if (typeof cista.snimci.desktopId === "string") s.desktopId = cista.snimci.desktopId;
+    if (typeof cista.snimci.mobilniId === "string") s.mobilniId = cista.snimci.mobilniId;
+    if (Object.keys(s).length > 0) cista.snimci = s;
+    else delete cista.snimci;
+  }
+  if (Array.isArray(cista.greske) && cista.greske.length === 0) delete cista.greske;
+  if (Array.isArray(cista.tehnologije) && cista.tehnologije.length === 0) delete cista.tehnologije;
+  return cista;
+}
+
+/**
+ * Šalje snimke (početna stranica, desktop + mobilni) za svaki red sa
+ * `sajtOcena` i upisuje ID-jeve u `red.sajtOcena.snimci`. Lokalne putanje
+ * se čitaju iz `out/<run>/sajt/<slug>/`. Bez ijednog prošlog snimka Claudeov
+ * sud se UKLANJA iz reda (plan §3: ne ocenjuje se sajt koji nije viđen), a
+ * `greske` dobija razlog.
+ */
+async function posaljiSnimke(runId, redovi, { url, token }) {
+  const zbir = { pokusano: 0, poslato: 0, neuspelo: 0, sudUklonjen: 0 };
+  const koren = izlaz.putanjaRuna(runId);
+
+  for (const red of redovi) {
+    const ocena = red.sajtOcena;
+    if (!ocena) continue;
+    const lokalno = ocena.snimci ?? {};
+    const greske = Array.isArray(ocena.greske) ? [...ocena.greske] : [];
+    const ids = {};
+
+    for (const [kljuc, ciljKljuc] of [["desktop", "desktopId"], ["mobile", "mobilniId"]]) {
+      // Već poslato (ponovni `send` iz sačuvanog stanja) — ne šalje se dvaput.
+      if (typeof lokalno[ciljKljuc] === "string") {
+        ids[ciljKljuc] = lokalno[ciljKljuc];
+        continue;
+      }
+      const rel = lokalno[kljuc];
+      if (typeof rel !== "string") continue;
+      const putanja = join(koren, rel);
+      if (!existsSync(putanja)) {
+        greske.push(`snimak ${kljuc}: fajl ne postoji lokalno`);
+        continue;
+      }
+      const bajtovi = readFileSync(putanja);
+      zbir.pokusano += 1;
+      if (bajtovi.length > 400 * 1024) {
+        greske.push(`snimak ${kljuc}: veći od 400 KB, nije poslat`);
+        zbir.neuspelo += 1;
+        continue;
+      }
+      const tip = rel.endsWith(".png") ? "image/png" : rel.endsWith(".webp") ? "image/webp" : "image/jpeg";
+      const rez = await posaljiSnimak({ url, token, bajtovi, tip });
+      if (rez.ok && rez.storageId) {
+        ids[ciljKljuc] = rez.storageId;
+        zbir.poslato += 1;
+      } else {
+        greske.push(`snimak ${kljuc}: upload nije uspeo (${rez.status || rez.greska})`);
+        zbir.neuspelo += 1;
+      }
+    }
+
+    if (Object.keys(ids).length > 0) {
+      ocena.snimci = ids;
+    } else {
+      delete ocena.snimci;
+      if (ocena.claude) {
+        delete ocena.claude;
+        greske.push("Claudeov sud nije poslat: nijedan snimak nije stigao u aplikaciju");
+        zbir.sudUklonjen += 1;
+      }
+    }
+    if (greske.length > 0) ocena.greske = [...new Set(greske)];
+  }
+
+  // Sačuvaj ID-jeve u firme.json da ponovni `send` ne šalje slike opet.
+  try {
+    const firme = izlaz.citajJson(runId, "firme.json");
+    if (Array.isArray(firme)) {
+      const poUrl = new Map();
+      for (const red of redovi) {
+        if (red.sajtOcena?.snimci) poUrl.set(red.sajtOcena.url, red.sajtOcena.snimci);
+      }
+      for (const f of firme) {
+        if (f.sajtOcena && poUrl.has(f.sajtOcena.url)) {
+          f.sajtOcena.snimci = { ...(f.sajtOcena.snimci ?? {}), ...poUrl.get(f.sajtOcena.url) };
+        }
+      }
+      izlaz.upisiJson(runId, "firme.json", firme);
+    }
+  } catch {
+    // firme.json se ne čita — `oceni-sajt --firma` i dalje šalje bez pamćenja.
+  }
+
+  return zbir;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// audit-site (GL10, plan §4.1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function deloviAudita(args) {
+  if (typeof args.samo !== "string" || !args.samo.trim()) return [...PODRAZUMEVANI_DELOVI];
+  const trazeni = args.samo.split(",").map((s) => s.trim()).filter(Boolean);
+  const nepoznati = trazeni.filter((d) => !PODRAZUMEVANI_DELOVI.includes(d));
+  if (nepoznati.length > 0) {
+    throw new Error(`--samo prima: ${PODRAZUMEVANI_DELOVI.join(", ")} (nepoznato: ${nepoznati.join(", ")}).`);
+  }
+  return trazeni;
+}
+
+async function komandaAuditSite(args) {
+  const runId = trazenArgument(args, "run");
+  const delovi = deloviAudita(args);
+  const stanje = izlaz.citajJson(runId, "run.json");
+  const firme = izlaz.citajJson(runId, "firme.json");
+  if (!Array.isArray(firme) || firme.length === 0) {
+    throw new Error(`out/${runId}/firme.json je prazan.`);
+  }
+
+  const trazeneEnv = ["ENIGMA_CONTACT_EMAIL"];
+  if (delovi.includes("lighthouse")) trazeneEnv.push("PAGESPEED_API_KEY");
+  const envVrednosti = env.trazi(trazeneEnv);
+  const ua = userAgent(envVrednosti.ENIGMA_CONTACT_EMAIL, VERZIJA);
+
+  let ocenjeno = 0;
+  const preskoceno = { bezSajta: 0, neRadi: 0 };
+  const zbirGresaka = {};
+
+  for (let i = 0; i < firme.length; i += 1) {
+    const firma = firme[i];
+    const sajt = typeof firma.sajt === "string" ? firma.sajt.trim() : "";
+    if (!sajt) {
+      preskoceno.bezSajta += 1;
+      continue;
+    }
+    // Plan §6: ne ocenjuje se sajt sa `sajtStatus` ≠ `radi`.
+    if (firma.sajtStatus !== "radi") {
+      preskoceno.neRadi += 1;
+      continue;
+    }
+
+    ispisi(`  firma ${i + 1}: ${domenOd(sajt)}`);
+    const rezultat = await auditSajta(sajt, {
+      runId,
+      delovi,
+      apiKey: envVrednosti.PAGESPEED_API_KEY,
+      userAgent: ua,
+      verzijaSkilla: VERZIJA,
+      postojeca: firma.sajtOcena,
+      log: (m) => ispisi(`    ${m}`),
+    });
+    firma.sajtOcena = rezultat.ocena;
+    ocenjeno += 1;
+    for (const g of rezultat.ocena.greske ?? []) {
+      const kljuc = g.split(":")[0];
+      zbirGresaka[kljuc] = (zbirGresaka[kljuc] ?? 0) + 1;
+    }
+  }
+
+  stanje.koraci = { ...stanje.koraci, auditSite: Date.now() };
+  izlaz.upisiJson(runId, "run.json", stanje);
+  izlaz.upisiJson(runId, "firme.json", firme);
+
+  ispisi("");
+  ispisi(`Ocenjeno sajtova: ${ocenjeno} od ${firme.length} firmi (delovi: ${delovi.join(", ")}).`);
+  if (preskoceno.bezSajta > 0) ispisi(`  bez upisanog sajta: ${preskoceno.bezSajta}`);
+  if (preskoceno.neRadi > 0) ispisi(`  sajtStatus nije „radi" (nije ocenjivano): ${preskoceno.neRadi}`);
+  for (const [k, n] of Object.entries(zbirGresaka).sort()) ispisi(`  greška „${k}": ${n}`);
+  if (ocenjeno > 0 && delovi.includes("snimci")) {
+    ispisi("");
+    ispisi(
+      `Sledeće: za svaku firmu sa snimcima popuni sajtOcena.claude po rubrici iz SKILL.md ` +
+        `(gledaj out/${runId}/sajt/<domen>/pocetna.desktop.jpg, pocetna.mobile.jpg i pocetna.tekst.txt). ` +
+        `Procena: ~1–2 min po sajtu × ${ocenjeno}.`,
+    );
+  }
+  return 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// oceni-sajt <url> [--firma <companyId>] (GL10, plan §4.3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function komandaOceniSajt(args) {
+  const url = args._[0];
+  if (typeof url !== "string" || !/^https?:\/\//i.test(url.trim())) {
+    throw new Error("Prosledi URL sajta: node run.mjs oceni-sajt https://primer.rs [--firma <companyId>]");
+  }
+  const delovi = deloviAudita(args);
+  const firmaId = typeof args.firma === "string" && args.firma.trim() ? args.firma.trim() : null;
+
+  const trazeneEnv = ["ENIGMA_CONTACT_EMAIL"];
+  if (delovi.includes("lighthouse")) trazeneEnv.push("PAGESPEED_API_KEY");
+  const envVrednosti = env.trazi(trazeneEnv);
+  const ua = userAgent(envVrednosti.ENIGMA_CONTACT_EMAIL, VERZIJA);
+
+  // Radni folder: out/oceni-sajt/<domen>/ (plan §4.3). Kao run ima svoj
+  // run.json/firme.json da `send --run` radi isto kao za ostale runove.
+  const runId = `oceni-sajt/${domenOd(url.trim()).replace(/[^a-z0-9.-]/gi, "").replace(/\./g, "-") || "sajt"}`;
+
+  // Status sajta prvo (plan §6: ocenjuje se samo sajt koji radi).
+  const status = await proveriSajt(url.trim(), { userAgent: ua });
+  ispisi(`Sajt: ${domenOd(url)} → ${status.sajtStatus} (${status.sajtNapomena})`);
+  if (status.sajtStatus !== "radi") {
+    ispisi(`Sajt nije u stanju „radi", pa se ne ocenjuje (plan §6). Ništa nije upisano.`);
+    return 1;
+  }
+
+  const rezultat = await auditSajta(url.trim(), {
+    runId,
+    delovi,
+    apiKey: envVrednosti.PAGESPEED_API_KEY,
+    userAgent: ua,
+    verzijaSkilla: VERZIJA,
+    log: (m) => ispisi(`  ${m}`),
+  });
+
+  const firma = {
+    nazivFirme: firmaId ? undefined : domenOd(url),
+    sajt: rezultat.ocena.url,
+    imaSajt: "da",
+    imaSajtNapomena: "sajt otvoren komandom oceni-sajt",
+    sajtStatus: status.sajtStatus,
+    sajtHttps: status.sajtHttps,
+    sajtProverenAt: status.sajtProverenAt,
+    sajtNapomena: status.sajtNapomena,
+    izvori: [rezultat.ocena.url],
+    sajtOcena: rezultat.ocena,
+    ...(firmaId ? { postojecaFirmaId: firmaId } : {}),
+  };
+
+  const stanje = {
+    runId,
+    verzijaSkilla: VERZIJA,
+    pokrenutAt: Date.now(),
+    rezim: "obogati",
+    izvorFajl: `oceni-sajt ${domenOd(url)}`,
+    grad: { kanonski: "nepoznat", alijasi: [] },
+    nisa: { slug: "bez-nise", naziv: "Bez niše", upiti: [], opis: null, sifreDelatnosti: [] },
+    brojTrazen: 1,
+    filterSajt: "ima",
+    places: { pozivi: 0, kandidata: 1, vanGrada: 0, zatvoreni: 0, iscrpljeno: false },
+    nedostupniIzvori: [],
+    koraci: { oceniSajt: Date.now() },
+    polja: ["sajt", "sajtOcena"],
+  };
+  izlaz.upisiJson(runId, "run.json", stanje);
+  izlaz.upisiJson(runId, "firme.json", [firma]);
+  izlaz.upisiJson(runId, "firme.ulaz.json", [{ ...firma, sajtOcena: undefined }]);
+
+  ispisi("");
+  ispisiIzvestajOcene(rezultat.ocena, ispisi);
+  ispisi("");
+  ispisi(`Fajlovi: tools/generate-leads/out/${runId}/`);
+  if (delovi.includes("snimci") && rezultat.ocena.snimci?.desktop) {
+    ispisi(
+      `Sledeće: popuni sajtOcena.claude u out/${runId}/firme.json po rubrici iz SKILL.md ` +
+        `(pogledaj pocetna.desktop.jpg, pocetna.mobile.jpg, pocetna.tekst.txt).`,
+    );
+  }
+  if (firmaId) {
+    ispisi(`Slanje u aplikaciju za firmu ${firmaId}: node run.mjs send --run "${runId}" --sve`);
+  } else {
+    ispisi("Bez --firma ništa se ne šalje u aplikaciju; izveštaj je samo ovde.");
+  }
+  return 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// oceni-sajtove --izvoz <csv> [--od --do] (GL10, plan §4.3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function komandaOceniSajtove(args) {
+  // Ista mašinerija kao `ucitaj --izvoz … --polja sajt,sajtOcena`: izvoz iz
+  // aplikacije nosi `company_id` i `sajt`, pa se ocena spaja baš sa tom firmom.
+  if (typeof args.izvoz !== "string" || !args.izvoz.trim()) {
+    throw new Error('Nedostaje --izvoz "<csv iz aplikacije sa filterom ?sajt=ima>".');
+  }
+  const { firme: sveFirme, izvestaj } = await ucitajFajl(args.izvoz.trim(), {});
+  const saSajtom = sveFirme.filter((f) => typeof f.sajt === "string" && f.sajt.trim());
+  if (saSajtom.length === 0) {
+    throw new Error("Nijedan red u izvozu nema sajt. Izvezi sa filterom ?sajt=ima.");
+  }
+
+  const od = args.od !== undefined ? Number(args.od) : 1;
+  const doK = args.do !== undefined ? Number(args.do) : saSajtom.length;
+  if (!Number.isInteger(od) || !Number.isInteger(doK) || od < 1 || doK < od) {
+    throw new Error(`--od/--do moraju biti celi brojevi, 1 ≤ od ≤ do.`);
+  }
+  const firme = saSajtom.slice(od - 1, doK);
+  const serija = od > 1 || doK < saSajtom.length;
+
+  const naziv = basename(args.izvoz.trim());
+  const pokrenutAt = Date.now();
+  const osnovni = izlaz.napraviRunId(new Date(pokrenutAt), "oceni-sajtove", normalizujSlug(naziv.replace(/\.[^.]+$/, "")) || "izvoz");
+  const runId = typeof args.run === "string" && args.run.trim() ? args.run.trim() : serija ? `${osnovni}-${od}-${doK}` : osnovni;
+
+  const stanje = {
+    runId,
+    verzijaSkilla: VERZIJA,
+    pokrenutAt,
+    rezim: "obogati",
+    izvorFajl: naziv,
+    grad: { kanonski: najcesciGrad(firme) || "nepoznat", alijasi: [] },
+    nisa: { slug: "bez-nise", naziv: "Bez niše", upiti: [], opis: null, sifreDelatnosti: [] },
+    brojTrazen: firme.length,
+    filterSajt: "ima",
+    places: { pozivi: 0, kandidata: firme.length, vanGrada: 0, zatvoreni: 0, iscrpljeno: false },
+    nedostupniIzvori: [],
+    koraci: { oceniSajtove: pokrenutAt },
+    polja: ["sajt", "sajtOcena"],
+  };
+  izlaz.upisiJson(runId, "run.json", stanje);
+  izlaz.upisiJson(runId, "firme.json", firme);
+  izlaz.upisiJson(runId, "firme.ulaz.json", firme);
+
+  ispisi(`Run: ${runId}  (režim: obogati, polja: sajt, sajtOcena)`);
+  ispisi(`Izvoz: ${naziv} · redova ${izvestaj.redova} · sa sajtom ${saSajtom.length}${serija ? ` · ova serija: ${firme.length} (${od}–${doK})` : ""}`);
+  ispisi("");
+  ispisi(`Sledeće: node run.mjs check-site --run ${runId}`);
+  ispisi(`         node run.mjs audit-site --run ${runId}`);
+  ispisi(`         (Claudeov sud po rubrici) → node run.mjs send --run ${runId}`);
+  ispisi(`Procena trajanja audita: ~30–60 s po sajtu (PSI mobile + desktop + snimci) × ${firme.length}.`);
+  return 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// osvezi-otiske
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function komandaOsveziOtiske() {
+  ispisi("Preuzimam otiske tehnologija sa github.com/enthec/webappanalyzer …");
+  const r = await osveziOtiske({ log: ispisi });
+  ispisi(`Preuzeto fajlova: ${r.preuzeto}, commit ${r.hash}. Vidi vendor/technologies/VERZIJA.txt.`);
+  return 0;
+}
+
 function ispisiRezime(telo, kontakti, stanje) {
   ispisi(
     `Poslato ${telo.izvestaj.nadjeno} redova (traženo ${telo.izvestaj.trazeno}). ` +
@@ -1082,10 +1494,18 @@ const POMOC = `/generate-leads — deterministički deo (v${VERZIJA})
   node run.mjs ucitaj   --fajl "tabela.xlsx" --nisa frizeri [--list "Svi lidovi (100)"]
   node run.mjs ucitaj   --izvoz "izvoz.csv"  --nisa frizeri
   node run.mjs check-site --run <run-id>
+  node run.mjs audit-site --run <run-id> [--samo lighthouse,tehnologije,snimci]
   node run.mjs geocode   --run <run-id>
   node run.mjs score     --run <run-id> [--ponovo]
   node run.mjs send      --run <run-id> [--dry-run] [--sve] [--dozvoli-bez-sajta]
+  node run.mjs oceni-sajt https://primer.rs [--firma <companyId>] [--samo …]
+  node run.mjs oceni-sajtove --izvoz "izvoz.csv" [--od 1 --do 25]
+  node run.mjs osvezi-otiske
   node run.mjs self-test
+
+Ocena sajta (GL10): audit-site radi PSI (Lighthouse), otiske tehnologija i
+snimke ekrana za svaku firmu sa sajtStatus „radi"; Claudeov sud se popunjava
+ručno po rubrici iz SKILL.md; send šalje snimke pa telo.
 
 Opcije za ucitaj (režim „obogati"):
   --fajl "putanja.xlsx|.csv"   postojeća tabela salona
@@ -1123,6 +1543,14 @@ async function glavna() {
       return await komandaUcitaj(args);
     case "check-site":
       return await komandaCheckSite(args);
+    case "audit-site":
+      return await komandaAuditSite(args);
+    case "oceni-sajt":
+      return await komandaOceniSajt(args);
+    case "oceni-sajtove":
+      return await komandaOceniSajtove(args);
+    case "osvezi-otiske":
+      return await komandaOsveziOtiske();
     case "geocode":
       return await komandaGeocode(args);
     case "score":

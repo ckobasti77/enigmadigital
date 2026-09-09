@@ -303,6 +303,16 @@ export const LEAD_SIGNAL_KINDS = [
   // konkretna zamerka koja se ispravlja u jednom danu.
   "sajt_ne_radi",
   "sajt_bez_https",
+  // GL10 (sajt-ocena-plan.md §2.3): sajt postoji i radi, ali ga treba
+  // popraviti. Izvode se iz ocene sajta (`convex/lib/siteScore.ts`), nikad
+  // ručno: spor po Lighthouseu, loš SEO, slab UX po Claudeu, nema puta do
+  // kontakta, zastarela tehnologija, nema zakazivanja u niši koja ga traži.
+  "sajt_spor",
+  "sajt_los_seo",
+  "sajt_slab_ux",
+  "sajt_bez_puta_do_kontakta",
+  "sajt_zastarela_tehnologija",
+  "sajt_bez_zakazivanja",
   "koristi_third_party_booking",
   "samo_facebook",
   "samo_instagram",

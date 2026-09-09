@@ -17,6 +17,7 @@
  */
 
 import * as XLSX from "xlsx";
+import type { Id } from "../_generated/dataModel";
 import {
   normalizeCompanyName,
   normalizePhoneRs,
@@ -127,7 +128,77 @@ export interface ParsedLeadRow {
    * ne `Id`, jer u telo stiže kao tekst; provera formata je u match funkciji.
    */
   postojecaFirmaId?: string;
+
+  /**
+   * Ocena sajta iz skilla (GL10, sajt-ocena-plan.md §4.4): Lighthouse (PSI),
+   * tehnologije (otisci) i Claudeov sud nad snimcima, svaki opcion. Parser
+   * tabele ga nikad ne postavlja. `applyImport` upisuje NOV dokument u
+   * `leadSiteAudits` i pomera pokazivač na firmi.
+   */
+  sajtOcena?: SajtOcena;
 }
+
+/** Oblik ocene sajta u redu — isti kao `sajtOcenaValidator` u `siteAudit.ts`. */
+export type SajtOcena = {
+  url: string;
+  auditedAt: number;
+  verzijaSkilla: string;
+  lighthouse?: {
+    mobile?: LighthouseKategorije;
+    desktop?: LighthouseKategorije;
+    terenski?: {
+      lcpMs?: number;
+      cls?: number;
+      inpMs?: number;
+      ocena?: "FAST" | "AVERAGE" | "SLOW";
+    };
+  };
+  tehnologije?: Array<{
+    ime: string;
+    kategorija: string;
+    verzija?: string;
+    pouzdanost: number;
+  }>;
+  cms?: string;
+  eCommerce?: string;
+  booking?: string;
+  formaZaTermin?: boolean;
+  claude?: {
+    model: string;
+    ocene: {
+      prviUtisak: { ocena: number; obrazlozenje: string };
+      jasnocaPonude: { ocena: number; obrazlozenje: string };
+      putDoKontakta: { ocena: number; obrazlozenje: string };
+      mobilnaUpotrebljivost: { ocena: number; obrazlozenje: string };
+      azurnost: { ocena: number; obrazlozenje: string };
+    };
+    glavneMane: string[];
+    prilikaZaEnigmu: string;
+    preporucenaPonuda:
+      | "nov_sajt"
+      | "redizajn"
+      | "webshop"
+      | "zakazivanje"
+      | "seo"
+      | "brzina"
+      | "nista";
+    klikovaDoKontakta?: number;
+    ocenjenoAt?: number;
+  };
+  snimci?: { desktopId?: Id<"_storage">; mobilniId?: Id<"_storage"> };
+  greske?: string[];
+};
+
+type LighthouseKategorije = {
+  performance?: number;
+  accessibility?: number;
+  bestPractices?: number;
+  seo?: number;
+  lcpMs?: number;
+  cls?: number;
+  inpMs?: number;
+  tbtMs?: number;
+};
 
 export interface ParsedSheetInfo {
   name: string;

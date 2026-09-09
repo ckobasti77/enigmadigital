@@ -12,6 +12,13 @@ export const LEAD_SIGNAL_LABELS: Record<LeadSignalKind, string> = {
   nema_sajt: "nema sajt",
   sajt_ne_radi: "sajt ne radi ili je parkiran",
   sajt_bez_https: "sajt bez HTTPS-a",
+  // GL10: signali iz ocene sajta.
+  sajt_spor: "sajt je spor na mobilnom",
+  sajt_los_seo: "sajt ima loš SEO",
+  sajt_slab_ux: "sajt je slabo upotrebljiv",
+  sajt_bez_puta_do_kontakta: "sajt nema jasan put do kontakta",
+  sajt_zastarela_tehnologija: "sajt na zastareloj tehnologiji",
+  sajt_bez_zakazivanja: "nema zakazivanja u niši koja ga traži",
   koristi_third_party_booking: "koristi tuđi sistem za zakazivanje",
   samo_facebook: "samo Facebook",
   samo_instagram: "samo Instagram",

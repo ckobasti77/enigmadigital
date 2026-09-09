@@ -52,6 +52,44 @@ export async function posalji({ url, token, telo }) {
 }
 
 /**
+ * Slanje jednog snimka ekrana na `POST /generate-leads/snimak` (GL10, plan
+ * §4.3). Sirovo telo (`image/jpeg|png|webp`), ≤ 400 KB — granicu proverava
+ * pozivalac, ruta je proverava opet. Vraća `{ ok, status, storageId }`; nikad
+ * ne baca zbog statusa — ocena ide bez slike i `greske` to kaže.
+ *
+ * URL rute se izvodi iz `ENIGMA_INGEST_URL` zamenom `/ingest` → `/snimak`.
+ */
+export async function posaljiSnimak({ url, token, bajtovi, tip }) {
+  const snimakUrl = String(url).replace(/\/generate-leads\/ingest\/?$/, "/generate-leads/snimak");
+  const kontrola = new AbortController();
+  const tajmer = setTimeout(() => kontrola.abort(), TIMEOUT_MS);
+  try {
+    const odgovor = await fetch(snimakUrl, {
+      method: "POST",
+      signal: kontrola.signal,
+      headers: { "Content-Type": tip, Authorization: `Bearer ${token}` },
+      body: bajtovi,
+    });
+    let telo = null;
+    try {
+      telo = await odgovor.json();
+    } catch {
+      telo = null;
+    }
+    return {
+      ok: odgovor.ok && typeof telo?.storageId === "string",
+      status: odgovor.status,
+      storageId: typeof telo?.storageId === "string" ? telo.storageId : null,
+      greska: odgovor.ok ? null : String(telo?.greska ?? `HTTP ${odgovor.status}`),
+    };
+  } catch (err) {
+    return { ok: false, status: 0, storageId: null, greska: String(err?.cause?.code ?? err?.name ?? "greška mreže") };
+  } finally {
+    clearTimeout(tajmer);
+  }
+}
+
+/**
  * Ljudska poruka za odgovor koji nije 200 — po statusu, bez tela.
  *
  * Ruta namerno ne kaže ZAŠTO je token loš (401 je isti za „nema", „nije Bearer",

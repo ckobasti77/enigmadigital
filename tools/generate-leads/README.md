@@ -23,12 +23,13 @@ kopiji zameni `{{REPO_PATH}}` apsolutnom putanjom repoa. Izvor u repou ostaje sa
 placeholderom. Posle svake izmene `SKILL.md` u repou — pokreni instalaciju
 ponovo.
 
-Ništa se ne instalira preko `npm`. Potreban je samo Node 20+ (`fetch` je
-ugrađen).
+Za sve osim snimaka ekrana potreban je samo Node 20+ (`fetch` je ugrađen).
+Snimci za ocenu sajta (GL10) traže Playwright Chromium, jednom po mašini:
+`npm install` u korenu repoa pa `npx playwright install chromium`.
 
 ## Promenljive okruženja
 
-Četiri, sve na nivou korisnika (Windows „User"), nijedna u repou:
+Pet, sve na nivou korisnika (Windows „User"), nijedna u repou:
 
 | Promenljiva | Čemu služi | Gde se uzima |
 | --- | --- | --- |
@@ -36,6 +37,13 @@ ugrađen).
 | `ENIGMA_INGEST_TOKEN` | Bearer token za slanje | `digital.enigmait.rs` → Podešavanja → Pristup → Tokeni za uvoz |
 | `ENIGMA_INGEST_URL` | adresa ingest rute | vidi ispod tabele (pazi na EU region) |
 | `ENIGMA_CONTACT_EMAIL` | kontakt u `User-Agent` (Nominatim, provera sajtova) | poslovni email |
+| `PAGESPEED_API_KEY` | PageSpeed Insights (Lighthouse za ocenu sajta, GL10) | Google Cloud → Library → „PageSpeed Insights API" → Enable → Credentials → nov ključ ograničen na taj API |
+
+**Places SKU (sajt-ocena-plan §4.5).** Text Search (New) se naplaćuje po
+FieldMask-u: sa `places.websiteUri` je **Enterprise** SKU (1.000 besplatnih
+poziva mesečno), bez njega **Pro** SKU (5.000 mesečno). Skill zato **ne traži
+`websiteUri`** — `kandidati.json` nema to polje, a postojanje sajta se ionako
+utvrđuje iz tri druga izvora (CompanyWall/011info, web pretraga, sajt firme).
 
 **`ENIGMA_INGEST_URL` — pazi na region.** Konačan oblik je
 `https://<deployment>.convex.site/generate-leads/ingest`, ali **EU deployment
@@ -160,6 +168,55 @@ kopira i ne lepi u chat.
 | `Slanje nije uspelo (status …)` | aplikacija je odbila zahtev; JSON je sačuvan | ponovi `send` posle ispravke — bez novih Places poziva |
 
 Nijedna poruka ne sadrži sirov telefon, mejl ni ime osobe (plan §0 pravilo 6).
+
+## Ocena sajta (GL10, `sajt-ocena-plan.md`)
+
+Kad firma **ima** sajt koji radi, skill ga oceni iz tri nezavisna ugla i sve
+upiše u aplikaciju, da se zna **kome sajt treba popraviti**, ne samo kome fali:
+
+| Izvor | Šta daje | Ko izvršava |
+| --- | --- | --- |
+| Lighthouse (PageSpeed Insights v5) | performance / accessibility / best-practices / SEO za mobilni i desktop, LCP/CLS/TBT, terenski CWV kad postoje | `run.mjs audit-site` |
+| Tehnologije (otisci iz `enthec/webappanalyzer`, `vendor/technologies/`) | CMS, e-commerce, alat za zakazivanje, analitika, pixel, CDN, jQuery… sa pouzdanošću | `run.mjs audit-site` |
+| Claudeov sud | pet ocena 1–5 sa rečenicom, 3 mane, prilika za Enigmu, preporučena ponuda | Claude u skillu, nad snimcima (desktop + mobilni) i tekstom stranice |
+
+Ukupna ocena (0–100, pojasevi loš/srednji/dobar) se **računa pri čitanju**
+u aplikaciji i nikad se ne šalje.
+
+Preduslovi (jednom po mašini): `PAGESPEED_API_KEY` u env, i za snimke
+`npm install` u repou pa `npx playwright install chromium` (Playwright je
+dev zavisnost repoa; Chromium se ne instalira sam).
+
+```
+# u discover/obogati toku, posle check-site:
+node run.mjs audit-site --run <run-id> [--samo lighthouse,tehnologije,snimci]
+# Claude popuni sajtOcena.claude po rubrici iz SKILL.md, pa send šalje snimke i telo
+
+# jedan sajt, bez slanja (izveštaj u terminalu + out/oceni-sajt/<domen>/):
+node run.mjs oceni-sajt https://primer.rs
+# isto, sa slanjem u aplikaciju za konkretnu firmu:
+node run.mjs oceni-sajt https://primer.rs --firma <companyId>   →   send --run "oceni-sajt/<domen>" --sve
+
+# sve firme koje u aplikaciji imaju sajt (Izvezi CSV sa filterom ?sajt=ima):
+node run.mjs oceni-sajtove --izvoz "izvoz.csv" [--od 1 --do 25]
+
+# osvežavanje otisaka (retko; piše VERZIJA.txt sa commit hash-om):
+node run.mjs osvezi-otiske
+```
+
+`audit-site` preskače firme bez `sajt` i firme sa `sajtStatus` ≠ `radi`;
+greške po firmi (PSI timeout, snimak pao) idu u `sajtOcena.greske`, ne ruše
+run. Fajlovi: `out/<run>/sajt/<domen>/` (`psi.mobile.json`, `psi.desktop.json`,
+`tehnologije.json`, `html.cache.html` (1 h), `pocetna.desktop.jpg`,
+`pocetna.mobile.jpg`, `pocetna.tekst.txt`). U aplikaciju idu samo brojevi,
+imena tehnologija, Claudeove rečenice i dva snimka — ne HTML ni tekst.
+
+U aplikaciji: profil firme → jezičak **Sajt** (pojas kvaliteta, Lighthouse
+pločice, Claudeova rubrika, tehnologije, snimci, istorija ocena); filteri
+**Kvalitet sajta**, **CMS**, **Spor sajt**, **Preporučena ponuda**; tab Niše
+(raspodela CMS-a, prosečan kvalitet, bez zakazivanja); hover na mapi
+(„Sajt: loš 31"). Preset za redizajn: „Ima sajt · loš · WordPress" =
+`?sajt=ima&kvalitet=los&cms=WordPress`.
 
 ## Kako se rezultat čita u aplikaciji
 

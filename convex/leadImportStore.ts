@@ -14,6 +14,16 @@ import {
 } from "./lib/leadNormalize";
 import { isSuppressed, type MatchOn, type SuppressionCheckResult } from "./leadSuppressionStore";
 import type { ParsedLeadRow } from "./lib/leadImportParse";
+import { sajtOcenaValidator } from "./lib/siteAudit";
+import {
+  izvediBooking,
+  izvediCms,
+  izvediECommerce,
+  signaliIzOcene,
+} from "./lib/siteScore";
+
+/** Grupe polja koje „obogati --polja" tok dopunjuje (GL9 §4 + GL10 `sajtOcena`). */
+type PoljeObogati = "sajt" | "osobe" | "platforme" | "koordinate" | "sajtOcena";
 
 /**
  * ============================================================================
@@ -139,6 +149,10 @@ export const parsedLeadRowValidator = v.object({
 
   // GL8: ID postojeće firme iz izvoza aplikacije (režim „obogati").
   postojecaFirmaId: v.optional(v.string()),
+
+  // GL10: ocena sajta (Lighthouse + tehnologije + Claudeov sud). Isti
+  // validator kao u šemi (`leadImportRows.parsed.sajtOcena`).
+  sajtOcena: v.optional(sajtOcenaValidator),
 });
 
 export type RowConflict = {
@@ -217,6 +231,12 @@ async function upsertNicheBySlug(
     now: number;
     /** Predlog opisa iz skilla (GL6 §4). Upisuje se SAMO ako niša nema opis. */
     opis?: string;
+    /**
+     * Da li niša traži zakazivanje (GL10, plan §2.3), iz `lib/nise.mjs` skilla.
+     * Upisuje se SAMO ako niša to polje još nema — odluka čoveka sa ekrana
+     * Niše se ne prepisuje.
+     */
+    trebaZakazivanje?: boolean;
   },
 ): Promise<Id<"niches"> | undefined> {
   const slug = normalizeNicheSlug(args.slug);
@@ -248,6 +268,15 @@ async function upsertNicheBySlug(
         updatedAt: args.now,
       });
     }
+    if (
+      existing.trebaZakazivanje === undefined &&
+      typeof args.trebaZakazivanje === "boolean"
+    ) {
+      await ctx.db.patch(existing._id, {
+        trebaZakazivanje: args.trebaZakazivanje,
+        updatedAt: args.now,
+      });
+    }
     return existing._id;
   }
 
@@ -268,6 +297,9 @@ async function upsertNicheBySlug(
     updatedAt: args.now,
     ...(opisIzSkilla
       ? { opis: opisIzSkilla, opisAutor: "claude" as const, opisModel: GENERATE_LEADS_OPIS_MODEL }
+      : {}),
+    ...(typeof args.trebaZakazivanje === "boolean"
+      ? { trebaZakazivanje: args.trebaZakazivanje }
       : {}),
   });
 }
@@ -709,7 +741,9 @@ async function createImportCore(
     /** Naziv fajla iz kojeg je „obogati" krenuo (GL8). */
     izvorFajl?: string;
     /** Podskup polja koje „obogati --polja" tok dopunjuje (GL9, plan §4). */
-    polja?: Array<"sajt" | "osobe" | "platforme" | "koordinate">;
+    polja?: PoljeObogati[];
+    /** Da li niša uvoza traži zakazivanje (GL10, plan §2.3). Samo iz skilla. */
+    nisaTrebaZakazivanje?: boolean;
   },
 ): Promise<{ importId: Id<"leadImports">; rowsCount: number }> {
   const sheetName = args.sourceSheet ?? args.sheetsChosen[0] ?? "Sheet1";
@@ -734,6 +768,9 @@ async function createImportCore(
       ? { izvorFajl: args.izvorFajl.trim() }
       : {}),
     ...(args.polja && args.polja.length > 0 ? { polja: args.polja } : {}),
+    ...(typeof args.nisaTrebaZakazivanje === "boolean"
+      ? { nisaTrebaZakazivanje: args.nisaTrebaZakazivanje }
+      : {}),
   });
 
   for (let i = 0; i < args.rows.length; i++) {
@@ -904,9 +941,12 @@ export const createImportFromIngest = internalMutation({
           v.literal("osobe"),
           v.literal("platforme"),
           v.literal("koordinate"),
+          v.literal("sajtOcena"),
         ),
       ),
     ),
+    // Da li niša traži zakazivanje (GL10, plan §2.3) — iz `lib/nise.mjs` skilla.
+    nisaTrebaZakazivanje: v.optional(v.boolean()),
   },
   returns: v.object({
     importId: v.id("leadImports"),
@@ -920,6 +960,7 @@ export const createImportFromIngest = internalMutation({
       rezim: args.rezim,
       izvorFajl: args.izvorFajl,
       polja: args.polja,
+      nisaTrebaZakazivanje: args.nisaTrebaZakazivanje,
       // Nema listova ni zaglavlja — nema fajla. `headerRowIndex: -1` daje
       // `sourceRowIndex` 1, 2, 3… (jer je formula `headerRowIndex + 2 + i`),
       // što je red u poslatoj listi. Lažan „Sheet1" bi tvrdio da fajl postoji.
@@ -1073,13 +1114,13 @@ async function attachSkillData(
      * nikad ne prepisuje ostatak — red koji je istražio samo sajt ne sme da
      * obriše osobe/platforme koje firma već ima.
      */
-    polja?: Array<"sajt" | "osobe" | "platforme" | "koordinate">;
+    polja?: PoljeObogati[];
   },
 ): Promise<void> {
   const { workspaceId, companyId, p, now, polja } = args;
 
   // Kad je uvoz ograničen na podskup polja, dira se samo to polje; inače sve.
-  const diraj = (polje: "sajt" | "osobe" | "platforme" | "koordinate") =>
+  const diraj = (polje: PoljeObogati) =>
     polja === undefined || polja.includes(polje);
 
   // Ništa od ovoga ne postoji u uvozu iz tabele — izlaz pre ijednog čitanja.
@@ -1089,8 +1130,20 @@ async function attachSkillData(
     (diraj("sajt") &&
       (p.imaSajt !== undefined ||
         p.sajtStatus !== undefined ||
-        p.sajtHttps !== undefined));
+        p.sajtHttps !== undefined)) ||
+    (diraj("sajtOcena") && p.sajtOcena !== undefined);
   if (!imaSadrzaj) return;
+
+  // ── Ocena sajta -> leadSiteAudits (GL10, plan §4.4) ──────────────────────
+  //
+  // UVEK NOV DOKUMENT (istorija); stara ocena se nikad ne prepisuje. Pokazivač
+  // na firmi ide na najnoviji `auditedAt`, a ne nužno na ovaj — dve serije
+  // skilla mogu da stignu u obrnutom redosledu. Signali iz ocene se upisuju
+  // samo kad je ova ocena stvarno najnovija: stari signal o starom stanju
+  // sajta ne sme da pobedi noviji.
+  if (diraj("sajtOcena") && p.sajtOcena !== undefined) {
+    await upisiOcenuSajta(ctx, { workspaceId, companyId, ocena: p.sajtOcena, now });
+  }
 
   const postojeciIdentiteti = await ctx.db
     .query("leadIdentities")
@@ -1394,6 +1447,78 @@ async function attachSkillData(
 }
 
 /**
+ * Upis jedne ocene sajta (GL10, sajt-ocena-plan.md §4.4): nov red u
+ * `leadSiteAudits`, pokazivač na firmi ako je ova ocena najnovija, i signali
+ * iz plana §2.3 — izvedeni jednim mestom (`signaliIzOcene`), nikad ručno.
+ *
+ * `cms`/`eCommerce`/`booking` se izvode IZ liste tehnologija pri upisu
+ * (dozvoljeno: ime, ne metrika). Ono što je skill već poslao se poštuje ako
+ * lista ne kaže drugačije.
+ *
+ * Deljeno između `attachSkillData` (uvoz) i `attachSiteAudit` (direktan upis
+ * za jednu firmu, `oceni-sajt --firma`).
+ */
+export async function upisiOcenuSajta(
+  ctx: MutationCtx,
+  args: {
+    workspaceId: Id<"workspaces">;
+    companyId: Id<"leadCompanies">;
+    ocena: NonNullable<Doc<"leadImportRows">["parsed"]["sajtOcena"]>;
+    now: number;
+  },
+): Promise<Id<"leadSiteAudits">> {
+  const { workspaceId, companyId, ocena, now } = args;
+
+  const cms = izvediCms(ocena.tehnologije) ?? ocena.cms;
+  const eCommerce = izvediECommerce(ocena.tehnologije) ?? ocena.eCommerce;
+  const booking = izvediBooking(ocena.tehnologije) ?? ocena.booking;
+
+  const auditId = await ctx.db.insert("leadSiteAudits", {
+    workspaceId,
+    companyId,
+    izvor: "skill",
+    ...ocena,
+    ...(cms ? { cms } : {}),
+    ...(eCommerce ? { eCommerce } : {}),
+    ...(booking ? { booking } : {}),
+  });
+
+  const company = await ctx.db.get(companyId);
+  if (!company) return auditId;
+
+  const najnovija =
+    company.poslednjaOcenaSajtaAt === undefined ||
+    ocena.auditedAt >= company.poslednjaOcenaSajtaAt;
+  if (!najnovija) return auditId;
+
+  await ctx.db.patch(companyId, {
+    poslednjaOcenaSajtaAt: ocena.auditedAt,
+    poslednjaOcenaSajtaId: auditId,
+    updatedAt: now,
+  });
+
+  // `trebaZakazivanje` dolazi sa niše firme; bez niše ili bez odluke se
+  // signal `sajt_bez_zakazivanja` ne izvodi (nepoznato ≠ poznato).
+  const nisa = company.nicheId ? await ctx.db.get(company.nicheId) : null;
+  const signali = signaliIzOcene(
+    { ...ocena, cms, booking },
+    { trebaZakazivanje: nisa?.trebaZakazivanje },
+  );
+  for (const sig of signali) {
+    await ctx.db.insert("leadSignals", {
+      workspaceId,
+      companyId,
+      kind: sig.kind,
+      value: sig.value,
+      source: "generate-leads",
+      observedAt: ocena.auditedAt,
+    });
+  }
+
+  return auditId;
+}
+
+/**
  * Jezgro primene uvoza: prolazi kroz redove i upisuje ih u glavne tabele.
  * Deljeno između prve primene (`applyImport`) i naknadne „Primeni preostale"
  * (`applyRemainingRows`), jer se u režimu „obogati" nerazrešeni redovi rešavaju
@@ -1478,6 +1603,7 @@ async function applyRows(
               createdBy: ownerUserId,
               now,
               opis: importDoc.nisaOpis,
+              trebaZakazivanje: importDoc.nisaTrebaZakazivanje,
             })
           : undefined;
 
@@ -1876,6 +2002,7 @@ async function applyRows(
             createdBy: ownerUserId,
             now,
             opis: importDoc.nisaOpis,
+            trebaZakazivanje: importDoc.nisaTrebaZakazivanje,
           });
           if (nicheId) patch.nicheId = nicheId;
         }
@@ -2303,6 +2430,22 @@ export const revertImport = mutation({
             for (const a of assignments) {
               await ctx.db.delete(a._id);
               revertedAssignmentsCount++;
+            }
+
+            // 4b2. Ocene sajta te firme, sa snimcima u storage-u (GL10). Firma
+            // koju je ovaj uvoz napravio nosi samo ocene iz ovog uvoza.
+            const audits = await ctx.db
+              .query("leadSiteAudits")
+              .withIndex("by_company", (q) => q.eq("companyId", company._id))
+              .collect();
+            for (const audit of audits) {
+              if (audit.snimci?.desktopId) {
+                await ctx.storage.delete(audit.snimci.desktopId).catch(() => {});
+              }
+              if (audit.snimci?.mobilniId) {
+                await ctx.storage.delete(audit.snimci.mobilniId).catch(() => {});
+              }
+              await ctx.db.delete(audit._id);
             }
 
             // 4c. Događaji faze koje je kreirao ovaj uvoz

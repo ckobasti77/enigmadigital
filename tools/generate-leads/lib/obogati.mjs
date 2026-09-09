@@ -57,6 +57,8 @@ const POLJA_GRUPE = {
   osobe: ["osobe"],
   platforme: ["platforme"],
   koordinate: ["koordinate"],
+  // GL10: ocena sajta (Lighthouse + tehnologije + Claudeov sud).
+  sajtOcena: ["sajtOcena"],
 };
 
 /**

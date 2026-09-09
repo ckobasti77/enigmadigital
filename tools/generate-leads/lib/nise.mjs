@@ -53,6 +53,7 @@ export const NISE = [
       en: ["hair salon", "barber shop"],
     },
     sifreDelatnosti: ["9602"],
+    trebaZakazivanje: true,
     opis:
       "Frizerski saloni u Srbiji gotovo bez izuzetka zakazuju preko telefona i Instagram poruka, a sajt im je ili star pet godina ili ga nema. " +
       "Vlasnik je najčešće preduzetnik (PR) koji i sam radi u salonu, pa je broj sa sajta ili iz APR zapisa vrlo često baš njegov lični mobilni. " +
@@ -77,6 +78,7 @@ export const NISE = [
       en: ["beauty salon", "nail salon"],
     },
     sifreDelatnosti: ["9602", "9604"],
+    trebaZakazivanje: true,
     opis:
       "Kozmetički saloni žive na Instagramu — cela ponuda im je u objavama i storijima, a cenovnik postoji samo kao slika ili u DM-u. " +
       "To ih čini idealnim za sajt koji radi kao katalog tretmana sa cenama i online zakazivanjem, jer im trenutno svaki termin prolazi kroz ručno dopisivanje. " +
@@ -98,6 +100,7 @@ export const NISE = [
       en: ["travel agency", "tour operator"],
     },
     sifreDelatnosti: ["7911", "7912", "7990"],
+    trebaZakazivanje: false,
     opis:
       "Turističke agencije su jedna od retkih lokalnih niša koja stvarno ima šta da proda preko interneta — aranžman se bira, upoređuje i rezerviše bez dolaska u agenciju. " +
       "Većina malih agencija u Srbiji i dalje objavljuje ponude kao PDF ili sliku na Fejsbuku, pa im sajt sa pretragom po destinaciji i datumu odmah menja način rada. " +
@@ -121,6 +124,7 @@ export const NISE = [
       en: ["dental clinic", "dentist"],
     },
     sifreDelatnosti: ["8623"],
+    trebaZakazivanje: true,
     opis:
       "Privatne stomatološke ordinacije imaju najveću vrednost po pacijentu u celoj listi lokalnih niša, pa im se ulaganje u sajt i oglase vraća iz jednog implanta. " +
       "Skoro sve imaju nekakav sajt, ali je često napravljen jednom davno, bez HTTPS-a, bez cenovnika i bez zakazivanja — što je bolji povod za razgovor nego da sajta nema. " +
@@ -144,6 +148,7 @@ export const NISE = [
       en: ["gym", "fitness center"],
     },
     sifreDelatnosti: ["9313", "9311"],
+    trebaZakazivanje: true,
     opis:
       "Teretane prodaju članarine, dakle pretplatu — a pretplata bez sajta znači da svaki upit o ceni i terminima grupnih treninga ide preko telefona ili Instagrama. " +
       "Sajt sa rasporedom treninga, cenovnikom paketa i online upisom im direktno skida posao sa recepcije i produžava trajanje članstva. " +
@@ -168,6 +173,7 @@ export const NISE = [
       en: ["restaurant", "cafe"],
     },
     sifreDelatnosti: ["5610", "5630"],
+    trebaZakazivanje: false,
     opis:
       "Restoranima je Google profil postao važniji od sajta, ali im upravo zato fali jedno mesto sa aktuelnim menijem, cenama i rezervacijom — meni na Fejsbuku iz 2021. odbija goste. " +
       "Dostava je druga žila: ko je na Wolt/Glovo platformama plaća visoku proviziju i ima motiv za sopstveni sistem porudžbina. " +
@@ -191,6 +197,7 @@ export const NISE = [
       en: ["car repair shop", "auto service"],
     },
     sifreDelatnosti: ["4520"],
+    trebaZakazivanje: false,
     opis:
       "Auto-servisi su niša u kojoj odsustvo sajta nije izuzetak nego pravilo — kontakt je broj telefona na tabli iznad kapije i preporuka komšije. " +
       "Baš zato im prosta stranica sa uslugama, markama koje rade, radnim vremenom i mapom donosi pozive koji danas odlaze prvom servisu koji se pojavi na Google mapi. " +
@@ -206,6 +213,7 @@ export const NISE = [
       en: ["flower shop", "florist"],
     },
     sifreDelatnosti: ["4776"],
+    trebaZakazivanje: false,
     opis:
       "Cvećare su najbliže webshopu od svih lokalnih niša: proizvod je vizuelan, isporuka je lokalna, a povod za kupovinu je datum u kalendaru. " +
       "Većina radi porudžbine preko Instagram poruka i telefona, bez korpe i bez plaćanja karticom, pa im webshop menja i način naplate, ne samo izlog. " +
@@ -221,6 +229,7 @@ export const NISE = [
       en: ["bakery", "pastry shop"],
     },
     sifreDelatnosti: ["1071", "4724"],
+    trebaZakazivanje: false,
     opis:
       "Pekare žive od prolaznika i retko im treba sajt zbog same prodaje — ali skoro svaka prima porudžbine za torte, poslužavnike i ketering, i to radi telefonom. " +
       "Tu je vrednost sajta: katalog torti sa cenama i formom za porudžbinu sa datumom preuzimanja, umesto dvadeset poziva dnevno. " +
@@ -244,6 +253,7 @@ export const NISE = [
       en: ["clothing boutique", "fashion store"],
     },
     sifreDelatnosti: ["4771"],
+    trebaZakazivanje: false,
     opis:
       "Butici su u Srbiji već prodavci na internetu — samo bez prodavnice: kompletan promet ide kroz Instagram objave, komentare sa pitanjem o ceni i poruke. " +
       "Webshop im rešava tri stvari odjednom: cene bez pitanja, stanje po veličinama i naplata pouzećem bez ručnog vođenja u svesci. " +

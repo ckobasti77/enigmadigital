@@ -42,6 +42,7 @@ import type * as instagramStore from "../instagramStore.js";
 import type * as invitesStore from "../invitesStore.js";
 import type * as leadCrmStore from "../leadCrmStore.js";
 import type * as leadDetailStore from "../leadDetailStore.js";
+import type * as leadSiteAuditsStore from "../leadSiteAuditsStore.js";
 import type * as leadExportStore from "../leadExportStore.js";
 import type * as leadFiltersStore from "../leadFiltersStore.js";
 import type * as leadGapFillStore from "../leadGapFillStore.js";
@@ -206,6 +207,7 @@ declare const fullApi: ApiFromModules<{
   invitesStore: typeof invitesStore;
   leadCrmStore: typeof leadCrmStore;
   leadDetailStore: typeof leadDetailStore;
+  leadSiteAuditsStore: typeof leadSiteAuditsStore;
   leadExportStore: typeof leadExportStore;
   leadFiltersStore: typeof leadFiltersStore;
   leadGapFillStore: typeof leadGapFillStore;

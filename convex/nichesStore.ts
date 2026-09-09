@@ -2,6 +2,8 @@ import { mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { requireMembership } from "./lib/auth";
 import { normalizeNicheSlug } from "./lib/leadNormalize";
+import { ucitajPoslednjeOcene } from "./leadSiteAuditsStore";
+import { izvediBooking } from "./lib/siteScore";
 
 /**
  * ============================================================================
@@ -82,6 +84,34 @@ export const listNiches = query({
         else if (firma.temperatura === "warm") warm++;
       }
 
+      // Ocena sajta po niši (GL10, plan §5.3) — SAMO iz postojećih ocena, preko
+      // pokazivača na firmi; bez novih upita po firmi koja nema ocenu.
+      const ocene = await ucitajPoslednjeOcene(ctx, firme);
+      const cmsBrojaci = new Map<string, number>();
+      let zbirKvaliteta = 0;
+      let saKvalitetom = 0;
+      let bezZakazivanja = 0;
+      for (const firma of firme) {
+        const o = ocene.get(String(firma._id));
+        if (!o) continue;
+        if (o.kvalitet !== null) {
+          zbirKvaliteta += o.kvalitet;
+          saKvalitetom++;
+        }
+        const cmsKljuc = o.cms ?? "bez CMS-a";
+        cmsBrojaci.set(cmsKljuc, (cmsBrojaci.get(cmsKljuc) ?? 0) + 1);
+        // „Bez zakazivanja" ima smisla samo kad niša to traži; inače je broj
+        // laž koja izgleda kao podatak. Sajt sa formom za termin se ne broji.
+        if (nisa.trebaZakazivanje === true) {
+          const audit = await ctx.db.get(o.auditId);
+          const booking = audit?.booking ?? izvediBooking(audit?.tehnologije);
+          if (!booking && audit?.formaZaTermin !== true) bezZakazivanja++;
+        }
+      }
+      const cmsRaspodela = [...cmsBrojaci.entries()]
+        .map(([ime, broj]) => ({ ime, broj }))
+        .sort((a, b) => b.broj - a.broj || a.ime.localeCompare(b.ime, "sr-RS"));
+
       const platforme = await ctx.db
         .query("nichePlatforms")
         .withIndex("by_niche", (q) => q.eq("nicheId", nisa._id))
@@ -111,6 +141,16 @@ export const listNiches = query({
           hot,
           warm,
         },
+        // GL10 (plan §5.3). `prosecanKvalitet` je `null` kad nijedan sajt u
+        // niši nema ocenu sa brojem; `bezZakazivanja` je `null` kad niša ne
+        // traži zakazivanje (nije „0 firmi bez zakazivanja").
+        sajt: {
+          ocenjeno: ocene.size,
+          prosecanKvalitet:
+            saKvalitetom > 0 ? Math.round(zbirKvaliteta / saKvalitetom) : null,
+          cmsRaspodela,
+          bezZakazivanja: nisa.trebaZakazivanje === true ? bezZakazivanja : null,
+        },
       });
     }
 
@@ -132,6 +172,9 @@ export const upsertNiche = mutation({
     // sledeći run natera da napravi drugu nišu sa istim firmama.
     slug: v.optional(v.string()),
     sifreDelatnosti: v.optional(v.array(v.string())),
+    // GL10 (plan §2.3): da li firme u niši žive od termina. Odsustvo u
+    // argumentima = ne diraj postojeću vrednost.
+    trebaZakazivanje: v.optional(v.boolean()),
   },
   returns: v.id("niches"),
   handler: async (ctx, args) => {
@@ -164,7 +207,10 @@ export const upsertNiche = mutation({
 
       await ctx.db.patch(args.nicheId, {
         naziv,
-        sifreDelatnosti: args.sifreDelatnosti,
+        sifreDelatnosti: args.sifreDelatnosti ?? existing.sifreDelatnosti,
+        ...(typeof args.trebaZakazivanje === "boolean"
+          ? { trebaZakazivanje: args.trebaZakazivanje }
+          : {}),
         updatedAt: now,
       });
       return args.nicheId;
@@ -197,6 +243,9 @@ export const upsertNiche = mutation({
       slug,
       naziv,
       sifreDelatnosti: args.sifreDelatnosti,
+      ...(typeof args.trebaZakazivanje === "boolean"
+        ? { trebaZakazivanje: args.trebaZakazivanje }
+        : {}),
       createdBy: membership.userId,
       createdAt: now,
       updatedAt: now,

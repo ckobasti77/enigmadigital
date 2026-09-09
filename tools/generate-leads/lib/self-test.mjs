@@ -35,6 +35,9 @@ import { oceniTelefonOsobe, oceniOsobe, traka } from "./skor.mjs";
 import { validirajTelo } from "./schema.mjs";
 import { prihvatljiviGradovi, uGradu } from "./places.mjs";
 import { alijasiGrada } from "./gradovi.mjs";
+import { kvalitetSajta, pojasKvaliteta } from "./ocena.mjs";
+import { parsirajPsi } from "./psi.mjs";
+import { prepoznajTehnologije, imaFormuZaTermin, VENDOR_DIR } from "./otisci.mjs";
 
 const TELEFON = "+381 60 000 0000";
 
@@ -399,6 +402,40 @@ const PUN_RED = {
   izvestajSkilla: "nađeno na: sajt, CompanyWall; 011info nedostupan",
 };
 
+/** GL10: puna ocena sajta — sva tri izvora, sa snimcima (izmišljeni ID-jevi). */
+const PUNA_OCENA = {
+  url: "https://primer-nepostojeci.rs/",
+  auditedAt: 1_757_000_000_000,
+  verzijaSkilla: "1.0.0",
+  lighthouse: {
+    mobile: { performance: 40, accessibility: 80, bestPractices: 70, seo: 60, lcpMs: 4200, cls: 0.12, tbtMs: 600 },
+    desktop: { performance: 90, accessibility: 85, bestPractices: 75, seo: 65, lcpMs: 1500, cls: 0.02, tbtMs: 50 },
+    terenski: { lcpMs: 3000, cls: 0.1, inpMs: 250, ocena: "AVERAGE" },
+  },
+  tehnologije: [
+    { ime: "WordPress", kategorija: "CMS", verzija: "6.5.2", pouzdanost: 100 },
+    { ime: "jQuery", kategorija: "JavaScript libraries", pouzdanost: 100 },
+  ],
+  cms: "WordPress",
+  formaZaTermin: false,
+  claude: {
+    model: "test-model",
+    ocene: {
+      prviUtisak: { ocena: 4, obrazlozenje: "Sajt ima jasnu naslovnu sliku i aktuelnu ponudu." },
+      jasnocaPonude: { ocena: 4, obrazlozenje: "Cenovnik je vidljiv na početnoj." },
+      putDoKontakta: { ocena: 4, obrazlozenje: "Telefon je u zaglavlju." },
+      mobilnaUpotrebljivost: { ocena: 4, obrazlozenje: "Meni se otvara, tekst je čitljiv." },
+      azurnost: { ocena: 4, obrazlozenje: "Podnožje nosi tekuću godinu." },
+    },
+    glavneMane: ["Slike se učitavaju sporo na mobilnom."],
+    prilikaZaEnigmu: "Ubrzanje sajta i forma za termin.",
+    preporucenaPonuda: "brzina",
+    klikovaDoKontakta: 1,
+  },
+  snimci: { desktopId: "kg2test0000000000000000000desk", mobilniId: "kg2test0000000000000000000mobi" },
+  greske: ["PSI desktop: timeout posle 60 s"],
+};
+
 /** Ostala četiri statusa sajta i ostale vrednosti `imaSajt` — pokrivenost enuma. */
 const OSTALI_REDOVI = [
   { nazivFirme: "Test Salon 2", grad: "Beograd", nisa: "frizerski-saloni", imaSajt: "ne", imaSajtNapomena: "sva tri izvora potvrđuju odsustvo" },
@@ -518,6 +555,51 @@ const PRIMERI = [
     })(),
     ocekujem: "pada",
     polja: ["upit.polja.1: invalid_value"],
+  },
+  {
+    // GL10: puna ocena sajta (sva tri izvora + snimci) + polja sajtOcena +
+    // nisaTrebaZakazivanje u upitu.
+    naziv: "9. sajtOcena: puna ocena sa snimcima (prolazi)",
+    telo: (() => {
+      const t = okvir([{ nazivFirme: "Test Salon 14", grad: "Beograd", nisa: "frizerski-saloni", imaSajt: "da", sajt: "https://primer-nepostojeci.rs", sajtOcena: PUNA_OCENA }]);
+      t.upit.rezim = "obogati";
+      t.upit.polja = ["sajt", "sajtOcena"];
+      t.upit.nisaTrebaZakazivanje = true;
+      return t;
+    })(),
+    ocekujem: "prolazi",
+  },
+  {
+    naziv: "10. sajtOcena: Claudeov sud bez snimka se odbija",
+    telo: okvir([
+      {
+        nazivFirme: "Test Salon 15",
+        grad: "Beograd",
+        nisa: "frizerski-saloni",
+        imaSajt: "da",
+        sajtOcena: { ...PUNA_OCENA, snimci: undefined },
+      },
+    ]),
+    ocekujem: "pada",
+    polja: ["redovi.0.sajtOcena.claude: custom"],
+  },
+  {
+    naziv: "11. sajtOcena: ocena 6 od 5 i performance 250 se odbijaju",
+    telo: okvir([
+      {
+        nazivFirme: "Test Salon 16",
+        grad: "Beograd",
+        nisa: "frizerski-saloni",
+        imaSajt: "da",
+        sajtOcena: {
+          ...PUNA_OCENA,
+          lighthouse: { mobile: { performance: 250 } },
+          claude: { ...PUNA_OCENA.claude, ocene: { ...PUNA_OCENA.claude.ocene, azurnost: { ocena: 6, obrazlozenje: "x" } } },
+        },
+      },
+    ]),
+    ocekujem: "pada",
+    polja: ["redovi.0.sajtOcena.claude.ocene.azurnost.ocena: too_big", "redovi.0.sajtOcena.lighthouse.mobile.performance: too_big"],
   },
 ];
 
@@ -902,6 +984,147 @@ function testObogatiRazlika(prijavi) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 7. Ocena sajta (GL10): kvalitetSajta parnost, otisci, PSI parser
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Šest lažnih HTML-ova za matcher — bez mreže. */
+const HTML_SLUCAJEVI = [
+  {
+    naziv: "WordPress + WooCommerce",
+    html:
+      '<html><head><meta name="viewport" content="width=device-width"><meta name="generator" content="WordPress 6.5.2">' +
+      '<meta name="generator" content="WooCommerce 8.6.1">' +
+      '<link rel="stylesheet" href="/wp-content/themes/x/style.css"></head><body class="woocommerce">' +
+      '<script src="/wp-includes/js/jquery/jquery.min.js?ver=3.7.1"></script></body></html>',
+    ocekujem: { cms: "WordPress", verzija: "6.5.2", ecommerce: "WooCommerce", zastarelo: false },
+  },
+  {
+    naziv: "Wix",
+    html:
+      '<html><head><meta name="viewport" content="width=device-width"><meta name="generator" content="Wix.com Website Builder">' +
+      '<script src="https://static.parastorage.com/services/wix-thunderbolt/dist/x.js"></script></head><body></body></html>',
+    ocekujem: { cms: "Wix", zastarelo: false },
+  },
+  {
+    naziv: "Shopify",
+    html:
+      '<html><head><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="https://cdn.shopify.com/s/files/1/0/t/1/assets/theme.css">' +
+      '</head><body><script>Shopify.theme = {};</script><script src="https://cdn.shopify.com/s/javascripts/x.js"></script></body></html>',
+    ocekujem: { ecommerce: "Shopify", zastarelo: false },
+  },
+  {
+    naziv: "Joomla 3 bez viewporta",
+    html:
+      '<html><head><meta name="generator" content="Joomla! 3.9.2 - Open Source Content Management"><script src="/media/jui/js/jquery.min.js"></script></head><body></body></html>',
+    ocekujem: { cms: "Joomla", verzija: "3.9.2", zastarelo: true },
+  },
+  {
+    naziv: "čist HTML sa tabelama i Flashom",
+    html:
+      "<html><head><title>x</title></head><body><table><tr><td><table><tr><td><table><tr><td>a</td></tr></table></td></tr></table></td></tr></table>" +
+      '<object type="application/x-shockwave-flash" data="x.swf"></object><form><input name="termin"></form></body></html>',
+    ocekujem: { cms: undefined, zastarelo: true, formaZaTermin: true },
+  },
+  { naziv: "prazan HTML", html: "", ocekujem: { cms: undefined, zastarelo: false, prazno: true } },
+];
+
+/** Fiksan PSI v5 odgovor — samo ono što parser čita. */
+const PSI_ODGOVOR = {
+  lighthouseResult: {
+    finalDisplayedUrl: "https://primer-nepostojeci.rs/",
+    lighthouseVersion: "12.0.0",
+    categories: {
+      performance: { score: 0.41 },
+      accessibility: { score: 0.8 },
+      "best-practices": { score: 0.704 },
+      // SEO namerno bez `score` — odsustvo ≠ 0.
+      seo: {},
+    },
+    audits: {
+      "largest-contentful-paint": { numericValue: 4187.4 },
+      "cumulative-layout-shift": { numericValue: 0.1234 },
+      "total-blocking-time": { numericValue: 612.9 },
+    },
+  },
+  loadingExperience: {
+    overall_category: "AVERAGE",
+    metrics: {
+      LARGEST_CONTENTFUL_PAINT_MS: { percentile: 2950 },
+      CUMULATIVE_LAYOUT_SHIFT_SCORE: { percentile: 12 },
+      INTERACTION_TO_NEXT_PAINT: { percentile: 240 },
+    },
+  },
+};
+
+async function testOcenaSajta(prijavi, strogo) {
+  // a) kvalitetSajta — brojevi iz plana §2.4 (isti kao u scripts/site-score-check.ts)
+  const pun = kvalitetSajta(PUNA_OCENA);
+  prijavi(pun === 66, "ocena: pun audit daje 66", `dobijeno ${pun}`);
+  prijavi(kvalitetSajta({ claude: PUNA_OCENA.claude }) === 80, "ocena: samo Claude 4/5 daje 80", `dobijeno ${kvalitetSajta({ claude: PUNA_OCENA.claude })}`);
+  prijavi(kvalitetSajta({ lighthouse: PUNA_OCENA.lighthouse }) === 57, "ocena: samo Lighthouse daje 57", `dobijeno ${kvalitetSajta({ lighthouse: PUNA_OCENA.lighthouse })}`);
+  prijavi(kvalitetSajta({}) === null, "ocena: bez ičega → null, ne 0", `dobijeno ${kvalitetSajta({})}`);
+  prijavi(pojasKvaliteta(39) === "los" && pojasKvaliteta(40) === "srednji" && pojasKvaliteta(70) === "dobar", "ocena: granice pojaseva 40/70", "pogrešan pojas");
+
+  // b) parnost sa TS kopijom (`convex/lib/siteScore.ts`) — samo iz repoa.
+  const url = new URL("../../../convex/lib/siteScore.ts", import.meta.url);
+  if (existsSync(fileURLToPath(url))) {
+    try {
+      const ts = await import(url.href);
+      const ulazi = [
+        PUNA_OCENA,
+        { claude: PUNA_OCENA.claude },
+        { lighthouse: PUNA_OCENA.lighthouse },
+        { lighthouse: { mobile: { performance: 40 }, desktop: { seo: 65 } } },
+        {},
+      ];
+      const isti = ulazi.every((u) => ts.kvalitetSajta(u) === kvalitetSajta(u));
+      prijavi(isti, "ocena: JS kopija daje iste brojeve kao siteScore.ts", ulazi.map((u) => `${ts.kvalitetSajta(u)}/${kvalitetSajta(u)}`).join(", "));
+    } catch (err) {
+      prijavi(!strogo, "ocena: siteScore.ts se učitava", String(err?.message ?? err).split("\n")[0]);
+    }
+  } else if (strogo) {
+    prijavi(false, "ocena: poređenje sa siteScore.ts", "convex/lib/siteScore.ts nije nađen");
+  }
+
+  // c) otisci nad 6 lažnih HTML-ova (traže vendor folder — iz repoa uvek postoji)
+  if (!existsSync(join(VENDOR_DIR, "categories.json"))) {
+    prijavi(!strogo, "otisci: vendor/technologies postoji", "pokreni: node run.mjs osvezi-otiske");
+  } else {
+    for (const s of HTML_SLUCAJEVI) {
+      const t = prepoznajTehnologije({ html: s.html });
+      const cms = t.filter((x) => x.kategorija === "CMS").sort((a, b) => b.pouzdanost - a.pouzdanost)[0];
+      const ecom = t.find((x) => x.kategorija === "Ecommerce");
+      const zastarelo = t.some((x) => x.kategorija === "Zastarelo" || x.ime === "Adobe Flash");
+      if ("cms" in s.ocekujem) {
+        prijavi(cms?.ime === s.ocekujem.cms, `otisci: ${s.naziv} — CMS`, `očekivano ${s.ocekujem.cms}, dobijeno ${cms?.ime}`);
+      }
+      if (s.ocekujem.verzija) {
+        prijavi(cms?.verzija === s.ocekujem.verzija, `otisci: ${s.naziv} — verzija`, `dobijeno ${cms?.verzija}`);
+      }
+      if (s.ocekujem.ecommerce) {
+        prijavi(ecom?.ime === s.ocekujem.ecommerce, `otisci: ${s.naziv} — e-commerce`, `dobijeno ${ecom?.ime}`);
+      }
+      prijavi(zastarelo === s.ocekujem.zastarelo, `otisci: ${s.naziv} — zastarelo`, `dobijeno ${zastarelo}`);
+      if (s.ocekujem.prazno) prijavi(t.length === 0, `otisci: ${s.naziv} — bez tehnologija`, `dobijeno ${t.length}`);
+      if (s.ocekujem.formaZaTermin !== undefined) {
+        prijavi(imaFormuZaTermin(s.html) === s.ocekujem.formaZaTermin, `otisci: ${s.naziv} — forma za termin`, `dobijeno ${imaFormuZaTermin(s.html)}`);
+      }
+    }
+  }
+
+  // d) PSI parser nad fiksnim JSON-om
+  const p = parsirajPsi(PSI_ODGOVOR);
+  prijavi(p.kategorije?.performance === 41, "psi: performance 0,41 → 41", `dobijeno ${p.kategorije?.performance}`);
+  prijavi(p.kategorije?.bestPractices === 70, "psi: best-practices 0,704 → 70", `dobijeno ${p.kategorije?.bestPractices}`);
+  prijavi(p.kategorije?.seo === undefined, "psi: SEO bez score → odsustvo, ne 0", `dobijeno ${p.kategorije?.seo}`);
+  prijavi(p.kategorije?.lcpMs === 4187 && p.kategorije?.cls === 0.123 && p.kategorije?.tbtMs === 613, "psi: LCP/CLS/TBT zaokruženi", JSON.stringify(p.kategorije));
+  prijavi(p.terenski?.ocena === "AVERAGE" && p.terenski?.lcpMs === 2950 && p.terenski?.cls === 0.12 && p.terenski?.inpMs === 240, "psi: terenski CWV", JSON.stringify(p.terenski));
+  prijavi(p.finalUrl === "https://primer-nepostojeci.rs/", "psi: finalUrl", String(p.finalUrl));
+  const prazan = parsirajPsi({});
+  prijavi(prazan.kategorije === undefined && prazan.terenski === undefined, "psi: prazan odgovor → bez kategorija", JSON.stringify(prazan));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Pokretanje
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -927,6 +1150,7 @@ export async function pokreniSelfTest({ strogo = false } = {}) {
   await testSajt(prijavi);
   await testUcitaj(prijavi, strogo);
   testObogatiRazlika(prijavi);
+  await testOcenaSajta(prijavi, strogo);
 
   ispisi("");
   if (pali.length === 0) {

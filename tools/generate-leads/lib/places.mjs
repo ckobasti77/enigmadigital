@@ -9,8 +9,14 @@
  * do kraja runa i tu se brišu, a u aplikaciju ulazi samo ono što je Claude
  * potvrdio iz primarnog izvora (sajt, CompanyWall, 011info, javni profil).
  *
- * FieldMask je namerno uzak: traži se tačno pet polja + `nextPageToken`. Šire
+ * FieldMask je namerno uzak: traži se tačno četiri polja + `nextPageToken`. Šire
  * polje bi bilo i skuplje i podatak koji ne smemo da zadržimo.
+ *
+ * SKU (sajt-ocena-plan.md §4.5): sa `places.websiteUri` u FieldMask-u Text
+ * Search se naplaćuje kao ENTERPRISE (1.000 besplatnih poziva mesečno); bez
+ * njega je PRO (5.000). Postojanje sajta se ionako proverava iz tri druga
+ * izvora (plan §3.4), pa `websiteUri` više NIJE u maski — `kandidati.json`
+ * nema to polje, a skill ne sme da ga očekuje.
  *
  * Poziv koji padne (403, kvota, mreža) BACA grešku i zaustavlja run (§3.7).
  * Nastavak bez otkrivanja bi izgledao kao „grad nema firme", a to je laž.
@@ -22,7 +28,6 @@ const POLJA = [
   "places.id",
   "places.displayName",
   "places.formattedAddress",
-  "places.websiteUri",
   "places.businessStatus",
   "nextPageToken",
 ].join(",");
@@ -204,7 +209,6 @@ export async function otkrijKandidate({
           placeId,
           displayName: mesto.displayName?.text ?? "",
           formattedAddress: mesto.formattedAddress ?? "",
-          websiteUri: mesto.websiteUri ?? "",
           upit,
         });
       }

@@ -6,9 +6,12 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type {
   DodirFilter,
+  KvalitetFilter,
   PlatformaFilter,
+  PonudaFilter,
   SajtFilter,
 } from "@/convex/leadFiltersStore";
+import { PONUDA_NATPISI } from "./site-audit-labels";
 import {
   Bookmark,
   BookmarkPlus,
@@ -73,6 +76,23 @@ const TEL_NATPISI: Record<string, string> = {
   "40": "telefon ≥ 40 %",
   "0": "ima procenu telefona",
 };
+
+// GL10 (plan §5.2): filteri iz ocene sajta.
+const KVALITET_NATPISI: Record<KvalitetFilter, string> = {
+  los: "loš",
+  srednji: "srednji",
+  dobar: "dobar",
+  neocenjen: "neocenjen",
+};
+
+const CMS_POSEBNI: Record<string, string> = {
+  drugo: "drugo",
+  bez_cms: "bez CMS-a",
+};
+
+function cmsNatpis(ime: string): string {
+  return CMS_POSEBNI[ime] ?? ime;
+}
 
 const PRAZAN_CHIP_TITLE = "Nema pogodaka u ovom preseku.";
 
@@ -183,6 +203,22 @@ function opisiAktivne(filters: LeadFilters): { grupa: keyof LeadFilters; tekst: 
     });
   }
   if (filters.q) out.push({ grupa: "q", tekst: `naziv sadrži „${filters.q}"` });
+  if (filters.kvalitet.length) {
+    out.push({
+      grupa: "kvalitet",
+      tekst: `sajt: ${filters.kvalitet.map((k) => KVALITET_NATPISI[k]).join(", ")}`,
+    });
+  }
+  if (filters.cms.length) {
+    out.push({ grupa: "cms", tekst: `CMS: ${filters.cms.map(cmsNatpis).join(", ")}` });
+  }
+  if (filters.sajtSpor) out.push({ grupa: "sajtSpor", tekst: "spor sajt" });
+  if (filters.ponuda.length) {
+    out.push({
+      grupa: "ponuda",
+      tekst: `ponuda: ${filters.ponuda.map((p) => PONUDA_NATPISI[p]).join(", ")}`,
+    });
+  }
   return out;
 }
 
@@ -196,6 +232,7 @@ export function LeadFilterBar({ workspaceId }: { workspaceId: Id<"workspaces"> }
     setZaostali,
     setKoord,
     setTel,
+    setSajtSpor,
     setQ,
     clearGroup,
     clearAll,
@@ -555,6 +592,78 @@ export function LeadFilterBar({ workspaceId }: { workspaceId: Id<"workspaces"> }
                     </strong>
                   </span>
                 )}
+              </Grupa>
+
+              {/* ── GL10 (plan §5.2): iz poslednje ocene sajta ── */}
+              <Grupa naziv="Kvalitet sajta">
+                {(Object.keys(KVALITET_NATPISI) as KvalitetFilter[]).map((k) => (
+                  <Chip
+                    key={k}
+                    label={KVALITET_NATPISI[k]}
+                    count={broj(b?.kvalitet[k] ?? 0)}
+                    active={filters.kvalitet.includes(k)}
+                    onToggle={() => toggle("kvalitet", k)}
+                    title={
+                      k === "neocenjen"
+                        ? "Firma ima sajt koji radi, a skill ga još nije ocenio (oceni-sajtove)."
+                        : "Ukupna ocena sajta iz Lighthousea i Claudeovog suda; računa se pri čitanju."
+                    }
+                  />
+                ))}
+                <Chip
+                  label="spor sajt"
+                  count={broj(b?.sajtSpor ?? 0)}
+                  active={filters.sajtSpor}
+                  onToggle={() => setSajtSpor(!filters.sajtSpor)}
+                  title="Lighthouse mobilni performance ispod 50."
+                />
+              </Grupa>
+
+              <Grupa naziv="CMS">
+                {b && b.cms.length === 0 && b.cmsBez === 0 ? (
+                  <span className="text-micro text-text-muted">
+                    Nijedan sajt u preseku nije ocenjen.
+                  </span>
+                ) : (
+                  <>
+                    {b?.cms.map((c) => (
+                      <Chip
+                        key={c.ime}
+                        label={c.ime}
+                        count={broj(c.broj)}
+                        active={filters.cms.includes(c.ime)}
+                        onToggle={() => toggle("cms", c.ime)}
+                      />
+                    ))}
+                    <Chip
+                      label={cmsNatpis("drugo")}
+                      count={broj(b?.cmsDrugo ?? 0)}
+                      active={filters.cms.includes("drugo")}
+                      onToggle={() => toggle("cms", "drugo")}
+                      title="CMS koji nije među prvih osam u radnom prostoru."
+                    />
+                    <Chip
+                      label={cmsNatpis("bez_cms")}
+                      count={broj(b?.cmsBez ?? 0)}
+                      active={filters.cms.includes("bez_cms")}
+                      onToggle={() => toggle("cms", "bez_cms")}
+                      title="Ocenjen sajt bez prepoznatog CMS-a (ručni HTML, framework bez CMS-a…)."
+                    />
+                  </>
+                )}
+              </Grupa>
+
+              <Grupa naziv="Preporučena ponuda">
+                {(Object.keys(PONUDA_NATPISI) as PonudaFilter[]).map((p) => (
+                  <Chip
+                    key={p}
+                    label={PONUDA_NATPISI[p]}
+                    count={broj(b?.ponuda[p] ?? 0)}
+                    active={filters.ponuda.includes(p)}
+                    onToggle={() => toggle("ponuda", p)}
+                    title="Šta bi Enigma prodala po Claudeovom sudu nad snimcima sajta."
+                  />
+                ))}
               </Grupa>
 
               <Grupa naziv="Niša">

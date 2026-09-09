@@ -67,6 +67,52 @@ export const DEFAULT_ICP_RULES: ReadonlyArray<{
     // Sajt bez sertifikata pretraživači i pregledači izričito označavaju kao nebezbedan, što je merljiva šteta po ugled firme i konkretan, proverljiv povod za poziv.
     comment: "Sajt bez sertifikata pretraživači i pregledači izričito označavaju kao nebezbedan, što je merljiva šteta po ugled firme i konkretan, proverljiv povod za poziv.",
   },
+  // GL10 (sajt-ocena-plan.md §2.3): sajt postoji, ali ga treba popraviti.
+  // Težine su ispod „Nema sajt" (30) i „Sajt ne radi" (28): postojeći sajt
+  // je slabiji povod od nikakvog, ali je razgovor konkretniji — ima šta da se
+  // pokaže. Sve se može prekalibrisati sa ekrana „Ocenjivanje" bez deploy-a.
+  {
+    name: "Sajt je spor na mobilnom",
+    axis: "fit",
+    signalKind: "sajt_spor",
+    weight: 18,
+    comment: "Lighthouse mobilni performance ispod 50 znači da se sajt na telefonu učitava sekundama — merljiv gubitak poziva i prvi konkretan argument za redizajn ili ubrzanje.",
+  },
+  {
+    name: "Sajt ima loš SEO",
+    axis: "fit",
+    signalKind: "sajt_los_seo",
+    weight: 14,
+    comment: "Lighthouse SEO ispod 60 znači da sajt nema osnovne naslove, opise i meta oznake, pa ga Google slabo prikazuje — firma plaća sajt koji niko ne nalazi.",
+  },
+  {
+    name: "Sajt je slabo upotrebljiv",
+    axis: "fit",
+    signalKind: "sajt_slab_ux",
+    weight: 20,
+    comment: "Prosek Claudeovih ocena (prvi utisak, jasnoća ponude, put do kontakta, mobilna upotrebljivost, ažurnost) do 2,5 od 5 — posetilac ne razume šta firma nudi ni kako da je pozove.",
+  },
+  {
+    name: "Sajt nema jasan put do kontakta",
+    axis: "fit",
+    signalKind: "sajt_bez_puta_do_kontakta",
+    weight: 16,
+    comment: "Telefon, forma ili termin su tri i više klikova od početne, ili ih Claude nije našao — sajt koji ne vodi ka kontaktu ne donosi posao, a popravka je mala i vidljiva.",
+  },
+  {
+    name: "Sajt na zastareloj tehnologiji",
+    axis: "fit",
+    signalKind: "sajt_zastarela_tehnologija",
+    weight: 22,
+    comment: "Joomla 3, Drupal 7, Flash, stranica bez responsive rasporeda ili tabelarni HTML — tehnologija bez zakrpa i bez mobilne verzije, gde je nov sajt jeftiniji od popravke.",
+  },
+  {
+    name: "Nema zakazivanja u niši koja ga traži",
+    axis: "fit",
+    signalKind: "sajt_bez_zakazivanja",
+    weight: 20,
+    comment: "Frizeri, kozmetika, stomatolozi i teretane žive od termina, a sajt nema ni alat ni formu za zakazivanje — svaki termin ide preko telefona i poruka, što je tačno ono što Enigma prodaje.",
+  },
   {
     name: "Koristi booking treće strane",
     axis: "fit",

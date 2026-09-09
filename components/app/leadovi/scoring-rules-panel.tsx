@@ -51,16 +51,17 @@ type Axis = "fit" | "intent";
 
 /**
  * Broj podrazumevanih pravila (DEFAULT_ICP_RULES u convex/leadScoringStore.ts:
- * 8 za Fit + 6 za Intent). Ne uvozi se odatle jer taj modul povlači Convex
- * server (`./_generated/server`) u klijentski bundle. Ako se skup ikada promeni,
+ * 14 za Fit + 6 za Intent; GL10 je dodao šest Fit pravila o kvalitetu sajta).
+ * Ne uvozi se odatle jer taj modul povlači Convex server
+ * (`./_generated/server`) u klijentski bundle. Ako se skup ikada promeni,
  * stvarni broj ubačenih pravila stiže iz `seed(...)` i prikazuje se u potvrdi —
  * on je merodavan, ova konstanta je samo najava.
  */
-const DEFAULT_RULE_COUNT = 14;
+const DEFAULT_RULE_COUNT = 20;
 
 /** Koliko podrazumevanih pravila ima svaka osa — prati DEFAULT_ICP_RULES. */
 const DEFAULT_RULE_COUNT_BY_AXIS: Record<Axis, number> = {
-  fit: 8,
+  fit: 14,
   intent: 6,
 };
 

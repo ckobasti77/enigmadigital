@@ -220,6 +220,35 @@ async function drainThreadsPublishUploads(
   return { deleted: rows.length, exhausted: rows.length < page };
 }
 
+// ── Leads: ocene sajtova sa snimcima u storage-u (GL10) ────────────────────
+
+/**
+ * Jedna ocena drži do dva snimka ekrana (desktop + mobilni). Bytes idu sa
+ * redom, istim obrascem kao `igPublishUploads`: red bez fajla bi bio siroče
+ * bez imena, fajl bez reda — slika tuđeg sajta koju niko više ne može da nađe.
+ */
+async function drainLeadSiteAudits(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  limit: number,
+): Promise<StepResult> {
+  const page = Math.min(limit, 30);
+  const rows = await ctx.db
+    .query("leadSiteAudits")
+    .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+    .take(page);
+  for (const row of rows) {
+    if (row.snimci?.desktopId) {
+      await ctx.storage.delete(row.snimci.desktopId).catch(() => {});
+    }
+    if (row.snimci?.mobilniId) {
+      await ctx.storage.delete(row.snimci.mobilniId).catch(() => {});
+    }
+    await ctx.db.delete(row._id);
+  }
+  return { deleted: rows.length, exhausted: rows.length < page };
+}
+
 // ── Ads: a five-level tree with no per-level provider column ────────────────
 
 
@@ -1137,6 +1166,8 @@ const LEAD_STEPS: PurgeStep[] = [
       .query("leadLandings")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", ws)),
   ),
+  // 7c. Ocene sajtova sa snimcima u storage-u (GL10)
+  { tables: ["leadSiteAudits"], run: drainLeadSiteAudits },
   // 8. Korenska tabela firmi na kraju
   simple("leadCompanies", (ctx, ws) =>
     ctx.db
@@ -1258,6 +1289,10 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   leadIdentities: { purgedBy: ["leads"] },
   leadPeople: { purgedBy: ["leads"] },
   leadLandings: { purgedBy: ["leads"] },
+  // Ocene sajtova (GL10) prate firmu: red pokazuje na `companyId` i drži do
+  // dva snimka u storage-u. Bez brisanja bi posle `leads` purge-a ostale
+  // slike tuđih sajtova bez ijedne firme na koju pokazuju.
+  leadSiteAudits: { purgedBy: ["leads"] },
   leadCompanies: { purgedBy: ["leads"] },
   // Imenovani URL-ovi filtera koje je operater sam sačuvao (GL1, plan §O8) —
   // nijedan podatak ne dolazi od provajdera, samo tekst pretrage koji je čovek

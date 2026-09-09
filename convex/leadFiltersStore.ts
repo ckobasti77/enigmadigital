@@ -5,6 +5,8 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
 import { hydrateLeadRowExtras, LEAD_STAGE_VALIDATOR } from "./leadCrmStore";
 import { scoreLead, type LeadSignalInput } from "./lib/leadScoring";
+import { ucitajPoslednjeOcene, type SazetakOcene } from "./leadSiteAuditsStore";
+import { PRAG_SPOR_SAJT } from "./lib/siteScore";
 
 /**
  * ============================================================================
@@ -105,6 +107,60 @@ export type PlatformaFilter =
 
 export type DodirFilter = "7d" | "30d" | "nikad";
 
+// ── GL10: filteri iz ocene sajta (sajt-ocena-plan.md §5.2) ──────────────────
+
+/** Pojas kvaliteta + „neocenjen" (firma sa sajtom koji nikad nije ocenjivan). */
+const KVALITET_VALIDATOR = v.union(
+  v.literal("los"),
+  v.literal("srednji"),
+  v.literal("dobar"),
+  v.literal("neocenjen"),
+);
+export type KvalitetFilter = "los" | "srednji" | "dobar" | "neocenjen";
+export const KVALITET_FILTER_VALUES: readonly KvalitetFilter[] = [
+  "los",
+  "srednji",
+  "dobar",
+  "neocenjen",
+];
+
+const PONUDA_VALIDATOR = v.union(
+  v.literal("nov_sajt"),
+  v.literal("redizajn"),
+  v.literal("webshop"),
+  v.literal("zakazivanje"),
+  v.literal("seo"),
+  v.literal("brzina"),
+  v.literal("nista"),
+);
+export type PonudaFilter =
+  | "nov_sajt"
+  | "redizajn"
+  | "webshop"
+  | "zakazivanje"
+  | "seo"
+  | "brzina"
+  | "nista";
+export const PONUDA_FILTER_VALUES: readonly PonudaFilter[] = [
+  "nov_sajt",
+  "redizajn",
+  "webshop",
+  "zakazivanje",
+  "seo",
+  "brzina",
+  "nista",
+];
+
+/**
+ * CMS je PODATAK (ime iz otisaka), ne šifarnik — zato `v.string()`. Dve
+ * rezervisane vrednosti: `drugo` (CMS van prvih 8 po broju) i `bez_cms`
+ * (ocenjen sajt bez prepoznatog CMS-a). Ime CMS-a nikad nije ni jedno ni
+ * drugo, pa se ne mogu sudariti.
+ */
+export const CMS_DRUGO = "drugo";
+export const CMS_BEZ = "bez_cms";
+export const CMS_TOP = 8;
+
 export const SAJT_FILTER_VALUES: readonly SajtFilter[] = [
   "ima",
   "nema",
@@ -140,6 +196,11 @@ const FILTER_ARGS = {
   tel: v.optional(v.number()),
   dodir: v.optional(v.array(DODIR_VALIDATOR)),
   q: v.optional(v.string()),
+  // GL10 (plan §5.2): iz poslednje ocene sajta.
+  kvalitet: v.optional(v.array(KVALITET_VALIDATOR)),
+  cms: v.optional(v.array(v.string())),
+  sajtSpor: v.optional(v.boolean()),
+  ponuda: v.optional(v.array(PONUDA_VALIDATOR)),
 };
 
 type FilterArgs = {
@@ -154,6 +215,10 @@ type FilterArgs = {
   tel?: number;
   dodir?: DodirFilter[];
   q?: string;
+  kvalitet?: KvalitetFilter[];
+  cms?: string[];
+  sajtSpor?: boolean;
+  ponuda?: PonudaFilter[];
 };
 
 type Grupa =
@@ -167,7 +232,11 @@ type Grupa =
   | "koord"
   | "tel"
   | "dodir"
-  | "q";
+  | "q"
+  | "kvalitet"
+  | "cms"
+  | "sajtSpor"
+  | "ponuda";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pomoćne funkcije
@@ -252,12 +321,25 @@ type RedZaFilter = {
   najvecaVerovatnoca: number | null;
   imaProcenuTelefona: boolean;
   imeZaPretragu: string;
+  /**
+   * Poslednja ocena sajta (GL10) — `null` kad sajt nikad nije ocenjivan ILI
+   * kad ocene nisu učitane (`trebajuOcene: false`); filteri po oceni ih uvek
+   * učitavaju, pa razlika ne curi u rezultat.
+   */
+  ocena: SazetakOcene | null;
 };
+
+/** Ključ CMS-a za filter i brojač: ime, ili `bez_cms` za ocenjen sajt bez CMS-a. */
+function cmsKljuc(ocena: SazetakOcene | null): string | null {
+  if (!ocena) return null;
+  return ocena.cms ?? CMS_BEZ;
+}
 
 async function ucitajOsnovu(
   ctx: QueryCtx,
   workspaceId: Id<"workspaces">,
   trebajuIdentiteti: boolean,
+  trebajuOcene = false,
 ): Promise<{
   redovi: RedZaFilter[];
   prekoracen: boolean;
@@ -315,23 +397,32 @@ async function ucitajOsnovu(
     }
   }
 
-  const redovi = await Promise.all(
-    assignments.map(async (assignment) => {
-      const company = await ctx.db.get(assignment.companyId);
-      const key = String(assignment.companyId);
-      return {
-        assignment,
-        company,
-        nisaSlug: company?.nicheId
-          ? (slugPoNisi.get(String(company.nicheId)) ?? null)
-          : null,
-        platforme: platformePoFirmi.get(key) ?? new Set<string>(),
-        najvecaVerovatnoca: verovatnocaPoFirmi.get(key) ?? null,
-        imaProcenuTelefona: procenaPoFirmi.has(key),
-        imeZaPretragu: company ? zaPretragu(company.name) : "",
-      } satisfies RedZaFilter;
-    }),
+  const companies = await Promise.all(
+    assignments.map((assignment) => ctx.db.get(assignment.companyId)),
   );
+
+  // Ocene sajta (GL10) se čitaju preko pokazivača, samo kad ih neko traži —
+  // jedan `get` po firmi koja JE ocenjivana, nula za ostale.
+  const ocene = trebajuOcene
+    ? await ucitajPoslednjeOcene(ctx, companies)
+    : new Map<string, SazetakOcene>();
+
+  const redovi = assignments.map((assignment, i) => {
+    const company = companies[i];
+    const key = String(assignment.companyId);
+    return {
+      assignment,
+      company,
+      nisaSlug: company?.nicheId
+        ? (slugPoNisi.get(String(company.nicheId)) ?? null)
+        : null,
+      platforme: platformePoFirmi.get(key) ?? new Set<string>(),
+      najvecaVerovatnoca: verovatnocaPoFirmi.get(key) ?? null,
+      imaProcenuTelefona: procenaPoFirmi.has(key),
+      imeZaPretragu: company ? zaPretragu(company.name) : "",
+      ocena: ocene.get(key) ?? null,
+    } satisfies RedZaFilter;
+  });
 
   return {
     redovi,
@@ -350,6 +441,7 @@ async function ucitajOsnovu(
 function napraviTestove(
   args: FilterArgs,
   now: number,
+  cmsTop: Set<string> = new Set(),
 ): Record<Grupa, (red: RedZaFilter) => boolean> {
   const qNorm = args.q ? zaPretragu(args.q) : "";
   const gradovi = args.grad?.map((g) => zaPretragu(g));
@@ -402,7 +494,65 @@ function napraviTestove(
         ? true
         : args.dodir.some((d) => dodirPogodak(red.assignment, d, now)),
     q: (red) => (qNorm === "" ? true : red.imeZaPretragu.includes(qNorm)),
+    // ── GL10: iz poslednje ocene sajta ──
+    // `neocenjen` = firma IMA sajt (imaSajt "da" ili sajtStatus "radi"), a
+    // ocena ne postoji. Firma bez sajta nije „neocenjen sajt".
+    kvalitet: (red) => {
+      if (!args.kvalitet || args.kvalitet.length === 0) return true;
+      const pojas = red.ocena?.pojas ?? null;
+      return args.kvalitet.some((k) => {
+        if (k === "neocenjen") {
+          const imaSajt =
+            red.company?.imaSajt === "da" || red.company?.sajtStatus === "radi";
+          return imaSajt && red.ocena === null;
+        }
+        return pojas === k;
+      });
+    },
+    cms: (red) => {
+      if (!args.cms || args.cms.length === 0) return true;
+      const kljuc = cmsKljuc(red.ocena);
+      if (kljuc === null) return false;
+      if (args.cms.includes(kljuc)) return true;
+      // `drugo` = ocenjen sajt sa CMS-om koji NIJE među top 8 radnog prostora
+      // (`cmsTop`, računato nad svim učitanim firmama, ne nad presekom — da
+      // „drugo" znači isto bez obzira na ostale filtere).
+      if (args.cms.includes(CMS_DRUGO) && kljuc !== CMS_BEZ) {
+        return !cmsTop.has(kljuc);
+      }
+      return false;
+    },
+    sajtSpor: (red) =>
+      !args.sajtSpor
+        ? true
+        : red.ocena?.perfMobile !== null &&
+          red.ocena?.perfMobile !== undefined &&
+          red.ocena.perfMobile < PRAG_SPOR_SAJT,
+    ponuda: (red) =>
+      !args.ponuda || args.ponuda.length === 0
+        ? true
+        : red.ocena?.preporucenaPonuda !== null &&
+          red.ocena?.preporucenaPonuda !== undefined &&
+          (args.ponuda as string[]).includes(red.ocena.preporucenaPonuda),
   };
+}
+
+/**
+ * Top 8 CMS-a radnog prostora po broju ocenjenih sajtova — nad SVIM učitanim
+ * firmama, ne nad presekom. Isti spisak vidi traka filtera (čipovi) i koristi
+ * test `drugo`, pa čip „drugo (N)" i rezultat klika znače istu stvar.
+ */
+function cmsTopSpisak(redovi: RedZaFilter[]): string[] {
+  const brojaci = new Map<string, number>();
+  for (const red of redovi) {
+    const kljuc = cmsKljuc(red.ocena);
+    if (kljuc === null || kljuc === CMS_BEZ) continue;
+    brojaci.set(kljuc, (brojaci.get(kljuc) ?? 0) + 1);
+  }
+  return [...brojaci.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "sr-RS"))
+    .slice(0, CMS_TOP)
+    .map(([ime]) => ime);
 }
 
 const SVE_GRUPE: readonly Grupa[] = [
@@ -417,6 +567,10 @@ const SVE_GRUPE: readonly Grupa[] = [
   "tel",
   "dodir",
   "q",
+  "kvalitet",
+  "cms",
+  "sajtSpor",
+  "ponuda",
 ];
 
 function prolaziSve(
@@ -435,6 +589,16 @@ function trazeIdentitete(args: FilterArgs): boolean {
   return (
     (args.platforma !== undefined && args.platforma.length > 0) ||
     args.tel !== undefined
+  );
+}
+
+/** Da li bilo koji filter zavisi od ocene sajta (GL10) — tek tada se čita. */
+function trazeOcene(args: FilterArgs): boolean {
+  return (
+    (args.kvalitet !== undefined && args.kvalitet.length > 0) ||
+    (args.cms !== undefined && args.cms.length > 0) ||
+    args.sajtSpor === true ||
+    (args.ponuda !== undefined && args.ponuda.length > 0)
   );
 }
 
@@ -468,9 +632,9 @@ export const listLeadsFiltered = query({
     const now = Date.now();
 
     const { redovi, prekoracen, identitetiOdseceni, pregledano } =
-      await ucitajOsnovu(ctx, args.workspaceId, trazeIdentitete(args));
+      await ucitajOsnovu(ctx, args.workspaceId, trazeIdentitete(args), trazeOcene(args));
 
-    const testovi = napraviTestove(args, now);
+    const testovi = napraviTestove(args, now, new Set(cmsTopSpisak(redovi)));
     const pogodjeni = redovi.filter((red) => prolaziSve(testovi, red));
 
     const ukupno = pogodjeni.length;
@@ -527,7 +691,7 @@ export const countLeadsByFacet = query({
 
     const now = Date.now();
     const { redovi, prekoracen, identitetiOdseceni, nise, pregledano } =
-      await ucitajOsnovu(ctx, args.workspaceId, true);
+      await ucitajOsnovu(ctx, args.workspaceId, true, true);
 
     if (prekoracen) {
       // Brojač odsečen na granici izgleda isto kao tačan brojač. Zato se ne
@@ -539,7 +703,8 @@ export const countLeadsByFacet = query({
       };
     }
 
-    const testovi = napraviTestove(args, now);
+    const cmsTopLista = cmsTopSpisak(redovi);
+    const testovi = napraviTestove(args, now, new Set(cmsTopLista));
     const uGrupi = (grupa: Grupa) =>
       redovi.filter((red) => prolaziSve(testovi, red, grupa));
 
@@ -666,6 +831,64 @@ export const countLeadsByFacet = query({
       }
     }
 
+    // ── GL10: kvalitet sajta ──
+    const kvalitetSkup = uGrupi("kvalitet");
+    const kvalitet: Record<KvalitetFilter, number> = {
+      los: 0,
+      srednji: 0,
+      dobar: 0,
+      neocenjen: 0,
+    };
+    for (const red of kvalitetSkup) {
+      if (red.ocena?.pojas) kvalitet[red.ocena.pojas]++;
+      else if (
+        red.ocena === null &&
+        (red.company?.imaSajt === "da" || red.company?.sajtStatus === "radi")
+      ) {
+        kvalitet.neocenjen++;
+      }
+    }
+
+    // ── GL10: CMS — top 8 radnog prostora + „drugo" + „bez CMS-a" ──
+    const cmsSkup = uGrupi("cms");
+    const cmsBrojaci = new Map<string, number>();
+    let cmsBez = 0;
+    let cmsDrugo = 0;
+    const cmsTopSkup = new Set(cmsTopLista);
+    for (const red of cmsSkup) {
+      const kljuc = cmsKljuc(red.ocena);
+      if (kljuc === null) continue;
+      if (kljuc === CMS_BEZ) cmsBez++;
+      else if (cmsTopSkup.has(kljuc)) cmsBrojaci.set(kljuc, (cmsBrojaci.get(kljuc) ?? 0) + 1);
+      else cmsDrugo++;
+    }
+    const cms = cmsTopLista.map((ime) => ({ ime, broj: cmsBrojaci.get(ime) ?? 0 }));
+
+    // ── GL10: spor sajt ──
+    const sporSkup = uGrupi("sajtSpor");
+    const sajtSpor = sporSkup.filter(
+      (red) =>
+        red.ocena?.perfMobile !== null &&
+        red.ocena?.perfMobile !== undefined &&
+        red.ocena.perfMobile < PRAG_SPOR_SAJT,
+    ).length;
+
+    // ── GL10: preporučena ponuda ──
+    const ponudaSkup = uGrupi("ponuda");
+    const ponuda: Record<PonudaFilter, number> = {
+      nov_sajt: 0,
+      redizajn: 0,
+      webshop: 0,
+      zakazivanje: 0,
+      seo: 0,
+      brzina: 0,
+      nista: 0,
+    };
+    for (const red of ponudaSkup) {
+      const p = red.ocena?.preporucenaPonuda;
+      if (p && p in ponuda) ponuda[p as PonudaFilter]++;
+    }
+
     const ukupno = redovi.filter((red) => prolaziSve(testovi, red)).length;
 
     return {
@@ -686,6 +909,12 @@ export const countLeadsByFacet = query({
       koord: { da: koordDa, ne: koordSkup.length - koordDa },
       tel,
       dodir,
+      kvalitet,
+      cms,
+      cmsDrugo,
+      cmsBez,
+      sajtSpor,
+      ponuda,
     };
   },
 });
@@ -725,10 +954,12 @@ export const listLeadsForMap = query({
     await proveriPristup(ctx, args.workspaceId);
 
     const now = Date.now();
+    // Ocene se čitaju uvek: hover kartica na mapi nosi „Sajt: loš 31" (plan
+    // §5.4), a to je jedan `get` po ocenjenoj firmi.
     const { redovi, prekoracen, identitetiOdseceni, nise, pregledano } =
-      await ucitajOsnovu(ctx, args.workspaceId, trazeIdentitete(args));
+      await ucitajOsnovu(ctx, args.workspaceId, trazeIdentitete(args), true);
 
-    const testovi = napraviTestove(args, now);
+    const testovi = napraviTestove(args, now, new Set(cmsTopSpisak(redovi)));
     const pogodjeni = redovi.filter((red) => prolaziSve(testovi, red));
 
     const saKoordinatama = pogodjeni.filter(
@@ -813,6 +1044,8 @@ export const listLeadsForMap = query({
           : null,
         nisaSlug: red.nisaSlug,
         imaSajt: company.imaSajt ?? null,
+        // Ukupna ocena sajta (GL10, plan §5.4) — `null` bez ocene.
+        sajtKvalitet: red.ocena?.kvalitet ?? null,
         poslednjiDodirAt: red.assignment.lastTouchAt ?? null,
         // Sastanak ide uz tačku jer je već učitan sa dodelom; GL4 (§9) crta
         // beacon za sastanke u narednih 7 dana i ne treba mu novi upit.

@@ -18,8 +18,10 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { pojasKvaliteta, POJAS_NATPISI } from "@/convex/lib/siteScore";
 import { FeedbackNote } from "@/components/app/feedback";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { LinkChip, type LinkChipVrsta } from "@/components/app/link-chip";
@@ -81,6 +83,13 @@ const PLATFORME: readonly Platforma[] = [
 ];
 
 type NicheRow = FunctionReturnType<typeof api.nichesStore.listNiches>[number];
+
+/** Tinta pojasa kvaliteta sajta (GL10) — ista paleta kao bedž stanja sajta. */
+const POJAS_INK = {
+  los: "text-temp-hot",
+  srednji: "text-temp-warm",
+  dobar: "text-success",
+} as const;
 
 function Brojac({ label, value }: { label: string; value: number }) {
   return (
@@ -323,6 +332,23 @@ export function NichesPanel({
                       sajt nepoznat: {n.brojaci.sajtNepoznato}
                     </span>
                   )}
+                  {/* GL10 (plan §5.3): prosečan kvalitet sajta, samo iz ocena. */}
+                  {n.sajt.ocenjeno > 0 && (
+                    <span className="text-micro text-text-muted">
+                      sajt:{" "}
+                      {n.sajt.prosecanKvalitet === null ? (
+                        "ocenjen bez broja"
+                      ) : (
+                        <>
+                          <strong className={cn("font-mono tabular-nums", POJAS_INK[pojasKvaliteta(n.sajt.prosecanKvalitet)])}>
+                            {POJAS_NATPISI[pojasKvaliteta(n.sajt.prosecanKvalitet)]} {n.sajt.prosecanKvalitet}
+                          </strong>{" "}
+                          prosek
+                        </>
+                      )}{" "}
+                      · ocenjeno {n.sajt.ocenjeno}
+                    </span>
+                  )}
                   {n.opis && (
                     <p className="line-clamp-2 text-micro leading-relaxed text-text-muted">
                       {n.opis}
@@ -505,6 +531,24 @@ function NichePanel({
       onError(getErrorMessage(err));
     }
   };
+
+  // GL10 (plan §2.3): da li niša traži zakazivanje. Odluka čoveka; skill je
+  // upiše samo dok polje ne postoji.
+  const postaviZakazivanje = async (vrednost: boolean) => {
+    onError(null);
+    try {
+      await upsertNiche({
+        workspaceId,
+        nicheId: nisa._id,
+        naziv: nisa.naziv,
+        trebaZakazivanje: vrednost,
+      });
+    } catch (err) {
+      onError(getErrorMessage(err));
+    }
+  };
+
+  const najviseCms = nisa.sajt.cmsRaspodela[0]?.broj ?? 0;
 
   return (
     <Card className="border-line bg-surface">
@@ -715,6 +759,90 @@ function NichePanel({
                 </Button>
               </div>
             </form>
+          )}
+        </section>
+
+        {/* Sajtovi u niši (GL10, plan §5.3) — samo iz postojećih ocena */}
+        <section className="flex flex-col gap-2 border-t border-line-soft pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="text-micro font-semibold uppercase tracking-wider text-text-muted">
+              Sajtovi
+            </h4>
+            <label className="ml-auto inline-flex cursor-pointer items-center gap-2 text-micro text-text-muted">
+              <span title={`Kad je uključeno, sajt bez alata ili forme za termin dobija signal „nema zakazivanja".`}>
+                niša traži zakazivanje
+              </span>
+              <Switch
+                checked={nisa.trebaZakazivanje === true}
+                onCheckedChange={(v) => void postaviZakazivanje(v)}
+                aria-label="Niša traži zakazivanje"
+              />
+            </label>
+          </div>
+
+          {nisa.sajt.ocenjeno === 0 ? (
+            <p className="text-xs text-text-muted">
+              Nijedan sajt u ovoj niši nije ocenjen. Ocena se pokreće iz skilla:{" "}
+              <code className="font-mono text-micro text-foreground">/generate-leads oceni-sajtove</code>.
+            </p>
+          ) : (
+            <div className="grid gap-4 text-xs sm:grid-cols-[auto_1fr]">
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-micro text-text-muted">Prosečan kvalitet</span>
+                  {nisa.sajt.prosecanKvalitet === null ? (
+                    <span className="text-text-muted">bez broja</span>
+                  ) : (
+                    <span className="inline-flex items-baseline gap-1.5">
+                      <span
+                        className={cn(
+                          "font-mono text-xl font-semibold tabular-nums",
+                          POJAS_INK[pojasKvaliteta(nisa.sajt.prosecanKvalitet)],
+                        )}
+                      >
+                        {nisa.sajt.prosecanKvalitet}
+                      </span>
+                      <span className="text-text-muted">
+                        {POJAS_NATPISI[pojasKvaliteta(nisa.sajt.prosecanKvalitet)]} · {nisa.sajt.ocenjeno}{" "}
+                        {nisa.sajt.ocenjeno === 1 ? "sajt" : "sajtova"}
+                      </span>
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-micro text-text-muted">Bez zakazivanja</span>
+                  {nisa.sajt.bezZakazivanja === null ? (
+                    <span className="text-text-muted" title={`Uključi „niša traži zakazivanje" da se broji.`}>
+                      niša ga ne traži
+                    </span>
+                  ) : (
+                    <span className="font-mono text-xl font-semibold tabular-nums text-foreground">
+                      {nisa.sajt.bezZakazivanja}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-micro text-text-muted">CMS</span>
+                <ul className="flex flex-col gap-1">
+                  {nisa.sajt.cmsRaspodela.map((c) => (
+                    <li key={c.ime} className="grid grid-cols-[7rem_1fr_2rem] items-center gap-2">
+                      <span className="truncate text-foreground" title={c.ime}>
+                        {c.ime}
+                      </span>
+                      <span className="h-1.5 overflow-hidden rounded-sm bg-line" aria-hidden>
+                        <span
+                          className="block h-full rounded-sm bg-chart-1"
+                          style={{ width: `${najviseCms > 0 ? (c.broj / najviseCms) * 100 : 0}%` }}
+                        />
+                      </span>
+                      <span className="text-right font-mono tabular-nums text-text-muted">{c.broj}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           )}
         </section>
 

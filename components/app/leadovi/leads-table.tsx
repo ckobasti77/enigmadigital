@@ -582,6 +582,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
                                       https={company.sajtHttps}
                                       proverenAt={company.sajtProverenAt}
                                       napomena={company.sajtNapomena}
+                                      kvalitet={item.sajtOcena?.kvalitet}
                                       size="sm"
                                     />
                                   }
@@ -593,6 +594,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
                                   https={company?.sajtHttps}
                                   proverenAt={company?.sajtProverenAt}
                                   napomena={company?.sajtNapomena}
+                                  kvalitet={item.sajtOcena?.kvalitet}
                                   size="sm"
                                   className="w-fit"
                                 />

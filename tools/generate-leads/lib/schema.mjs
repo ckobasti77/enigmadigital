@@ -24,8 +24,12 @@ const VRSTE_PLATFORMI = ["instagram", "facebook", "tiktok", "website", "threads"
 const IMA_SAJT = ["da", "ne", "nepoznato"];
 const STATUSI_SAJTA = ["radi", "ne_radi", "parkiran", "preusmerava_na_drustvene", "nepoznato"];
 const FILTERI_SAJTA = ["ima", "nema", "svejedno"];
-// GL9 §4: podskup polja koje „obogati --polja" tok dopunjuje.
-const POLJA_OBOGATI = ["sajt", "osobe", "platforme", "koordinate"];
+// GL9 §4: podskup polja koje „obogati --polja" tok dopunjuje (+ GL10 sajtOcena).
+const POLJA_OBOGATI = ["sajt", "osobe", "platforme", "koordinate", "sajtOcena"];
+// GL10: enumeracije ocene sajta.
+const PREPORUCENE_PONUDE = ["nov_sajt", "redizajn", "webshop", "zakazivanje", "seo", "brzina", "nista"];
+const TERENSKE_OCENE = ["FAST", "AVERAGE", "SLOW"];
+const CLAUDE_OCENE = ["prviUtisak", "jasnocaPonude", "putDoKontakta", "mobilnaUpotrebljivost", "azurnost"];
 
 /** Sakupljač grešaka. Putanja + `code`, isti oblik koji ruta vraća u 400. */
 class Greske {
@@ -151,6 +155,136 @@ function proveriOsobu(o, putanja, g) {
   }
 }
 
+// ── GL10: ocena sajta (isti oblik kao `sajtOcenaSchema` u zod kopiji) ────────
+
+function proveriLighthouseKategorije(k, putanja, g) {
+  if (!jeObjekat(k)) {
+    g.dodaj(putanja, "invalid_type");
+    return;
+  }
+  for (const kljuc of ["performance", "accessibility", "bestPractices", "seo"]) {
+    if (k[kljuc] !== undefined) broj(k[kljuc], `${putanja}.${kljuc}`, g, { min: 0, max: 100 });
+  }
+  for (const kljuc of ["lcpMs", "cls", "inpMs", "tbtMs"]) {
+    if (k[kljuc] !== undefined) broj(k[kljuc], `${putanja}.${kljuc}`, g, { min: 0 });
+  }
+}
+
+function proveriClaudeOcenu(o, putanja, g) {
+  if (!jeObjekat(o)) {
+    g.dodaj(putanja, "invalid_type");
+    return;
+  }
+  // `z.number().int().min(1).max(5)` — zod prijavljuje `invalid_type` za
+  // neceo broj? Ne: zod v4 daje `invalid_type` samo za ne-broj; za neceo broj
+  // daje `invalid_type` sa `expected: "int"`. Ovde je pojednostavljeno na
+  // `invalid_type`, poklopljeno kroz self-test.
+  broj(o.ocena, `${putanja}.ocena`, g, { min: 1, max: 5, ceo: true });
+  neprazan(o.obrazlozenje, `${putanja}.obrazlozenje`, g);
+}
+
+function proveriSajtOcenu(s, putanja, g) {
+  if (!jeObjekat(s)) {
+    g.dodaj(putanja, "invalid_type");
+    return;
+  }
+  neprazan(s.url, `${putanja}.url`, g);
+  broj(s.auditedAt, `${putanja}.auditedAt`, g);
+  neprazan(s.verzijaSkilla, `${putanja}.verzijaSkilla`, g);
+
+  if (s.lighthouse !== undefined) {
+    if (!jeObjekat(s.lighthouse)) {
+      g.dodaj(`${putanja}.lighthouse`, "invalid_type");
+    } else {
+      for (const strategija of ["mobile", "desktop"]) {
+        if (s.lighthouse[strategija] !== undefined) {
+          proveriLighthouseKategorije(s.lighthouse[strategija], `${putanja}.lighthouse.${strategija}`, g);
+        }
+      }
+      if (s.lighthouse.terenski !== undefined) {
+        const t = s.lighthouse.terenski;
+        if (!jeObjekat(t)) {
+          g.dodaj(`${putanja}.lighthouse.terenski`, "invalid_type");
+        } else {
+          for (const kljuc of ["lcpMs", "cls", "inpMs"]) {
+            if (t[kljuc] !== undefined) broj(t[kljuc], `${putanja}.lighthouse.terenski.${kljuc}`, g, { min: 0 });
+          }
+          if (t.ocena !== undefined) enumeracija(t.ocena, TERENSKE_OCENE, `${putanja}.lighthouse.terenski.ocena`, g);
+        }
+      }
+    }
+  }
+
+  if (s.tehnologije !== undefined) {
+    if (!Array.isArray(s.tehnologije)) {
+      g.dodaj(`${putanja}.tehnologije`, "invalid_type");
+    } else {
+      s.tehnologije.forEach((t, i) => {
+        const p = `${putanja}.tehnologije.${i}`;
+        if (!jeObjekat(t)) {
+          g.dodaj(p, "invalid_type");
+          return;
+        }
+        neprazan(t.ime, `${p}.ime`, g);
+        neprazan(t.kategorija, `${p}.kategorija`, g);
+        opcioniNeprazan(t, "verzija", p, g);
+        broj(t.pouzdanost, `${p}.pouzdanost`, g, { min: 0, max: 100 });
+      });
+      if (s.tehnologije.length > 100) g.dodaj(`${putanja}.tehnologije`, "too_big");
+    }
+  }
+
+  for (const kljuc of ["cms", "eCommerce", "booking"]) opcioniNeprazan(s, kljuc, putanja, g);
+  if (s.formaZaTermin !== undefined && typeof s.formaZaTermin !== "boolean") {
+    g.dodaj(`${putanja}.formaZaTermin`, "invalid_type");
+  }
+
+  if (s.claude !== undefined) {
+    const c = s.claude;
+    const pc = `${putanja}.claude`;
+    if (!jeObjekat(c)) {
+      g.dodaj(pc, "invalid_type");
+    } else {
+      neprazan(c.model, `${pc}.model`, g);
+      if (!jeObjekat(c.ocene)) {
+        g.dodaj(`${pc}.ocene`, "invalid_type");
+      } else {
+        for (const kljuc of CLAUDE_OCENE) {
+          if (c.ocene[kljuc] === undefined) g.dodaj(`${pc}.ocene.${kljuc}`, "invalid_type");
+          else proveriClaudeOcenu(c.ocene[kljuc], `${pc}.ocene.${kljuc}`, g);
+        }
+      }
+      if (!Array.isArray(c.glavneMane)) {
+        g.dodaj(`${pc}.glavneMane`, "invalid_type");
+      } else {
+        c.glavneMane.forEach((m, i) => neprazan(m, `${pc}.glavneMane.${i}`, g));
+        if (c.glavneMane.length > 3) g.dodaj(`${pc}.glavneMane`, "too_big");
+      }
+      neprazan(c.prilikaZaEnigmu, `${pc}.prilikaZaEnigmu`, g);
+      enumeracija(c.preporucenaPonuda, PREPORUCENE_PONUDE, `${pc}.preporucenaPonuda`, g);
+      if (c.klikovaDoKontakta !== undefined) {
+        broj(c.klikovaDoKontakta, `${pc}.klikovaDoKontakta`, g, { min: 0, ceo: true });
+      }
+      if (c.ocenjenoAt !== undefined) broj(c.ocenjenoAt, `${pc}.ocenjenoAt`, g);
+    }
+  }
+
+  if (s.snimci !== undefined) {
+    if (!jeObjekat(s.snimci)) {
+      g.dodaj(`${putanja}.snimci`, "invalid_type");
+    } else {
+      opcioniNeprazan(s.snimci, "desktopId", `${putanja}.snimci`, g);
+      opcioniNeprazan(s.snimci, "mobilniId", `${putanja}.snimci`, g);
+    }
+  }
+  if (s.greske !== undefined) nizStringova(s.greske, `${putanja}.greske`, g);
+
+  // Claudeov sud bez snimka je zabranjen (plan §3) — isti `refine` kao u zodu.
+  if (s.claude !== undefined && !(s.snimci?.desktopId || s.snimci?.mobilniId)) {
+    g.dodaj(`${putanja}.claude`, "custom");
+  }
+}
+
 function proveriRed(red, putanja, g) {
   if (!jeObjekat(red)) {
     g.dodaj(putanja, "invalid_type");
@@ -236,6 +370,9 @@ function proveriRed(red, putanja, g) {
       }
     }
   }
+
+  // GL10: ocena sajta.
+  if (red.sajtOcena !== undefined) proveriSajtOcenu(red.sajtOcena, `${putanja}.sajtOcena`, g);
 }
 
 /**
@@ -279,6 +416,10 @@ export function validirajTelo(telo) {
         telo.upit.polja.forEach((el, i) => enumeracija(el, POLJA_OBOGATI, `upit.polja.${i}`, g));
         if (telo.upit.polja.length < 1) g.dodaj("upit.polja", "too_small");
       }
+    }
+    // GL10: da li niša traži zakazivanje (opcion boolean).
+    if (telo.upit.nisaTrebaZakazivanje !== undefined && typeof telo.upit.nisaTrebaZakazivanje !== "boolean") {
+      g.dodaj("upit.nisaTrebaZakazivanje", "invalid_type");
     }
   }
 

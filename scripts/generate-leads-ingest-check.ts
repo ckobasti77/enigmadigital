@@ -123,6 +123,40 @@ const PUN_RED = {
   izvestajSkilla: "nadjeno na: sajt, CompanyWall; 011info nedostupan",
 };
 
+/** GL10: puna ocena sajta — sva tri izvora, izmišljeni ID-jevi snimaka. */
+const PUNA_OCENA = {
+  url: "https://primer-nepostojeci.rs/",
+  auditedAt: 1_757_000_000_000,
+  verzijaSkilla: "1.0.0",
+  lighthouse: {
+    mobile: { performance: 40, accessibility: 80, bestPractices: 70, seo: 60, lcpMs: 4200, cls: 0.12, tbtMs: 600 },
+    desktop: { performance: 90, accessibility: 85, bestPractices: 75, seo: 65 },
+    terenski: { lcpMs: 3000, cls: 0.1, inpMs: 250, ocena: "AVERAGE" },
+  },
+  tehnologije: [
+    { ime: "WordPress", kategorija: "CMS", verzija: "6.5.2", pouzdanost: 100 },
+    { ime: "jQuery", kategorija: "JavaScript libraries", pouzdanost: 100 },
+  ],
+  cms: "WordPress",
+  formaZaTermin: false,
+  claude: {
+    model: "test-model",
+    ocene: {
+      prviUtisak: { ocena: 4, obrazlozenje: "Naslovna slika i aktuelna ponuda." },
+      jasnocaPonude: { ocena: 4, obrazlozenje: "Cenovnik na pocetnoj." },
+      putDoKontakta: { ocena: 4, obrazlozenje: "Telefon u zaglavlju." },
+      mobilnaUpotrebljivost: { ocena: 4, obrazlozenje: "Meni radi, tekst citljiv." },
+      azurnost: { ocena: 4, obrazlozenje: "Tekuca godina u podnozju." },
+    },
+    glavneMane: ["Slike se sporo ucitavaju na mobilnom."],
+    prilikaZaEnigmu: "Ubrzanje sajta i forma za termin.",
+    preporucenaPonuda: "brzina",
+    klikovaDoKontakta: 1,
+  },
+  snimci: { desktopId: "kg2test0000000000000000000desk", mobilniId: "kg2test0000000000000000000mobi" },
+  greske: ["PSI desktop: timeout posle 60 s"],
+};
+
 function osobaSaRangom(rang: 1 | 2 | 3) {
   return {
     ime: `Test Osoba ${rang}`,
@@ -243,6 +277,65 @@ const SLUCAJEVI: Slucaj[] = [
     },
     ocekujem: "pada",
     ocekivanoPolje: "upit.polja",
+  },
+  {
+    // GL10 (sajt-ocena-plan.md §4.4): puna ocena sajta sa ID-jevima snimaka iz
+    // `/generate-leads/snimak`, `--polja sajtOcena` i `nisaTrebaZakazivanje`.
+    naziv: "10. sajtOcena: puna ocena sa snimcima + polja sajtOcena (zod propusta)",
+    telo: {
+      ...OKVIR,
+      upit: { ...OKVIR.upit, rezim: "obogati", polja: ["sajt", "sajtOcena"], nisaTrebaZakazivanje: true },
+      redovi: [{ ...PUN_RED, sajtStatus: "radi", sajtOcena: PUNA_OCENA }],
+    },
+    ocekujem: "prolazi",
+  },
+  {
+    naziv: "11. sajtOcena: Claudeov sud bez snimka se odbija (plan §3)",
+    telo: {
+      ...OKVIR,
+      redovi: [{ ...PUN_RED, sajtOcena: { ...PUNA_OCENA, snimci: undefined } }],
+    },
+    ocekujem: "pada",
+    ocekivanoPolje: "redovi.0.sajtOcena.claude",
+  },
+  {
+    naziv: "12. sajtOcena: ocena van 1-5 se odbija",
+    telo: {
+      ...OKVIR,
+      redovi: [
+        {
+          ...PUN_RED,
+          sajtOcena: {
+            ...PUNA_OCENA,
+            claude: {
+              ...PUNA_OCENA.claude,
+              ocene: { ...PUNA_OCENA.claude.ocene, azurnost: { ocena: 0, obrazlozenje: "x" } },
+            },
+          },
+        },
+      ],
+    },
+    ocekujem: "pada",
+    ocekivanoPolje: "redovi.0.sajtOcena.claude.ocene.azurnost.ocena",
+  },
+  {
+    naziv: "13. sajtOcena: samo Lighthouse, bez Claudea i bez snimaka (prolazi)",
+    telo: {
+      ...OKVIR,
+      redovi: [
+        {
+          ...PUN_RED,
+          sajtOcena: {
+            url: "https://primer-nepostojeci.rs/",
+            auditedAt: 1_757_000_000_000,
+            verzijaSkilla: "1.0.0",
+            lighthouse: { mobile: { performance: 35, seo: 55 } },
+            greske: ["snimak: Chromium nije instaliran"],
+          },
+        },
+      ],
+    },
+    ocekujem: "prolazi",
   },
 ];
 

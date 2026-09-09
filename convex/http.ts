@@ -19,6 +19,7 @@ import {
 } from "./lib/metaRateLimit";
 import {
   GENERATE_LEADS_HOURLY_CAP,
+  GENERATE_LEADS_SNIMAK_HOURLY_CAP,
   IG_MEDIA_HOURLY_CAP,
   ROUTE_WINDOW_MS,
 } from "./publicRouteLimit";
@@ -1883,8 +1884,28 @@ http.route({
     //    njega: bez toga bi uvoz iz skilla otvorio poruku „nema zapamćene
     //    kolone iz fajla", što je tačno za XLSX a besmisleno za JSON. Ovo JESTE
     //    „red kako je stigao" — samo je izvor JSON, ne tabela.
-    const rows = telo.redovi.map((red) => ({
+    const rows = telo.redovi.map(({ sajtOcena, ...red }) => ({
       ...red,
+      // ID-jevi snimaka (GL10) stižu kao tekst iz `/generate-leads/snimak`;
+      // validator mutacije ih proverava kao `v.id("_storage")` — neispravan
+      // ID obara mutaciju, što se ispod pretvara u 400, ne u 500.
+      ...(sajtOcena
+        ? {
+            sajtOcena: {
+              ...sajtOcena,
+              snimci: sajtOcena.snimci
+                ? {
+                    ...(sajtOcena.snimci.desktopId
+                      ? { desktopId: sajtOcena.snimci.desktopId as Id<"_storage"> }
+                      : {}),
+                    ...(sajtOcena.snimci.mobilniId
+                      ? { mobilniId: sajtOcena.snimci.mobilniId as Id<"_storage"> }
+                      : {}),
+                  }
+                : undefined,
+            },
+          }
+        : {}),
       sirovo: [
         { kolona: "Naziv firme", vrednost: red.nazivFirme ?? "" },
         { kolona: "Grad", vrednost: red.grad ?? "" },
@@ -1897,7 +1918,9 @@ http.route({
       ],
     }));
 
-    const rezultat = await ctx.runMutation(
+    let rezultat: { importId: Id<"leadImports">; rowsCount: number };
+    try {
+      rezultat = await ctx.runMutation(
       internal.leadImportStore.createImportFromIngest,
       {
         workspaceId: tokenRow.workspaceId,
@@ -1913,8 +1936,25 @@ http.route({
         izvorFajl: telo.upit.izvorFajl,
         // Podskup polja koje „obogati --polja" tok dopunjuje (GL9, plan §4).
         polja: telo.upit.polja,
+        // Da li niša traži zakazivanje (GL10, plan §2.3).
+        nisaTrebaZakazivanje: telo.upit.nisaTrebaZakazivanje,
       },
     );
+    } catch (err) {
+      // Zod je prošao, a Convex validator nije — praktično samo neispravan
+      // `_storage` ID u `sajtOcena.snimci`. Poruka Convexa citira vrednost,
+      // pa se ne prosleđuje; putanja je dovoljna.
+      const poruka = err instanceof Error ? err.message : "";
+      const jeValidacija = /ArgumentValidationError|Validator|_storage/i.test(poruka);
+      if (!jeValidacija) throw err;
+      return ingestOdgovor(
+        {
+          greska: "telo ne odgovara očekivanom obliku",
+          polja: ["redovi.*.sajtOcena.snimci: invalid_id"],
+        },
+        400,
+      );
+    }
 
     await ctx.runMutation(internal.ingestTokensStore.markTokenUsed, {
       tokenId: tokenRow.tokenId,
@@ -1928,6 +1968,120 @@ http.route({
       },
       200,
     );
+  }),
+});
+
+// Route 8 — POST: prijem snimka ekrana sajta za ocenu (GL10, sajt-ocena-plan §4.3)
+//
+// Skill pre tela ingesta šalje do dva snimka po firmi (desktop + mobilni,
+// WebP ili PNG, ≤ 400 KB). Ruta ih smešta u `ctx.storage` i vraća
+// `storageId`, koji skill upisuje u `sajtOcena.snimci` reda. Slika bez ocene
+// koja je stigne (ingest pao posle uploada) ostaje kao siroče u storage-u —
+// to je poznat, mali rizik, zapisan u izveštaju GL10; brisanje ide sa ocenom
+// (`revertImport`, purge).
+//
+// Isti Bearer token kao ingest, zaseban plafon po satu (30, plan §4.3).
+// SADRŽAJ SE NIKAD NE LOGUJE: to je slika tuđeg sajta.
+
+/** Najveća dozvoljena veličina jednog snimka (plan §4.3). */
+const SNIMAK_MAX_BAJTOVA = 400 * 1024;
+
+// Plan §4.3 kaže WebP ili PNG; JPEG je dodat jer Playwright (skill) ne ume
+// da snimi WebP, a full-page PNG je višestruko iznad 400 KB.
+const SNIMAK_TIPOVI = new Set(["image/webp", "image/png", "image/jpeg"]);
+
+http.route({
+  path: "/generate-leads/snimak",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const authHeader = request.headers.get("authorization") ?? "";
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.slice("Bearer ".length).trim()
+      : "";
+    if (!token) {
+      return ingestOdgovor({ greska: "neispravan token" }, 401);
+    }
+
+    const tokenHash = await sha256Hex(token);
+    const tokenRow = await ctx.runQuery(
+      internal.ingestTokensStore.findValidTokenByHash,
+      { tokenHash },
+    );
+    if (tokenRow === null) {
+      return ingestOdgovor({ greska: "neispravan token" }, 401);
+    }
+
+    const withinCap = await ctx.runMutation(
+      internal.publicRouteLimit.claimRouteCall,
+      {
+        workspaceId: tokenRow.workspaceId,
+        route: "generate-leads-snimak",
+        limit: GENERATE_LEADS_SNIMAK_HOURLY_CAP,
+        windowMs: ROUTE_WINDOW_MS,
+      },
+    );
+    if (!withinCap) {
+      return ingestOdgovor(
+        {
+          greska: "previše zahteva",
+          detalj: `Najviše ${GENERATE_LEADS_SNIMAK_HOURLY_CAP} snimaka na sat po radnom prostoru. Ocena se šalje bez slika, ili sačekaj do kraja sata.`,
+        },
+        429,
+      );
+    }
+
+    // Telo: ili sirova slika (`Content-Type: image/webp`), ili multipart sa
+    // poljem `snimak`. Skill šalje sirovo telo — jednostavnije i bez
+    // oslanjanja na `formData()` u Convex runtime-u; multipart je tu za
+    // ručni test iz browsera/PowerShella.
+    const contentType = (request.headers.get("content-type") ?? "").toLowerCase();
+    let blob: Blob;
+    try {
+      if (contentType.startsWith("multipart/form-data")) {
+        const form = await request.formData();
+        const deo = form.get("snimak");
+        if (!(deo instanceof Blob)) {
+          return ingestOdgovor({ greska: "multipart bez polja „snimak”" }, 400);
+        }
+        blob = deo;
+      } else {
+        blob = await request.blob();
+      }
+    } catch {
+      return ingestOdgovor({ greska: "telo se ne može pročitati" }, 400);
+    }
+
+    const tip = (blob.type || contentType.split(";")[0]).trim().toLowerCase();
+    if (!SNIMAK_TIPOVI.has(tip)) {
+      return ingestOdgovor(
+        { greska: "dozvoljeni tipovi su image/webp, image/png i image/jpeg", tip },
+        415,
+      );
+    }
+    if (blob.size === 0) {
+      return ingestOdgovor({ greska: "prazan snimak" }, 400);
+    }
+    if (blob.size > SNIMAK_MAX_BAJTOVA) {
+      return ingestOdgovor(
+        {
+          greska: "snimak je prevelik",
+          detalj: `Najviše ${SNIMAK_MAX_BAJTOVA} bajtova; stiglo ${blob.size}.`,
+        },
+        413,
+      );
+    }
+
+    // `blob.type` prazan kad je stigao sirov bajt-niz sa nekih klijenata —
+    // tip se upisuje izričito, da `getUrl` kasnije služi ispravan MIME.
+    const storageId = await ctx.storage.store(
+      blob.type ? blob : new Blob([await blob.arrayBuffer()], { type: tip }),
+    );
+
+    await ctx.runMutation(internal.ingestTokensStore.markTokenUsed, {
+      tokenId: tokenRow.tokenId,
+    });
+
+    return ingestOdgovor({ storageId, bajtova: blob.size, tip }, 200);
   }),
 });
 

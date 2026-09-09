@@ -5,7 +5,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { LeadStage } from "@/convex/leadCrmStore";
 import type {
   DodirFilter,
+  KvalitetFilter,
   PlatformaFilter,
+  PonudaFilter,
   SajtFilter,
 } from "@/convex/leadFiltersStore";
 import type { Temperatura } from "./lead-chips";
@@ -44,6 +46,12 @@ export type LeadFilters = {
   tel: number | null;
   dodir: DodirFilter[];
   q: string;
+  // ── GL10 (sajt-ocena-plan.md §5.2): iz poslednje ocene sajta ──
+  kvalitet: KvalitetFilter[];
+  /** Ime CMS-a (podatak) ili `drugo` / `bez_cms`. */
+  cms: string[];
+  sajtSpor: boolean;
+  ponuda: PonudaFilter[];
 };
 
 export type MultiGrupa =
@@ -53,7 +61,10 @@ export type MultiGrupa =
   | "grad"
   | "sajt"
   | "platforma"
-  | "dodir";
+  | "dodir"
+  | "kvalitet"
+  | "cms"
+  | "ponuda";
 
 /**
  * Navigacioni ključevi (GL3): jezičak i izabrana firma na mapi. NISU filteri —
@@ -82,9 +93,25 @@ export const FILTER_KLJUCEVI = [
   "tel",
   "dodir",
   "q",
+  "kvalitet",
+  "cms",
+  "sajtSpor",
+  "ponuda",
 ] as const;
 
 const TEMPERATURE: readonly Temperatura[] = ["nova_firma", "cold", "warm", "hot"];
+
+const KVALITETI: readonly KvalitetFilter[] = ["los", "srednji", "dobar", "neocenjen"];
+
+const PONUDE: readonly PonudaFilter[] = [
+  "nov_sajt",
+  "redizajn",
+  "webshop",
+  "zakazivanje",
+  "seo",
+  "brzina",
+  "nista",
+];
 
 const SAJT_VREDNOSTI: readonly SajtFilter[] = [
   "ima",
@@ -118,6 +145,10 @@ export const PRAZNI_FILTERI: LeadFilters = {
   tel: null,
   dodir: [],
   q: "",
+  kvalitet: [],
+  cms: [],
+  sajtSpor: false,
+  ponuda: [],
 };
 
 function citajListu(raw: string | null): string[] {
@@ -164,6 +195,12 @@ export function parseLeadFilters(params: URLSearchParams): LeadFilters {
         : null,
     dodir: samoPoznate(citajListu(params.get("dodir")), DODIRI),
     q: params.get("q")?.trim() ?? "",
+    kvalitet: samoPoznate(citajListu(params.get("kvalitet")), KVALITETI),
+    // Ime CMS-a je podatak (kao niša) — samo neprazno; `drugo`/`bez_cms` su
+    // rezervisane vrednosti koje server razume.
+    cms: citajListu(params.get("cms")),
+    sajtSpor: params.get("sajtSpor") === "1",
+    ponuda: samoPoznate(citajListu(params.get("ponuda")), PONUDE),
   };
 }
 
@@ -181,6 +218,10 @@ export function filtersToQuery(filters: LeadFilters): string {
   if (filters.tel !== null) p.set("tel", String(filters.tel));
   if (filters.dodir.length) p.set("dodir", filters.dodir.join(","));
   if (filters.q) p.set("q", filters.q);
+  if (filters.kvalitet.length) p.set("kvalitet", filters.kvalitet.join(","));
+  if (filters.cms.length) p.set("cms", filters.cms.join(","));
+  if (filters.sajtSpor) p.set("sajtSpor", "1");
+  if (filters.ponuda.length) p.set("ponuda", filters.ponuda.join(","));
   return p.toString();
 }
 
@@ -198,6 +239,10 @@ export function brojAktivnihGrupa(filters: LeadFilters): number {
   if (filters.tel !== null) n++;
   if (filters.dodir.length) n++;
   if (filters.q) n++;
+  if (filters.kvalitet.length) n++;
+  if (filters.cms.length) n++;
+  if (filters.sajtSpor) n++;
+  if (filters.ponuda.length) n++;
   return n;
 }
 
@@ -219,6 +264,10 @@ export function filtersToArgs(filters: LeadFilters) {
     tel: filters.tel ?? undefined,
     dodir: filters.dodir.length ? filters.dodir : undefined,
     q: filters.q || undefined,
+    kvalitet: filters.kvalitet.length ? filters.kvalitet : undefined,
+    cms: filters.cms.length ? filters.cms : undefined,
+    sajtSpor: filters.sajtSpor ? true : undefined,
+    ponuda: filters.ponuda.length ? filters.ponuda : undefined,
   };
 }
 
@@ -299,6 +348,11 @@ export function useLeadFilters() {
     [filters, upisi],
   );
 
+  const setSajtSpor = useCallback(
+    (value: boolean) => upisi({ ...filters, sajtSpor: value }),
+    [filters, upisi],
+  );
+
   const setQ = useCallback(
     (value: string) => upisi({ ...filters, q: value.trim() }),
     [filters, upisi],
@@ -343,6 +397,7 @@ export function useLeadFilters() {
     setZaostali,
     setKoord,
     setTel,
+    setSajtSpor,
     setQ,
     clearGroup,
     clearAll,
