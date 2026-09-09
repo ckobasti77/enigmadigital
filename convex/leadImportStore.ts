@@ -155,6 +155,40 @@ export const parsedLeadRowValidator = v.object({
   sajtOcena: v.optional(sajtOcenaValidator),
 });
 
+/**
+ * JEDNO mesto istine za skup polja koja idu u `leadImportRows.parsed`.
+ *
+ * GL13: ovaj skup je ranije bio prepisan RUČNO — polje po polje — u
+ * `createImportCore`. Tako je `sajtOcena` tiho ispao iz upisa: ruta ga je
+ * slala, zod ga je propuštao, šema ga je dozvoljavala, ali do reda u bazi
+ * nikad nije stizao, pa `attachSkillData` nije imao šta da upiše u
+ * `leadSiteAudits` (ocena je ostajala „neocenjen"). Whitelist izveden iz samog
+ * validatora znači da novo polje NE MOŽE da se izgubi: dodaš ga u
+ * `parsedLeadRowValidator` i automatski je i u redu.
+ *
+ * `sirovo` je izuzet NAMERNO — nije deo `parsed` objekta, ima svoju kolonu
+ * (`leadImportRows.sirovo`), pa mora ostati van ove liste.
+ */
+export const POLJA_PARSED = (
+  Object.keys(parsedLeadRowValidator.fields) as (keyof ParsedLeadRow)[]
+).filter((k): k is Exclude<keyof ParsedLeadRow, "sirovo"> => k !== "sirovo");
+
+/**
+ * Izdvaja `parsed` deo reda po whitelisti iznad (bez `sirovo`).
+ *
+ * Dvostruki `as` je svestan: skup ključeva garantuje whitelist (izveden iz
+ * validatora), ali TS ne može da isprati tip svake vrednosti kroz dinamičku
+ * petlju. `undefined` vrednost prolazi kroz Convex kao odsustvo polja — isto
+ * kao raniji ručni literal koji je za nepostavljena polja pisao `undefined`.
+ */
+function izvuciParsed(row: ParsedLeadRow): Doc<"leadImportRows">["parsed"] {
+  const parsed = {} as Record<keyof ParsedLeadRow, unknown>;
+  for (const kljuc of POLJA_PARSED) {
+    parsed[kljuc] = row[kljuc];
+  }
+  return parsed as unknown as Doc<"leadImportRows">["parsed"];
+}
+
 export type RowConflict = {
   field: string;
   postojeca: string;
@@ -824,44 +858,12 @@ async function createImportCore(
       importId,
       sourceSheet: sheetName,
       sourceRowIndex: rowIndex,
-      parsed: {
-        nazivFirme: parsedRow.nazivFirme,
-        ulica: parsedRow.ulica,
-        opstina: parsedRow.opstina,
-        grad: parsedRow.grad,
-        telefon: parsedRow.telefon,
-        telefonNapomena: parsedRow.telefonNapomena,
-        email: parsedRow.email,
-        sajt: parsedRow.sajt,
-        imeOsobe: parsedRow.imeOsobe,
-        uloga: parsedRow.uloga,
-        ocena: parsedRow.ocena,
-        companyWallUrl: parsedRow.companyWallUrl,
-        companyWallTacnost: parsedRow.companyWallTacnost,
-        pib: parsedRow.pib,
-        maticniBroj: parsedRow.maticniBroj,
-        sifraDelatnosti: parsedRow.sifraDelatnosti,
-        napomena: parsedRow.napomena,
-        izvori: parsedRow.izvori,
-        derivedSignals: parsedRow.derivedSignals,
-        derivedFields: parsedRow.derivedFields,
-        // GL1: polja iz skilla. `undefined` prolazi kroz Convex kao odsustvo
-        // polja, pa red iz XLSX-a i dalje upisuje tačno ono što je i ranije.
-        placeId: parsedRow.placeId,
-        nisa: parsedRow.nisa,
-        imaSajt: parsedRow.imaSajt,
-        imaSajtNapomena: parsedRow.imaSajtNapomena,
-        sajtStatus: parsedRow.sajtStatus,
-        sajtHttps: parsedRow.sajtHttps,
-        sajtProverenAt: parsedRow.sajtProverenAt,
-        sajtNapomena: parsedRow.sajtNapomena,
-        koordinate: parsedRow.koordinate,
-        platforme: parsedRow.platforme,
-        osobe: parsedRow.osobe,
-        izvestajSkilla: parsedRow.izvestajSkilla,
-        // GL8: prosleđuje se u red kad je uvoz došao iz izvoza aplikacije.
-        postojecaFirmaId: parsedRow.postojecaFirmaId,
-      },
+      // GL13: `parsed` se izdvaja whitelistom iz `parsedLeadRowValidator`
+      // (`izvuciParsed`), NE ručnim prepisivanjem polja. Ranije je ručni
+      // literal izostavio `sajtOcena` i ocena nikad nije stizala do
+      // `attachSkillData`; sad novo polje ne može tiho da ispadne. `sirovo`
+      // ide u svoju kolonu ispod, van `parsed`.
+      parsed: izvuciParsed(parsedRow),
       sirovo: parsedRow.sirovo ?? [],
       temperatura: "nova_firma",
       obrisan: false,

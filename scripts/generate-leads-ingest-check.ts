@@ -25,6 +25,21 @@
  *   5. ODBIJA telefon bez `telefonSourceUrl` — identitet bez izvora ne sme ni
  *      da nastane (ZZPL/GDPR §8).
  *
+ * GL13 — DOKAZ DA OCENA STIŽE DO REDA I DO `leadSiteAudits`:
+ *   Zod-slučajevi (1–14) dokazuju samo da telo PARSIRA `sajtOcena`. To nije
+ *   bilo dovoljno: GL10/GL12 su prošli parse a ocena je i dalje nestajala, jer
+ *   ju je `createImportCore` izostavljao pri sastavljanju `parsed` literala.
+ *   Zato se ovde, nad lažnim `ctx`-om (in-memory baza, bez mreže), pušta PRAVI
+ *   put:
+ *     A) telo → `createImportFromIngest` (→ `createImportCore`) → upisan
+ *        `leadImportRows.parsed.sajtOcena` NOSI `lighthouse`, `claude` i
+ *        `snimci` (ID-jevi iz `/generate-leads/snimak`);
+ *     B) `upisiOcenuSajta` (jedina radnja koju `attachSkillData` pokreće za
+ *        ocenu) upisuje TAČNO JEDAN red u `leadSiteAudits` i postavlja
+ *        `poslednjaOcenaSajtaId` na firmi;
+ *     C) ČUVAR (GL13 §2): svako polje iz `parsedLeadRowValidator` osim `sirovo`
+ *        zaista postoji u upisanom `parsed` — novo polje ne može tiho da ispadne.
+ *
  * PRAVILO PRIVATNOSTI (§0 pravilo 6): svi podaci su očigledno izmišljeni
  * („Test Salon 1", „+381 60 000 0000"), a skripta nikad ne ispisuje vrednost
  * iz tela — samo putanje polja koje bi ruta vratila u 400.
@@ -36,6 +51,13 @@ import {
   generateLeadsIngestSchema,
   greskeValidacije,
 } from "../convex/lib/generateLeadsIngest";
+import {
+  POLJA_PARSED,
+  createImportFromIngest,
+  parsedLeadRowValidator,
+  upisiOcenuSajta,
+} from "../convex/leadImportStore";
+import type { ParsedLeadRow } from "../convex/lib/leadImportParse";
 
 type Slucaj = {
   naziv: string;
@@ -403,7 +425,222 @@ function assertOcenaPreziviParse(problemi: string[]): void {
   );
 }
 
-function main(): void {
+// ── GL13: lažni `ctx` (in-memory baza) ───────────────────────────────────────
+//
+// Dovoljno da createImportCore + upisiOcenuSajta rade: insert/get/patch i
+// query preko `withIndex(...).first()/.collect()`. Tabele su prazne, pa svaki
+// pogled („da li firma već postoji", „da li je pod zabranom") vraća prazno →
+// red dobija `nova_firma`, bez mreže i bez pravog Convexa.
+type FakeDoc = Record<string, unknown> & { _id: string };
+
+class FakeDb {
+  store: Record<string, FakeDoc[]> = {};
+  private brojac = 0;
+  private poId = new Map<string, FakeDoc>();
+
+  async insert(tabela: string, doc: Record<string, unknown>): Promise<string> {
+    const _id = `${tabela}_${++this.brojac}`;
+    const pun: FakeDoc = { ...doc, _id, _creationTime: Date.now() };
+    (this.store[tabela] ??= []).push(pun);
+    this.poId.set(_id, pun);
+    return _id;
+  }
+
+  async get(id: string): Promise<FakeDoc | null> {
+    return this.poId.get(id) ?? null;
+  }
+
+  async patch(id: string, polja: Record<string, unknown>): Promise<null> {
+    const doc = this.poId.get(id);
+    if (doc) Object.assign(doc, polja);
+    return null;
+  }
+
+  // `normalizeId` u testu: prihvata samo ID koji već postoji u bazi. Nepoznat
+  // string (npr. `postojecaFirmaId` iz tuđeg deploya) vraća null, kao pravi.
+  normalizeId(_tabela: string, id: string): string | null {
+    return this.poId.has(id) ? id : null;
+  }
+
+  query(tabela: string) {
+    const svi = () => this.store[tabela] ?? [];
+    const rezultat = (preds: Array<[string, unknown]>) => {
+      const filtrirano = svi().filter((r) =>
+        preds.every(([f, val]) => r[f] === val),
+      );
+      return {
+        first: async () => filtrirano[0] ?? null,
+        unique: async () => filtrirano[0] ?? null,
+        collect: async () => filtrirano,
+      };
+    };
+    return {
+      withIndex: (_ime: string, fn?: (q: unknown) => unknown) => {
+        const preds: Array<[string, unknown]> = [];
+        const q = {
+          eq: (f: string, val: unknown) => {
+            preds.push([f, val]);
+            return q;
+          },
+        };
+        if (fn) fn(q);
+        return rezultat(preds);
+      },
+      collect: async () => svi(),
+      first: async () => svi()[0] ?? null,
+    };
+  }
+}
+
+/** Pun red: SVAKO polje iz `parsedLeadRowValidator` (osim `sirovo`) je popunjeno
+ *  stvarnom vrednošću, da čuvar (C) pokaže da nijedno ne ispada. */
+const PUN_RED_SA_OCENOM: ParsedLeadRow = {
+  ...(PUN_RED as unknown as ParsedLeadRow),
+  telefonNapomena: "Broj iz zaglavlja sajta.",
+  imeOsobe: "Test Osoba Jedan",
+  uloga: "vlasnik",
+  ocena: { vrednost: 4.6, skala: 5, brojRecenzija: 120, izvor: "google" },
+  companyWallUrl: "https://www.companywall.rs/firma/test-nepostojeca",
+  companyWallTacnost: "tacno",
+  maticniBroj: "20000001",
+  sifraDelatnosti: "9602",
+  napomena: "Radno vreme: pon-pet 9-17.",
+  derivedFields: ["grad"],
+  imaSajtNapomena: "Sajt radi, HTTPS ispravan.",
+  postojecaFirmaId: "k1234567890abcdefghij000",
+  sajtOcena: PUNA_OCENA as unknown as ParsedLeadRow["sajtOcena"],
+};
+
+/**
+ * GL13 §3 (obavezno po kriterijumu gotovosti): telo → createImportCore →
+ * upisan red nosi `sajtOcena` → `upisiOcenuSajta` → jedan red u
+ * `leadSiteAudits` + pokazivač na firmi. Bez ovoga popravka nije dokazana.
+ */
+async function dokaziOcenaStizeDoReda(problemi: string[]): Promise<void> {
+  console.log("");
+  console.log("GL13: ocena stiže do reda i do leadSiteAudits (lažni ctx)");
+
+  const db = new FakeDb();
+  const ctx = { db } as unknown as Parameters<typeof upisiOcenuSajta>[0];
+  const workspaceId = "ws_test_gl13" as never;
+
+  // A) Pravi put uvoza iz skilla: createImportFromIngest → createImportCore.
+  const handler = (
+    createImportFromIngest as unknown as {
+      _handler: (ctx: unknown, args: unknown) => Promise<unknown>;
+    }
+  )._handler;
+  await handler(ctx, {
+    workspaceId,
+    uploadedBy: "user_test_gl13",
+    fileName: "generate-leads · Beograd · frizerski-saloni · test",
+    rows: [PUN_RED_SA_OCENOM],
+    warnings: [],
+    rezim: "obogati",
+    polja: ["sajt", "sajtOcena"],
+    nisaTrebaZakazivanje: true,
+  });
+
+  const redovi = db.store["leadImportRows"] ?? [];
+  if (redovi.length !== 1) {
+    problemi.push(`GL13: očekivan tačno 1 upisan red, dobijeno ${redovi.length}.`);
+    console.log(`  ✗ upisan red uvoza (dobijeno ${redovi.length})`);
+    return;
+  }
+  const parsed = redovi[0].parsed as ParsedLeadRow;
+  const oc = parsed.sajtOcena;
+
+  const ocenaUReduOk =
+    oc !== undefined &&
+    oc.lighthouse?.mobile?.performance === 40 &&
+    oc.claude?.model === "test-model" &&
+    oc.snimci?.desktopId === "kg2test0000000000000000000desk" &&
+    oc.snimci?.mobilniId === "kg2test0000000000000000000mobi";
+  if (!ocenaUReduOk) {
+    problemi.push(
+      "GL13: `leadImportRows.parsed.sajtOcena` NE nosi lighthouse/claude/snimci — ocena je ispala pri upisu reda (regresija GL13).",
+    );
+    console.log("  ✗ parsed.sajtOcena nosi lighthouse + claude + snimci");
+  } else {
+    console.log("  ✓ parsed.sajtOcena nosi lighthouse + claude + snimci (ID-jevi)");
+  }
+
+  // C) Čuvar: svako polje validatora osim `sirovo` je stvarno u `parsed`.
+  const ocekivana = Object.keys(parsedLeadRowValidator.fields).filter(
+    (k) => k !== "sirovo",
+  );
+  const nedostaju = ocekivana.filter(
+    (k) => !Object.prototype.hasOwnProperty.call(parsed, k),
+  );
+  if (nedostaju.length > 0) {
+    problemi.push(
+      `GL13 čuvar: polja iz validatora nedostaju u upisanom \`parsed\`: ${nedostaju.join(", ")}.`,
+    );
+    console.log(`  ✗ čuvar skupa ključeva (nedostaju: ${nedostaju.join(", ")})`);
+  } else if (Object.prototype.hasOwnProperty.call(parsed, "sirovo")) {
+    problemi.push("GL13 čuvar: `sirovo` ne sme da bude u `parsed` (ima svoju kolonu).");
+    console.log("  ✗ čuvar: `sirovo` je zalutao u `parsed`");
+  } else {
+    console.log(
+      `  ✓ čuvar: svih ${ocekivana.length} polja validatora (osim sirovo) je u parsed`,
+    );
+  }
+  // Da POLJA_PARSED i validator ne mogu tiho da se raziđu.
+  if (POLJA_PARSED.length !== ocekivana.length) {
+    problemi.push(
+      `GL13 čuvar: POLJA_PARSED (${POLJA_PARSED.length}) ≠ validator−sirovo (${ocekivana.length}).`,
+    );
+    console.log("  ✗ čuvar: POLJA_PARSED se razišao od validatora");
+  }
+
+  // B) upisiOcenuSajta: nov red u leadSiteAudits + pokazivač na firmi.
+  const companyId = await db.insert("leadCompanies", {
+    workspaceId,
+    name: "Test Salon 1",
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+  if (oc) {
+    await upisiOcenuSajta(ctx, {
+      workspaceId,
+      companyId: companyId as never,
+      ocena: oc as NonNullable<typeof oc>,
+      now: Date.now(),
+    });
+  }
+  const auditi = db.store["leadSiteAudits"] ?? [];
+  if (auditi.length !== 1) {
+    problemi.push(`GL13: očekivan tačno 1 red u leadSiteAudits, dobijeno ${auditi.length}.`);
+    console.log(`  ✗ jedan red u leadSiteAudits (dobijeno ${auditi.length})`);
+  } else {
+    console.log("  ✓ tačno jedan red u leadSiteAudits");
+  }
+  const firma = await db.get(companyId);
+  const pokazivacOk =
+    firma !== null &&
+    auditi.length === 1 &&
+    firma.poslednjaOcenaSajtaId === auditi[0]._id;
+  if (!pokazivacOk) {
+    problemi.push("GL13: `poslednjaOcenaSajtaId` na firmi nije postavljen na novi audit.");
+    console.log("  ✗ poslednjaOcenaSajtaId postavljen na firmi");
+  } else {
+    console.log("  ✓ poslednjaOcenaSajtaId postavljen na novi audit");
+  }
+  // Audit nosi i sud i snimke (spoj `...ocena`) — ne samo Lighthouse.
+  const audit = auditi[0] as (ParsedLeadRow["sajtOcena"] & { _id: string }) | undefined;
+  const auditPunOk =
+    audit !== undefined &&
+    audit.claude?.model === "test-model" &&
+    audit.snimci?.desktopId === "kg2test0000000000000000000desk";
+  if (!auditPunOk) {
+    problemi.push("GL13: red u leadSiteAudits ne nosi Claudeov sud i snimke.");
+    console.log("  ✗ leadSiteAudits red nosi sud + snimke");
+  } else {
+    console.log("  ✓ leadSiteAudits red nosi Claudeov sud + snimke");
+  }
+}
+
+async function main(): Promise<void> {
   const problemi: string[] = [];
 
   console.log(
@@ -458,6 +695,8 @@ function main(): void {
 
   assertOcenaPreziviParse(problemi);
 
+  await dokaziOcenaStizeDoReda(problemi);
+
   console.log("");
 
   if (problemi.length > 0) {
@@ -467,8 +706,8 @@ function main(): void {
   }
 
   console.log(
-    `✓ ${SLUCAJEVI.length} slucajeva, sema propusta ispravno i odbija neispravno.`,
+    `✓ ${SLUCAJEVI.length} zod slucajeva + GL13 dokaz (ocena stiže do reda i leadSiteAudits).`,
   );
 }
 
-main();
+void main();
