@@ -45,10 +45,10 @@ export const GENERATE_LEADS_HOURLY_CAP = 30;
  * Snimaka ekrana koje `/generate-leads/snimak` sme da primi po radnom
  * prostoru na sat (GL10, sajt-ocena-plan.md §4.3). Zaseban brojač od ingesta:
  * jedan run šalje do dva snimka po firmi, pa bi deljenje kape sa uvozima
- * potrošilo uvoz na slike. Broj je iz plana; ako je premali za stvarne runove
- * (30 slika = 15 firmi), menja se ovde.
+ * potrošilo uvoz na slike. Broj je iz plana; podignut na 300 jer je 30
+ * (15 firmi/sat) bilo premalo za stvarne runove.
  */
-export const GENERATE_LEADS_SNIMAK_HOURLY_CAP = 30;
+export const GENERATE_LEADS_SNIMAK_HOURLY_CAP = 300;
 
 /**
  * Claim one call against a route's hourly budget. Returns `true` when it is
