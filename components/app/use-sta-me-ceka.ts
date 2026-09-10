@@ -34,6 +34,29 @@ export type Zadatak = StaMeCeka["zadaci"][number];
  */
 const POMERAJ_MIN = -new Date().getTimezoneOffset();
 
+/**
+ * Broj posla po ključu zadatka — izvor za BEDŽ na jezičku ili u navigaciji
+ * (A4 §2: „isti izvor kao zvono, ne računaj drugačije").
+ *
+ * Gleda i `sklonjeni`: „sakrio sam obaveštenje" znači da ga ne želim u zvonu,
+ * ne da posao više ne postoji. Bedž na jezičku „Zaostali" koji nestane zato
+ * što je neko utišao obaveštenje bio bi laž po pravilu „bez bedža = nema
+ * posla".
+ *
+ * `undefined` = odgovor još nije stigao (bedž se tada ne crta, ne crta se
+ * nula). `0` = zadatak ne postoji, jer se zadatak sa brojem 0 nikad ne pravi.
+ */
+export function brojPosla(
+  staMeCeka: StaMeCeka | undefined,
+  kljuc: string,
+): number | undefined {
+  if (staMeCeka === undefined) return undefined;
+  const zadatak =
+    staMeCeka.zadaci.find((z) => z.kljuc === kljuc) ??
+    staMeCeka.sklonjeni.find((z) => z.kljuc === kljuc);
+  return zadatak?.broj ?? 0;
+}
+
 /** `undefined` dok se ne zna radni prostor ili dok odgovor ne stigne. */
 export function useStaMeCeka(): StaMeCeka | undefined {
   const { workspace } = useWorkspace();

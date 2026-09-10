@@ -6,37 +6,42 @@ import { api } from "@/convex/_generated/api";
 import type { Id, Doc } from "@/convex/_generated/dataModel";
 import type { GapType } from "@/convex/leadGapsStore";
 import {
-  AlertTriangle,
-  Building2,
-  ChevronRight,
   Globe,
   Hash,
-  Info,
   Phone,
+  ShieldAlert,
   UserCheck,
   UserX,
 } from "lucide-react";
-import { EmptyState } from "@/components/app/system/empty-state";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@/components/ui/table";
+import { Chip } from "@/components/app/system/chip";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { FeedbackNote } from "@/components/app/feedback";
-import { LEAD_GAP_LABELS, leadGapLabel } from "./lead-labels";
+import { leadGapLabel } from "./lead-labels";
 import { LeadGapFillDialog } from "./lead-gap-fill-dialog";
+import { PRIMARY_ACTION_CLASS } from "./lead-row-actions";
+import { WorkCard, WorkSection } from "./work-card";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type GapsPanelProps = {
   workspaceId: Id<"workspaces">;
 };
+
+/**
+ * ============================================================================
+ * RUPE U PODACIMA (A4 §2)
+ * ============================================================================
+ *
+ * Izmereno (plan §1.7): tabela je na 1568 px bežala van kartice — kolone
+ * „Evidentirano" i „Akcija" su ostajale iza `overflow-x-auto`, dakle na ekranu
+ * a nedohvatljive bez vodoravnog klizanja koje se ne vidi. Sedam kolona fiksne
+ * strukture za spisak firmi kojima fali JEDAN podatak je bio pogrešan oblik.
+ *
+ * Sada je isti jezik kartica kao „Danas" (`work-card.tsx`): kartica se prelama
+ * umesto da se seče, a svaka nosi TAČNO jednu primarnu radnju („Popuni rupu")
+ * koja otvara postojeći `lead-gap-fill-dialog`. Nijedan podatak iz tabele nije
+ * nestao — grad, poreklo, sajt, PIB i datum evidentiranja su čipovi na kartici.
+ */
 
 const GAP_CARDS: ReadonlyArray<{
   type: GapType;
@@ -83,31 +88,23 @@ const GAP_CARDS: ReadonlyArray<{
 ];
 
 export function GapsPanel({ workspaceId }: GapsPanelProps) {
-  const [selectedGap, setSelectedGap] = useState<GapType | null>("bez_telefona");
+  const [selectedGap, setSelectedGap] = useState<GapType>("bez_telefona");
   const [gapFillCompany, setGapFillCompany] = useState<Doc<"leadCompanies"> | null>(null);
 
-  const gaps = useQuery(api.leadGapsStore.listGaps, {
-    workspaceId,
-  });
+  const gaps = useQuery(api.leadGapsStore.listGaps, { workspaceId });
 
-  const gapDetails = useQuery(
-    api.leadGapsStore.listCompaniesWithGap,
-    selectedGap
-      ? {
-          workspaceId,
-          gapType: selectedGap,
-          limit: 100,
-        }
-      : "skip",
-  );
+  const gapDetails = useQuery(api.leadGapsStore.listCompaniesWithGap, {
+    workspaceId,
+    gapType: selectedGap,
+    limit: 100,
+  });
 
   if (gaps === undefined) {
     return <GapsPanelSkeleton />;
   }
 
-  const denominatorLabel = gaps.nepotpuno
-    ? `prebrojano ${gaps.ukupnoFirmi} firmi, ima ih još`
-    : `${gaps.ukupnoFirmi} ${gaps.ukupnoFirmi === 1 ? "firme" : "firmi"}`;
+  const izabrana = GAP_CARDS.find((c) => c.type === selectedGap);
+  const ukupnoIzabrane = izabrana ? gaps[izabrana.field] : 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -124,17 +121,18 @@ export function GapsPanel({ workspaceId }: GapsPanelProps) {
       )}
 
       {gaps.nepotpuno && (
-        <FeedbackNote
-          tone="warning"
-          title="Uzorak prebrojavanja je delimičan"
-        >
+        <FeedbackNote tone="warning" title="Uzorak prebrojavanja je delimičan">
           Pregledano je ukupno {gaps.ukupnoFirmi} firmi. Baza sadrži više zapisa, pa
           svaki prikazani broj predstavlja stanje u okviru analiziranog uzorka.
         </FeedbackNote>
       )}
 
-      {/* Kartice sa rupama - svaka sa obaveznim imeniocem */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      {/* Vrste rupa — svaka sa obaveznim imeniocem („N od M firmi u bazi") */}
+      <div
+        role="tablist"
+        aria-label="Vrste rupa u podacima"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+      >
         {GAP_CARDS.map((card) => {
           const count = gaps[card.field];
           const isSelected = selectedGap === card.type;
@@ -144,228 +142,128 @@ export function GapsPanel({ workspaceId }: GapsPanelProps) {
             <button
               key={card.type}
               type="button"
+              role="tab"
+              aria-selected={isSelected}
               onClick={() => setSelectedGap(card.type)}
+              title={card.description}
               className={cn(
-                "flex flex-col items-start rounded-xl border p-4 text-left transition-all duration-150 cursor-pointer",
+                "flex cursor-pointer flex-col items-start gap-1 rounded-xl border px-4 py-3 text-left transition-colors",
                 isSelected
-                  ? "border-accent-400 bg-surface-raised ring-2 ring-accent-400/40 shadow-sm"
-                  : "border-line bg-surface hover:border-line-strong hover:bg-surface-raised/50",
+                  ? "border-accent-400 bg-surface-raised ring-1 ring-accent-400/40"
+                  : "border-line bg-card hover:border-line-strong hover:bg-surface-raised/50",
               )}
             >
-              <div className="flex w-full items-center justify-between">
-                <div
-                  className={cn(
-                    "flex size-8 items-center justify-center rounded-lg border",
-                    isSelected
-                      ? "border-accent-400/50 bg-accent-400/10 text-accent-400"
-                      : "border-line bg-surface-raised text-text-muted",
-                  )}
-                >
-                  <Icon className="size-4" />
-                </div>
-                <span className="text-micro font-semibold uppercase tracking-wider text-text-muted">
-                  Zadatak
-                </span>
-              </div>
-
-              <div className="mt-3 flex flex-col">
-                <span className="text-sm font-semibold text-foreground">
-                  {card.label}
-                </span>
-                <span className="mt-1 text-2xl font-bold text-foreground">
-                  {count}{" "}
-                  <span className="text-xs font-normal text-text-muted">
-                    od {gaps.ukupnoFirmi}
-                  </span>
-                </span>
-              </div>
-
-              <div className="mt-2 text-micro text-text-muted">
-                {card.description}
-              </div>
-
-              <div className="mt-3 flex w-full items-center justify-between border-t border-line-soft pt-2 text-micro">
-                <span className="text-text-muted">
-                  {gaps.nepotpuno ? "Uzorak" : "Ukupno"}: {denominatorLabel}
-                </span>
-                <ChevronRight
-                  className={cn(
-                    "size-3.5 transition-transform",
-                    isSelected ? "text-accent-400 translate-x-0.5" : "text-text-muted",
-                  )}
+              <span className="flex w-full items-center gap-2 text-meta text-text-muted">
+                <Icon
+                  className={cn("size-3.5", isSelected && "text-accent-400")}
+                  aria-hidden
                 />
-              </div>
+                {card.label}
+              </span>
+              <span className="font-mono text-metric font-bold leading-none tabular-nums text-foreground">
+                {count}
+                <span className="ml-1.5 font-sans text-meta font-normal text-text-muted">
+                  od {gaps.ukupnoFirmi} {gaps.nepotpuno ? "pregledanih" : "u bazi"}
+                </span>
+              </span>
             </button>
           );
         })}
       </div>
 
-      {/* Tabela sa firmama koje imaju izabranu rupu */}
-      {selectedGap && (
-        <Card className="border-line bg-surface">
-          <CardHeader className="border-b border-line pb-4">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle className="text-base font-bold text-foreground">
-                  Zadaci za dopunu: {leadGapLabel(selectedGap)}
-                </CardTitle>
-                <CardDescription className="text-xs text-text-muted">
-                  Spisak firmi kojima nedostaje ovaj podatak. Rupa koja se vidi se popunjava.
-                </CardDescription>
-              </div>
-              {gapDetails && (
-                <div className="flex items-center gap-2 text-xs font-semibold text-text-muted">
-                  <span>
-                    Prikazano: <strong>{gapDetails.companies.length}</strong> firmi
-                  </span>
-                  {gapDetails.nepotpuno && (
-                    <span className="rounded bg-warning/10 px-2 py-0.5 text-micro font-bold text-warning">
-                      (uzorak od {gapDetails.pregledanoFirmi} pregledanih)
-                    </span>
+      <WorkSection
+        naslov={`Dopuni: ${leadGapLabel(selectedGap)}`}
+        icon={ShieldAlert}
+        kriterijum={`firme kojima nedostaje ovaj podatak · prikazano ${gapDetails?.companies.length ?? 0}${gapDetails && gapDetails.companies.length >= 100 ? "+" : ""}`}
+        ukupno={ukupnoIzabrane}
+        najmanje={gaps.nepotpuno}
+        loading={gapDetails === undefined}
+        prazno={
+          gapDetails !== undefined && gapDetails.companies.length === 0 ? (
+            // Prazna vrsta rupe nije gotov posao (A1 §3): ostale vrste su na
+            // karticama iznad, sa brojem — tamo je sledeći potez.
+            <>
+              Nijedna od {gaps.ukupnoFirmi} pregledanih firmi nema rupu „
+              {leadGapLabel(selectedGap)}”. Ostale vrste rupa, sa brojem firmi,
+              stoje na karticama iznad.
+            </>
+          ) : undefined
+        }
+      >
+        {gapDetails?.companies.map((company: Doc<"leadCompanies">) => {
+          const domen = company.domainNormalized || company.website;
+          return (
+            <WorkCard
+              key={company._id}
+              edge={null}
+              href={`/leadovi/${company._id}`}
+              name={company.name}
+              meta={[company.city, company.municipality, company.street]
+                .filter(Boolean)
+                .join(", ")}
+              zasto={
+                <>
+                  <Chip size="sm" tone={company.origin === "inbound" ? "accent" : "muted"}>
+                    {company.origin === "inbound" ? "Inbound" : "Uvoz"}
+                    {company.firstSeenSource ? ` · ${company.firstSeenSource}` : ""}
+                  </Chip>
+                  {domen ? (
+                    <Chip size="sm" tone="muted" title={company.website ?? undefined}>
+                      {domen}
+                    </Chip>
+                  ) : (
+                    <Chip size="sm" tone="danger">
+                      nema sajt
+                    </Chip>
                   )}
-                </div>
-              )}
-            </div>
-          </CardHeader>
+                  {company.pib ? (
+                    <Chip size="sm" tone="muted">
+                      PIB {company.pib}
+                    </Chip>
+                  ) : (
+                    <Chip size="sm" tone="warning">
+                      nema PIB
+                    </Chip>
+                  )}
+                  {company.addressNeedsVerification && (
+                    <Chip size="sm" tone="warning">
+                      proveriti adresu
+                    </Chip>
+                  )}
+                  <span className="w-full text-meta text-text-muted">
+                    evidentirano {formatDateTime(company.createdAt)}
+                  </span>
+                </>
+              }
+              primary={
+                <button
+                  type="button"
+                  onClick={() => setGapFillCompany(company)}
+                  className={PRIMARY_ACTION_CLASS}
+                >
+                  <ShieldAlert className="size-3.5" aria-hidden />
+                  Popuni rupu
+                </button>
+              }
+            />
+          );
+        })}
+      </WorkSection>
 
-          <CardContent className="p-0">
-            {gapDetails === undefined ? (
-              <div className="p-6 space-y-3">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : gapDetails.companies.length === 0 ? (
-              // Prazna vrsta rupe nije gotov posao (A1 §3): ostale vrste su na
-              // karticama iznad, sa brojem — tamo je sledeći potez.
-              <EmptyState
-                icon={Info}
-                size="sm"
-                title={`Nema firmi bez podatka „${leadGapLabel(selectedGap)}”`}
-              >
-                Svaka od {gaps.ukupnoFirmi} pregledanih firmi ima ovaj podatak.
-                Ostale vrste rupa, sa brojem firmi, su na karticama iznad.
-              </EmptyState>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-line bg-surface-raised/40 hover:bg-surface-raised/40">
-                      <TableHead className="font-semibold text-text-muted">Firma</TableHead>
-                      <TableHead className="font-semibold text-text-muted">Grad i adresa</TableHead>
-                      <TableHead className="font-semibold text-text-muted">Poreklo unosa</TableHead>
-                      <TableHead className="font-semibold text-text-muted">Sajt / Domen</TableHead>
-                      <TableHead className="font-semibold text-text-muted">PIB</TableHead>
-                      <TableHead className="font-semibold text-text-muted">Evidentirano</TableHead>
-                      <TableHead className="font-semibold text-text-muted text-right">Akcija</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {gapDetails.companies.map((company: Doc<"leadCompanies">) => {
-                      const hasWebsite = Boolean(company.website || company.domainNormalized);
-                      const hasPib = Boolean(company.pib);
-
-                      return (
-                        <TableRow
-                          key={company._id}
-                          className="border-line transition-colors hover:bg-surface-raised/60 cursor-pointer"
-                          onClick={() => setGapFillCompany(company)}
-                        >
-                          <TableCell className="font-medium text-foreground">
-                            <div className="flex items-center gap-2">
-                              <Building2 className="size-4 shrink-0 text-text-muted" />
-                              <div className="flex flex-col">
-                                <span className="font-semibold">{company.name}</span>
-                                {company.addressNeedsVerification && (
-                                  <span className="text-micro font-medium text-warning">
-                                    (proveriti adresu)
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </TableCell>
-
-                          <TableCell className="text-xs text-text-muted">
-                            {company.city ? (
-                              <span>
-                                {company.city}
-                                {company.municipality && `, ${company.municipality}`}
-                                {company.street && ` (${company.street})`}
-                              </span>
-                            ) : (
-                              <span className="text-text-muted">Nije navedeno</span>
-                            )}
-                          </TableCell>
-
-                          <TableCell className="text-xs">
-                            <span
-                              className={cn(
-                                "rounded px-2 py-0.5 text-micro font-semibold",
-                                company.origin === "inbound"
-                                  ? "bg-accent-400/10 text-accent-400 border border-accent-400/30"
-                                  : "bg-surface-raised text-text-muted border border-line",
-                              )}
-                            >
-                              {company.origin === "inbound" ? "Inbound" : "Uvoz"}
-                              {company.firstSeenSource && ` (${company.firstSeenSource})`}
-                            </span>
-                          </TableCell>
-
-                          <TableCell className="text-xs">
-                            {hasWebsite ? (
-                              <span className="text-foreground">
-                                {company.domainNormalized || company.website}
-                              </span>
-                            ) : (
-                              <span className="rounded bg-danger/10 px-1.5 py-0.5 text-micro font-semibold text-danger">
-                                Nema sajt
-                              </span>
-                            )}
-                          </TableCell>
-
-                          <TableCell className="text-xs">
-                            {hasPib ? (
-                              <span className="font-mono text-foreground">{company.pib}</span>
-                            ) : (
-                              <span className="rounded bg-warning/10 px-1.5 py-0.5 text-micro font-semibold text-warning">
-                                Nema PIB
-                              </span>
-                            )}
-                          </TableCell>
-
-                          <TableCell className="text-xs text-text-muted whitespace-nowrap">
-                            {formatDateTime(company.createdAt)}
-                          </TableCell>
-
-                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setGapFillCompany(company)}
-                              className="h-7 px-2.5 text-micro font-semibold text-accent-400 border-accent-400/30 bg-accent-400/5 hover:bg-accent-400/15"
-                            >
-                              Popuni rupu
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {gapDetails?.nepotpuno && (
+        <FeedbackNote tone="warning" title="Spisak je iz uzorka">
+          Pregledano je {gapDetails.pregledanoFirmi} firmi, koliko upit najviše
+          čita. Iza te granice može biti još firmi sa istom rupom.
+        </FeedbackNote>
       )}
 
       {/* Dijalog za popunjavanje konkretne rupe (§9.2) */}
-      {selectedGap && gapFillCompany && (
+      {gapFillCompany && (
         <LeadGapFillDialog
           workspaceId={workspaceId}
           company={gapFillCompany}
           gapType={selectedGap}
-          isOpen={Boolean(gapFillCompany)}
+          isOpen
           onOpenChange={(open) => {
             if (!open) setGapFillCompany(null);
           }}
@@ -378,17 +276,16 @@ export function GapsPanel({ workspaceId }: GapsPanelProps) {
 function GapsPanelSkeleton() {
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4">
-            <Skeleton className="h-8 w-8 rounded-lg" />
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-8 w-20" />
-            <Skeleton className="h-3 w-full" />
-          </div>
+          <Skeleton key={i} className="h-20 w-full rounded-xl" />
         ))}
       </div>
-      <Skeleton className="h-64 w-full rounded-xl" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-32 rounded-xl" />
+        ))}
+      </div>
     </div>
   );
 }

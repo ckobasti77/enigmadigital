@@ -1,30 +1,22 @@
 "use client";
 
-import { useMemo } from "react";
-import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id, Doc } from "@/convex/_generated/dataModel";
-import {
-  AlertTriangle,
-  Building2,
-  CalendarClock,
-  ClipboardCheck,
-  ExternalLink,
-} from "lucide-react";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
-import { buttonVariants } from "@/components/ui/button";
+import { AlertTriangle, CalendarClock, CalendarDays, CalendarRange } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
-import { EmptyState } from "@/components/app/system/empty-state";
-import { formatDateTime } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { Chip } from "@/components/app/system/chip";
+import { useNow } from "@/components/app/use-now";
+import { useWorkspace } from "@/components/app/workspace-provider";
+import { LeadRowActions } from "./lead-row-actions";
+import { LeadRowDialogs, type LeadRowDialogState } from "./lead-row-dialogs";
+import { WorkCard, WorkSection } from "./work-card";
+import { rowEdge, type LeadRowItem } from "./lead-urgency";
+import { useLeadFilters } from "./use-lead-filters";
+import { formatClockTime, formatDayRelative, formatDateTime } from "@/lib/format";
 
 type MeetingsPanelProps = {
   workspaceId: Id<"workspaces">;
@@ -93,13 +85,31 @@ export function groupMeetings(items: MeetingItem[], now: number): MeetingGroups 
   return groups;
 }
 
-/** Broj koji ide na jezičak: sastanci danas + prošli bez zabeleženog ishoda. */
-export function meetingsBadgeCount(groups: MeetingGroups): number {
-  return groups.danas.length + groups.prosliBezIshoda.length;
+/**
+ * Sastanak nema hidrirane kontakte (`listMeetings` čita samo dodelu i firmu),
+ * pa se red sastavlja sa praznim nizovima — isto kao u „Danas" (A3). Prazan
+ * niz znači „nema u bazi"; radnja „Pozovi" iz menija tada kaže zašto je siva.
+ */
+function kaoRed(m: MeetingItem): LeadRowItem {
+  return {
+    assignment: m.assignment,
+    company: m.company,
+    telefoni: [],
+    emailovi: [],
+    platforme: [],
+    osobe: [],
+    signali: [],
+  };
 }
 
 export function MeetingsPanel({ workspaceId }: MeetingsPanelProps) {
+  const now = useNow();
+  const { user } = useWorkspace();
+  const { applyQuery } = useLeadFilters();
   const data = useQuery(api.leadCrmStore.listMeetings, { workspaceId });
+
+  const [dialog, setDialog] = useState<LeadRowDialogState | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const groups = useMemo(
     () => (data ? groupMeetings(data.items as MeetingItem[], data.now) : null),
@@ -116,6 +126,15 @@ export function MeetingsPanel({ workspaceId }: MeetingsPanelProps) {
     groups.oveNedelje.length +
     groups.prosliBezIshoda.length;
 
+  const zajednicko = {
+    workspaceId,
+    now,
+    selfUserId: user?.id,
+    onOpenDialog: setDialog,
+    onOpenStageDialog: setDialog,
+    onError: setActionError,
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {data.mozdaImaJos && (
@@ -125,183 +144,187 @@ export function MeetingsPanel({ workspaceId }: MeetingsPanelProps) {
         </FeedbackNote>
       )}
 
+      {actionError && (
+        <FeedbackNote
+          tone="danger"
+          title="Radnja nije izvršena"
+          action={
+            <Button size="xs" variant="ghost" onClick={() => setActionError(null)}>
+              Zatvori
+            </Button>
+          }
+        >
+          {actionError}
+        </FeedbackNote>
+      )}
+
       {ukupno === 0 ? (
-        <Card className="border-line bg-surface">
-          <CardContent className="p-0">
-            {/* Nema sastanaka = nema dogovorenih termina, ne „nema posla":
-                sastanak se dogovara iz reda u tabeli (A1 §3). */}
-            <EmptyState
-              icon={CalendarClock}
-              title="Nema zakazanih sastanaka"
-              action={
-                <Link
-                  href="/leadovi?tab=leads"
-                  className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
-                >
-                  Otvori tabelu leadova
-                </Link>
-              }
-            >
-              Sastanak se dogovara iz reda u tabeli ili iz profila firme; ovde
-              se pojavljuje raspoređen po danima, a prošli bez ishoda idu na vrh.
-            </EmptyState>
-          </CardContent>
-        </Card>
+        // Nema sastanaka = nema dogovorenih termina, ne „nema posla":
+        // sastanak se dogovara iz reda u tabeli (A1 §3).
+        <WorkSection
+          naslov="Sastanci"
+          icon={CalendarClock}
+          kriterijum="prošli bez ishoda · danas · sutra · do kraja nedelje"
+          ukupno={0}
+          loading={false}
+          prazno={
+            <>
+              Nema zakazanih sastanaka. Sastanak se dogovara iz reda u tabeli ili
+              iz profila firme; ovde se pojavljuje raspoređen po danima, a prošli
+              bez ishoda idu na vrh.
+            </>
+          }
+          praznoAkcija={{
+            label: "Otvori tabelu leadova",
+            onClick: () => applyQuery("", { tab: "leads" }),
+          }}
+        />
       ) : (
         <>
           {/* Grupa upozorenja ide prva — to je razlog postojanja panela (§4). */}
           <MeetingGroup
-            title="Prošli, bez zabeleženog ishoda"
-            description="Sastanak je prošao, a niko nije upisao šta se desilo."
+            {...zajednicko}
+            naslov="Prošli, bez zabeleženog ishoda"
+            icon={AlertTriangle}
+            kriterijum="sastanak je prošao, a niko nije upisao šta se desilo"
             items={groups.prosliBezIshoda}
             tone="danger"
           />
           <MeetingGroup
-            title="Danas"
-            description="Sastanci zakazani za danas."
+            {...zajednicko}
+            naslov="Danas"
+            icon={CalendarClock}
+            kriterijum="sastanci zakazani za danas"
             items={groups.danas}
             tone="warning"
           />
           <MeetingGroup
-            title="Sutra"
-            description="Sastanci zakazani za sutra."
+            {...zajednicko}
+            naslov="Sutra"
+            icon={CalendarDays}
+            kriterijum="sastanci zakazani za sutra"
             items={groups.sutra}
             tone="neutral"
           />
           <MeetingGroup
-            title="Ove nedelje"
-            description="Sastanci do kraja ove nedelje."
+            {...zajednicko}
+            naslov="Ove nedelje"
+            icon={CalendarRange}
+            kriterijum="sastanci do kraja ove nedelje"
             items={groups.oveNedelje}
             tone="neutral"
           />
         </>
       )}
+
+      <LeadRowDialogs
+        workspaceId={workspaceId}
+        dialog={dialog}
+        onClose={() => setDialog(null)}
+      />
     </div>
   );
 }
 
 function MeetingGroup({
-  title,
-  description,
+  naslov,
+  icon,
+  kriterijum,
   items,
   tone,
+  workspaceId,
+  now,
+  selfUserId,
+  onOpenDialog,
+  onOpenStageDialog,
+  onError,
 }: {
-  title: string;
-  description: string;
+  naslov: string;
+  icon: React.ComponentType<{ className?: string }>;
+  kriterijum: string;
   items: MeetingItem[];
   tone: "danger" | "warning" | "neutral";
+  workspaceId: Id<"workspaces">;
+  now: number;
+  selfUserId?: string;
+  onOpenDialog: (dialog: LeadRowDialogState) => void;
+  onOpenStageDialog: (dialog: LeadRowDialogState) => void;
+  onError: (message: string) => void;
 }) {
-  // Prazne grupe se ne crtaju osim upozorenja — čist ekran kad nema ničega,
-  // ali grupa upozorenja se izostavlja jednako (nema šta da upozori).
+  // Prazne grupe se ne crtaju: kad sastanaka uopšte nema, ceo panel već ima
+  // jedno pošteno prazno stanje iznad.
   if (items.length === 0) return null;
 
-  const toneRing =
-    tone === "danger"
-      ? "border-danger/40"
-      : tone === "warning"
-        ? "border-warning/40"
-        : "border-line";
-
   return (
-    <Card className={cn("bg-surface", toneRing)}>
-      <CardHeader className="border-b border-line pb-3">
-        <div className="flex items-center gap-2">
-          {tone === "danger" && (
-            <AlertTriangle className="size-4 shrink-0 text-danger" />
-          )}
-          <div>
-            <CardTitle
-              className={cn(
-                "text-sm font-bold",
-                tone === "danger" ? "text-danger" : "text-foreground",
-              )}
-            >
-              {title} ({items.length})
-            </CardTitle>
-            <CardDescription className="text-xs text-text-muted">
-              {description}
-            </CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent className="flex flex-col divide-y divide-line p-0">
-        {items.map((item) => (
-          <MeetingRow key={item.assignment._id} item={item} tone={tone} />
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-function MeetingRow({
-  item,
-  tone,
-}: {
-  item: MeetingItem;
-  tone: "danger" | "warning" | "neutral";
-}) {
-  const companyId = item.assignment.companyId;
-  const profileHref = `/leadovi/${companyId}`;
-
-  return (
-    <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-start gap-2.5">
-        <Building2 className="mt-0.5 size-4 shrink-0 text-text-muted" />
-        <div className="flex min-w-0 flex-col">
-          <span className="truncate text-sm font-semibold text-foreground">
-            {item.company ? item.company.name : "Nepoznata firma"}
-          </span>
-          <span
-            className={cn(
-              "text-xs font-medium",
-              tone === "danger" ? "text-danger" : "text-text-muted",
-            )}
-          >
-            <CalendarClock className="mr-1 inline size-3 -translate-y-px" />
-            {formatDateTime(item.meetingAt)}
-          </span>
-          {item.meetingNote && (
-            <span className="mt-0.5 truncate text-xs italic text-text-muted">
-              „{item.meetingNote}"
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-2">
-        <Link
-          href={profileHref}
-          className={buttonVariants({
-            size: "sm",
-            variant: tone === "danger" ? "default" : "outline",
-            className: "gap-1.5 text-xs",
-          })}
-        >
-          <ClipboardCheck className="size-3.5" />
-          Zabeleži ishod
-        </Link>
-        <Link
-          href={profileHref}
-          className={buttonVariants({
-            size: "sm",
-            variant: "outline",
-            className: "gap-1.5 text-xs",
-          })}
-        >
-          <ExternalLink className="size-3.5" />
-          Otvori profil
-        </Link>
-      </div>
-    </div>
+    <WorkSection
+      naslov={naslov}
+      icon={icon}
+      kriterijum={kriterijum}
+      ukupno={items.length}
+      tone={tone}
+      loading={false}
+    >
+      {items.map((m) => {
+        const item = kaoRed(m);
+        return (
+          <WorkCard
+            key={m.assignment._id}
+            edge={rowEdge(item, now)}
+            href={`/leadovi/${m.assignment.companyId}`}
+            name={m.company?.name ?? "Nepoznata firma"}
+            meta={[m.company?.city, m.company?.municipality]
+              .filter(Boolean)
+              .join(", ")}
+            zasto={
+              <>
+                <Chip
+                  tone={tone === "neutral" ? "muted" : tone}
+                  size="sm"
+                  icon={CalendarClock}
+                  title={formatDateTime(m.meetingAt)}
+                >
+                  {formatDayRelative(m.meetingAt, now)} u {formatClockTime(m.meetingAt)}
+                </Chip>
+                {m.meetingNote && (
+                  <span className="w-full truncate text-meta italic text-text-muted">
+                    „{m.meetingNote}”
+                  </span>
+                )}
+              </>
+            }
+            primary={
+              <LeadRowActions
+                workspaceId={workspaceId}
+                item={item}
+                now={now}
+                selfUserId={selfUserId}
+                onCall={() => {
+                  /* `listMeetings` ne hidrira brojeve — poziv ide sa profila. */
+                }}
+                onOpenDialog={(kind) => onOpenDialog({ kind, item })}
+                onOpenStageDialog={(stage) =>
+                  onOpenStageDialog({ kind: "stage", item, stage })
+                }
+                onError={onError}
+                className="w-full justify-between"
+              />
+            }
+          />
+        );
+      })}
+    </WorkSection>
   );
 }
 
 function MeetingsPanelSkeleton() {
   return (
     <div className="flex flex-col gap-6">
-      <Skeleton className="h-40 w-full rounded-xl" />
-      <Skeleton className="h-40 w-full rounded-xl" />
+      <Skeleton className="h-8 w-64 rounded-lg" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-32 rounded-xl" />
+        ))}
+      </div>
     </div>
   );
 }

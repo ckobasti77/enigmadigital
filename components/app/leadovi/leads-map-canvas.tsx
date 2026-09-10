@@ -138,6 +138,25 @@ function namestiWorker() {
  */
 const WORKER_ROK_MS = 15_000;
 
+/**
+ * ============================================================================
+ * WATCHDOG PLOČICA POSLE UČITAVANJA STILA (A4 §3)
+ * ============================================================================
+ *
+ * Plan §1.7: „Mapa se u dva od tri otvaranja iscrta prazna (siva površina,
+ * legenda i kontrole vidljive)". Dokazano u A4 (`nocni-run/ux/tmp-tiles-403`
+ * sonda): kad `style.json`, sprite i glifovi prođu, a `.mvt` pločice budu
+ * odbijene (403/429 na deljenom CARTO ključu, ili ih mreža odseče), dobija se
+ * TAČNO taj ekran — i to potpuno tiho, jer je stara grana `if (e.tile) return`
+ * greške pločica smatrala šumom, a rezervni izvor je postojao samo PRE
+ * `style.load`.
+ *
+ * `PLOCICE_PRAG` je namerno > 1: jedna pločica koja padne na ivici sveta je
+ * šum. Tri i više u istom prozoru znači da izvor ne isporučuje podlogu.
+ */
+const PLOCICE_PRAG = 3;
+const PLOCICE_ROK_MS = 5_000;
+
 /** Beograd — podrazumevani centar kad nema tačaka (plan §8). */
 const BEOGRAD: [number, number] = [20.4573, 44.8125];
 const POCETNI_ZOOM = 11;
@@ -586,6 +605,14 @@ export function LeadsMapCanvas({
     // `style.load` može i da javi „ready", a platno ostane prazno.
     let rokWorker: ReturnType<typeof setTimeout> | null = null;
     let raf: number | null = null;
+    // ── Watchdog pločica POSLE učitavanja stila (A4 §3) ──
+    // Vidi `PLOCICE_*` konstante: stil koji se učita a čije pločice CDN odbija
+    // daje TAČNO simptom iz plana §1.7 — prazna površina uz vidljivu legendu.
+    let plociceGreske = 0;
+    let plociceStigle = 0;
+    let plociceRok: ReturnType<typeof setTimeout> | null = null;
+    let prebacenoZbogPlocica = false;
+    let prijavljenaPrvaGreskaPlocice = false;
 
     // Bez ovoga worker traži nepostojeći `/_next/static/chunks/…worker.mjs`
     // (GL6 §1). Mora pre prvog `new MapLibreMap`.
@@ -646,6 +673,7 @@ export function LeadsMapCanvas({
       zavrsenGreskom = true;
       if (rok) clearTimeout(rok);
       if (rokWorker) clearTimeout(rokWorker);
+      if (plociceRok) clearTimeout(plociceRok);
       cb().onStyleState({ faza: "error", poruka });
     };
 
@@ -678,6 +706,11 @@ export function LeadsMapCanvas({
     const ucitajStil = () => {
       if (rok) clearTimeout(rok);
       if (rokWorker) clearTimeout(rokWorker);
+      if (plociceRok) clearTimeout(plociceRok);
+      plociceRok = null;
+      plociceGreske = 0;
+      plociceStigle = 0;
+      prijavljenaPrvaGreskaPlocice = false;
       rok = setTimeout(() => {
         if (!ucitan && !uklonjena) probajSledeci("izvor nije odgovorio u roku od 20 s");
       }, STIL_ROK_MS);
@@ -709,12 +742,79 @@ export function LeadsMapCanvas({
       ucitajStil();
     };
 
+    /**
+     * Pločice su pale POSLE učitavanja stila (A4 §3). Stil se učitao, pa je
+     * ekran u stanju „ready" i legenda stoji — a površina je prazna. Do A4 se
+     * to nije ni brojalo: greška pločice je bila „šum" i ćutala je, pa je
+     * jedini izlaz bio da čovek zaključi da je mapa pokvarena.
+     *
+     * Prvo se pokuša rezervni izvor (isti spisak kao pri učitavanju); ako ga
+     * nema ili i on ćuti, ide stanje (b) sa razlogom i dugmetom „Pokušaj
+     * ponovo". Jednom po primerku mape — bez vrtenja u krug između izvora.
+     */
+    const plociceNeStizu = () => {
+      plociceRok = null;
+      if (uklonjena || zavrsenGreskom) return;
+      // Uslov je namerno strog: NIJEDNA pločica podloge nije stigla, a bar tri
+      // su odbijena. Pojedinačna pločica koja padne na ivici skupa je šum i ne
+      // sme da nacrta poruku o kvaru preko mape koja radi.
+      //
+      // (`map.areTilesLoaded()` ovde NE pomaže: odbijena pločica više nije „u
+      // učitavanju", pa taj metod vraća `true` baš u kvaru koji hvatamo.)
+      if (plociceGreske < PLOCICE_PRAG || plociceStigle > 0) return;
+      const pao = STILOVI[stilIndex].izvor;
+      console.error(
+        `[leads-map] ${plociceGreske} pločica nije stiglo sa izvora „${pao}" posle učitavanja stila.`,
+      );
+      if (!prebacenoZbogPlocica && stilIndex + 1 < STILOVI.length) {
+        prebacenoZbogPlocica = true;
+        stilIndex++;
+        // `ucitan` se vraća na `false` da watchdogovi učitavanja opet važe za
+        // nov izvor; `style.load` će ga ponovo podići.
+        ucitan = false;
+        ucitajStil();
+        return;
+      }
+      zavrsiSaGreskom(
+        `Izvor mape „${pao}" je učitao stil, ali ne isporučuje pločice (odbijeno ${plociceGreske}). ` +
+          "Mapa bi ostala prazna, pa je bolje da to piše nego da izgleda kao da nema firmi.",
+      );
+    };
+
     map.on("error", (e) => {
-      // Posle učitavanja stila greške su šum pločica/glifova — MapLibre ih
-      // sam loguje. Pre učitavanja, greška pločice takođe nije greška stila.
-      if (ucitan || uklonjena) return;
-      if ((e as { tile?: unknown }).tile) return;
+      if (uklonjena) return;
+      const jePlocica = Boolean((e as { tile?: unknown }).tile);
+      const sourceId = (e as { sourceId?: string }).sourceId;
+
+      // Naš GeoJSON izvor nema mrežnih pločica — greška iz njega nije razlog
+      // za promenu izvora podloge.
+      if (jePlocica && sourceId !== SRC_TACKE) {
+        plociceGreske++;
+        if (!prijavljenaPrvaGreskaPlocice) {
+          prijavljenaPrvaGreskaPlocice = true;
+          console.error(
+            `[leads-map] pločica podloge nije stigla (${STILOVI[stilIndex].izvor}): ${e.error?.message ?? "nepoznata greška"}`,
+          );
+        }
+        if (plociceRok === null) {
+          plociceRok = setTimeout(plociceNeStizu, PLOCICE_ROK_MS);
+        }
+        return;
+      }
+
+      // Posle učitavanja stila ostale greške (glifovi, sprite) MapLibre sam
+      // loguje i ne obaraju podlogu.
+      if (ucitan) return;
       probajSledeci(e.error?.message ?? "nepoznata greška");
+    });
+
+    // Uspešno stigla pločica podloge — jedini dokaz da izvor RADI. Bez ovog
+    // brojača watchdog iznad ne bi umeo da razlikuje „mrtav izvor" od „par
+    // pločica je palo, a mapa je puna".
+    map.on("data", (e) => {
+      if (uklonjena) return;
+      const ev = e as { tile?: unknown; sourceId?: string };
+      if (ev.tile && ev.sourceId !== SRC_TACKE) plociceStigle++;
     });
 
     // ── Skup tačaka koje TRENUTNO nisu u klasteru → three.js sloj ──
@@ -885,6 +985,7 @@ export function LeadsMapCanvas({
       reducedMq.removeEventListener("change", naPromenuPokreta);
       if (rok) clearTimeout(rok);
       if (rokWorker) clearTimeout(rokWorker);
+      if (plociceRok) clearTimeout(plociceRok);
       if (raf !== null) cancelAnimationFrame(raf);
       odjaviPitch?.();
       letRef.current?.kill();

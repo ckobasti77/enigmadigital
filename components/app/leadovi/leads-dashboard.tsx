@@ -1,9 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import {
   ArrowLeft,
   CalendarClock,
@@ -18,7 +16,7 @@ import {
   Users,
 } from "lucide-react";
 import { useWorkspace } from "@/components/app/workspace-provider";
-import { useStaMeCeka } from "@/components/app/use-sta-me-ceka";
+import { brojPosla, useStaMeCeka } from "@/components/app/use-sta-me-ceka";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { InvalidRule } from "@/convex/lib/leadScoring";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
@@ -42,12 +40,7 @@ import { ScoringRulesPanel } from "./scoring-rules-panel";
 import { NichesPanel } from "./niches-panel";
 import { LeadsMap } from "./leads-map";
 import { useLeadFilters } from "./use-lead-filters";
-import {
-  MeetingsPanel,
-  groupMeetings,
-  meetingsBadgeCount,
-  type MeetingItem,
-} from "./meetings-panel";
+import { MeetingsPanel } from "./meetings-panel";
 
 /**
  * Ljuska ekrana leadova (A1 §4, plan O4; A3 O1).
@@ -99,30 +92,17 @@ export function LeadsDashboard() {
   const setTab = (next: Tab) => setNav({ tab: next === "danas" ? null : next });
   const [invalidRules, setInvalidRules] = useState<InvalidRule[]>([]);
 
-  // Brojači na jezičcima „Posao". Iste upite koriste i paneli — Convex klijent
-  // deduplikuje na jednu pretplatu. `"skip"` dok radni prostor nije spreman
-  // poštuje pravila hukova (poziva se pri svakom renderu).
-  const wsId = workspace?.id as Id<"workspaces"> | undefined;
-  const meetingsData = useQuery(
-    api.leadCrmStore.listMeetings,
-    wsId ? { workspaceId: wsId } : "skip",
-  );
-  const overdueData = useQuery(
-    api.leadCrmStore.listOverdue,
-    wsId ? { workspaceId: wsId, limit: 100 } : "skip",
-  );
-  const meetings = useMemo(() => {
-    if (!meetingsData) return null;
-    const groups = groupMeetings(meetingsData.items as MeetingItem[], meetingsData.now);
-    return { count: meetingsBadgeCount(groups), prosli: groups.prosliBezIshoda.length };
-  }, [meetingsData]);
-  const overdueCount = overdueData?.count ?? 0;
-
-  // „Rupe u podacima" (A2): broj firmi bez telefona stiže iz istog izvedenog
-  // upita koji hrani zvono, pa se ne otvara drugo brojanje istog posla.
+  // Brojači na jezičcima „Posao" (A4 §2): SVA TRI stižu iz istog izvedenog
+  // upita koji hrani zvono (A2). Pre A4 su Zaostali i Sastanci brojali sami
+  // (`listOverdue.count`, grupisanje `listMeetings`), pa su zvono i jezičak
+  // mogli da pokažu različit broj za isti posao — sada ne mogu.
+  //
+  // Sastanci: ključ `leadovi.sastanci` broji „danas + prošli bez ishoda",
+  // tačno ono što je jezičak brojao sam iz `groupMeetings`.
   const staMeCeka = useStaMeCeka();
-  const rupeCount =
-    staMeCeka?.zadaci.find((z) => z.kljuc === "leadovi.bez_telefona")?.broj ?? 0;
+  const rupeCount = brojPosla(staMeCeka, "leadovi.bez_telefona");
+  const overdueCount = brojPosla(staMeCeka, "leadovi.zaostali");
+  const meetingsCount = brojPosla(staMeCeka, "leadovi.sastanci");
 
   if (isLoading || !workspace) {
     return <LeadsDashboardSkeleton />;
@@ -146,43 +126,42 @@ export function LeadsDashboard() {
       // ekrana. A2 je uveo jeftin izvedeni upit (telefoni se čitaju kroz
       // `by_workspace_kind_value`, dakle SAMO telefoni), pa broj sad stiže i
       // ovde — iz istog izvora iz kog ga čita zvono.
-      badge: (
-        <CountBadge
-          count={rupeCount}
-          tone="warning"
-          label={`${rupeCount} ${pluralSr(rupeCount, "firma bez broja", "firme bez broja", "firmi bez broja")}`}
-        />
-      ),
+      badge:
+        rupeCount === undefined ? undefined : (
+          <CountBadge
+            count={rupeCount}
+            tone="warning"
+            label={`${rupeCount} ${pluralSr(rupeCount, "firma bez broja", "firme bez broja", "firmi bez broja")}`}
+          />
+        ),
     },
     {
       id: "overdue",
       label: "Zaostali",
       icon: Clock,
       group: "Posao",
-      badge: (
-        <CountBadge
-          count={overdueCount}
-          tone="danger"
-          label={`${overdueCount} ${pluralSr(overdueCount, "zaostao korak", "zaostala koraka", "zaostalih koraka")}`}
-        />
-      ),
+      badge:
+        overdueCount === undefined ? undefined : (
+          <CountBadge
+            count={overdueCount}
+            tone="danger"
+            label={`${overdueCount} ${pluralSr(overdueCount, "zaostao korak", "zaostala koraka", "zaostalih koraka")}`}
+          />
+        ),
     },
     {
       id: "meetings",
       label: "Sastanci",
       icon: CalendarClock,
       group: "Posao",
-      badge: meetings ? (
-        <CountBadge
-          count={meetings.count}
-          tone={meetings.prosli > 0 ? "danger" : "warning"}
-          label={
-            meetings.prosli > 0
-              ? `${meetings.count} — od toga ${meetings.prosli} bez zabeleženog ishoda`
-              : `${meetings.count} ${pluralSr(meetings.count, "sastanak danas", "sastanka danas", "sastanaka danas")}`
-          }
-        />
-      ) : undefined,
+      badge:
+        meetingsCount === undefined ? undefined : (
+          <CountBadge
+            count={meetingsCount}
+            tone="danger"
+            label={`${meetingsCount} ${pluralSr(meetingsCount, "sastanak", "sastanka", "sastanaka")} danas ili bez zabeleženog ishoda`}
+          />
+        ),
     },
   ];
 

@@ -39,11 +39,21 @@ const SAMO = opt("--samo", null)?.split(",").map((s) => s.trim()).filter(Boolean
 
 // „pre" / „posle" su A1 i ne smeju da se prepišu — to je jedini dokaz da ta
 // faza nije pokvarila ekrane. Svaka sledeća faza snima pod svojim imenom.
-const FAZE = ["pre", "posle", "a2", "a3-pre", "a3"];
+const FAZE = ["pre", "posle", "a2", "a3-pre", "a3", "a4-pre", "a4"];
 if (!FAZE.includes(FAZA)) {
   console.error(`Zadaj --faza ${FAZE.join(" | ")}`);
   process.exit(2);
 }
+
+const VIEWPORTI = [
+  { ime: "1440x900", width: 1440, height: 900, mobile: false },
+  { ime: "390x844", width: 390, height: 844, mobile: true },
+  // A4 §2: prelivanje tabele „Rupe u podacima" je IZMERENO na 1568 px, pa se
+  // baš ta širina snima — na 1440 se preliv ne vidi isto.
+  { ime: "1568x900", width: 1568, height: 900, mobile: false },
+];
+
+const PODRAZUMEVANI_VP = ["1440x900", "390x844"];
 
 const EKRANI = [
   { ime: "kontrolna-tabla", putanja: "/" },
@@ -52,15 +62,18 @@ const EKRANI = [
   // (pre A3 nepoznat jezičak takođe daje tabelu, pa isti URL važi za obe faze).
   { ime: "leadovi-tabela", putanja: "/leadovi?tab=leads" },
   { ime: "leadovi-zaostali", putanja: "/leadovi?tab=overdue" },
+  // A4: radni redovi i mapa.
+  {
+    ime: "leadovi-rupe",
+    putanja: "/leadovi?tab=gaps",
+    viewporti: [...PODRAZUMEVANI_VP, "1568x900"],
+  },
+  { ime: "leadovi-sastanci", putanja: "/leadovi?tab=meetings" },
+  { ime: "leadovi-mapa", putanja: "/leadovi?tab=map" },
   { ime: "instagram", putanja: "/instagram" },
   { ime: "openreply", putanja: "/openreply" },
   { ime: "settings", putanja: "/settings" },
 ].filter((e) => !SAMO || SAMO.includes(e.ime));
-
-const VIEWPORTI = [
-  { ime: "1440x900", width: 1440, height: 900, mobile: false },
-  { ime: "390x844", width: 390, height: 844, mobile: true },
-];
 
 const BASE = `http://localhost:${PORT}`;
 const SERVER_ROK_MS = 240_000;
@@ -215,7 +228,8 @@ async function main() {
     const zapisi = [];
     try {
       for (const ekran of EKRANI) {
-        for (const vp of VIEWPORTI) {
+        const vpImena = ekran.viewporti ?? PODRAZUMEVANI_VP;
+        for (const vp of VIEWPORTI.filter((v) => vpImena.includes(v.ime))) {
           process.stdout.write(`snimam ${ekran.ime} @ ${vp.ime} … `);
           try {
             const z = await snimi(browser, ekran, vp);

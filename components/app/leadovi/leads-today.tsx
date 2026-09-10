@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -8,14 +8,12 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { LeadScore } from "@/convex/lib/leadScoring";
 import {
   Activity,
-  ArrowRight,
   CalendarClock,
   ExternalLink,
   Phone,
   PhoneCall,
   PhoneOff,
 } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Chip } from "@/components/app/system/chip";
 import { useNow } from "@/components/app/use-now";
 import { Unfold } from "@/components/motion/unfold";
@@ -29,8 +27,8 @@ import { PRIMARY_ACTION_CLASS } from "./lead-row-actions";
 import { axisPct, zastoSignals } from "./lead-columns";
 import { leadSignalLabel } from "./lead-labels";
 import { groupMeetings, type MeetingItem } from "./meetings-panel";
+import { WorkCard, WorkSection } from "./work-card";
 import {
-  ROW_EDGE_CLASS,
   isMeetingUnresolved,
   rowEdge,
   telHref,
@@ -278,7 +276,7 @@ export function LeadsToday({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
       </section>
 
       {/* ── Zovi sada ── */}
-      <Traka
+      <WorkSection
         naslov="Zovi sada"
         icon={PhoneCall}
         kriterijum={
@@ -319,10 +317,10 @@ export function LeadsToday({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
           const strip = callStrip?.companyId === String(item.assignment.companyId) ? callStrip.phone : null;
           const z = zastoSignals(item);
           return (
-            <Kartica
+            <WorkCard
               key={item.assignment._id}
               edge={rowEdge(item, now)}
-              companyId={item.assignment.companyId}
+              href={`/leadovi/${item.assignment.companyId}`}
               name={company?.name ?? "Nepoznata firma"}
               meta={[company?.city, nisaZa(company)].filter(Boolean).join(" · ")}
               zasto={
@@ -374,13 +372,13 @@ export function LeadsToday({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
                   />
                 </Unfold>
               )}
-            </Kartica>
+            </WorkCard>
           );
         })}
-      </Traka>
+      </WorkSection>
 
       {/* ── Vrati se na ── */}
-      <Traka
+      <WorkSection
         naslov="Vrati se na"
         icon={CalendarClock}
         kriterijum={`zaostao korak · sastanak bez ishoda · sastanak u naredna ${VRATI_SE_DANA} dana`}
@@ -419,10 +417,10 @@ export function LeadsToday({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
           const company = item.company;
           const bezIshoda = kind === "sastanak_bez_ishoda" || isMeetingUnresolved(item.assignment, now);
           return (
-            <Kartica
+            <WorkCard
               key={item.assignment._id}
               edge={rowEdge(item, now)}
-              companyId={item.assignment.companyId}
+              href={`/leadovi/${item.assignment.companyId}`}
               name={company?.name ?? "Nepoznata firma"}
               meta={[company?.city, nisaZa(company)].filter(Boolean).join(" · ")}
               zasto={
@@ -456,10 +454,10 @@ export function LeadsToday({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
             />
           );
         })}
-      </Traka>
+      </WorkSection>
 
       {/* ── Dopuni pa zovi ── */}
-      <Traka
+      <WorkSection
         naslov="Dopuni pa zovi"
         icon={PhoneOff}
         kriterijum={`nema telefon · Fit ≥ ${STRENGTH_HIGH_PCT} %`}
@@ -497,10 +495,10 @@ export function LeadsToday({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
         {dopuni?.izabrani.map(({ company, fit, score }) => {
           const signali = [...new Set(score.fit.contributions.map((c) => c.signalKind))].slice(0, 3);
           return (
-            <Kartica
+            <WorkCard
               key={company._id}
               edge={null}
-              companyId={company._id}
+              href={`/leadovi/${company._id}`}
               name={company.name}
               meta={[company.city, nisaZa(company)].filter(Boolean).join(" · ")}
               zasto={
@@ -523,7 +521,7 @@ export function LeadsToday({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
             />
           );
         })}
-      </Traka>
+      </WorkSection>
 
       <LeadRowDialogs workspaceId={workspaceId} dialog={dialog} onClose={() => setDialog(null)} />
       {fillCompany && (
@@ -582,134 +580,5 @@ function FitOznaka({ fit }: { fit: number }) {
         {fit}
       </span>
     </span>
-  );
-}
-
-function Traka({
-  naslov,
-  icon: Icon,
-  kriterijum,
-  ukupno,
-  najmanje,
-  vidiSve,
-  dodatniLink,
-  loading,
-  prazno,
-  praznoAkcija,
-  children,
-}: {
-  naslov: string;
-  icon: React.ComponentType<{ className?: string }>;
-  kriterijum: string;
-  ukupno: number | undefined;
-  najmanje?: boolean;
-  vidiSve?: { label: string; onClick: () => void };
-  dodatniLink?: { label: string; onClick: () => void };
-  loading: boolean;
-  prazno?: ReactNode;
-  praznoAkcija?: { label: string; onClick: () => void };
-  children?: ReactNode;
-}) {
-  return (
-    <section aria-label={naslov} className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="inline-flex items-center gap-2 text-title font-bold text-foreground">
-          <Icon className="size-4 text-text-muted" aria-hidden />
-          {naslov}
-          {ukupno !== undefined && (
-            <span className="font-mono text-ui font-medium tabular-nums text-text-muted">
-              {najmanje ? "≥ " : ""}{ukupno}
-            </span>
-          )}
-        </h2>
-        <span className="text-meta text-text-muted">{kriterijum}</span>
-        <span className="ml-auto flex items-center gap-3">
-          {dodatniLink && (
-            <button type="button" onClick={dodatniLink.onClick} className="cursor-pointer text-meta text-text-muted underline-offset-2 hover:text-foreground hover:underline">
-              {dodatniLink.label}
-            </button>
-          )}
-          {vidiSve && (
-            <button
-              type="button"
-              onClick={vidiSve.onClick}
-              className="inline-flex cursor-pointer items-center gap-1 text-meta font-medium text-accent-400 underline-offset-2 hover:underline"
-            >
-              {vidiSve.label}
-              <ArrowRight className="size-3.5" aria-hidden />
-            </button>
-          )}
-        </span>
-      </div>
-
-      {loading ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-xl" />
-          ))}
-        </div>
-      ) : prazno ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-line px-4 py-3 text-ui text-text-muted">
-          <p className="min-w-0 flex-1">{prazno}</p>
-          {praznoAkcija && (
-            <button
-              type="button"
-              onClick={praznoAkcija.onClick}
-              className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-line bg-surface-raised px-2.5 text-meta font-medium text-foreground transition-colors hover:border-line-strong"
-            >
-              {praznoAkcija.label}
-              <ArrowRight className="size-3.5" aria-hidden />
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
-      )}
-    </section>
-  );
-}
-
-function Kartica({
-  edge,
-  companyId,
-  name,
-  meta,
-  zasto,
-  primary,
-  secondary,
-  children,
-}: {
-  edge: ReturnType<typeof rowEdge>;
-  companyId: Id<"leadCompanies">;
-  name: string;
-  meta: string;
-  zasto: ReactNode;
-  primary: ReactNode;
-  secondary?: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <article
-      className={cn(
-        "flex flex-col gap-2.5 rounded-xl border border-l-4 border-line bg-card px-4 py-3 shadow-card",
-        edge ? ROW_EDGE_CLASS[edge] : "border-l-line-strong",
-      )}
-    >
-      <div className="min-w-0">
-        <Link
-          href={`/leadovi/${companyId}`}
-          className="block truncate text-copy font-bold text-foreground transition-colors hover:text-accent-400 hover:underline"
-        >
-          {name}
-        </Link>
-        <p className="truncate text-meta text-text-muted">{meta || "—"}</p>
-      </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">{zasto}</div>
-      <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-        {primary ?? <span className="text-meta text-text-muted">—</span>}
-        {secondary}
-      </div>
-      {children}
-    </article>
   );
 }

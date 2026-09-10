@@ -531,18 +531,110 @@ const countLeadsByFacet: R<typeof api.leadFiltersStore.countLeadsByFacet> = {
 
 const listPresets: R<typeof api.leadFiltersStore.listPresets> = [];
 
-const listMeetings: R<typeof api.leadCrmStore.listMeetings> = {
-  items: [],
-  count: 0,
-  mozdaImaJos: false,
-  now,
-};
+/**
+ * Sastanci i zaostali koraci (A4 §2). A1–A3 su ih ostavili prazne, pa se
+ * radni redovi „Zaostali" i „Sastanci" nikad nisu videli sa sadržajem —
+ * snimak je pokazivao samo prazno stanje. Ovde postoje TRI zaostala koraka i
+ * TRI sastanka (jedan prošao bez ishoda, jedan danas, jedan sutra), pa se
+ * prerada radnih redova može uporediti pre/posle nad istim ulazom.
+ *
+ * Brojevi su usklađeni sa `staMeCekaSnimak` niže — bedž na jezičku i zvono
+ * čitaju isti izvor, pa ni fixture ne sme da ih razilazi.
+ */
+const ZAOSTALIH = 3;
+const SASTANAK_PROSAO_BEZ_ISHODA = 1;
+const SASTANAKA_DANAS = 1;
 
-const listOverdue: R<typeof api.leadCrmStore.listOverdue> = {
-  items: [],
-  count: 0,
-  mozdaImaJos: false,
-  pregledano: 0,
+/** Sastanak danas u 15:30 lokalno — grupa „Danas" ne sme da zavisi od sata runa. */
+function danasU(sat: number, minut: number): number {
+  const d = new Date(now);
+  d.setHours(sat, minut, 0, 0);
+  return d.getTime();
+}
+
+const listMeetings: R<typeof api.leadCrmStore.listMeetings> = (() => {
+  const izvori = [
+    // prošao pre dva dana, ishod nije zabeležen → grupa upozorenja
+    { lead: LEADOVI[2], meetingAt: now - 2 * DAY, note: "Poslati ponudu posle sastanka", ishod: false },
+    // danas
+    { lead: LEADOVI[5], meetingAt: danasU(15, 30), note: undefined, ishod: false },
+    // sutra
+    { lead: LEADOVI[8], meetingAt: danasU(11, 0) + DAY, note: "Prvi sastanak u salonu", ishod: false },
+  ];
+  const items = izvori.map(({ lead, meetingAt, note, ishod }) => ({
+    assignment: {
+      ...lead.assignment,
+      stage: "sastanak" as const,
+      meetingAt,
+      ...(note ? { meetingNote: note } : {}),
+    },
+    company: lead.company,
+    meetingAt,
+    meetingNote: note,
+    uProslosti: meetingAt < now,
+    ishodZabelezen: ishod,
+  }));
+  return { items, count: items.length, mozdaImaJos: false, now };
+})();
+
+const listOverdue: R<typeof api.leadCrmStore.listOverdue> = (() => {
+  const izvori = [
+    { lead: LEADOVI[1], kasni: 3 * DAY, napomena: "Zvati posle 10h" },
+    { lead: LEADOVI[6], kasni: 1 * DAY + 4 * HOUR, napomena: undefined },
+    { lead: LEADOVI[11], kasni: 5 * HOUR, napomena: "Poslati primer sajta" },
+  ];
+  const items = izvori.map(({ lead, kasni, napomena }) => ({
+    ...lead,
+    assignment: {
+      ...lead.assignment,
+      stage: "u_radu" as const,
+      nextActionAt: now - kasni,
+      ...(napomena ? { nextActionNote: napomena } : {}),
+      lastTouchAt: now - kasni - 2 * DAY,
+    },
+    isOverdue: true,
+    delayMs: kasni,
+  }));
+  return { items, count: items.length, mozdaImaJos: false, pregledano: 12, now };
+})();
+
+/** Mapa (GL3): iste firme, samo one sa koordinatama — sve sintetičke ih imaju. */
+const listLeadsForMap: R<typeof api.leadFiltersStore.listLeadsForMap> = {
+  tacke: LEADOVI.map((l, i) => {
+    const score = scoreZa(i + 1);
+    const fitRazlog =
+      score.fit.maxPoints === 0
+        ? ("bez_pravila" as const)
+        : score.fit.signalsCounted === 0
+          ? ("bez_signala" as const)
+          : null;
+    return {
+      companyId: l.company._id,
+      naziv: l.company.name,
+      grad: l.company.city ?? null,
+      lat: l.company.lat as number,
+      lng: l.company.lng as number,
+      temperatura: l.company.temperatura ?? null,
+      fit: fitRazlog === null ? Math.round((score.fit.points / score.fit.maxPoints) * 100) : null,
+      fitRazlog,
+      fitBodovi: score.fit.points,
+      fitMax: score.fit.maxPoints,
+      faza: l.assignment.stage,
+      nisa: l.company.nicheId === NISA_KOZMETICKI ? "Kozmetički salon" : l.company.nicheId ? "Frizerski salon" : null,
+      nisaSlug: l.company.nicheId === NISA_KOZMETICKI ? "kozmeticki-salon" : l.company.nicheId ? "frizerski-salon" : null,
+      imaSajt: l.company.imaSajt ?? null,
+      sajtKvalitet: null,
+      poslednjiDodirAt: l.assignment.lastTouchAt ?? null,
+      sastanakAt: l.assignment.meetingAt ?? null,
+    };
+  }),
+  bezKoordinata: 51,
+  saKoordinatamaUkupno: 127,
+  ukupno: 178,
+  prekoracen: false,
+  identitetiOdseceni: false,
+  signaliOdseceni: false,
+  pregledano: 178,
   now,
 };
 
@@ -589,10 +681,15 @@ const staMeCekaSnimak: Snimak = {
       primecenAt: now - 3 * DAY,
     },
   ],
-  zaostaliKoraci: 0,
+  // A4: isti brojevi kao `listOverdue` / `listMeetings` iznad — bedž na
+  // jezičku i zvono ne smeju da broje različito.
+  zaostaliKoraci: ZAOSTALIH,
   zaostaliOdsecen: false,
-  sastanciDanas: [],
-  sastanciProsliBezIshoda: 0,
+  sastanciDanas: [{ at: danasU(15, 30), firma: LEADOVI[5].company.name }].slice(
+    0,
+    SASTANAKA_DANAS,
+  ),
+  sastanciProsliBezIshoda: SASTANAK_PROSAO_BEZ_ISHODA,
   nikadDodirnut: 178,
   ukupnoDodela: 178,
   dodeleOdsecene: false,
@@ -643,6 +740,7 @@ const FIXTURES: Record<string, Fixture> = {
   [getFunctionName(api.leadCrmStore.listMeetings)]: () => listMeetings,
   [getFunctionName(api.leadCrmStore.listOverdue)]: () => listOverdue,
   [getFunctionName(api.leadGapsStore.listGaps)]: () => listGaps,
+  [getFunctionName(api.leadFiltersStore.listLeadsForMap)]: () => listLeadsForMap,
   [getFunctionName(api.notificationsStore.staMeCeka)]: () => staMeCeka,
 };
 
