@@ -299,6 +299,15 @@ const TEMPERATURE: (Temperatura | undefined)[] = [
   undefined,
 ];
 
+// Niše (A3): „Frizerski salon" 113 · „Kozmetički salon" 44 · bez niše 21 —
+// isti odnos (~2/3 : 1/4 : ostatak) i na 25 sintetičkih firmi.
+const NISA_FRIZERSKI = "nc_ux_test_frizerski_000000" as Id<"niches">;
+const NISA_KOZMETICKI = "nc_ux_test_kozmeticki_00000" as Id<"niches">;
+function nisaZaFirmu(i: number): Id<"niches"> | undefined {
+  if (i % 8 === 7) return undefined;
+  return i % 4 === 2 ? NISA_KOZMETICKI : NISA_FRIZERSKI;
+}
+
 function napraviLead(i: number) {
   const rnd = lcg(100 + i);
   const companyId = `lc_ux_test_${String(i).padStart(3, "0")}` as Id<"leadCompanies">;
@@ -314,6 +323,7 @@ function napraviLead(i: number) {
     origin: i === 4 ? "inbound" : "import",
     city: GRADOVI[i % GRADOVI.length],
     municipality: OPSTINE[i % OPSTINE.length],
+    nicheId: nisaZaFirmu(i),
     temperatura: TEMPERATURE[i % TEMPERATURE.length],
     ...(imaSajt
       ? {
@@ -386,6 +396,72 @@ const listLeadsFiltered: R<typeof api.leadFiltersStore.listLeadsFiltered> = {
   pregledano: 178,
   now,
 };
+
+/**
+ * „Zovi sada" (A3) traži `tel ≥ 40` + `dodir = nikad`: vraća se podskup istih
+ * firmi (broj sa procenom ≥ 40 %), a `ukupno` je izmerenih 40 sa produkcije
+ * (chip „telefon ≥ 40 %"). Ostali filteri nisu pokriveni — puna strana.
+ */
+function listLeadsFilteredZa(args: Record<string, unknown>): R<typeof api.leadFiltersStore.listLeadsFiltered> {
+  const tel = typeof args.tel === "number" ? args.tel : null;
+  if (tel === null) return listLeadsFiltered;
+  const items = LEADOVI.filter(
+    (l) => l.telefoni.length > 0 && (l.osobe[0]?.verovatnoca ?? -1) >= tel,
+  );
+  return { ...listLeadsFiltered, items, ukupno: tel >= 40 ? 40 : 55, ukupnoStrana: 1 };
+}
+
+/** Firme bez broja (A3, „Dopuni pa zovi") — one iz `LEADOVI` bez telefona. */
+const listCompaniesWithGap: R<typeof api.leadGapsStore.listCompaniesWithGap> = {
+  gapType: "bez_telefona",
+  companies: LEADOVI.filter((l) => l.telefoni.length === 0).map((l) => l.company),
+  count: LEADOVI.filter((l) => l.telefoni.length === 0).length,
+  nepotpuno: false,
+  pregledanoFirmi: 210,
+  moguceLazneRupe: false,
+};
+
+/** Jedan član — kolona „Vlasnik" se ne crta (A3, O2). */
+const listMembers: R<typeof api.membersStore.listMembers> = [
+  {
+    userId: USER,
+    email: "operater@example.com",
+    role: "owner",
+    joinedAt: now - 60 * DAY,
+    hasPassword: true,
+    emailVerified: true,
+    inAllowlist: true,
+    leadCount: 178,
+    isSelf: true,
+  },
+];
+
+function nisaZapis(
+  id: Id<"niches">,
+  slug: string,
+  naziv: string,
+  firmi: number,
+): R<typeof api.nichesStore.listNiches>[number] {
+  return {
+    _id: id,
+    _creationTime: now - 40 * DAY,
+    workspaceId: WS,
+    slug,
+    naziv,
+    createdAt: now - 40 * DAY,
+    updatedAt: now - 40 * DAY,
+    createdByEmail: null,
+    opisAutorEmail: null,
+    platforme: [],
+    brojaci: { firmi, saSajtom: Math.round(firmi * 0.55), bezSajta: 2, sajtNepoznato: firmi - Math.round(firmi * 0.55) - 2, hot: 0, warm: 0 },
+    sajt: { ocenjeno: 0, prosecanKvalitet: null, cmsRaspodela: [], bezZakazivanja: null },
+  };
+}
+
+const listNiches: R<typeof api.nichesStore.listNiches> = [
+  nisaZapis(NISA_FRIZERSKI, "frizerski-salon", "Frizerski salon", 113),
+  nisaZapis(NISA_KOZMETICKI, "kozmeticki-salon", "Kozmetički salon", 44),
+];
 
 /** Fit/Intent po firmi. Vrednosti pokrivaju sve pojaseve (§1.3: 27 % žut, 64 % siv). */
 function scoreZa(i: number): LeadScore {
@@ -557,7 +633,10 @@ const FIXTURES: Record<string, Fixture> = {
   [getFunctionName(api.openreplyStore.daily)]: (args) => (tekuciPeriod(args) ? orDaily() : []),
   [getFunctionName(api.openreplyStore.campaigns)]: () => orCampaigns,
   [getFunctionName(api.attribution.report)]: () => attributionReport,
-  [getFunctionName(api.leadFiltersStore.listLeadsFiltered)]: () => listLeadsFiltered,
+  [getFunctionName(api.leadFiltersStore.listLeadsFiltered)]: (args) => listLeadsFilteredZa(args),
+  [getFunctionName(api.leadGapsStore.listCompaniesWithGap)]: () => listCompaniesWithGap,
+  [getFunctionName(api.membersStore.listMembers)]: () => listMembers,
+  [getFunctionName(api.nichesStore.listNiches)]: () => listNiches,
   [getFunctionName(api.leadFiltersStore.countLeadsByFacet)]: () => countLeadsByFacet,
   [getFunctionName(api.leadFiltersStore.listPresets)]: () => listPresets,
   [getFunctionName(api.leadScoringStore.scoreCompanies)]: () => scoreCompanies,

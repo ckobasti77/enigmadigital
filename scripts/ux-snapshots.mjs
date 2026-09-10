@@ -39,7 +39,7 @@ const SAMO = opt("--samo", null)?.split(",").map((s) => s.trim()).filter(Boolean
 
 // „pre" / „posle" su A1 i ne smeju da se prepišu — to je jedini dokaz da ta
 // faza nije pokvarila ekrane. Svaka sledeća faza snima pod svojim imenom.
-const FAZE = ["pre", "posle", "a2"];
+const FAZE = ["pre", "posle", "a2", "a3-pre", "a3"];
 if (!FAZE.includes(FAZA)) {
   console.error(`Zadaj --faza ${FAZE.join(" | ")}`);
   process.exit(2);
@@ -48,6 +48,9 @@ if (!FAZE.includes(FAZA)) {
 const EKRANI = [
   { ime: "kontrolna-tabla", putanja: "/" },
   { ime: "leadovi", putanja: "/leadovi" },
+  // A3: `/leadovi` bez parametra otvara „Danas"; tabela je izričito `?tab=leads`
+  // (pre A3 nepoznat jezičak takođe daje tabelu, pa isti URL važi za obe faze).
+  { ime: "leadovi-tabela", putanja: "/leadovi?tab=leads" },
   { ime: "leadovi-zaostali", putanja: "/leadovi?tab=overdue" },
   { ime: "instagram", putanja: "/instagram" },
   { ime: "openreply", putanja: "/openreply" },

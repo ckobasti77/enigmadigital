@@ -96,6 +96,9 @@ function cmsNatpis(ime: string): string {
 
 const PRAZAN_CHIP_TITLE = "Nema pogodaka u ovom preseku.";
 
+/** `id` polja pretrage — prečica `/` u tabeli (A3, O2) ga fokusira. */
+export const SEARCH_INPUT_ID = "leadovi-pretraga";
+
 function Chip({
   label,
   count,
@@ -363,10 +366,12 @@ export function LeadFilterBar({ workspaceId }: { workspaceId: Id<"workspaces"> }
         <div className="relative min-w-52 flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-text-muted" />
           <Input
+            id={SEARCH_INPUT_ID}
             value={tekst}
             onChange={(e) => setTekst(e.target.value)}
-            placeholder="Traži po nazivu firme…"
+            placeholder="Traži po nazivu firme…  ( / )"
             aria-label="Pretraga po nazivu firme"
+            aria-keyshortcuts="/"
             className="h-8 pl-8 text-xs"
           />
           {tekst && (

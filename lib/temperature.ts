@@ -54,6 +54,14 @@ export const TEMPERATURE_TEXT_CLASS: Record<Temperatura, string> = {
   hot: "text-temp-hot",
 };
 
+/** Tačka u boji temperature (stavka menija, legenda). */
+export const TEMPERATURE_DOT_CLASS: Record<Temperatura, string> = {
+  nova_firma: "bg-temp-nova",
+  cold: "bg-temp-cold",
+  warm: "bg-temp-warm",
+  hot: "bg-temp-hot",
+};
+
 /** Leva ivica reda tabele (`lead-urgency.ts`); nova firma nema ivicu. */
 export const TEMPERATURE_EDGE_CLASS: Record<Exclude<Temperatura, "nova_firma">, string> = {
   cold: "border-l-temp-cold",

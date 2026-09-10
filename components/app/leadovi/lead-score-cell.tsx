@@ -8,6 +8,8 @@ import { formatRelativeTime } from "@/lib/format";
 import {
   STRENGTH_BAR_CLASS,
   STRENGTH_CHIP_CLASS,
+  STRENGTH_TEXT_CLASS,
+  STRENGTH_TRACK_CLASS,
   strengthOf,
   type Strength,
 } from "@/lib/strength";
@@ -26,18 +28,45 @@ type LeadScoreCellProps = {
   axis: "fit" | "intent";
   score?: ScoredAxis;
   className?: string;
-  /** Jedan red bez trake — za kompaktnu gustinu tabele (§7). */
+  /** Jedan red bez trake — za kompaktnu gustinu tabele (§7). Isto što i `variant="compact"`. */
   compact?: boolean;
+  /**
+   * Oblik ćelije (A3, O2):
+   *  - `card`    natpis + bodovi + traka u okviru (profil firme)
+   *  - `compact` čip sa procentom (stara kompaktna tabela)
+   *  - `meter`   jedan tanak merač: natpis · broj · traka, bez okvira — dva
+   *              takva jedan ispod drugog čine kolonu „Fit / Intent"
+   *  - `inline`  samo natpis i broj, za red od 32 px
+   */
+  variant?: "card" | "compact" | "meter" | "inline";
 };
 
 /** Neizmereno i bez pravila: prigušen okvir, bez boje jačine. */
 const NEUTRAL_CHIP = "border-line bg-surface-raised/60 text-text-muted";
 
-export function LeadScoreCell({ axis, score, className, compact = false }: LeadScoreCellProps) {
+export function LeadScoreCell({
+  axis,
+  score,
+  className,
+  compact = false,
+  variant = compact ? "compact" : "card",
+}: LeadScoreCellProps) {
   const [open, setOpen] = useState(false);
 
   if (!score) {
-    return <Skeleton className={compact ? "h-7 w-20 rounded-md" : "h-9 w-24 rounded-lg"} />;
+    return (
+      <Skeleton
+        className={
+          variant === "meter"
+            ? "h-4 w-24 rounded"
+            : variant === "inline"
+              ? "h-4 w-14 rounded"
+              : variant === "compact"
+                ? "h-7 w-20 rounded-md"
+                : "h-9 w-24 rounded-lg"
+        }
+      />
+    );
   }
 
   const isFit = axis === "fit";
@@ -64,12 +93,57 @@ export function LeadScoreCell({ axis, score, className, compact = false }: LeadS
     nemaPravila || isUnmeasured || percentage === undefined ? null : strengthOf(percentage);
   const chipClass = strength ? STRENGTH_CHIP_CLASS[strength] : NEUTRAL_CHIP;
   const barClass = strength ? STRENGTH_BAR_CLASS[strength] : "bg-line-strong";
+  const trackClass = strength ? STRENGTH_TRACK_CLASS[strength] : "bg-surface-raised";
+  const textClass = strength ? STRENGTH_TEXT_CLASS[strength] : "text-text-muted";
+  // „—" kad se ne može izmeriti: nula bi ovde bila laž (plan §0/3).
+  const kratko = nemaPravila || isUnmeasured || percentage === undefined ? "—" : String(percentage);
+  const kratkoTitle = nemaPravila
+    ? `${axisTitle}: nema aktivnih pravila`
+    : isUnmeasured
+      ? `${axisTitle}: nema signala, nije izmereno`
+      : `${axisTitle}: ${score.points} / ${score.maxPoints} bodova (${percentage} %)`;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          compact ? (
+          variant === "meter" ? (
+            <button
+              type="button"
+              title={kratkoTitle}
+              aria-label={kratkoTitle}
+              className={cn(
+                "group/meter flex w-full min-w-24 cursor-pointer flex-col gap-1 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+                className,
+              )}
+            >
+              <span className="flex items-baseline justify-between gap-2 leading-none">
+                <span className="text-meta text-text-muted">{isFit ? "Fit" : "Intent"}</span>
+                <span className={cn("font-mono text-ui font-medium tabular-nums", textClass)}>
+                  {kratko}
+                </span>
+              </span>
+              <span className={cn("block h-1 w-full overflow-hidden rounded-full", trackClass)}>
+                <span
+                  className={cn("block h-full rounded-full transition-[width] duration-(--duration-base)", barClass)}
+                  style={{ width: `${Math.min(Math.max(percentage ?? 0, 0), 100)}%` }}
+                />
+              </span>
+            </button>
+          ) : variant === "inline" ? (
+            <button
+              type="button"
+              title={kratkoTitle}
+              aria-label={kratkoTitle}
+              className={cn(
+                "inline-flex cursor-pointer items-baseline gap-1 rounded-sm leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+                className,
+              )}
+            >
+              <span className="text-meta text-text-muted">{isFit ? "F" : "I"}</span>
+              <span className={cn("font-mono text-ui font-medium tabular-nums", textClass)}>{kratko}</span>
+            </button>
+          ) : variant === "compact" ? (
             <button
               type="button"
               className={cn(

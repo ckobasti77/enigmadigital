@@ -135,7 +135,7 @@ export function MeetingsPanel({ workspaceId }: MeetingsPanelProps) {
               title="Nema zakazanih sastanaka"
               action={
                 <Link
-                  href="/leadovi"
+                  href="/leadovi?tab=leads"
                   className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
                 >
                   Otvori tabelu leadova

@@ -13,6 +13,7 @@ import {
   Settings2,
   ShieldAlert,
   SlidersHorizontal,
+  Sun,
   Upload,
   Users,
 } from "lucide-react";
@@ -34,6 +35,7 @@ import {
 import { FeedbackNote } from "@/components/app/feedback";
 import { pluralSr } from "@/lib/format";
 import { LeadsTable } from "./leads-table";
+import { LeadsToday } from "./leads-today";
 import { GapsPanel } from "./gaps-panel";
 import { OverduePanel } from "./overdue-panel";
 import { ScoringRulesPanel } from "./scoring-rules-panel";
@@ -48,9 +50,10 @@ import {
 } from "./meetings-panel";
 
 /**
- * Ljuska ekrana leadova (A1 §4, plan O4).
+ * Ljuska ekrana leadova (A1 §4, plan O4; A3 O1).
  *
- * Traka jezičaka ima dve vrste stvari, vizuelno razdvojene grupama:
+ * Traka jezičaka ima tri vrste stvari, vizuelno razdvojene grupama:
+ *   Danas    — predlog šta raditi sada (podrazumevani prikaz, A3)
  *   Leadovi  — prikazi istih leadova (Tabela · Mapa)
  *   Posao    — radni redovi koji nose BROJ (Rupe · Zaostali · Sastanci)
  *
@@ -58,18 +61,14 @@ import {
  * žive iza zupčanika „Podešavanja leadova" (isti `?tab=` u URL-u kao i pre,
  * pa stari linkovi rade). Ništa nije nestalo — samo je razvrstano.
  *
- * Brojevi na jezičcima „Posao": Zaostali iz `listOverdue` (indeks
- * `nextActionAt < now`, jeftin), Sastanci iz `listMeetings` (danas + prošli
- * bez ishoda). Rupe NEMAJU broj u ovoj fazi: jedini izvor (`listGaps`) skenira
- * do 10.000 redova i vezao bi taj trošak za svako otvaranje ekrana; A2 uvodi
- * jeftin izvedeni upit i tada broj stiže ovde. Bez bedža = nema broja, nikad
- * „0".
+ * Brojevi na jezičcima „Posao": Zaostali iz `listOverdue`, Sastanci iz
+ * `listMeetings`, Rupe iz izvedenog upita „Šta me čeka" (A2).
  */
-type RadniTab = "leads" | "map" | "gaps" | "overdue" | "meetings";
+type RadniTab = "danas" | "leads" | "map" | "gaps" | "overdue" | "meetings";
 type PodesavanjaTab = "niche" | "scoring";
 type Tab = RadniTab | PodesavanjaTab;
 
-const RADNI: readonly RadniTab[] = ["leads", "map", "gaps", "overdue", "meetings"];
+const RADNI: readonly RadniTab[] = ["danas", "leads", "map", "gaps", "overdue", "meetings"];
 const PODESAVANJA: readonly PodesavanjaTab[] = ["niche", "scoring"];
 
 function jeRadni(raw: string | null): raw is RadniTab {
@@ -82,12 +81,22 @@ function jePodesavanja(raw: string | null): raw is PodesavanjaTab {
 
 export function LeadsDashboard() {
   const { workspace, isLoading } = useWorkspace();
-  const { applyQuery, nav, setNav } = useLeadFilters();
+  const { applyQuery, nav, setNav, aktivnihGrupa } = useLeadFilters();
   // Jezičak živi u URL-u (GL3): `?tab=map&firma=<id>` iz profila mora da
-  // otvori mapu sa panelom, a kopiran link isti jezičak. Tabela je
-  // podrazumevana i ne upisuje se. Nepoznata vrednost = tabela.
-  const tab: Tab = jeRadni(nav.tab) || jePodesavanja(nav.tab) ? nav.tab : "leads";
-  const setTab = (next: Tab) => setNav({ tab: next === "leads" ? null : next });
+  // otvori mapu sa panelom, a kopiran link isti jezičak.
+  //
+  // A3 (plan O1): „Danas" je podrazumevan — stara adresa bez parametra vodi
+  // ovde. IZUZETAK: adresa bez `tab` a SA filterom (`?dodir=nikad` iz zvona,
+  // `?nisa=` iz Niša, `?kvalitet=neocenjen` iz obaveštenja) je link na
+  // FILTRIRANU TABELU i tako je i pre A3 značila — otvara tabelu. Tabela se
+  // od sada upisuje izričito kao `tab=leads`.
+  const tab: Tab =
+    jeRadni(nav.tab) || jePodesavanja(nav.tab)
+      ? nav.tab
+      : aktivnihGrupa > 0
+        ? "leads"
+        : "danas";
+  const setTab = (next: Tab) => setNav({ tab: next === "danas" ? null : next });
   const [invalidRules, setInvalidRules] = useState<InvalidRule[]>([]);
 
   // Brojači na jezičcima „Posao". Iste upite koriste i paneli — Convex klijent
@@ -122,6 +131,9 @@ export function LeadsDashboard() {
   const workspaceId = workspace.id as Id<"workspaces">;
 
   const radniTabovi: readonly TabItem<RadniTab>[] = [
+    // Bez natpisa grupe: „DANAS Danas" bi bilo dva puta isto; razdelnik posle
+    // njega crta `TabNav` jer sledeći jezičak menja grupu.
+    { id: "danas", label: "Danas", icon: Sun },
     { id: "leads", label: "Tabela", icon: Users, group: "Leadovi" },
     { id: "map", label: "Mapa", icon: MapIcon, group: "Leadovi" },
     {
@@ -252,7 +264,7 @@ export function LeadsDashboard() {
                 onShowCompanies={(slug) => {
                   // Filter i jezičak u JEDNOM upisu — dva `router.replace` zaredom
                   // bi drugi pregazio prvi (vidi `upisi` u hooku).
-                  applyQuery(`nisa=${encodeURIComponent(slug)}`, { tab: null });
+                  applyQuery(`nisa=${encodeURIComponent(slug)}`, { tab: "leads" });
                 }}
               />
             )}
@@ -312,6 +324,7 @@ export function LeadsDashboard() {
 
           {/* Sadržaj aktivnog jezička */}
           <TabPanel id="leadovi-panel" className="flex flex-1 flex-col">
+            {tab === "danas" && <LeadsToday workspaceId={workspaceId} />}
             {tab === "leads" && (
               <LeadsTable
                 workspaceId={workspaceId}

@@ -33,6 +33,56 @@ const TEKST: Record<"danger" | "warning" | "success", string> = {
   success: "text-success",
 };
 
+const RING_R = 6;
+const RING_C = 2 * Math.PI * RING_R;
+
+/**
+ * Prsten procene za kolonu „Telefon" (A3, O2): mali kružni merač + procenat.
+ * Ispuna nosi jačinu (crvena < 40, žuta 40–69, zelena ≥ 70), a neispunjen deo
+ * je svetliji korak ISTE boje, pa se stanje čita i preko praznog dela (pravilo
+ * merača iz dataviz skilla). Broj je u tekstualnom tonu iste skale, tabularan.
+ *
+ * Tri druga stanja NE crtaju prsten: „bez procene" (ima broj, niko nije
+ * procenio), „nije moguće proceniti" (pokušano, bez dokaza) i „—" (nema
+ * broja). Prsten na nuli bi značio „sigurno nije ta osoba", a to ne znamo.
+ */
+export function PhoneConfidenceRing({
+  verovatnoca,
+  className,
+}: {
+  verovatnoca: number;
+  className?: string;
+}) {
+  const ton = verovatnocaTon(verovatnoca);
+  const deo = Math.min(100, Math.max(0, verovatnoca)) / 100;
+  return (
+    <span
+      className={cn("inline-flex items-center gap-1.5", TEKST[ton], className)}
+      title={`Verovatnoća da broj pripada toj osobi: ${verovatnoca} od 100`}
+    >
+      <svg
+        viewBox="0 0 16 16"
+        className="size-4 shrink-0 -rotate-90"
+        role="img"
+        aria-label={`Verovatnoća da broj pripada toj osobi: ${verovatnoca} od 100`}
+      >
+        <circle cx="8" cy="8" r={RING_R} fill="none" stroke="currentColor" strokeOpacity={0.2} strokeWidth="2.5" />
+        <circle
+          cx="8"
+          cy="8"
+          r={RING_R}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeDasharray={`${(RING_C * deo).toFixed(2)} ${RING_C.toFixed(2)}`}
+        />
+      </svg>
+      <span className="font-mono text-ui font-medium tabular-nums">{verovatnoca} %</span>
+    </span>
+  );
+}
+
 export function PhoneConfidence({
   verovatnoca,
   nijeMoguceProceniti,

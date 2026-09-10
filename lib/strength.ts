@@ -35,6 +35,16 @@ export const STRENGTH_BAR_CLASS: Record<Strength, string> = {
   high: "bg-strength-high",
 };
 
+/**
+ * Neispunjen deo merača: svetliji korak ISTE boje kao ispuna (dataviz pravilo
+ * za merač — stanje se čita preko cele trake, ne samo preko ispunjenog dela).
+ */
+export const STRENGTH_TRACK_CLASS: Record<Strength, string> = {
+  low: "bg-strength-low/20",
+  mid: "bg-strength-mid/20",
+  high: "bg-strength-high/20",
+};
+
 /** Čip sa procentom: samo jak pojas dobija podlogu i ivicu u akcentu. */
 export const STRENGTH_CHIP_CLASS: Record<Strength, string> = {
   low: "border-line bg-surface-raised/60 text-strength-low",
