@@ -37,7 +37,17 @@ function PopoverContent({
         <PopoverPrimitive.Popup
           data-slot="popover-content"
           className={cn(
-            "z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-lg bg-popover p-2.5 text-sm text-popover-foreground shadow-elev-2 ring-1 ring-foreground/10 outline-hidden duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            "z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-lg bg-popover p-2.5 text-sm text-popover-foreground shadow-elev-2 ring-1 ring-foreground/10 outline-hidden",
+            // PRELAZ, ne keyframe animacija (A8 §1): keyframe uvek kreće od
+            // svog prvog kadra, pa se panel zatvoren na pola otvaranja prvo
+            // trzne na kraj. Prelaz kreće od zatečene vrednosti, dakle je
+            // prekidiv. Trajanje i kriva su tokeni iz A1; pod
+            // `prefers-reduced-motion` globalno pravilo suzi prelaz na
+            // neprozirnost, pa `scale` sam ispadne.
+            "transition-[opacity,scale] duration-(--duration-fast) ease-(--ease-ui)",
+            "data-open:scale-100 data-open:opacity-100",
+            "data-closed:scale-95 data-closed:opacity-0",
+            "data-starting-style:scale-95 data-starting-style:opacity-0",
             className
           )}
           {...props}

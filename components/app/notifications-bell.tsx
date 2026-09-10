@@ -14,6 +14,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { CountBadge } from "@/components/app/system/count-badge";
+import { Unfold } from "@/components/motion/unfold";
 import { cn } from "@/lib/utils";
 import { QuietBoundary } from "./quiet-boundary";
 import { useWorkspace } from "./workspace-provider";
@@ -158,7 +159,9 @@ function Panel({
               <span>Sklonjeno ({data.sklonjeni.length})</span>
               <span aria-hidden>{prikaziSklonjene ? "−" : "+"}</span>
             </button>
-            {prikaziSklonjene && (
+            {/* Prekidiv prelaz (A8 §1): drugi klik na pola razmotavanja vraća
+                spisak odatle dokle je stigao, ne sa kraja. */}
+            <Unfold open={prikaziSklonjene}>
               <ul className="flex flex-col pb-1">
                 {data.sklonjeni.map((zadatak) => (
                   <Sklonjeno
@@ -168,7 +171,7 @@ function Panel({
                   />
                 ))}
               </ul>
-            )}
+            </Unfold>
           </section>
         )}
       </div>
@@ -209,19 +212,33 @@ function Stavka({
   const odlozi = useMutation(api.notificationsStore.odloziZadatak);
   const sakrij = useMutation(api.notificationsStore.sakrijZadatak);
   const [radi, setRadi] = useState(false);
+  // Optimističko stanje: stavka krene da se skuplja u istom kadru u kom je
+  // dugme pritisnuto, ne posle povratka sa servera (A8 §1, odziv ≤ 100 ms).
+  // Ako mutacija padne, vraća se i kaže zašto — obećanje se povlači naglas.
+  const [sklanjam, setSklanjam] = useState(false);
+  const [greska, setGreska] = useState<string | null>(null);
 
   const pokreni = async (posao: () => Promise<unknown>) => {
     if (!workspaceId || radi) return;
     setRadi(true);
+    setSklanjam(true);
+    setGreska(null);
     try {
       await posao();
+    } catch (e) {
+      setSklanjam(false);
+      setGreska(e instanceof Error ? e.message : "Nije uspelo. Pokušaj ponovo.");
     } finally {
       setRadi(false);
     }
   };
 
   return (
-    <li className="border-t border-line-soft/60 px-3 py-2.5 first:border-t-0">
+    <li className="border-t border-line-soft/60 first:border-t-0">
+      {/* Razmak je NA DETETU, ne na `Unfold`-u: `height: 0` sa `border-box`
+          ne guta uspravan razmak, pa bi ostao trag od dvadesetak piksela. */}
+      <Unfold open={!sklanjam}>
+        <div className="px-3 py-2.5">
       <p className="text-ui font-medium leading-snug text-foreground">
         {zadatak.naslov}
       </p>
@@ -275,6 +292,13 @@ function Stavka({
           Sakrij
         </Button>
       </div>
+      {greska && (
+        <p role="status" className="mt-1.5 text-meta text-danger">
+          {greska}
+        </p>
+      )}
+        </div>
+      </Unfold>
     </li>
   );
 }

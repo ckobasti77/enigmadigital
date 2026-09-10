@@ -39,7 +39,7 @@ const SAMO = opt("--samo", null)?.split(",").map((s) => s.trim()).filter(Boolean
 
 // „pre" / „posle" su A1 i ne smeju da se prepišu — to je jedini dokaz da ta
 // faza nije pokvarila ekrane. Svaka sledeća faza snima pod svojim imenom.
-const FAZE = ["pre", "posle", "a2", "a3-pre", "a3", "a4-pre", "a4", "a5-pre", "a5", "a6-pre", "a6"];
+const FAZE = ["pre", "posle", "a2", "a3-pre", "a3", "a4-pre", "a4", "a5-pre", "a5", "a6-pre", "a6", "a8-pre", "a8"];
 if (!FAZE.includes(FAZA)) {
   console.error(`Zadaj --faza ${FAZE.join(" | ")}`);
   process.exit(2);

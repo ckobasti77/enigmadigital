@@ -16,6 +16,7 @@
     "verify:obavestenja": "node --import ./scripts/ts-hooks.mjs scripts/notifications-check.ts",
     "verify:leads-ui": "node --import ./scripts/ts-hooks.mjs scripts/leads-table-entropy.ts",
     "verify:uvoz": "node --import ./scripts/ts-hooks.mjs scripts/import-flow-check.ts",
+    "verify:pokret": "node --import ./scripts/ts-hooks.mjs scripts/motion-check.ts",
     "verify:gl-ingest": "node --import ./scripts/ts-hooks.mjs scripts/generate-leads-ingest-check.ts",
     "verify:gl-skill": "node tools/generate-leads/run.mjs self-test --strogo",
     "verify:site-score": "node --import ./scripts/ts-hooks.mjs scripts/site-score-check.ts",

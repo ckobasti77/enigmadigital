@@ -52,9 +52,15 @@ export function SideDrawer({
           data-slot="side-drawer"
           className={cn(
             "fixed inset-y-0 right-0 z-50 flex w-[min(30rem,100vw)] flex-col border-l border-line bg-surface-raised shadow-elev-3 outline-hidden",
-            "transition-transform duration-(--duration-base) ease-(--ease-ui)",
-            "data-closed:translate-x-full data-open:translate-x-0 data-starting-style:translate-x-full",
-            "motion-reduce:transition-none",
+            // CSS prelaz, ne keyframe: kreće od zatečene vrednosti, pa je
+            // prekidiv (A8 §1) — `Esc` na pola otvaranja vraća fioku odatle.
+            // Neprozirnost je u istom prelazu namerno: pod
+            // `prefers-reduced-motion` globalno pravilo suzi prelaz na
+            // `opacity`, pa fioka i tada blago pređe umesto da bljesne.
+            "transition-[transform,opacity] duration-(--duration-base) ease-(--ease-ui)",
+            "data-closed:translate-x-full data-closed:opacity-0",
+            "data-open:translate-x-0 data-open:opacity-100",
+            "data-starting-style:translate-x-full data-starting-style:opacity-0",
             className,
           )}
         >

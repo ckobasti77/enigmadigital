@@ -38,6 +38,7 @@ import { SegmentedToggle } from "@/components/app/analytics/segmented-toggle";
 import { useWorkspace } from "@/components/app/workspace-provider";
 import { useNow } from "@/components/app/use-now";
 import { Unfold } from "@/components/motion/unfold";
+import { useSetExitLatch } from "@/components/motion/exit-latch";
 import { LinkChip } from "@/components/app/link-chip";
 import { LeadScoreCell } from "./lead-score-cell";
 import { LeadExportDialog } from "./lead-export-dialog";
@@ -371,6 +372,9 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
   // Otvoreni redovi se NE pamte između učitavanja (§6).
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [callStrip, setCallStrip] = useState<{ assignmentId: string; phone: string } | null>(null);
+  // Redovi koji su upravo skupljeni i još animiraju izlazak — bez ovoga bi
+  // roditeljski `<tr>` nestao u prvom kadru i skupljanje bi bilo rez (A8 §1).
+  const seSkupljaju = useSetExitLatch(expanded);
   const [dialog, setDialog] = useState<LeadRowDialogState | null>(null);
   const [fillCompany, setFillCompany] = useState<Doc<"leadCompanies"> | null>(null);
   // Red pod kursorom tastature (`j`/`k`); `null` dok se tastatura ne upotrebi.
@@ -639,6 +643,8 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
     const edge = rowEdge(item, now);
     const edgeClass = edge ? ROW_EDGE_CLASS[edge] : "border-l-transparent";
     const isExpanded = expanded.has(assignment._id);
+    // Red ostaje u DOM-u dok traje izlazna animacija (`useSetExitLatch`).
+    const drziExpand = isExpanded || seSkupljaju.has(assignment._id);
     const stripPhone = callStrip?.assignmentId === assignment._id ? callStrip.phone : null;
     const isMine = selfUserId !== undefined && String(assignment.ownerUserId) === selfUserId;
     const expandId = `lead-expand-${assignment._id}`;
@@ -784,14 +790,14 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
         </TableRow>
       ) : null,
 
-      isExpanded ? (
+      drziExpand ? (
         <TableRow
           key={`${assignment._id}-expand`}
           id={expandId}
           className={cn("border-line border-l-4 bg-surface-raised/40 hover:bg-surface-raised/40", edgeClass)}
         >
           <TableCell colSpan={columnCount} className="whitespace-normal p-0 align-top">
-            <Unfold>
+            <Unfold open={isExpanded}>
               <LeadExpandedRow
                 workspaceId={workspaceId}
                 item={item}
@@ -914,8 +920,8 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
             />
           </Unfold>
         )}
-        {isExpanded && (
-          <Unfold>
+        {(isExpanded || seSkupljaju.has(assignment._id)) && (
+          <Unfold open={isExpanded}>
             <div className="rounded-lg border border-line-soft bg-surface-raised/40">
               <LeadExpandedRow
                 workspaceId={workspaceId}

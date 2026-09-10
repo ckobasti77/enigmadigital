@@ -17,6 +17,7 @@ import {
 import { Chip } from "@/components/app/system/chip";
 import { useNow } from "@/components/app/use-now";
 import { Unfold } from "@/components/motion/unfold";
+import { CountUp } from "@/components/motion/count-up";
 import { STRENGTH_HIGH_PCT, STRENGTH_TEXT_CLASS, strengthOf } from "@/lib/strength";
 import { formatClockTime, formatDayRelative, localDayDiff, pluralSr } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -565,7 +566,17 @@ function Broj({
       className="flex cursor-pointer flex-col items-start gap-0.5 rounded-lg border border-line bg-card px-3 py-2.5 text-left transition-colors hover:border-line-strong hover:bg-surface-raised"
     >
       <span className="font-mono text-title font-bold leading-none text-foreground tabular-nums">
-        {value === undefined ? "—" : `${najmanje ? "≥ " : ""}${value}`}
+        {value === undefined ? (
+          "—"
+        ) : (
+          // A8 §1: brojevi preseka prelaze, ne skaču — presek se menja svaki
+          // put kad se upiše ishod, a skok bez prelaza izgleda kao greška
+          // iscrtavanja. „≥" ostaje van brojke: prefiks nije broj.
+          <>
+            {najmanje ? "≥ " : ""}
+            <CountUp value={value} format={(v) => String(Math.round(v))} />
+          </>
+        )}
       </span>
       <span className="text-meta text-text-muted">{label}</span>
     </button>

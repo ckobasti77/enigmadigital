@@ -7,6 +7,7 @@ import {
   DUR_COUNT,
   DUR_FRESH,
   DUR_REDUCED,
+  DUR_UI,
   EASE_UI,
   MOTION_QUERIES,
 } from "@/lib/motion";
@@ -45,29 +46,51 @@ export function CountUp({
       const el = ref.current;
       if (!el) return;
 
-      const isUpdate = lastValue.current !== value;
+      const prethodna = lastValue.current;
+      const isUpdate = prethodna !== value;
       lastValue.current = value;
 
       if (isUpdate) {
-        // Sveži podatak nije ulazak ekrana: nova brojka se upiše odmah, pa je
-        // kratak fade (120 ms, bez pomeraja) samo naznači oku. `overwrite:auto`
-        // prekine fade u toku ako stigne još svežiji podatak — nikad naslagani
-        // tvinovi, nikad ponovno odbrojavanje. Opacity je bezbedan i pod
-        // reduced-motion, pa nema zasebne grane; `holdCssTransition` sklanja
-        // globalni 150 ms opacity prelaz da ne re-interpolira svaki GSAP kadar.
-        el.textContent = format(value);
-        holdCssTransition(el);
-        gsap.fromTo(
-          el,
-          { opacity: 0.4 },
-          {
-            opacity: 1,
-            duration: DUR_FRESH,
+        // A8 §1: brojači PRELAZE, ne skaču. Sveži podatak i dalje nije ulazak
+        // ekrana — ne odbrojava se ponovo od nule (to bi bilo treperenje na
+        // tabli koju operater gleda ceo dan) — nego se pređe put od STARE do
+        // nove vrednosti, kratko (200 ms) i krivom sistema. `overwrite: "auto"`
+        // znači da još svežiji podatak preuzima od zatečene brojke, pa se
+        // tvinovi nikad ne slažu jedan preko drugog.
+        const mmUpdate = gsap.matchMedia();
+        mmUpdate.add(MOTION_QUERIES, (ctx) => {
+          if (ctx.conditions?.still) {
+            // Cifre koje se vrte JESU pokret. Ostaje samo neprozirnost.
+            el.textContent = format(value);
+            holdCssTransition(el);
+            gsap.fromTo(
+              el,
+              { opacity: 0.4 },
+              {
+                opacity: 1,
+                duration: DUR_FRESH,
+                ease: "none",
+                overwrite: "auto",
+                onComplete: () => releaseCssTransition(el),
+              },
+            );
+            return;
+          }
+
+          const proxy = { v: prethodna };
+          gsap.to(proxy, {
+            v: value,
+            duration: DUR_UI,
             ease: EASE_UI,
             overwrite: "auto",
-            onComplete: () => releaseCssTransition(el),
-          },
-        );
+            onUpdate: () => {
+              el.textContent = format(proxy.v);
+            },
+            onComplete: () => {
+              el.textContent = format(value);
+            },
+          });
+        });
         return;
       }
 
