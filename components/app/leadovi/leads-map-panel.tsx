@@ -16,7 +16,8 @@ import { useWorkspace } from "@/components/app/workspace-provider";
 import { useNow } from "@/components/app/use-now";
 import { DUR_REDUCED, DUR_UI, EASE_UI, MOTION_QUERIES } from "@/lib/motion";
 import { holdCssTransition, releaseCssTransition } from "@/components/motion/css-transition";
-import { StageChip, type Temperatura } from "./lead-chips";
+import { temperatureVar, type Temperatura } from "@/lib/temperature";
+import { StageChip } from "./lead-chips";
 import { LeadRowActions, type RowDialogKind } from "./lead-row-actions";
 import { LeadExpandedRow } from "./lead-expanded-row";
 import { LeadCallStrip } from "./lead-call-strip";
@@ -42,14 +43,6 @@ gsap.registerPlugin(useGSAP);
  * `prefers-reduced-motion` sjaj je statičan (bez pulsa).
  */
 
-/** Boja sjaja/ivice panela po temperaturi izabrane firme. */
-const SJAJ_BOJA: Record<Temperatura, string> = {
-  hot: "var(--temp-hot)",
-  warm: "var(--temp-warm)",
-  cold: "var(--temp-cold)",
-  nova_firma: "var(--text-muted)",
-};
-
 export function LeadsMapPanel({
   workspaceId,
   companyId,
@@ -73,7 +66,8 @@ export function LeadsMapPanel({
   const [pozivBroj, setPozivBroj] = useState<string | null>(null);
   const [greska, setGreska] = useState<string | null>(null);
 
-  const boja = temperatura ? SJAJ_BOJA[temperatura] : null;
+  // Boja sjaja/ivice = ista promenljiva koju nosi pin (`lib/temperature.ts`).
+  const boja = temperatura ? temperatureVar(temperatura) : null;
 
   useGSAP(
     () => {

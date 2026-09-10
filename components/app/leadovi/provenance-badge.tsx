@@ -47,12 +47,12 @@ export function ProvenanceBadge({
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded border border-line-soft bg-surface-raised/40 px-1.5 py-0.5 text-micro font-medium text-text-soft",
+          "inline-flex items-center gap-1 rounded border border-line-soft bg-surface-raised/40 px-1.5 py-0.5 text-micro font-medium text-text-muted",
           className,
         )}
         title="Poreklo podatka nije zabeleženo u sistemu"
       >
-        <ShieldQuestion className="size-3 text-text-soft shrink-0" />
+        <ShieldQuestion className="size-3 text-text-muted shrink-0" />
         {!compact && <span>Poreklo nije zabeleženo</span>}
       </span>
     );

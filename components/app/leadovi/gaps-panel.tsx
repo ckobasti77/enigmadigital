@@ -8,7 +8,6 @@ import type { GapType } from "@/convex/leadGapsStore";
 import {
   AlertTriangle,
   Building2,
-  CheckCircle2,
   ChevronRight,
   Globe,
   Hash,
@@ -17,6 +16,7 @@ import {
   UserCheck,
   UserX,
 } from "lucide-react";
+import { EmptyState } from "@/components/app/system/empty-state";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -185,7 +185,7 @@ export function GapsPanel({ workspaceId }: GapsPanelProps) {
               </div>
 
               <div className="mt-3 flex w-full items-center justify-between border-t border-line-soft pt-2 text-micro">
-                <span className="text-text-soft">
+                <span className="text-text-muted">
                   {gaps.nepotpuno ? "Uzorak" : "Ukupno"}: {denominatorLabel}
                 </span>
                 <ChevronRight
@@ -236,15 +236,16 @@ export function GapsPanel({ workspaceId }: GapsPanelProps) {
                 <Skeleton className="h-10 w-full" />
               </div>
             ) : gapDetails.companies.length === 0 ? (
-              <div className="flex flex-col items-center justify-center p-12 text-center text-text-muted">
-                <CheckCircle2 className="size-10 text-success mb-2" />
-                <p className="text-sm font-semibold text-foreground">
-                  Nema evidentiranih rupa ove vrste!
-                </p>
-                <p className="mt-1 text-xs text-text-muted max-w-sm">
-                  Sve pregledane firme imaju popunjen podatak za kategoriju „{leadGapLabel(selectedGap)}".
-                </p>
-              </div>
+              // Prazna vrsta rupe nije gotov posao (A1 §3): ostale vrste su na
+              // karticama iznad, sa brojem — tamo je sledeći potez.
+              <EmptyState
+                icon={Info}
+                size="sm"
+                title={`Nema firmi bez podatka „${leadGapLabel(selectedGap)}”`}
+              >
+                Svaka od {gaps.ukupnoFirmi} pregledanih firmi ima ovaj podatak.
+                Ostale vrste rupa, sa brojem firmi, su na karticama iznad.
+              </EmptyState>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -292,7 +293,7 @@ export function GapsPanel({ workspaceId }: GapsPanelProps) {
                                 {company.street && ` (${company.street})`}
                               </span>
                             ) : (
-                              <span className="text-text-soft">Nije navedeno</span>
+                              <span className="text-text-muted">Nije navedeno</span>
                             )}
                           </TableCell>
 

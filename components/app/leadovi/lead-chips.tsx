@@ -1,6 +1,12 @@
 "use client";
 
 import type { LeadStage } from "@/convex/leadCrmStore";
+import {
+  TEMPERATURE,
+  TEMPERATURE_CHIP_CLASS,
+  TEMPERATURE_LABEL,
+  type Temperatura,
+} from "@/lib/temperature";
 import { leadStageLabel } from "./lead-labels";
 import { cn } from "@/lib/utils";
 
@@ -19,14 +25,12 @@ export function stageRequiresNote(stage: LeadStage): boolean {
   return stage === "dobijen" || stage === "izgubljen";
 }
 
-export type Temperatura = "nova_firma" | "cold" | "warm" | "hot";
-
-export const TEMPERATURA_LABELS: Record<Temperatura, string> = {
-  nova_firma: "Nova firma",
-  cold: "Cold",
-  warm: "Warm",
-  hot: "Hot",
-};
+/**
+ * Temperatura živi u `lib/temperature.ts` (A1 §2) — jedan izvor za tabelu,
+ * mapu i profil. Ovde ostaju zatečena imena, da postojeći uvozi rade.
+ */
+export type { Temperatura };
+export const TEMPERATURA_LABELS = TEMPERATURE_LABEL;
 
 /**
  * Faza kao čip (§7). Boja ovde nosi samo ISHOD: „Dobijen” zeleno, „Izgubljen”
@@ -60,7 +64,10 @@ export function StageChip({
   );
 }
 
-/** Izbor temperature — boja nosi temperaturu (§2/O3) i ništa drugo. */
+/**
+ * Izbor temperature — boja nosi temperaturu (§2/O3) i ništa drugo. Ista klasa
+ * kao čip u kartici iznad mape i ista promenljiva kao pin na mapi.
+ */
 export function TemperatureSelect({
   value,
   onChange,
@@ -82,17 +89,14 @@ export function TemperatureSelect({
       disabled={disabled}
       onChange={(e) => onChange(e.target.value as Temperatura)}
       className={cn(
-        "h-7 cursor-pointer rounded-md border px-2 text-xs font-medium outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
-        temp === "hot" && "border-temp-hot/50 bg-temp-hot-bg font-semibold text-foreground",
-        temp === "warm" && "border-temp-warm/50 bg-temp-warm-bg font-semibold text-foreground",
-        temp === "cold" && "border-temp-cold/50 bg-temp-cold-bg font-semibold text-foreground",
-        temp === "nova_firma" && "border-line-soft bg-surface-raised text-text-secondary",
+        "h-7 cursor-pointer rounded-md border px-2 text-xs font-semibold outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+        TEMPERATURE_CHIP_CLASS[temp],
         className,
       )}
     >
-      {(Object.keys(TEMPERATURA_LABELS) as Temperatura[]).map((t) => (
+      {TEMPERATURE.map((t) => (
         <option key={t} value={t} className="bg-surface text-foreground">
-          {TEMPERATURA_LABELS[t]}
+          {TEMPERATURE_LABEL[t]}
         </option>
       ))}
     </select>

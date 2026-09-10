@@ -6,7 +6,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function LeadsPage() {
   return (
     <div className="flex w-full flex-1 flex-col gap-8">
-      <PageHeader description="Pregled prodajnog toka, dvodimenzionalno bodovanje leadova (fit i intent), rupe u podacima i zaostali koraci." />
+      {/* Bez opisne rečenice (A1 §4, plan O5): identitet ekrana nosi gornja
+          traka, a prvo što se vidi je traka jezičaka sa brojem posla. H1 za
+          čitače ekrana ostaje u zaglavlju. */}
+      <PageHeader />
 
       <div className="flex flex-1 flex-col">
         {/* Filteri žive u URL-u (GL2, §7.1), pa dashboard čita `useSearchParams`

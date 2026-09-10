@@ -344,7 +344,7 @@ export function PozivnicaClient({ token }: { token: string }) {
                 )}
 
                 {status !== "uspeh" && (
-                  <div className="flex flex-col gap-2 border-t border-line-muted pt-2">
+                  <div className="flex flex-col gap-2 border-t border-line-soft pt-2">
                     <Button
                       type="button"
                       variant="ghost"

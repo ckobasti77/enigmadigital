@@ -15,6 +15,7 @@ import {
   localDayDiff,
   pluralSr,
 } from "@/lib/format";
+import { TEMPERATURE_EDGE_CLASS } from "@/lib/temperature";
 
 export type LeadRowContact = { value: string; personName?: string };
 export type LeadRowPerson = {
@@ -108,12 +109,11 @@ export function rowEdge(item: LeadRowItem, now: number): RowEdge {
   return null;
 }
 
+/** Temperaturne ivice dolaze iz istog izvora kao čip i pin (`lib/temperature.ts`). */
 export const ROW_EDGE_CLASS: Record<Exclude<RowEdge, null>, string> = {
   overdue: "border-l-danger",
   meeting: "border-l-warning",
-  hot: "border-l-temp-hot",
-  warm: "border-l-temp-warm",
-  cold: "border-l-temp-cold",
+  ...TEMPERATURE_EDGE_CLASS,
 };
 
 export type NextUpTone = "danger" | "warning" | "neutral" | "success" | "muted";

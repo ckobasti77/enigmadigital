@@ -13,7 +13,7 @@ import {
   type MapGeoJSONFeature,
   type StyleSpecification,
 } from "maplibre-gl";
-import type { Temperatura } from "./lead-chips";
+import { TEMPERATURE_TOKEN, type Temperatura } from "@/lib/temperature";
 import { mix } from "./leads-map-color";
 import {
   dodajPinSlike,
@@ -173,6 +173,8 @@ type Tokeni = {
   hot: string;
   warm: string;
   cold: string;
+  /** `--temp-nova` — nova firma, četvrti član niza (A1 §2). */
+  nova: string;
   surface: string;
   surfaceRaised: string;
   line: string;
@@ -194,9 +196,12 @@ function citajTokene(): Tokeni {
   const cs = getComputedStyle(document.documentElement);
   const t = (ime: string) => cs.getPropertyValue(ime).trim() || "gray";
   return {
-    hot: t("--temp-hot"),
-    warm: t("--temp-warm"),
-    cold: t("--temp-cold"),
+    // Imena tokena temperature dolaze iz `lib/temperature.ts` — isti izvor
+    // koji čita čip u tabeli i profil (A1 §2).
+    hot: t(TEMPERATURE_TOKEN.hot),
+    warm: t(TEMPERATURE_TOKEN.warm),
+    cold: t(TEMPERATURE_TOKEN.cold),
+    nova: t(TEMPERATURE_TOKEN.nova_firma),
     surface: t("--surface"),
     surfaceRaised: t("--surface-raised"),
     line: t("--line"),
@@ -209,18 +214,17 @@ function citajTokene(): Tokeni {
 }
 
 /**
- * Boje pina izvedene iz tokena: CELO telo nosi temperaturu (hot/warm/cold), a
- * „nova firma" dobija neutralan slate (bez temperature). Beli „prozor" u glavi
- * je `--text-primary`. Nijedna heks vrednost — sve iz tokena.
+ * Boje pina izvedene iz tokena: CELO telo nosi temperaturu — sva četiri člana
+ * niza, uključujući `--temp-nova` za novu firmu. Beli „prozor" u glavi je
+ * `--text-primary`. Nijedna heks vrednost i nijedno lokalno mešanje — sve iz
+ * istih tokena koje čita i tabela.
  */
 function pinBojeIz(t: Tokeni): PinBoje {
   return {
     hot: t.hot,
     warm: t.warm,
     cold: t.cold,
-    // Neutralan svetao slate — vidljiv na tamnoj mapi, ne liči ni na jednu
-    // temperaturu, a dovoljno taman da se beli prozor u glavi čita.
-    nova: mix(t.textMuted, t.bg950, 0.15),
+    nova: t.nova,
     belo: t.text,
     tamno: t.bg950,
   };

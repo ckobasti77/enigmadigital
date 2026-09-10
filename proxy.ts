@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import {
   convexAuthNextjsMiddleware,
   createRouteMatcher,
@@ -10,6 +11,22 @@ import {
 const isSignInPage = createRouteMatcher(["/login"]);
 
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
+  // Razvojni prikaz sa sintetičkim podacima (A1 §6, `scripts/ux-snapshots.mjs`):
+  // van produkcije se `/<ruta>?ux=1` prepisuje na `/dev-ux/<ruta>`, pa
+  // `usePathname()` i dalje vidi pravu putanju (naslov u gornjoj traci,
+  // aktivna stavka navigacije). U produkciji ovaj blok ne postoji, a sama
+  // ruta `app/dev-ux` tamo vraća 404 — dva zasebna osigurača.
+  if (
+    process.env.NODE_ENV !== "production" &&
+    request.nextUrl.searchParams.get("ux") === "1" &&
+    !request.nextUrl.pathname.startsWith("/dev-ux")
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname =
+      url.pathname === "/" ? "/dev-ux" : `/dev-ux${url.pathname}`;
+    return NextResponse.rewrite(url);
+  }
+
   const authed = await convexAuth.isAuthenticated();
 
   // The two rules are disjoint (login vs everything-else), so no redirect loop.

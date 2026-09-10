@@ -1,3 +1,6 @@
+import gsap from "gsap";
+import { CustomEase } from "gsap/CustomEase";
+
 /**
  * Motion sistem — jedini izvor trajanja, ease-ova i budžeta za pokret.
  *
@@ -6,15 +9,29 @@
  * predlozi: „moćno” u ovom kontekstu znači precizno i brzo, ne dugo i veliko.
  *
  * CSS blizanci ovih vrednosti (`--ease-ui`, `--ease-momentum`,
- * `--duration-press`, `--press-scale`) žive u `app/globals.css`. Kada se menja
- * jedno, menja se i drugo.
+ * `--duration-base`, `--duration-press`, `--press-scale`, `--motion-distance`)
+ * žive u `app/globals.css`. Kada se menja jedno, menja se i drugo.
+ *
+ * Specifikacija pokreta (A1 §2, plan O6), koju A8 sprovodi:
+ *   - 150–200 ms, kriva `cubic-bezier(.2,.8,.2,1)` — ništa duže osim zamaha;
+ *   - prošireni red, fioka filtera i panel zvona su prekidivi (`overwrite:
+ *     "auto"`, tvin ide od trenutne vrednosti);
+ *   - brojači prelaze (`CountUp`), ne skaču;
+ *   - svaka radnja da odziv u ≤ 100 ms (`--duration-press`, optimističko
+ *     stanje dugmeta);
+ *   - `prefers-reduced-motion: reduce` gasi sve osim neprozirnosti
+ *     (`MOTION_QUERIES.still` grana u svakoj komponenti + CSS tokeni).
  */
+
+gsap.registerPlugin(CustomEase);
 
 /**
  * Kritično prigušen, bez prebačaja. Za sve što se prosto pojavi: reveal,
- * meni, panel, dijalog. CSS blizanac: `--ease-ui`.
+ * meni, panel, dijalog, razmotavanje reda. TAČAN blizanac CSS krive
+ * `--ease-ui: cubic-bezier(0.2, 0.8, 0.2, 1)` — registrovan kao CustomEase
+ * „ui”, pa ista kriva važi i u GSAP-u i u CSS prelazima.
  */
-export const EASE_UI = "power3.out";
+export const EASE_UI = CustomEase.create("ui", "0.2,0.8,0.2,1");
 
 /**
  * Blagi prebačaj. SAMO kada je gestu prethodio zamah — prevlačenje, bacanje,
@@ -25,11 +42,11 @@ export const EASE_UI = "power3.out";
 export const EASE_MOMENTUM = "back.out(1.4)";
 
 /**
- * Trajanje svega što ulazi bez zamaha. 240 ms: dovoljno da se ulazak oseti,
+ * Trajanje svega što ulazi bez zamaha. 200 ms: dovoljno da se ulazak oseti,
  * dovoljno kratko da ne stoji između operatera i podataka koje otvara deset
  * puta dnevno. CSS blizanac: `--duration-base`.
  */
-export const DUR_UI = 0.24;
+export const DUR_UI = 0.2;
 
 /** Trajanje pokreta koji nastavlja zamah gesta. */
 export const DUR_MOMENTUM = 0.34;
@@ -69,10 +86,10 @@ export const STAGGER_MAX = 0.035;
 
 /**
  * Koliko kašnjenja preostaje pojedinačnom `<Reveal>`-u kada se od budžeta
- * oduzme sopstveno trajanje. Sa 240 ms trajanja i 300 ms budžeta to je 60 ms
- * — ceo prostor za sekvencu na jednom ekranu.
+ * oduzme sopstveno trajanje. Sa 200 ms trajanja i 300 ms budžeta to je
+ * 100 ms — ceo prostor za sekvencu na jednom ekranu.
  */
-export const MAX_REVEAL_DELAY = 0.06;
+export const MAX_REVEAL_DELAY = 0.1;
 
 /** Nagoveštaj kompozitoru; sklanja se čim animacija završi. */
 export const WILL_CHANGE = "transform, opacity";
@@ -89,7 +106,7 @@ export const MOTION_QUERIES = {
 /**
  * Razmak između dece u stagger-u, stisnut tako da poslednje dete završi
  * unutar budžeta. Sa više dece razmak se sam smanjuje — talas ostaje čitljiv
- * jer `power3.out` odradi većinu vidljivog pomeraja u prvoj trećini tvina.
+ * jer kriva odradi većinu vidljivog pomeraja u prvoj trećini tvina.
  */
 export function resolveStagger(count: number, duration = DUR_UI): number {
   if (count <= 1) return 0;

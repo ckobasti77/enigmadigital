@@ -32,17 +32,25 @@
   --surface-light: #ffffff;
   --surface-light-muted: #f3f7ff;
 
-  /* Lines (borders) */
+  /* Lines (borders). `line-soft`/`line` su razdelnici i ivice kartica —
+     ukras, ne granica kontrole (1.3–1.5:1, namerno tiho). Granica koja MORA
+     da se vidi (polje unosa, prekidač, izbor) je `line-control`: izmereno
+     ≥ 3:1 na sve tri površine (A1 §5, `scripts/contrast-check.mjs`). */
   --line-soft: rgba(96, 128, 180, 0.22);
   --line: rgba(96, 128, 180, 0.28);
   --line-strong: rgba(88, 196, 255, 0.4);
+  --line-control: rgba(136, 170, 224, 0.6);
 
-  /* Text */
+  /* Text. `text-muted` je 9.9.2026 izmeren na 3.3–3.6:1 (ispod AA) na sve
+     tri površine, a nosi 1.766 klasa — natpise, imenioce, objašnjenja.
+     Podignut na 4.9:1 na najsvetlijoj površini; i dalje je najtiši ton. */
   --text-primary: #f3f7ff;
   --text-secondary: rgba(193, 211, 245, 0.75);
-  --text-muted: rgba(148, 170, 210, 0.6);
+  --text-muted: rgba(152, 174, 214, 0.8);
   --text-inverse: #091120;
   --text-on-light: #0b1221;
+  --text-on-light-secondary: rgba(11, 18, 33, 0.72);
+  --text-on-light-muted: rgba(11, 18, 33, 0.6);
 
   /* Accent cyan — interactive elements + key metrics only */
   --accent-300: #6ccbff;
@@ -62,17 +70,32 @@
   --warning: #fbbf24;
   --danger: #fb7185;
 
-  /* ── Temperatura leada (§5) ────────────────────────────────────────────────
-     Temperatura leada — jedina boja u tabeli koja nosi značenje.
-     Izvedene iz --chart-* palete, ali kao NAMENSKI tokeni u app/globals.css, da
-     se značenje ne veže za redni broj u grafikonu:
+  /* ── Temperatura leada (§5, A1 §2) ─────────────────────────────────────────
+     Semantički niz sa redosledom: Nova → Cold → Warm → Hot. Jedina boja u
+     tabeli koja nosi značenje, i ISTA na mapi (pin, klaster) i u profilu —
+     `lib/temperature.ts` je jedini kod koji zna imena ovih tokena.
+
+     `temp-nova` postoji da „nova firma" ne bi bila „bez boje": to je
+     neutralan slate, četvrti član niza, ne odsustvo temperature. `temp-hot`
+     je 9.9.2026 izmeren na 3.8–4.2:1 kao tekst; podignut na ≥ 4.7:1.
      ------------------------------------------------------------------------ */
+  --temp-nova: #7b8eb0;   /* neutralan slate — nova firma */
   --temp-cold: #1c9dd6;   /* hladno plavo  */
   --temp-warm: #c98500;   /* žuto-narandžasto */
-  --temp-hot:  #e04a3c;   /* crveno */
+  --temp-hot:  #f0604f;   /* crveno */
+  --temp-nova-bg: rgba(123, 142, 176, 0.10);
   --temp-cold-bg: rgba(28, 157, 214, 0.10);
   --temp-warm-bg: rgba(201, 133, 0,  0.10);
-  --temp-hot-bg:  rgba(224, 74,  60,  0.10);
+  --temp-hot-bg:  rgba(240, 96,  79,  0.10);
+
+  /* ── Jačina ocene: Fit / Intent (A1 §2, plan O5) ──────────────────────────
+     Skala od neutralnog ka akcentu, „više = jače". Slab pojas je prigušen
+     tekst, srednji običan tekst, jak je cijan. Nikad žuto za nizak procenat —
+     to je bila greška (27 % žut, 64 % siv). Pragovi su u `lib/strength.ts`.
+     ------------------------------------------------------------------------ */
+  --strength-low: var(--text-muted);
+  --strength-mid: var(--text-secondary);
+  --strength-high: var(--accent-400);
 
   /* Pozadina reda tabele po temperaturi. NEPROVIDNE — providna vrednost
      (rgba/transparent) bi propustila sadržaj kroz lepljive kolone. color-mix se
@@ -122,20 +145,26 @@
   --sidebar-width: 15rem;
   --chrome-height: 4rem;
 
-  /* ── Motion ────────────────────────────────────────────────────────────────
+  /* ── Motion (A1 §2, plan O6) ───────────────────────────────────────────────
      Dva imenovana ease-a, i ništa između njih.
 
        --ease-ui        kritično prigušen, bez prebačaja. Za sve što se prosto
-                        pojavi: reveal, meni, panel, dijalog.
+                        pojavi: reveal, meni, panel, dijalog, razmotavanje reda.
        --ease-momentum  blagi prebačaj. SAMO kada je gestu prethodio zamah —
                         prevlačenje, bacanje, odbacivanje prstom.
 
      Prebačaj na meniju koji se samo pojavio deluje pogrešno; prebačaj na
      kartici koju si odbacio deluje tačno. Ta razlika je cela poenta.
 
-     GSAP nema pravi spring, pa ove krive imaju svoje blizance u
-     `lib/motion.ts` ("power3.out" i "back.out(1.4)"). Menja se u paru. */
-  --ease-ui: cubic-bezier(0.25, 1, 0.5, 1);
+     Kriva je iz plana: cubic-bezier(.2,.8,.2,1). GSAP blizanac je TAČNO ta
+     kriva, registrovana kao CustomEase "ui" u `lib/motion.ts` — ne približna
+     „power3.out". Menja se u paru.
+
+     Trajanja: 100 ms odziv na pritisak, 150 ms sitno (tooltip, čip, fade),
+     200 ms sve što se pojavi ili razmota. Ništa u interfejsu ne traje duže od
+     200 ms osim zamaha (340 ms) — ovo je tabla koju operater otvara deset
+     puta dnevno. Pod `prefers-reduced-motion` tokeni se sami skrate (dole). */
+  --ease-ui: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-momentum: cubic-bezier(0.34, 1.42, 0.64, 1);
   /* Zatečeno ime, sada psevdonim — da nijedno pozivno mesto ne ostane na
      krivoj koja više nije deo sistema. */
@@ -143,8 +172,11 @@
 
   --duration-press: 100ms;
   --duration-fast: 150ms;
-  --duration-base: 240ms;
+  --duration-base: 200ms;
   --duration-momentum: 340ms;
+  /* Koliko se element pomeri pri ulasku (reveal, dolazak). Pod
+     `prefers-reduced-motion` postaje 0 — ostaje samo neprozirnost. */
+  --motion-distance: 10px;
 
   /* Koliko se element utisne pod prstom. Vidi `.hover-lift:active` niže. */
   --press-scale: 0.97;
@@ -215,7 +247,7 @@
   --accent-foreground: var(--text-primary);
   --destructive: var(--danger);
   --border: var(--line);
-  --input: var(--line-strong);
+  --input: var(--line-control);
   --ring: var(--focus-ring);
   --sidebar: var(--bg-900);
   --sidebar-foreground: var(--text-primary);
@@ -228,71 +260,119 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Type scale
+   Type scale — 12 / 13 / 15 / 20 / 28 (A1 §2, plan O5)
 
-   Tracking and leading run *opposite* to size. Large type sits on a negative
-   track and a tight leading so it reads as one shape; small type opens up so
-   the letters stay separable at the size a person actually squints at.
+   Pet koraka, svaki sa imenom po nameni:
 
-   Weight, not just size, carries the hierarchy: the three heading tiers are
-   700, the three text tiers are 400. Aeonik ships 300/400/700, so those are
-   the real steps available — 500 and 600 would silently round to one of them.
+     meta    12px  natpisi, zaglavlja tabele, čipovi, bedževi, ose grafikona
+     ui      13px  ćelije tabele, kontrole, sekundaran tekst, opisi
+     copy    15px  tekst, naziv firme u redu, naslov u listi
+     title   20px  naslov kartice i sekcije (700)
+     metric  28px  brojka na pločici, naslov ekrana (700)
 
-   Sizes are fluid between a 20rem and an 80rem viewport, with both ends of
-   every clamp in rem so system font scaling still moves the whole scale.
+   Iznad skale stoji samo `display` (fluidno 32 → 56) za ekran prijave.
+
+   Tracking i leading idu SUPROTNO od veličine: krupno na negativnom
+   trackingu i tesnom leadingu (jedan oblik), sitno otvoreno (slova ostaju
+   razdvojena na veličini u koju čovek stvarno škilji).
+
+   Težinu nosi hijerarhija, ne samo veličina: title/metric su 700, ostalo
+   400. Aeonik ima 300/400/700 — `medium`/`semibold` se tiho zaokruže.
+
+   Stok Tailwind koraci i stariji nazivi (h1/h2/body/small/micro) su
+   PRESLIKANI na iste vrednosti, pa 2.300 postojećih klasa sedne na skalu
+   bez ijedne izmene u komponentama: sm→13, base→15, lg/xl→20, 2xl/3xl→28,
+   micro→12. Ništa u aplikaciji više nije 11, 14, 16, 18, 24 ni 30 px.
    --------------------------------------------------------------------------- */
 @theme {
-  /* Semantic tiers */
+  /* Imenovani koraci */
+  --text-meta: 0.75rem; /* 12px */
+  --text-meta--line-height: 1.35;
+  --text-meta--letter-spacing: 0.01em;
+  --text-meta--font-weight: 400;
+
+  --text-ui: 0.8125rem; /* 13px */
+  --text-ui--line-height: 1.45;
+  --text-ui--letter-spacing: 0.005em;
+  --text-ui--font-weight: 400;
+
+  --text-copy: 0.9375rem; /* 15px */
+  --text-copy--line-height: 1.5;
+  --text-copy--letter-spacing: 0em;
+  --text-copy--font-weight: 400;
+
+  --text-title: 1.25rem; /* 20px */
+  --text-title--line-height: 1.25;
+  --text-title--letter-spacing: -0.012em;
+  --text-title--font-weight: 700;
+
+  --text-metric: 1.75rem; /* 28px */
+  --text-metric--line-height: 1.1;
+  --text-metric--letter-spacing: -0.018em;
+  --text-metric--font-weight: 700;
+
+  /* Iznad skale: samo ekran prijave i brend momenti. */
   --text-display: clamp(2rem, 1.5rem + 2.5vw, 3.5rem); /* 32 → 56px */
   --text-display--line-height: 1.05;
   --text-display--letter-spacing: -0.022em;
   --text-display--font-weight: 700;
 
-  --text-h1: clamp(1.5rem, 1.333rem + 0.833vw, 2rem); /* 24 → 32px */
-  --text-h1--line-height: 1.15;
+  /* Stariji nazivi (D1) — psevdonimi na skali, da postojeći markup ne ostane
+     na vrednostima koje više ne postoje. */
+  --text-h1: 1.75rem;
+  --text-h1--line-height: 1.1;
   --text-h1--letter-spacing: -0.018em;
   --text-h1--font-weight: 700;
 
-  --text-h2: clamp(1.25rem, 1.167rem + 0.417vw, 1.5rem); /* 20 → 24px */
+  --text-h2: 1.25rem;
   --text-h2--line-height: 1.25;
   --text-h2--letter-spacing: -0.012em;
   --text-h2--font-weight: 700;
 
-  --text-body: clamp(0.875rem, 0.833rem + 0.208vw, 1rem); /* 14 → 16px */
-  --text-body--line-height: 1.55;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.5;
   --text-body--letter-spacing: 0em;
   --text-body--font-weight: 400;
 
-  --text-small: clamp(0.75rem, 0.729rem + 0.104vw, 0.8125rem); /* 12 → 13px */
+  --text-small: 0.8125rem;
   --text-small--line-height: 1.45;
   --text-small--letter-spacing: 0.005em;
   --text-small--font-weight: 400;
 
-  --text-micro: 0.6875rem; /* 11px — labels, badges, chart axes */
-  --text-micro--line-height: 1.4;
+  --text-micro: 0.75rem;
+  --text-micro--line-height: 1.35;
   --text-micro--letter-spacing: 0.02em;
   --text-micro--font-weight: 400;
 
-  /* The stock Tailwind steps land on the same curve, so existing markup gets
-     optical tracking without a single class changing. */
-  --text-xs--line-height: 1.45;
-  --text-xs--letter-spacing: 0.005em;
-  --text-sm--line-height: 1.55;
-  --text-sm--letter-spacing: 0em;
-  --text-base--line-height: 1.55;
+  /* Stok Tailwind koraci na istoj skali. */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.35;
+  --text-xs--letter-spacing: 0.01em;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.45;
+  --text-sm--letter-spacing: 0.005em;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.5;
   --text-base--letter-spacing: 0em;
-  --text-lg--line-height: 1.4;
-  --text-lg--letter-spacing: -0.008em;
-  --text-xl--line-height: 1.3;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.25;
+  --text-lg--letter-spacing: -0.012em;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.25;
   --text-xl--letter-spacing: -0.012em;
-  --text-2xl--line-height: 1.2;
-  --text-2xl--letter-spacing: -0.015em;
-  --text-3xl--line-height: 1.15;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 1.1;
+  --text-2xl--letter-spacing: -0.018em;
+  --text-3xl: 1.75rem;
+  --text-3xl--line-height: 1.1;
   --text-3xl--letter-spacing: -0.018em;
-  --text-4xl--line-height: 1.1;
-  --text-4xl--letter-spacing: -0.02em;
+  --text-4xl: var(--text-display);
+  --text-4xl--line-height: 1.05;
+  --text-4xl--letter-spacing: -0.022em;
+  --text-5xl: var(--text-display);
   --text-5xl--line-height: 1.05;
   --text-5xl--letter-spacing: -0.022em;
+  --text-6xl: var(--text-display);
   --text-6xl--line-height: 1.03;
   --text-6xl--letter-spacing: -0.024em;
 }
@@ -310,12 +390,15 @@
   --color-line-soft: var(--line-soft);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-line-control: var(--line-control);
   --color-material-edge: var(--material-edge);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
   --color-text-inverse: var(--text-inverse);
   --color-text-on-light: var(--text-on-light);
+  --color-text-on-light-secondary: var(--text-on-light-secondary);
+  --color-text-on-light-muted: var(--text-on-light-muted);
   --color-accent-300: var(--accent-300);
   --color-accent-400: var(--accent-400);
   --color-accent-500: var(--accent-500);
@@ -332,12 +415,17 @@
   --color-chart-5: var(--chart-5);
   --color-chart-6: var(--chart-6);
   --color-chart-grid: var(--chart-grid);
+  --color-temp-nova: var(--temp-nova);
   --color-temp-cold: var(--temp-cold);
   --color-temp-warm: var(--temp-warm);
   --color-temp-hot: var(--temp-hot);
+  --color-temp-nova-bg: var(--temp-nova-bg);
   --color-temp-cold-bg: var(--temp-cold-bg);
   --color-temp-warm-bg: var(--temp-warm-bg);
   --color-temp-hot-bg: var(--temp-hot-bg);
+  --color-strength-low: var(--strength-low);
+  --color-strength-mid: var(--strength-mid);
+  --color-strength-high: var(--strength-high);
 
   /* Semantic (shadcn) → utilities */
   --color-background: var(--background);
@@ -413,6 +501,13 @@
 
   body {
     @apply min-h-full bg-background text-foreground antialiased;
+    /* Neklasiran tekst sedi na skali (15 px), ne na 16 px pregledača. */
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+    /* Svaki broj u aplikaciji je tabularan (A1 §2): kolone brojeva se
+       poravnavaju, brojač koji se menja ne pomera susede. Jedno pravilo
+       umesto 320 klasa `tabular-nums`. */
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -458,6 +553,27 @@
     -webkit-backdrop-filter: var(--material-thick-blur);
     backdrop-filter: var(--material-thick-blur);
     box-shadow: var(--elev-3);
+  }
+
+  /* ── Svetla površina ─────────────────────────────────────────────────────
+     Bela je površina, ne tema (pregled DM-a, pregled objave). Umesto da svaka
+     komponenta bira `text-on-light`, kontejner dobije `.on-light` i isti
+     tokeni (`text-foreground`, `text-text-muted`, `border-line`) dobiju
+     vrednosti izmerene za belu podlogu (A1 §5: 18.7 / 7.6 / 4.9 : 1). */
+  .on-light {
+    --text-primary: var(--text-on-light);
+    --text-secondary: var(--text-on-light-secondary);
+    --text-muted: var(--text-on-light-muted);
+    --foreground: var(--text-on-light);
+    --muted-foreground: var(--text-on-light-secondary);
+    --line-soft: rgba(11, 18, 33, 0.1);
+    --line: rgba(11, 18, 33, 0.16);
+    --line-strong: rgba(11, 18, 33, 0.32);
+    --line-control: rgba(11, 18, 33, 0.45);
+    --border: var(--line);
+    --input: var(--line-control);
+    color: var(--text-primary);
+    color-scheme: light;
   }
 
   /* The light a material catches along the edge that faces the content. */
@@ -607,11 +723,15 @@
    *animated*: transitions are narrowed to opacity, and the enter/exit
    keyframes keep their fade while their scale, slide and rotate go to zero. */
 @media (prefers-reduced-motion: reduce) {
-  /* Utiskivanje pod prstom je transform, pa nestaje — jedan token, bez
-     ijednog dodatnog pravila. Redovi tabele zadržavaju korak u pozadini,
-     jer boja nije pokret. */
+  /* Tokeni pokreta se sami skrate: pomeraj nestaje, trajanja padaju na
+     150 ms (samo neprozirnost). Utiskivanje pod prstom je transform, pa
+     nestaje — jedan token, bez ijednog dodatnog pravila. Redovi tabele
+     zadržavaju korak u pozadini, jer boja nije pokret. */
   :root {
     --press-scale: 1;
+    --motion-distance: 0px;
+    --duration-base: 150ms;
+    --duration-momentum: 150ms;
   }
 
   *,

@@ -62,7 +62,7 @@ export function LeadIdentitiesPanel({
       case "phone":
         return <Phone className="size-4 text-accent-400" />;
       case "email":
-        return <Mail className="size-4 text-info" />;
+        return <Mail className="size-4 text-text-secondary" />;
       case "instagram":
         return <InstagramIcon className="size-4 text-pink-400" />;
       case "facebook":
@@ -170,7 +170,7 @@ export function LeadIdentitiesPanel({
                       {/* Nosilac kontakta: ako je vezano za osobu */}
                       {person ? (
                         <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                          <User className="size-3 text-text-soft" />
+                          <User className="size-3 text-text-muted" />
                           <span>Kontakt osoba:</span>
                           <strong className="text-foreground font-medium">{person.name}</strong>
                           <span className="rounded bg-surface-raised px-1.5 py-0.2 text-micro font-medium text-text-muted border border-line">
@@ -178,7 +178,7 @@ export function LeadIdentitiesPanel({
                           </span>
                         </div>
                       ) : (
-                        <span className="text-micro text-text-soft">
+                        <span className="text-micro text-text-muted">
                           Centrala firme (direktan kontakt pravnog lica)
                         </span>
                       )}

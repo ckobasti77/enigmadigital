@@ -5,22 +5,33 @@ import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import {
+  ArrowLeft,
   CalendarClock,
   Clock,
   Compass,
   Map as MapIcon,
-  SlidersHorizontal,
+  Settings2,
   ShieldAlert,
+  SlidersHorizontal,
   Upload,
   Users,
 } from "lucide-react";
 import { useWorkspace } from "@/components/app/workspace-provider";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { InvalidRule } from "@/convex/lib/leadScoring";
-import { TabNav, TabPanel } from "@/components/app/tab-nav";
+import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
+import { CountBadge } from "@/components/app/system/count-badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { FeedbackNote } from "@/components/app/feedback";
+import { pluralSr } from "@/lib/format";
 import { LeadsTable } from "./leads-table";
 import { GapsPanel } from "./gaps-panel";
 import { OverduePanel } from "./overdue-panel";
@@ -28,7 +39,6 @@ import { ScoringRulesPanel } from "./scoring-rules-panel";
 import { NichesPanel } from "./niches-panel";
 import { LeadsMap } from "./leads-map";
 import { useLeadFilters } from "./use-lead-filters";
-import { LeadExportDialog } from "./lead-export-dialog";
 import {
   MeetingsPanel,
   groupMeetings,
@@ -36,20 +46,37 @@ import {
   type MeetingItem,
 } from "./meetings-panel";
 
-type Tab = "leads" | "map" | "niche" | "gaps" | "overdue" | "meetings" | "scoring";
+/**
+ * Ljuska ekrana leadova (A1 §4, plan O4).
+ *
+ * Traka jezičaka ima dve vrste stvari, vizuelno razdvojene grupama:
+ *   Leadovi  — prikazi istih leadova (Tabela · Mapa)
+ *   Posao    — radni redovi koji nose BROJ (Rupe · Zaostali · Sastanci)
+ *
+ * Niše i Ocenjivanje su podešavanja, ne podaci, pa ne stoje u istoj traci:
+ * žive iza zupčanika „Podešavanja leadova" (isti `?tab=` u URL-u kao i pre,
+ * pa stari linkovi rade). Ništa nije nestalo — samo je razvrstano.
+ *
+ * Brojevi na jezičcima „Posao": Zaostali iz `listOverdue` (indeks
+ * `nextActionAt < now`, jeftin), Sastanci iz `listMeetings` (danas + prošli
+ * bez ishoda). Rupe NEMAJU broj u ovoj fazi: jedini izvor (`listGaps`) skenira
+ * do 10.000 redova i vezao bi taj trošak za svako otvaranje ekrana; A2 uvodi
+ * jeftin izvedeni upit i tada broj stiže ovde. Bez bedža = nema broja, nikad
+ * „0".
+ */
+type RadniTab = "leads" | "map" | "gaps" | "overdue" | "meetings";
+type PodesavanjaTab = "niche" | "scoring";
+type Tab = RadniTab | PodesavanjaTab;
 
-const TABOVI: readonly Tab[] = [
-  "leads",
-  "map",
-  "niche",
-  "gaps",
-  "overdue",
-  "meetings",
-  "scoring",
-];
+const RADNI: readonly RadniTab[] = ["leads", "map", "gaps", "overdue", "meetings"];
+const PODESAVANJA: readonly PodesavanjaTab[] = ["niche", "scoring"];
 
-function jeTab(raw: string | null): raw is Tab {
-  return raw !== null && (TABOVI as readonly string[]).includes(raw);
+function jeRadni(raw: string | null): raw is RadniTab {
+  return raw !== null && (RADNI as readonly string[]).includes(raw);
+}
+
+function jePodesavanja(raw: string | null): raw is PodesavanjaTab {
+  return raw !== null && (PODESAVANJA as readonly string[]).includes(raw);
 }
 
 export function LeadsDashboard() {
@@ -58,30 +85,75 @@ export function LeadsDashboard() {
   // Jezičak živi u URL-u (GL3): `?tab=map&firma=<id>` iz profila mora da
   // otvori mapu sa panelom, a kopiran link isti jezičak. Tabela je
   // podrazumevana i ne upisuje se. Nepoznata vrednost = tabela.
-  const tab: Tab = jeTab(nav.tab) ? nav.tab : "leads";
+  const tab: Tab = jeRadni(nav.tab) || jePodesavanja(nav.tab) ? nav.tab : "leads";
   const setTab = (next: Tab) => setNav({ tab: next === "leads" ? null : next });
   const [invalidRules, setInvalidRules] = useState<InvalidRule[]>([]);
 
-  // Brojač na jezičku „Sastanci" (§4). Ista query se koristi i unutar panela —
-  // Convex klijent deduplikuje na jednu pretplatu. `"skip"` dok radni prostor
-  // nije spreman poštuje pravila hukova (poziva se pri svakom renderu).
+  // Brojači na jezičcima „Posao". Iste upite koriste i paneli — Convex klijent
+  // deduplikuje na jednu pretplatu. `"skip"` dok radni prostor nije spreman
+  // poštuje pravila hukova (poziva se pri svakom renderu).
   const wsId = workspace?.id as Id<"workspaces"> | undefined;
   const meetingsData = useQuery(
     api.leadCrmStore.listMeetings,
     wsId ? { workspaceId: wsId } : "skip",
   );
-  const meetingsBadge = useMemo(() => {
-    if (!meetingsData) return 0;
-    return meetingsBadgeCount(
-      groupMeetings(meetingsData.items as MeetingItem[], meetingsData.now),
-    );
+  const overdueData = useQuery(
+    api.leadCrmStore.listOverdue,
+    wsId ? { workspaceId: wsId, limit: 100 } : "skip",
+  );
+  const meetings = useMemo(() => {
+    if (!meetingsData) return null;
+    const groups = groupMeetings(meetingsData.items as MeetingItem[], meetingsData.now);
+    return { count: meetingsBadgeCount(groups), prosli: groups.prosliBezIshoda.length };
   }, [meetingsData]);
+  const overdueCount = overdueData?.count ?? 0;
 
   if (isLoading || !workspace) {
     return <LeadsDashboardSkeleton />;
   }
 
   const workspaceId = workspace.id as Id<"workspaces">;
+
+  const radniTabovi: readonly TabItem<RadniTab>[] = [
+    { id: "leads", label: "Tabela", icon: Users, group: "Leadovi" },
+    { id: "map", label: "Mapa", icon: MapIcon, group: "Leadovi" },
+    { id: "gaps", label: "Rupe u podacima", icon: ShieldAlert, group: "Posao" },
+    {
+      id: "overdue",
+      label: "Zaostali",
+      icon: Clock,
+      group: "Posao",
+      badge: (
+        <CountBadge
+          count={overdueCount}
+          tone="danger"
+          label={`${overdueCount} ${pluralSr(overdueCount, "zaostao korak", "zaostala koraka", "zaostalih koraka")}`}
+        />
+      ),
+    },
+    {
+      id: "meetings",
+      label: "Sastanci",
+      icon: CalendarClock,
+      group: "Posao",
+      badge: meetings ? (
+        <CountBadge
+          count={meetings.count}
+          tone={meetings.prosli > 0 ? "danger" : "warning"}
+          label={
+            meetings.prosli > 0
+              ? `${meetings.count} — od toga ${meetings.prosli} bez zabeleženog ishoda`
+              : `${meetings.count} ${pluralSr(meetings.count, "sastanak danas", "sastanka danas", "sastanaka danas")}`
+          }
+        />
+      ) : undefined,
+    },
+  ];
+
+  const podesavanjaTabovi: readonly TabItem<PodesavanjaTab>[] = [
+    { id: "niche", label: "Niše", icon: Compass },
+    { id: "scoring", label: "Ocenjivanje", icon: SlidersHorizontal },
+  ];
 
   return (
     <div className="flex flex-1 flex-col gap-6">
@@ -94,6 +166,11 @@ export function LeadsDashboard() {
               ? "pravilo ocenjivanja se ne primenjuje"
               : "pravila ocenjivanja se ne primenjuju"
           }`}
+          action={
+            <Button size="xs" variant="outline" onClick={() => setTab("scoring")}>
+              Otvori ocenjivanje
+            </Button>
+          }
         >
           <div className="mt-1 flex flex-col gap-1.5 text-xs">
             <p>
@@ -116,71 +193,114 @@ export function LeadsDashboard() {
         </FeedbackNote>
       )}
 
-      {/* Traka sa jezičcima */}
-      <TabNav
-        panelId="leadovi-panel"
-        active={tab}
-        onChange={setTab}
-        tabs={[
-          { id: "leads", label: "Tabela leadova", icon: Users },
-          { id: "map", label: "Mapa", icon: MapIcon },
-          { id: "niche", label: "Niše", icon: Compass },
-          { id: "gaps", label: "Rupe u podacima", icon: ShieldAlert },
-          { id: "overdue", label: "Zaostali koraci", icon: Clock },
-          {
-            id: "meetings",
-            label: "Sastanci",
-            icon: CalendarClock,
-            badge:
-              meetingsBadge > 0 ? (
-                <span className="ml-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-danger px-1.5 py-px text-micro font-bold text-white tabular-nums">
-                  {meetingsBadge}
-                </span>
-              ) : undefined,
-          },
-          { id: "scoring", label: "Ocenjivanje", icon: SlidersHorizontal },
-        ]}
-        trailing={
-          <div className="flex items-center gap-2">
-            <LeadExportDialog workspaceId={workspaceId} />
-            <Link
-              href="/leadovi/uvoz"
-              className={buttonVariants({
-                size: "sm",
-                className: "gap-2 text-xs",
-              })}
+      {jePodesavanja(tab) ? (
+        <>
+          {/* Podešavanja leadova: isti `?tab=`, druga traka. Nazad vodi na
+              tabelu i čuva filtere iz URL-a (setNav, ne link). */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTab("leads")}
+              className="gap-1.5 text-text-muted"
             >
-              <Upload className="size-3.5" />
-              <span>Uvoz leadova</span>
-            </Link>
+              <ArrowLeft className="size-3.5" aria-hidden />
+              Leadovi
+            </Button>
+            <span className="h-4 w-px bg-line-soft" aria-hidden />
+            <span className="inline-flex items-center gap-1.5 text-ui font-medium text-foreground">
+              <Settings2 className="size-3.5 text-text-muted" aria-hidden />
+              Podešavanja leadova
+            </span>
           </div>
-        }
-      />
 
-      {/* Sadržaj aktivnog jezička */}
-      <TabPanel id="leadovi-panel" className="flex flex-1 flex-col">
-        {tab === "leads" && (
-          <LeadsTable
-            workspaceId={workspaceId}
-            onInvalidRulesFound={setInvalidRules}
+          <TabNav
+            panelId="leadovi-podesavanja-panel"
+            active={tab}
+            onChange={setTab}
+            tabs={podesavanjaTabovi}
           />
-        )}
-        {tab === "map" && <LeadsMap mode="all" workspaceId={workspaceId} />}
-        {tab === "niche" && (
-          <NichesPanel
-            workspaceId={workspaceId}
-            onShowCompanies={(slug) => {
-              // Filter i jezičak u JEDNOM upisu — dva `router.replace` zaredom
-              // bi drugi pregazio prvi (vidi `upisi` u hooku).
-              applyQuery(`nisa=${encodeURIComponent(slug)}`, { tab: null });
-            }}
+
+          <TabPanel id="leadovi-podesavanja-panel" className="flex flex-1 flex-col">
+            {tab === "niche" && (
+              <NichesPanel
+                workspaceId={workspaceId}
+                onShowCompanies={(slug) => {
+                  // Filter i jezičak u JEDNOM upisu — dva `router.replace` zaredom
+                  // bi drugi pregazio prvi (vidi `upisi` u hooku).
+                  applyQuery(`nisa=${encodeURIComponent(slug)}`, { tab: null });
+                }}
+              />
+            )}
+            {tab === "scoring" && <ScoringRulesPanel workspaceId={workspaceId} />}
+          </TabPanel>
+        </>
+      ) : (
+        <>
+          {/* Traka sa jezičcima: Leadovi (Tabela · Mapa) | Posao (Rupe · Zaostali · Sastanci) */}
+          <TabNav
+            panelId="leadovi-panel"
+            active={tab}
+            onChange={setTab}
+            tabs={radniTabovi}
+            trailing={
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/leadovi/uvoz"
+                  className={buttonVariants({
+                    size: "sm",
+                    className: "gap-2 text-xs",
+                  })}
+                >
+                  <Upload className="size-3.5" aria-hidden />
+                  <span>Uvoz leadova</span>
+                </Link>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        aria-label="Podešavanja leadova"
+                        title="Podešavanja leadova: niše i ocenjivanje"
+                        className="gap-1.5 text-xs"
+                      />
+                    }
+                  >
+                    <Settings2 className="size-3.5" aria-hidden />
+                    <span className="hidden sm:inline">Podešavanja</span>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-60">
+                    <DropdownMenuLabel>Podešavanja leadova</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => setTab("niche")}>
+                      <Compass />
+                      Niše
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTab("scoring")}>
+                      <SlidersHorizontal />
+                      Ocenjivanje (Fit / Intent)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            }
           />
-        )}
-        {tab === "gaps" && <GapsPanel workspaceId={workspaceId} />}
-        {tab === "overdue" && <OverduePanel workspaceId={workspaceId} />}
-        {tab === "meetings" && <MeetingsPanel workspaceId={workspaceId} />}
-        {tab === "scoring" && <ScoringRulesPanel workspaceId={workspaceId} />}
-      </TabPanel>
+
+          {/* Sadržaj aktivnog jezička */}
+          <TabPanel id="leadovi-panel" className="flex flex-1 flex-col">
+            {tab === "leads" && (
+              <LeadsTable
+                workspaceId={workspaceId}
+                onInvalidRulesFound={setInvalidRules}
+              />
+            )}
+            {tab === "map" && <LeadsMap mode="all" workspaceId={workspaceId} />}
+            {tab === "gaps" && <GapsPanel workspaceId={workspaceId} />}
+            {tab === "overdue" && <OverduePanel workspaceId={workspaceId} />}
+            {tab === "meetings" && <MeetingsPanel workspaceId={workspaceId} />}
+          </TabPanel>
+        </>
+      )}
     </div>
   );
 }

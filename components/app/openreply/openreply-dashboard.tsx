@@ -154,10 +154,9 @@ export function OpenReplyDashboard() {
                 label="Aktivne kampanje"
                 value={activeCampaigns}
                 format={formatNumber}
-                delta={{ kind: "pct", value: null }}
-                formatDelta={() => "—"}
-                compareLabel={`od ${totalCampaigns} ukupno`}
-                spark={[]}
+                // Nema prethodnog perioda za broj kampanja — imenilac ide kao
+                // napomena, ne kao lažno poređenje (A1 §3).
+                note={`od ${totalCampaigns} ukupno`}
               />
             </div>
           </Reveal>

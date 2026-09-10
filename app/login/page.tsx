@@ -494,7 +494,7 @@ export default function LoginPage() {
 
                 {greskaBlok("Greška pri promeni lozinke")}
 
-                <div className="flex flex-col gap-2 border-t border-line-muted pt-2">
+                <div className="flex flex-col gap-2 border-t border-line-soft pt-2">
                   <Button
                     type="button"
                     variant="ghost"
@@ -565,7 +565,7 @@ export default function LoginPage() {
 
                 {greskaBlok("Greška pri potvrdi")}
 
-                <div className="flex flex-col gap-2 border-t border-line-muted pt-2">
+                <div className="flex flex-col gap-2 border-t border-line-soft pt-2">
                   <Button
                     type="button"
                     variant="ghost"
@@ -762,7 +762,7 @@ export default function LoginPage() {
 
                 {greskaBlok("Greška pri prijavi")}
 
-                <div className="flex flex-col gap-1 border-t border-line-muted pt-3">
+                <div className="flex flex-col gap-1 border-t border-line-soft pt-3">
                   <Button
                     type="button"
                     variant="ghost"

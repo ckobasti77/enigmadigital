@@ -35,7 +35,14 @@ import { DUR_REDUCED, EASE_UI, MOTION_QUERIES } from "@/lib/motion";
 import { holdCssTransition, releaseCssTransition } from "@/components/motion/css-transition";
 import { LeadFilterBar } from "./lead-filter-bar";
 import { LeadsMapPanel } from "./leads-map-panel";
-import { StageChip, TEMPERATURA_LABELS, type Temperatura } from "./lead-chips";
+import {
+  TEMPERATURE,
+  TEMPERATURE_LABEL,
+  temperatureVar,
+  type Temperatura,
+} from "@/lib/temperature";
+import { TemperatureChip } from "@/components/app/system/chip";
+import { StageChip } from "./lead-chips";
 import { filtersToQuery, useLeadFilters } from "./use-lead-filters";
 import type { MapHover, MapPoint, MapStyleState } from "./leads-map-canvas";
 import { pojasKvaliteta, POJAS_NATPISI } from "@/convex/lib/siteScore";
@@ -143,14 +150,8 @@ function GreskaMape({ poruka, onRetry }: { poruka: string; onRetry: () => void }
  * fit" je uklonjeno (visina više ne postoji, fit je u kartici i panelu).
  */
 function PinIkonica({ temp }: { temp: Temperatura }) {
-  const telo =
-    temp === "hot"
-      ? "var(--temp-hot)"
-      : temp === "warm"
-        ? "var(--temp-warm)"
-        : temp === "cold"
-          ? "var(--temp-cold)"
-          : "color-mix(in srgb, var(--text-muted) 85%, var(--bg-950))";
+  // Ista promenljiva koju čita i pin na platnu (`lib/temperature.ts`).
+  const telo = temperatureVar(temp);
   return (
     <svg viewBox="0 0 24 32" width="13" height="17" className="shrink-0" aria-hidden>
       <path
@@ -172,7 +173,7 @@ function PinIkonica({ temp }: { temp: Temperatura }) {
 }
 
 function Legenda({ className }: { className?: string }) {
-  const temperature: Temperatura[] = ["hot", "warm", "cold", "nova_firma"];
+  // Redosled niza je redosled legende: Nova → Cold → Warm → Hot (A1 §2).
   return (
     <div
       className={cn(
@@ -180,10 +181,10 @@ function Legenda({ className }: { className?: string }) {
         className,
       )}
     >
-      {temperature.map((temp) => (
+      {TEMPERATURE.map((temp) => (
         <span key={temp} className="inline-flex items-center gap-1">
           <PinIkonica temp={temp} />
-          {TEMPERATURA_LABELS[temp]}
+          {TEMPERATURE_LABEL[temp]}
         </span>
       ))}
     </div>
@@ -560,17 +561,8 @@ function HoverKartica({
         </p>
       )}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <span
-          className={cn(
-            "inline-flex items-center gap-1 rounded-md border px-1.5 py-px text-micro font-semibold",
-            point.temperatura === "hot" && "border-temp-hot/50 bg-temp-hot-bg",
-            point.temperatura === "warm" && "border-temp-warm/50 bg-temp-warm-bg",
-            point.temperatura === "cold" && "border-temp-cold/50 bg-temp-cold-bg",
-            point.temperatura === "nova_firma" && "border-line-soft bg-surface-raised text-text-muted",
-          )}
-        >
-          {TEMPERATURA_LABELS[point.temperatura]}
-        </span>
+        <TemperatureChip temperatura={point.temperatura} size="sm" />
+
         <span className="rounded-md border border-line bg-surface-raised px-1.5 py-px text-micro">
           <span className="text-text-muted">Fit </span>
           <span className="font-mono font-semibold tabular-nums text-foreground">

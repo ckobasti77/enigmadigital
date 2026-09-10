@@ -5,6 +5,12 @@ import { Info } from "lucide-react";
 import type { ScoredAxis, ScoredContribution } from "@/convex/lib/leadScoring";
 import { leadSignalLabel } from "./lead-labels";
 import { formatRelativeTime } from "@/lib/format";
+import {
+  STRENGTH_BAR_CLASS,
+  STRENGTH_CHIP_CLASS,
+  strengthOf,
+  type Strength,
+} from "@/lib/strength";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Popover,
@@ -23,6 +29,9 @@ type LeadScoreCellProps = {
   /** Jedan red bez trake — za kompaktnu gustinu tabele (§7). */
   compact?: boolean;
 };
+
+/** Neizmereno i bez pravila: prigušen okvir, bez boje jačine. */
+const NEUTRAL_CHIP = "border-line bg-surface-raised/60 text-text-muted";
 
 export function LeadScoreCell({ axis, score, className, compact = false }: LeadScoreCellProps) {
   const [open, setOpen] = useState(false);
@@ -48,28 +57,13 @@ export function LeadScoreCell({ axis, score, className, compact = false }: LeadS
     ? undefined
     : Math.round((score.points / score.maxPoints) * 100);
 
-  // Boje za izmereni rezultat
-  const getScoreColor = () => {
-    if (nemaPravila || isUnmeasured) {
-      return "border-line bg-surface-raised/60 text-text-muted";
-    }
-    if (percentage! >= 70) {
-      return isFit
-        ? "border-accent-400/40 bg-accent-400/10 text-accent-400"
-        : "border-success/40 bg-success/10 text-success";
-    }
-    if (percentage! >= 35) {
-      return "border-info/40 bg-info/10 text-info";
-    }
-    return "border-warning/40 bg-warning/10 text-warning";
-  };
-
-  const getProgressColor = () => {
-    if (nemaPravila || isUnmeasured) return "bg-line-strong";
-    if (percentage! >= 70) return isFit ? "bg-accent-400" : "bg-success";
-    if (percentage! >= 35) return "bg-info";
-    return "bg-warning";
-  };
+  // Boja nosi JAČINU, i to u jednom smeru: više = jače (A1 §2, `lib/strength`).
+  // Ranije je 27 % bio žut (upozorenje) a 64 % siv (token `info` nije
+  // postojao) — boja je govorila suprotno od broja.
+  const strength: Strength | null =
+    nemaPravila || isUnmeasured || percentage === undefined ? null : strengthOf(percentage);
+  const chipClass = strength ? STRENGTH_CHIP_CLASS[strength] : NEUTRAL_CHIP;
+  const barClass = strength ? STRENGTH_BAR_CLASS[strength] : "bg-line-strong";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -80,7 +74,7 @@ export function LeadScoreCell({ axis, score, className, compact = false }: LeadS
               type="button"
               className={cn(
                 "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2 text-xs transition-all hover:ring-1 hover:ring-accent-400/30",
-                getScoreColor(),
+                chipClass,
                 className,
               )}
               title={`Bodovanje (${axisTitle})`}
@@ -101,7 +95,7 @@ export function LeadScoreCell({ axis, score, className, compact = false }: LeadS
             type="button"
             className={cn(
               "group flex flex-col items-start gap-1 rounded-lg border px-2.5 py-1.5 text-left transition-all hover:ring-1 hover:ring-accent-400/30 cursor-pointer",
-              getScoreColor(),
+              chipClass,
               className,
             )}
             title={`Bodovanje (${axisTitle})`}
@@ -116,12 +110,12 @@ export function LeadScoreCell({ axis, score, className, compact = false }: LeadS
             {nemaPravila ? (
               <div className="flex flex-col">
                 <span className="text-xs font-medium text-text-muted">Nema pravila</span>
-                <span className="text-micro text-text-soft">ocena se ne računa</span>
+                <span className="text-micro text-text-muted">ocena se ne računa</span>
               </div>
             ) : isUnmeasured ? (
               <div className="flex flex-col">
                 <span className="text-xs font-medium text-text-muted">Nema signala</span>
-                <span className="text-micro text-text-soft">nije izmereno</span>
+                <span className="text-micro text-text-muted">nije izmereno</span>
               </div>
             ) : (
               <div className="flex flex-col w-full">
@@ -129,13 +123,13 @@ export function LeadScoreCell({ axis, score, className, compact = false }: LeadS
                   <span className="text-xs font-bold text-foreground">
                     {score.points} <span className="text-text-muted font-normal text-micro">/ {score.maxPoints}</span>
                   </span>
-                  <span className="text-micro font-semibold">
+                  <span className="font-mono text-micro font-semibold tabular-nums">
                     {percentage}%
                   </span>
                 </div>
                 <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-raised/80">
                   <div
-                    className={cn("h-full transition-all duration-300", getProgressColor())}
+                    className={cn("h-full transition-all duration-(--duration-base)", barClass)}
                     style={{ width: `${Math.min(Math.max(percentage ?? 0, 0), 100)}%` }}
                   />
                 </div>

@@ -1,5 +1,5 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
-import type { Temperatura } from "./lead-chips";
+import { TEMPERATURE, type Temperatura } from "@/lib/temperature";
 import { PIN, PIN_SIRINA_PX } from "./leads-map-geo";
 import { mix, withAlpha } from "./leads-map-color";
 
@@ -17,7 +17,8 @@ import { mix, withAlpha } from "./leads-map-color";
  *  - hot  → crveno (`--temp-hot`);
  *  - warm → ćilibar (`--temp-warm`);
  *  - cold → plavo (`--temp-cold`);
- *  - nova firma → neutralan slate (bez temperature).
+ *  - nova firma → neutralan slate (`--temp-nova`) — četvrti član niza, isti
+ *    token koji čitaju čip u tabeli i profil (A1 §2, `lib/temperature.ts`).
  * U glavi je beo „prozor" (krug) na svakom pinu, sa tankom tamnijom ivicom
  * tela. Izabran pin je blago svetliji + veći (×1,25, pečeno u `pin-sel-*`).
  *
@@ -31,15 +32,13 @@ export type PinBoje = {
   hot: string;
   warm: string;
   cold: string;
-  /** Neutralan slate — telo „nove firme" (bez temperature). */
+  /** `--temp-nova` — telo „nove firme". */
   nova: string;
   /** `--text-primary` — beli krug u glavi i mešanje za „svetliji" (izbor). */
   belo: string;
   /** `--bg-950` — tamnija ivica tela, ivica kruga i boja senke. */
   tamno: string;
 };
-
-const TEMPERATURE: Temperatura[] = ["hot", "warm", "cold", "nova_firma"];
 
 /** Ključ temperature u imenu slike (`nova_firma` → `nova`). */
 export function pinKljuc(temp: Temperatura): string {

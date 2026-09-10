@@ -22,6 +22,7 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
+import { EmptyState } from "@/components/app/system/empty-state";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -126,15 +127,24 @@ export function MeetingsPanel({ workspaceId }: MeetingsPanelProps) {
 
       {ukupno === 0 ? (
         <Card className="border-line bg-surface">
-          <CardContent className="flex flex-col items-center justify-center p-12 text-center text-text-muted">
-            <CalendarClock className="mb-2 size-10 text-text-soft" />
-            <p className="text-sm font-semibold text-foreground">
-              Nema zakazanih sastanaka
-            </p>
-            <p className="mt-1 max-w-sm text-xs text-text-muted">
-              Sastanci zakazani iz tabele ili profila firme pojaviće se ovde,
-              raspoređeni po danima.
-            </p>
+          <CardContent className="p-0">
+            {/* Nema sastanaka = nema dogovorenih termina, ne „nema posla":
+                sastanak se dogovara iz reda u tabeli (A1 §3). */}
+            <EmptyState
+              icon={CalendarClock}
+              title="Nema zakazanih sastanaka"
+              action={
+                <Link
+                  href="/leadovi"
+                  className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
+                >
+                  Otvori tabelu leadova
+                </Link>
+              }
+            >
+              Sastanak se dogovara iz reda u tabeli ili iz profila firme; ovde
+              se pojavljuje raspoređen po danima, a prošli bez ishoda idu na vrh.
+            </EmptyState>
           </CardContent>
         </Card>
       ) : (

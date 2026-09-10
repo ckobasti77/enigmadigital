@@ -10,7 +10,7 @@ import type {
   PonudaFilter,
   SajtFilter,
 } from "@/convex/leadFiltersStore";
-import type { Temperatura } from "./lead-chips";
+import { TEMPERATURE, type Temperatura } from "@/lib/temperature";
 import { ALL_STAGES } from "./lead-chips";
 
 /**
@@ -98,8 +98,6 @@ export const FILTER_KLJUCEVI = [
   "sajtSpor",
   "ponuda",
 ] as const;
-
-const TEMPERATURE: readonly Temperatura[] = ["nova_firma", "cold", "warm", "hot"];
 
 const KVALITETI: readonly KvalitetFilter[] = ["los", "srednji", "dobar", "neocenjen"];
 

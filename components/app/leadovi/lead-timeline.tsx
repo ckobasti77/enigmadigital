@@ -95,7 +95,7 @@ export function LeadTimeline({
       case "dodela":
         return <UserCheck className="size-3.5 text-accent-400" />;
       case "faza":
-        return <Tag className="size-3.5 text-info" />;
+        return <Tag className="size-3.5 text-text-secondary" />;
       case "dodir":
         return <PhoneCall className="size-3.5 text-success" />;
       case "ishod":
@@ -161,7 +161,7 @@ export function LeadTimeline({
                           <div className="flex items-center gap-1.5 font-semibold text-foreground">
                             <span>{getEventKindLabel(event.kind)}</span>
                             {event.kind === "faza" && event.toValue && (
-                              <span className="rounded bg-info/10 px-1.5 py-0.2 text-micro font-bold text-info border border-info/30">
+                              <span className="rounded border border-line bg-surface-raised px-1.5 py-px text-micro font-bold text-foreground">
                                 {leadStageLabel(event.toValue)}
                               </span>
                             )}
