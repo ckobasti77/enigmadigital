@@ -650,6 +650,140 @@ const listGaps: R<typeof api.leadGapsStore.listGaps> = {
   moguceLazneRupe: false,
 };
 
+// ── Uvoz leadova (A5) ────────────────────────────────────────────────────────
+//
+// Brojevi su isti oni izmereni 9.9.2026 (§1.5): tri uvoza stoje „U pregledu"
+// (13, 8 i 7 dana) i šest primenjenih nosi 41+21+9+3+3+1 = 78 nerazrešenih
+// redova. Identifikatori se poklapaju sa onima u snimku za zvono, pa dugme
+// „Reši preostale" u zvonu otvara baš taj uvoz i u razvojnom prikazu.
+
+type UvozUListi = R<typeof api.leadImportStore.listImports>[number];
+type RedUvozaFx = R<typeof api.leadImportStore.listImportRows>[number];
+
+const UVOZ_41 = "imp_ux_4" as Id<"leadImports">;
+
+/** Osnovni dokument uvoza; `nerazresenoCount` dodaje `listImports`. */
+function uvozDoc(p: {
+  id: string;
+  fileName: string;
+  status: "u_pregledu" | "primenjen";
+  preStoDana: number;
+  rowsParsed: number;
+  rowsSkipped: number;
+  warnings: string[];
+}): Omit<UvozUListi, "nerazresenoCount"> {
+  const uploadedAt = now - p.preStoDana * DAY;
+  return {
+    _id: p.id as Id<"leadImports">,
+    _creationTime: uploadedAt,
+    workspaceId: WS,
+    fileName: p.fileName,
+    uploadedBy: USER,
+    uploadedAt,
+    status: p.status,
+    sheetsChosen: ["Sheet1"],
+    headerRowIndex: 0,
+    rowsParsed: p.rowsParsed,
+    rowsSkipped: p.rowsSkipped,
+    warnings: p.warnings,
+    ...(p.status === "primenjen" ? { appliedAt: uploadedAt + 2 * HOUR } : {}),
+  };
+}
+
+const UPOZORENJA = [
+  "Red 12: kolona „Telefon“ je prazna — firma je uvezena bez broja.",
+  "Red 47: „Ocena“ nije broj („—“), vrednost je preskočena.",
+  "Kolona „Napomena 2“ nije prepoznata i nije uvezena.",
+];
+
+const UVOZI: Array<{
+  doc: Omit<UvozUListi, "nerazresenoCount">;
+  nerazreseno: number;
+}> = [
+  { doc: uvozDoc({ id: "imp_ux_1", fileName: "test-tabela-1.xlsx", status: "u_pregledu", preStoDana: 13, rowsParsed: 60, rowsSkipped: 2, warnings: UPOZORENJA }), nerazreseno: 0 },
+  { doc: uvozDoc({ id: "imp_ux_2", fileName: "test-tabela-2.xlsx", status: "u_pregledu", preStoDana: 8, rowsParsed: 45, rowsSkipped: 0, warnings: [] }), nerazreseno: 0 },
+  { doc: uvozDoc({ id: "imp_ux_3", fileName: "test-tabela-3.csv", status: "u_pregledu", preStoDana: 7, rowsParsed: 32, rowsSkipped: 1, warnings: UPOZORENJA.slice(0, 1) }), nerazreseno: 0 },
+  { doc: uvozDoc({ id: "imp_ux_4", fileName: "test-tabela-4.xlsx", status: "primenjen", preStoDana: 12, rowsParsed: 102, rowsSkipped: 2, warnings: UPOZORENJA }), nerazreseno: 41 },
+  { doc: uvozDoc({ id: "imp_ux_5", fileName: "test-tabela-5.xlsx", status: "primenjen", preStoDana: 20, rowsParsed: 80, rowsSkipped: 0, warnings: [] }), nerazreseno: 21 },
+  { doc: uvozDoc({ id: "imp_ux_6", fileName: "test-tabela-6.xlsx", status: "primenjen", preStoDana: 26, rowsParsed: 50, rowsSkipped: 0, warnings: UPOZORENJA.slice(0, 2) }), nerazreseno: 9 },
+  { doc: uvozDoc({ id: "imp_ux_7", fileName: "test-tabela-7.csv", status: "primenjen", preStoDana: 33, rowsParsed: 40, rowsSkipped: 0, warnings: [] }), nerazreseno: 3 },
+  { doc: uvozDoc({ id: "imp_ux_8", fileName: "test-tabela-8.xlsx", status: "primenjen", preStoDana: 40, rowsParsed: 28, rowsSkipped: 0, warnings: [] }), nerazreseno: 3 },
+  { doc: uvozDoc({ id: "imp_ux_9", fileName: "test-tabela-9.xlsx", status: "primenjen", preStoDana: 47, rowsParsed: 15, rowsSkipped: 0, warnings: [] }), nerazreseno: 1 },
+];
+
+const listImports: R<typeof api.leadImportStore.listImports> = UVOZI.map((u) => ({
+  ...u.doc,
+  nerazresenoCount: u.nerazreseno,
+}));
+
+/**
+ * Redovi uvoza `imp_ux_4` — baš onog koji u produkciji nosi 41 nerazrešen red.
+ * Raspodela: 35 novih firmi + 15 spojenih (primenjeni), 41 nerazrešen,
+ * 6 preskočenih, 3 sklonjena i 2 rešena koja čekaju „Primeni preostale".
+ */
+function redUvoza(i: number, over: Partial<RedUvozaFx>): RedUvozaFx {
+  return {
+    _id: `lir_ux_test_${String(i).padStart(3, "0")}` as Id<"leadImportRows">,
+    _creationTime: now - 12 * DAY,
+    workspaceId: WS,
+    importId: UVOZ_41,
+    sourceSheet: "Sheet1",
+    sourceRowIndex: i,
+    parsed: {
+      nazivFirme: `Test Salon ${i}`,
+      grad: GRADOVI[i % GRADOVI.length],
+      opstina: OPSTINE[i % OPSTINE.length],
+      telefon: "+381 60 000 0000",
+      izvori: ["test-tabela-4.xlsx"],
+      derivedSignals: [],
+    },
+    sirovo: [
+      { kolona: "Naziv firme", vrednost: `Test Salon ${i}` },
+      { kolona: "Grad", vrednost: GRADOVI[i % GRADOVI.length] },
+      { kolona: "Telefon", vrednost: "+381 60 000 0000" },
+      { kolona: "Napomena", vrednost: i % 4 === 0 ? "Vlasnik: Test Osoba" : "" },
+    ],
+    decision: "nerazreseno",
+    conflicts: [],
+    temperatura: TEMPERATURE[i % TEMPERATURE.length],
+    firmaId: undefined,
+    firmaTemperatura: undefined,
+    ...over,
+  };
+}
+
+const listImportRows: R<typeof api.leadImportStore.listImportRows> = [
+  ...Array.from({ length: 35 }, (_, k) => {
+    const i = k + 1;
+    const companyId = `lc_ux_test_${String((i % 25) + 1).padStart(3, "0")}` as Id<"leadCompanies">;
+    return redUvoza(i, {
+      decision: "nova_firma",
+      primenjenAt: now - 12 * DAY + 2 * HOUR,
+      createdCompanyId: companyId,
+      firmaId: companyId,
+      firmaTemperatura: TEMPERATURE[i % TEMPERATURE.length],
+    });
+  }),
+  ...Array.from({ length: 15 }, (_, k) => {
+    const i = k + 36;
+    const companyId = `lc_ux_test_${String((i % 25) + 1).padStart(3, "0")}` as Id<"leadCompanies">;
+    return redUvoza(i, {
+      decision: "spoji",
+      matchedCompanyId: companyId,
+      matchedBy: "pib",
+      primenjenAt: now - 12 * DAY + 2 * HOUR,
+      firmaId: companyId,
+      firmaTemperatura: TEMPERATURE[i % TEMPERATURE.length],
+    });
+  }),
+  ...Array.from({ length: 41 }, (_, k) => redUvoza(k + 51, { decision: "nerazreseno" })),
+  ...Array.from({ length: 6 }, (_, k) => redUvoza(k + 92, { decision: "preskoci" })),
+  ...Array.from({ length: 3 }, (_, k) =>
+    redUvoza(k + 98, { decision: "nova_firma", obrisan: true }),
+  ),
+  ...Array.from({ length: 2 }, (_, k) => redUvoza(k + 101, { decision: "spoji" })),
+];
+
 // ── „Šta me čeka" (A2) ───────────────────────────────────────────────────────
 //
 // Fixture se NE piše rukom: snimak stanja prolazi kroz PRAVE proizvođače
@@ -742,6 +876,14 @@ const FIXTURES: Record<string, Fixture> = {
   [getFunctionName(api.leadGapsStore.listGaps)]: () => listGaps,
   [getFunctionName(api.leadFiltersStore.listLeadsForMap)]: () => listLeadsForMap,
   [getFunctionName(api.notificationsStore.staMeCeka)]: () => staMeCeka,
+  // Uvoz (A5): istorija, jedan uvoz i njegovi redovi. `getImport` odgovara samo
+  // na uvoz koji fixture zaista ima — za ostale vraća `null`, pa ekran kaže
+  // „Uvoz nije pronađen" umesto da izmisli sadržaj.
+  [getFunctionName(api.leadImportStore.listImports)]: () => listImports,
+  [getFunctionName(api.leadImportStore.getImport)]: (args) =>
+    listImports.find((imp) => imp._id === args.importId) ?? null,
+  [getFunctionName(api.leadImportStore.listImportRows)]: (args) =>
+    args.importId === UVOZ_41 ? listImportRows : [],
 };
 
 /** `undefined` za sve što nije pokriveno — ekran tada crta skeleton, ne laž. */

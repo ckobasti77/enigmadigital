@@ -1,26 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
   AlertTriangle,
   ArrowRight,
-  Clock,
-  ExternalLink,
+  ChevronDown,
+  ChevronRight,
   Eye,
   FileSpreadsheet,
-  History,
   LoaderCircle,
   RotateCcw,
-  ShieldAlert,
+  XCircle,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { trajanje } from "@/convex/lib/notifications";
+import { jeZastaoUPregledu } from "@/convex/lib/importFlow";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/app/empty-state";
 import { FeedbackNote } from "@/components/app/feedback";
+import { useNow } from "@/components/app/use-now";
 import {
   Table,
   TableHeader,
@@ -39,7 +41,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { IMPORT_STATUS_LABELS } from "./lead-labels";
+import { IMPORT_STATUS_LABELS, statusUvozaLabel } from "./lead-labels";
 
 type RevertResult = {
   revertedCompaniesCount: number;
@@ -77,15 +79,35 @@ export function ImportsHistory({
   onSelectImport,
 }: {
   workspaceId: Id<"workspaces">;
-  onSelectImport: (importId: Id<"leadImports">) => void;
+  onSelectImport: (
+    importId: Id<"leadImports">,
+    prikaz?: "nerazreseno",
+  ) => void;
 }) {
   const [revertingImportId, setRevertingImportId] = useState<Id<"leadImports"> | null>(null);
   const [isReverting, setIsReverting] = useState(false);
   const [revertError, setRevertError] = useState<string | null>(null);
   const [revertResult, setRevertResult] = useState<RevertResult | null>(null);
+  // A5 §2 tačka 5: odustajanje od uvoza koji niko neće pregledati.
+  const [abandoningImportId, setAbandoningImportId] = useState<Id<"leadImports"> | null>(null);
+  const [isAbandoning, setIsAbandoning] = useState(false);
+  const [abandonError, setAbandonError] = useState<string | null>(null);
+  // A5 §2 tačka 4: upozorenja parsera ostaju dostupna i posle primene.
+  const [otvoreno, setOtvoreno] = useState<Set<string>>(() => new Set());
 
+  const now = useNow();
   const imports = useQuery(api.leadImportStore.listImports, { workspaceId });
   const revertImportMutation = useMutation(api.leadImportStore.revertImport);
+  const abandonImportMutation = useMutation(api.leadImportStore.abandonImport);
+
+  const greskaTekst = (err: unknown): string => {
+    if (err instanceof ConvexError) {
+      const data = err.data as { code?: string; message?: string };
+      return `[${data.code || "greška"}]: ${data.message || err.message}`;
+    }
+    if (err instanceof Error) return err.message;
+    return String(err);
+  };
 
   const handleRevertConfirm = async () => {
     if (!revertingImportId) return;
@@ -102,17 +124,38 @@ export function ImportsHistory({
       setRevertResult(res);
       setRevertingImportId(null);
     } catch (err: unknown) {
-      if (err instanceof ConvexError) {
-        const data = err.data as { code?: string; message?: string };
-        setRevertError(`[${data.code || "greška"}]: ${data.message || err.message}`);
-      } else if (err instanceof Error) {
-        setRevertError(err.message);
-      } else {
-        setRevertError(String(err));
-      }
+      setRevertError(greskaTekst(err));
     } finally {
       setIsReverting(false);
     }
+  };
+
+  const handleAbandonConfirm = async () => {
+    if (!abandoningImportId) return;
+
+    setIsAbandoning(true);
+    setAbandonError(null);
+
+    try {
+      await abandonImportMutation({
+        workspaceId,
+        importId: abandoningImportId,
+      });
+      setAbandoningImportId(null);
+    } catch (err: unknown) {
+      setAbandonError(greskaTekst(err));
+    } finally {
+      setIsAbandoning(false);
+    }
+  };
+
+  const toggleOtvoren = (id: string) => {
+    setOtvoreno((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   if (imports === undefined) {
@@ -183,8 +226,18 @@ export function ImportsHistory({
         </FeedbackNote>
       )}
 
-      {/* Tabela istorije uvoza */}
-      <div className="rounded-xl border border-line bg-surface overflow-hidden">
+      {abandonError && (
+        <FeedbackNote tone="danger" title="Greška pri odustajanju od uvoza">
+          {abandonError}
+        </FeedbackNote>
+      )}
+
+      {/* Tabela istorije uvoza.
+          `overflow-x-auto` umesto `overflow-hidden`: na 390 px tabela je šira
+          od ekrana, pa je kolona „Radnje" — a s njom i „Reši preostale (41)" —
+          bila odsečena i nedostupna. Sada se do nje dolazi klizanjem unutar
+          tabele; strana se i dalje ne kliza vodoravno. */}
+      <div className="rounded-xl border border-line bg-surface overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="border-line bg-surface-raised/60 hover:bg-surface-raised/60">
@@ -208,77 +261,96 @@ export function ImportsHistory({
                 timeStyle: "short",
               });
 
+              const zastao = jeZastaoUPregledu(imp, now);
+              const imaUpozorenja = imp.warnings.length > 0;
+              const jeOtvoren = otvoreno.has(imp._id);
+
               return (
-                <TableRow
-                  key={imp._id}
-                  className="border-line/60 hover:bg-surface-raised/40 transition-colors"
-                >
-                  {/* Naziv fajla */}
-                  <TableCell>
-                    <div className="font-medium text-foreground">
-                      {imp.fileName}
-                    </div>
-                    {imp.sheetsChosen && imp.sheetsChosen.length > 0 && (
-                      <div className="text-micro text-text-muted mt-0.5">
-                        List: {imp.sheetsChosen.join(", ")}
+                <Fragment key={imp._id}>
+                  <TableRow className="border-line/60 hover:bg-surface-raised/40 transition-colors">
+                    {/* Naziv fajla */}
+                    <TableCell>
+                      <div className="font-medium text-foreground">
+                        {imp.fileName}
                       </div>
-                    )}
-                  </TableCell>
-
-                  {/* Datum */}
-                  <TableCell className="text-xs text-text-secondary">
-                    {formattedDate}
-                  </TableCell>
-
-                  {/* Status */}
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "inline-flex rounded-md border px-2 py-0.5 text-xs font-medium",
-                        statusCfg.className,
+                      {imp.sheetsChosen && imp.sheetsChosen.length > 0 && (
+                        <div className="text-micro text-text-muted mt-0.5">
+                          List: {imp.sheetsChosen.join(", ")}
+                        </div>
                       )}
-                    >
-                      {statusCfg.label}
-                    </span>
-                  </TableCell>
-
-                  {/* Broj parsiranih */}
-                  <TableCell className="text-right font-mono text-xs text-foreground">
-                    {imp.rowsParsed}
-                  </TableCell>
-
-                  {/* Preskočeno (pri parsiranju) / Nerazrešeno (odluka) — GL9 §1.
-                      Nerazrešeni redovi se pri primeni preskaču; broj ostaje da
-                      podseti da 41 firma čeka „Primeni preostale". */}
-                  <TableCell className="text-right font-mono text-xs">
-                    <span className={cn(imp.rowsSkipped > 0 ? "text-warning" : "text-text-muted")}>
-                      {imp.rowsSkipped}
-                    </span>
-                    <span className="text-text-muted"> / </span>
-                    <span className={cn(imp.nerazresenoCount > 0 ? "text-warning" : "text-text-muted")}>
-                      {imp.nerazresenoCount}
-                    </span>
-                  </TableCell>
-
-                  {/* Radnje */}
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {imp.status === "u_pregledu" && (
-                        <Button
+                      {/* A5 §2 tačka 4: upozorenja parsera se do sada nisu videla
+                          nigde osim u pregledu, pa su posle primene nestajala.
+                          Sada stoje uz sam uvoz, dokle god uvoz postoji. */}
+                      {imaUpozorenja && (
+                        <button
                           type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onSelectImport(imp._id)}
-                          className="h-8 text-xs border-warning/40 text-warning hover:bg-warning/10"
+                          onClick={() => toggleOtvoren(imp._id)}
+                          aria-expanded={jeOtvoren}
+                          className="mt-1 inline-flex items-center gap-1 rounded-md border border-warning/40 bg-warning/10 px-2 py-0.5 text-micro font-medium text-warning transition-colors hover:border-warning/60"
                         >
-                          Nastavi pregled
-                          <ArrowRight className="size-3.5 ml-1" />
-                        </Button>
+                          {jeOtvoren ? (
+                            <ChevronDown className="size-3" />
+                          ) : (
+                            <ChevronRight className="size-3" />
+                          )}
+                          Upozorenja parsera ({imp.warnings.length})
+                        </button>
                       )}
+                    </TableCell>
 
-                      {imp.status === "primenjen" && (
-                        <>
-                          {imp.nerazresenoCount > 0 && (
+                    {/* Datum */}
+                    <TableCell className="text-xs text-text-secondary">
+                      {formattedDate}
+                      {/* Koliko uvoz već stoji — isti prag i isti tekst kao u
+                          zvonu („stoji 13 dana"), da dva ekrana ne bi merila
+                          isto vreme na dva načina. */}
+                      {imp.status === "u_pregledu" && (
+                        <div
+                          className={cn(
+                            "mt-0.5 text-micro",
+                            zastao ? "text-warning" : "text-text-muted",
+                          )}
+                        >
+                          stoji {trajanje(Math.max(0, now - imp.uploadedAt))}
+                        </div>
+                      )}
+                    </TableCell>
+
+                    {/* Status */}
+                    <TableCell>
+                      <span
+                        className={cn(
+                          "inline-flex rounded-md border px-2 py-0.5 text-xs font-medium",
+                          statusCfg.className,
+                        )}
+                      >
+                        {statusUvozaLabel(imp)}
+                      </span>
+                    </TableCell>
+
+                    {/* Broj parsiranih */}
+                    <TableCell className="text-right font-mono text-xs text-foreground">
+                      {imp.rowsParsed}
+                    </TableCell>
+
+                    {/* Preskočeno (pri parsiranju) / Nerazrešeno (odluka) — GL9 §1.
+                        Nerazrešeni redovi se pri primeni preskaču; broj ostaje da
+                        podseti da 41 firma čeka „Primeni preostale". */}
+                    <TableCell className="text-right font-mono text-xs">
+                      <span className={cn(imp.rowsSkipped > 0 ? "text-warning" : "text-text-muted")}>
+                        {imp.rowsSkipped}
+                      </span>
+                      <span className="text-text-muted"> / </span>
+                      <span className={cn(imp.nerazresenoCount > 0 ? "text-warning" : "text-text-muted")}>
+                        {imp.nerazresenoCount}
+                      </span>
+                    </TableCell>
+
+                    {/* Radnje */}
+                    <TableCell className="text-right">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {imp.status === "u_pregledu" && (
+                          <>
                             <Button
                               type="button"
                               variant="outline"
@@ -286,10 +358,66 @@ export function ImportsHistory({
                               onClick={() => onSelectImport(imp._id)}
                               className="h-8 text-xs border-warning/40 text-warning hover:bg-warning/10"
                             >
-                              <AlertTriangle className="size-3.5 mr-1" />
-                              Reši preostale ({imp.nerazresenoCount})
+                              Nastavi pregled
+                              <ArrowRight className="size-3.5 ml-1" />
                             </Button>
-                          )}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setAbandonError(null);
+                                setAbandoningImportId(imp._id);
+                              }}
+                              className="h-8 text-xs border-line-soft text-text-muted hover:border-line-strong hover:text-foreground"
+                            >
+                              <XCircle className="size-3.5 mr-1" />
+                              Odustani od uvoza
+                            </Button>
+                          </>
+                        )}
+
+                        {imp.status === "primenjen" && (
+                          <>
+                            {imp.nerazresenoCount > 0 && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onSelectImport(imp._id, "nerazreseno")}
+                                className="h-8 text-xs border-warning/40 text-warning hover:bg-warning/10"
+                              >
+                                <AlertTriangle className="size-3.5 mr-1" />
+                                Reši preostale ({imp.nerazresenoCount})
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onSelectImport(imp._id)}
+                              className="h-8 text-xs"
+                            >
+                              <Eye className="size-3.5 mr-1" />
+                              Pregled
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setRevertError(null);
+                                setRevertingImportId(imp._id);
+                              }}
+                              className="h-8 text-xs border-danger/30 text-danger hover:bg-danger/10"
+                            >
+                              <RotateCcw className="size-3.5 mr-1" />
+                              Poništi
+                            </Button>
+                          </>
+                        )}
+
+                        {imp.status !== "u_pregledu" && imp.status !== "primenjen" && (
                           <Button
                             type="button"
                             variant="outline"
@@ -300,37 +428,36 @@ export function ImportsHistory({
                             <Eye className="size-3.5 mr-1" />
                             Pregled
                           </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setRevertError(null);
-                              setRevertingImportId(imp._id);
-                            }}
-                            className="h-8 text-xs border-danger/30 text-danger hover:bg-danger/10"
-                          >
-                            <RotateCcw className="size-3.5 mr-1" />
-                            Poništi
-                          </Button>
-                        </>
-                      )}
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
 
-                      {imp.status !== "u_pregledu" && imp.status !== "primenjen" && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onSelectImport(imp._id)}
-                          className="h-8 text-xs"
-                        >
-                          <Eye className="size-3.5 mr-1" />
-                          Pregled
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
+                  {imaUpozorenja && jeOtvoren && (
+                    <TableRow className="border-line/60 bg-surface-raised/30 hover:bg-surface-raised/30">
+                      <TableCell colSpan={6} className="py-3">
+                        <ul className="list-disc space-y-1 pl-5 text-xs text-text-secondary">
+                          {imp.warnings.map((w, i) => (
+                            <li key={i}>{w}</li>
+                          ))}
+                        </ul>
+                        {/* List i red zaglavlja postoje samo za uvoz IZ FAJLA;
+                            uvoz koji je poslao skill nema ni jedno ni drugo. */}
+                        {imp.sheetsChosen.length > 0 && (
+                          <p className="mt-2 text-micro text-text-muted">
+                            List: {imp.sheetsChosen.join(", ")} · zaglavlje u redu{" "}
+                            {imp.headerRowIndex + 1}
+                          </p>
+                        )}
+                        {imp.error && (
+                          <p className="mt-2 text-micro text-danger">
+                            Zabeležena greška: {imp.error}
+                          </p>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
               );
             })}
           </TableBody>
@@ -393,6 +520,68 @@ export function ImportsHistory({
                 </>
               ) : (
                 "Potvrdi poništavanje"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogPopup>
+      </Dialog>
+
+      {/* Dijalog potvrde za odustajanje od uvoza (A5 §2 tačka 5) */}
+      <Dialog
+        open={abandoningImportId !== null}
+        onOpenChange={(open) => {
+          if (!open && !isAbandoning) setAbandoningImportId(null);
+        }}
+      >
+        <DialogPopup className="max-w-md">
+          <DialogClose />
+          <DialogHeader>
+            <DialogTitle>Odustajanje od uvoza</DialogTitle>
+            <DialogDescription>
+              Uvoz prestaje da čeka pregled i nestaje iz obaveštenja.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs text-text-secondary">
+            <FeedbackNote tone="warning" title="Šta se dešava">
+              <ul className="list-disc pl-4 space-y-1 mt-1 text-micro text-text-muted">
+                <li>Ništa se ne briše — redovi ostaju i uvoz se i dalje otvara iz istorije.</li>
+                <li>Ovaj uvoz nije primenjen, pa u bazi firmi nije ni napravio ništa.</li>
+                <li>Ako ti ipak zatreba, ponovo otpremi isti fajl.</li>
+              </ul>
+            </FeedbackNote>
+
+            {abandonError && (
+              <FeedbackNote tone="danger" title="Greška">
+                {abandonError}
+              </FeedbackNote>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAbandoningImportId(null)}
+              disabled={isAbandoning}
+            >
+              Ne, vrati me
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleAbandonConfirm}
+              disabled={isAbandoning}
+              className="bg-danger text-text-inverse font-semibold hover:bg-danger/90"
+            >
+              {isAbandoning ? (
+                <>
+                  <LoaderCircle className="animate-spin size-4 mr-1.5" />
+                  Odustajem...
+                </>
+              ) : (
+                "Potvrdi odustajanje"
               )}
             </Button>
           </DialogFooter>

@@ -291,7 +291,10 @@ export function napraviZadatke(s: Snimak): Zadatak[] {
       naslov: `${ukupno} ${mnozina(ukupno, "red nije rešen", "reda nije rešeno", "redova nije rešeno")} u ${brojUvoza} ${mnozina(brojUvoza, "uvozu", "uvoza", "uvoza")}`,
       broj: ukupno,
       hitnost: "srednja",
-      veza: `/leadovi/uvoz?import=${najveci.id}`,
+      // A5: veza vodi u uvoz sa UKLJUČENIM prikazom nerazrešenih redova —
+      // dugme „Reši preostale" inače otvori tabelu od sto redova u kojoj tih 41
+      // treba prvo naći.
+      veza: `/leadovi/uvoz?import=${najveci.id}&prikaz=nerazreseno`,
       radnja: "Reši preostale",
       imenilac: `najviše ih ima u „${najveci.fileName}" (${najveci.broj})`,
       bedz: "/leadovi",

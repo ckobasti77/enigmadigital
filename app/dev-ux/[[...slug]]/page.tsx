@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app/app-shell";
 import OverviewPage from "@/app/(app)/page";
 import LeadsPage from "@/app/(app)/leadovi/page";
+import LeadImportPage from "@/app/(app)/leadovi/uvoz/page";
 import InstagramPage from "@/app/(app)/instagram/page";
 import OpenReplyPage from "@/app/(app)/openreply/page";
 import SettingsPage from "@/app/(app)/settings/page";
@@ -22,6 +23,7 @@ import { UxHarness } from "../harness";
 const PAGES: Record<string, ComponentType> = {
   "": OverviewPage,
   leadovi: LeadsPage,
+  "leadovi/uvoz": LeadImportPage,
   instagram: InstagramPage,
   openreply: OpenReplyPage,
   settings: SettingsPage,

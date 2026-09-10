@@ -4,6 +4,7 @@ import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
 import { ALL_PROVIDERS } from "./lib/providers";
+import { brojNerazresenih } from "./lib/importFlow";
 import {
   ODLAGANJE_MS,
   bedzeviOd,
@@ -170,10 +171,18 @@ async function citajUvoze(
       .take(CAP_NERAZRESENI_PO_UVOZU + 1);
     if (redovi.length === 0) continue;
     const odsecen = redovi.length > CAP_NERAZRESENI_PO_UVOZU;
+    // A5: sklonjen red ne čeka presudu — pri primeni se preskače pre nego što
+    // mu se odluka uopšte pogleda (`applyRows`). Zvono i ekran Uvoza broje
+    // istom funkcijom (`convex/lib/importFlow.ts`), da traka na stranici i
+    // stavka u zvonu ne bi imale dva broja za isti posao.
+    const broj = brojNerazresenih(
+      odsecen ? redovi.slice(0, CAP_NERAZRESENI_PO_UVOZU) : redovi,
+    );
+    if (broj === 0) continue;
     saNerazresenim.push({
       id: String(imp._id),
       fileName: imp.fileName,
-      broj: odsecen ? CAP_NERAZRESENI_PO_UVOZU : redovi.length,
+      broj,
       odsecen,
     });
   }

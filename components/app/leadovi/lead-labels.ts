@@ -51,6 +51,24 @@ export const IMPORT_STATUS_LABELS: Record<string, string> = {
   neuspeo: "Neuspeo",
 };
 
+/**
+ * Natpis statusa za KONKRETAN uvoz (A5 §2 tačka 5).
+ *
+ * Status `ponisten` nosi dva različita događaja: primenjen uvoz koji je neko
+ * poništio (firme su obrisane) i uvoz od kog se odustalo pre primene (ništa
+ * nije ni napravljeno). Razlika se čita iz `appliedAt` — „Poništen" na uvozu
+ * koji nikad nije primenjen tvrdio bi da je nešto obrisano.
+ */
+export function statusUvozaLabel(imp: {
+  status: string;
+  appliedAt?: number;
+}): string {
+  if (imp.status === "ponisten" && imp.appliedAt === undefined) {
+    return "Odustalo se";
+  }
+  return IMPORT_STATUS_LABELS[imp.status] ?? imp.status;
+}
+
 /** Faze prodajnog toka — CRM (§9.1) */
 export const LEAD_STAGE_LABELS: Record<string, string> = {
   nov: "Nov",

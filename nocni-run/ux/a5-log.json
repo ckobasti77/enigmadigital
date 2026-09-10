@@ -1,0 +1,180 @@
+{
+  "faza": "a5",
+  "kada": "2026-09-10T03:20:28.558Z",
+  "zapisi": [
+    {
+      "ekran": "kontrolna-tabla",
+      "viewport": "1440x900",
+      "url": "/",
+      "fajl": "a5-kontrolna-tabla-1440x900.jpg",
+      "naslov": "Enigma Command Center",
+      "visinaPx": 1505,
+      "dokumentSiri": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "probijaju": [],
+      "greske": []
+    },
+    {
+      "ekran": "kontrolna-tabla",
+      "viewport": "390x844",
+      "url": "/",
+      "fajl": "a5-kontrolna-tabla-390x844.jpg",
+      "naslov": "Enigma Command Center",
+      "visinaPx": 2750,
+      "dokumentSiri": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "probijaju": [
+        "a.relative.flex.min-w-[4.5rem] (42px)",
+        "svg.[object.SVGAnimatedString] (14px)",
+        "rect.[object.SVGAnimatedString] (12px)",
+        "path.[object.SVGAnimatedString] (9px)",
+        "span.max-w-full.truncate (30px)",
+        "a.relative.flex.min-w-[4.5rem] (114px)",
+        "svg.[object.SVGAnimatedString] (86px)",
+        "path.[object.SVGAnimatedString] (84px)"
+      ],
+      "greske": []
+    },
+    {
+      "ekran": "leadovi",
+      "viewport": "1440x900",
+      "url": "/leadovi",
+      "fajl": "a5-leadovi-1440x900.jpg",
+      "naslov": "Enigma Command Center",
+      "visinaPx": 1143,
+      "dokumentSiri": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "probijaju": [],
+      "greske": []
+    },
+    {
+      "ekran": "leadovi",
+      "viewport": "390x844",
+      "url": "/leadovi",
+      "fajl": "a5-leadovi-390x844.jpg",
+      "naslov": "Enigma Command Center",
+      "visinaPx": 2346,
+      "dokumentSiri": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "probijaju": [
+        "div.flex.shrink-0.items-center (525px)",
+        "span.mx-1.5.h-4.w-px (4px)",
+        "span.heading-caps.shrink-0.whitespace-nowrap (69px)",
+        "button.-mb-px.flex.shrink-0 (262px)",
+        "svg.[object.SVGAnimatedString] (103px)",
+        "path.[object.SVGAnimatedString] (101px)",
+        "path.[object.SVGAnimatedString] (95px)",
+        "span. (214px)"
+      ],
+      "greske": []
+    },
+    {
+      "ekran": "uvoz",
+      "viewport": "1440x900",
+      "url": "/leadovi/uvoz",
+      "fajl": "a5-uvoz-1440x900.jpg",
+      "naslov": "Enigma Command Center",
+      "visinaPx": 900,
+      "dokumentSiri": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "probijaju": [],
+      "greske": []
+    },
+    {
+      "ekran": "uvoz",
+      "viewport": "390x844",
+      "url": "/leadovi/uvoz",
+      "fajl": "a5-uvoz-390x844.jpg",
+      "naslov": "Enigma Command Center",
+      "visinaPx": 844,
+      "dokumentSiri": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "probijaju": [
+        "a.relative.flex.min-w-[4.5rem] (76px)",
+        "svg.[object.SVGAnimatedString] (41px)",
+        "path.[object.SVGAnimatedString] (39px)",
+        "circle.[object.SVGAnimatedString] (35px)",
+        "span.absolute.right-1.5.top-1 (70px)",
+        "span.inline-flex.h-5.min-w-5 (70px)",
+        "span.max-w-full.truncate (68px)"
+      ],
+      "greske": []
+    },
+    {
+      "ekran": "uvoz-pregled",
+      "viewport": "1440x900",
+      "url": "/leadovi/uvoz?import=imp_ux_4",
+      "fajl": "a5-uvoz-pregled-1440x900.jpg",
+      "naslov": "Enigma Command Center",
+      "visinaPx": 6314,
+      "dokumentSiri": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "probijaju": [],
+      "greske": []
+    },
+    {
+      "ekran": "uvoz-pregled",
+      "viewport": "390x844",
+      "url": "/leadovi/uvoz?import=imp_ux_4",
+      "fajl": "a5-uvoz-pregled-390x844.jpg",
+      "naslov": "Enigma Command Center",
+      "visinaPx": 6953,
+      "dokumentSiri": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "probijaju": [
+        "table.w-full.caption-bottom.text-sm (705px)",
+        "thead.[&_tr]:border-b (705px)",
+        "tr.transition-colors.has-aria-expanded:bg-muted/50.data-[state=selected]:bg-muted (705px)",
+        "th.h-10.text-left.align-middle (5px)",
+        "th.h-10.text-left.align-middle (165px)",
+        "div.flex.items-center.justify-between (153px)",
+        "span.truncate (59px)",
+        "th.h-10.text-left.align-middle (325px)"
+      ],
+      "greske": []
+    },
+    {
+      "ekran": "uvoz-istorija",
+      "viewport": "1440x900",
+      "url": "/leadovi/uvoz",
+      "fajl": "a5-uvoz-istorija-1440x900.jpg",
+      "naslov": "Enigma Command Center",
+      "visinaPx": 1155,
+      "dokumentSiri": false,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "probijaju": [],
+      "greske": []
+    },
+    {
+      "ekran": "uvoz-istorija",
+      "viewport": "390x844",
+      "url": "/leadovi/uvoz",
+      "fajl": "a5-uvoz-istorija-390x844.jpg",
+      "naslov": "Enigma Command Center",
+      "visinaPx": 1748,
+      "dokumentSiri": false,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "probijaju": [
+        "table.w-full.caption-bottom.text-sm (420px)",
+        "thead.[&_tr]:border-b (420px)",
+        "tr.border-b.transition-colors.has-aria-expanded:bg-muted/50 (420px)",
+        "th.h-10.px-2.text-left (19px)",
+        "th.h-10.px-2.align-middle (89px)",
+        "th.h-10.px-2.align-middle (258px)",
+        "th.h-10.px-2.align-middle (420px)",
+        "tbody.[&_tr:last-child]:border-0 (420px)"
+      ],
+      "greske": []
+    }
+  ]
+}

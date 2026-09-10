@@ -39,7 +39,7 @@ const SAMO = opt("--samo", null)?.split(",").map((s) => s.trim()).filter(Boolean
 
 // „pre" / „posle" su A1 i ne smeju da se prepišu — to je jedini dokaz da ta
 // faza nije pokvarila ekrane. Svaka sledeća faza snima pod svojim imenom.
-const FAZE = ["pre", "posle", "a2", "a3-pre", "a3", "a4-pre", "a4"];
+const FAZE = ["pre", "posle", "a2", "a3-pre", "a3", "a4-pre", "a4", "a5-pre", "a5"];
 if (!FAZE.includes(FAZA)) {
   console.error(`Zadaj --faza ${FAZE.join(" | ")}`);
   process.exit(2);
@@ -70,6 +70,17 @@ const EKRANI = [
   },
   { ime: "leadovi-sastanci", putanja: "/leadovi?tab=meetings" },
   { ime: "leadovi-mapa", putanja: "/leadovi?tab=map" },
+  // A5: uvoz — stranica sa trakom o zaglavljenim uvozima, pregled jednog uvoza
+  // (tok + nerazrešeni + rezime) i istorija (upozorenja parsera posle primene).
+  { ime: "uvoz", putanja: "/leadovi/uvoz" },
+  { ime: "uvoz-pregled", putanja: "/leadovi/uvoz?import=imp_ux_4" },
+  {
+    ime: "uvoz-istorija",
+    putanja: "/leadovi/uvoz",
+    // Selektor mora da bude vezan za samu tabelu istorije: `button[aria-expanded]`
+    // bez toga pogađa i prekidače u bočnoj navigaciji.
+    klik: ['[data-tab-id="history"]', 'table button[aria-expanded="false"]'],
+  },
   { ime: "instagram", putanja: "/instagram" },
   { ime: "openreply", putanja: "/openreply" },
   { ime: "settings", putanja: "/settings" },
@@ -159,6 +170,17 @@ async function snimi(browser, ekran, vp) {
   // Skeletoni se povuku odmah (fixture stiže sinhrono), ali fontovi i GSAP
   // reveal traže trenutak.
   await page.waitForTimeout(1500);
+
+  // Neki ekran se otvara tek klikom (jezičak „Istorija uvoza", razmotavanje
+  // upozorenja parsera). Selektor koji ne postoji se preskače — snimak tada
+  // pokazuje polazno stanje, ne pada.
+  for (const selektor of ekran.klik ?? []) {
+    const meta = page.locator(selektor).first();
+    if ((await meta.count()) > 0) {
+      await meta.click();
+      await page.waitForTimeout(500);
+    }
+  }
 
   // ScrollTrigger otkriva sekcije tek kad uđu u vidno polje: prođi celu
   // stranu pa se vrati na vrh, da full-page snimak ne uhvati nevidljive blokove.

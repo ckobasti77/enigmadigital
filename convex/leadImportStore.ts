@@ -13,6 +13,7 @@ import {
   type LeadSignalKind,
 } from "./lib/leadNormalize";
 import { isSuppressed, type MatchOn, type SuppressionCheckResult } from "./leadSuppressionStore";
+import { brojNerazresenih } from "./lib/importFlow";
 import type { ParsedLeadRow } from "./lib/leadImportParse";
 import { sajtOcenaValidator } from "./lib/siteAudit";
 import {
@@ -2301,6 +2302,67 @@ export const applyRemainingRows = mutation({
   },
 });
 
+/**
+ * „Odustani od uvoza" (A5 §2 tačka 5): uvoz koji stoji „U pregledu" a niko ga
+ * neće pregledati se zatvara, umesto da doveka stoji u zvonu i u traci na
+ * stranici Uvoza.
+ *
+ * NIŠTA SE NE BRIŠE. Redovi ostaju u staging-u i uvoz se i dalje otvara iz
+ * istorije — samo prestaje da se prijavljuje kao posao koji čeka. Uvoz koji
+ * nije primenjen nije ni upisao ništa u glavne tabele, pa nema šta da se čisti
+ * (za primenjen uvoz postoji `revertImport`, koji i briše).
+ *
+ * Status je postojeći `ponisten` — nova vrednost bi tražila izmenu unije u
+ * šemi i prevod na svakom mestu koje status prikazuje, a razlika se ionako
+ * vidi bez nje: poništen uvoz ima `appliedAt`, uvoz od kog se odustalo nema
+ * (interfejs po tome i piše različit natpis).
+ */
+export const abandonImport = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    importId: v.id("leadImports"),
+  },
+  handler: async (ctx, args) => {
+    const membership = await requireMembership(ctx);
+    if (membership.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+
+    const importDoc = await ctx.db.get(args.importId);
+    if (!importDoc || importDoc.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Uvoz nije pronađen.",
+      });
+    }
+
+    if (importDoc.status === "primenjen") {
+      throw new ConvexError({
+        code: "invalid",
+        message:
+          "Ovaj uvoz je već primenjen. Za brisanje onoga što je napravio postoji „Poništi“.",
+      });
+    }
+
+    if (importDoc.status === "ponisten") {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Od ovog uvoza je već odustalo.",
+      });
+    }
+
+    await ctx.db.patch(args.importId, {
+      status: "ponisten",
+      revertedAt: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
 // ── 6. Poništavanje uvoza (revertImport) ───────────────────────────────────────
 
 /**
@@ -2614,6 +2676,12 @@ export const listImports = query({
     // „Preskočeno / Nerazrešeno" i, za primenjen uvoz sa nerazrešenima, nudi
     // dugme „Reši preostale". Nerazrešen red nikad nema `primenjenAt`, pa je broj
     // po odluci dovoljan (indeks `by_import_decision`).
+    //
+    // A5: brojanje ide kroz `brojNerazresenih` — isti kod koji broji u zvonu i
+    // u pregledu uvoza. Do A5 je ovaj brojač uzimao i redove koje je čovek
+    // SKLONIO iz uvoza, pa je istorija umela da prijavi posao koji pregled ne
+    // vidi (sklonjen red se pri primeni preskače pre nego što mu se odluka
+    // uopšte pogleda).
     return await Promise.all(
       imports.map(async (imp) => {
         const nerazreseni = await ctx.db
@@ -2622,7 +2690,7 @@ export const listImports = query({
             q.eq("importId", imp._id).eq("decision", "nerazreseno"),
           )
           .collect();
-        return { ...imp, nerazresenoCount: nerazreseni.length };
+        return { ...imp, nerazresenoCount: brojNerazresenih(nerazreseni) };
       }),
     );
   },
