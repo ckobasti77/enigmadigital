@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { mobileNavItems, isNavActive } from "./nav-items";
+import { NavBadge } from "./nav-badge";
 
 export function MobileNav() {
   const pathname = usePathname();
@@ -51,6 +52,10 @@ export function MobileNav() {
               <span className="absolute top-0 h-0.5 w-4 rounded-full bg-accent-400" />
             )}
             <Icon className="size-4 shrink-0" />
+            {/* Ista pravila kao u bočnoj traci: bez posla — bez bedža. */}
+            <span className="absolute right-1.5 top-1">
+              <NavBadge href={item.href} label={item.label} />
+            </span>
             <span className="max-w-full truncate">{item.short ?? item.label}</span>
           </Link>
         );

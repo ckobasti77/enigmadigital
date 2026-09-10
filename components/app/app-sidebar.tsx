@@ -17,6 +17,7 @@ import {
   type NavItem,
 } from "./nav-items";
 import { useWorkspace } from "./workspace-provider";
+import { NavBadge } from "./nav-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /** Sekcije koje je operater ručno otvorio pamte se između učitavanja. */
@@ -177,7 +178,8 @@ function NavLeaf({ item, active }: { item: NavItem; active: boolean }) {
               : "text-text-muted group-hover:text-foreground",
           )}
         />
-        <span className="truncate">{item.label}</span>
+        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+        <NavBadge href={item.href} label={item.label} />
       </Link>
     </li>
   );
@@ -350,9 +352,10 @@ function NavGroup({
                 : "text-text-muted group-hover:text-foreground",
             )}
           />
-          <span id={labelId} className="truncate">
+          <span id={labelId} className="min-w-0 flex-1 truncate">
             {item.label}
           </span>
+          <NavBadge href={item.href} label={item.label} />
         </Link>
         <button
           type="button"

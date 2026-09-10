@@ -1528,4 +1528,10 @@ export const EXTRA_TABLE_OWNERSHIP: Record<string, Disposition> = {
     excluded:
       "Sopstvena kontrola pristupa za `POST /generate-leads/ingest` — samo SHA-256 heš, nikad sirov token. Ista klasa kao `invites`: prekid veze sa provajderom ne sme da opozove token, jer token nije njihov. Opoziva se ručno iz Podešavanja.",
   },
+
+  // ── „Šta me čeka" (A2) ────────────────────────────────────────────────────
+  notificationState: {
+    excluded:
+      "Čovekova odluka da skloni jednu stavku iz zvona (odloži 1 dan / sakrij): ključ zadatka, datum i broj pri sakrivanju. Ne dolazi ni od jednog provajdera i ne sadrži tuđi sadržaj — sami zadaci se IZVODE iz živog stanja pri svakom čitanju i ne skladište se nigde. Prekid veze sa Meta/Google briše podatke iz kojih se zadatak izvodi, pa zadatak nestane sam; brisati i podsetnik da je operater nešto odložio značilo bi vratiti mu stavku koju je sklonio.",
+  },
 };

@@ -17,6 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { useWorkspace } from "@/components/app/workspace-provider";
+import { useStaMeCeka } from "@/components/app/use-sta-me-ceka";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { InvalidRule } from "@/convex/lib/leadScoring";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
@@ -108,6 +109,12 @@ export function LeadsDashboard() {
   }, [meetingsData]);
   const overdueCount = overdueData?.count ?? 0;
 
+  // „Rupe u podacima" (A2): broj firmi bez telefona stiže iz istog izvedenog
+  // upita koji hrani zvono, pa se ne otvara drugo brojanje istog posla.
+  const staMeCeka = useStaMeCeka();
+  const rupeCount =
+    staMeCeka?.zadaci.find((z) => z.kljuc === "leadovi.bez_telefona")?.broj ?? 0;
+
   if (isLoading || !workspace) {
     return <LeadsDashboardSkeleton />;
   }
@@ -117,7 +124,24 @@ export function LeadsDashboard() {
   const radniTabovi: readonly TabItem<RadniTab>[] = [
     { id: "leads", label: "Tabela", icon: Users, group: "Leadovi" },
     { id: "map", label: "Mapa", icon: MapIcon, group: "Leadovi" },
-    { id: "gaps", label: "Rupe u podacima", icon: ShieldAlert, group: "Posao" },
+    {
+      id: "gaps",
+      label: "Rupe u podacima",
+      icon: ShieldAlert,
+      group: "Posao",
+      // A1 je ostavio ovaj jezičak bez broja jer je jedini izvor (`listGaps`)
+      // skenirao do 10.000 redova i vezao bi taj trošak za svako otvaranje
+      // ekrana. A2 je uveo jeftin izvedeni upit (telefoni se čitaju kroz
+      // `by_workspace_kind_value`, dakle SAMO telefoni), pa broj sad stiže i
+      // ovde — iz istog izvora iz kog ga čita zvono.
+      badge: (
+        <CountBadge
+          count={rupeCount}
+          tone="warning"
+          label={`${rupeCount} ${pluralSr(rupeCount, "firma bez broja", "firme bez broja", "firmi bez broja")}`}
+        />
+      ),
+    },
     {
       id: "overdue",
       label: "Zaostali",

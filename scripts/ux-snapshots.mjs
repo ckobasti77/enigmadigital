@@ -37,8 +37,11 @@ const PORT = Number(opt("--port", "3105"));
 const BEZ_SERVERA = argv.includes("--bez-servera");
 const SAMO = opt("--samo", null)?.split(",").map((s) => s.trim()).filter(Boolean) ?? null;
 
-if (FAZA !== "pre" && FAZA !== "posle") {
-  console.error("Zadaj --faza pre | posle");
+// „pre" / „posle" su A1 i ne smeju da se prepišu — to je jedini dokaz da ta
+// faza nije pokvarila ekrane. Svaka sledeća faza snima pod svojim imenom.
+const FAZE = ["pre", "posle", "a2"];
+if (!FAZE.includes(FAZA)) {
+  console.error(`Zadaj --faza ${FAZE.join(" | ")}`);
   process.exit(2);
 }
 

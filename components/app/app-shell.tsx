@@ -12,6 +12,7 @@ import { PageTransition } from "./page-transition";
 import { SectionNav } from "./section-nav";
 import { SignOutButton } from "./sign-out-button";
 import { SyncStatus } from "./sync-status";
+import { NotificationsBell } from "./notifications-bell";
 import { DateRangePicker } from "./date-range-picker";
 import { channelTabsFor, resolveScreen } from "./nav-items";
 import { WorkspaceProvider } from "./workspace-provider";
@@ -121,6 +122,9 @@ function Header() {
             </Suspense>
           )}
           <CommandTrigger />
+          {/* Zvono stoji na SVAKOM ekranu, i na telefonu: pre A2 nijedno mesto
+              u aplikaciji nije govorilo da nešto čeka (plan §1.1). */}
+          <NotificationsBell />
           <SyncStatus className="hidden sm:inline-flex" />
           <SignOutButton />
         </div>

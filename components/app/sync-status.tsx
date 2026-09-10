@@ -1,23 +1,30 @@
 "use client";
 
-import { Component, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
-import { AlertCircle, CheckCircle2, Clock, Disc } from "lucide-react";
+import { CheckCircle2, Clock, Disc } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatSyncAge } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { QuietBoundary } from "./quiet-boundary";
 
 /**
- * Stanje sinhronizacije u gornjoj traci: jedno očitavanje za sve integracije,
- * jer operatera ovde zanima samo „da li su brojevi na ekranu sveži".
+ * Koliko su brojevi na ekranu sveži — i ništa više (A2 §5).
  *
- * Najgore stanje pobeđuje. Jedna integracija u grešci je vest; da su ostale
- * tri uspele nije. Detalje po integraciji nosi Podešavanja, i pločica vodi
- * tamo — to je izlaz sa svakog ekrana kada nešto ne štima.
+ * Do A2 je ova pločica radila dva posla i drugi je radila loše: uzimala je
+ * NAJGORI status među svim provajderima, pa je jedan davno pokvaren kanal
+ * bojio crveno svaki ekran u aplikaciji, bez imena integracije i bez vremena.
+ * Na `/settings` je to izgledalo ovako: crveno „Greška sinhronizacije" u
+ * zaglavlju, a odmah ispod „Google Analytics 4 · Aktivno · sinhronizacija pre
+ * 2 h" (§1.3). Dve tvrdnje na jednom ekranu koje se ne slažu.
+ *
+ * Kvar je sada stavka u zvonu, sa imenom integracije i sa vremenom
+ * („GA4 ne sinhronizuje se 3 dana"), pa ovde ostaje samo starost podataka.
+ * Ova traka više NIKAD nije crvena — kad nešto ne radi, to kaže zvono.
  */
-type Tone = "ok" | "running" | "error" | "stale" | "idle";
+type Tone = "ok" | "running" | "idle";
 
 const TONE: Record<
   Tone,
@@ -25,13 +32,8 @@ const TONE: Record<
 > = {
   ok: { label: "Sveži podaci", className: "text-success", icon: CheckCircle2 },
   running: { label: "Sinhronizacija teče", className: "text-accent-400", icon: Disc },
-  error: { label: "Greška sinhronizacije", className: "text-danger", icon: AlertCircle },
-  stale: { label: "Zastala sinhronizacija", className: "text-warning", icon: Clock },
   idle: { label: "Bez sinhronizacije", className: "text-text-muted", icon: Clock },
 };
-
-/** Redosled ozbiljnosti: prvo što se nađe, to se prikazuje. */
-const PRIORITY: Tone[] = ["error", "stale", "running", "ok"];
 
 export function SyncStatus({ className }: { className?: string }) {
   return (
@@ -39,25 +41,6 @@ export function SyncStatus({ className }: { className?: string }) {
       <SyncStatusPill className={className} />
     </QuietBoundary>
   );
-}
-
-/**
- * Pločica sedi u ljusci, dakle na svakom ekranu. Upit iza nje traži članstvo u
- * radnom prostoru i ume da pukne (nalog bez članstva, istekla sesija) — bez
- * ove granice bi jedno očitavanje statusa oborilo celu aplikaciju. Kada padne,
- * ne prikazuje se ništa: stanje sinhronizacije je prateća informacija, a
- * Podešavanja i dalje stoje u navigaciji.
- */
-class QuietBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-
-  render() {
-    return this.state.failed ? null : this.props.children;
-  }
 }
 
 /**
@@ -92,13 +75,17 @@ function SyncStatusPill({ className }: { className?: string }) {
     return <Skeleton className={cn("h-6 w-36", className)} />;
   }
 
-  const tone: Tone =
-    PRIORITY.find((t) => entries.some((e) => e.status === t)) ?? "idle";
+  // Prolaz koji upravo teče je jedina vest koja pretiče starost podataka;
+  // greška se ovde više ne gleda (ide u zvono). Bez ijednog prolaza — „idle",
+  // što znači „još nije bilo sinhronizacije", a ne „nešto ne radi".
+  const tone: Tone = entries.some((e) => e.status === "running")
+    ? "running"
+    : entries.length > 0 || freshAt != null
+      ? "ok"
+      : "idle";
   const { label, className: toneClass, icon: Icon } = TONE[tone];
 
   const age = freshAt == null ? null : formatSyncAge(freshAt);
-  // Kada sve radi, vest je koliko su podaci sveži. Kada nešto ne radi, vest je
-  // to — pa naslov ustupa mesto stanju.
   const headline = tone === "ok" && age !== null ? `Sinhronizovano ${age}` : label;
 
   return (

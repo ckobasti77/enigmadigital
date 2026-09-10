@@ -4301,5 +4301,45 @@ export default defineSchema({
     savedAt: v.number(),
     note: v.optional(v.string()),
   }).index("by_post", ["postId"]),
+
+  // ── „Šta me čeka" (A2, app-ux-plan.md §2 N) ────────────────────────────────
+  //
+  // Jedina tabela celog sistema obaveštenja, i NE čuva obaveštenja. Zadaci se
+  // izvode iz živog stanja pri svakom čitanju (`notificationsStore.staMeCeka`),
+  // pa ne mogu da zastare i ne traže čišćenje. Ovde stoji samo ono što se iz
+  // stanja ne može izvesti: čovekova odluka da nešto skloni s očiju.
+  //
+  // Jedan red = jedan korisnik × jedan ključ zadatka. Odluka je LIČNA: to što
+  // je jedan član tima odložio „39 firmi bez broja" ne sme da sakrije taj posao
+  // ostalima.
+  //
+  // SVA POLJA SU OPCIONA NAMERNO (pravilo iz noćnog repa): red upisan pre nego
+  // što se neko polje uvede ne sme da obori čitanje. Upis uvek postavlja
+  // `workspaceId`, `userId` i `kljuc`; čitanje red bez njih preskače umesto da
+  // ga tumači.
+  notificationState: defineTable({
+    // OPCIONO NAMERNO: vidi gore. Provera pripadnosti radnom prostoru poredi
+    // ovu vrednost sa `requireMembership().workspaceId`.
+    workspaceId: v.optional(v.id("workspaces")),
+    // OPCIONO NAMERNO: vidi gore.
+    userId: v.optional(v.id("users")),
+    // OPCIONO NAMERNO: ključ zadatka (`leadovi.zaostali`,
+    // `sinhronizacija.greska:ga4`). Ključ je stabilan i živi u
+    // `convex/lib/notifications.ts`.
+    kljuc: v.optional(v.string()),
+    // OPCIONO NAMERNO: „Odloži 1 dan" — do kada stavka ne treba da se vidi.
+    odlozenoDo: v.optional(v.number()),
+    // OPCIONO NAMERNO: kada je stavka sakrivena. Odsustvo znači „nije sakrivena".
+    sakrivenoAt: v.optional(v.number()),
+    // OPCIONO NAMERNO: koliki je broj bio pri sakrivanju. Sakriveno se vraća
+    // čim posao naraste preko te vrednosti — inače bi jedno „Sakrij" ućutkalo
+    // i sav budući posao iste vrste.
+    brojPriSakrivanju: v.optional(v.number()),
+    // OPCIONO NAMERNO
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_user_kljuc", ["userId", "kljuc"])
+    .index("by_user", ["userId"])
+    .index("by_workspace", ["workspaceId"]),
 });
 

@@ -6,6 +6,11 @@ import {
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { LeadScore } from "@/convex/lib/leadScoring";
+import {
+  bedzeviOd,
+  napraviZadatke,
+  type Snimak,
+} from "@/convex/lib/notifications";
 import { dateKeysBetween, presetRange } from "@/lib/date-range";
 
 /**
@@ -477,6 +482,62 @@ const listGaps: R<typeof api.leadGapsStore.listGaps> = {
   moguceLazneRupe: false,
 };
 
+// ── „Šta me čeka" (A2) ───────────────────────────────────────────────────────
+//
+// Fixture se NE piše rukom: snimak stanja prolazi kroz PRAVE proizvođače
+// (`convex/lib/notifications.ts`), pa razvojni prikaz ne može da pokaže spisak
+// koji produkcija ne bi napravila. Brojevi su izmereni 9.9.2026 (§1.1), a
+// Instagram u grešci je isti onaj iz `syncHealth` iznad.
+const staMeCekaSnimak: Snimak = {
+  now,
+  pomerajMin: -new Date().getTimezoneOffset(),
+  uvoziUPregledu: [
+    { id: "imp_ux_1", fileName: "test-tabela-1.xlsx", uploadedAt: now - 13 * DAY },
+    { id: "imp_ux_2", fileName: "test-tabela-2.xlsx", uploadedAt: now - 8 * DAY },
+    { id: "imp_ux_3", fileName: "test-tabela-3.xlsx", uploadedAt: now - 7 * DAY },
+  ],
+  uvoziSaNerazresenim: [
+    { id: "imp_ux_4", fileName: "test-tabela-4.xlsx", broj: 41, odsecen: false },
+    { id: "imp_ux_5", fileName: "test-tabela-5.xlsx", broj: 21, odsecen: false },
+    { id: "imp_ux_6", fileName: "test-tabela-6.xlsx", broj: 9, odsecen: false },
+    { id: "imp_ux_7", fileName: "test-tabela-7.xlsx", broj: 3, odsecen: false },
+    { id: "imp_ux_8", fileName: "test-tabela-8.xlsx", broj: 3, odsecen: false },
+    { id: "imp_ux_9", fileName: "test-tabela-9.xlsx", broj: 1, odsecen: false },
+  ],
+  uvoziOdseceni: false,
+  integracijeUKvaru: [
+    {
+      provider: "meta_ig",
+      razlog: "greska",
+      posledniUspehAt: now - 3 * DAY,
+      primecenAt: now - 3 * DAY,
+    },
+  ],
+  zaostaliKoraci: 0,
+  zaostaliOdsecen: false,
+  sastanciDanas: [],
+  sastanciProsliBezIshoda: 0,
+  nikadDodirnut: 178,
+  ukupnoDodela: 178,
+  dodeleOdsecene: false,
+  bezTelefona: 39,
+  ukupnoFirmi: 210,
+  firmeOdsecene: false,
+  neocenjenSajt: 94,
+  kanali: [],
+};
+
+const staMeCekaZadaci = napraviZadatke(staMeCekaSnimak);
+
+const staMeCeka: R<typeof api.notificationsStore.staMeCeka> = {
+  zadaci: staMeCekaZadaci,
+  sklonjeni: [],
+  bedzevi: bedzeviOd(staMeCekaZadaci),
+  ukupno: staMeCekaZadaci.length,
+  nepotpuno: staMeCekaZadaci.some((z) => z.odsecen),
+  now,
+};
+
 // ── Razrešavanje po imenu funkcije ───────────────────────────────────────────
 
 type Fixture = (args: Record<string, unknown>) => unknown;
@@ -503,6 +564,7 @@ const FIXTURES: Record<string, Fixture> = {
   [getFunctionName(api.leadCrmStore.listMeetings)]: () => listMeetings,
   [getFunctionName(api.leadCrmStore.listOverdue)]: () => listOverdue,
   [getFunctionName(api.leadGapsStore.listGaps)]: () => listGaps,
+  [getFunctionName(api.notificationsStore.staMeCeka)]: () => staMeCeka,
 };
 
 /** `undefined` za sve što nije pokriveno — ekran tada crta skeleton, ne laž. */
