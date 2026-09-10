@@ -27,6 +27,7 @@ import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
 import { RateLimitBanner } from "@/components/app/rate-limit-banner";
+import { StatusPill } from "@/components/app/settings/status-pill";
 import {
   StatTile,
   StatTileSkeleton,
@@ -143,10 +144,7 @@ export function ThreadsDashboard() {
                 <span className="font-semibold text-foreground">
                   {overview.username ?? "Threads nalog"}
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-micro font-medium text-success">
-                  <span className="size-1.5 rounded-full bg-success" />
-                  Povezan
-                </span>
+                <StatusPill tone="success">Povezan</StatusPill>
               </div>
               <p className="text-xs text-text-muted">
                 Kanal za organske objave, praćenje metrika i analizu linkova

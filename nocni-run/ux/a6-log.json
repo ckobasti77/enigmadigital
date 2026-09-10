@@ -1,0 +1,18 @@
+{
+  "faza": "a6",
+  "kada": "2026-09-10T03:57:27.346Z",
+  "zapisi": [
+    {
+      "ekran": "instagram",
+      "viewport": "1440x900",
+      "url": "/instagram",
+      "neuspeh": "page.waitForSelector: Timeout 60000ms exceeded."
+    },
+    {
+      "ekran": "instagram",
+      "viewport": "390x844",
+      "url": "/instagram",
+      "neuspeh": "page.waitForSelector: Timeout 60000ms exceeded."
+    }
+  ]
+}

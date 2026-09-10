@@ -845,6 +845,76 @@ const staMeCeka: R<typeof api.notificationsStore.staMeCeka> = {
   now,
 };
 
+// ── Pravila (A6: /rules) ─────────────────────────────────────────────────────
+
+const RULE_CPA_ID = "rule_ux_cpa" as Id<"rules">;
+const RULE_SPEND_ID = "rule_ux_spend" as Id<"rules">;
+
+const listRules: R<typeof api.rulesStore.listRules> = [
+  {
+    _id: RULE_CPA_ID,
+    _creationTime: now - 30 * DAY,
+    workspaceId: WS,
+    name: "Zaustavi kad CPA pređe cilj",
+    enabled: true,
+    scope: "campaign",
+    condition: {
+      metric: "cpa",
+      operator: "gt",
+      value: 1500,
+      windowDays: 3,
+      minImpressions: 1000,
+    },
+    action: "pause_and_notify",
+    cooldownHours: 12,
+    lastFiredAt: now - 2 * DAY,
+  },
+  {
+    _id: RULE_SPEND_ID,
+    _creationTime: now - 20 * DAY,
+    workspaceId: WS,
+    name: "Upozori na skok potrošnje",
+    enabled: false,
+    scope: "account",
+    condition: {
+      metric: "spend",
+      operator: "gt",
+      value: 5000,
+      windowDays: 1,
+      minImpressions: 0,
+    },
+    action: "notify",
+    cooldownHours: 24,
+  },
+];
+
+const listRuleFirings: R<typeof api.rulesStore.listRuleFirings> = [
+  {
+    _id: "rulefiring_ux_1" as Id<"ruleFirings">,
+    _creationTime: now - 2 * DAY,
+    workspaceId: WS,
+    ruleId: RULE_CPA_ID,
+    ruleName: listRules[0].name,
+    targetId: "120000000000001",
+    targetName: "Kampanja — Prolećna akcija",
+    targetType: "campaign",
+    firedAt: now - 2 * DAY,
+    metricValue: 1820,
+    actionTaken: "pause_and_notify",
+    notified: true,
+  },
+];
+
+// ── Novosti (A6: /novosti) ───────────────────────────────────────────────────
+// Prazan spisak — javna lista objava nema izmereno stanje u planu, pa je
+// najbezbednija sintetička vrednost prazno (bez izmišljenih objava).
+
+const postsPublished: R<typeof api.postsPublic.listPublished> = {
+  posts: [],
+  nextCursor: null,
+  hasMore: false,
+};
+
 // ── Razrešavanje po imenu funkcije ───────────────────────────────────────────
 
 type Fixture = (args: Record<string, unknown>) => unknown;
@@ -884,6 +954,9 @@ const FIXTURES: Record<string, Fixture> = {
     listImports.find((imp) => imp._id === args.importId) ?? null,
   [getFunctionName(api.leadImportStore.listImportRows)]: (args) =>
     args.importId === UVOZ_41 ? listImportRows : [],
+  [getFunctionName(api.rulesStore.listRules)]: () => listRules,
+  [getFunctionName(api.rulesStore.listRuleFirings)]: () => listRuleFirings,
+  [getFunctionName(api.postsPublic.listPublished)]: () => postsPublished,
 };
 
 /** `undefined` za sve što nije pokriveno — ekran tada crta skeleton, ne laž. */

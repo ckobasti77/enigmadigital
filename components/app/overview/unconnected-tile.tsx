@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowUpRight, Unplug } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { StatusPill } from "@/components/app/settings/status-pill";
 import { cn } from "@/lib/utils";
 
 export function UnconnectedTile({
@@ -27,10 +28,9 @@ export function UnconnectedTile({
           <p className="heading-caps text-micro font-medium text-text-muted">
             {label}
           </p>
-          <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-micro font-medium text-warning">
-            <span className="size-1 rounded-full bg-warning motion-safe:animate-pulse" />
+          <StatusPill tone="warning" pulse>
             Čeka konekciju
-          </span>
+          </StatusPill>
         </div>
         <div className="mt-3 flex items-center gap-2 text-text-muted">
           <div className="flex size-7 items-center justify-center rounded-md border border-line-soft bg-surface-raised/50">

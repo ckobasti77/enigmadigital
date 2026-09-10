@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
+import { Chip } from "@/components/app/system/chip";
 import { Reveal } from "@/components/motion/reveal";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -67,18 +68,17 @@ export function AdsDashboard() {
               <span>Pinovano:</span>
             </span>
             {pinnedBattles.map((b) => (
-              <button
+              <Chip
                 key={b._id}
-                type="button"
+                icon={Swords}
                 onClick={() => setSelectedBattleAdSetId(b.adSetId)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-foreground hover:border-accent-400/50 hover:bg-surface-raised transition-colors shrink-0"
+                className="shrink-0"
               >
-                <Swords className="size-3 text-accent-400" />
-                <span>{b.adSetName}</span>
-                <span className="text-micro text-text-muted font-mono">
+                {b.adSetName}{" "}
+                <span className="font-mono text-text-muted">
                   ({b.adsCount} v)
                 </span>
-              </button>
+              </Chip>
             ))}
           </div>
         )}

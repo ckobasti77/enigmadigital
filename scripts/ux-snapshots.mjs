@@ -39,7 +39,7 @@ const SAMO = opt("--samo", null)?.split(",").map((s) => s.trim()).filter(Boolean
 
 // „pre" / „posle" su A1 i ne smeju da se prepišu — to je jedini dokaz da ta
 // faza nije pokvarila ekrane. Svaka sledeća faza snima pod svojim imenom.
-const FAZE = ["pre", "posle", "a2", "a3-pre", "a3", "a4-pre", "a4", "a5-pre", "a5"];
+const FAZE = ["pre", "posle", "a2", "a3-pre", "a3", "a4-pre", "a4", "a5-pre", "a5", "a6-pre", "a6"];
 if (!FAZE.includes(FAZA)) {
   console.error(`Zadaj --faza ${FAZE.join(" | ")}`);
   process.exit(2);
@@ -84,6 +84,12 @@ const EKRANI = [
   { ime: "instagram", putanja: "/instagram" },
   { ime: "openreply", putanja: "/openreply" },
   { ime: "settings", putanja: "/settings" },
+  // A6: propagacija sistema na ekrane koji do sada nisu imali razvojni prikaz.
+  // Facebook/Threads/YouTube/Ads/Analitika/Atribucija nemaju sintetičke
+  // fixture (zahtevaju veliki, ugnježden oblik odgovora — kampanje, uvid po
+  // nalogu, itd.) i nisu ovde dodati; A6 izveštaj to prijavljuje kao rizik.
+  { ime: "rules", putanja: "/rules" },
+  { ime: "novosti", putanja: "/novosti" },
 ].filter((e) => !SAMO || SAMO.includes(e.ime));
 
 const BASE = `http://localhost:${PORT}`;

@@ -5,11 +5,11 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { Reveal } from "@/components/motion/reveal";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
+import { StatTile, StatTileSkeleton } from "@/components/app/system/kpi-tile";
 import { RulesList } from "./rules-list";
 import { RuleFiringsTable } from "./rule-firings-table";
 import { RuleEditorDialog } from "./rule-editor-dialog";
@@ -23,6 +23,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import { formatNumber } from "@/lib/format";
 
 /** Ishod ručne provere: šta se desilo i šta sad. */
 type EvalResult = { ok: boolean; title: string; detail: string };
@@ -152,81 +153,36 @@ export function RulesDashboard() {
       {/* Top Stats Overview */}
       <Reveal>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
-            <div className="flex h-28 flex-col justify-between px-5 py-4">
-              <div className="flex items-center justify-between">
-                <p className="heading-caps text-micro font-medium text-text-muted">
-                  Ukupno pravila
-                </p>
-                <ShieldAlert className="size-4 text-accent-400" />
-              </div>
-              <div>
-                <span className="font-mono text-2xl sm:text-3xl font-bold text-foreground">
-                  {rules.length}
-                </span>
-                <p className="mt-0.5 text-xs text-text-muted">
-                  definisano u nalogu
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
-            <div className="flex h-28 flex-col justify-between px-5 py-4">
-              <div className="flex items-center justify-between">
-                <p className="heading-caps text-micro font-medium text-text-muted">
-                  Aktivna pravila
-                </p>
-                <Zap className="size-4 text-success" />
-              </div>
-              <div>
-                <span className="font-mono text-2xl sm:text-3xl font-bold text-success">
-                  {activeCount}
-                </span>
-                <p className="mt-0.5 text-xs text-text-muted">
-                  aktivno se evaluira
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
-            <div className="flex h-28 flex-col justify-between px-5 py-4">
-              <div className="flex items-center justify-between">
-                <p className="heading-caps text-micro font-medium text-text-muted">
-                  Ukupno okidanja
-                </p>
-                <History className="size-4 text-foreground/60" />
-              </div>
-              <div>
-                <span className="font-mono text-2xl sm:text-3xl font-bold text-foreground">
-                  {totalFiringsCount}
-                </span>
-                <p className="mt-0.5 text-xs text-text-muted">
-                  zabeleženo u istoriji
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
-            <div className="flex h-28 flex-col justify-between px-5 py-4">
-              <div className="flex items-center justify-between">
-                <p className="heading-caps text-micro font-medium text-text-muted">
-                  Cron evaluator
-                </p>
-                <Clock className="size-4 text-accent-400" />
-              </div>
-              <div>
-                <span className="font-mono text-xl sm:text-2xl font-bold text-accent-400">
-                  Svakih 30m
-                </span>
-                <p className="mt-0.5 text-xs text-text-muted">
-                  automatska provera
-                </p>
-              </div>
-            </div>
-          </Card>
+          <StatTile
+            label="Ukupno pravila"
+            value={rules.length}
+            format={formatNumber}
+            note="definisano u nalogu"
+            icon={ShieldAlert}
+          />
+          <StatTile
+            label="Aktivna pravila"
+            value={activeCount}
+            format={formatNumber}
+            note="aktivno se evaluira"
+            icon={Zap}
+            valueClassName="text-success"
+          />
+          <StatTile
+            label="Ukupno okidanja"
+            value={totalFiringsCount}
+            format={formatNumber}
+            note="zabeleženo u istoriji"
+            icon={History}
+          />
+          <StatTile
+            label="Cron evaluator"
+            value={30}
+            format={(v) => `Svakih ${v}m`}
+            note="automatska provera"
+            icon={Clock}
+            valueClassName="text-accent-400"
+          />
         </div>
       </Reveal>
 
@@ -278,10 +234,9 @@ export function RulesDashboardSkeleton() {
   return (
     <div className="flex flex-1 flex-col gap-6">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Skeleton className="h-28 rounded-lg" />
-        <Skeleton className="h-28 rounded-lg" />
-        <Skeleton className="h-28 rounded-lg" />
-        <Skeleton className="h-28 rounded-lg" />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <StatTileSkeleton key={i} />
+        ))}
       </div>
       <Skeleton className="h-64 w-full rounded-lg" />
     </div>

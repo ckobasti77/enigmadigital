@@ -386,15 +386,9 @@ function SecondaryStats({
           ) : item.loading ? (
             <Skeleton className="mt-2 h-6 w-24" />
           ) : item.value === undefined ? (
-            <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2">
-              <span className="font-mono text-xl font-bold text-text-muted">
-                —
-              </span>
-              <span className="font-mono text-xs tabular-nums text-text-muted">
-                —
-              </span>
-              <span className="text-xs text-text-muted">{compareLabel}</span>
-            </div>
+            <span className="mt-1.5 block font-mono text-xl font-bold text-text-muted">
+              —
+            </span>
           ) : (
             <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2">
               <CountUp
@@ -402,12 +396,14 @@ function SecondaryStats({
                 format={formatNumber}
                 className="font-mono text-xl font-bold text-foreground"
               />
-              <span className="font-mono text-xs tabular-nums text-text-muted">
-                {item.delta === null || item.delta === undefined
-                  ? "—"
-                  : formatSignedPercent(item.delta)}
-              </span>
-              <span className="text-xs text-text-muted">{compareLabel}</span>
+              {item.delta !== null && item.delta !== undefined && (
+                <>
+                  <span className="font-mono text-xs tabular-nums text-text-muted">
+                    {formatSignedPercent(item.delta)}
+                  </span>
+                  <span className="text-xs text-text-muted">{compareLabel}</span>
+                </>
+              )}
             </div>
           )}
         </div>

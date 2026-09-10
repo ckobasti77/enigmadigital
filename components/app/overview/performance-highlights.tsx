@@ -17,6 +17,7 @@ import {
   Unplug,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusPill } from "@/components/app/settings/status-pill";
 import { formatNumber, formatPercent, formatShortDate } from "@/lib/format";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
@@ -126,14 +127,9 @@ export function PerformanceHighlights({
                         {topCampaign.name}
                       </h3>
                       {topCampaign.active ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-micro font-medium text-success">
-                          <span className="size-1 rounded-full bg-success" />
-                          Aktivna
-                        </span>
+                        <StatusPill tone="success">Aktivna</StatusPill>
                       ) : (
-                        <span className="rounded-full bg-surface-raised px-2 py-0.5 text-micro font-medium text-text-muted">
-                          Neaktivna
-                        </span>
+                        <StatusPill tone="muted">Neaktivna</StatusPill>
                       )}
                     </div>
                     <p className="mt-1 font-mono text-xs text-text-muted">

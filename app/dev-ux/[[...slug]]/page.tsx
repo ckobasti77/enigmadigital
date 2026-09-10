@@ -7,6 +7,8 @@ import LeadImportPage from "@/app/(app)/leadovi/uvoz/page";
 import InstagramPage from "@/app/(app)/instagram/page";
 import OpenReplyPage from "@/app/(app)/openreply/page";
 import SettingsPage from "@/app/(app)/settings/page";
+import RulesPage from "@/app/(app)/rules/page";
+import NovostiPage from "@/app/(app)/novosti/page";
 import { UxHarness } from "../harness";
 
 /**
@@ -27,6 +29,8 @@ const PAGES: Record<string, ComponentType> = {
   instagram: InstagramPage,
   openreply: OpenReplyPage,
   settings: SettingsPage,
+  rules: RulesPage,
+  novosti: NovostiPage,
 };
 
 export const dynamic = "force-dynamic";
