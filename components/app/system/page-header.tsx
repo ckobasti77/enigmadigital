@@ -69,7 +69,7 @@ export function PageHeader({
           className,
         )}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex min-w-0 flex-1 basis-48 items-center gap-3">
           {Icon && (
             <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-mod-line bg-mod-soft text-mod">
               <Icon className="size-5" aria-hidden />

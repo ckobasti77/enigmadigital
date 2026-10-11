@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "convex/react";
-import { Unplug, AlertTriangle, CheckCircle2, MousePointerClick } from "lucide-react";
+import { MousePointerClick, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
-import { EmptyState } from "@/components/app/empty-state";
+import { EmptyState } from "@/components/app/system/empty-state";
+import { FocusCard } from "@/components/app/system/focus-card";
+import { FunnelSteps } from "@/components/app/system/funnel-steps";
+import { ProgressBar } from "@/components/app/system/progress";
+import { Button } from "@/components/ui/button";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,7 +20,7 @@ import {
   InstagramBreakdown,
   InstagramBreakdownSkeleton,
 } from "./instagram-breakdown";
-import { formatNumber, formatPercent } from "@/lib/format";
+import { formatNumber, formatPercent, pluralSr } from "@/lib/format";
 
 export function AttributionDashboard() {
   const { range } = useDateRange();
@@ -39,29 +42,108 @@ export function AttributionDashboard() {
 
   const loading = connections === undefined || report === undefined;
 
+  // UTM integritet: od kampanja koje imaju klikove, koliko ih beleži i GA4
+  // sesije. Kampanja bez ijednog klika ne ulazi u imenilac.
+  const withClicks =
+    report?.campaigns.filter((c) => c.linkClicks > 0 || c.hasMismatch).length ??
+    0;
   const mismatchCount =
     report?.campaigns.filter((c) => c.hasMismatch).length ?? 0;
+  const matched = Math.max(0, withClicks - mismatchCount);
 
   return (
     <div className="flex flex-1 flex-col gap-6">
       {!hasGa4 && !hasOr ? (
-        <EmptyState icon={Unplug}>
-          GA4 i OpenReply integracije još nisu povezane.{" "}
-          <Link
-            href="/settings"
-            className="text-accent-400 underline-offset-4 hover:underline"
-          >
-            Poveži ih u podešavanjima
-          </Link>{" "}
-          kako bi se aktivirala UTM atribucija.
+        <EmptyState
+          icon={Unplug}
+          variant="mission"
+          title="Poveži GA4 i OpenReply"
+          steps={[
+            { label: "Poveži OpenReply u Podešavanjima" },
+            { label: "Poveži Google Analytics 4 u Podešavanjima" },
+            { label: "Šalji linkove iz DM poruka sa UTM parametrima" },
+          ]}
+          action={
+            <Button
+              variant="primary"
+              render={<Link href="/settings" />}
+              nativeButton={false}
+            >
+              Otvori podešavanja
+            </Button>
+          }
+        >
+          Atribucija spaja klik iz DM poruke sa sesijom i konverzijom na sajtu.
         </EmptyState>
       ) : loading ? (
         <AttributionDashboardSkeleton />
       ) : (
         <>
-          {/* Top KPI row */}
-          <Reveal>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {/* Fokus: put od poruke do konverzije, i koliko mu se može verovati. */}
+          <FocusCard
+            eyebrow="Levak DM → konverzija"
+            aside={
+              <div className="flex w-full flex-col gap-2 md:w-80">
+                <p className="heading-caps text-meta font-medium text-text-muted">
+                  UTM integritet
+                </p>
+                {withClicks === 0 ? (
+                  <p className="text-ui text-text-muted">
+                    Još nema kampanja sa klikovima u ovom periodu.
+                  </p>
+                ) : (
+                  <>
+                    <ProgressBar
+                      label="Kampanje sa klikovima koje beleže sesije"
+                      value={matched}
+                      max={withClicks}
+                      tone={mismatchCount > 0 ? "warning" : "success"}
+                      showValue
+                    />
+                    <p className="text-ui text-text-muted">
+                      {mismatchCount > 0
+                        ? `${mismatchCount} ${pluralSr(
+                            mismatchCount,
+                            "kampanja ima",
+                            "kampanje imaju",
+                            "kampanja ima",
+                          )} klikove bez GA4 sesija.`
+                        : "Sve kampanje sa klikovima beleže sesije."}
+                    </p>
+                  </>
+                )}
+                <p className="font-mono text-meta text-text-muted">
+                  utm_medium=openreply-dm
+                </p>
+              </div>
+            }
+          >
+            <FunnelSteps
+              label="Levak od DM poruke do konverzije"
+              steps={[
+                { label: "Poslati DM", value: report.totals.openreply.dmsSent },
+                {
+                  label: "Klikovi na link",
+                  value: report.totals.openreply.linkClicks,
+                  per: "klikova po poruci",
+                  ratioOnly: true,
+                },
+                {
+                  label: "GA4 sesije",
+                  value: report.totals.openreply.sessions,
+                  per: "sesija po kliku",
+                },
+                {
+                  label: "Konverzije",
+                  value: report.totals.openreply.keyEvents,
+                  per: "konverzija po sesiji",
+                },
+              ]}
+            />
+          </FocusCard>
+
+          <div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               {/* OpenReply Sessions */}
               <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
                 <div className="flex h-36 flex-col px-5 pt-4">
@@ -71,7 +153,7 @@ export function AttributionDashboard() {
                   <CountUp
                     value={report.totals.openreply.sessions}
                     format={formatNumber}
-                    className="mt-2 block text-2xl font-bold leading-none text-accent-400 sm:text-3xl"
+                    className="mt-2 block text-2xl font-bold leading-none text-foreground sm:text-3xl"
                   />
                   <div className="mt-2 flex items-baseline gap-1.5 text-xs text-text-muted">
                     <span className="font-mono tabular-nums text-foreground">
@@ -80,7 +162,7 @@ export function AttributionDashboard() {
                     <span>od ukupnog IG saobraćaja</span>
                   </div>
                   <div className="mt-auto mb-3 flex items-center gap-1.5 text-micro text-text-muted">
-                    <MousePointerClick className="size-3 text-accent-400" />
+                    <MousePointerClick className="size-3 text-mod" />
                     <span>
                       {formatNumber(report.totals.openreply.linkClicks)} link klikova
                     </span>
@@ -126,7 +208,7 @@ export function AttributionDashboard() {
                     className="mt-2 block text-2xl font-bold leading-none text-foreground sm:text-3xl"
                   />
                   <div className="mt-2 flex items-baseline gap-1.5 text-xs text-text-muted">
-                    <span className="font-mono tabular-nums text-accent-400">
+                    <span className="font-mono tabular-nums text-mod">
                       {formatNumber(report.totals.totalInstagram.keyEvents)}
                     </span>
                     <span>ukupnih konverzija sa IG</span>
@@ -137,65 +219,25 @@ export function AttributionDashboard() {
                   </div>
                 </div>
               </Card>
-
-              {/* UTM Match Status / Data Honesty */}
-              <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
-                <div className="flex h-36 flex-col px-5 pt-4">
-                  <p className="heading-caps text-micro font-medium text-text-muted">
-                    UTM Integritet
-                  </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    {mismatchCount > 0 ? (
-                      <>
-                        <AlertTriangle className="size-6 text-warning" />
-                        <span className="font-mono text-2xl font-bold leading-none text-warning sm:text-3xl tabular-nums">
-                          {mismatchCount}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="size-6 text-success" />
-                        <span className="font-mono text-2xl font-bold leading-none text-success sm:text-3xl">
-                          100%
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  <div className="mt-2 text-xs text-text-muted">
-                    {mismatchCount > 0
-                      ? `${mismatchCount} ${
-                          mismatchCount === 1
-                            ? "kampanja ima"
-                            : mismatchCount >= 2 && mismatchCount <= 4
-                              ? "kampanje imaju"
-                              : "kampanja ima"
-                        } klikove bez GA4 sesija`
-                      : "Sve kampanje sa klikovima beleže sesije"}
-                  </div>
-                  <div className="mt-auto mb-3 text-micro text-text-muted font-mono">
-                    utm_medium=openreply-dm
-                  </div>
-                </div>
-              </Card>
             </div>
-          </Reveal>
+          </div>
 
           {/* Levak i IG breakdown pod jednom granicom greške: pokvaren izveštaj
               degradira u poruku sa „Pokušaj ponovo", ne u prazan ekran — isti
               standard kao ostali grafikonski ekrani. */}
           <ChartErrorBoundary>
             {/* Main Funnel Table */}
-            <Reveal delay={0.05}>
+            <div>
               <FunnelTable campaigns={report.campaigns} />
-            </Reveal>
+            </div>
 
             {/* Instagram Channel Breakdown */}
-            <Reveal delay={0.1}>
+            <div>
               <InstagramBreakdown
                 totals={report.totals}
                 unmatchedGa4={report.unmatchedGa4}
               />
-            </Reveal>
+            </div>
           </ChartErrorBoundary>
         </>
       )}
@@ -212,8 +254,9 @@ function useStale<T>(value: T | undefined): T | undefined {
 export function AttributionDashboardSkeleton() {
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
+      <div className="h-56 animate-pulse rounded-xl border border-line bg-card" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
           <Card key={i} className="gap-0 py-0 shadow-card ring-line" size="sm">
             <div className="flex h-36 flex-col px-5 pt-4">
               <Skeleton className="h-3 w-24" />

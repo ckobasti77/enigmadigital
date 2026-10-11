@@ -362,7 +362,7 @@ function ShareCell({ value, muted }: { value: number; muted?: boolean }) {
           <span
             className={cn(
               "block h-full rounded-full",
-              muted ? "bg-text-muted/45" : "bg-foreground/45",
+              muted ? "bg-text-muted/45" : "bg-mod",
             )}
             style={{ width: `${Math.max(value > 0 ? 4 : 0, value * 100)}%` }}
           />

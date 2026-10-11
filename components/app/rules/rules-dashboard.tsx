@@ -4,12 +4,12 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
-import { Reveal } from "@/components/motion/reveal";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
-import { StatTile, StatTileSkeleton } from "@/components/app/system/kpi-tile";
+import { Chip } from "@/components/app/system/chip";
+import { PageHeader } from "@/components/app/system/page-header";
 import { RulesList } from "./rules-list";
 import { RuleFiringsTable } from "./rule-firings-table";
 import { RuleEditorDialog } from "./rule-editor-dialog";
@@ -18,12 +18,13 @@ import {
   Plus,
   Play,
   History,
-  Loader2,
   Clock,
   X,
   Zap,
 } from "lucide-react";
-import { formatNumber } from "@/lib/format";
+
+const DESCRIPTION =
+  "Čuvari oglasa: provera na 30 minuta, reakcija kad CPA ili potrošnja pređu prag.";
 
 /** Ishod ručne provere: šta se desilo i šta sad. */
 type EvalResult = { ok: boolean; title: string; detail: string };
@@ -94,33 +95,27 @@ export function RulesDashboard() {
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-end gap-2.5">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleTriggerEvaluation}
-          disabled={evaluating}
-          className="border-line hover:border-accent-400/50 hover:bg-surface-raised"
-        >
-          {evaluating ? (
-            <>
-              <Loader2 className="animate-spin text-accent-400" />
-              <span>Proveravam…</span>
-            </>
-          ) : (
-            <>
-              <Play className="fill-accent-400 text-accent-400" />
-              <span>Pokreni proveru sad</span>
-            </>
-          )}
-        </Button>
-
-        <Button type="button" size="sm" onClick={handleOpenNew}>
-          <Plus />
-          <span>Novo pravilo</span>
-        </Button>
-      </div>
+      <PageHeader
+        variant="module"
+        description={DESCRIPTION}
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleTriggerEvaluation}
+              loading={evaluating}
+            >
+              {!evaluating && <Play aria-hidden />}
+              {evaluating ? "Proveravam…" : "Pokreni proveru sad"}
+            </Button>
+            <Button type="button" variant="primary" onClick={handleOpenNew}>
+              <Plus aria-hidden />
+              Novo pravilo
+            </Button>
+          </>
+        }
+      />
 
       {/* Ručna provera: dok teče, kad se završi, i šta ako pukne. */}
       {evaluating && (
@@ -150,49 +145,33 @@ export function RulesDashboard() {
         </FeedbackNote>
       )}
 
-      {/* Top Stats Overview */}
-      <Reveal>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatTile
-            label="Ukupno pravila"
-            value={rules.length}
-            format={formatNumber}
-            note="definisano u nalogu"
-            icon={ShieldAlert}
-          />
-          <StatTile
-            label="Aktivna pravila"
-            value={activeCount}
-            format={formatNumber}
-            note="aktivno se evaluira"
-            icon={Zap}
-            // Zeleno je stanje „radi": nula aktivnih pravila nije uspeh (F7).
-            valueClassName={activeCount > 0 ? "text-success" : undefined}
-          />
-          <StatTile
-            label="Ukupno okidanja"
-            value={totalFiringsCount}
-            format={formatNumber}
-            note="zabeleženo u istoriji"
-            icon={History}
-          />
-          <StatTile
-            label="Cron evaluator"
-            value={30}
-            constant
-            format={(v) => `Svakih ${v}m`}
-            note="automatska provera"
-            icon={Clock}
-            valueClassName="text-accent-400"
-          />
-        </div>
-      </Reveal>
+      {/* Četiri broja kao jedan red čipova: fokus ekrana su kartice čuvara
+          ispod. „Provera na 30 min" je podešavanje, ne mera — ispisuje se bez
+          odbrojavanja (F7), a „aktivna" je zelena samo kad ih stvarno ima. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Chip icon={ShieldAlert} count={rules.length}>
+          Pravila
+        </Chip>
+        <Chip
+          icon={Zap}
+          tone={activeCount > 0 ? "success" : "muted"}
+          count={activeCount}
+        >
+          Aktivna
+        </Chip>
+        <Chip icon={History} count={totalFiringsCount}>
+          Okidanja u istoriji
+        </Chip>
+        <Chip icon={Clock} tone="muted">
+          Provera na 30 min
+        </Chip>
+      </div>
 
       <TabNav
         tabs={[
           {
             id: "rules",
-            label: `Definisana pravila (${rules.length})`,
+            label: `Čuvari (${rules.length})`,
             icon: ShieldAlert,
           },
           {
@@ -208,17 +187,17 @@ export function RulesDashboard() {
 
       <TabPanel id="rules-panel">
         {activeTab === "rules" ? (
-          <Reveal delay={0.05}>
+          <div>
             <RulesList
               rules={rules}
               onEditRule={handleEditRule}
               onEnsureTemplates={() => ensureTemplateRules({})}
             />
-          </Reveal>
+          </div>
         ) : (
-          <Reveal delay={0.05}>
+          <div>
             <RuleFiringsTable />
-          </Reveal>
+          </div>
         )}
       </TabPanel>
 
@@ -232,15 +211,16 @@ export function RulesDashboard() {
   );
 }
 
+/** Zaglavlje je isto kao na učitanom ekranu, pa podaci ništa ne pomeraju. */
 export function RulesDashboardSkeleton() {
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <StatTileSkeleton key={i} />
-        ))}
+      <PageHeader variant="module" description={DESCRIPTION} />
+      <Skeleton className="h-7 w-96 max-w-full rounded-md" />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="h-40 w-full rounded-xl" />
       </div>
-      <Skeleton className="h-64 w-full rounded-lg" />
     </div>
   );
 }

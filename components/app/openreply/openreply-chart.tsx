@@ -26,7 +26,7 @@ export function OpenReplyChart({ data }: { data: OrDailyPoint[] }) {
         values: data.map((d) => d.linkClicks),
         format: formatNumber,
       }}
-      emptyReason="Nijedna automatizacija nije poslala DM u ovom periodu. Istorija seže 90 dana unazad od prve sinhronizacije."
+      emptyReason="Nijedna automatizacija nije poslala DM u ovom periodu. Istorija seže 90 dana unazad."
     />
   );
 }

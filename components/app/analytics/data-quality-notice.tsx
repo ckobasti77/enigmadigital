@@ -33,7 +33,7 @@ export function DataQualityNotice({ meta }: { meta?: ReportMeta }) {
         <div className="flex flex-col gap-2 rounded-lg border border-line-soft bg-surface-raised/40 p-3.5 text-xs">
           {meta.emptyReason && (
             <div className="flex items-start gap-2 text-text-secondary">
-              <Info className="mt-0.5 size-3.5 shrink-0 text-accent-400" />
+              <Info className="mt-0.5 size-3.5 shrink-0 text-mod" />
               <span>{meta.emptyReason}</span>
             </div>
           )}

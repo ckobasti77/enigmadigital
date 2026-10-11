@@ -19,7 +19,6 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Reveal } from "@/components/motion/reveal";
 import { EmptyState } from "@/components/app/empty-state";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -168,7 +167,7 @@ export function RealtimeDashboard() {
       )}
 
       {/* Hero KPI Card: Active users & 30-minute minute-by-minute bar chart */}
-      <Reveal>
+      <div>
         <Card className="flex flex-col gap-6 p-6 shadow-card ring-line">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="flex flex-col gap-1">
@@ -240,12 +239,12 @@ export function RealtimeDashboard() {
             </div>
           </div>
         </Card>
-      </Reveal>
+      </div>
 
       {/* 3 Breakdown Cards: Screens, Locations, Devices */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Top Screens */}
-        <Reveal delay={0.05}>
+        <div>
           <Card className="flex flex-col gap-4 p-5 shadow-card ring-line h-full">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -295,10 +294,10 @@ export function RealtimeDashboard() {
               </div>
             )}
           </Card>
-        </Reveal>
+        </div>
 
         {/* Top Countries */}
-        <Reveal delay={0.1}>
+        <div>
           <Card className="flex flex-col gap-4 p-5 shadow-card ring-line h-full">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -348,10 +347,10 @@ export function RealtimeDashboard() {
               </div>
             )}
           </Card>
-        </Reveal>
+        </div>
 
         {/* Top Devices */}
-        <Reveal delay={0.15}>
+        <div>
           <Card className="flex flex-col gap-4 p-5 shadow-card ring-line h-full">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -414,7 +413,7 @@ export function RealtimeDashboard() {
               </div>
             )}
           </Card>
-        </Reveal>
+        </div>
       </div>
 
       {/* Methodology & Latency Disclaimer Notice */}

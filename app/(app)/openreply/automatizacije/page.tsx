@@ -4,7 +4,10 @@ import { AutomationsDashboard } from "@/components/app/openreply/automations-das
 export default function OpenReplyAutomationsPage() {
   return (
     <div className="flex w-full flex-1 flex-col gap-8">
-      <PageHeader description="Podesi koje ključne reči u komentarima pokreću direktnu poruku i prati svaki poslati DM." />
+      <PageHeader
+        variant="module"
+        description="Ključne reči u komentarima pokreću direktnu poruku; svaki poslati DM se beleži."
+      />
 
       <div className="flex flex-1 flex-col">
         <AutomationsDashboard />

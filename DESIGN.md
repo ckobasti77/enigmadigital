@@ -496,6 +496,35 @@ ne pomera; merač se pomeri kad se vrednost promeni.
   postoji), Objavljeno (uspeh), Arhiva (neutralno). Kartica je ceo post i
   otvara uređivač; kolona pokazuje šest kartica, ostatak iza „Prikaži sve".
 
+### Analitika, Atribucija, OpenReply, Pravila, Podešavanja, Prijava
+- **Analitika.** Fokus su Sesije: `KpiTile` `hero` levo (sa Korisnicima i
+  Novim korisnicima ispod), veliki grafikon desno. Grafikon je ljubičast iz
+  validirane palete (`--chart-6`), ne u boji modula. Ostalih sedam mera su
+  `compact` pločice (broj i pilula promene, bez sparklinije). Izvori
+  saobraćaja imaju `SourceIcon` uz naziv i traku udela u `--mod`.
+- **Levak** je `FunnelSteps`: traka po koraku, širine srazmerne najvećem
+  koraku, u `--mod-strong`. Između koraka piše prelaz — procenat kad je korak
+  podskup prethodnog, a ODNOS („0,32 klikova po poruci") kad nije
+  (`ratioOnly`): klik pripada linku, ne poruci, pa „CTR" ume da pređe 100 %.
+- **Atribucija.** Fokus kartica: levak DM → klik → GA4 sesija → konverzija,
+  desno UTM integritet kao `ProgressBar` (kampanje sa klikovima koje beleže
+  sesije / sve kampanje sa klikovima).
+- **OpenReply.** Fokus je levak DM → klik u bento redu 2fr / 1fr / 1fr sa
+  „Klikova po poruci" i „Aktivne kampanje".
+- **Pravila.** Pravilo je kartica čuvara: štit u boji modula (precrtan kad je
+  isključeno), uslov kao rečenica, `Switch` sa stanjem ispisanim rečju,
+  poslednje okidanje; izmena i brisanje su ghost ikonice. Četiri broja su red
+  čipova. Istorija je vremenska osa: tačka u boji radnje (pauza = upozorenje,
+  obaveštenje = info), tekst bez okvira.
+- **Podešavanja.** Cela širina kolone. Fokus je „Integracije N / M" sa
+  `SegmentedMeter`-om po izvoru. Pločica integracije nosi `data-module` svog
+  brenda, pa ikonica, okvir fokusa i puno dugme unutar nje čitaju tu boju kroz
+  `--mod`; zdravlje nosi `StatusPill`. Pločice teku u dve CSS kolone (od
+  1280 px) da kartice različite dužine ne ostavljaju rupe.
+- **Prijava i pozivnica.** `BrandMoment`: ime proizvoda u `text-display` i
+  aurora u brend cijanu (≤ 10 %, bez animacije) iznad kartice. H1 je naslov
+  koraka u kartici. Dugme za slanje forme je `primary`.
+
 ### Motion
 GSAP `useGSAP` unutar `gsap.matchMedia()` sa granom za reduced-motion.
 „Corporate" za ceo UI: `--ease-ui` (`cubic-bezier(.2,.8,.2,1)`), 100 ms

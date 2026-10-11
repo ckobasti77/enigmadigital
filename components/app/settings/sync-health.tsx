@@ -96,7 +96,7 @@ function MetaAdsQuota() {
       ? "bg-danger"
       : quota.state === "warn"
         ? "bg-warning"
-        : "bg-accent-400";
+        : "bg-mod-strong";
 
   return (
     <div className="mt-5 border-t border-line-soft pt-4">

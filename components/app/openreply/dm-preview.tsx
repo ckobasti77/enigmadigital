@@ -114,7 +114,7 @@ export function DmPreview({
             {namedButtons.map((button, index) => (
               <div
                 key={index}
-                className="flex items-center justify-center gap-1.5 border-t border-line-soft px-3.5 py-2 text-xs font-medium text-accent-400"
+                className="flex items-center justify-center gap-1.5 border-t border-line-soft px-3.5 py-2 text-xs font-medium text-mod"
               >
                 {button.type === "url" && (
                   <ExternalLink className="size-3 shrink-0" aria-hidden />
@@ -131,7 +131,7 @@ export function DmPreview({
           {namedQuickReplies.map((quickReply, index) => (
             <span
               key={index}
-              className="max-w-full truncate rounded-full border border-accent-400/40 px-2.5 py-1 text-xs font-medium text-accent-400"
+              className="max-w-full truncate rounded-full border border-mod-line px-2.5 py-1 text-xs font-medium text-mod"
             >
               {quickReply.label}
             </span>

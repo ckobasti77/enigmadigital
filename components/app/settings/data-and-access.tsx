@@ -136,7 +136,7 @@ export function DataAndAccess({ connected }: { connected: Provider[] }) {
           Detaljno u{" "}
           <Link
             href="/privacy"
-            className="text-accent-400 underline underline-offset-2 transition-colors hover:text-accent-300"
+            className="text-mod underline underline-offset-2 transition-colors hover:text-mod"
           >
             politici privatnosti
           </Link>
@@ -151,7 +151,7 @@ export function DataAndAccess({ connected }: { connected: Provider[] }) {
           href={GOOGLE_PERMISSIONS_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-accent-400 transition-colors hover:text-accent-300"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-mod transition-colors hover:text-mod"
         >
           <span>myaccount.google.com/permissions</span>
           <ExternalLink className="size-3" aria-hidden />

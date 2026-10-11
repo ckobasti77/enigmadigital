@@ -5,7 +5,10 @@ import { ContentDashboard } from "@/components/app/analytics/content-dashboard";
 export default function ContentAnalyticsPage() {
   return (
     <div className="flex w-full flex-1 flex-col gap-8">
-      <PageHeader description="Uvid u performanse sadržaja, najčitanije stranice i početne tačke ulaska korisnika na sajt." />
+      <PageHeader
+        variant="module"
+        description="Najčitanije stranice i stranice na koje posetioci prvo stignu."
+      />
 
       <div className="flex flex-1 flex-col">
         {/* useSearchParams (date range) needs a Suspense boundary on static routes. */}

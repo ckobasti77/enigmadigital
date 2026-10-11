@@ -85,7 +85,7 @@ export function DmLogTable() {
             className={cn(
               "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
               status === filter.value
-                ? "border-accent-400 bg-accent-400/10 text-accent-400"
+                ? "border-mod bg-mod-soft text-mod"
                 : "border-line bg-surface text-text-muted hover:bg-surface-raised hover:text-foreground",
             )}
           >

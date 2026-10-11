@@ -56,7 +56,7 @@ export function SessionsChart({ data }: { data: DailyPoint[] }) {
 
   const emptyReason = !hasAnyData
     ? "Merenje ove metrike je početo kasnije; stariji dani nemaju podatak."
-    : "GA4 nije prijavio podatke za izabranu metriku u ovom periodu. Istorija seže 90 dana unazad od prve sinhronizacije.";
+    : "GA4 nije prijavio ovu metriku u periodu. Istorija seže 90 dana unazad.";
 
   return (
     <div className="flex flex-col gap-3">
@@ -73,9 +73,9 @@ export function SessionsChart({ data }: { data: DailyPoint[] }) {
               type="button"
               onClick={() => setSelectedKey(opt.key)}
               className={cn(
-                "rounded-lg px-2.5 py-1 text-xs font-medium transition-colors",
+                "cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium transition-colors",
                 active
-                  ? "bg-primary text-primary-foreground shadow-sm"
+                  ? "bg-mod-soft text-mod"
                   : "text-text-muted hover:bg-surface-raised hover:text-foreground",
               )}
             >
@@ -91,7 +91,9 @@ export function SessionsChart({ data }: { data: DailyPoint[] }) {
         dates={data.map((d) => d.date)}
         area={{
           label: currentOption.label,
-          color: "var(--color-chart-1)",
+          // Ljubičasta iz validirane kategorijalne palete (slot 6) — boja
+          // modula sama nije validirana kao serija (UI Boost §3.6).
+          color: "var(--color-chart-6)",
           values,
           format: currentOption.format,
         }}

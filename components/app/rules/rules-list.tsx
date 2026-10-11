@@ -6,18 +6,24 @@ import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackNote } from "@/components/app/feedback";
+import { Chip } from "@/components/app/system/chip";
+import { EmptyState } from "@/components/app/system/empty-state";
 import { formatRuleSentence } from "@/lib/rule-sentence";
 import { cn } from "@/lib/utils";
 import {
-  ShieldAlert,
-  Edit2,
-  Trash2,
   Clock,
-  Sparkles,
+  History,
   Mail,
   Pause,
+  Pencil,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldOff,
+  Sparkles,
+  Trash2,
 } from "lucide-react";
 
 export interface RulesListProps {
@@ -26,6 +32,17 @@ export interface RulesListProps {
   onEnsureTemplates: () => void;
 }
 
+const SCOPE_LABEL: Record<Doc<"rules">["scope"], string> = {
+  campaign: "Kampanje",
+  adset: "Ad setovi",
+  account: "Ceo nalog",
+};
+
+/**
+ * Pravila kao kartice „čuvara": ko čuva (naziv i štit), šta čuva (uslov kao
+ * rečenica), da li je na straži (prekidač) i kada je poslednji put reagovao.
+ * Izmena i brisanje su ghost ikonice — glavna radnja kartice je prekidač.
+ */
 export function RulesList({
   rules,
   onEditRule,
@@ -69,34 +86,34 @@ export function RulesList({
 
   if (rules.length === 0) {
     return (
-      <Card className="p-8 text-center bg-card border-line border-dashed">
-        <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-accent-400/10 text-accent-400 mb-4">
-          <ShieldAlert className="size-6" />
-        </div>
-        <h3 className="text-base font-bold text-foreground">
-          Nema kreiranih pravila
-        </h3>
-        <p className="text-xs text-text-muted mt-1 max-w-sm mx-auto">
-          Automatizuj praćenje CPA, potrošnje i konverzija pomoću predefinisanih šablona ili kreiraj novo pravilo.
-        </p>
-        <div className="mt-5">
-          <Button
-            type="button"
-            size="sm"
-            onClick={onEnsureTemplates}
-            className="font-semibold"
-          >
-            <Sparkles className="size-4" />
-            <span>Učitaj šablone (CPA & Spend Guard)</span>
+      <EmptyState
+        icon={ShieldAlert}
+        variant="mission"
+        title="Postavi prvog čuvara"
+        steps={[
+          { label: "Učitaj šablone: čuvar CPA i čuvar potrošnje" },
+          { label: "Podesi prag i šta pravilo radi kad ga pređe" },
+          { label: "Uključi pravilo — evaluator ga proverava na 30 minuta" },
+        ]}
+        action={
+          <Button type="button" variant="secondary" onClick={onEnsureTemplates}>
+            <Sparkles aria-hidden />
+            Učitaj šablone
           </Button>
-        </div>
-      </Card>
+        }
+      >
+        Pravilo prati CPA, potrošnju ili konverzije i reaguje kad pređu prag.
+      </EmptyState>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4">
-      {error && <FeedbackNote tone="danger" title={error} />}
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      {error && (
+        <div className="xl:col-span-2">
+          <FeedbackNote tone="danger" title={error} />
+        </div>
+      )}
 
       <ConfirmDialog
         open={pendingDelete !== null}
@@ -123,125 +140,134 @@ export function RulesList({
           cooldownHours: rule.cooldownHours,
         });
 
-        const lastFiredText = rule.lastFiredAt
-          ? `Zadnje aktiviranje: ${new Date(rule.lastFiredAt).toLocaleString("sr-RS", {
+        const lastFired = rule.lastFiredAt
+          ? new Date(rule.lastFiredAt).toLocaleString("sr-RS", {
               day: "2-digit",
               month: "2-digit",
               hour: "2-digit",
               minute: "2-digit",
-            })}`
-          : "Nije još aktivirano";
+            })
+          : null;
+
+        const Shield = rule.enabled ? ShieldCheck : ShieldOff;
+        const pauses =
+          rule.action === "pause_and_notify" || rule.action === "pause";
 
         return (
           <Card
             key={rule._id}
             className={cn(
-              "p-5 bg-card border-line shadow-card transition-all duration-150 relative overflow-hidden",
-              !rule.enabled && "opacity-75 bg-surface/40",
+              "flex flex-col gap-3 p-5 shadow-card ring-line",
+              !rule.enabled && "bg-surface/40",
             )}
           >
-            {/* Top Row: Title, Scope, Action Badge, Toggle Switch */}
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm font-bold text-foreground">
-                    {rule.name}
-                  </h3>
+            <div className="flex items-start gap-3">
+              <span
+                className={cn(
+                  "flex size-10 shrink-0 items-center justify-center rounded-lg border",
+                  rule.enabled
+                    ? "border-mod-line bg-mod-soft text-mod"
+                    : "border-line bg-surface-raised text-text-muted",
+                )}
+              >
+                <Shield className="size-5" aria-hidden />
+              </span>
 
-                  {/* Scope Badge */}
-                  <span className="rounded-md bg-surface px-2 py-0.5 text-micro font-mono text-text-muted border border-line">
-                    {rule.scope === "campaign"
-                      ? "Kampanje"
-                      : rule.scope === "adset"
-                        ? "Ad Setovi"
-                        : "Ceo nalog"}
-                  </span>
-
-                  {/* Action Badge */}
-                  {rule.action === "pause_and_notify" ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-micro font-semibold text-warning">
-                      <Pause className="size-2.5" />
-                      <span>Pauziraj i javi</span>
-                    </span>
-                  ) : rule.action === "pause" ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-micro font-semibold text-warning">
-                      <Pause className="size-2.5" />
-                      <span>Samo pauziraj</span>
-                    </span>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-copy font-bold break-words text-foreground">
+                  {rule.name}
+                </h3>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <Chip size="sm" tone="muted">
+                    {SCOPE_LABEL[rule.scope]}
+                  </Chip>
+                  {pauses ? (
+                    <Chip size="sm" tone="warning" icon={Pause}>
+                      {rule.action === "pause" ? "Samo pauziraj" : "Pauziraj i javi"}
+                    </Chip>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-accent-400/10 border border-accent-400/30 px-2 py-0.5 text-micro font-semibold text-accent-400">
-                      <Mail className="size-2.5" />
-                      <span>Samo javi</span>
-                    </span>
+                    <Chip size="sm" tone="info" icon={Mail}>
+                      Samo javi
+                    </Chip>
                   )}
-                </div>
-
-                <div className="flex items-center gap-3 text-micro text-text-muted">
-                  <span className="flex items-center gap-1">
-                    <Clock className="size-3" />
-                    <span>Cooldown: {rule.cooldownHours}h</span>
-                  </span>
-                  <span>•</span>
-                  <span>{lastFiredText}</span>
                 </div>
               </div>
 
-              {/* Toggle Switch + Action Buttons */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleToggle(rule._id, rule.enabled)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer",
-                    rule.enabled
-                      ? "border-success/40 bg-success/15 text-success hover:bg-success/20"
-                      : "border-line bg-surface text-text-muted hover:text-foreground hover:bg-surface-raised",
+              {/* Prekidač je radnja kartice; uz njega stoji stanje rečju, da
+                  boja nije jedini nosilac. */}
+              <label className="flex shrink-0 cursor-pointer items-center gap-2 text-ui">
+                <span
+                  className={rule.enabled ? "text-foreground" : "text-text-muted"}
+                >
+                  {rule.enabled ? "Aktivno" : "Isključeno"}
+                </span>
+                <Switch
+                  checked={rule.enabled}
+                  onCheckedChange={() => handleToggle(rule._id, rule.enabled)}
+                  aria-label={`Pravilo ${rule.name}: ${
+                    rule.enabled ? "aktivno" : "isključeno"
+                  }`}
+                  className="cursor-pointer"
+                />
+              </label>
+            </div>
+
+            {/* Uslov kao rečenica — ono što čuvar zapravo radi. */}
+            <p
+              className={cn(
+                "text-ui leading-relaxed",
+                rule.enabled ? "text-foreground" : "text-text-muted",
+              )}
+            >
+              {sentence}
+            </p>
+
+            <div className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line-soft pt-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta text-text-muted">
+                <span className="inline-flex items-center gap-1">
+                  <History className="size-3" aria-hidden />
+                  {lastFired ? (
+                    <>
+                      Poslednje okidanje{" "}
+                      <span className="font-mono tabular-nums text-foreground">
+                        {lastFired}
+                      </span>
+                    </>
+                  ) : (
+                    "Još nije okinulo"
                   )}
-                >
-                  <span
-                    className={cn(
-                      "size-2 rounded-full transition-colors",
-                      rule.enabled ? "bg-success" : "bg-text-muted/40",
-                    )}
-                  />
-                  <span>{rule.enabled ? "Aktivno" : "Isključeno"}</span>
-                </button>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="size-3" aria-hidden />
+                  Pauza između okidanja {rule.cooldownHours} h
+                </span>
+              </div>
 
+              <div className="flex items-center gap-1">
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={() => onEditRule(rule)}
-                  className="h-7 px-2.5 text-xs text-text-muted hover:text-foreground border-line"
+                  aria-label={`Izmeni pravilo ${rule.name}`}
+                  title="Izmeni"
+                  className="touch-target text-text-muted hover:text-foreground"
                 >
-                  <Edit2 className="size-3 mr-1" />
-                  <span>Izmeni</span>
+                  <Pencil aria-hidden />
                 </Button>
-
-                {/* Brisanje stoji odvojeno od izmene: tanka linija i razmak,
-                    da pogrešan klik ne bude na susednom pikselu. */}
-                <span className="mx-1 h-5 w-px bg-line-soft" aria-hidden />
-
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={() => setPendingDelete(rule)}
                   disabled={deletingId === rule._id}
                   aria-label={`Obriši pravilo ${rule.name}`}
-                  className="h-7 border-danger/25 px-2 text-xs text-danger/80 hover:bg-danger/10 hover:text-danger"
+                  title="Obriši"
+                  className="touch-target text-text-muted hover:bg-danger-soft hover:text-danger"
                 >
-                  <Trash2 className="size-3" />
+                  <Trash2 aria-hidden />
                 </Button>
               </div>
-            </div>
-
-            {/* Plain-Language Rule Preview Sentence Banner */}
-            <div className="mt-3 rounded-lg border border-line bg-surface/60 px-3.5 py-2.5 text-xs text-foreground font-medium flex items-center gap-2">
-              <span className="text-accent-400 font-semibold text-micro heading-caps shrink-0">
-                Pravilo:
-              </span>
-              <p className="leading-relaxed">„{sentence}”</p>
             </div>
           </Card>
         );

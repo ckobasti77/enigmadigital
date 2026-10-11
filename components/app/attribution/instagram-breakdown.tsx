@@ -123,7 +123,7 @@ export function InstagramBreakdown({
                         <span
                           className={`flex size-7 shrink-0 items-center justify-center rounded-md ${
                             ch.primary
-                              ? "bg-accent-400/10 text-accent-400"
+                              ? "bg-mod-soft text-mod"
                               : "bg-surface-raised text-text-muted"
                           }`}
                         >
@@ -156,7 +156,7 @@ export function InstagramBreakdown({
                       <span
                         className={
                           ch.keyEvents > 0 && ch.primary
-                            ? "font-semibold text-accent-400"
+                            ? "font-semibold text-mod"
                             : "text-foreground"
                         }
                       >
@@ -177,7 +177,7 @@ export function InstagramBreakdown({
                         >
                           <span
                             className={`block h-full rounded-full ${
-                              ch.primary ? "bg-accent-400" : "bg-text-muted"
+                              ch.primary ? "bg-mod-strong" : "bg-text-muted"
                             }`}
                             style={{
                               width: `${Math.max(
@@ -204,7 +204,7 @@ export function InstagramBreakdown({
                 <TableCell className="py-3.5 text-right font-mono tabular-nums text-text-muted">
                   100%
                 </TableCell>
-                <TableCell className="py-3.5 text-right font-mono tabular-nums font-semibold text-accent-400">
+                <TableCell className="py-3.5 text-right font-mono tabular-nums font-semibold text-mod">
                   {formatNumber(totalKeyEvents)}
                 </TableCell>
                 <TableCell className="py-3.5 text-right font-mono tabular-nums font-semibold text-foreground">

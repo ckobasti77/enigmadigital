@@ -180,7 +180,7 @@ function AutomationCard({
             {automation.requireFollow && (
               <>
                 <span aria-hidden>·</span>
-                <span className="inline-flex items-center gap-1 text-accent-400">
+                <span className="inline-flex items-center gap-1 text-mod">
                   <UserRoundPlus className="size-3" aria-hidden />
                   Traži praćenje
                 </span>
@@ -189,7 +189,7 @@ function AutomationCard({
             {automation.followUpEnabled && (
               <>
                 <span aria-hidden>·</span>
-                <span className="inline-flex items-center gap-1 text-accent-400">
+                <span className="inline-flex items-center gap-1 text-mod">
                   <Clock className="size-3" aria-hidden />
                   Naknadna poruka posle{" "}
                   {formatFollowUpDelay(automation.followUpDelayMinutes)}
@@ -303,7 +303,7 @@ function Metric({
         className={cn(
           "mt-0.5 font-mono text-lg tabular-nums",
           tone === "accent"
-            ? "text-accent-400"
+            ? "text-mod"
             : tone === "danger"
               ? "text-danger"
               : "text-foreground",

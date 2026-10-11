@@ -3,17 +3,27 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { Camera, ChartNoAxesColumn, Unplug, Users } from "lucide-react";
+import {
+  Camera,
+  ChartNoAxesColumn,
+  Megaphone,
+  MousePointerClick,
+  Unplug,
+  Users,
+} from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
-import { EmptyState } from "@/components/app/empty-state";
+import { EmptyState } from "@/components/app/system/empty-state";
+import { FocusCard } from "@/components/app/system/focus-card";
+import { FunnelSteps } from "@/components/app/system/funnel-steps";
+import { Button } from "@/components/ui/button";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
 import {
+  DeltaPill,
   KpiTile,
   KpiTileSkeleton,
   StatTile,
-} from "@/components/app/analytics/kpi-tile";
+} from "@/components/app/system/kpi-tile";
 import { OpenReplyChart, OpenReplyChartSkeleton } from "./openreply-chart";
 import { CampaignsTable, CampaignsTableSkeleton } from "./campaigns-table";
 import {
@@ -96,76 +106,96 @@ export function OpenReplyDashboard() {
   return (
     <div className="flex flex-1 flex-col gap-6">
       {!orConnected ? (
-        <EmptyState icon={Unplug}>
-          OpenReply još nije povezan.{" "}
-          <Link
-            href="/settings"
-            className="text-accent-400 underline-offset-4 hover:underline"
-          >
-            Poveži ga u podešavanjima
-          </Link>
-          .
+        <EmptyState
+          icon={Unplug}
+          variant="mission"
+          title="Poveži OpenReply"
+          steps={[
+            { label: "Poveži OpenReply u Podešavanjima" },
+            { label: "Napravi prvu automatizaciju: ključna reč i poruka" },
+            { label: "Prvi poslati DM se pojavljuje ovde" },
+          ]}
+          action={
+            <Button
+              variant="primary"
+              render={<Link href="/settings" />}
+              nativeButton={false}
+            >
+              Poveži OpenReply
+            </Button>
+          }
+        >
+          Posle povezivanja ovde stižu poslate poruke i klikovi na linkove.
         </EmptyState>
       ) : loading ? (
         <OpenReplyDashboardSkeleton />
       ) : (
         <>
-          <Reveal>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <KpiTile
-                label="Poslati DM"
-                primary
-                value={cur.dmsSent}
-                format={formatNumber}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(cur.dmsSent, prev.dmsSent),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={series.map((d) => d.dmsSent)}
-              />
-              <KpiTile
-                label="Klikovi na linkove"
-                value={cur.linkClicks}
-                format={formatNumber}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(cur.linkClicks, prev.linkClicks),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={series.map((d) => d.linkClicks)}
-              />
-              {/* Odnos, ne stopa (F6): `orLinkClicks` beleži svako otvaranje
-                  linka, a link pripada automatizaciji, ne poruci — klik se ne
-                  može vezati za primaoca, pa jedan čovek sa tri otvaranja daje
-                  tri klika na jedan DM. Kao „CTR" to prelazi 100 %. */}
-              <KpiTile
-                label="Klikova po poruci"
-                value={cur.ctr}
-                format={formatRatio}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(cur.ctr, prev.ctr),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={series.map((d) => (d.dmsSent > 0 ? d.linkClicks / d.dmsSent : 0))}
-              />
-              <KpiTile
-                label="Aktivne kampanje"
-                value={activeCampaigns}
-                format={formatNumber}
-                // Nema prethodnog perioda za broj kampanja — imenilac ide kao
-                // napomena, ne kao lažno poređenje (A1 §3).
-                note={`od ${totalCampaigns} ukupno`}
-              />
+          {/* Fokus: levak DM → klik. Odnos, ne stopa (F6): `orLinkClicks`
+              beleži svako otvaranje linka, a link pripada automatizaciji, ne
+              poruci — klik se ne može vezati za primaoca, pa jedan čovek sa
+              tri otvaranja daje tri klika na jedan DM. Kao „CTR" to prelazi
+              100 %; zato između koraka piše „klikova po poruci". */}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-[2fr_1fr_1fr]">
+            <div className="col-span-2 lg:col-span-1">
+              <FocusCard eyebrow="Levak DM → klik" className="h-full">
+                <FunnelSteps
+                  label="Levak od poslate poruke do klika na link"
+                  steps={[
+                    {
+                      label: "Poslati DM",
+                      value: cur.dmsSent,
+                      aside: <Promena value={deltaPct(cur.dmsSent, prev.dmsSent)} />,
+                    },
+                    {
+                      label: "Klikovi na linkove",
+                      value: cur.linkClicks,
+                      per: "klikova po poruci",
+                      ratioOnly: true,
+                      aside: (
+                        <Promena
+                          value={deltaPct(cur.linkClicks, prev.linkClicks)}
+                        />
+                      ),
+                    },
+                  ]}
+                />
+                {(deltaPct(cur.dmsSent, prev.dmsSent) !== null ||
+                  deltaPct(cur.linkClicks, prev.linkClicks) !== null) && (
+                  <p className="text-meta text-text-muted">
+                    Promena je {compareLabel}.
+                  </p>
+                )}
+              </FocusCard>
             </div>
-          </Reveal>
+            <KpiTile
+              label="Klikova po poruci"
+              shortLabel="Po poruci"
+              icon={MousePointerClick}
+              value={cur.ctr}
+              format={formatRatio}
+              delta={{
+                kind: "pct",
+                value: deltaPct(cur.ctr, prev.ctr),
+              }}
+              formatDelta={formatSignedPercent}
+              compareLabel={compareLabel}
+              spark={series.map((d) => (d.dmsSent > 0 ? d.linkClicks / d.dmsSent : 0))}
+            />
+            <KpiTile
+              label="Aktivne kampanje"
+              shortLabel="Kampanje"
+              icon={Megaphone}
+              value={activeCampaigns}
+              format={formatNumber}
+              // Nema prethodnog perioda za broj kampanja — imenilac ide kao
+              // napomena, ne kao lažno poređenje (A1 §3).
+              note={`od ${totalCampaigns} ukupno`}
+            />
+          </div>
 
           {fbConnected && (
-            <Reveal delay={0.03}>
+            <div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <StatTile
                   label="Odgovoreno na Instagramu"
@@ -186,31 +216,40 @@ export function OpenReplyDashboard() {
                   icon={Users}
                 />
               </div>
-            </Reveal>
+            </div>
           )}
 
           {cur.dmsSent === 0 && cur.linkClicks === 0 && campaigns.length === 0 ? (
-            <EmptyState icon={ChartNoAxesColumn}>
-              Nema podataka za izabrani period. Istorija seže 90 dana unazad od
-              prve sinhronizacije.
+            <EmptyState
+              icon={ChartNoAxesColumn}
+              variant="line"
+              title="Još nema podataka za ovaj period."
+            >
+              Istorija seže 90 dana unazad od prve sinhronizacije.
             </EmptyState>
           ) : (
             <>
-              <Reveal delay={0.05}>
+              <div>
                 <ChartErrorBoundary>
                   <OpenReplyChart data={series} />
                 </ChartErrorBoundary>
-              </Reveal>
+              </div>
 
-              <Reveal delay={0.1}>
+              <div>
                 <CampaignsTable campaigns={campaigns} />
-              </Reveal>
+              </div>
             </>
           )}
         </>
       )}
     </div>
   );
+}
+
+/** Pilula promene uz korak levka; bez prethodnog perioda se ne crta. */
+function Promena({ value }: { value: number | null }) {
+  if (value === null || !Number.isFinite(value)) return null;
+  return <DeltaPill value={value} format={formatSignedPercent} />;
 }
 
 function useStale<T>(value: T | undefined): T | undefined {
@@ -222,9 +261,8 @@ function useStale<T>(value: T | undefined): T | undefined {
 export function OpenReplyDashboardSkeleton() {
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiTileSkeleton />
-        <KpiTileSkeleton />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-[2fr_1fr_1fr]">
+        <div className="col-span-2 h-40 animate-pulse rounded-xl border border-line bg-card lg:col-span-1" />
         <KpiTileSkeleton />
         <KpiTileSkeleton />
       </div>

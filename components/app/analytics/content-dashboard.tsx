@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { ChartNoAxesColumn, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
@@ -116,7 +115,7 @@ export function ContentDashboard() {
           GA4 još nije povezan.{" "}
           <Link
             href="/settings"
-            className="text-accent-400 underline-offset-4 hover:underline"
+            className="text-mod underline-offset-4 hover:underline"
           >
             Poveži ga u podešavanjima
           </Link>
@@ -127,7 +126,7 @@ export function ContentDashboard() {
       ) : (
         <>
           {/* Top Explanation Banner */}
-          <Reveal>
+          <div>
             <div className="rounded-xl border border-line bg-surface-raised/40 p-4 text-xs leading-relaxed text-text-muted sm:text-sm">
               <span className="font-semibold text-foreground">Sadržaj i stranice</span>{" "}
               prikazuju interakciju korisnika sa web stranicama.{" "}
@@ -136,10 +135,10 @@ export function ContentDashboard() {
               <span className="font-semibold text-foreground">Ulazne stranice</span>{" "}
               pokazuju gde korisnici započinju posetu vašem sajtu.
             </div>
-          </Reveal>
+          </div>
 
           {/* KPI Row (4 Tiles) */}
-          <Reveal>
+          <div>
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <KpiTile
                 label="Prikazi stranica"
@@ -199,7 +198,7 @@ export function ContentDashboard() {
                 spark={sparkKeyEvents}
               />
             </div>
-          </Reveal>
+          </div>
 
           {pagesData.totals.screenPageViews === 0 &&
           landingData.totals.sessions === 0 &&
@@ -211,30 +210,30 @@ export function ContentDashboard() {
           ) : (
             <>
               {/* Top 20 Pages Table */}
-              <Reveal>
+              <div>
                 <ChartErrorBoundary>
                   <PagesTable data={pagesData} />
                 </ChartErrorBoundary>
-              </Reveal>
+              </div>
 
               {/* Top 20 Landing Pages Table */}
-              <Reveal>
+              <div>
                 <ChartErrorBoundary>
                   <LandingPagesTable data={landingData} />
                 </ChartErrorBoundary>
-              </Reveal>
+              </div>
 
               {/* Top 20 Events Table */}
-              <Reveal>
+              <div>
                 <ChartErrorBoundary>
                   <EventsTable data={eventsData} />
                 </ChartErrorBoundary>
-              </Reveal>
+              </div>
 
               {/* Data Quality Notice */}
-              <Reveal>
+              <div>
                 <DataQualityNotice meta={pagesData.reportMeta} />
-              </Reveal>
+              </div>
             </>
           )}
         </>

@@ -8,7 +8,10 @@ import {
 export default function RetentionPage() {
   return (
     <div className="flex w-full flex-1 flex-col gap-8">
-      <PageHeader description="Nedeljna kohortna analiza i stopa zadržavanja (retencije) korisnika kroz 12 nedelja." />
+      <PageHeader
+        variant="module"
+        description="Nedeljne kohorte i stopa zadržavanja korisnika kroz 12 nedelja."
+      />
 
       <div className="flex flex-1 flex-col">
         <Suspense fallback={<RetentionDashboardSkeleton />}>

@@ -84,7 +84,7 @@ function ActionIcon({ action }: { action: string }) {
       );
     case "budget_change":
       return (
-        <span className="flex size-6 items-center justify-center rounded border border-accent-400/30 bg-accent-400/10 text-accent-400">
+        <span className="flex size-6 items-center justify-center rounded border border-mod-line bg-mod-soft text-mod">
           <TrendingUp className="size-3" />
         </span>
       );
@@ -463,7 +463,7 @@ export function ActionAuditLog() {
                               row.apiResponse || JSON.stringify({ error: row.error }, null, 2),
                             )
                           }
-                          className="h-7 text-xs text-text-muted hover:text-accent-400 gap-1"
+                          className="h-7 text-xs text-text-muted hover:text-mod gap-1"
                         >
                           <Code2 className="size-3.5" />
                           <span>Detalji</span>

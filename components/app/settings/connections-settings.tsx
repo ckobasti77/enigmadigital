@@ -31,7 +31,6 @@ import type { Provider } from "@/convex/lib/providers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { RevealGroup } from "@/components/motion/reveal";
 import { formatRelativeTime } from "@/lib/format";
 import { describeTokenExpiry } from "@/lib/token-expiry";
 import {
@@ -56,10 +55,35 @@ import {
 } from "./purge-state";
 import { WebhookSignatureNote } from "./webhook-health";
 import { StatusPill } from "./status-pill";
+import { FocusCard } from "@/components/app/system/focus-card";
+import { SegmentedMeter } from "@/components/app/system/progress";
+import type { ModuleKey } from "@/components/app/nav-items";
 import { SyncHealth } from "./sync-health";
 import { SyncSchedule } from "./sync-schedule";
 
 type ConnectionView = FunctionReturnType<typeof api.connections.list>[number];
+
+/** Osam integracija koje ekran nudi, redom kojim su pločice poređane. */
+const INTEGRATIONS: ReadonlyArray<{
+  provider: ConnectionView["provider"];
+  label: string;
+}> = [
+  { provider: "ga4", label: "GA4" },
+  { provider: "openreply", label: "OpenReply" },
+  { provider: "meta_ig", label: "Instagram" },
+  { provider: "meta_fb", label: "Facebook" },
+  { provider: "threads", label: "Threads" },
+  { provider: "meta_ads", label: "Meta Ads" },
+  { provider: "google_ads", label: "Google Ads" },
+  { provider: "youtube", label: "YouTube" },
+];
+
+const STATUS_HINT: Record<ConnectionView["status"], string> = {
+  active: "Povezano i aktivno.",
+  error: "Veza prijavljuje grešku.",
+  expired: "Pristup je istekao.",
+  disconnecting: "Veza je prekinuta, brisanje podataka je u toku.",
+};
 
 /** Pull the friendly message out of a thrown ConvexError, else a fallback. */
 function convexMessage(err: unknown, fallback: string): string {
@@ -131,29 +155,40 @@ function connectionPill(status: ConnectionView["status"] | undefined) {
 
 // ── shared card shell ────────────────────────────────────────────────────────
 
+/**
+ * Pločica integracije. `module` pali `data-module` na samoj pločici, pa sve
+ * unutar nje — ikonica, okvir fokusa, puno dugme — čita boju tog brenda kroz
+ * `--mod`, istim mehanizmom kojim ekran čita boju svog modula (UI Boost §3.4).
+ * Zdravlje veze nosi pilula desno; boja brenda kaže samo ČIJA je pločica.
+ */
 function CardShell({
   icon: Icon,
   title,
   subtitle,
   status,
+  module,
   children,
 }: {
   icon: ComponentType<{ className?: string }>;
   title: string;
   subtitle: string;
   status: ReactNode;
+  module: ModuleKey;
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border bg-card p-6 shadow-card">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-lg border border-line-soft text-text-muted">
-            <Icon className="size-4" />
+    <section
+      data-module={module}
+      className="min-w-0 rounded-xl border bg-card p-6 shadow-card"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-mod-line bg-mod-soft text-mod">
+            <Icon className="size-5" />
           </div>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-            <p className="text-xs text-text-muted">{subtitle}</p>
+          <div className="min-w-0">
+            <h2 className="text-copy font-bold text-foreground">{title}</h2>
+            <p className="text-meta text-text-muted">{subtitle}</p>
           </div>
         </div>
         {status}
@@ -403,6 +438,7 @@ function Ga4Card({ connection }: { connection?: ConnectionView }) {
     <CardShell
       icon={LineChart}
       title="Google Analytics 4"
+      module="analitika"
       subtitle="Service account · read-only"
       status={connectionPill(connection?.status)}
     >
@@ -561,6 +597,7 @@ function OpenReplyCard() {
     <CardShell
       icon={MessageCircleReply}
       title="OpenReply"
+      module="openreply"
       subtitle="Komentar → DM automatizacija"
       status={statusNode}
     >
@@ -689,7 +726,7 @@ function OpenReplyCard() {
               {missingVars.map((varName, i) => (
                 <span key={varName}>
                   {i > 0 && " i "}
-                  <code className="font-mono font-medium text-accent-400">
+                  <code className="font-mono font-medium text-mod">
                     {varName}
                   </code>
                 </span>
@@ -894,6 +931,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
     <CardShell
       icon={Camera}
       title="Instagram"
+      module="instagram"
       subtitle="Meta · organski insights"
       status={statusNode}
     >
@@ -909,8 +947,8 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
           title="Čeka se konfiguracija Meta aplikacije"
         >
           Za povezivanje Instagram Business naloga unesi{" "}
-          <code className="font-mono text-accent-400">INSTAGRAM_APP_ID</code> i{" "}
-          <code className="font-mono text-accent-400">INSTAGRAM_APP_SECRET</code>{" "}
+          <code className="font-mono text-mod">INSTAGRAM_APP_ID</code> i{" "}
+          <code className="font-mono text-mod">INSTAGRAM_APP_SECRET</code>{" "}
           u Convex environment varijable.
         </FeedbackNote>
       )}
@@ -1057,7 +1095,7 @@ function FacebookSetupSteps({ webhookUrl }: { webhookUrl: string | null }) {
             ].map((scope, index) => (
               <span key={scope}>
                 {index > 0 && ", "}
-                <code className="font-mono text-accent-400">{scope}</code>
+                <code className="font-mono text-mod">{scope}</code>
               </span>
             ))}
             .
@@ -1069,10 +1107,10 @@ function FacebookSetupSteps({ webhookUrl }: { webhookUrl: string | null }) {
           <span>
             U <span className="text-foreground">Webhooks</span> dodaj objekat{" "}
             <span className="text-foreground">Page</span> i pretplati polja{" "}
-            <code className="font-mono text-accent-400">feed</code> i{" "}
-            <code className="font-mono text-accent-400">messages</code>.
+            <code className="font-mono text-mod">feed</code> i{" "}
+            <code className="font-mono text-mod">messages</code>.
             Callback URL je isti kao za Instagram, ali sa putanjom{" "}
-            <code className="font-mono text-accent-400">/facebook/webhook</code>
+            <code className="font-mono text-mod">/facebook/webhook</code>
             .
           </span>
         </li>
@@ -1081,7 +1119,7 @@ function FacebookSetupSteps({ webhookUrl }: { webhookUrl: string | null }) {
           <span className="font-mono text-text-secondary">3.</span>
           <span>
             Verify token je isti{" "}
-            <code className="font-mono text-accent-400">
+            <code className="font-mono text-mod">
               IG_WEBHOOK_VERIFY_TOKEN
             </code>{" "}
             koji već koristi Instagram webhook. Ne pravi novi.
@@ -1093,8 +1131,8 @@ function FacebookSetupSteps({ webhookUrl }: { webhookUrl: string | null }) {
           <span>
             U <span className="text-foreground">Settings → Basic</span> uzmi App
             ID i App Secret i upiši ih u Convex kao{" "}
-            <code className="font-mono text-accent-400">FACEBOOK_APP_ID</code> i{" "}
-            <code className="font-mono text-accent-400">FACEBOOK_APP_SECRET</code>
+            <code className="font-mono text-mod">FACEBOOK_APP_ID</code> i{" "}
+            <code className="font-mono text-mod">FACEBOOK_APP_SECRET</code>
             . App Secret je isti kao za Instagram; App ID nije — Instagram Login
             ima svoj.
           </span>
@@ -1454,6 +1492,7 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
     <CardShell
       icon={Users}
       title="Facebook stranica"
+      module="facebook"
       subtitle="Meta · objave, komentari i DM automatizacija"
       status={statusNode}
     >
@@ -1594,11 +1633,11 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
                       title="Čeka se konfiguracija Meta aplikacije"
                     >
                       Bez{" "}
-                      <code className="font-mono text-accent-400">
+                      <code className="font-mono text-mod">
                         FACEBOOK_APP_ID
                       </code>{" "}
                       i{" "}
-                      <code className="font-mono text-accent-400">
+                      <code className="font-mono text-mod">
                         FACEBOOK_APP_SECRET
                       </code>{" "}
                       dugme ispod nema čime da pokrene prijavu.
@@ -1732,7 +1771,7 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
               {missingVars.map((varName, i) => (
                 <span key={varName}>
                   {i > 0 && " i "}
-                  <code className="font-mono font-medium text-accent-400">
+                  <code className="font-mono font-medium text-mod">
                     {varName}
                   </code>
                 </span>
@@ -1833,6 +1872,7 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
     <CardShell
       icon={Megaphone}
       title="Meta Ads"
+      module="oglasi"
       subtitle="Marketing API · System User token"
       status={statusNode}
     >
@@ -2015,6 +2055,7 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
     <CardShell
       icon={Megaphone}
       title="Google Ads"
+      module="oglasi"
       subtitle="Service account · Google Ads API (GAQL)"
       status={connectionPill(connection?.status)}
     >
@@ -2291,6 +2332,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
     <CardShell
       icon={SquarePlay}
       title="YouTube"
+      module="youtube"
       subtitle="YouTube Data API i Analytics · OAuth (čitanje i upravljanje)"
       status={statusNode}
     >
@@ -2662,7 +2704,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                   href={GOOGLE_PERMISSIONS_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-medium text-accent-400 underline underline-offset-2 transition-colors hover:text-accent-300"
+                  className="font-medium text-mod underline underline-offset-2 transition-colors hover:text-mod"
                 >
                   myaccount.google.com/permissions
                 </a>
@@ -2760,6 +2802,7 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
     <CardShell
       icon={AtSign}
       title="Threads"
+      module="threads"
       subtitle="Threads API · OAuth (statistika profila, uvidi i odgovori)"
       status={statusNode}
     >
@@ -2894,7 +2937,7 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
                   href={META_BUSINESS_APPS_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-medium text-accent-400 underline underline-offset-2 transition-colors hover:text-accent-300"
+                  className="font-medium text-mod underline underline-offset-2 transition-colors hover:text-mod"
                 >
                   facebook.com/settings → Business integrations
                 </a>
@@ -2923,10 +2966,51 @@ export function ConnectionsSettings() {
     byProvider.set(connection.provider, connection),
   );
 
+  const segments = INTEGRATIONS.map(({ provider, label }) => {
+    const status = byProvider.get(provider)?.status;
+    return {
+      label,
+      done: status === "active",
+      hint: status ? STATUS_HINT[status] : "Nije povezano.",
+    };
+  });
+  const activeCount = segments.filter((seg) => seg.done).length;
+  const attention = INTEGRATIONS.filter(({ provider }) => {
+    const status = byProvider.get(provider)?.status;
+    return status === "error" || status === "expired";
+  }).map(({ label }) => label);
+
   return (
-    // Devet kartica u nizu: razmak računa RevealGroup tako da poslednja
-    // završi unutar budžeta, umesto ručne lestvice koja ga je probijala.
-    <RevealGroup className="mt-8 space-y-5">
+    <div className="mt-6 flex flex-col gap-5">
+      {/* Fokus: koliko je izvora povezano, i koji traže pažnju. */}
+      <div>
+        <FocusCard
+          eyebrow="Integracije"
+          aside={
+            <SegmentedMeter
+              label="Povezano i aktivno"
+              segments={segments}
+              className="w-full md:w-[28rem]"
+            />
+          }
+        >
+          <p className="font-mono text-hero font-bold leading-none tabular-nums text-mod">
+            {activeCount}
+            <span className="text-text-muted"> / {INTEGRATIONS.length}</span>
+          </p>
+          <p className="text-ui text-text-muted">
+            {attention.length > 0
+              ? `Traže pažnju: ${attention.join(", ")}.`
+              : activeCount === INTEGRATIONS.length
+                ? "Svi izvori su povezani i aktivni."
+                : "Povezani izvori rade; ostali čekaju povezivanje."}
+          </p>
+        </FocusCard>
+      </div>
+
+      {/* Pločice teku u dve kolone koje pregledač sam ujednači po visini:
+          kartice su vrlo različite dužine, pa bi mreža ostavljala rupe. */}
+      <div className="-mb-5 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
       <Ga4Card connection={byProvider.get("ga4")} />
       {byProvider.has("ga4") && <Ga4Configuration />}
       <OpenReplyCard />
@@ -2936,17 +3020,18 @@ export function ConnectionsSettings() {
       <MetaAdsCard connection={byProvider.get("meta_ads")} />
       <GoogleAdsCard connection={byProvider.get("google_ads")} />
       <YouTubeCard connection={byProvider.get("youtube")} />
+      </div>
       <SyncSchedule connected={connections.map((c) => c.provider)} />
       <SyncHealth entries={health} />
       {/* Na dnu na namerno: rezime se čita posle kartica koje sažima. */}
       <DataAndAccess connected={connections.map((c) => c.provider)} />
-    </RevealGroup>
+    </div>
   );
 }
 
 export function ConnectionsSettingsSkeleton() {
   return (
-    <div className="mt-8 space-y-5">
+    <div className="mt-6 space-y-5">
       {Array.from({ length: 3 }).map((_, i) => (
         <section key={i} className="rounded-xl border bg-card p-6 shadow-card">
           <div className="flex items-start justify-between gap-4">

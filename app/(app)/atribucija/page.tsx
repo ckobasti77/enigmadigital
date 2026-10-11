@@ -8,7 +8,10 @@ import {
 export default function AttributionPage() {
   return (
     <div className="flex w-full flex-1 flex-col gap-8">
-      <PageHeader description="Spajanje OpenReply DM automatizacije sa GA4 sesijama i web konverzijama kroz standardizovane UTM parametre." />
+      <PageHeader
+        variant="module"
+        description="Put od DM poruke do konverzije: OpenReply spojen sa GA4 kroz UTM parametre."
+      />
 
       <div className="flex flex-1 flex-col">
         {/* useSearchParams (date range) needs a Suspense boundary on static routes. */}

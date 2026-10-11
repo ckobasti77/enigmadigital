@@ -25,31 +25,32 @@ const TABS: readonly TabItem<Tab>[] = [
   { id: "napredak", label: "Napredak", icon: Trophy },
 ];
 
-const COPY: Record<Tab, { title: string; blurb: string }> = {
+const COPY: Record<Tab, { title: string; blurb: string; info?: string }> = {
   connections: {
     title: "Integracije",
-    blurb:
-      "Poveži izvore podataka. Kredencijali se čuvaju enkriptovano i koriste se isključivo pri sinhronizaciji i sigurnim akcijama.",
+    blurb: "Poveži izvore podataka; kredencijali se čuvaju enkriptovano.",
+    info: "Kredencijali se koriste isključivo pri sinhronizaciji i sigurnim akcijama.",
   },
   audit: {
     title: "Istorija akcija",
     blurb:
-      "Revizorski trag svih izvršenih komandi na povezanim Meta Ads nalozima (pauziranje, budžet, dupliranje).",
+      "Revizorski trag komandi na Meta Ads nalozima: pauziranje, budžet, dupliranje.",
   },
   moderation: {
     title: "Moderacija",
     blurb:
-      "Ko je i kada odgovorio, sakrio ili obrisao komentar na Instagramu i Facebook stranici — uključujući i radnje koje je Meta odbila.",
+      "Ko je i kada odgovorio, sakrio ili obrisao komentar na Instagramu i Facebooku.",
+    info: "Spisak uključuje i radnje koje je Meta odbila.",
   },
   access: {
     title: "Pristup",
     blurb:
-      "Članovi, pozivnice za registraciju i tokeni kojima se skill predstavlja aplikaciji. Pozivnicu prosleđuješ ručno — osoba se registruje sa tačno tom adresom; bez pozivnice nema novog naloga.",
+      "Članovi, pozivnice za registraciju i tokeni kojima se skill predstavlja aplikaciji.",
+    info: "Pozivnicu prosleđuješ ručno — osoba se registruje sa tačno tom adresom; bez pozivnice nema novog naloga.",
   },
   napredak: {
     title: "Napredak",
-    blurb:
-      "XP, misije, niz i nedeljni ciljevi. Podešavanja su lična — važe samo za tvoj nalog.",
+    blurb: "XP, misije, niz i nedeljni ciljevi; podešavanja važe samo za tvoj nalog.",
   },
 };
 
@@ -58,14 +59,13 @@ export default function SettingsPage() {
   const copy = COPY[tab];
 
   return (
-    <div className="w-full max-w-4xl">
-      {/* Identitet aktivne kartice (Integracije / Istorija / Moderacija) nosi
-          sama traka sa jezičcima ispod — naslov se ne ponavlja. Opis prati
-          izabranu karticu. */}
-      <PageHeader description={copy.blurb} />
+    <div className="w-full">
+      {/* Cela širina kolone: integracije su mreža pločica, a dnevnici tabele.
+          Identitet aktivne kartice nosi traka sa jezičcima; opis je prati. */}
+      <PageHeader variant="module" description={copy.blurb} info={copy.info} />
 
       <TabNav
-        className="mt-8"
+        className="mt-6"
         tabs={TABS}
         active={tab}
         onChange={setTab}

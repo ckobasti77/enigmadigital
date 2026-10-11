@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/app/form-kit";
 import { FeedbackNote } from "@/components/app/feedback";
 import { Reveal } from "@/components/motion/reveal";
+import { BrandMoment } from "@/components/app/system/brand-moment";
 import { cn } from "@/lib/utils";
 import {
   PASSWORD_RULES,
@@ -445,17 +446,16 @@ export default function LoginPage() {
     ) : null;
 
   return (
-    <main className="flex min-h-svh flex-1 items-center justify-center px-[var(--gutter)] py-16">
+    <BrandMoment>
       <Reveal className="w-full max-w-sm">
-        <div className="rounded-xl border bg-card p-8 shadow-elev-1">
-          <p className="heading-caps text-micro font-medium text-accent-400">
-            Enigma · Command Center
-          </p>
+        {/* Ime proizvoda je iznad kartice (BrandMoment); prvi blok u kartici
+            zato nema gornji razmak. */}
+        <div className="rounded-xl border bg-card p-8 shadow-elev-1 [&>*:first-child]:mt-0">
 
           {/* ─────────── Reset lozinke: kod + nova lozinka ─────────── */}
           {ekran === "kod" ? (
             <div className="mt-6">
-              <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-accent-400">
+              <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-mod">
                 <KeyRound className="size-5" aria-hidden />
               </div>
               <h1 className="mt-4 text-h2 text-foreground">Nova lozinka</h1>
@@ -476,6 +476,7 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
+                  variant="primary"
                   disabled={zauzet || kod.length !== 6}
                   className="h-11 w-full"
                 >
@@ -532,7 +533,7 @@ export default function LoginPage() {
           ) : ekran === "adminKod" ? (
             /* ─────────── Bootstrap: potvrda adrese kodom ─────────── */
             <div className="mt-6">
-              <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-accent-400">
+              <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-mod">
                 <ShieldPlus className="size-5" aria-hidden />
               </div>
               <h1 className="mt-4 text-h2 text-foreground">Potvrdi adresu</h1>
@@ -547,6 +548,7 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
+                  variant="primary"
                   disabled={zauzet || kod.length !== 6}
                   className="h-11 w-full"
                 >
@@ -603,7 +605,7 @@ export default function LoginPage() {
           ) : ekran === "adminSetup" ? (
             /* ─────────── Bootstrap: pravljenje admin naloga ─────────── */
             <div className="mt-6">
-              <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-accent-400">
+              <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-mod">
                 <ShieldPlus className="size-5" aria-hidden />
               </div>
               <h1 className="mt-4 text-h2 text-foreground">Napravi admin nalog</h1>
@@ -654,6 +656,7 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
+                  variant="primary"
                   disabled={
                     zauzet ||
                     !cleanEmail ||
@@ -702,7 +705,7 @@ export default function LoginPage() {
               <form onSubmit={traziKodZaReset} className="mt-6 space-y-4">
                 {emailPolje(zauzet)}
 
-                <Button type="submit" disabled={zauzet} className="h-11 w-full">
+                <Button type="submit" variant="primary" disabled={zauzet} className="h-11 w-full">
                   {zauzet ? (
                     <>
                       <LoaderCircle className="animate-spin" />
@@ -744,6 +747,7 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
+                  variant="primary"
                   disabled={zauzet || lozinka.length === 0}
                   className="h-11 w-full"
                 >
@@ -791,6 +795,6 @@ export default function LoginPage() {
           )}
         </div>
       </Reveal>
-    </main>
+    </BrandMoment>
   );
 }

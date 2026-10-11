@@ -189,7 +189,7 @@ export function InvitesPanel() {
         )}
 
         {nova && (
-          <div className="mt-4 rounded-lg border border-accent-400/30 bg-accent-400/5 p-4">
+          <div className="mt-4 rounded-lg border border-mod-line bg-mod-soft p-4">
             <p className="text-xs font-medium text-foreground">
               Pozivnica za <span className="font-mono">{nova.email}</span> je
               napravljena.

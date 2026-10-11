@@ -218,7 +218,7 @@ export function FunnelTable({
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 font-mono text-xs text-text-muted">
-                            <span className="rounded bg-surface-raised px-1.5 py-0.5 text-micro text-accent-400">
+                            <span className="rounded bg-surface-raised px-1.5 py-0.5 text-micro text-mod">
                               {row.slug}
                             </span>
                             {row.keyword && (
@@ -247,7 +247,7 @@ export function FunnelTable({
                           <span className="font-mono tabular-nums text-foreground">
                             {formatNumber(row.linkClicks)}
                           </span>
-                          <span className="font-mono text-micro tabular-nums text-accent-400">
+                          <span className="font-mono text-micro tabular-nums text-mod">
                             {formatRatio(row.ctr)} po poruci
                           </span>
                         </div>
@@ -279,11 +279,11 @@ export function FunnelTable({
                                       ? "klika"
                                       : "klikova"}{" "}
                                   u OpenReply-u, ali GA4 nema sesije sa{" "}
-                                  <code className="rounded bg-surface px-1 text-accent-400">
+                                  <code className="rounded bg-surface px-1 text-mod">
                                     utm_campaign={row.slug}
                                   </code>{" "}
                                   i{" "}
-                                  <code className="rounded bg-surface px-1 text-accent-400">
+                                  <code className="rounded bg-surface px-1 text-mod">
                                     utm_medium=openreply-dm
                                   </code>
                                   . Proverite link u automatizovanoj poruci.
@@ -345,7 +345,7 @@ export function FunnelTable({
                               className={cn(
                                 "font-mono tabular-nums",
                                 row.ga4KeyEvents > 0
-                                  ? "font-semibold text-accent-400"
+                                  ? "font-semibold text-mod"
                                   : "text-foreground",
                               )}
                             >

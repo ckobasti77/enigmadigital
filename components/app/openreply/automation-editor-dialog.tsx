@@ -382,7 +382,7 @@ function AutomationEditorForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <DialogHeader>
         <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg border border-accent-400/20 bg-accent-400/10 text-accent-400">
+          <div className="flex size-8 items-center justify-center rounded-lg border border-mod-line bg-mod-soft text-mod">
             <MessageCircleReply className="size-4" />
           </div>
           <div>
@@ -598,7 +598,7 @@ function AutomationEditorForm({
         {/* Link */}
         <div className="space-y-2.5 rounded-xl border border-line bg-surface/50 p-3.5">
           <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-            <Link2 className="size-3.5 text-accent-400" />
+            <Link2 className="size-3.5 text-mod" />
             <span>Link u poruci</span>
           </span>
           <div className="grid gap-2.5 sm:grid-cols-[1fr_13rem]">
@@ -638,7 +638,7 @@ function AutomationEditorForm({
         <div className="space-y-3 rounded-xl border border-line bg-surface/50 p-3.5">
           <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-              <MousePointerClick className="size-3.5 text-accent-400" />
+              <MousePointerClick className="size-3.5 text-mod" />
               <span>Dugmad u poruci</span>
             </span>
             {tapMode !== "none" && (
@@ -827,7 +827,7 @@ function AutomationEditorForm({
           <div className="flex items-center justify-between gap-2">
             <div>
               <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                <UserRoundPlus className="size-3.5 text-accent-400" />
+                <UserRoundPlus className="size-3.5 text-mod" />
                 <span>Zaprati pre poruke</span>
               </span>
               <p className="mt-0.5 text-xs text-text-muted">
@@ -905,7 +905,7 @@ function AutomationEditorForm({
           <div className="flex items-center justify-between gap-2">
             <div>
               <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                <Clock className="size-3.5 text-accent-400" />
+                <Clock className="size-3.5 text-mod" />
                 <span>Naknadna poruka</span>
               </span>
               <p className="mt-0.5 text-xs text-text-muted">
@@ -1212,7 +1212,7 @@ export function SegmentedControl({
           className={cn(
             "rounded-lg border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-50",
             value === option.value
-              ? "border-accent-400 bg-accent-400/10 font-semibold text-accent-400"
+              ? "border-mod bg-mod-soft font-semibold text-mod"
               : "border-line bg-surface text-text-muted hover:bg-surface-raised hover:text-foreground",
           )}
         >

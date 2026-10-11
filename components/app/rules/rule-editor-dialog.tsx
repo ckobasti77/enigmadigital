@@ -192,7 +192,7 @@ function RuleEditorForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <DialogHeader>
         <div className="flex items-center gap-2">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-accent-400/10 border border-accent-400/20 text-accent-400">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-mod-soft border border-mod-line text-mod">
                 <Sliders className="size-4" />
               </div>
               <div>
@@ -244,7 +244,7 @@ function RuleEditorForm({
                     className={cn(
                       "flex items-center justify-center py-2 px-3 rounded-lg border text-xs font-medium transition-all",
                       scope === item.id
-                        ? "border-accent-400 bg-accent-400/10 text-accent-400 font-semibold"
+                        ? "border-mod bg-mod-soft text-mod font-semibold"
                         : "border-line bg-surface text-text-muted hover:text-foreground hover:bg-surface-raised",
                     )}
                   >
@@ -258,7 +258,7 @@ function RuleEditorForm({
             <div className="rounded-xl border border-line bg-surface/50 p-3.5 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                  <Shield className="size-3.5 text-accent-400" />
+                  <Shield className="size-3.5 text-mod" />
                   <span>Uslov za aktiviranje</span>
                 </span>
                 <span className="text-micro font-mono text-text-muted">
@@ -274,7 +274,7 @@ function RuleEditorForm({
                   <select
                     value={metric}
                     onChange={(e) => setMetric(e.target.value as RuleMetric)}
-                    className="w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs text-foreground focus:outline-hidden focus:border-accent-400 font-medium"
+                    className="w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs text-foreground focus:outline-hidden focus:border-mod font-medium"
                     disabled={submitting}
                   >
                     <option value="cpa">CPA (€)</option>
@@ -292,7 +292,7 @@ function RuleEditorForm({
                   <select
                     value={operator}
                     onChange={(e) => setOperator(e.target.value as RuleOperator)}
-                    className="w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs text-foreground focus:outline-hidden focus:border-accent-400 font-medium"
+                    className="w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs text-foreground focus:outline-hidden focus:border-mod font-medium"
                     disabled={submitting}
                   >
                     <option value="gt">Veće od (&gt;)</option>
@@ -389,7 +389,7 @@ function RuleEditorForm({
                     className={cn(
                       "flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-all",
                       action === item.id
-                        ? "border-accent-400 bg-accent-400/10 text-accent-400"
+                        ? "border-mod bg-mod-soft text-mod"
                         : "border-line bg-surface text-text-muted hover:text-foreground hover:bg-surface-raised",
                     )}
                   >
@@ -448,8 +448,8 @@ function RuleEditorForm({
             </div>
 
             {/* Plain-Language Preview Sentence */}
-            <div className="rounded-xl border border-accent-400/30 bg-accent-400/5 p-3.5 mt-2">
-              <div className="flex items-center gap-1.5 text-micro font-semibold text-accent-400 heading-caps mb-1.5">
+            <div className="rounded-xl border border-mod-line bg-mod-soft p-3.5 mt-2">
+              <div className="flex items-center gap-1.5 text-micro font-semibold text-mod heading-caps mb-1.5">
                 <Eye className="size-3.5" />
                 <span>Pregled pravila prirodnim jezikom</span>
               </div>

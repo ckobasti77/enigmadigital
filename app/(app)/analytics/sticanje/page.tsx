@@ -7,7 +7,10 @@ import {
 export default function AcquisitionPage() {
   return (
     <div className="flex w-full flex-1 flex-col gap-8">
-      <PageHeader description="Akvizicija korisnika i sesija kroz dva opsega: prvi dodir (akvizicija) i trenutna poseta (saobraćaj)." />
+      <PageHeader
+        variant="module"
+        description="Odakle stižu korisnici i sesije: prvi dodir i trenutna poseta."
+      />
 
       <div className="flex flex-1 flex-col">
         {/* useSearchParams (date range) needs a Suspense boundary on static routes. */}

@@ -5,6 +5,7 @@ import type { api } from "@/convex/_generated/api";
 import { formatNumber } from "@/lib/format";
 import { RankTable, RankTableSkeleton, type RankColumn } from "./rank-table";
 import { metricFormat } from "./metric-state";
+import { SourceIcon } from "./source-icon";
 
 type Traffic = FunctionReturnType<typeof api.analytics.traffic>;
 
@@ -24,11 +25,14 @@ const columns: RankColumn<Row>[] = [
     value: (r) => r.source,
     cellClassName: "max-w-[12rem] sm:max-w-[16rem]",
     cell: (r) => (
-      <span className="block truncate">
-        <span className="text-foreground">{r.source}</span>
-        <span className="text-text-muted"> / {r.medium}</span>
-        <span className="block truncate text-xs text-text-muted md:hidden">
-          {r.campaign}
+      <span className="flex min-w-0 items-center gap-2">
+        <SourceIcon source={r.source} medium={r.medium} />
+        <span className="block min-w-0 truncate">
+          <span className="text-foreground">{r.source}</span>
+          <span className="text-text-muted"> / {r.medium}</span>
+          <span className="block truncate text-xs text-text-muted md:hidden">
+            {r.campaign}
+          </span>
         </span>
       </span>
     ),

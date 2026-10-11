@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/app/form-kit";
 import { FeedbackNote } from "@/components/app/feedback";
 import { Reveal } from "@/components/motion/reveal";
+import { BrandMoment } from "@/components/app/system/brand-moment";
 import { cn } from "@/lib/utils";
 import {
   PASSWORD_RULES,
@@ -218,12 +219,11 @@ export function PozivnicaClient({ token }: { token: string }) {
   }
 
   return (
-    <main className="flex min-h-svh flex-1 items-center justify-center px-[var(--gutter)] py-16">
+    <BrandMoment>
       <Reveal className="w-full max-w-sm">
-        <div className="rounded-xl border bg-card p-8 shadow-elev-1">
-          <p className="heading-caps text-micro font-medium text-accent-400">
-            Enigma · Command Center
-          </p>
+        {/* Ime proizvoda je iznad kartice (BrandMoment); prvi blok u kartici
+            zato nema gornji razmak. */}
+        <div className="rounded-xl border bg-card p-8 shadow-elev-1 [&>*:first-child]:mt-0">
 
           {inviteState === undefined ? (
             /* ─────────── Učitavanje pozivnice ─────────── */
@@ -260,7 +260,7 @@ export function PozivnicaClient({ token }: { token: string }) {
           ) : korak === "kod" ? (
             /* ─────────── Potvrda adrese kodom ─────────── */
             <div className="mt-6">
-              <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-accent-400">
+              <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-mod">
                 <KeyRound className="size-5" aria-hidden />
               </div>
               <h1 className="mt-4 text-h2 text-foreground">Potvrdi adresu</h1>
@@ -296,6 +296,7 @@ export function PozivnicaClient({ token }: { token: string }) {
 
                 <Button
                   type="submit"
+                  variant="primary"
                   disabled={zauzet || status === "uspeh" || kod.length !== 6}
                   className="h-11 w-full"
                 >
@@ -324,7 +325,7 @@ export function PozivnicaClient({ token }: { token: string }) {
                       sporoPreusmeravanje ? (
                         <a
                           href="/"
-                          className="text-xs font-medium text-accent-400 underline underline-offset-2"
+                          className="text-xs font-medium text-mod underline underline-offset-2"
                         >
                           Uđi ručno
                         </a>
@@ -387,7 +388,7 @@ export function PozivnicaClient({ token }: { token: string }) {
           ) : (
             /* ─────────── Registracija ─────────── */
             <>
-              <div className="mt-6 flex size-10 items-center justify-center rounded-full border border-line-strong text-accent-400">
+              <div className="mt-6 flex size-10 items-center justify-center rounded-full border border-line-strong text-mod">
                 <KeyRound className="size-5" aria-hidden />
               </div>
               <h1 className="mt-4 text-h2 text-foreground">Napravi nalog</h1>
@@ -491,6 +492,7 @@ export function PozivnicaClient({ token }: { token: string }) {
 
                 <Button
                   type="submit"
+                  variant="primary"
                   disabled={
                     zauzet ||
                     status === "uspeh" ||
@@ -524,7 +526,7 @@ export function PozivnicaClient({ token }: { token: string }) {
                       sporoPreusmeravanje ? (
                         <a
                           href="/"
-                          className="text-xs font-medium text-accent-400 underline underline-offset-2"
+                          className="text-xs font-medium text-mod underline underline-offset-2"
                         >
                           Uđi ručno
                         </a>
@@ -547,6 +549,6 @@ export function PozivnicaClient({ token }: { token: string }) {
           )}
         </div>
       </Reveal>
-    </main>
+    </BrandMoment>
   );
 }

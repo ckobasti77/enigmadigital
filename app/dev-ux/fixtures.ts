@@ -1066,6 +1066,8 @@ const FIXTURES: Record<string, Fixture> = {
   [getFunctionName(api.rulesStore.listRules)]: () => listRules,
   [getFunctionName(api.rulesStore.listRuleFirings)]: () => listRuleFirings,
   [getFunctionName(api.postsPublic.listPublished)]: () => postsPublished,
+  // B9: prijava se snima kroz razvojni prikaz; prvi nalog već postoji.
+  [getFunctionName(api.invitesStore.trebaSetup)]: () => false,
 };
 
 Object.assign(

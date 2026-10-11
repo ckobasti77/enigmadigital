@@ -210,7 +210,7 @@ export function CampaignsTable({
                           aria-hidden
                         >
                           <span
-                            className="block h-full rounded-full bg-accent-400"
+                            className="block h-full rounded-full bg-mod-strong"
                             style={{ width: `${Math.max(row.ctr > 0 ? 4 : 0, ctrPct)}%` }}
                           />
                         </span>

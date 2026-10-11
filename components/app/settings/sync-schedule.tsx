@@ -101,8 +101,7 @@ export function SyncSchedule({ connected }: { connected: Provider[] }) {
         </h2>
       </div>
       <p className="mt-2 max-w-xl text-xs leading-relaxed text-muted-foreground">
-        Panel se osvežava sam. Ručno „Sinhronizuj” na kartici iznad postoji za
-        slučaj kada ne želiš da čekaš sledeći prolaz.
+        Panel se osvežava sam; „Sinhronizuj” na kartici služi kad ne želiš da čekaš prolaz.
       </p>
 
       <MetaUsageLine />

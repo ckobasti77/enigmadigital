@@ -559,7 +559,7 @@ function PublishState({
         Instagram nalog nije povezan, pa ledolomci i meni ne mogu da se objave.{" "}
         <Link
           href="/settings"
-          className="text-accent-400 underline-offset-4 hover:underline"
+          className="text-mod underline-offset-4 hover:underline"
         >
           Poveži nalog u podešavanjima
         </Link>
@@ -652,7 +652,7 @@ function SectionHead({
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-        <Icon className="size-3.5 text-accent-400" aria-hidden />
+        <Icon className="size-3.5 text-mod" aria-hidden />
         <span>{title}</span>
       </span>
       <span className="font-mono text-xs tabular-nums text-text-muted">
@@ -712,7 +712,7 @@ function AutomationSelect({
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
       aria-label="Automatizacija koja se pokreće"
-      className="w-full rounded-md border border-line bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-foreground focus:border-accent-400 focus:outline-hidden"
+      className="w-full rounded-md border border-line bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-foreground focus:border-mod focus:outline-hidden"
     >
       {value.length === 0 && <option value="">Izaberi automatizaciju…</option>}
       {missing && <option value={value}>Obrisana automatizacija</option>}
@@ -824,7 +824,7 @@ function ThreadPreview({
             {questions.map((iceBreaker) => (
               <span
                 key={iceBreaker.uid}
-                className="max-w-full truncate rounded-full border border-accent-400/40 px-2.5 py-1 text-xs font-medium text-accent-400"
+                className="max-w-full truncate rounded-full border border-mod-line px-2.5 py-1 text-xs font-medium text-mod"
               >
                 {iceBreaker.question}
               </span>

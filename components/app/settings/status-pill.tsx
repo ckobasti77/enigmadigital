@@ -23,7 +23,7 @@ const pillClasses: Record<Tone, string> = {
   warning: "bg-warning/10 text-warning",
   danger: "bg-danger/10 text-danger",
   muted: "bg-surface-raised text-text-muted",
-  accent: "bg-accent-400/10 text-accent-400",
+  accent: "bg-mod-soft text-mod",
 };
 
 const dotClasses: Record<Tone, string> = {
@@ -31,7 +31,7 @@ const dotClasses: Record<Tone, string> = {
   warning: "bg-warning",
   danger: "bg-danger",
   muted: "bg-text-muted",
-  accent: "bg-accent-400",
+  accent: "bg-mod-strong",
 };
 
 /** Small status chip: a colored dot + label. Reused for connection + sync status. */
@@ -47,13 +47,13 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+        "inline-flex max-w-full items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium",
         pillClasses[tone],
       )}
     >
       <span
         className={cn(
-          "size-1.5 rounded-full",
+          "size-1.5 shrink-0 rounded-full",
           dotClasses[tone],
           pulse && "motion-safe:animate-pulse",
         )}

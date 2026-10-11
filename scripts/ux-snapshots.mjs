@@ -269,6 +269,23 @@ const EKRANI = [
   { ime: "youtube-automatizacije", putanja: "/youtube/automatizacije", viewporti: ["1536x695"], samoB: true },
   { ime: "oglasi-nova-kampanja", putanja: "/ads/nova-kampanja", viewporti: ["1536x695"], samoB: true },
   { ime: "oglasi-publike", putanja: "/ads/publike", viewporti: ["1536x695"], samoB: true },
+  // B9: podekrani Analitike, automatizacije OpenReply-ja, istorija pravila,
+  // prazna stanja i prijava (prava ruta, bez razvojnog prikaza).
+  { ime: "analitika-sticanje", putanja: "/analytics/sticanje", viewporti: ["1536x695"], samoB: true },
+  { ime: "analitika-oglasi", putanja: "/analytics/oglasi", viewporti: ["1536x695"], samoB: true },
+  { ime: "analitika-sadrzaj", putanja: "/analytics/sadrzaj", viewporti: ["1536x695"], samoB: true },
+  { ime: "analitika-posetioci", putanja: "/analytics/posetioci", viewporti: ["1536x695"], samoB: true },
+  { ime: "analitika-uzivo", putanja: "/analytics/uzivo", viewporti: ["1536x695"], samoB: true },
+  { ime: "analitika-retencija", putanja: "/analytics/retencija", viewporti: ["1536x695"], samoB: true },
+  { ime: "openreply-automatizacije", putanja: "/openreply/automatizacije", viewporti: ["1536x695"], samoB: true },
+  {
+    ime: "pravila-istorija",
+    putanja: "/rules",
+    klik: ['[data-tab-id="firings"]'],
+    samoB: true,
+  },
+  { ime: "openreply-prazno", putanja: "/openreply", prazno: true, samoB: true },
+  { ime: "prijava", putanja: "/login", samoB: true },
   // B8: jezičak „Objavljivanje" na Threads-u (kuda vodi primarno dugme).
   {
     ime: "threads-objavi",
@@ -364,7 +381,10 @@ async function snimi(browser, ekran, vp) {
   page.on("pageerror", (err) => greske.push(`pageerror: ${String(err.message).slice(0, 300)}`));
 
   const sep = ekran.putanja.includes("?") ? "&" : "?";
-  const url = `${BASE}${ekran.putanja}${sep}ux=1${ekran.prazno ? "&prazno=1" : ""}`;
+  // `bezUx`: prava ruta van ljuske (prijava) — nema razvojni prikaz ni lažni Convex.
+  const url = ekran.bezUx
+    ? `${BASE}${ekran.putanja}`
+    : `${BASE}${ekran.putanja}${sep}ux=1${ekran.prazno ? "&prazno=1" : ""}`;
   await page.goto(url, { waitUntil: "networkidle", timeout: STRANA_ROK_MS });
   await page.waitForSelector("main", { timeout: 60_000 });
   // Next-ov razvojni indikator (dugme „N" dole levo) nije deo aplikacije.

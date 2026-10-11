@@ -5,7 +5,10 @@ import { AdsPerformanceDashboard } from "@/components/app/analytics/ads-performa
 export default function AdsPerformancePage() {
   return (
     <div className="flex w-full flex-1 flex-col gap-8">
-      <PageHeader description="Spajanje potrošnje na Google Ads-u sa ponašanjem na sajtu i ostvarenim ključnim događajima." />
+      <PageHeader
+        variant="module"
+        description="Potrošnja na Google Ads-u spojena sa ponašanjem na sajtu i ključnim događajima."
+      />
 
       <div className="flex flex-1 flex-col">
         {/* useSearchParams (date range) needs a Suspense boundary on static routes. */}

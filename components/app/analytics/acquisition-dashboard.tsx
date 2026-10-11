@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { ChartNoAxesColumn, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
@@ -137,7 +136,7 @@ export function AcquisitionDashboard() {
           GA4 još nije povezan.{" "}
           <Link
             href="/settings"
-            className="text-accent-400 underline-offset-4 hover:underline"
+            className="text-mod underline-offset-4 hover:underline"
           >
             Poveži ga u podešavanjima
           </Link>
@@ -148,7 +147,7 @@ export function AcquisitionDashboard() {
       ) : (
         <>
           {/* Top Explanation Sentence */}
-          <Reveal>
+          <div>
             <div className="rounded-xl border border-line bg-surface-raised/40 p-4 text-xs leading-relaxed text-text-muted sm:text-sm">
               <span className="font-semibold text-foreground">Prvi dodir</span>{" "}
               kaže odakle je korisnik prvi put došao (vezano za korisnika,
@@ -157,10 +156,10 @@ export function AcquisitionDashboard() {
               kaže odakle je došla konkretna poseta (vezano za sesiju,
               odgovara na pitanje <em>„šta mi vraća ljude”</em>).
             </div>
-          </Reveal>
+          </div>
 
           {/* KPI Row (5 Tiles) */}
-          <Reveal>
+          <div>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
               <KpiTile
                 label="Novi korisnici"
@@ -236,7 +235,7 @@ export function AcquisitionDashboard() {
                 spark={sparkKeyEvents}
               />
             </div>
-          </Reveal>
+          </div>
 
           {channels.totals.sessions === 0 && channels.totals.firstUsers === 0 ? (
             <EmptyState icon={ChartNoAxesColumn}>
@@ -246,23 +245,23 @@ export function AcquisitionDashboard() {
           ) : (
             <>
               {/* Main Chart: Channel Comparison across Two Scopes */}
-              <Reveal>
+              <div>
                 <ChartErrorBoundary>
                   <ChannelComparisonChart data={channels} />
                 </ChartErrorBoundary>
-              </Reveal>
+              </div>
 
               {/* Source / Medium Table with Scope Toggle */}
-              <Reveal>
+              <div>
                 <SourceAcquisitionTable
                   data={sources}
                   scope={sourceScope}
                   onScopeChange={setSourceScope}
                 />
-              </Reveal>
+              </div>
 
               {/* Data Quality Notice */}
-              <Reveal>
+              <div>
                 <DataQualityNotice
                   meta={
                     channels.reportMetaFirst ||
@@ -270,7 +269,7 @@ export function AcquisitionDashboard() {
                     sources.reportMeta
                   }
                 />
-              </Reveal>
+              </div>
             </>
           )}
         </>

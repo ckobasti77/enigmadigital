@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { ChartNoAxesColumn, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
@@ -126,7 +125,7 @@ export function AudienceDashboard() {
           GA4 još nije povezan.{" "}
           <Link
             href="/settings"
-            className="text-accent-400 underline-offset-4 hover:underline"
+            className="text-mod underline-offset-4 hover:underline"
           >
             Poveži ga u podešavanjima
           </Link>
@@ -137,15 +136,15 @@ export function AudienceDashboard() {
       ) : (
         <>
           {/* Top Explanation Banner */}
-          <Reveal>
+          <div>
             <div className="rounded-xl border border-line bg-surface-raised/40 p-4 text-xs leading-relaxed text-text-muted sm:text-sm">
               <span className="font-semibold text-foreground">Posetioci i ponašanje</span>{" "}
               obuhvataju profil vaše publike: vrstu uređaja koje koriste, geografsku lokaciju odakle dolaze, i termine u toku dana i nedelje kada su najaktivniji.
             </div>
-          </Reveal>
+          </div>
 
           {/* KPI Row (4 Tiles) */}
-          <Reveal>
+          <div>
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <KpiTile
                 label="Ukupno korisnika"
@@ -212,7 +211,7 @@ export function AudienceDashboard() {
                 spark={[]}
               />
             </div>
-          </Reveal>
+          </div>
 
           {deviceData.totals.sessions === 0 &&
           deviceData.totals.totalUsers === 0 ? (
@@ -223,14 +222,14 @@ export function AudienceDashboard() {
           ) : (
             <>
               {/* Device Stacked Area Chart */}
-              <Reveal>
+              <div>
                 <ChartErrorBoundary>
                   <DeviceChart data={deviceData} />
                 </ChartErrorBoundary>
-              </Reveal>
+              </div>
 
               {/* Geographic Ranking (Explicitly NO MAP) */}
-              <Reveal>
+              <div>
                 <ChartErrorBoundary>
                   <GeoRanking
                     data={geoData}
@@ -238,17 +237,17 @@ export function AudienceDashboard() {
                     onLevelChange={setGeoLevel}
                   />
                 </ChartErrorBoundary>
-              </Reveal>
+              </div>
 
               {/* 7x24 Heatmap Matrix */}
-              <Reveal>
+              <div>
                 <ChartErrorBoundary>
                   <TimeOfDayHeatmap data={timeData} />
                 </ChartErrorBoundary>
-              </Reveal>
+              </div>
 
               {/* Data Quality Notice */}
-              <Reveal>
+              <div>
                 <DataQualityNotice
                   meta={
                     deviceData.reportMeta ||
@@ -256,7 +255,7 @@ export function AudienceDashboard() {
                     timeData.reportMeta
                   }
                 />
-              </Reveal>
+              </div>
             </>
           )}
         </>

@@ -20,7 +20,6 @@ import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Reveal } from "@/components/motion/reveal";
 import { formatLongDate, formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -251,7 +250,7 @@ export function Ga4Configuration() {
           )}
         >
           {feedback.ok ? (
-            <CheckCircle2 className="size-4 shrink-0 text-accent-400" />
+            <CheckCircle2 className="size-4 shrink-0 text-mod" />
           ) : (
             <ShieldAlert className="size-4 shrink-0 text-danger" />
           )}
@@ -260,7 +259,7 @@ export function Ga4Configuration() {
       )}
 
       {/* a) Osnovni podaci */}
-      <Reveal>
+      <div>
         <div className="space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
             Osnovni podaci
@@ -329,10 +328,10 @@ export function Ga4Configuration() {
             </div>
           </div>
         </div>
-      </Reveal>
+      </div>
 
       {/* b) Čuvanje podataka (ISTAKNUTO) */}
-      <Reveal delay={0.05}>
+      <div>
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Clock className="size-4 text-text-muted" />
@@ -384,10 +383,10 @@ export function Ga4Configuration() {
             )}
           </div>
         </div>
-      </Reveal>
+      </div>
 
       {/* c) Ključni događaji (Key Events) */}
-      <Reveal delay={0.1}>
+      <div>
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Sparkles className="size-4 text-text-muted" />
@@ -444,10 +443,10 @@ export function Ga4Configuration() {
             </div>
           )}
         </div>
-      </Reveal>
+      </div>
 
       {/* d) Tokovi podataka (Data Streams) */}
-      <Reveal delay={0.15}>
+      <div>
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Radio className="size-4 text-text-muted" />
@@ -496,10 +495,10 @@ export function Ga4Configuration() {
             </div>
           )}
         </div>
-      </Reveal>
+      </div>
 
       {/* e) Veze ka Google Ads */}
-      <Reveal delay={0.2}>
+      <div>
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Megaphone className="size-4 text-text-muted" />
@@ -541,10 +540,10 @@ export function Ga4Configuration() {
             </div>
           )}
         </div>
-      </Reveal>
+      </div>
 
       {/* f) Prilagođene dimenzije i metrike */}
-      <Reveal delay={0.25}>
+      <div>
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Layers className="size-4 text-text-muted" />
@@ -631,11 +630,11 @@ export function Ga4Configuration() {
             </div>
           )}
         </div>
-      </Reveal>
+      </div>
 
       {/* g) Greške pri očitavanju (ako postoje) */}
       {config.errors && config.errors.length > 0 && (
-        <Reveal delay={0.3}>
+        <div>
           <div className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
               Resursi koji nisu očitani
@@ -654,7 +653,7 @@ export function Ga4Configuration() {
               ))}
             </div>
           </div>
-        </Reveal>
+        </div>
       )}
 
       {/* h) Podnožje */}

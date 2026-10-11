@@ -14,7 +14,6 @@ import {
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Reveal, RevealGroup } from "@/components/motion/reveal";
 import { EmptyState } from "@/components/app/empty-state";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { StatTile } from "./kpi-tile";
@@ -135,7 +134,7 @@ export function RetentionDashboard() {
       )}
 
       {/* KPI Summary — deljene StatTile pločice (bez poređenja) */}
-      <RevealGroup className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatTile
           label="Prosečna retencija (1. nedelja)"
           value={avgW1}
@@ -157,10 +156,10 @@ export function RetentionDashboard() {
           note="u 12 kohorti"
           icon={Users}
         />
-      </RevealGroup>
+      </div>
 
       {/* Cohort Line Chart (Retention Curves) */}
-      <Reveal delay={0.2}>
+      <div>
         <Card className="flex flex-col gap-5 p-6 shadow-card ring-line">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex flex-col gap-1">
@@ -275,17 +274,17 @@ export function RetentionDashboard() {
             </div>
           </div>
         </Card>
-      </Reveal>
+      </div>
 
       {/* Triangular Heatmap Retention Table */}
-      <Reveal delay={0.25}>
+      <div>
         <Card className="flex flex-col overflow-hidden shadow-card ring-line">
           <div className="flex flex-col gap-1 border-b border-line px-6 py-4">
             <h3 className="text-sm font-semibold text-foreground">
               Kohortna matrica (Nedeljni pregled)
             </h3>
             <p className="text-xs text-muted-foreground">
-              Svaki red predstavlja kohortu korisnika čija je prva sesija zabeležena u toj nedelji. Vrednosti u ćelijama prikazuju procenat i broj povratnih korisnika.
+              Red je kohorta po nedelji prve sesije; ćelija je procenat i broj povratnih korisnika.
             </p>
           </div>
 
@@ -394,7 +393,7 @@ export function RetentionDashboard() {
             </table>
           </div>
         </Card>
-      </Reveal>
+      </div>
 
       {/* Cohort Methodology Info Footer */}
       <Card className="flex items-start gap-3 border-line/70 bg-muted/20 p-4 text-muted-foreground">

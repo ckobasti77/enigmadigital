@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { Megaphone, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
@@ -98,7 +97,7 @@ export function AdsPerformanceDashboard() {
           GA4 još nije povezan.{" "}
           <Link
             href="/settings"
-            className="text-accent-400 underline-offset-4 hover:underline"
+            className="text-mod underline-offset-4 hover:underline"
           >
             Poveži ga u podešavanjima
           </Link>
@@ -110,7 +109,7 @@ export function AdsPerformanceDashboard() {
         /* Section 4.4b: Clear reason based on GA4 Admin API googleAdsLinks */
         <Card className="flex flex-col items-center justify-center p-12 text-center shadow-card ring-line">
           <div className="mb-4 rounded-2xl bg-surface-raised p-4">
-            <Megaphone className="size-8 text-accent-400" />
+            <Megaphone className="size-8 text-mod" />
           </div>
           <h3 className="text-base font-semibold text-foreground">
             Google Ads metrike nisu dostupne
@@ -136,15 +135,15 @@ export function AdsPerformanceDashboard() {
       ) : (
         <>
           {/* Top Explanation Banner */}
-          <Reveal>
+          <div>
             <div className="rounded-xl border border-line bg-surface-raised/40 p-4 text-xs leading-relaxed text-text-muted sm:text-sm">
               <span className="font-semibold text-foreground">Plaćeni oglasi (Google Ads)</span>{" "}
               prikazuju troškove oglašavanja spojene sa ponašanjem posetilaca i ključnim događajima na sajtu.
             </div>
-          </Reveal>
+          </div>
 
           {/* KPI Row (5 Tiles) */}
-          <Reveal>
+          <div>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
               {/* 1. Potrošnja */}
               <KpiTile
@@ -220,20 +219,20 @@ export function AdsPerformanceDashboard() {
                 spark={sparkCpk}
               />
             </div>
-          </Reveal>
+          </div>
 
           {/* Main Dual Timeseries Chart */}
-          <Reveal delay={0.05}>
+          <div>
             <ChartErrorBoundary>
               <AdsTimeseriesChart
                 data={currentData.dailySeries}
                 currencyCode={currencyCode}
               />
             </ChartErrorBoundary>
-          </Reveal>
+          </div>
 
           {/* Table: Campaigns or Keywords */}
-          <Reveal delay={0.1}>
+          <div>
             <AdsTable
               rows={currentData.rows}
               totals={currentData.totals}
@@ -243,12 +242,12 @@ export function AdsPerformanceDashboard() {
               currencyCode={currentData.currencyCode}
               thresholdedDays={currentData.thresholdedDays}
             />
-          </Reveal>
+          </div>
 
           {/* Data Quality Notice */}
-          <Reveal delay={0.15}>
+          <div>
             <DataQualityNotice meta={currentData.reportMeta} />
-          </Reveal>
+          </div>
         </>
       )}
     </div>

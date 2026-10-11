@@ -6,7 +6,6 @@ import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { Inbox, MessageCircleReply, MessageCircleQuestion, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Reveal } from "@/components/motion/reveal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -71,7 +70,7 @@ export function AutomationsDashboard() {
         onChange={setTab}
         panelId="openreply-panel"
         trailing={
-          <Button type="button" size="sm" onClick={openNew}>
+          <Button type="button" variant="primary" size="sm" onClick={openNew}>
             <Plus />
             <span>Nova automatizacija</span>
           </Button>
@@ -83,22 +82,22 @@ export function AutomationsDashboard() {
           automations === undefined ? (
             <AutomationsListSkeleton />
           ) : automations.length === 0 ? (
-            <Reveal>
+            <div>
               <NoAutomations onCreate={openNew} />
-            </Reveal>
+            </div>
           ) : (
-            <Reveal>
+            <div>
               <AutomationsList automations={automations} onEdit={openEdit} />
-            </Reveal>
+            </div>
           )
         ) : tab === "profile" ? (
-          <Reveal>
+          <div>
             <ProfileMenuPanel />
-          </Reveal>
+          </div>
         ) : (
-          <Reveal>
+          <div>
             <DmLogTable />
-          </Reveal>
+          </div>
         )}
       </TabPanel>
 
@@ -172,7 +171,7 @@ function SettingsLink({ children }: { children: React.ReactNode }) {
   return (
     <Link
       href="/settings"
-      className="text-accent-400 underline-offset-4 hover:underline"
+      className="text-mod underline-offset-4 hover:underline"
     >
       {children}
     </Link>
@@ -182,22 +181,22 @@ function SettingsLink({ children }: { children: React.ReactNode }) {
 function NoAutomations({ onCreate }: { onCreate: () => void }) {
   return (
     <Card className="border border-dashed border-line bg-card p-8 text-center ring-0">
-      <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-accent-400/10 text-accent-400">
+      <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-mod-soft text-mod">
         <MessageCircleReply className="size-6" />
       </div>
       <h3 className="mt-4 text-base font-semibold text-foreground">
         Napravi prvu automatizaciju
       </h3>
       <p className="mx-auto mt-1 max-w-sm text-xs text-text-muted">
-        Izaberi ključnu reč, napiši poruku i dodaj link. Svako ko tu reč napiše u
-        komentaru dobija poruku u roku od nekoliko sekundi.
+        Izaberi ključnu reč, napiši poruku i dodaj link — ko je napiše u
+        komentaru, dobija DM.
       </p>
       <div className="mt-5">
         <Button
           type="button"
+          variant="secondary"
           size="sm"
           onClick={onCreate}
-          className="font-semibold"
         >
           <Plus className="size-4" />
           <span>Nova automatizacija</span>
