@@ -276,7 +276,8 @@ preslikani na skalu.
 ## Layout
 
 Sadržaj je u koloni širine najviše 80rem sa razmakom od 1.5rem, pored fiksne
-bočne trake od 15rem i ispod lepljive gornje trake od 4rem. Mreže pločica idu
+bočne trake od 15rem (4rem kad je skupljena u šinu ikonica) i ispod lepljive
+gornje trake od 3.5rem. Mreže pločica idu
 od 2 do 5 kolona. Komandni centar je asimetričan: prva nezavršena misija je
 široka (2fr) i nosi primarno dugme, druge dve su uže (1fr). Ispod 768 px sve
 pada u jednu kolonu, bez vodoravnog klizanja.
@@ -346,9 +347,27 @@ jedne debljine linije (1.75), u veličinama 16 / 20 / 24; emodžija nema.
 - **Error / Disabled:** ivica greške sa prstenom 20 %; onemogućeno na 50 %.
 
 ### Navigation
-Bočna traka sa grupama i podstavkama, gornja traka (naslov, period, ⌘K,
-zvono) i donja traka na telefonu. Svaka stavka u `nav-items.ts` nosi `module`;
-ruta tako određuje boju cele strane.
+Svaka stavka u `nav-items.ts` nosi `module`; ruta tako određuje boju cele
+strane, a svaki red navigacije nosi `data-module` i čita boju SVOG modula.
+
+- **Bočna traka.** Grupe Radni sto / Kanali / Analitika / Automatizacija;
+  Podešavanja su zupčanik na dnu, uz karticu igrača. Ikonica je u pločici od
+  26 px (`ModuleTile`): tinta modula u miru, puna boja sa tamnom ikonicom kad
+  je modul aktivan. Crta uz levu ivicu kaže u kom si modulu, pilula u tinti na
+  kom si ekranu — nikad dve pilule. Podstavke se vide samo za aktivni modul, u
+  dve kolone. Traka staje u 695 px visine bez klizača.
+- **Šina ikonica** (4rem). Pločice ostaju na istom mestu, nestaju natpisi;
+  naziv daje oblačić. Izbor se pamti na uređaju.
+- **Gornja traka.** Mrvica sa tačkom modula („modul / podekran", uvek tim
+  redom), kompaktan birač perioda, ⌘K, zvono, sinhronizacija kao tačka u boji
+  stanja sa oblačićem, meni korisnika iza inicijala.
+- **Telefon.** Donja traka ima tačno pet ćelija (Tabla · Leadovi · Instagram ·
+  Danas · Više) i ne kliza. „Više" otvara list sa svim modulima u tri kolone.
+  Mete su najmanje 44 px.
+- **⌘K.** Sekcije Radnje / Nedavno / Ekrani, pločica modula uz svaku stavku.
+- **Aurora** je podloga kolone sadržaja (`.aurora-top`), pa je ima svaki ekran.
+- **Slojevi:** gornja traka 30 · bočna i donja traka 40 · sve što se otvara
+  preko strane 50.
 
 ### PageHeader
 `plain` (podrazumevan): opis levo, radnje desno. `module`: pločica 40 px sa

@@ -16,6 +16,8 @@ import {
 import { CountBadge } from "@/components/app/system/count-badge";
 import { Unfold } from "@/components/motion/unfold";
 import { cn } from "@/lib/utils";
+import { MOBILE_TAB, MOBILE_TAB_BADGE, MOBILE_TAB_ICON } from "./mobile-tab";
+import { resolveModule } from "./nav-items";
 import { QuietBoundary } from "./quiet-boundary";
 import { useWorkspace } from "./workspace-provider";
 import { useStaMeCeka, type StaMeCeka, type Zadatak } from "./use-sta-me-ceka";
@@ -42,50 +44,103 @@ const HITNOST_NATPIS: Record<Zadatak["hitnost"], string> = {
 
 const HITNOST_RED: Array<Zadatak["hitnost"]> = ["visoka", "srednja", "niska"];
 
-export function NotificationsBell({ className }: { className?: string }) {
+/**
+ * Dva oblika istog zvona, isti panel (UI Boost §7.2 i §7.3):
+ *   `icon`  dugme u gornjoj traci, na širem ekranu;
+ *   `tab`   ćelija „Danas" u donjoj traci na telefonu — zvono je tamo pod
+ *           palcem, a panel se otvara naviše.
+ */
+type Oblik = "icon" | "tab";
+
+export function NotificationsBell({
+  className,
+  variant = "icon",
+}: {
+  className?: string;
+  variant?: Oblik;
+}) {
   return (
     <QuietBoundary>
-      <Zvono className={className} />
+      <Zvono className={className} variant={variant} />
     </QuietBoundary>
   );
 }
 
-function Zvono({ className }: { className?: string }) {
+function Zvono({ className, variant }: { className?: string; variant: Oblik }) {
   const [open, setOpen] = useState(false);
   const data = useStaMeCeka();
 
   if (data === undefined) {
-    return <Skeleton className={cn("size-8 rounded-lg", className)} />;
+    return variant === "tab" ? (
+      <div className={cn(MOBILE_TAB, "cursor-default text-text-muted", className)}>
+        <span className={MOBILE_TAB_ICON}>
+          <Bell className="size-5" aria-hidden />
+        </span>
+        <span>Danas</span>
+      </div>
+    ) : (
+      <Skeleton className={cn("size-8 rounded-lg", className)} />
+    );
   }
 
   const ukupno = data.ukupno;
+  const naziv =
+    ukupno > 0
+      ? `Šta me čeka: ${ukupno} ${ukupno === 1 ? "stavka" : "stavki"}`
+      : "Šta me čeka: nema ničega";
+  // Bez posla — bez bedža. Nikad „0" (A1 §3).
+  const bedz = (
+    <CountBadge
+      count={ukupno}
+      tone={data.zadaci.some((z) => z.hitnost === "visoka") ? "danger" : "warning"}
+      className={
+        variant === "tab"
+          ? MOBILE_TAB_BADGE
+          : "absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-[10px]"
+      }
+    />
+  );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        aria-label={
-          ukupno > 0
-            ? `Šta me čeka: ${ukupno} ${ukupno === 1 ? "stavka" : "stavki"}`
-            : "Šta me čeka: nema ničega"
-        }
-        title="Šta me čeka"
-        className={cn(
-          "hover-lift relative inline-flex size-8 items-center justify-center rounded-lg border border-line text-text-muted transition-colors hover:text-foreground",
-          ukupno > 0 && "text-foreground",
-          className,
-        )}
-      >
-        <Bell className="size-4" aria-hidden />
-        {/* Bez posla — bez bedža. Nikad „0" (A1 §3). */}
-        <CountBadge
-          count={ukupno}
-          tone={data.zadaci.some((z) => z.hitnost === "visoka") ? "danger" : "warning"}
-          className="absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-[10px]"
-        />
-      </PopoverTrigger>
+      {variant === "tab" ? (
+        <PopoverTrigger
+          aria-label={naziv}
+          className={cn(
+            MOBILE_TAB,
+            // Natpis je istaknut samo dok je panel otvoren: da posla ima kaže
+            // bedž, a „istaknuto" u ovoj traci znači „ovde si".
+            open ? "text-foreground" : "text-text-muted",
+            className,
+          )}
+        >
+          <span className={cn(MOBILE_TAB_ICON, open && "bg-surface-raised")}>
+            <Bell
+              className={cn("size-5", ukupno > 0 && "text-foreground")}
+              aria-hidden
+            />
+            {bedz}
+          </span>
+          <span>Danas</span>
+        </PopoverTrigger>
+      ) : (
+        <PopoverTrigger
+          aria-label={naziv}
+          title="Šta me čeka"
+          className={cn(
+            "hover-lift relative inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border border-line text-text-muted transition-colors hover:text-foreground",
+            ukupno > 0 && "text-foreground",
+            className,
+          )}
+        >
+          <Bell className="size-4" aria-hidden />
+          {bedz}
+        </PopoverTrigger>
+      )}
 
       <PopoverContent
-        align="end"
+        side={variant === "tab" ? "top" : "bottom"}
+        align={variant === "tab" ? "center" : "end"}
         sideOffset={8}
         className="w-[min(24rem,calc(100vw-2rem))] gap-0 p-0"
       >
@@ -234,7 +289,11 @@ function Stavka({
   };
 
   return (
-    <li className="border-t border-line-soft/60 first:border-t-0">
+    // Radnja nosi boju modula u koji vodi: zeleno „Zovi" otvara Leadove.
+    <li
+      data-module={resolveModule(zadatak.veza.split(/[?#]/)[0])}
+      className="border-t border-line-soft/60 first:border-t-0"
+    >
       {/* Razmak je NA DETETU, ne na `Unfold`-u: `height: 0` sa `border-box`
           ne guta uspravan razmak, pa bi ostao trag od dvadesetak piksela. */}
       <Unfold open={!sklanjam}>
@@ -252,7 +311,7 @@ function Stavka({
         <Link
           href={zadatak.veza}
           onClick={onNavigate}
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-accent-400/40 bg-accent-400/10 px-2.5 text-meta font-medium text-accent-400 transition-colors hover:border-accent-400/60"
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-mod-line bg-mod-soft px-2.5 text-meta font-medium text-mod transition-colors hover:border-mod"
         >
           {zadatak.radnja}
         </Link>

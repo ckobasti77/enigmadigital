@@ -3,64 +3,168 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { Search, CornerDownLeft, Bell } from "lucide-react";
 import {
+  Bell,
+  CornerDownLeft,
+  Megaphone,
+  PanelLeft,
+  Search,
+  SquarePen,
+  Upload,
+} from "lucide-react";
+import {
+  COMMAND_EVENT,
+  RAIL_EVENT,
   channelTabs,
+  moduleNavItem,
   navItems,
-  navSections,
+  resolveModule,
   resolveScreen,
+  type ModuleKey,
   type NavIcon,
 } from "./nav-items";
+import { ModuleTile } from "./module-tile";
 import { useStaMeCeka } from "./use-sta-me-ceka";
 import { cn } from "@/lib/utils";
 
-type Destination = {
+type Entry = {
   /** Jedinstven ključ i DOM id — `href` nije jedinstven (zadatak i ekran mogu
    *  da dele rutu, npr. `/settings`), pa se ne sme koristiti kao ključ. */
   id: string;
-  href: string;
   title: string;
-  /** Desni natpis: sekcija (ekran) ili natpis radnje (zadatak, npr. „Zovi"). */
-  section: string;
-  icon?: NavIcon;
-  /** Zadatak iz zvona (A7 §4) — crta se na vrhu, sa ikonicom zvona. */
-  isTask?: boolean;
+  /** Desni natpis: modul (ekran) ili natpis radnje (zadatak, npr. „Zovi"). */
+  hint: string;
+  icon: NavIcon;
+  /** Modul u čijoj je boji pločica; bez njega je pločica neutralna. */
+  module?: ModuleKey;
+  /** Kuda vodi. Stavka bez adrese radi nešto na mestu (`run`). */
+  href?: string;
+  run?: () => void;
+  /** Desni natpis je sama radnja, pa nosi boju modula. */
+  emphasis?: boolean;
 };
 
-/** Ikonica kanala kome podekran pripada — da lista ne bude gola. */
-const iconFor = (href: string): NavIcon | undefined =>
-  navItems.find((i) => href === i.href || href.startsWith(`${i.href}/`))?.icon;
+type Section = { key: string; title: string; entries: Entry[] };
 
 /**
- * Sve što se može otvoriti, jednom sračunato: 19 ekrana kao ravna lista.
- * Podekrani kanala nose svoj opisni naziv iz `resolveScreen` (npr. „Publika i
- * demografija"), ne kratki natpis sa trake.
+ * Radnje koje nisu ekran nego namera. Samo ono što danas postoji: stavka
+ * koja vodi na praznu stranu ne ulazi u spisak.
  */
-const DESTINATIONS: Destination[] = [
-  ...navSections.flatMap((section) =>
-    section.items.map((item) => ({
-      id: `screen:${item.href}`,
-      href: item.href,
-      title: item.label,
-      section: section.title,
-      icon: item.icon,
-    })),
-  ),
+const ACTIONS: Entry[] = [
+  {
+    id: "action:/leadovi/uvoz",
+    title: "Uvezi leadove",
+    hint: "Leadovi",
+    href: "/leadovi/uvoz",
+    icon: Upload,
+    module: "leadovi",
+  },
+  {
+    id: "action:/instagram/objavi",
+    title: "Nova objava",
+    hint: "Instagram",
+    href: "/instagram/objavi",
+    icon: SquarePen,
+    module: "instagram",
+  },
+  {
+    id: "action:/ads/nova-kampanja",
+    title: "Nova kampanja",
+    hint: "Oglasi",
+    href: "/ads/nova-kampanja",
+    icon: Megaphone,
+    module: "oglasi",
+  },
+];
+
+/** Bočna traka postoji tek od ove širine, pa i radnja koja je skuplja. */
+const DESKTOP = "(min-width: 768px)";
+
+const RAIL_ACTION: Entry = {
+  id: "action:rail",
+  title: "Skupi ili proširi bočnu traku",
+  hint: "Prikaz",
+  icon: PanelLeft,
+  run: () => window.dispatchEvent(new CustomEvent(RAIL_EVENT)),
+};
+
+const ACTION_HREFS = new Set(ACTIONS.map((a) => a.href));
+
+/**
+ * Sve što se može otvoriti, jednom sračunato: stavke navigacije, pa podekrani.
+ * Podekran nosi svoj opisni naziv iz `resolveScreen` (npr. „Publika i
+ * demografija"), a desno ime modula kome pripada. Ekran koji je već među
+ * radnjama („Nova objava") se ne ponavlja.
+ */
+const SCREENS: Entry[] = [
+  ...navItems.map((item) => ({
+    id: `screen:${item.href}`,
+    href: item.href,
+    title: item.label,
+    hint: resolveScreen(item.href)?.section ?? "",
+    icon: item.icon,
+    module: item.module,
+  })),
   ...Object.entries(channelTabs).flatMap(([base, tabs]) =>
     tabs
-      .filter((tab) => tab.href !== base)
+      .filter((tab) => tab.href !== base && !ACTION_HREFS.has(tab.href))
       .map((tab) => {
         const screen = resolveScreen(tab.href);
+        const modul = screen?.module ?? resolveModule(tab.href);
         return {
           id: `screen:${tab.href}`,
           href: tab.href,
           title: screen?.title ?? tab.label,
-          section: screen?.section ?? "",
-          icon: iconFor(tab.href),
+          hint: screen?.parent?.label ?? "",
+          icon: moduleNavItem(modul)?.icon ?? Search,
+          module: modul,
         };
       }),
   ),
 ];
+
+/** Po adresi — za „Nedavno", koje pamti samo adrese. */
+const BY_HREF = new Map<string, Entry>(
+  [...SCREENS, ...ACTIONS].flatMap((e) => (e.href ? [[e.href, e]] : [])),
+);
+
+/** Nedavno otvoreni ekrani pamte se na ovom uređaju. */
+const RECENT_KEY = "enigma:cmd:recent";
+const RECENT_KEPT = 6;
+const RECENT_SHOWN = 4;
+
+/**
+ * Bez upita paleta pokazuje samo najhitnije zadatke: sa svih devet na vrhu
+ * ekrani bi ostali ispod preloma, a paleta je pre svega skok na ekran. Ostali
+ * zadaci su u zvonu i izlaze čim se počne kucati.
+ */
+const TASKS_SHOWN = 3;
+
+/** Mora da preživi privatni prozor i izuzetak — bez sačuvane vrednosti prazno. */
+function readRecent(): string[] {
+  try {
+    const parsed: unknown = JSON.parse(
+      window.localStorage.getItem(RECENT_KEY) ?? "[]",
+    );
+    return Array.isArray(parsed)
+      ? parsed.filter((x): x is string => typeof x === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberScreen(href: string) {
+  try {
+    const next = [href, ...readRecent().filter((h) => h !== href)];
+    window.localStorage.setItem(
+      RECENT_KEY,
+      JSON.stringify(next.slice(0, RECENT_KEPT)),
+    );
+  } catch {
+    // Pamćenje je pogodnost, ne uslov — tiho odustani.
+  }
+}
 
 /** Bez dijakritike i malim slovima — „price" nalazi „Priče". */
 const fold = (s: string) =>
@@ -70,13 +174,17 @@ const fold = (s: string) =>
     .replace(/\p{Diacritic}/gu, "");
 
 /**
- * ⌘K skok na bilo koji od 19 ekrana. Sa toliko ekrana traka i bočni meni
- * pamte gde je šta; paleta ne traži da pamtiš put — kucaš ime i skočiš.
+ * ⌘K — skok na ekran ili pravo na posao (UI Boost §7.4).
+ *
+ * Sekcije: **Radnje** (ono što čeka u zvonu, pa stalne radnje), **Nedavno**
+ * (poslednji otvoreni ekrani) i **Ekrani** (svi). Svaka stavka nosi pločicu u
+ * boji svog modula, pa se spisak čita i po boji. Dok se kuca, „Nedavno" se
+ * sklanja — isti ekran bi se inače javio dvaput.
  *
  * Građena na postojećem Dialog primitivu (fokus-zamka, Escape, scrim), bez
- * `cmdk` zavisnosti — ostaje unutar sistema. Lista je `role="listbox"`, unos
- * nosi `aria-activedescendant` na istaknutu stavku, pa i čitač ekrana prati
- * izbor dok se kuca.
+ * `cmdk` zavisnosti. Lista je `role="listbox"` sa grupama, unos nosi
+ * `aria-activedescendant` na istaknutu stavku, pa i čitač ekrana prati izbor
+ * dok se kuca.
  */
 export function CommandPalette() {
   const router = useRouter();
@@ -84,30 +192,46 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  const [recent, setRecent] = useState<string[]>([]);
+  const [desktop, setDesktop] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const staMeCeka = useStaMeCeka();
 
+  const currentHref = resolveScreen(pathname)?.href;
+
+  // Svaki otvoren ekran ulazi u „Nedavno", ne samo onaj otvoren kroz paletu.
+  useEffect(() => {
+    if (currentHref && BY_HREF.has(currentHref)) rememberScreen(currentHref);
+  }, [currentHref]);
+
   // Zadaci iz zvona (A7 §4): paleta ne skače samo na ekran, nego i na posao
-  // koji čeka. Svaki nosi natpis radnje („Zovi", „Sinhronizuj") desno i vodi
-  // na istu adresu kao dugme u zvonu (`veza`). Vrh liste, ikonica zvona.
-  const zadaciItems = useMemo<Destination[]>(
+  // koji čeka. Svaki nosi natpis radnje („Zovi", „Sinhronizuj") desno, vodi na
+  // istu adresu kao dugme u zvonu i ima pločicu modula u koji vodi.
+  const tasks = useMemo<Entry[]>(
     () =>
-      (staMeCeka?.zadaci ?? []).map((z) => ({
-        id: `task:${z.kljuc}`,
-        href: z.veza,
-        title: z.naslov,
-        section: z.radnja,
-        isTask: true,
-      })),
+      (staMeCeka?.zadaci ?? []).map((z) => {
+        const modul = resolveModule(z.veza.split(/[?#]/)[0]);
+        return {
+          id: `task:${z.kljuc}`,
+          href: z.veza,
+          title: z.naslov,
+          hint: z.radnja,
+          icon: moduleNavItem(modul)?.icon ?? Bell,
+          module: modul,
+          emphasis: true,
+        };
+      }),
     [staMeCeka],
   );
 
-  // Svako otvaranje kreće čisto: prazan upit, prva stavka istaknuta. Reset ide
-  // u samu radnju otvaranja, ne u efekat na `open`.
+  // Svako otvaranje kreće čisto: prazan upit, prva stavka istaknuta, sveže
+  // „Nedavno". Sve ide u samu radnju otvaranja, ne u efekat na `open`.
   const openPalette = useCallback(() => {
     setQuery("");
     setActive(0);
+    setRecent(readRecent());
+    setDesktop(window.matchMedia(DESKTOP).matches);
     setOpen(true);
   }, []);
 
@@ -128,24 +252,49 @@ export function CommandPalette() {
 
   // Otvaranje sa dugmeta u traci — telefon nema ⌘K, pa mora da postoji i klik.
   useEffect(() => {
-    window.addEventListener("enigma:command", openPalette);
-    return () => window.removeEventListener("enigma:command", openPalette);
+    window.addEventListener(COMMAND_EVENT, openPalette);
+    return () => window.removeEventListener(COMMAND_EVENT, openPalette);
   }, [openPalette]);
 
-  const results = useMemo(() => {
-    const svi = [...zadaciItems, ...DESTINATIONS];
+  const sections = useMemo<Section[]>(() => {
     const q = fold(query.trim());
-    if (!q) return svi;
-    return svi.filter((d) => {
-      const hay = fold(`${d.title} ${d.section}`);
-      return hay.includes(q);
-    });
-  }, [query, zadaciItems]);
+    const match = (list: Entry[]) =>
+      q ? list.filter((e) => fold(`${e.title} ${e.hint}`).includes(q)) : list;
 
-  const go = useCallback(
-    (href: string) => {
+    const recentEntries = q
+      ? []
+      : recent
+          .filter((href) => href !== currentHref)
+          .flatMap((href) => {
+            const entry = BY_HREF.get(href);
+            return entry ? [{ ...entry, id: `recent:${href}` }] : [];
+          })
+          .slice(0, RECENT_SHOWN);
+
+    return [
+      {
+        key: "radnje",
+        title: "Radnje",
+        entries: match([
+          ...(q ? tasks : tasks.slice(0, TASKS_SHOWN)),
+          ...ACTIONS,
+          ...(desktop ? [RAIL_ACTION] : []),
+        ]),
+      },
+      // Mesto za „Misije dana": sekcija sa ključem `misije` ulazi ovde, između
+      // radnji i nedavnih ekrana, kada napredak dobije svoj izvor podataka.
+      { key: "nedavno", title: "Nedavno", entries: recentEntries },
+      { key: "ekrani", title: "Ekrani", entries: match(SCREENS) },
+    ].filter((section) => section.entries.length > 0);
+  }, [query, tasks, recent, currentHref, desktop]);
+
+  const flat = useMemo(() => sections.flatMap((s) => s.entries), [sections]);
+
+  const choose = useCallback(
+    (entry: Entry) => {
       setOpen(false);
-      if (href !== pathname) router.push(href);
+      if (entry.run) entry.run();
+      else if (entry.href && entry.href !== pathname) router.push(entry.href);
     },
     [pathname, router],
   );
@@ -153,16 +302,14 @@ export function CommandPalette() {
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive((a) => (results.length ? (a + 1) % results.length : 0));
+      setActive((a) => (flat.length ? (a + 1) % flat.length : 0));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActive((a) =>
-        results.length ? (a - 1 + results.length) % results.length : 0,
-      );
+      setActive((a) => (flat.length ? (a - 1 + flat.length) % flat.length : 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const dest = results[active];
-      if (dest) go(dest.href);
+      const entry = flat[active];
+      if (entry) choose(entry);
     }
   };
 
@@ -176,16 +323,34 @@ export function CommandPalette() {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-surface-overlay backdrop-blur-sm transition-opacity duration-150 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Backdrop
+          className={cn(
+            "fixed inset-0 z-50 bg-surface-overlay backdrop-blur-sm",
+            "transition-opacity duration-(--duration-fast) ease-(--ease-ui)",
+            "data-closed:opacity-0 data-open:opacity-100 data-starting-style:opacity-0",
+          )}
+        />
         <DialogPrimitive.Popup
           initialFocus={() => inputRef.current}
           aria-label="Komandna paleta"
-          className="material-thick fixed left-1/2 top-[12vh] z-50 flex max-h-[70vh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-line shadow-elev-3 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+          className={cn(
+            "material-thick fixed left-1/2 top-[12vh] z-50 flex max-h-[70vh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-line shadow-elev-3 outline-hidden",
+            // Prelaz, ne keyframe: prekidiv je, a pod reduced-motion ostaje
+            // samo neprozirnost (globalno pravilo).
+            "transition-[opacity,scale] duration-(--duration-fast) ease-(--ease-ui)",
+            "data-open:scale-100 data-open:opacity-100",
+            "data-closed:scale-[0.98] data-closed:opacity-0",
+            "data-starting-style:scale-[0.98] data-starting-style:opacity-0",
+          )}
         >
-          {/* `focus-inset`: okvir fokusa polja ide unutra, jer bi ga odmak upolje
-              odsekao `overflow-hidden` na vrhu palete (F15). */}
-          <div className="focus-inset flex items-center gap-2.5 border-b border-line px-4">
-            <Search className="size-4 shrink-0 text-text-muted" />
+          {/* F15: polje ispunjava ceo red i nosi zaobljenje vrha palete, pa
+              okvir fokusa (`focus-inset`, unutra) prati ivicu palete umesto da
+              ga ona odseče. Lupa leži preko polja i ne hvata klik. */}
+          <div className="focus-inset relative shrink-0 border-b border-line">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-text-muted"
+            />
             <input
               ref={inputRef}
               value={query}
@@ -198,84 +363,126 @@ export function CommandPalette() {
               aria-expanded
               aria-controls="command-palette-list"
               aria-activedescendant={
-                results[active] ? `cmd-${results[active].id}` : undefined
+                flat[active] ? `cmd-${flat[active].id}` : undefined
               }
-              placeholder="Skoči na ekran ili zadatak…"
-              className="h-12 w-full min-w-0 bg-transparent px-2 text-sm text-foreground outline-none placeholder:text-text-muted"
+              aria-label="Pretraga radnji i ekrana"
+              placeholder="Skoči na ekran ili radnju…"
+              className="h-12 w-full min-w-0 rounded-t-xl bg-transparent pl-11 pr-4 text-sm text-foreground outline-none placeholder:text-text-muted"
             />
-            <kbd className="hidden shrink-0 rounded border border-line-soft px-1.5 py-0.5 text-micro text-text-muted sm:inline">
-              ESC
-            </kbd>
           </div>
 
-          <ul
+          <div
             ref={listRef}
             id="command-palette-list"
             role="listbox"
-            aria-label="Ekrani"
+            aria-label="Radnje i ekrani"
             className="min-h-0 flex-1 overflow-y-auto p-1.5"
           >
-            {results.length === 0 ? (
-              <li className="px-3 py-6 text-center text-sm text-text-muted">
-                Nema ekrana za: {query}
-              </li>
+            {flat.length === 0 ? (
+              <p className="px-3 py-6 text-center text-sm text-text-muted">
+                Nema rezultata za: {query}
+              </p>
             ) : (
-              results.map((dest, i) => {
-                const Icon = dest.isTask ? Bell : dest.icon;
-                const isActive = i === active;
-                return (
-                  <li key={dest.id}>
-                    <button
-                      type="button"
-                      id={`cmd-${dest.id}`}
-                      role="option"
-                      aria-selected={isActive}
-                      data-active={isActive}
-                      onClick={() => go(dest.href)}
-                      onPointerMove={() => setActive(i)}
-                      className={cn(
-                        "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
-                        isActive
-                          ? "bg-surface-raised text-foreground"
-                          : "text-text-secondary",
-                      )}
-                    >
-                      {Icon && (
-                        <Icon
+              sections.map((section) => (
+                <div
+                  key={section.key}
+                  role="group"
+                  aria-labelledby={`cmd-sec-${section.key}`}
+                  className="pb-1 last:pb-0"
+                >
+                  <p
+                    id={`cmd-sec-${section.key}`}
+                    className="heading-caps px-2.5 pb-1 pt-2 text-micro text-text-muted"
+                  >
+                    {section.title}
+                  </p>
+                  {section.entries.map((entry) => {
+                    const index = flat.indexOf(entry);
+                    const isActive = index === active;
+                    const Icon = entry.icon;
+                    return (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        id={`cmd-${entry.id}`}
+                        role="option"
+                        aria-selected={isActive}
+                        data-active={isActive}
+                        data-module={entry.module}
+                        onClick={() => choose(entry)}
+                        onPointerMove={() => setActive(index)}
+                        className={cn(
+                          "flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors",
+                          isActive
+                            ? "bg-surface-raised text-foreground"
+                            : "text-text-secondary",
+                        )}
+                      >
+                        {entry.module ? (
+                          <ModuleTile icon={Icon} />
+                        ) : (
+                          <span
+                            aria-hidden
+                            className="flex size-[26px] shrink-0 items-center justify-center rounded-md bg-surface-raised text-text-muted ring-1 ring-line-soft"
+                          >
+                            <Icon className="size-4" />
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1 truncate">
+                          {entry.title}
+                        </span>
+                        {entry.hint && (
+                          <span
+                            className={cn(
+                              "shrink-0 text-micro",
+                              entry.emphasis ? "text-mod" : "text-text-muted",
+                            )}
+                          >
+                            {entry.hint}
+                          </span>
+                        )}
+                        {/* Uvek zauzima mesto, da natpis desno ne skače dok
+                            izbor ide gore-dole. */}
+                        <CornerDownLeft
+                          aria-hidden
                           className={cn(
-                            "size-4 shrink-0",
-                            dest.isTask
-                              ? "text-accent-400"
-                              : isActive
-                                ? "text-accent-400"
-                                : "text-text-muted",
+                            "size-3.5 shrink-0 text-text-muted",
+                            !isActive && "invisible",
                           )}
                         />
-                      )}
-                      <span className="min-w-0 flex-1 truncate">
-                        {dest.title}
-                      </span>
-                      {dest.section && (
-                        <span
-                          className={cn(
-                            "shrink-0 text-micro",
-                            dest.isTask ? "text-accent-400" : "text-text-muted",
-                          )}
-                        >
-                          {dest.section}
-                        </span>
-                      )}
-                      {isActive && (
-                        <CornerDownLeft className="size-3.5 shrink-0 text-text-muted" />
-                      )}
-                    </button>
-                  </li>
-                );
-              })
+                      </button>
+                    );
+                  })}
+                </div>
+              ))
             )}
-          </ul>
+          </div>
+
+          <div className="hidden shrink-0 items-center gap-4 border-t border-line px-4 py-2 text-micro text-text-muted sm:flex">
+            <span className="flex items-center gap-1.5">
+              <Key>↑</Key>
+              <Key>↓</Key>
+              izbor
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Key>Enter</Key>
+              otvori
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Key>Esc</Key>
+              zatvori
+            </span>
+          </div>
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
+  );
+}
+
+function Key({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="rounded border border-line-soft px-1.5 py-0.5 font-sans text-micro text-text-secondary">
+      {children}
+    </kbd>
   );
 }

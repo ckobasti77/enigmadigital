@@ -30,6 +30,7 @@ import {
 import { MissionCard } from "@/components/app/system/mission-card";
 import { Monogram } from "@/components/app/system/monogram";
 import { PageHeader } from "@/components/app/system/page-header";
+import { PlayerCard } from "@/components/app/system/player-card";
 import {
   ProgressBar,
   ProgressRing,
@@ -123,6 +124,7 @@ export function VodicKomponente() {
       <ZaglavljeIFokus />
       <PraznaStanja />
       <NapredakUAkciji />
+      <KarticaIgraca />
       <ProbaPortala />
     </>
   );
@@ -634,6 +636,75 @@ function Prsten({
         </p>
       </div>
     </div>
+  );
+}
+
+/** Širina bočne trake bez zupčanika — kartica se ovde vidi kao u ljusci. */
+function KarticaIgraca() {
+  const zajednicko = {
+    initials: "TO",
+    title: "Enigma IT (probni)",
+    subtitle: "operater@example.com",
+  };
+  return (
+    <Sekcija
+      naslov="Kartica igrača"
+      opis="Dno bočne trake. Tri oblika iste visine: identitet, isključen napredak i napredak; desno su oblici za šinu ikonica."
+    >
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Grupa naslov="Identitet">
+          <div className="w-48 rounded-lg border border-line-soft">
+            <PlayerCard {...zajednicko} />
+          </div>
+        </Grupa>
+        <Grupa naslov="Napredak isključen">
+          <div className="w-48 rounded-lg border border-line-soft">
+            <PlayerCard {...zajednicko} progress="off" />
+          </div>
+        </Grupa>
+        <Grupa naslov="Napredak">
+          <div className="w-48 rounded-lg border border-line-soft">
+            <PlayerCard
+              {...zajednicko}
+              progress={{
+                rank: "Operativac",
+                level: 4,
+                tier: "silver",
+                xp: 1240,
+                xpFrom: 900,
+                xpTo: 1500,
+                streakDays: 6,
+              }}
+            />
+          </div>
+        </Grupa>
+        <Grupa naslov="Šina i učitavanje">
+          <div className="flex items-center gap-3">
+            <div className="w-11 rounded-lg border border-line-soft">
+              <PlayerCard {...zajednicko} rail />
+            </div>
+            <div className="w-11 rounded-lg border border-line-soft">
+              <PlayerCard
+                {...zajednicko}
+                rail
+                progress={{
+                  rank: "Operativac",
+                  level: 4,
+                  tier: "silver",
+                  xp: 1240,
+                  xpFrom: 900,
+                  xpTo: 1500,
+                  streakDays: 6,
+                }}
+              />
+            </div>
+            <div className="w-40 rounded-lg border border-line-soft">
+              <PlayerCard {...zajednicko} loading />
+            </div>
+          </div>
+        </Grupa>
+      </div>
+    </Sekcija>
   );
 }
 

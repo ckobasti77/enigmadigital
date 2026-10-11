@@ -119,6 +119,42 @@ const EKRANI = [
   { ime: "podesavanja", putanja: "/settings", samoB: true },
   // B2: živi vodič dizajn sistema (tokeni, 13 modula, dugmad, primitivi napretka).
   { ime: "sistem", putanja: "/sistem", samoB: true },
+  // B3: stanja ljuske koja se vide tek posle klika — šina ikonica, ⌘K, meni
+  // korisnika, i na telefonu list „Više" i zvono iz donje trake.
+  {
+    ime: "ljuska-sina",
+    putanja: "/instagram",
+    klik: ['button[aria-label="Skupi bočnu traku"]'],
+    viewporti: ["1536x695"],
+    samoB: true,
+  },
+  {
+    ime: "ljuska-paleta",
+    putanja: "/leadovi",
+    klik: ['button[aria-label="Komandna paleta"]'],
+    samoB: true,
+  },
+  {
+    ime: "ljuska-meni",
+    putanja: "/leadovi",
+    klik: ['button[aria-label^="Meni korisnika"]'],
+    samoB: true,
+  },
+  {
+    ime: "ljuska-vise",
+    putanja: "/analytics",
+    // Neposredno dete trake: i zvono u ćeliji „Danas" nosi aria-haspopup.
+    klik: ['nav.fixed > button[aria-haspopup="dialog"]'],
+    viewporti: ["390x844"],
+    samoB: true,
+  },
+  {
+    ime: "ljuska-danas",
+    putanja: "/leadovi",
+    klik: ['nav.fixed button[aria-label^="Šta me čeka"]'],
+    viewporti: ["390x844"],
+    samoB: true,
+  },
   // Prazna stanja kanala: `&prazno=1` vraća prazan nalog (bez veza, bez redova).
   { ime: "instagram-prazno", putanja: "/instagram", prazno: true, samoB: true },
   { ime: "analitika-prazno", putanja: "/analytics", prazno: true, samoB: true },

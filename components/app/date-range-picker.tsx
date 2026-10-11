@@ -67,11 +67,21 @@ const PRESET_LABEL: Record<RangePreset, string> = {
   "90d": "90 dana",
 };
 
+/** Kratak natpis za gornju traku; pun ostaje naziv za čitač ekrana. */
+const PRESET_SHORT: Record<RangePreset, string> = {
+  "7d": "7 d",
+  "28d": "28 d",
+  "90d": "90 d",
+};
+
 /**
  * Header control: preset toggles + custom span popover + resolved dates.
  *
- * `compact` je za gornju traku: razrešeni datumi tamo dele red sa naslovom
- * ekrana i stanjem sinhronizacije, pa se pojavljuju tek kada ima mesta.
+ * `compact` je za gornju traku (UI Boost §7.2): kratki natpisi („28 d") i
+ * prilagođen period kao sama ikonica, pa birač zauzima polovinu ranije širine
+ * i traka više ne probija ekran na 768 i 1024 px. Svaki izbor je i dalje
+ * jedan klik. Razrešeni datumi tamo dele red sa mrvicom, pa se pojavljuju tek
+ * kada ima mesta; do tada ih nosi `title` birača.
  */
 export function DateRangePicker({
   className,
@@ -90,14 +100,19 @@ export function DateRangePicker({
     parseDateKey(draftTo) !== null &&
     draftFrom <= draftTo;
 
+  const span = `${formatDateSpan(range.from, range.to)} · ${range.days} d`;
+
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-x-4 gap-y-2 text-sm",
+        "flex flex-wrap items-center gap-x-3 gap-y-2 text-sm",
         className,
       )}
     >
-      <div className="flex items-center gap-1 rounded-lg border border-line bg-card p-0.5">
+      <div
+        title={compact ? span : undefined}
+        className="flex items-center gap-0.5 rounded-lg border border-line bg-card p-0.5"
+      >
         <ToggleGroup
           value={range.preset === "custom" ? [] : [range.preset]}
           onValueChange={(value) => {
@@ -112,9 +127,14 @@ export function DateRangePicker({
               key={preset}
               value={preset}
               size="sm"
-              className="rounded-md! px-3 text-text-secondary aria-pressed:text-accent-400 data-pressed:text-accent-400"
+              aria-label={compact ? PRESET_LABEL[preset] : undefined}
+              className={cn(
+                "cursor-pointer rounded-md! text-text-secondary aria-pressed:text-mod data-pressed:text-mod",
+                // Svoj red birač ima samo na telefonu, pa su tamo mete 44 px.
+                compact ? "px-2" : "h-11 px-3",
+              )}
             >
-              {PRESET_LABEL[preset]}
+              {compact ? PRESET_SHORT[preset] : PRESET_LABEL[preset]}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -133,16 +153,19 @@ export function DateRangePicker({
             render={
               <Button
                 variant="ghost"
-                size="sm"
+                size={compact ? "icon-sm" : "sm"}
+                aria-label={compact ? "Prilagođen period" : undefined}
+                title={compact ? "Prilagođen period" : undefined}
                 className={cn(
-                  "rounded-md px-3 text-text-secondary",
-                  range.preset === "custom" && "bg-muted text-accent-400",
+                  "rounded-md text-text-secondary",
+                  !compact && "h-11 px-3",
+                  range.preset === "custom" && "bg-muted text-mod",
                 )}
               />
             }
           >
-            <CalendarRange data-icon="inline-start" />
-            Prilagođeno
+            <CalendarRange data-icon={compact ? undefined : "inline-start"} />
+            {!compact && "Prilagođeno"}
           </PopoverTrigger>
           <PopoverContent align="end" className="w-64 border border-line p-3">
             <form
@@ -202,7 +225,7 @@ export function DateRangePicker({
           se uvek vidi. */}
       <p
         className={cn(
-          "font-mono text-xs tabular-nums text-text-muted",
+          "whitespace-nowrap font-mono text-xs tabular-nums text-text-muted",
           compact && "hidden lg:block",
         )}
       >

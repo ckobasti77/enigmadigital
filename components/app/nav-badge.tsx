@@ -19,15 +19,32 @@ import { useStaMeCeka } from "./use-sta-me-ceka";
  * (nalog bez članstva, istekla sesija). Svi bedževi čitaju isti upit sa istim
  * argumentima, pa ih Convex klijent svodi na jednu pretplatu.
  */
-export function NavBadge({ href, label }: { href: string; label: string }) {
+export function NavBadge({
+  href,
+  label,
+  className,
+}: {
+  href: string;
+  label: string;
+  /** Položaj kada bedž leži preko ikonice (šina, donja traka, list „Više"). */
+  className?: string;
+}) {
   return (
     <QuietBoundary>
-      <Bedz href={href} label={label} />
+      <Bedz href={href} label={label} className={className} />
     </QuietBoundary>
   );
 }
 
-function Bedz({ href, label }: { href: string; label: string }) {
+function Bedz({
+  href,
+  label,
+  className,
+}: {
+  href: string;
+  label: string;
+  className?: string;
+}) {
   const data = useStaMeCeka();
   const broj = data?.bedzevi[href];
   if (!broj) return null;
@@ -41,6 +58,7 @@ function Bedz({ href, label }: { href: string; label: string }) {
       count={broj}
       tone={hitno ? "danger" : "warning"}
       label={`${label}: ${broj} ${broj === 1 ? "stvar čeka" : "stvari čeka"}`}
+      className={className}
     />
   );
 }

@@ -1,7 +1,5 @@
 import type { ComponentType } from "react";
 import {
-  AtSign,
-  Camera,
   GitMerge,
   LayoutDashboard,
   LineChart,
@@ -11,9 +9,9 @@ import {
   PlaySquare,
   Settings,
   ShieldAlert,
-  Upload,
   Users,
 } from "lucide-react";
+import { FacebookIcon, InstagramIcon, ThreadsIcon } from "./brand-glyphs";
 
 export type NavIcon = ComponentType<{ className?: string }>;
 
@@ -52,12 +50,6 @@ export type NavItem = {
   module: ModuleKey;
   /** Ekran radi nad periodom, pa gornja traka na njemu nosi birač perioda. */
   range: boolean;
-  /**
-   * Donja traka na telefonu ima devet ćelija i ni jednu više. Šta ne stane
-   * ovde, dostupno je sa svog matičnog ekrana (i iz bočne trake na širem
-   * ekranu), pa nijedan izlaz ne nestaje.
-   */
-  mobile?: boolean;
 };
 
 export type NavSection = {
@@ -66,10 +58,16 @@ export type NavSection = {
   items: NavItem[];
 };
 
-/** Jedini izvor istine za bočnu traku, donju traku i naslov u gornjoj traci. */
+/**
+ * Jedini izvor istine za bočnu traku, donju traku i mrvicu u gornjoj traci.
+ *
+ * Grupe prate posao, ne tehnologiju (UI Boost §7.1): Leadovi su svakodnevni
+ * rad, pa stoje uz Kontrolnu tablu; Novosti su CMS, ne kanal. Redosled unutar
+ * grupa drži susedne boje modula različitim (§3.3).
+ */
 export const navSections: NavSection[] = [
   {
-    title: "Pregled",
+    title: "Radni sto",
     items: [
       {
         label: "Kontrolna tabla",
@@ -79,37 +77,30 @@ export const navSections: NavSection[] = [
         icon: LayoutDashboard,
         range: true,
       },
-      { label: "Analitika", href: "/analytics", module: "analitika", icon: LineChart, range: true },
-      { label: "Atribucija", href: "/atribucija", module: "atribucija", icon: GitMerge, range: true },
+      { label: "Leadovi", href: "/leadovi", module: "leadovi", icon: Users, range: false },
+      { label: "Novosti", href: "/novosti", module: "novosti", icon: Newspaper, range: false },
     ],
   },
   {
     title: "Kanali",
     items: [
-      { label: "Instagram", href: "/instagram", module: "instagram", icon: Camera, range: true },
-      {
-        label: "Facebook",
-        href: "/facebook",
-        module: "facebook",
-        icon: Users,
-        range: true,
-      },
-      { label: "Threads", href: "/threads", module: "threads", icon: AtSign, range: true, mobile: false },
+      { label: "Instagram", href: "/instagram", module: "instagram", icon: InstagramIcon, range: true },
+      { label: "Facebook", href: "/facebook", module: "facebook", icon: FacebookIcon, range: true },
       { label: "YouTube", href: "/youtube", module: "youtube", icon: PlaySquare, range: true },
+      { label: "Threads", href: "/threads", module: "threads", icon: ThreadsIcon, range: true },
       { label: "Oglasi", href: "/ads", module: "oglasi", icon: Megaphone, range: true },
-      { label: "Novosti", href: "/novosti", module: "novosti", icon: Newspaper, range: false },
+    ],
+  },
+  {
+    title: "Analitika",
+    items: [
+      { label: "Analitika", href: "/analytics", module: "analitika", icon: LineChart, range: true },
+      { label: "Atribucija", href: "/atribucija", module: "atribucija", icon: GitMerge, range: true },
     ],
   },
   {
     title: "Automatizacija",
     items: [
-      {
-        label: "Leadovi",
-        href: "/leadovi",
-        module: "leadovi",
-        icon: Users,
-        range: false,
-      },
       {
         label: "OpenReply",
         href: "/openreply",
@@ -120,18 +111,36 @@ export const navSections: NavSection[] = [
       { label: "Pravila", href: "/rules", module: "pravila", icon: ShieldAlert, range: false },
     ],
   },
-  {
-    title: "Sistem",
-    items: [
-      { label: "Podešavanja", href: "/settings", module: "sistem", icon: Settings, range: false },
-    ],
-  },
 ];
 
-export const navItems: NavItem[] = navSections.flatMap((s) => s.items);
+/**
+ * Podešavanja stoje odvojeno, na dnu bočne trake (zupčanik uz karticu igrača):
+ * to nije mesto na kom se radi, nego mesto na kom se sistem namešta.
+ */
+export const settingsNavItem: NavItem = {
+  label: "Podešavanja",
+  href: "/settings",
+  module: "sistem",
+  icon: Settings,
+  range: false,
+};
 
-export const mobileNavItems: NavItem[] = navItems.filter(
-  (item) => item.mobile !== false,
+const SETTINGS_SECTION = "Sistem";
+
+export const navItems: NavItem[] = [
+  ...navSections.flatMap((s) => s.items),
+  settingsNavItem,
+];
+
+/**
+ * Donja traka na telefonu: tri stavke + „Danas" (zvono) + „Više" (§7.3). Sve
+ * ostalo je u listu „Više", pa nijedan izlaz ne nestaje, a traka nikad ne
+ * kliza vodoravno.
+ */
+const MOBILE_BAR_HREFS = ["/", "/leadovi", "/instagram"];
+
+export const mobileBarItems: NavItem[] = navItems.filter((item) =>
+  MOBILE_BAR_HREFS.includes(item.href),
 );
 
 /**
@@ -140,25 +149,32 @@ export const mobileNavItems: NavItem[] = navItems.filter(
  */
 export type Screen = {
   href: string;
-  /** Sekcija u kojoj ekran živi — leva polovina naslova u gornjoj traci. */
+  /** Grupa bočne trake u kojoj je modul ekrana („Kanali", „Analitika"…). */
   section: string;
   title: string;
   range: boolean;
   module: ModuleKey;
+  /**
+   * Stavka navigacije iznad ovog ekrana — prvi deo mrvice. Nema je kod ekrana
+   * koji je i sam stavka navigacije. Mrvica je tako uvek „modul / podekran",
+   * nikad „grupa / modul" na jednom ekranu a „modul / podekran" na drugom.
+   */
+  parent?: { href: string; label: string };
 };
 
-const EXTRA_SCREENS: Screen[] = [
+/** Podekran: modul mu određuje i boju, i grupu, i prvi deo mrvice. */
+type ExtraScreen = Pick<Screen, "href" | "title" | "range" | "module">;
+
+const EXTRA_SCREENS: ExtraScreen[] = [
   {
     href: "/leadovi/uvoz",
     module: "leadovi",
-    section: "Automatizacija",
     title: "Uvoz leadova iz tabele",
     range: false,
   },
   {
     href: "/openreply/automatizacije",
     module: "openreply",
-    section: "Automatizacija",
     title: "Automatizacije i DM log",
     range: false,
   },
@@ -169,91 +185,78 @@ const EXTRA_SCREENS: Screen[] = [
   {
     href: "/youtube/automatizacije",
     module: "youtube",
-    section: "Kanali",
-    title: "YouTube automatizacije",
+    title: "Automatizacije",
     range: false,
   },
   {
     href: "/instagram/objavi",
     module: "instagram",
-    section: "Kanali",
     title: "Nova objava",
     range: false,
   },
   {
     href: "/instagram/komentari",
     module: "instagram",
-    section: "Kanali",
     title: "Moderacija komentara",
     range: false,
   },
   {
     href: "/instagram/publika",
     module: "instagram",
-    section: "Kanali",
     title: "Publika i demografija",
     range: false,
   },
   {
     href: "/instagram/stories",
     module: "instagram",
-    section: "Kanali",
     title: "Priče (Stories)",
     range: false,
   },
   {
     href: "/instagram/inbox",
     module: "instagram",
-    section: "Kanali",
     title: "Poruke (Inbox)",
     range: false,
   },
   {
     href: "/facebook/komentari",
     module: "facebook",
-    section: "Kanali",
     title: "Moderacija komentara",
     range: false,
   },
   {
     href: "/analytics/sticanje",
     module: "analitika",
-    section: "Analitika",
     title: "Sticanje korisnika",
     range: true,
   },
   {
     href: "/analytics/oglasi",
     module: "analitika",
-    section: "Analitika",
     title: "Plaćeni oglasi (Google Ads)",
     range: true,
   },
   {
     href: "/analytics/sadrzaj",
     module: "analitika",
-    section: "Analitika",
     title: "Sadržaj i stranice",
     range: true,
   },
   {
     href: "/analytics/posetioci",
     module: "analitika",
-    section: "Analitika",
     title: "Posetioci i ponašanje",
     range: true,
   },
   {
     href: "/analytics/uzivo",
     module: "analitika",
-    section: "Analitika",
     title: "Uživo (poslednjih 30 minuta)",
     range: false,
   },
   {
     href: "/analytics/retencija",
     module: "analitika",
-    section: "Analitika",
     title: "Retencija i kohorte",
     range: false,
   },
@@ -264,21 +267,18 @@ const EXTRA_SCREENS: Screen[] = [
   {
     href: "/instagram/objave",
     module: "instagram",
-    section: "Kanali",
     title: "Detalj objave",
     range: false,
   },
   {
     href: "/ads/publike",
     module: "oglasi",
-    section: "Kanali",
     title: "Publike",
     range: false,
   },
   {
     href: "/ads/nova-kampanja",
     module: "oglasi",
-    section: "Kanali",
     title: "Nova kampanja",
     range: false,
   },
@@ -289,21 +289,36 @@ const EXTRA_SCREENS: Screen[] = [
  * pobedilo „/youtube" pri traženju najboljeg poklapanja. Bez toga bi obe
  * stavke bile aktivne istovremeno, a klizni indikator ne bi znao kuda ide.
  */
-const ROUTES: Array<{ href: string; item?: NavItem; screen: Screen }> = [
-  ...EXTRA_SCREENS.map((screen) => ({ href: screen.href, screen })),
+const SECTION_OF = new Map<ModuleKey, string>([
   ...navSections.flatMap((section) =>
-    section.items.map((item) => ({
-      href: item.href,
-      item,
-      screen: {
-        href: item.href,
-        section: section.title,
-        title: item.label,
-        range: item.range,
-        module: item.module,
-      },
-    })),
+    section.items.map((item) => [item.module, section.title] as const),
   ),
+  [settingsNavItem.module, SETTINGS_SECTION],
+]);
+
+const ROUTES: Array<{ href: string; item?: NavItem; screen: Screen }> = [
+  ...EXTRA_SCREENS.map((extra) => {
+    const parent = navItems.find((item) => item.module === extra.module);
+    return {
+      href: extra.href,
+      screen: {
+        ...extra,
+        section: SECTION_OF.get(extra.module) ?? "",
+        parent: parent && { href: parent.href, label: parent.label },
+      },
+    };
+  }),
+  ...navItems.map((item) => ({
+    href: item.href,
+    item,
+    screen: {
+      href: item.href,
+      section: SECTION_OF.get(item.module) ?? "",
+      title: item.label,
+      range: item.range,
+      module: item.module,
+    },
+  })),
 ].sort((a, b) => b.href.length - a.href.length);
 
 function matches(pathname: string, href: string): boolean {
@@ -358,6 +373,25 @@ export function resolveScreen(pathname: string): Screen | undefined {
 export function resolveModule(pathname: string): ModuleKey {
   return resolveScreen(pathname)?.module ?? "tabla";
 }
+
+/**
+ * Da li je ruta upisana u registar. Meni korisnika i kartica igrača ovim
+ * pitaju za ekran koji tek stiže (`/napredak`): dok ga registar nema, veza se
+ * ne crta — nema mrtve kontrole — a čim se ekran upiše, pojavi se sama.
+ */
+export function screenExists(href: string): boolean {
+  return ROUTES.some((r) => r.href === href);
+}
+
+/** Ekran napretka. Upisuje ga faza koja pravi samu stranicu. */
+export const NAPREDAK_HREF = "/napredak";
+
+/**
+ * Događaji ljuske. Kontrole koje žive daleko jedna od druge (dugme u traci,
+ * ⌘K, bočna traka) ne dele stanje nego poruku na `window`.
+ */
+export const COMMAND_EVENT = "enigma:command";
+export const RAIL_EVENT = "enigma:rail";
 
 /** Stavka navigacije jednog modula — za ikonicu i naziv u zaglavlju strane. */
 export function moduleNavItem(module: ModuleKey): NavItem | undefined {

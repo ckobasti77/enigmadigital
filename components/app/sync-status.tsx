@@ -3,9 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
-import { CheckCircle2, Clock, Disc } from "lucide-react";
+import { Disc } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatSyncAge } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { QuietBoundary } from "./quiet-boundary";
@@ -16,32 +21,29 @@ import { QuietBoundary } from "./quiet-boundary";
  * Do A2 je ova pločica radila dva posla i drugi je radila loše: uzimala je
  * NAJGORI status među svim provajderima, pa je jedan davno pokvaren kanal
  * bojio crveno svaki ekran u aplikaciji, bez imena integracije i bez vremena.
- * Na `/settings` je to izgledalo ovako: crveno „Greška sinhronizacije" u
- * zaglavlju, a odmah ispod „Google Analytics 4 · Aktivno · sinhronizacija pre
- * 2 h" (§1.3). Dve tvrdnje na jednom ekranu koje se ne slažu.
+ * Kvar je sada stavka u zvonu, sa imenom integracije i sa vremenom, pa ovde
+ * ostaje samo starost podataka. Ovaj znak NIKAD nije crven — kad nešto ne
+ * radi, to kaže zvono.
  *
- * Kvar je sada stavka u zvonu, sa imenom integracije i sa vremenom
- * („GA4 ne sinhronizuje se 3 dana"), pa ovde ostaje samo starost podataka.
- * Ova traka više NIKAD nije crvena — kad nešto ne radi, to kaže zvono.
+ * Oblik (UI Boost §7.2): tačka u boji stanja umesto dugačkog čipa. Rečenica je
+ * u oblačiću i u nazivu za čitač ekrana, a ista stoji i u meniju korisnika
+ * (`SyncStatusLine`), jer oblačić na telefonu ne postoji. Tri stanja se
+ * razlikuju i oblikom, ne samo bojom: puna tačka, disk koji se vrti, prazan
+ * prsten.
  */
 type Tone = "ok" | "running" | "idle";
 
-const TONE: Record<
-  Tone,
-  { label: string; className: string; icon: typeof CheckCircle2 }
-> = {
-  ok: { label: "Sveži podaci", className: "text-success", icon: CheckCircle2 },
-  running: { label: "Sinhronizacija teče", className: "text-accent-400", icon: Disc },
-  idle: { label: "Bez sinhronizacije", className: "text-text-muted", icon: Clock },
+const LABEL: Record<Tone, string> = {
+  ok: "Sveži podaci",
+  running: "Sinhronizacija teče",
+  idle: "Bez sinhronizacije",
 };
 
-export function SyncStatus({ className }: { className?: string }) {
-  return (
-    <QuietBoundary>
-      <SyncStatusPill className={className} />
-    </QuietBoundary>
-  );
-}
+const TEXT: Record<Tone, string> = {
+  ok: "text-success",
+  running: "text-info",
+  idle: "text-text-muted",
+};
 
 /**
  * Pomera prikazano „pre 40 s" bez ijednog mrežnog poziva.
@@ -61,7 +63,8 @@ function useTicker(intervalMs: number): void {
 
 const AGE_TICK_MS = 10_000;
 
-function SyncStatusPill({ className }: { className?: string }) {
+/** `undefined` dok odgovor ne stigne. */
+function useSyncState(): { tone: Tone; headline: string } | undefined {
   const entries = useQuery(api.sync.health);
   // Kada su podaci na ekranu poslednji put postali svežiji. Namerno NIJE
   // „poslednja sinhronizacija": većina osvežavanja su sada mali ciljani
@@ -71,46 +74,107 @@ function SyncStatusPill({ className }: { className?: string }) {
 
   useTicker(AGE_TICK_MS);
 
-  if (entries === undefined) {
-    return <Skeleton className={cn("h-6 w-36", className)} />;
-  }
+  if (entries === undefined) return undefined;
 
   // Prolaz koji upravo teče je jedina vest koja pretiče starost podataka;
-  // greška se ovde više ne gleda (ide u zvono). Bez ijednog prolaza — „idle",
-  // što znači „još nije bilo sinhronizacije", a ne „nešto ne radi".
+  // greška se ovde ne gleda (ide u zvono). Bez ijednog prolaza — „idle", što
+  // znači „još nije bilo sinhronizacije", a ne „nešto ne radi".
   const tone: Tone = entries.some((e) => e.status === "running")
     ? "running"
     : entries.length > 0 || freshAt != null
       ? "ok"
       : "idle";
-  const { label, className: toneClass, icon: Icon } = TONE[tone];
 
   const age = freshAt == null ? null : formatSyncAge(freshAt);
-  const headline = tone === "ok" && age !== null ? `Sinhronizovano ${age}` : label;
+  const headline =
+    tone === "ok" && age !== null
+      ? `Sinhronizovano ${age}`
+      : age === null
+        ? LABEL[tone]
+        : `${LABEL[tone]} · ${age}`;
+
+  return { tone, headline };
+}
+
+function Glyph({ tone }: { tone: Tone }) {
+  if (tone === "running") {
+    return (
+      <Disc
+        aria-hidden
+        className={cn("size-3.5 shrink-0 motion-safe:animate-spin", TEXT[tone])}
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "size-2 shrink-0 rounded-full",
+        tone === "ok" ? "bg-success" : "border border-text-muted",
+      )}
+    />
+  );
+}
+
+/** Tačka u gornjoj traci. Klik vodi na Podešavanja, kao i do sada. */
+export function SyncStatus({ className }: { className?: string }) {
+  return (
+    <QuietBoundary>
+      <SyncDot className={className} />
+    </QuietBoundary>
+  );
+}
+
+function SyncDot({ className }: { className?: string }) {
+  const state = useSyncState();
+
+  if (state === undefined) {
+    return <Skeleton className={cn("size-8 rounded-lg", className)} />;
+  }
 
   return (
-    <Link
-      href="/settings"
-      title={`${label}${age === null ? "" : ` · ${age}`}`}
-      className={cn(
-        "group inline-flex items-center gap-2 rounded-full border border-line-soft px-2.5 py-1 text-xs transition-colors hover:border-line-strong",
-        className,
-      )}
-    >
-      <Icon
-        className={cn(
-          "size-3.5 shrink-0",
-          toneClass,
-          tone === "running" && "motion-safe:animate-spin",
-        )}
-        aria-hidden
-      />
-      <span className={cn("font-medium", toneClass)}>{headline}</span>
-      {tone !== "ok" && age !== null && (
-        <span className="hidden font-mono tabular-nums text-text-muted 2xl:inline">
-          {age}
-        </span>
-      )}
-    </Link>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Link
+            href="/settings"
+            aria-label={`${state.headline}. Otvori podešavanja.`}
+            className={cn(
+              "inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-surface-raised",
+              className,
+            )}
+          />
+        }
+      >
+        <Glyph tone={state.tone} />
+      </TooltipTrigger>
+      <TooltipContent side="bottom" align="end">
+        <p className="font-medium">{state.headline}</p>
+        <p className="text-text-muted">Kvar integracije javlja zvono.</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Ista rečenica kao tekst — za meni korisnika, gde oblačić nije potreban. */
+export function SyncStatusLine({ className }: { className?: string }) {
+  return (
+    <QuietBoundary>
+      <SyncLine className={className} />
+    </QuietBoundary>
+  );
+}
+
+function SyncLine({ className }: { className?: string }) {
+  const state = useSyncState();
+  if (state === undefined) return null;
+
+  return (
+    <p className={cn("flex items-center gap-2 text-meta", className)}>
+      <span className="flex size-3.5 shrink-0 items-center justify-center">
+        <Glyph tone={state.tone} />
+      </span>
+      <span className={cn("truncate", TEXT[state.tone])}>{state.headline}</span>
+    </p>
   );
 }

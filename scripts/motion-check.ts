@@ -419,5 +419,68 @@ for (const put of fajlovi("components", "app", "system")) {
 }
 
 // ---------------------------------------------------------------------------
+console.log("\n10. Ljuska (UI Boost §7): sina, list „Vise”, paleta i meni");
+// ---------------------------------------------------------------------------
+
+const shell = citaj("components", "app", "app-shell.tsx");
+proveri(
+  "sina: useGSAP + matchMedia sa reduced granom",
+  shell.includes("useGSAP") &&
+    shell.includes("gsap.matchMedia()") &&
+    shell.includes("MOTION_QUERIES") &&
+    /conditions\?\.still/.test(shell),
+  "app-shell.tsx nema granu za prefers-reduced-motion",
+);
+// Sirina trake se menja odjednom; pokret nosi samo transform i opacity. Tvin
+// nad sirinom ili uvlakom bi premerio svaki grafikon na strani po kadru.
+proveri(
+  "sina animira samo transform i opacity (bez sirine, visine i uvlake)",
+  !/\b(width|height|paddingLeft|left)\s*:/.test(
+    shell.slice(shell.indexOf("useGSAP("), shell.indexOf("dependencies: [rail]")),
+  ),
+  "tvin sine dira raspored",
+);
+proveri(
+  "sina traje koliko i ostatak UI-ja (DUR_UI, EASE_UI) i cisti za sobom",
+  /duration: DUR_UI, ease: EASE_UI/.test(shell) &&
+    shell.includes('clearProps: "transform"') &&
+    shell.includes("mm.revert()"),
+  "trajanje, kriva ili ciscenje nedostaju",
+);
+
+for (const [fajl, prelaz] of [
+  ["mobile-nav.tsx", "transition-[transform,opacity]"],
+  ["command-palette.tsx", "transition-[opacity,scale]"],
+] as const) {
+  const kod = citaj("components", "app", fajl);
+  proveri(
+    `${fajl}: CSS PRELAZ, ne keyframe animacija`,
+    kod.includes(prelaz) && !/animate-(in|out)/.test(kod) && !kod.includes("data-[state="),
+    "i dalje ima animate-in/animate-out ili Radix `data-[state=…]` koji base-ui ne postavlja",
+  );
+  proveri(
+    `${fajl}: ima pocetno i zavrsno stanje sa neprozirnoscu (reduced-motion)`,
+    kod.includes("data-starting-style:") &&
+      kod.includes("data-closed:") &&
+      /data-closed:[^"]*opacity-0|data-closed:opacity-0/.test(kod),
+    "nedostaje data-starting-style, data-closed ili opacity",
+  );
+}
+
+const userMenu = citaj("components", "app", "user-menu.tsx");
+proveri(
+  "meni korisnika traje 150 ms (--duration-fast), ne zatecenih 100",
+  userMenu.includes("duration-(--duration-fast)"),
+  "meni je i dalje na 100 ms",
+);
+
+const sidebar = citaj("components", "app", "app-sidebar.tsx");
+proveri(
+  "podstavke aktivnog modula se razmotavaju prekidivo (Unfold open)",
+  /<Unfold open=\{active\}>/.test(sidebar),
+  "nema Unfold nad podstavkama",
+);
+
+// ---------------------------------------------------------------------------
 console.log(pao === 0 ? "\nSVE PROLAZI\n" : `\n${pao} PROVERA NIJE PROSLA\n`);
 process.exit(pao === 0 ? 0 : 1);

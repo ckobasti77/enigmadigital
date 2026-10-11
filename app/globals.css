@@ -233,7 +233,12 @@
   --gutter: 1.5rem;
   --content-max: 80rem;
   --sidebar-width: 15rem;
-  --chrome-height: 4rem;
+  /* Bočna traka skupljena u šinu ikonica (UI Boost §7.1). Pločica ikonice
+     stoji na istom mestu u oba oblika (19 px od ivice), pa se pri skupljanju
+     ne pomera — nestaju samo natpisi. */
+  --sidebar-rail: 4rem;
+  /* 56 px: na ekranu visokom 695 px svaki red hroma se oduzima od sadržaja. */
+  --chrome-height: 3.5rem;
   /* Jedna debljina linije za sve ikonice (UI Boost §4.5). */
   --icon-stroke: 1.75;
   /* Najmanja dodirna meta na telefonu. Vidi `.touch-target`. */
@@ -394,6 +399,12 @@
 [data-module="openreply"] { --mod: var(--mod-openreply); --mod-strong: var(--mod-openreply-strong); }
 [data-module="pravila"] { --mod: var(--mod-pravila); --mod-strong: var(--mod-pravila-strong); }
 [data-module="sistem"] { --mod: var(--mod-sistem); --mod-strong: var(--mod-sistem-strong); }
+
+/* Šina ikonica: izbor piše `AppShell` na `<html>`, pa ga i zamena ljuske dok
+   se sesija proverava vidi pre nego što se bočna traka uopšte montira. */
+[data-sidebar="rail"] {
+  --sidebar-width: var(--sidebar-rail);
+}
 
 /* Kategorija → boja (UI Boost §3.6). Isti mehanizam kao moduli: čip signala i
    monogram niše nose `data-cat`, a čitaju `--cat*`. */
@@ -884,6 +895,27 @@
     );
   }
 
+  /* Ista aurora kao podloga kolone sadržaja u ljusci: svaki ekran je dobija,
+     bez dodatnog elementa i bez novog konteksta slaganja — `isolation` na
+     koloni bi pod bočnu traku zarobio fiksne slojeve koje strane crtaju same
+     (fioka oglasa, pregled novosti). `content-box` je drži desno od bočne
+     trake. Zaglavlje koje nosi sopstvenu auroru je unutar ljuske ne ponavlja,
+     da zbir ne pređe 10 %. */
+  .aurora-top {
+    background-image: radial-gradient(
+      60% 100% at 16% 0%,
+      color-mix(in oklch, var(--mod) 10%, transparent),
+      transparent 72%
+    );
+    background-repeat: no-repeat;
+    background-size: 100% 16rem;
+    background-origin: content-box;
+  }
+
+  .aurora-top .aurora::before {
+    content: none;
+  }
+
   /* Dodirna meta ≥ 44 px tamo gde se stvarno dodiruje (UI Boost §4.5). Na
      mišu element zadržava svoju gustinu. */
   @media (pointer: coarse) {
@@ -1094,6 +1126,10 @@
 
   .aurora::before {
     display: none;
+  }
+
+  .aurora-top {
+    background-image: none;
   }
 
   .material-thin,
