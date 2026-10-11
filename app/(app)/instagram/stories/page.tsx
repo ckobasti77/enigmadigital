@@ -7,8 +7,11 @@ import {
 
 export default function InstagramStoriesPage() {
   return (
-    <div className="flex w-full flex-1 flex-col gap-8">
-      <PageHeader description="Pregled aktivnih priča u realnom vremenu, odbrojavanje do isteka, levak navigacije i istorijska arhiva sačuvanih metrika." />
+    <div className="flex w-full flex-1 flex-col gap-6">
+      <PageHeader
+        variant="module"
+        description="Aktivne priče sa odbrojavanjem do isteka, levak navigacije i arhiva metrika."
+      />
 
       <div className="flex flex-1 flex-col">
         <Suspense fallback={<InstagramStoriesSkeleton />}>

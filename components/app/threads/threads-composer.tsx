@@ -459,7 +459,7 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
       {/* ── Kvota objavljivanja (§8) ─────────────────────────────────────── */}
       <Card className="flex flex-wrap items-center justify-between gap-4 p-4 shadow-card ring-line">
         <div className="flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-mod-soft text-mod">
             <Gauge className="size-4" aria-hidden="true" />
           </div>
           <div>
@@ -517,7 +517,7 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
                     className={cn(
                       "flex flex-col items-center justify-center gap-2 rounded-xl border p-4 text-xs font-semibold transition-all",
                       active
-                        ? "border-accent-400 bg-accent-400/10 text-accent-400 shadow-xs"
+                        ? "border-mod bg-mod-soft text-mod shadow-xs"
                         : "border-line bg-surface text-text-muted hover:border-line-strong hover:text-foreground",
                     )}
                   >
@@ -661,9 +661,9 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line p-6 text-xs text-text-muted transition-colors hover:border-accent-400 hover:text-foreground"
+                  className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line p-6 text-xs text-text-muted transition-colors hover:border-mod hover:text-foreground"
                 >
-                  <Upload className="size-6 text-accent-400" aria-hidden="true" />
+                  <Upload className="size-6 text-mod" aria-hidden="true" />
                   <span>
                     {mediaType === "IMAGE"
                       ? "Izaberi sliku sa računara"
@@ -736,7 +736,7 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
               <div className="mt-4 rounded-xl border border-line-soft bg-surface-raised/40 p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Radio className="size-4 text-accent-400" aria-hidden="true" />
+                    <Radio className="size-4 text-mod" aria-hidden="true" />
                     <Label htmlFor="hasPollToggle" className="text-xs font-semibold text-foreground">
                       Dodaj anketu (poll_attachment)
                     </Label>
@@ -949,7 +949,7 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
           >
             <div className="flex items-center justify-between rounded-lg border border-line-soft bg-surface-raised/40 p-3">
               <div className="flex items-center gap-2">
-                <CalendarClock className="size-4 text-accent-400" aria-hidden="true" />
+                <CalendarClock className="size-4 text-mod" aria-hidden="true" />
                 <Label htmlFor="scheduleToggle" className="text-xs font-semibold text-foreground">
                   Zakaži za kasnije
                 </Label>
@@ -1006,6 +1006,7 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
           <div className="flex items-center justify-end gap-3 border-t border-line-soft pt-4">
             <Button
               type="button"
+              variant="primary"
               onClick={handlePublishClick}
               disabled={busy || isTextOverLimit}
               className="gap-2 font-semibold"

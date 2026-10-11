@@ -290,7 +290,7 @@ function YtCaptionsContent({
     <div className="space-y-4">
       <DialogHeader>
         <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg border border-accent-400/20 bg-accent-400/10 text-accent-400">
+          <div className="flex size-8 items-center justify-center rounded-lg border border-mod-line bg-mod-soft text-mod">
             <Captions className="size-4" />
           </div>
           <div className="min-w-0">
@@ -366,7 +366,7 @@ function YtCaptionsContent({
           <section className="space-y-3 rounded-xl border border-line-strong bg-surface-raised/40 p-3.5">
             <div>
               <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                <Replace className="size-3.5 text-accent-400" aria-hidden />
+                <Replace className="size-3.5 text-mod" aria-hidden />
                 Zameni titl — {captionLanguageLabel(pending.track.language)}
                 {pending.track.name.length > 0 && ` · ${pending.track.name}`}
               </h3>
@@ -484,7 +484,7 @@ function YtCaptionsContent({
           <section className="space-y-3 rounded-xl border border-line bg-surface/50 p-3.5">
             <div>
               <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                <Upload className="size-3.5 text-accent-400" aria-hidden />
+                <Upload className="size-3.5 text-mod" aria-hidden />
                 Pošalji novi titl
               </h3>
             </div>
@@ -510,7 +510,7 @@ function YtCaptionsContent({
                   value={language}
                   onChange={(e) => setLanguage(e.target.value)}
                   disabled={submitting}
-                  className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-accent-400 focus:outline-hidden"
+                  className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-mod focus:outline-hidden"
                 >
                   {CAPTION_LANGUAGES.map((option) => (
                     <option key={option.code} value={option.code}>
@@ -869,7 +869,7 @@ function CostPanel({
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-xs text-foreground">
           {label}:{" "}
-          <span className="font-mono font-semibold tabular-nums text-accent-400">
+          <span className="font-mono font-semibold tabular-nums text-mod">
             {formatNumber(cost)}
           </span>{" "}
           jedinica
@@ -975,7 +975,7 @@ function CostBar({
       <div
         ref={ref}
         style={{ width: pendingWidth }}
-        className={cn("h-full", fits ? "bg-accent-400" : "bg-danger")}
+        className={cn("h-full", fits ? "bg-mod-strong" : "bg-danger")}
       />
     </div>
   );

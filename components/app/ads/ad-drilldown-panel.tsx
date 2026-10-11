@@ -249,13 +249,13 @@ export function AdDrilldownPanel({
           )}
 
           {searchImpressionShare !== undefined && (
-            <span className="inline-flex items-center rounded-full border border-accent-400/30 bg-accent-400/10 px-2.5 py-0.5 text-xs font-semibold text-accent-400">
+            <span className="inline-flex items-center rounded-full border border-mod-line bg-mod-soft px-2.5 py-0.5 text-xs font-semibold text-mod">
               Impression Share: {formatPercent(searchImpressionShare)}
             </span>
           )}
 
           {ad.hookLabel && (
-            <span className="inline-flex items-center rounded-full border border-accent-400/30 bg-accent-400/10 px-2.5 py-0.5 text-xs font-semibold text-accent-400">
+            <span className="inline-flex items-center rounded-full border border-mod-line bg-mod-soft px-2.5 py-0.5 text-xs font-semibold text-mod">
               {ad.hookLabel}
             </span>
           )}
@@ -266,7 +266,7 @@ export function AdDrilldownPanel({
             <button
               type="button"
               onClick={() => setOpenPreviewDialog(true)}
-              className="inline-flex items-center gap-1 text-xs text-accent-400 hover:underline transition-colors ml-auto font-medium"
+              className="inline-flex items-center gap-1 text-xs text-mod hover:underline transition-colors ml-auto font-medium"
             >
               <span>Meta pregled</span>
               <ExternalLink className="size-3" />
@@ -276,7 +276,7 @@ export function AdDrilldownPanel({
               href={ad.previewUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-accent-400 transition-colors ml-auto"
+              className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-mod transition-colors ml-auto"
             >
               <span>Google pregled</span>
               <ExternalLink className="size-3" />
@@ -305,7 +305,7 @@ export function AdDrilldownPanel({
                     <p
                       className={cn(
                         "mt-1 font-mono text-2xl sm:text-3xl font-bold tabular-nums",
-                        hookRate !== undefined ? "text-accent-400" : "text-text-muted",
+                        hookRate !== undefined ? "text-mod" : "text-text-muted",
                       )}
                       title={hookRate === undefined ? "Nema dovoljno podataka" : undefined}
                     >
@@ -440,7 +440,7 @@ export function AdDrilldownPanel({
 
             <div className="rounded-lg border border-line bg-surface/50 p-3">
               <span className="text-xs text-text-muted">CTR (Svi klikovi)</span>
-              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-accent-400">
+              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-mod">
                 {formatPercent(coreMetrics.ctr)}
               </p>
             </div>

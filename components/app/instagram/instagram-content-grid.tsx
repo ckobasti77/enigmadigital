@@ -29,6 +29,12 @@ import { Toggle } from "@/components/ui/toggle";
 import { CountUp } from "@/components/motion/count-up";
 import { Arrive, ArrivalScope } from "@/components/motion/arrive";
 import { EmptyState } from "@/components/app/empty-state";
+import { EngagementBadge } from "@/components/app/system/channel-focus";
+import {
+  engagementRate,
+  engagementScale,
+  type EngagementScale,
+} from "@/lib/channel-readiness";
 import { formatNumber, pluralSr } from "@/lib/format";
 import { igMediaSrc } from "@/lib/ig-media";
 import { cn } from "@/lib/utils";
@@ -69,7 +75,7 @@ function TypeBadge({ type }: { type: string }) {
 
   return (
     <span className="inline-flex items-center gap-1 rounded-md bg-bg-950/80 px-2 py-0.5 text-micro font-semibold text-text-primary backdrop-blur-md">
-      <Icon className="size-3 text-accent-400" aria-hidden />
+      <Icon className="size-3 text-mod" aria-hidden />
       {kind}
     </span>
   );
@@ -160,6 +166,14 @@ function GonePost({ className }: { className?: string }) {
   );
 }
 
+/** Interakcije po dosegu — mera iza bedža angažmana na kartici. */
+function postEngagement(item: MediaItem): number | null {
+  return engagementRate(
+    item.likes + item.comments + item.saves + item.shares,
+    item.reach,
+  );
+}
+
 function compareMedia(a: MediaItem, b: MediaItem, sort: SortState): number {
   const av = a[sort.key] ?? 0;
   const bv = b[sort.key] ?? 0;
@@ -194,6 +208,12 @@ export function InstagramContentGrid({ media }: { media: MediaItem[] }) {
     [visible, sort],
   );
 
+  // Razred angažmana se meri prema medijani objava koje su na ekranu.
+  const scale = useMemo(
+    () => engagementScale(visible.map(postEngagement)),
+    [visible],
+  );
+
   const handleSortChange = (key: SortKey) => {
     setSort((prev) => {
       if (prev.key === key) {
@@ -213,7 +233,7 @@ export function InstagramContentGrid({ media }: { media: MediaItem[] }) {
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-mod-soft text-mod">
               <Trophy className="size-4" aria-hidden />
             </div>
             <div>
@@ -221,7 +241,7 @@ export function InstagramContentGrid({ media }: { media: MediaItem[] }) {
                 Top sadržaj
               </h2>
               <p className="text-xs text-text-muted">
-                Najuspešnije 3 objave po ukupnom dosegu (reach)
+                Tri objave sa najvećim dosegom
               </p>
             </div>
           </div>
@@ -253,7 +273,12 @@ export function InstagramContentGrid({ media }: { media: MediaItem[] }) {
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {topThree.map((item, idx) => (
-              <TopContentCard key={item._id} item={item} rank={idx + 1} />
+              <TopContentCard
+                key={item._id}
+                item={item}
+                rank={idx + 1}
+                scale={scale}
+              />
             ))}
           </div>
         )}
@@ -304,14 +329,14 @@ export function InstagramContentGrid({ media }: { media: MediaItem[] }) {
 
           {/* Objava koja stigne dok je ekran otvoren ulazi kratkim uvodom, ne
               punim reveal-om: nov podatak ne sme da izgleda kao da se stranica
-              ponovo učitala. Kartice iz prvog kadra pripadaju ekranu i njih
-              otkriva <Reveal> iznad. Dolazak se vezuje za `mediaId`, ne za
+              ponovo učitala. Kartice iz prvog kadra pripadaju ekranu i stoje
+              mirno. Dolazak se vezuje za `mediaId`, ne za
               montiranje: kartica koja je već bila na ekranu ne animira se
               ponovo ni posle promene sortiranja. */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sortedMedia.map((item) => (
               <Arrive key={item._id} id={item.mediaId} className="h-full">
-                <PostCard item={item} />
+                <PostCard item={item} scale={scale} />
               </Arrive>
             ))}
           </div>
@@ -343,7 +368,7 @@ function SortButton({
       className={cn(
         "h-7 gap-1 px-2.5 text-xs font-medium transition-colors",
         active
-          ? "bg-surface-raised text-accent-400 font-semibold shadow-xs"
+          ? "bg-surface-raised text-mod font-semibold shadow-xs"
           : "text-text-muted hover:text-foreground",
       )}
     >
@@ -357,8 +382,17 @@ function SortButton({
  * Top Content Card: visually elevated card with rank pill, prominent reach,
  * and high-impact metrics.
  */
-function TopContentCard({ item, rank }: { item: MediaItem; rank: number }) {
+function TopContentCard({
+  item,
+  rank,
+  scale,
+}: {
+  item: MediaItem;
+  rank: number;
+  scale: EngagementScale;
+}) {
   const deleted = item.deletedAt !== undefined;
+  const rate = postEngagement(item);
 
   return (
     <Card
@@ -367,7 +401,7 @@ function TopContentCard({ item, rank }: { item: MediaItem; rank: number }) {
         deleted
           ? "ring-danger/40 bg-surface"
           : rank === 1
-            ? "border-accent-400/40 bg-gradient-to-b from-surface-raised to-surface"
+            ? "border-mod-line bg-surface-raised"
             : "border-line bg-surface",
       )}
     >
@@ -383,7 +417,7 @@ function TopContentCard({ item, rank }: { item: MediaItem; rank: number }) {
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold shadow-md",
               rank === 1 && !deleted
-                ? "bg-accent-400 text-text-inverse"
+                ? "bg-mod-strong text-text-inverse"
                 : "bg-surface-raised/95 border border-line-strong text-foreground backdrop-blur-md",
             )}
           >
@@ -393,6 +427,11 @@ function TopContentCard({ item, rank }: { item: MediaItem; rank: number }) {
 
         {/* Type & Date badges */}
         <div className="absolute top-3 right-3 flex items-center gap-1.5">
+          <EngagementBadge
+            rate={rate}
+            tier={scale.tierOf(rate)}
+            median={scale.median}
+          />
           <TypeBadge type={item.mediaType} />
         </div>
 
@@ -423,7 +462,7 @@ function TopContentCard({ item, rank }: { item: MediaItem; rank: number }) {
           <span className="text-xs font-medium text-text-muted">
             Ukupan doseg
           </span>
-          <span className="font-mono text-lg font-bold tabular-nums text-accent-400">
+          <span className="font-mono text-lg font-bold tabular-nums text-mod">
             {formatNumber(item.reach)}
           </span>
         </div>
@@ -473,9 +512,9 @@ function TopContentCard({ item, rank }: { item: MediaItem; rank: number }) {
           <div className="mt-4 flex items-center gap-2">
             <Link
               href={`/instagram/objave/${item.mediaId}`}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border border-line bg-surface-raised/80 py-1.5 text-xs font-semibold text-foreground transition-colors hover:border-line-strong hover:bg-surface-raised hover:text-accent-400"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border border-line bg-surface-raised/80 py-1.5 text-xs font-semibold text-foreground transition-colors hover:border-line-strong hover:bg-surface-raised hover:text-mod"
             >
-              <BarChart2 className="size-3 text-accent-400" aria-hidden="true" />
+              <BarChart2 className="size-3 text-mod" aria-hidden="true" />
               <span>Detalji objave</span>
             </Link>
 
@@ -500,8 +539,15 @@ function TopContentCard({ item, rank }: { item: MediaItem; rank: number }) {
 /**
  * Standard Post Card for the 30-post grid.
  */
-function PostCard({ item }: { item: MediaItem }) {
+function PostCard({
+  item,
+  scale,
+}: {
+  item: MediaItem;
+  scale: EngagementScale;
+}) {
   const deleted = item.deletedAt !== undefined;
+  const rate = postEngagement(item);
 
   return (
     <Card
@@ -517,8 +563,13 @@ function PostCard({ item }: { item: MediaItem }) {
         <PostVisual item={item} variant="grid" />
 
         {/* Badges on Visual */}
-        <div className="absolute top-2.5 left-2.5">
+        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
           <TypeBadge type={item.mediaType} />
+          <EngagementBadge
+            rate={rate}
+            tier={scale.tierOf(rate)}
+            median={scale.median}
+          />
         </div>
 
         <div className="absolute top-2.5 right-2.5">
@@ -534,7 +585,7 @@ function PostCard({ item }: { item: MediaItem }) {
       <div className="flex flex-1 flex-col p-4">
         <Link
           href={`/instagram/objave/${item.mediaId}`}
-          className="line-clamp-2 min-h-8 text-xs leading-relaxed text-foreground/90 transition-colors hover:text-accent-400"
+          className="line-clamp-2 min-h-8 text-xs leading-relaxed text-foreground/90 transition-colors hover:text-mod"
         >
           {item.caption ? (
             item.caption
@@ -547,7 +598,7 @@ function PostCard({ item }: { item: MediaItem }) {
         <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg bg-surface-raised/40 border border-line-soft p-2.5 text-center">
           <div>
             <div className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <Eye className="size-3 text-accent-400" />
+              <Eye className="size-3 text-mod" />
               <span>Doseg</span>
             </div>
             <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
@@ -592,7 +643,7 @@ function PostCard({ item }: { item: MediaItem }) {
           <div className="flex items-center gap-2.5">
             <Link
               href={`/instagram/objave/${item.mediaId}`}
-              className="inline-flex items-center gap-1 font-semibold text-xs text-accent-400 hover:underline transition-colors"
+              className="inline-flex items-center gap-1 font-semibold text-xs text-mod hover:underline transition-colors"
             >
               <span>Detalji</span>
               <BarChart2 className="size-3" aria-hidden="true" />

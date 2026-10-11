@@ -271,7 +271,7 @@ function YtVideoEditForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <DialogHeader>
         <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg border border-accent-400/20 bg-accent-400/10 text-accent-400">
+          <div className="flex size-8 items-center justify-center rounded-lg border border-mod-line bg-mod-soft text-mod">
             <Pencil className="size-4" />
           </div>
           <div>
@@ -418,7 +418,7 @@ function YtVideoEditForm({
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
             disabled={submitting}
-            className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-accent-400 focus:outline-hidden"
+            className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-mod focus:outline-hidden"
           >
             <option value="">Ostaje kakva jeste</option>
             {VIDEO_CATEGORIES.map((category) => (
@@ -677,7 +677,7 @@ function ImmediateSection({
               setNotice(null);
             }}
             disabled={busy || playlists.length === 0}
-            className="min-w-0 flex-1 rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-accent-400 focus:outline-hidden disabled:opacity-50"
+            className="min-w-0 flex-1 rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-mod focus:outline-hidden disabled:opacity-50"
           >
             <option value="">
               {playlists.length === 0

@@ -18,7 +18,6 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PostImage } from "@/components/app/instagram/post-media";
 import { PostStoryFunnel } from "@/components/app/instagram/post-detail/post-story-funnel";
-import { Reveal, RevealGroup } from "@/components/motion/reveal";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { STORY_BELOW_THRESHOLD_REASON } from "@/convex/lib/igMediaMetrics";
@@ -131,7 +130,7 @@ export function InstagramStories() {
       {/* Top action bar: Sync button & info */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <Sparkles className="size-4 text-accent-400" aria-hidden="true" />
+          <Sparkles className="size-4 text-mod" aria-hidden="true" />
           <span className="text-xs text-text-muted">
             Automatska anketa aktivnih priča svakih 30 minuta
           </span>
@@ -156,7 +155,7 @@ export function InstagramStories() {
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-2 border-b border-line/60 pb-3">
           <div className="flex items-center gap-2">
-            <Flame className="size-4 text-accent-400" aria-hidden="true" />
+            <Flame className="size-4 text-mod" aria-hidden="true" />
             <h2 className="text-sm font-semibold text-foreground">
               Aktivne priče ({liveStories.length})
             </h2>
@@ -175,7 +174,7 @@ export function InstagramStories() {
             </p>
           </div>
         ) : (
-          <RevealGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {liveStories.map((story) => {
               const isSelected = activeStoryId === story.storyId;
               const viewsState = story.stats?.metricStates?.views?.state;
@@ -193,7 +192,7 @@ export function InstagramStories() {
                   onClick={() => setSelectedStoryId(story.storyId)}
                   className={cn(
                     "group relative flex flex-col overflow-hidden p-0 transition-all cursor-pointer shadow-card ring-line hover:ring-line-strong",
-                    isSelected && "ring-2 ring-accent-400 bg-surface-raised/40",
+                    isSelected && "ring-2 ring-mod bg-surface-raised/40",
                   )}
                 >
                   {/* Thumbnail / Media box (9:16 aspect ratio preview) */}
@@ -235,7 +234,7 @@ export function InstagramStories() {
                   <div className="flex flex-col gap-2.5 p-4">
                     {isBelowThreshold ? (
                       <div className="flex items-start gap-2 rounded-md bg-surface-raised/80 p-2.5 text-[11px] text-text-secondary leading-relaxed">
-                        <Info className="size-3.5 shrink-0 text-accent-400 mt-0.5" aria-hidden="true" />
+                        <Info className="size-3.5 shrink-0 text-mod mt-0.5" aria-hidden="true" />
                         <span>{suppressedReason}</span>
                       </div>
                     ) : (
@@ -266,13 +265,13 @@ export function InstagramStories() {
                 </Card>
               );
             })}
-          </RevealGroup>
+          </div>
         )}
       </section>
 
       {/* 2. LEVAK NAVIGACIJE (Navigation Funnel) */}
       {selectedStory && (
-        <Reveal>
+        <div>
           <section className="flex flex-col gap-4">
             <div className="flex flex-col gap-1 border-b border-line/60 pb-3">
               <div className="flex items-center justify-between gap-2">
@@ -295,7 +294,7 @@ export function InstagramStories() {
             {/* Educational note on Navigation Funnel distinctions */}
             <Card className="flex flex-col gap-2 border-line bg-surface/40 p-4 text-xs text-text-secondary shadow-card">
               <div className="flex items-center gap-2 font-semibold text-foreground">
-                <Info className="size-4 text-accent-400" aria-hidden="true" />
+                <Info className="size-4 text-mod" aria-hidden="true" />
                 <span>Razumevanje radnji gledalaca:</span>
               </div>
               <p className="leading-relaxed">
@@ -305,7 +304,7 @@ export function InstagramStories() {
               </p>
             </Card>
           </section>
-        </Reveal>
+        </div>
       )}
 
       {/* 3. ARHIVA ISTEKLIH PRIČA (Archived Stories) */}
@@ -323,7 +322,7 @@ export function InstagramStories() {
             </p>
           </div>
 
-          <RevealGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 opacity-85">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 opacity-85">
             {archivedStories.map((story) => {
               const isSelected = activeStoryId === story.storyId;
               const viewsState = story.stats?.metricStates?.views?.state;
@@ -337,7 +336,7 @@ export function InstagramStories() {
                   onClick={() => setSelectedStoryId(story.storyId)}
                   className={cn(
                     "group relative flex flex-col overflow-hidden p-0 transition-all cursor-pointer shadow-card ring-line hover:ring-line-strong bg-surface/60",
-                    isSelected && "ring-2 ring-accent-400 bg-surface-raised/40",
+                    isSelected && "ring-2 ring-mod bg-surface-raised/40",
                   )}
                 >
                   <div className="relative aspect-[9/16] w-full overflow-hidden bg-bg-950 grayscale-[25%]">
@@ -392,7 +391,7 @@ export function InstagramStories() {
                 </Card>
               );
             })}
-          </RevealGroup>
+          </div>
 
           {/* Mandatory note as specified in prompt §4.3 */}
           <p className="text-xs text-text-muted leading-relaxed pt-2">

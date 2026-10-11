@@ -44,9 +44,9 @@ type PublishJob =
 const STATUS_TONES: Record<ThreadsPublishStatus, string> = {
   draft: "border-line bg-surface text-text-muted",
   queued: "border-line bg-surface-raised text-text-secondary",
-  uploading: "border-accent-400/30 bg-accent-400/10 text-accent-400 animate-pulse",
-  processing: "border-accent-400/30 bg-accent-400/10 text-accent-400 animate-pulse",
-  publishing: "border-accent-400/30 bg-accent-400/10 text-accent-400 animate-pulse",
+  uploading: "border-mod-line bg-mod-soft text-mod animate-pulse",
+  processing: "border-mod-line bg-mod-soft text-mod animate-pulse",
+  publishing: "border-mod-line bg-mod-soft text-mod animate-pulse",
   published: "border-success/30 bg-success/10 text-success",
   failed: "border-danger/30 bg-danger/10 text-danger",
   canceled: "border-line bg-surface text-text-muted line-through opacity-70",
@@ -121,7 +121,7 @@ export function ThreadsJobsPanel() {
       <Card className="overflow-hidden p-0 shadow-card ring-line">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <div className="flex items-center gap-2">
-            <History className="size-4 text-accent-400" aria-hidden="true" />
+            <History className="size-4 text-mod" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-foreground">
               Red i istorija objavljivanja ({jobs.length})
             </h3>
@@ -203,7 +203,7 @@ export function ThreadsJobsPanel() {
                     <TableCell className="py-3 text-text-muted">
                       {job.scheduledFor ? (
                         <div className="flex items-center gap-1">
-                          <CalendarClock className="size-3 text-accent-400" />
+                          <CalendarClock className="size-3 text-mod" />
                           <span>{formatBelgradeShort(job.scheduledFor)}</span>
                         </div>
                       ) : job.publishedAt ? (

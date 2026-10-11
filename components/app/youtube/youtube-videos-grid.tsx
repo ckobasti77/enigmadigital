@@ -25,6 +25,12 @@ import { formatNumber, formatPercent, formatWatchTime } from "@/lib/format";
 import { YtVideoEditDialog } from "./yt-video-edit-dialog";
 import { YtCaptionsPanel } from "./yt-captions-panel";
 import { cn } from "@/lib/utils";
+import { EngagementBadge } from "@/components/app/system/channel-focus";
+import {
+  engagementRate,
+  engagementScale,
+  type EngagementScale,
+} from "@/lib/channel-readiness";
 
 export type VideoItem = FunctionReturnType<
   typeof api.youtubeStore.videos
@@ -80,6 +86,11 @@ function watchTime(item: VideoItem): string {
     : formatWatchTime(item.estimatedMinutesWatched);
 }
 
+/** Lajkovi i komentari po pregledu — mera iza bedža angažmana na kartici. */
+function videoEngagement(item: VideoItem): number | null {
+  return engagementRate(item.likes + item.comments, item.views);
+}
+
 function compareVideos(a: VideoItem, b: VideoItem, sort: SortState): number {
   const av = a[sort.key] ?? 0;
   const bv = b[sort.key] ?? 0;
@@ -102,6 +113,12 @@ export function YouTubeVideosGrid({ videos }: { videos: VideoItem[] }) {
     [videos, sort],
   );
 
+  // Razred angažmana se meri prema medijani videa koji su na ekranu.
+  const scale = useMemo(
+    () => engagementScale(videos.map(videoEngagement)),
+    [videos],
+  );
+
   const handleSortChange = (key: SortKey) => {
     setSort((prev) =>
       prev.key === key
@@ -119,7 +136,7 @@ export function YouTubeVideosGrid({ videos }: { videos: VideoItem[] }) {
       {/* ── Top videi (Top 3 by views) ───────────────────────────────────── */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400">
+          <div className="flex size-7 items-center justify-center rounded-lg bg-mod-soft text-mod">
             <Trophy className="size-4" aria-hidden />
           </div>
           <div>
@@ -138,6 +155,7 @@ export function YouTubeVideosGrid({ videos }: { videos: VideoItem[] }) {
               key={item._id}
               item={item}
               rank={idx + 1}
+              scale={scale}
               onEdit={() => setEditing(item)}
               onCaptions={() => setCaptioning(item)}
             />
@@ -190,6 +208,7 @@ export function YouTubeVideosGrid({ videos }: { videos: VideoItem[] }) {
             <VideoCard
               key={item._id}
               item={item}
+              scale={scale}
               onEdit={() => setEditing(item)}
               onCaptions={() => setCaptioning(item)}
             />
@@ -235,7 +254,7 @@ function SortButton({
       className={cn(
         "h-7 gap-1 px-2.5 text-xs font-medium transition-colors",
         active
-          ? "bg-surface-raised text-accent-400 font-semibold shadow-xs"
+          ? "bg-surface-raised text-mod font-semibold shadow-xs"
           : "text-text-muted hover:text-foreground",
       )}
     >
@@ -267,7 +286,7 @@ function Thumbnail({
         <div className="relative flex size-full items-center justify-center overflow-hidden bg-gradient-to-br from-bg-900 via-surface to-bg-950 p-4">
           <div
             className={cn(
-              "flex items-center justify-center rounded-xl border border-line bg-surface-raised/70 text-text-muted transition-colors group-hover:border-accent-400/30 group-hover:text-accent-400",
+              "flex items-center justify-center rounded-xl border border-line bg-surface-raised/70 text-text-muted transition-colors group-hover:border-mod-line group-hover:text-mod",
               size === "lg" ? "size-12" : "size-10",
             )}
           >
@@ -291,20 +310,23 @@ function Thumbnail({
 function TopVideoCard({
   item,
   rank,
+  scale,
   onEdit,
   onCaptions,
 }: {
   item: VideoItem;
   rank: number;
+  scale: EngagementScale;
   onEdit: () => void;
   onCaptions: () => void;
 }) {
+  const rate = videoEngagement(item);
   return (
     <Card
       className={cn(
         "group relative flex flex-col justify-between overflow-hidden p-0 shadow-card hover-lift",
         rank === 1
-          ? "border-accent-400/40 bg-gradient-to-b from-surface-raised to-surface"
+          ? "border-mod-line bg-surface-raised"
           : "border-line bg-surface",
       )}
     >
@@ -316,12 +338,20 @@ function TopVideoCard({
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold shadow-md",
               rank === 1
-                ? "bg-accent-400 text-text-inverse"
+                ? "bg-mod-strong text-text-inverse"
                 : "border border-line-strong bg-surface-raised/95 text-foreground backdrop-blur-md",
             )}
           >
             #{rank} Najgledaniji
           </span>
+        </div>
+
+        <div className="absolute right-3 top-3">
+          <EngagementBadge
+            rate={rate}
+            tier={scale.tierOf(rate)}
+            median={scale.median}
+          />
         </div>
 
         <div className="absolute left-3 bottom-2">
@@ -340,7 +370,7 @@ function TopVideoCard({
           <span className="text-xs font-medium text-text-muted">
             Ukupno pregleda
           </span>
-          <span className="font-mono text-lg font-bold tabular-nums text-accent-400">
+          <span className="font-mono text-lg font-bold tabular-nums text-mod">
             {formatNumber(item.views)}
           </span>
         </div>
@@ -410,17 +440,27 @@ function MiniStat({
 /** Standard card for the full video list. */
 function VideoCard({
   item,
+  scale,
   onEdit,
   onCaptions,
 }: {
   item: VideoItem;
+  scale: EngagementScale;
   onEdit: () => void;
   onCaptions: () => void;
 }) {
+  const rate = videoEngagement(item);
   return (
     <Card className="group relative flex flex-col justify-between overflow-hidden p-0 shadow-card hover-lift">
       <div className="relative">
         <Thumbnail item={item} />
+        <div className="absolute left-2.5 top-2.5">
+          <EngagementBadge
+            rate={rate}
+            tier={scale.tierOf(rate)}
+            median={scale.median}
+          />
+        </div>
         <div className="absolute right-2.5 top-2.5">
           <span className="rounded bg-bg-950/80 px-2 py-0.5 font-mono text-micro text-text-muted backdrop-blur-md">
             {formatPublishedAt(item.publishedAt)}
@@ -435,7 +475,7 @@ function VideoCard({
 
         <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg border border-line-soft bg-surface-raised/40 p-2.5 text-center">
           <MiniStat
-            icon={<Eye className="size-3 text-accent-400" />}
+            icon={<Eye className="size-3 text-mod" />}
             label="Pregledi"
             value={formatNumber(item.views)}
           />
@@ -468,7 +508,7 @@ function VideoCard({
               href={watchUrl(item.videoId)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 font-medium text-text-secondary transition-colors hover:text-accent-400"
+              className="inline-flex items-center gap-1 font-medium text-text-secondary transition-colors hover:text-mod"
             >
               <span>Otvori</span>
               <ExternalLink className="size-3" aria-hidden />

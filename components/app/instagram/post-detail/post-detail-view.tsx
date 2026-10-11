@@ -1,7 +1,6 @@
 "use client";
 
 import { Eye, Users, Heart, MessageCircle, Bookmark, Share2, Repeat, Sparkles, MessageSquare, Globe } from "lucide-react";
-import { Reveal } from "@/components/motion/reveal";
 import { PostDetailHeader } from "./post-detail-header";
 import { PostMetricCard } from "./post-metric-card";
 import { PostProfileActions } from "./post-profile-actions";
@@ -73,7 +72,7 @@ export function PostDetailView({ media, breakdowns }: PostDetailViewProps) {
   return (
     <div className="flex flex-col gap-10 pb-16">
       {/* 1. Zaglavlje objave */}
-      <Reveal>
+      <div>
         <PostDetailHeader
           mediaId={media.mediaId}
           mediaType={media.mediaType}
@@ -84,11 +83,11 @@ export function PostDetailView({ media, breakdowns }: PostDetailViewProps) {
           commentsEnabled={media.commentsEnabled}
           slides={media.children}
         />
-      </Reveal>
+      </div>
 
       {/* 2. Grupa: Šta je objava donela (FEED i STORY — izostavljeno za REELS) */}
       {(isFeed || isStory) && (
-        <Reveal>
+        <div>
           <PostProfileActions
             profileVisits={media.profileVisits}
             profileVisitsState={getState("profile_visits")}
@@ -98,11 +97,11 @@ export function PostDetailView({ media, breakdowns }: PostDetailViewProps) {
             followsReason={getReason("follows")}
             breakdowns={breakdowns}
           />
-        </Reveal>
+        </div>
       )}
 
       {/* 3. Grupa: Domet */}
-      <Reveal>
+      <div>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <span className="heading-caps text-micro font-semibold text-text-muted">
@@ -158,10 +157,10 @@ export function PostDetailView({ media, breakdowns }: PostDetailViewProps) {
             )}
           </div>
         </div>
-      </Reveal>
+      </div>
 
       {/* 4. Grupa: Interakcije */}
-      <Reveal>
+      <div>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <span className="heading-caps text-micro font-semibold text-text-muted">
@@ -249,11 +248,11 @@ export function PostDetailView({ media, breakdowns }: PostDetailViewProps) {
             />
           </div>
         </div>
-      </Reveal>
+      </div>
 
       {/* 5. Grupa: Samo Reels */}
       {isReels && (
-        <Reveal>
+        <div>
           <PostReelsPerformance
             avgWatchTimeMs={media.reelsAvgWatchTimeMs}
             avgWatchTimeState={getState("ig_reels_avg_watch_time")}
@@ -268,14 +267,14 @@ export function PostDetailView({ media, breakdowns }: PostDetailViewProps) {
             crosspostedViewsState={getState("crossposted_views")}
             crosspostedViewsReason={getReason("crossposted_views")}
           />
-        </Reveal>
+        </div>
       )}
 
       {/* 6. Grupa: Samo Story — Levak navigacije */}
       {isStory && (
-        <Reveal>
+        <div>
           <PostStoryFunnel breakdowns={breakdowns} />
-        </Reveal>
+        </div>
       )}
     </div>
   );

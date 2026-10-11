@@ -67,29 +67,29 @@ export function RetentionStrip({
       label: "25%",
       count: retention.videoP25,
       pct: retention.p25Pct,
-      color: "bg-accent-400",
-      textColor: "text-accent-400",
+      color: "bg-mod-strong",
+      textColor: "text-mod",
     },
     {
       label: "50%",
       count: retention.videoP50,
       pct: retention.p50Pct,
-      color: "bg-accent-400/80",
-      textColor: "text-accent-400/90",
+      color: "bg-mod-strong/80",
+      textColor: "text-mod",
     },
     {
       label: "75%",
       count: retention.videoP75,
       pct: retention.p75Pct,
-      color: "bg-accent-400/60",
-      textColor: "text-accent-400/80",
+      color: "bg-mod-strong/60",
+      textColor: "text-mod",
     },
     {
       label: "100%",
       count: retention.videoP100,
       pct: retention.p100Pct,
-      color: "bg-accent-400/40",
-      textColor: "text-accent-400/70",
+      color: "bg-mod-strong/40",
+      textColor: "text-mod",
     },
   ];
 
@@ -133,7 +133,7 @@ export function RetentionStrip({
                     />
                   ) : (
                     <div
-                      className="w-full h-full rounded-xs border border-dashed border-line-soft bg-surface-raised/80 bg-[repeating-linear-gradient(45deg,rgba(255,255,255,0.06),rgba(255,255,255,0.06)_4px,transparent_4px,transparent_8px)]"
+                      className="w-full h-full rounded-xs border border-dashed border-line-soft bg-surface-raised/80 bg-[repeating-linear-gradient(45deg,var(--color-line-soft),var(--color-line-soft)_4px,transparent_4px,transparent_8px)]"
                     />
                   )}
                   <span className="mt-0.5 text-micro font-mono tabular-nums text-text-muted group-hover/bar:text-foreground">

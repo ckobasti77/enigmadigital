@@ -79,7 +79,6 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Reveal } from "@/components/motion/reveal";
 import { CountUp } from "@/components/motion/count-up";
 import { CharCount, Field, FormGroup, FormStack } from "@/components/app/form-kit";
 import { FeedbackNote } from "@/components/app/feedback";
@@ -574,7 +573,7 @@ export function PublishComposer() {
 
   return (
     <div className="flex flex-1 flex-col gap-8">
-      <Reveal>
+      <div>
         <div className="flex flex-col gap-3">
           <FeedbackNote
             tone="warning"
@@ -582,7 +581,7 @@ export function PublishComposer() {
             action={
               <Link
                 href="/settings"
-                className="text-xs font-medium text-accent-400 underline-offset-4 hover:underline"
+                className="text-xs font-medium text-mod underline-offset-4 hover:underline"
               >
                 Podešavanja
               </Link>
@@ -598,7 +597,7 @@ export function PublishComposer() {
               action={
                 <Link
                   href="/settings"
-                  className="text-xs font-medium text-accent-400 underline-offset-4 hover:underline"
+                  className="text-xs font-medium text-mod underline-offset-4 hover:underline"
                 >
                   Poveži
                 </Link>
@@ -609,13 +608,13 @@ export function PublishComposer() {
             </FeedbackNote>
           )}
         </div>
-      </Reveal>
+      </div>
 
-      <Reveal delay={0.04}>
+      <div>
         <QuotaLine limit={limit} />
-      </Reveal>
+      </div>
 
-      <Reveal delay={0.07}>
+      <div>
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
           <Card className="p-5 shadow-card">
             <FormStack>
@@ -639,7 +638,7 @@ export function PublishComposer() {
                       value={option}
                       size="sm"
                       disabled={busy}
-                      className="rounded-md! px-3 text-text-secondary aria-pressed:text-accent-400 data-pressed:text-accent-400"
+                      className="rounded-md! px-3 text-text-secondary aria-pressed:text-mod data-pressed:text-mod"
                     >
                       {KIND_LABELS[option]}
                     </ToggleGroupItem>
@@ -736,7 +735,7 @@ export function PublishComposer() {
                       pressed={shareToFeed}
                       disabled={busy}
                       onPressedChange={setShareToFeed}
-                      className="text-text-muted aria-pressed:text-accent-400"
+                      className="text-text-muted aria-pressed:text-mod"
                     >
                       {shareToFeed ? "Ide i u feed" : "Samo Reels"}
                     </Toggle>
@@ -771,7 +770,7 @@ export function PublishComposer() {
                     value="now"
                     size="sm"
                     disabled={busy}
-                    className="rounded-md! px-3 text-text-secondary aria-pressed:text-accent-400 data-pressed:text-accent-400"
+                    className="rounded-md! px-3 text-text-secondary aria-pressed:text-mod data-pressed:text-mod"
                   >
                     <Zap data-icon="inline-start" />
                     Objavi odmah
@@ -780,7 +779,7 @@ export function PublishComposer() {
                     value="later"
                     size="sm"
                     disabled={busy}
-                    className="rounded-md! px-3 text-text-secondary aria-pressed:text-accent-400 data-pressed:text-accent-400"
+                    className="rounded-md! px-3 text-text-secondary aria-pressed:text-mod data-pressed:text-mod"
                   >
                     <CalendarClock data-icon="inline-start" />
                     Zakaži za
@@ -857,7 +856,7 @@ export function PublishComposer() {
                       Dodatno
                     </span>
                     {extraCount > 0 && (
-                      <span className="rounded-full bg-accent-400/10 px-2 py-0.5 font-mono text-micro text-accent-400">
+                      <span className="rounded-full bg-mod-soft px-2 py-0.5 font-mono text-micro text-mod">
                         {extraCount}
                       </span>
                     )}
@@ -918,7 +917,7 @@ export function PublishComposer() {
                               className={cn(
                                 "text-xs",
                                 (isPlacingTag || pendingCoords) &&
-                                  "border-accent-400 text-accent-400",
+                                  "border-mod text-mod",
                               )}
                             >
                               <Crosshair className="size-3.5" />
@@ -1105,7 +1104,7 @@ export function PublishComposer() {
                                 value="MANUAL"
                                 size="sm"
                                 disabled={busy}
-                                className="flex-1 rounded-md! px-3 text-xs text-text-secondary aria-pressed:text-accent-400 data-pressed:text-accent-400"
+                                className="flex-1 rounded-md! px-3 text-xs text-text-secondary aria-pressed:text-mod data-pressed:text-mod"
                               >
                                 Ručno (MANUAL)
                               </ToggleGroupItem>
@@ -1113,7 +1112,7 @@ export function PublishComposer() {
                                 value="SS_PERFORMANCE"
                                 size="sm"
                                 disabled={busy}
-                                className="flex-1 rounded-md! px-3 text-xs text-text-secondary aria-pressed:text-accent-400 data-pressed:text-accent-400"
+                                className="flex-1 rounded-md! px-3 text-xs text-text-secondary aria-pressed:text-mod data-pressed:text-mod"
                               >
                                 Po uspehu (SS_PERFORMANCE)
                               </ToggleGroupItem>
@@ -1162,6 +1161,7 @@ export function PublishComposer() {
                 </p>
                 <Button
                   type="button"
+                  variant="primary"
                   size="lg"
                   disabled={!ready}
                   onClick={() => setConfirmOpen(true)}
@@ -1193,13 +1193,13 @@ export function PublishComposer() {
             />
           </div>
         </div>
-      </Reveal>
+      </div>
 
-      <Reveal delay={0.09}>
+      <div>
         <PublishJobsPanel />
-      </Reveal>
+      </div>
 
-      <Reveal delay={0.1}>
+      <div>
         <Card className="flex flex-col gap-3 p-5 shadow-card">
           <div className="flex items-center gap-2">
             <div className="flex size-7 items-center justify-center rounded-lg bg-surface-raised text-text-muted">
@@ -1228,7 +1228,7 @@ export function PublishComposer() {
             </li>
           </ul>
         </Card>
-      </Reveal>
+      </div>
 
       <ConfirmDialog
         open={confirmOpen}
@@ -1343,7 +1343,7 @@ function PublishSummary({
 
       {locationId && (
         <span className="block font-mono text-xs text-text-muted">
-          📍 ID lokacije: {locationId}
+          ID lokacije: {locationId}
         </span>
       )}
 
@@ -1363,7 +1363,7 @@ function PublishSummary({
       )}
 
       {trialEnabled && (
-        <span className="block text-xs text-accent-400">
+        <span className="block text-xs text-mod">
           Probni Reel (
           {trialGraduationStrategy === "MANUAL"
             ? "ručno diplomiranje"
@@ -1444,7 +1444,7 @@ function QuotaLine({ limit }: { limit: PublishingLimit | null }) {
                 ? "text-danger"
                 : tone === "warning"
                   ? "text-warning"
-                  : "text-accent-400",
+                  : "text-mod",
             )}
             aria-hidden
           />
@@ -1483,7 +1483,7 @@ function QuotaLine({ limit }: { limit: PublishingLimit | null }) {
               ? "bg-danger"
               : tone === "warning"
                 ? "bg-warning"
-                : "bg-accent-400",
+                : "bg-mod-strong",
           )}
         />
       </div>
@@ -1509,9 +1509,9 @@ function UploadProgress({
         : 0;
 
   return (
-    <div className="rounded-xl border border-accent-400/30 bg-accent-400/5 px-4 py-3">
+    <div className="rounded-xl border border-mod-line bg-mod-soft px-4 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <p className="text-sm font-medium text-accent-400">
+        <p className="text-sm font-medium text-mod">
           {phase === "submitting"
             ? "Predajem objavu Instagramu…"
             : "Fajlovi se šalju…"}
@@ -1527,7 +1527,7 @@ function UploadProgress({
             transitionDuration: "var(--duration-base)",
             transitionTimingFunction: "var(--ease-ui)",
           }}
-          className="h-full rounded-full bg-accent-400 transition-[width]"
+          className="h-full rounded-full bg-mod-strong transition-[width]"
         />
       </div>
       <p className="mt-2 text-xs text-text-muted">

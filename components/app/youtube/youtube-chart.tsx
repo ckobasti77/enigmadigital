@@ -25,7 +25,7 @@ export function YouTubeChart({ data }: { data: YtDailyPoint[] }) {
         values: data.map((d) => d.estimatedMinutesWatched),
         format: formatWatchTime,
       }}
-      emptyReason="Kanal nije zabeležio nijedan pregled u ovom periodu. Istorija seže 90 dana unazad od prve sinhronizacije."
+      emptyReason="Kanal nema zabeleženih pregleda u ovom periodu. Istorija seže 90 dana unazad."
     />
   );
 }

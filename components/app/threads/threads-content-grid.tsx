@@ -24,6 +24,12 @@ import { Arrive, ArrivalScope } from "@/components/motion/arrive";
 import { EmptyState } from "@/components/app/empty-state";
 import { formatNumber, pluralSr } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { EngagementBadge } from "@/components/app/system/channel-focus";
+import {
+  engagementRate,
+  engagementScale,
+  type EngagementScale,
+} from "@/lib/channel-readiness";
 
 export type ThreadsMediaItem =
   FunctionReturnType<typeof api.threadsStore.mediaList>[number];
@@ -62,6 +68,17 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
+/** Interakcije po prikazu — mera iza bedža angažmana na kartici. */
+function postEngagement(item: ThreadsMediaItem): number | null {
+  const i = item.insights;
+  if (!i) return null;
+  const parts = [i.likes, i.replies, i.reposts, i.quotes];
+  // Bez ijedne izmerene interakcije stopa se ne zna (nije nula).
+  if (parts.every((v) => v === null || v === undefined)) return null;
+  const sum = parts.reduce<number>((acc, v) => acc + (v ?? 0), 0);
+  return engagementRate(sum, i.views);
+}
+
 function compareMedia(
   a: ThreadsMediaItem,
   b: ThreadsMediaItem,
@@ -96,6 +113,12 @@ export function ThreadsContentGrid({ media }: { media: ThreadsMediaItem[] }) {
     [media, sort],
   );
 
+  // Razred angažmana se meri prema medijani objava koje su na ekranu.
+  const scale = useMemo(
+    () => engagementScale(media.map(postEngagement)),
+    [media],
+  );
+
   const handleSortChange = (key: SortKey) => {
     setSort((prev) => {
       if (prev.key === key) {
@@ -119,7 +142,7 @@ export function ThreadsContentGrid({ media }: { media: ThreadsMediaItem[] }) {
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-mod-soft text-mod">
               <Trophy className="size-4" aria-hidden="true" />
             </div>
             <div>
@@ -127,7 +150,7 @@ export function ThreadsContentGrid({ media }: { media: ThreadsMediaItem[] }) {
                 Top sadržaj
               </h2>
               <p className="text-xs text-text-muted">
-                Najuspešnije 3 objave po ukupnom broju prikaza (views)
+                Tri objave sa najviše prikaza
               </p>
             </div>
           </div>
@@ -135,7 +158,12 @@ export function ThreadsContentGrid({ media }: { media: ThreadsMediaItem[] }) {
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {topThree.map((item, idx) => (
-            <TopThreadsPostCard key={item._id} item={item} rank={idx + 1} />
+            <TopThreadsPostCard
+              key={item._id}
+              item={item}
+              rank={idx + 1}
+              scale={scale}
+            />
           ))}
         </div>
       </div>
@@ -155,7 +183,7 @@ export function ThreadsContentGrid({ media }: { media: ThreadsMediaItem[] }) {
             </div>
 
             {/* Sort Controls */}
-            <div className="flex items-center gap-1.5 rounded-lg border border-line bg-surface p-1 text-xs">
+            <div className="flex max-w-full items-center gap-1.5 overflow-x-auto overflow-y-hidden rounded-lg border border-line bg-surface p-1 text-xs">
               <span className="px-2 py-1 text-text-muted">Sortiraj po:</span>
               <SortButton
                 label="Prikazi"
@@ -187,7 +215,7 @@ export function ThreadsContentGrid({ media }: { media: ThreadsMediaItem[] }) {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sortedMedia.map((item) => (
               <Arrive key={item._id} id={item.mediaId} className="h-full">
-                <ThreadsPostCard item={item} />
+                <ThreadsPostCard item={item} scale={scale} />
               </Arrive>
             ))}
           </div>
@@ -218,7 +246,7 @@ function SortButton({
       className={cn(
         "h-7 gap-1 px-2.5 text-xs font-medium transition-colors",
         active
-          ? "bg-surface-raised text-accent-400 font-semibold shadow-xs"
+          ? "bg-surface-raised text-mod font-semibold shadow-xs"
           : "text-text-muted hover:text-foreground",
       )}
     >
@@ -234,10 +262,13 @@ function SortButton({
 function TopThreadsPostCard({
   item,
   rank,
+  scale,
 }: {
   item: ThreadsMediaItem;
   rank: number;
+  scale: EngagementScale;
 }) {
+  const rate = postEngagement(item);
   const views = item.insights?.views;
   const likes = item.insights?.likes;
   const replies = item.insights?.replies;
@@ -250,7 +281,7 @@ function TopThreadsPostCard({
       className={cn(
         "group relative flex flex-col justify-between overflow-hidden p-0 shadow-card hover-lift",
         rank === 1
-          ? "border-accent-400/40 bg-gradient-to-b from-surface-raised to-surface"
+          ? "border-mod-line bg-surface-raised"
           : "border-line bg-surface",
       )}
     >
@@ -261,18 +292,23 @@ function TopThreadsPostCard({
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold shadow-xs",
               rank === 1
-                ? "bg-accent-400 text-text-inverse"
+                ? "bg-mod-strong text-text-inverse"
                 : "border border-line-strong bg-surface-raised text-foreground",
             )}
           >
             #{rank} Top prikazi
           </span>
-          <div className="flex items-center gap-2">
-            <TypeBadge type={item.mediaType} />
-            <span className="font-mono text-micro text-text-muted">
-              {formatPostDate(item.timestamp)}
-            </span>
-          </div>
+          <span className="font-mono text-micro text-text-muted">
+            {formatPostDate(item.timestamp)}
+          </span>
+        </div>
+        <div className="mt-3 flex items-center gap-1.5">
+          <TypeBadge type={item.mediaType} />
+          <EngagementBadge
+            rate={rate}
+            tier={scale.tierOf(rate)}
+            median={scale.median}
+          />
         </div>
 
         {/* Post Text */}
@@ -290,7 +326,7 @@ function TopThreadsPostCard({
             Ukupno prikaza (views)
           </span>
           {views !== null && views !== undefined ? (
-            <span className="font-mono text-lg font-bold tabular-nums text-accent-400">
+            <span className="font-mono text-lg font-bold tabular-nums text-mod">
               {formatNumber(views)}
             </span>
           ) : (
@@ -312,7 +348,7 @@ function TopThreadsPostCard({
           </div>
           <div>
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <MessageCircle className="size-3 text-accent-400/80" /> Odg
+              <MessageCircle className="size-3 text-mod" /> Odg
             </span>
             <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
               {replies !== null && replies !== undefined ? formatNumber(replies) : "—"}
@@ -351,7 +387,7 @@ function TopThreadsPostCard({
               href={item.permalink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-medium text-text-muted hover:text-accent-400 transition-colors"
+              className="inline-flex items-center gap-1 text-xs font-medium text-text-muted hover:text-mod transition-colors"
             >
               <span>Otvori na Threads</span>
               <ExternalLink className="size-3" aria-hidden="true" />
@@ -366,7 +402,14 @@ function TopThreadsPostCard({
 /**
  * Standard Threads Post Card
  */
-function ThreadsPostCard({ item }: { item: ThreadsMediaItem }) {
+function ThreadsPostCard({
+  item,
+  scale,
+}: {
+  item: ThreadsMediaItem;
+  scale: EngagementScale;
+}) {
+  const rate = postEngagement(item);
   const views = item.insights?.views;
   const likes = item.insights?.likes;
   const replies = item.insights?.replies;
@@ -379,7 +422,14 @@ function ThreadsPostCard({ item }: { item: ThreadsMediaItem }) {
       <div>
         {/* Top bar: Type badge & Date */}
         <div className="flex items-center justify-between gap-2">
-          <TypeBadge type={item.mediaType} />
+          <span className="flex items-center gap-1.5">
+            <TypeBadge type={item.mediaType} />
+            <EngagementBadge
+              rate={rate}
+              tier={scale.tierOf(rate)}
+              median={scale.median}
+            />
+          </span>
           <span className="font-mono text-micro text-text-muted">
             {formatPostDate(item.timestamp)}
           </span>
@@ -398,7 +448,7 @@ function ThreadsPostCard({ item }: { item: ThreadsMediaItem }) {
         <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg border border-line-soft bg-surface-raised/40 p-2 text-center">
           <div>
             <div className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <Eye className="size-3 text-accent-400" />
+              <Eye className="size-3 text-mod" />
               <span>Prikazi</span>
             </div>
             <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">

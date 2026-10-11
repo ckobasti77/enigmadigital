@@ -216,7 +216,7 @@ export function PopulationPyramidChart({
                       className={cn(
                         "h-full rounded-l-[4px] transition-opacity cursor-pointer",
                         hovered && hovered.age === row.age && hovered.gender === "F"
-                          ? "opacity-100 ring-1 ring-accent-400"
+                          ? "opacity-100 ring-1 ring-mod"
                           : "opacity-90 hover:opacity-100",
                       )}
                       style={{
@@ -248,7 +248,7 @@ export function PopulationPyramidChart({
                       className={cn(
                         "h-full rounded-r-[4px] transition-opacity cursor-pointer",
                         hovered && hovered.age === row.age && hovered.gender === "M"
-                          ? "opacity-100 ring-1 ring-accent-400"
+                          ? "opacity-100 ring-1 ring-mod"
                           : "opacity-90 hover:opacity-100",
                       )}
                       style={{

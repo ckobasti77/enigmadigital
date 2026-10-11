@@ -101,7 +101,7 @@ export function PostDetailHeader({
               <div className="flex flex-wrap items-center gap-2">
                 {/* Media Type Badge */}
                 <span className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-text-primary">
-                  <TypeIcon className="size-3.5 text-accent-400" aria-hidden="true" />
+                  <TypeIcon className="size-3.5 text-mod" aria-hidden="true" />
                   {typeLabel}
                 </span>
 
@@ -112,7 +112,7 @@ export function PostDetailHeader({
 
                 {/* Deleted Indicator */}
                 {deletedAt !== undefined && (
-                  <span className="inline-flex items-center gap-1 rounded-md border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-400">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-danger-line bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger">
                     <Trash2 className="size-3" aria-hidden="true" />
                     Obrisano na Instagramu
                   </span>
@@ -145,7 +145,7 @@ export function PostDetailHeader({
                   href={permalink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface-raised px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-surface-raised/80 hover:text-accent-400"
+                  className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface-raised px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-surface-raised/80 hover:text-mod"
                 >
                   <span>Otvori na Instagramu</span>
                   <ExternalLink className="size-3.5" aria-hidden="true" />

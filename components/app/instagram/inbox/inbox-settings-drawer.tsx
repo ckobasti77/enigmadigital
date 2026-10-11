@@ -275,7 +275,7 @@ export function InboxSettingsDrawer({
         {/* Tab 1: Ledolomci (Ice Breakers) */}
         {activeTab === "icebreakers" && (
           <div className="space-y-4 pt-2">
-            <div className="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
+            <div className="flex items-start gap-3 rounded-lg border border-warning-line bg-warning-soft p-3 text-xs leading-relaxed text-warning dark:text-warning">
               <Info className="size-4 shrink-0 mt-0.5" />
               <div>
                 <strong>Važna napomena za Ledolomce:</strong> Prikazuju se isključivo na

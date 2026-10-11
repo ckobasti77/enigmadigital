@@ -151,7 +151,7 @@ export function AudiencesView() {
 
           <Button
             size="sm"
-            variant="secondary"
+            variant="primary"
             onClick={() => setOpenCustomDialog(true)}
             disabled={!tosAccepted}
             title={
@@ -167,6 +167,7 @@ export function AudiencesView() {
 
           <Button
             size="sm"
+            variant="secondary"
             onClick={() => setOpenLookalikeDialog(true)}
             disabled={!tosAccepted}
             title={
@@ -304,7 +305,7 @@ export function AudiencesView() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-line bg-surface-raised shadow-card">
           <CardContent className="flex items-center gap-3.5 p-4">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-mod-soft text-mod">
               <Layers className="size-5" />
             </div>
             <div className="flex flex-col">
@@ -332,7 +333,7 @@ export function AudiencesView() {
 
         <Card className="border-line bg-surface-raised shadow-card">
           <CardContent className="flex items-center gap-3.5 p-4">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-mod-soft text-mod">
               <Sparkles className="size-5" />
             </div>
             <div className="flex flex-col">

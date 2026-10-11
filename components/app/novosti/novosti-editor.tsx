@@ -679,7 +679,7 @@ export function NovostiEditor({
               variant="outline"
               size="xs"
               onClick={handleRunHumanizer}
-              className="gap-1 text-xs text-accent-400 hover:bg-accent-400/10"
+              className="gap-1 text-xs text-mod hover:bg-mod-soft"
             >
               <Sparkles className="size-3" />
               <span>Proveri humanizer</span>
@@ -708,7 +708,7 @@ export function NovostiEditor({
           {/* Humanizer brzi status ispod editora */}
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-surface/50 p-3 text-xs">
             <div className="flex items-center gap-2">
-              <Sparkles className="size-4 text-accent-400" />
+              <Sparkles className="size-4 text-mod" />
               <span>
                 Humanizer provera:{" "}
                 {humanizerPassedAt ? (
@@ -1056,7 +1056,7 @@ export function NovostiEditor({
           <Card className="w-full max-w-lg rounded-xl border border-line bg-surface-raised p-5 shadow-elev-3">
             <div className="flex items-center justify-between border-b border-line pb-3">
               <div className="flex items-center gap-2">
-                <Sparkles className="size-4 text-accent-400" />
+                <Sparkles className="size-4 text-mod" />
                 <h4 className="text-sm font-semibold text-foreground">
                   Provera stila
                 </h4>
@@ -1124,7 +1124,7 @@ export function NovostiEditor({
               ) : (
                 <div className="rounded-lg border border-success/30 bg-success/5 p-3">
                   <p className="font-medium text-success">
-                    ✓ Tekst je prošao sva merljiva pravila humanizera!
+                    Tekst je prošao sva merljiva pravila humanizera.
                   </p>
                 </div>
               )}
@@ -1141,9 +1141,9 @@ export function NovostiEditor({
               </Button>
               <Button
                 type="button"
+                variant="primary"
                 size="sm"
                 onClick={handleApproveHumanizer}
-                className="bg-accent-400 text-surface-canvas hover:bg-accent-300"
               >
                 Potvrdi proveru
               </Button>

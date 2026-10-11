@@ -3,26 +3,52 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { ChartNoAxesColumn, Unplug } from "lucide-react";
+import {
+  ChartNoAxesColumn,
+  Eye,
+  Heart,
+  MessageCircle,
+  Percent,
+  Radio,
+  Unplug,
+} from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Reveal } from "@/components/motion/reveal";
 import { useDateRange } from "@/components/app/date-range-picker";
-import { EmptyState } from "@/components/app/empty-state";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
 import { RateLimitBanner } from "@/components/app/rate-limit-banner";
-import { KpiTile, KpiTileSkeleton } from "@/components/app/analytics/kpi-tile";
+import {
+  ChannelFocus,
+  ChannelFocusSkeleton,
+  useChannelSync,
+} from "@/components/app/system/channel-focus";
+import { EmptyState } from "@/components/app/system/empty-state";
+import { KpiTile, KpiTileSkeleton } from "@/components/app/system/kpi-tile";
+import { PageHeader } from "@/components/app/system/page-header";
+import { useNow } from "@/components/app/use-now";
+import { Button } from "@/components/ui/button";
 import { FacebookChart, FacebookChartSkeleton } from "./facebook-chart";
 import {
   FacebookContentGrid,
   FacebookContentGridSkeleton,
 } from "./facebook-content-grid";
+import { channelReadiness } from "@/lib/channel-readiness";
 import { deltaPct, fillFbDays, summarizeFb } from "@/lib/metrics";
-import { formatNumber, formatSignedPercent } from "@/lib/format";
+import {
+  formatNumber,
+  formatPercent,
+  formatSignedPercent,
+} from "@/lib/format";
+
+const DESCRIPTION =
+  "Pratioci, prikazi i angažovanja stranice u odnosu na prethodni period iste dužine.";
 
 /**
- * Facebook Page dashboard. Same layout as the Instagram one on purpose — KPI
- * row, timeline, content grid — so that switching channels does not mean
- * learning a second screen.
+ * Facebook Page dashboard. Same layout as the Instagram one on purpose — focus
+ * card, KPI row, timeline, content grid — so that switching channels does not
+ * mean learning a second screen.
+ *
+ * Sa stranice se iz aplikacije ne objavljuje; jedino što se ovde RADI je
+ * moderacija, pa je primarno dugme „Odgovori na komentare".
  */
 export function FacebookDashboard() {
   const { range } = useDateRange();
@@ -81,96 +107,176 @@ export function FacebookDashboard() {
   const prevEngagementRate =
     prev && prev.impressions > 0 ? prev.engagements / prev.impressions : 0;
 
+  // Spremnost kanala: sve iz upita koje ekran i ljuska već drže otvorene.
+  const sync = useChannelSync("meta_fb");
+  const commentCounts = useQuery(api.fbCommentsStore.filterCounts);
+  const now = useNow();
+  const lastPostAt = useMemo(() => {
+    if (!posts) return null;
+    const live = posts.filter((p) => p.deletedAt === undefined);
+    return live.length > 0 ? Math.max(...live.map((p) => p.publishedAt)) : null;
+  }, [posts]);
+  const readiness =
+    sync && commentCounts && pageInfo !== undefined
+      ? channelReadiness({
+          connected: pageInfo !== null,
+          lastSyncAt: sync.lastSyncAt ?? pageInfo?.lastSyncAt ?? null,
+          syncFailed: sync.syncFailed,
+          lastPostAt,
+          unanswered: commentCounts.unanswered,
+          unansweredCapped: commentCounts.unanswered >= commentCounts.cap,
+          now,
+        })
+      : undefined;
+
   return (
-    <div className="flex flex-1 flex-col gap-8">
+    <div className="flex flex-1 flex-col gap-6">
+      <PageHeader
+        variant="module"
+        description={DESCRIPTION}
+        actions={
+          fbConnected && (
+            <Button
+              variant="primary"
+              render={<Link href="/facebook/komentari" />}
+              nativeButton={false}
+            >
+              <MessageCircle aria-hidden />
+              Odgovori na komentare
+            </Button>
+          )
+        }
+      />
+
       <RateLimitBanner network="Facebook" />
 
       {!fbConnected ? (
-        <EmptyState icon={Unplug}>
-          Facebook stranica još nije povezana.{" "}
-          <Link
-            href="/settings"
-            className="text-accent-400 underline-offset-4 hover:underline"
-          >
-            Poveži je u podešavanjima
-          </Link>
-          .
+        <EmptyState
+          icon={Unplug}
+          variant="mission"
+          title="Poveži Facebook stranicu"
+          steps={[
+            { label: "Poveži Facebook stranicu u Podešavanjima" },
+            { label: "Prva sinhronizacija povlači uvide i objave stranice" },
+            { label: "Odgovori na prvi komentar sa stranice" },
+          ]}
+          action={
+            <Button
+              variant="primary"
+              render={<Link href="/settings" />}
+              nativeButton={false}
+            >
+              Poveži Facebook
+            </Button>
+          }
+        >
+          Posle povezivanja ovde stižu pratioci, prikazi i objave stranice.
         </EmptyState>
       ) : loading ? (
-        <FacebookDashboardSkeleton />
+        <FacebookDashboardBodySkeleton />
+      ) : cur.impressions === 0 && cur.fans === 0 && posts.length === 0 ? (
+        <>
+          <EmptyState
+            icon={ChartNoAxesColumn}
+            variant="line"
+            title="Još nema podataka za ovaj period."
+          >
+            Uvidi stižu pri prvoj sinhronizaciji posle povezivanja stranice.
+          </EmptyState>
+          <EmptyState
+            icon={Radio}
+            variant="mission"
+            size="sm"
+            title="Pokreni kanal"
+            steps={[
+              { label: "Poveži Facebook stranicu u Podešavanjima", done: true },
+              {
+                label: "Prva sinhronizacija povlači uvide i objave stranice",
+                done: readiness?.segments.some(
+                  (s) => s.key === "sync" && s.done,
+                ),
+              },
+              { label: "Odgovori na prvi komentar sa stranice" },
+            ]}
+          >
+            Stranica je povezana. Brojevi stižu posle prve sinhronizacije.
+          </EmptyState>
+        </>
       ) : (
         <>
-          <Reveal>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <KpiTile
-                label="Pratioci stranice"
-                primary
-                value={cur.fans}
-                format={formatNumber}
-                delta={{ kind: "pct", value: deltaPct(cur.fans, prev.fans) }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={series.map((d) => d.fans)}
-              />
-              <KpiTile
-                label="Prikazi"
-                value={cur.impressions}
-                format={formatNumber}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(cur.impressions, prev.impressions),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={series.map((d) => d.impressions)}
-              />
-              <KpiTile
-                label="Angažovanja"
-                value={cur.engagements}
-                format={formatNumber}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(cur.engagements, prev.engagements),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={series.map((d) => d.engagements)}
-              />
-              <KpiTile
-                label="Angažovanja po prikazu"
-                value={engagementRate}
-                format={(value) => formatNumber(Math.round(value * 1000) / 10)}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(engagementRate, prevEngagementRate),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={series.map((d) =>
-                  d.impressions > 0 ? d.engagements / d.impressions : 0,
-                )}
-              />
-            </div>
-          </Reveal>
+          <ChannelFocus
+            label="Pratioci stranice"
+            value={cur.fans}
+            format={formatNumber}
+            delta={deltaPct(cur.fans, prev.fans)}
+            formatDelta={formatSignedPercent}
+            compareLabel={compareLabel}
+            note="trenutno stanje stranice"
+            readiness={readiness}
+            next={
+              readiness?.next === "connected" || readiness?.next === "sync" ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  render={<Link href="/settings" />}
+                  nativeButton={false}
+                >
+                  Otvori podešavanja
+                </Button>
+              ) : null
+            }
+          />
 
-          {cur.impressions === 0 && cur.fans === 0 && posts.length === 0 ? (
-            <EmptyState icon={ChartNoAxesColumn}>
-              Nema podataka za izabrani period. Uvidi stižu pri prvoj
-              sinhronizaciji posle povezivanja stranice.
-            </EmptyState>
-          ) : (
-            <>
-              <Reveal delay={0.05}>
-                <ChartErrorBoundary>
-                  <FacebookChart data={series} />
-                </ChartErrorBoundary>
-              </Reveal>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 [&>*:last-child]:col-span-2 lg:[&>*:last-child]:col-span-1">
+            <KpiTile
+              label="Prikazi"
+              icon={Eye}
+              value={cur.impressions}
+              format={formatNumber}
+              delta={{
+                kind: "pct",
+                value: deltaPct(cur.impressions, prev.impressions),
+              }}
+              formatDelta={formatSignedPercent}
+              compareLabel={compareLabel}
+              spark={series.map((d) => d.impressions)}
+            />
+            <KpiTile
+              label="Angažovanja"
+              icon={Heart}
+              value={cur.engagements}
+              format={formatNumber}
+              delta={{
+                kind: "pct",
+                value: deltaPct(cur.engagements, prev.engagements),
+              }}
+              formatDelta={formatSignedPercent}
+              compareLabel={compareLabel}
+              spark={series.map((d) => d.engagements)}
+            />
+            <KpiTile
+              label="Angažovanja po prikazu"
+              shortLabel="Po prikazu"
+              icon={Percent}
+              value={engagementRate}
+              format={formatPercent}
+              delta={{
+                kind: "pct",
+                value: deltaPct(engagementRate, prevEngagementRate),
+              }}
+              formatDelta={formatSignedPercent}
+              compareLabel={compareLabel}
+              spark={series.map((d) =>
+                d.impressions > 0 ? d.engagements / d.impressions : 0,
+              )}
+            />
+          </div>
 
-              <Reveal delay={0.1}>
-                <FacebookContentGrid posts={posts} />
-              </Reveal>
-            </>
-          )}
+          <ChartErrorBoundary>
+            <FacebookChart data={series} />
+          </ChartErrorBoundary>
+
+          <FacebookContentGrid posts={posts} />
         </>
       )}
     </div>
@@ -187,11 +293,11 @@ function useStale<T>(value: T | undefined): T | undefined {
   return value ?? last;
 }
 
-export function FacebookDashboardSkeleton() {
+function FacebookDashboardBodySkeleton() {
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiTileSkeleton />
+      <ChannelFocusSkeleton />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 [&>*:last-child]:col-span-2 lg:[&>*:last-child]:col-span-1">
         <KpiTileSkeleton />
         <KpiTileSkeleton />
         <KpiTileSkeleton />
@@ -199,5 +305,15 @@ export function FacebookDashboardSkeleton() {
       <FacebookChartSkeleton />
       <FacebookContentGridSkeleton />
     </>
+  );
+}
+
+/** Zaglavlje je isto kao na učitanom ekranu, pa podaci ništa ne pomeraju. */
+export function FacebookDashboardSkeleton() {
+  return (
+    <div className="flex flex-1 flex-col gap-6">
+      <PageHeader variant="module" description={DESCRIPTION} />
+      <FacebookDashboardBodySkeleton />
+    </div>
   );
 }

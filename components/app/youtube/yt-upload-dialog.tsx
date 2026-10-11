@@ -102,14 +102,9 @@ export function YtUploadButton() {
 
   return (
     <>
-      <Button
-        type="button"
-        size="sm"
-        onClick={() => setOpen(true)}
-        className="h-auto gap-1.5 bg-accent-400 px-3 py-2 text-xs font-semibold text-text-inverse hover:bg-accent-400/90"
-      >
-        <Upload className="size-3.5" aria-hidden />
-        <span>Pošalji video</span>
+      <Button type="button" variant="primary" onClick={() => setOpen(true)}>
+        <Upload aria-hidden />
+        Pošalji video
       </Button>
       <YtUploadDialog open={open} onOpenChange={setOpen} />
     </>
@@ -351,7 +346,7 @@ function YtUploadForm({
     <div className="space-y-4">
       <DialogHeader>
         <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg border border-accent-400/20 bg-accent-400/10 text-accent-400">
+          <div className="flex size-8 items-center justify-center rounded-lg border border-mod-line bg-mod-soft text-mod">
             <Upload className="size-4" />
           </div>
           <div>
@@ -508,7 +503,7 @@ function YtUploadForm({
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
               disabled={uploading}
-              className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-accent-400 focus:outline-hidden"
+              className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-mod focus:outline-hidden"
             >
               {VIDEO_CATEGORIES.map((category) => (
                 <option key={category.id} value={category.id}>
@@ -610,7 +605,7 @@ function FileDropZone({
         className={cn(
           "flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-6 text-center transition-colors",
           dragging
-            ? "border-accent-400/60 bg-accent-400/5"
+            ? "border-mod-line bg-mod-soft"
             : problem !== null
               ? "border-danger/40 bg-danger/5"
               : "border-line bg-surface/40",
@@ -770,10 +765,10 @@ function UploadProgressPanel({
   const percent = Math.round(progress.ratio * 100);
 
   return (
-    <div className="rounded-xl border border-accent-400/30 bg-card px-3.5 py-3" role="status">
+    <div className="rounded-xl border border-mod-line bg-card px-3.5 py-3" role="status">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-xs text-foreground">{PHASE_LABELS[phase]}</p>
-        <p className="font-mono text-xs font-semibold tabular-nums text-accent-400">
+        <p className="font-mono text-xs font-semibold tabular-nums text-mod">
           {percent}%
         </p>
       </div>
@@ -828,7 +823,7 @@ function ProgressRail({ ratio }: { ratio: number }) {
       <div
         ref={ref}
         style={{ width }}
-        className="h-full rounded-full bg-accent-400"
+        className="h-full rounded-full bg-mod-strong"
       />
     </div>
   );
@@ -918,7 +913,7 @@ function UploadDoneView({
           href={`https://studio.youtube.com/video/${videoId}/edit`}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-accent-400 underline-offset-4 hover:underline"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-mod underline-offset-4 hover:underline"
         >
           <span>Otvori u YouTube Studiju</span>
           <ExternalLink className="size-3" aria-hidden />

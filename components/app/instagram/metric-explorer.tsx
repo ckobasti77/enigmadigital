@@ -317,7 +317,7 @@ export function MetricExplorer({
               format: formatNumber,
               baseline: "fitted",
             }}
-            emptyReason="Instagram nije prijavio broj pratilaca u ovom periodu. Istorija seže 90 dana unazad od prve sinhronizacije."
+            emptyReason="Instagram nije prijavio pratioce u ovom periodu. Istorija seže 90 dana unazad."
           />
         ) : isDiverging ? (
           <FollowsDivergingChart
@@ -358,7 +358,7 @@ export function MetricExplorer({
               format: formatNumber,
               baseline: metric.baseline ?? "zero",
             }}
-            emptyReason="Nema podataka za ovu meru u izabranom periodu. Istorija seže 90 dana unazad od prve sinhronizacije."
+            emptyReason="Nema podataka za ovu meru u periodu. Istorija seže 90 dana unazad."
           />
         )}
       </div>

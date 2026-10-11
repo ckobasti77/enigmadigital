@@ -158,7 +158,7 @@ function PostLikeButton({
         onClick={() => void toggle()}
         className={cn(
           "text-text-muted hover:text-foreground",
-          value && "text-accent-400 hover:text-accent-400",
+          value && "text-mod hover:text-mod",
         )}
       >
         <ThumbsUp data-icon="inline-start" />

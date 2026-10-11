@@ -234,7 +234,7 @@ function YtAutomationEditorForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <DialogHeader>
         <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg border border-accent-400/20 bg-accent-400/10 text-accent-400">
+          <div className="flex size-8 items-center justify-center rounded-lg border border-mod-line bg-mod-soft text-mod">
             <MessageSquareReply className="size-4" />
           </div>
           <div>
@@ -393,7 +393,7 @@ function YtAutomationEditorForm({
           <div className="flex items-center justify-between gap-2">
             <div>
               <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                <MessageSquareReply className="size-3.5 text-accent-400" />
+                <MessageSquareReply className="size-3.5 text-mod" />
                 <span>Javni odgovor na komentar</span>
               </span>
               <p className="mt-0.5 text-xs text-text-muted">
@@ -446,7 +446,7 @@ function YtAutomationEditorForm({
           <div className="flex items-center justify-between gap-2">
             <div>
               <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                <ShieldCheck className="size-3.5 text-accent-400" />
+                <ShieldCheck className="size-3.5 text-mod" />
                 <span>Moderacija komentara</span>
               </span>
               <p className="mt-0.5 text-xs text-text-muted">
@@ -532,7 +532,7 @@ function YtAutomationEditorForm({
           <div className="flex items-center justify-between gap-2">
             <div>
               <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                <Trash2 className="size-3.5 text-accent-400" />
+                <Trash2 className="size-3.5 text-mod" />
                 <span>Brisanje komentara</span>
               </span>
               <p className="mt-0.5 text-xs text-text-muted">
@@ -673,7 +673,7 @@ export function SegmentedControl({
           className={cn(
             "rounded-lg border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-50",
             value === option.value
-              ? "border-accent-400 bg-accent-400/10 font-semibold text-accent-400"
+              ? "border-mod bg-mod-soft font-semibold text-mod"
               : "border-line bg-surface text-text-muted hover:bg-surface-raised hover:text-foreground",
           )}
         >

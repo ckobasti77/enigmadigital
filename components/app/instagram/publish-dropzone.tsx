@@ -99,7 +99,7 @@ export function PublishDropzone({
         className={cn(
           "flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-6 py-8 text-center transition-colors",
           dragging
-            ? "border-accent-400/60 bg-accent-400/5"
+            ? "border-mod-line bg-mod-soft"
             : "border-line bg-bg-950 hover:border-line-strong",
           disabled && "pointer-events-none opacity-50",
         )}
@@ -205,7 +205,7 @@ function PickedRow({
       className={cn(
         "flex items-center gap-3 rounded-xl border bg-surface p-2 transition-colors",
         problem !== null ? "border-danger/40" : "border-line",
-        dropSide === "over" && "border-accent-400/60 bg-accent-400/5",
+        dropSide === "over" && "border-mod-line bg-mod-soft",
       )}
     >
       {reorderable && (

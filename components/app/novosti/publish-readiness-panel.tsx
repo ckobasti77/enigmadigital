@@ -90,7 +90,7 @@ export function PublishReadinessPanel({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <FileCheck2 className="size-4 text-accent-400" />
+            <FileCheck2 className="size-4 text-mod" />
             <h3 className="heading-caps text-micro font-medium text-foreground">
               Spremnost za objavu
             </h3>
@@ -143,7 +143,7 @@ export function PublishReadinessPanel({
                 variant="ghost"
                 size="xs"
                 onClick={onRunHumanizer}
-                className="mt-1.5 h-6 text-xs text-accent-400 hover:bg-accent-400/10"
+                className="mt-1.5 h-6 text-xs text-mod hover:bg-mod-soft"
               >
                 <Sparkles className="size-3" />
                 <span>Pokreni proveru sad</span>
@@ -230,12 +230,8 @@ export function PublishReadinessPanel({
           type="button"
           onClick={handlePublish}
           disabled={!gates.allPassed || isPublishing || isSaving || !post._id}
-          className={cn(
-            "gap-2 font-medium transition-all",
-            gates.allPassed
-              ? "bg-accent-400 text-surface-canvas hover:bg-accent-300"
-              : "opacity-60",
-          )}
+          variant="primary"
+          className="gap-2 font-medium"
         >
           {isPublishing ? (
             <>

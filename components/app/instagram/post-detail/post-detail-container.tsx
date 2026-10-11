@@ -29,7 +29,7 @@ export function PostDetailContainer({ mediaId }: { mediaId: string }) {
 
         <Card className="flex flex-col items-center justify-center gap-4 p-12 text-center shadow-card ring-line">
           <div className="flex size-12 items-center justify-center rounded-full bg-surface-raised text-text-muted">
-            <AlertCircle className="size-6 text-accent-400" aria-hidden="true" />
+            <AlertCircle className="size-6 text-mod" aria-hidden="true" />
           </div>
           <div className="space-y-1">
             <h2 className="text-lg font-semibold text-foreground">

@@ -51,7 +51,7 @@ export function AgeGenderHeatTable({
     if (val <= 0) return { backgroundColor: "transparent" };
     const ratio = Math.min(1, Math.max(0.06, val / maxValue));
     return {
-      backgroundColor: `rgba(56, 189, 248, ${(ratio * 0.28).toFixed(3)})`,
+      backgroundColor: `color-mix(in oklch, var(--mod) ${(ratio * 28).toFixed(1)}%, transparent)`,
     };
   };
 
@@ -68,7 +68,7 @@ export function AgeGenderHeatTable({
             className={cn(
               "rounded px-2 py-1 transition-colors",
               metric === "spend"
-                ? "bg-surface-raised font-medium text-accent-400"
+                ? "bg-surface-raised font-medium text-mod"
                 : "text-text-muted hover:text-foreground",
             )}
           >
@@ -80,7 +80,7 @@ export function AgeGenderHeatTable({
             className={cn(
               "rounded px-2 py-1 transition-colors",
               metric === "impressions"
-                ? "bg-surface-raised font-medium text-accent-400"
+                ? "bg-surface-raised font-medium text-mod"
                 : "text-text-muted hover:text-foreground",
             )}
           >
@@ -92,7 +92,7 @@ export function AgeGenderHeatTable({
             className={cn(
               "rounded px-2 py-1 transition-colors",
               metric === "ctr"
-                ? "bg-surface-raised font-medium text-accent-400"
+                ? "bg-surface-raised font-medium text-mod"
                 : "text-text-muted hover:text-foreground",
             )}
           >
@@ -104,7 +104,7 @@ export function AgeGenderHeatTable({
             className={cn(
               "rounded px-2 py-1 transition-colors",
               metric === "results"
-                ? "bg-surface-raised font-medium text-accent-400"
+                ? "bg-surface-raised font-medium text-mod"
                 : "text-text-muted hover:text-foreground",
             )}
           >

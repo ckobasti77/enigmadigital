@@ -101,7 +101,7 @@ export function PostProfileActions({
   return (
     <div className={cn("flex flex-col gap-4", className)}>
       <div className="flex flex-col gap-1">
-        <span className="heading-caps text-micro font-semibold text-accent-400">
+        <span className="heading-caps text-micro font-semibold text-mod">
           Najvredniji rezultati
         </span>
         <h2 className="text-xl font-bold tracking-tight text-foreground">
@@ -139,7 +139,7 @@ export function PostProfileActions({
       <Card className="flex flex-col gap-5 p-5 shadow-card ring-line">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/60 pb-3">
           <div className="flex items-center gap-2">
-            <Activity className="size-4 text-accent-400" aria-hidden="true" />
+            <Activity className="size-4 text-mod" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-foreground">
               Radnje preduzete na profilu (Profile activity)
             </h3>

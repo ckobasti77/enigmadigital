@@ -32,7 +32,7 @@ export function FacebookChart({ data }: { data: FbDailyPoint[] }) {
         values: data.map((d) => d.impressions),
         format: formatNumber,
       }}
-      emptyReason="Facebook nije prijavio nijedan prikaz ni pratioca u ovom periodu. Uvidi stranice stižu pri sinhronizaciji na svakih 6 sati."
+      emptyReason="Facebook nije prijavio prikaze ni pratioce u ovom periodu. Uvidi stižu na 6 sati."
     />
   );
 }

@@ -88,7 +88,7 @@ export function CapiSection() {
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
                   isConfigured
-                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                    ? "bg-success-soft text-success border border-success-line"
                     : "bg-warning/10 text-warning border border-warning/20"
                 }`}
               >
@@ -166,7 +166,7 @@ export function CapiSection() {
           <div className="flex flex-col rounded-lg border border-line bg-surface-subtle p-3">
             <div className="flex items-center justify-between text-text-muted">
               <span className="text-xs font-medium">Poslati (7 dana)</span>
-              <Send className="size-4 text-emerald-500" />
+              <Send className="size-4 text-success" />
             </div>
             <div className="mt-2 flex items-baseline gap-1">
               <span className="font-mono text-2xl font-bold text-foreground">
@@ -179,7 +179,7 @@ export function CapiSection() {
           <div className="flex flex-col rounded-lg border border-line bg-surface-subtle p-3">
             <div className="flex items-center justify-between text-text-muted">
               <span className="text-xs font-medium">Na čekanju</span>
-              <Clock className="size-4 text-accent-400" />
+              <Clock className="size-4 text-mod" />
             </div>
             <div className="mt-2 flex items-baseline gap-1">
               <span className="font-mono text-2xl font-bold text-foreground">

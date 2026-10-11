@@ -241,9 +241,9 @@ export function CampaignsTable({
       return <ArrowUpDown className="size-3 text-text-muted/60 opacity-0 group-hover:opacity-100" />;
     }
     return sort.dir === "asc" ? (
-      <ArrowUp className="size-3 text-accent-400" />
+      <ArrowUp className="size-3 text-mod" />
     ) : (
-      <ArrowDown className="size-3 text-accent-400" />
+      <ArrowDown className="size-3 text-mod" />
     );
   };
 
@@ -416,7 +416,7 @@ export function CampaignsTable({
 
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="font-semibold text-foreground truncate max-w-sm group-hover:text-accent-400 transition-colors">
+                              <span className="font-semibold text-foreground truncate max-w-sm group-hover:text-mod transition-colors">
                                 {row.name}
                               </span>
 
@@ -444,7 +444,7 @@ export function CampaignsTable({
 
                             <div className="mt-1 flex flex-wrap items-center gap-2 text-micro text-text-muted">
                               <span className="inline-flex items-center gap-1 rounded bg-surface px-1.5 py-0.5 text-text-secondary">
-                                <Target className="size-2.5 text-accent-400" />
+                                <Target className="size-2.5 text-mod" />
                                 {formatObjective(row.objective)}
                               </span>
                               <span className="inline-flex items-center gap-1 font-mono tabular-nums">
@@ -452,7 +452,7 @@ export function CampaignsTable({
                                 {formatFreshness(row.syncedAt, row.syncPriority)}
                               </span>
                               {row.searchImpressionShare !== undefined && (
-                                <span className="inline-flex items-center gap-1 text-micro font-mono text-accent-400 bg-accent-400/10 border border-accent-400/20 px-1.5 py-0.5 rounded">
+                                <span className="inline-flex items-center gap-1 text-micro font-mono text-mod bg-mod-soft border border-mod-line px-1.5 py-0.5 rounded">
                                   IS: {formatPercent(row.searchImpressionShare)}
                                 </span>
                               )}
@@ -471,7 +471,7 @@ export function CampaignsTable({
                         <div className="flex justify-center">
                           <SpendSparkline
                             values={sparkValues}
-                            className="text-accent-400/80 group-hover:text-accent-400"
+                            className="text-mod group-hover:text-mod"
                           />
                         </div>
                       </TableCell>
@@ -551,7 +551,7 @@ export function CampaignsTable({
                                   })
                                 }
                                 title="Promeni budžet"
-                                className="flex size-6 items-center justify-center rounded border border-line-soft bg-surface text-text-muted hover:border-accent-400/40 hover:bg-accent-400/10 hover:text-accent-400 transition-colors"
+                                className="flex size-6 items-center justify-center rounded border border-line-soft bg-surface text-text-muted hover:border-mod-line hover:bg-mod-soft hover:text-mod transition-colors"
                               >
                                 <TrendingUp className="size-3" />
                               </button>

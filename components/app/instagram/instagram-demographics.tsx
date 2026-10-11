@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useQuery } from "convex/react";
 import { Table, BarChart2, Unplug, Users, UserCheck } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Reveal } from "@/components/motion/reveal";
 import { EmptyState } from "@/components/app/empty-state";
 import { RateLimitBanner } from "@/components/app/rate-limit-banner";
 import { Button } from "@/components/ui/button";
@@ -62,7 +61,7 @@ export function InstagramDemographics() {
           Instagram još nije povezan.{" "}
           <Link
             href="/settings"
-            className="text-accent-400 underline-offset-4 hover:underline"
+            className="text-mod underline-offset-4 hover:underline"
           >
             Poveži ga u podešavanjima
           </Link>
@@ -95,7 +94,7 @@ export function InstagramDemographics() {
                   onChange={(e) =>
                     setTimeframe(e.target.value as DemographicTimeframe)
                   }
-                  className="h-8 rounded-xs border border-line bg-surface px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-accent-400 cursor-pointer"
+                  className="h-8 rounded-xs border border-line bg-surface px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-mod cursor-pointer"
                 >
                   {DEMOGRAPHIC_TIMEFRAMES.map((tf) => (
                     <option key={tf} value={tf}>
@@ -164,10 +163,10 @@ export function InstagramDemographics() {
               </div>
             ) : (
               /*
-               * Kad ima podataka: ulazak kroz Reveal.
-               * Menjanje filtera ne okida ponovni Reveal — sveži podaci ulaze kratkim CSS fade prelazom.
+               * Kad ima podataka: sadržaj stoji mirno (radni ekran se ne animira).
+               * Menjanje filtera ulazi kratkim CSS fade prelazom.
                */
-              <Reveal>
+              <div>
                 <div
                   className={cn(
                     "flex flex-col gap-8 transition-opacity duration-200",
@@ -209,7 +208,7 @@ export function InstagramDemographics() {
                     </>
                   )}
                 </div>
-              </Reveal>
+              </div>
             )}
           </div>
         </>

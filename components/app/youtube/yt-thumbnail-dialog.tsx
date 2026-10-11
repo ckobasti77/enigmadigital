@@ -178,7 +178,7 @@ function YtThumbnailForm({
     <div className="space-y-4">
       <DialogHeader>
         <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg border border-accent-400/20 bg-accent-400/10 text-accent-400">
+          <div className="flex size-8 items-center justify-center rounded-lg border border-mod-line bg-mod-soft text-mod">
             <ImageIcon className="size-4" />
           </div>
           <div>
@@ -210,7 +210,7 @@ function YtThumbnailForm({
         className={cn(
           "relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border border-dashed bg-bg-950 transition-colors",
           dragging
-            ? "border-accent-400/60 bg-accent-400/5"
+            ? "border-mod-line bg-mod-soft"
             : problem !== null
               ? "border-danger/40"
               : "border-line",

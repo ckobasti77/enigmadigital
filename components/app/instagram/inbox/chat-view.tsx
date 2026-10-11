@@ -301,7 +301,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border",
                 isExpiringSoon
-                  ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 animate-pulse"
+                  ? "border-warning-line bg-warning-soft text-warning dark:text-warning animate-pulse"
                   : "border-line bg-surface-raised text-foreground",
               )}
               title="Preostalo vreme unutar Meta 24-časovnog prozora za odgovor."
@@ -363,7 +363,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
               >
                 {/* Unsupported message notice */}
                 {msg.isUnsupported && (
-                  <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300 font-medium py-1">
+                  <div className="flex items-center gap-1.5 text-xs text-warning dark:text-warning font-medium py-1">
                     <AlertCircle className="size-4 shrink-0" />
                     <span>Poruka koju Instagram ne isporučuje preko API-ja</span>
                   </div>
@@ -376,7 +376,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                       if (att.type === "like_heart") {
                         return (
                           <div key={attIdx} className="py-1">
-                            <Heart className="size-8 fill-red-500 text-red-500 animate-pulse" />
+                            <Heart className="size-8 fill-danger text-danger animate-pulse" />
                           </div>
                         );
                       }
@@ -469,7 +469,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                   {isOurs && (
                     <span title={msg.status}>
                       {msg.status === "seen" ? (
-                        <CheckCheck className="size-3 text-sky-300" />
+                        <CheckCheck className="size-3 text-info" />
                       ) : (
                         <Check className="size-3" />
                       )}
@@ -646,7 +646,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                       byteLength > 1000
                         ? "text-destructive font-bold"
                         : byteLength > 800
-                          ? "text-amber-500 font-semibold"
+                          ? "text-warning font-semibold"
                           : "text-muted-foreground",
                     )}
                   >
@@ -676,10 +676,10 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                     size="sm"
                     onClick={handleSendHeartSticker}
                     disabled={isSending}
-                    className="text-xs text-muted-foreground hover:text-red-500 h-8 px-2"
+                    className="text-xs text-muted-foreground hover:text-danger h-8 px-2"
                     title="Pošalji lajk srce"
                   >
-                    <Heart className="size-3.5 text-red-500 mr-1" />
+                    <Heart className="size-3.5 text-danger mr-1" />
                     Lajk
                   </Button>
                 </div>
@@ -687,6 +687,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                 <div className="flex items-center gap-2">
                   <Button
                     type="submit"
+                    variant="primary"
                     disabled={
                       isSending ||
                       isByteLimitExceeded ||

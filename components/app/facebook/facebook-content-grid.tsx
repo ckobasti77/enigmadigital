@@ -28,6 +28,12 @@ import { Toggle } from "@/components/ui/toggle";
 import { CountUp } from "@/components/motion/count-up";
 import { Arrive, ArrivalScope } from "@/components/motion/arrive";
 import { EmptyState } from "@/components/app/empty-state";
+import { EngagementBadge } from "@/components/app/system/channel-focus";
+import {
+  engagementRate,
+  engagementScale,
+  type EngagementScale,
+} from "@/lib/channel-readiness";
 import { formatNumber, pluralSr } from "@/lib/format";
 import { useImageStatus } from "@/lib/use-image-status";
 import { cn } from "@/lib/utils";
@@ -81,7 +87,7 @@ function TypeBadge({ statusType }: { statusType: string }) {
 
   return (
     <span className="inline-flex items-center gap-1 rounded-md bg-bg-950/80 px-2 py-0.5 text-micro font-semibold text-text-primary backdrop-blur-md">
-      <Icon className="size-3 text-accent-400" aria-hidden />
+      <Icon className="size-3 text-mod" aria-hidden />
       {label}
     </span>
   );
@@ -123,7 +129,7 @@ function PostImage({ src, alt }: { src?: string; alt: string }) {
 
       {status === "error" && (
         <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-gradient-to-br from-bg-900 via-surface to-bg-950 p-4">
-          <div className="flex size-10 items-center justify-center rounded-xl border border-line bg-surface-raised/60 text-text-muted transition-colors group-hover:border-line-strong group-hover:text-accent-400">
+          <div className="flex size-10 items-center justify-center rounded-xl border border-line bg-surface-raised/60 text-text-muted transition-colors group-hover:border-line-strong group-hover:text-mod">
             <FileText className="size-5" aria-hidden />
           </div>
         </div>
@@ -165,6 +171,11 @@ function GonePost({ className }: { className?: string }) {
   );
 }
 
+/** Interakcije po prikazu — mera iza bedža angažmana na kartici. */
+function postEngagement(post: FbPostItem): number | null {
+  return engagementRate(post.likes + post.comments + post.shares, post.impressions);
+}
+
 function compare(a: FbPostItem, b: FbPostItem, sort: SortState): number {
   const av = a[sort.key] ?? 0;
   const bv = b[sort.key] ?? 0;
@@ -174,8 +185,10 @@ function compare(a: FbPostItem, b: FbPostItem, sort: SortState): number {
 
 export function FacebookContentGrid({ posts }: { posts: FbPostItem[] }) {
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
-  // Off by default on purpose: what disappeared is information, not noise.
-  const [hideDeleted, setHideDeleted] = useState(false);
+  // On by default, like Instagram: a ranking led by posts that no longer exist
+  // is a ranking of nothing actionable. The toggle keeps the count, so what
+  // disappeared stays one press away.
+  const [hideDeleted, setHideDeleted] = useState(true);
 
   const deletedCount = useMemo(
     () => posts.filter((p) => p.deletedAt !== undefined).length,
@@ -200,6 +213,12 @@ export function FacebookContentGrid({ posts }: { posts: FbPostItem[] }) {
     [visible, sort],
   );
 
+  // Razred angažmana se meri prema medijani objava koje su na ekranu.
+  const scale = useMemo(
+    () => engagementScale(visible.map(postEngagement)),
+    [visible],
+  );
+
   const handleSortChange = (key: SortKey) => {
     setSort((prev) =>
       prev.key === key
@@ -216,7 +235,7 @@ export function FacebookContentGrid({ posts }: { posts: FbPostItem[] }) {
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-mod-soft text-mod">
               <Trophy className="size-4" aria-hidden />
             </div>
             <div>
@@ -224,7 +243,7 @@ export function FacebookContentGrid({ posts }: { posts: FbPostItem[] }) {
                 Top sadržaj
               </h2>
               <p className="text-xs text-text-muted">
-                Najuspešnije 3 objave po broju prikaza
+                Tri objave sa najviše prikaza
               </p>
             </div>
           </div>
@@ -256,7 +275,12 @@ export function FacebookContentGrid({ posts }: { posts: FbPostItem[] }) {
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {topThree.map((post, idx) => (
-              <TopPostCard key={post._id} post={post} rank={idx + 1} />
+              <TopPostCard
+                key={post._id}
+                post={post}
+                rank={idx + 1}
+                scale={scale}
+              />
             ))}
           </div>
         )}
@@ -309,7 +333,7 @@ export function FacebookContentGrid({ posts }: { posts: FbPostItem[] }) {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sorted.map((post) => (
               <Arrive key={post._id} id={post.postId} className="h-full">
-                <PostCard post={post} />
+                <PostCard post={post} scale={scale} />
               </Arrive>
             ))}
           </div>
@@ -341,7 +365,7 @@ function SortButton({
       className={cn(
         "h-7 gap-1 px-2.5 text-xs font-medium transition-colors",
         active
-          ? "bg-surface-raised font-semibold text-accent-400 shadow-xs"
+          ? "bg-surface-raised font-semibold text-mod shadow-xs"
           : "text-text-muted hover:text-foreground",
       )}
     >
@@ -363,8 +387,17 @@ function PostCaption({ message }: { message: string }) {
   );
 }
 
-function TopPostCard({ post, rank }: { post: FbPostItem; rank: number }) {
+function TopPostCard({
+  post,
+  rank,
+  scale,
+}: {
+  post: FbPostItem;
+  rank: number;
+  scale: EngagementScale;
+}) {
   const deleted = post.deletedAt !== undefined;
+  const rate = postEngagement(post);
 
   return (
     <Card
@@ -373,7 +406,7 @@ function TopPostCard({ post, rank }: { post: FbPostItem; rank: number }) {
         deleted
           ? "bg-surface ring-danger/40"
           : rank === 1
-            ? "border-accent-400/40 bg-gradient-to-b from-surface-raised to-surface"
+            ? "border-mod-line bg-surface-raised"
             : "border-line bg-surface",
       )}
     >
@@ -396,7 +429,7 @@ function TopPostCard({ post, rank }: { post: FbPostItem; rank: number }) {
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold shadow-md",
               rank === 1 && !deleted
-                ? "bg-accent-400 text-text-inverse"
+                ? "bg-mod-strong text-text-inverse"
                 : "border border-line-strong bg-surface-raised/95 text-foreground backdrop-blur-md",
             )}
           >
@@ -404,7 +437,12 @@ function TopPostCard({ post, rank }: { post: FbPostItem; rank: number }) {
           </span>
         </div>
 
-        <div className="absolute top-3 right-3">
+        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+          <EngagementBadge
+            rate={rate}
+            tier={scale.tierOf(rate)}
+            median={scale.median}
+          />
           <TypeBadge statusType={post.statusType} />
         </div>
 
@@ -426,7 +464,7 @@ function TopPostCard({ post, rank }: { post: FbPostItem; rank: number }) {
           <span className="text-xs font-medium text-text-muted">
             Ukupno prikaza
           </span>
-          <span className="font-mono text-lg font-bold tabular-nums text-accent-400">
+          <span className="font-mono text-lg font-bold tabular-nums text-mod">
             {post.impressions === undefined
               ? "—"
               : formatNumber(post.impressions)}
@@ -487,8 +525,15 @@ function Stat({
   );
 }
 
-function PostCard({ post }: { post: FbPostItem }) {
+function PostCard({
+  post,
+  scale,
+}: {
+  post: FbPostItem;
+  scale: EngagementScale;
+}) {
   const deleted = post.deletedAt !== undefined;
+  const rate = postEngagement(post);
 
   return (
     <Card
@@ -511,8 +556,13 @@ function PostCard({ post }: { post: FbPostItem }) {
           />
         )}
 
-        <div className="absolute top-2.5 left-2.5">
+        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
           <TypeBadge statusType={post.statusType} />
+          <EngagementBadge
+            rate={rate}
+            tier={scale.tierOf(rate)}
+            median={scale.median}
+          />
         </div>
 
         <div className="absolute top-2.5 right-2.5">
@@ -530,7 +580,7 @@ function PostCard({ post }: { post: FbPostItem }) {
         <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg border border-line-soft bg-surface-raised/40 p-2.5 text-center">
           <div>
             <div className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <Eye className="size-3 text-accent-400" />
+              <Eye className="size-3 text-mod" />
               <span>Prikazi</span>
             </div>
             <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
@@ -581,7 +631,7 @@ function PostCard({ post }: { post: FbPostItem }) {
                 href={post.permalink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 font-medium text-text-secondary transition-colors hover:text-accent-400"
+                className="inline-flex items-center gap-1 font-medium text-text-secondary transition-colors hover:text-mod"
               >
                 <span>Otvori</span>
                 <ExternalLink className="size-3" aria-hidden />

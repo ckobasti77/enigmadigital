@@ -4,8 +4,11 @@ import { AudiencesView } from "@/components/app/ads/audiences-view";
 
 export default function AdsAudiencesPage() {
   return (
-    <div className="flex w-full flex-1 flex-col gap-8">
-      <PageHeader description="Upravljanje prilagođenim (Custom) i sličnim (Lookalike) publikama, status isporuke, procena veličine i provera uslova korišćenja." />
+    <div className="flex w-full flex-1 flex-col gap-6">
+      <PageHeader
+        variant="module"
+        description="Prilagođene i slične publike: status isporuke, procena veličine i uslovi korišćenja."
+      />
 
       <div className="flex flex-1 flex-col">
         <Suspense

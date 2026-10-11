@@ -150,7 +150,7 @@ export function CreateLookalikeAudienceDialog({
         <DialogClose />
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="size-5 text-accent-400" />
+            <Sparkles className="size-5 text-mod" />
             Nova Lookalike (slična) publika
           </DialogTitle>
           <DialogDescription>
@@ -263,7 +263,7 @@ export function CreateLookalikeAudienceDialog({
                 <Label htmlFor="lookalike-ratio" className="text-xs">
                   Veličina publike (Odnos / Ratio)
                 </Label>
-                <span className="font-mono text-sm font-semibold text-accent-400">
+                <span className="font-mono text-sm font-semibold text-mod">
                   {ratioPct}% (odnos { (ratioPct / 100).toFixed(2) })
                 </span>
               </div>
@@ -276,7 +276,7 @@ export function CreateLookalikeAudienceDialog({
                 value={ratioPct}
                 onChange={(e) => setRatioPct(Number(e.target.value))}
                 disabled={submitting}
-                className="h-2 w-full cursor-pointer accent-accent-400"
+                className="h-2 w-full cursor-pointer accent-mod"
               />
               <div className="flex justify-between text-[10px] text-text-muted">
                 <span>1% (Najsličniji)</span>
@@ -293,7 +293,7 @@ export function CreateLookalikeAudienceDialog({
                   onClick={() => setLookalikeType("similarity")}
                   className={`rounded-md border p-2 text-left text-xs transition-colors ${
                     lookalikeType === "similarity"
-                      ? "border-accent-400 bg-accent-400/10 text-foreground"
+                      ? "border-mod bg-mod-soft text-foreground"
                       : "border-line bg-surface-raised text-text-muted"
                   }`}
                 >
@@ -305,7 +305,7 @@ export function CreateLookalikeAudienceDialog({
                   onClick={() => setLookalikeType("reach")}
                   className={`rounded-md border p-2 text-left text-xs transition-colors ${
                     lookalikeType === "reach"
-                      ? "border-accent-400 bg-accent-400/10 text-foreground"
+                      ? "border-mod bg-mod-soft text-foreground"
                       : "border-line bg-surface-raised text-text-muted"
                   }`}
                 >

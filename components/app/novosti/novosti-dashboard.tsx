@@ -5,12 +5,11 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useWorkspace } from "@/components/app/workspace-provider";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
-import { StatTile, StatTileSkeleton } from "@/components/app/system/kpi-tile";
-import { NovostiTable } from "./novosti-table";
+import { PageHeader } from "@/components/app/system/page-header";
+import { NovostiBoard } from "./novosti-board";
 import { NovostiEditor } from "./novosti-editor";
 import {
   type PostItem,
@@ -18,18 +17,13 @@ import {
   type PostCategory,
   type PostKind,
 } from "./novosti-types";
-import {
-  FileText,
-  Plus,
-  RefreshCw,
-  AlertCircle,
-  Newspaper,
-  BookOpen,
-  Send,
-  SlidersHorizontal,
-} from "lucide-react";
-import { Reveal } from "@/components/motion/reveal";
-import { formatNumber } from "@/lib/format";
+import { Plus } from "lucide-react";
+
+const DESCRIPTION =
+  "Članci i beleške za sajt Enigma IT: nacrt, četiri kapije, pa objava.";
+
+const INFO =
+  "Post se objavljuje tek kad prođe četiri kapije: sopstveni dokaz, provera humanizera, ALT opis naslovne slike i podnaslov. Spisak nacrta se pamti na ovom uređaju; objavljeni postovi stižu iz baze.";
 
 const DRAFTS_STORAGE_KEY_PREFIX = "enigma:novosti:drafts:";
 
@@ -185,95 +179,62 @@ export function NovostiDashboard() {
     );
   }
 
+  if (activeView === "editor") {
+    return (
+      <div className="flex flex-1 flex-col gap-6">
+        {/* Uređivač ima svoje zaglavlje; ovde ostaje samo H1 za čitač ekrana. */}
+        <PageHeader />
+        <NovostiEditor
+          key={editingPost?._id ?? "new-post"}
+          initialPost={editingPost}
+          workspaceId={workspaceId}
+          onBack={handleBackToTable}
+          onSaved={handleSavedPost}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-6">
-      {activeView === "editor" ? (
-        <Reveal>
-          <NovostiEditor
-            key={editingPost?._id ?? "new-post"}
-            initialPost={editingPost}
-            workspaceId={workspaceId}
-            onBack={handleBackToTable}
-            onSaved={handleSavedPost}
-          />
-        </Reveal>
-      ) : (
-        <Reveal>
-          <div className="flex flex-col gap-6">
-            {/* Pregled statistike postova */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatTile
-                label="Ukupno objava"
-                value={allPosts.length}
-                format={formatNumber}
-                note="u bazi"
-                icon={Newspaper}
-              />
-              <StatTile
-                label="Objavljeno"
-                value={allPosts.filter((p) => p.status === "published").length}
-                format={formatNumber}
-                note="izašlo na kanalu"
-                icon={Send}
-                valueClassName="text-success"
-              />
-              <StatTile
-                label="Nacrti u pripremi"
-                value={allPosts.filter((p) => p.status === "draft").length}
-                format={formatNumber}
-                note="čeka objavu"
-                icon={FileText}
-                valueClassName="text-warning"
-              />
-              <StatTile
-                label="Arhivirano"
-                value={allPosts.filter((p) => p.status === "archived").length}
-                format={formatNumber}
-                note="van prikaza"
-                icon={BookOpen}
-              />
-            </div>
+      <PageHeader
+        variant="module"
+        description={DESCRIPTION}
+        info={INFO}
+        actions={
+          <Button type="button" variant="primary" onClick={handleCreateNew}>
+            <Plus aria-hidden />
+            Novi post
+          </Button>
+        }
+      />
 
-            {/* Tabela sa postovima */}
-            <NovostiTable
-              posts={allPosts}
-              isLoading={publishedData === undefined}
-              onEditPost={handleEditPost}
-              onCreatePost={handleCreateNew}
-            />
-          </div>
-        </Reveal>
-      )}
+      <NovostiBoard
+        posts={allPosts}
+        isLoading={publishedData === undefined}
+        onEditPost={handleEditPost}
+      />
     </div>
   );
 }
 
+/** Zaglavlje je isto kao na učitanom ekranu, pa podaci ništa ne pomeraju. */
 export function NovostiDashboardSkeleton() {
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <StatTileSkeleton key={i} />
+      <PageHeader variant="module" description={DESCRIPTION} />
+
+      <Skeleton className="h-8 w-72" />
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex flex-col gap-2">
+            <Skeleton className="h-9 w-full rounded-lg" />
+            <Skeleton className="h-24 w-full rounded-lg" />
+            <Skeleton className="h-24 w-full rounded-lg" />
+          </div>
         ))}
       </div>
-
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-8 w-28" />
-      </div>
-
-      <Card className="overflow-hidden rounded-xl border border-line p-4">
-        <div className="flex flex-col gap-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center justify-between gap-4">
-              <Skeleton className="h-4 w-1/3" />
-              <Skeleton className="h-4 w-1/6" />
-              <Skeleton className="h-4 w-1/6" />
-              <Skeleton className="h-4 w-1/8" />
-            </div>
-          ))}
-        </div>
-      </Card>
     </div>
   );
 }

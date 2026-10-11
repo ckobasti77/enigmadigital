@@ -248,7 +248,7 @@ export function AudiencesTable({ audiences }: AudiencesTableProps) {
                     <TableCell className="py-3.5">
                       <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-sunken px-2.5 py-0.5 text-xs font-medium text-text-muted">
                         {aud.subtype === "LOOKALIKE" ? (
-                          <Sparkles className="size-3 text-accent-400" />
+                          <Sparkles className="size-3 text-mod" />
                         ) : aud.subtype === "CUSTOM" ? (
                           <Users className="size-3 text-success" />
                         ) : aud.subtype === "WEBSITE" ? (
@@ -307,7 +307,7 @@ export function AudiencesTable({ audiences }: AudiencesTableProps) {
                           statusFmt.tone === "success" &&
                             "border border-success/30 bg-success/10 text-success",
                           statusFmt.tone === "progress" &&
-                            "border border-accent-400/30 bg-accent-400/10 text-accent-400",
+                            "border border-mod-line bg-mod-soft text-mod",
                           statusFmt.tone === "warning" &&
                             "border border-warning/30 bg-warning/10 text-warning",
                           statusFmt.tone === "danger" &&
@@ -320,7 +320,7 @@ export function AudiencesTable({ audiences }: AudiencesTableProps) {
                           className={cn(
                             "size-1.5 rounded-full",
                             statusFmt.tone === "success" && "bg-success",
-                            statusFmt.tone === "progress" && "bg-accent-400",
+                            statusFmt.tone === "progress" && "bg-mod-strong",
                             statusFmt.tone === "warning" && "bg-warning",
                             statusFmt.tone === "danger" && "bg-danger",
                             statusFmt.tone === "muted" && "bg-text-muted",

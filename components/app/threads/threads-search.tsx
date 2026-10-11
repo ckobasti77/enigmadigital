@@ -27,7 +27,6 @@ import {
   Video,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Reveal } from "@/components/motion/reveal";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -131,7 +130,7 @@ export function ThreadsSearch() {
   return (
     <div className="flex flex-col gap-6">
       {/* ── Zaglavlje i 24h Kvote ─────────────────────────────────────────── */}
-      <Reveal>
+      <div>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-bold tracking-tight text-foreground">
@@ -146,7 +145,7 @@ export function ThreadsSearch() {
           {/* Kartice 24h kvote */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 rounded-xl bg-card px-3 py-2 text-xs shadow-card ring-1 ring-line">
-              <Search className="size-4 text-accent-400" aria-hidden="true" />
+              <Search className="size-4 text-mod" aria-hidden="true" />
               <div>
                 <span className="text-text-muted">Keyword 24h (naši pozivi): </span>
                 <span className="font-mono font-medium text-foreground">
@@ -158,7 +157,7 @@ export function ThreadsSearch() {
             </div>
 
             <div className="flex items-center gap-2 rounded-xl bg-card px-3 py-2 text-xs shadow-card ring-1 ring-line">
-              <Users className="size-4 text-accent-400" aria-hidden="true" />
+              <Users className="size-4 text-mod" aria-hidden="true" />
               <div>
                 <span className="text-text-muted">Profile 24h kvota: </span>
                 <span className="font-mono font-medium text-foreground">
@@ -178,7 +177,7 @@ export function ThreadsSearch() {
             biti veća.
           </p>
         </div>
-      </Reveal>
+      </div>
 
       {/* ── Pod-navigacija (Tabovi) ────────────────────────────────────────── */}
       <div className="flex border-b border-line">
@@ -187,7 +186,7 @@ export function ThreadsSearch() {
           onClick={() => setActiveTab("keyword")}
           className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
             activeTab === "keyword"
-              ? "border-accent-400 text-accent-400"
+              ? "border-mod text-mod"
               : "border-transparent text-text-muted hover:text-foreground"
           }`}
         >
@@ -200,7 +199,7 @@ export function ThreadsSearch() {
           onClick={() => setActiveTab("profile")}
           className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
             activeTab === "profile"
-              ? "border-accent-400 text-accent-400"
+              ? "border-mod text-mod"
               : "border-transparent text-text-muted hover:text-foreground"
           }`}
         >
@@ -213,11 +212,11 @@ export function ThreadsSearch() {
       {activeTab === "keyword" && (
         <div className="flex flex-col gap-6">
           {/* Obavezan i uvek vidljiv Scope Banner (§2.1, Zahtev 5) */}
-          <Reveal>
-            <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-xs text-amber-300">
-              <Info className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden="true" />
+          <div>
+            <div className="flex items-start gap-3 rounded-xl border border-warning-line bg-warning-soft p-4 text-xs text-warning">
+              <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
               <div>
-                <p className="font-semibold text-amber-200">
+                <p className="font-semibold text-warning">
                   Ograničenje dosega pretrage
                 </p>
                 <p className="mt-0.5">
@@ -228,10 +227,10 @@ export function ThreadsSearch() {
                 </p>
               </div>
             </div>
-          </Reveal>
+          </div>
 
           {/* Forma za pretragu */}
-          <Reveal delay={0.05}>
+          <div>
             <Card className="flex flex-col gap-4 p-5 shadow-card ring-line">
               <form onSubmit={handleKeywordSearch} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-3 sm:flex-row">
@@ -279,7 +278,7 @@ export function ThreadsSearch() {
                       onChange={(e) =>
                         setSearchType(e.target.value as "RECENT" | "TOP")
                       }
-                      className="w-full rounded-md border border-line bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent-400"
+                      className="w-full rounded-md border border-line bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-mod"
                     >
                       <option value="RECENT">Najnovije (RECENT)</option>
                       <option value="TOP">Najpopularnije (TOP)</option>
@@ -295,7 +294,7 @@ export function ThreadsSearch() {
                       onChange={(e) =>
                         setSearchMode(e.target.value as "KEYWORD" | "TAG")
                       }
-                      className="w-full rounded-md border border-line bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent-400"
+                      className="w-full rounded-md border border-line bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-mod"
                     >
                       <option value="KEYWORD">Ključna reč (KEYWORD)</option>
                       <option value="TAG">Topic Tag (TAG)</option>
@@ -309,7 +308,7 @@ export function ThreadsSearch() {
                     <select
                       value={mediaTypeFilter}
                       onChange={(e) => setMediaTypeFilter(e.target.value)}
-                      className="w-full rounded-md border border-line bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent-400"
+                      className="w-full rounded-md border border-line bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-mod"
                     >
                       <option value="">Svi tipovi medija</option>
                       <option value="TEXT">Tekstualne objave (TEXT)</option>
@@ -334,11 +333,11 @@ export function ThreadsSearch() {
                 </div>
               </form>
             </Card>
-          </Reveal>
+          </div>
 
           {/* Rezultati pretrage (Tri stanja: rezultati, prazno, greška) */}
           {keywordResult && (
-            <Reveal delay={0.1}>
+            <div>
               {/* STANJE 1: Uspeh sa rezultatima */}
               {keywordResult.status === "success_with_results" && (
                 <div className="flex flex-col gap-3">
@@ -346,7 +345,7 @@ export function ThreadsSearch() {
                     <span>
                       Pronađeno <strong>{keywordResult.items.length}</strong> objava
                     </span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-accent-400/10 px-2 py-0.5 font-mono text-micro text-accent-400">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-mod-soft px-2 py-0.5 font-mono text-micro text-mod">
                       {keywordResult.scope === "full"
                         ? "Doseg: ceo Threads"
                         : "Doseg: samo tvoje objave"}
@@ -360,12 +359,12 @@ export function ThreadsSearch() {
                     {keywordResult.items.map((item) => (
                       <Card
                         key={item.id}
-                        className="flex flex-col justify-between gap-3 p-4 shadow-card ring-line transition-all hover:ring-accent-400/50"
+                        className="flex flex-col justify-between gap-3 p-4 shadow-card ring-line transition-all hover:ring-mod-line"
                       >
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center justify-between text-xs">
                             <div className="flex items-center gap-1.5 font-medium text-foreground">
-                              <AtSign className="size-3.5 text-accent-400" />
+                              <AtSign className="size-3.5 text-mod" />
                               <span>{item.username ?? "threads_user"}</span>
                             </div>
                             {item.timestamp && (
@@ -389,7 +388,7 @@ export function ThreadsSearch() {
                         </div>
 
                         <div className="flex items-center justify-between border-t border-line/50 pt-2.5 text-micro">
-                          <span className="inline-flex items-center gap-1 rounded-md bg-white/5 px-2 py-0.5 text-text-secondary">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-surface-raised px-2 py-0.5 text-text-secondary">
                             {item.mediaType === "IMAGE" ? (
                               <Image className="size-3" />
                             ) : item.mediaType === "VIDEO" ? (
@@ -407,7 +406,7 @@ export function ThreadsSearch() {
                               href={item.permalink}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-accent-400 underline-offset-4 hover:underline"
+                              className="inline-flex items-center gap-1 text-mod underline-offset-4 hover:underline"
                             >
                               Otvori na Threads
                               <ExternalLink className="size-3" />
@@ -423,7 +422,7 @@ export function ThreadsSearch() {
               {/* STANJE 2: Uspeh bez rezultata (prazno) */}
               {keywordResult.status === "success_empty" && (
                 <Card className="flex flex-col items-center justify-center gap-3 p-8 text-center shadow-card ring-line">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-white/5 text-text-muted">
+                  <div className="flex size-10 items-center justify-center rounded-full bg-surface-raised text-text-muted">
                     <Search className="size-5" />
                   </div>
                   <div>
@@ -438,7 +437,7 @@ export function ThreadsSearch() {
                       .
                     </p>
                   </div>
-                  <div className="mt-2 max-w-md rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-micro text-amber-300">
+                  <div className="mt-2 max-w-md rounded-lg border border-warning-line bg-warning-soft p-3 text-micro text-warning">
                     ℹ Pretraga trenutno obuhvata samo tvoje objave — pun doseg traži
                     odobrenje Mete (App Review).
                   </div>
@@ -460,7 +459,7 @@ export function ThreadsSearch() {
                   </div>
                 </Card>
               )}
-            </Reveal>
+            </div>
           )}
         </div>
       )}
@@ -469,11 +468,11 @@ export function ThreadsSearch() {
       {activeTab === "profile" && (
         <div className="flex flex-col gap-6">
           {/* Obaveštenje o pravilima Profile Discovery-ja (§6, Zahtev 6) */}
-          <Reveal>
-            <div className="flex items-start gap-3 rounded-xl border border-blue-500/20 bg-blue-500/10 p-4 text-xs text-blue-300">
-              <Info className="mt-0.5 size-4 shrink-0 text-blue-400" aria-hidden="true" />
+          <div>
+            <div className="flex items-start gap-3 rounded-xl border border-info-line bg-info-soft p-4 text-xs text-info">
+              <Info className="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
               <div>
-                <p className="font-semibold text-blue-200">
+                <p className="font-semibold text-info">
                   Uslovi za uvid u profile
                 </p>
                 <p className="mt-0.5">
@@ -486,10 +485,10 @@ export function ThreadsSearch() {
                 </p>
               </div>
             </div>
-          </Reveal>
+          </div>
 
           {/* Forma za Profile Lookup */}
-          <Reveal delay={0.05}>
+          <div>
             <Card className="flex flex-col gap-4 p-5 shadow-card ring-line">
               <form onSubmit={handleProfileLookup} className="flex flex-col gap-3 sm:flex-row">
                 <div className="relative flex-1">
@@ -525,18 +524,18 @@ export function ThreadsSearch() {
                 </Button>
               </form>
             </Card>
-          </Reveal>
+          </div>
 
           {/* Rezultati Profile Lookup-a */}
           {profileResult && (
-            <Reveal delay={0.1}>
+            <div>
               {/* STANJE 1: Uspeh sa podacima o profilu */}
               {profileResult.status === "success_with_results" &&
                 profileResult.profile && (
                   <Card className="flex flex-col gap-5 p-6 shadow-card ring-line">
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex size-12 items-center justify-center rounded-full bg-accent-400/10 text-accent-400">
+                        <div className="flex size-12 items-center justify-center rounded-full bg-mod-soft text-mod">
                           <AtSign className="size-6" />
                         </div>
                         <div>
@@ -545,7 +544,7 @@ export function ThreadsSearch() {
                               @{profileResult.profile.username}
                             </span>
                             {profileResult.profile.isVerified && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/20 px-2 py-0.5 text-micro font-medium text-blue-400">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-micro font-medium text-info">
                                 <CheckCircle2 className="size-3" />
                                 Verifikovan
                               </span>
@@ -561,7 +560,7 @@ export function ThreadsSearch() {
                         href={`https://threads.net/@${profileResult.profile.username}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-white/5"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-raised"
                       >
                         Otvori na threads.net
                         <ExternalLink className="size-3.5 text-text-muted" />
@@ -570,9 +569,9 @@ export function ThreadsSearch() {
 
                     {/* Metrike profila */}
                     <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-                      <div className="flex flex-col gap-1 rounded-xl bg-white/5 p-3">
+                      <div className="flex flex-col gap-1 rounded-xl bg-surface-raised p-3">
                         <span className="flex items-center gap-1 text-micro text-text-muted">
-                          <Users className="size-3.5 text-accent-400" />
+                          <Users className="size-3.5 text-mod" />
                           Pratioci
                         </span>
                         <span className="font-mono text-lg font-bold text-foreground">
@@ -580,9 +579,9 @@ export function ThreadsSearch() {
                         </span>
                       </div>
 
-                      <div className="flex flex-col gap-1 rounded-xl bg-white/5 p-3">
+                      <div className="flex flex-col gap-1 rounded-xl bg-surface-raised p-3">
                         <span className="flex items-center gap-1 text-micro text-text-muted">
-                          <Eye className="size-3.5 text-accent-400" />
+                          <Eye className="size-3.5 text-mod" />
                           Prikazi (views)
                         </span>
                         <span className="font-mono text-lg font-bold text-foreground">
@@ -590,9 +589,9 @@ export function ThreadsSearch() {
                         </span>
                       </div>
 
-                      <div className="flex flex-col gap-1 rounded-xl bg-white/5 p-3">
+                      <div className="flex flex-col gap-1 rounded-xl bg-surface-raised p-3">
                         <span className="flex items-center gap-1 text-micro text-text-muted">
-                          <Heart className="size-3.5 text-accent-400" />
+                          <Heart className="size-3.5 text-mod" />
                           Lajkovi
                         </span>
                         <span className="font-mono text-lg font-bold text-foreground">
@@ -600,9 +599,9 @@ export function ThreadsSearch() {
                         </span>
                       </div>
 
-                      <div className="flex flex-col gap-1 rounded-xl bg-white/5 p-3">
+                      <div className="flex flex-col gap-1 rounded-xl bg-surface-raised p-3">
                         <span className="flex items-center gap-1 text-micro text-text-muted">
-                          <Quote className="size-3.5 text-accent-400" />
+                          <Quote className="size-3.5 text-mod" />
                           Citati
                         </span>
                         <span className="font-mono text-lg font-bold text-foreground">
@@ -610,9 +609,9 @@ export function ThreadsSearch() {
                         </span>
                       </div>
 
-                      <div className="flex flex-col gap-1 rounded-xl bg-white/5 p-3">
+                      <div className="flex flex-col gap-1 rounded-xl bg-surface-raised p-3">
                         <span className="flex items-center gap-1 text-micro text-text-muted">
-                          <Repeat2 className="size-3.5 text-accent-400" />
+                          <Repeat2 className="size-3.5 text-mod" />
                           Repostovi
                         </span>
                         <span className="font-mono text-lg font-bold text-foreground">
@@ -625,12 +624,12 @@ export function ThreadsSearch() {
 
               {/* STANJE 2: Profil nije dostupan (§6 uslovi nisu ispunjeni, Zahtev 6) */}
               {profileResult.status === "unavailable" && (
-                <Card className="flex flex-col items-center justify-center gap-3 border-amber-500/30 bg-amber-500/5 p-6 text-center shadow-card ring-line">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
+                <Card className="flex flex-col items-center justify-center gap-3 border-warning-line bg-warning-soft p-6 text-center shadow-card ring-line">
+                  <div className="flex size-10 items-center justify-center rounded-full bg-warning-soft text-warning">
                     <Lock className="size-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-amber-200">
+                    <h3 className="text-sm font-semibold text-warning">
                       Profil nije dostupan za uvid
                     </h3>
                     <p className="mt-1 max-w-md text-xs text-text-secondary">
@@ -656,7 +655,7 @@ export function ThreadsSearch() {
                   </div>
                 </Card>
               )}
-            </Reveal>
+            </div>
           )}
         </div>
       )}

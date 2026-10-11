@@ -215,7 +215,7 @@ export function EvidenceMeter({
             <div
               className={cn(
                 "h-full transition-all duration-300 rounded-full",
-                clicks >= thresholdClicks ? "bg-success" : "bg-accent-400/80",
+                clicks >= thresholdClicks ? "bg-success" : "bg-mod-strong/80",
               )}
               style={{ width: `${clickPct}%` }}
             />

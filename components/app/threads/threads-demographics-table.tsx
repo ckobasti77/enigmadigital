@@ -120,7 +120,7 @@ export function ThreadsDemographicsTable({
     return (
       <Card className="p-6 shadow-card ring-line">
         <div className="flex items-center gap-2 mb-4">
-          <Globe className="size-4 text-accent-400" aria-hidden="true" />
+          <Globe className="size-4 text-mod" aria-hidden="true" />
           <h2 className="text-base font-semibold text-foreground">
             Demografija pratilaca
           </h2>
@@ -327,7 +327,7 @@ export function ThreadsDemographicsTable({
       </div>
 
       <p className="text-xs text-text-muted">
-        Napomena: Threads demografski uvid zahteva najmanje 100 pratilaca i računa samo korisnike sa dostupnim demografskim profilom.
+        Threads demografija traži najmanje 100 pratilaca i broji samo profile sa podacima.
       </p>
     </div>
   );

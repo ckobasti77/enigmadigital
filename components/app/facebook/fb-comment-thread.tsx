@@ -55,7 +55,7 @@ function railClass(thread: FbCommentThreadData): string {
   if (thread.deletedAt !== undefined) return "border-l-danger/60";
   if (thread.hidden) return "border-l-warning/60";
   if (thread.isOurs || thread.repliedByUs) return "border-l-line";
-  return "border-l-accent-400";
+  return "border-l-mod";
 }
 
 /**
@@ -71,7 +71,7 @@ function Avatar({ name, ours }: { name: string; ours: boolean }) {
       className={cn(
         "flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
         ours
-          ? "border-accent-400/40 bg-accent-400/10 text-accent-400"
+          ? "border-mod-line bg-mod-soft text-mod"
           : "border-line-soft bg-surface-raised text-text-muted",
       )}
     >
@@ -95,7 +95,7 @@ function Handle({
         {name || (ours ? "Naša stranica" : "Nepoznat nalog")}
       </span>
       {ours && (
-        <span className="rounded bg-accent-400/10 px-1.5 py-0.5 text-micro font-semibold text-accent-400">
+        <span className="rounded bg-mod-soft px-1.5 py-0.5 text-micro font-semibold text-mod">
           Mi
         </span>
       )}
@@ -364,7 +364,7 @@ function CommentActions({
           onClick={() => void toggleLiked()}
           className={cn(
             "text-text-muted hover:text-foreground",
-            likedFlag.value && "text-accent-400 hover:text-accent-400",
+            likedFlag.value && "text-mod hover:text-mod",
           )}
         >
           <ThumbsUp data-icon="inline-start" />
@@ -585,7 +585,7 @@ export function FbCommentThread({
                 href={permalink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-micro font-medium text-text-muted transition-colors hover:text-accent-400"
+                className="inline-flex items-center gap-1 text-micro font-medium text-text-muted transition-colors hover:text-mod"
               >
                 Otvori na Facebook-u
                 <ExternalLink className="size-3" aria-hidden />

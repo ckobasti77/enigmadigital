@@ -93,7 +93,7 @@ export function HookLabelEditor({
           placeholder="npr. Hook A — Bol korisnika"
           disabled={isSaving}
           className={cn(
-            "h-7 text-xs border-accent-400/50 bg-surface-raised focus-visible:ring-accent-400",
+            "h-7 text-xs border-mod-line bg-surface-raised focus-visible:ring-mod",
             size === "sm" ? "h-6 text-micro px-2" : "h-8 text-xs px-2.5",
           )}
         />
@@ -103,7 +103,7 @@ export function HookLabelEditor({
           variant="ghost"
           onClick={handleSave}
           disabled={isSaving}
-          className="size-6 text-accent-400 hover:bg-accent-400/10 hover:text-accent-300"
+          className="size-6 text-mod hover:bg-mod-soft hover:text-mod"
           title="Sačuvaj (Enter)"
         >
           <Check className="size-3.5" />
@@ -133,7 +133,7 @@ export function HookLabelEditor({
           className,
         )}
       >
-        <Tag className="size-3 text-accent-400/70" />
+        <Tag className="size-3 text-mod" />
         <span className="font-medium text-foreground">
           {hasCustomLabel ? currentLabel : fallbackName}
         </span>
@@ -143,7 +143,7 @@ export function HookLabelEditor({
             e.stopPropagation();
             startEditing();
           }}
-          className="rounded p-0.5 opacity-0 group-hover/hook:opacity-100 hover:bg-surface-raised text-accent-400 transition-opacity"
+          className="rounded p-0.5 opacity-0 group-hover/hook:opacity-100 hover:bg-surface-raised text-mod transition-opacity"
           title="Izmeni hook oznaku"
           aria-label="Izmeni hook oznaku"
         >
@@ -166,7 +166,7 @@ export function HookLabelEditor({
             e.stopPropagation();
             startEditing();
           }}
-          className="inline-flex items-center gap-1 rounded border border-accent-400/30 bg-accent-400/10 px-2 py-0.5 text-micro font-semibold text-accent-400 cursor-pointer hover:border-accent-400/60 hover:bg-accent-400/15 transition-all truncate"
+          className="inline-flex items-center gap-1 rounded border border-mod-line bg-mod-soft px-2 py-0.5 text-micro font-semibold text-mod cursor-pointer hover:border-mod-line hover:bg-mod-soft transition-all truncate"
           title="Kliknite za izmenu oznake"
         >
           <span className="truncate">{currentLabel}</span>
@@ -179,7 +179,7 @@ export function HookLabelEditor({
             e.stopPropagation();
             startEditing();
           }}
-          className="inline-flex items-center gap-1 rounded border border-dashed border-line-strong px-2 py-0.5 text-micro text-text-muted hover:border-accent-400/40 hover:text-accent-400 transition-colors"
+          className="inline-flex items-center gap-1 rounded border border-dashed border-line-strong px-2 py-0.5 text-micro text-text-muted hover:border-mod-line hover:text-mod transition-colors"
           title="Dodaj hook oznaku (npr. Hook A, Hook B)"
         >
           <Edit2 className="size-2.5" />

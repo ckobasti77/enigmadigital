@@ -308,9 +308,9 @@ function AdActionDialogInner({
       case "resume":
         return <Play className="size-5 text-success" />;
       case "budget_change":
-        return <TrendingUp className="size-5 text-accent-400" />;
+        return <TrendingUp className="size-5 text-mod" />;
       case "duplicate":
-        return <Copy className="size-5 text-accent-400" />;
+        return <Copy className="size-5 text-mod" />;
     }
   };
 
@@ -439,7 +439,7 @@ function AdActionDialogInner({
                 className={cn(
                   "rounded-lg border p-3 flex flex-col gap-1 text-xs",
                   budgetGuardrails.valid
-                    ? "border-accent-400/30 bg-accent-400/5 text-foreground"
+                    ? "border-mod-line bg-mod-soft text-foreground"
                     : "border-danger/30 bg-danger/5 text-danger",
                 )}
               >
@@ -449,7 +449,7 @@ function AdActionDialogInner({
                     className={cn(
                       "font-bold",
                       budgetGuardrails.percentChange > 0
-                        ? "text-accent-400"
+                        ? "text-mod"
                         : budgetGuardrails.percentChange < 0
                           ? "text-warning"
                           : "text-foreground",
@@ -497,7 +497,7 @@ function AdActionDialogInner({
             </div>
 
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3 flex items-start gap-2 text-xs text-text-muted">
-              <Info className="size-4 text-accent-400 shrink-0 mt-0.5" />
+              <Info className="size-4 text-mod shrink-0 mt-0.5" />
               <p>
                 Duplirani oglas se automatski kreira u statusu{" "}
                 <strong className="text-foreground">PAUSED (Pauzirano)</strong>{" "}

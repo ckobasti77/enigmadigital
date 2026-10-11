@@ -75,6 +75,35 @@ for (const ime of PODRAZUMEVANI_VP) {
 // Firma #2 iz `app/dev-ux/fixtures.ts` (`lc_ux_test_002`, ima sajt) — profil se otvara nad njom.
 const LEAD_PROFIL_ID = "lc_ux_test_002";
 
+// Radni prostor razvojnog prikaza (`app/dev-ux/fixtures-util.ts`, `WS`).
+const UX_WS = "ws_ux_test_000000000000000";
+const SADA = Date.now();
+const lokalniPost = (n, status, title, kind, category, danaUnazad) => ({
+  _id: `post_ux_lokalni_${n}`,
+  _creationTime: SADA - danaUnazad * 86_400_000,
+  workspaceId: UX_WS,
+  slug: `test-${status}-${n}`,
+  locale: "sr",
+  kind,
+  category,
+  title,
+  dek: "Probni podnaslov.",
+  body: "",
+  authorName: "Test Operater",
+  tags: ["test"],
+  status,
+  updatedAt: SADA - danaUnazad * 86_400_000,
+  ownProofChecked: false,
+});
+const NOVOSTI_LOKALNO = {
+  [`enigma:novosti:drafts:${UX_WS}`]: JSON.stringify([
+    lokalniPost(1, "draft", "Test nacrt 1: beleška u pripremi", "note", "greske", 1),
+    lokalniPost(2, "draft", "Test nacrt 2: tekst koji čeka kapije", "article", "novac_rokovi", 4),
+    lokalniPost(3, "draft", "Test nacrt 3", "note", "ai_razvoj", 9),
+    lokalniPost(4, "archived", "Test arhiviran post", "article", "srpski_kontekst", 60),
+  ]),
+};
+
 const EKRANI = [
   { ime: "kontrolna-tabla", putanja: "/" },
   { ime: "leadovi", putanja: "/leadovi" },
@@ -106,7 +135,10 @@ const EKRANI = [
   // A-faze su ove ekrane zvale „settings" i „rules"; B-faze koriste srpska imena.
   { ime: "settings", putanja: "/settings", samoA: true },
   { ime: "rules", putanja: "/rules", samoA: true },
-  { ime: "novosti", putanja: "/novosti" },
+  // B8: nacrti i arhiva žive u localStorage (kao u aplikaciji), pa ih snimak
+  // upisuje pre učitavanja; A-faze i dalje vide zatečen, prazan spisak.
+  { ime: "novosti", putanja: "/novosti", lokalno: JE_B ? NOVOSTI_LOKALNO : undefined },
+  { ime: "novosti-prazno", putanja: "/novosti", prazno: true, samoB: true },
   // B0: ekrani koji do sada nisu imali razvojni prikaz (samo B-faze).
   { ime: "analitika", putanja: "/analytics", samoB: true },
   { ime: "atribucija", putanja: "/atribucija", samoB: true },
@@ -231,6 +263,20 @@ const EKRANI = [
   { ime: "threads-prazno", putanja: "/threads", prazno: true, samoB: true },
   { ime: "youtube-prazno", putanja: "/youtube", prazno: true, samoB: true },
   { ime: "oglasi-prazno", putanja: "/ads", prazno: true, samoB: true },
+  // B8: podekrani kanala — zaglavlje u boji kanala i jedno primarno dugme.
+  { ime: "instagram-komentari", putanja: "/instagram/komentari", viewporti: ["1536x695"], samoB: true },
+  { ime: "facebook-komentari", putanja: "/facebook/komentari", viewporti: ["1536x695"], samoB: true },
+  { ime: "youtube-automatizacije", putanja: "/youtube/automatizacije", viewporti: ["1536x695"], samoB: true },
+  { ime: "oglasi-nova-kampanja", putanja: "/ads/nova-kampanja", viewporti: ["1536x695"], samoB: true },
+  { ime: "oglasi-publike", putanja: "/ads/publike", viewporti: ["1536x695"], samoB: true },
+  // B8: jezičak „Objavljivanje" na Threads-u (kuda vodi primarno dugme).
+  {
+    ime: "threads-objavi",
+    putanja: "/threads",
+    klik: ['[data-variant="primary"]:has-text("Objavi")'],
+    viewporti: ["1536x695"],
+    samoB: true,
+  },
 ]
   .filter((e) => (JE_B ? !e.samoA : !e.samoB))
   .filter((e) => !SAMO || SAMO.includes(e.ime));
@@ -304,6 +350,13 @@ async function snimi(browser, ekran, vp) {
     reducedMotion: "reduce",
   });
   const page = await context.newPage();
+  if (ekran.lokalno) {
+    await page.addInitScript((stavke) => {
+      for (const [kljuc, vrednost] of Object.entries(stavke)) {
+        window.localStorage.setItem(kljuc, vrednost);
+      }
+    }, ekran.lokalno);
+  }
   const greske = [];
   page.on("console", (msg) => {
     if (msg.type() === "error") greske.push(msg.text().slice(0, 300));

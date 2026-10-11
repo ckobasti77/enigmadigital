@@ -3,8 +3,12 @@ import { CommentsModeration } from "@/components/app/instagram/comments-moderati
 
 export default function InstagramCommentsPage() {
   return (
-    <div className="flex w-full flex-1 flex-col gap-8">
-      <PageHeader description="Odgovori, sakrij ili obriši komentare na objavama naloga. Novi komentari stižu odmah preko webhook-a; sakrivanja i brisanja urađena u samoj Instagram aplikaciji stižu pri sinhronizaciji." />
+    <div className="flex w-full flex-1 flex-col gap-6">
+      <PageHeader
+        variant="module"
+        description="Odgovori, sakrij ili obriši komentare na objavama naloga."
+        info="Novi komentari stižu odmah preko webhook-a; sakrivanja i brisanja urađena u samoj Instagram aplikaciji stižu pri sinhronizaciji."
+      />
 
       <div className="flex flex-1 flex-col">
         <CommentsModeration />

@@ -40,7 +40,7 @@ export function YtCommentPreview({
       <div className="flex gap-2.5">
         <span
           className={cn(
-            "flex shrink-0 items-center justify-center rounded-full bg-accent-400/10 font-medium text-accent-400",
+            "flex shrink-0 items-center justify-center rounded-full bg-mod-soft font-medium text-mod",
             compact ? "size-6 text-xs" : "size-8 text-sm",
           )}
           aria-hidden

@@ -195,7 +195,7 @@ export function HookBattleView({
           <button
             type="button"
             onClick={onBack}
-            className="group inline-flex items-center gap-1.5 text-xs font-medium text-text-muted hover:text-accent-400 transition-colors"
+            className="group inline-flex items-center gap-1.5 text-xs font-medium text-text-muted hover:text-mod transition-colors"
           >
             <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" />
             <span>Nazad na kampanju ({campaign.name})</span>
@@ -309,11 +309,11 @@ export function HookBattleView({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
           <div>
             <div className="flex items-center gap-2.5">
-              <span className="flex size-7 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400 border border-accent-400/20">
+              <span className="flex size-7 items-center justify-center rounded-lg bg-mod-soft text-mod border border-mod-line">
                 <Swords className="size-4" />
               </span>
               <div>
-                <p className="heading-caps text-micro font-medium text-accent-400">
+                <p className="heading-caps text-micro font-medium text-mod">
                   Hook Battle · Poređenje kreativa
                 </p>
                 <h1 className="text-xl sm:text-2xl font-bold text-foreground">
@@ -330,7 +330,7 @@ export function HookBattleView({
 
           <div className="flex items-center gap-3 text-xs font-mono text-text-muted">
             <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2.5 py-1 border border-line">
-              <Layers className="size-3 text-accent-400" />
+              <Layers className="size-3 text-mod" />
               <span>{versions.length} verzije kreativa</span>
             </span>
             <span className="tabular-nums">
@@ -341,19 +341,19 @@ export function HookBattleView({
       </div>
 
       {/* Battle Summary Line & Criterion Banner */}
-      <Card className="gap-0 py-0 shadow-card border border-accent-400/30 bg-gradient-to-r from-accent-400/[0.06] via-surface-raised/40 to-surface/30 p-4 sm:p-5">
+      <Card className="gap-0 py-0 shadow-card border border-mod-line bg-gradient-to-r from-mod/[0.06] via-surface-raised/40 to-surface/30 p-4 sm:p-5">
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft/60 pb-3">
             <div className="flex items-center gap-2">
-              <Sparkles className="size-4 text-accent-400" />
-              <span className="text-micro font-bold heading-caps text-accent-400">
+              <Sparkles className="size-4 text-mod" />
+              <span className="text-micro font-bold heading-caps text-mod">
                 Presuda analize
               </span>
             </div>
 
             {/* Active Criterion Badge */}
             <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-0.5 text-micro text-text-muted">
-              <Info className="size-3 text-accent-400" />
+              <Info className="size-3 text-mod" />
               <span>Kriterijum: <strong className="text-foreground font-medium">{evaluation.criterion}</strong></span>
             </div>
           </div>
@@ -372,7 +372,7 @@ export function HookBattleView({
             )}
             {evaluation.recommendation && (
               <p className="text-xs text-text-muted font-medium flex items-center gap-1.5">
-                <TrendingUp className="size-3.5 text-accent-400 shrink-0" />
+                <TrendingUp className="size-3.5 text-mod shrink-0" />
                 <span>{evaluation.recommendation}</span>
               </p>
             )}
@@ -415,7 +415,7 @@ export function HookBattleView({
                   actionType: "budget_change",
                 })
               }
-              className="h-8 gap-1.5 text-xs border-accent-400/40 bg-accent-400/10 text-accent-400 hover:bg-accent-400/20 hover:text-accent-300 font-medium"
+              className="h-8 gap-1.5 text-xs border-mod-line bg-mod-soft text-mod hover:bg-mod-soft hover:text-mod font-medium"
             >
               <TrendingUp className="size-3.5" />
               <span>Podigni budžet lidera ({adSet.name})</span>
@@ -477,13 +477,13 @@ export function HookBattleView({
                               className={cn(
                                 "flex flex-col gap-0 py-0 shadow-card transition-all duration-200 relative overflow-hidden border",
                                 isLeader
-                                  ? "border-accent-400 ring-2 ring-accent-400/40 bg-accent-400/[0.03]"
+                                  ? "border-mod ring-2 ring-mod-line bg-mod-soft"
                                   : "border-line bg-card hover:border-line-strong",
                               )}
                             >
                               {/* Leader Top Ribbon */}
                               {isLeader && (
-                                <div className="bg-accent-400 text-text-inverse text-micro font-bold py-1 px-3 flex items-center justify-center gap-1.5 heading-caps">
+                                <div className="bg-mod-strong text-text-inverse text-micro font-bold py-1 px-3 flex items-center justify-center gap-1.5 heading-caps">
                                   <Crown className="size-3.5 fill-current" />
                                   <span>Vodeći hook</span>
                                 </div>
@@ -560,7 +560,7 @@ export function HookBattleView({
                             className={cn(
                               "font-mono text-3xl font-bold",
                               version.hookRate !== undefined
-                                ? "text-accent-400"
+                                ? "text-mod"
                                 : "text-text-muted",
                             )}
                             title={
@@ -727,7 +727,7 @@ export function HookBattleView({
                               })
                             }
                             title="Kreiraj novu verziju hook-a sa izmenjenim tekstom"
-                            className="h-6 text-micro px-2 border-accent-400/40 bg-accent-400/10 text-accent-400 hover:bg-accent-400/20 hover:text-accent-300 font-medium gap-1"
+                            className="h-6 text-micro px-2 border-mod-line bg-mod-soft text-mod hover:bg-mod-soft hover:text-mod font-medium gap-1"
                           >
                             <Sparkles className="size-3" />
                             <span>Nova verzija</span>
@@ -739,7 +739,7 @@ export function HookBattleView({
                           variant="ghost"
                           size="xs"
                           onClick={() => setSelectedAdId(version._id)}
-                          className="h-6 text-micro px-2 text-text-muted hover:text-accent-400 hover:bg-surface-raised gap-1"
+                          className="h-6 text-micro px-2 text-text-muted hover:text-mod hover:bg-surface-raised gap-1"
                         >
                           <span>Detalji</span>
                           <ChevronRightSquare className="size-3" />

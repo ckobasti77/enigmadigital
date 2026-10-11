@@ -1,44 +1,48 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import {
-  AtSign,
-  CheckCircle2,
-  Clock,
+  ChartNoAxesColumn,
   Eye,
-  Heart,
   LayoutDashboard,
   Link2,
   MessageCircle,
   Quote,
-  RefreshCw,
+  Radio,
   Repeat2,
   Search,
   Send,
-  TriangleAlert,
   Unplug,
-  Users,
   Zap,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Reveal } from "@/components/motion/reveal";
+import { PRAVILA_XP } from "@/convex/lib/napredak";
 import { useDateRange } from "@/components/app/date-range-picker";
-import { EmptyState } from "@/components/app/empty-state";
 import { RateLimitBanner } from "@/components/app/rate-limit-banner";
-import { StatusPill } from "@/components/app/settings/status-pill";
+import { useNapredak } from "@/components/app/napredak/use-napredak";
+import {
+  ChannelFocus,
+  ChannelFocusSkeleton,
+  useChannelSync,
+} from "@/components/app/system/channel-focus";
+import { EmptyState } from "@/components/app/system/empty-state";
 import {
   StatTile,
   StatTileSkeleton,
-} from "@/components/app/analytics/kpi-tile";
+} from "@/components/app/system/kpi-tile";
+import { PageHeader } from "@/components/app/system/page-header";
 import {
   TimelineChart,
   TimelineChartSkeleton,
 } from "@/components/app/timeline-chart";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
+import { useNow } from "@/components/app/use-now";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { formatNumber, formatRelativeTime } from "@/lib/format";
+import { channelReadiness } from "@/lib/channel-readiness";
+import { formatNumber } from "@/lib/format";
 import { ThreadsFollowsChart } from "./threads-follows-chart";
 import {
   ThreadsContentGrid,
@@ -59,10 +63,17 @@ type ThreadsTab =
   | "automations"
   | "search";
 
+const DESCRIPTION =
+  "Prikazi, pratioci, klikovi i angažovanje naloga, uz atribuciju linkova.";
+
 /**
  * Threads Dashboard.
  * Integrisan pregled analitike, kompozera objava sa redom poslova,
  * moderacije odgovora i pravila automatizacije (OpenReply).
+ *
+ * Fokus su Pratioci i Spremnost kanala; primarno dugme „Objavi" u zaglavlju
+ * otvara jezičak Objavljivanje. Merač ima tri uslova: zbirnog broja odgovora
+ * koji čekaju za Threads nema, pa se ne tvrdi.
  */
 export function ThreadsDashboard() {
   const [tab, setTab] = useState<ThreadsTab>("overview");
@@ -96,6 +107,21 @@ export function ThreadsDashboard() {
     limit: 50,
   });
 
+  // Spremnost kanala: sve iz upita koje ekran i ljuska već drže otvorene.
+  const sync = useChannelSync("threads");
+  const now = useNow();
+  const lastPostAt = useMemo(() => {
+    if (!media) return null;
+    const times = media
+      .map((m) => (m.timestamp ? Date.parse(m.timestamp) : NaN))
+      .filter((t) => Number.isFinite(t));
+    return times.length > 0 ? Math.max(...times) : null;
+  }, [media]);
+
+  // XP uz korak misije se ispisuje samo kad ga Napredak stvarno dodeljuje.
+  const napredak = useNapredak();
+  const publishXp = napredak?.ukljucen ? PRAVILA_XP.objava.xp : undefined;
+
   const loading =
     overview === undefined ||
     followerHistory === undefined ||
@@ -106,17 +132,29 @@ export function ThreadsDashboard() {
 
   if (overview !== undefined && !overview.connected) {
     return (
-      <div className="flex flex-1 flex-col gap-8">
+      <div className="flex flex-1 flex-col gap-6">
+        <PageHeader variant="module" description={DESCRIPTION} />
         <RateLimitBanner network="Threads" />
-        <EmptyState icon={Unplug}>
-          Threads nalog još nije povezan.{" "}
-          <Link
-            href="/settings"
-            className="text-accent-400 underline-offset-4 hover:underline"
-          >
-            Poveži ga u Podešavanjima
-          </Link>
-          .
+        <EmptyState
+          icon={Unplug}
+          variant="mission"
+          title="Poveži Threads nalog"
+          steps={[
+            { label: "Poveži Threads nalog u Podešavanjima" },
+            { label: "Prva sinhronizacija povlači prikaze i objave naloga" },
+            { label: "Objavi prvu objavu iz aplikacije", xp: publishXp },
+          ]}
+          action={
+            <Button
+              variant="primary"
+              render={<Link href="/settings" />}
+              nativeButton={false}
+            >
+              Poveži Threads
+            </Button>
+          }
+        >
+          Posle povezivanja ovde stižu prikazi, pratioci i objave naloga.
         </EmptyState>
       </div>
     );
@@ -126,66 +164,41 @@ export function ThreadsDashboard() {
     return <ThreadsDashboardSkeleton />;
   }
 
-  const { lastSync } = overview;
+  const readiness = sync
+    ? channelReadiness({
+        connected: overview.connected,
+        lastSyncAt:
+          sync.lastSyncAt ??
+          (overview.lastSync?.status === "ok"
+            ? overview.lastSync.startedAt
+            : null),
+        syncFailed: sync.syncFailed || overview.lastSync?.status === "error",
+        lastPostAt,
+        now,
+      })
+    : undefined;
+
+  const empty =
+    !overview.followersCount && !overview.views && media.length === 0;
 
   return (
-    <div className="flex flex-1 flex-col gap-8">
+    <div className="flex flex-1 flex-col gap-6">
+      <PageHeader
+        variant="module"
+        description={DESCRIPTION}
+        actions={
+          // Na jezičku Objavljivanje primarno dugme je slanje same objave.
+          tab !== "publish" && (
+            <Button variant="primary" onClick={() => setTab("publish")}>
+              <Send aria-hidden />
+              Objavi
+            </Button>
+          )
+        }
+      />
+
       <RateLimitBanner network="Threads" />
 
-      {/* ── Status naloga i poslednja sinhronizacija ────────────────────── */}
-      <Reveal>
-        <Card className="flex flex-wrap items-center justify-between gap-4 p-4 shadow-card ring-line">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-full bg-accent-400/10 text-accent-400">
-              <AtSign className="size-5" aria-hidden="true" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-foreground">
-                  {overview.username ?? "Threads nalog"}
-                </span>
-                <StatusPill tone="success">Povezan</StatusPill>
-              </div>
-              <p className="text-xs text-text-muted">
-                Kanal za organske objave, praćenje metrika i analizu linkova
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 text-xs">
-            {lastSync ? (
-              <div className="flex items-center gap-2 text-text-muted">
-                {lastSync.status === "ok" ? (
-                  <CheckCircle2 className="size-4 text-success" aria-hidden="true" />
-                ) : lastSync.status === "running" ? (
-                  <RefreshCw className="size-4 animate-spin text-accent-400" aria-hidden="true" />
-                ) : (
-                  <TriangleAlert className="size-4 text-danger" aria-hidden="true" />
-                )}
-                <span>
-                  {lastSync.status === "running"
-                    ? "Sinhronizacija u toku..."
-                    : lastSync.status === "error"
-                      ? `Greška pri sinhronizaciji (${formatRelativeTime(lastSync.startedAt)})`
-                      : `Sinhronizovano ${formatRelativeTime(lastSync.startedAt)}`}
-                </span>
-                {lastSync.itemsWritten > 0 && lastSync.status === "ok" && (
-                  <span className="font-mono text-micro text-text-secondary">
-                    ({formatNumber(lastSync.itemsWritten)} stavki)
-                  </span>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 text-text-muted">
-                <Clock className="size-4" aria-hidden="true" />
-                <span>Nema zabeležene prethodne sinhronizacije</span>
-              </div>
-            )}
-          </div>
-        </Card>
-      </Reveal>
-
-      {/* ── Navigacija kroz sekcije kanala (TabNav) ───────────────────────── */}
       <TabNav
         tabs={[
           { id: "overview", label: "Pregled i analitika", icon: LayoutDashboard },
@@ -200,30 +213,71 @@ export function ThreadsDashboard() {
       />
 
       <TabPanel id="threads-channel-panel">
-        {tab === "overview" && (
-          <div className="flex flex-col gap-8">
-            {/* ── Metrike po nalogu (§5.4) — 6 zasebnih kartica ─────────────────── */}
-            <Reveal delay={0.05}>
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-                {/* 1. Prikazi (views) */}
+        {tab === "overview" &&
+          (empty ? (
+            <div className="flex flex-col gap-6">
+              <EmptyState
+                icon={ChartNoAxesColumn}
+                variant="line"
+                title="Još nema podataka za ovaj period."
+              >
+                Prikazi i objave stižu pri prvoj sinhronizaciji naloga.
+              </EmptyState>
+              <EmptyState
+                icon={Radio}
+                variant="mission"
+                size="sm"
+                title="Pokreni kanal"
+                steps={[
+                  { label: "Poveži Threads nalog u Podešavanjima", done: true },
+                  {
+                    label: "Prva sinhronizacija povlači prikaze i objave naloga",
+                    done: readiness?.segments.some(
+                      (s) => s.key === "sync" && s.done,
+                    ),
+                  },
+                  { label: "Objavi prvu objavu iz aplikacije", xp: publishXp },
+                ]}
+              >
+                Nalog je povezan. Brojevi stižu posle sinhronizacije i prve objave.
+              </EmptyState>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-6">
+              <ChannelFocus
+                label="Pratioci"
+                value={overview.followersCount ?? undefined}
+                format={formatNumber}
+                note={
+                  overview.username
+                    ? `@${overview.username.replace(/^@/, "")} · trenutno stanje naloga`
+                    : "trenutno stanje naloga"
+                }
+                reason="Broj pratilaca još nije stigao sa naloga."
+                readiness={readiness}
+                next={
+                  readiness?.next === "connected" ||
+                  readiness?.next === "sync" ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      render={<Link href="/settings" />}
+                      nativeButton={false}
+                    >
+                      Otvori podešavanja
+                    </Button>
+                  ) : null
+                }
+              />
+
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
                 <StatTile
-                  label="Prikazi (views)"
+                  label="Prikazi"
                   value={overview.views ?? undefined}
                   format={formatNumber}
                   note="Dnevna serija u periodu"
                   icon={Eye}
                 />
-
-                {/* 2. Pratioci (followers_count) */}
-                <StatTile
-                  label="Pratioci"
-                  value={overview.followersCount ?? undefined}
-                  format={formatNumber}
-                  note="Trenutno stanje na nalogu"
-                  icon={Users}
-                />
-
-                {/* 3. Klikovi na linkove (clicks) */}
                 <StatTile
                   label="Klikovi na linkove"
                   value={overview.clicks ?? undefined}
@@ -231,46 +285,36 @@ export function ThreadsDashboard() {
                   note="Zabeleženo u Threads-u"
                   icon={Link2}
                 />
-
-                {/* 4. Odgovori (replies) */}
                 <StatTile
-                  label="Ukupno odgovora"
+                  label="Odgovori"
                   value={overview.replies ?? undefined}
                   format={formatNumber}
                   note="Kumulativno na nalogu"
                   icon={MessageCircle}
                 />
-
-                {/* 5. Citati (quotes) */}
                 <StatTile
-                  label="Ukupno citata"
+                  label="Citati"
                   value={overview.quotes ?? undefined}
                   format={formatNumber}
                   note="Kumulativno na nalogu"
                   icon={Quote}
                 />
-
-                {/* 6. Repostovi (reposts) */}
                 <StatTile
-                  label="Ukupno repostova"
+                  label="Repostovi"
                   value={overview.reposts ?? undefined}
                   format={formatNumber}
                   note="Kumulativno na nalogu"
                   icon={Repeat2}
                 />
               </div>
-            </Reveal>
 
-            {/* ── Vremenska serija prikaza i Istorija pratilaca ─────────────────── */}
-            <Reveal delay={0.1}>
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                {/* Prikazi kroz vreme */}
                 <TimelineChart
                   dates={overview.dailyViews.map((d) => d.date)}
                   syncId="threads-dashboard-views"
                   area={{
-                    label: "Prikazi (views)",
-                    color: "var(--color-accent-400)",
+                    label: "Prikazi",
+                    color: "var(--color-chart-1)",
                     values: overview.dailyViews.map((d) => d.views),
                     format: formatNumber,
                     baseline: "zero",
@@ -278,18 +322,11 @@ export function ThreadsDashboard() {
                   emptyReason="Threads API beleži preglede po danu; nema zabeleženih prikaza u izabranom periodu."
                 />
 
-                {/* Istorija pratilaca iz snimaka */}
                 <ThreadsFollowsChart snapshots={followerHistory} />
               </div>
-            </Reveal>
 
-            {/* ── Mreža objava (§5.3) ─────────────────────────────────────────── */}
-            <Reveal delay={0.15}>
               <ThreadsContentGrid media={media} />
-            </Reveal>
 
-            {/* ── Demografija pratilaca (§5.4) ─────────────────────────────────── */}
-            <Reveal delay={0.2}>
               <ThreadsDemographicsTable
                 state={demographics.state}
                 reason={demographics.reason}
@@ -297,63 +334,38 @@ export function ThreadsDashboard() {
                 countries={demographics.countries}
                 cities={demographics.cities}
               />
-            </Reveal>
 
-            {/* ── Atribucija linkova i levak poseta (§10.2) ────────────────────── */}
-            <Reveal delay={0.25}>
               <ThreadsAttributionSection
                 attributionSummary={attribution}
                 unmatchedUrls={unmatchedUrls}
               />
-            </Reveal>
-          </div>
-        )}
+            </div>
+          ))}
 
         {tab === "publish" && (
           <div className="flex flex-col gap-8">
-            <Reveal>
-              <ThreadsComposer />
-            </Reveal>
-            <Reveal delay={0.05}>
-              <ThreadsJobsPanel />
-            </Reveal>
+            <ThreadsComposer />
+            <ThreadsJobsPanel />
           </div>
         )}
 
-        {tab === "moderation" && (
-          <div className="flex flex-col gap-8">
-            <Reveal>
-              <ThreadsRepliesModeration />
-            </Reveal>
-          </div>
-        )}
+        {tab === "moderation" && <ThreadsRepliesModeration />}
 
-        {tab === "automations" && (
-          <div className="flex flex-col gap-8">
-            <Reveal>
-              <ThreadsAutomations />
-            </Reveal>
-          </div>
-        )}
+        {tab === "automations" && <ThreadsAutomations />}
 
-        {tab === "search" && (
-          <div className="flex flex-col gap-8">
-            <Reveal>
-              <ThreadsSearch />
-            </Reveal>
-          </div>
-        )}
+        {tab === "search" && <ThreadsSearch />}
       </TabPanel>
     </div>
   );
 }
 
+/** Zaglavlje je isto kao na učitanom ekranu, pa podaci ništa ne pomeraju. */
 export function ThreadsDashboardSkeleton() {
   return (
-    <div className="flex flex-1 flex-col gap-8">
-      <Card className="h-16 p-4 shadow-card ring-line animate-pulse" />
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-        <StatTileSkeleton />
+    <div className="flex flex-1 flex-col gap-6">
+      <PageHeader variant="module" description={DESCRIPTION} />
+      <ChannelFocusSkeleton />
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
         <StatTileSkeleton />
         <StatTileSkeleton />
         <StatTileSkeleton />
@@ -362,7 +374,7 @@ export function ThreadsDashboardSkeleton() {
       </div>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <TimelineChartSkeleton topLabelWidth="w-32" bottomPanel={false} />
-        <Card className="h-72 p-5 shadow-card ring-line animate-pulse" />
+        <Card className="h-72 animate-pulse p-5 shadow-card ring-line" />
       </div>
       <ThreadsContentGridSkeleton />
     </div>

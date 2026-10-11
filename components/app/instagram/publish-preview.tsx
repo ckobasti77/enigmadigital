@@ -74,7 +74,7 @@ export function PublishPreview({
     <Card className="overflow-hidden p-0 shadow-card">
       <div className="flex items-center justify-between gap-2 border-b border-line-soft px-4 py-2.5">
         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
-          <Icon className="size-3.5 text-accent-400" aria-hidden />
+          <Icon className="size-3.5 text-mod" aria-hidden />
           {KIND_LABELS[kind]}
         </span>
         <span className="font-mono text-micro tabular-nums text-text-muted">
@@ -87,7 +87,7 @@ export function PublishPreview({
         className={cn(
           "relative w-full overflow-hidden bg-bg-950",
           frameClass(kind),
-          isPlacingTag && "cursor-crosshair ring-2 ring-accent-400/50 ring-inset",
+          isPlacingTag && "cursor-crosshair ring-2 ring-mod-line ring-inset",
         )}
       >
         {first === undefined ? (
@@ -121,13 +121,13 @@ export function PublishPreview({
                     style={{ left: `${leftPct}%`, top: `${topPct}%` }}
                     className="pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-white/20 bg-bg-950/85 px-2 py-0.5 text-micro font-medium text-white shadow-md backdrop-blur-sm"
                   >
-                    <span className="size-1.5 rounded-full bg-accent-400" />
+                    <span className="size-1.5 rounded-full bg-mod-strong" />
                     <span>@{tag.username.replace(/^@/, "")}</span>
                   </div>
                 );
               })}
             {isPlacingTag && (
-              <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-bg-950/80 px-2 py-1 text-micro text-accent-400 backdrop-blur-md">
+              <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-bg-950/80 px-2 py-1 text-micro text-mod backdrop-blur-md">
                 Klikni na sliku za postavljanje oznake
               </div>
             )}
@@ -157,7 +157,7 @@ export function PublishPreview({
               key={item.id}
               className={cn(
                 "relative size-9 shrink-0 overflow-hidden rounded-md border",
-                index === 0 ? "border-accent-400/60" : "border-line-soft",
+                index === 0 ? "border-mod-line" : "border-line-soft",
               )}
             >
               {item.kind === "image" ? (
@@ -186,12 +186,12 @@ export function PublishPreview({
         <div className="flex flex-wrap gap-2 border-b border-line-soft px-4 py-2 text-micro text-text-muted">
           {locationId && (
             <span className="inline-flex items-center gap-1 font-mono">
-              📍 ID lokacije: {locationId}
+              ID lokacije: {locationId}
             </span>
           )}
           {audioName && (
             <span className="inline-flex items-center gap-1">
-              🎵 Zvuk: {audioName}
+              Zvuk: {audioName}
             </span>
           )}
         </div>
@@ -227,7 +227,7 @@ function highlightHashtags(caption: string) {
   const pieces = caption.split(/(#[\p{L}\p{N}_]+)/gu);
   return pieces.map((piece, index) =>
     piece.startsWith("#") ? (
-      <span key={index} className="text-accent-400">
+      <span key={index} className="text-mod">
         {piece}
       </span>
     ) : (

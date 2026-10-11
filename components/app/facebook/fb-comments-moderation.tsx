@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Reveal } from "@/components/motion/reveal";
 import { CountUp } from "@/components/motion/count-up";
 import { Arrive, ArrivalScope } from "@/components/motion/arrive";
 import { EmptyState } from "@/components/app/empty-state";
@@ -123,7 +122,7 @@ export function FbCommentsModeration() {
         Facebook stranica još nije povezana.{" "}
         <Link
           href="/settings"
-          className="text-accent-400 underline-offset-4 hover:underline"
+          className="text-mod underline-offset-4 hover:underline"
         >
           Poveži je u podešavanjima
         </Link>
@@ -134,7 +133,7 @@ export function FbCommentsModeration() {
 
   return (
     <div className="flex flex-1 flex-col gap-5">
-      <Reveal>
+      <div>
         <FilterBar
           filter={filter}
           onFilterChange={(next) => {
@@ -145,9 +144,9 @@ export function FbCommentsModeration() {
           onSearchChange={setSearch}
           counts={counts}
         />
-      </Reveal>
+      </div>
 
-      <Reveal delay={0.05} className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col">
         <Card className="flex flex-1 flex-col gap-0 p-0 shadow-card">
           <SelectionBar
             selection={selected}
@@ -168,7 +167,7 @@ export function FbCommentsModeration() {
               kratkim uvodom umesto da lista ponovo poskoči. Scope stoji IZNAD
               praznog stanja, da prvi komentar ikad primljen bude tretiran kao
               dolazak, a `ready` ga drži neslegnutim dok upit traje, da prva
-              porcija redova ostane posao <Reveal>-a. */}
+              porcija redova ne bude tretirana kao dolazak. */}
           <ArrivalScope
             ready={threads !== undefined}
             resetKey={`${filter}|${search.trim()}`}
@@ -196,7 +195,7 @@ export function FbCommentsModeration() {
             )}
           </ArrivalScope>
         </Card>
-      </Reveal>
+      </div>
     </div>
   );
 }
@@ -239,7 +238,7 @@ function FilterBar({
             key={option.value}
             value={option.value}
             size="sm"
-            className="rounded-md! gap-1.5 px-3 text-text-secondary aria-pressed:text-accent-400 data-pressed:text-accent-400"
+            className="rounded-md! gap-1.5 px-3 text-text-secondary aria-pressed:text-mod data-pressed:text-mod"
           >
             {option.label}
             {counts && (

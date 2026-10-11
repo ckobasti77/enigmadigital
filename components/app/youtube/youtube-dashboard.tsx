@@ -3,15 +3,29 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { ChartNoAxesColumn, Unplug } from "lucide-react";
+import {
+  ChartNoAxesColumn,
+  Clock,
+  Gauge,
+  Radio,
+  Unplug,
+  UserPlus,
+} from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Reveal } from "@/components/motion/reveal";
 import {
   useDateRange,
 } from "@/components/app/date-range-picker";
-import { EmptyState } from "@/components/app/empty-state";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
-import { KpiTile, KpiTileSkeleton } from "@/components/app/analytics/kpi-tile";
+import {
+  ChannelFocus,
+  ChannelFocusSkeleton,
+  useChannelSync,
+} from "@/components/app/system/channel-focus";
+import { EmptyState } from "@/components/app/system/empty-state";
+import { KpiTile, KpiTileSkeleton } from "@/components/app/system/kpi-tile";
+import { PageHeader } from "@/components/app/system/page-header";
+import { useNow } from "@/components/app/use-now";
+import { Button } from "@/components/ui/button";
 import { YouTubeChart, YouTubeChartSkeleton } from "./youtube-chart";
 import {
   YouTubeTrafficSources,
@@ -21,6 +35,8 @@ import {
   YouTubeVideosGrid,
   YouTubeVideosGridSkeleton,
 } from "./youtube-videos-grid";
+import { YtUploadButton } from "./yt-upload-dialog";
+import { POST_NOUN_VIDEO, channelReadiness } from "@/lib/channel-readiness";
 import { deltaPct, deltaPp, fillYtDays, summarizeYt } from "@/lib/metrics";
 import type { YtDailyPoint } from "@/lib/metrics";
 import {
@@ -34,9 +50,16 @@ import {
 
 const VIDEO_LIMIT = 30;
 
+const DESCRIPTION =
+  "Pregledi, vreme gledanja i pratioci kanala u odnosu na prethodni period iste dužine.";
+
 /**
  * YouTube Dashboard. Live subscriptions to channel daily totals (views, watch
  * time, subscribers, retention), traffic sources and the newest videos.
+ *
+ * Fokus su Pregledi i Spremnost kanala; primarno dugme je „Pošalji video" u
+ * zaglavlju. Merač ovde ima tri uslova: stanje odgovora na komentare se za
+ * YouTube ne čuva, pa se ne tvrdi.
  */
 export function YouTubeDashboard() {
   const { range } = useDateRange();
@@ -95,107 +118,173 @@ export function YouTubeDashboard() {
 
   const compareLabel = `vs prethodnih ${range.days} d`;
 
+  // Spremnost kanala: sve iz upita koje ekran i ljuska već drže otvorene.
+  const sync = useChannelSync("youtube");
+  const now = useNow();
+  const lastPostAt = useMemo(() => {
+    if (!videos || videos.length === 0) return null;
+    const newest = Math.max(...videos.map((v) => v.publishedAt));
+    return newest > 0 ? newest : null;
+  }, [videos]);
+  const readiness = sync
+    ? channelReadiness({
+        connected: sync.connected,
+        lastSyncAt: sync.lastSyncAt,
+        syncFailed: sync.syncFailed,
+        lastPostAt,
+        postNoun: POST_NOUN_VIDEO,
+        now,
+      })
+    : undefined;
+
   return (
     <div className="flex flex-1 flex-col gap-6">
+      <PageHeader
+        variant="module"
+        description={DESCRIPTION}
+        actions={ytConnected && <YtUploadButton />}
+      />
+
       {!ytConnected ? (
-        <EmptyState icon={Unplug}>
-          YouTube još nije povezan.{" "}
-          <Link
-            href="/settings"
-            className="text-accent-400 underline-offset-4 hover:underline"
-          >
-            Poveži ga u podešavanjima
-          </Link>
-          .
+        <EmptyState
+          icon={Unplug}
+          variant="mission"
+          title="Poveži YouTube kanal"
+          steps={[
+            { label: "Poveži YouTube kanal u Podešavanjima" },
+            { label: "Prva sinhronizacija povlači do 90 dana istorije" },
+            { label: "Pošalji prvi video iz aplikacije" },
+          ]}
+          action={
+            <Button
+              variant="primary"
+              render={<Link href="/settings" />}
+              nativeButton={false}
+            >
+              Poveži YouTube
+            </Button>
+          }
+        >
+          Posle povezivanja ovde stižu pregledi, vreme gledanja i video snimci.
         </EmptyState>
       ) : loading ? (
-        <YouTubeDashboardSkeleton />
+        <YouTubeDashboardBodySkeleton />
+      ) : cur.views === 0 && videos.length === 0 ? (
+        <>
+          <EmptyState
+            icon={ChartNoAxesColumn}
+            variant="line"
+            title="Još nema podataka za ovaj period."
+          >
+            Istorija seže 90 dana unazad od prve sinhronizacije.
+          </EmptyState>
+          <EmptyState
+            icon={Radio}
+            variant="mission"
+            size="sm"
+            title="Pokreni kanal"
+            steps={[
+              { label: "Poveži YouTube kanal u Podešavanjima", done: true },
+              {
+                label: "Prva sinhronizacija povlači do 90 dana istorije",
+                done: sync !== undefined && sync.lastSyncAt !== null,
+              },
+              { label: "Pošalji prvi video iz aplikacije" },
+            ]}
+          >
+            Kanal je povezan. Brojevi stižu posle sinhronizacije i prvog videa.
+          </EmptyState>
+        </>
       ) : (
         <>
-          <Reveal>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <KpiTile
-                label="Pregledi"
-                primary
-                value={cur.views}
-                format={formatNumber}
-                delta={{ kind: "pct", value: deltaPct(cur.views, prev.views) }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={series.map((d) => d.views)}
-              />
-              <KpiTile
-                label="Vreme gledanja"
-                value={cur.estimatedMinutesWatched}
-                format={formatWatchTime}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(
-                    cur.estimatedMinutesWatched,
-                    prev.estimatedMinutesWatched,
-                  ),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={series.map((d) => d.estimatedMinutesWatched)}
-              />
-              <KpiTile
-                label="Pratioci (neto)"
-                value={cur.netSubscribers}
-                format={formatSignedNumber}
-                delta={{
-                  kind: "pct",
-                  // A negative or zero baseline makes a relative change
-                  // meaningless — show a dash instead of a nonsense percentage.
-                  value:
-                    prev.netSubscribers > 0
-                      ? deltaPct(cur.netSubscribers, prev.netSubscribers)
-                      : null,
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={cumulativeNet(series)}
-              />
-              <KpiTile
-                label="Prosečno odgledano"
-                value={cur.averageViewPercentage}
-                format={formatPercent}
-                delta={{
-                  kind: "pp",
-                  value: deltaPp(
-                    cur.averageViewPercentage,
-                    prev.averageViewPercentage,
-                  ),
-                }}
-                formatDelta={formatSignedPp}
-                compareLabel={compareLabel}
-                spark={series.map((d) => d.averageViewPercentage)}
-              />
-            </div>
-          </Reveal>
+          <ChannelFocus
+            label="Pregledi"
+            value={cur.views}
+            format={formatNumber}
+            delta={deltaPct(cur.views, prev.views)}
+            formatDelta={formatSignedPercent}
+            compareLabel={compareLabel}
+            note="zbir za period"
+            readiness={readiness}
+            next={
+              readiness?.next === "connected" || readiness?.next === "sync" ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  render={<Link href="/settings" />}
+                  nativeButton={false}
+                >
+                  Otvori podešavanja
+                </Button>
+              ) : null
+            }
+          />
 
-          {cur.views === 0 && videos.length === 0 ? (
-            <EmptyState icon={ChartNoAxesColumn}>
-              Nema podataka za izabrani period. Istorija seže 90 dana unazad od
-              prve sinhronizacije.
-            </EmptyState>
-          ) : (
-            <>
-              <Reveal delay={0.04}>
-                <ChartErrorBoundary>
-                  <YouTubeChart data={series} />
-                </ChartErrorBoundary>
-              </Reveal>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 [&>*:last-child]:col-span-2 lg:[&>*:last-child]:col-span-1">
+            <KpiTile
+              label="Vreme gledanja"
+              icon={Clock}
+              value={cur.estimatedMinutesWatched}
+              format={formatWatchTime}
+              delta={{
+                kind: "pct",
+                value: deltaPct(
+                  cur.estimatedMinutesWatched,
+                  prev.estimatedMinutesWatched,
+                ),
+              }}
+              formatDelta={formatSignedPercent}
+              compareLabel={compareLabel}
+              spark={series.map((d) => d.estimatedMinutesWatched)}
+            />
+            <KpiTile
+              label="Pratioci (neto)"
+              icon={UserPlus}
+              value={cur.netSubscribers}
+              format={formatSignedNumber}
+              delta={{
+                kind: "pct",
+                // A negative or zero baseline makes a relative change
+                // meaningless — show a dash instead of a nonsense percentage.
+                value:
+                  prev.netSubscribers > 0
+                    ? deltaPct(cur.netSubscribers, prev.netSubscribers)
+                    : null,
+              }}
+              formatDelta={formatSignedPercent}
+              compareLabel={compareLabel}
+              spark={cumulativeNet(series)}
+            />
+            <KpiTile
+              label="Prosečno odgledano"
+              shortLabel="Odgledano"
+              icon={Gauge}
+              value={cur.averageViewPercentage}
+              format={formatPercent}
+              delta={{
+                kind: "pp",
+                // Prazan prethodni period nije „0 %" — tada poređenja nema.
+                value:
+                  previousRows !== undefined && previousRows.length > 0
+                    ? deltaPp(
+                        cur.averageViewPercentage,
+                        prev.averageViewPercentage,
+                      )
+                    : null,
+              }}
+              formatDelta={formatSignedPp}
+              compareLabel={compareLabel}
+              spark={series.map((d) => d.averageViewPercentage)}
+            />
+          </div>
 
-              <Reveal delay={0.07}>
-                <YouTubeTrafficSources sources={sources} />
-              </Reveal>
+          <ChartErrorBoundary>
+            <YouTubeChart data={series} />
+          </ChartErrorBoundary>
 
-              <Reveal delay={0.1}>
-                <YouTubeVideosGrid videos={videos} />
-              </Reveal>
-            </>
-          )}
+          <YouTubeTrafficSources sources={sources} />
+
+          <YouTubeVideosGrid videos={videos} />
         </>
       )}
     </div>
@@ -223,11 +312,11 @@ function useStale<T>(value: T | undefined): T | undefined {
   return value ?? last;
 }
 
-export function YouTubeDashboardSkeleton() {
+function YouTubeDashboardBodySkeleton() {
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiTileSkeleton />
+      <ChannelFocusSkeleton />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 [&>*:last-child]:col-span-2 lg:[&>*:last-child]:col-span-1">
         <KpiTileSkeleton />
         <KpiTileSkeleton />
         <KpiTileSkeleton />
@@ -236,5 +325,15 @@ export function YouTubeDashboardSkeleton() {
       <YouTubeTrafficSourcesSkeleton />
       <YouTubeVideosGridSkeleton />
     </>
+  );
+}
+
+/** Zaglavlje je isto kao na učitanom ekranu, pa podaci ništa ne pomeraju. */
+export function YouTubeDashboardSkeleton() {
+  return (
+    <div className="flex flex-1 flex-col gap-6">
+      <PageHeader variant="module" description={DESCRIPTION} />
+      <YouTubeDashboardBodySkeleton />
+    </div>
   );
 }

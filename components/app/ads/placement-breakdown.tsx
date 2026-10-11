@@ -94,7 +94,7 @@ export function PlacementBreakdown({
                   <TableRow key={`${row.platform}-${row.placement}-${idx}`} className="border-line-soft/60 hover:bg-surface-raised/30">
                     <TableCell className="pl-4">
                       <div className="flex items-center gap-2">
-                        <Icon className="size-3.5 shrink-0 text-accent-400" />
+                        <Icon className="size-3.5 shrink-0 text-mod" />
                         <span className="font-medium text-foreground">{name}</span>
                       </div>
                     </TableCell>
@@ -105,7 +105,7 @@ export function PlacementBreakdown({
                       <div className="flex items-center justify-end gap-1.5">
                         <div className="h-1.5 w-12 overflow-hidden rounded-full bg-surface-raised">
                           <div
-                            className="h-full bg-accent-400"
+                            className="h-full bg-mod-strong"
                             style={{ width: `${Math.min(100, Math.max(0, share))}%` }}
                           />
                         </div>

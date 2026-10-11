@@ -54,7 +54,7 @@ export function SpendChart({
   return (
     <TimelineChart
       syncId="ads-timeline"
-      yWidth={56}
+      yWidth={76}
       dates={dates}
       area={{
         label: "Dnevna potrošnja",
@@ -62,7 +62,7 @@ export function SpendChart({
         values,
         format: (v: number) => formatMetric(v, spendDef, currency),
       }}
-      emptyReason="Nijedna kampanja nije trošila budžet u ovom periodu. Ako je nalog aktivan, sinhronizacija još nije stigla do ovih dana."
+      emptyReason="Nijedna kampanja nije trošila u ovom periodu ili sinhronizacija još nije stigla."
     />
   );
 }

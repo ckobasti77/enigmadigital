@@ -204,7 +204,7 @@ function AutomationCard({
                       "inline-flex items-center gap-1",
                       automation.moderationStatus === "rejected"
                         ? "text-danger"
-                        : "text-accent-400",
+                        : "text-mod",
                     )}
                   >
                     <ShieldCheck className="size-3" aria-hidden />
@@ -275,7 +275,7 @@ function AutomationCard({
           <p className="heading-caps text-micro font-medium text-text-muted">
             Odgovora (7 dana)
           </p>
-          <p className="mt-0.5 font-mono text-lg tabular-nums text-accent-400">
+          <p className="mt-0.5 font-mono text-lg tabular-nums text-mod">
             {formatNumber(automation.repliesLast7Days)}
           </p>
         </div>

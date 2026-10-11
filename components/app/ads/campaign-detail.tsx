@@ -171,7 +171,7 @@ function KeywordQualitySection({
                 <TableCell className="text-right font-mono tabular-nums text-foreground">
                   {formatNumber(kw.clicks)}
                 </TableCell>
-                <TableCell className="text-right font-mono tabular-nums text-accent-400">
+                <TableCell className="text-right font-mono tabular-nums text-mod">
                   {formatPercent(kw.ctr)}
                 </TableCell>
                 <TableCell className="text-right font-mono tabular-nums text-foreground">
@@ -300,7 +300,7 @@ export function CampaignDetail({
         <button
           type="button"
           onClick={onBack}
-          className="group inline-flex items-center gap-1.5 text-xs font-medium text-text-muted hover:text-accent-400 transition-colors"
+          className="group inline-flex items-center gap-1.5 text-xs font-medium text-text-muted hover:text-mod transition-colors"
         >
           <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" />
           <span>Nazad na sve kampanje</span>
@@ -334,7 +334,7 @@ export function CampaignDetail({
               )}
 
               <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2 py-0.5 font-medium text-foreground">
-                <Target className="size-3 text-accent-400" />
+                <Target className="size-3 text-mod" />
                 {formatObjective(campaign.objective)}
               </span>
 
@@ -416,7 +416,7 @@ export function CampaignDetail({
                       actionType: "budget_change",
                     })
                   }
-                  className="h-9 gap-1.5 text-xs font-medium border-line-soft hover:border-accent-400/40 hover:bg-accent-400/10 hover:text-accent-400"
+                  className="h-9 gap-1.5 text-xs font-medium border-line-soft hover:border-mod-line hover:bg-mod-soft hover:text-mod"
                 >
                   <TrendingUp className="size-3.5" />
                   <span>Promeni budžet</span>
@@ -464,7 +464,7 @@ export function CampaignDetail({
         ) : (
           <div className="rounded-lg border border-line bg-surface/50 p-3">
             <span className="text-xs text-text-muted">CTR</span>
-            <p className="mt-1 font-mono text-xl font-bold tabular-nums text-accent-400">
+            <p className="mt-1 font-mono text-xl font-bold tabular-nums text-mod">
               {formatPercent(campaign.ctr)}
             </p>
           </div>
@@ -510,7 +510,7 @@ export function CampaignDetail({
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Layers className="size-4 text-accent-400" />
+            <Layers className="size-4 text-mod" />
             <h2 className="text-base font-bold text-foreground">
               {isGoogleAds ? `Grupe oglasa i Oglasi (${adSets.length})` : `Ad Setovi i Oglasi (${adSets.length})`}
             </h2>
@@ -601,7 +601,7 @@ export function CampaignDetail({
                         </span>
                       )}
                       <span>
-                        CTR: <strong className="text-accent-400">{formatPercent(set.ctr)}</strong>
+                        CTR: <strong className="text-mod">{formatPercent(set.ctr)}</strong>
                       </span>
                     </div>
 
@@ -655,7 +655,7 @@ export function CampaignDetail({
                             })
                           }
                           title="Promeni budžet Ad Seta"
-                          className="flex size-7 items-center justify-center rounded border border-line-soft bg-surface text-text-muted hover:border-accent-400/40 hover:bg-accent-400/10 hover:text-accent-400 transition-colors"
+                          className="flex size-7 items-center justify-center rounded border border-line-soft bg-surface text-text-muted hover:border-mod-line hover:bg-mod-soft hover:text-mod transition-colors"
                         >
                           <TrendingUp className="size-3.5" />
                         </button>
@@ -671,7 +671,7 @@ export function CampaignDetail({
                           e.stopPropagation();
                           onOpenBattle(set._id);
                         }}
-                        className="h-7 gap-1.5 border-accent-400/40 bg-accent-400/10 text-accent-400 hover:bg-accent-400/20 hover:text-accent-300 font-medium ml-1"
+                        className="h-7 gap-1.5 border-mod-line bg-mod-soft text-mod hover:bg-mod-soft hover:text-mod font-medium ml-1"
                         title="Otvori Hook Battle za ovaj Ad Set"
                       >
                         <Swords className="size-3.5" />
@@ -748,7 +748,7 @@ export function CampaignDetail({
                                             ad.status === "ACTIVE" ? "bg-success" : "bg-text-muted",
                                           )}
                                         />
-                                        <span className="font-medium text-foreground truncate max-w-xs group-hover:text-accent-400 transition-colors">
+                                        <span className="font-medium text-foreground truncate max-w-xs group-hover:text-mod transition-colors">
                                           {ad.name}
                                         </span>
                                       </div>
@@ -800,7 +800,7 @@ export function CampaignDetail({
                                   ) : hasAdVideo ? (
                                     <div className="text-micro">
                                       {ad.hookRate !== undefined ? (
-                                        <span className="text-accent-400 font-medium">{formatPercent(ad.hookRate)}</span>
+                                        <span className="text-mod font-medium">{formatPercent(ad.hookRate)}</span>
                                       ) : (
                                         <span className="text-text-muted" title="Nema dovoljno podataka">—</span>
                                       )}
@@ -881,7 +881,7 @@ export function CampaignDetail({
                                     <button
                                       type="button"
                                       onClick={() => setSelectedAdId(ad._id)}
-                                      className="inline-flex items-center gap-1 rounded border border-line bg-surface-raised px-2 py-0.5 text-micro font-medium text-foreground hover:border-accent-400/50 hover:text-accent-400 transition-colors ml-0.5"
+                                      className="inline-flex items-center gap-1 rounded border border-line bg-surface-raised px-2 py-0.5 text-micro font-medium text-foreground hover:border-mod-line hover:text-mod transition-colors ml-0.5"
                                     >
                                       <span>Detalji</span>
                                       <ChevronRightSquare className="size-3" />

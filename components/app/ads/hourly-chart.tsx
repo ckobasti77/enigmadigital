@@ -69,7 +69,7 @@ export function HourlyChart({
           Distribucija potrošnje i aktivnosti po satima (00:00 – 23:00).
         </p>
         <div className="flex items-center gap-1.5 text-xs text-text-muted">
-          <Info className="size-3 text-accent-400" />
+          <Info className="size-3 text-mod" />
           <span>Hot kampanja · sinhronizovano u 15-minutnom taktu</span>
         </div>
       </div>

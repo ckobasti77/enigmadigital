@@ -46,9 +46,9 @@ type PublishJob = FunctionReturnType<typeof api.instagramPublishStore.listJobs>[
 const STATUS_TONES: Record<PublishJob["status"], string> = {
   draft: "border-line bg-surface text-text-muted",
   queued: "border-line bg-surface text-text-secondary",
-  uploading: "border-accent-400/30 bg-accent-400/10 text-accent-400",
-  processing: "border-accent-400/30 bg-accent-400/10 text-accent-400",
-  publishing: "border-accent-400/30 bg-accent-400/10 text-accent-400",
+  uploading: "border-mod-line bg-mod-soft text-mod",
+  processing: "border-mod-line bg-mod-soft text-mod",
+  publishing: "border-mod-line bg-mod-soft text-mod",
   published: "border-success/30 bg-success/10 text-success",
   failed: "border-danger/30 bg-danger/10 text-danger",
   canceled: "border-line bg-surface text-text-muted",
@@ -114,7 +114,7 @@ export function PublishJobsPanel() {
   return (
     <Card className="flex flex-col gap-4 p-5 shadow-card">
       <div className="flex items-center gap-2">
-        <div className="flex size-7 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400">
+        <div className="flex size-7 items-center justify-center rounded-lg bg-mod-soft text-mod">
           <History className="size-4" aria-hidden />
         </div>
         <div>

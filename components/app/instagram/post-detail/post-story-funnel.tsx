@@ -92,7 +92,7 @@ export function PostStoryFunnel({ breakdowns, className }: PostStoryFunnelProps)
   return (
     <div className={cn("flex flex-col gap-4", className)}>
       <div className="flex flex-col gap-1">
-        <span className="heading-caps text-micro font-semibold text-accent-400">
+        <span className="heading-caps text-micro font-semibold text-mod">
           Story analitika
         </span>
         <h2 className="text-xl font-bold tracking-tight text-foreground">
@@ -106,7 +106,7 @@ export function PostStoryFunnel({ breakdowns, className }: PostStoryFunnelProps)
       <Card className="flex flex-col gap-6 p-6 shadow-card ring-line">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/60 pb-3">
           <div className="flex items-center gap-2">
-            <Navigation className="size-4 text-accent-400" aria-hidden="true" />
+            <Navigation className="size-4 text-mod" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-foreground">
               Segmentacija radnji gledalaca
             </h3>
@@ -195,7 +195,7 @@ export function PostStoryFunnel({ breakdowns, className }: PostStoryFunnelProps)
                     onMouseLeave={() => setHoveredKey(null)}
                     className={cn(
                       "flex flex-col justify-between gap-3 rounded-lg border border-line bg-surface-raised/40 p-4 transition-all",
-                      isHovered && "border-line-strong bg-surface-raised/80 ring-1 ring-accent-400/40",
+                      isHovered && "border-line-strong bg-surface-raised/80 ring-1 ring-mod-line",
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">

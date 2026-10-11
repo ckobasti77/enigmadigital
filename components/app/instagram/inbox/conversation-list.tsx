@@ -15,7 +15,6 @@ import { api } from "@/convex/_generated/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { formatRelativeTime } from "@/lib/format";
-import { RevealGroup } from "@/components/motion/reveal";
 import { cn } from "@/lib/utils";
 
 export type FilterType = "all" | "unread" | "expiring";
@@ -160,7 +159,7 @@ export function ConversationList({
             </p>
           </div>
         ) : (
-          <RevealGroup className="divide-y divide-line/40">
+          <div className="divide-y divide-line/40">
             {conversations.map((conv) => {
               const isSelected = selectedIgsid === conv.igsid;
               const hasUnread = (conv.unreadCount ?? 0) > 0;
@@ -234,7 +233,7 @@ export function ConversationList({
                           className={cn(
                             "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium",
                             isExpiringSoon
-                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 animate-pulse"
+                              ? "bg-warning-soft text-warning dark:text-warning border border-warning-line animate-pulse"
                               : "bg-surface-sunken text-muted-foreground border border-line",
                           )}
                           title={`Preostalo vreme u 24h prozoru za odgovor: ${conv.windowFormatted}`}
@@ -256,7 +255,7 @@ export function ConversationList({
                 </button>
               );
             })}
-          </RevealGroup>
+          </div>
         )}
       </div>
     </div>

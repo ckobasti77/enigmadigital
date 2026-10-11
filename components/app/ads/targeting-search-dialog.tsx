@@ -120,7 +120,7 @@ export function TargetingSearchDialog({
                   onClick={() => setType(t.value)}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                     active
-                      ? "bg-accent-400/10 text-accent-400 border border-accent-400/30"
+                      ? "bg-mod-soft text-mod border border-mod-line"
                       : "bg-surface-raised border border-line text-text-muted hover:text-foreground hover:bg-surface-subtle"
                   }`}
                 >
@@ -169,7 +169,7 @@ export function TargetingSearchDialog({
         <div className="flex-1 overflow-auto rounded-lg border border-line bg-surface min-h-[300px]">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-[300px] gap-2 text-text-muted">
-              <Loader2 className="size-6 text-accent-400 animate-spin" />
+              <Loader2 className="size-6 text-mod animate-spin" />
               <span className="text-xs">Pretraga Meta kataloga...</span>
             </div>
           ) : results.length > 0 ? (

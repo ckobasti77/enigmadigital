@@ -965,6 +965,51 @@ const listRuleFirings: R<typeof api.rulesStore.listRuleFirings> = [
 // najbezbednija sintetička vrednost prazno (bez izmišljenih objava).
 
 const postsPublished: R<typeof api.postsPublic.listPublished> = {
+  // B8: tabla po statusu traži bar nekoliko kartica. Objavljeni postovi stižu
+  // odavde; nacrte i arhivu snimak upisuje u localStorage (kao i aplikacija).
+  posts: [
+    {
+      _id: "post_ux_test_001" as Id<"posts">,
+      _creationTime: now - 20 * DAY,
+      slug: "test-clanak-1",
+      locale: "sr",
+      kind: "article",
+      category: "kako_radi",
+      title: "Test članak 1: kako radi probni tekst",
+      dek: "Probni podnaslov.",
+      coverUrl: null,
+      coverAlt: undefined,
+      authorRole: undefined,
+      authorName: "Test Operater",
+      tags: ["test"],
+      publishedAt: now - 3 * DAY,
+      updatedAt: now - 3 * DAY,
+      readingMinutes: 6,
+    },
+    {
+      _id: "post_ux_test_002" as Id<"posts">,
+      _creationTime: now - 30 * DAY,
+      slug: "test-beleska-2",
+      locale: "sr",
+      kind: "note",
+      category: "odluke",
+      title: "Test beleška 2",
+      dek: "Probni podnaslov.",
+      coverUrl: null,
+      coverAlt: undefined,
+      authorRole: undefined,
+      authorName: "Test Operater",
+      tags: ["test"],
+      publishedAt: now - 12 * DAY,
+      updatedAt: now - 12 * DAY,
+      readingMinutes: 2,
+    },
+  ],
+  nextCursor: null,
+  hasMore: false,
+};
+
+const postsPrazno: R<typeof api.postsPublic.listPublished> = {
   posts: [],
   nextCursor: null,
   hasMore: false,
@@ -984,6 +1029,11 @@ const FIXTURES: Record<string, Fixture> = {
   [getFunctionName(api.instagramStore.dailyHistory)]: (args) => (tekuciPeriod(args) ? igDaily() : []),
   [getFunctionName(api.instagramStore.metricSeries)]: () => [],
   [getFunctionName(api.instagramStore.mediaList)]: () => [],
+  // B8: merač „Spremnost kanala" na Instagramu čita broj neodgovorenih.
+  [getFunctionName(api.igCommentsStore.filterCounts)]: () =>
+    ({ all: 12, unanswered: 3, hidden: 1, deleted: 0, mentions: 2, cap: 100 }) satisfies R<
+      typeof api.igCommentsStore.filterCounts
+    >,
   [getFunctionName(api.openreplyStore.daily)]: (args) => (tekuciPeriod(args) ? orDaily() : []),
   [getFunctionName(api.openreplyStore.campaigns)]: () => orCampaigns,
   [getFunctionName(api.attribution.report)]: () => attributionReport,
@@ -1037,6 +1087,11 @@ const PRAZNO: Record<string, Fixture> = {
   [getFunctionName(api.connections.list)]: () =>
     connections.filter((c) => !KANALI_BEZ_VEZE.has(c.provider)),
   [getFunctionName(api.sync.health)]: () => [],
+  [getFunctionName(api.postsPublic.listPublished)]: () => postsPrazno,
+  [getFunctionName(api.igCommentsStore.filterCounts)]: () =>
+    ({ all: 0, unanswered: 0, hidden: 0, deleted: 0, mentions: 0, cap: 100 }) satisfies R<
+      typeof api.igCommentsStore.filterCounts
+    >,
   ...PRAZNO_ANALITIKA,
   ...PRAZNO_KANALI,
   ...PRAZNO_OGLASI,

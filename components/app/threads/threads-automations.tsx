@@ -82,7 +82,7 @@ const LOG_STATUS_CONFIG: Record<
   },
   draft_simulated: {
     label: "Simulirano u skici",
-    tone: "border-accent-400/40 bg-accent-400/10 text-accent-400 font-semibold",
+    tone: "border-mod-line bg-mod-soft text-mod font-semibold",
     description: "Zabeleženo u logu bez slanja na Threads",
   },
   rejected_limit: {
@@ -210,14 +210,14 @@ export function ThreadsAutomations() {
   return (
     <div className="flex flex-col gap-6">
       {/* ── Upozorenje za OpenReply (§9) ─────────────────────────────────── */}
-      <Card className="flex items-start gap-3 border-accent-400/30 bg-accent-400/5 p-4 shadow-card ring-line">
-        <HelpCircle className="size-5 shrink-0 text-accent-400 mt-0.5" aria-hidden="true" />
+      <Card className="flex items-start gap-3 border-mod-line bg-mod-soft p-4 shadow-card ring-line">
+        <HelpCircle className="size-5 shrink-0 text-mod mt-0.5" aria-hidden="true" />
         <div className="text-xs leading-relaxed text-text-muted">
           <strong className="text-foreground">OpenReply za Threads:</strong> Threads nema
           direktne poruke (DM). Automatizacije odgovaraju isključivo{" "}
           <strong className="text-foreground">javnim komentarom</strong> sa praćenim linkom.
           Zbog zaštite naloga od neželjene pošte (spam), sva pravila se podrazumevano kreiraju u{" "}
-          <code className="text-accent-400 font-mono">draft</code> režimu simulacije.
+          <code className="text-mod font-mono">draft</code> režimu simulacije.
         </div>
       </Card>
 
@@ -363,7 +363,7 @@ function AutomationCard({
 
             {/* Mode badge with explicit text (§4) */}
             {isDraft ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-accent-400/40 bg-accent-400/10 px-2.5 py-0.5 text-micro font-semibold text-accent-400">
+              <span className="inline-flex items-center gap-1 rounded-full border border-mod-line bg-mod-soft px-2.5 py-0.5 text-micro font-semibold text-mod">
                 <FileText className="size-3" />
                 <span>Skica (simulacija)</span>
               </span>
@@ -409,12 +409,12 @@ function AutomationCard({
         {/* Režim objašnjenje (§4: mode mora biti očigledan) */}
         <div className="mt-3 text-xs leading-relaxed text-text-muted">
           {isDraft ? (
-            <p className="rounded-md bg-accent-400/5 px-2.5 py-1.5 border border-accent-400/20 text-text-secondary">
+            <p className="rounded-md bg-mod-soft px-2.5 py-1.5 border border-mod-line text-text-secondary">
               ℹ️ <strong>Režim skice:</strong> Pravilo se ocenjuje i upisuje u log, ali se ništa ne šalje na Threads.
             </p>
           ) : (
             <p className="rounded-md bg-success/5 px-2.5 py-1.5 border border-success/20 text-text-secondary">
-              ⚡ <strong>Režim uživo:</strong> Pravilo automatski objavljuje javne odgovore na Threads nalogu.
+              <strong>Režim uživo:</strong> Pravilo automatski objavljuje javne odgovore na Threads nalogu.
             </p>
           )}
         </div>
@@ -441,7 +441,7 @@ function AutomationCard({
               {item.replyText || "—"}
             </p>
             {item.linkUrl && (
-              <span className="mt-0.5 block truncate text-micro text-accent-400">
+              <span className="mt-0.5 block truncate text-micro text-mod">
                 Link: {item.linkUrl}
               </span>
             )}
@@ -799,7 +799,7 @@ function AutomationEditorDialog({
             {existing ? "Izmena pravila automatizacije" : "Novo pravilo automatizacije"}
           </DialogTitle>
           <DialogDescription>
-            Pravilo se kreira u bezbednom <code className="text-accent-400 font-mono">draft</code> režimu za testiranje.
+            Pravilo se kreira u bezbednom <code className="text-mod font-mono">draft</code> režimu za testiranje.
           </DialogDescription>
         </DialogHeader>
 
@@ -864,8 +864,8 @@ function AutomationEditorDialog({
               </div>
 
               {trigger === "keyword" && (
-                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-micro text-amber-300">
-                  ⚠️ <strong>Zaštita naloga od spama:</strong> Svaka ključna reč mora imati bar 3 karaktera. Preporučeni dnevni limit je 20 (maksimum 50).
+                <div className="rounded-lg border border-warning-line bg-warning-soft p-3 text-micro text-warning">
+                  <strong>Zaštita naloga od spama:</strong> Svaka ključna reč mora imati bar 3 karaktera. Preporučeni dnevni limit je 20 (maksimum 50).
                 </div>
               )}
             </FormGroup>

@@ -190,7 +190,7 @@ export function ThreadsRepliesModeration() {
       <Card className="p-5 shadow-card ring-line">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-mod-soft text-mod">
               <MessageCircle className="size-4" aria-hidden="true" />
             </div>
             <div>
@@ -240,7 +240,7 @@ export function ThreadsRepliesModeration() {
                   href={selectedMediaItem.permalink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 hover:text-accent-400"
+                  className="inline-flex items-center gap-1 hover:text-mod"
                 >
                   <span>Otvori objavu</span>
                   <ExternalLink className="size-3" />
@@ -279,7 +279,7 @@ export function ThreadsRepliesModeration() {
               className={cn(
                 "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
                 filterTab === "all"
-                  ? "bg-accent-400/10 text-accent-400"
+                  ? "bg-mod-soft text-mod"
                   : "text-text-muted hover:text-foreground",
               )}
             >
@@ -294,7 +294,7 @@ export function ThreadsRepliesModeration() {
               className={cn(
                 "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
                 filterTab === "pending"
-                  ? "bg-accent-400/10 text-accent-400"
+                  ? "bg-mod-soft text-mod"
                   : "text-text-muted hover:text-foreground",
               )}
             >
@@ -347,7 +347,7 @@ export function ThreadsRepliesModeration() {
                           {reply.username ? `@${reply.username}` : "Korisnik"}
                         </span>
                         {reply.isReplyOwnedByMe && (
-                          <span className="rounded bg-accent-400/10 px-1.5 py-0.2 font-mono text-micro text-accent-400">
+                          <span className="rounded bg-mod-soft px-1.5 py-0.2 font-mono text-micro text-mod">
                             Naš odgovor
                           </span>
                         )}
@@ -434,7 +434,7 @@ export function ThreadsRepliesModeration() {
                     >
                       {reply.hideStatus === "HIDDEN" ? (
                         <>
-                          <Eye className="size-3 text-accent-400" />
+                          <Eye className="size-3 text-mod" />
                           <span>Otkrij</span>
                         </>
                       ) : (
@@ -483,7 +483,7 @@ export function ThreadsRepliesModeration() {
 
       {/* Dijalog / polje za brzi odgovor */}
       {replyingTo && (
-        <Card className="p-5 shadow-card ring-line border-accent-400/40">
+        <Card className="p-5 shadow-card ring-line border-mod-line">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-xs font-semibold text-foreground">
               Odgovor na komentar korisnika {replyingTo.username ? `@${replyingTo.username}` : ""}

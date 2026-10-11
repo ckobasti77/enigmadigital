@@ -468,6 +468,34 @@ ne pomera; merač se pomeri kad se vrednost promeni.
   ivicu i tihu senku u boji temperature — bez pulsa i bez oreola.
 - **`TabNav`.** Podvlaka aktivnog jezička je u boji modula.
 
+### Kanali: Instagram, Facebook, YouTube, Threads, Oglasi, Novosti
+- **Zaglavlje** je `PageHeader` u `module` obliku na svakom ekranu i podekranu:
+  ikonica i boja kanala, jedan red podnaslova (≤ 90 znakova), duže objašnjenje
+  iza „i". Zaglavlje crta sam ekran (ne `page.tsx`), jer primarno dugme zavisi
+  od stanja: „Nova objava", „Odgovori na komentare", „Pošalji video", „Objavi",
+  „Nova kampanja", „Novi post". Nepovezan kanal ga nema — tada je primarno
+  dugme „Poveži …" u Misiji za start.
+- **Fokus** je `ChannelFocus`: levo glavni broj kanala u boji modula (40 px),
+  desno merač **Spremnost kanala** (`lib/channel-readiness.ts`): povezan ·
+  sinhronizuje (uspešan prolaz u poslednja 24 h) · objava u 7 dana · komentari
+  odgovoreni. Kanal koji nema podatak o neodgovorenim komentarima (YouTube,
+  Threads) taj uslov nema; imenilac mu je 3. Ispod merača stoji razlog prvog
+  neispunjenog uslova i jedna prateća radnja.
+- **Oglasi.** Fokus je Potrošnja sa valutom, u bento redu 2fr / 1fr / 1fr / 1fr
+  sa Rezultatima, CPA i ROAS-om (ili CTR-om). Za potrošnju i CPA pad je dobra
+  vest (`higherIsBetter={false}`).
+- **Prazan kanal.** Nepovezan: Misija za start sa tri koraka i dugmetom
+  „Poveži …". Povezan bez ijednog broja: linija „Još nema podataka za ovaj
+  period" i misija sa već urađenim koracima — nikad red nula. XP uz korak stoji
+  samo tamo gde ga Napredak stvarno dodeljuje (objava iz aplikacije).
+- **Mreže objava.** `EngagementBadge` na kartici: interakcije po prikazu,
+  zeleno kad je bar petinu iznad medijane prikazanih objava, prigušeno kad je
+  bar petinu ispod; strelica i tekst za čitač nose isto. Razreda nema ispod
+  četiri izmerene objave. Obrisane objave su podrazumevano skrivene.
+- **Novosti.** Tabla po statusu: Nacrti (upozorenje), Zakazano (info, samo kad
+  postoji), Objavljeno (uspeh), Arhiva (neutralno). Kartica je ceo post i
+  otvara uređivač; kolona pokazuje šest kartica, ostatak iza „Prikaži sve".
+
 ### Motion
 GSAP `useGSAP` unutar `gsap.matchMedia()` sa granom za reduced-motion.
 „Corporate" za ceo UI: `--ease-ui` (`cubic-bezier(.2,.8,.2,1)`), 100 ms

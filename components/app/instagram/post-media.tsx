@@ -42,14 +42,14 @@ export function MediaFallback({
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-bg-900 via-surface to-bg-950 p-4">
       {variant === "top" && (
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,var(--accent-glow),transparent_50%)] opacity-30" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,var(--mod-glow),transparent_50%)] opacity-30" />
       )}
       <div
         className={cn(
           "flex items-center justify-center rounded-xl border border-line transition-colors",
           variant === "top"
-            ? "size-12 bg-surface-raised/80 text-accent-400 shadow-xs"
-            : "size-10 bg-surface-raised/60 text-text-muted group-hover:border-line-strong group-hover:text-accent-400",
+            ? "size-12 bg-surface-raised/80 text-mod shadow-xs"
+            : "size-10 bg-surface-raised/60 text-text-muted group-hover:border-line-strong group-hover:text-mod",
         )}
       >
         <Icon className={variant === "top" ? "size-6" : "size-5"} />

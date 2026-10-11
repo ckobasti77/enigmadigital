@@ -524,7 +524,7 @@ export function CarouselSwiper({
               className={cn(
                 "size-1.5 rounded-full transition-all duration-150",
                 i === index
-                  ? "w-4 bg-accent-400"
+                  ? "w-4 bg-mod-strong"
                   : "bg-text-muted hover:bg-text-secondary",
               )}
             />

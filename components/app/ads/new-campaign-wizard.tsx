@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FeedbackNote } from "@/components/app/feedback";
-import { Reveal } from "@/components/motion/reveal";
 import { TargetingSearchDialog } from "./targeting-search-dialog";
 import { cn } from "@/lib/utils";
 import {
@@ -165,7 +164,7 @@ function Chip({
       className={cn(
         "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
         active
-          ? "border border-accent-400/30 bg-accent-400/10 text-accent-400"
+          ? "border border-mod-line bg-mod-soft text-mod"
           : "border border-line bg-surface-raised text-text-muted hover:bg-surface-subtle hover:text-foreground",
       )}
     >
@@ -207,8 +206,8 @@ function Stepper({ current }: { current: number }) {
               <span
                 className={cn(
                   "flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors",
-                  done && "border-accent-400/40 bg-accent-400/15 text-accent-400",
-                  active && "border-accent-400 bg-accent-400 text-primary-foreground",
+                  done && "border-mod-line bg-mod-soft text-mod",
+                  active && "border-mod bg-mod-strong text-primary-foreground",
                   !done && !active && "border-line bg-surface-raised text-text-muted",
                 )}
               >
@@ -232,7 +231,7 @@ function Stepper({ current }: { current: number }) {
               <span
                 className={cn(
                   "h-px flex-1",
-                  current > s.n ? "bg-accent-400/40" : "bg-line",
+                  current > s.n ? "bg-mod-strong/40" : "bg-line",
                 )}
               />
             )}
@@ -506,7 +505,7 @@ export function NewCampaignWizard() {
     <div className="flex flex-col gap-6">
       <Stepper current={step} />
 
-      <Reveal key={step}>
+      <div key={step}>
         {step === 1 && (
           <div className="flex flex-col gap-5">
             <SectionCard
@@ -709,7 +708,7 @@ export function NewCampaignWizard() {
               {isConversionPixel && (
                 <div className="flex flex-col gap-4 rounded-lg border border-line-soft bg-surface-raised/40 p-4">
                   <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                    <Info className="size-3.5 text-accent-400" />
+                    <Info className="size-3.5 text-mod" />
                     Konverziona optimizacija: izaberi piksel i događaj (promoted_object).
                   </div>
                   <Field label="Piksel" htmlFor="pixel">
@@ -911,7 +910,7 @@ export function NewCampaignWizard() {
             />
           </div>
         )}
-      </Reveal>
+      </div>
 
       {error && (
         <FeedbackNote tone="danger" title="Greška">
@@ -942,23 +941,23 @@ export function NewCampaignWizard() {
         )}
 
         {step === 1 && (
-          <Button size="sm" onClick={() => setStep(2)} disabled={!step1Valid}>
+          <Button variant="primary" size="sm" onClick={() => setStep(2)} disabled={!step1Valid}>
             Dalje
             <ArrowRight className="ml-1.5 size-3.5" />
           </Button>
         )}
         {step === 2 && (
-          <Button size="sm" onClick={goToStep3} disabled={!step2Valid}>
+          <Button variant="primary" size="sm" onClick={goToStep3} disabled={!step2Valid}>
             Dalje
             <ArrowRight className="ml-1.5 size-3.5" />
           </Button>
         )}
         {step === 3 && (
           <Button
+            variant="primary"
             size="sm"
             onClick={handleSubmit}
             disabled={submitting || validating || !step3Valid || plan?.ok !== true}
-            className="bg-primary text-primary-foreground hover:bg-primary/80"
           >
             {submitting ? (
               <>
@@ -1051,10 +1050,10 @@ function SummaryPanel({
   ];
 
   return (
-    <div className="rounded-xl border border-accent-400/20 bg-accent-400/[0.04] p-5">
+    <div className="rounded-xl border border-mod-line bg-mod-soft p-5">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <ShieldCheck className="size-4 text-accent-400" />
+          <ShieldCheck className="size-4 text-mod" />
           Rezime pre slanja
         </h2>
         <Button type="button" variant="outline" size="sm" onClick={onRevalidate} disabled={validating}>
@@ -1079,7 +1078,7 @@ function SummaryPanel({
         </div>
         {validating && !plan ? (
           <div className="flex items-center gap-2 text-xs text-text-muted">
-            <Loader2 className="size-3.5 animate-spin text-accent-400" />
+            <Loader2 className="size-3.5 animate-spin text-mod" />
             Proveravam kod Mete...
           </div>
         ) : plan ? (
@@ -1161,7 +1160,7 @@ function ResultPanel({
 
       <div className="flex items-center gap-2">
         <Link href="/ads">
-          <Button size="sm">
+          <Button variant="primary" size="sm">
             <PlugZap className="mr-1.5 size-3.5" />
             Idi na kampanje
           </Button>

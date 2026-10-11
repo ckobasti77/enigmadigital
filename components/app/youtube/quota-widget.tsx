@@ -33,7 +33,7 @@ const DANGER_AT = 0.9;
 type Tone = "normal" | "warning" | "danger";
 
 const BAR_TONES: Record<Tone, string> = {
-  normal: "bg-accent-400",
+  normal: "bg-mod-strong",
   warning: "bg-warning",
   danger: "bg-danger",
 };
@@ -45,7 +45,7 @@ const FRAME_TONES: Record<Tone, string> = {
 };
 
 const ICON_TONES: Record<Tone, string> = {
-  normal: "text-accent-400",
+  normal: "text-mod",
   warning: "text-warning",
   danger: "text-danger",
 };

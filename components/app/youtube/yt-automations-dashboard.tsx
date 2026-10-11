@@ -6,7 +6,6 @@ import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { Inbox, MessageSquareReply, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Reveal } from "@/components/motion/reveal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -75,7 +74,7 @@ export function YtAutomationsDashboard() {
         onChange={setTab}
         panelId="youtube-automations-panel"
         trailing={
-          <Button type="button" size="sm" onClick={openNew}>
+          <Button type="button" variant="primary" size="sm" onClick={openNew}>
             <Plus />
             <span>Nova automatizacija</span>
           </Button>
@@ -87,18 +86,18 @@ export function YtAutomationsDashboard() {
           automations === undefined ? (
             <YtAutomationsListSkeleton />
           ) : automations.length === 0 ? (
-            <Reveal>
+            <div>
               <NoAutomations onCreate={openNew} />
-            </Reveal>
+            </div>
           ) : (
-            <Reveal>
+            <div>
               <YtAutomationsList automations={automations} onEdit={openEdit} />
-            </Reveal>
+            </div>
           )
         ) : (
-          <Reveal>
+          <div>
             <YtCommentLogTable />
-          </Reveal>
+          </div>
         )}
       </TabPanel>
 
@@ -173,7 +172,7 @@ function SettingsLink({ children }: { children: React.ReactNode }) {
   return (
     <Link
       href="/settings"
-      className="text-accent-400 underline-offset-4 hover:underline"
+      className="text-mod underline-offset-4 hover:underline"
     >
       {children}
     </Link>
@@ -181,15 +180,16 @@ function SettingsLink({ children }: { children: React.ReactNode }) {
 }
 
 function NoAutomations({ onCreate }: { onCreate: () => void }) {
-  // A7 §1: sistemsko prazno stanje (bez ukrasne cyan pozadine ikonice — cyan je
-  // strateška boja, ne dekor). Kaže šta fali, zašto i nudi jedan sledeći korak.
+  // Sistemsko prazno stanje: kaže šta fali, zašto i nudi jedan sledeći korak.
+  // Primarno dugme ekrana je „Nova automatizacija" u traci jezičaka, pa je ovo
+  // prateća radnja.
   return (
     <Card className="border border-dashed border-line bg-card ring-0">
       <EmptyState
         icon={MessageSquareReply}
         title="Napravi prvu automatizaciju"
         action={
-          <Button type="button" size="sm" onClick={onCreate} className="font-semibold">
+          <Button type="button" variant="secondary" size="sm" onClick={onCreate}>
             <Plus className="size-4" />
             <span>Nova automatizacija</span>
           </Button>

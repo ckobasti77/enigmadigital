@@ -129,7 +129,7 @@ export function CreateCustomAudienceDialog({
         <DialogClose />
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Users className="size-5 text-accent-400" />
+            <Users className="size-5 text-mod" />
             Nova prilagođena publika
           </DialogTitle>
           <DialogDescription>
@@ -185,9 +185,9 @@ export function CreateCustomAudienceDialog({
             </p>
           </div>
 
-          <div className="rounded-lg border border-accent-400/20 bg-accent-400/5 p-3 text-xs text-text-muted">
+          <div className="rounded-lg border border-mod-line bg-mod-soft p-3 text-xs text-text-muted">
             <div className="flex items-center gap-2 font-medium text-foreground">
-              <ShieldCheck className="size-4 text-accent-400" />
+              <ShieldCheck className="size-4 text-mod" />
               Automatska SHA-256 zaštita privatnosti
             </div>
             <p className="mt-1 leading-relaxed">

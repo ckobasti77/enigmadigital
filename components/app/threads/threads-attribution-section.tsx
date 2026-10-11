@@ -67,7 +67,7 @@ export function ThreadsAttributionSection({
         {/* Header & Objašnjenje (§10.2) */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-mod-soft text-mod">
               <GitMerge className="size-4" aria-hidden="true" />
             </div>
             <div>
@@ -81,13 +81,13 @@ export function ThreadsAttributionSection({
           </div>
 
           <div className="mt-3 flex items-start gap-2.5 rounded-lg border border-line-soft bg-surface-raised/40 p-3 text-xs leading-relaxed text-text-muted">
-            <HelpCircle className="size-4 shrink-0 text-accent-400 mt-0.5" aria-hidden="true" />
+            <HelpCircle className="size-4 shrink-0 text-mod mt-0.5" aria-hidden="true" />
             <div>
               <strong className="text-foreground">Zašto se brojevi razlikuju?</strong>{" "}
-              <code className="text-accent-400 font-mono">threadsClicks</code> je broj
+              <code className="text-mod font-mono">threadsClicks</code> je broj
               korisnika koji su dodirnuli link u Threads aplikaciji (prema Meta API-ju).{" "}
-              <code className="text-accent-400 font-mono">siteClicks</code> je stvaran broj
-              posetilaca koji su stigli na naš server kroz <code className="text-accent-400 font-mono">/r/</code> redirekt.
+              <code className="text-mod font-mono">siteClicks</code> je stvaran broj
+              posetilaca koji su stigli na naš server kroz <code className="text-mod font-mono">/r/</code> redirekt.
               Razlika nastaje usled odustajanja pre učitavanja, prekida veze ili blokiranja praćenja.
             </div>
           </div>
@@ -123,7 +123,7 @@ export function ThreadsAttributionSection({
             <span className="text-micro font-medium uppercase tracking-wider text-text-muted">
               Stopa uspešnog dolaska
             </span>
-            <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-accent-400">
+            <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-mod">
               {overallLandingRate !== null ? formatPercent(overallLandingRate) : "—"}
             </p>
             <p className="mt-1 text-micro text-text-muted">
@@ -187,7 +187,7 @@ export function ThreadsAttributionSection({
                       <tr key={item.trackedLinkId} className="hover:bg-surface-raised/50">
                         <td className="py-2.5 font-medium text-foreground">
                           <div className="flex flex-col">
-                            <span className="font-mono text-accent-400">
+                            <span className="font-mono text-mod">
                               /r/{item.slug}
                             </span>
                             {item.label && (
@@ -221,7 +221,7 @@ export function ThreadsAttributionSection({
                             "—"
                           )}
                         </td>
-                        <td className="py-2.5 text-right font-mono font-semibold tabular-nums text-accent-400">
+                        <td className="py-2.5 text-right font-mono font-semibold tabular-nums text-mod">
                           {rate !== null ? formatPercent(rate) : "—"}
                         </td>
                       </tr>
@@ -244,9 +244,9 @@ export function ThreadsAttributionSection({
             </h3>
           </div>
           <p className="text-xs text-text-muted leading-relaxed mb-4">
-            Sledeći URL-ovi su zabeležili klikove u Threads aplikaciji, ali nisu objavljeni kao
-            praćeni <code className="text-accent-400 font-mono">/r/</code> linkovi. Za ove linkove
-            ne možemo potvrditi stvarni dolazak na sajt.
+            Klikovi u Threads-u bez praćenog{" "}
+            <code className="text-mod font-mono">/r/</code> linka: dolazak na sajt
+            se ne može potvrditi.
           </p>
 
           <div className="overflow-x-auto max-h-64 overflow-y-auto">

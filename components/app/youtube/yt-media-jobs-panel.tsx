@@ -81,7 +81,7 @@ export function YtMediaJobsPanel() {
   return (
     <Card className="flex flex-col gap-4 p-5 shadow-card">
       <div className="flex items-center gap-2">
-        <div className="flex size-7 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400">
+        <div className="flex size-7 items-center justify-center rounded-lg bg-mod-soft text-mod">
           <History className="size-4" aria-hidden />
         </div>
         <div>

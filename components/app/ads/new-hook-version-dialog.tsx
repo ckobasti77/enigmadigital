@@ -197,11 +197,11 @@ function NewHookVersionDialogForm({
         <div className="p-6 border-b border-line bg-card/60">
           <DialogHeader>
             <div className="flex items-center gap-2">
-              <span className="flex size-7 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400 border border-accent-400/20">
+              <span className="flex size-7 items-center justify-center rounded-lg bg-mod-soft text-mod border border-mod-line">
                 <Sparkles className="size-4" />
               </span>
               <div>
-                <p className="heading-caps text-micro font-semibold text-accent-400">
+                <p className="heading-caps text-micro font-semibold text-mod">
                   Kreativna iteracija · Nova verzija
                 </p>
                 <DialogTitle className="text-lg font-bold text-foreground">
@@ -250,8 +250,8 @@ function NewHookVersionDialogForm({
         {/* Scrollable Form Body */}
         <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto">
           {/* Documentation Banner: What can be edited via API vs Ads Manager */}
-          <div className="rounded-lg border border-accent-400/20 bg-accent-400/[0.03] p-4 text-xs space-y-3">
-            <div className="flex items-center gap-2 text-accent-400 font-semibold">
+          <div className="rounded-lg border border-mod-line bg-mod-soft p-4 text-xs space-y-3">
+            <div className="flex items-center gap-2 text-mod font-semibold">
               <Info className="size-4 shrink-0" />
               <span>
                 Mogućnosti izmene kreative (Marketing API vs Ads Manager)

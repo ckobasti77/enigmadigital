@@ -147,7 +147,7 @@ export function MentionCard({ mention }: { mention: MentionData }) {
     <article
       className={cn(
         "border-l-2 py-3 pl-3.5 transition-opacity duration-(--duration-base)",
-        isReplied ? "border-l-line" : "border-l-accent-400",
+        isReplied ? "border-l-line" : "border-l-mod",
       )}
     >
       <div className="flex gap-3">
@@ -165,8 +165,8 @@ export function MentionCard({ mention }: { mention: MentionData }) {
                 className={cn(
                   "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-micro font-medium",
                   isComment
-                    ? "bg-accent-400/10 text-accent-400"
-                    : "bg-purple-500/10 text-purple-400",
+                    ? "bg-mod-soft text-mod"
+                    : "bg-surface-raised text-text-secondary",
                 )}
               >
                 {isComment ? (
@@ -220,7 +220,7 @@ export function MentionCard({ mention }: { mention: MentionData }) {
                 href={mention.permalink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-micro font-medium text-text-muted transition-colors hover:text-accent-400"
+                className="inline-flex items-center gap-1 text-micro font-medium text-text-muted transition-colors hover:text-mod"
               >
                 Otvori na Instagramu
                 <ExternalLink className="size-3" aria-hidden />
@@ -239,7 +239,7 @@ export function MentionCard({ mention }: { mention: MentionData }) {
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                     Naš odgovor
-                    <span className="rounded bg-accent-400/10 px-1.5 py-0.5 text-micro font-semibold text-accent-400">
+                    <span className="rounded bg-mod-soft px-1.5 py-0.5 text-micro font-semibold text-mod">
                       Mi
                     </span>
                   </span>

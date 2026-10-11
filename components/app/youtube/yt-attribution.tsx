@@ -16,7 +16,7 @@ export function YouTubeAttribution() {
         href={YOUTUBE_TERMS_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-accent-400 underline underline-offset-2 transition-colors hover:text-accent-300"
+        className="text-mod underline underline-offset-2 transition-colors hover:text-mod"
       >
         YouTube Terms of Service
       </a>
@@ -27,7 +27,7 @@ export function YouTubeAttribution() {
         href={GOOGLE_PRIVACY_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-accent-400 underline underline-offset-2 transition-colors hover:text-accent-300"
+        className="text-mod underline underline-offset-2 transition-colors hover:text-mod"
       >
         Google Privacy Policy
       </a>

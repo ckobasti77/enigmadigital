@@ -37,7 +37,7 @@ export function ThreadsFollowsChart({
     return (
       <Card className="gap-0 py-0 shadow-card ring-line">
         <div className="flex items-center gap-2 px-5 pt-5">
-          <Users className="size-4 text-accent-400" aria-hidden="true" />
+          <Users className="size-4 text-mod" aria-hidden="true" />
           <p className="text-sm font-semibold text-foreground">
             Istorija broja pratilaca
           </p>
@@ -68,7 +68,7 @@ export function ThreadsFollowsChart({
   const config: ChartConfig = {
     followers: {
       label: "Broj pratilaca",
-      color: "var(--color-accent-400)",
+      color: "var(--color-chart-1)",
     },
   };
 
@@ -77,7 +77,7 @@ export function ThreadsFollowsChart({
       <Card className="gap-0 py-0 shadow-card ring-line">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 pt-5">
           <div className="flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-accent-400/10 text-accent-400">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-mod-soft text-mod">
               <Users className="size-4" aria-hidden="true" />
             </div>
             <div>
@@ -109,12 +109,12 @@ export function ThreadsFollowsChart({
               <linearGradient id="threadsFollowersGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="5%"
-                  stopColor="var(--color-accent-400)"
+                  stopColor="var(--color-chart-1)"
                   stopOpacity={0.25}
                 />
                 <stop
                   offset="95%"
-                  stopColor="var(--color-accent-400)"
+                  stopColor="var(--color-chart-1)"
                   stopOpacity={0.0}
                 />
               </linearGradient>
@@ -151,7 +151,7 @@ export function ThreadsFollowsChart({
             <Area
               type="monotone"
               dataKey="followers"
-              stroke="var(--color-accent-400)"
+              stroke="var(--color-chart-1)"
               strokeWidth={2}
               fill="url(#threadsFollowersGrad)"
               isAnimationActive={false}

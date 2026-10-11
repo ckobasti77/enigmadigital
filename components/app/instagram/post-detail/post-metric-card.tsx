@@ -54,7 +54,7 @@ export function PostMetricCard({
     <Card
       className={cn(
         "flex flex-col justify-between p-4.5 transition-all shadow-card ring-line",
-        highlight && "bg-surface-raised/60 border-accent-400/30",
+        highlight && "bg-surface-raised/60 border-mod-line",
         className,
       )}
     >

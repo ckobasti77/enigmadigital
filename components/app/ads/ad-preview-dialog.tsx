@@ -173,7 +173,7 @@ export function AdPreviewDialog({
                 disabled={loading}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                   active
-                    ? "bg-accent-400/10 text-accent-400 border border-accent-400/30"
+                    ? "bg-mod-soft text-mod border border-mod-line"
                     : "bg-surface-raised border border-line text-text-muted hover:text-foreground hover:bg-surface-subtle"
                 }`}
               >
@@ -216,7 +216,7 @@ export function AdPreviewDialog({
         {/* Loading Spinner */}
         {loading && (
           <div className="flex flex-col items-center justify-center h-[420px] rounded-lg border border-line bg-surface-subtle gap-3">
-            <RefreshCw className="size-6 text-accent-400 animate-spin" />
+            <RefreshCw className="size-6 text-mod animate-spin" />
             <span className="text-xs text-text-muted">Povlačenje iframe pregleda sa Meta servera...</span>
           </div>
         )}
@@ -243,7 +243,7 @@ export function AdPreviewDialog({
         {creative && (
           <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3 text-xs">
             <div className="flex items-center gap-1.5 text-text-muted font-medium">
-              <Sparkles className="size-3.5 text-accent-400" />
+              <Sparkles className="size-3.5 text-mod" />
               <span>Tekst i podaci kreativa:</span>
             </div>
             {creative.titleText && (
@@ -271,7 +271,7 @@ export function AdPreviewDialog({
                   href={creative.linkUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-accent-400 hover:underline inline-flex items-center gap-1 truncate max-w-md"
+                  className="text-mod hover:underline inline-flex items-center gap-1 truncate max-w-md"
                 >
                   {creative.linkUrl}
                   <ExternalLink className="size-3" />

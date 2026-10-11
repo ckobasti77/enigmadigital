@@ -16,6 +16,11 @@ import ThreadsPage from "@/app/(app)/threads/page";
 import YouTubePage from "@/app/(app)/youtube/page";
 import AdsPage from "@/app/(app)/ads/page";
 import NapredakPage from "@/app/(app)/napredak/page";
+import InstagramCommentsPage from "@/app/(app)/instagram/komentari/page";
+import FacebookCommentsPage from "@/app/(app)/facebook/komentari/page";
+import YouTubeAutomationsPage from "@/app/(app)/youtube/automatizacije/page";
+import NewCampaignPage from "@/app/(app)/ads/nova-kampanja/page";
+import AdsAudiencesPage from "@/app/(app)/ads/publike/page";
 import { LeadDetailPageClient } from "@/app/(app)/leadovi/[companyId]/lead-detail-page-client";
 import { UxHarness } from "../harness";
 import { SistemVodic } from "../sistem/vodic";
@@ -50,6 +55,14 @@ const PAGES: Record<string, ComponentType> = {
   youtube: YouTubePage,
   ads: AdsPage,
   napredak: NapredakPage,
+  // B8: podekrani kanala (zaglavlje i primarno dugme). Komentari Instagrama
+  // nemaju sintetičke podatke, pa se ispod zaglavlja vidi učitavanje; kompozer
+  // objave nije ovde jer njegova akcija kvote ne radi nad lažnim Convex-om.
+  "instagram/komentari": InstagramCommentsPage,
+  "facebook/komentari": FacebookCommentsPage,
+  "youtube/automatizacije": YouTubeAutomationsPage,
+  "ads/nova-kampanja": NewCampaignPage,
+  "ads/publike": AdsAudiencesPage,
 };
 
 export const dynamic = "force-dynamic";
