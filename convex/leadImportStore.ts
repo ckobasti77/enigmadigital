@@ -13,7 +13,11 @@ import {
   type LeadSignalKind,
 } from "./lib/leadNormalize";
 import { isSuppressed, type MatchOn, type SuppressionCheckResult } from "./leadSuppressionStore";
-import { brojNerazresenih } from "./lib/importFlow";
+import {
+  brojNerazresenih,
+  jeNerazresen,
+  type RedUvoza,
+} from "./lib/importFlow";
 import type { ParsedLeadRow } from "./lib/leadImportParse";
 import { sajtOcenaValidator } from "./lib/siteAudit";
 import {
@@ -1023,10 +1027,33 @@ export const setRowDecision = mutation({
       });
     }
 
-    await ctx.db.patch(args.rowId, { decision: args.decision });
+    await ctx.db.patch(args.rowId, {
+      decision: args.decision,
+      ...autorResenja(row, { ...row, decision: args.decision }, membership.userId),
+    });
     return { success: true };
   },
 });
+
+/**
+ * Ko je i kada rešio red (B4) — polja `resolvedBy` / `resolvedAt`.
+ *
+ * Upisuju se samo na PRELAZU: red koji je čekao presudu prestaje da čeka.
+ * Vraćanje u nerazrešene ih briše, pa isti red ne može da se „reši" dvaput.
+ * Kad se stanje ne menja, ne dira se ništa — ponovno biranje iste odluke ne
+ * pomera vreme.
+ */
+function autorResenja(
+  pre: RedUvoza,
+  posle: RedUvoza,
+  userId: Id<"users">,
+): { resolvedBy?: Id<"users"> | undefined; resolvedAt?: number | undefined } {
+  const cekao = jeNerazresen(pre);
+  const ceka = jeNerazresen(posle);
+  if (cekao && !ceka) return { resolvedBy: userId, resolvedAt: Date.now() };
+  if (!cekao && ceka) return { resolvedBy: undefined, resolvedAt: undefined };
+  return {};
+}
 
 // ── 5. Primena uvoza (applyImport) ────────────────────────────────────────────
 
@@ -2247,6 +2274,8 @@ export const applyImport = mutation({
     await ctx.db.patch(args.importId, {
       status: "primenjen",
       appliedAt: now,
+      // B4: ko je primenio — `uploadedBy` je ko je poslao fajl, što je druga radnja.
+      appliedBy: membership.userId,
     });
 
     return rezultat;
@@ -2766,7 +2795,10 @@ export const setRowObrisan = mutation({
       });
     }
 
-    await ctx.db.patch(args.rowId, { obrisan: args.obrisan });
+    await ctx.db.patch(args.rowId, {
+      obrisan: args.obrisan,
+      ...autorResenja(row, { ...row, obrisan: args.obrisan }, membership.userId),
+    });
     return { success: true };
   },
 });

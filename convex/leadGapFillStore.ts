@@ -167,6 +167,8 @@ export const fillGap = mutation({
           lawfulBasis: args.lawfulBasis.trim(),
           sourceUrl: args.sourceUrl.trim(),
           createdAt: now,
+          // B4: ručna dopuna ima autora; uvoz ovo polje ne upisuje.
+          createdBy: membership.userId,
         });
 
         await ctx.db.insert("leadFieldProvenance", {

@@ -6,6 +6,12 @@ import {
   providerValidator,
 } from "./lib/providers";
 import { sajtOcenaFields, sajtOcenaValidator } from "./lib/siteAudit";
+import {
+  brojeviValidator,
+  misijaDefValidator,
+  naOtvaranjuValidator,
+  osnovaValidator,
+} from "./lib/napredakValidators";
 
 // Multi-tenant from day one (PLAN.md §3). V1 is single-user, but every future
 // table carries a `workspaceId`, so onboarding clients later needs no migration.
@@ -778,7 +784,12 @@ export default defineSchema({
     // "Which jobs claim to be running but have not been touched in a while?"
     // Rows written before `claimedAt` existed sort first (undefined precedes
     // every number), which is what we want: they are the oldest stuck ones.
-    .index("by_status_claimed", ["status", "claimedAt"]),
+    .index("by_status_claimed", ["status", "claimedAt"])
+    // Napredak (B4): "what went live since yesterday". `by_workspace_status`
+    // orders by when the job was CREATED, so a post scheduled three weeks ago
+    // and published today would sit far outside the window. Jobs that are not
+    // published yet have no `publishedAt` and fall before any range.
+    .index("by_workspace_published", ["workspaceId", "publishedAt"]),
 
   // ── Instagram publishing: files that have arrived but own nothing yet ──────
   //
@@ -1829,6 +1840,11 @@ export default defineSchema({
     ),
     cooldownHours: v.number(),
     lastFiredAt: v.optional(v.number()),
+    // OPCIONO NAMERNO (B4): ko je napravio pravilo. Upisuje ga `createRule` od
+    // sada; pravila napravljena ranije i šabloni iz `ensureTemplateRules` ga
+    // nemaju. Odsustvo znači „autor nije zabeležen" i takvo pravilo ne donosi
+    // XP nikome.
+    createdBy: v.optional(v.id("users")),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_and_enabled", ["workspaceId", "enabled"]),
@@ -2860,7 +2876,10 @@ export default defineSchema({
     .index("by_workspace_status", ["workspaceId", "status"])
     .index("by_status_scheduled", ["status", "scheduledFor"])
     .index("by_pending_files_created", ["filesDeletedAt", "createdAt"])
-    .index("by_status_claimed", ["status", "claimedAt"]),
+    .index("by_status_claimed", ["status", "claimedAt"])
+    // Napredak (B4): šta je objavljeno od juče — isti razlog kao kod
+    // `igPublishJobs.by_workspace_published`.
+    .index("by_workspace_published", ["workspaceId", "publishedAt"]),
 
   // ── Threads objavljivanje: privremeno evidentirani uploadovani fajlovi ───────
   //
@@ -3388,11 +3407,19 @@ export default defineSchema({
     ),
     verovatnocaAt: v.optional(v.number()),
     nijeMoguceProceniti: v.optional(v.boolean()),
+
+    // OPCIONO NAMERNO (B4): ko je RUČNO dopunio ovaj kontakt. Upisuje ga samo
+    // `leadGapFillStore.fillGap` od sada; uvoz ga ne upisuje, pa kontakt iz
+    // uvoza nije „dopuna". Odsustvo znači „nije ručna dopuna ili autor nije
+    // zabeležen" i ne donosi napredak nikome.
+    createdBy: v.optional(v.id("users")),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_kind_value", ["workspaceId", "kind", "valueNormalized"])
     .index("by_workspace_company", ["workspaceId", "companyId"])
-    .index("by_person", ["personId"]),
+    .index("by_person", ["personId"])
+    // Napredak (B4): ručne dopune jednog čoveka po vremenu.
+    .index("by_workspace_creator_time", ["workspaceId", "createdBy", "createdAt"]),
 
   // 4) leadFieldProvenance — istorija i poreklo svake pojedinačne tvrdnje (§2.4)
   //
@@ -3676,7 +3703,14 @@ export default defineSchema({
   })
     .index("by_workspace_company", ["workspaceId", "companyId"])
     .index("by_workspace_actor", ["workspaceId", "actorUserId"])
-    .index("by_workspace_kind", ["workspaceId", "kind"]),
+    .index("by_workspace_kind", ["workspaceId", "kind"])
+    // Napredak (B4): događaji jednog čoveka u opsegu datuma, po vremenu kada
+    // se stvar DESILA (`occurredAt` sme da bude uneto unazad).
+    .index("by_workspace_actor_time", [
+      "workspaceId",
+      "actorUserId",
+      "occurredAt",
+    ]),
 
   // 9) leadImports — pojedinačni uvoz tabele lidova u staging (§5, LM3)
   leadImports: defineTable({
@@ -3744,6 +3778,11 @@ export default defineSchema({
     nisaTrebaZakazivanje: v.optional(v.boolean()),
 
     appliedAt: v.optional(v.number()),
+    // OPCIONO NAMERNO (B4): ko je PRIMENIO uvoz. `uploadedBy` je ko je poslao
+    // fajl (za skill: vlasnik tokena), što nije ista radnja. Upisuje ga
+    // `applyImport` od sada; uvozi primenjeni ranije ga nemaju, pa se za njih
+    // čita `uploadedBy`.
+    appliedBy: v.optional(v.id("users")),
     revertedAt: v.optional(v.number()),
     error: v.optional(v.string()),
   })
@@ -3962,10 +4001,24 @@ export default defineSchema({
     // rešene redove bez ovog polja; `revertImport` poništava sve što je uvoz
     // napravio bez obzira u koliko je krugova primenjen.
     primenjenAt: v.optional(v.number()),
+
+    // OPCIONO NAMERNO (B4, oba polja): ko je i kada REŠIO red koji je čekao
+    // presudu. Upisuju ih `setRowDecision` i `setRowObrisan` u trenutku kada
+    // red prestane da bude nerazrešen, a brišu kad se vrati u nerazrešene.
+    // Odsustvo znači „red nije rešio čovek" (odluku je doneo sistem pri uvozu)
+    // ili „rešen je pre nego što se autor beležio" — u oba slučaja 0 XP.
+    resolvedBy: v.optional(v.id("users")),
+    resolvedAt: v.optional(v.number()),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_import", ["workspaceId", "importId"])
-    .index("by_import_decision", ["importId", "decision"]),
+    .index("by_import_decision", ["importId", "decision"])
+    // Napredak (B4): redovi koje je jedan čovek rešio, po vremenu.
+    .index("by_workspace_resolver_time", [
+      "workspaceId",
+      "resolvedBy",
+      "resolvedAt",
+    ]),
 
   // ── /generate-leads: niše, tokeni za uvoz, preseti filtera (GL1) ──────────
 
@@ -4286,6 +4339,13 @@ export default defineSchema({
     ownProofNote: v.optional(v.string()), // ČIME je ispunjeno, jednom rečenicom
     humanizerPassedAt: v.optional(v.number()),
     relatedSlugs: v.optional(v.array(v.string())),
+    // OPCIONO NAMERNO (B4, oba polja): ko je PRVI put objavio članak i kada.
+    // `publishedAt` se prepisuje pri svakoj ponovnoj objavi, pa bi „povuci →
+    // objavi" inače svaki put izgledalo kao nov članak. Upisuje ih `publish`
+    // jednom i više ih ne dira. Članci objavljeni ranije ih nemaju i ne
+    // donose XP nikome.
+    publishedBy: v.optional(v.id("users")),
+    firstPublishedAt: v.optional(v.number()),
   })
     .index("by_workspace_status_published", [
       "workspaceId",
@@ -4341,5 +4401,91 @@ export default defineSchema({
     .index("by_user_kljuc", ["userId", "kljuc"])
     .index("by_user", ["userId"])
     .index("by_workspace", ["workspaceId"]),
+
+  // ── Napredak (B4, ui-boost-plan.md §6) ─────────────────────────────────────
+  //
+  // XP, nivoi, niz i dostignuća se IZVODE iz događaja koji već postoje u bazi
+  // (`convex/lib/napredak.ts`). Ove tri tabele drže samo ono što se iz
+  // događaja ne može izvesti ili bi bilo preskupo izvoditi svaki put:
+  //
+  //   napredakDan         misije zamrznute tog dana + zbir zaključenih dana
+  //   napredakPodesavanja čovekov izbor (uključeno, vikend, nedeljni ciljevi)
+  //   napredakPotvrde     koje proslave je čovek već video
+  //
+  // Sve tri su LIČNE (korisnik × radni prostor) i ne sadrže ničiji sadržaj —
+  // samo brojeve, datume i ključeve.
+  //
+  // SVA POLJA SU OPCIONA NAMERNO (isto pravilo kao `notificationState`): red
+  // upisan pre nego što se neko polje uvede ne sme da obori čitanje. Upis uvek
+  // postavlja `workspaceId`, `userId` i ključ reda; čitanje red bez njih
+  // preskače umesto da ga tumači.
+
+  // Jedan red = jedan korisnik × jedan beogradski dan.
+  napredakDan: defineTable({
+    // OPCIONO NAMERNO: vidi gore.
+    workspaceId: v.optional(v.id("workspaces")),
+    // OPCIONO NAMERNO: vidi gore.
+    userId: v.optional(v.id("users")),
+    // OPCIONO NAMERNO: beogradski datum „2026-10-11". Poslednji red po ovom
+    // polju je „sidro" — dan koji upit smatra današnjim, bez čitanja sata.
+    dan: v.optional(v.string()),
+    // OPCIONO NAMERNO: misije zamrznute pri prvom otvaranju dana (najviše tri).
+    // Red koji je nastao samo zaključavanjem (dan koji niko nije otvorio) ih
+    // nema, i to znači „tog dana nije bilo misija".
+    misije: v.optional(v.array(misijaDefValidator)),
+    // OPCIONO NAMERNO: kada je dan zamrznut. Odsustvo = red je nastao
+    // zaključavanjem, ne otvaranjem.
+    zamrznutoAt: v.optional(v.number()),
+    // OPCIONO NAMERNO: prvi red ovog korisnika. Tada se već zarađene proslave
+    // upisuju kao viđene, da prvo otvaranje ne zatrpa ekran.
+    prvi: v.optional(v.boolean()),
+    // OPCIONO NAMERNO: stanje izmereno pri zamrzavanju (zaostali koraci,
+    // nerešeni redovi) — za dostignuća koja se ne vide iz događaja.
+    naOtvaranju: v.optional(naOtvaranjuValidator),
+    // OPCIONO NAMERNO: zbir svih dana zaključno sa `osnova.do`. Stoji na redu
+    // sidra; iz njega upit čita istoriju umesto da je ponovo sabira.
+    osnova: v.optional(osnovaValidator),
+
+    // ── zaključak dana — upisuje se kad dan izađe iz otvorenog prozora ──────
+    // OPCIONO NAMERNO (sva četiri): odsustvo = dan još nije zaključen.
+    zakljucenAt: v.optional(v.number()),
+    xp: v.optional(v.number()),
+    uracunat: v.optional(v.boolean()),
+    brojevi: v.optional(brojeviValidator),
+  }).index("by_user_workspace_dan", ["userId", "workspaceId", "dan"]),
+
+  // Jedan red po korisniku × radnom prostoru.
+  napredakPodesavanja: defineTable({
+    // OPCIONO NAMERNO: vidi gore.
+    workspaceId: v.optional(v.id("workspaces")),
+    // OPCIONO NAMERNO: vidi gore.
+    userId: v.optional(v.id("users")),
+    // OPCIONO NAMERNO (svih pet): odsustvo = podrazumevana vrednost iz
+    // `PODRAZUMEVANO` (uključeno, vikend ne prekida niz, ciljevi 25 / 3 / 2).
+    ukljucen: v.optional(v.boolean()),
+    vikendNePrekida: v.optional(v.boolean()),
+    ciljPozivi: v.optional(v.number()),
+    ciljSastanci: v.optional(v.number()),
+    ciljObjave: v.optional(v.number()),
+    // OPCIONO NAMERNO
+    updatedAt: v.optional(v.number()),
+  }).index("by_user_workspace", ["userId", "workspaceId"]),
+
+  // Jedan red = jedna viđena proslava.
+  napredakPotvrde: defineTable({
+    // OPCIONO NAMERNO: vidi gore.
+    workspaceId: v.optional(v.id("workspaces")),
+    // OPCIONO NAMERNO: vidi gore.
+    userId: v.optional(v.id("users")),
+    // OPCIONO NAMERNO: „trajno" (nivo, dostignuća) ili datum (misije i bonus
+    // tog dana). Potvrde starih dana se brišu pri zamrzavanju novog.
+    opseg: v.optional(v.string()),
+    // OPCIONO NAMERNO: `misija:<ključ>`, `bonus`, `nivo`, `dostignuce:<ključ>`.
+    kljuc: v.optional(v.string()),
+    // OPCIONO NAMERNO: samo uz `nivo` — najviši nivo čija je proslava viđena.
+    vrednost: v.optional(v.number()),
+    // OPCIONO NAMERNO
+    potvrdjenoAt: v.optional(v.number()),
+  }).index("by_user_workspace_opseg", ["userId", "workspaceId", "opseg"]),
 });
 

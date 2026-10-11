@@ -120,7 +120,7 @@ async function ucitajStanja(
 
 // ── proizvođači: uvoz ────────────────────────────────────────────────────────
 
-async function citajUvoze(
+export async function citajUvoze(
   ctx: QueryCtx,
   workspaceId: Id<"workspaces">,
 ): Promise<{
@@ -309,12 +309,18 @@ type LeadSnimak = Pick<
   | "neocenjenSajt"
 >;
 
-async function citajLeadove(
+/**
+ * Prag „Zovi sada": procena da je telefon baš od te osobe. Isti broj koji
+ * ekran Danas šalje filteru (`leads-today.tsx`: `tel: 40`).
+ */
+const ZOVI_SADA_PROCENA = 40;
+
+export async function citajLeadove(
   ctx: QueryCtx,
   workspaceId: Id<"workspaces">,
   now: number,
   pomerajMin: number,
-): Promise<LeadSnimak> {
+): Promise<LeadSnimak & { zoviSada: number }> {
   const dodeleSken = await ctx.db
     .query("leadAssignments")
     .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
@@ -400,12 +406,30 @@ async function citajLeadove(
   // To NIJE isto što i „ima broj" — skill upiše broj pre nego što izračuna
   // verovatnoću da baš toj osobi pripada.
   const saProcenom = new Set<string>();
+  // B4: firme čiji bar jedan telefon ima procenu ≥ praga — polovina uslova za
+  // „Zovi sada" (druga polovina je „nikad dodirnut", ispod).
+  const saDobromProcenom = new Set<string>();
   for (const identitet of telefoniSken.slice(0, CAP_TELEFONA)) {
     if (identitet.value.trim().length > 0) {
       saTelefonom.add(String(identitet.companyId));
     }
     if (identitet.verovatnoca !== undefined) {
       saProcenom.add(String(identitet.companyId));
+      if (identitet.verovatnoca >= ZOVI_SADA_PROCENA) {
+        saDobromProcenom.add(String(identitet.companyId));
+      }
+    }
+  }
+
+  // Isto pravilo kao red „Zovi sada" na ekranu Danas pre Fit filtera
+  // (`listLeadsFiltered` sa `tel: 40, dodir: ["nikad"]`).
+  let zoviSada = 0;
+  for (const dodela of dodele) {
+    if (
+      dodela.lastTouchAt === undefined &&
+      saDobromProcenom.has(String(dodela.companyId))
+    ) {
+      zoviSada++;
     }
   }
 
@@ -457,6 +481,8 @@ async function citajLeadove(
     // nije pročitana izgleda kao firma bez procene.
     procenaOdsecena: telefoniOdseceni || dodeleOdsecene,
     neocenjenSajt,
+    // Ne ulazi u zadatke zvona — čita ga generator misija (`convex/napredak.ts`).
+    zoviSada,
   };
 }
 
@@ -479,7 +505,7 @@ function bezOdgovora(row: {
   );
 }
 
-async function citajKanale(
+export async function citajKanale(
   ctx: QueryCtx,
   workspaceId: Id<"workspaces">,
 ): Promise<KanalStavka[]> {

@@ -36,6 +36,7 @@ import {
 } from "./fixtures-util";
 import { FIXTURES_ANALITIKA, PRAZNO_ANALITIKA } from "./fixtures-analitika";
 import { FIXTURES_KANALI, PRAZNO_KANALI } from "./fixtures-kanali";
+import { FIXTURES_NAPREDAK, PRAZNO_NAPREDAK } from "./fixtures-napredak";
 import { FIXTURES_OGLASI, PRAZNO_OGLASI } from "./fixtures-oglasi";
 
 // ── Ljuska ───────────────────────────────────────────────────────────────────
@@ -1011,7 +1012,13 @@ const FIXTURES: Record<string, Fixture> = {
   [getFunctionName(api.postsPublic.listPublished)]: () => postsPublished,
 };
 
-Object.assign(FIXTURES, FIXTURES_ANALITIKA, FIXTURES_KANALI, FIXTURES_OGLASI);
+Object.assign(
+  FIXTURES,
+  FIXTURES_ANALITIKA,
+  FIXTURES_KANALI,
+  FIXTURES_OGLASI,
+  FIXTURES_NAPREDAK,
+);
 
 // ── Prazan nalog (`?ux=1&prazno=1`) ──────────────────────────────────────────
 // Bez veza ka kanalima (osim ljuske) i bez redova: svaki kanal pokazuje svoje
@@ -1027,6 +1034,7 @@ const PRAZNO: Record<string, Fixture> = {
   ...PRAZNO_ANALITIKA,
   ...PRAZNO_KANALI,
   ...PRAZNO_OGLASI,
+  ...PRAZNO_NAPREDAK,
 };
 
 /** `undefined` za sve što nije pokriveno — ekran tada crta skeleton, ne laž. */

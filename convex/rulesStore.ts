@@ -161,8 +161,16 @@ export const createRule = mutation({
     enabled: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
-    const targetWorkspaceId = args.workspaceId ?? workspaceId;
+    const { workspaceId, userId } = await requireMembership(ctx);
+    // B4: u red se upisuje autor, pa red mora da ode u radni prostor POZIVAOCA.
+    // Bez ove provere je `args.workspaceId` mogao da bude tuđi.
+    if (args.workspaceId !== undefined && args.workspaceId !== workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemate pristup ovom radnom prostoru.",
+      });
+    }
+    const targetWorkspaceId = workspaceId;
 
     if (!args.name.trim()) {
       throw new ConvexError({
@@ -207,6 +215,7 @@ export const createRule = mutation({
       action: args.action,
       cooldownHours: args.cooldownHours,
       enabled: args.enabled,
+      createdBy: userId,
     });
 
     return ruleId;

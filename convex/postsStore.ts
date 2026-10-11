@@ -396,6 +396,12 @@ export const publish = mutation({
       status: "published",
       publishedAt: now,
       updatedAt: now,
+      // B4: autor i vreme PRVE objave se upisuju jednom. Članak koji je već
+      // bio objavljen (ima `publishedAt`) a nema ova polja objavljen je pre
+      // nego što se autor beležio — njemu se autor ne dopisuje naknadno.
+      ...(post.firstPublishedAt === undefined && post.publishedAt === undefined
+        ? { publishedBy: membership.userId, firstPublishedAt: now }
+        : {}),
     });
 
     // Asinhrono osvežavanje Next.js ISR keša (§9).

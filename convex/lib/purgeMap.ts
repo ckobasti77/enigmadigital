@@ -1534,4 +1534,20 @@ export const EXTRA_TABLE_OWNERSHIP: Record<string, Disposition> = {
     excluded:
       "Čovekova odluka da skloni jednu stavku iz zvona (odloži 1 dan / sakrij): ključ zadatka, datum i broj pri sakrivanju. Ne dolazi ni od jednog provajdera i ne sadrži tuđi sadržaj — sami zadaci se IZVODE iz živog stanja pri svakom čitanju i ne skladište se nigde. Prekid veze sa Meta/Google briše podatke iz kojih se zadatak izvodi, pa zadatak nestane sam; brisati i podsetnik da je operater nešto odložio značilo bi vratiti mu stavku koju je sklonio.",
   },
+
+  // ── Napredak (B4) ─────────────────────────────────────────────────────────
+  // Sve tri su lične (korisnik × radni prostor) i nose samo brojeve, datume i
+  // ključeve — nijedan red ne sadrži sadržaj preuzet od providera.
+  napredakDan: {
+    excluded:
+      "Misije zamrznute tog dana (ključ, cilj, XP) i zbir zaključenih dana (XP, niz, brojači, vremena otključanih dostignuća). Samo brojevi i ključevi izvedeni iz operaterovih sopstvenih radnji — bez imena firmi, teksta komentara ili bilo čega preuzetog od providera. Prekid veze briše događaje iz kojih se otvoreni dani izvode; zaključeni zbir ostaje jer opisuje šta je operater uradio, ne tuđe podatke.",
+  },
+  napredakPodesavanja: {
+    excluded:
+      "Čovekov izbor: da li se Napredak prikazuje, da li vikend prekida niz i tri nedeljna cilja. Ne dolazi ni od jednog provajdera; menja se u Podešavanjima.",
+  },
+  napredakPotvrde: {
+    excluded:
+      "Koje proslave (misija, bonus, nivo, dostignuće) je operater već video — ključ i datum, da se ne ponavljaju posle osvežavanja. Bez ikakvog sadržaja; potvrde starih dana se brišu same pri zamrzavanju novog dana.",
+  },
 };

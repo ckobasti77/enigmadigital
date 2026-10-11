@@ -406,24 +406,31 @@ U UI-ju se zove **„Napredak"**. Ime je jasno i nije detinjasto.
 - Vreme se računa po **Europe/Belgrade** (`lib/belgrade-time.ts`).
 
 ### 6.2 Izvori XP-a
-B4 popisuje stvarna polja i dopunjuje ovu tabelu.
-| Događaj | Izvor | XP | Kapa |
+Popisano u B4 nad stvarnom šemom (11.10.2026). Polja označena **novo** su
+`v.optional` i upisuju se od B4; stari redovi bez autora daju 0 XP. Vrednosti i
+kape žive na jednom mestu: `PRAVILA_XP` u `convex/lib/napredak.ts`.
+| Događaj | Izvor (tabela · uslov · autor · vreme) | XP | Kapa |
 |---|---|---|---|
-| Dodir (poziv ili kontakt) | `leadStageEvents` kind `dodir`, `actorUserId`, `occurredAt` | 10 | 1 po firmi dnevno |
-| Ishod zabeležen | `leadStageEvents` `ishod` | 15 | 1 po firmi dnevno |
-| Sledeći korak postavljen | `leadStageEvents` `sledeci_korak` | 5 | 1 po firmi dnevno |
-| Sastanak dogovoren | `leadStageEvents` `sastanak` (dogovoren, ne otkazan) | 50 | — |
-| Faza → `poslata_ponuda` | `leadStageEvents` `faza` | 40 | 1 po firmi |
-| Faza → `dobijen` | `leadStageEvents` `faza` | 250 | 1 po firmi |
-| Uvoz primenjen | `leadImports` (`uploadedBy`) | 20 | — |
-| Rešen nerazrešen red uvoza | `leadImportRows`. Ako nema autora, dodaje se `resolvedBy`/`resolvedAt` (opciono) i upisuje se od sada; stari redovi bez autora daju 0 XP | 3 | 100 dnevno |
-| Objava objavljena (IG/Threads) | `igPublishJobs` / `threadsPublishJobs` (`createdBy`) | 30 | — |
-| Članak objavljen (Novosti) | `posts`; dodaje se `publishedBy` (opciono) | 60 | — |
-| Moderacija ili odgovor | `igModerationLogs` / `fbModerationLogs` (`userId`) | 5 | 20 dnevno |
-| Radnja na oglasima | `adActions` (`userId`) | 10 | 10 dnevno |
-| Pravilo napravljeno | `rules`, ako ima autora | 20 | 1 po pravilu |
+| Dodir (poziv ili kontakt) | `leadStageEvents` `kind:"dodir"`, osim kanala `beleska` · `actorUserId` · `occurredAt` | 10 | 1 po firmi dnevno |
+| Ishod zabeležen | `leadStageEvents` `kind:"ishod"` · `actorUserId` · `occurredAt` | 15 | 1 po firmi dnevno |
+| Sledeći korak postavljen | `leadStageEvents` `kind:"sledeci_korak"` · `actorUserId` · `occurredAt` | 5 | 1 po firmi dnevno |
+| Sastanak dogovoren | `leadStageEvents` `kind:"sastanak"` sa `toValue` (bez `toValue` = otkazan; otkazan istog dana = 0) | 50 | 1 po firmi dnevno |
+| Faza → `poslata_ponuda` | `leadStageEvents` `kind:"faza"`, `toValue` | 40 | 1 po firmi |
+| Faza → `dobijen` | `leadStageEvents` `kind:"faza"`, `toValue` | 250 | 1 po firmi |
+| Uvoz primenjen | `leadImports` `status:"primenjen"` · `appliedBy` (**novo**; za stare `uploadedBy`) · `appliedAt` | 20 | — |
+| Rešen nerazrešen red uvoza | `leadImportRows` · `resolvedBy` (**novo**) · `resolvedAt` (**novo**) | 3 | 100 dnevno |
+| Objava objavljena (IG/Threads) | `igPublishJobs` / `threadsPublishJobs` `status:"published"`, Threads bez `replyToId` · `createdBy` · `publishedAt` | 30 | — |
+| Članak objavljen (Novosti) | `posts` `status:"published"` · `publishedBy` (**novo**) · `firstPublishedAt` (**novo**) | 60 | 1 po članku |
+| Moderacija ili odgovor | `igModerationLogs` / `fbModerationLogs` `status:"done"`, radnje `reply`, `hide`, `delete` · `userId` · `createdAt`; i Threads odgovor čoveka (`replyToId`) | 5 | 20 dnevno, 1 po komentaru |
+| Radnja na oglasima | `adActions` `status:"success"` · `userId` · `executedAt` | 10 | 10 dnevno |
+| Pravilo napravljeno | `rules` · `createdBy` (**novo**) · `_creationTime` | 20 | 1 po pravilu |
+| Dopuna telefona | `leadIdentities` `kind:"phone"` · `createdBy` (**novo**) · `createdAt`. Nema svoj XP; broji se za misiju `dopuni` i „Detektiva" | 0 | — |
 | Misija završena | izvedeno | 30–80 | 3 dnevno |
 | Sve tri misije završene | izvedeno | +100 (dnevni bonus) | 1 dnevno |
+
+Upis više od jednog beogradskog dana posle samog događaja ne donosi XP (dodir i
+ishod smeju da se unesu unazad). „Poziv" za prsten i misiju je dodir kanalom
+`poziv` ili ishod `nije_se_javio`.
 
 ### 6.3 Nivoi
 Za prelaz sa nivoa n na n+1 treba `100 + 40·(n−1)` XP. To znači oko 2.340 XP do
