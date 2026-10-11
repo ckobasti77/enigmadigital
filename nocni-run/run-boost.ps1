@@ -247,6 +247,14 @@ function Pokreni-Claude([string]$id, [string]$korak, [string]$ulaz, [string[]]$a
     }
   }
   $errFajl = Join-Path $root "$baza.err"
+  # claude.exe moze da nestane usred runa (reinstalacija, update) - tada nadji drugi koji radi
+  if (-not (Test-Path $script:CLAUDE -PathType Leaf)) {
+    $novi = Nadji-Claude
+    if ($novi.exe) {
+      Pisi ("    claude.exe vise ne postoji (" + $script:CLAUDE + ") - prelazim na " + $novi.exe + " (" + $novi.verzija + ")") "Yellow"
+      $script:CLAUDE = $novi.exe
+    }
+  }
   Pisi ("  > {0} [{1}] claude {2}" -f $id, $korak, (Za-Prikaz $argumenti)) "DarkCyan"
   $kod = -1
   $stari = $ErrorActionPreference
@@ -254,6 +262,13 @@ function Pokreni-Claude([string]$id, [string]$korak, [string]$ulaz, [string[]]$a
   try {
     $ulaz | & $script:CLAUDE @argumenti 2> $errFajl | ForEach-Object -Process $obrada
     $kod = $LASTEXITCODE
+  }
+  catch {
+    # npr. claude.exe ne postoji: ne rusi runner, poziv se racuna kao prekid i ponavlja se
+    $kod = -1
+    $poruka = "Pokretanje claude-a nije uspelo (" + $script:CLAUDE + "): " + $_.Exception.Message
+    try { [System.IO.File]::AppendAllText($errFajl, $poruka + "`n", $utf8) } catch { }
+    Pisi ("    " + $poruka) "Red"
   }
   finally {
     $sw.Close()
@@ -637,6 +652,7 @@ if ($fetch.kod -eq 0) {
 else { Pisi "UPOZORENJE: git fetch nije uspeo (mreza?) - nastavljam sa lokalnim stanjem." "Yellow" }
 
 # Plan, promptovi i runner idu u svoj commit pre faza (stash ih nikad ne odnosi).
+if (Test-Path (Join-Path $root "START-BOOST.cmd")) { $INFRA += "START-BOOST.cmd" }
 $infraStatus = Git-Komanda (@("status", "--porcelain", "--") + $INFRA)
 if ($infraStatus.izlaz.Trim()) {
   Git-Komanda (@("add", "--") + $INFRA) | Out-Null
@@ -817,7 +833,17 @@ try {
       Sacuvaj-Stanje
       $r = Pozovi-Uporno $id "nastavak-runa" $nastavak $osnova $sesijaArgs $izvrsi $sid $nastavak
       $poziv = $r.poziv; $sid = $r.sid
+      if (Nema-Sesije $poziv) {
+        # sesija nije ni nastala (run je pao pre prvog poziva faze) - faza krece ispocetka
+        Pisi "    Sesija prekinute faze ne postoji - $id krece ispocetka." "Yellow"
+        $napomena = @()
+        $nastavljena = $null
+        $poziv = $null
+        if ($p.sesija -ne "nova" -and $sesije[$p.sesija]) { $sid = $sesije[$p.sesija]; $sesijaArgs = @("--resume", $sid) }
+        else { $sid = [guid]::NewGuid().ToString(); $sesijaArgs = Nova-Sesija $sid $id }
+      }
     }
+    if ($nastavljena) { }
     elseif ($p.mod -eq "plan") {
       # 1) plan
       $script:uToku = [ordered]@{ faza = $id; sesija = $sid; odHash = $odHash; korak = "plan" }
