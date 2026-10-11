@@ -256,7 +256,7 @@ export function RetentionDashboard() {
                           cy={cy}
                           r="3.5"
                           fill={color}
-                          stroke="var(--background, #fff)"
+                          stroke="var(--background)"
                           strokeWidth="1.5"
                         />
                       );

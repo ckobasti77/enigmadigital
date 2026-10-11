@@ -167,7 +167,7 @@ export function RewardToast({
       <div className="min-w-0 flex-1">
         {xp !== undefined && (
           <p className="font-mono text-copy font-bold leading-tight text-xp tabular-nums">
-            <CountUp value={xp} format={(v) => `+${formatNumber(v)} XP`} />
+            <CountUp value={xp} from={0} format={(v) => `+${formatNumber(v)} XP`} />
           </p>
         )}
         <p

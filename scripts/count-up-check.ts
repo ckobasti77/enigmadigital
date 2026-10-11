@@ -307,6 +307,41 @@ console.log("\n7. Stari tvin ne vraća staru brojku: prethodni se gasi pre novog
 }
 
 // ---------------------------------------------------------------------------
+console.log("\n8. Broj koji pri otvaranju stoji: bez tvina, tačan od prvog kadra (B10)");
+// ---------------------------------------------------------------------------
+{
+  // `CountUp` bez `from` prosleđuje `from = value`: ekran odbrojava samo svoj
+  // fokus broj, ostali su tu odmah (najviše 1–2 animirana elementa po prikazu).
+  for (const reduced of [false, true]) {
+    const grana = reduced ? "reduced" : "pokret";
+    const stoji = odigraj({ reduced, isUpdate: false, from: 1893, current: 1893, value: 1893 });
+    proveri(
+      `${grana}: nema tvina kad broj pri otvaranju stoji`,
+      stoji.tween === null,
+      "tvin postoji",
+    );
+    proveri(
+      `${grana}: jedan upis, tačna vrednost`,
+      stoji.emiti.length === 1 && stoji.emiti[0] === 1893 && stoji.node.data === format(1893),
+      `emiti=${JSON.stringify(stoji.emiti)} data=${stoji.node.data}`,
+    );
+  }
+  // Fokus broj (`from` = 0) i dalje odbrojava, a svež podatak i dalje prelazi.
+  const fokus = odigraj({ reduced: false, isUpdate: false, from: 0, current: 0, value: 40 });
+  proveri(
+    "fokus broj i dalje odbrojava od nule",
+    fokus.tween !== null && fokus.emiti[0] === 0 && fokus.node.data === format(40),
+    `emiti[0]=${fokus.emiti[0]} data=${fokus.node.data}`,
+  );
+  const svez = odigraj({ reduced: false, isUpdate: true, from: 178, current: 40, value: 178 });
+  proveri(
+    "svež podatak prelazi od zatečene vrednosti i kad je `from` = vrednost",
+    svez.tween !== null && svez.emiti[0] === 40 && svez.node.data === format(178),
+    `emiti[0]=${svez.emiti[0]} data=${svez.node.data}`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 console.log(pao === 0 ? "\nSVE PROLAZI\n" : `\n${pao} PROVERA NIJE PROSLA\n`);
 gsap.globalTimeline.clear();
 process.exit(pao === 0 ? 0 : 1);

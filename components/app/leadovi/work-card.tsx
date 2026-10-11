@@ -251,7 +251,7 @@ export function WorkCard({
         {aside && <div className="shrink-0">{aside}</div>}
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-1.5">{zasto}</div>
-      <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
         {primary ?? <span className="text-meta text-text-muted">—</span>}
         {secondary}
       </div>

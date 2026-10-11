@@ -64,9 +64,17 @@ export function LeadIdentitiesPanel({
       case "email":
         return <Mail className="size-4 text-text-secondary" />;
       case "instagram":
-        return <InstagramIcon className="size-4 text-pink-400" />;
+        return (
+          <span data-module="instagram" className="contents">
+            <InstagramIcon className="size-4 text-mod" />
+          </span>
+        );
       case "facebook":
-        return <FacebookIcon className="size-4 text-blue-400" />;
+        return (
+          <span data-module="facebook" className="contents">
+            <FacebookIcon className="size-4 text-mod" />
+          </span>
+        );
       case "tiktok":
         return <TikTokIcon className="size-4 text-text-secondary" />;
       case "website":

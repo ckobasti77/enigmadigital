@@ -11,6 +11,7 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
+  ArrowDown,
   LineChart,
   MessageCircleReply,
   Camera,
@@ -77,6 +78,9 @@ const INTEGRATIONS: ReadonlyArray<{
   { provider: "google_ads", label: "Google Ads" },
   { provider: "youtube", label: "YouTube" },
 ];
+
+/** Meta sidra iz fokus kartice: staje ispod lepljive gornje trake. */
+const SIDRO = "scroll-mt-20";
 
 const STATUS_HINT: Record<ConnectionView["status"], string> = {
   active: "Povezano i aktivno.",
@@ -2979,6 +2983,29 @@ export function ConnectionsSettings() {
     const status = byProvider.get(provider)?.status;
     return status === "error" || status === "expired";
   }).map(({ label }) => label);
+  // Veza može da bude „aktivna" dok joj poslednja sinhronizacija pada. Tada
+  // rečenica to kaže, da „sve je aktivno" ne prikrije grešku iz liste ispod.
+  const failedSync = INTEGRATIONS.filter(
+    ({ provider }) =>
+      byProvider.get(provider)?.status === "active" &&
+      health?.some((h) => h.provider === provider && h.status === "error"),
+  ).map(({ label }) => label);
+
+  // Jedno dugme fokusa: prva integracija koja traži pažnju, pa prva koja još
+  // nije povezana; kad su sve na mestu, vodi na stanje sinhronizacije. Sve tri
+  // mete su na ovoj strani, pa je dugme sidro, ne nova radnja.
+  const zaPopravku = INTEGRATIONS.find(({ provider }) => {
+    const status = byProvider.get(provider)?.status;
+    return status === "error" || status === "expired";
+  });
+  const zaPovezivanje = INTEGRATIONS.find(
+    ({ provider }) => !byProvider.has(provider),
+  );
+  const sledece = zaPopravku
+    ? { href: `#integracija-${zaPopravku.provider}`, label: `Reši: ${zaPopravku.label}` }
+    : zaPovezivanje
+      ? { href: `#integracija-${zaPovezivanje.provider}`, label: `Poveži ${zaPovezivanje.label}` }
+      : { href: "#stanje-sinhronizacije", label: "Stanje sinhronizacije" };
 
   return (
     <div className="mt-6 flex flex-col gap-5">
@@ -2986,6 +3013,16 @@ export function ConnectionsSettings() {
       <div>
         <FocusCard
           eyebrow="Integracije"
+          action={
+            <Button
+              variant="primary"
+              render={<a href={sledece.href} />}
+              nativeButton={false}
+            >
+              {sledece.label}
+              <ArrowDown data-icon="inline-end" aria-hidden />
+            </Button>
+          }
           aside={
             <SegmentedMeter
               label="Povezano i aktivno"
@@ -3001,28 +3038,50 @@ export function ConnectionsSettings() {
           <p className="text-ui text-text-muted">
             {attention.length > 0
               ? `Traže pažnju: ${attention.join(", ")}.`
-              : activeCount === INTEGRATIONS.length
-                ? "Svi izvori su povezani i aktivni."
-                : "Povezani izvori rade; ostali čekaju povezivanje."}
+              : failedSync.length > 0
+                ? `Poslednja sinhronizacija nije uspela: ${failedSync.join(", ")}.`
+                : activeCount === INTEGRATIONS.length
+                  ? "Svi izvori su povezani i aktivni."
+                  : "Povezani izvori rade; ostali čekaju povezivanje."}
           </p>
         </FocusCard>
       </div>
 
       {/* Pločice teku u dve kolone koje pregledač sam ujednači po visini:
           kartice su vrlo različite dužine, pa bi mreža ostavljala rupe. */}
-      <div className="-mb-5 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
-      <Ga4Card connection={byProvider.get("ga4")} />
+      <div className="gap-5 xl:columns-2 [&>*]:break-inside-avoid [&>*:not(:last-child)]:mb-5">
+      {/* `id` je meta dugmeta u fokus kartici; `scroll-mt` je drži ispod
+          gornje trake. */}
+      <div id="integracija-ga4" className={SIDRO}>
+        <Ga4Card connection={byProvider.get("ga4")} />
+      </div>
       {byProvider.has("ga4") && <Ga4Configuration />}
-      <OpenReplyCard />
-      <InstagramCard connection={byProvider.get("meta_ig")} />
-      <FacebookCard connection={byProvider.get("meta_fb")} />
-      <ThreadsCard connection={byProvider.get("threads")} />
-      <MetaAdsCard connection={byProvider.get("meta_ads")} />
-      <GoogleAdsCard connection={byProvider.get("google_ads")} />
-      <YouTubeCard connection={byProvider.get("youtube")} />
+      <div id="integracija-openreply" className={SIDRO}>
+        <OpenReplyCard />
+      </div>
+      <div id="integracija-meta_ig" className={SIDRO}>
+        <InstagramCard connection={byProvider.get("meta_ig")} />
+      </div>
+      <div id="integracija-meta_fb" className={SIDRO}>
+        <FacebookCard connection={byProvider.get("meta_fb")} />
+      </div>
+      <div id="integracija-threads" className={SIDRO}>
+        <ThreadsCard connection={byProvider.get("threads")} />
+      </div>
+      <div id="integracija-meta_ads" className={SIDRO}>
+        <MetaAdsCard connection={byProvider.get("meta_ads")} />
+      </div>
+      <div id="integracija-google_ads" className={SIDRO}>
+        <GoogleAdsCard connection={byProvider.get("google_ads")} />
+      </div>
+      <div id="integracija-youtube" className={SIDRO}>
+        <YouTubeCard connection={byProvider.get("youtube")} />
+      </div>
       </div>
       <SyncSchedule connected={connections.map((c) => c.provider)} />
-      <SyncHealth entries={health} />
+      <div id="stanje-sinhronizacije" className={SIDRO}>
+        <SyncHealth entries={health} />
+      </div>
       {/* Na dnu na namerno: rezime se čita posle kartica koje sažima. */}
       <DataAndAccess connected={connections.map((c) => c.provider)} />
     </div>

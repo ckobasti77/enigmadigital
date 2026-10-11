@@ -471,7 +471,7 @@ function TopContentCard({
         <div className="mt-3 grid grid-cols-4 gap-2 border-t border-line-soft pt-3 text-center">
           <div>
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <Heart className="size-3 text-danger/80" /> Lajkovi
+              <Heart className="size-3 text-text-muted" /> Lajkovi
             </span>
             <p className="font-mono text-xs font-semibold tabular-nums text-foreground mt-0.5">
               {formatNumber(item.likes)}
@@ -479,7 +479,7 @@ function TopContentCard({
           </div>
           <div>
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <Bookmark className="size-3 text-warning/80" /> Sačuvano
+              <Bookmark className="size-3 text-text-muted" /> Sačuvano
             </span>
             <p className="font-mono text-xs font-semibold tabular-nums text-foreground mt-0.5">
               {formatNumber(item.saves)}
@@ -495,7 +495,7 @@ function TopContentCard({
           </div>
           <div>
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <Share2 className="size-3 text-success/80" /> Deljenja
+              <Share2 className="size-3 text-text-muted" /> Deljenja
             </span>
             <p className="font-mono text-xs font-semibold tabular-nums text-foreground mt-0.5">
               {formatNumber(item.shares)}
@@ -608,7 +608,7 @@ function PostCard({
 
           <div>
             <div className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <Bookmark className="size-3 text-warning" />
+              <Bookmark className="size-3 text-text-muted" />
               <span>Sačuvano</span>
             </div>
             <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
@@ -618,7 +618,7 @@ function PostCard({
 
           <div>
             <div className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <Heart className="size-3 text-danger" />
+              <Heart className="size-3 text-text-muted" />
               <span>Lajkovi</span>
             </div>
             <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">

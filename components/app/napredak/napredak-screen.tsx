@@ -276,7 +276,7 @@ function UcitavanjeFokusa() {
   return (
     <div className="flex flex-col gap-8">
       <Skeleton className="h-44 w-full rounded-xl" />
-      <div className="grid gap-4 md:grid-cols-[2fr_1fr_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <Skeleton className="h-40 rounded-xl" />
         <Skeleton className="h-40 rounded-xl" />
         <Skeleton className="h-40 rounded-xl" />
@@ -328,8 +328,8 @@ function MisijeDana({ stanje }: { stanje: NapredakUkljucen }) {
         <div
           className={cn(
             "grid gap-4",
-            misije.length === 3 && "md:grid-cols-[2fr_1fr_1fr]",
-            misije.length === 2 && "md:grid-cols-[2fr_1fr]",
+            misije.length === 3 && "lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]",
+            misije.length === 2 && "lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]",
           )}
         >
           {[...misije]

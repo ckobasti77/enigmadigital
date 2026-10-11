@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Building2,
+  Check,
   ExternalLink,
   LoaderCircle,
   Play,
@@ -232,15 +233,16 @@ function SkillCells({ parsed }: { parsed: StagingRowDoc["parsed"] }) {
         )}
       </TableCell>
 
-      {/* Koordinate — ✓ ili —, bez brojeva: geografska širina u tabeli nikome
+      {/* Koordinate — kvačica ili —, bez brojeva: geografska širina u tabeli nikome
           ništa ne znači, a pitanje je samo „hoće li se videti na mapi". */}
       <TableCell className={cn(cellClass, "text-center")}>
         {parsed.koordinate ? (
           <span
-            className="text-success"
+            className="inline-flex text-success"
             title={`${parsed.koordinate.lat.toFixed(5)}, ${parsed.koordinate.lng.toFixed(5)} (${parsed.koordinate.izvor})`}
           >
-            ✓
+            <Check className="size-3.5" aria-hidden />
+            <span className="sr-only">Ima koordinate</span>
           </span>
         ) : (
           prazno

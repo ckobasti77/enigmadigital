@@ -715,6 +715,28 @@
     stroke-width: var(--icon-stroke);
   }
 
+  /* Sve što se klikne ima pokazivač (UI Boost §10.11). Tailwind 4 ga dugmetu
+     više ne daje sam, a jezičci, zaglavlja koja sortiraju, izbornici, polja za
+     potvrdu i natpisi polja nisu `Button`. Pravilo je u osnovnom sloju, pa
+     klasa (`cursor-grab`, `cursor-not-allowed`) i dalje pobeđuje. */
+  :is(
+      button,
+      select,
+      summary,
+      label[for],
+      input[type="checkbox"],
+      input[type="radio"],
+      [role="button"],
+      [role="tab"],
+      [role="switch"],
+      [role="checkbox"],
+      [role="radio"],
+      [role="menuitem"],
+      [role="option"]
+    ):not(:disabled, [aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
   body {
     @apply min-h-full bg-background text-foreground antialiased;
     /* Neklasiran tekst sedi na skali (15 px), ne na 16 px pregledača. */

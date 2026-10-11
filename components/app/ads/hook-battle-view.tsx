@@ -35,6 +35,7 @@ import {
   formatNumber,
   formatPercent,
   formatDateSpan,
+  formatRatio,
 } from "@/lib/format";
 import { formatMetric } from "@/convex/lib/metaAdsFormat";
 import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
@@ -646,7 +647,7 @@ export function HookBattleView({
                           </span>
                           {version.hasConversionValue && version.roas !== undefined && (
                             <span className="block text-micro text-success font-semibold">
-                              {version.roas.toFixed(2)}x
+                              {formatRatio(version.roas)}x
                             </span>
                           )}
                         </div>

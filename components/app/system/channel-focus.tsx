@@ -102,6 +102,7 @@ export function ChannelFocus({
         ) : (
           <CountUp
             value={value}
+            from={0}
             format={format}
             className="block font-mono text-hero font-bold leading-none text-mod"
           />

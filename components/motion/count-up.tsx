@@ -8,9 +8,14 @@ import { runCountEffect } from "./count-up-engine";
 import { cn } from "@/lib/utils";
 
 /**
- * Brojčana vrednost koja se odbroji do cilja pri prvom prikazu, a pri svežem
- * podatku iz Convex-a PREĐE od stare do nove vrednosti (ne odbrojava ponovo od
- * nule — inače KPI pločica treperi na svaki backend update).
+ * Brojčana vrednost koja pri svežem podatku iz Convex-a PREĐE od stare do nove
+ * vrednosti (ne odbrojava ponovo od nule — inače KPI pločica treperi na svaki
+ * backend update).
+ *
+ * Pri prvom prikazu broj STOJI, osim kad pozivalac zada `from`: odbrojavanje
+ * pri otvaranju je rezervisano za fokus broj ekrana i za nagradu (UI Boost
+ * §4.4 — najviše 1–2 animirana elementa po prikazu). Deset pločica koje se
+ * vrte u isti mah je koreografija, ne podatak.
  *
  * KRITIČNO: React je jedini vlasnik tekstualnog čvora. Prikazana vrednost se
  * drži u `display` state-u i renderuje kroz JSX; animacija je pomera preko
@@ -25,12 +30,15 @@ export function CountUp({
   value,
   format,
   className,
-  from = 0,
+  from,
 }: {
   value: number;
   format: (v: number) => string;
   className?: string;
-  /** Odakle kreće odbrojavanje pri prvom prikazu. */
+  /**
+   * Odakle kreće odbrojavanje pri prvom prikazu. Bez njega broj pri otvaranju
+   * stoji; `0` zadaju samo fokus broj ekrana i nagrada.
+   */
   from?: number;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -64,7 +72,7 @@ export function CountUp({
           el: ref.current,
           reduced,
           isUpdate,
-          from,
+          from: from ?? value,
           current: displayRef.current,
           value,
           emit,

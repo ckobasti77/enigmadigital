@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import {
+  ArrowRight,
   Camera,
   ChartNoAxesColumn,
   Megaphone,
@@ -138,7 +139,22 @@ export function OpenReplyDashboard() {
               100 %; zato između koraka piše „klikova po poruci". */}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-[2fr_1fr_1fr]">
             <div className="col-span-2 lg:col-span-1">
-              <FocusCard eyebrow="Levak DM → klik" className="h-full">
+              {/* Jedno dugme fokusa: levak se menja u automatizacijama
+                  (poruka i link), pa vodi tamo. */}
+              <FocusCard
+                eyebrow="Levak DM → klik"
+                className="h-full"
+                action={
+                  <Button
+                    variant="primary"
+                    render={<Link href="/openreply/automatizacije" />}
+                    nativeButton={false}
+                  >
+                    Otvori automatizacije
+                    <ArrowRight data-icon="inline-end" aria-hidden />
+                  </Button>
+                }
+              >
                 <FunnelSteps
                   label="Levak od poslate poruke do klika na link"
                   steps={[

@@ -149,6 +149,8 @@ export function KpiTile({
   const number = (
     <CountUp
       value={value}
+      // Pri otvaranju odbrojava samo fokus broj ekrana (`hero`).
+      from={size === "hero" ? 0 : undefined}
       format={format}
       className={cn(
         "block font-mono font-bold leading-none",

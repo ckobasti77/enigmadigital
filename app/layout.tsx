@@ -54,7 +54,7 @@ export default function RootLayout({
 }>) {
   return (
     <ConvexAuthNextjsServerProvider>
-      <html lang="en" className={`${aeonik.variable} h-full`}>
+      <html lang="sr-Latn" className={`${aeonik.variable} h-full`}>
         <body className="min-h-full flex flex-col">
           <ConvexClientProvider>{children}</ConvexClientProvider>
         </body>

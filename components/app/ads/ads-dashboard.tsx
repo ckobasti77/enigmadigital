@@ -28,6 +28,7 @@ import {
   formatSignedPercent,
   formatSignedPp,
   pluralSr,
+  formatRatio,
 } from "@/lib/format";
 import { deltaPct, deltaPp } from "@/lib/metrics";
 import {
@@ -47,7 +48,7 @@ import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
 
 const spendDef = resolveMetric("spend")!;
 const cpaDef = resolveMetric("costPerResult")!;
-const formatRoas = (v: number) => `${v.toFixed(2)}x`;
+const formatRoas = (v: number) => `${formatRatio(v)}x`;
 
 const DESCRIPTION =
   "Potrošnja, rezultati i cena po rezultatu kroz kampanje, ad setove i oglase.";

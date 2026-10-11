@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { Activity, ChartNoAxesColumn, Info, Unplug } from "lucide-react";
+import { Activity, ChartNoAxesColumn, Info, Radio, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
@@ -34,6 +34,27 @@ const FOCUS_SIDE = "grid content-start grid-cols-2 gap-4 lg:grid-cols-1";
 /** Sedam kompaktnih pločica; poslednja popunjava red da ne ostane sama. */
 const COMPACT_GRID =
   "grid grid-cols-2 gap-4 lg:grid-cols-4 [&>*:last-child]:col-span-2";
+
+/**
+ * Jedino primarno dugme Analitike, u zaglavlju strane: šta se na sajtu dešava
+ * baš sada. Crta se tek kad se zna da je GA4 povezan — nepovezan ekran nosi
+ * svoje dugme („Poveži GA4") u Misiji za start, a dva primarna dugmeta na
+ * jednom pogledu nisu dozvoljena.
+ */
+export function AnalyticsHeaderAction() {
+  const connections = useQuery(api.connections.list);
+  if (!connections?.some((c) => c.provider === "ga4")) return null;
+  return (
+    <Button
+      variant="primary"
+      render={<Link href="/analytics/uzivo" />}
+      nativeButton={false}
+    >
+      <Radio data-icon="inline-start" aria-hidden />
+      Pogledaj uživo
+    </Button>
+  );
+}
 
 /**
  * Analytics (GA4). Three live subscriptions: current period, previous equal

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
-import { formatDecimal, formatNumber, formatPercent } from "@/lib/format";
+import { formatDecimal, formatNumber, formatPercent, formatRatio } from "@/lib/format";
 import { formatMetric } from "@/convex/lib/metaAdsFormat";
 import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
 import { activatable } from "@/lib/activate";
@@ -489,7 +489,7 @@ export function CampaignsTable({
                            </span>
                            {row.hasConversionValue && row.roas !== undefined && (
                              <span className="block text-micro font-semibold text-success">
-                               {row.roas.toFixed(2)}x
+                               {formatRatio(row.roas)}x
                              </span>
                            )}
                          </div>

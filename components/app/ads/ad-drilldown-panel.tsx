@@ -11,7 +11,7 @@ import { PlacementBreakdown } from "./placement-breakdown";
 import { HourlyChart } from "./hourly-chart";
 import { AdPreviewDialog } from "./ad-preview-dialog";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
-import { formatDecimal, formatNumber, formatPercent } from "@/lib/format";
+import { formatDecimal, formatNumber, formatPercent, formatRatio } from "@/lib/format";
 import { deriveRate } from "@/convex/lib/metaAdsCatalog";
 import { cn } from "@/lib/utils";
 import {
@@ -470,7 +470,7 @@ export function AdDrilldownPanel({
               <div className="rounded-lg border border-line bg-surface/50 p-3">
                 <span className="text-xs text-text-muted">ROAS</span>
                 <p className="mt-1 font-mono text-lg font-bold tabular-nums text-success">
-                  {coreMetrics.roas !== undefined ? `${coreMetrics.roas.toFixed(2)}x` : "—"}
+                  {coreMetrics.roas !== undefined ? `${formatRatio(coreMetrics.roas)}x` : "—"}
                 </p>
               </div>
             ) : (

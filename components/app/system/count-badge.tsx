@@ -16,7 +16,7 @@ export type CountBadgeTone = "neutral" | "accent" | "warning" | "danger";
 
 const TONE: Record<CountBadgeTone, string> = {
   neutral: "bg-surface-raised text-foreground ring-1 ring-line",
-  accent: "bg-accent-400/15 text-accent-400",
+  accent: "bg-mod-soft text-mod",
   warning: "bg-warning/15 text-warning",
   danger: "bg-danger/15 text-danger",
 };

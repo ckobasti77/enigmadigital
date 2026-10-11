@@ -14,6 +14,7 @@ import {
   formatDecimal,
   formatNumber,
   formatPercent,
+  formatRatio,
 } from "@/lib/format";
 import { activatable } from "@/lib/activate";
 import { cn } from "@/lib/utils";
@@ -458,7 +459,7 @@ export function CampaignDetail({
           <div className="rounded-lg border border-line bg-surface/50 p-3">
             <span className="text-xs text-text-muted">ROAS</span>
             <p className="mt-1 font-mono text-xl font-bold tabular-nums text-success">
-              {campaign.roas !== undefined ? `${campaign.roas.toFixed(2)}x` : "—"}
+              {campaign.roas !== undefined ? `${formatRatio(campaign.roas)}x` : "—"}
             </p>
           </div>
         ) : (
@@ -597,7 +598,7 @@ export function CampaignDetail({
                       </span>
                       {set.hasConversionValue && set.roas !== undefined && (
                         <span>
-                          ROAS: <strong className="text-success">{set.roas.toFixed(2)}x</strong>
+                          ROAS: <strong className="text-success">{formatRatio(set.roas)}x</strong>
                         </span>
                       )}
                       <span>
@@ -786,7 +787,7 @@ export function CampaignDetail({
                                     </span>
                                     {ad.hasConversionValue && ad.roas !== undefined && (
                                       <span className="block text-micro text-success font-semibold">
-                                        {ad.roas.toFixed(2)}x
+                                        {formatRatio(ad.roas)}x
                                       </span>
                                     )}
                                   </div>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "convex/react";
-import { MousePointerClick, Unplug } from "lucide-react";
+import { ArrowRight, MousePointerClick, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/system/empty-state";
@@ -82,6 +82,18 @@ export function AttributionDashboard() {
           {/* Fokus: put od poruke do konverzije, i koliko mu se može verovati. */}
           <FocusCard
             eyebrow="Levak DM → konverzija"
+            // Jedno dugme fokusa: poruka i link koji pune levak se menjaju u
+            // automatizacijama.
+            action={
+              <Button
+                variant="primary"
+                render={<Link href="/openreply/automatizacije" />}
+                nativeButton={false}
+              >
+                Otvori automatizacije
+                <ArrowRight data-icon="inline-end" aria-hidden />
+              </Button>
+            }
             aside={
               <div className="flex w-full flex-col gap-2 md:w-80">
                 <p className="heading-caps text-meta font-medium text-text-muted">

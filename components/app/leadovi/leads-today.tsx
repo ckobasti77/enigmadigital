@@ -838,7 +838,7 @@ function BrojCip({
         ) : (
           <>
             {najmanje ? "≥ " : ""}
-            <CountUp value={value} from={value} format={(v) => String(Math.round(v))} />
+            <CountUp value={value} format={(v) => String(Math.round(v))} />
           </>
         )}
       </span>

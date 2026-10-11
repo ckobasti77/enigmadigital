@@ -340,7 +340,7 @@ function TopThreadsPostCard({
         <div className="mt-3 grid grid-cols-5 gap-1 border-t border-line-soft pt-3 text-center">
           <div>
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <Heart className="size-3 text-danger/80" /> Lajk
+              <Heart className="size-3 text-text-muted" /> Lajk
             </span>
             <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
               {likes !== null && likes !== undefined ? formatNumber(likes) : "—"}
@@ -356,7 +356,7 @@ function TopThreadsPostCard({
           </div>
           <div>
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <Repeat2 className="size-3 text-success/80" /> Repost
+              <Repeat2 className="size-3 text-text-muted" /> Repost
             </span>
             <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
               {reposts !== null && reposts !== undefined ? formatNumber(reposts) : "—"}
@@ -364,7 +364,7 @@ function TopThreadsPostCard({
           </div>
           <div>
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <Quote className="size-3 text-warning/80" /> Citat
+              <Quote className="size-3 text-text-muted" /> Citat
             </span>
             <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
               {quotes !== null && quotes !== undefined ? formatNumber(quotes) : "—"}
@@ -458,7 +458,7 @@ function ThreadsPostCard({
 
           <div>
             <div className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <Heart className="size-3 text-danger" />
+              <Heart className="size-3 text-text-muted" />
               <span>Lajkovi</span>
             </div>
             <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
@@ -485,14 +485,14 @@ function ThreadsPostCard({
             className="inline-flex items-center gap-1 font-mono tabular-nums"
             title="Repostovi"
           >
-            <Repeat2 className="size-3 text-success/80" />
+            <Repeat2 className="size-3 text-text-muted" />
             {reposts !== null && reposts !== undefined ? formatNumber(reposts) : "—"}
           </span>
           <span
             className="inline-flex items-center gap-1 font-mono tabular-nums"
             title="Citati"
           >
-            <Quote className="size-3 text-warning/80" />
+            <Quote className="size-3 text-text-muted" />
             {quotes !== null && quotes !== undefined ? formatNumber(quotes) : "—"}
           </span>
           <span

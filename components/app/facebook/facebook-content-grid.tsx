@@ -592,7 +592,7 @@ function PostCard({
 
           <div>
             <div className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <Eye className="size-3 text-warning" />
+              <Eye className="size-3 text-text-muted" />
               <span>Doseg</span>
             </div>
             <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
@@ -602,7 +602,7 @@ function PostCard({
 
           <div>
             <div className="flex items-center justify-center gap-1 text-micro text-text-muted">
-              <ThumbsUp className="size-3 text-success" />
+              <ThumbsUp className="size-3 text-text-muted" />
               <span>Lajkovi</span>
             </div>
             <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">

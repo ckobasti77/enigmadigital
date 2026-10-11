@@ -62,7 +62,10 @@ const MARKETING_COOKIES: CookieItem[] = [
 
 export default function CookiesPage() {
   return (
-    <main className="mx-auto w-full max-w-3xl px-[var(--gutter)] py-16">
+    <main
+      data-module="tabla"
+      className="mx-auto w-full max-w-3xl px-[var(--gutter)] py-16"
+    >
       <p className="heading-caps text-micro font-medium text-accent-400">
         Enigma Digital
       </p>

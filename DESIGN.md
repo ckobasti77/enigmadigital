@@ -501,29 +501,36 @@ ne pomera; merač se pomeri kad se vrednost promeni.
   Novim korisnicima ispod), veliki grafikon desno. Grafikon je ljubičast iz
   validirane palete (`--chart-6`), ne u boji modula. Ostalih sedam mera su
   `compact` pločice (broj i pilula promene, bez sparklinije). Izvori
-  saobraćaja imaju `SourceIcon` uz naziv i traku udela u `--mod`.
+  saobraćaja imaju `SourceIcon` uz naziv i traku udela u `--mod`. Primarno
+  dugme je „Pogledaj uživo" u zaglavlju, i crta se samo kad je GA4 povezan
+  (nepovezan ekran nosi „Poveži GA4" u Misiji za start).
 - **Levak** je `FunnelSteps`: traka po koraku, širine srazmerne najvećem
   koraku, u `--mod-strong`. Između koraka piše prelaz — procenat kad je korak
   podskup prethodnog, a ODNOS („0,32 klikova po poruci") kad nije
   (`ratioOnly`): klik pripada linku, ne poruci, pa „CTR" ume da pređe 100 %.
 - **Atribucija.** Fokus kartica: levak DM → klik → GA4 sesija → konverzija,
   desno UTM integritet kao `ProgressBar` (kampanje sa klikovima koje beleže
-  sesije / sve kampanje sa klikovima).
+  sesije / sve kampanje sa klikovima). Dugme fokusa: „Otvori automatizacije".
 - **OpenReply.** Fokus je levak DM → klik u bento redu 2fr / 1fr / 1fr sa
-  „Klikova po poruci" i „Aktivne kampanje".
+  „Klikova po poruci" i „Aktivne kampanje". Dugme fokusa: „Otvori
+  automatizacije" (poruka i link koji pune levak se menjaju tamo).
 - **Pravila.** Pravilo je kartica čuvara: štit u boji modula (precrtan kad je
   isključeno), uslov kao rečenica, `Switch` sa stanjem ispisanim rečju,
   poslednje okidanje; izmena i brisanje su ghost ikonice. Četiri broja su red
   čipova. Istorija je vremenska osa: tačka u boji radnje (pauza = upozorenje,
   obaveštenje = info), tekst bez okvira.
 - **Podešavanja.** Cela širina kolone. Fokus je „Integracije N / M" sa
-  `SegmentedMeter`-om po izvoru. Pločica integracije nosi `data-module` svog
+  `SegmentedMeter`-om po izvoru i jednim dugmetom-sidrom: „Reši: …" za prvu
+  vezu u grešci, inače „Poveži …" za prvu nepovezanu, inače „Stanje
+  sinhronizacije". Kad je veza aktivna a poslednja sinhronizacija pala,
+  rečenica u fokusu to kaže. Pločica integracije nosi `data-module` svog
   brenda, pa ikonica, okvir fokusa i puno dugme unutar nje čitaju tu boju kroz
   `--mod`; zdravlje nosi `StatusPill`. Pločice teku u dve CSS kolone (od
   1280 px) da kartice različite dužine ne ostavljaju rupe.
 - **Prijava i pozivnica.** `BrandMoment`: ime proizvoda u `text-display` i
   aurora u brend cijanu (≤ 10 %, bez animacije) iznad kartice. H1 je naslov
-  koraka u kartici. Dugme za slanje forme je `primary`.
+  koraka u kartici. Dugme za slanje forme je `primary`. Ekrani van ljuske
+  (prijava, pozivnica, javne strane) sami nose `data-module="tabla"`.
 
 ### Motion
 GSAP `useGSAP` unutar `gsap.matchMedia()` sa granom za reduced-motion.
@@ -531,6 +538,11 @@ GSAP `useGSAP` unutar `gsap.matchMedia()` sa granom za reduced-motion.
 pritisak, 150–200 ms sve što se pojavi. „Playful" samo za nagradu:
 `--ease-reward` (`cubic-bezier(.34,1.56,.64,1)`), do 600 ms; čestice do
 900 ms; nov nivo do 1,2 s. Toast: ulaz 250 ms, izlaz 180 ms.
+
+Pri otvaranju ekrana pomeraju se najviše dva elementa: okvir strane (prelaz
+rute, 200 ms) i fokus broj. `CountUp` pri prvom prikazu STOJI; odbrojava samo
+kad pozivalac zada `from` (`KpiTile` `hero`, `ChannelFocus`, XP u toastu).
+Svež podatak i dalje prelazi od stare do nove vrednosti.
 
 ## Do's and Don'ts
 

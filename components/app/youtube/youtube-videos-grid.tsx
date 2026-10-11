@@ -180,7 +180,7 @@ export function YouTubeVideosGrid({ videos }: { videos: VideoItem[] }) {
             </p>
           </div>
 
-          <div className="flex items-center gap-1.5 rounded-lg border border-line bg-surface p-1 text-xs">
+          <div className="flex max-w-full items-center gap-1.5 overflow-x-auto overflow-y-hidden rounded-lg border border-line bg-surface p-1 text-xs">
             <span className="px-2 py-1 text-text-muted">Sortiraj po:</span>
             <SortButton
               label="Pregledi"
@@ -382,12 +382,12 @@ function TopVideoCard({
             value={watchTime(item)}
           />
           <MiniStat
-            icon={<Gauge className="size-3 text-warning/80" />}
+            icon={<Gauge className="size-3 text-text-muted" />}
             label="Odgledano"
             value={retention(item)}
           />
           <MiniStat
-            icon={<Heart className="size-3 text-danger/80" />}
+            icon={<Heart className="size-3 text-text-muted" />}
             label="Lajkovi"
             value={formatNumber(item.likes)}
           />
@@ -485,7 +485,7 @@ function VideoCard({
             value={watchTime(item)}
           />
           <MiniStat
-            icon={<Gauge className="size-3 text-warning" />}
+            icon={<Gauge className="size-3 text-text-muted" />}
             label="Odgledano"
             value={retention(item)}
           />

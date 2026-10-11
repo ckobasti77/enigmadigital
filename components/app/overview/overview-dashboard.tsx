@@ -473,7 +473,6 @@ function SecondaryStats({
             <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
               <CountUp
                 value={item.value}
-                from={item.value}
                 format={formatNumber}
                 className="font-mono text-title font-bold text-foreground"
               />

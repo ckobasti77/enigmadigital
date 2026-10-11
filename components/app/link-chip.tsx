@@ -194,7 +194,7 @@ export function LinkChip({
         rel={jeInterni ? undefined : "noopener noreferrer"}
         title={title ?? `${NAZIVI[vrsta]}: ${tekst}`}
         className={cn(
-          "inline-flex min-w-0 items-center rounded-md py-1 text-foreground transition-colors hover:text-accent-400 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          "inline-flex min-w-0 items-center rounded-md py-1 text-foreground transition-colors hover:text-mod focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
           mali ? "gap-1" : "gap-1.5",
         )}
       >

@@ -50,9 +50,9 @@ export function XpBar({
         <div className="flex items-baseline justify-between gap-3 text-meta">
           <span className="truncate text-text-muted">{label}</span>
           <span className="shrink-0 font-mono tabular-nums text-xp">
-            {/* `from` = sama vrednost: pri otvaranju broj stoji, kotrlja se
-                tek kad XP stvarno poraste. */}
-            <CountUp value={xp} from={xp} format={formatNumber} />
+            {/* Pri otvaranju broj stoji; kotrlja se tek kad XP stvarno
+                poraste. */}
+            <CountUp value={xp} format={formatNumber} />
             <span className="text-text-muted"> / {formatNumber(to)} XP</span>
           </span>
         </div>

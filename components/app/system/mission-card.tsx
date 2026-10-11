@@ -143,7 +143,8 @@ export function MissionCard({
           <div className="min-w-0 flex-1">
             <p
               className={cn(
-                "font-medium text-foreground",
+                // U uskoj koloni duga reč se lomi, umesto da probije karticu.
+                "font-medium text-foreground [overflow-wrap:anywhere]",
                 featured ? "text-title font-bold" : "text-copy",
               )}
             >

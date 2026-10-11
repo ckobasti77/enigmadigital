@@ -69,6 +69,14 @@ export function runCountEffect(o: CountEffectOpts): gsap.core.Tween | null {
     return null;
   }
 
+  if (!isUpdate && from === value) {
+    // Broj koji pri otvaranju stoji: nema ni tvina ni pretapanja. Ekran sme
+    // da odbroji samo svoj fokus broj (najviše 1–2 animirana elementa po
+    // prikazu); svi ostali su tu od prvog kadra i pomere se tek na svež podatak.
+    emit(value);
+    return null;
+  }
+
   if (reduced) {
     // Pokret ne može/ne sme da se izvede → prikaži TAČAN broj odmah.
     // Tačnost pobeđuje pokret, uvek. Ostaje samo kratak cross-fade.
