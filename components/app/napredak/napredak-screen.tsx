@@ -30,6 +30,7 @@ import {
   ikonaDostignuca,
   ikonaMisije,
   radnjaMisije,
+  vezaMisije,
 } from "./napredak-ikone";
 import {
   stanjeNiza,
@@ -351,7 +352,7 @@ function MisijeDana({ stanje }: { stanje: NapredakUkljucen }) {
                   featured={glavna}
                   action={
                     <Button
-                      render={<Link href={misija.veza} />}
+                      render={<Link href={vezaMisije(misija.kljuc, misija.veza)} />}
                       nativeButton={false}
                       variant={glavna ? "primary" : "secondary"}
                       size="sm"

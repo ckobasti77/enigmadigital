@@ -80,8 +80,11 @@ export function KpiTile({
   icon,
   higherIsBetter = true,
   href,
+  shortLabel,
 }: {
   label: string;
+  /** Kraći natpis za uske pločice (telefon, dve kolone) — da se pun ne seče. */
+  shortLabel?: string;
   value: number | undefined;
   format: (v: number) => string;
   /** Promena u odnosu na prethodni period. `value` null/undefined = nema poređenja. */
@@ -110,7 +113,7 @@ export function KpiTile({
     return (
       <TileShell href={href} label={label}>
         <div className={cn("flex flex-col px-5 pt-4", HEIGHT[size])}>
-          <TileLabel label={label} icon={icon} />
+          <TileLabel label={label} shortLabel={shortLabel} icon={icon} />
           <span
             className={cn(
               "mt-2 block font-mono font-bold leading-none text-text-muted tabular-nums",
@@ -163,7 +166,7 @@ export function KpiTile({
     return (
       <TileShell href={href} label={label}>
         <div className={cn("flex flex-col justify-between px-4 py-3", HEIGHT.compact)}>
-          <TileLabel label={label} icon={icon} />
+          <TileLabel label={label} shortLabel={shortLabel} icon={icon} />
           <div className="flex items-baseline justify-between gap-2">
             {number}
             {pill ??
@@ -179,7 +182,7 @@ export function KpiTile({
   return (
     <TileShell href={href} label={label}>
       <div className={cn("flex flex-col px-5 pt-4 pb-4", HEIGHT[size])}>
-        <TileLabel label={label} icon={icon} />
+        <TileLabel label={label} shortLabel={shortLabel} icon={icon} />
         <div className="mt-2">{number}</div>
         {pill ? (
           <div className="mt-2 flex items-center gap-1.5 text-ui">
@@ -241,7 +244,15 @@ function TileShell({
   );
 }
 
-function TileLabel({ label, icon: Icon }: { label: string; icon?: TileIcon }) {
+function TileLabel({
+  label,
+  shortLabel,
+  icon: Icon,
+}: {
+  label: string;
+  shortLabel?: string;
+  icon?: TileIcon;
+}) {
   return (
     <div className="flex items-center gap-2">
       {Icon && (
@@ -250,7 +261,14 @@ function TileLabel({ label, icon: Icon }: { label: string; icon?: TileIcon }) {
         </span>
       )}
       <p className="heading-caps truncate text-meta font-medium text-text-muted">
-        {label}
+        {shortLabel ? (
+          <>
+            <span className="sm:hidden">{shortLabel}</span>
+            <span className="hidden sm:inline">{label}</span>
+          </>
+        ) : (
+          label
+        )}
       </p>
     </div>
   );

@@ -42,6 +42,7 @@ import {
   columnValues,
   legacyColumnValues,
 } from "../components/app/leadovi/lead-columns";
+import { kvalitetBaze } from "../lib/lead-quality";
 
 let pao = 0;
 function proveri(naziv: string, uslov: boolean, detalj: string): void {
@@ -155,6 +156,49 @@ const NATPIS_STARI: Record<(typeof REMOVED_COLUMNS)[number], string> = {
 for (const kolona of REMOVED_COLUMNS) {
   const u = najcesca(stari.map((r) => r[kolona]));
   console.log(`  --   ${NATPIS_STARI[kolona].padEnd(16)} najčešće ${pct(u.udeo).padStart(5)} · ${u.razlicitih} različitih`);
+}
+
+// ── 4. Kvalitet baze (B6) — merač na jezičku „Danas" ────────────────────────
+console.log("");
+console.log("Kvalitet baze (B6):");
+{
+  // Brojevi razvojnog prikaza: 210 firmi (39 bez broja), 178 leadova (123 bez
+  // procene, 21 bez niše), 94 sa sajtom (nijedan ocenjen).
+  const k = kvalitetBaze({
+    telefon: { fali: 39, od: 210 },
+    procena: { fali: 123, od: 178 },
+    sajt: { fali: 94, od: 94 },
+    nisa: { fali: 21, od: 178 },
+  });
+  proveri(
+    "četiri dela, svaki u svom imeniocu, zaokružen naniže",
+    k !== null && k.delovi.map((d) => d.pct).join(",") === "81,30,0,88",
+    k ? k.delovi.map((d) => `${d.kljuc}=${d.pct}`).join(" ") : "null",
+  );
+  proveri("ukupno je prosek delova (50 %)", k?.pct === 50, `pct=${k?.pct}`);
+  proveri(
+    "sledeći korak je deo sa najvećim dobitkom (+25 % za 94 sajta)",
+    k?.sledece?.deo.kljuc === "sajt" && k.sledece.dobitak === 25 && k.sledece.deo.fali === 94,
+    JSON.stringify(k?.sledece),
+  );
+  const bezSajta = kvalitetBaze({
+    telefon: { fali: 0, od: 10 },
+    procena: null,
+    sajt: { fali: 0, od: 0 },
+    nisa: { fali: 5, od: 10 },
+  });
+  proveri(
+    "nepoznat deo i deo bez imenioca ne ulaze u prosek (ni kao 0 ni kao 100)",
+    bezSajta !== null && bezSajta.delovi.length === 2 && bezSajta.pct === 75,
+    JSON.stringify(bezSajta),
+  );
+  proveri(
+    "bez ijednog merljivog dela nema procenta",
+    kvalitetBaze({ telefon: null, procena: undefined }) === null,
+    "vraćen je procenat",
+  );
+  const puno = kvalitetBaze({ telefon: { fali: 0, od: 5 }, nisa: { fali: 0, od: 5 } });
+  proveri("puna baza: 100 % i nema sledećeg koraka", puno?.pct === 100 && puno.sledece === null, JSON.stringify(puno));
 }
 
 console.log("");

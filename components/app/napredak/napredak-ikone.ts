@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { REZIM_POZIVA_HREF } from "@/components/app/nav-items";
 import {
   AlarmClockCheck,
   CalendarCheck,
@@ -55,6 +56,15 @@ export function ikonaMisije(kljuc: string): Ikona {
 /** Natpis dugmeta koje vodi u posao misije. */
 export function radnjaMisije(kljuc: string): string {
   return MISIJA[kljuc]?.radnja ?? "Otvori";
+}
+
+/**
+ * Kuda vodi dugme misije. Adresa je zamrznuta u bazi zajedno sa misijom, pa
+ * je ovde samo jedna ispravka prikaza: misija poziva otvara režim poziva
+ * (jedna firma na ekranu), a ne spisak iz kog tek treba izabrati.
+ */
+export function vezaMisije(kljuc: string, veza: string): string {
+  return kljuc === "pozovi" ? REZIM_POZIVA_HREF : veza;
 }
 
 const DOSTIGNUCE: Record<string, Ikona> = {

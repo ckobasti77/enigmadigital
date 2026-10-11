@@ -31,10 +31,13 @@ export function LeadRowDialogs({
   workspaceId,
   dialog,
   onClose,
+  onSaved,
 }: {
   workspaceId: Id<"workspaces">;
   dialog: LeadRowDialogState | null;
   onClose: () => void;
+  /** Sastanak ili ishod je upisan (ne javlja se kad se odustane). */
+  onSaved?: (kind: LeadRowDialogState["kind"]) => void;
 }) {
   if (!dialog) return null;
 
@@ -46,6 +49,7 @@ export function LeadRowDialogs({
     onOpenChange: (open: boolean) => {
       if (!open) onClose();
     },
+    onSaved: onSaved ? () => onSaved(dialog.kind) : undefined,
   };
   const a = dialog.item.assignment;
 

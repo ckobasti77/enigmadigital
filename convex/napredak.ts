@@ -747,6 +747,11 @@ const stanjeUkljucenoValidator = v.object({
   dan: v.union(v.string(), v.null()),
   prviDan: v.boolean(),
   xp: v.object({ ukupno: v.number(), danas: v.number() }),
+  brojeviDanas: v.object({
+    pozivi: v.number(),
+    ishodi: v.number(),
+    ciljPoziva: v.number(),
+  }),
   nivo: v.object({
     broj: v.number(),
     zvanje: v.string(),

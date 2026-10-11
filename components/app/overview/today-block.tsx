@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { AlertTriangle, ArrowRight, CircleDot, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuietBoundary } from "@/components/app/quiet-boundary";
+import { resolveModule } from "@/components/app/nav-items";
 import { useStaMeCeka, type Zadatak } from "@/components/app/use-sta-me-ceka";
 import { cn } from "@/lib/utils";
 
 /**
  * ============================================================================
- * „DANAS" — prve tri stavke, PRE ijedne KPI pločice (A2 §4, plan §2 N)
+ * „ŠTA ME ČEKA" — prve tri stavke, PRE ijedne pločice kanala (A2 §4, B6)
  * ============================================================================
  *
  * Kriterijum gotovosti §4/1: otvaranje aplikacije daje konkretan spisak šta me
@@ -19,22 +21,52 @@ import { cn } from "@/lib/utils";
  * Isti upit i ista logika kao zvono (`useStaMeCeka`); ovde se samo uzimaju
  * prve tri stavke po hitnosti. Kada nema ničega, blok se NE crta — prazna
  * kartica koja slavi prazninu je tačno ono što plan zabranjuje.
+ *
+ * B6: blok je sekundaran u odnosu na fokus karticu iznad sebe, pa više nije
+ * kutija — redove deli razdelnik. Boja nosi dve različite stvari, i ne mešaju
+ * se: pločica levo je HITNOST (stanje), a dugme desno je u boji MODULA u koji
+ * vodi (mesto), isto kao u zvonu i u ⌘K.
  */
-export function TodayBlock() {
+export function StaMeCeka({
+  preskociPrvi = false,
+}: {
+  /** Prvi zadatak već stoji u fokus kartici — ovde se ne ponavlja. */
+  preskociPrvi?: boolean;
+}) {
   return (
     <QuietBoundary>
-      <Danas />
+      <Lista preskociPrvi={preskociPrvi} />
     </QuietBoundary>
   );
 }
 
-const IVICA: Record<Zadatak["hitnost"], string> = {
-  visoka: "border-l-danger",
-  srednja: "border-l-warning",
-  niska: "border-l-line-strong",
+const HITNOST: Record<
+  Zadatak["hitnost"],
+  { natpis: string; plocica: string; tekst: string; ikona: typeof Clock }
+> = {
+  visoka: {
+    natpis: "Hitno",
+    plocica: "bg-danger-soft text-danger",
+    tekst: "text-danger",
+    ikona: AlertTriangle,
+  },
+  srednja: {
+    natpis: "Ovih dana",
+    plocica: "bg-warning-soft text-warning",
+    tekst: "text-warning",
+    ikona: Clock,
+  },
+  niska: {
+    natpis: "Kad stigne red",
+    plocica: "bg-surface-raised text-text-muted",
+    tekst: "text-text-muted",
+    ikona: CircleDot,
+  },
 };
 
-function Danas() {
+const PRIKAZANO = 3;
+
+function Lista({ preskociPrvi }: { preskociPrvi: boolean }) {
   const data = useStaMeCeka();
 
   // Dok se ne zna — jedna traka, ne tri: skeleton koji obeća tri reda a onda
@@ -43,20 +75,15 @@ function Danas() {
     return <Skeleton className="h-24 w-full rounded-xl" />;
   }
 
-  if (data.zadaci.length === 0) return null;
-
-  const prve = data.zadaci.slice(0, 3);
-  const ostatak = data.zadaci.length - prve.length;
+  const od = preskociPrvi ? 1 : 0;
+  const prve = data.zadaci.slice(od, od + PRIKAZANO);
+  if (prve.length === 0) return null;
+  const ostatak = data.zadaci.length - od - prve.length;
 
   return (
-    <section
-      aria-label="Šta me čeka danas"
-      className="rounded-xl border border-line bg-card p-4"
-    >
+    <section aria-label="Šta me čeka" className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="heading-caps text-meta font-medium text-text-muted">
-          Danas
-        </h2>
+        <h2 className="text-copy font-bold text-foreground">Šta me čeka</h2>
         {ostatak > 0 && (
           <span className="text-meta text-text-muted">
             još {ostatak} u zvonu
@@ -64,35 +91,52 @@ function Danas() {
         )}
       </div>
 
-      <ul className="mt-3 flex flex-col gap-2">
-        {prve.map((zadatak) => (
-          <li
-            key={zadatak.kljuc}
-            className={cn(
-              "flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 rounded-lg border-l-2 bg-surface-raised px-3 py-2",
-              IVICA[zadatak.hitnost],
-            )}
-          >
-            <div className="min-w-0">
-              <p className="truncate text-ui font-medium text-foreground">
-                {zadatak.naslov}
-              </p>
-              {zadatak.imenilac && (
-                <p className="truncate text-meta text-text-muted">
-                  {zadatak.odsecen ? "najmanje toliko · " : ""}
-                  {zadatak.imenilac}
-                </p>
-              )}
-            </div>
-            <Link
-              href={zadatak.veza}
-              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-accent-400/40 bg-accent-400/10 px-2.5 text-meta font-medium text-accent-400 transition-colors hover:border-accent-400/60"
+      <ul className="divide-y divide-line-soft border-y border-line-soft">
+        {prve.map((zadatak) => {
+          const h = HITNOST[zadatak.hitnost];
+          const Ikona = h.ikona;
+          return (
+            <li
+              key={zadatak.kljuc}
+              data-module={resolveModule(zadatak.veza.split(/[?#]/)[0])}
+              className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5"
             >
-              {zadatak.radnja}
-              <ArrowRight className="size-3.5" aria-hidden />
-            </Link>
-          </li>
-        ))}
+              <span
+                className={cn(
+                  "flex size-8 shrink-0 items-center justify-center rounded-lg",
+                  h.plocica,
+                )}
+              >
+                <Ikona className="size-4" aria-hidden />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-ui font-medium text-foreground">
+                  {zadatak.naslov}
+                </p>
+                <p className="truncate text-meta text-text-muted">
+                  <span className={cn("font-medium", h.tekst)}>{h.natpis}</span>
+                  {zadatak.imenilac && (
+                    <>
+                      {" · "}
+                      {zadatak.odsecen ? "najmanje toliko · " : ""}
+                      {zadatak.imenilac}
+                    </>
+                  )}
+                </p>
+              </div>
+              <Button
+                render={<Link href={zadatak.veza} />}
+                nativeButton={false}
+                variant="secondary"
+                size="sm"
+                className="touch-target"
+              >
+                {zadatak.radnja}
+                <ArrowRight data-icon="inline-end" aria-hidden />
+              </Button>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

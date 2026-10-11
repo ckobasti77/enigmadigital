@@ -190,6 +190,17 @@ const EKRANI = [
     klik: ['button:has-text("Prikaži nov nivo")'],
     samoB: true,
   },
+  // B6: Režim poziva (fokus prikaz na Leadovima) — prva firma, pa tok posle dva
+  // zabeležena ishoda (dnevnik sesije, kombo, napredak ture), i Kontrolna tabla
+  // na praznom nalogu (bez misija: fokus vodi na prvi zadatak iz zvona).
+  { ime: "leadovi-poziv", putanja: "/leadovi?rezim=poziv", samoB: true },
+  {
+    ime: "leadovi-poziv-tok",
+    putanja: "/leadovi?rezim=poziv",
+    klik: ['[data-ishod="nije_se_javio"]', '[data-ishod="zainteresovan"]'],
+    samoB: true,
+  },
+  { ime: "kontrolna-tabla-prazno", putanja: "/", prazno: true, samoB: true },
   // Prazna stanja kanala: `&prazno=1` vraća prazan nalog (bez veza, bez redova).
   { ime: "instagram-prazno", putanja: "/instagram", prazno: true, samoB: true },
   { ime: "analitika-prazno", putanja: "/analytics", prazno: true, samoB: true },

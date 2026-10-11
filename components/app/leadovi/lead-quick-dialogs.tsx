@@ -54,6 +54,12 @@ export type LeadDialogBase = {
   companyName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Upis je uspeo (B6). `onOpenChange(false)` stiže i kad se odustane, pa
+   * Režim poziva po ovome zna da je ishod stvarno zabeležen i da sme da pređe
+   * na sledeću firmu. Javljaju ga dijalozi sastanka i ishoda.
+   */
+  onSaved?: () => void;
 };
 
 export function getErrorMessage(err: unknown): string {
@@ -164,6 +170,7 @@ export function MeetingDialog({
   current,
   currentStage,
   calledPhone,
+  onSaved,
 }: MeetingDialogProps) {
   const setMeeting = useMutation(api.leadCrmStore.setMeeting);
   const clearMeeting = useMutation(api.leadCrmStore.clearMeeting);
@@ -214,6 +221,7 @@ export function MeetingDialog({
           note: `Poziv na ${calledPhone}`,
         });
       }
+      onSaved?.();
       onOpenChange(false);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -619,6 +627,7 @@ export function OutcomeDialog({
   companyName,
   open,
   onOpenChange,
+  onSaved,
 }: OutcomeDialogProps) {
   const recordOutcome = useMutation(api.leadCrmStore.recordOutcome);
   const addToSuppression = useMutation(
@@ -647,6 +656,8 @@ export function OutcomeDialog({
         outcome: code,
         note: note.trim() || undefined,
       });
+      // Ishod je upisan i kad sledi predlog zabrane — predlog je zaseban korak.
+      onSaved?.();
       if (res.predlogZaSuppression) {
         setProposal({ poklopljeniIzraz: res.poklopljeniIzraz });
       } else {

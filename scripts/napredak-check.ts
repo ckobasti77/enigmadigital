@@ -54,6 +54,7 @@ import {
   PODRAZUMEVANO,
   PRAVILA_XP,
   danKljuc,
+  dnevniCiljPoziva,
   dodajDane,
   generisiMisije,
   izvedi,
@@ -873,6 +874,19 @@ function main(): void {
       proveri("nivo 7", stanje.nivo.broj === 7 && stanje.nivo.zvanje === "Operativac" && stanje.nivo.rang === "silver", JSON.stringify(stanje.nivo));
       proveri("1.370 XP ukupno", stanje.xp.ukupno === 1370, `xp=${stanje.xp.ukupno}`);
       proveri("niz 4", stanje.niz.dani === 4, `niz=${stanje.niz.dani}`);
+      // B6: traka „Danas X / Y poziva" čita ove brojeve — isti brojač kao misija.
+      proveri(
+        "danas 3 poziva i 2 ishoda, dnevni tempo 5 (25 nedeljno / 5 radnih dana)",
+        stanje.brojeviDanas.pozivi === 3 && stanje.brojeviDanas.ishodi === 2 && stanje.brojeviDanas.ciljPoziva === 5,
+        JSON.stringify(stanje.brojeviDanas),
+      );
+      proveri(
+        "dnevni tempo se zaokružuje naviše i nikad nije nula",
+        dnevniCiljPoziva({ ...PODRAZUMEVANO, ciljPozivi: 26 }) === 6 &&
+          dnevniCiljPoziva({ ...PODRAZUMEVANO, ciljPozivi: 3 }) === 1 &&
+          dnevniCiljPoziva({ ...PODRAZUMEVANO, ciljPozivi: 1 }) === 1,
+        "pogrešno zaokruživanje",
+      );
       const zavrsene = stanje.misije.filter((m) => m.zavrsena).length;
       proveri("2 od 3 misije završene", stanje.misije.length === 3 && zavrsene === 2, `${zavrsene}/${stanje.misije.length}`);
       proveri("bonus još nije osvojen", stanje.bonus.moguc && !stanje.bonus.osvojen && stanje.bonus.preostaloMisija === 1, JSON.stringify(stanje.bonus));

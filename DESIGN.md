@@ -415,6 +415,34 @@ ne pomera; merač se pomeri kad se vrednost promeni.
 - **Toast.** „+N XP · radnja" 2,5 s; misija, bonus i dostignuće 4 s; tri i
   više radnji odjednom je jedan zbirni toast. Skriven tab ne dobija ništa.
 
+### Kontrolna tabla, Leadovi · Danas i Režim poziva
+- **Kontrolna tabla.** Fokus je kartica „Danas": pozdrav po beogradskom satu,
+  bedž nivoa i zvanje, niz, tri nedeljna prstena desno i tri misije u mreži
+  2fr / 1fr / 1fr. Misije su u fokus kartici udubljenja (`bg-background/50`,
+  bez senke), ne kartice na kartici. Primarno dugme nosi prva nezavršena
+  misija; kad nijedna ne čeka, nosi ga prvi zadatak iz zvona. Bez Napretka
+  fokus je taj zadatak, bez ijednog XP broja.
+- **„Šta me čeka".** Tri reda sa razdelnicima, bez kutije. Pločica levo je
+  hitnost (stanje), dugme desno je u boji modula u koji vodi (mesto).
+- **Pločice kanala.** Četiri `KpiTile` sa `href`, svaka u `data-module`
+  omotaču svog kanala: boju nose ikonica, linija i ivica na hover; broj ostaje
+  beo. Nepovezan kanal je isprekidana pločica sa „—" koja vodi u Podešavanja.
+- **Leadovi · Danas.** Fokus je traka „Danas X / Y poziva" (prsten, XP dana,
+  niz) sa jedinim primarnim dugmetom „Započni režim poziva". Y je dnevni
+  tempo: nedeljni cilj poziva podeljen na pet radnih dana. Pored je merač
+  **Kvalitet baze** — bez kutije, sa „+X % kad…" i dugmetom koje otvara taj
+  spisak. Brojevi preseka su jedan red čipova sa „od toga".
+- **Kartica radnog reda v2.** Monogram u boji niše, leva ivica temperature,
+  Fit prsten, čipovi signala u boji kategorije, čip „+25 XP" uz „Pozovi".
+  Kriterijum reda je oblačić iza „i", ne red sitnog teksta.
+- **Režim poziva** (`/leadovi?rezim=poziv`). Fokus prikaz umesto jezičaka:
+  jedna firma u fokus kartici (naziv 28 px, zašto je na spisku, telefon,
+  poslednji kontakt), „Pozovi" je primarno. Ishodi su uvek vidljivi; posle
+  poziva prelaze iz `outline` u `secondary`, a „Pozovi" u `outline`. Desno je
+  sesija: brojači, kombo (narandžasto, kao niz), XP sesije i dnevnik. Jedini
+  pokret je kartica koja doklizi kad dođe sledeća firma (200 ms, `--ease-ui`).
+  Tasteri: `P`, `1–4`, `N`, `Esc`; uz dugmad stoje kao `kbd`, na telefonu ne.
+
 ### Motion
 GSAP `useGSAP` unutar `gsap.matchMedia()` sa granom za reduced-motion.
 „Corporate" za ceo UI: `--ease-ui` (`cubic-bezier(.2,.8,.2,1)`), 100 ms

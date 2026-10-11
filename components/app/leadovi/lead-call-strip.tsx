@@ -101,7 +101,7 @@ export function LeadCallStrip({
         className,
       )}
     >
-      <PhoneCall className="size-4 shrink-0 text-accent-400" aria-hidden />
+      <PhoneCall className="size-4 shrink-0 text-mod" aria-hidden />
 
       {phase === "ask" && (
         <>
@@ -113,6 +113,7 @@ export function LeadCallStrip({
           <div className="flex flex-wrap items-center gap-1.5">
             <Button
               size="sm"
+              variant="secondary"
               disabled={busy !== null}
               onClick={answered}
               className="text-xs"

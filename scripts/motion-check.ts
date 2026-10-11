@@ -484,5 +484,50 @@ proveri(
 );
 
 // ---------------------------------------------------------------------------
+console.log("\n11. Komandni centar, Leadovi Danas i Rezim poziva (UI Boost §4.4)");
+// ---------------------------------------------------------------------------
+
+// Radni ekran se otvara u zadatak, ne u koreografiju: sekcije Kontrolne table
+// i jezicka „Danas” se ne otkrivaju jedna po jedna.
+for (const [fajl, deo] of [
+  ["overview-dashboard.tsx", "overview"],
+  ["command-focus.tsx", "overview"],
+  ["today-block.tsx", "overview"],
+  ["leads-today.tsx", "leadovi"],
+] as const) {
+  const kod = citaj("components", "app", deo, fajl);
+  proveri(
+    `${fajl}: nema Reveal nad sekcijama`,
+    !/from "@\/components\/motion\/reveal"/.test(kod),
+    "sekcija se i dalje otkriva pri ucitavanju",
+  );
+}
+
+const callMode = citaj("components", "app", "leadovi", "call-mode.tsx");
+proveri(
+  "rezim poziva: useGSAP + matchMedia sa reduced granom",
+  callMode.includes("useGSAP") &&
+    callMode.includes("gsap.matchMedia()") &&
+    callMode.includes("MOTION_QUERIES") &&
+    /conditions\?\.still/.test(callMode),
+  "call-mode.tsx nema granu za prefers-reduced-motion",
+);
+proveri(
+  "rezim poziva: jedan tvin (promena firme), DUR_UI + EASE_UI, cisti za sobom",
+  (callMode.match(/gsap\.fromTo\(/g) ?? []).length === 2 &&
+    /duration: DUR_UI,\s*ease: EASE_UI/.test(callMode) &&
+    callMode.includes('clearProps: "transform,opacity"') &&
+    callMode.includes("revertOnUpdate: true"),
+  "pokret kartice firme nije na UI trajanju ili ne cisti transform",
+);
+proveri(
+  "rezim poziva: pod reduced-motion samo neprozirnost",
+  /conditions\?\.still\) \{\s*gsap\.fromTo\(el, \{ opacity: 0 \}, \{ opacity: 1, duration: DUR_REDUCED \}\);/.test(
+    callMode,
+  ),
+  "reduced grana pomera karticu",
+);
+
+// ---------------------------------------------------------------------------
 console.log(pao === 0 ? "\nSVE PROLAZI\n" : `\n${pao} PROVERA NIJE PROSLA\n`);
 process.exit(pao === 0 ? 0 : 1);

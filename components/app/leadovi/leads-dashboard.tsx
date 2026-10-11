@@ -34,6 +34,7 @@ import { FeedbackNote } from "@/components/app/feedback";
 import { pluralSr } from "@/lib/format";
 import { LeadsTable } from "./leads-table";
 import { LeadsToday } from "./leads-today";
+import { CallMode } from "./call-mode";
 import { GapsPanel } from "./gaps-panel";
 import { OverduePanel } from "./overdue-panel";
 import { ScoringRulesPanel } from "./scoring-rules-panel";
@@ -109,6 +110,17 @@ export function LeadsDashboard() {
   }
 
   const workspaceId = workspace.id as Id<"workspaces">;
+
+  // Režim poziva (B6) je fokus prikaz PREKO jezičaka: jedna firma, jedno
+  // primarno dugme, ništa drugo na ekranu. Izlaz vraća na „Danas".
+  if (nav.rezim === "poziv") {
+    return (
+      <CallMode
+        workspaceId={workspaceId}
+        onExit={() => setNav({ rezim: null, tab: null })}
+      />
+    );
+  }
 
   const radniTabovi: readonly TabItem<RadniTab>[] = [
     // Bez natpisa grupe: „DANAS Danas" bi bilo dva puta isto; razdelnik posle
@@ -260,9 +272,13 @@ export function LeadsDashboard() {
             tabs={radniTabovi}
             trailing={
               <div className="flex items-center gap-2">
+                {/* Prateća radnja (UI Boost §8): jedino primarno dugme na
+                    Leadovima je „Započni režim poziva" na jezičku „Danas". */}
                 <Link
                   href="/leadovi/uvoz"
+                  data-variant="secondary"
                   className={buttonVariants({
+                    variant: "secondary",
                     size: "sm",
                     className: "gap-2 text-xs",
                   })}

@@ -73,13 +73,18 @@ export type MultiGrupa =
  * ne ulaze u `LeadFilters`, u preset ni u broj aktivnih grupa. Preset koji bi
  * pamtio jezičak bi otvarao mapu i onome ko je hteo tabelu.
  */
-export const NAV_KLJUCEVI = ["tab", "firma"] as const;
+export const NAV_KLJUCEVI = ["tab", "firma", "rezim"] as const;
 
 export type LeadNav = {
   /** Sirova vrednost iz URL-a; ekran sam odlučuje koji jezičci postoje. */
   tab: string | null;
   /** `leadCompanies` id firme koju mapa centrira i otvara u panelu. */
   firma: string | null;
+  /**
+   * Fokus prikaz preko jezičaka (B6): `poziv` = Režim poziva. U adresi je da
+   * bi u njega vodili ⌘K i misija dana, i da bi „nazad" iz njega izlazilo.
+   */
+  rezim: string | null;
 };
 
 /** Svi ključevi koje ovaj hook drži u URL-u. Ostali parametri se ne diraju. */
@@ -291,6 +296,7 @@ export function useLeadFilters() {
     () => ({
       tab: searchParams.get("tab")?.trim() || null,
       firma: searchParams.get("firma")?.trim() || null,
+      rezim: searchParams.get("rezim")?.trim() || null,
     }),
     [searchParams],
   );

@@ -1348,6 +1348,11 @@ export type Stanje =
       dan: string | null;
       prviDan: boolean;
       xp: { ukupno: number; danas: number };
+      /**
+       * Šta je danas urađeno, kao brojevi (B6: traka „Danas X / Y poziva").
+       * `ciljPoziva` je dnevni tempo izveden iz nedeljnog cilja.
+       */
+      brojeviDanas: { pozivi: number; ishodi: number; ciljPoziva: number };
       nivo: Nivo;
       niz: NizStanje;
       misije: Array<{
@@ -1369,6 +1374,18 @@ export type Stanje =
       sledece: { kljuc: string; naziv: string; vrednost: number; cilj: number } | null;
       podesavanja: Podesavanja;
     };
+
+/** Radnih dana u nedelji — nedeljni cilj poziva se deli na toliko. */
+export const RADNIH_DANA = 5;
+
+/**
+ * Dnevni tempo poziva: nedeljni cilj podeljen na radne dane, naviše. Ko ga
+ * drži svakog radnog dana, puni nedeljni prsten. Nije zasebno podešavanje —
+ * izvodi se iz cilja koji je korisnik sam upisao.
+ */
+export function dnevniCiljPoziva(podesavanja: Podesavanja): number {
+  return Math.max(1, Math.ceil(podesavanja.ciljPozivi / RADNIH_DANA));
+}
 
 export function stanjeIskljuceno(podesavanja: Podesavanja): Stanje {
   return { ukljucen: false, podesavanja };
@@ -1591,6 +1608,11 @@ export function izvedi(ulaz: UlazIzvedi): Stanje {
     dan: sidro,
     prviDan: ulaz.prviDan,
     xp: { ukupno: o.xp, danas: danas?.xp ?? 0 },
+    brojeviDanas: {
+      pozivi: danas?.brojevi.pozivi ?? 0,
+      ishodi: danas?.brojevi.ishodi ?? 0,
+      ciljPoziva: dnevniCiljPoziva(podesavanja),
+    },
     nivo,
     niz: {
       dani: o.niz,

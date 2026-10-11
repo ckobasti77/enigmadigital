@@ -8,6 +8,7 @@ import {
   CornerDownLeft,
   Megaphone,
   PanelLeft,
+  PhoneCall,
   Search,
   SquarePen,
   Trophy,
@@ -17,6 +18,7 @@ import {
   COMMAND_EVENT,
   NAPREDAK_HREF,
   RAIL_EVENT,
+  REZIM_POZIVA_HREF,
   channelTabs,
   moduleNavItem,
   navItems,
@@ -27,7 +29,7 @@ import {
 } from "./nav-items";
 import { ModuleTile } from "./module-tile";
 import { useStaMeCeka } from "./use-sta-me-ceka";
-import { ikonaMisije } from "./napredak/napredak-ikone";
+import { ikonaMisije, vezaMisije } from "./napredak/napredak-ikone";
 import { useNapredak } from "./napredak/use-napredak";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +59,14 @@ type Section = { key: string; title: string; entries: Entry[] };
  * koja vodi na praznu stranu ne ulazi u spisak.
  */
 const ACTIONS: Entry[] = [
+  {
+    id: `action:${REZIM_POZIVA_HREF}`,
+    title: "Započni režim poziva",
+    hint: "Leadovi",
+    href: REZIM_POZIVA_HREF,
+    icon: PhoneCall,
+    module: "leadovi",
+  },
   {
     id: "action:/leadovi/uvoz",
     title: "Uvezi leadove",
@@ -251,7 +261,7 @@ export function CommandPalette() {
       .filter((m) => !m.zavrsena)
       .map((m) => ({
         id: `mission:${m.kljuc}`,
-        href: m.veza,
+        href: vezaMisije(m.kljuc, m.veza),
         title: m.naslov,
         hint: `${m.napredak} / ${m.cilj}`,
         xp: m.xp,

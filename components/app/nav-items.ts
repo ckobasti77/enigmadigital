@@ -397,6 +397,13 @@ export function screenExists(href: string): boolean {
 export const NAPREDAK_HREF = "/napredak";
 
 /**
+ * Režim poziva (B6): fokus prikaz na Leadovima, jedna firma na ekranu. Stanje
+ * je u adresi (`?rezim=poziv`), pa u njega vode i ⌘K, i misija „Pozovi…", i
+ * dugme na jezičku „Danas" — a „nazad" u pregledaču iz njega izlazi.
+ */
+export const REZIM_POZIVA_HREF = "/leadovi?rezim=poziv";
+
+/**
  * Događaji ljuske. Kontrole koje žive daleko jedna od druge (dugme u traci,
  * ⌘K, bočna traka) ne dele stanje nego poruku na `window`.
  */

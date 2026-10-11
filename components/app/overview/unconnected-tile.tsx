@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import { ArrowUpRight, Unplug } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { StatusPill } from "@/components/app/settings/status-pill";
 import { cn } from "@/lib/utils";
 
+/**
+ * Pločica kanala koji još nije povezan. Ista visina kao `KpiTile`, da red
+ * ostane ravan, i cela je JEDAN link ka Podešavanjima — ne broj koji glumi
+ * nulu. Boju daje `data-module` roditelja, pa i nepovezan kanal ostaje u
+ * svojoj boji: vidi se koji kanal fali, ne samo da nešto fali.
+ */
 export function UnconnectedTile({
   label,
   providerName,
@@ -16,37 +20,30 @@ export function UnconnectedTile({
   className?: string;
 }) {
   return (
-    <Card
+    <Link
+      href="/settings"
+      aria-label={`${label}: ${providerName} nije povezan — otvori Podešavanja`}
       className={cn(
-        "group relative flex h-40 flex-col justify-between border-dashed border-line-soft bg-surface/40 p-4 transition-colors hover:border-line-strong hover:bg-surface/60 shadow-card ring-line",
+        "group/tile hover-lift flex h-40 cursor-pointer flex-col rounded-xl border border-dashed border-line bg-card/40 px-5 pt-4 pb-4 transition-colors hover:border-mod-line",
         className,
       )}
-      size="sm"
     >
-      <div>
-        <div className="flex items-center justify-between gap-1">
-          <p className="heading-caps text-micro font-medium text-text-muted">
-            {label}
-          </p>
-          <StatusPill tone="warning" pulse>
-            Čeka konekciju
-          </StatusPill>
-        </div>
-        <div className="mt-3 flex items-center gap-2 text-text-muted">
-          <div className="flex size-7 items-center justify-center rounded-md border border-line-soft bg-surface-raised/50">
-            <Unplug className="size-3.5 text-text-muted" />
-          </div>
-          <p className="text-xs text-text-muted">{providerName} nije povezan</p>
-        </div>
+      <div className="flex items-center gap-2">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-mod-soft text-mod">
+          <Unplug className="size-3.5" aria-hidden />
+        </span>
+        <p className="heading-caps truncate text-meta font-medium text-text-muted">
+          {label}
+        </p>
       </div>
-
-      <Link
-        href="/settings"
-        className="mt-auto flex items-center justify-between rounded-md border border-line-soft bg-surface-raised/40 px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-accent-400/50 hover:bg-surface-raised hover:text-accent-400"
-      >
-        <span>Poveži u Podešavanjima</span>
-        <ArrowUpRight className="size-3 text-text-muted transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-accent-400" />
-      </Link>
-    </Card>
+      <span className="mt-2 block font-mono text-metric font-bold leading-none text-text-muted">
+        —
+      </span>
+      <p className="mt-2 text-ui text-text-muted">{providerName} nije povezan</p>
+      <span className="mt-auto inline-flex items-center gap-1 text-ui font-medium text-mod">
+        Poveži u Podešavanjima
+        <ArrowUpRight className="size-3.5" aria-hidden />
+      </span>
+    </Link>
   );
 }
