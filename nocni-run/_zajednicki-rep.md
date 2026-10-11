@@ -20,6 +20,15 @@ Radiš bez čoveka (headless `-p` run, noć). Pravila:
 - Kod skilla (`tools/generate-leads/`) se ne menja dok run traje: ako komanda
   ne radi, run se prekida i greška prijavljuje, pa se kod menja u zasebnoj
   sesiji — nikad da bi telo „prošlo" proveru (uzrok GL10 rupe).
+- SNIMCI EKRANA (kad ih faza traži): PRE snimanja proveri port dev servera.
+  Next 16 dozvoljava jedan `next dev` po direktorijumu; ako je port zauzet
+  ZAGLAVLJENIM serverom (HTTP 500 na svaku rutu — u `.next/dev/logs/…` piše
+  „Jest worker … exceeding retry limit"), Next sam ispisuje PID i komandu
+  `taskkill /PID <n> /F`. Pokreni je (alat `Bash(taskkill:*)` je dozvoljen),
+  sačekaj da port bude slobodan, pa tek onda pokreni svež dev server i snimaj.
+  Ako se port ne oslobodi, PREKINI FAZU sa jasnom porukom (`NEUSPEH <ID>: dev
+  server na portu <n> zaglavljen, snimci nisu napravljeni`) — nikad ne
+  prijavljuj snimke koji ne postoje (uzrok A6 1/12 i A8 0/12).
 
 ZAVRŠNI KORACI (obavezni, ovim redom, ne preskaču se):
 

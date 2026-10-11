@@ -194,6 +194,10 @@ const FILTER_ARGS = {
   koord: v.optional(KOORD_VALIDATOR),
   // Minimalna verovatnoća telefona (0–100). 0 znači „ima bilo kakvu procenu".
   tel: v.optional(v.number()),
+  // Grupa „Telefon": firma BEZ ijedne procene „čiji je broj". Komplement od
+  // `tel` (koji traži procenu ≥ prag) — bez ovog filtera zadatak „N firmi bez
+  // procene" iz zvona vodi na nefiltriranu tabelu.
+  bezProcene: v.optional(v.boolean()),
   dodir: v.optional(v.array(DODIR_VALIDATOR)),
   q: v.optional(v.string()),
   // GL10 (plan §5.2): iz poslednje ocene sajta.
@@ -213,6 +217,7 @@ type FilterArgs = {
   platforma?: PlatformaFilter[];
   koord?: "da" | "ne";
   tel?: number;
+  bezProcene?: boolean;
   dodir?: DodirFilter[];
   q?: string;
   kvalitet?: KvalitetFilter[];
@@ -231,6 +236,7 @@ type Grupa =
   | "platforma"
   | "koord"
   | "tel"
+  | "bezProcene"
   | "dodir"
   | "q"
   | "kvalitet"
@@ -489,6 +495,8 @@ function napraviTestove(
       if (!red.imaProcenuTelefona) return false;
       return (red.najvecaVerovatnoca ?? -1) >= args.tel;
     },
+    // Komplement od `tel`: firma bez ijedne procene „čiji je broj".
+    bezProcene: (red) => (!args.bezProcene ? true : !red.imaProcenuTelefona),
     dodir: (red) =>
       !args.dodir || args.dodir.length === 0
         ? true
@@ -565,6 +573,7 @@ const SVE_GRUPE: readonly Grupa[] = [
   "platforma",
   "koord",
   "tel",
+  "bezProcene",
   "dodir",
   "q",
   "kvalitet",
@@ -588,7 +597,8 @@ function prolaziSve(
 function trazeIdentitete(args: FilterArgs): boolean {
   return (
     (args.platforma !== undefined && args.platforma.length > 0) ||
-    args.tel !== undefined
+    args.tel !== undefined ||
+    args.bezProcene === true
   );
 }
 
@@ -822,6 +832,12 @@ export const countLeadsByFacet = query({
       }
     }
 
+    // ── bez procene telefona ──
+    const bezProceneSkup = uGrupi("bezProcene");
+    const bezProcene = bezProceneSkup.filter(
+      (red) => !red.imaProcenuTelefona,
+    ).length;
+
     // ── poslednji dodir ──
     const dodirSkup = uGrupi("dodir");
     const dodir: Record<DodirFilter, number> = { "7d": 0, "30d": 0, nikad: 0 };
@@ -908,6 +924,7 @@ export const countLeadsByFacet = query({
       platforma,
       koord: { da: koordDa, ne: koordSkup.length - koordDa },
       tel,
+      bezProcene,
       dodir,
       kvalitet,
       cms,

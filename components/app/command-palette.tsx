@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { Search, CornerDownLeft } from "lucide-react";
+import { Search, CornerDownLeft, Bell } from "lucide-react";
 import {
   channelTabs,
   navItems,
@@ -11,13 +11,20 @@ import {
   resolveScreen,
   type NavIcon,
 } from "./nav-items";
+import { useStaMeCeka } from "./use-sta-me-ceka";
 import { cn } from "@/lib/utils";
 
 type Destination = {
+  /** Jedinstven ključ i DOM id — `href` nije jedinstven (zadatak i ekran mogu
+   *  da dele rutu, npr. `/settings`), pa se ne sme koristiti kao ključ. */
+  id: string;
   href: string;
   title: string;
+  /** Desni natpis: sekcija (ekran) ili natpis radnje (zadatak, npr. „Zovi"). */
   section: string;
   icon?: NavIcon;
+  /** Zadatak iz zvona (A7 §4) — crta se na vrhu, sa ikonicom zvona. */
+  isTask?: boolean;
 };
 
 /** Ikonica kanala kome podekran pripada — da lista ne bude gola. */
@@ -32,6 +39,7 @@ const iconFor = (href: string): NavIcon | undefined =>
 const DESTINATIONS: Destination[] = [
   ...navSections.flatMap((section) =>
     section.items.map((item) => ({
+      id: `screen:${item.href}`,
       href: item.href,
       title: item.label,
       section: section.title,
@@ -44,6 +52,7 @@ const DESTINATIONS: Destination[] = [
       .map((tab) => {
         const screen = resolveScreen(tab.href);
         return {
+          id: `screen:${tab.href}`,
           href: tab.href,
           title: screen?.title ?? tab.label,
           section: screen?.section ?? "",
@@ -77,6 +86,22 @@ export function CommandPalette() {
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const staMeCeka = useStaMeCeka();
+
+  // Zadaci iz zvona (A7 §4): paleta ne skače samo na ekran, nego i na posao
+  // koji čeka. Svaki nosi natpis radnje („Zovi", „Sinhronizuj") desno i vodi
+  // na istu adresu kao dugme u zvonu (`veza`). Vrh liste, ikonica zvona.
+  const zadaciItems = useMemo<Destination[]>(
+    () =>
+      (staMeCeka?.zadaci ?? []).map((z) => ({
+        id: `task:${z.kljuc}`,
+        href: z.veza,
+        title: z.naslov,
+        section: z.radnja,
+        isTask: true,
+      })),
+    [staMeCeka],
+  );
 
   // Svako otvaranje kreće čisto: prazan upit, prva stavka istaknuta. Reset ide
   // u samu radnju otvaranja, ne u efekat na `open`.
@@ -108,13 +133,14 @@ export function CommandPalette() {
   }, [openPalette]);
 
   const results = useMemo(() => {
+    const svi = [...zadaciItems, ...DESTINATIONS];
     const q = fold(query.trim());
-    if (!q) return DESTINATIONS;
-    return DESTINATIONS.filter((d) => {
+    if (!q) return svi;
+    return svi.filter((d) => {
       const hay = fold(`${d.title} ${d.section}`);
       return hay.includes(q);
     });
-  }, [query]);
+  }, [query, zadaciItems]);
 
   const go = useCallback(
     (href: string) => {
@@ -170,9 +196,9 @@ export function CommandPalette() {
               aria-expanded
               aria-controls="command-palette-list"
               aria-activedescendant={
-                results[active] ? `cmd-${results[active].href}` : undefined
+                results[active] ? `cmd-${results[active].id}` : undefined
               }
-              placeholder="Skoči na ekran…"
+              placeholder="Skoči na ekran ili zadatak…"
               className="h-12 w-full min-w-0 bg-transparent text-sm text-foreground outline-none placeholder:text-text-muted"
             />
             <kbd className="hidden shrink-0 rounded border border-line-soft px-1.5 py-0.5 text-micro text-text-muted sm:inline">
@@ -193,13 +219,13 @@ export function CommandPalette() {
               </li>
             ) : (
               results.map((dest, i) => {
-                const Icon = dest.icon;
+                const Icon = dest.isTask ? Bell : dest.icon;
                 const isActive = i === active;
                 return (
-                  <li key={dest.href}>
+                  <li key={dest.id}>
                     <button
                       type="button"
-                      id={`cmd-${dest.href}`}
+                      id={`cmd-${dest.id}`}
                       role="option"
                       aria-selected={isActive}
                       data-active={isActive}
@@ -216,7 +242,11 @@ export function CommandPalette() {
                         <Icon
                           className={cn(
                             "size-4 shrink-0",
-                            isActive ? "text-accent-400" : "text-text-muted",
+                            dest.isTask
+                              ? "text-accent-400"
+                              : isActive
+                                ? "text-accent-400"
+                                : "text-text-muted",
                           )}
                         />
                       )}
@@ -224,7 +254,12 @@ export function CommandPalette() {
                         {dest.title}
                       </span>
                       {dest.section && (
-                        <span className="shrink-0 text-micro text-text-muted">
+                        <span
+                          className={cn(
+                            "shrink-0 text-micro",
+                            dest.isTask ? "text-accent-400" : "text-text-muted",
+                          )}
+                        >
                           {dest.section}
                         </span>
                       )}

@@ -285,6 +285,7 @@ function opisiAktivne(filters: LeadFilters): { grupa: keyof LeadFilters; tekst: 
       tekst: TEL_NATPISI[String(filters.tel)] ?? `telefon ≥ ${filters.tel} %`,
     });
   }
+  if (filters.bezProcene) out.push({ grupa: "bezProcene", tekst: "bez procene telefona" });
   if (filters.dodir.length) {
     out.push({
       grupa: "dodir",
@@ -344,6 +345,7 @@ export function LeadFilterBar({ workspaceId }: { workspaceId: Id<"workspaces"> }
     setKoord,
     setTel,
     setSajtSpor,
+    setBezProcene,
     setQ,
     clearGroup,
     clearAll,
@@ -468,14 +470,25 @@ export function LeadFilterBar({ workspaceId }: { workspaceId: Id<"workspaces"> }
     },
   ];
 
-  const telChips: ChipSpec[] = (["70", "40", "0"] as const).map((prag) => ({
-    key: prag,
-    label: TEL_NATPISI[prag],
-    count: broj(b?.tel[prag] ?? 0),
-    active: filters.tel === Number(prag),
-    onToggle: () => setTel(filters.tel === Number(prag) ? null : Number(prag)),
-    title: "Firma ima bar jedan broj sa procenom da pripada baš toj osobi.",
-  }));
+  const telChips: ChipSpec[] = [
+    ...(["70", "40", "0"] as const).map((prag) => ({
+      key: prag,
+      label: TEL_NATPISI[prag],
+      count: broj(b?.tel[prag] ?? 0),
+      active: filters.tel === Number(prag),
+      onToggle: () => setTel(filters.tel === Number(prag) ? null : Number(prag)),
+      title: "Firma ima bar jedan broj sa procenom da pripada baš toj osobi.",
+    })),
+    {
+      key: "bez_procene",
+      label: "bez procene",
+      count: broj(b?.bezProcene ?? 0),
+      active: filters.bezProcene,
+      onToggle: () => setBezProcene(!filters.bezProcene),
+      title:
+        "Firma nema nijedan broj sa procenom „čiji je” — skill još nije procenio verovatnoću. Suprotno od pragova levo.",
+    },
+  ];
 
   const nisaChips: ChipSpec[] = (b?.nisa ?? []).map((n) => ({
     key: n.slug,

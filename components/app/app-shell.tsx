@@ -135,7 +135,8 @@ function Header() {
       {screen?.range && (
         <div className="material-edge-t px-[var(--gutter)] py-2 md:hidden">
           <Suspense fallback={<Skeleton className="h-8 w-56" />}>
-            <DateRangePicker compact />
+            {/* Svoj red — ima mesta, pa razrešen opseg (imenilac) uvek stoji. */}
+            <DateRangePicker />
           </Suspense>
         </div>
       )}

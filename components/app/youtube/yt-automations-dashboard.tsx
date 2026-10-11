@@ -19,6 +19,7 @@ import { YtAutomationEditorDialog } from "./yt-automation-editor-dialog";
 import { YtCommentLogTable } from "./yt-comment-log-table";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
 import { FeedbackNote } from "@/components/app/feedback";
+import { EmptyState } from "@/components/app/system/empty-state";
 
 type YtAutomationView = FunctionReturnType<
   typeof api.ytAutomationsApi.listAutomations
@@ -180,30 +181,24 @@ function SettingsLink({ children }: { children: React.ReactNode }) {
 }
 
 function NoAutomations({ onCreate }: { onCreate: () => void }) {
+  // A7 §1: sistemsko prazno stanje (bez ukrasne cyan pozadine ikonice — cyan je
+  // strateška boja, ne dekor). Kaže šta fali, zašto i nudi jedan sledeći korak.
   return (
-    <Card className="border border-dashed border-line bg-card p-8 text-center ring-0">
-      <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-accent-400/10 text-accent-400">
-        <MessageSquareReply className="size-6" />
-      </div>
-      <h3 className="mt-4 text-base font-semibold text-foreground">
-        Napravi prvu automatizaciju
-      </h3>
-      <p className="mx-auto mt-1 max-w-sm text-xs text-text-muted">
+    <Card className="border border-dashed border-line bg-card ring-0">
+      <EmptyState
+        icon={MessageSquareReply}
+        title="Napravi prvu automatizaciju"
+        action={
+          <Button type="button" size="sm" onClick={onCreate} className="font-semibold">
+            <Plus className="size-4" />
+            <span>Nova automatizacija</span>
+          </Button>
+        }
+      >
         Izaberi ključnu reč i napiši odgovor. Svako ko tu reč napiše u komentaru
         dobija javan odgovor sa kanala — i, ako hoćeš, komentar ide na
         moderaciju.
-      </p>
-      <div className="mt-5">
-        <Button
-          type="button"
-          size="sm"
-          onClick={onCreate}
-          className="font-semibold"
-        >
-          <Plus className="size-4" />
-          <span>Nova automatizacija</span>
-        </Button>
-      </div>
+      </EmptyState>
     </Card>
   );
 }

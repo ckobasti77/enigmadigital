@@ -76,6 +76,8 @@ function prazanSnimak(): Snimak {
     bezTelefona: 0,
     ukupnoFirmi: 210,
     firmeOdsecene: false,
+    bezProcene: 0,
+    procenaOdsecena: false,
     neocenjenSajt: 0,
     kanali: [],
   };
@@ -148,6 +150,12 @@ const PROIZVODJACI: Array<{
     kljuc: "leadovi.bez_telefona",
     upali: (s) => {
       s.bezTelefona = 39;
+    },
+  },
+  {
+    kljuc: "leadovi.bez_procene",
+    upali: (s) => {
+      s.bezProcene = 155;
     },
   },
   {

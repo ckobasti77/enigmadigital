@@ -60,7 +60,12 @@ $alati = @(
   "Bash(npm:*)","Bash(npx:*)","Bash(node:*)","Bash(git:*)",
   "Bash(ls:*)","Bash(dir:*)","Bash(mkdir:*)","Bash(cat:*)","Bash(type:*)",
   "Bash(head:*)","Bash(tail:*)","Bash(wc:*)","Bash(echo:*)","Bash(rg:*)",
-  "Bash(grep:*)","Bash(findstr:*)","Bash(curl:*)"
+  "Bash(grep:*)","Bash(findstr:*)","Bash(curl:*)",
+  # A9: faza sme da ubije zaostali `next dev` koji vraća 500 na svaku rutu
+  # (Next 16 dozvoljava jedan dev server po direktorijumu i sam ispisuje PID).
+  # Bez ovoga A6 je izgubio 11/12 snimaka, A8 svih 12 — komanda je tražila
+  # odobrenje koje u headless runu nema ko da da.
+  "Bash(taskkill:*)"
 ) -join ","
 
 $ishodi = [ordered]@{}

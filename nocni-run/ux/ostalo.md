@@ -9,7 +9,21 @@ Procena vrednosti: **A** = obara kriterijum iz `app-ux-plan.md` §4, radi se prv
 
 ---
 
-## 0. Najveća rupa: A7 nije pokrenut
+## Ažuriranje posle A9 (10.9.2026)
+
+A9 je zatvorio: **bloker `<CountUp>` = 0** (React sad vlasnik čvora, dokaz
+`verify:brojevi`); **A7** (pokrenut, `izvestaji/A7.md`); **1.1** (filter
+`bezProcene` + zadatak u zvonu — §4/2 sad 7/7); **§4/6** (`p`/`i`/`s` + ⌘K
+radnje iz zvona); runner (`taskkill` + korak u repu za snimke); birač perioda
+(razrešen opseg vraćen u zaglavlje); vlasnik u tabeli (crta se tek kad ≥2 člana
+poseduju leadove). **Ostaje otvoreno:** 1.2 (`/settings` 390 px), 1.3
+(snimci/fixture za 6 ekrana), 1.4 („svaki broj ima imenilac" provera), §4/7
+(potpun `:focus-visible` audit), §4/9 (snimci). Redosled ispod i dalje važi za
+nezatvoreno.
+
+---
+
+## 0. Najveća rupa: A7 nije pokrenut — ZATVORENO u A9 (`izvestaji/A7.md`)
 
 `nocni-run/run-ux.ps1` je posle A6 preskočio A7 i pokrenuo A8 (vidi
 `nocni-run/logs/` — postoji `A6-20260910-0527.log` pa odmah

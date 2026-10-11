@@ -196,10 +196,14 @@ export function DateRangePicker({
         </Popover>
       </div>
 
+      {/* Razrešen opseg je IMENILAC svakog broja na ekranu (plan §4) — bez
+          njega „40" ne znači ništa. Zato se u gornjoj traci (`compact`) krije
+          tek na uskom desktopu (< lg), a u svom redu (mobilni, `compact=false`)
+          se uvek vidi. */}
       <p
         className={cn(
           "font-mono text-xs tabular-nums text-text-muted",
-          compact && "hidden xl:block",
+          compact && "hidden lg:block",
         )}
       >
         {formatDateSpan(range.from, range.to)}

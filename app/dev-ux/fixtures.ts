@@ -520,6 +520,8 @@ const countLeadsByFacet: R<typeof api.leadFiltersStore.countLeadsByFacet> = {
   platforma: { instagram: 83, facebook: 47, tiktok: 13, threads: 0, website: 96 },
   koord: { da: 127, ne: 51 },
   tel: { "70": 10, "40": 40, "0": 55 },
+  // 178 u tabeli, 55 sa bilo kakvom procenom → 123 bez ijedne.
+  bezProcene: 123,
   dodir: { "7d": 0, "30d": 0, nikad: 178 },
   kvalitet: { los: 0, srednji: 0, dobar: 0, neocenjen: 94 },
   cms: [],
@@ -830,6 +832,8 @@ const staMeCekaSnimak: Snimak = {
   bezTelefona: 39,
   ukupnoFirmi: 210,
   firmeOdsecene: false,
+  bezProcene: 123,
+  procenaOdsecena: false,
   neocenjenSajt: 94,
   kanali: [],
 };

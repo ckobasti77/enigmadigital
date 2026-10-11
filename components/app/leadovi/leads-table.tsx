@@ -398,10 +398,15 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
     poStrani: PAGE_SIZE,
   });
 
-  // Vlasnik se crta SAMO kad radni prostor ima više od jednog člana (O2) —
-  // inače je kolona koja svima piše isto. Isti upit koristi ekran „Pristup".
+  // Vlasnik se crta SAMO kad posao stvarno dele DVA ili više vlasnika (O2) —
+  // inače je kolona koja svima piše isto („Ti" u svakom redu). Broj ČLANOVA
+  // nije dovoljan: prostor može imati usnulog admina ili `client_viewer`-a koji
+  // ne poseduje nijedan lead, pa bi `members.length > 1` lažno upalio kolonu
+  // iako jedan operater drži sve. Zato se broje samo članovi sa bar jednim
+  // leadom (`leadCount`, isti upit koristi ekran „Pristup").
   const members = useQuery(api.membersStore.listMembers, { workspaceId });
-  const showOwner = members !== undefined && members.length > 1;
+  const showOwner =
+    members !== undefined && members.filter((m) => m.leadCount > 0).length > 1;
 
   // Niša po firmi za ćeliju „Firma" (naziv + grad + niša). Red nosi samo
   // `nicheId`; imena stižu iz šifarnika koji čita i jezičak „Niše".
@@ -513,7 +518,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
     });
   }, []);
 
-  // ── Tastatura (O2): j/k, Enter, Space, /, Esc ──────────────────────────────
+  // ── Tastatura (O2, A7 §4): j/k, Enter, Space, p/i/s (radnje reda), /, Esc ──
   // Jedan slušalac na dokumentu; ne dira kucanje u poljima ni otvoren dijalog.
   const focusRow = useCallback((assignmentId: string) => {
     setCursor(assignmentId);
@@ -585,6 +590,54 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
           if (!cursor) return;
           e.preventDefault();
           toggleExpanded(cursor);
+          break;
+        }
+        // Radnje reda bez miša (A7 §4): p = Pozovi, i = Zabeleži ishod,
+        // s = Sledeći korak. Tok „nađi → vidi zašto → pozovi → zabeleži ishod"
+        // staje u 4 pritiska: j (fokusiraj red) · Space (vidi zašto) · p · i.
+        case "p": {
+          if (tag === "BUTTON" || tag === "A") return;
+          const id = cursor ?? ids[0];
+          // Isti put kao klik na primarno dugme „Pozovi" — pozove tel: i
+          // otvori traku „Pozvao si — kako je prošlo?".
+          const vidljivRed = Array.from(
+            listRef.current?.querySelectorAll<HTMLElement>(`[data-lead-row="${id}"]`) ?? [],
+          ).find((n) => n.offsetParent !== null);
+          const dugmePoziva = vidljivRed?.querySelector<HTMLAnchorElement>(
+            '[data-primary-action="call"]',
+          );
+          if (dugmePoziva) {
+            e.preventDefault();
+            dugmePoziva.click();
+          } else {
+            // Red nije u stanju poziva (već zvan): pozovi prvi poznati broj.
+            const item = sortedItems.find((i) => i.assignment._id === id);
+            const phone = item?.telefoni[0]?.value;
+            if (phone) {
+              e.preventDefault();
+              setCallStrip({ assignmentId: id, phone });
+            }
+          }
+          break;
+        }
+        case "i": {
+          if (tag === "BUTTON" || tag === "A") return;
+          const id = cursor ?? ids[0];
+          const item = sortedItems.find((i) => i.assignment._id === id);
+          if (item) {
+            e.preventDefault();
+            setDialog({ kind: "outcome", item });
+          }
+          break;
+        }
+        case "s": {
+          if (tag === "BUTTON" || tag === "A") return;
+          const id = cursor ?? ids[0];
+          const item = sortedItems.find((i) => i.assignment._id === id);
+          if (item) {
+            e.preventDefault();
+            setDialog({ kind: "nextAction", item });
+          }
           break;
         }
         case "Escape": {
@@ -964,7 +1017,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
               size="icon-sm"
               aria-label="Prečice na tastaturi"
               aria-pressed={showKeys}
-              title="Prečice: j/k redovi · Enter profil · Space proširi · / pretraga · Esc zatvori"
+              title="Prečice: j/k redovi · Enter profil · Space proširi · p pozovi · i ishod · s sledeći korak · / pretraga · Esc zatvori"
               onClick={() => setShowKeys((s) => !s)}
               className="hidden text-text-muted hover:text-foreground md:inline-flex"
             >
@@ -992,6 +1045,9 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
             <Kbd k="j" /> <Kbd k="k" /> redovi ·
             <Kbd k="Enter" /> profil ·
             <Kbd k="Space" /> proširi ·
+            <Kbd k="p" /> pozovi ·
+            <Kbd k="i" /> ishod ·
+            <Kbd k="s" /> sledeći korak ·
             <Kbd k="/" /> pretraga ·
             <Kbd k="Esc" /> zatvori ·
             <Kbd k="?" /> ovaj spisak

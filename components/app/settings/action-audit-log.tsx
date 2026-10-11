@@ -24,6 +24,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { StatusPill } from "./status-pill";
+import { EmptyState } from "@/components/app/system/empty-state";
 import { cn } from "@/lib/utils";
 import {
   Activity,
@@ -334,16 +335,37 @@ export function ActionAuditLog() {
             <Skeleton className="h-8 w-full" />
           </div>
         ) : filteredActions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center text-text-muted">
-            <ShieldCheck className="size-10 text-text-muted/40 mb-3" />
-            <p className="text-sm font-medium text-foreground">
-              Nema zabeleženih akcija
-            </p>
-            <p className="text-xs text-text-muted mt-1 max-w-sm">
+          // A7 §1: prazno stanje kaže šta fali, zašto i šta sad. Filter aktivan
+          // ≠ „ničega još nema" — razlog i sledeći korak se razlikuju.
+          targetFilter !== "all" ||
+          statusFilter !== "all" ||
+          searchQuery.trim() ? (
+            <EmptyState
+              icon={Search}
+              title="Nema akcija za ovaj filter"
+              action={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setTargetFilter("all");
+                    setStatusFilter("all");
+                    setSearchQuery("");
+                  }}
+                >
+                  Očisti filtere
+                </Button>
+              }
+            >
+              Nijedna zabeležena akcija ne odgovara izabranom filteru ili
+              pretrazi. Očisti ih da vidiš ceo revizorski trag.
+            </EmptyState>
+          ) : (
+            <EmptyState icon={ShieldCheck} title="Nema zabeleženih akcija">
               Sve promene statusa, budžeta i dupliranja oglasa biće automatski
               zabeležene ovde sa punim revizorskim tragom.
-            </p>
-          </div>
+            </EmptyState>
+          )
         ) : (
           <div className="overflow-x-auto">
             <Table>

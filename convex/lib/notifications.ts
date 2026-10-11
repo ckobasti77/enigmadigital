@@ -107,6 +107,7 @@ export const POZNATI_KLJUCEVI: readonly string[] = [
   "leadovi.sastanci",
   "leadovi.nikad_dodirnut",
   "leadovi.bez_telefona",
+  "leadovi.bez_procene",
   "leadovi.neocenjen_sajt",
   "kanali.bez_odgovora",
 ];
@@ -189,6 +190,15 @@ export type Snimak = {
   bezTelefona: number;
   ukupnoFirmi: number;
   firmeOdsecene: boolean;
+
+  /**
+   * Firma iz tabele koja NEMA nijednu procenu „čiji je broj" (telefon bez
+   * verovatnoće). Razlikuje se od `bezTelefona`: ta firma može imati broj, ali
+   * skill još nije rekao kolika je verovatnoća da baš njoj pripada.
+   */
+  bezProcene: number;
+  /** Sken telefona je odsečen — `bezProcene` je gornja granica, ne tačan broj. */
+  procenaOdsecena: boolean;
 
   /** Firma iz tabele koja IMA sajt, a sajt nikad nije ocenjen. */
   neocenjenSajt: number;
@@ -407,7 +417,25 @@ export function napraviZadatke(s: Snimak): Zadatak[] {
     odsecen: s.firmeOdsecene,
   });
 
-  // 8) Neocenjen sajt ────────────────────────────────────────────────────────
+  // 8) Firme bez procene „čiji je broj" ──────────────────────────────────────
+  //
+  // Firma ima broj, ali skill još nije procenio verovatnoću da baš njoj
+  // pripada. Bez ovog zadatka je jedini red iz §1.1 koji se nigde ne vidi.
+  // Veza vodi na filter `bezProcene` (leadFiltersStore) — bez tog filtera bi
+  // dugme otvorilo nefiltriranu tabelu, dakle bilo bi mrtvo.
+  dodaj({
+    kljuc: "leadovi.bez_procene",
+    naslov: `${s.bezProcene} ${mnozina(s.bezProcene, "firma bez procene čiji je broj", "firme bez procene čiji je broj", "firmi bez procene čiji je broj")}`,
+    broj: s.bezProcene,
+    hitnost: "niska",
+    veza: "/leadovi?bezProcene=1",
+    radnja: "Otvori spisak",
+    imenilac: `od ${s.ukupnoDodela} ${mnozina(s.ukupnoDodela, "leada", "leada", "leadova")} u tabeli`,
+    bedz: "/leadovi",
+    odsecen: s.dodeleOdsecene || s.procenaOdsecena,
+  });
+
+  // 9) Neocenjen sajt ────────────────────────────────────────────────────────
   dodaj({
     kljuc: "leadovi.neocenjen_sajt",
     naslov: `${s.neocenjenSajt} ${mnozina(s.neocenjenSajt, "sajt nije ocenjen", "sajta nije ocenjeno", "sajtova nije ocenjeno")}`,
@@ -420,7 +448,7 @@ export function napraviZadatke(s: Snimak): Zadatak[] {
     odsecen: s.dodeleOdsecene,
   });
 
-  // 9) Kanali bez odgovora ───────────────────────────────────────────────────
+  // 10) Kanali bez odgovora ──────────────────────────────────────────────────
   for (const kanal of s.kanali) {
     dodaj({
       kljuc: `kanali.bez_odgovora:${kanal.kljuc}`,

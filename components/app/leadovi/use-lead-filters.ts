@@ -44,6 +44,8 @@ export type LeadFilters = {
   koord: "da" | "ne" | null;
   /** Minimalna verovatnoća telefona (0–100); `null` = filter nije zadat. */
   tel: number | null;
+  /** Firma bez ijedne procene „čiji je broj" (grupa „Telefon"). */
+  bezProcene: boolean;
   dodir: DodirFilter[];
   q: string;
   // ── GL10 (sajt-ocena-plan.md §5.2): iz poslednje ocene sajta ──
@@ -91,6 +93,7 @@ export const FILTER_KLJUCEVI = [
   "platforma",
   "koord",
   "tel",
+  "bezProcene",
   "dodir",
   "q",
   "kvalitet",
@@ -141,6 +144,7 @@ export const PRAZNI_FILTERI: LeadFilters = {
   platforma: [],
   koord: null,
   tel: null,
+  bezProcene: false,
   dodir: [],
   q: "",
   kvalitet: [],
@@ -191,6 +195,7 @@ export function parseLeadFilters(params: URLSearchParams): LeadFilters {
       Number.isFinite(telBroj) && telBroj >= 0 && telBroj <= 100
         ? Math.round(telBroj)
         : null,
+    bezProcene: params.get("bezProcene") === "1",
     dodir: samoPoznate(citajListu(params.get("dodir")), DODIRI),
     q: params.get("q")?.trim() ?? "",
     kvalitet: samoPoznate(citajListu(params.get("kvalitet")), KVALITETI),
@@ -214,6 +219,7 @@ export function filtersToQuery(filters: LeadFilters): string {
   if (filters.platforma.length) p.set("platforma", filters.platforma.join(","));
   if (filters.koord) p.set("koord", filters.koord);
   if (filters.tel !== null) p.set("tel", String(filters.tel));
+  if (filters.bezProcene) p.set("bezProcene", "1");
   if (filters.dodir.length) p.set("dodir", filters.dodir.join(","));
   if (filters.q) p.set("q", filters.q);
   if (filters.kvalitet.length) p.set("kvalitet", filters.kvalitet.join(","));
@@ -235,6 +241,7 @@ export function brojAktivnihGrupa(filters: LeadFilters): number {
   if (filters.platforma.length) n++;
   if (filters.koord) n++;
   if (filters.tel !== null) n++;
+  if (filters.bezProcene) n++;
   if (filters.dodir.length) n++;
   if (filters.q) n++;
   if (filters.kvalitet.length) n++;
@@ -260,6 +267,7 @@ export function filtersToArgs(filters: LeadFilters) {
     platforma: filters.platforma.length ? filters.platforma : undefined,
     koord: filters.koord ?? undefined,
     tel: filters.tel ?? undefined,
+    bezProcene: filters.bezProcene ? true : undefined,
     dodir: filters.dodir.length ? filters.dodir : undefined,
     q: filters.q || undefined,
     kvalitet: filters.kvalitet.length ? filters.kvalitet : undefined,
@@ -351,6 +359,11 @@ export function useLeadFilters() {
     [filters, upisi],
   );
 
+  const setBezProcene = useCallback(
+    (value: boolean) => upisi({ ...filters, bezProcene: value }),
+    [filters, upisi],
+  );
+
   const setQ = useCallback(
     (value: string) => upisi({ ...filters, q: value.trim() }),
     [filters, upisi],
@@ -396,6 +409,7 @@ export function useLeadFilters() {
     setKoord,
     setTel,
     setSajtSpor,
+    setBezProcene,
     setQ,
     clearGroup,
     clearAll,

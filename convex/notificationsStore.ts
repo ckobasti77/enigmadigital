@@ -304,6 +304,8 @@ type LeadSnimak = Pick<
   | "bezTelefona"
   | "ukupnoFirmi"
   | "firmeOdsecene"
+  | "bezProcene"
+  | "procenaOdsecena"
   | "neocenjenSajt"
 >;
 
@@ -394,14 +396,29 @@ async function citajLeadove(
 
   const telefoniOdseceni = telefoniSken.length > CAP_TELEFONA;
   const saTelefonom = new Set<string>();
+  // Firma sa procenom „čiji je broj": bar jedan telefon nosi `verovatnoca`.
+  // To NIJE isto što i „ima broj" — skill upiše broj pre nego što izračuna
+  // verovatnoću da baš toj osobi pripada.
+  const saProcenom = new Set<string>();
   for (const identitet of telefoniSken.slice(0, CAP_TELEFONA)) {
     if (identitet.value.trim().length > 0) {
       saTelefonom.add(String(identitet.companyId));
+    }
+    if (identitet.verovatnoca !== undefined) {
+      saProcenom.add(String(identitet.companyId));
     }
   }
 
   const uTabeli = new Set<string>();
   for (const dodela of dodele) uTabeli.add(String(dodela.companyId));
+
+  // Firme u tabeli (dodele) bez ijedne procene — isto pravilo kao filter
+  // `bezProcene` (`leadFiltersStore.napraviTestove`: `!imaProcenuTelefona`),
+  // da broj u zvonu i spisak iza dugmeta budu ista stvar.
+  let bezProcene = 0;
+  for (const companyKey of uTabeli) {
+    if (!saProcenom.has(companyKey)) bezProcene++;
+  }
 
   let bezTelefona = 0;
   let neocenjenSajt = 0;
@@ -435,6 +452,10 @@ async function citajLeadove(
     // Odsečeni telefoni prave LAŽNE rupe (firma čiji broj nije pročitan
     // izgleda kao firma bez broja), pa se i to broji kao odsecanje.
     firmeOdsecene: firmeOdsecene || telefoniOdseceni,
+    bezProcene,
+    // Odsečen sken telefona pravi lažne „bez procene" — firma čija procena
+    // nije pročitana izgleda kao firma bez procene.
+    procenaOdsecena: telefoniOdseceni || dodeleOdsecene,
     neocenjenSajt,
   };
 }

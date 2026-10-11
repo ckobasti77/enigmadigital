@@ -279,15 +279,26 @@ console.log("\n7. Brojaci prelaze, ne skacu");
 // ---------------------------------------------------------------------------
 
 const countUp = citaj("components", "motion", "count-up.tsx");
+const countEngine = citaj("components", "motion", "count-up-engine.ts");
 proveri(
-  "svez podatak se PREĐE od stare do nove vrednosti",
-  countUp.includes("const proxy = { v: prethodna }") && countUp.includes("duration: DUR_UI"),
+  "React je jedini vlasnik teksta: crta se `{format(display)}`, ne kroz textContent",
+  /\{format\(display\)\}/.test(countUp) && !/\.(textContent|innerText)\s*=/.test(countUp) && !/\.(textContent|innerText)\s*=/.test(countEngine),
+  "broj se i dalje upisuje u textContent (A8 bug)",
+);
+proveri(
+  "svez podatak se PREĐE od zatečene (current) do nove vrednosti",
+  countEngine.includes("isUpdate ? current : from") && countEngine.includes("duration: isUpdate ? DUR_UI"),
   "nova vrednost se i dalje upisuje skokom",
 );
 proveri(
   "pod reduced motion se brojka upise odmah (cifre koje se vrte JESU pokret)",
-  /conditions\?\.still[\s\S]{0,200}el\.textContent = format\(value\)/.test(countUp),
+  /if\s*\(reduced\)[\s\S]{0,200}emit\(value\)/.test(countEngine),
   "nema grane koja gasi odbrojavanje",
+);
+proveri(
+  "postoji regresioni dokaz ishoda (verify:brojevi)",
+  JSON.parse(citaj("package.json")).scripts["verify:brojevi"] !== undefined,
+  "nema npm skripte verify:brojevi",
 );
 proveri(
   "red brojeva na „Danas” koristi CountUp",

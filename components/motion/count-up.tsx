@@ -1,28 +1,25 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import {
-  DUR_COUNT,
-  DUR_FRESH,
-  DUR_REDUCED,
-  DUR_UI,
-  EASE_UI,
-  MOTION_QUERIES,
-} from "@/lib/motion";
-import { holdCssTransition, releaseCssTransition } from "./css-transition";
+import { MOTION_QUERIES } from "@/lib/motion";
+import { runCountEffect } from "./count-up-engine";
 import { cn } from "@/lib/utils";
 
 /**
- * Brojčana vrednost koja se odbroji do cilja — ali SAMO pri prvom prikazu.
+ * Brojčana vrednost koja se odbroji do cilja pri prvom prikazu, a pri svežem
+ * podatku iz Convex-a PREĐE od stare do nove vrednosti (ne odbrojava ponovo od
+ * nule — inače KPI pločica treperi na svaki backend update).
  *
- * Kada kasnije stigne nov podatak iz Convex-a, vrednost se menja bez
- * odbrojavanja: inače KPI pločica treperi svaki put kad backend pošalje
- * ažuriranje, a to je tabla koju operater gleda ceo dan.
+ * KRITIČNO: React je jedini vlasnik tekstualnog čvora. Prikazana vrednost se
+ * drži u `display` state-u i renderuje kroz JSX; animacija je pomera preko
+ * `setDisplay`, nikad preko `el.textContent`. Zato se brojka NE MOŽE razići od
+ * onoga što je React renderovao — greška iz A8 (svuda „0") tako ne može da se
+ * ponovi. Vidi `count-up-engine.ts` i `scripts/count-up-check.ts`.
  *
- * Formatirana konačna vrednost je uvek u markup-u, pa su SSR i prvi paint
- * tačni i ništa se ne pomera kada JS stigne.
+ * Formatirana vrednost je uvek u markup-u (`display` počinje na `value`), pa su
+ * SSR i prvi paint tačni i ništa se ne pomera kada JS stigne.
  */
 export function CountUp({
   value,
@@ -37,92 +34,37 @@ export function CountUp({
   from?: number;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  // Poslednja vrednost koju je efekat video. Razlikuje prvi prikaz od
-  // ažuriranja — cleanup ne može da zna zašto je efekat ponovo pokrenut.
+  const [display, setDisplay] = useState(value);
+  // Ogledalo `display`-a čitljivo unutar GSAP callback-a bez zastarelog
+  // closure-a — polazna tačka prekidivog prelaza je uvek zatečena brojka.
+  const displayRef = useRef(value);
+  // Poslednja vrednost koju je efekat video: razlikuje prvi prikaz (odbroj od
+  // `from`) od ažuriranja (pređi od zatečene vrednosti).
   const lastValue = useRef(value);
+  const mounted = useRef(false);
+
+  const emit = (v: number) => {
+    displayRef.current = v;
+    setDisplay(v);
+  };
 
   useGSAP(
     () => {
-      const el = ref.current;
-      if (!el) return;
-
       const prethodna = lastValue.current;
-      const isUpdate = prethodna !== value;
+      const isUpdate = mounted.current && prethodna !== value;
       lastValue.current = value;
-
-      if (isUpdate) {
-        // A8 §1: brojači PRELAZE, ne skaču. Sveži podatak i dalje nije ulazak
-        // ekrana — ne odbrojava se ponovo od nule (to bi bilo treperenje na
-        // tabli koju operater gleda ceo dan) — nego se pređe put od STARE do
-        // nove vrednosti, kratko (200 ms) i krivom sistema. `overwrite: "auto"`
-        // znači da još svežiji podatak preuzima od zatečene brojke, pa se
-        // tvinovi nikad ne slažu jedan preko drugog.
-        const mmUpdate = gsap.matchMedia();
-        mmUpdate.add(MOTION_QUERIES, (ctx) => {
-          if (ctx.conditions?.still) {
-            // Cifre koje se vrte JESU pokret. Ostaje samo neprozirnost.
-            el.textContent = format(value);
-            holdCssTransition(el);
-            gsap.fromTo(
-              el,
-              { opacity: 0.4 },
-              {
-                opacity: 1,
-                duration: DUR_FRESH,
-                ease: "none",
-                overwrite: "auto",
-                onComplete: () => releaseCssTransition(el),
-              },
-            );
-            return;
-          }
-
-          const proxy = { v: prethodna };
-          gsap.to(proxy, {
-            v: value,
-            duration: DUR_UI,
-            ease: EASE_UI,
-            overwrite: "auto",
-            onUpdate: () => {
-              el.textContent = format(proxy.v);
-            },
-            onComplete: () => {
-              el.textContent = format(value);
-            },
-          });
-        });
-        return;
-      }
+      mounted.current = true;
 
       const mm = gsap.matchMedia();
       mm.add(MOTION_QUERIES, (ctx) => {
-        if (ctx.conditions?.still) {
-          el.textContent = format(value);
-          holdCssTransition(el);
-          gsap.set(el, { opacity: 0 });
-          gsap.to(el, {
-            opacity: 1,
-            duration: DUR_REDUCED,
-            ease: "none",
-            overwrite: "auto",
-            onComplete: () => releaseCssTransition(el),
-          });
-          return;
-        }
-
-        const proxy = { v: from };
-        el.textContent = format(from);
-        gsap.to(proxy, {
-          v: value,
-          duration: DUR_COUNT,
-          ease: EASE_UI,
-          overwrite: "auto",
-          onUpdate: () => {
-            el.textContent = format(proxy.v);
-          },
-          onComplete: () => {
-            el.textContent = format(value);
-          },
+        runCountEffect({
+          el: ref.current,
+          reduced: !!ctx.conditions?.still,
+          isUpdate,
+          from,
+          current: displayRef.current,
+          value,
+          emit,
         });
       });
     },
@@ -131,7 +73,7 @@ export function CountUp({
 
   return (
     <span ref={ref} className={cn("tabular-nums", className)}>
-      {format(value)}
+      {format(display)}
     </span>
   );
 }
