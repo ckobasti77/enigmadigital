@@ -576,7 +576,7 @@ export function StageDialog({
               className={cn(
                 "rounded-lg border px-3 py-2 text-left text-xs font-semibold transition-colors",
                 selected
-                  ? "border-accent-400 bg-accent-400/10 text-accent-400"
+                  ? "border-mod bg-mod-soft text-mod"
                   : "border-line bg-surface-raised text-text-muted hover:text-foreground",
                 st === currentStage && !selected && "opacity-60",
               )}
@@ -785,7 +785,7 @@ export function OutcomeDialog({
               className={cn(
                 "rounded-lg border px-3 py-2 text-left text-xs font-semibold transition-colors",
                 selected
-                  ? "border-accent-400 bg-accent-400/10 text-accent-400"
+                  ? "border-mod bg-mod-soft text-mod"
                   : "border-line bg-surface-raised text-text-muted hover:text-foreground",
               )}
             >
@@ -893,7 +893,7 @@ export function AssignDialog({
           onClick={() => assign(user.id)}
           className="w-full justify-center gap-2 text-xs font-semibold"
         >
-          <UserCheck className="size-4 text-accent-400" />
+          <UserCheck className="size-4 text-mod" />
           Preuzmi lead (dodeli meni)
         </Button>
       )}
@@ -1021,7 +1021,7 @@ export function TouchDialog({
                 className={cn(
                   "rounded-lg border px-2.5 py-1.5 text-center text-xs font-medium transition-colors",
                   selected
-                    ? "border-accent-400 bg-accent-400/10 font-semibold text-accent-400"
+                    ? "border-mod bg-mod-soft font-semibold text-mod"
                     : "border-line bg-surface-raised text-text-muted hover:text-foreground",
                 )}
               >
@@ -1049,7 +1049,7 @@ export function TouchDialog({
               className={cn(
                 "rounded-lg border px-3 py-1 text-xs transition-colors",
                 timeMode === m.id
-                  ? "border-accent-400 bg-accent-400/10 font-semibold text-accent-400"
+                  ? "border-mod bg-mod-soft font-semibold text-mod"
                   : "border-line text-text-muted hover:text-foreground",
               )}
             >

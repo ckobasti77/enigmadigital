@@ -753,7 +753,7 @@ const UVOZI: Array<{
   doc: Omit<UvozUListi, "nerazresenoCount">;
   nerazreseno: number;
 }> = [
-  { doc: uvozDoc({ id: "imp_ux_1", fileName: "test-tabela-1.xlsx", status: "u_pregledu", preStoDana: 13, rowsParsed: 60, rowsSkipped: 2, warnings: UPOZORENJA }), nerazreseno: 0 },
+  { doc: uvozDoc({ id: "imp_ux_1", fileName: "test-tabela-1.xlsx", status: "u_pregledu", preStoDana: 34, rowsParsed: 60, rowsSkipped: 2, warnings: UPOZORENJA }), nerazreseno: 0 },
   { doc: uvozDoc({ id: "imp_ux_2", fileName: "test-tabela-2.xlsx", status: "u_pregledu", preStoDana: 8, rowsParsed: 45, rowsSkipped: 0, warnings: [] }), nerazreseno: 0 },
   { doc: uvozDoc({ id: "imp_ux_3", fileName: "test-tabela-3.csv", status: "u_pregledu", preStoDana: 7, rowsParsed: 32, rowsSkipped: 1, warnings: UPOZORENJA.slice(0, 1) }), nerazreseno: 0 },
   { doc: uvozDoc({ id: "imp_ux_4", fileName: "test-tabela-4.xlsx", status: "primenjen", preStoDana: 12, rowsParsed: 102, rowsSkipped: 2, warnings: UPOZORENJA }), nerazreseno: 41 },
@@ -847,7 +847,7 @@ const staMeCekaSnimak: Snimak = {
   now,
   pomerajMin: -new Date().getTimezoneOffset(),
   uvoziUPregledu: [
-    { id: "imp_ux_1", fileName: "test-tabela-1.xlsx", uploadedAt: now - 13 * DAY },
+    { id: "imp_ux_1", fileName: "test-tabela-1.xlsx", uploadedAt: now - 34 * DAY },
     { id: "imp_ux_2", fileName: "test-tabela-2.xlsx", uploadedAt: now - 8 * DAY },
     { id: "imp_ux_3", fileName: "test-tabela-3.xlsx", uploadedAt: now - 7 * DAY },
   ],
@@ -998,6 +998,12 @@ const FIXTURES: Record<string, Fixture> = {
   [getFunctionName(api.leadCrmStore.listOverdue)]: () => listOverdue,
   [getFunctionName(api.leadGapsStore.listGaps)]: () => listGaps,
   [getFunctionName(api.leadFiltersStore.listLeadsForMap)]: () => listLeadsForMap,
+  // B7: red izabrane firme za panel mape (`?tab=map&firma=<id>`) — isti red
+  // kao u tabeli. Firma koje nema u spisku vraća `null`, kao i pravi upit.
+  [getFunctionName(api.leadFiltersStore.getLeadRow)]: (args) => {
+    const lead = LEADOVI.find((l) => l.company._id === args.companyId);
+    return lead ? { item: lead, now } : null;
+  },
   [getFunctionName(api.notificationsStore.staMeCeka)]: () => staMeCeka,
   // Uvoz (A5): istorija, jedan uvoz i njegovi redovi. `getImport` odgovara samo
   // na uvoz koji fixture zaista ima — za ostale vraća `null`, pa ekran kaže

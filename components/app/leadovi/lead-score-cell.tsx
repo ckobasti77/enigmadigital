@@ -14,6 +14,7 @@ import {
   type Strength,
 } from "@/lib/strength";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProgressRing } from "@/components/app/system/progress";
 import {
   Popover,
   PopoverTrigger,
@@ -37,8 +38,9 @@ type LeadScoreCellProps = {
    *  - `meter`   jedan tanak merač: natpis · broj · traka, bez okvira — dva
    *              takva jedan ispod drugog čine kolonu „Fit / Intent"
    *  - `inline`  samo natpis i broj, za red od 32 px
+   *  - `ring`    prsten sa procentom i bodovima ispod — zaglavlje profila (B7)
    */
-  variant?: "card" | "compact" | "meter" | "inline";
+  variant?: "card" | "compact" | "meter" | "inline" | "ring";
 };
 
 /** Neizmereno i bez pravila: prigušen okvir, bez boje jačine. */
@@ -57,7 +59,9 @@ export function LeadScoreCell({
     return (
       <Skeleton
         className={
-          variant === "meter"
+          variant === "ring"
+            ? "size-14 rounded-full"
+            : variant === "meter"
             ? "h-4 w-24 rounded"
             : variant === "inline"
               ? "h-4 w-14 rounded"
@@ -107,7 +111,48 @@ export function LeadScoreCell({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          variant === "meter" ? (
+          variant === "ring" ? (
+            <button
+              type="button"
+              title={kratkoTitle}
+              aria-label={`${kratkoTitle}. Prikaži doprinose pravila.`}
+              className={cn(
+                "flex cursor-pointer flex-col items-center gap-1 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+                className,
+              )}
+            >
+              {/* Prsten puni jačina ose; neizmereno je PRAZAN prsten sa „—",
+                  nikad nula — nula bi tvrdila da je lead hladan. */}
+              <ProgressRing
+                value={percentage ?? 0}
+                max={100}
+                size={56}
+                stroke={6}
+                label={axisTitle}
+              >
+                <span
+                  className={cn(
+                    "text-copy font-bold",
+                    strength ? "text-foreground" : "text-text-muted",
+                  )}
+                >
+                  {kratko}
+                </span>
+              </ProgressRing>
+              <span className="flex flex-col items-center leading-tight">
+                <span className="text-meta font-medium text-foreground">
+                  {isFit ? "Fit" : "Intent"}
+                </span>
+                <span className="font-mono text-meta tabular-nums text-text-muted">
+                  {nemaPravila
+                    ? "bez pravila"
+                    : isUnmeasured
+                      ? "bez signala"
+                      : `${score.points} / ${score.maxPoints}`}
+                </span>
+              </span>
+            </button>
+          ) : variant === "meter" ? (
             <button
               type="button"
               title={kratkoTitle}
@@ -147,7 +192,7 @@ export function LeadScoreCell({
             <button
               type="button"
               className={cn(
-                "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2 text-xs transition-all hover:ring-1 hover:ring-accent-400/30",
+                "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2 text-xs transition-all hover:ring-1 hover:ring-mod-line",
                 chipClass,
                 className,
               )}
@@ -168,7 +213,7 @@ export function LeadScoreCell({
           <button
             type="button"
             className={cn(
-              "group flex flex-col items-start gap-1 rounded-lg border px-2.5 py-1.5 text-left transition-all hover:ring-1 hover:ring-accent-400/30 cursor-pointer",
+              "group flex flex-col items-start gap-1 rounded-lg border px-2.5 py-1.5 text-left transition-all hover:ring-1 hover:ring-mod-line cursor-pointer",
               chipClass,
               className,
             )}
@@ -274,7 +319,7 @@ export function LeadScoreCell({
                           Signal: {leadSignalLabel(c.signalKind)}
                         </span>
                       </div>
-                      <span className="shrink-0 rounded bg-accent-400/10 px-2 py-0.5 font-bold text-accent-400">
+                      <span className="shrink-0 rounded bg-mod-soft px-2 py-0.5 font-bold text-mod">
                         +{c.points} bod.
                       </span>
                     </div>

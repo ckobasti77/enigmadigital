@@ -141,7 +141,7 @@ export function ProvenanceBadge({
                 href={provenance.sourceUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 text-accent-400 hover:underline truncate max-w-[150px]"
+                className="inline-flex items-center gap-1 text-mod hover:underline truncate max-w-[150px]"
               >
                 <span>Otvori izvor</span>
                 <ExternalLink className="size-3 shrink-0" />

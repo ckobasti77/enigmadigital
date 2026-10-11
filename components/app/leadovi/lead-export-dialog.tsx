@@ -142,7 +142,7 @@ export function LeadExportDialog({
       <DialogPopup className="max-w-2xl sm:max-w-2xl">
         <DialogHeader>
           <div className="flex items-center gap-2">
-            <div className="flex size-8 items-center justify-center rounded-lg border border-accent-400/40 bg-accent-400/10 text-accent-400">
+            <div className="flex size-8 items-center justify-center rounded-lg border border-mod-line bg-mod-soft text-mod">
               <FileSpreadsheet className="size-4" />
             </div>
             <div>
@@ -159,7 +159,7 @@ export function LeadExportDialog({
           {/* Opcije filtera pre izvoza */}
           <div className="rounded-xl border border-line bg-surface p-3.5">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-              <Filter className="size-3.5 text-accent-400" />
+              <Filter className="size-3.5 text-mod" />
               <span>Filteri opsega za izvoz</span>
             </div>
 
@@ -176,7 +176,7 @@ export function LeadExportDialog({
                       e.target.value ? e.target.value : undefined,
                     )
                   }
-                  className="h-8 rounded-lg border border-line bg-surface-raised px-2 text-xs text-foreground outline-none focus:border-accent-400"
+                  className="h-8 rounded-lg border border-line bg-surface-raised px-2 text-xs text-foreground outline-none focus:border-mod"
                 >
                   <option value="">Sve faze (kompletan radni prostor)</option>
                   {ALL_STAGES.map((stg) => (
@@ -194,7 +194,7 @@ export function LeadExportDialog({
                     type="checkbox"
                     checked={onlyWithPhone}
                     onChange={(e) => setOnlyWithPhone(e.target.checked)}
-                    className="size-4 rounded border-line text-accent-400 focus:ring-accent-400"
+                    className="size-4 rounded border-line text-mod focus:ring-mod-line"
                   />
                   <span>Samo leadovi sa brojem telefona</span>
                 </label>
@@ -205,7 +205,7 @@ export function LeadExportDialog({
           {/* Stanje učitavanja i pregled podataka */}
           {exportData === undefined ? (
             <div className="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface p-8 text-xs text-text-muted">
-              <Loader2 className="size-4 animate-spin text-accent-400" />
+              <Loader2 className="size-4 animate-spin text-mod" />
               <span>Priprema podataka za izvoz i provera pravnog osnova...</span>
             </div>
           ) : (
@@ -272,7 +272,7 @@ export function LeadExportDialog({
               <div className="rounded-xl border border-line bg-surface p-3">
                 <div className="flex items-center justify-between border-b border-line-soft pb-2">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                    <Columns3 className="size-3.5 text-accent-400" />
+                    <Columns3 className="size-3.5 text-mod" />
                     <span>Kanonske kolone (tačno 19 kolona)</span>
                   </div>
                   <span className="text-micro font-mono text-text-muted">

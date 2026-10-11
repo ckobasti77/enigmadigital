@@ -64,7 +64,13 @@ export function radnjaMisije(kljuc: string): string {
  * (jedna firma na ekranu), a ne spisak iz kog tek treba izabrati.
  */
 export function vezaMisije(kljuc: string, veza: string): string {
-  return kljuc === "pozovi" ? REZIM_POZIVA_HREF : veza;
+  if (kljuc === "pozovi") return REZIM_POZIVA_HREF;
+  // Misija nerazrešenih redova bez određenog uvoza u adresi: Uvoz tada sam
+  // otvara uvoz koji ih ima najviše, sa već izdvojenim nerazrešenim redovima.
+  if (kljuc === "uvoz_redovi" && !veza.includes("import=")) {
+    return "/leadovi/uvoz?prikaz=nerazreseno";
+  }
+  return veza;
 }
 
 const DOSTIGNUCE: Record<string, Ikona> = {

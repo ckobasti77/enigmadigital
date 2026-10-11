@@ -121,10 +121,6 @@ export function useStagePick({
   };
 }
 
-/** Klasa primarnog dugmeta u redu — ista kao radnja u bloku „Danas" (A2). */
-export const PRIMARY_ACTION_CLASS =
-  "inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md border border-accent-400/40 bg-accent-400/10 px-2.5 text-meta font-medium text-accent-400 transition-colors hover:border-accent-400/70 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50";
-
 /**
  * Stavke „Pozovi" / „Piši" u meniju (§5). Tri stanja, i nijedno ne laže:
  *  - nema kontakta  → onemogućena stavka koja kaže zašto
@@ -191,7 +187,7 @@ function ContactMenuItems({
               />
             }
           >
-            <Icon className="text-accent-400" />
+            <Icon className="text-mod" />
             <span className={cn("truncate", kind === "phone" && "font-mono tabular-nums")}>
               {c.value}
             </span>
@@ -208,7 +204,27 @@ function ContactMenuItems({
 }
 
 /**
- * Primarno dugme reda (A3, O2): jedno, i menja se po stanju — Pozovi →
+ * Kako se glavna radnja reda crta (UI Boost §4.2):
+ *   - `full`  puno dugme u boji modula — SAMO aktivni red tabele (red pod
+ *             kursorom tastature, ili prvi kad kursora nema);
+ *   - `icon`  ghost ikonica — svi ostali redovi tabele; vidi se na hover ili
+ *             fokus reda;
+ *   - `card`  tinta modula sa natpisom — kartice (telefon, radni redovi).
+ * Izmereno 11.10.2026: 25 istih cijan dugmadi „Pozovi" u tabeli — jedina boja
+ * na ekranu, ponovljena 25 puta, bila je šum umesto putokaza.
+ */
+export type ActionAppearance = "full" | "icon" | "card";
+
+const ACTION_ICON: Record<PrimaryAction["kind"], typeof Phone> = {
+  call: Phone,
+  outcome: Activity,
+  schedule: CalendarPlus,
+  fill: PhoneOff,
+  open: ExternalLink,
+};
+
+/**
+ * Glavna radnja reda (A3, O2): jedna, i menja se po stanju — Pozovi →
  * Zabeleži ishod → Zakaži (vidi `primaryAction`). Ostalo je pod „…".
  */
 export function LeadPrimaryButton({
@@ -217,6 +233,7 @@ export function LeadPrimaryButton({
   onCall,
   onOpenDialog,
   onFill,
+  appearance = "card",
   className,
 }: {
   action: PrimaryAction;
@@ -225,54 +242,76 @@ export function LeadPrimaryButton({
   onOpenDialog: (kind: RowDialogKind) => void;
   /** Otvara dijalog dopune rupe „bez telefona"; bez njega „Dopuni" vodi na profil. */
   onFill?: () => void;
+  appearance?: ActionAppearance;
   className?: string;
 }) {
-  const classes = cn(PRIMARY_ACTION_CLASS, className);
-  switch (action.kind) {
+  // „Dopuni" bez dijaloga dopune je u stvari „Otvori profil".
+  const kind: PrimaryAction["kind"] =
+    action.kind === "fill" && !onFill ? "open" : action.kind;
+  const label = action.kind === "fill" && !onFill ? "Otvori" : action.label;
+  const Icon = ACTION_ICON[kind];
+  // U tabeli je kolona radnji uska: pun natpis ostaje u oblačiću i za čitač.
+  const natpis = appearance === "full" && kind === "outcome" ? "Ishod" : label;
+
+  const shared = {
+    variant:
+      appearance === "full"
+        ? ("primary" as const)
+        : appearance === "icon"
+          ? ("ghost" as const)
+          : ("secondary" as const),
+    size: appearance === "icon" ? ("icon-sm" as const) : ("sm" as const),
+    title: appearance === "card" ? undefined : label,
+    "aria-label": appearance === "card" ? undefined : label,
+    "data-primary-action": kind,
+    className: cn(appearance === "icon" && "text-mod hover:text-mod", className),
+  };
+  const body = (
+    <>
+      <Icon data-icon={appearance === "icon" ? undefined : "inline-start"} aria-hidden />
+      {appearance !== "icon" && natpis}
+    </>
+  );
+
+  switch (kind) {
     case "call":
       return (
-        <a
-          href={telHref(action.phone ?? "")}
+        <Button
+          {...shared}
+          render={<a href={telHref(action.phone ?? "")} />}
+          nativeButton={false}
           onClick={() => onCall(action.phone ?? "")}
-          className={classes}
-          data-primary-action="call"
         >
-          <Phone className="size-3.5" aria-hidden />
-          {action.label}
-        </a>
+          {body}
+        </Button>
       );
     case "outcome":
       return (
-        <button type="button" onClick={() => onOpenDialog("outcome")} className={classes} data-primary-action="outcome">
-          <Activity className="size-3.5" aria-hidden />
-          {action.label}
-        </button>
+        <Button {...shared} onClick={() => onOpenDialog("outcome")}>
+          {body}
+        </Button>
       );
     case "schedule":
       return (
-        <button type="button" onClick={() => onOpenDialog("meeting")} className={classes} data-primary-action="schedule">
-          <CalendarPlus className="size-3.5" aria-hidden />
-          {action.label}
-        </button>
+        <Button {...shared} onClick={() => onOpenDialog("meeting")}>
+          {body}
+        </Button>
       );
     case "fill":
-      return onFill ? (
-        <button type="button" onClick={onFill} className={classes} data-primary-action="fill">
-          <PhoneOff className="size-3.5" aria-hidden />
-          {action.label}
-        </button>
-      ) : (
-        <Link href={`/leadovi/${companyId}`} className={classes} data-primary-action="open">
-          <ExternalLink className="size-3.5" aria-hidden />
-          Otvori
-        </Link>
+      return (
+        <Button {...shared} onClick={onFill}>
+          {body}
+        </Button>
       );
     case "open":
       return (
-        <Link href={`/leadovi/${companyId}`} className={classes} data-primary-action="open">
-          <ExternalLink className="size-3.5" aria-hidden />
-          {action.label}
-        </Link>
+        <Button
+          {...shared}
+          render={<Link href={`/leadovi/${companyId}`} />}
+          nativeButton={false}
+        >
+          {body}
+        </Button>
       );
   }
 }
@@ -293,6 +332,7 @@ export function LeadRowActions({
   onOpenStageDialog,
   onError,
   onFill,
+  appearance = "card",
   className,
 }: {
   workspaceId: Id<"workspaces">;
@@ -305,6 +345,8 @@ export function LeadRowActions({
   onError: (message: string) => void;
   /** Dopuna rupe „bez telefona" (A3): kad je nema, „Dopuni" vodi na profil. */
   onFill?: () => void;
+  /** `icon` se vidi tek na hover ili fokus reda (`group/row`); vidi `ActionAppearance`. */
+  appearance?: ActionAppearance;
   className?: string;
 }) {
   const { assignment, company } = item;
@@ -338,13 +380,24 @@ export function LeadRowActions({
   const action = primaryAction(item, now);
 
   return (
-    <div className={cn("flex items-center justify-end gap-1", className)}>
+    <div
+      className={cn(
+        "flex items-center justify-end gap-1",
+        // Miran red je tih: ikonice se pojave kad je red pod mišem, kad je
+        // fokus u njemu ili dok je njegov meni otvoren. Na dodir (bez hover-a)
+        // su uvek tu — inače bi bile nedohvatljive.
+        appearance === "icon" &&
+          "opacity-0 transition-opacity duration-(--duration-fast) group-hover/row:opacity-100 group-focus-within/row:opacity-100 has-aria-expanded:opacity-100 [@media(hover:none)]:opacity-100",
+        className,
+      )}
+    >
       <LeadPrimaryButton
         action={action}
         companyId={companyId}
         onCall={onCall}
         onOpenDialog={onOpenDialog}
         onFill={onFill}
+        appearance={appearance}
       />
 
       <DropdownMenu>

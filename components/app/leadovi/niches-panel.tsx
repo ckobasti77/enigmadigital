@@ -309,7 +309,7 @@ export function NichesPanel({
                   className={cn(
                     "flex cursor-pointer flex-col gap-1.5 rounded-xl border p-3 text-left transition-colors",
                     active
-                      ? "border-accent-400 bg-accent-400/5"
+                      ? "border-mod bg-mod-soft"
                       : "border-line bg-surface hover:border-line-strong",
                   )}
                 >
@@ -317,7 +317,7 @@ export function NichesPanel({
                     <span className="truncate text-sm font-semibold text-foreground">
                       {n.naziv}
                     </span>
-                    <span className="shrink-0 font-mono text-xs tabular-nums text-accent-400">
+                    <span className="shrink-0 font-mono text-xs tabular-nums text-mod">
                       {n.brojaci.firmi}
                     </span>
                   </div>

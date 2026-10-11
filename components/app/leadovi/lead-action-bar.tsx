@@ -14,17 +14,22 @@ import {
   Mail,
   Phone,
   PhoneCall,
+  PhoneOff,
   Tag,
   UserCheck,
   Users,
 } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FeedbackNote } from "@/components/app/feedback";
@@ -48,41 +53,39 @@ import {
   type LeadRowContact,
 } from "./lead-urgency";
 import { pluralSr } from "@/lib/format";
-import { cn } from "@/lib/utils";
 
 type DialogState =
   | { kind: "meeting"; calledPhone?: string }
   | { kind: "nextAction" | "outcome" | "touch" | "assign" }
   | { kind: "stage"; stage: LeadStage };
 
-const OUTLINE_SM = buttonVariants({ variant: "outline", size: "sm" });
-
 /**
- * Dugme sa natpisom za telefon / e-mail na profilu (§8). Bez kontakta u bazi
- * se ne crta dugme koje ne radi — stoji prigušen natpis koji kaže zašto.
+ * „Pozovi" — jedino primarno dugme profila (UI Boost §8). Tri stanja, i
+ * nijedno nije mrtva kontrola:
+ *   - jedan broj     → `tel:` link;
+ *   - više brojeva   → isto dugme otvara spisak brojeva;
+ *   - nema broja     → primarno postaje „Dodaj broj" (bez broja je to sledeći
+ *                      korak), ili prigušena napomena kad dopuna nije moguća.
  */
-function ContactButton({
-  kind,
+function CallButton({
   contacts,
   onPick,
+  onAddPhone,
 }: {
-  kind: "phone" | "email";
   contacts: LeadRowContact[];
-  onPick?: (value: string) => void;
+  onPick: (value: string) => void;
+  onAddPhone?: () => void;
 }) {
-  const Icon = kind === "phone" ? Phone : Mail;
-  const verb = kind === "phone" ? "Pozovi" : "Piši";
-
   if (contacts.length === 0) {
-    return (
-      <span
-        aria-disabled="true"
-        className="inline-flex h-7 cursor-not-allowed items-center gap-1.5 rounded-lg border border-dashed border-line-soft px-2.5 text-[0.8rem] text-text-muted/70"
-        title={kind === "phone" ? "Nema broj u bazi" : "Nema e-mail u bazi"}
-      >
-        <Icon className="size-3.5" />
-        {verb}
-        <span className="text-micro">· {kind === "phone" ? "nema broja" : "nema adrese"}</span>
+    return onAddPhone ? (
+      <Button variant="primary" onClick={onAddPhone} className="touch-target">
+        <PhoneOff data-icon="inline-start" aria-hidden />
+        Dodaj broj
+      </Button>
+    ) : (
+      <span className="inline-flex h-8 items-center gap-1.5 text-ui text-text-muted">
+        <PhoneOff className="size-4" aria-hidden />
+        Nema broja u bazi
       </span>
     );
   }
@@ -90,15 +93,17 @@ function ContactButton({
   if (contacts.length === 1) {
     const only = contacts[0];
     return (
-      <a
-        href={kind === "phone" ? telHref(only.value) : mailHref(only.value)}
-        onClick={() => onPick?.(only.value)}
-        className={cn(OUTLINE_SM, "gap-1.5 text-xs")}
+      <Button
+        render={<a href={telHref(only.value)} />}
+        nativeButton={false}
+        variant="primary"
         title={only.value}
+        onClick={() => onPick(only.value)}
+        className="touch-target"
       >
-        <Icon className="size-3.5 text-accent-400" />
-        {verb}
-      </a>
+        <Phone data-icon="inline-start" aria-hidden />
+        Pozovi
+      </Button>
     );
   }
 
@@ -106,52 +111,47 @@ function ContactButton({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant="outline" size="sm" className="gap-1.5 text-xs" />}
+        render={<Button variant="primary" className="touch-target" />}
       >
-        <Icon className="size-3.5 text-accent-400" />
-        {verb}
-        <span className="font-mono text-micro tabular-nums text-text-muted">
-          {count}
-        </span>
-        <ChevronDown className="size-3 text-text-muted" />
+        <Phone data-icon="inline-start" aria-hidden />
+        Pozovi
+        <span className="font-mono text-meta tabular-nums opacity-80">{count}</span>
+        <ChevronDown data-icon="inline-end" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
-        <DropdownMenuLabel>
-          {count}{" "}
-          {kind === "phone"
-            ? pluralSr(count, "broj", "broja", "brojeva")
-            : pluralSr(count, "adresa", "adrese", "adresa")}
-        </DropdownMenuLabel>
-        {contacts.map((c) => (
-          <DropdownMenuItem
-            key={c.value}
-            render={
-              <a
-                href={kind === "phone" ? telHref(c.value) : mailHref(c.value)}
-                onClick={() => onPick?.(c.value)}
-              />
-            }
-          >
-            <Icon className="text-accent-400" />
-            <span className={cn("truncate", kind === "phone" && "font-mono tabular-nums")}>
-              {c.value}
-            </span>
-            {c.personName && (
-              <span className="ml-auto truncate pl-2 text-micro text-text-muted">
-                {c.personName}
-              </span>
-            )}
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>
+            {count} {pluralSr(count, "broj", "broja", "brojeva")}
+          </DropdownMenuLabel>
+          {contacts.map((c) => (
+            <DropdownMenuItem
+              key={c.value}
+              render={<a href={telHref(c.value)} onClick={() => onPick(c.value)} />}
+            >
+              <Phone className="text-mod" />
+              <span className="truncate font-mono tabular-nums">{c.value}</span>
+              {c.personName && (
+                <span className="ml-auto truncate pl-2 text-micro text-text-muted">
+                  {c.personName}
+                </span>
+              )}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
 /**
- * Traka radnji na vrhu profila (§8): šest modala svedeno na jedan red
- * dugmadi. Dijalog se otvara samo tamo gde treba datum ili napomena; faza
- * bez obrazloženja i „dodeli meni” se upisuju odmah.
+ * Traka radnji na profilu (§8, v2 u B7).
+ *
+ * Izmereno 11.10.2026: osam dugmadi istog stila u jednom redu, a nijedno
+ * primarno. Sada je red: JEDNO primarno („Pozovi"), dva prateća („Zabeleži
+ * ishod", „Zakaži sastanak") i „Još radnji" sa svim ostalim — pisanje mejla,
+ * dodir, sledeći korak, faza i vlasnik. Ništa nije nestalo, samo je dobilo
+ * redosled. Dijalog se otvara samo tamo gde treba datum ili napomena; faza
+ * bez obrazloženja i „dodeli meni" se upisuju odmah.
  */
 export function LeadActionBar({
   workspaceId,
@@ -160,6 +160,7 @@ export function LeadActionBar({
   assignment,
   phones,
   emails,
+  onAddPhone,
 }: {
   workspaceId: Id<"workspaces">;
   companyId: Id<"leadCompanies">;
@@ -167,6 +168,8 @@ export function LeadActionBar({
   assignment: Doc<"leadAssignments"> | null;
   phones: LeadRowContact[];
   emails: LeadRowContact[];
+  /** Otvara dopunu rupe „bez telefona"; bez nje se dugme „Dodaj broj" ne crta. */
+  onAddPhone?: () => void;
 }) {
   const { user } = useWorkspace();
   const assignLead = useMutation(api.leadCrmStore.assignLead);
@@ -212,97 +215,107 @@ export function LeadActionBar({
     },
   };
 
+  const imaSastanak = assignment?.meetingAt !== undefined;
+  const imaKorak = assignment?.nextActionAt !== undefined;
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <ContactButton kind="phone" contacts={phones} onPick={setCalledPhone} />
-        <ContactButton kind="email" contacts={emails} />
-
-        <span className="mx-1 hidden h-5 w-px bg-line sm:block" aria-hidden />
+        <CallButton contacts={phones} onPick={setCalledPhone} onAddPhone={onAddPhone} />
 
         <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 text-xs"
-          onClick={() => setDialog({ kind: "touch" })}
-        >
-          <PhoneCall className="size-3.5" />
-          Zabeleži dodir
-        </Button>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 text-xs"
-          onClick={() => setDialog({ kind: "nextAction" })}
-        >
-          <Calendar className="size-3.5" />
-          {assignment?.nextActionAt !== undefined ? "Izmeni sledeći korak" : "Sledeći korak"}
-        </Button>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 text-xs"
-          onClick={() => setDialog({ kind: "meeting" })}
-        >
-          {assignment?.meetingAt !== undefined ? (
-            <CalendarClock className="size-3.5" />
-          ) : (
-            <CalendarPlus className="size-3.5" />
-          )}
-          {assignment?.meetingAt !== undefined ? "Izmeni sastanak" : "Zakaži sastanak"}
-        </Button>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button variant="outline" size="sm" className="gap-1.5 text-xs" />}
-          >
-            <Tag className="size-3.5" />
-            Faza: {leadStageLabel(currentStage)}
-            <ChevronDown className="size-3 text-text-muted" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Promeni fazu</DropdownMenuLabel>
-            <StageMenuItems current={currentStage} onPick={pickStage} />
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 text-xs"
+          variant="secondary"
           onClick={() => setDialog({ kind: "outcome" })}
+          className="touch-target"
         >
-          <Activity className="size-3.5" />
+          <Activity data-icon="inline-start" aria-hidden />
           Zabeleži ishod
         </Button>
 
+        <Button
+          variant="secondary"
+          onClick={() => setDialog({ kind: "meeting" })}
+          className="touch-target"
+        >
+          {imaSastanak ? (
+            <CalendarClock data-icon="inline-start" aria-hidden />
+          ) : (
+            <CalendarPlus data-icon="inline-start" aria-hidden />
+          )}
+          {imaSastanak ? "Izmeni sastanak" : "Zakaži sastanak"}
+        </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={<Button variant="outline" size="sm" className="gap-1.5 text-xs" />}
+            render={<Button variant="outline" className="touch-target" />}
           >
-            <Users className="size-3.5" />
-            {assignment ? (isMine ? "Vlasnik: ti" : "Vlasnik: član tima") : "Bez vlasnika"}
-            <ChevronDown className="size-3 text-text-muted" />
+            Još radnji
+            <ChevronDown data-icon="inline-end" aria-hidden />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            {user?.id && !isMine && (
-              <DropdownMenuItem onClick={assignSelf}>
-                <UserCheck />
-                Dodeli meni
+          <DropdownMenuContent align="start" className="w-64">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Kontakt</DropdownMenuLabel>
+              {emails.length === 0 ? (
+                <DropdownMenuItem disabled>
+                  <Mail />
+                  Nema e-mail u bazi
+                </DropdownMenuItem>
+              ) : (
+                emails.map((c) => (
+                  <DropdownMenuItem key={c.value} render={<a href={mailHref(c.value)} />}>
+                    <Mail />
+                    <span>Piši</span>
+                    <span className="ml-auto truncate pl-3 text-micro text-text-muted">
+                      {c.value}
+                    </span>
+                  </DropdownMenuItem>
+                ))
+              )}
+              <DropdownMenuItem onClick={() => setDialog({ kind: "touch" })}>
+                <PhoneCall />
+                Zabeleži dodir…
               </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => setDialog({ kind: "assign" })}>
-              <Users />
-              Dodeli drugom…
-            </DropdownMenuItem>
-            {isMine && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Lead je dodeljen tebi.</DropdownMenuLabel>
-              </>
-            )}
+              <DropdownMenuItem onClick={() => setDialog({ kind: "nextAction" })}>
+                <Calendar />
+                {imaKorak ? "Izmeni sledeći korak…" : "Sledeći korak…"}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Stanje</DropdownMenuLabel>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Tag />
+                  Faza
+                  <span className="ml-auto pl-3 text-micro text-text-muted">
+                    {leadStageLabel(currentStage)}
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-56">
+                  <StageMenuItems current={currentStage} onPick={pickStage} />
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>
+                {assignment
+                  ? isMine
+                    ? "Vlasnik: ti"
+                    : "Vlasnik: član tima"
+                  : "Bez vlasnika"}
+              </DropdownMenuLabel>
+              {user?.id && !isMine && (
+                <DropdownMenuItem onClick={assignSelf}>
+                  <UserCheck />
+                  Dodeli meni
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => setDialog({ kind: "assign" })}>
+                <Users />
+                Dodeli drugom…
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -333,7 +346,7 @@ export function LeadActionBar({
             }
             onRecordOutcome={() => setDialog({ kind: "outcome" })}
             onNextStep={() => setDialog({ kind: "nextAction" })}
-            className="rounded-lg border border-line-soft bg-accent-400/5 px-3.5 py-2.5"
+            className="rounded-lg border border-mod-line bg-mod-soft px-3.5 py-2.5"
           />
         </Unfold>
       )}

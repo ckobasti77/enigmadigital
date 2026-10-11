@@ -34,10 +34,13 @@ const GAP_PX = 4;
 export function ChipOverflow({
   items,
   size = "sm",
+  max,
   className,
 }: {
   items: ChipOverflowItem[];
   size?: ChipSize;
+  /** Najviše ovoliko čipova i kad bi ih stalo više; ostatak ide u „+N". */
+  max?: number;
   className?: string;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
@@ -60,6 +63,7 @@ export function ChipOverflow({
       let used = 0;
       let count = 0;
       for (let i = 0; i < chips.length; i++) {
+        if (max !== undefined && count >= max) break;
         const width = chips[i].offsetWidth + (i > 0 ? GAP_PX : 0);
         // Poslednji čip ne mora da ostavi mesto za „+N".
         const reserve = i === chips.length - 1 ? 0 : moreWidth;
@@ -74,7 +78,7 @@ export function ChipOverflow({
     const observer = new ResizeObserver(fit);
     observer.observe(row);
     return () => observer.disconnect();
-  }, [items, size]);
+  }, [items, size, max]);
 
   if (items.length === 0) return null;
 

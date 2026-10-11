@@ -298,7 +298,7 @@ export function SiteAuditPanel({
                       className={cn(
                         "inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-micro font-medium transition-colors",
                         strategija === id
-                          ? "bg-surface text-accent-400 shadow-(--elev-1)"
+                          ? "bg-surface text-mod shadow-(--elev-1)"
                           : "text-text-muted hover:text-foreground",
                         !ima && "cursor-not-allowed opacity-50",
                       )}
@@ -458,7 +458,7 @@ export function SiteAuditPanel({
                 </div>
                 <div className="flex flex-col gap-1">
                   <span className="text-micro text-text-muted">Preporučena ponuda</span>
-                  <span className="inline-flex w-fit rounded-md border border-accent-400/40 bg-accent-400/10 px-2 py-0.5 text-xs font-semibold text-accent-400">
+                  <span className="inline-flex w-fit rounded-md border border-mod-line bg-mod-soft px-2 py-0.5 text-xs font-semibold text-mod">
                     {ponudaNatpis(claude.preporucenaPonuda)}
                   </span>
                 </div>
@@ -543,7 +543,7 @@ export function SiteAuditPanel({
                       target="_blank"
                       rel="noreferrer"
                       title="Otvori snimak u punoj veličini"
-                      className="group relative block max-h-72 overflow-hidden rounded-lg border border-line bg-surface-raised transition-colors hover:border-accent-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                      className="group relative block max-h-72 overflow-hidden rounded-lg border border-line bg-surface-raised transition-colors hover:border-mod focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                     >
                       {/* Vrh stranice: snimak je full-page, pa se seče na 18rem; ceo je iza klika. */}
                       {/* eslint-disable-next-line @next/next/no-img-element -- potpisan Convex storage URL, bez poznatih dimenzija */}
@@ -599,7 +599,7 @@ export function SiteAuditPanel({
                       className={cn(
                         "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2 py-1 text-micro transition-colors",
                         aktivna
-                          ? "border-accent-400 bg-accent-400/10 text-accent-400"
+                          ? "border-mod bg-mod-soft text-mod"
                           : "border-line bg-surface-raised text-text-muted hover:border-line-strong hover:text-foreground",
                       )}
                     >

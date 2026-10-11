@@ -529,5 +529,40 @@ proveri(
 );
 
 // ---------------------------------------------------------------------------
+console.log("\n12. Leadovi u sistemu 2.0 (UI Boost §4.4, §4.5)");
+// ---------------------------------------------------------------------------
+
+// Panel mape je do B7 pulsirao bez kraja i nosio oreol u boji temperature.
+// Beskonacna animacija na radnom ekranu je sum, a oreol nije senka.
+const mapPanel = citaj("components", "app", "leadovi", "leads-map-panel.tsx");
+proveri(
+  "panel mape: nema beskonacnog pulsa",
+  !/repeat:\s*-1/.test(mapPanel) && !mapPanel.includes("yoyo"),
+  "leads-map-panel.tsx i dalje ima repeat: -1 ili yoyo",
+);
+proveri(
+  "panel mape: senka sa pomerajem, ne oreol (0 0 Npx)",
+  !/boxShadow:[^\n]*\b0 0 /.test(mapPanel) && /0 12px 30px -16px/.test(mapPanel),
+  "senka panela je i dalje oreol",
+);
+proveri(
+  "panel mape: ulazak ima granu za reduced-motion",
+  mapPanel.includes("gsap.matchMedia()") && /conditions\?\.still/.test(mapPanel),
+  "nema grane za prefers-reduced-motion",
+);
+
+// Radnje u redu tabele se pojavljuju prelazom neprozirnosti (bez pomeraja),
+// i uvek su vidljive tamo gde hover ne postoji.
+const rowActions = citaj("components", "app", "leadovi", "lead-row-actions.tsx");
+proveri(
+  "radnje u redu: tihe dok red miruje, vidljive na hover, fokus i na dodir",
+  rowActions.includes("group-hover/row:opacity-100") &&
+    rowActions.includes("group-focus-within/row:opacity-100") &&
+    rowActions.includes("[@media(hover:none)]:opacity-100") &&
+    rowActions.includes("duration-(--duration-fast)"),
+  "nedostaje neko od stanja u kojima se radnje vide",
+);
+
+// ---------------------------------------------------------------------------
 console.log(pao === 0 ? "\nSVE PROLAZI\n" : `\n${pao} PROVERA NIJE PROSLA\n`);
 process.exit(pao === 0 ? 0 : 1);

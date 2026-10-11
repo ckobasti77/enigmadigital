@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FeedbackNote } from "@/components/app/feedback";
+import { TemperatureChip } from "@/components/app/system/chip";
+import { Monogram } from "@/components/app/system/monogram";
 import { useWorkspace } from "@/components/app/workspace-provider";
 import { useNow } from "@/components/app/use-now";
 import { DUR_REDUCED, DUR_UI, EASE_UI, MOTION_QUERIES } from "@/lib/motion";
@@ -38,9 +40,10 @@ gsap.registerPlugin(useGSAP);
  * je „srednje težine" (kartica), bez prebačaja. Pod `prefers-reduced-motion`
  * samo kratak fade.
  *
- * Panel svetluca (pulsira meki sjaj + tinta ivice) u BOJI TEMPERATURE firme na
- * koju je čovek kliknuo — vizuelno vezuje panel za obojeni pin. Pod
- * `prefers-reduced-motion` sjaj je statičan (bez pulsa).
+ * Ivica i senka panela su u BOJI TEMPERATURE firme na koju je čovek kliknuo —
+ * to vizuelno vezuje panel za obojeni pin. Do B7 je sjaj pulsirao bez kraja i
+ * bio oreol; sistem 2.0 ne dozvoljava ni jedno ni drugo, pa je sada tiha
+ * senka sa pomerajem. Boje pinova i klastera na samoj mapi nisu dirane.
  */
 
 export function LeadsMapPanel({
@@ -52,7 +55,7 @@ export function LeadsMapPanel({
 }: {
   workspaceId: Id<"workspaces">;
   companyId: Id<"leadCompanies">;
-  /** Temperatura izabrane firme — boja u kojoj panel svetluca. */
+  /** Temperatura izabrane firme — boja ivice i senke panela. */
   temperatura?: Temperatura;
   onClose: () => void;
   className?: string;
@@ -94,29 +97,6 @@ export function LeadsMapPanel({
     { scope: ref, dependencies: [companyId] },
   );
 
-  // Svetlucanje panela u boji temperature (ambijentni sloj). Animira samo
-  // `--sjaj` (jačinu sjaja), koji box-shadow čita — bez alokacija, jedan
-  // element. Pod reduced-motion: statičan sjaj, bez pulsa.
-  useGSAP(
-    () => {
-      const el = ref.current;
-      if (!el || !boja) return;
-      const mm = gsap.matchMedia();
-      mm.add(MOTION_QUERIES, (ctx) => {
-        if (ctx.conditions?.still) {
-          gsap.set(el, { "--sjaj": 0.6 });
-          return;
-        }
-        gsap.fromTo(
-          el,
-          { "--sjaj": 0.35 },
-          { "--sjaj": 1, duration: 1.15, ease: "sine.inOut", repeat: -1, yoyo: true },
-        );
-      });
-    },
-    { scope: ref, dependencies: [companyId, boja] },
-  );
-
   const item = data?.item as LeadRowItem | null | undefined;
   const company = item?.company ?? null;
 
@@ -132,13 +112,15 @@ export function LeadsMapPanel({
         "flex flex-col overflow-hidden rounded-xl border border-line bg-surface/95 text-xs shadow-(--elev-3) backdrop-blur-md",
         className,
       )}
-      // Ivica u tinti temperature + meki sjaj čija jačina (`--sjaj`) pulsira
-      // (GSAP gore). Inline nadjačava `border-line`/`shadow-(--elev-3)`.
+      // Ivica u tinti temperature i tiha senka iste boje, sa pomerajem (UI
+      // Boost §4.5: nikad oreol, nikad beskonačan puls). Temperatura je stanje,
+      // pa boja ostaje — nosi je i čip u panelu. Inline nadjačava
+      // `border-line` / `shadow-(--elev-3)`.
       style={
         boja
           ? {
               borderColor: `color-mix(in srgb, ${boja} 45%, var(--line))`,
-              boxShadow: `var(--elev-3), 0 0 calc(var(--sjaj, 0.5) * 22px) calc(var(--sjaj, 0.5) * 1px) ${boja}`,
+              boxShadow: `var(--elev-3), 0 12px 30px -16px ${boja}`,
             }
           : undefined
       }
@@ -148,7 +130,8 @@ export function LeadsMapPanel({
     >
       <TooltipProvider delay={150}>
         {/* Zaglavlje */}
-        <div className="flex items-start gap-2 border-b border-line bg-surface-raised/40 px-3.5 py-3">
+        <div className="flex items-start gap-2.5 border-b border-line bg-surface-raised/40 px-3.5 py-3">
+          {company && <Monogram name={company.name} className="mt-0.5" />}
           <div className="min-w-0 flex-1">
             {data === undefined ? (
               <>
@@ -161,7 +144,7 @@ export function LeadsMapPanel({
               <>
                 <Link
                   href={`/leadovi/${companyId}`}
-                  className="line-clamp-2 text-sm font-semibold text-foreground hover:text-accent-400"
+                  className="line-clamp-2 text-copy font-bold text-foreground underline-offset-2 hover:text-mod hover:underline"
                 >
                   {company?.name ?? "Nepoznata firma"}
                 </Link>
@@ -173,6 +156,9 @@ export function LeadsMapPanel({
                     </span>
                   )}
                   {item && <StageChip stage={item.assignment.stage} className="text-micro" />}
+                  {temperatura && temperatura !== "nova_firma" && (
+                    <TemperatureChip temperatura={temperatura} size="sm" />
+                  )}
                 </div>
               </>
             )}
@@ -237,7 +223,7 @@ export function LeadsMapPanel({
             }
             onRecordOutcome={() => openDialog("outcome")}
             onNextStep={() => openDialog("nextAction")}
-            className="border-b border-line-soft bg-accent-400/5 px-3.5 py-2.5"
+            className="border-b border-line-soft bg-mod-soft px-3.5 py-2.5"
           />
         )}
 

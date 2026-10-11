@@ -443,6 +443,31 @@ ne pomera; merač se pomeri kad se vrednost promeni.
   pokret je kartica koja doklizi kad dođe sledeća firma (200 ms, `--ease-ui`).
   Tasteri: `P`, `1–4`, `N`, `Esc`; uz dugmad stoje kao `kbd`, na telefonu ne.
 
+### Leadovi: tabela, profil, uvoz, mapa
+- **Tabela.** Širine kolona su podatak (`LEAD_COLUMN_WIDTH`), ne klase: „Firma"
+  ima bar 220 px (monogram u boji niše, naziv 15 px / 700, ispod grad · niša).
+  „Zašto" su čipovi u boji kategorije koji se ne seku (`ChipOverflow`, najviše
+  tri, ostatak „+N"). Kolona čija je vrednost ista u ≥ 90 % redova se sama
+  sakriva, uz napomenu iznad tabele („Sakriveno: Vlasnik — svima „Ti"") i
+  dugme koje je vraća; „Firma" i „Akcije" se ne sakrivaju. Radnje u redu su
+  ghost ikonice vidljive na hover ili fokus; puno dugme nosi samo aktivni red
+  (kursor tastature, ili prvi red). Od 1536 px zaglavlje se lepi ispod gornje
+  trake.
+- **Filteri.** Svaka od četiri uvek vidljive grupe ima svoju boju iz
+  kategorijalne palete (tačka uz naziv grupe, uključen čip u toj boji).
+- **Profil firme.** Zaglavlje sa aurom u boji temperature (radijalni gradijent
+  iz ugla, 14 %), monogram, Fit i Intent kao prstenovi. Fokus je „Šta je
+  sledeće" sa jednim primarnim („Pozovi"), dva prateća („Zabeleži ishod",
+  „Zakaži sastanak") i „Još radnji". Istorija je osa: linija, tačka u boji
+  vrste događaja, tekst bez okvira.
+- **Uvoz.** Koraci: urađeno zeleno sa kvačicom, tekuće u boji modula sa brojem,
+  sledeće sivo. Fokus početne strane je spisak uvoza koji čekaju pregled —
+  primarno „Nastavi pregled" ima samo najstariji. Pored je merač Čistoća uvoza
+  sa „Reši preostale (N)".
+- **Mapa.** Pinovi i klasteri ostaju temperatura. Panel izabrane firme ima
+  ivicu i tihu senku u boji temperature — bez pulsa i bez oreola.
+- **`TabNav`.** Podvlaka aktivnog jezička je u boji modula.
+
 ### Motion
 GSAP `useGSAP` unutar `gsap.matchMedia()` sa granom za reduced-motion.
 „Corporate" za ceo UI: `--ease-ui` (`cubic-bezier(.2,.8,.2,1)`), 100 ms

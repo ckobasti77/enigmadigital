@@ -165,7 +165,7 @@ export function LeadGapFillDialog({
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <DialogHeader>
             <div className="flex items-center gap-2">
-              <div className="flex size-8 items-center justify-center rounded-lg border border-accent-400/40 bg-accent-400/10 text-accent-400">
+              <div className="flex size-8 items-center justify-center rounded-lg border border-mod-line bg-mod-soft text-mod">
                 <Building2 className="size-4" />
               </div>
               <div>
@@ -233,7 +233,7 @@ export function LeadGapFillDialog({
                             | "nepoznato",
                         )
                       }
-                      className="h-8 rounded-lg border border-line bg-surface px-2.5 text-xs text-foreground outline-none focus:border-accent-400"
+                      className="h-8 rounded-lg border border-line bg-surface px-2.5 text-xs text-foreground outline-none focus:border-mod"
                     >
                       <option value="vlasnik">Vlasnik</option>
                       <option value="direktor">Direktor</option>
@@ -276,7 +276,7 @@ export function LeadGapFillDialog({
                             | "nepoznato",
                         )
                       }
-                      className="h-8 rounded-lg border border-line bg-surface px-2.5 text-xs text-foreground outline-none focus:border-accent-400"
+                      className="h-8 rounded-lg border border-line bg-surface px-2.5 text-xs text-foreground outline-none focus:border-mod"
                     >
                       <option value="vlasnik">Vlasnik</option>
                       <option value="direktor">Direktor</option>
@@ -323,7 +323,7 @@ export function LeadGapFillDialog({
             {gapType === "bez_vlasnika" && (
               <div className="rounded-xl border border-line bg-surface p-3.5">
                 <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                  <UserCheck className="size-4 text-accent-400" />
+                  <UserCheck className="size-4 text-mod" />
                   <span>Preuzimanje vlasništva nad leadom</span>
                 </div>
                 <p className="mt-1 text-xs text-text-muted">
@@ -340,7 +340,7 @@ export function LeadGapFillDialog({
               gapType === "bez_pib") && (
               <div className="rounded-xl border border-line bg-surface p-3 space-y-3">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                  <ShieldCheck className="size-3.5 text-accent-400" />
+                  <ShieldCheck className="size-3.5 text-mod" />
                   <span>Pravni osnov i poreklo podatka (ZZPL)</span>
                 </div>
 
@@ -353,7 +353,7 @@ export function LeadGapFillDialog({
                     <select
                       value={lawfulBasis}
                       onChange={(e) => setLawfulBasis(e.target.value)}
-                      className="h-8 rounded-lg border border-line bg-surface-raised px-2 text-xs text-foreground outline-none focus:border-accent-400"
+                      className="h-8 rounded-lg border border-line bg-surface-raised px-2 text-xs text-foreground outline-none focus:border-mod"
                     >
                       {LAWFUL_BASIS_OPTIONS.map((opt) => (
                         <option key={opt.value} value={opt.value}>

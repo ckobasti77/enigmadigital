@@ -34,6 +34,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FeedbackNote } from "@/components/app/feedback";
 import { Chip } from "@/components/app/system/chip";
+import { ChipOverflow } from "@/components/app/system/chip-overflow";
+import { Monogram } from "@/components/app/system/monogram";
 import { SegmentedToggle } from "@/components/app/analytics/segmented-toggle";
 import { useWorkspace } from "@/components/app/workspace-provider";
 import { useNow } from "@/components/app/use-now";
@@ -52,14 +54,22 @@ import { PhoneConfidenceRing } from "./phone-confidence";
 import { SiteStatusBadge } from "./site-status-badge";
 import { useLeadFilters } from "./use-lead-filters";
 import { LeadRowDialogs, type LeadRowDialogState } from "./lead-row-dialogs";
-import { leadSignalLabel } from "./lead-labels";
+import { leadSignalLabel, leadSignalShortLabel } from "./lead-labels";
 import {
+  EXPAND_COLUMN_PX,
+  LEAD_COLUMNS,
   LEAD_COLUMN_LABEL,
+  LEAD_COLUMN_WIDTH,
+  ZASTO_MAX,
+  columnValues,
   nextStep,
   phoneSummary,
+  sameValueColumns,
   siteSummary,
-  zastoSignals,
+  zastoSorted,
+  type LeadColumnKey,
 } from "./lead-columns";
+import { signalSlot } from "@/lib/signal-colors";
 import {
   ROW_EDGE_CLASS,
   rowEdge,
@@ -113,6 +123,7 @@ function SortButton({
   direction,
   onSort,
   title,
+  compact = false,
 }: {
   label: string;
   sortKey: SortKey;
@@ -120,6 +131,8 @@ function SortButton({
   direction: SortDirection;
   onSort: (key: SortKey) => void;
   title?: string;
+  /** Zaglavlje sa dva ključa u uskoj koloni: strelica se crta tek kad je ključ aktivan. */
+  compact?: boolean;
 }) {
   const active = activeKey === key;
   return (
@@ -136,11 +149,11 @@ function SortButton({
       <span>{label}</span>
       {active ? (
         direction === "asc" ? (
-          <ArrowUp className="size-3.5 text-accent-400" />
+          <ArrowUp className="size-3.5 text-mod" />
         ) : (
-          <ArrowDown className="size-3.5 text-accent-400" />
+          <ArrowDown className="size-3.5 text-mod" />
         )
-      ) : (
+      ) : compact ? null : (
         <ArrowUpDown className="size-3 opacity-40" />
       )}
     </button>
@@ -151,47 +164,58 @@ function SortButton({
 // Ćelije — svaka crta TAČNO ono što `lead-columns.ts` opisuje kao string
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** „Zašto": do tri stvarna signala kao čipovi + „+N". Bez signala — „—". */
+/**
+ * „Zašto": do tri stvarna signala kao čipovi u boji svoje kategorije, ostatak
+ * kao „+N". Bez signala — „—".
+ *
+ * U tabeli (`row`) čip se NE seče: stane ceo ili ga nema (`ChipOverflow` meri
+ * širinu), a natpis je kratak oblik — pun je u oblačiću. Na kartici (`wrap`)
+ * čipovi se prelamaju, pa nose pun natpis.
+ */
 function ZastoCell({
   item,
-  size,
-  layout = size === "md" ? "stack" : "row",
+  layout,
 }: {
   item: LeadRowItem;
-  size: "sm" | "md";
-  /** `stack` = jedan ispod drugog (udobna tabela), `row` = jedan red bez prelamanja (kompaktno), `wrap` = kartica. */
-  layout?: "stack" | "row" | "wrap";
+  layout: "row" | "wrap";
 }) {
-  const { shown, rest } = zastoSignals(item);
-  if (shown.length === 0) return <Dash />;
-  // Udobno: čipovi jedan ispod drugog (svaki ceo, skraćen na širinu kolone);
-  // kompaktno: jedan red, bez prelamanja — višak ide u „+N" i u `title`.
+  // Niz signala je nov pri svakom očitavanju upita; ključ čuva merenje od
+  // ponavljanja dok se sami signali ne promene.
+  const kljuc = item.signali.join("|");
+  const svi = useMemo(
+    () => zastoSorted(item),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [kljuc],
+  );
+  const stavke = useMemo(
+    () =>
+      svi.map((kind) => ({
+        key: kind,
+        label: leadSignalShortLabel(kind),
+        category: signalSlot(kind),
+        title: leadSignalLabel(kind),
+      })),
+    [svi],
+  );
+  if (svi.length === 0) return <Dash />;
+
+  if (layout === "row") return <ChipOverflow items={stavke} max={ZASTO_MAX} />;
+
+  const prikazani = svi.slice(0, ZASTO_MAX);
+  const ostatak = svi.slice(ZASTO_MAX);
   return (
-    <div
-      className={cn(
-        "flex min-w-0 gap-1",
-        layout === "stack" && "flex-col items-start",
-        layout === "row" && "items-center overflow-hidden",
-        layout === "wrap" && "flex-wrap items-center",
-      )}
-    >
-      {shown.map((kind) => (
-        <Chip
-          key={kind}
-          size="sm"
-          tone="neutral"
-          className={cn("min-w-0", layout === "row" ? "max-w-28" : "max-w-full")}
-          title={leadSignalLabel(kind)}
-        >
+    <div className="flex min-w-0 flex-wrap items-center gap-1">
+      {prikazani.map((kind) => (
+        <Chip key={kind} size="sm" category={signalSlot(kind)} className="max-w-full">
           {leadSignalLabel(kind)}
         </Chip>
       ))}
-      {rest > 0 && (
+      {ostatak.length > 0 && (
         <span
           className="font-mono text-meta tabular-nums text-text-muted"
-          title={`još ${rest}: ${item.signali.slice(shown.length).map(leadSignalLabel).join(", ")}`}
+          title={`još ${ostatak.length}: ${ostatak.map(leadSignalLabel).join(", ")}`}
         >
-          +{rest}
+          +{ostatak.length}
         </span>
       )}
     </div>
@@ -223,7 +247,12 @@ function SiteCell({ item, size }: { item: LeadRowItem; size: "sm" | "md" }) {
       size="sm"
     />
   );
-  if (!s.href) return badge;
+  // Kompaktan red je jedan red visine: bedž sa dva dela („radi · bez HTTPS-a",
+  // pojas kvaliteta) ne ostavlja mesta za link, pa ostaje samo stanje — link
+  // je u proširenom redu i na profilu.
+  const dugBedz =
+    company.sajtHttps === false || typeof item.sajtOcena?.kvalitet === "number";
+  if (!s.href || (size === "sm" && dugBedz)) return badge;
   return (
     <div className={cn("flex min-w-0 gap-1", size === "md" ? "flex-col items-start" : "items-center")}>
       <LinkChip vrsta="website" size="sm" href={s.href} className="max-w-full" />
@@ -289,7 +318,10 @@ function Dash({ title }: { title?: string }) {
   );
 }
 
-/** Firma: naziv (najteži element reda), pa grad · niša u drugom redu. */
+/**
+ * Firma: monogram u boji niše, naziv (najteži element reda, 15 px / 700), pa
+ * grad · niša u drugom redu. Kolona ima bar 220 px (`LEAD_COLUMN_WIDTH`).
+ */
 function CompanyCell({
   item,
   nisa,
@@ -301,37 +333,42 @@ function CompanyCell({
 }) {
   const company = item.company;
   const companyId = item.assignment.companyId;
+  const naziv = company ? company.name : "Nepoznata firma";
   const meta = [company?.city, nisa].filter(Boolean).join(" · ");
   return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <Link
-          href={`/leadovi/${companyId}`}
-          title={company?.name}
-          className={cn(
-            "truncate font-bold text-foreground transition-colors hover:text-accent-400 hover:underline",
-            size === "md" ? "text-copy" : "text-ui",
+    <div className="flex min-w-0 items-center gap-2.5">
+      <Monogram name={naziv} seed={nisa} size={size === "md" ? "md" : "sm"} />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Link
+            href={`/leadovi/${companyId}`}
+            title={company?.name}
+            className={cn(
+              "truncate font-bold text-foreground underline-offset-2 transition-colors hover:text-mod hover:underline",
+              size === "md" ? "text-copy" : "text-ui",
+            )}
+          >
+            {naziv}
+          </Link>
+          {company?.origin === "inbound" && (
+            <Chip size="sm" tone="module">
+              Inbound
+            </Chip>
           )}
-        >
-          {company ? company.name : "Nepoznata firma"}
-        </Link>
-        {company?.origin === "inbound" && (
-          <Chip size="sm" tone="accent">
-            Inbound
-          </Chip>
-        )}
-        {size === "sm" && meta && (
-          <span className="truncate text-meta text-text-muted">· {meta}</span>
+          {size === "sm" && meta && (
+            // Naziv deli red sa gradom i nišom: oni dobijaju samo ono što ostane.
+            <span className="min-w-0 flex-1 truncate text-meta text-text-muted">· {meta}</span>
+          )}
+        </div>
+        {size === "md" && (
+          <span className="truncate text-meta text-text-muted">
+            {meta || "—"}
+            {company?.addressNeedsVerification && (
+              <span className="text-warning"> · proveriti adresu</span>
+            )}
+          </span>
         )}
       </div>
-      {size === "md" && (
-        <span className="truncate text-meta text-text-muted">
-          {meta || "—"}
-          {company?.addressNeedsVerification && (
-            <span className="text-warning"> · proveriti adresu</span>
-          )}
-        </span>
-      )}
     </div>
   );
 }
@@ -348,8 +385,8 @@ function ScoreCell({ score, size }: { score: LeadScore | undefined; size: "sm" |
   }
   return (
     <div className="flex w-full max-w-28 flex-col gap-1.5">
-      <LeadScoreCell axis="fit" score={score?.fit} variant="meter" />
-      <LeadScoreCell axis="intent" score={score?.intent} variant="meter" />
+      <LeadScoreCell axis="fit" score={score?.fit} variant="meter" className="min-w-0" />
+      <LeadScoreCell axis="intent" score={score?.intent} variant="meter" className="min-w-0" />
     </div>
   );
 }
@@ -380,6 +417,8 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
   // Red pod kursorom tastature (`j`/`k`); `null` dok se tastatura ne upotrebi.
   const [cursor, setCursor] = useState<string | null>(null);
   const [showKeys, setShowKeys] = useState(false);
+  // Kolone koje svima pišu isto se same sakrivaju; ovim ih čovek vraća.
+  const [prikaziSveKolone, setPrikaziSveKolone] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   const changeDensity = (next: Density) => {
@@ -397,16 +436,6 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
     strana: page,
     poStrani: PAGE_SIZE,
   });
-
-  // Vlasnik se crta SAMO kad posao stvarno dele DVA ili više vlasnika (O2) —
-  // inače je kolona koja svima piše isto („Ti" u svakom redu). Broj ČLANOVA
-  // nije dovoljan: prostor može imati usnulog admina ili `client_viewer`-a koji
-  // ne poseduje nijedan lead, pa bi `members.length > 1` lažno upalio kolonu
-  // iako jedan operater drži sve. Zato se broje samo članovi sa bar jednim
-  // leadom (`leadCount`, isti upit koristi ekran „Pristup").
-  const members = useQuery(api.membersStore.listMembers, { workspaceId });
-  const showOwner =
-    members !== undefined && members.filter((m) => m.leadCount > 0).length > 1;
 
   // Niša po firmi za ćeliju „Firma" (naziv + grad + niša). Red nosi samo
   // `nicheId`; imena stižu iz šifarnika koji čita i jezičak „Niše".
@@ -673,7 +702,37 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
   const cell = density === "compact" ? "px-2 py-0.5 align-middle leading-none" : "px-3 py-2.5 align-middle";
   const selfUserId = user?.id;
 
-  const columnCount = 8 + (showOwner ? 1 : 0);
+  // ── Kolone koje se same sakrivaju (F10) ──
+  // Kolona čija je vrednost ista u ≥ 90 % redova prikazanog preseka ne
+  // razdvaja redove — sakriva se, uz napomenu šta je u njoj pisalo. Meri se
+  // nad ISTIM stringovima koje tabela crta (`columnValues`), i tek kad stignu
+  // ocene: dok ih nema, „Fit / Intent" je svuda „—" i sakrio bi se bez razloga.
+  const oceneStigle = scores !== undefined || currentPageCompanyIds.length === 0;
+  const isteVrednosti = useMemo(() => {
+    if (!oceneStigle) return [];
+    return sameValueColumns(
+      sortedItems.map((item) =>
+        columnValues(
+          item,
+          item.company ? scores?.[item.company._id] : undefined,
+          now,
+          selfUserId,
+        ),
+      ),
+    );
+  }, [oceneStigle, sortedItems, scores, now, selfUserId]);
+  const sakriveno = useMemo(
+    () => new Set<LeadColumnKey>(prikaziSveKolone ? [] : isteVrednosti.map((c) => c.key)),
+    [prikaziSveKolone, isteVrednosti],
+  );
+  const vidi = (kolona: LeadColumnKey) => !sakriveno.has(kolona);
+  const showOwner = vidi("vlasnik");
+
+  const columnCount = 1 + LEAD_COLUMNS.filter(vidi).length;
+  // Puno dugme ima samo aktivni red: onaj pod kursorom tastature, ili prvi
+  // dok kursora nema (UI Boost §4.2). Ostali redovi nose ghost ikonice.
+  const aktivniRed = cursor ?? (sortedItems[0]?.assignment._id as string | undefined);
+  const sirina = (kolona: LeadColumnKey) => ({ width: LEAD_COLUMN_WIDTH[kolona] });
 
   const emptyMessage =
     aktivnihGrupa > 0
@@ -716,6 +775,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
         onOpenStageDialog={(stage) => setDialog({ kind: "stage", item, stage })}
         onError={setActionError}
         onFill={company ? () => setFillCompany(company) : undefined}
+        appearance={assignment._id === aktivniRed ? "full" : "icon"}
       />
     );
     const stateChip = company ? (
@@ -738,7 +798,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
         key={assignment._id}
         {...rowProps(assignment._id)}
         className={cn(
-          "group/row border-line border-l-4 outline-none transition-colors hover:bg-surface-raised has-aria-expanded:bg-surface-raised focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-400",
+          "group/row border-line border-l-4 outline-none transition-colors hover:bg-surface-raised has-aria-expanded:bg-surface-raised focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-mod",
           edgeClass,
           jeKursor && "bg-surface-raised/60",
           (isExpanded || stripPhone) && "border-b-0 bg-surface-raised",
@@ -770,29 +830,37 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
         </TableCell>
 
         {/* 2. Fit / Intent */}
-        <TableCell className={cell}>
-          <ScoreCell score={score} size={size} />
-        </TableCell>
+        {vidi("fitIntent") && (
+          <TableCell className={cell}>
+            <ScoreCell score={score} size={size} />
+          </TableCell>
+        )}
 
         {/* 3. Zašto */}
-        <TableCell className={cn(cell, "overflow-hidden")}>
-          <ZastoCell item={item} size={size} />
-        </TableCell>
+        {vidi("zasto") && (
+          <TableCell className={cn(cell, "overflow-hidden")}>
+            <ZastoCell item={item} layout="row" />
+          </TableCell>
+        )}
 
         {/* 4. Sajt */}
-        <TableCell className={cn(cell, "overflow-hidden")}>
-          <SiteCell item={item} size={size} />
-        </TableCell>
+        {vidi("sajt") && (
+          <TableCell className={cn(cell, "overflow-hidden")}>
+            <SiteCell item={item} size={size} />
+          </TableCell>
+        )}
 
         {/* 5. Telefon */}
-        <TableCell className={cn(cell, "whitespace-nowrap")}>
-          <PhoneCell item={item} />
-        </TableCell>
+        {vidi("telefon") && (
+          <TableCell className={cn(cell, "whitespace-nowrap")}>
+            <PhoneCell item={item} />
+          </TableCell>
+        )}
 
         {/* 6. Stanje */}
-        <TableCell className={cell}>{stateChip}</TableCell>
+        {vidi("stanje") && <TableCell className={cell}>{stateChip}</TableCell>}
 
-        {/* 7. Vlasnik — samo kad ima više članova */}
+        {/* 7. Vlasnik — sakriva se sam kad svima piše isto */}
         {showOwner && (
           <TableCell className={cn(cell, "text-meta text-text-muted")}>
             <span className="inline-flex items-center gap-1.5" title={String(assignment.ownerUserId)}>
@@ -805,9 +873,11 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
         )}
 
         {/* 8. Sledeći korak */}
-        <TableCell className={cn(cell, "overflow-hidden")}>
-          <NextStepCell item={item} now={now} size={size} />
-        </TableCell>
+        {vidi("sledeciKorak") && (
+          <TableCell className={cn(cell, "overflow-hidden")}>
+            <NextStepCell item={item} now={now} size={size} />
+          </TableCell>
+        )}
 
         {/* 9. Akcije — lepljivo desno */}
         <TableCell
@@ -836,7 +906,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
                 onScheduleMeeting={() => setDialog({ kind: "meeting", item, calledPhone: stripPhone })}
                 onRecordOutcome={() => openDialog("outcome")}
                 onNextStep={() => openDialog("nextAction")}
-                className="border-t border-line-soft bg-accent-400/5 px-4 py-2.5"
+                className="border-t border-line-soft bg-mod-soft px-4 py-2.5"
               />
             </Unfold>
           </TableCell>
@@ -886,7 +956,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
         {...rowProps(assignment._id)}
         aria-label={company?.name ?? "Nepoznata firma"}
         className={cn(
-          "flex flex-col gap-2.5 border-b border-l-4 border-line px-3 py-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-400",
+          "flex flex-col gap-2.5 border-b border-l-4 border-line px-3 py-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-mod",
           edgeClass,
           cursor === assignment._id && "bg-surface-raised/60",
         )}
@@ -910,7 +980,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
         {/* Jedan red: Fit · Intent · čipovi „zašto" (prelamaju se). */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <ScoreCell score={score} size="sm" />
-          <ZastoCell item={item} size="sm" layout="wrap" />
+          <ZastoCell item={item} layout="wrap" />
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-text-muted">
           <span className="inline-flex min-w-0 items-center gap-1">
@@ -969,7 +1039,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
               onScheduleMeeting={() => setDialog({ kind: "meeting", item, calledPhone: stripPhone })}
               onRecordOutcome={() => openDialog("outcome")}
               onNextStep={() => openDialog("nextAction")}
-              className="rounded-lg border border-line-soft bg-accent-400/5 px-3 py-2"
+              className="rounded-lg border border-mod-line bg-mod-soft px-3 py-2"
             />
           </Unfold>
         )}
@@ -1010,6 +1080,27 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
               od <strong className="font-mono tabular-nums text-foreground">{totalItems}</strong>{" "}
               {odsecenoNaGranici ? "pregledanih" : "u preseku"}
             </div>
+          )}
+          {isteVrednosti.length > 0 && (
+            <p className="hidden min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-meta text-text-muted md:flex">
+              <span>{prikaziSveKolone ? "Isto u svakom redu:" : "Sakriveno:"}</span>
+              {isteVrednosti.map((c, i) => (
+                <span key={c.key}>
+                  <span className="font-medium text-foreground">{LEAD_COLUMN_LABEL[c.key]}</span>
+                  {" — "}
+                  {c.share === 1 ? "svima" : `u ${Math.floor(c.share * 100)} % redova`} „{c.value}”
+                  {i < isteVrednosti.length - 1 ? " ·" : ""}
+                </span>
+              ))}
+              <button
+                type="button"
+                aria-pressed={prikaziSveKolone}
+                onClick={() => setPrikaziSveKolone((v) => !v)}
+                className="cursor-pointer font-medium text-mod underline-offset-2 hover:underline"
+              >
+                {prikaziSveKolone ? "Sakrij ih" : "Prikaži"}
+              </button>
+            </p>
           )}
           <div className="ml-auto flex items-center gap-2">
             <Button
@@ -1065,7 +1156,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
 
         {sortKey && (
           <div className="flex items-center gap-2 rounded-lg border border-line-soft bg-surface-raised/50 px-3 py-2 text-meta text-text-muted">
-            <Info className="size-3.5 shrink-0 text-accent-400" />
+            <Info className="size-3.5 shrink-0 text-mod" />
             <span>
               Sortiranje ({sortKey}, {sortDir === "asc" ? "rastuće" : "opadajuće"}) se
               primenjuje <strong>isključivo unutar prikazane strane od 25 leadova</strong>.
@@ -1088,61 +1179,70 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
         )}
 
         {/* Glavna tabela leadova (≥ md) */}
-        <Card className="hidden border-line bg-surface md:block">
-          {/* Širine su fiksne (`table-fixed`) da tabela STANE u karticu na
-              1440 px umesto da probija i krije kolone iza lepljivih Akcija;
-              ispod te širine kartica kliza, strana ne. */}
-          <CardContent className="overflow-x-auto p-0">
+        <Card className="hidden border-line bg-surface md:block 2xl:overflow-visible">
+          {/* Širine su fiksne (`table-fixed`, `LEAD_COLUMN_WIDTH`) da tabela
+              STANE u karticu na 1440 px umesto da probija i krije kolone iza
+              lepljivih Akcija; ispod te širine kartica kliza, strana ne.
+              Od 1536 px tabela sigurno staje, pa omotači više ne seku — i
+              zaglavlje može da se zalepi ispod gornje trake dok se lista
+              prelistava (25 redova je više od dva ekrana na 695 px visine). */}
+          <CardContent className="overflow-x-auto p-0 2xl:overflow-visible 2xl:[&_[data-slot=table-container]]:overflow-visible">
             <Table className={cn("table-fixed", density === "compact" ? "text-meta" : "text-ui")}>
-              <TableHeader>
-                <TableRow className="border-line bg-surface-raised/50 hover:bg-surface-raised/50">
-                  <TableHead className="w-8 border-l-4 border-l-transparent pr-0">
+              <TableHeader className="2xl:sticky 2xl:top-(--chrome-height) 2xl:z-10">
+                <TableRow className="border-line bg-[color-mix(in_srgb,var(--surface-raised)_50%,var(--surface))] hover:bg-[color-mix(in_srgb,var(--surface-raised)_50%,var(--surface))] 2xl:[&>th:first-child]:rounded-tl-xl 2xl:[&>th:last-child]:rounded-tr-xl">
+                  <TableHead style={{ width: EXPAND_COLUMN_PX }} className="border-l-4 border-l-transparent pr-0">
                     <span className="sr-only">Proširi</span>
                   </TableHead>
-                  <TableHead className={cn(headCls, "w-40")} aria-sort={sortKey === "name" ? (sortDir === "asc" ? "ascending" : "descending") : undefined}>
+                  <TableHead style={sirina("firma")} className={headCls} aria-sort={sortKey === "name" ? (sortDir === "asc" ? "ascending" : "descending") : undefined}>
                     <SortButton label={LEAD_COLUMN_LABEL.firma} sortKey="name" activeKey={sortKey} direction={sortDir} onSort={handleSort} />
                   </TableHead>
-                  <TableHead className={cn(headCls, "w-28")}>
-                    <span className="inline-flex items-center gap-1.5">
-                      <SortButton label="Fit" sortKey="fit" activeKey={sortKey} direction={sortDir} onSort={handleSort} />
-                      <span className="opacity-50">/</span>
-                      <SortButton label="Intent" sortKey="intent" activeKey={sortKey} direction={sortDir} onSort={handleSort} />
-                    </span>
-                  </TableHead>
-                  <TableHead className={cn(headCls, "w-40")}>
-                    <SortButton label={LEAD_COLUMN_LABEL.zasto} sortKey="signals" activeKey={sortKey} direction={sortDir} onSort={handleSort} title="Sortiraj po broju signala" />
-                  </TableHead>
-                  <TableHead className={cn(headCls, "w-36")}>{LEAD_COLUMN_LABEL.sajt}</TableHead>
-                  <TableHead className={cn(headCls, "w-24")}>{LEAD_COLUMN_LABEL.telefon}</TableHead>
-                  <TableHead className={cn(headCls, "w-36")}>{LEAD_COLUMN_LABEL.stanje}</TableHead>
-                  {showOwner && <TableHead className={cn(headCls, "w-20")}>{LEAD_COLUMN_LABEL.vlasnik}</TableHead>}
-                  <TableHead className={cn(headCls, "w-32 whitespace-normal")}>
-                    <span className="inline-flex flex-wrap items-center gap-x-1.5">
-                      <SortButton label={LEAD_COLUMN_LABEL.sledeciKorak} sortKey="nextAction" activeKey={sortKey} direction={sortDir} onSort={handleSort} />
-                      <span className="opacity-50">·</span>
-                      <SortButton label="dodir" sortKey="lastTouch" activeKey={sortKey} direction={sortDir} onSort={handleSort} title="Sortiraj po poslednjem dodiru" />
-                    </span>
-                  </TableHead>
-                  <TableHead className={cn(headCls, "sticky right-0 z-[2] w-40 border-l border-line-soft bg-[color-mix(in_srgb,var(--surface-raised)_50%,var(--surface))] text-right")}>
+                  {vidi("fitIntent") && (
+                    <TableHead style={sirina("fitIntent")} className={headCls}>
+                      <span className="inline-flex items-center gap-1">
+                        <SortButton compact label="Fit" sortKey="fit" activeKey={sortKey} direction={sortDir} onSort={handleSort} />
+                        <span className="opacity-50">/</span>
+                        <SortButton compact label="Intent" sortKey="intent" activeKey={sortKey} direction={sortDir} onSort={handleSort} />
+                      </span>
+                    </TableHead>
+                  )}
+                  {vidi("zasto") && (
+                    <TableHead style={sirina("zasto")} className={headCls}>
+                      <SortButton label={LEAD_COLUMN_LABEL.zasto} sortKey="signals" activeKey={sortKey} direction={sortDir} onSort={handleSort} title="Sortiraj po broju signala" />
+                    </TableHead>
+                  )}
+                  {vidi("sajt") && <TableHead style={sirina("sajt")} className={headCls}>{LEAD_COLUMN_LABEL.sajt}</TableHead>}
+                  {vidi("telefon") && <TableHead style={sirina("telefon")} className={headCls}>{LEAD_COLUMN_LABEL.telefon}</TableHead>}
+                  {vidi("stanje") && <TableHead style={sirina("stanje")} className={headCls}>{LEAD_COLUMN_LABEL.stanje}</TableHead>}
+                  {showOwner && <TableHead style={sirina("vlasnik")} className={headCls}>{LEAD_COLUMN_LABEL.vlasnik}</TableHead>}
+                  {vidi("sledeciKorak") && (
+                    <TableHead style={sirina("sledeciKorak")} className={cn(headCls, "whitespace-normal")}>
+                      <span className="inline-flex flex-wrap items-center gap-x-1.5">
+                        <SortButton compact label={LEAD_COLUMN_LABEL.sledeciKorak} sortKey="nextAction" activeKey={sortKey} direction={sortDir} onSort={handleSort} />
+                        <span className="opacity-50">·</span>
+                        <SortButton compact label="dodir" sortKey="lastTouch" activeKey={sortKey} direction={sortDir} onSort={handleSort} title="Sortiraj po poslednjem dodiru" />
+                      </span>
+                    </TableHead>
+                  )}
+                  <TableHead style={sirina("akcije")} className={cn(headCls, "sticky right-0 z-[2] border-l border-line-soft bg-[color-mix(in_srgb,var(--surface-raised)_50%,var(--surface))] text-right")}>
                     {LEAD_COLUMN_LABEL.akcije}
                   </TableHead>
                 </TableRow>
               </TableHeader>
 
-              <TableBody>
+              <TableBody className="2xl:[&>tr:last-child>td:last-child]:rounded-br-xl">
                 {isLoading ? (
                   Array.from({ length: 6 }).map((_, i) => (
                     <TableRow key={`skeleton-${i}`} className="border-line border-l-4 border-l-transparent">
                       <TableCell className={cell}><Skeleton className="size-5 rounded-md" /></TableCell>
-                      <TableCell className={cell}><Skeleton className="h-5 w-40" /></TableCell>
-                      <TableCell className={cell}><Skeleton className="h-8 w-28" /></TableCell>
-                      <TableCell className={cell}><Skeleton className="h-6 w-44" /></TableCell>
-                      <TableCell className={cell}><Skeleton className="h-6 w-28" /></TableCell>
+                      <TableCell className={cell}><Skeleton className="h-8 w-44" /></TableCell>
+                      <TableCell className={cell}><Skeleton className="h-8 w-20" /></TableCell>
+                      <TableCell className={cell}><Skeleton className="h-6 w-40" /></TableCell>
+                      <TableCell className={cell}><Skeleton className="h-6 w-24" /></TableCell>
                       <TableCell className={cell}><Skeleton className="h-4 w-14" /></TableCell>
                       <TableCell className={cell}><Skeleton className="h-6 w-28" /></TableCell>
                       {showOwner && <TableCell className={cell}><Skeleton className="h-4 w-10" /></TableCell>}
                       <TableCell className={cell}><Skeleton className="h-4 w-24" /></TableCell>
-                      <TableCell className={cn(cell, "sticky right-0 border-l border-line-soft bg-surface")}><Skeleton className="ml-auto h-7 w-28" /></TableCell>
+                      <TableCell className={cn(cell, "sticky right-0 border-l border-line-soft bg-surface")}><Skeleton className="ml-auto h-7 w-20" /></TableCell>
                     </TableRow>
                   ))
                 ) : sortedItems.length === 0 ? (

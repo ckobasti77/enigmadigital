@@ -42,6 +42,32 @@ export function leadSignalLabel(kind: string): string {
   return (LEAD_SIGNAL_LABELS as Record<string, string>)[kind] ?? `${kind} (nepoznat signal)`;
 }
 
+/**
+ * Kraći natpis za čip u uskoj koloni (B7). Čip se ne seče na pola reči, pa
+ * natpis duži od kolone ne bi stao uopšte; pun natpis ostaje u oblačiću.
+ * Signal bez kratkog oblika koristi pun.
+ */
+const LEAD_SIGNAL_SHORT: Partial<Record<LeadSignalKind, string>> = {
+  sajt_ne_radi: "sajt ne radi",
+  sajt_spor: "spor sajt",
+  sajt_los_seo: "loš SEO",
+  sajt_slab_ux: "slab UX sajta",
+  sajt_bez_puta_do_kontakta: "sajt bez kontakta",
+  sajt_zastarela_tehnologija: "zastareo sajt",
+  sajt_bez_zakazivanja: "bez zakazivanja",
+  koristi_third_party_booking: "tuđe zakazivanje",
+  visok_broj_recenzija: "mnogo recenzija",
+  novootvorena_firma: "nova firma",
+  landing_opened: "otvorio landing",
+  r_link_clicked: "kliknuo link",
+};
+
+export function leadSignalShortLabel(kind: string): string {
+  return (
+    (LEAD_SIGNAL_SHORT as Record<string, string>)[kind] ?? leadSignalLabel(kind)
+  );
+}
+
 /** Statusi uvoza — isti natpisi u istoriji i u pregledu staging-a. */
 export const IMPORT_STATUS_LABELS: Record<string, string> = {
   parsiran: "Parsiran",

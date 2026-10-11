@@ -186,7 +186,7 @@ export function ImportFilePicker({
         className={cn(
           "flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 text-center transition-colors",
           isDragging
-            ? "border-accent-400 bg-accent-400/10"
+            ? "border-mod bg-mod-soft"
             : "border-line bg-surface hover:border-line-strong",
         )}
       >
@@ -202,7 +202,7 @@ export function ImportFilePicker({
           }}
         />
 
-        <div className="flex size-12 items-center justify-center rounded-full border border-line-soft bg-surface-raised text-accent-400 mb-3">
+        <div className="flex size-12 items-center justify-center rounded-full border border-line-soft bg-surface-raised text-mod mb-3">
           <Upload className="size-6" />
         </div>
 
@@ -250,7 +250,7 @@ export function ImportFilePicker({
               </p>
             </div>
             <div className="text-right">
-              <span className="text-xs font-semibold text-accent-400">
+              <span className="text-xs font-semibold text-mod">
                 {parseResult.rows.length} spremnih redova
               </span>
             </div>
@@ -282,7 +282,7 @@ export function ImportFilePicker({
                     className={cn(
                       "flex flex-col items-start rounded-lg border p-2.5 text-left text-xs transition-colors",
                       isSelected
-                        ? "border-accent-400 bg-accent-400/10 ring-1 ring-accent-400"
+                        ? "border-mod bg-mod-soft ring-1 ring-mod-line"
                         : "border-line-soft bg-surface-raised hover:border-line",
                     )}
                   >
@@ -341,7 +341,7 @@ export function ImportFilePicker({
                 <button
                   type="button"
                   onClick={() => setSkippedExpanded(!skippedExpanded)}
-                  className="inline-flex items-center gap-1 text-accent-400 hover:underline"
+                  className="inline-flex items-center gap-1 text-mod hover:underline"
                 >
                   <span>{skippedExpanded ? "Sakrij detalje" : "Prikaži detalje"}</span>
                   {skippedExpanded ? (
@@ -401,7 +401,7 @@ export function ImportFilePicker({
               type="button"
               onClick={handleSendToStaging}
               disabled={isCreating || isTooLarge}
-              className="bg-accent-500 hover:bg-accent-600 text-text-inverse font-semibold"
+              variant="primary"
             >
               {isCreating ? (
                 <>

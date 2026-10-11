@@ -31,6 +31,7 @@ import { leadStageLabel } from "./lead-labels";
 import { getErrorMessage } from "./lead-quick-dialogs";
 import { useLeadFilters, type LeadFilters } from "./use-lead-filters";
 import { pluralSr } from "@/lib/format";
+import type { CategorySlot } from "@/lib/signal-colors";
 import { cn } from "@/lib/utils";
 
 /**
@@ -157,7 +158,29 @@ type ChipSpec = {
   title?: string;
 };
 
-function Chip({ label, count, active, onToggle, title }: Omit<ChipSpec, "key">) {
+/**
+ * Boja grupe filtera (B7): svaka od četiri uvek vidljive grupe ima svoju boju
+ * iz kategorijalne palete, pa se po uključenom čipu vidi KOJA dimenzija
+ * sužava presek, bez čitanja natpisa grupe. „Sajt" i „Platforme" nose istu
+ * boju kao istoimeni signali u koloni „Zašto" (`lib/signal-colors.ts`).
+ * Grupa bez boje koristi boju modula.
+ */
+const BOJA_GRUPE: Record<string, CategorySlot> = {
+  Sajt: 2,
+  "Kvalitet sajta": 6,
+  Telefon: 3,
+  Niša: 1,
+  Platforme: 5,
+};
+
+function Chip({
+  label,
+  count,
+  active,
+  onToggle,
+  title,
+  kategorija,
+}: Omit<ChipSpec, "key"> & { kategorija?: CategorySlot }) {
   const prazan = count === 0 && !active;
 
   if (prazan) {
@@ -179,10 +202,13 @@ function Chip({ label, count, active, onToggle, title }: Omit<ChipSpec, "key">) 
       aria-pressed={active}
       onClick={onToggle}
       title={title}
+      data-cat={kategorija}
       className={cn(
         "inline-flex cursor-pointer items-center gap-1 rounded-lg border px-2.5 py-1 text-meta font-medium transition-colors",
         active
-          ? "border-accent-400 bg-accent-400/15 text-accent-400 ring-1 ring-accent-400/40"
+          ? kategorija
+            ? "border-cat bg-cat-soft text-cat-ink ring-1 ring-cat-line"
+            : "border-mod bg-mod-soft text-mod ring-1 ring-mod-line"
           : "border-line bg-surface-raised text-text-muted hover:border-line-strong hover:text-foreground",
       )}
     >
@@ -218,17 +244,27 @@ function ChipGrupa({
   const prazni = chips.filter((c) => c.count === 0 && !c.active);
   const svePrazno = puni.length === 0 && prazni.length > 0;
   const vidljivi = prikaziPrazne ? chips : puni;
+  const kategorija = BOJA_GRUPE[naziv];
 
   return (
     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-baseline sm:gap-3">
-      <span className="w-32 shrink-0 text-meta font-semibold text-text-muted">
+      <span className="inline-flex w-32 shrink-0 items-center gap-1.5 text-meta font-semibold text-text-muted">
+        {kategorija && (
+          <span
+            aria-hidden
+            data-cat={kategorija}
+            className="size-1.5 shrink-0 rounded-full bg-cat"
+          />
+        )}
         {naziv}
       </span>
       <div className="flex flex-wrap items-center gap-1.5">
         {svePrazno && !prikaziPrazne ? (
           <span className="text-meta text-text-muted">{prazanTekst}</span>
         ) : (
-          vidljivi.map(({ key, ...c }) => <Chip key={key} {...c} />)
+          vidljivi.map(({ key, ...c }) => (
+            <Chip key={key} {...c} kategorija={kategorija} />
+          ))
         )}
         {prazni.length > 0 && (
           <button
@@ -648,7 +684,7 @@ export function LeadFilterBar({ workspaceId }: { workspaceId: Id<"workspaces"> }
           <SlidersHorizontal className="size-3.5" aria-hidden />
           Više filtera
           {uFioci > 0 && (
-            <span className="rounded bg-accent-400/15 px-1.5 font-mono text-meta font-bold tabular-nums text-accent-400">
+            <span className="rounded bg-mod-soft px-1.5 font-mono text-meta font-bold tabular-nums text-mod">
               {uFioci}
             </span>
           )}
@@ -679,7 +715,7 @@ export function LeadFilterBar({ workspaceId }: { workspaceId: Id<"workspaces"> }
             className={cn(
               "cursor-pointer rounded-lg border px-2 py-0.5 transition-colors",
               p.query === queryString
-                ? "border-accent-400 bg-accent-400/15 text-accent-400"
+                ? "border-mod bg-mod-soft text-mod"
                 : "border-dashed border-line bg-surface-raised text-text-muted hover:border-line-strong hover:text-foreground",
             )}
           >
@@ -695,7 +731,7 @@ export function LeadFilterBar({ workspaceId }: { workspaceId: Id<"workspaces"> }
               className={cn(
                 "inline-flex items-center rounded-lg border transition-colors",
                 p.query === queryString
-                  ? "border-accent-400 bg-accent-400/15 text-accent-400"
+                  ? "border-mod bg-mod-soft text-mod"
                   : "border-line bg-surface-raised text-text-muted hover:border-line-strong",
               )}
             >
@@ -845,7 +881,7 @@ export function LeadFilterBar({ workspaceId }: { workspaceId: Id<"workspaces"> }
               type="button"
               onClick={() => clearGroup(a.grupa)}
               title={`Skloni filter: ${a.tekst}`}
-              className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-accent-400/50 bg-accent-400/10 px-2 py-0.5 text-accent-400 transition-colors hover:border-accent-400"
+              className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-mod-line bg-mod-soft px-2 py-0.5 text-mod transition-colors hover:border-mod"
             >
               <span className="max-w-56 truncate">{a.tekst}</span>
               <X className="size-3 shrink-0" />

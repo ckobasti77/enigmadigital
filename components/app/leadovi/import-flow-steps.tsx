@@ -24,14 +24,14 @@ import { cn } from "@/lib/utils";
 
 const MARKER: Record<StanjeKoraka, string> = {
   gotov: "border-success/40 bg-success/10 text-success",
-  tekuci: "border-accent-400/60 bg-accent-400/15 text-accent-400",
+  tekuci: "border-mod-line bg-mod-soft text-mod",
   stao: "border-warning/50 bg-warning/10 text-warning",
   ceka: "border-line-soft bg-surface-raised text-text-muted",
 };
 
 const NASLOV: Record<StanjeKoraka, string> = {
   gotov: "text-foreground",
-  tekuci: "text-accent-400",
+  tekuci: "text-mod",
   stao: "text-warning",
   ceka: "text-text-muted",
 };

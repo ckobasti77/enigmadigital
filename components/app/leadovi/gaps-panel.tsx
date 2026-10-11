@@ -13,12 +13,12 @@ import {
   UserCheck,
   UserX,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/app/system/chip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
 import { leadGapLabel } from "./lead-labels";
 import { LeadGapFillDialog } from "./lead-gap-fill-dialog";
-import { PRIMARY_ACTION_CLASS } from "./lead-row-actions";
 import { WorkCard, WorkSection } from "./work-card";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -149,13 +149,13 @@ export function GapsPanel({ workspaceId }: GapsPanelProps) {
               className={cn(
                 "flex cursor-pointer flex-col items-start gap-1 rounded-xl border px-4 py-3 text-left transition-colors",
                 isSelected
-                  ? "border-accent-400 bg-surface-raised ring-1 ring-accent-400/40"
+                  ? "border-mod bg-surface-raised ring-1 ring-mod-line"
                   : "border-line bg-card hover:border-line-strong hover:bg-surface-raised/50",
               )}
             >
               <span className="flex w-full items-center gap-2 text-meta text-text-muted">
                 <Icon
-                  className={cn("size-3.5", isSelected && "text-accent-400")}
+                  className={cn("size-3.5", isSelected && "text-mod")}
                   aria-hidden
                 />
                 {card.label}
@@ -198,6 +198,7 @@ export function GapsPanel({ workspaceId }: GapsPanelProps) {
               edge={null}
               href={`/leadovi/${company._id}`}
               name={company.name}
+              monogram={{}}
               meta={[company.city, company.municipality, company.street]
                 .filter(Boolean)
                 .join(", ")}
@@ -236,14 +237,14 @@ export function GapsPanel({ workspaceId }: GapsPanelProps) {
                 </>
               }
               primary={
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setGapFillCompany(company)}
-                  className={PRIMARY_ACTION_CLASS}
                 >
-                  <ShieldAlert className="size-3.5" aria-hidden />
+                  <ShieldAlert data-icon="inline-start" aria-hidden />
                   Popuni rupu
-                </button>
+                </Button>
               }
             />
           );

@@ -167,6 +167,7 @@ export function OverduePanel({ workspaceId }: OverduePanelProps) {
               edge={rowEdge(item, now)}
               href={`/leadovi/${item.assignment.companyId}`}
               name={item.company?.name ?? "Nepoznata firma"}
+              monogram={{}}
               meta={[item.company?.city, item.company?.municipality]
                 .filter(Boolean)
                 .join(", ")}
@@ -218,7 +219,7 @@ export function OverduePanel({ workspaceId }: OverduePanelProps) {
                     }
                     onRecordOutcome={() => setDialog({ kind: "outcome", item })}
                     onNextStep={() => setDialog({ kind: "nextAction", item })}
-                    className="mt-2 rounded-lg border border-line-soft bg-accent-400/5 px-3 py-2"
+                    className="mt-2 rounded-lg border border-mod-line bg-mod-soft px-3 py-2"
                   />
                 </Unfold>
               )}

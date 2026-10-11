@@ -201,6 +201,29 @@ const EKRANI = [
     samoB: true,
   },
   { ime: "kontrolna-tabla-prazno", putanja: "/", prazno: true, samoB: true },
+  // B7: stanja Leadova koja se vide tek posle klika ili sa parametrom — vraćene
+  // sakrivene kolone, meni „Još radnji" na profilu, uvoz otvoren na nerazrešenim
+  // redovima (kuda vodi misija dana) i panel izabrane firme na mapi.
+  {
+    ime: "leadovi-tabela-kolone",
+    putanja: "/leadovi?tab=leads",
+    klik: ['button[aria-pressed="false"]:has-text("Prikaži")'],
+    viewporti: ["1536x695"],
+    samoB: true,
+  },
+  {
+    ime: "leadovi-profil-radnje",
+    putanja: `/leadovi/${LEAD_PROFIL_ID}`,
+    klik: ['button:has-text("Još radnji")'],
+    viewporti: ["1536x695"],
+    samoB: true,
+  },
+  { ime: "uvoz-nereseno", putanja: "/leadovi/uvoz?prikaz=nerazreseno", samoB: true },
+  {
+    ime: "leadovi-mapa-panel",
+    putanja: `/leadovi?tab=map&firma=${LEAD_PROFIL_ID}`,
+    samoB: true,
+  },
   // Prazna stanja kanala: `&prazno=1` vraća prazan nalog (bez veza, bez redova).
   { ime: "instagram-prazno", putanja: "/instagram", prazno: true, samoB: true },
   { ime: "analitika-prazno", putanja: "/analytics", prazno: true, samoB: true },

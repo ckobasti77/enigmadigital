@@ -43,7 +43,7 @@ const DECISION_LABELS: Record<
   nova_firma: {
     label: "Nova firma",
     description: "Kreira se novi unos firme, kontakt osoba i signali u bazi.",
-    className: "border-accent-400/40 text-accent-400 bg-accent-400/10",
+    className: "border-mod-line text-mod bg-mod-soft",
   },
   spoji: {
     label: "Dopuna postojeće firme",
@@ -302,7 +302,7 @@ export function ImportRowDialog({
       value: (
         <a
           href={`mailto:${parsed.email}`}
-          className="text-accent-400 hover:underline"
+          className="text-mod hover:underline"
         >
           {parsed.email}
         </a>
@@ -320,7 +320,7 @@ export function ImportRowDialog({
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-accent-400 hover:underline"
+          className="inline-flex items-center gap-1 text-mod hover:underline"
         >
           {parsed.sajt}
           <ExternalLink className="size-3 shrink-0" />
@@ -342,7 +342,7 @@ export function ImportRowDialog({
           href={parsed.companyWallUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-accent-400 hover:underline"
+          className="inline-flex items-center gap-1 text-mod hover:underline"
         >
           Link
           <ExternalLink className="size-3 shrink-0" />
@@ -370,7 +370,7 @@ export function ImportRowDialog({
         <span className="inline-flex items-center gap-1.5">
           {parsed.grad}
           {isGradDerived && (
-            <span className="rounded bg-accent-400/20 px-1.5 py-0.5 text-[10px] font-medium text-accent-400">
+            <span className="rounded bg-mod-soft px-1.5 py-0.5 text-[10px] font-medium text-mod">
               izvedeno
             </span>
           )}
@@ -604,8 +604,8 @@ export function ImportRowDialog({
 
               {/* Izveden podatak o gradu */}
               {isGradDerived && (
-                <div className="flex items-start gap-2 rounded-lg border border-accent-400/30 bg-accent-400/5 p-3 text-xs text-text-secondary">
-                  <Sparkles className="size-4 text-accent-400 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2 rounded-lg border border-mod-line bg-mod-soft p-3 text-xs text-text-secondary">
+                  <Sparkles className="size-4 text-mod shrink-0 mt-0.5" />
                   <div>
                     <span className="font-semibold text-text-primary">
                       Izveden podatak o gradu:{" "}
@@ -651,7 +651,7 @@ export function ImportRowDialog({
               className={cn(
                 "px-3.5 py-2 text-xs font-semibold transition-colors border-b-2 -mb-[1px] cursor-pointer",
                 activeTab === "podaci"
-                  ? "border-accent-400 text-accent-400"
+                  ? "border-mod text-mod"
                   : "border-transparent text-text-muted hover:text-text-secondary",
               )}
             >
@@ -663,7 +663,7 @@ export function ImportRowDialog({
               className={cn(
                 "px-3.5 py-2 text-xs font-semibold transition-colors border-b-2 -mb-[1px] cursor-pointer flex items-center gap-1.5",
                 activeTab === "sirovo"
-                  ? "border-accent-400 text-accent-400"
+                  ? "border-mod text-mod"
                   : "border-transparent text-text-muted hover:text-text-secondary",
               )}
             >
@@ -678,7 +678,7 @@ export function ImportRowDialog({
               className={cn(
                 "px-3.5 py-2 text-xs font-semibold transition-colors border-b-2 -mb-[1px] cursor-pointer",
                 activeTab === "trag"
-                  ? "border-accent-400 text-accent-400"
+                  ? "border-mod text-mod"
                   : "border-transparent text-text-muted hover:text-text-secondary",
               )}
             >
@@ -704,7 +704,7 @@ export function ImportRowDialog({
                         className="rounded-lg border border-line bg-surface p-3.5"
                       >
                         <div className="flex items-center gap-1.5 mb-2.5 pb-1.5 border-b border-line-soft">
-                          <GroupIcon className="size-3.5 text-accent-400" />
+                          <GroupIcon className="size-3.5 text-mod" />
                           <span className="text-micro font-semibold uppercase tracking-wider text-text-muted">
                             {group.title}
                           </span>
@@ -773,7 +773,7 @@ export function ImportRowDialog({
                                     href={formatUrl(val)}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-accent-400 hover:underline break-all font-normal"
+                                    className="inline-flex items-center gap-1 text-mod hover:underline break-all font-normal"
                                   >
                                     {val}
                                     <ExternalLink className="size-3 shrink-0 inline" />
@@ -781,7 +781,7 @@ export function ImportRowDialog({
                                 ) : isEmail(val) ? (
                                   <a
                                     href={`mailto:${val.trim()}`}
-                                    className="text-accent-400 hover:underline break-all font-normal"
+                                    className="text-mod hover:underline break-all font-normal"
                                   >
                                     {val}
                                   </a>
@@ -809,7 +809,7 @@ export function ImportRowDialog({
               {matchedCompanyId ? (
                 <div className="rounded-lg border border-line bg-surface p-3.5">
                   <div className="flex items-center gap-2 text-xs font-semibold text-text-primary mb-1">
-                    <Building2 className="size-4 text-accent-400 shrink-0" />
+                    <Building2 className="size-4 text-mod shrink-0" />
                     <span>Već postoji u bazi</span>
                   </div>
                   <p className="text-xs text-text-secondary mb-2.5">
@@ -824,7 +824,7 @@ export function ImportRowDialog({
                     href={`/leadovi/${matchedCompanyId}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-md border border-accent-400/40 bg-accent-400/10 px-3 py-1.5 text-xs font-semibold text-accent-400 hover:bg-accent-400/20 transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-mod-line bg-mod-soft px-3 py-1.5 text-xs font-semibold text-mod hover:bg-mod-soft transition-colors"
                   >
                     <span>Otvori profil firme u bazi</span>
                     <ExternalLink className="size-3.5" />
@@ -834,7 +834,7 @@ export function ImportRowDialog({
                 row.createdCompanyId ? (
                   <div className="rounded-lg border border-line bg-surface p-3.5">
                     <div className="flex items-center gap-2 text-xs font-semibold text-text-primary mb-1">
-                      <CheckCircle2 className="size-4 text-accent-400 shrink-0" />
+                      <CheckCircle2 className="size-4 text-mod shrink-0" />
                       <span>Napravljena je nova firma u bazi.</span>
                     </div>
                     <div className="mt-2.5">
@@ -842,7 +842,7 @@ export function ImportRowDialog({
                         href={`/leadovi/${row.createdCompanyId}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-md border border-accent-400/40 bg-accent-400/10 px-3 py-1.5 text-xs font-semibold text-accent-400 hover:bg-accent-400/20 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-mod-line bg-mod-soft px-3 py-1.5 text-xs font-semibold text-mod hover:bg-mod-soft transition-colors"
                       >
                         <span>Otvori profil firme</span>
                         <ExternalLink className="size-3.5" />
@@ -860,7 +860,7 @@ export function ImportRowDialog({
               ) : (
                 <div className="rounded-lg border border-line-soft bg-surface p-3.5 text-xs text-text-muted">
                   <div className="flex items-center gap-2 font-medium text-text-secondary">
-                    <CheckCircle2 className="size-4 text-accent-400 shrink-0" />
+                    <CheckCircle2 className="size-4 text-mod shrink-0" />
                     <span>Nema poklapanja u bazi</span>
                   </div>
                   <p className="mt-1 text-micro text-text-muted">
@@ -947,7 +947,7 @@ export function ImportRowDialog({
                         key={sig}
                         className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-raised px-2 py-0.5 text-micro font-medium text-text-secondary"
                       >
-                        <Sparkles className="size-3 text-accent-400" />
+                        <Sparkles className="size-3 text-mod" />
                         {leadSignalLabel(sig)}
                       </span>
                     ))}

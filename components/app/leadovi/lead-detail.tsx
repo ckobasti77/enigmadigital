@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -32,6 +32,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
+import { Chip } from "@/components/app/system/chip";
+import { Monogram } from "@/components/app/system/monogram";
+import { normalizeTemperatura, temperatureVar } from "@/lib/temperature";
+import { useNisaZa } from "./use-zovi-sada";
 import { useWorkspace } from "@/components/app/workspace-provider";
 import { useNow } from "@/components/app/use-now";
 import { LeadScoreCell } from "./lead-score-cell";
@@ -83,7 +87,7 @@ const NEXT_UP_TONE: Record<NextUpTone, { box: string; icon: typeof ArrowRight; i
   danger: { box: "border-danger/40 bg-danger/5", icon: CircleAlert, ink: "text-danger" },
   warning: { box: "border-warning/40 bg-warning/5", icon: CalendarClock, ink: "text-warning" },
   success: { box: "border-success/40 bg-success/5", icon: CircleCheck, ink: "text-success" },
-  neutral: { box: "border-line bg-surface", icon: ArrowRight, ink: "text-accent-400" },
+  neutral: { box: "border-mod-line bg-mod-soft", icon: ArrowRight, ink: "text-mod" },
   muted: { box: "border-line-soft bg-surface", icon: Compass, ink: "text-text-muted" },
 };
 
@@ -136,6 +140,8 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
   } | null>(null);
   const [temperatureError, setTemperatureError] = useState<string | null>(null);
   const setCompanyTemperatura = useMutation(api.leadCrmStore.setCompanyTemperatura);
+  // Niša daje boju monograma — ista kao u tabeli i na karticama.
+  const nisaZa = useNisaZa(workspaceId);
 
   // 1. Podaci o firmi, osobama, identitetima, signalima i poreklu
   const detail = useQuery(api.leadDetailStore.getLeadDetail, { workspaceId, companyId });
@@ -216,6 +222,7 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
 
   const company = detail.company;
   const assignment = crm.assignment;
+  const temperatura = normalizeTemperatura(company.temperatura);
   const prov = detail.provenanceByField;
 
   const overdue = assignment ? isNextActionOverdue(assignment, now) : false;
@@ -260,121 +267,123 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
         <span>Nazad na leadove</span>
       </Link>
 
-      {/* ── Zaglavlje: naziv, činjenice u jednom redu, „šta je sledeće”, radnje ── */}
+      {/* ── Zaglavlje (B7): ko je firma i u kom je stanju, pa JEDAN fokus —
+             „Šta je sledeće" sa jednim primarnim dugmetom. Aura u uglu nosi
+             temperaturu (stanje), ista boja kao ivica reda i pin na mapi. ── */}
       <Card className="overflow-hidden border-line bg-surface">
-        <div className="flex flex-col gap-4 border-b border-line bg-surface-raised/40 p-4 sm:p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex min-w-0 flex-col gap-2.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="break-words text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                  {company.name}
-                </h1>
-                <ProvenanceBadge
-                  provenance={prov.name ?? prov["leadCompanies:name"]}
-                  fieldName="Naziv firme"
-                  compact
-                />
-                <span
-                  className={cn(
-                    "rounded border px-2 py-0.5 text-micro font-semibold",
-                    company.origin === "inbound"
-                      ? "border-accent-400/30 bg-accent-400/10 text-accent-400"
-                      : "border-line bg-surface-raised text-text-muted",
-                  )}
-                >
-                  {company.origin === "inbound" ? "Inbound" : "Uvoz"}
-                </span>
-              </div>
-
-              {/* Jedan red činjenica (§8): grad · temperatura · faza · sledeći korak · sastanak · vlasnik */}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-muted">
-                {company.city ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="size-3.5 shrink-0" />
-                    {company.city}
-                    {company.municipality && `, ${company.municipality}`}
-                    {company.addressNeedsVerification && (
-                      <span className="text-warning">(proveriti adresu)</span>
-                    )}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="size-3.5 shrink-0" />
-                    grad nije zabeležen
-                  </span>
-                )}
-
-                <TemperatureSelect
-                  ariaLabel="Temperatura leada"
-                  value={company.temperatura}
-                  onChange={async (t) => {
-                    setTemperatureError(null);
-                    try {
-                      await setCompanyTemperatura({ workspaceId, companyId, temperatura: t });
-                    } catch (err) {
-                      setTemperatureError(getErrorMessage(err));
-                    }
-                  }}
-                />
-
-                <StageChip stage={assignment?.stage ?? "nov"} />
-
-                <span className="inline-flex items-center gap-1.5">
-                  <Calendar className={cn("size-3.5 shrink-0", overdue && "text-danger")} />
-                  {assignment?.nextActionAt !== undefined ? (
-                    <span className={overdue ? "font-semibold text-danger" : "font-medium text-foreground"}>
-                      {formatDayRelative(assignment.nextActionAt, now)} u{" "}
-                      {formatClockTime(assignment.nextActionAt)}
-                      {overdue && " · kasni"}
-                    </span>
-                  ) : (
-                    <span>nema sledećeg koraka</span>
-                  )}
-                </span>
-
-                <span className="inline-flex items-center gap-1.5">
-                  <CalendarClock
-                    className={cn(
-                      "size-3.5 shrink-0",
-                      meetingUnresolved ? "text-danger" : meetingSoon && "text-warning",
-                    )}
+        <div
+          style={{ "--aura": temperatureVar(temperatura) } as CSSProperties}
+          className="flex flex-col gap-4 bg-[radial-gradient(60%_130%_at_0%_0%,color-mix(in_oklab,var(--aura)_14%,transparent),transparent_72%)] p-4 sm:p-5"
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3.5">
+              <Monogram name={company.name} seed={nisaZa(company)} size="lg" className="mt-0.5" />
+              <div className="flex min-w-0 flex-col gap-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-metric font-bold break-words text-foreground">
+                    {company.name}
+                  </h1>
+                  <ProvenanceBadge
+                    provenance={prov.name ?? prov["leadCompanies:name"]}
+                    fieldName="Naziv firme"
+                    compact
                   />
-                  {assignment?.meetingAt !== undefined ? (
-                    <span
-                      className={cn(
-                        "font-medium",
-                        meetingUnresolved
-                          ? "text-danger"
-                          : meetingSoon
-                            ? "text-warning"
-                            : "text-foreground",
-                      )}
-                    >
-                      sastanak {formatDayRelative(assignment.meetingAt, now)} u{" "}
-                      {formatClockTime(assignment.meetingAt)}
-                      {meetingUnresolved && " · bez ishoda"}
-                    </span>
-                  ) : (
-                    <span>nema sastanka</span>
-                  )}
-                </span>
+                  <Chip size="sm" tone={company.origin === "inbound" ? "module" : "muted"}>
+                    {company.origin === "inbound" ? "Inbound" : "Uvoz"}
+                  </Chip>
+                </div>
 
-                <span className="inline-flex items-center gap-1.5" title={assignment ? String(assignment.ownerUserId) : undefined}>
-                  <User className="size-3.5 shrink-0" />
-                  {assignment ? (
-                    <span className={cn(isMine && "font-medium text-foreground")}>
-                      {isMine ? "vlasnik: ti" : "vlasnik: član tima"}
+                  {/* Jedan red činjenica (§8): grad · temperatura · faza · sledeći korak · sastanak · vlasnik */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-muted">
+                    {company.city ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <MapPin className="size-3.5 shrink-0" />
+                        {company.city}
+                        {company.municipality && `, ${company.municipality}`}
+                        {company.addressNeedsVerification && (
+                          <span className="text-warning">(proveriti adresu)</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5">
+                        <MapPin className="size-3.5 shrink-0" />
+                        grad nije zabeležen
+                      </span>
+                    )}
+
+                    <TemperatureSelect
+                      ariaLabel="Temperatura leada"
+                      value={company.temperatura}
+                      onChange={async (t) => {
+                        setTemperatureError(null);
+                        try {
+                          await setCompanyTemperatura({ workspaceId, companyId, temperatura: t });
+                        } catch (err) {
+                          setTemperatureError(getErrorMessage(err));
+                        }
+                      }}
+                    />
+
+                    <StageChip stage={assignment?.stage ?? "nov"} />
+
+                    <span className="inline-flex items-center gap-1.5">
+                      <Calendar className={cn("size-3.5 shrink-0", overdue && "text-danger")} />
+                      {assignment?.nextActionAt !== undefined ? (
+                        <span className={overdue ? "font-semibold text-danger" : "font-medium text-foreground"}>
+                          {formatDayRelative(assignment.nextActionAt, now)} u{" "}
+                          {formatClockTime(assignment.nextActionAt)}
+                          {overdue && " · kasni"}
+                        </span>
+                      ) : (
+                        <span>nema sledećeg koraka</span>
+                      )}
                     </span>
-                  ) : (
-                    <span>bez vlasnika</span>
-                  )}
-                </span>
+
+                    <span className="inline-flex items-center gap-1.5">
+                      <CalendarClock
+                        className={cn(
+                          "size-3.5 shrink-0",
+                          meetingUnresolved ? "text-danger" : meetingSoon && "text-warning",
+                        )}
+                      />
+                      {assignment?.meetingAt !== undefined ? (
+                        <span
+                          className={cn(
+                            "font-medium",
+                            meetingUnresolved
+                              ? "text-danger"
+                              : meetingSoon
+                                ? "text-warning"
+                                : "text-foreground",
+                          )}
+                        >
+                          sastanak {formatDayRelative(assignment.meetingAt, now)} u{" "}
+                          {formatClockTime(assignment.meetingAt)}
+                          {meetingUnresolved && " · bez ishoda"}
+                        </span>
+                      ) : (
+                        <span>nema sastanka</span>
+                      )}
+                    </span>
+
+                    <span className="inline-flex items-center gap-1.5" title={assignment ? String(assignment.ownerUserId) : undefined}>
+                      <User className="size-3.5 shrink-0" />
+                      {assignment ? (
+                        <span className={cn(isMine && "font-medium text-foreground")}>
+                          {isMine ? "vlasnik: ti" : "vlasnik: član tima"}
+                        </span>
+                      ) : (
+                        <span>bez vlasnika</span>
+                      )}
+                    </span>
+                  </div>
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2.5">
-              <LeadScoreCell axis="fit" score={score?.fit} className="w-32" />
-              <LeadScoreCell axis="intent" score={score?.intent} className="w-32" />
+            {/* Fit i Intent kao prstenovi; klik otvara doprinose pravila. */}
+            <div className="flex shrink-0 items-start gap-5">
+              <LeadScoreCell axis="fit" score={score?.fit} variant="ring" />
+              <LeadScoreCell axis="intent" score={score?.intent} variant="ring" />
             </div>
           </div>
 
@@ -384,31 +393,35 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
             </FeedbackNote>
           )}
 
-          {/* „Šta je sledeće” — jedna rečenica iz stanja (§8) */}
-          <div
+          {/* Fokus profila: „Šta je sledeće" — jedna rečenica iz stanja (§8) —
+              i odmah ispod radnje, od kojih je tačno jedna primarna. */}
+          <section
+            aria-label="Šta je sledeće"
             className={cn(
-              "flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-sm",
+              "flex flex-col gap-3.5 rounded-xl border p-3.5 sm:p-4",
               NEXT_UP_TONE[nextUp.tone].box,
             )}
-            role="status"
           >
-            <NextUpIcon className={cn("size-4 shrink-0", NEXT_UP_TONE[nextUp.tone].ink)} aria-hidden />
-            <p className="min-w-0">
-              <span className="text-text-muted">Šta je sledeće: </span>
-              <span className="font-medium text-foreground">{nextUp.text}</span>
-            </p>
-          </div>
-        </div>
-
-        <div className="p-3 sm:px-5 sm:py-3.5">
-          <LeadActionBar
-            workspaceId={workspaceId}
-            companyId={companyId}
-            companyName={company.name}
-            assignment={assignment}
-            phones={contacts.phones}
-            emails={contacts.emails}
-          />
+            <div className="flex items-start gap-2.5" role="status">
+              <NextUpIcon
+                className={cn("mt-0.5 size-5 shrink-0", NEXT_UP_TONE[nextUp.tone].ink)}
+                aria-hidden
+              />
+              <div className="min-w-0">
+                <p className="text-meta font-medium text-text-muted">Šta je sledeće</p>
+                <p className="text-copy font-medium text-foreground">{nextUp.text}</p>
+              </div>
+            </div>
+            <LeadActionBar
+              workspaceId={workspaceId}
+              companyId={companyId}
+              companyName={company.name}
+              assignment={assignment}
+              phones={contacts.phones}
+              emails={contacts.emails}
+              onAddPhone={() => setGapToFill("bez_telefona")}
+            />
+          </section>
         </div>
       </Card>
 
@@ -428,7 +441,7 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
             icon: Globe,
             badge:
               company.poslednjaOcenaSajtaAt !== undefined ? (
-                <span className="ml-0.5 inline-flex size-1.5 rounded-full bg-accent-400" aria-label="ocenjen" />
+                <span className="ml-0.5 inline-flex size-1.5 rounded-full bg-mod" aria-label="ocenjen" />
               ) : undefined,
           },
           { id: "landing", label: "Landing", icon: Send },
@@ -640,7 +653,7 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
                       href={company.companyWallUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-0.5 text-accent-400 hover:underline"
+                      className="inline-flex items-center gap-0.5 text-mod hover:underline"
                     >
                       Profil <ExternalLink className="size-2.5" />
                     </a>

@@ -111,7 +111,7 @@ export function TabNav<T extends string>({
         className={cn(
           "flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3.5 py-2 text-ui font-medium transition-colors",
           selected
-            ? "border-accent-400 text-foreground"
+            ? "border-mod text-foreground"
             : "border-transparent text-text-muted hover:border-line-soft hover:text-foreground",
         )}
       >

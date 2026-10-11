@@ -373,7 +373,7 @@ function EmptyScoring({
         )}
 
         <div className="rounded-2xl border border-line bg-surface/60 p-8 text-center">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-xl border border-accent-400/25 bg-accent-400/10 text-accent-400">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-xl border border-mod-line bg-mod-soft text-mod">
             <SlidersHorizontal className="size-6" />
           </div>
 
@@ -436,7 +436,7 @@ function EmptyScoring({
               type="button"
               onClick={onAddManually}
               disabled={seeding}
-              className="text-sm font-medium text-accent-400 transition-opacity hover:opacity-80 disabled:opacity-50"
+              className="text-sm font-medium text-mod transition-opacity hover:opacity-80 disabled:opacity-50"
             >
               Ili dodaj prvo pravilo ručno
             </button>
@@ -742,7 +742,7 @@ function RuleFormDialog({
                       className={cn(
                         "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
                         axis === a
-                          ? "border-accent-400 bg-accent-400/10 text-accent-400"
+                          ? "border-mod bg-mod-soft text-mod"
                           : "border-line bg-surface text-text-muted hover:text-foreground",
                       )}
                     >

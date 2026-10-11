@@ -60,7 +60,7 @@ export function LeadIdentitiesPanel({
   const getKindIcon = (kind: string) => {
     switch (kind) {
       case "phone":
-        return <Phone className="size-4 text-accent-400" />;
+        return <Phone className="size-4 text-mod" />;
       case "email":
         return <Mail className="size-4 text-text-secondary" />;
       case "instagram":
@@ -203,7 +203,7 @@ export function LeadIdentitiesPanel({
                               href={identity.sourceUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-accent-400 hover:underline truncate max-w-[140px]"
+                              className="inline-flex max-w-36 items-center gap-1 truncate text-mod hover:underline"
                               title={identity.sourceUrl}
                             >
                               <span>{identity.sourceUrl.replace(/^https?:\/\/(www\.)?/, "")}</span>

@@ -65,6 +65,111 @@ export const ENTROPY_EXEMPT: readonly LeadColumnKey[] = ["firma"];
 export const MAX_SAME_SHARE = 0.9;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Širine (B7, F10)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Najmanja širina kolone „Firma": monogram, naziv i grad · niša bez odsecanja. */
+export const FIRMA_MIN_PX = 220;
+
+/** Uska kolona sa strelicom za proširenje reda — nije deo `LEAD_COLUMNS`. */
+export const EXPAND_COLUMN_PX = 32;
+
+/**
+ * Širine u pikselima za `table-fixed`. Izmereno 11.10.2026: „Firma" je bila
+ * oko 80 px („Hair…", „D Fr…") — najvažniji podatak je bio najviše odsečen.
+ *
+ * Zbir bez „Vlasnika" (uz strelicu) je 1136 px, tačno širina sadržaja na
+ * 1440 px, pa tabela tamo staje bez klizanja. Kad je šire, pregledač višak
+ * deli srazmerno; kad se kolona sakrije, njeno mesto dobijaju ostale.
+ */
+export const LEAD_COLUMN_WIDTH: Record<LeadColumnKey, number> = {
+  firma: 224,
+  fitIntent: 104,
+  zasto: 170,
+  sajt: 140,
+  telefon: 90,
+  stanje: 142,
+  vlasnik: 80,
+  sledeciKorak: 100,
+  akcije: 134,
+};
+
+/**
+ * Širina kolone kako je `table-fixed` raspodeli u tabeli širine `tabelaPx`:
+ * višak se deli srazmerno zadatim širinama; kad mesta nema, kolona zadržava
+ * svoju širinu (tabela klizi u svojoj kartici). `verify:leads-ui` ovim meri
+ * koliko „Firma" stvarno dobija na referentnim širinama.
+ */
+export function resolvedColumnWidth(
+  key: LeadColumnKey,
+  visible: readonly LeadColumnKey[],
+  tabelaPx: number,
+): number {
+  const zbir =
+    EXPAND_COLUMN_PX + visible.reduce((n, k) => n + LEAD_COLUMN_WIDTH[k], 0);
+  if (!visible.includes(key)) return 0;
+  if (tabelaPx <= zbir) return LEAD_COLUMN_WIDTH[key];
+  return (LEAD_COLUMN_WIDTH[key] * tabelaPx) / zbir;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Kolone koje se same sakrivaju (B7, F10)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Kolone koje smeju da se sakriju kad svima piše isto. „Firma" je identitet
+ * reda, a „Akcije" su kontrole — one se ne sakrivaju nikad.
+ */
+export const AUTO_HIDE_COLUMNS: readonly LeadColumnKey[] = [
+  "fitIntent",
+  "zasto",
+  "sajt",
+  "telefon",
+  "stanje",
+  "vlasnik",
+  "sledeciKorak",
+];
+
+/** Ispod ovoliko redova se ništa ne sakriva: „svi isto" na tri reda nije obrazac. */
+export const AUTO_HIDE_MIN_ROWS = 5;
+
+export type SameValueColumn = {
+  key: LeadColumnKey;
+  /** Vrednost koja stoji u (skoro) svakom redu. */
+  value: string;
+  /** Udeo redova sa tom vrednošću, 0–1. */
+  share: number;
+};
+
+/**
+ * Kolone čija je vrednost ista u ≥ 90 % redova prikazanog preseka. Kolona
+ * koja svima piše isto ne razdvaja redove, a troši širinu — zato se sakriva,
+ * uz napomenu šta je u njoj pisalo („Vlasnik — svima Ti") i dugme koje je
+ * vraća. Ulaz su isti stringovi koje tabela crta (`columnValues`).
+ */
+export function sameValueColumns(
+  rows: readonly Record<LeadColumnKey, string>[],
+): SameValueColumn[] {
+  if (rows.length < AUTO_HIDE_MIN_ROWS) return [];
+  const out: SameValueColumn[] = [];
+  for (const key of AUTO_HIDE_COLUMNS) {
+    const brojac = new Map<string, number>();
+    for (const row of rows) brojac.set(row[key], (brojac.get(row[key]) ?? 0) + 1);
+    let value = "";
+    let najvise = 0;
+    for (const [v, n] of brojac) {
+      if (n > najvise) {
+        najvise = n;
+        value = v;
+      }
+    }
+    const share = najvise / rows.length;
+    if (share >= MAX_SAME_SHARE) out.push({ key, value, share });
+  }
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Fit / Intent
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -109,13 +214,19 @@ const SIGNAL_PRIORITET: readonly string[] = [
   "ostalo",
 ];
 
-export function zastoSignals(item: LeadRowItem): { shown: string[]; rest: number } {
+/** Svi signali reda, bez ponavljanja, po stalnom prioritetu (prodajni prvi). */
+export function zastoSorted(item: LeadRowItem): string[] {
   const unique = [...new Set(item.signali)];
   unique.sort((a, b) => {
     const ia = SIGNAL_PRIORITET.indexOf(a);
     const ib = SIGNAL_PRIORITET.indexOf(b);
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
   });
+  return unique;
+}
+
+export function zastoSignals(item: LeadRowItem): { shown: string[]; rest: number } {
+  const unique = zastoSorted(item);
   return { shown: unique.slice(0, ZASTO_MAX), rest: Math.max(0, unique.length - ZASTO_MAX) };
 }
 

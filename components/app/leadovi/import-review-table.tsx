@@ -47,6 +47,7 @@ import {
 import { pluralSr } from "@/lib/format";
 import { identityKindLabel, statusUvozaLabel } from "./lead-labels";
 import { ImportFlowSteps } from "./import-flow-steps";
+import { ProgressBar } from "@/components/app/system/progress";
 import { cn } from "@/lib/utils";
 import {
   ImportRowDialog,
@@ -144,7 +145,7 @@ function opisSajta(parsed: {
 /** Boja ćelije stanja sajta. „Ne radi" je prilika za prodaju, ne greška. */
 const SAJT_TONE_CLASS: Record<"muted" | "signal" | "neutral", string> = {
   muted: "text-text-muted",
-  signal: "text-accent-400 font-medium",
+  signal: "text-mod font-medium",
   neutral: "text-foreground",
 };
 
@@ -227,7 +228,7 @@ function SkillCells({ parsed }: { parsed: StagingRowDoc["parsed"] }) {
           {sajt.tekst}
         </span>
         {parsed.sajtHttps === false && (
-          <span className="mt-0.5 block text-[11px] text-accent-400">bez HTTPS</span>
+          <span className="mt-0.5 block text-[11px] text-mod">bez HTTPS</span>
         )}
       </TableCell>
 
@@ -259,7 +260,7 @@ function SkillCells({ parsed }: { parsed: StagingRowDoc["parsed"] }) {
                 <span key={`${osoba.ime}-${i}`} className="truncate block">
                   {osoba.ime}
                   {osoba.verovatnoca !== undefined ? (
-                    <span className="ml-1 font-mono text-[11px] tabular-nums text-accent-400">
+                    <span className="ml-1 font-mono text-[11px] tabular-nums text-mod">
                       {Math.round(osoba.verovatnoca)} %
                     </span>
                   ) : osoba.nijeMoguceProceniti ? (
@@ -757,7 +758,7 @@ export function ImportReviewTable({
                 setApplyError(null);
                 setApplyDialogOpen(true);
               }}
-              className="bg-accent-500 hover:bg-accent-600 text-text-inverse font-semibold"
+              variant="primary"
             >
               <Play className="size-4 mr-1.5" />
               Primeni uvoz ({visibleRows.length})
@@ -773,7 +774,7 @@ export function ImportReviewTable({
               type="button"
               onClick={handleApplyRemaining}
               disabled={isApplying}
-              className="bg-accent-500 hover:bg-accent-600 text-text-inverse font-semibold"
+              variant="primary"
             >
               {isApplying ? (
                 <>
@@ -795,6 +796,19 @@ export function ImportReviewTable({
           koliko je rešeno i šta ostaje. */}
       <ImportFlowSteps koraci={koraci} />
 
+      {/* Čistoća uvoza (UI Boost §6.8): koliko redova koji traže odluku je
+          ima. Isti brojilac i imenilac kao korak „Rešeno N/M" iznad. */}
+      {stanje.zaOdluku > 0 && (
+        <ProgressBar
+          value={stanje.odluceno}
+          max={stanje.zaOdluku}
+          tone={stanje.nerazreseno === 0 ? "success" : "module"}
+          size="sm"
+          label="Čistoća uvoza"
+          showValue
+        />
+      )}
+
       {/* A5 §2 tačka 2: nerazrešeni redovi na PRIMENJENOM uvozu prestaju da
           budu nevidljivi. Traka stoji dok posla ima — ne nestaje posle primene
           kao dosad, i ne zavisi od toga da li se neko seti da otvori filter.
@@ -807,9 +821,9 @@ export function ImportReviewTable({
             <Button
               type="button"
               size="sm"
+              variant="secondary"
               onClick={() => setPrikaz("nerazreseno")}
               disabled={prikaz === "nerazreseno"}
-              className="h-7 bg-accent-500 hover:bg-accent-600 text-text-inverse text-xs font-semibold"
             >
               Reši preostale
             </Button>
@@ -997,7 +1011,7 @@ export function ImportReviewTable({
           {countMatched > 0 && (
             <>
               <span>·</span>
-              <span className="text-accent-400 font-medium">
+              <span className="text-mod font-medium">
                 {countMatched} već u bazi
               </span>
             </>
@@ -1037,7 +1051,7 @@ export function ImportReviewTable({
               <button
                 type="button"
                 onClick={() => setPrikaz("sve")}
-                className="inline-flex items-center gap-1 rounded-md border border-accent-400/40 bg-accent-400/10 px-2 py-0.5 text-xs font-medium text-accent-400 transition-colors hover:border-accent-400/60"
+                className="inline-flex items-center gap-1 rounded-md border border-mod-line bg-mod-soft px-2 py-0.5 text-xs font-medium text-mod transition-colors hover:border-mod"
                 title="Prikaži sve redove"
               >
                 <X className="size-3" />
@@ -1074,7 +1088,7 @@ export function ImportReviewTable({
               variant="ghost"
               size="sm"
               onClick={handleRestoreAll}
-              className="h-7 text-xs text-accent-400 hover:text-accent-300 hover:bg-accent-400/10"
+              className="h-7 text-xs text-mod hover:text-mod hover:bg-mod-soft"
             >
               <RotateCcw className="size-3 mr-1" />
               Vrati sve
@@ -1168,7 +1182,7 @@ export function ImportReviewTable({
                     SKILL_KOLONE.map((naslov) => (
                       <TableHead
                         key={`skill-${naslov}`}
-                        className="min-w-[110px] max-w-[220px] py-2.5 px-3 text-xs font-semibold text-accent-300 bg-surface-raised border-b border-line select-none"
+                        className="min-w-[110px] max-w-[220px] py-2.5 px-3 text-xs font-semibold text-mod bg-surface-raised border-b border-line select-none"
                       >
                         {naslov}
                       </TableHead>
@@ -1282,13 +1296,13 @@ export function ImportReviewTable({
                             {isFirstDataCol && (
                               <div className="flex flex-col gap-0.5 mt-1">
                                 {row.matchedCompanyId && (
-                                  <div className="flex items-center gap-1 text-[11px] text-accent-300 font-medium">
+                                  <div className="flex items-center gap-1 text-[11px] text-mod font-medium">
                                     <Building2 className="size-3 shrink-0" />
                                     <span className="truncate">već postoji u bazi</span>
                                     <Link
                                       href={`/leadovi?companyId=${row.matchedCompanyId}`}
                                       target="_blank"
-                                      className="inline-flex items-center text-accent-400 hover:underline shrink-0"
+                                      className="inline-flex items-center text-mod hover:underline shrink-0"
                                       title="Otvori firmu u bazi"
                                     >
                                       <ExternalLink className="size-2.5" />
@@ -1439,7 +1453,7 @@ export function ImportReviewTable({
                           {isPrimenjen && row.createdCompanyId && (
                             <Link
                               href={`/leadovi/${row.createdCompanyId}`}
-                              className="inline-flex items-center gap-1 rounded-md border border-accent-400/40 bg-accent-400/10 px-2 py-1 text-xs font-medium text-accent-400 hover:bg-accent-400/20 transition-colors shrink-0"
+                              className="inline-flex items-center gap-1 rounded-md border border-mod-line bg-mod-soft px-2 py-1 text-xs font-medium text-mod hover:bg-mod-soft transition-colors shrink-0"
                               title="Otvori u leadovima"
                             >
                               <span>Otvori u leadovima</span>
@@ -1519,7 +1533,7 @@ export function ImportReviewTable({
             <div className="rounded-lg border border-line bg-surface p-3.5 space-y-2.5">
               <div className="flex justify-between items-center text-xs">
                 <span className="text-text-muted">Ukupno redova za uvoz:</span>
-                <span className="font-semibold text-accent-400">{visibleRows.length} redova</span>
+                <span className="font-semibold text-mod">{visibleRows.length} redova</span>
               </div>
               {deletedRows.length > 0 && (
                 <div className="flex justify-between items-center text-xs">
@@ -1583,7 +1597,7 @@ export function ImportReviewTable({
               size="sm"
               onClick={handleApply}
               disabled={isApplying}
-              className="bg-accent-500 hover:bg-accent-600 text-text-inverse font-semibold"
+              variant="primary"
             >
               {isApplying ? (
                 <>

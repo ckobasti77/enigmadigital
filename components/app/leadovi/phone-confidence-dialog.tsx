@@ -131,7 +131,7 @@ export function PhoneConfidenceDialog({
                 className={cn(
                   "cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
                   rezim === r
-                    ? "border-accent-400 bg-accent-400/15 text-accent-400"
+                    ? "border-mod bg-mod-soft text-mod"
                     : "border-line bg-surface-raised text-text-muted hover:border-line-strong hover:text-foreground",
                 )}
               >

@@ -272,6 +272,7 @@ function MeetingGroup({
             edge={rowEdge(item, now)}
             href={`/leadovi/${m.assignment.companyId}`}
             name={m.company?.name ?? "Nepoznata firma"}
+            monogram={{}}
             meta={[m.company?.city, m.company?.municipality]
               .filter(Boolean)
               .join(", ")}

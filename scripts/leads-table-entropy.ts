@@ -34,13 +34,21 @@ import type { LeadScore } from "../convex/lib/leadScoring";
 import { resolveFixture } from "../app/dev-ux/fixtures";
 import type { LeadRowItem } from "../components/app/leadovi/lead-urgency";
 import {
+  AUTO_HIDE_COLUMNS,
+  AUTO_HIDE_MIN_ROWS,
   ENTROPY_EXEMPT,
+  EXPAND_COLUMN_PX,
+  FIRMA_MIN_PX,
   LEAD_COLUMNS,
   LEAD_COLUMN_LABEL,
+  LEAD_COLUMN_WIDTH,
   MAX_SAME_SHARE,
   REMOVED_COLUMNS,
   columnValues,
   legacyColumnValues,
+  resolvedColumnWidth,
+  sameValueColumns,
+  type LeadColumnKey,
 } from "../components/app/leadovi/lead-columns";
 import { kvalitetBaze } from "../lib/lead-quality";
 
@@ -112,9 +120,9 @@ for (const kolona of LEAD_COLUMNS) {
   const izuzeta = ENTROPY_EXEMPT.includes(kolona);
   const naziv = `${LEAD_COLUMN_LABEL[kolona].padEnd(14)} najčešće ${pct(u.udeo).padStart(5)} · ${u.razlicitih} različitih`;
   if (izuzeta) console.log(`  --   ${naziv} (identitet reda, ne meri se)`);
-  else if (kolona === "vlasnik" && u.udeo > MAX_SAME_SHARE)
-    // Vlasnik SME da bude jednoličan — zato se crta samo kad ima > 1 člana.
-    console.log(`  --   ${naziv} (crta se samo uz > 1 člana radnog prostora)`);
+  else if (kolona === "vlasnik" && u.udeo >= MAX_SAME_SHARE)
+    // Vlasnik SME da bude jednoličan — tada se sam sakriva (B7, sekcija 5).
+    console.log(`  --   ${naziv} (sakriva se sama dok svima piše isto)`);
   else proveri(naziv, u.udeo <= MAX_SAME_SHARE, `preko ${pct(MAX_SAME_SHARE)} istih vrednosti — mrtva kolona`);
 }
 
@@ -140,6 +148,88 @@ proveri(
   /showOwner\s*&&\s*<TableHead/.test(tabelaSrc),
   "zaglavlje Vlasnik se crta bezuslovno",
 );
+
+// ── 5. Širina kolone „Firma" i kolone koje se same sakrivaju (B7, F10) ───────
+console.log("");
+console.log("Širina kolone Firma i samosakrivanje (B7):");
+{
+  // Izmereno 11.10.2026: „Firma" je bila oko 80 px. Širine su sada podatak
+  // (`LEAD_COLUMN_WIDTH`), pa se mere ovde, a ne procenjuju sa snimka.
+  const sakrivene = sameValueColumns(novi);
+  const kljucevi = new Set(sakrivene.map((c) => c.key));
+  const vidljive = LEAD_COLUMNS.filter((k) => !kljucevi.has(k));
+  const sveBezVlasnika = LEAD_COLUMNS.filter((k) => k !== "vlasnik");
+  const zbir = (kolone: readonly LeadColumnKey[]) =>
+    EXPAND_COLUMN_PX + kolone.reduce((n, k) => n + LEAD_COLUMN_WIDTH[k], 0);
+
+  // Širina kartice tabele izmerena u pregledaču (11.10.2026): 1152 px na
+  // ekranu od 1440 px i 1232 px na 1536 px.
+  const SADRZAJ = { "1440": 1152, "1536": 1232 } as const;
+
+  proveri(
+    `„Firma” ima zadatu širinu ≥ ${FIRMA_MIN_PX} px`,
+    LEAD_COLUMN_WIDTH.firma >= FIRMA_MIN_PX,
+    `zadato ${LEAD_COLUMN_WIDTH.firma} px`,
+  );
+  proveri(
+    "tabela bez „Vlasnika” staje u sadržaj na 1440 px (bez vodoravnog klizanja)",
+    zbir(sveBezVlasnika) <= SADRZAJ["1440"],
+    `zbir kolona ${zbir(sveBezVlasnika)} px > ${SADRZAJ["1440"]} px`,
+  );
+  for (const [ekran, px] of Object.entries(SADRZAJ)) {
+    const puna = resolvedColumnWidth("firma", sveBezVlasnika, px);
+    const saSakrivenim = resolvedColumnWidth("firma", vidljive, px);
+    proveri(
+      `„Firma” na ${ekran} px: ${Math.round(puna)} px (sve kolone), ${Math.round(saSakrivenim)} px (bez sakrivenih)`,
+      puna >= FIRMA_MIN_PX && saSakrivenim >= FIRMA_MIN_PX,
+      `ispod ${FIRMA_MIN_PX} px`,
+    );
+  }
+  proveri(
+    "tabela čita širine iz LEAD_COLUMN_WIDTH (nema ručnih w-* klasa na zaglavlju)",
+    tabelaSrc.includes('style={sirina("firma")}') && !/<TableHead className=\{cn\(headCls, "w-\d+/.test(tabelaSrc),
+    "zaglavlje ne koristi LEAD_COLUMN_WIDTH",
+  );
+
+  console.log(
+    `  --   sakriveno nad ovim redovima: ${
+      sakrivene.length === 0
+        ? "ništa"
+        : sakrivene.map((c) => `${LEAD_COLUMN_LABEL[c.key]} („${c.value}”, ${pct(c.share)})`).join(" · ")
+    }`,
+  );
+  proveri(
+    "sakriva se samo kolona sa ≥ 90 % istih vrednosti",
+    sakrivene.every((c) => c.share >= MAX_SAME_SHARE) &&
+      AUTO_HIDE_COLUMNS.every(
+        (k) => kljucevi.has(k) === (izmereno[k].udeo >= MAX_SAME_SHARE),
+      ),
+    "pravilo sakrivanja se ne poklapa sa izmerenim udelima",
+  );
+  proveri(
+    "„Firma” i „Akcije” se ne sakrivaju nikad",
+    !(AUTO_HIDE_COLUMNS as readonly string[]).includes("firma") &&
+      !(AUTO_HIDE_COLUMNS as readonly string[]).includes("akcije"),
+    "identitet reda ili kontrole su u spisku za sakrivanje",
+  );
+  proveri(
+    "posle sakrivanja nijedna vidljiva kolona nije jednolična",
+    vidljive
+      .filter((k) => !ENTROPY_EXEMPT.includes(k) && k !== "akcije")
+      .every((k) => izmereno[k].udeo < MAX_SAME_SHARE),
+    "ostala je vidljiva kolona sa ≥ 90 % istih vrednosti",
+  );
+  proveri(
+    `na manje od ${AUTO_HIDE_MIN_ROWS} redova se ništa ne sakriva`,
+    sameValueColumns(novi.slice(0, AUTO_HIDE_MIN_ROWS - 1)).length === 0,
+    "kolona je sakrivena na premalom uzorku",
+  );
+  proveri(
+    "tabela nudi da se sakrivene kolone vrate",
+    tabelaSrc.includes("setPrikaziSveKolone") && tabelaSrc.includes("Sakriveno:"),
+    "nema napomene ili dugmeta „Prikaži”",
+  );
+}
 
 // ── 3. Stare kolone nad istim redovima — dokaz zašto su uklonjene ───────────
 console.log("\nStare kolone nad istim redovima (pre A3):");

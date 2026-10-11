@@ -11,11 +11,14 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackNote } from "@/components/app/feedback";
+import { FocusCard } from "@/components/app/system/focus-card";
+import { ProgressBar } from "@/components/app/system/progress";
 import { useNow } from "@/components/app/use-now";
 import { jeZastaoUPregledu } from "@/convex/lib/importFlow";
 import { trajanje } from "@/convex/lib/notifications";
-import { pluralSr } from "@/lib/format";
+import { formatNumber, pluralSr } from "@/lib/format";
 import {
   Dialog,
   DialogPopup,
@@ -31,6 +34,19 @@ import { ImportsHistory } from "./imports-history";
 
 type Tab = "staging" | "history";
 
+/** Uvoz koji čeka pregled duže od ovoga je „star" — nudi se odustajanje od svih odjednom. */
+const STARO_DANA = 30;
+const STARO_MS = STARO_DANA * 24 * 60 * 60 * 1000;
+
+function porukaGreske(err: unknown): string {
+  if (err instanceof ConvexError) {
+    const data = err.data as { code?: string; message?: string };
+    return `[${data.code || "greška"}]: ${data.message || err.message}`;
+  }
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
 export function ImportDashboard() {
   const { workspace, isLoading } = useWorkspace();
   const [tab, setTab] = useState<Tab>("staging");
@@ -39,6 +55,9 @@ export function ImportDashboard() {
   const [abandoningImportId, setAbandoningImportId] = useState<Id<"leadImports"> | null>(null);
   const [isAbandoning, setIsAbandoning] = useState(false);
   const [abandonError, setAbandonError] = useState<string | null>(null);
+  // B7: odustajanje od svih uvoza starijih od 30 dana, uz jednu potvrdu.
+  const [grupnoOtvoreno, setGrupnoOtvoreno] = useState(false);
+  const [grupnoRadi, setGrupnoRadi] = useState(false);
 
   // `/leadovi/uvoz?import=<id>` — link koji `/generate-leads/ingest` vrati
   // skillu na kraju runa (GL1, plan §5), i link iz zvona (A2). Bez ovoga bi taj
@@ -60,6 +79,12 @@ export function ImportDashboard() {
   const [prikaz, setPrikaz] = useState<"sve" | "nerazreseno">(() =>
     searchParams.get("prikaz") === "nerazreseno" ? "nerazreseno" : "sve",
   );
+  // `?prikaz=nerazreseno` BEZ uvoza (misija „Reši N nerazrešenih redova"):
+  // otvara se uvoz koji ih ima najviše. Jednom — posle toga odlučuje klik.
+  const [ciljaNeresene, setCiljaNeresene] = useState(
+    () =>
+      searchParams.get("prikaz") === "nerazreseno" && !searchParams.get("import"),
+  );
 
   const now = useNow();
   const workspaceId = workspace?.id as Id<"workspaces"> | undefined;
@@ -71,6 +96,25 @@ export function ImportDashboard() {
 
   if (isLoading || !workspace || !workspaceId) {
     return <ImportDashboardSkeleton />;
+  }
+
+  // ── Čistoća uvoza (UI Boost §6.8): redovi bez otvorene odluke / svi redovi ──
+  // Uvoz od kog se odustalo više nije posao, pa ne ulazi ni u brojilac ni u
+  // imenilac. Brojevi su isti oni iz istorije uvoza (`listImports`).
+  const zivi = (imports ?? []).filter(
+    (imp) => imp.status !== "ponisten" && imp.status !== "neuspeo",
+  );
+  const ukupnoRedova = zivi.reduce((n, imp) => n + imp.rowsParsed, 0);
+  const saNeresenim = zivi
+    .filter((imp) => imp.nerazresenoCount > 0)
+    .sort((a, b) => b.nerazresenoCount - a.nerazresenoCount);
+  const nereseno = saNeresenim.reduce((n, imp) => n + imp.nerazresenoCount, 0);
+
+  if (ciljaNeresene && imports !== undefined) {
+    setCiljaNeresene(false);
+    if (activeImportId === null && saNeresenim[0]) {
+      setActiveImportId(saNeresenim[0]._id);
+    }
   }
 
   const handleImportCreated = (importId: Id<"leadImports">) => {
@@ -103,14 +147,7 @@ export function ImportDashboard() {
       if (activeImportId === abandoningImportId) setActiveImportId(null);
       setAbandoningImportId(null);
     } catch (err: unknown) {
-      if (err instanceof ConvexError) {
-        const data = err.data as { code?: string; message?: string };
-        setAbandonError(`[${data.code || "greška"}]: ${data.message || err.message}`);
-      } else if (err instanceof Error) {
-        setAbandonError(err.message);
-      } else {
-        setAbandonError(String(err));
-      }
+      setAbandonError(porukaGreske(err));
     } finally {
       setIsAbandoning(false);
     }
@@ -122,57 +159,189 @@ export function ImportDashboard() {
   const zastali = (imports ?? [])
     .filter((imp) => jeZastaoUPregledu(imp, now))
     .sort((a, b) => a.uploadedAt - b.uploadedAt);
+  const stari = zastali.filter((imp) => now - imp.uploadedAt > STARO_MS);
+
+  // Ista postojeća mutacija, redom za svaki stari uvoz. Staje na prvoj grešci
+  // i kaže dokle je stigla — pola posla prećutano bilo bi gore od greške.
+  const handleGrupnoOdustajanje = async () => {
+    setGrupnoRadi(true);
+    setAbandonError(null);
+    let gotovo = 0;
+    try {
+      for (const imp of stari) {
+        await abandonImportMutation({ workspaceId, importId: imp._id });
+        if (activeImportId === imp._id) setActiveImportId(null);
+        gotovo++;
+      }
+      setGrupnoOtvoreno(false);
+    } catch (err: unknown) {
+      setAbandonError(
+        `Odustalo se od ${gotovo} od ${stari.length} ${pluralSr(stari.length, "uvoza", "uvoza", "uvoza")}, pa je stalo: ${porukaGreske(err)}`,
+      );
+      setGrupnoOtvoreno(false);
+    } finally {
+      setGrupnoRadi(false);
+    }
+  };
+
+  // Dok je otvoren pregled jednog uvoza, fokus je njegov tok (koraci, „Primeni
+  // uvoz"); traka o zaostalima i Čistoća se vraćaju čim se pregled zatvori.
+  const uPregledu = tab === "staging" && activeImportId !== null;
+  const cistoca =
+    ukupnoRedova > 0
+      ? Math.floor(((ukupnoRedova - nereseno) / ukupnoRedova) * 100)
+      : null;
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      {zastali.length > 0 && (
-        <FeedbackNote
-          tone="warning"
-          title={`${zastali.length} ${pluralSr(zastali.length, "uvoz čeka", "uvoza čekaju", "uvoza čeka")} pregled duže od 24 h`}
+      {!uPregledu && (zastali.length > 0 || cistoca !== null) && (
+        <div
+          className={
+            zastali.length > 0
+              ? "grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start"
+              : "flex flex-col"
+          }
         >
-          <ul className="mt-1.5 flex flex-col gap-1.5">
-            {zastali.map((imp) => (
-              <li
-                key={imp._id}
-                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs"
-              >
-                {/* Naziv i koliko stoji levo, dve radnje desno — na svakom redu
-                    na istom mestu, da se pogledom prelazi spisak, ne traži. */}
-                <span className="flex min-w-0 flex-wrap items-center gap-x-2">
-                  <span className="font-medium text-foreground">{imp.fileName}</span>
-                  <span className="text-text-muted">
-                    · stoji {trajanje(Math.max(0, now - imp.uploadedAt))} ·{" "}
-                    {imp.rowsParsed} {pluralSr(imp.rowsParsed, "red", "reda", "redova")}
-                  </span>
-                </span>
-                <span className="flex shrink-0 items-center gap-1.5">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => handleSelectHistoryImport(imp._id)}
-                    className="h-7 bg-accent-500 hover:bg-accent-600 text-text-inverse text-xs font-semibold"
+          {zastali.length > 0 && (
+            <FocusCard
+              title={`${zastali.length} ${pluralSr(zastali.length, "uvoz čeka", "uvoza čekaju", "uvoza čeka")} pregled duže od 24 h`}
+            >
+              <ul className="flex flex-col divide-y divide-line-soft">
+                {zastali.map((imp, i) => (
+                  <li
+                    key={imp._id}
+                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2 first:pt-0 last:pb-0"
                   >
-                    Nastavi pregled
-                    <ArrowRight className="size-3.5 ml-1" />
-                  </Button>
+                    {/* Naziv i koliko stoji levo, dve radnje desno — na svakom
+                        redu na istom mestu. Najstariji je prvi i JEDINI nosi
+                        primarno dugme: njega treba prvog rešiti. */}
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate text-ui font-medium text-foreground">
+                        {imp.fileName}
+                      </span>
+                      <span className="text-meta text-text-muted">
+                        stoji {trajanje(Math.max(0, now - imp.uploadedAt))} ·{" "}
+                        <span className="font-mono tabular-nums">{imp.rowsParsed}</span>{" "}
+                        {pluralSr(imp.rowsParsed, "red", "reda", "redova")}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={i === 0 ? "primary" : "secondary"}
+                        onClick={() => handleSelectHistoryImport(imp._id)}
+                        className="touch-target"
+                      >
+                        Nastavi pregled
+                        <ArrowRight data-icon="inline-end" aria-hidden />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setAbandonError(null);
+                          setAbandoningImportId(imp._id);
+                        }}
+                        className="touch-target text-text-muted"
+                      >
+                        <XCircle data-icon="inline-start" aria-hidden />
+                        Odustani
+                      </Button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {stari.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-line-soft pt-3">
+                  <p className="min-w-0 text-meta text-text-muted">
+                    {stari.length === zastali.length
+                      ? `Svi stoje duže od ${STARO_DANA} dana.`
+                      : `${stari.length} od njih ${pluralSr(stari.length, "stoji", "stoje", "stoji")} duže od ${STARO_DANA} dana.`}
+                  </p>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => {
                       setAbandonError(null);
-                      setAbandoningImportId(imp._id);
+                      setGrupnoOtvoreno(true);
                     }}
-                    className="h-7 text-xs border-line-soft text-text-muted hover:border-line-strong hover:text-foreground"
+                    className="touch-target"
                   >
-                    <XCircle className="size-3.5 mr-1" />
-                    Odustani od uvoza
+                    Odustani od svih starijih od {STARO_DANA} dana ({stari.length})
                   </Button>
+                </div>
+              )}
+            </FocusCard>
+          )}
+
+          {cistoca !== null && (
+            <section
+              aria-label="Čistoća uvoza"
+              className={
+                zastali.length > 0
+                  ? "flex min-w-0 flex-col gap-2 lg:border-l lg:border-line-soft lg:pl-6"
+                  : "flex min-w-0 flex-col gap-2"
+              }
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="heading-caps text-meta font-medium text-text-muted">
+                  Čistoća uvoza
+                </h2>
+                <span className="font-mono text-title font-bold tabular-nums text-foreground">
+                  {cistoca} %
                 </span>
-              </li>
-            ))}
-          </ul>
-        </FeedbackNote>
+              </div>
+              <ProgressBar
+                value={ukupnoRedova - nereseno}
+                max={ukupnoRedova}
+                tone={nereseno === 0 ? "success" : "module"}
+                size="sm"
+                label="Čistoća uvoza"
+              />
+              <p className="text-meta text-text-muted">
+                <span className="font-mono tabular-nums text-foreground">
+                  {formatNumber(ukupnoRedova - nereseno)}
+                </span>{" "}
+                od{" "}
+                <span className="font-mono tabular-nums text-foreground">
+                  {formatNumber(ukupnoRedova)}
+                </span>{" "}
+                učitanih redova nema otvorenu odluku
+              </p>
+              {nereseno > 0 ? (
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-0.5">
+                  <p className="min-w-0 text-ui text-foreground">
+                    <span className="font-mono font-bold tabular-nums">{nereseno}</span>{" "}
+                    {pluralSr(nereseno, "red čeka", "reda čekaju", "redova čeka")} odluku u{" "}
+                    {saNeresenim.length}{" "}
+                    {pluralSr(saNeresenim.length, "uvozu", "uvoza", "uvoza")}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    // Primarno je samo kad nema zaostalog pregleda — inače je
+                    // primarno „Nastavi pregled" najstarijeg uvoza.
+                    variant={zastali.length > 0 ? "secondary" : "primary"}
+                    onClick={() =>
+                      handleSelectHistoryImport(saNeresenim[0]._id, "nerazreseno")
+                    }
+                    className="touch-target shrink-0"
+                  >
+                    Reši preostale ({saNeresenim[0].nerazresenoCount})
+                    <ArrowRight data-icon="inline-end" aria-hidden />
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-ui text-text-muted">
+                  Nijedan red ne čeka odluku.
+                </p>
+              )}
+            </section>
+          )}
+        </div>
       )}
 
       {abandonError && (
@@ -185,7 +354,7 @@ export function ImportDashboard() {
         tabs={[
           {
             id: "staging",
-            label: activeImportId ? "Pregled staging-a" : "Novi uvoz",
+            label: activeImportId ? "Pregled uvoza" : "Novi uvoz",
             icon: Upload,
           },
           {
@@ -204,9 +373,8 @@ export function ImportDashboard() {
               variant="outline"
               size="sm"
               onClick={handleStartNewImport}
-              className="text-xs"
             >
-              <Plus className="size-3.5 mr-1" />
+              <Plus data-icon="inline-start" aria-hidden />
               Započni novi uvoz
             </Button>
           ) : undefined
@@ -239,6 +407,28 @@ export function ImportDashboard() {
           />
         )}
       </TabPanel>
+
+      {/* Potvrda grupnog odustajanja: ista postojeća mutacija, za svaki uvoz. */}
+      <ConfirmDialog
+        open={grupnoOtvoreno}
+        onOpenChange={setGrupnoOtvoreno}
+        title={`Odustajanje od ${stari.length} ${pluralSr(stari.length, "starog uvoza", "stara uvoza", "starih uvoza")}`}
+        description={
+          <>
+            {stari.map((imp) => imp.fileName).join(", ")} —{" "}
+            {pluralSr(stari.length, "čeka", "čekaju", "čeka")} pregled duže od{" "}
+            {STARO_DANA} dana. {pluralSr(stari.length, "Prestaje", "Prestaju", "Prestaje")} da{" "}
+            {pluralSr(stari.length, "čeka", "čekaju", "čeka")} i{" "}
+            {pluralSr(stari.length, "nestaje", "nestaju", "nestaje")} iz obaveštenja.
+            Ništa se ne briše: redovi ostaju i uvoz se i dalje otvara iz istorije.
+            Nijedan od njih nije primenjen, pa u bazi firmi nije napravio ništa.
+          </>
+        }
+        confirmLabel={`Odustani od ${stari.length}`}
+        busyLabel="Odustajem…"
+        busy={grupnoRadi}
+        onConfirm={() => void handleGrupnoOdustajanje()}
+      />
 
       {/* Potvrda odustajanja (ista radnja postoji i u istoriji uvoza) */}
       <Dialog
@@ -285,14 +475,14 @@ export function ImportDashboard() {
             <Button
               type="button"
               size="sm"
+              variant="destructive"
               onClick={handleAbandonConfirm}
               disabled={isAbandoning}
-              className="bg-danger text-text-inverse font-semibold hover:bg-danger/90"
             >
               {isAbandoning ? (
                 <>
-                  <LoaderCircle className="animate-spin size-4 mr-1.5" />
-                  Odustajem...
+                  <LoaderCircle className="animate-spin" data-icon="inline-start" aria-hidden />
+                  Odustajem…
                 </>
               ) : (
                 "Potvrdi odustajanje"
