@@ -24,6 +24,16 @@ import { Reveal } from "@/components/motion/reveal";
 import { formatLongDate, formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+/**
+ * GA4 Admin API šalje ISO vreme ("2025-03-01T09:00:00Z"), a `formatLongDate`
+ * čita ključ "YYYY-MM-DD" i na ISO nisku baca RangeError — ceo panel je pucao
+ * čim Admin API vrati datum (F12). Uzima se samo datumski deo.
+ */
+function formatAdminDate(value?: string): string {
+  const key = value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  return key ? formatLongDate(key) : "—";
+}
+
 // ── Enum translations (Serbian with original in parentheses) ─────────────────
 
 function translateServiceLevel(level?: string): { label: string; raw?: string } {
@@ -314,7 +324,7 @@ export function Ga4Configuration() {
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
               <span className="text-[11px] text-text-muted block">Datum kreiranja</span>
               <span className="text-xs font-medium text-foreground">
-                {config.createTime ? formatLongDate(config.createTime) : "—"}
+                {formatAdminDate(config.createTime)}
               </span>
             </div>
           </div>
@@ -424,7 +434,7 @@ export function Ga4Configuration() {
                           {ke.custom ? "Prilagođeni" : "Standardni"}
                         </td>
                         <td className="py-2.5 px-3 text-right text-text-muted font-sans">
-                          {ke.createTime ? formatLongDate(ke.createTime) : "—"}
+                          {formatAdminDate(ke.createTime)}
                         </td>
                       </tr>
                     );
@@ -522,7 +532,7 @@ export function Ga4Configuration() {
                         {gal.adsPersonalizationEnabled ? "Omogućena (Da)" : "Onemogućena (Ne)"}
                       </td>
                       <td className="py-2.5 px-3 text-right text-text-muted font-sans">
-                        {gal.createTime ? formatLongDate(gal.createTime) : "—"}
+                        {formatAdminDate(gal.createTime)}
                       </td>
                     </tr>
                   ))}

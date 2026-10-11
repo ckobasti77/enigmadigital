@@ -603,15 +603,19 @@ const ga4Configuration: R<typeof api.analytics.ga4Configuration> = {
   currencyCode: "RSD",
   industryCategory: "BEAUTY_AND_FITNESS",
   serviceLevel: "GOOGLE_ANALYTICS_STANDARD",
-  // NAMERNO samo datum: GA4 Admin API vraća ISO vreme ("2025-03-01T09:00:00Z"), a
-  // `formatLongDate` očekuje ključ "YYYY-MM-DD" i baca RangeError na ISO nisku
-  // (Podešavanja → GA4 puca). To je pravi bug za B1; osnovica ga ne sme sakriti
-  // praznim ekranom, pa fixture koristi oblik koji ekran može da iscrta.
-  createTime: "2025-03-01",
+  // ISO vreme, tačno kako ga vraća GA4 Admin API. Do B1 je ovde stajao samo
+  // datum, jer je panel na ISO nisku pucao sa RangeError; sada fixture čuva
+  // pravi oblik, pa snimak Podešavanja hvata povratak te greške.
+  createTime: "2025-03-01T09:00:00Z",
   eventDataRetention: "FOURTEEN_MONTHS",
   resetUserDataOnNewActivity: true,
   keyEvents: [
-    { eventName: "generate_lead", countingMethod: "ONCE_PER_EVENT", custom: true },
+    {
+      eventName: "generate_lead",
+      countingMethod: "ONCE_PER_EVENT",
+      custom: true,
+      createTime: "2025-03-04T11:20:00.123456Z",
+    },
     { eventName: "form_submit", countingMethod: "ONCE_PER_EVENT", custom: true },
     { eventName: "phone_click", countingMethod: "ONCE_PER_SESSION", custom: true },
   ],
@@ -625,7 +629,13 @@ const ga4Configuration: R<typeof api.analytics.ga4Configuration> = {
       defaultUri: "https://example.com",
     },
   ],
-  googleAdsLinks: [{ customerId: "000-000-0000", adsPersonalizationEnabled: true }],
+  googleAdsLinks: [
+    {
+      customerId: "000-000-0000",
+      adsPersonalizationEnabled: true,
+      createTime: "2025-04-10T08:00:00Z",
+    },
+  ],
   ageSeconds: 2 * 3600,
   ageHours: 2,
 };
