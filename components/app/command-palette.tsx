@@ -10,10 +10,12 @@ import {
   PanelLeft,
   Search,
   SquarePen,
+  Trophy,
   Upload,
 } from "lucide-react";
 import {
   COMMAND_EVENT,
+  NAPREDAK_HREF,
   RAIL_EVENT,
   channelTabs,
   moduleNavItem,
@@ -25,6 +27,8 @@ import {
 } from "./nav-items";
 import { ModuleTile } from "./module-tile";
 import { useStaMeCeka } from "./use-sta-me-ceka";
+import { ikonaMisije } from "./napredak/napredak-ikone";
+import { useNapredak } from "./napredak/use-napredak";
 import { cn } from "@/lib/utils";
 
 type Entry = {
@@ -42,6 +46,8 @@ type Entry = {
   run?: () => void;
   /** Desni natpis je sama radnja, pa nosi boju modula. */
   emphasis?: boolean;
+  /** XP koji stavka nosi (misija dana) — zlatno, jer je nagrada. */
+  xp?: number;
 };
 
 type Section = { key: string; title: string; entries: Entry[] };
@@ -105,6 +111,16 @@ const SCREENS: Entry[] = [
     icon: item.icon,
     module: item.module,
   })),
+  // Napredak nema stavku u bočnoj traci (otvara ga kartica igrača), pa ga
+  // paleta navodi sama.
+  {
+    id: `screen:${NAPREDAK_HREF}`,
+    href: NAPREDAK_HREF,
+    title: resolveScreen(NAPREDAK_HREF)?.title ?? "Napredak",
+    hint: resolveScreen(NAPREDAK_HREF)?.section ?? "",
+    icon: Trophy,
+    module: resolveModule(NAPREDAK_HREF),
+  },
   ...Object.entries(channelTabs).flatMap(([base, tabs]) =>
     tabs
       .filter((tab) => tab.href !== base && !ACTION_HREFS.has(tab.href))
@@ -176,8 +192,9 @@ const fold = (s: string) =>
 /**
  * ⌘K — skok na ekran ili pravo na posao (UI Boost §7.4).
  *
- * Sekcije: **Radnje** (ono što čeka u zvonu, pa stalne radnje), **Nedavno**
- * (poslednji otvoreni ekrani) i **Ekrani** (svi). Svaka stavka nosi pločicu u
+ * Sekcije: **Radnje** (ono što čeka u zvonu, pa stalne radnje), **Misije
+ * dana** (nezavršene, svaka vodi pravo u svoj posao), **Nedavno** (poslednji
+ * otvoreni ekrani) i **Ekrani** (svi). Svaka stavka nosi pločicu u
  * boji svog modula, pa se spisak čita i po boji. Dok se kuca, „Nedavno" se
  * sklanja — isti ekran bi se inače javio dvaput.
  *
@@ -197,6 +214,7 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const staMeCeka = useStaMeCeka();
+  const napredak = useNapredak();
 
   const currentHref = resolveScreen(pathname)?.href;
 
@@ -224,6 +242,23 @@ export function CommandPalette() {
       }),
     [staMeCeka],
   );
+
+  // Misije dana: samo nezavršene — završena više nije posao. Desno piše dokle
+  // se stiglo i koliko nosi, a Enter vodi na istu adresu kao dugme na kartici.
+  const misije = useMemo<Entry[]>(() => {
+    if (!napredak?.ukljucen || !napredak.spremno) return [];
+    return napredak.misije
+      .filter((m) => !m.zavrsena)
+      .map((m) => ({
+        id: `mission:${m.kljuc}`,
+        href: m.veza,
+        title: m.naslov,
+        hint: `${m.napredak} / ${m.cilj}`,
+        xp: m.xp,
+        icon: ikonaMisije(m.kljuc),
+        module: resolveModule(m.veza.split(/[?#]/)[0]),
+      }));
+  }, [napredak]);
 
   // Svako otvaranje kreće čisto: prazan upit, prva stavka istaknuta, sveže
   // „Nedavno". Sve ide u samu radnju otvaranja, ne u efekat na `open`.
@@ -281,12 +316,11 @@ export function CommandPalette() {
           ...(desktop ? [RAIL_ACTION] : []),
         ]),
       },
-      // Mesto za „Misije dana": sekcija sa ključem `misije` ulazi ovde, između
-      // radnji i nedavnih ekrana, kada napredak dobije svoj izvor podataka.
+      { key: "misije", title: "Misije dana", entries: match(misije) },
       { key: "nedavno", title: "Nedavno", entries: recentEntries },
       { key: "ekrani", title: "Ekrani", entries: match(SCREENS) },
     ].filter((section) => section.entries.length > 0);
-  }, [query, tasks, recent, currentHref, desktop]);
+  }, [query, tasks, misije, recent, currentHref, desktop]);
 
   const flat = useMemo(() => sections.flatMap((s) => s.entries), [sections]);
 
@@ -439,6 +473,11 @@ export function CommandPalette() {
                             )}
                           >
                             {entry.hint}
+                          </span>
+                        )}
+                        {entry.xp !== undefined && (
+                          <span className="shrink-0 font-mono text-micro font-medium text-xp tabular-nums">
+                            +{entry.xp} XP
                           </span>
                         )}
                         {/* Uvek zauzima mesto, da natpis desno ne skače dok

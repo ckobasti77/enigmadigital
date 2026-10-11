@@ -219,6 +219,7 @@ export function AchievementBadge({
   description,
   rarity,
   locked = false,
+  progress,
   unlockedAt,
   size = "md",
   className,
@@ -229,6 +230,8 @@ export function AchievementBadge({
   description?: string;
   rarity: Rarity;
   locked?: boolean;
+  /** Dokle se stiglo na zaključanom („3 / 10") — već formatirano. */
+  progress?: string;
   /** Već formatiran datum otključavanja. */
   unlockedAt?: string;
   size?: "sm" | "md";
@@ -236,7 +239,9 @@ export function AchievementBadge({
 }) {
   const r = RARITY[rarity];
   const meta = locked
-    ? "Zaključano"
+    ? progress
+      ? `Zaključano · ${progress}`
+      : "Zaključano"
     : unlockedAt
       ? `${r.label} · ${unlockedAt}`
       : r.label;

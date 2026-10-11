@@ -15,6 +15,7 @@ import FacebookPage from "@/app/(app)/facebook/page";
 import ThreadsPage from "@/app/(app)/threads/page";
 import YouTubePage from "@/app/(app)/youtube/page";
 import AdsPage from "@/app/(app)/ads/page";
+import NapredakPage from "@/app/(app)/napredak/page";
 import { LeadDetailPageClient } from "@/app/(app)/leadovi/[companyId]/lead-detail-page-client";
 import { UxHarness } from "../harness";
 import { SistemVodic } from "../sistem/vodic";
@@ -48,6 +49,7 @@ const PAGES: Record<string, ComponentType> = {
   threads: ThreadsPage,
   youtube: YouTubePage,
   ads: AdsPage,
+  napredak: NapredakPage,
 };
 
 export const dynamic = "force-dynamic";
@@ -57,11 +59,11 @@ export default async function DevUxPage({
   searchParams,
 }: {
   params: Promise<{ slug?: string[] }>;
-  searchParams: Promise<{ prazno?: string }>;
+  searchParams: Promise<{ prazno?: string; pad?: string }>;
 }) {
   if (process.env.NODE_ENV === "production") notFound();
   const { slug = [] } = await params;
-  const { prazno } = await searchParams;
+  const { prazno, pad } = await searchParams;
 
   if (slug.join("/") === "sistem") return <SistemVodic />;
 
@@ -74,7 +76,7 @@ export default async function DevUxPage({
   if (!profilId && !Page) notFound();
 
   return (
-    <UxHarness prazno={prazno === "1"}>
+    <UxHarness prazno={prazno === "1"} pad={pad}>
       <AppShell>
         {profilId ? <LeadDetailPageClient companyId={profilId} /> : Page && <Page />}
       </AppShell>

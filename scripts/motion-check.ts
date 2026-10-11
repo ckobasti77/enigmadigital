@@ -394,6 +394,8 @@ function fajlovi(...deo: string[]): string[] {
 const NAGRADNE = new Set([
   "components/app/system/mission-card.tsx",
   "components/app/system/reward-toast.tsx",
+  // B5: nov nivo — najredja nagrada i jedina sa sekvencom.
+  "components/app/system/level-up-banner.tsx",
 ]);
 const saPrebacajem = [...fajlovi("components"), ...fajlovi("app")].filter((put) =>
   /\bEASE_REWARD\b/.test(citaj(put)),

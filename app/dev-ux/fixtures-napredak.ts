@@ -167,8 +167,13 @@ function zakljuceniDani(): Array<{ dan: string; xp: number }> {
     const d = new Date(`${dan}T00:00:00Z`).getUTCDay();
     const vikend = d === 0 || d === 6;
     const r = rand();
+    // Rekordni dan iz zbira (210 XP, pre devet dana) mora da bude i na mapi.
+    if (i === 9) {
+      out.push({ dan, xp: OSNOVA.rekordi.xpDan });
+      continue;
+    }
     if (vikend ? r < 0.85 : r < 0.3) continue;
-    out.push({ dan, xp: 15 + Math.floor(rand() * 180) });
+    out.push({ dan, xp: 15 + Math.floor(rand() * 170) });
   }
   return out;
 }

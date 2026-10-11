@@ -28,7 +28,9 @@
  *   14. sastanak — otkazan istog dana ne vredi, pomeren vredi jednom;
  *   15. proslave — viđeno se ne ponavlja, nepoznat ključ se odbija;
  *   16. niz „u opasnosti" od 17:00 po Beogradu;
- *   17. fixture za razvojni prikaz stvarno daje nivo 7, niz 4, 2 od 3 misije.
+ *   17. fixture za razvojni prikaz stvarno daje nivo 7, niz 4, 2 od 3 misije;
+ *   18. povratna informacija (B5) — toast samo za NOVU radnju, proslava jednom,
+ *       skriven tab je ne troši, a ništa se ne pali pri otvaranju.
  *
  * Svi podaci su izmišljeni. Nema mreže, nema ključeva.
  */
@@ -40,6 +42,11 @@ import { getFunctionName } from "convex/server";
 import { api } from "../convex/_generated/api";
 import { resolveFixture } from "../app/dev-ux/fixtures";
 import { belgradeInputsFor, belgradeToEpoch } from "../lib/belgrade-time";
+import {
+  DUZE_MS,
+  izdvojiNagrade,
+  novoPamcenje,
+} from "../components/app/napredak/nagrade";
 import {
   BONUS_XP,
   DOSTIGNUCA,
@@ -883,6 +890,88 @@ function main(): void {
       prazno?.ukljucen === true && prazno.nivo.broj === 1 && prazno.xp.ukupno === 0 && prazno.misije.length === 0,
       JSON.stringify(prazno),
     );
+  }
+
+  // 18 ─ povratna informacija
+  console.log("\n18. Povratna informacija: šta se pali kad se stanje promeni");
+  {
+    const misije: MisijaDef[] = [
+      { kljuc: "pozovi", cilj: 2, xp: 60, oblast: "pozivi", veza: "/leadovi" },
+    ];
+    type Potvrdjeno = { dnevne: string[]; trajne: string[]; nivo: number };
+    const nista: Potvrdjeno = { dnevne: [], trajne: [], nivo: 1 };
+    // „Prvi kontakt" je već viđen, da se u prvim koracima gleda samo +XP.
+    const vidjeno: Potvrdjeno = { dnevne: [], trajne: ["dostignuce:prvi_kontakt"], nivo: 1 };
+    const stanjeZa = (dogadjaji: Dogadjaj[], potvrde: Potvrdjeno = nista) =>
+      ukljuceno(izvedi(ulaz({ dogadjaji, misijePoDanu: { [PON]: misije }, potvrde })));
+    const prviPoziv = dog("dodir", u(PON, 9), { firma: "A", podvrsta: "poziv" });
+    const drugiPoziv = dog("dodir", u(PON, 10), { firma: "B", podvrsta: "poziv" });
+    const ishod = dog("ishod", u(PON, 9, 30), { firma: "A", podvrsta: "zainteresovan" });
+
+    const pamcenje = novoPamcenje();
+    const otvaranje = izdvojiNagrade(stanjeZa([prviPoziv], vidjeno), pamcenje, true);
+    proveri("pri otvaranju se ne pali ništa za ono što je već tu", otvaranje.toasts.length === 0 && otvaranje.nivo === null && otvaranje.potvrdi.length === 0, JSON.stringify(otvaranje));
+
+    const isto = izdvojiNagrade(stanjeZa([prviPoziv], vidjeno), pamcenje, true);
+    proveri("isto stanje drugi put ne pali ništa", isto.toasts.length === 0, JSON.stringify(isto.toasts));
+
+    const posleIshoda = izdvojiNagrade(stanjeZa([prviPoziv, ishod], vidjeno), pamcenje, true);
+    proveri(
+      "nova radnja = jedan toast „+15 XP · Ishod zabeležen“",
+      posleIshoda.toasts.length === 1 && posleIshoda.toasts[0].xp === 15 && posleIshoda.toasts[0].title === "Ishod zabeležen" && posleIshoda.toasts[0].duration === undefined,
+      JSON.stringify(posleIshoda.toasts),
+    );
+
+    const posleMisije = izdvojiNagrade(stanjeZa([prviPoziv, ishod, drugiPoziv], vidjeno), pamcenje, true);
+    const misijaToast = posleMisije.toasts.find((t) => t.ikona.tip === "misija");
+    proveri(
+      "poziv koji zatvara misiju: +10 XP za poziv i jedan toast misije od +60 XP",
+      posleMisije.toasts.length === 2 && posleMisije.toasts[0].xp === 10 && misijaToast?.xp === 60 && misijaToast.duration === DUZE_MS && misijaToast.ikona.kljuc === "pozovi",
+      JSON.stringify(posleMisije.toasts),
+    );
+    proveri("misija se ne javlja dvaput (i kao događaj i kao proslava)", posleMisije.toasts.filter((t) => t.xp === 60).length === 1, JSON.stringify(posleMisije.toasts));
+    proveri("viđena misija se šalje serveru na potvrdu", posleMisije.potvrdi.join() === `misija:${PON}:pozovi`, posleMisije.potvrdi.join());
+    proveri("ključ koji hook šalje mutacija prepoznaje", posleMisije.potvrdi.every((k) => parsirajProslavu(k) !== null), posleMisije.potvrdi.join());
+    const ponovo = izdvojiNagrade(stanjeZa([prviPoziv, ishod, drugiPoziv], vidjeno), pamcenje, true);
+    proveri("ista proslava se u sesiji ne ponavlja", ponovo.toasts.length === 0 && ponovo.potvrdi.length === 0, JSON.stringify(ponovo));
+
+    // Skriven tab: +XP se tiho upiše kao viđen, proslave čekaju.
+    const skriveno = novoPamcenje();
+    izdvojiNagrade(stanjeZa([]), skriveno, true);
+    const uPozadini = izdvojiNagrade(stanjeZa([prviPoziv, drugiPoziv]), skriveno, false);
+    proveri("skriven tab ne pali ništa i ne troši proslave", uPozadini.toasts.length === 0 && uPozadini.potvrdi.length === 0, JSON.stringify(uPozadini));
+    const povratak = izdvojiNagrade(stanjeZa([prviPoziv, drugiPoziv]), skriveno, true);
+    proveri(
+      "po povratku stižu proslave (misija, dostignuće), a stari +XP ne",
+      povratak.toasts.length === 2 && povratak.toasts.every((t) => t.ikona.tip !== "dogadjaj") && povratak.potvrdi.includes("dostignuce:prvi_kontakt"),
+      JSON.stringify(povratak.toasts.map((t) => t.title)),
+    );
+    const dostignuce = povratak.toasts.find((t) => t.ikona.tip === "dostignuce");
+    proveri("toast dostignuća nosi naziv i nema XP", dostignuce?.title === "Novo dostignuće: Prvi kontakt" && dostignuce.xp === undefined && dostignuce.tone === "achievement", JSON.stringify(dostignuce));
+
+    // Tri i više novih događaja odjednom je jedan zbirni toast.
+    const zbirno = novoPamcenje();
+    izdvojiNagrade(ukljuceno(izvedi(ulaz({ potvrde: vidjeno }))), zbirno, true);
+    const mnogo = [0, 1, 2, 3].map((i) => dog("red", u(PON, 11, i)));
+    const zbir = izdvojiNagrade(ukljuceno(izvedi(ulaz({ dogadjaji: mnogo, potvrde: vidjeno }))), zbirno, true);
+    proveri("četiri nova događaja odjednom = jedan zbirni toast od +12 XP", zbir.toasts.length === 1 && zbir.toasts[0].xp === 12 && zbir.toasts[0].title === "4 radnje", JSON.stringify(zbir.toasts));
+
+    // Nov nivo ide u traku, ne u toast.
+    const saNivoom = izdvojiNagrade(
+      ukljuceno(izvedi(ulaz({ osnova: { ...praznaOsnova(), do: dodajDane(PON, -2), xp: 2400 } }))),
+      novoPamcenje(),
+      true,
+    );
+    proveri(
+      "nov nivo: traka sa nivoom, zvanjem i rangom, i ključ za potvrdu",
+      saNivoom.nivo?.level === 10 && saNivoom.nivo.rank === "Agent" && saNivoom.nivo.tier === "silver" && saNivoom.potvrdi.includes("nivo:10") && saNivoom.toasts.length === 0,
+      JSON.stringify(saNivoom),
+    );
+
+    // Stanje koje nije spremno ne pali ništa i ne pamti ništa.
+    const nespremno = novoPamcenje();
+    const kasni = izdvojiNagrade({ ...stanjeZa([prviPoziv]), spremno: false }, nespremno, true);
+    proveri("stanje koje nije spremno ne pali ništa", kasni.toasts.length === 0 && kasni.potvrdi.length === 0 && nespremno.vidjeni === null, JSON.stringify(kasni));
   }
 
   console.log("\n" + "=".repeat(78));

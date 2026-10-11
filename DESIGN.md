@@ -396,6 +396,25 @@ nema podataka: prsten u boji modula, jedno primarno dugme, koraci sa XP-om.
 `CelebrationBurst`. Uz svaki merač stoji broj. Pri otvaranju ekrana se ništa
 ne pomera; merač se pomeri kad se vrednost promeni.
 
+### Napredak (ekran, kartica, nagrade)
+- **Mesto.** `/napredak` je u modulu Kontrolne table (cijan). Zlatna ostaje
+  nagrada i na tom ekranu: XP broj i traka, bedž, završena misija, mapa.
+- **Kartica igrača** (dno bočne trake): bedž nivoa, zvanje, niz i XP traka; u
+  šini bedž nivoa u prstenu XP-a. Isključen Napredak: „Napredak isključen".
+- **Ekran.** Fokus je nivo + XP (40 px, zlatno) sa tri nedeljna prstena u boji
+  modula iz kog posao dolazi (Leadovi, Tabla, Instagram). Misije su jedine
+  kartice; prva nezavršena je šira i jedina nosi primarno dugme. Dostignuća,
+  rekordi i mapa su bez kartica.
+- **Dostignuće.** Zaključano je sivo, sa uslovom i „Zaključano · 3 / 10";
+  otključano je u boji retkosti, sa datumom.
+- **Mapa aktivnosti.** 12 nedelja, jednobojna zlatna skala u pet koraka;
+  broj je u oblačiću dana i u redu ispod, legenda kaže koliki je najjači dan.
+- **`LevelUpBanner`.** Nov nivo: traka ispod gornje trake, nije modal. Bedž
+  uđe sa prebačajem, tekst za njim, prasak iz bedža — ukupno do 1,2 s.
+  Zatvara se sama posle 4 s, klikom ili na Esc.
+- **Toast.** „+N XP · radnja" 2,5 s; misija, bonus i dostignuće 4 s; tri i
+  više radnji odjednom je jedan zbirni toast. Skriven tab ne dobija ništa.
+
 ### Motion
 GSAP `useGSAP` unutar `gsap.matchMedia()` sa granom za reduced-motion.
 „Corporate" za ceo UI: `--ease-ui` (`cubic-bezier(.2,.8,.2,1)`), 100 ms

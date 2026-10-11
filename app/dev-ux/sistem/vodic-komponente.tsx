@@ -78,6 +78,7 @@ import {
   type SignalCategory,
 } from "@/lib/signal-colors";
 import { Grupa, Sekcija } from "./delovi";
+import { VodicNapredak } from "./vodic-napredak";
 
 /** Izmišljeni podaci — dovoljno neuredni da liče na prave. */
 const LINIJA = [18, 22, 19, 27, 31, 26, 34, 38, 33, 41, 47, 44, 52, 58];
@@ -125,6 +126,7 @@ export function VodicKomponente() {
       <PraznaStanja />
       <NapredakUAkciji />
       <KarticaIgraca />
+      <VodicNapredak />
       <ProbaPortala />
     </>
   );

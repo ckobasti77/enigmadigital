@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { History, KeyRound, Link2, ShieldCheck } from "lucide-react";
+import { History, KeyRound, Link2, ShieldCheck, Trophy } from "lucide-react";
 import {
   ConnectionsSettings,
   ConnectionsSettingsSkeleton,
@@ -11,16 +11,18 @@ import { ModerationAuditLog } from "@/components/app/settings/moderation-audit-l
 import { InvitesPanel } from "@/components/app/settings/invites-panel";
 import { MembersPanel } from "@/components/app/settings/members-panel";
 import { IngestTokensPanel } from "@/components/app/settings/ingest-tokens-panel";
+import { NapredakSettings } from "@/components/app/settings/napredak-settings";
 import { PageHeader } from "@/components/app/page-header";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
 
-type Tab = "connections" | "audit" | "moderation" | "access";
+type Tab = "connections" | "audit" | "moderation" | "access" | "napredak";
 
 const TABS: readonly TabItem<Tab>[] = [
   { id: "connections", label: "Integracije", icon: Link2 },
   { id: "audit", label: "Istorija akcija", icon: History },
   { id: "moderation", label: "Moderacija", icon: ShieldCheck },
   { id: "access", label: "Pristup", icon: KeyRound },
+  { id: "napredak", label: "Napredak", icon: Trophy },
 ];
 
 const COPY: Record<Tab, { title: string; blurb: string }> = {
@@ -43,6 +45,11 @@ const COPY: Record<Tab, { title: string; blurb: string }> = {
     title: "Pristup",
     blurb:
       "Članovi, pozivnice za registraciju i tokeni kojima se skill predstavlja aplikaciji. Pozivnicu prosleđuješ ručno — osoba se registruje sa tačno tom adresom; bez pozivnice nema novog naloga.",
+  },
+  napredak: {
+    title: "Napredak",
+    blurb:
+      "XP, misije, niz i nedeljni ciljevi. Podešavanja su lična — važe samo za tvoj nalog.",
   },
 };
 
@@ -74,6 +81,8 @@ export default function SettingsPage() {
           <ActionAuditLog />
         ) : tab === "moderation" ? (
           <ModerationAuditLog />
+        ) : tab === "napredak" ? (
+          <NapredakSettings />
         ) : (
           <div className="space-y-10">
             <MembersPanel />

@@ -26,6 +26,11 @@ import {
 import { ModuleTile } from "./module-tile";
 import { NavBadge } from "./nav-badge";
 import { PlayerCard, initialsOf } from "./system/player-card";
+import {
+  napredakZaKarticu,
+  useNapredak,
+  useSada,
+} from "./napredak/use-napredak";
 import { useWorkspace } from "./workspace-provider";
 
 /**
@@ -321,6 +326,8 @@ function SidebarFooter({
   settingsActive: boolean;
 }) {
   const { workspace, user, isLoading } = useWorkspace();
+  const napredak = useNapredak();
+  const sada = useSada();
   const item = settingsNavItem;
 
   return (
@@ -336,6 +343,7 @@ function SidebarFooter({
         initials={initialsOf(user?.name ?? user?.email ?? workspace?.name)}
         title={workspace?.name ?? "Radni prostor"}
         subtitle={user?.email ?? undefined}
+        progress={napredakZaKarticu(napredak, sada)}
         href={screenExists(NAPREDAK_HREF) ? NAPREDAK_HREF : undefined}
         className={rail ? "w-11" : "flex-1"}
       />

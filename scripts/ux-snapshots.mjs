@@ -155,6 +155,41 @@ const EKRANI = [
     viewporti: ["390x844"],
     samoB: true,
   },
+  // B5: ekran napretka, prazan nalog (nivo 1, bez misija), sekcija u
+  // Podešavanjima i „Misije dana" u ⌘K.
+  { ime: "napredak", putanja: "/napredak", samoB: true },
+  { ime: "napredak-prazno", putanja: "/napredak", prazno: true, samoB: true },
+  {
+    ime: "podesavanja-napredak",
+    putanja: "/settings",
+    klik: ['[data-tab-id="napredak"]'],
+    samoB: true,
+  },
+  {
+    ime: "napredak-paleta",
+    putanja: "/napredak",
+    klik: ['button[aria-label="Komandna paleta"]'],
+    viewporti: ["1536x695"],
+    samoB: true,
+  },
+  // Upit napretka namerno pada (`pad=napredak`): ljuska i ekran moraju da
+  // ostanu — kartica igrača se vrati na identitet, ekran kaže da podataka
+  // nema. Greška u konzoli je ovde očekivana (React prijavi uhvaćenu grešku).
+  { ime: "napredak-pad", putanja: "/napredak?pad=napredak", samoB: true },
+  {
+    ime: "ljuska-pad-napretka",
+    putanja: "/leadovi?pad=napredak",
+    viewporti: ["1536x695"],
+    samoB: true,
+  },
+  // Traka za nov nivo se uživo vidi samo kad se nivo stvarno pređe; vodič je
+  // pali dugmetom, nad istim podacima.
+  {
+    ime: "napredak-nov-nivo",
+    putanja: "/sistem",
+    klik: ['button:has-text("Prikaži nov nivo")'],
+    samoB: true,
+  },
   // Prazna stanja kanala: `&prazno=1` vraća prazan nalog (bez veza, bez redova).
   { ime: "instagram-prazno", putanja: "/instagram", prazno: true, samoB: true },
   { ime: "analitika-prazno", putanja: "/analytics", prazno: true, samoB: true },

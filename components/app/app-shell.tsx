@@ -26,6 +26,8 @@ import { SyncStatus } from "./sync-status";
 import { NotificationsBell } from "./notifications-bell";
 import { DateRangePicker } from "./date-range-picker";
 import { UserMenu } from "./user-menu";
+import { useNapredakFeedback } from "./napredak/napredak-feedback";
+import { NapredakIzvor } from "./napredak/napredak-izvor";
 import {
   COMMAND_EVENT,
   RAIL_EVENT,
@@ -165,6 +167,8 @@ function ShellFrame({
   const lastInset = useRef<number | null>(null);
 
   const toggleRail = useCallback(() => setRail((prev) => !prev), []);
+  // +XP, završena misija, nov nivo i dostignuće — iz promene `napredak.stanje`.
+  const nagrade = useNapredakFeedback();
 
   // Pre pokreta ispod (isti redosled efekata): kada pokret izmeri kolonu,
   // nova širina trake je već na snazi.
@@ -280,6 +284,10 @@ function ShellFrame({
       </div>
       <MobileNav />
       <CommandPalette />
+      {/* Jedina pretplata na napredak, iza granice greške: kartica igrača, ⌘K
+          i nagrade čitaju ono što ona upiše, pa ih pad upita ne obara. */}
+      <NapredakIzvor />
+      {nagrade}
     </>
   );
 }

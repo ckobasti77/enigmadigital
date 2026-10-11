@@ -166,6 +166,16 @@ export type Screen = {
 type ExtraScreen = Pick<Screen, "href" | "title" | "range" | "module">;
 
 const EXTRA_SCREENS: ExtraScreen[] = [
+  // Napredak je lični pregled uz radni sto, pa nosi boju Kontrolne table.
+  // Namerno NIJE četrnaesti, zlatni modul: zlatna je u sistemu rezervisana za
+  // nagradu (XP, bedž, završena misija) — kao boja mesta bi izgubila to
+  // značenje baš na ekranu na kom je ima najviše.
+  {
+    href: "/napredak",
+    module: "tabla",
+    title: "Napredak",
+    range: false,
+  },
   {
     href: "/leadovi/uvoz",
     module: "leadovi",
@@ -383,7 +393,7 @@ export function screenExists(href: string): boolean {
   return ROUTES.some((r) => r.href === href);
 }
 
-/** Ekran napretka. Upisuje ga faza koja pravi samu stranicu. */
+/** Ekran napretka (upisan u `EXTRA_SCREENS`). */
 export const NAPREDAK_HREF = "/napredak";
 
 /**

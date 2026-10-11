@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { ProgressRing } from "./progress";
 import { LevelBadge, StreakFlame, XpBar, type Tier } from "./reward-badges";
 
 /**
@@ -15,6 +16,8 @@ import { LevelBadge, StreakFlame, XpBar, type Tier } from "./reward-badges";
  *   bez `progress`      identitet — inicijali, naslov i jedan red ispod
  *   `progress="off"`    isto, a red ispod kaže „Napredak isključen"
  *   `progress={…}`      bedž nivoa, zvanje, plamen niza i XP traka
+ *
+ * U šini ikonica nema mesta za traku, pa XP nosi prsten oko bedža nivoa.
  *
  * Visina je ista u sva tri oblika, pa uključivanje napretka ne pomera
  * navigaciju iznad kartice. Sa `href` je cela kartica veza; bez njega nije
@@ -126,7 +129,20 @@ export function PlayerCard({
   );
 
   const body = rail ? (
-    mark
+    on ? (
+      <ProgressRing
+        value={on.xp - on.xpFrom}
+        max={on.xpTo - on.xpFrom}
+        size={40}
+        stroke={3}
+        tone="xp"
+        label={`XP do nivoa ${on.level + 1}`}
+      >
+        <LevelBadge level={on.level} tier={on.tier} rank={on.rank} size="sm" />
+      </ProgressRing>
+    ) : (
+      mark
+    )
   ) : on ? (
     <>
       {mark}

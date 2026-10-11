@@ -26,16 +26,26 @@ function useFakeAuth() {
 export function UxHarness({
   children,
   prazno = false,
+  pad,
 }: {
   children: ReactNode;
   prazno?: boolean;
+  /**
+   * Modul čiji upiti namerno PADAJU (`?ux=1&pad=napredak`). Služi da se vidi
+   * šta ekran radi kad upit baci grešku — pravi Convex klijent tada baca iz
+   * `useQuery`, i ovaj radi isto.
+   */
+  pad?: string;
 }) {
   const client = useMemo(
     () =>
-      createFakeConvexClient((name, args) =>
-        resolveFixture(name, args, prazno),
-      ),
-    [prazno],
+      createFakeConvexClient((name, args) => {
+        if (pad && name.startsWith(`${pad}:`)) {
+          throw new Error(`Razvojni prikaz: namerni pad upita ${name}`);
+        }
+        return resolveFixture(name, args, prazno);
+      }),
+    [prazno, pad],
   );
   return (
     <ConvexProviderWithAuth client={client} useAuth={useFakeAuth}>
