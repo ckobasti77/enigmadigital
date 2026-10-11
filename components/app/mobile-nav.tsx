@@ -32,7 +32,7 @@ export function MobileNav() {
      */
     <nav
       aria-label="Glavna navigacija"
-      className="material material-edge-t edge-fade-t fixed inset-x-0 bottom-0 z-40 flex snap-x snap-mandatory overflow-x-auto pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="material material-edge-t edge-fade-t fixed inset-x-0 bottom-0 z-40 flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       {mobileNavItems.map((item) => {
         const active = isNavActive(pathname, item.href);
