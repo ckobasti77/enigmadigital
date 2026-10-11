@@ -1,0 +1,1 @@
+Radiš bez čoveka (runner run-boost.ps1): ne postavljaj pitanja; gde piše „pitaj me", izaberi konzervativniju opciju i zapiši je u izveštaj; push ne radiš ti, radi ga runner; ne čitaj tajne (.env*, client_secret*, ključeve); poslednja linija izlaza je `GOTOVO <ID>: <hash>` ili `NEUSPEH <ID>: <razlog>`.
