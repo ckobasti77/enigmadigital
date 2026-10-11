@@ -19,8 +19,24 @@ function useFakeAuth() {
   );
 }
 
-export function UxHarness({ children }: { children: ReactNode }) {
-  const client = useMemo(() => createFakeConvexClient(resolveFixture), []);
+/**
+ * `prazno` (`?ux=1&prazno=1`) vraća prazan nalog: bez veza ka kanalima i bez
+ * redova, za snimanje praznih stanja kanala.
+ */
+export function UxHarness({
+  children,
+  prazno = false,
+}: {
+  children: ReactNode;
+  prazno?: boolean;
+}) {
+  const client = useMemo(
+    () =>
+      createFakeConvexClient((name, args) =>
+        resolveFixture(name, args, prazno),
+      ),
+    [prazno],
+  );
   return (
     <ConvexProviderWithAuth client={client} useAuth={useFakeAuth}>
       {children}

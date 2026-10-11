@@ -67,3 +67,6 @@ logs/
 
 # 100 skilova (~5 MB) - lokalni alati, ne kod projekta
 .claude/skills/
+
+# B-faze UI boosta: lokalni snimci (~4 MB po fazi); A-snimci ostaju u repou
+nocni-run/ux/b*

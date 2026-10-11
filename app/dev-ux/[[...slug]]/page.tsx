@@ -9,6 +9,13 @@ import OpenReplyPage from "@/app/(app)/openreply/page";
 import SettingsPage from "@/app/(app)/settings/page";
 import RulesPage from "@/app/(app)/rules/page";
 import NovostiPage from "@/app/(app)/novosti/page";
+import AnalyticsPage from "@/app/(app)/analytics/page";
+import AttributionPage from "@/app/(app)/atribucija/page";
+import FacebookPage from "@/app/(app)/facebook/page";
+import ThreadsPage from "@/app/(app)/threads/page";
+import YouTubePage from "@/app/(app)/youtube/page";
+import AdsPage from "@/app/(app)/ads/page";
+import { LeadDetailPageClient } from "@/app/(app)/leadovi/[companyId]/lead-detail-page-client";
 import { UxHarness } from "../harness";
 
 /**
@@ -31,24 +38,39 @@ const PAGES: Record<string, ComponentType> = {
   settings: SettingsPage,
   rules: RulesPage,
   novosti: NovostiPage,
+  analytics: AnalyticsPage,
+  atribucija: AttributionPage,
+  facebook: FacebookPage,
+  threads: ThreadsPage,
+  youtube: YouTubePage,
+  ads: AdsPage,
 };
 
 export const dynamic = "force-dynamic";
 
 export default async function DevUxPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug?: string[] }>;
+  searchParams: Promise<{ prazno?: string }>;
 }) {
   if (process.env.NODE_ENV === "production") notFound();
-  const { slug } = await params;
-  const Page = PAGES[(slug ?? []).join("/")];
-  if (!Page) notFound();
+  const { slug = [] } = await params;
+  const { prazno } = await searchParams;
+
+  // Profil firme je dinamična ruta (`leadovi/<id>`); ostalo je fiksna mapa.
+  const profilId =
+    slug.length === 2 && slug[0] === "leadovi" && slug[1] !== "uvoz"
+      ? slug[1]
+      : null;
+  const Page = profilId ? null : PAGES[slug.join("/")];
+  if (!profilId && !Page) notFound();
 
   return (
-    <UxHarness>
+    <UxHarness prazno={prazno === "1"}>
       <AppShell>
-        <Page />
+        {profilId ? <LeadDetailPageClient companyId={profilId} /> : Page && <Page />}
       </AppShell>
     </UxHarness>
   );

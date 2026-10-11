@@ -1,8 +1,4 @@
-import {
-  getFunctionName,
-  type FunctionReference,
-  type FunctionReturnType,
-} from "convex/server";
+import { getFunctionName } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { LeadScore } from "@/convex/lib/leadScoring";
@@ -11,7 +7,7 @@ import {
   napraviZadatke,
   type Snimak,
 } from "@/convex/lib/notifications";
-import { dateKeysBetween, presetRange } from "@/lib/date-range";
+import { dateKeysBetween } from "@/lib/date-range";
 
 /**
  * Sintetički podaci za razvojni prikaz ekrana (A1 §6).
@@ -26,27 +22,21 @@ import { dateKeysBetween, presetRange } from "@/lib/date-range";
  * Svaki fixture je tipiziran preko `FunctionReturnType` prave Convex funkcije:
  * ako se oblik odgovora promeni, `tsc` ovo obori pre nego što snimak slaže.
  */
-type R<Q extends FunctionReference<"query">> = FunctionReturnType<Q>;
-
-const WS = "ws_ux_test_000000000000000" as Id<"workspaces">;
-const USER = "user_ux_test_00000000000000" as Id<"users">;
-
-const HOUR = 3_600_000;
-const DAY = 24 * HOUR;
-const now = Date.now();
-const range = presetRange("28d", new Date());
-
-/** Deterministični „slučajni" brojevi — isti snimak pre i posle. */
-function lcg(seed: number) {
-  let s = seed >>> 0;
-  return () => {
-    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-    return s / 0x100000000;
-  };
-}
-
-const tekuciPeriod = (args: Record<string, unknown>) =>
-  typeof args.to === "string" && args.to >= range.from;
+import {
+  DAY,
+  HOUR,
+  USER,
+  WS,
+  lcg,
+  now,
+  range,
+  tekuciPeriod,
+  type Fixture,
+  type R,
+} from "./fixtures-util";
+import { FIXTURES_ANALITIKA, PRAZNO_ANALITIKA } from "./fixtures-analitika";
+import { FIXTURES_KANALI, PRAZNO_KANALI } from "./fixtures-kanali";
+import { FIXTURES_OGLASI, PRAZNO_OGLASI } from "./fixtures-oglasi";
 
 // ── Ljuska ───────────────────────────────────────────────────────────────────
 
@@ -90,6 +80,66 @@ const connections: R<typeof api.connections.list> = [
     externalIdAlt: null,
     accountHandle: null,
     lastSyncAt: now - 2 * HOUR,
+    expiresAt: null,
+    authMode: null,
+  },
+  {
+    _id: "conn_meta_fb_test" as Id<"connections">,
+    _creationTime: now - 45 * DAY,
+    provider: "meta_fb",
+    status: "active",
+    externalId: "000000000000001",
+    externalIdAlt: null,
+    accountHandle: "Test Salon stranica",
+    lastSyncAt: now - 3 * HOUR,
+    expiresAt: null,
+    authMode: null,
+  },
+  {
+    _id: "conn_threads_test" as Id<"connections">,
+    _creationTime: now - 45 * DAY,
+    provider: "threads",
+    status: "active",
+    externalId: "000000000000002",
+    externalIdAlt: null,
+    accountHandle: "test.salon",
+    lastSyncAt: now - 3 * HOUR,
+    expiresAt: null,
+    authMode: null,
+  },
+  {
+    _id: "conn_youtube_test" as Id<"connections">,
+    _creationTime: now - 45 * DAY,
+    provider: "youtube",
+    status: "active",
+    externalId: "UC0000000000000000000000",
+    externalIdAlt: null,
+    accountHandle: "Test Salon kanal",
+    lastSyncAt: now - 3 * HOUR,
+    expiresAt: null,
+    authMode: null,
+  },
+  {
+    _id: "conn_meta_ads_test" as Id<"connections">,
+    _creationTime: now - 45 * DAY,
+    provider: "meta_ads",
+    status: "active",
+    externalId: "act_000000000",
+    externalIdAlt: null,
+    accountHandle: null,
+    lastSyncAt: now - 3 * HOUR,
+    expiresAt: null,
+    authMode: null,
+  },
+  {
+    _id: "conn_google_ads_test" as Id<"connections">,
+    _creationTime: now - 45 * DAY,
+    provider: "google_ads",
+    status: "active",
+    externalId: "000-000-0000",
+    externalIdAlt: null,
+    accountHandle: null,
+    lastSyncAt: now - 3 * HOUR,
     expiresAt: null,
     authMode: null,
   },
@@ -921,8 +971,6 @@ const postsPublished: R<typeof api.postsPublic.listPublished> = {
 
 // ── Razrešavanje po imenu funkcije ───────────────────────────────────────────
 
-type Fixture = (args: Record<string, unknown>) => unknown;
-
 const FIXTURES: Record<string, Fixture> = {
   [getFunctionName(api.workspaces.currentContext)]: () => currentContext,
   [getFunctionName(api.connections.list)]: () => connections,
@@ -963,8 +1011,36 @@ const FIXTURES: Record<string, Fixture> = {
   [getFunctionName(api.postsPublic.listPublished)]: () => postsPublished,
 };
 
+Object.assign(FIXTURES, FIXTURES_ANALITIKA, FIXTURES_KANALI, FIXTURES_OGLASI);
+
+// ── Prazan nalog (`?ux=1&prazno=1`) ──────────────────────────────────────────
+// Bez veza ka kanalima (osim ljuske) i bez redova: svaki kanal pokazuje svoje
+// prazno stanje. Fixture koji vraća niz tada vraća prazan niz; ostalo što nije
+// ovde navedeno ostaje kakvo jeste (ljuska, „šta me čeka").
+
+const KANALI_BEZ_VEZE = new Set(["meta_fb", "threads", "youtube", "meta_ig", "meta_ads", "google_ads", "ga4"]);
+
+const PRAZNO: Record<string, Fixture> = {
+  [getFunctionName(api.connections.list)]: () =>
+    connections.filter((c) => !KANALI_BEZ_VEZE.has(c.provider)),
+  [getFunctionName(api.sync.health)]: () => [],
+  ...PRAZNO_ANALITIKA,
+  ...PRAZNO_KANALI,
+  ...PRAZNO_OGLASI,
+};
+
 /** `undefined` za sve što nije pokriveno — ekran tada crta skeleton, ne laž. */
-export function resolveFixture(name: string, args: Record<string, unknown>): unknown {
+export function resolveFixture(
+  name: string,
+  args: Record<string, unknown>,
+  prazno = false,
+): unknown {
+  if (prazno) {
+    const po = PRAZNO[name];
+    if (po) return po(args);
+    const rez = FIXTURES[name]?.(args);
+    return Array.isArray(rez) ? [] : rez;
+  }
   const fx = FIXTURES[name];
   return fx ? fx(args) : undefined;
 }

@@ -6,6 +6,10 @@
  *   node scripts/ux-snapshots.mjs --faza pre        # pre izmena
  *   node scripts/ux-snapshots.mjs --faza posle      # posle izmena
  *   opcije: --port 3105  --bez-servera  --samo leadovi,instagram
+ *           --vp 1440x900,390x844   (podrazumevano 1536x695,390x844)
+ *   faze: `pre`, `posle` i A-faze su zaštićene; B-faza je svaki naziv koji
+ *   počinje sa `b` (b0-pre, b2, b6-pre …) i snima se u `nocni-run/ux/b*`
+ *   (u .gitignore — lokalni artefakt).
  *
  * Podiže `next dev` na zadatom portu (osim uz `--bez-servera`), otvara pet
  * glavnih ekrana kroz razvojni prikaz sa sintetičkim podacima (`?ux=1` →
@@ -40,20 +44,36 @@ const SAMO = opt("--samo", null)?.split(",").map((s) => s.trim()).filter(Boolean
 // „pre" / „posle" su A1 i ne smeju da se prepišu — to je jedini dokaz da ta
 // faza nije pokvarila ekrane. Svaka sledeća faza snima pod svojim imenom.
 const FAZE = ["pre", "posle", "a2", "a3-pre", "a3", "a4-pre", "a4", "a5-pre", "a5", "a6-pre", "a6", "a8-pre", "a8"];
-if (!FAZE.includes(FAZA)) {
-  console.error(`Zadaj --faza ${FAZE.join(" | ")}`);
+// B-faze (ui-boost-plan.md): svaki naziv koji počinje sa `b` — b0-pre, b2, b6-pre…
+const JE_B = typeof FAZA === "string" && /^b[a-z0-9][a-z0-9-]*$/.test(FAZA);
+if (!FAZE.includes(FAZA) && !JE_B) {
+  console.error(`Zadaj --faza ${FAZE.join(" | ")} | b<naziv> (npr. b0-pre, b2)`);
   process.exit(2);
 }
 
 const VIEWPORTI = [
   { ime: "1440x900", width: 1440, height: 900, mobile: false },
   { ime: "390x844", width: 390, height: 844, mobile: true },
+  // Jovanov stvarni ekran: 1920×1080 na 125 % skaliranja = 1536×695 CSS px.
+  { ime: "1536x695", width: 1536, height: 695, mobile: false },
   // A4 §2: prelivanje tabele „Rupe u podacima" je IZMERENO na 1568 px, pa se
   // baš ta širina snima — na 1440 se preliv ne vidi isto.
   { ime: "1568x900", width: 1568, height: 900, mobile: false },
 ];
 
-const PODRAZUMEVANI_VP = ["1440x900", "390x844"];
+const PODRAZUMEVANI_VP = opt("--vp", "1536x695,390x844")
+  .split(",")
+  .map((v) => v.trim())
+  .filter(Boolean);
+for (const ime of PODRAZUMEVANI_VP) {
+  if (!VIEWPORTI.some((v) => v.ime === ime)) {
+    console.error(`Nepoznat viewport ${ime}. Dozvoljeni: ${VIEWPORTI.map((v) => v.ime).join(", ")}`);
+    process.exit(2);
+  }
+}
+
+// Firma #2 iz `app/dev-ux/fixtures.ts` (`lc_ux_test_002`, ima sajt) — profil se otvara nad njom.
+const LEAD_PROFIL_ID = "lc_ux_test_002";
 
 const EKRANI = [
   { ime: "kontrolna-tabla", putanja: "/" },
@@ -66,7 +86,7 @@ const EKRANI = [
   {
     ime: "leadovi-rupe",
     putanja: "/leadovi?tab=gaps",
-    viewporti: [...PODRAZUMEVANI_VP, "1568x900"],
+    viewporti: JE_B ? PODRAZUMEVANI_VP : [...PODRAZUMEVANI_VP, "1568x900"],
   },
   { ime: "leadovi-sastanci", putanja: "/leadovi?tab=meetings" },
   { ime: "leadovi-mapa", putanja: "/leadovi?tab=map" },
@@ -83,14 +103,30 @@ const EKRANI = [
   },
   { ime: "instagram", putanja: "/instagram" },
   { ime: "openreply", putanja: "/openreply" },
-  { ime: "settings", putanja: "/settings" },
-  // A6: propagacija sistema na ekrane koji do sada nisu imali razvojni prikaz.
-  // Facebook/Threads/YouTube/Ads/Analitika/Atribucija nemaju sintetičke
-  // fixture (zahtevaju veliki, ugnježden oblik odgovora — kampanje, uvid po
-  // nalogu, itd.) i nisu ovde dodati; A6 izveštaj to prijavljuje kao rizik.
-  { ime: "rules", putanja: "/rules" },
+  // A-faze su ove ekrane zvale „settings" i „rules"; B-faze koriste srpska imena.
+  { ime: "settings", putanja: "/settings", samoA: true },
+  { ime: "rules", putanja: "/rules", samoA: true },
   { ime: "novosti", putanja: "/novosti" },
-].filter((e) => !SAMO || SAMO.includes(e.ime));
+  // B0: ekrani koji do sada nisu imali razvojni prikaz (samo B-faze).
+  { ime: "analitika", putanja: "/analytics", samoB: true },
+  { ime: "atribucija", putanja: "/atribucija", samoB: true },
+  { ime: "facebook", putanja: "/facebook", samoB: true },
+  { ime: "threads", putanja: "/threads", samoB: true },
+  { ime: "youtube", putanja: "/youtube", samoB: true },
+  { ime: "oglasi", putanja: "/ads", samoB: true },
+  { ime: "leadovi-profil", putanja: `/leadovi/${LEAD_PROFIL_ID}`, samoB: true },
+  { ime: "pravila", putanja: "/rules", samoB: true },
+  { ime: "podesavanja", putanja: "/settings", samoB: true },
+  // Prazna stanja kanala: `&prazno=1` vraća prazan nalog (bez veza, bez redova).
+  { ime: "instagram-prazno", putanja: "/instagram", prazno: true, samoB: true },
+  { ime: "analitika-prazno", putanja: "/analytics", prazno: true, samoB: true },
+  { ime: "facebook-prazno", putanja: "/facebook", prazno: true, samoB: true },
+  { ime: "threads-prazno", putanja: "/threads", prazno: true, samoB: true },
+  { ime: "youtube-prazno", putanja: "/youtube", prazno: true, samoB: true },
+  { ime: "oglasi-prazno", putanja: "/ads", prazno: true, samoB: true },
+]
+  .filter((e) => (JE_B ? !e.samoA : !e.samoB))
+  .filter((e) => !SAMO || SAMO.includes(e.ime));
 
 const BASE = `http://localhost:${PORT}`;
 const SERVER_ROK_MS = 240_000;
@@ -168,7 +204,7 @@ async function snimi(browser, ekran, vp) {
   page.on("pageerror", (err) => greske.push(`pageerror: ${String(err.message).slice(0, 300)}`));
 
   const sep = ekran.putanja.includes("?") ? "&" : "?";
-  const url = `${BASE}${ekran.putanja}${sep}ux=1`;
+  const url = `${BASE}${ekran.putanja}${sep}ux=1${ekran.prazno ? "&prazno=1" : ""}`;
   await page.goto(url, { waitUntil: "networkidle", timeout: STRANA_ROK_MS });
   await page.waitForSelector("main", { timeout: 60_000 });
   // Next-ov razvojni indikator (dugme „N" dole levo) nije deo aplikacije.
@@ -203,11 +239,23 @@ async function snimi(browser, ekran, vp) {
   const preliv = await page.evaluate(() => {
     const w = document.documentElement.clientWidth;
     const probijaju = [];
+    let ukupnoProbijaju = 0;
+    // Element unutar namerno klizne (overflow-x auto/scroll/hidden) ili odsečene
+    // grane se ne računa: tabela u sopstvenom klizaču nije probijanje strane.
+    const odsecen = (el) => {
+      for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+        const ox = getComputedStyle(p).overflowX;
+        if (ox === "auto" || ox === "scroll" || ox === "hidden" || ox === "clip") return true;
+      }
+      return false;
+    };
     for (const el of document.querySelectorAll("body *")) {
       const r = el.getBoundingClientRect();
-      if (r.width > 0 && r.right > w + 1) {
-        probijaju.push(`${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}.${String(el.className).split(" ").slice(0, 3).join(".")} (${Math.round(r.right - w)}px)`);
-        if (probijaju.length >= 8) break;
+      if (r.width > 0 && r.right > w + 1 && !odsecen(el)) {
+        ukupnoProbijaju += 1;
+        if (probijaju.length < 8) {
+          probijaju.push(`${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}.${String(el.className).split(" ").slice(0, 3).join(".")} (${Math.round(r.right - w)}px)`);
+        }
       }
     }
     return {
@@ -215,8 +263,53 @@ async function snimi(browser, ekran, vp) {
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: w,
       probijaju,
+      ukupnoProbijaju,
     };
   });
+
+  // B-mere (ui-boost-plan.md §10): jedno primarno dugme iznad preloma, vertikalni
+  // klizač na trakama tabova i u bočnoj traci. Dok atribut `data-variant` ne
+  // postoji na dugmadima (B2), broj primarnih je 0 i to je u redu.
+  const mere = await page.evaluate((visinaEkrana) => {
+    const vidljiv = (el) => {
+      const r = el.getBoundingClientRect();
+      const st = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && st.visibility !== "hidden" && st.display !== "none";
+    };
+    const primarnihIznadPreloma = [...document.querySelectorAll('[data-variant="primary"]')].filter((el) => {
+      if (!vidljiv(el)) return false;
+      const r = el.getBoundingClientRect();
+      return r.top < visinaEkrana && r.bottom > 0;
+    }).length;
+    const opis = (el) => el.getAttribute("aria-label") ?? el.className.toString().split(" ").slice(0, 3).join(".");
+    const trakeSaKlizacem = [...document.querySelectorAll("[role=tablist]")]
+      .filter((el) => el.scrollHeight > el.clientHeight + 1)
+      .map((el) => `${opis(el)} (${el.scrollHeight}/${el.clientHeight})`);
+    // F1: `overflow-x:auto` bez `overflow-y:hidden` računa `overflow-y:auto`, pa
+    // Windows crta vertikalni klizač sa ▲▼ čim vodoravni klizač zauzme visinu.
+    // Headless Chromium ima prekrivajuće klizače i to ne vidi po geometriji, zato
+    // se meri i stil: traka tabova (tablist ili nav van bočne trake) sa
+    // `overflow-y` auto/scroll.
+    const trakeSaStilomKlizaca = [...document.querySelectorAll("[role=tablist], nav")]
+      .filter((el) => !el.closest("aside") && vidljiv(el))
+      .filter((el) => {
+        const st = getComputedStyle(el);
+        const x = st.overflowX === "auto" || st.overflowX === "scroll";
+        const y = st.overflowY === "auto" || st.overflowY === "scroll";
+        return x && y;
+      })
+      .map(opis);
+    const bocna = document.querySelector("aside");
+    let bocnaKlizac = null;
+    if (bocna && vidljiv(bocna)) {
+      bocnaKlizac = [bocna, ...bocna.querySelectorAll("*")].some((el) => {
+        if (el.scrollHeight <= el.clientHeight + 1) return false;
+        const oy = getComputedStyle(el).overflowY;
+        return oy === "auto" || oy === "scroll";
+      });
+    }
+    return { primarnihIznadPreloma, trakeSaKlizacem, trakeSaStilomKlizaca, bocnaKlizac };
+  }, vp.height);
 
   const fajl = `${FAZA}-${ekran.ime}-${vp.ime}.jpg`;
   await page.screenshot({
@@ -237,6 +330,8 @@ async function snimi(browser, ekran, vp) {
     naslov,
     visinaPx: konacnaVisina,
     ...preliv,
+    brojProbijaju: preliv.ukupnoProbijaju,
+    ...mere,
     greske,
   };
 }

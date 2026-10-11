@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Convex codegen output
     "convex/_generated/**",
+    // Zastareli worktree-ovi i skillovi (nisu deo aplikacije)
+    ".claude/**",
   ]),
 ]);
 
