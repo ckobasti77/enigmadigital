@@ -20,6 +20,7 @@ const twMerge = extendTailwindMerge({
             "copy",
             "title",
             "metric",
+            "hero",
             "display",
             "micro",
             "small",

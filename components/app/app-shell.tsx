@@ -14,7 +14,7 @@ import { SignOutButton } from "./sign-out-button";
 import { SyncStatus } from "./sync-status";
 import { NotificationsBell } from "./notifications-bell";
 import { DateRangePicker } from "./date-range-picker";
-import { channelTabsFor, resolveScreen } from "./nav-items";
+import { channelTabsFor, resolveModule, resolveScreen } from "./nav-items";
 import { WorkspaceProvider } from "./workspace-provider";
 
 /**
@@ -51,6 +51,19 @@ function RedirectToLogin() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  // Boja mesta (UI Boost §3.4). Na koloni sadržaja atribut je u stablu, pa je
+  // tačan od prvog kadra; na `<html>` ga upisuje efekat, da ga naslede i
+  // portali (dijalog, popover, meni), koji se crtaju van te kolone.
+  const modul = resolveModule(pathname);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.module = modul;
+    return () => {
+      delete root.dataset.module;
+    };
+  }, [modul]);
+
   return (
     <>
       <OAuthCodeCatcher />
@@ -69,7 +82,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* The sidebar and header are fixed/sticky chrome, so the column is
               inset by the sidebar width rather than sharing a flex row. */}
           <AppSidebar />
-          <div className="flex min-w-0 min-h-full flex-1 flex-col md:pl-[var(--sidebar-width)]">
+          <div
+            data-module={modul}
+            className="flex min-w-0 min-h-full flex-1 flex-col md:pl-[var(--sidebar-width)]"
+          >
             <Header />
             <main className="mx-auto flex w-full max-w-[var(--content-max)] flex-1 flex-col px-[var(--gutter)] py-8 pb-24 md:pb-8">
               <PageTransition>{children}</PageTransition>

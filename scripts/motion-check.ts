@@ -17,7 +17,7 @@
  * to rade snimci i sonda u pregledaču; ovo dokazuje da ugovor stoji.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
@@ -25,8 +25,15 @@ import process from "node:process";
 import {
   DUR_COUNT,
   DUR_FRESH,
+  DUR_BURST,
+  DUR_LEVEL_UP,
+  DUR_MISSION,
   DUR_MOMENTUM,
+  DUR_PROGRESS,
   DUR_REDUCED,
+  DUR_REWARD,
+  DUR_TOAST_IN,
+  DUR_TOAST_OUT,
   DUR_UI,
   MAX_REVEAL_DELAY,
   REVEAL_BUDGET,
@@ -324,6 +331,92 @@ for (const zabranjen of ["framer-motion", "motion", "react-spring", "@react-spri
   proveri(`nema zavisnosti \`${zabranjen}\``, !(zabranjen in svi), "dodata je nova biblioteka pokreta");
 }
 proveri("gsap i @gsap/react jesu u package.json", "gsap" in svi && "@gsap/react" in svi, "GSAP nedostaje");
+
+// ---------------------------------------------------------------------------
+console.log("\n9. Nagrada (UI Boost §4.4): duze i sa prebacajem, ali samo tamo");
+// ---------------------------------------------------------------------------
+
+const durReward = msToken("duration-reward");
+proveri(
+  "--duration-reward == DUR_REWARD",
+  durReward !== null && Math.round(DUR_REWARD * 1000) === durReward,
+  `css=${durReward} ts=${DUR_REWARD * 1000}`,
+);
+const easeReward = cssToken("ease-reward");
+proveri(
+  "--ease-reward je tacan blizanac CustomEase krive iz lib/motion.ts",
+  easeReward === "cubic-bezier(0.34, 1.56, 0.64, 1)" &&
+    /CustomEase\.create\(\s*"reward",\s*"0\.34,1\.56,0\.64,1"\s*\)/.test(motionTs),
+  `css=${easeReward}`,
+);
+proveri(
+  "pod reduced-motion nagrada pada na 150 ms",
+  /prefers-reduced-motion: reduce[\s\S]*?--duration-reward:\s*150ms/.test(css),
+  "nema --duration-reward u reduced bloku",
+);
+proveri(
+  "toast: ulaz 250 ms je duzi od izlaza 180 ms",
+  DUR_TOAST_IN === 0.25 && DUR_TOAST_OUT === 0.18,
+  `in=${DUR_TOAST_IN} out=${DUR_TOAST_OUT}`,
+);
+proveri(
+  "zavrsena misija traje 300–400 ms",
+  DUR_MISSION >= 0.3 && DUR_MISSION <= 0.4,
+  `DUR_MISSION=${DUR_MISSION}`,
+);
+proveri(
+  "prasak ≤ 900 ms, nov nivo ≤ 1,2 s, nagrada ≤ 600 ms",
+  DUR_BURST <= 0.9 && DUR_LEVEL_UP <= 1.2 && DUR_REWARD <= 0.6,
+  `burst=${DUR_BURST} level=${DUR_LEVEL_UP} reward=${DUR_REWARD}`,
+);
+proveri(
+  "merac se pomera bez prebacaja i krace od nagrade",
+  DUR_PROGRESS <= DUR_REWARD,
+  `DUR_PROGRESS=${DUR_PROGRESS}`,
+);
+
+/** Svi .ts/.tsx fajlovi ispod zadatog foldera, kao putanje od korena. */
+function fajlovi(...deo: string[]): string[] {
+  const izlaz: string[] = [];
+  const obidji = (rel: string) => {
+    for (const stavka of readdirSync(join(ROOT, rel), { withFileTypes: true })) {
+      const put = `${rel}/${stavka.name}`;
+      if (stavka.isDirectory()) obidji(put);
+      else if (/\.tsx?$/.test(stavka.name)) izlaz.push(put);
+    }
+  };
+  obidji(deo.join("/"));
+  return izlaz;
+}
+
+// Prebacaj je dozvoljen samo nagradi: ko god uveze EASE_REWARD mora biti na
+// ovom spisku. Nov fajl na spisku je odluka, ne slucajnost.
+const NAGRADNE = new Set([
+  "components/app/system/mission-card.tsx",
+  "components/app/system/reward-toast.tsx",
+]);
+const saPrebacajem = [...fajlovi("components"), ...fajlovi("app")].filter((put) =>
+  /\bEASE_REWARD\b/.test(citaj(put)),
+);
+proveri(
+  "EASE_REWARD uvoze samo nagradne komponente",
+  saPrebacajem.length > 0 && saPrebacajem.every((put) => NAGRADNE.has(put)),
+  saPrebacajem.filter((put) => !NAGRADNE.has(put)).join(", ") || "niko ga ne uvozi",
+);
+
+// Svaka sistemska komponenta koja pokrece GSAP ima granu za reduced-motion.
+for (const put of fajlovi("components", "app", "system")) {
+  const kod = citaj(put);
+  if (!/from "gsap"/.test(kod)) continue;
+  proveri(
+    `${put.split("/").pop()}: useGSAP + matchMedia sa reduced granom`,
+    kod.includes("useGSAP") &&
+      kod.includes("gsap.matchMedia()") &&
+      kod.includes("MOTION_QUERIES") &&
+      /conditions\?\.still/.test(kod),
+    "nema grane za prefers-reduced-motion",
+  );
+}
 
 // ---------------------------------------------------------------------------
 console.log(pao === 0 ? "\nSVE PROLAZI\n" : `\n${pao} PROVERA NIJE PROSLA\n`);

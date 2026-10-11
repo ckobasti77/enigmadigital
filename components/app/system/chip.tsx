@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
+import type { CategorySlot } from "@/lib/signal-colors";
 import {
   TEMPERATURE_CHIP_CLASS,
   TEMPERATURE_LABEL,
@@ -9,14 +10,18 @@ import { cn } from "@/lib/utils";
 
 /**
  * ============================================================================
- * ČIP — jedan oblik za signal, stanje, filter i temperaturu (A1 §3)
+ * ČIP — jedan oblik za signal, stanje, filter i temperaturu (A1 §3, B2)
  * ============================================================================
  *
  * Izmereno pre A1: 60+ različitih recepata klasa za isti mali okvir sa
  * tekstom. Ovde je jedan: `rounded-md`, ivica od jednog piksela, blaga
  * podloga, `text-meta` (12 px) ili `text-ui` (13 px), `font-medium`. Ton nosi
- * značenje, ne ukras — neutralan je podrazumevan, cijan samo za ono što je
- * interaktivno ili ključno.
+ * značenje, ne ukras, i uvek je jedna od četiri uloge boje (UI Boost §3.1):
+ *
+ *   mesto       `module` (i zatečeni `accent`) — boja modula
+ *   stanje      `success` / `warning` / `danger` / `info`
+ *   kategorija  `category` (slot 1, 2, 3, 5, 6) — vidi `lib/signal-colors.ts`
+ *   nagrada     `xp` — zlatna, samo uz stvarno zarađen XP
  *
  * Sa `onClick` čip postaje dugme (`aria-pressed` = `active`), inače `span`.
  * Broj uz natpis (`count`) je tabularan i prigušen, da se čita kao imenilac
@@ -26,26 +31,39 @@ export type ChipTone =
   | "neutral"
   | "muted"
   | "accent"
+  | "module"
   | "success"
   | "warning"
-  | "danger";
+  | "danger"
+  | "info"
+  | "xp";
+
+const MODULE_TONE = "border-mod-line bg-mod-soft text-mod";
 
 const TONE: Record<ChipTone, string> = {
   neutral: "border-line bg-surface-raised text-foreground",
   muted: "border-line-soft bg-surface-raised/60 text-text-muted",
-  accent: "border-accent-400/40 bg-accent-400/10 text-accent-400",
-  success: "border-success/40 bg-success/10 text-success",
-  warning: "border-warning/40 bg-warning/10 text-warning",
-  danger: "border-danger/40 bg-danger/10 text-danger",
+  accent: MODULE_TONE,
+  module: MODULE_TONE,
+  success: "border-success-line bg-success-soft text-success",
+  warning: "border-warning-line bg-warning-soft text-warning",
+  danger: "border-danger-line bg-danger-soft text-danger",
+  info: "border-info-line bg-info-soft text-info",
+  xp: "border-xp-line bg-xp-soft text-xp",
 };
+
+const CATEGORY_TONE = "border-cat-line bg-cat-soft text-cat-ink";
 
 const SIZE = {
   sm: "h-6 gap-1 px-2 text-meta",
   md: "h-7 gap-1.5 px-2.5 text-ui",
 } as const;
 
+export type ChipSize = keyof typeof SIZE;
+
 export function Chip({
   tone = "neutral",
+  category,
   size = "md",
   icon: Icon,
   count,
@@ -56,7 +74,9 @@ export function Chip({
   children,
 }: {
   tone?: ChipTone;
-  size?: keyof typeof SIZE;
+  /** Boja kategorije (signal, niša). Kad je zadata, nadjačava `tone`. */
+  category?: CategorySlot | null;
+  size?: ChipSize;
   icon?: ComponentType<{ className?: string }>;
   /** Broj uz natpis — imenilac, tabularan, prigušen. */
   count?: number;
@@ -70,8 +90,8 @@ export function Chip({
   const classes = cn(
     "inline-flex shrink-0 items-center whitespace-nowrap rounded-md border font-medium leading-none transition-colors",
     SIZE[size],
-    TONE[tone],
-    active && "border-accent-400/60 ring-1 ring-accent-400/40",
+    category ? CATEGORY_TONE : TONE[tone],
+    active && "border-mod ring-1 ring-mod-line",
     onClick && "cursor-pointer hover:border-line-strong",
     className,
   );
@@ -86,13 +106,20 @@ export function Chip({
   );
   if (onClick) {
     return (
-      <button type="button" aria-pressed={active} onClick={onClick} title={title} className={classes}>
+      <button
+        type="button"
+        aria-pressed={active}
+        onClick={onClick}
+        title={title}
+        data-cat={category ?? undefined}
+        className={classes}
+      >
         {body}
       </button>
     );
   }
   return (
-    <span title={title} className={classes}>
+    <span title={title} data-cat={category ?? undefined} className={classes}>
       {body}
     </span>
   );
@@ -108,7 +135,7 @@ export function TemperatureChip({
   className,
 }: {
   temperatura: Temperatura | string | null | undefined;
-  size?: keyof typeof SIZE;
+  size?: ChipSize;
   className?: string;
 }) {
   const t = normalizeTemperatura(temperatura);

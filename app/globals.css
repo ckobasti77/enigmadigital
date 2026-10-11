@@ -17,8 +17,10 @@
    Dark slate is the only page theme; there is no `.dark` variant. White is a
    *surface* (`--surface-light`) for light contexts, not a theme.
 
-   Cyan is reserved for interactive elements and key metrics. `--accent` (the
-   shadcn hover tint) is deliberately a slate step, NOT cyan.
+   Boja je informacija i ima četiri uloge (UI Boost §3): MESTO (`--mod-*`),
+   STANJE (success / warning / danger / info + temperatura), KATEGORIJA
+   (`--chart-1..6`) i NAPREDAK (XP, niz, rang, retkost). Boja bez uloge se ne
+   dodaje. `--accent` (the shadcn hover tint) is deliberately a slate step.
    --------------------------------------------------------------------------- */
 
 :root {
@@ -69,6 +71,85 @@
   --success: #34d399;
   --warning: #fbbf24;
   --danger: #fb7185;
+  --info: oklch(0.739 0.13 245.4); /* #5db2f7 */
+  /* Podloga (14 %) i ivica (45 %) za svako stanje. Podloga se meša u oklab,
+     ne u oklch: polarna interpolacija rotira nijansu kroz ceo krug, pa žuta
+     na teget podlozi ispadne tirkizna. Ivica se meša sa providnim, gde
+     nijansa ostaje ista. */
+  --success-soft: color-mix(in oklab, var(--success) 14%, var(--surface));
+  --warning-soft: color-mix(in oklab, var(--warning) 14%, var(--surface));
+  --danger-soft: color-mix(in oklab, var(--danger) 14%, var(--surface));
+  --info-soft: color-mix(in oklab, var(--info) 14%, var(--surface));
+  --success-line: color-mix(in oklch, var(--success) 45%, transparent);
+  --warning-line: color-mix(in oklch, var(--warning) 45%, transparent);
+  --danger-line: color-mix(in oklch, var(--danger) 45%, transparent);
+  --info-line: color-mix(in oklch, var(--info) 45%, transparent);
+
+  /* ── Moduli — boja kaže gde si (UI Boost §3.2) ────────────────────────────
+     Ista svetlina i hroma, pa trinaest boja deluje kao jedna porodica.
+       ink     ikonice, tekst-akcenat, linije          (L 0.76, C ≈ 0.15)
+       strong  puna podloga primarnog dugmeta i bedža  (L 0.70, C ≈ 0.17),
+               uvek sa tamnim tekstom `--text-inverse`
+     Izmereno (`scripts/contrast-check.mjs`): ink ≥ 6,6:1 na najsvetlijoj
+     površini, tamni tekst na strong ≥ 6,5:1. OKLCH je izvor istine; heks u
+     komentaru je samo provera. Komponente NE čitaju ove vrednosti — čitaju
+     `--mod`, `--mod-strong`, `--mod-soft`, `--mod-line`, `--mod-glow`,
+     koje postavlja `[data-module]` ispod.
+     ------------------------------------------------------------------------ */
+  --mod-tabla: oklch(0.7812 0.1295 235.77); /* #58c4ff — brend cijan */
+  --mod-tabla-strong: oklch(0.754 0.139 232.7); /* #38bdf8 */
+  --mod-leadovi: oklch(0.76 0.15 155); /* #52cd86 */
+  --mod-leadovi-strong: oklch(0.6997 0.1703 154.9); /* #11bc6d */
+  --mod-novosti: oklch(0.76 0.15 122); /* #a1c047 */
+  --mod-novosti-strong: oklch(0.6992 0.1672 121.7); /* #8ead09 */
+  --mod-instagram: oklch(0.76 0.15 355); /* #fa86b6 */
+  --mod-instagram-strong: oklch(0.701 0.171 354.9); /* #ed6ba4 */
+  --mod-facebook: oklch(0.76 0.121 258); /* #80b3fd */
+  --mod-facebook-strong: oklch(0.7 0.158 258); /* #5c9eff */
+  --mod-youtube: oklch(0.76 0.141 22); /* #fe8a88 */
+  --mod-youtube-strong: oklch(0.7 0.17 22.1); /* #f66c6d */
+  --mod-threads: oklch(0.8 0.018 248); /* #b5bfc9 — brend je monohromatski */
+  --mod-threads-strong: oklch(0.72 0.021 250.5); /* #9ba6b2 */
+  --mod-oglasi: oklch(0.76 0.15 60); /* #f59740 */
+  --mod-oglasi-strong: oklch(0.7 0.164 59.94); /* #e68101 */
+  --mod-analitika: oklch(0.76 0.15 305); /* #c797fd */
+  --mod-analitika-strong: oklch(0.699 0.17 304.9); /* #b77ff2 */
+  --mod-atribucija: oklch(0.76 0.13 190); /* #0dcbc3 */
+  --mod-atribucija-strong: oklch(0.7008 0.1202 189.89); /* #08b6af */
+  --mod-openreply: oklch(0.76 0.125 282); /* #a5a7fe */
+  --mod-openreply-strong: oklch(0.7 0.16 281.9); /* #908ffe */
+  --mod-pravila: oklch(0.76 0.15 330); /* #e68cde */
+  --mod-pravila-strong: oklch(0.7 0.169 329.8); /* #d773d0 */
+  --mod-sistem: oklch(0.8 0.018 248); /* #b5bfc9 — neutralno */
+  --mod-sistem-strong: oklch(0.72 0.021 250.5); /* #9ba6b2 */
+
+  /* Rezerva van modula (prijava, pozivnica): komponenta koja čita `--mod`
+     nikad ne ostane bez vrednosti. `--primary` tu ostaje brend cijan. */
+  --mod: var(--mod-tabla);
+  --mod-strong: var(--mod-tabla-strong);
+  --mod-soft: color-mix(in oklab, var(--mod) 14%, var(--surface));
+  --mod-line: color-mix(in oklch, var(--mod) 45%, transparent);
+  --mod-glow: color-mix(in oklch, var(--mod) 35%, transparent);
+
+  /* ── Napredak i nagrada (UI Boost §3.7) ───────────────────────────────────
+     Zlatna je rezervisana za nagradu: nijedan modul ni kategorija je ne
+     koristi, pa „zlatno = zaradio sam" postaje naučen signal. */
+  --xp: oklch(0.84 0.16 85); /* #fac131 */
+  --xp-strong: oklch(0.7787 0.1638 74.89); /* #f3a504 */
+  --xp-soft: color-mix(in oklab, var(--xp) 14%, var(--surface));
+  --xp-line: color-mix(in oklch, var(--xp) 45%, transparent);
+  --xp-glow: color-mix(in oklch, var(--xp) 40%, transparent);
+  --streak: oklch(0.72 0.184 44.8); /* #ff772f */
+  --streak-hot: oklch(0.66 0.21 30.2); /* #f84e3a — samo ikonica, ne tekst */
+  --tier-bronze: oklch(0.68 0.091 54.7); /* #c48961 */
+  --tier-silver: oklch(0.819 0.02 252.9); /* #bbc5d1 */
+  --tier-gold: oklch(0.84 0.15 88.1); /* #f3c443 */
+  --tier-platinum: oklch(0.859 0.05 201); /* #abdbde */
+  --tier-diamond: oklch(0.801 0.12 230); /* #60ccfc */
+  --rarity-common: var(--temp-nova);
+  --rarity-rare: var(--info);
+  --rarity-epic: var(--mod-analitika);
+  --rarity-legendary: var(--xp);
 
   /* ── Temperatura leada (§5, A1 §2) ─────────────────────────────────────────
      Semantički niz sa redosledom: Nova → Cold → Warm → Hot. Jedina boja u
@@ -136,6 +217,15 @@
   --chart-5: #d55181; /* magenta */
   --chart-6: #9085e9; /* violet */
   --chart-grid: rgba(96, 128, 180, 0.16);
+  /* Tekst na čipu kategorije (UI Boost §3.6): ista nijansa na L 0.80, jer
+     sama serija (L 0.62–0.67) kao tekst na obojenoj podlozi ne prolazi
+     4,5:1. Slot 4 (amber) namerno nema parnjaka — preblizu je zlatnoj, a
+     zlatna je nagrada. Mapiranje signala je u `lib/signal-colors.ts`. */
+  --chart-1-ink: oklch(0.801 0.117 234.5); /* #6acafe */
+  --chart-2-ink: oklch(0.799 0.117 40.1); /* #fea383 */
+  --chart-3-ink: oklch(0.799 0.127 163.2); /* #64d7a6 */
+  --chart-5-ink: oklch(0.8 0.121 1.1); /* #fe9cb9 */
+  --chart-6-ink: oklch(0.801 0.104 286.9); /* #b9b4fe */
 
   /* Geometry — every length in rem so a raised system font scales the layout
      with the type instead of tearing it apart. */
@@ -144,6 +234,10 @@
   --content-max: 80rem;
   --sidebar-width: 15rem;
   --chrome-height: 4rem;
+  /* Jedna debljina linije za sve ikonice (UI Boost §4.5). */
+  --icon-stroke: 1.75;
+  /* Najmanja dodirna meta na telefonu. Vidi `.touch-target`. */
+  --touch-min: 2.75rem;
 
   /* ── Motion (A1 §2, plan O6) ───────────────────────────────────────────────
      Dva imenovana ease-a, i ništa između njih.
@@ -174,6 +268,11 @@
   --duration-fast: 150ms;
   --duration-base: 200ms;
   --duration-momentum: 340ms;
+  /* Nagrada (UI Boost §4.4): jedino mesto gde pokret sme da traje duže od
+     zamaha i da prebaci. XP, završena misija, nov nivo, dostignuće — i ništa
+     drugo. GSAP blizanci: `DUR_REWARD` i `EASE_REWARD` u `lib/motion.ts`. */
+  --duration-reward: 600ms;
+  --ease-reward: cubic-bezier(0.34, 1.56, 0.64, 1);
   /* Koliko se element pomeri pri ulasku (reveal, dolazak). Pod
      `prefers-reduced-motion` postaje 0 — ostaje samo neprozirnost. */
   --motion-distance: 10px;
@@ -260,6 +359,56 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Modul → boja (UI Boost §3.4)
+
+   `AppShell` postavlja `data-module` na kolonu sadržaja i na `<html>`, pa i
+   portali (dijalog, popover, meni, toast) nasleđuju boju modula.
+
+   Izvedeni tokeni stoje OVDE, ne u `:root`: promenljiva sa `var()` se
+   razrešava na elementu na kom je deklarisana, pa bi sa korena svi nasledili
+   cijan. Isto pravilo zato važi i za ugnježden `data-module` (vodič, stavke
+   bočne trake).
+
+   Unutar modula shadcn sloj prati modul: `--primary` je puna boja,
+   `--ring` i okvir fokusa su ink.
+   --------------------------------------------------------------------------- */
+[data-module] {
+  --mod-soft: color-mix(in oklab, var(--mod) 14%, var(--surface));
+  --mod-line: color-mix(in oklch, var(--mod) 45%, transparent);
+  --mod-glow: color-mix(in oklch, var(--mod) 35%, transparent);
+  --primary: var(--mod-strong);
+  --ring: var(--mod);
+  --focus-ring-strong: var(--mod);
+}
+
+[data-module="tabla"] { --mod: var(--mod-tabla); --mod-strong: var(--mod-tabla-strong); }
+[data-module="leadovi"] { --mod: var(--mod-leadovi); --mod-strong: var(--mod-leadovi-strong); }
+[data-module="novosti"] { --mod: var(--mod-novosti); --mod-strong: var(--mod-novosti-strong); }
+[data-module="instagram"] { --mod: var(--mod-instagram); --mod-strong: var(--mod-instagram-strong); }
+[data-module="facebook"] { --mod: var(--mod-facebook); --mod-strong: var(--mod-facebook-strong); }
+[data-module="youtube"] { --mod: var(--mod-youtube); --mod-strong: var(--mod-youtube-strong); }
+[data-module="threads"] { --mod: var(--mod-threads); --mod-strong: var(--mod-threads-strong); }
+[data-module="oglasi"] { --mod: var(--mod-oglasi); --mod-strong: var(--mod-oglasi-strong); }
+[data-module="analitika"] { --mod: var(--mod-analitika); --mod-strong: var(--mod-analitika-strong); }
+[data-module="atribucija"] { --mod: var(--mod-atribucija); --mod-strong: var(--mod-atribucija-strong); }
+[data-module="openreply"] { --mod: var(--mod-openreply); --mod-strong: var(--mod-openreply-strong); }
+[data-module="pravila"] { --mod: var(--mod-pravila); --mod-strong: var(--mod-pravila-strong); }
+[data-module="sistem"] { --mod: var(--mod-sistem); --mod-strong: var(--mod-sistem-strong); }
+
+/* Kategorija → boja (UI Boost §3.6). Isti mehanizam kao moduli: čip signala i
+   monogram niše nose `data-cat`, a čitaju `--cat*`. */
+[data-cat] {
+  --cat-soft: color-mix(in oklab, var(--cat) 18%, var(--surface));
+  --cat-line: color-mix(in oklch, var(--cat) 45%, transparent);
+}
+
+[data-cat="1"] { --cat: var(--chart-1); --cat-ink: var(--chart-1-ink); }
+[data-cat="2"] { --cat: var(--chart-2); --cat-ink: var(--chart-2-ink); }
+[data-cat="3"] { --cat: var(--chart-3); --cat-ink: var(--chart-3-ink); }
+[data-cat="5"] { --cat: var(--chart-5); --cat-ink: var(--chart-5-ink); }
+[data-cat="6"] { --cat: var(--chart-6); --cat-ink: var(--chart-6-ink); }
+
+/* ---------------------------------------------------------------------------
    Type scale — 12 / 13 / 15 / 20 / 28 (A1 §2, plan O5)
 
    Pet koraka, svaki sa imenom po nameni:
@@ -310,6 +459,12 @@
   --text-metric--line-height: 1.1;
   --text-metric--letter-spacing: -0.018em;
   --text-metric--font-weight: 700;
+
+  /* Fokus broj ekrana — jedan po pogledu, nikad naslov (UI Boost §4.3). */
+  --text-hero: 2.5rem; /* 40px */
+  --text-hero--line-height: 1.05;
+  --text-hero--letter-spacing: -0.022em;
+  --text-hero--font-weight: 700;
 
   /* Iznad skale: samo ekran prijave i brend momenti. */
   --text-display: clamp(2rem, 1.5rem + 2.5vw, 3.5rem); /* 32 → 56px */
@@ -408,6 +563,39 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-success-soft: var(--success-soft);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger-soft: var(--danger-soft);
+  --color-info-soft: var(--info-soft);
+  --color-success-line: var(--success-line);
+  --color-warning-line: var(--warning-line);
+  --color-danger-line: var(--danger-line);
+  --color-info-line: var(--info-line);
+  --color-mod: var(--mod);
+  --color-mod-strong: var(--mod-strong);
+  --color-mod-soft: var(--mod-soft);
+  --color-mod-line: var(--mod-line);
+  --color-mod-glow: var(--mod-glow);
+  --color-cat: var(--cat);
+  --color-cat-ink: var(--cat-ink);
+  --color-cat-soft: var(--cat-soft);
+  --color-cat-line: var(--cat-line);
+  --color-xp: var(--xp);
+  --color-xp-strong: var(--xp-strong);
+  --color-xp-soft: var(--xp-soft);
+  --color-xp-line: var(--xp-line);
+  --color-streak: var(--streak);
+  --color-streak-hot: var(--streak-hot);
+  --color-tier-bronze: var(--tier-bronze);
+  --color-tier-silver: var(--tier-silver);
+  --color-tier-gold: var(--tier-gold);
+  --color-tier-platinum: var(--tier-platinum);
+  --color-tier-diamond: var(--tier-diamond);
+  --color-rarity-common: var(--rarity-common);
+  --color-rarity-rare: var(--rarity-rare);
+  --color-rarity-epic: var(--rarity-epic);
+  --color-rarity-legendary: var(--rarity-legendary);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -487,6 +675,13 @@
   --shadow-lg: var(--elev-2);
   --shadow-xl: var(--elev-3);
   --shadow-2xl: var(--elev-3);
+
+  /* Sjaj je obojena, tiha senka sa pomerajem — nikad oreol `0 0 Npx`
+     (UI Boost §4.5). `shadow-mod` je za fokus karticu i primarno dugme na
+     hover, `shadow-reward` samo za nagrade. Vrednost je ovde, u `inline`
+     sloju, da bi se `--mod-glow` razrešio na elementu, ne na korenu. */
+  --shadow-mod: inset 0 1px 0 var(--material-edge), 0 10px 30px -14px var(--mod-glow);
+  --shadow-reward: inset 0 1px 0 var(--material-edge), 0 10px 30px -14px var(--xp-glow);
 }
 
 @layer base {
@@ -501,6 +696,12 @@
   html {
     @apply h-full bg-background font-sans;
     color-scheme: dark;
+  }
+
+  /* Jedna debljina linije za svaku lucide ikonicu (UI Boost §4.5). CSS
+     svojstvo pobeđuje atribut `stroke-width` koji lucide upiše u SVG. */
+  :where(.lucide) {
+    stroke-width: var(--icon-stroke);
   }
 
   body {
@@ -659,6 +860,39 @@
     );
   }
 
+  /* ── Aurora (UI Boost §3.8) ──────────────────────────────────────────────
+     Svetlo modula na vrhu strane: jedan radijalni gradijent, najviše 10 %,
+     bez animacije. Jedna od četiri dozvole za gradijent u sistemu (uz
+     napredak, fokus karticu i nagrade). Sloj je iza sadržaja elementa i ne
+     hvata klik. */
+  .aurora {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .aurora::before {
+    content: "";
+    position: absolute;
+    inset: -2rem calc(var(--gutter) * -1) auto;
+    height: 16rem;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(
+      60% 100% at 16% 0%,
+      color-mix(in oklch, var(--mod) 10%, transparent),
+      transparent 72%
+    );
+  }
+
+  /* Dodirna meta ≥ 44 px tamo gde se stvarno dodiruje (UI Boost §4.5). Na
+     mišu element zadržava svoju gustinu. */
+  @media (pointer: coarse) {
+    .touch-target {
+      min-height: var(--touch-min);
+      min-width: var(--touch-min);
+    }
+  }
+
   /* Purposeful hover lift — the only hover motion in the system */
   .hover-lift {
     transition:
@@ -772,6 +1006,7 @@
     --motion-distance: 0px;
     --duration-base: 150ms;
     --duration-momentum: 150ms;
+    --duration-reward: 150ms;
   }
 
   *,
@@ -850,6 +1085,15 @@
     --material-edge: rgba(160, 192, 238, 0.6);
     --material-edge-strong: rgba(160, 192, 238, 0.75);
     --edge-fade: rgba(7, 13, 25, 0.92);
+  }
+
+  /* Ivica u boji modula postaje prava ivica, a ukrasno svetlo se gasi. */
+  [data-module] {
+    --mod-line: color-mix(in oklch, var(--mod) 75%, transparent);
+  }
+
+  .aurora::before {
+    display: none;
   }
 
   .material-thin,

@@ -1,0 +1,537 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-11T16:34:54.012Z",
+  "title": "Design System: Enigma Command Center",
+  "extensions": {
+    "colorMeta": {
+      "mod-tabla": {
+        "role": "primary",
+        "displayName": "Brend cijan — Kontrolna tabla",
+        "canonical": "oklch(0.7812 0.1295 235.77)",
+        "tonalRamp": [
+          "#000d19",
+          "#002a3e",
+          "#044b6a",
+          "#006e9c",
+          "#1894cc",
+          "#4dbaf4",
+          "#a0dafd",
+          "#dff2fe"
+        ]
+      },
+      "mod-leadovi": {
+        "role": "primary",
+        "displayName": "Zelena — Leadovi",
+        "canonical": "oklch(0.76 0.15 155)",
+        "tonalRamp": [
+          "#001004",
+          "#012f17",
+          "#05532e",
+          "#007a44",
+          "#17a35f",
+          "#4ec983",
+          "#76eea5",
+          "#c6ffd8"
+        ]
+      },
+      "mod-novosti": {
+        "role": "primary",
+        "displayName": "Limeta — Novosti",
+        "canonical": "oklch(0.76 0.15 122)",
+        "tonalRamp": [
+          "#080e00",
+          "#212b00",
+          "#3d4c01",
+          "#5b7004",
+          "#7a960b",
+          "#9ebc43",
+          "#c1e069",
+          "#deff87"
+        ]
+      },
+      "mod-instagram": {
+        "role": "primary",
+        "displayName": "Roze — Instagram",
+        "canonical": "oklch(0.76 0.15 355)",
+        "tonalRamp": [
+          "#1e000c",
+          "#4b0129",
+          "#7c0d49",
+          "#a4386a",
+          "#cd5d8e",
+          "#f683b3",
+          "#fdbbd4",
+          "#fee8ef"
+        ]
+      },
+      "mod-facebook": {
+        "role": "primary",
+        "displayName": "Plava — Facebook",
+        "canonical": "oklch(0.76 0.121 258)",
+        "tonalRamp": [
+          "#000827",
+          "#002356",
+          "#144384",
+          "#3765aa",
+          "#598ad1",
+          "#7daffa",
+          "#b5d3ff",
+          "#e6effd"
+        ]
+      },
+      "mod-youtube": {
+        "role": "primary",
+        "displayName": "Crvena — YouTube",
+        "canonical": "oklch(0.76 0.141 22)",
+        "tonalRamp": [
+          "#200001",
+          "#4f000b",
+          "#80141f",
+          "#a83d40",
+          "#d16262",
+          "#fa8785",
+          "#febfbc",
+          "#fce9e8"
+        ]
+      },
+      "mod-threads": {
+        "role": "primary",
+        "displayName": "Siva — Threads",
+        "canonical": "oklch(0.8 0.018 248)",
+        "tonalRamp": [
+          "#060c12",
+          "#20272f",
+          "#3e464e",
+          "#5e6770",
+          "#818a94",
+          "#a5afb9",
+          "#c8d2dd",
+          "#e5f0fa"
+        ]
+      },
+      "mod-oglasi": {
+        "role": "primary",
+        "displayName": "Narandžasta — Oglasi",
+        "canonical": "oklch(0.76 0.15 60)",
+        "tonalRamp": [
+          "#170600",
+          "#3c1e01",
+          "#673702",
+          "#965304",
+          "#c77007",
+          "#f2943c",
+          "#fdc495",
+          "#feeadb"
+        ]
+      },
+      "mod-analitika": {
+        "role": "primary",
+        "displayName": "Ljubičasta — Analitika",
+        "canonical": "oklch(0.76 0.15 305)",
+        "tonalRamp": [
+          "#140027",
+          "#37005c",
+          "#582683",
+          "#7b4aaa",
+          "#9f6ed1",
+          "#c494fa",
+          "#dec3ff",
+          "#f2eafd"
+        ]
+      },
+      "mod-atribucija": {
+        "role": "primary",
+        "displayName": "Tirkiz — Atribucija",
+        "canonical": "oklch(0.76 0.13 190)",
+        "tonalRamp": [
+          "#000f0e",
+          "#012d2b",
+          "#04504d",
+          "#0a7571",
+          "#129d97",
+          "#1bc7c0",
+          "#4dece4",
+          "#b8fef9"
+        ]
+      },
+      "mod-openreply": {
+        "role": "primary",
+        "displayName": "Indigo — OpenReply",
+        "canonical": "oklch(0.76 0.125 282)",
+        "tonalRamp": [
+          "#0a0030",
+          "#221460",
+          "#3d3885",
+          "#5c5aab",
+          "#7e7ed2",
+          "#a2a3fb",
+          "#c9ccfe",
+          "#ecedfd"
+        ]
+      },
+      "mod-pravila": {
+        "role": "primary",
+        "displayName": "Fuksija — Pravila",
+        "canonical": "oklch(0.76 0.15 330)",
+        "tonalRamp": [
+          "#1a0019",
+          "#440142",
+          "#6e1a6a",
+          "#93408e",
+          "#ba64b4",
+          "#e289db",
+          "#ffb4f7",
+          "#fee6fb"
+        ]
+      },
+      "mod-sistem": {
+        "role": "primary",
+        "displayName": "Siva — Podešavanja",
+        "canonical": "oklch(0.8 0.018 248)",
+        "tonalRamp": [
+          "#060c12",
+          "#20272f",
+          "#3e464e",
+          "#5e6770",
+          "#818a94",
+          "#a5afb9",
+          "#c8d2dd",
+          "#e5f0fa"
+        ]
+      },
+      "xp": {
+        "role": "tertiary",
+        "displayName": "XP zlatna — samo nagrada",
+        "canonical": "oklch(0.84 0.16 85)",
+        "tonalRamp": [
+          "#120900",
+          "#332400",
+          "#594100",
+          "#816002",
+          "#ac8205",
+          "#daa50b",
+          "#fec848",
+          "#ffedc8"
+        ]
+      },
+      "success": {
+        "role": "secondary",
+        "displayName": "Uspeh",
+        "canonical": "oklch(0.773 0.153 163.2)",
+        "tonalRamp": [
+          "#001007",
+          "#012f1e",
+          "#075238",
+          "#037954",
+          "#0fa272",
+          "#28cb92",
+          "#5cf0b4",
+          "#c2ffe1"
+        ]
+      },
+      "warning": {
+        "role": "secondary",
+        "displayName": "Upozorenje",
+        "canonical": "oklch(0.837 0.164 84.4)",
+        "tonalRamp": [
+          "#120900",
+          "#332400",
+          "#594100",
+          "#826002",
+          "#ad8106",
+          "#daa40c",
+          "#fec84e",
+          "#ffecc8"
+        ]
+      },
+      "danger": {
+        "role": "secondary",
+        "displayName": "Greška",
+        "canonical": "oklch(0.719 0.169 13.4)",
+        "tonalRamp": [
+          "#1f0004",
+          "#4e0016",
+          "#84002b",
+          "#b12c49",
+          "#db546b",
+          "#ff8191",
+          "#fdbec3",
+          "#ffe8e9"
+        ]
+      },
+      "info": {
+        "role": "secondary",
+        "displayName": "Info",
+        "canonical": "oklch(0.739 0.13 245.4)",
+        "tonalRamp": [
+          "#000c1b",
+          "#002946",
+          "#024876",
+          "#006bab",
+          "#398fd2",
+          "#61b5fb",
+          "#abd7fd",
+          "#e3f0fd"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Teget slate — površine",
+        "canonical": "#131d31",
+        "tonalRamp": [
+          "#070d19",
+          "#0b1221",
+          "#0e1729",
+          "#131d31",
+          "#18253a",
+          "#7b8eb0",
+          "#c1d3f5",
+          "#f3f7ff"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Samo ekran prijave i brend momenti."
+      },
+      "hero": {
+        "displayName": "Hero",
+        "purpose": "Jedini fokus broj ekrana, u boji modula."
+      },
+      "headline": {
+        "displayName": "Metric",
+        "purpose": "Brojka na pločici."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Naslov ekrana, kartice i sekcije."
+      },
+      "body": {
+        "displayName": "Copy",
+        "purpose": "Tekst i naziv firme u redu."
+      },
+      "ui": {
+        "displayName": "UI",
+        "purpose": "Ćelije tabele, kontrole, opisi."
+      },
+      "label": {
+        "displayName": "Meta",
+        "purpose": "Natpisi, čipovi, ose grafikona."
+      }
+    },
+    "shadows": [
+      {
+        "name": "elev-1",
+        "value": "0 1px 2px rgba(0,0,0,.28), 0 2px 8px rgba(0,0,0,.2)",
+        "purpose": "Kartice i pločice."
+      },
+      {
+        "name": "elev-2",
+        "value": "0 4px 10px rgba(0,0,0,.34), 0 12px 32px rgba(0,0,0,.3)",
+        "purpose": "Meniji, popoveri, toast."
+      },
+      {
+        "name": "elev-3",
+        "value": "0 8px 20px rgba(0,0,0,.42), 0 32px 72px rgba(0,0,0,.5)",
+        "purpose": "Dijalozi i fioke."
+      },
+      {
+        "name": "shadow-mod",
+        "value": "inset 0 1px 0 var(--material-edge), 0 10px 30px -14px var(--mod-glow)",
+        "purpose": "Fokus kartica i primarno dugme na hover."
+      },
+      {
+        "name": "shadow-reward",
+        "value": "inset 0 1px 0 var(--material-edge), 0 10px 30px -14px var(--xp-glow)",
+        "purpose": "Nagrade."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-ui",
+        "value": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "purpose": "Sve što se pojavi; bez prebačaja."
+      },
+      {
+        "name": "ease-momentum",
+        "value": "cubic-bezier(0.34, 1.42, 0.64, 1)",
+        "purpose": "Samo kad je gestu prethodio zamah."
+      },
+      {
+        "name": "ease-reward",
+        "value": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "purpose": "Samo nagrada."
+      },
+      {
+        "name": "duration-press",
+        "value": "100ms",
+        "purpose": "Odziv na pritisak."
+      },
+      {
+        "name": "duration-fast",
+        "value": "150ms",
+        "purpose": "Sitno: oblačić, čip, pretapanje."
+      },
+      {
+        "name": "duration-base",
+        "value": "200ms",
+        "purpose": "Sve što se pojavi ili razmota."
+      },
+      {
+        "name": "duration-reward",
+        "value": "600ms",
+        "purpose": "Gornja granica nagradnog pokreta."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primarno dugme",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Jedno po pogledu: puna boja modula, tamni tekst.",
+      "html": "<button class=\"ds-btn-primary\">Započni režim poziva</button>",
+      "css": ".ds-btn-primary { font: 500 13px/1 var(--font-aeonik, ui-sans-serif), system-ui, sans-serif; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; transition: background-color .15s cubic-bezier(.2,.8,.2,1), box-shadow .2s cubic-bezier(.2,.8,.2,1), scale .1s ease-out; background: var(--mod-strong); color: var(--text-inverse); box-shadow: inset 0 1px 0 var(--material-edge); } .ds-btn-primary:hover { background: color-mix(in oklch, var(--mod-strong), var(--foreground) 10%); box-shadow: inset 0 1px 0 var(--material-edge), 0 10px 30px -14px var(--mod-glow); } .ds-btn-primary:focus-visible { outline: 2px solid var(--mod); outline-offset: 2px; } .ds-btn-primary:active { scale: .97; }"
+    },
+    {
+      "name": "Sekundarno dugme",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Prateće radnje: tinta modula.",
+      "html": "<button class=\"ds-btn-secondary\">Zabeleži ishod</button>",
+      "css": ".ds-btn-secondary { font: 500 13px/1 var(--font-aeonik, ui-sans-serif), system-ui, sans-serif; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; transition: background-color .15s cubic-bezier(.2,.8,.2,1), box-shadow .2s cubic-bezier(.2,.8,.2,1), scale .1s ease-out; background: var(--mod-soft); color: var(--mod); border-color: var(--mod-line); } .ds-btn-secondary:hover { background: color-mix(in oklab, var(--mod) 22%, var(--surface)); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--mod); outline-offset: 2px; } .ds-btn-secondary:active { scale: .97; }"
+    },
+    {
+      "name": "Dugme sa okvirom",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Alati i filteri: neutralno.",
+      "html": "<button class=\"ds-btn-outline\">Filter</button>",
+      "css": ".ds-btn-outline { font: 500 13px/1 var(--font-aeonik, ui-sans-serif), system-ui, sans-serif; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; transition: background-color .15s cubic-bezier(.2,.8,.2,1), box-shadow .2s cubic-bezier(.2,.8,.2,1), scale .1s ease-out; background: color-mix(in oklab, var(--line-control) 30%, transparent); color: var(--text-primary); border-color: var(--line-control); } .ds-btn-outline:hover { background: color-mix(in oklab, var(--line-control) 50%, transparent); } .ds-btn-outline:focus-visible { outline: 2px solid var(--mod); outline-offset: 2px; }"
+    },
+    {
+      "name": "Čip kategorije",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Signal leada u boji kategorije (ovde: sajt).",
+      "html": "<span class=\"ds-chip-cat\">nema sajt</span>",
+      "css": ".ds-chip-cat { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 6px; font: 500 12px/1 var(--font-aeonik, ui-sans-serif), system-ui, sans-serif; background: color-mix(in oklab, var(--chart-2) 18%, var(--surface)); border: 1px solid color-mix(in oklch, var(--chart-2) 45%, transparent); color: var(--chart-2-ink); }"
+    },
+    {
+      "name": "Delta pilula",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Promena na pločici: strelica je smer, boja je ocena.",
+      "html": "<span class=\"ds-delta\">↗ +18,4%</span>",
+      "css": ".ds-delta { display: inline-flex; align-items: center; gap: 2px; height: 20px; padding: 0 6px; border-radius: 9999px; font: 500 12px/1 ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; background: var(--success-soft); color: var(--success); }"
+    },
+    {
+      "name": "KPI pločica",
+      "kind": "card",
+      "refersTo": "kpi-tile",
+      "description": "Natpis, brojka i poređenje; hero nosi broj u boji modula.",
+      "html": "<div class=\"ds-kpi\"><p class=\"ds-kpi-label\">Sesije</p><p class=\"ds-kpi-value\">1.240</p><p class=\"ds-kpi-note\">vs prethodnih 28 d</p></div>",
+      "css": ".ds-kpi { width: 240px; padding: 16px 20px; border-radius: 14px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0,0,0,.28), 0 2px 8px rgba(0,0,0,.2); font-family: var(--font-aeonik, ui-sans-serif), system-ui, sans-serif; } .ds-kpi-label { margin: 0; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); } .ds-kpi-value { margin: 8px 0 0; font: 700 40px/1.05 ui-monospace, Menlo, Consolas, monospace; letter-spacing: -.022em; color: var(--mod); } .ds-kpi-note { margin: 8px 0 0; font-size: 13px; color: var(--text-muted); }"
+    },
+    {
+      "name": "Fokus kartica",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Jedna po ekranu: ivica u gradijentu boje modula i obojena senka.",
+      "html": "<section class=\"ds-focus\"><div class=\"ds-focus-inner\"><p class=\"ds-focus-eyebrow\">Danas</p><h2 class=\"ds-focus-title\">Pozovi 5 firmi iz Zovi sada</h2></div></section>",
+      "css": ".ds-focus { padding: 1px; border-radius: 14px; background: linear-gradient(135deg, var(--mod), var(--mod-strong) 38%, transparent 78%); box-shadow: inset 0 1px 0 var(--material-edge), 0 10px 30px -14px var(--mod-glow); } .ds-focus-inner { padding: 20px; border-radius: 13px; background: var(--surface); font-family: var(--font-aeonik, ui-sans-serif), system-ui, sans-serif; } .ds-focus-eyebrow { margin: 0; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--mod); } .ds-focus-title { margin: 12px 0 0; font-size: 20px; font-weight: 700; letter-spacing: -.012em; color: var(--text-primary); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Kontrolna soba koja te vodi",
+    "overview": "Otvoriš aplikaciju i za tri sekunde znaš gde si, šta je najvažnije, šta\nsledeće da klikneš i koliko si napredovao. Soba je i dalje inženjerski\nprecizna, tamna i gusta, ali je svetlo upaljeno: svaki modul ima svoju\nlampicu, napredak svetli, a zlatna se pali samo kad je nešto zarađeno.\n\nOvo je radna tabla koja se otvara deset puta dnevno, ne sajt koji se\nposećuje jednom. Zato je sve što bi privlačilo pažnju bez razloga izbačeno:\nnema ukrasnih gradijenata, nema beskonačnih animacija, nema kutije u kutiji.\nOno što ostaje nosi informaciju. Gamifikacija je za odrasle: prstenovi, niz\ni nivoi, bez crtanog filma.",
+    "keyCharacteristics": [
+      "Boja kaže gde si: trinaest modula, trinaest boja iste svetline i hrome.",
+      "Jedan fokus i jedno primarno dugme po pogledu.",
+      "Manje teksta, više signala: čip, pilula, prsten, monogram.",
+      "Svaka radnja ostavi trag napretka; napredak nikad ne blokira posao.",
+      "Tačnost pobeđuje efekat: broj na ekranu je uvek broj iz podatka."
+    ],
+    "rules": [
+      {
+        "name": "Pravilo četiri uloge",
+        "body": "Mesto, stanje, kategorija, nagrada. Ako boja nema jednu od njih, ne dodaje se.",
+        "section": "colors"
+      },
+      {
+        "name": "Pravilo zlatne",
+        "body": "Zlatna je samo nagrada. Nijedan modul ni kategorija je ne koristi; čipovi i monogrami zato preskaču amber (slot 4).",
+        "section": "colors"
+      },
+      {
+        "name": "Pravilo dva nosioca",
+        "body": "Boja nikad nije jedini nosilac značenja: delta ima strelicu, prsten ima broj, stanje ima ikonicu ili tekst.",
+        "section": "colors"
+      },
+      {
+        "name": "Pravilo tokena",
+        "body": "U komponentama nema heksa ni sirovih Tailwind boja (`slate-*`, `cyan-*`).",
+        "section": "colors"
+      },
+      {
+        "name": "Pravilo jednog reda",
+        "body": "Podnaslov ekrana je jedan red, do 90 znakova. Duže objašnjenje ide iza dugmeta „i\".",
+        "section": "typography"
+      },
+      {
+        "name": "Pravilo skale",
+        "body": "Ništa nije 11, 14, 16, 18 ni 24 px; stok Tailwind koraci su preslikani na skalu.",
+        "section": "typography"
+      },
+      {
+        "name": "Pravilo oreola",
+        "body": "Sjaj je obojena senka sa pomerajem. Oreol `0 0 Npx` ne postoji.",
+        "section": "elevation"
+      },
+      {
+        "name": "Pravilo četiri dozvole",
+        "body": "Gradijent i sjaj samo za: napredak (prsten, traka, merač), fokus karticu, nagrade i auroru na vrhu strane (≤ 10 %, bez animacije). Nikad na tekstu, redovima tabele ni proizvoljnim karticama.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do čitaj boju mesta isključivo kroz `--mod*` (`text-mod`, `bg-mod-soft`, `border-mod-line`).",
+      "Do stavi tačno jedno `primary` dugme po pogledu; ostalo je `secondary`, `outline` ili `ghost`.",
+      "Do daj svakom ekranu jednu fokus zonu: broj od 40 px ili karticu misije.",
+      "Do uz boju uvek stavi ikonicu, broj ili tekst.",
+      "Do piši „—\" i razlog kad podatka nema.",
+      "Do izmeri kontrast: tekst ≥ 4,5:1, kontrole i grafika ≥ 3:1.",
+      "Do animiraj samo `transform` i `opacity`, najviše 1–2 elementa po prikazu."
+    ],
+    "donts": [
+      "Don't piši heks ni sirove Tailwind boje u komponentama.",
+      "Don't koristi zlatnu za bilo šta osim nagrade.",
+      "Don't stavljaj gradijent ili sjaj na tekst, redove tabele ili proizvoljne kartice.",
+      "Don't pravi oreol (`0 0 Npx`) ni kutiju u kutiji.",
+      "Don't animiraj sekcije radnog ekrana pri učitavanju, i ne uvodi beskonačne animacije osim spinera.",
+      "Don't koristi prebačaj van nagrade.",
+      "Don't slavi prazninu: prazna lista nije vest da je posao gotov.",
+      "Don't prikazuj XP bez događaja u bazi, ni broj koji nije iz podatka.",
+      "Don't ostavljaj interne oznake plana u tekstu koji korisnik vidi."
+    ]
+  }
+}

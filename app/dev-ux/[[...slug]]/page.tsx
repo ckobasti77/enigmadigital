@@ -17,6 +17,7 @@ import YouTubePage from "@/app/(app)/youtube/page";
 import AdsPage from "@/app/(app)/ads/page";
 import { LeadDetailPageClient } from "@/app/(app)/leadovi/[companyId]/lead-detail-page-client";
 import { UxHarness } from "../harness";
+import { SistemVodic } from "../sistem/vodic";
 
 /**
  * Razvojni prikaz pravih ekrana nad sintetičkim podacima (A1 §6).
@@ -28,6 +29,9 @@ import { UxHarness } from "../harness";
  *
  * U produkciji ruta ne postoji (404), i to na dva mesta: ovde i u
  * `proxy.ts`, koji prepisivanje radi samo van produkcije.
+ *
+ * `/sistem?ux=1` je živi vodič dizajn sistema (UI Boost §5.12). Nije ekran
+ * aplikacije, pa se crta bez ljuske i bez lažnog Convex-a.
  */
 const PAGES: Record<string, ComponentType> = {
   "": OverviewPage,
@@ -58,6 +62,8 @@ export default async function DevUxPage({
   if (process.env.NODE_ENV === "production") notFound();
   const { slug = [] } = await params;
   const { prazno } = await searchParams;
+
+  if (slug.join("/") === "sistem") return <SistemVodic />;
 
   // Profil firme je dinamična ruta (`leadovi/<id>`); ostalo je fiksna mapa.
   const profilId =

@@ -117,6 +117,8 @@ const EKRANI = [
   { ime: "leadovi-profil", putanja: `/leadovi/${LEAD_PROFIL_ID}`, samoB: true },
   { ime: "pravila", putanja: "/rules", samoB: true },
   { ime: "podesavanja", putanja: "/settings", samoB: true },
+  // B2: živi vodič dizajn sistema (tokeni, 13 modula, dugmad, primitivi napretka).
+  { ime: "sistem", putanja: "/sistem", samoB: true },
   // Prazna stanja kanala: `&prazno=1` vraća prazan nalog (bez veza, bez redova).
   { ime: "instagram-prazno", putanja: "/instagram", prazno: true, samoB: true },
   { ime: "analitika-prazno", putanja: "/analytics", prazno: true, samoB: true },

@@ -4,8 +4,9 @@
  * Lucide namerno ne isporučuje logotipe (licenca), a Instagram, Facebook,
  * TikTok i Threads su za srpske male firme čest JEDINI kanal — bez ikonice se
  * red platformi čita kao gomila istih sivih linkova. Nacrtani su istim
- * pravilima kao lucide (24×24, `stroke="currentColor"`, `strokeWidth={2}`) da
- * bi stajali u istom redu bez optičkog skoka.
+ * pravilima kao lucide (24×24, `stroke="currentColor"`, debljina linije iz
+ * `--icon-stroke`, iste koju dobija svaka lucide ikonica) da bi stajali u
+ * istom redu bez optičkog skoka.
  */
 import type { SVGProps } from "react";
 
@@ -15,7 +16,7 @@ function Base(props: SVGProps<SVGSVGElement>) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      style={{ strokeWidth: "var(--icon-stroke)" }}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden

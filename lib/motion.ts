@@ -65,6 +65,36 @@ export const DUR_COUNT = 0.5;
  */
 export const DUR_FRESH = 0.12;
 
+/**
+ * ── Nagrada (UI Boost §4.4) ──────────────────────────────────────────────────
+ *
+ * Ličnost pokreta je „Corporate" za ceo UI (`EASE_UI`, 150–200 ms) i „Playful"
+ * SAMO za nagradu: XP, završena misija, nov nivo, dostignuće. Ovo je jedino
+ * mesto gde pokret sme da prebaci i da traje duže od zamaha — i zato ove
+ * konstante uvoze samo nagradne komponente (`scripts/motion-check.ts` to
+ * čuva). CSS blizanci: `--ease-reward`, `--duration-reward`.
+ */
+export const EASE_REWARD = CustomEase.create("reward", "0.34,1.56,0.64,1");
+
+/** Gornja granica za nagradni pokret (bedž, traka, broj). */
+export const DUR_REWARD = 0.6;
+
+/** Završena misija: skala sa blagim prebačajem i kvačica koja se iscrta. */
+export const DUR_MISSION = 0.35;
+
+/** Toast: ulaz je uvek duži od izlaza. */
+export const DUR_TOAST_IN = 0.25;
+export const DUR_TOAST_OUT = 0.18;
+
+/** Čestice proslave — ambijentalni sloj nagrade. */
+export const DUR_BURST = 0.9;
+
+/** Nov nivo: najduži pokret u aplikaciji, i nikad modal. */
+export const DUR_LEVEL_UP = 1.2;
+
+/** Merač koji se pomeri kad se vrednost promeni (prsten, traka). */
+export const DUR_PROGRESS = 0.4;
+
 /** Pomeraj pri ulasku. Suptilno je moćnije od velikog — zato 10, ne 40. */
 export const REVEAL_Y = 10;
 

@@ -24,16 +24,20 @@ Internal marketing analytics dashboard for Enigma IT (later client-facing): GA4 
 - `lib/` — pure helpers (`lib/utils.ts` exports `cn`).
 - `public/assets/fonts/aeonik/` — Aeonik `.otf` files (loaded via `next/font/local` in `app/layout.tsx`).
 
-## Design system
+## Design system (UI Boost — ui-boost-plan.md §3–§5)
 
-- Dark slate is the only page theme (`bg-background` = `#070d19`). Surfaces step up: `bg-card` → `bg-surface-raised`. White (`surface-light`) is a surface for light contexts, never a page theme.
-- **Cyan (`accent-400` / `primary`) is strategic: interactive elements and key metrics only. Never decorative**, never as hover tint (`--accent` in shadcn is a slate step on purpose).
-- Aeonik everywhere (`font-sans` = `var(--font-aeonik)`); optional uppercase tracking via `.heading-caps`. `font-mono` + `tabular-nums` for metric numerals.
-- Borders: `border` (default = `--line`), `border-line-soft`, `border-line-strong`. Text: `text-foreground`, `text-muted-foreground`, `text-text-muted`.
-- Charts: `chart-1..6` + `chart-grid`. Status: `success` / `warning` / `danger`.
-- Motion is purposeful only: `.hover-lift`, subtle reveals, number transitions. Always respect `prefers-reduced-motion`.
-- Tone: engineered, confident, no agency-style ornament. No gradients-for-decoration, no glow-for-glow.
-- Use tokens, never raw Tailwind palette colors (`slate-*`, `cyan-*`) and never default shadcn grey.
+- Dark slate stays the only page theme (`bg-background` = `#070d19`). Surfaces step up: `bg-card` → `bg-surface-raised`.
+- **Color is information, with exactly four roles:** (1) PLACE — every module has its own color (`--mod-*`, activated by `data-module` on the route; sidebar icons always in their module color); (2) STATE — success / warning / danger / info + lead temperature; (3) CATEGORY — chart series, signal chips, niche monograms, only from the validated `--chart-1..6` palette via `lib/signal-colors.ts`; (4) PROGRESS & REWARD — XP gold, streak orange, level tiers, achievement rarity. A color without one of these roles is not added. Gold is reserved for rewards.
+- Components read `var(--mod)`, `--mod-strong`, `--mod-soft`, `--mod-line`, `--mod-glow` — never a module's raw value, never hex, never the raw Tailwind palette (`slate-*`, `cyan-*`, …).
+- **One focus and one `primary` button per view** (solid module color, dark text, `data-variant="primary"`). Everything else: `secondary` (module tint), `outline`, `ghost`. Row actions in tables are `ghost` icons revealed on row hover/focus.
+- Gradients and glow ONLY for: progress (rings, bars, meters), the screen's focus card, rewards (XP, level, achievement, celebration), and the top-of-page aurora (≤ 10 % module color). Never on text, table rows, or arbitrary cards.
+- Aeonik everywhere; scale 12 / 13 / 15 / 20 / 28 plus `text-hero` (40) for the single focus number of a screen. `font-mono` + `tabular-nums` for metric numerals. Page subtitles are one line (≤ 90 chars).
+- Motion: GSAP `useGSAP` inside `gsap.matchMedia()` with a reduced-motion branch. Personality: "Corporate" for UI (150–200 ms, `--ease-ui`), "Playful" only for rewards (up to 600 ms; level-up up to 1.2 s; `--duration-reward`, `--ease-reward` — overshoot ONLY for rewards). At most 1–2 animated elements per view; work screens never animate their sections on load. Animate only `transform`/`opacity`. Accuracy beats motion: a number on screen never differs from the data; a hidden tab gets no animation.
+- Cards only where elevation carries hierarchy (focus, mission, company, post); secondary groups use dividers and spacing. Shadows are tinted and quiet, never a neon halo. Icons: lucide only, one stroke width (1.75), no emoji. Touch targets ≥ 44 px on mobile.
+- Design skills for UI work live in `.claude/skills/`: `impeccable` first, plus `ui-ux-pro-max`, `design-dna` (`nocni-run/ux/dna-boost.json`), `design-taste-frontend` (DESIGN_VARIANCE 4, MOTION_INTENSITY 4, VISUAL_DENSITY 6; GSAP instead of Framer, lucide instead of Phosphor), `motion-design`, `gsap-*`. When a skill conflicts with this file, this file wins.
+- Gamification ("Napredak") is derived from real Convex events only — no XP without an event, no invented numbers. It can be switched off per user.
+- Reference viewports: 1536×695 (the owner's real screen), 1440×900, 390×844. A screen's focus and its primary button must fit above the fold at 1536×695.
+- No internal plan references (`§…`, phase IDs) in user-visible text.
 
 ## UI stack rules
 
