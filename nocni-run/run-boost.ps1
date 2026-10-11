@@ -13,6 +13,7 @@
 #   -BezNastavka         ne salji "nastavi" kad faza stane bez zavrsetka
 #   -BezOdbrojavanja     ne cekaj 10 s pre starta
 #   -Ispocetka           zanemari prethodni run (inace se nastavlja gde je stao)
+#   -ClaudeExe <putanja> koji claude.exe da koristi (inace ga runner sam nalazi)
 #   -MaxTurns 800        gornja granica turnova po jednom pozivu
 #   -MaxCekanjeSati 10   najduze cekanje na reset limita; duze = run staje
 #
@@ -49,6 +50,7 @@ param(
   [switch]$BezNastavka,
   [switch]$BezOdbrojavanja,
   [switch]$Ispocetka,
+  [string]$ClaudeExe = "",
   [int]$MaxTurns = 800,
   [int]$MaxCekanjeSati = 10,
   [int]$PauzaGreske = 300,
@@ -65,6 +67,8 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 # git nikad ne sme da stane i ceka lozinku usred noci (push tada samo javi gresku).
 $env:GIT_TERMINAL_PROMPT = "0"
+# Claude Code se ne azurira sam dok run traje (na Windows-u update usred rada moze da obrise claude.exe).
+$env:DISABLE_AUTOUPDATER = "1"
 
 # --- modeli -----------------------------------------------------------------
 # Opus 5.5 za sve, Sonnet 5.5 samo za sitan posao (B0 priprema).
@@ -165,7 +169,7 @@ function Opis-Alata($c) {
 function Verzija-Claude {
   $stari = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
-  $v = (& claude --version 2>&1 | Out-String)
+  $v = (& $script:CLAUDE --version 2>&1 | Out-String)
   $ErrorActionPreference = $stari
   $m = [regex]::Match($v, "(\d+)\.(\d+)\.(\d+)")
   if (-not $m.Success) { return @{ tekst = $v.Trim(); broj = 0 } }
@@ -248,7 +252,7 @@ function Pokreni-Claude([string]$id, [string]$korak, [string]$ulaz, [string[]]$a
   $stari = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
   try {
-    $ulaz | & claude @argumenti 2> $errFajl | ForEach-Object -Process $obrada
+    $ulaz | & $script:CLAUDE @argumenti 2> $errFajl | ForEach-Object -Process $obrada
     $kod = $LASTEXITCODE
   }
   finally {
@@ -456,9 +460,96 @@ function Ima-Jos-Faza([string]$id) {
 }
 
 # --- pre-flight -------------------------------------------------------------
-foreach ($cmd in @("claude", "git", "node", "npm")) {
+foreach ($cmd in @("git", "node", "npm")) {
   if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) { throw "Nema '$cmd' na PATH-u." }
 }
+
+# Koji claude: prvi claude.exe koji stvarno odgovara na --version. npm precica
+# (claude.ps1/claude.cmd) moze da pokazuje na obrisan claude.exe posle prekinutog
+# update-a, pa runner trazi sam binarni fajl, isto kao SKLOP pipeline.
+function Verzija-Fajla([string]$exe) {
+  $stari = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  $v = ""
+  try { $v = (& $exe --version 2>&1 | Out-String) } catch { $v = "" }
+  $ErrorActionPreference = $stari
+  $m = [regex]::Match($v, "(\d+)\.(\d+)\.(\d+)")
+  if ($m.Success) { return $m.Value }
+  return ""
+}
+
+function Nadji-Claude {
+  # 1) kandidati: puni claude.exe fajlovi (bin\claude.exe i binarni fajl iz platform paketa)
+  $exe = New-Object System.Collections.Generic.List[string]
+  $ostalo = New-Object System.Collections.Generic.List[string]
+  $folderi = New-Object System.Collections.Generic.List[string]
+  if ($env:USERPROFILE) { $exe.Add((Join-Path $env:USERPROFILE ".local\bin\claude.exe")) }
+  foreach ($c in @(Get-Command claude -All -ErrorAction SilentlyContinue)) {
+    $src = [string]$c.Source
+    if (-not $src) { continue }
+    $folderi.Add((Join-Path (Split-Path -Parent $src) "node_modules"))
+    if ($src.ToLower().EndsWith(".exe")) { $exe.Add($src) }
+    elseif ($c.CommandType -eq "Application") { $ostalo.Add($src) }
+  }
+  foreach ($c in @(Get-Command node -All -CommandType Application -ErrorAction SilentlyContinue)) {
+    if ($c.Source) { $folderi.Add((Join-Path (Split-Path -Parent ([string]$c.Source)) "node_modules")) }
+  }
+  $stari = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  $npmRoot = ""
+  try { $npmRoot = (& npm root -g 2>$null | Out-String).Trim() } catch { $npmRoot = "" }
+  $ErrorActionPreference = $stari
+  if ($npmRoot) { $folderi.Add($npmRoot) }
+  if ($env:APPDATA) { $folderi.Add((Join-Path $env:APPDATA "npm\node_modules")) }
+  foreach ($nm in $folderi) {
+    $pkg = Join-Path $nm "@anthropic-ai\claude-code"
+    $exe.Add((Join-Path $pkg "bin\claude.exe"))
+    foreach ($plat in @("claude-code-win32-x64", "claude-code-win32-arm64")) {
+      # npm drzi pravi binarni fajl u platform paketu; bin\claude.exe je samo njegova kopija
+      $exe.Add((Join-Path $pkg "node_modules\@anthropic-ai\$plat\claude.exe"))
+      $exe.Add((Join-Path $nm "@anthropic-ai\$plat\claude.exe"))
+    }
+  }
+  # 2) eksplicitni -ClaudeExe ima prednost ako radi
+  $provereno = @()
+  if ($ClaudeExe) {
+    $provereno += $ClaudeExe
+    if (Test-Path $ClaudeExe -PathType Leaf) {
+      $v = Verzija-Fajla $ClaudeExe
+      if ($v) { return @{ exe = $ClaudeExe; verzija = $v; provereno = $provereno } }
+    }
+  }
+  # 3) od svih koji odgovaraju na --version uzmi najnoviju verziju (.cmd precice tek na kraju)
+  $vidjeno = @{}
+  foreach ($grupa in @(@($exe), @($ostalo))) {
+    $najbolji = $null
+    foreach ($k in $grupa) {
+      if (-not $k) { continue }
+      $kljuc = $k.ToLower()
+      if ($vidjeno.ContainsKey($kljuc)) { continue }
+      $vidjeno[$kljuc] = $true
+      if (-not (Test-Path $k -PathType Leaf)) { continue }
+      $provereno += $k
+      $v = Verzija-Fajla $k
+      if (-not $v) { continue }
+      $d = $v.Split(".")
+      $broj = [int]$d[0] * 1000000 + [int]$d[1] * 1000 + [int]$d[2]
+      if (-not $najbolji -or $broj -gt $najbolji.broj) { $najbolji = @{ exe = $k; verzija = $v; broj = $broj } }
+    }
+    if ($najbolji) { return @{ exe = $najbolji.exe; verzija = $najbolji.verzija; provereno = $provereno } }
+  }
+  return @{ exe = ""; verzija = ""; provereno = $provereno }
+}
+
+$nadjen = Nadji-Claude
+if (-not $nadjen.exe) {
+  $spisak = "nijedan"
+  if ($nadjen.provereno.Count -gt 0) { $spisak = ($nadjen.provereno -join "; ") }
+  throw ("Nijedan claude.exe ne odgovara na --version (provereno: " + $spisak + ").`n" +
+    "Ako znas gde je ispravan, pokreni sa: -ClaudeExe ""C:\...\claude.exe""`n" +
+    "Inace: Remove-Item -Recurse -Force ""`$(npm root -g)\@anthropic-ai\claude-code"" ; npm install -g @anthropic-ai/claude-code")
+}
+$script:CLAUDE = $nadjen.exe
 if (-not (Get-Command python -ErrorAction SilentlyContinue) -and -not (Get-Command py -ErrorAction SilentlyContinue)) {
   Pisi "UPOZORENJE: nema python/py na PATH-u - skill ui-ux-pro-max nece moci da pokrene pretragu." "Yellow"
 }
@@ -520,12 +611,12 @@ $zaRad = @($zaPokretanje | Where-Object { $vecGotovo -notcontains $_ })
 if ($zaRad.Count -eq 0) { Pisi "Sve izabrane faze su vec GOTOVO. Za ponovno pokretanje: -Samo <ID> ili -Ispocetka." "Green"; exit 0 }
 
 $ver = Verzija-Claude
-Pisi ("Claude Code: " + $ver.tekst) "Gray"
+Pisi ("Claude Code: " + $ver.tekst + "  (" + $script:CLAUDE + ")") "Gray"
 if ($ver.broj -gt 0 -and $ver.broj -lt (Ver 2 1 139)) { Pisi "UPOZORENJE: /goal trazi Claude Code 2.1.139+ (goal faze ce ici kao obican prompt). Azuriraj: claude update" "Yellow" }
 # Opcije koje zavise od verzije: proveri ih u --help umesto nagadjanja.
 $stari = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
-$pomoc = (& claude --help 2>&1 | Out-String)
+$pomoc = (& $script:CLAUDE --help 2>&1 | Out-String)
 $ErrorActionPreference = $stari
 $dodatno = @()
 if ($pomoc -match "--permission-prompts") { $dodatno += @("--permission-prompts", "none") }
