@@ -328,7 +328,7 @@ export function LeadGapFillDialog({
                 </div>
                 <p className="mt-1 text-xs text-text-muted">
                   Klikom na potvrdu, postajete zaduženi operater za ovu firmu.
-                  Događaj se evidentira u istorijatu leada (§9.1).
+                  Događaj se evidentira u istorijatu leada.
                 </p>
               </div>
             )}
@@ -341,7 +341,7 @@ export function LeadGapFillDialog({
               <div className="rounded-xl border border-line bg-surface p-3 space-y-3">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                   <ShieldCheck className="size-3.5 text-accent-400" />
-                  <span>Pravni osnov i poreklo podatka (§8 ZZPL)</span>
+                  <span>Pravni osnov i poreklo podatka (ZZPL)</span>
                 </div>
 
                 {(gapType === "bez_telefona" ||

@@ -166,7 +166,8 @@ export function RulesDashboard() {
             format={formatNumber}
             note="aktivno se evaluira"
             icon={Zap}
-            valueClassName="text-success"
+            // Zeleno je stanje „radi": nula aktivnih pravila nije uspeh (F7).
+            valueClassName={activeCount > 0 ? "text-success" : undefined}
           />
           <StatTile
             label="Ukupno okidanja"
@@ -178,6 +179,7 @@ export function RulesDashboard() {
           <StatTile
             label="Cron evaluator"
             value={30}
+            constant
             format={(v) => `Svakih ${v}m`}
             note="automatska provera"
             icon={Clock}

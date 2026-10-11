@@ -57,7 +57,19 @@ const columns: RankColumn<Row>[] = [
   },
 ];
 
-export function TrafficTable({ traffic }: { traffic: Traffic }) {
+export function TrafficTable({
+  traffic,
+  kpiSessions,
+}: {
+  traffic: Traffic;
+  /** Zbir sa pločice „Sesije" za isti period — imenilac sa kojim se tabela poredi. */
+  kpiSessions?: number;
+}) {
+  // Dva GA4 izveštaja za isti period: pločica sabira dnevni izveštaj, tabela
+  // izveštaj po izvoru / mediju / kampanji. Kad se zbirovi raziđu, to piše —
+  // dva različita broja „sesija" bez objašnjenja su greška na ekranu (F13).
+  const differs =
+    kpiSessions !== undefined && kpiSessions !== traffic.totalSessions;
   return (
     <RankTable<Row>
       title="Izvori saobraćaja"
@@ -68,6 +80,11 @@ export function TrafficTable({ traffic }: { traffic: Traffic }) {
       share={{ value: (r) => r.sessions, total: traffic.totalSessions }}
       defaultSort={{ key: "sessions", dir: "desc" }}
       emptyMessage="Nema saobraćaja u izabranom periodu."
+      footNote={
+        differs
+          ? `Zbir po izvorima (${formatNumber(traffic.totalSessions)}) je iz zasebnog GA4 izveštaja po izvoru, mediju i kampanji za isti period, pa odstupa od pločice „Sesije" (${formatNumber(kpiSessions)}), koja sabira dnevni izveštaj.`
+          : undefined
+      }
     />
   );
 }

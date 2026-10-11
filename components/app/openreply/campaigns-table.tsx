@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StatusPill } from "@/components/app/settings/status-pill";
-import { formatNumber, formatPercent } from "@/lib/format";
+import { formatRatio, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type CampaignRow = FunctionReturnType<typeof api.openreplyStore.campaigns>[number];
@@ -142,7 +142,7 @@ export function CampaignsTable({
                   align="right"
                 />
                 <SortableHead
-                  label="CTR"
+                  label="Klikova po poruci"
                   active={sort.key === "ctr"}
                   dir={sort.dir}
                   onClick={() => toggle("ctr")}
@@ -198,12 +198,12 @@ export function CampaignsTable({
                       {formatNumber(row.linkClicks)}
                     </TableCell>
                     <TableCell className="py-3 pr-5 text-right font-mono tabular-nums text-foreground md:pr-2">
-                      {formatPercent(row.ctr)}
+                      {formatRatio(row.ctr)}
                     </TableCell>
                     <TableCell className="hidden py-3 pr-5 md:table-cell">
                       <div className="flex items-center justify-end gap-2">
                         <span className="font-mono text-xs tabular-nums text-text-muted">
-                          {formatPercent(row.ctr)}
+                          {formatRatio(row.ctr)}
                         </span>
                         <span
                           className="h-1.5 w-16 overflow-hidden rounded-full bg-line-soft"

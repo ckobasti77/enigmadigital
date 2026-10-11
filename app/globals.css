@@ -492,6 +492,10 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    /* Jedan klizač za celu aplikaciju (F2): tanak, u boji linije, bez sive
+       Windows trake sa strelicama u bočnoj traci, paleti i zvonu. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
   }
 
   html {
@@ -625,6 +629,36 @@
     pointer-events: none;
   }
 
+  /* ── Trake tabova (F1) ───────────────────────────────────────────────────
+     `overflow-x: auto` sam povlači `overflow-y: auto`, pa Windows uz
+     vodoravni klizač nacrta i uspravni sa ▲▼. Traka zato kliza samo
+     vodoravno i bez vidljivog klizača; da višak ne ostane nevidljiv, ivica
+     iza koje ima još jezičaka se pretapa (`data-edge-*` piše
+     `lib/use-scroll-edges.ts`). Maska, ne senka: radi na svakoj podlozi. */
+  .tab-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .tab-scroll[data-edge-start] {
+    mask-image: linear-gradient(to right, transparent, black var(--edge-fade-size));
+  }
+
+  .tab-scroll[data-edge-end] {
+    mask-image: linear-gradient(to left, transparent, black var(--edge-fade-size));
+  }
+
+  .tab-scroll[data-edge-start][data-edge-end] {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black var(--edge-fade-size),
+      black calc(100% - var(--edge-fade-size)),
+      transparent
+    );
+  }
+
   /* Purposeful hover lift — the only hover motion in the system */
   .hover-lift {
     transition:
@@ -707,6 +741,12 @@
   ):focus-visible {
     outline: 2px solid var(--focus-ring-strong);
     outline-offset: 2px;
+  }
+
+  /* Okvir fokusa sa odmakom upolje bi odsekla ivica koja ne propušta preliv
+     (traka tabova, F1; polje komandne palete, F15) — tu ide unutra. */
+  :is(.tab-scroll, .focus-inset) :is(a[href], input, [role="tab"]):focus-visible {
+    outline-offset: -2px;
   }
 }
 

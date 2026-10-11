@@ -20,7 +20,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatFollowUpDelay } from "@/convex/lib/orFollowUp";
-import { formatNumber, formatPercent } from "@/lib/format";
+import { formatRatio, formatNumber } from "@/lib/format";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackNote } from "@/components/app/feedback";
 import { DmPreview } from "./dm-preview";
@@ -269,8 +269,8 @@ function AutomationCard({
           />
           <Metric label="Klikovi" value={formatNumber(automation.linkClicks)} />
           <Metric
-            label="CTR"
-            value={formatPercent(automation.ctr)}
+            label="Klikova po poruci"
+            value={formatRatio(automation.ctr)}
             tone="accent"
           />
         </div>

@@ -129,7 +129,7 @@ export function ThreadsDemographicsTable({
           reason={
             reason ??
             (state === "suppressed"
-              ? "Threads demografija zahteva najmanje 100 pratilaca da bi bila dostupna kroz API (§5.4)."
+              ? "Threads demografija zahteva najmanje 100 pratilaca da bi bila dostupna kroz API."
               : "Nema zabeleženih demografskih podataka za Threads nalog.")
           }
         />
@@ -327,7 +327,7 @@ export function ThreadsDemographicsTable({
       </div>
 
       <p className="text-xs text-text-muted">
-        Napomena: Threads demografski uvid zahteva najmanje 100 pratilaca i računa samo korisnike sa dostupnim demografskim profilom (§5.4).
+        Napomena: Threads demografski uvid zahteva najmanje 100 pratilaca i računa samo korisnike sa dostupnim demografskim profilom.
       </p>
     </div>
   );

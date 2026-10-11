@@ -87,7 +87,7 @@ export const POST_KINDS: ReadonlyArray<{
     wordRange: "1.200–2.500 reči",
     minWords: 1200,
     maxWords: 2500,
-    description: "Rangira i biva citiran. Obavezno nosi bar jedno iz pravila jedinstvenosti (§2.2).",
+    description: "Rangira i biva citiran. Obavezno nosi bar jedno iz pravila jedinstvenosti.",
   },
 ];
 
@@ -192,7 +192,7 @@ export function evaluatePublishGates(post: Partial<PostItem>): PublishGateStatus
     passed: ownProofPassed,
     note: post.ownProofNote,
     reason: ownProofPassed
-      ? "Potvrđeno postojanje sopstvenog dokaza (§2.2)."
+      ? "Potvrđeno postojanje sopstvenog dokaza."
       : "Vlasnički dokaz mora biti ručno potvrđen (čekirajte „Šta je ovde moje?\").",
   };
 

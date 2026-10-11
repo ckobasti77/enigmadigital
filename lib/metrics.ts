@@ -153,13 +153,47 @@ export function deltaPp(
   return (current - previous) * 100;
 }
 
-/** Zero-fill missing days so series are continuous over [from, to]. */
+const OPTIONAL_MEASURES = [
+  "engagementRate",
+  "totalUsers",
+  "engagedSessions",
+  "screenPageViews",
+  "userEngagementDuration",
+  "scrolledUsers",
+  "avgEngagementDurationPerSession",
+] as const;
+
+/**
+ * Continuous series over [from, to].
+ *
+ * GA4 returns no row for a day without traffic, so a day without a row is one
+ * of two things (F4). Synced and nothing happened: every measure is 0. Not
+ * synced, or the measure was not collected yet: the optional measures stay
+ * `undefined` and the sparkline shows a gap — unknown is not zero.
+ *
+ * A day counts as synced up to `syncedThrough` (the day of the last fetch);
+ * without it, up to the newest row. A measure counts as collected from the
+ * first row that carries it.
+ */
 export function fillDays(
   rows: DailyPoint[],
   from: string,
   to: string,
+  syncedThrough?: string,
 ): DailyPoint[] {
   const byDate = new Map(rows.map((r) => [r.date, r]));
+  const lastSynced =
+    syncedThrough ?? rows.reduce((max, r) => (r.date > max ? r.date : max), "");
+  const collectedSince = new Map<(typeof OPTIONAL_MEASURES)[number], string>();
+  for (const r of rows) {
+    for (const key of OPTIONAL_MEASURES) {
+      const since = collectedSince.get(key);
+      if (r[key] !== undefined && (since === undefined || r.date < since)) {
+        collectedSince.set(key, r.date);
+      }
+    }
+  }
+
   return dateKeysBetween(from, to).map((date) => {
     const r = byDate.get(date);
     if (r) {
@@ -167,20 +201,20 @@ export function fillDays(
         ...r,
       };
     }
-    return {
+    const point: DailyPoint = {
       date,
       sessions: 0,
       activeUsers: 0,
       newUsers: 0,
       keyEvents: 0,
-      engagementRate: undefined,
-      totalUsers: undefined,
-      engagedSessions: undefined,
-      screenPageViews: undefined,
-      userEngagementDuration: undefined,
-      scrolledUsers: undefined,
-      avgEngagementDurationPerSession: undefined,
     };
+    if (date <= lastSynced) {
+      for (const key of OPTIONAL_MEASURES) {
+        const since = collectedSince.get(key);
+        if (since !== undefined && date >= since) point[key] = 0;
+      }
+    }
+    return point;
   });
 }
 
@@ -200,7 +234,9 @@ export type OrPeriodTotals = {
   dmsSentInstagram: number;
   dmsSentFacebook: number;
   linkClicks: number;
-  ctr: number; // 0..1 (linkClicks / dmsSent)
+  /** linkClicks / dmsSent — klikova po poruci. Nije stopa: klikovi nisu
+   *  jedinstveni po primaocu, pa odnos sme da pređe 1 (F6). */
+  ctr: number;
 };
 
 export function summarizeOr(rows: OrDailyPoint[]): OrPeriodTotals {

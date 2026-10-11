@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { MOTION_QUERIES } from "@/lib/motion";
@@ -42,6 +42,8 @@ export function CountUp({
   // `from`) od ažuriranja (pređi od zatečene vrednosti).
   const lastValue = useRef(value);
   const mounted = useRef(false);
+  // Tvin broja koji trenutno teče (u reduced grani ga nema).
+  const countTween = useRef<gsap.core.Tween | null>(null);
 
   const emit = (v: number) => {
     displayRef.current = v;
@@ -57,19 +59,33 @@ export function CountUp({
 
       const mm = gsap.matchMedia();
       mm.add(MOTION_QUERIES, (ctx) => {
-        runCountEffect({
+        const reduced = !!ctx.conditions?.still;
+        const tween = runCountEffect({
           el: ref.current,
-          reduced: !!ctx.conditions?.still,
+          reduced,
           isUpdate,
           from,
           current: displayRef.current,
           value,
           emit,
+          hidden: document.visibilityState !== "visible",
+          previous: countTween.current,
         });
+        countTween.current = reduced ? null : tween;
       });
     },
     { dependencies: [value], scope: ref },
   );
+
+  // Tab ode u pozadinu usred odbrojavanja: kadrova više nema, pa se tvin
+  // dogura do kraja i na ekranu ostane tačan broj, ne međuvrednost (F8).
+  useEffect(() => {
+    const settle = () => {
+      if (document.visibilityState !== "visible") countTween.current?.progress(1);
+    };
+    document.addEventListener("visibilitychange", settle);
+    return () => document.removeEventListener("visibilitychange", settle);
+  }, []);
 
   return (
     <span ref={ref} className={cn("tabular-nums", className)}>

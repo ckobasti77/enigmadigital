@@ -156,6 +156,7 @@ export function StatTile({
   note,
   icon: Icon,
   valueClassName,
+  constant = false,
 }: {
   label: string;
   value: number | undefined;
@@ -164,6 +165,8 @@ export function StatTile({
   note: string;
   icon: ComponentType<{ className?: string }>;
   valueClassName?: string;
+  /** Vrednost je podešavanje, ne mera — ispisuje se bez odbrojavanja (F7). */
+  constant?: boolean;
 }) {
   return (
     <Card className="gap-0 py-0 shadow-card ring-line" size="sm">
@@ -175,7 +178,16 @@ export function StatTile({
           <Icon className="size-4 shrink-0 text-text-muted" aria-hidden />
         </div>
         <div>
-          {value !== undefined ? (
+          {value !== undefined && constant ? (
+            <span
+              className={cn(
+                "block font-mono text-metric font-bold leading-none tabular-nums",
+                valueClassName ?? "text-foreground",
+              )}
+            >
+              {format(value)}
+            </span>
+          ) : value !== undefined ? (
             <CountUp
               value={value}
               format={format}
@@ -231,6 +243,10 @@ const SPARK_H = 32;
  * Inline SVG sparklinija — fiksan viewBox razvučen na širinu pločice, pa ne
  * meri ništa i ne treperi. Prekida liniju preko dana bez podatka (nema nule,
  * nema interpolacije).
+ *
+ * Usamljena tačka je linija dužine nula sa zaobljenim krajem, ne `<circle>`:
+ * viewBox se razvlači po širini, pa bi krug ispao vodoravna crtica (F4).
+ * Uz `non-scaling-stroke` debljina 3 daje pravu tačku r = 1,5 px.
  */
 function Sparkline({
   values,
@@ -271,7 +287,19 @@ function Sparkline({
         if (seg.length === 0) return null;
         if (seg.length === 1) {
           const [cx, cy] = seg[0];
-          return <circle key={sIdx} cx={cx} cy={cy} r={1.5} fill="currentColor" />;
+          return (
+            <line
+              key={sIdx}
+              x1={cx}
+              y1={cy}
+              x2={cx}
+              y2={cy}
+              stroke="currentColor"
+              strokeWidth={3}
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          );
         }
         const line = seg.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
         const firstX = seg[0][0].toFixed(2);

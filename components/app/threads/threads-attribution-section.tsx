@@ -72,7 +72,7 @@ export function ThreadsAttributionSection({
             </div>
             <div>
               <h2 className="text-base font-semibold text-foreground">
-                Atribucija linkova i levak poseta (§10.2)
+                Atribucija linkova i levak poseta
               </h2>
               <p className="text-xs text-text-muted">
                 Dva nezavisna brojača: klik u Threads aplikaciji naspram stvarnog dolaska na sajt
@@ -240,7 +240,7 @@ export function ThreadsAttributionSection({
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="size-4 text-warning" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-foreground">
-              Nespojeni URL-ovi — Vidljiva rupa u atribuciji (§10.2)
+              Nespojeni URL-ovi — Vidljiva rupa u atribuciji
             </h3>
           </div>
           <p className="text-xs text-text-muted leading-relaxed mb-4">

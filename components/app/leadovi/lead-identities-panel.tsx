@@ -89,7 +89,7 @@ export function LeadIdentitiesPanel({
             </CardDescription>
           </div>
           <span className="rounded bg-surface-raised border border-line px-2 py-0.5 text-micro font-medium text-text-muted">
-            §2.3 & §8 Pravila obrade
+            Pravila obrade
           </span>
         </div>
       </CardHeader>

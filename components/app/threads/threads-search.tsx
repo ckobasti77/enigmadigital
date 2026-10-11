@@ -139,7 +139,7 @@ export function ThreadsSearch() {
             </h2>
             <p className="text-sm text-text-muted">
               Pretraga po ključnim rečima i otkrivanje javnih profila na Threads
-              mreži (§6)
+              mreži
             </p>
           </div>
 
@@ -218,7 +218,7 @@ export function ThreadsSearch() {
               <Info className="mt-0.5 size-4 shrink-0 text-amber-400" aria-hidden="true" />
               <div>
                 <p className="font-semibold text-amber-200">
-                  Ograničenje dosega pretrage (§2.1)
+                  Ograničenje dosega pretrage
                 </p>
                 <p className="mt-0.5">
                   Pretraga trenutno obuhvata samo tvoje objave — pun doseg traži
@@ -474,7 +474,7 @@ export function ThreadsSearch() {
               <Info className="mt-0.5 size-4 shrink-0 text-blue-400" aria-hidden="true" />
               <div>
                 <p className="font-semibold text-blue-200">
-                  Uslovi za uvid u profile (§6)
+                  Uslovi za uvid u profile
                 </p>
                 <p className="mt-0.5">
                   Threads Profile Discovery podržava uvid isključivo u{" "}

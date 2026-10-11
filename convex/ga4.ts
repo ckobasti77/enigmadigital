@@ -1143,6 +1143,33 @@ export const syncGa4 = internalAction({
           );
         }
 
+        // F13: torka koje u svežem odgovoru više nema se briše za taj dan —
+        // GA4 naknadno menja izvor sesije, a stara torka bi ostala pored nove i
+        // zbir po izvorima bi premašio `ga4Daily`. Samo kad je odgovor potpun:
+        // odsečen odgovor (rowCount > broj redova) ne dokazuje da torke nema.
+        if (trafficReport && trafficRows.length >= trafficReport.rowCount) {
+          const tuplesByDate = new Map<
+            string,
+            { sessionSource: string; sessionMedium: string; sessionCampaign: string }[]
+          >();
+          for (const r of trafficRows) {
+            const list = tuplesByDate.get(r.date) ?? [];
+            list.push({
+              sessionSource: r.sessionSource,
+              sessionMedium: r.sessionMedium,
+              sessionCampaign: r.sessionCampaign,
+            });
+            tuplesByDate.set(r.date, list);
+          }
+          for (const [date, keep] of tuplesByDate) {
+            await ctx.runMutation(internal.ga4Store.pruneTraffic, {
+              workspaceId,
+              date,
+              keep,
+            });
+          }
+        }
+
         // 13. Parse & Merge Metric Reports (ga4MetricDaily)
         let metricDailyWritten = 0;
         if (!isWarn) {

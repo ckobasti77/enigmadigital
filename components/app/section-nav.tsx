@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 import { activeChannelTab, type ChannelTab } from "./nav-items";
 import { cn } from "@/lib/utils";
+import { useScrollEdges } from "@/lib/use-scroll-edges";
 
 /**
  * Druga ravan navigacije: podekrani jednog kanala, ista traka na svakom
@@ -19,7 +20,7 @@ import { cn } from "@/lib/utils";
  * podvlaka aktivnog) da ekran ostane jedan.
  *
  * Podvlaka je `inset box-shadow`, ne donja ivica sa `-mb-px`: traka kliza po
- * horizontali na telefonu (`overflow-x-auto`), a negativna margina bi umela da
+ * horizontali na telefonu (`.tab-scroll`), a negativna margina bi umela da
  * bude odsečena vertikalnim prelivom scroll okvira. Senka to nikad ne izaziva.
  */
 export function SectionNav({
@@ -35,6 +36,7 @@ export function SectionNav({
   const pathname = usePathname();
   const active = activeChannelTab(pathname, tabs);
   const listRef = useRef<HTMLElement>(null);
+  useScrollEdges(listRef);
 
   // Na telefonu traka kliza; aktivan jezičak se doveze u vidno polje pri
   // promeni rute, bez animacije — isti obrazac kao donja navigacija.
@@ -90,7 +92,7 @@ export function SectionNav({
       <nav
         ref={listRef}
         aria-label="Podekrani kanala"
-        className="flex min-w-0 items-center gap-1 overflow-x-auto"
+        className="tab-scroll flex min-w-0 items-center gap-1"
       >
         {showGroups
           ? groups.map((group, gi) => (

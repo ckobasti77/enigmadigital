@@ -27,7 +27,8 @@ import { cn } from "@/lib/utils";
 // ── Enum translations (Serbian with original in parentheses) ─────────────────
 
 function translateServiceLevel(level?: string): { label: string; raw?: string } {
-  if (!level) return { label: "Standardni", raw: "STANDARD" };
+  // Nepoznato nije „Standardni": bez podatka iz Admin API-ja stoji crtica (F12).
+  if (!level) return { label: "—" };
   switch (level) {
     case "STANDARD":
     case "GOOGLE_ANALYTICS_STANDARD":
@@ -115,6 +116,10 @@ function formatCustomerId(id?: string): string {
 
 export function Ga4Configuration() {
   const config = useQuery(api.analytics.ga4Configuration);
+  // Zona i valuta stižu i uz svaki GA4 izveštaj (Data API). Analitika čita
+  // odatle, a ovaj panel iz Admin API-ja — kad Admin poziv padne, ovde je
+  // pisalo izmišljeno „UTC" dok je Analitika pokazivala pravu zonu (F12).
+  const reportMeta = useQuery(api.analytics.reportMeta, { reportKey: "daily" });
   const refresh = useAction(api.ga4.refreshGa4Config);
   const [refreshing, setRefreshing] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(
@@ -182,6 +187,9 @@ export function Ga4Configuration() {
   }
 
   const serviceLevel = translateServiceLevel(config.serviceLevel);
+  const propertyError = config.errors?.find((e) => e.resource === "property")?.reason;
+  const basicsMissing =
+    !config.displayName || !config.timeZone || !config.currencyCode;
   const retention = translateRetention(config.eventDataRetention);
 
   return (
@@ -247,26 +255,41 @@ export function Ga4Configuration() {
           <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
             Osnovni podaci
           </h3>
+          {basicsMissing && (
+            <p className="text-xs leading-relaxed text-text-muted">
+              {propertyError
+                ? `GA4 Admin API nije vratio osnovne podatke propertija (${propertyError}).`
+                : "GA4 Admin API nije vratio deo osnovnih podataka propertija."}{" "}
+              Polja bez podatka nose crticu; zona i valuta se tada čitaju iz
+              poslednjeg GA4 izveštaja, ako ga ima.
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
               <span className="text-[11px] text-text-muted block">Naziv propertije</span>
               <span className="text-xs font-medium text-foreground font-mono">
-                {config.displayName || "(Nije postavljen)"}
+                {config.displayName || "—"}
               </span>
             </div>
 
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
               <span className="text-[11px] text-text-muted block">Vremenska zona</span>
               <span className="text-xs font-medium text-foreground font-mono">
-                {config.timeZone || "UTC"}
+                {config.timeZone || reportMeta?.timeZone || "—"}
               </span>
+              {!config.timeZone && reportMeta?.timeZone && (
+                <span className="block text-[11px] text-text-muted">iz GA4 izveštaja</span>
+              )}
             </div>
 
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
               <span className="text-[11px] text-text-muted block">Valuta izveštaja</span>
               <span className="text-xs font-medium text-foreground font-mono">
-                {config.currencyCode || "Nije definisana"}
+                {config.currencyCode || reportMeta?.currencyCode || "—"}
               </span>
+              {!config.currencyCode && reportMeta?.currencyCode && (
+                <span className="block text-[11px] text-text-muted">iz GA4 izveštaja</span>
+              )}
             </div>
 
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
@@ -284,7 +307,7 @@ export function Ga4Configuration() {
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
               <span className="text-[11px] text-text-muted block">Industrija</span>
               <span className="text-xs font-medium text-foreground font-mono">
-                {config.industryCategory || "UNSPECIFIED"}
+                {config.industryCategory || "—"}
               </span>
             </div>
 

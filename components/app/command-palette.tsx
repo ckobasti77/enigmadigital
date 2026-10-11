@@ -182,7 +182,9 @@ export function CommandPalette() {
           aria-label="Komandna paleta"
           className="material-thick fixed left-1/2 top-[12vh] z-50 flex max-h-[70vh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-line shadow-elev-3 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
         >
-          <div className="flex items-center gap-2.5 border-b border-line px-4">
+          {/* `focus-inset`: okvir fokusa polja ide unutra, jer bi ga odmak upolje
+              odsekao `overflow-hidden` na vrhu palete (F15). */}
+          <div className="focus-inset flex items-center gap-2.5 border-b border-line px-4">
             <Search className="size-4 shrink-0 text-text-muted" />
             <input
               ref={inputRef}
@@ -199,7 +201,7 @@ export function CommandPalette() {
                 results[active] ? `cmd-${results[active].id}` : undefined
               }
               placeholder="Skoči na ekran ili zadatak…"
-              className="h-12 w-full min-w-0 bg-transparent text-sm text-foreground outline-none placeholder:text-text-muted"
+              className="h-12 w-full min-w-0 bg-transparent px-2 text-sm text-foreground outline-none placeholder:text-text-muted"
             />
             <kbd className="hidden shrink-0 rounded border border-line-soft px-1.5 py-0.5 text-micro text-text-muted sm:inline">
               ESC

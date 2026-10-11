@@ -298,7 +298,7 @@ export const linkInboundToCompany = mutation({
       throw new ConvexError({
         code: "invalid",
         message:
-          "Pravni osnov (lawfulBasis) je obavezan po ZZPL/GDPR pravilima (§8).",
+          "Pravni osnov (lawfulBasis) je obavezan po ZZPL/GDPR pravilima.",
       });
     }
 
@@ -307,7 +307,7 @@ export const linkInboundToCompany = mutation({
       throw new ConvexError({
         code: "invalid",
         message:
-          "URL izvora (sourceUrl) je obavezan po ZZPL/GDPR pravilima (§8).",
+          "URL izvora (sourceUrl) je obavezan po ZZPL/GDPR pravilima.",
       });
     }
 

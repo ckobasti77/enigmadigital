@@ -241,6 +241,57 @@ export const upsertTraffic = internalMutation({
   },
 });
 
+/**
+ * Drops the traffic tuples a re-fetched day no longer has (F13).
+ *
+ * `upsertTraffic` only writes what GA4 returned. GA4 keeps re-attributing
+ * recent days — a session first reported as `(not set)` later gets its real
+ * source — and the old tuple is simply absent from the next response. Without
+ * this pass it stayed in the table beside the new one, so the breakdown summed
+ * to more sessions than `ga4Daily` holds for the same day ("Sesije 12" on the
+ * tile, "14 sesija" above the sources table). One date per call, so a day's
+ * tuples always fit one transaction.
+ */
+export const pruneTraffic = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    date: v.string(),
+    keep: v.array(
+      v.object({
+        sessionSource: v.string(),
+        sessionMedium: v.string(),
+        sessionCampaign: v.string(),
+      }),
+    ),
+  },
+  returns: v.number(),
+  handler: async (ctx, { workspaceId, date, keep }) => {
+    const kept = new Set(
+      keep.map((k) =>
+        JSON.stringify([k.sessionSource, k.sessionMedium, k.sessionCampaign]),
+      ),
+    );
+    let removed = 0;
+    const stored = ctx.db
+      .query("ga4TrafficDaily")
+      .withIndex("by_workspace_date_dims", (q) =>
+        q.eq("workspaceId", workspaceId).eq("date", date),
+      );
+    for await (const row of stored) {
+      const key = JSON.stringify([
+        row.sessionSource,
+        row.sessionMedium,
+        row.sessionCampaign,
+      ]);
+      if (!kept.has(key)) {
+        await ctx.db.delete(row._id);
+        removed++;
+      }
+    }
+    return removed;
+  },
+});
+
 /** Record latest propertyQuota in ga4Quota table. */
 export const recordQuota = internalMutation({
   args: {

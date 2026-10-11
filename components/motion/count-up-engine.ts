@@ -32,10 +32,42 @@ export interface CountEffectOpts {
   value: number;
   /** Jedini kanal do ekrana (u komponenti: React `setState`). */
   emit: (v: number) => void;
+  /**
+   * Tab nije vidljiv (`document.visibilityState !== "visible"`). Pregledač tada
+   * ne daje kadrove, pa bi odbrojavanje stajalo na polaznoj vrednosti dok se
+   * tab ne vrati — pozadinski tab je 15 s pokazivao „0" (F8).
+   */
+  hidden?: boolean;
+  /**
+   * Tvin broja iz prethodnog poziva. Gasi se pre novog: svaki poziv ima svoj
+   * `proxy`, pa ga `overwrite` ne vidi, a duže prvo odbrojavanje bi završilo
+   * POSLE kraćeg prelaza i vratilo staru brojku na ekran.
+   */
+  previous?: gsap.core.Tween | null;
+}
+
+/**
+ * Korak na koji se zaokružuju međuvrednosti — preciznost cilja (40 → 1,
+ * 0,37 → 0,01). Bez toga `format` koji sam ne zaokružuje ispiše
+ * „Svakih 19.814826m" na putu do 30 (F7/F8). `null` = ne zaokružuj.
+ */
+export function precisionStep(value: number): number | null {
+  const text = String(value);
+  if (!Number.isFinite(value) || text.includes("e")) return null;
+  const decimals = text.split(".")[1]?.length ?? 0;
+  return decimals > 6 ? null : 10 ** -decimals;
 }
 
 export function runCountEffect(o: CountEffectOpts): gsap.core.Tween | null {
   const { el, reduced, isUpdate, from, current, value, emit } = o;
+
+  o.previous?.kill();
+
+  if (o.hidden) {
+    // Niko ne gleda i kadrova nema → tačan broj odmah, bez tvina.
+    emit(value);
+    return null;
+  }
 
   if (reduced) {
     // Pokret ne može/ne sme da se izvede → prikaži TAČAN broj odmah.
@@ -65,13 +97,15 @@ export function runCountEffect(o: CountEffectOpts): gsap.core.Tween | null {
   // brojka nikad ne ostane na među-kadru.
   const start = isUpdate ? current : from;
   const proxy = { v: start };
+  const step = precisionStep(value);
+  const snap = step === null ? (v: number) => v : gsap.utils.snap(step);
   emit(start);
   return gsap.to(proxy, {
     v: value,
     duration: isUpdate ? DUR_UI : DUR_COUNT,
     ease: EASE_UI,
     overwrite: "auto",
-    onUpdate: () => emit(proxy.v),
+    onUpdate: () => emit(snap(proxy.v)),
     onComplete: () => emit(value),
   });
 }

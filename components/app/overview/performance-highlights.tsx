@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusPill } from "@/components/app/settings/status-pill";
-import { formatNumber, formatPercent, formatShortDate } from "@/lib/format";
+import { formatRatio, formatNumber, formatShortDate } from "@/lib/format";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 
@@ -154,11 +154,11 @@ export function PerformanceHighlights({
                     </p>
                   </div>
                   <div>
-                    <span className="text-micro text-text-muted">Klikovi (CTR)</span>
+                    <span className="text-micro text-text-muted">Klikovi (po poruci)</span>
                     <p className="mt-0.5 font-mono font-medium tabular-nums text-foreground">
                       {formatNumber(topCampaign.linkClicks)}{" "}
                       <span className="text-text-muted text-micro">
-                        ({formatPercent(topCampaign.ctr)})
+                        ({formatRatio(topCampaign.ctr)})
                       </span>
                     </p>
                   </div>

@@ -169,8 +169,10 @@ function compareMedia(a: MediaItem, b: MediaItem, sort: SortState): number {
 
 export function InstagramContentGrid({ media }: { media: MediaItem[] }) {
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
-  // Off by default on purpose: what disappeared is information, not noise.
-  const [hideDeleted, setHideDeleted] = useState(false);
+  // On by default (F14): a ranking of the best posts led by two that no longer
+  // exist is a ranking of nothing actionable. The toggle keeps the count, so
+  // what disappeared stays one press away.
+  const [hideDeleted, setHideDeleted] = useState(true);
 
   const deletedCount = useMemo(
     () => media.filter((m) => m.deletedAt !== undefined).length,

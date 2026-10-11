@@ -55,13 +55,23 @@ export function AnalyticsDashboard() {
   );
   const ga4Config = useStale(useQuery(api.analytics.ga4Configuration));
 
+  // Dan poslednjeg očitavanja u zoni propertija: do njega je dan bez reda
+  // „nije bilo saobraćaja" (0), posle njega „još nije očitano" (rupa) — F4.
+  const syncedThrough = reportMeta
+    ? new Intl.DateTimeFormat("sv-SE", {
+        timeZone: reportMeta.timeZone ?? "UTC",
+      }).format(new Date(reportMeta.fetchedAt))
+    : undefined;
+
   // Series is derived together with the range it was fetched for, so a stale
   // frame never zero-fills old rows into a new window.
   const series = useStale(
     useMemo(
       () =>
-        currentRows ? fillDays(currentRows, range.from, range.to) : undefined,
-      [currentRows, range.from, range.to],
+        currentRows
+          ? fillDays(currentRows, range.from, range.to, syncedThrough)
+          : undefined,
+      [currentRows, range.from, range.to, syncedThrough],
     ),
   );
   const cur = useStale(
@@ -323,7 +333,7 @@ export function AnalyticsDashboard() {
               </Reveal>
 
               <Reveal delay={0.1}>
-                <TrafficTable traffic={traffic} />
+                <TrafficTable traffic={traffic} kpiSessions={cur.sessions} />
               </Reveal>
             </>
           )}

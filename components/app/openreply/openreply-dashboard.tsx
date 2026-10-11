@@ -18,15 +18,14 @@ import { OpenReplyChart, OpenReplyChartSkeleton } from "./openreply-chart";
 import { CampaignsTable, CampaignsTableSkeleton } from "./campaigns-table";
 import {
   deltaPct,
-  deltaPp,
   fillOrDays,
   summarizeOr,
 } from "@/lib/metrics";
 import {
+  formatRatio,
   formatNumber,
   formatPercent,
   formatSignedPercent,
-  formatSignedPp,
 } from "@/lib/format";
 
 /**
@@ -138,15 +137,19 @@ export function OpenReplyDashboard() {
                 compareLabel={compareLabel}
                 spark={series.map((d) => d.linkClicks)}
               />
+              {/* Odnos, ne stopa (F6): `orLinkClicks` beleži svako otvaranje
+                  linka, a link pripada automatizaciji, ne poruci — klik se ne
+                  može vezati za primaoca, pa jedan čovek sa tri otvaranja daje
+                  tri klika na jedan DM. Kao „CTR" to prelazi 100 %. */}
               <KpiTile
-                label="Prosečan CTR"
+                label="Klikova po poruci"
                 value={cur.ctr}
-                format={formatPercent}
+                format={formatRatio}
                 delta={{
-                  kind: "pp",
-                  value: deltaPp(cur.ctr, prev.ctr),
+                  kind: "pct",
+                  value: deltaPct(cur.ctr, prev.ctr),
                 }}
-                formatDelta={formatSignedPp}
+                formatDelta={formatSignedPercent}
                 compareLabel={compareLabel}
                 spark={series.map((d) => (d.dmsSent > 0 ? d.linkClicks / d.dmsSent : 0))}
               />

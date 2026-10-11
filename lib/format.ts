@@ -51,6 +51,10 @@ const decimalFmt = new Intl.NumberFormat(LOCALE, {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
 });
+const ratioFmt = new Intl.NumberFormat(LOCALE, {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 const percentFmt = new Intl.NumberFormat(LOCALE, {
   style: "percent",
   minimumFractionDigits: 1,
@@ -79,6 +83,11 @@ export function formatNumber(value: number): string {
 
 export function formatDecimal(value: number): string {
   return decimalFmt.format(value);
+}
+
+/** Odnos dve količine na dve decimale, npr. klikova po poruci: „0,37", „1,43". */
+export function formatRatio(value: number): string {
+  return ratioFmt.format(value);
 }
 
 /** Sažet broj za ose grafikona: 1.234 → "1,2k", 2.500.000 → "2,5M". */

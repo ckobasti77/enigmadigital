@@ -10,6 +10,7 @@ import {
   LabelList,
   XAxis,
   YAxis,
+  usePlotArea,
 } from "recharts";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -140,10 +141,21 @@ export function TimelineChart({
   };
 
   const fitted = area.baseline === "fitted";
-  const areaTicks = fitted
-    ? fittedTicks(Math.min(...definedArea), areaMax, 3)
-    : niceTicks(areaMax, 3);
-  const barsTicks = bars ? niceTicks(barsMax, 1) : [0];
+  // Mera koja postoji samo u celim brojevima (DM-ovi, sesije) dobija cele
+  // podeoke: korak 0,5 bi kroz `formatNumber` ispao „0, 1, 1, 2" (F5).
+  const areaWhole = definedArea.every(Number.isInteger);
+  const areaTicks = distinctTicks(
+    fitted
+      ? fittedTicks(Math.min(...definedArea), areaMax, 3, areaWhole)
+      : niceTicks(areaMax, 3, areaWhole),
+    area.format,
+  );
+  const barsTicks = bars
+    ? distinctTicks(
+        niceTicks(barsMax, 1, definedBars.every(Number.isInteger)),
+        bars.format,
+      )
+    : [0];
   const areaFloor = fitted ? areaTicks[0] : 0;
   const areaTop = areaTicks[areaTicks.length - 1];
   const barsTop = barsTicks[barsTicks.length - 1];
@@ -230,9 +242,14 @@ export function TimelineChart({
             {/* Prva, poslednja i ekstremna tačka — nikad broj na svakoj. */}
             <LabelList
               dataKey="area"
-              content={(props) =>
-                renderAreaLabel(props, areaMarks, area.color, area.format)
-              }
+              content={(props) => (
+                <AreaMarkLabel
+                  {...props}
+                  marks={areaMarks}
+                  color={area.color}
+                  format={area.format}
+                />
+              )}
             />
           </Area>
         </AreaChart>
@@ -450,9 +467,6 @@ type MarkProps = {
   height?: number | string;
   index?: number;
   value?: unknown;
-  /** Okvir crtaće površine panela — služi da oznaka ne izađe iz njega.
-      Recharts ovde šalje uniju kartezijanskog i polarnog okvira. */
-  parentViewBox?: unknown;
 };
 
 /** Prazan čvor: `content` mora da vrati element, a ne `null`. */
@@ -461,15 +475,6 @@ const NO_LABEL = <g />;
 /** Odmak osnovne linije teksta od tačke, naviše i naniže. */
 const LABEL_RISE = 11;
 const LABEL_DROP = 18;
-
-/** Gornja i donja ivica crtaće površine; bez okvira nema ni ograničenja. */
-function plotBand(viewBox: unknown): { top: number; bottom: number } {
-  const box = viewBox as { y?: unknown; height?: unknown } | undefined;
-  const y = typeof box?.y === "number" ? box.y : undefined;
-  const height = typeof box?.height === "number" ? box.height : undefined;
-  if (y === undefined || height === undefined) return { top: 0, bottom: Infinity };
-  return { top: y, bottom: y + height };
-}
 
 /**
  * Prva, poslednja i ekstremna tačka. Ekstrem se preskače kada je blizu nekog
@@ -524,12 +529,23 @@ function peakIndex(values: number[]): number {
   return values.reduce((best, v, i) => (v > values[best] ? i : best), 0);
 }
 
-function renderAreaLabel(
-  props: MarkProps,
-  marks: Map<number, Mark>,
-  color: string,
-  format: (v: number) => string,
-) {
+/**
+ * Komponenta, ne funkcija: ivice crtaće površine čita iz konteksta grafikona
+ * (`usePlotArea`). `Area` u Recharts-u 3 šalje `parentViewBox: undefined`, pa
+ * je provera donje ivice preko njega bila mrtva i oznaka tačke na nultoj
+ * liniji je padala među datume na x-osi (F3).
+ */
+function AreaMarkLabel({
+  marks,
+  color,
+  format,
+  ...props
+}: MarkProps & {
+  marks: Map<number, Mark>;
+  color: string;
+  format: (v: number) => string;
+}) {
+  const plot = usePlotArea();
   const { index, x, y } = props;
   const mark = index === undefined ? undefined : marks.get(index);
   if (!mark || typeof x !== "number" || typeof y !== "number") return NO_LABEL;
@@ -539,7 +555,9 @@ function renderAreaLabel(
 
   const { kind } = mark;
   // Ivica panela nadjačava izbor strane: bolje preko linije nego odsečeno.
-  const { top, bottom } = plotBand(props.parentViewBox);
+  // Bez poznatog okvira oznaka ostaje iznad tačke — ispod je x-osa.
+  const top = plot?.y ?? 0;
+  const bottom = plot ? plot.y + plot.height : y;
   let below = mark.below;
   if (!below && y - LABEL_RISE < top + 9) below = true;
   if (below && y + LABEL_DROP > bottom - 1) below = false;
@@ -607,13 +625,25 @@ function renderBarLabel(
 
 // ── ose ──────────────────────────────────────────────────────────────────────
 
-/** Okrugli podeoci (0, korak, 2·korak, …) koji pokrivaju `max` — nikad 95/190. */
-function niceTicks(max: number, count: number): number[] {
+/**
+ * Okrugli podeoci (0, korak, 2·korak, …) koji pokrivaju `max` — nikad 95/190.
+ * `whole` = mera je celobrojna: korak je ceo broj, a podeoci staju čim pokriju
+ * `max` (za max 1 to je „0, 1", ne „0, 1, 2, 3" sa linijom na dnu panela).
+ */
+function niceTicks(max: number, count: number, whole = false): number[] {
   if (max <= 0) return [0, 1];
   const rough = max / count;
   const mag = 10 ** Math.floor(Math.log10(rough));
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= rough)!;
-  return Array.from({ length: count + 1 }, (_, i) => i * step);
+  const step = [1, 2, 2.5, 5, 10]
+    .map((m) => m * mag)
+    .find((s) => s >= rough && (!whole || Number.isInteger(s)))!;
+  const steps = whole ? Math.min(count, Math.ceil(max / step)) : count;
+  return Array.from({ length: steps + 1 }, (_, i) => i * step);
+}
+
+/** Dva podeoka sa istim natpisom su jedan podeok — drugi se ne crta (F5). */
+function distinctTicks(ticks: number[], format: (v: number) => string): number[] {
+  return ticks.filter((t, i) => i === 0 || format(t) !== format(ticks[i - 1]));
 }
 
 /**
@@ -621,11 +651,17 @@ function niceTicks(max: number, count: number): number[] {
  * za nivo koji se ne resetuje. Korak raste dok poslednji podeok ne pokrije
  * `max`, pa petlja uvek stane.
  */
-function fittedTicks(min: number, max: number, count: number): number[] {
+function fittedTicks(
+  min: number,
+  max: number,
+  count: number,
+  whole = false,
+): number[] {
   const span = Math.max(max - min, 1);
   const mag = 10 ** Math.floor(Math.log10(span / count));
   for (const mult of [1, 2, 5, 10, 20, 50, 100]) {
     const step = mult * mag;
+    if (whole && !Number.isInteger(step)) continue;
     const base = Math.floor(min / step) * step;
     if (base + count * step >= max) {
       return Array.from({ length: count + 1 }, (_, i) =>
@@ -633,7 +669,7 @@ function fittedTicks(min: number, max: number, count: number): number[] {
       );
     }
   }
-  return niceTicks(max, count);
+  return niceTicks(max, count, whole);
 }
 
 // ── skelet ───────────────────────────────────────────────────────────────────

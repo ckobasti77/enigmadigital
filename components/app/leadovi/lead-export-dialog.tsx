@@ -149,7 +149,7 @@ export function LeadExportDialog({
               <DialogTitle>Izvoz leadova u kanonski CSV</DialogTitle>
               <DialogDescription>
                 Generisanje tabele u standardnom formatu za scraping i prodaju
-                (§6) uz proveru pravnog osnova (§8).
+                uz proveru pravnog osnova.
               </DialogDescription>
             </div>
           </div>
@@ -248,7 +248,7 @@ export function LeadExportDialog({
               {exportData.izostavljenoBezOsnova > 0 ? (
                 <FeedbackNote
                   tone="warning"
-                  title="Izostavljeni kontakti bez pravnog osnova (§8 ZZPL / GDPR)"
+                  title="Izostavljeni kontakti bez pravnog osnova (ZZPL / GDPR)"
                 >
                   {exportData.izostavljenoBezOsnova}{" "}
                   {exportData.izostavljenoBezOsnova === 1
@@ -273,7 +273,7 @@ export function LeadExportDialog({
                 <div className="flex items-center justify-between border-b border-line-soft pb-2">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                     <Columns3 className="size-3.5 text-accent-400" />
-                    <span>Kanonske kolone (§6.1, tačno 19 kolona)</span>
+                    <span>Kanonske kolone (tačno 19 kolona)</span>
                   </div>
                   <span className="text-micro font-mono text-text-muted">
                     UTF-8 sa BOM

@@ -538,7 +538,7 @@ export function ThreadsRepliesModeration() {
         open={deletingReplyId !== null}
         onOpenChange={(open) => !open && setDeletingReplyId(null)}
         title="Obriši odgovor sa Threads-a"
-        description="Ova radnja je nepovratna. Odgovor će biti trajno obrisan sa Threads platforme. Brisanje se ubraja u dnevnu kvotu od 100 brisanja u periodu od 24h (§8)."
+        description="Ova radnja je nepovratna. Odgovor će biti trajno obrisan sa Threads platforme. Brisanje se ubraja u dnevnu kvotu od 100 brisanja u periodu od 24h."
         confirmLabel="Trajno obriši"
         busyLabel="Briše se..."
         busy={busy}

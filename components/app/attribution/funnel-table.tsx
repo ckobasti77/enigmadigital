@@ -28,7 +28,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { StatusPill } from "@/components/app/settings/status-pill";
-import { formatNumber, formatPercent } from "@/lib/format";
+import { formatNumber, formatPercent, formatRatio } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type AttributionReport = FunctionReturnType<typeof api.attribution.report>;
@@ -127,7 +127,7 @@ export function FunnelTable({
               </Tooltip>
             </div>
             <p className="mt-0.5 text-xs text-text-muted">
-              DM poruke → Link klikovi (CTR) → GA4 sesije → Web konverzije
+              DM poruke → Link klikovi → GA4 sesije → Web konverzije
             </p>
           </div>
           <p className="font-mono text-xs tabular-nums text-text-muted">
@@ -167,7 +167,7 @@ export function FunnelTable({
                     align="right"
                   />
                   <SortableHead
-                    label="2. Klikovi (CTR)"
+                    label="2. Klikovi (po poruci)"
                     active={sort.key === "linkClicks"}
                     dir={sort.dir}
                     onClick={() => toggle("linkClicks")}
@@ -241,14 +241,14 @@ export function FunnelTable({
                         </div>
                       </TableCell>
 
-                      {/* Stage 2: Link Clicks + CTR */}
+                      {/* Stage 2: Link Clicks + klikova po poruci (odnos, ne stopa — F6) */}
                       <TableCell className="py-3.5 text-right">
                         <div className="flex flex-col items-end">
                           <span className="font-mono tabular-nums text-foreground">
                             {formatNumber(row.linkClicks)}
                           </span>
                           <span className="font-mono text-micro tabular-nums text-accent-400">
-                            {formatPercent(row.ctr)} CTR
+                            {formatRatio(row.ctr)} po poruci
                           </span>
                         </div>
                       </TableCell>

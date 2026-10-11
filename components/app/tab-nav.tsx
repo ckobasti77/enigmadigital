@@ -2,6 +2,7 @@
 
 import { useRef, type ComponentType, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { useScrollEdges } from "@/lib/use-scroll-edges";
 
 export type TabItem<T extends string> = {
   id: T;
@@ -49,6 +50,7 @@ export function TabNav<T extends string>({
   className?: string;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
+  useScrollEdges(listRef);
 
   const move = (delta: number) => {
     const index = tabs.findIndex((tab) => tab.id === active);
@@ -107,7 +109,7 @@ export function TabNav<T extends string>({
         tabIndex={selected ? 0 : -1}
         onClick={() => onChange(tab.id)}
         className={cn(
-          "-mb-px flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3.5 py-2 text-ui font-medium transition-colors",
+          "flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3.5 py-2 text-ui font-medium transition-colors",
           selected
             ? "border-accent-400 text-foreground"
             : "border-transparent text-text-muted hover:border-line-soft hover:text-foreground",
@@ -123,7 +125,7 @@ export function TabNav<T extends string>({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-line pb-px",
+        "flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-line",
         className,
       )}
     >
@@ -131,7 +133,7 @@ export function TabNav<T extends string>({
         ref={listRef}
         role="tablist"
         onKeyDown={handleKeyDown}
-        className="flex min-w-0 max-w-full items-center gap-1 overflow-x-auto"
+        className="tab-scroll flex min-w-0 max-w-full items-center gap-1"
       >
         {showGroups
           ? groups.map((group, gi) => (

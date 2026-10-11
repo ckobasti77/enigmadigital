@@ -130,9 +130,6 @@ export function LeadTimeline({
                 Ujedinjen hronološki pregled svih opaženih signala i operativnih CRM radnji.
               </CardDescription>
             </div>
-            <span className="rounded bg-surface-raised border border-line px-2 py-0.5 text-micro font-medium text-text-muted">
-              §2.5 & §9.1
-            </span>
           </div>
         </CardHeader>
 

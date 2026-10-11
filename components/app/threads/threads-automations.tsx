@@ -213,7 +213,7 @@ export function ThreadsAutomations() {
       <Card className="flex items-start gap-3 border-accent-400/30 bg-accent-400/5 p-4 shadow-card ring-line">
         <HelpCircle className="size-5 shrink-0 text-accent-400 mt-0.5" aria-hidden="true" />
         <div className="text-xs leading-relaxed text-text-muted">
-          <strong className="text-foreground">OpenReply za Threads (§9):</strong> Threads nema
+          <strong className="text-foreground">OpenReply za Threads:</strong> Threads nema
           direktne poruke (DM). Automatizacije odgovaraju isključivo{" "}
           <strong className="text-foreground">javnim komentarom</strong> sa praćenim linkom.
           Zbog zaštite naloga od neželjene pošte (spam), sva pravila se podrazumevano kreiraju u{" "}
@@ -520,7 +520,7 @@ function AutomationLogsTable({ logs }: { logs?: LogDoc[] }) {
               <TableHead className="py-2.5 font-medium">Vreme</TableHead>
               <TableHead className="py-2.5 font-medium">Korisnik / Odgovor</TableHead>
               <TableHead className="py-2.5 font-medium">Ključna reč</TableHead>
-              <TableHead className="py-2.5 font-medium">Status ishoda (§4)</TableHead>
+              <TableHead className="py-2.5 font-medium">Status ishoda</TableHead>
               <TableHead className="py-2.5 font-medium">Detalj / Greška</TableHead>
             </TableRow>
           </TableHeader>
@@ -865,7 +865,7 @@ function AutomationEditorDialog({
 
               {trigger === "keyword" && (
                 <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-micro text-amber-300">
-                  ⚠️ <strong>Zaštita naloga od spama (§9):</strong> Svaka ključna reč mora imati bar 3 karaktera. Preporučeni dnevni limit je 20 (maksimum 50).
+                  ⚠️ <strong>Zaštita naloga od spama:</strong> Svaka ključna reč mora imati bar 3 karaktera. Preporučeni dnevni limit je 20 (maksimum 50).
                 </div>
               )}
             </FormGroup>
@@ -986,7 +986,7 @@ function AutomationEditorDialog({
 
             {/* Zaštitni limiti (§9) */}
             <FormGroup
-              title="Sigurnosni limiti i cooldown (§9)"
+              title="Sigurnosni limiti i cooldown"
               description="Sprečavaju spam sankcije i prekomerno odgovaranje istim korisnicima"
             >
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

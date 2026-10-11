@@ -56,6 +56,26 @@ export function AdsDashboard() {
 
   const loading = connections === undefined || report === undefined;
 
+  // F11: iznos bez valute nije iznos. Upit vraća valutu samo kad svi nalozi
+  // dele jednu; kad je nema, čita se sa kampanja. Više valuta se ne sabira u
+  // jedan broj — tada pločica nosi crticu i razlog, ne zbir u „nečemu".
+  const campaignCurrencies = [
+    ...new Set(
+      (report?.campaigns ?? [])
+        .map((c) => c.currency?.trim())
+        .filter((c): c is string => Boolean(c)),
+    ),
+  ];
+  const currency =
+    report?.totals.currency ??
+    (campaignCurrencies.length === 1 ? campaignCurrencies[0] : undefined);
+  const mixedCurrencies = currency === undefined && campaignCurrencies.length > 1;
+  const currencyNote = mixedCurrencies
+    ? `više valuta (${campaignCurrencies.join(", ")}) — vidi po kampanji`
+    : currency === undefined
+      ? "valuta naloga nije poznata"
+      : undefined;
+
   return (
     <div className="flex flex-1 flex-col gap-8">
       <div className="flex flex-wrap items-center justify-between gap-4 empty:hidden">
@@ -125,11 +145,14 @@ export function AdsDashboard() {
               <StatTile
                 label="Ukupna potrošnja"
                 icon={DollarSign}
-                value={report.totals.totalSpend}
-                format={(v: number) => formatMetric(v, spendDef, report.totals.currency)}
-                note={`kroz ${report.totals.campaignsCount} ${
-                  report.totals.campaignsCount === 1 ? "kampanju" : "kampanja"
-                }`}
+                value={mixedCurrencies ? undefined : report.totals.totalSpend}
+                format={(v: number) => formatMetric(v, spendDef, currency)}
+                note={
+                  currencyNote ??
+                  `kroz ${report.totals.campaignsCount} ${
+                    report.totals.campaignsCount === 1 ? "kampanju" : "kampanja"
+                  }`
+                }
               />
               <StatTile
                 label="Ukupno rezultata"
@@ -141,9 +164,9 @@ export function AdsDashboard() {
               <StatTile
                 label="Prosečan CPA"
                 icon={TrendingUp}
-                value={report.totals.overallCpa}
-                format={(v: number) => formatMetric(v, cpaDef, report.totals.currency)}
-                note="cena po konverziji"
+                value={mixedCurrencies ? undefined : report.totals.overallCpa}
+                format={(v: number) => formatMetric(v, cpaDef, currency)}
+                note={currencyNote ?? "cena po konverziji"}
               />
               <StatTile
                 label={
@@ -178,7 +201,7 @@ export function AdsDashboard() {
             <ChartErrorBoundary>
               <SpendChart
                 campaigns={report.campaigns}
-                currency={report.totals.currency}
+                currency={currency}
               />
             </ChartErrorBoundary>
           </Reveal>
