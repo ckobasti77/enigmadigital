@@ -105,9 +105,13 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
     }
   }, [getPublishingLimit]);
 
+  // Prvo čitanje kvote. `loadingQuota` kreće kao `true`, pa efekat ne upisuje
+  // stanje dok odgovor ne stigne; `fetchQuota` služi za kasnije osvežavanje.
   useEffect(() => {
-    fetchQuota();
-  }, [fetchQuota]);
+    getPublishingLimit({})
+      .then(setQuota, () => setQuota(null))
+      .finally(() => setLoadingQuota(false));
+  }, [getPublishingLimit]);
 
   // Forma
   const [mediaType, setMediaType] = useState<ThreadsPublishMediaType>("TEXT");
@@ -138,9 +142,9 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
 
   // Zakazivanje
   const [isScheduled, setIsScheduled] = useState(false);
-  const defaultBelgrade = useMemo(
-    () => belgradeInputsFor(Date.now() + 60 * 60 * 1000),
-    [],
+  // Sat unapred od trenutka otvaranja forme — računa se jednom.
+  const [defaultBelgrade] = useState(() =>
+    belgradeInputsFor(Date.now() + 60 * 60 * 1000),
   );
   const [scheduledDate, setScheduledDate] = useState(defaultBelgrade.date);
   const [scheduledTime, setScheduledTime] = useState(defaultBelgrade.time);
@@ -282,11 +286,10 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
     const spoilerErr = checkSpoilerMedia({ mediaType, isSpoilerMedia });
     if (spoilerErr) return spoilerErr;
 
-    if (isScheduled) {
-      const epoch = belgradeToEpoch(scheduledDate, scheduledTime);
-      if (epoch === null) return "Neispravan format zakazanog datuma ili vremena.";
-      const schedErr = checkScheduledFor(epoch, Date.now());
-      if (schedErr) return schedErr;
+    // Format termina se proverava ovde; da li je termin dovoljno daleko zavisi
+    // od sata, pa se meri u trenutku klika (`handlePublishClick`).
+    if (isScheduled && belgradeToEpoch(scheduledDate, scheduledTime) === null) {
+      return "Neispravan format zakazanog datuma ili vremena.";
     }
 
     return null;
@@ -446,6 +449,15 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
     if (validationError) {
       setErrorMsg(validationError);
       return;
+    }
+    if (isScheduled) {
+      const epoch = belgradeToEpoch(scheduledDate, scheduledTime);
+      const schedErr =
+        epoch === null ? null : checkScheduledFor(epoch, Date.now());
+      if (schedErr) {
+        setErrorMsg(schedErr);
+        return;
+      }
     }
     if (isScheduled) {
       submitJob();

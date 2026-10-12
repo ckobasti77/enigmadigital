@@ -1,6 +1,7 @@
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { WithoutSystemFields } from "convex/server";
+import type { Doc, Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
 import {
   calculateRollingQuota,
@@ -904,7 +905,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existingCrit !== null) {
           await ctx.db.patch(existingCrit._id, critData);
         } else {
-          await ctx.db.insert("gadsCampaignCriteria", critData as any);
+          await ctx.db.insert("gadsCampaignCriteria", critData as WithoutSystemFields<Doc<"gadsCampaignCriteria">>);
         }
         written++;
       }
@@ -1102,7 +1103,7 @@ export const upsertGoogleAdsData = internalMutation({
       if (existing !== null) {
         await ctx.db.patch(existing._id, kwData);
       } else {
-        await ctx.db.insert("gadsKeywordQuality", kwData as any);
+        await ctx.db.insert("gadsKeywordQuality", kwData as WithoutSystemFields<Doc<"gadsKeywordQuality">>);
       }
       written++;
     }
@@ -1147,7 +1148,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existing !== null) {
           await ctx.db.patch(existing._id, stData);
         } else {
-          await ctx.db.insert("gadsSearchTerms", stData as any);
+          await ctx.db.insert("gadsSearchTerms", stData as WithoutSystemFields<Doc<"gadsSearchTerms">>);
         }
         written++;
       }
@@ -1178,7 +1179,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existing !== null) {
           await ctx.db.patch(existing._id, sData);
         } else {
-          await ctx.db.insert("gadsSharedSets", sData as any);
+          await ctx.db.insert("gadsSharedSets", sData as WithoutSystemFields<Doc<"gadsSharedSets">>);
         }
         written++;
       }
@@ -1211,7 +1212,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existing !== null) {
           await ctx.db.patch(existing._id, scData);
         } else {
-          await ctx.db.insert("gadsSharedCriteria", scData as any);
+          await ctx.db.insert("gadsSharedCriteria", scData as WithoutSystemFields<Doc<"gadsSharedCriteria">>);
         }
         written++;
       }
@@ -1245,7 +1246,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existing !== null) {
           await ctx.db.patch(existing._id, cssData);
         } else {
-          await ctx.db.insert("gadsCampaignSharedSets", cssData as any);
+          await ctx.db.insert("gadsCampaignSharedSets", cssData as WithoutSystemFields<Doc<"gadsCampaignSharedSets">>);
         }
         written++;
       }
@@ -1286,7 +1287,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existing !== null) {
           await ctx.db.patch(existing._id, geoData);
         } else {
-          await ctx.db.insert("gadsGeographicView", geoData as any);
+          await ctx.db.insert("gadsGeographicView", geoData as WithoutSystemFields<Doc<"gadsGeographicView">>);
         }
         written++;
       }
@@ -1326,7 +1327,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existing !== null) {
           await ctx.db.patch(existing._id, ulData);
         } else {
-          await ctx.db.insert("gadsUserLocationView", ulData as any);
+          await ctx.db.insert("gadsUserLocationView", ulData as WithoutSystemFields<Doc<"gadsUserLocationView">>);
         }
         written++;
       }
@@ -1366,7 +1367,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existing !== null) {
           await ctx.db.patch(existing._id, devData);
         } else {
-          await ctx.db.insert("gadsDeviceStats", devData as any);
+          await ctx.db.insert("gadsDeviceStats", devData as WithoutSystemFields<Doc<"gadsDeviceStats">>);
         }
         written++;
       }
@@ -1407,7 +1408,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existing !== null) {
           await ctx.db.patch(existing._id, hData);
         } else {
-          await ctx.db.insert("gadsHourlyStats", hData as any);
+          await ctx.db.insert("gadsHourlyStats", hData as WithoutSystemFields<Doc<"gadsHourlyStats">>);
         }
         written++;
       }
@@ -1451,7 +1452,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existing !== null) {
           await ctx.db.patch(existing._id, ageData);
         } else {
-          await ctx.db.insert("gadsAgeRangeView", ageData as any);
+          await ctx.db.insert("gadsAgeRangeView", ageData as WithoutSystemFields<Doc<"gadsAgeRangeView">>);
         }
         written++;
       }
@@ -1495,7 +1496,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existing !== null) {
           await ctx.db.patch(existing._id, genData);
         } else {
-          await ctx.db.insert("gadsGenderView", genData as any);
+          await ctx.db.insert("gadsGenderView", genData as WithoutSystemFields<Doc<"gadsGenderView">>);
         }
         written++;
       }
@@ -1532,7 +1533,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existing !== null) {
           await ctx.db.patch(existing._id, aData);
         } else {
-          await ctx.db.insert("gadsAssets", aData as any);
+          await ctx.db.insert("gadsAssets", aData as WithoutSystemFields<Doc<"gadsAssets">>);
         }
         written++;
       }
@@ -1584,7 +1585,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existing !== null) {
           await ctx.db.patch(existing._id, avData);
         } else {
-          await ctx.db.insert("gadsAdGroupAdAssetViews", avData as any);
+          await ctx.db.insert("gadsAdGroupAdAssetViews", avData as WithoutSystemFields<Doc<"gadsAdGroupAdAssetViews">>);
         }
         written++;
       }
@@ -1627,7 +1628,7 @@ export const upsertGoogleAdsData = internalMutation({
         if (existing !== null) {
           await ctx.db.patch(existing._id, acData);
         } else {
-          await ctx.db.insert("gadsAssetCombinationViews", acData as any);
+          await ctx.db.insert("gadsAssetCombinationViews", acData as WithoutSystemFields<Doc<"gadsAssetCombinationViews">>);
         }
         written++;
       }
@@ -3202,7 +3203,7 @@ export const getGadsGate = internalQuery({
       consumed24h: rolling.consumed24h,
       remaining24h: rolling.remaining24h,
       dailyLimit: quotaDoc.dailyLimit ?? dailyLimit,
-      accessLevel: (quotaDoc.accessLevel as any) ?? level,
+      accessLevel: (quotaDoc.accessLevel as typeof level) ?? level,
       stale,
       updatedAt: quotaDoc.updatedAt,
     };

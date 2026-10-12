@@ -518,7 +518,7 @@ export function ImportRowDialog({
                   title="Provera zabrane kontakta nije zabeležena za ovaj red"
                 >
                   Za ovaj red ne postoji zapis o proveri liste zabrane kontakta.
-                  To nije isto što i „čisto" — znači da se ne zna. Pre primene
+                  To nije isto što i „čisto&quot; — znači da se ne zna. Pre primene
                   proveri ručno ili ponovi uvoz reda.
                 </FeedbackNote>
               )}
@@ -552,7 +552,7 @@ export function ImportRowDialog({
                         .join(", ")}
                     </span>
                     . Vrednost se ne normalizuje, pa se ne zna da li je na listi.
-                    „Ne zna se" nije dozvola — red ostaje nerazrešen dok ga
+                    „Ne zna se&quot; nije dozvola — red ostaje nerazrešen dok ga
                     operater ne proveri.
                   </FeedbackNote>
                 )}

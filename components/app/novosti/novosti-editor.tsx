@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useId, useEffect, useRef, useTransition } from "react";
+import { useState, useId, useRef, useTransition } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -100,7 +100,7 @@ export function NovostiEditor({
     initialPost?.publishedAt,
   );
   const [updatedAt, setUpdatedAt] = useState<number>(
-    initialPost?.updatedAt ?? Date.now(),
+    () => initialPost?.updatedAt ?? Date.now(),
   );
 
   // Naslovna slika i ALT opis (§4.3, §11)
@@ -157,12 +157,13 @@ export function NovostiEditor({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-generate slug when title changes (if not manually edited)
-  useEffect(() => {
-    if (!slugManuallyEdited && title.trim()) {
-      setSlug(slugify(title));
-    }
-  }, [title, slugManuallyEdited]);
+  // Auto-generate slug when title changes (if not manually edited). Izvodi se
+  // pri crtanju, ne u efektu: slug se poravna sa naslovom pre nego što se
+  // iscrta, a upis staje čim se poklope.
+  const autoSlug = !slugManuallyEdited && title.trim() ? slugify(title) : null;
+  if (autoSlug !== null && autoSlug !== slug) {
+    setSlug(autoSlug);
+  }
 
   // Provera reči za izabranu vrstu posta (§3)
   const wordsCount = body.trim() ? body.trim().split(/\s+/).length : 0;
@@ -1096,7 +1097,7 @@ export function NovostiEditor({
 
               <div className="flex items-center justify-between rounded bg-surface p-2.5">
                 <span className="text-text-muted">
-                  Konstrukcije „ne samo ... nego":
+                  Konstrukcije „ne samo ... nego&quot;:
                 </span>
                 <span
                   className={cn(

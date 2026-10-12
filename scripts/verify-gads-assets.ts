@@ -91,7 +91,8 @@ test("A1.2: assertServiceAccountJson rejects invalid JSON string", () => {
     () => {
       assertServiceAccountJson("not-a-valid-json");
     },
-    (err: any) => err.data?.message?.includes("validan JSON") || err.message?.includes("JSON"),
+    (err: { data?: { message?: string }; message?: string }) =>
+      err.data?.message?.includes("validan JSON") || err.message?.includes("JSON"),
   );
 });
 
@@ -311,7 +312,7 @@ test("B5.2: purgeMap includes all new GA7 asset tables in GOOGLE_ADS_STEPS and T
       `Tabela ${table} nedostaje u PURGE_STEPS.google_ads unutar purgeMap.ts`,
     );
 
-    const ownership = (TABLE_OWNERSHIP as Record<string, any>)[table];
+    const ownership = (TABLE_OWNERSHIP as Record<string, { purgedBy?: readonly string[] } | undefined>)[table];
     assert.ok(
       ownership && ownership.purgedBy?.includes("google_ads"),
       `Tabela ${table} nedostaje ili nema purgedBy: ["google_ads"] u TABLE_OWNERSHIP unutar purgeMap.ts`,
@@ -364,7 +365,11 @@ test("Helper decamelizeRowKeys handles nested Google Ads response objects", () =
     },
   };
 
-  const decamelized: any = decamelizeRowKeys(raw);
+  const decamelized = decamelizeRowKeys(raw) as {
+    campaign_budget: { amount_micros: string };
+    campaignBudget: { amountMicros: string };
+    metrics: { cost_micros: string; search_impression_share: number };
+  };
   assert.equal(decamelized.campaign_budget.amount_micros, "5000000");
   assert.equal(decamelized.campaignBudget.amountMicros, "5000000");
   assert.equal(decamelized.metrics.cost_micros, "2500000");

@@ -303,7 +303,7 @@ export const getThreadsLinkAttributionSummary = query({
     const { workspaceId } = await requireMembership(ctx);
     const origin = shortLinkOrigin() ?? "";
 
-    let rowsQuery = ctx.db
+    const rowsQuery = ctx.db
       .query("threadsLinkAttribution")
       .withIndex("by_workspace_date", (q) => q.eq("workspaceId", workspaceId));
 

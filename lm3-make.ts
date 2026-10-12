@@ -5,7 +5,7 @@ const r1 = [1,"Hair Lab","Jurija Gagarina 14lj, Novi Beograd","0605020620","Boja
 const r2 = [2,"Hair Salon Nada","Ismeta Mujezinovića 18a","Proveriti na 011info",null,null,"Na 011info","Nema sajt. Kompletan frizerski.","011info"];
 const r3 = [3,"Pro Team Borča","Bratstva i Jedinstva 25","0611450415","Adaleta Krasnić","Vlasnik","9.4/10 (SrediMe, 143 rec.)","Nema sajt. Vlasnik: Ana Krasnić.","SrediMe\nCompanyWall (aproks.): https://www.companywall.rs/firma/proteam-by-glam/MMxBftwlR"];
 
-function sheet(title: string, rows: any[][]) {
+function sheet(title: string, rows: unknown[][]) {
   return XLSX.utils.aoa_to_sheet([[title],H,["BATCH 1 — Lidovi 1-3 (top kvalitet)"],...rows]);
 }
 

@@ -173,7 +173,7 @@ export const syncGoogleAds = internalAction({
             where: "conversion_action.status != 'REMOVED'",
           });
 
-          return (await queryGaql(conversionActionQuery)) as any[];
+          return await queryGaql(conversionActionQuery);
         });
 
         for (const row of caResults as Array<{
@@ -298,7 +298,7 @@ export const syncGoogleAds = internalAction({
             ],
           });
 
-          return (await queryGaql(customerClientQuery)) as any[];
+          return await queryGaql(customerClientQuery);
         });
 
         for (const row of ccResults as Array<{
@@ -376,7 +376,7 @@ export const syncGoogleAds = internalAction({
             where: "campaign_budget.status != 'REMOVED'",
           });
 
-          return (await queryGaql(budgetQuery)) as any[];
+          return await queryGaql(budgetQuery);
         });
 
         for (const row of budgetResults as Array<{
@@ -443,7 +443,7 @@ export const syncGoogleAds = internalAction({
               where: "campaign.status != 'REMOVED'",
             });
 
-            return (await queryGaql(campaignShareQuery)) as any[];
+            return await queryGaql(campaignShareQuery);
           },
         );
 
@@ -490,7 +490,7 @@ export const syncGoogleAds = internalAction({
             where: "campaign.status != 'REMOVED'",
           });
 
-          return (await queryGaql(campaignQuery)) as any[];
+          return await queryGaql(campaignQuery);
         });
 
         for (const row of campaignsList as Array<{
@@ -576,7 +576,7 @@ export const syncGoogleAds = internalAction({
             ],
           });
 
-          return (await queryGaql(adGroupQuery)) as any[];
+          return await queryGaql(adGroupQuery);
         });
 
         for (const row of adGroupResults as Array<{
@@ -662,7 +662,7 @@ export const syncGoogleAds = internalAction({
             where: "campaign.status != 'REMOVED'",
           });
 
-          return (await queryGaql(criteriaQuery)) as any[];
+          return await queryGaql(criteriaQuery);
         });
 
         for (const row of criteriaResults as Array<{
@@ -832,7 +832,7 @@ export const syncGoogleAds = internalAction({
             ],
           });
 
-          return (await queryGaql(adResultsQuery)) as any[];
+          return await queryGaql(adResultsQuery);
         });
 
         for (const row of adResults as Array<{
@@ -1066,7 +1066,7 @@ export const syncGoogleAds = internalAction({
             where: "ad_group_criterion.status != 'REMOVED'",
           });
 
-          return (await queryGaql(keywordQuery)) as any[];
+          return await queryGaql(keywordQuery);
         });
 
         for (const row of keywordResults as Array<{
@@ -1223,7 +1223,7 @@ export const syncGoogleAds = internalAction({
             ],
           });
 
-          return (await queryGaql(searchTermQuery)) as any[];
+          return await queryGaql(searchTermQuery);
         });
 
         for (const row of searchTermResults as Array<{
@@ -1345,7 +1345,7 @@ export const syncGoogleAds = internalAction({
             where: "shared_set.status != 'REMOVED'",
           });
 
-          return (await queryGaql(sharedSetQuery)) as any[];
+          return await queryGaql(sharedSetQuery);
         });
 
         for (const row of sharedSetResults as Array<{
@@ -1406,7 +1406,7 @@ export const syncGoogleAds = internalAction({
             ],
           });
 
-          return (await queryGaql(sharedCriteriaQuery)) as any[];
+          return await queryGaql(sharedCriteriaQuery);
         });
 
         for (const row of sharedCriteriaResults as Array<{
@@ -1463,7 +1463,7 @@ export const syncGoogleAds = internalAction({
             where: "campaign_shared_set.status != 'REMOVED'",
           });
 
-          return (await queryGaql(campaignSharedSetQuery)) as any[];
+          return await queryGaql(campaignSharedSetQuery);
         });
 
         for (const row of cssResults as Array<{
@@ -1522,7 +1522,7 @@ export const syncGoogleAds = internalAction({
             where: "metrics.impressions > 0",
           });
 
-          return (await queryGaql(geoQuery)) as any[];
+          return await queryGaql(geoQuery);
         });
 
         for (const row of geoResults as Array<{
@@ -1599,7 +1599,7 @@ export const syncGoogleAds = internalAction({
             where: "metrics.impressions > 0",
           });
 
-          return (await queryGaql(userLocQuery)) as any[];
+          return await queryGaql(userLocQuery);
         });
 
         for (const row of userLocResults as Array<{
@@ -1674,7 +1674,7 @@ export const syncGoogleAds = internalAction({
             where: "campaign.status != 'REMOVED' AND metrics.impressions > 0",
           });
 
-          return (await queryGaql(deviceQuery)) as any[];
+          return await queryGaql(deviceQuery);
         });
 
         for (const row of deviceResults as Array<{
@@ -1758,7 +1758,7 @@ export const syncGoogleAds = internalAction({
             where: "campaign.status != 'REMOVED' AND metrics.impressions > 0",
           });
 
-          return (await queryGaql(hourlyQuery)) as any[];
+          return await queryGaql(hourlyQuery);
         });
 
         for (const row of hourlyResults as Array<{
@@ -1836,7 +1836,7 @@ export const syncGoogleAds = internalAction({
             where: "metrics.impressions > 0",
           });
 
-          return (await queryGaql(ageQuery)) as any[];
+          return await queryGaql(ageQuery);
         });
 
         for (const row of ageResults as Array<{
@@ -1924,7 +1924,7 @@ export const syncGoogleAds = internalAction({
             where: "metrics.impressions > 0",
           });
 
-          return (await queryGaql(genderQuery)) as any[];
+          return await queryGaql(genderQuery);
         });
 
         for (const row of genderResults as Array<{
@@ -2011,7 +2011,7 @@ export const syncGoogleAds = internalAction({
             ],
           });
 
-          return (await queryGaql(assetQuery)) as any[];
+          return await queryGaql(assetQuery);
         });
 
         for (const row of assetResults as Array<{
@@ -2112,7 +2112,7 @@ export const syncGoogleAds = internalAction({
             ],
           });
 
-          return (await queryGaql(assetViewQuery)) as any[];
+          return await queryGaql(assetViewQuery);
         });
 
         for (const row of assetViewResults as Array<{
@@ -2234,7 +2234,7 @@ export const syncGoogleAds = internalAction({
               ],
             });
 
-            return (await queryGaql(comboQuery)) as any[];
+            return await queryGaql(comboQuery);
           },
         );
 

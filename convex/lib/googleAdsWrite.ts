@@ -648,7 +648,7 @@ export async function runGoogleAdsValidateOnly(
   });
 
   const text = await res.text();
-  let json: any = {};
+  let json: { error?: unknown } = {};
   try {
     json = JSON.parse(text);
   } catch {
@@ -701,7 +701,7 @@ export async function runGoogleAdsMutateWithValidateOnly(
   });
 
   const liveText = await liveRes.text();
-  let liveJson: any = {};
+  let liveJson: GoogleAdsMutateResult = {};
   try {
     liveJson = JSON.parse(liveText);
   } catch {

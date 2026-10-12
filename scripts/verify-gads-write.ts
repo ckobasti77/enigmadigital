@@ -254,6 +254,9 @@ console.log("\n[Test B2] Builderi hardkoduju status=PAUSED za sve kreirane objek
 const mutatePayload = buildGoogleAdsCampaignMutatePayload(validCampaignInput);
 assert.strictEqual(mutatePayload.partialFailure, false, "partialFailure mora biti false");
 
+/** Operacija kreiranja: iz payload-a se čita samo ono što test proverava. */
+type OperacijaKreiranja = { create: Record<string, unknown> };
+
 let campaignOpFound = false;
 let adGroupOpFound = false;
 let adOpFound = false;
@@ -261,24 +264,24 @@ let keywordOpCount = 0;
 
 for (const op of mutatePayload.mutateOperations) {
   if (op.campaignOperation) {
-    const c = (op.campaignOperation as any).create;
+    const c = (op.campaignOperation as OperacijaKreiranja).create;
     assert.strictEqual(c.status, "PAUSED", "Kampanja mora imati status PAUSED");
     assert.notStrictEqual(c.status, "ENABLED", "Kampanja ne sme biti ENABLED");
     assert.notStrictEqual(c.status, "ACTIVE", "Kampanja ne sme biti ACTIVE");
     campaignOpFound = true;
   }
   if (op.adGroupOperation) {
-    const ag = (op.adGroupOperation as any).create;
+    const ag = (op.adGroupOperation as OperacijaKreiranja).create;
     assert.strictEqual(ag.status, "PAUSED", "Ad grupa mora imati status PAUSED");
     adGroupOpFound = true;
   }
   if (op.adGroupAdOperation) {
-    const ad = (op.adGroupAdOperation as any).create;
+    const ad = (op.adGroupAdOperation as OperacijaKreiranja).create;
     assert.strictEqual(ad.status, "PAUSED", "Oglas mora imati status PAUSED");
     adOpFound = true;
   }
   if (op.adGroupCriterionOperation) {
-    const kw = (op.adGroupCriterionOperation as any).create;
+    const kw = (op.adGroupCriterionOperation as OperacijaKreiranja).create;
     assert.strictEqual(kw.status, "PAUSED", "Ključna reč mora imati status PAUSED");
     keywordOpCount++;
   }
@@ -293,7 +296,7 @@ check("Ključne reči (2) kreirane kao PAUSED", keywordOpCount === 2);
 console.log("\n[Test B3] Negativni privremeni ID-jevi i budžet u mikrosima:");
 const budgetOp = mutatePayload.mutateOperations.find((op) => op.campaignBudgetOperation);
 assert.ok(budgetOp, "Budžet operacija mora postojati u payload-u");
-const bCreate = (budgetOp.campaignBudgetOperation as any).create;
+const bCreate = (budgetOp.campaignBudgetOperation as OperacijaKreiranja).create;
 assert.strictEqual(
   bCreate.resourceName,
   "customers/1234567890/campaignBudgets/-1",
@@ -306,7 +309,7 @@ assert.strictEqual(
 );
 
 const campOp = mutatePayload.mutateOperations.find((op) => op.campaignOperation);
-const cCreate = (campOp!.campaignOperation as any).create;
+const cCreate = (campOp!.campaignOperation as OperacijaKreiranja).create;
 assert.strictEqual(
   cCreate.resourceName,
   "customers/1234567890/campaigns/-2",
@@ -404,7 +407,7 @@ function fakeResponse(ok: boolean, jsonObj: unknown): Response {
 
 {
   // 5a. validateOnly padne -> pravi poziv se NIKADA ne šalje
-  const callPayloads: any[] = [];
+  const callPayloads: Array<{ validateOnly?: boolean }> = [];
   const failingValidateFetch: GoogleAdsFetchImpl = async (_url, init) => {
     const parsed = JSON.parse(String(init?.body || "{}"));
     callPayloads.push(parsed);
@@ -431,7 +434,7 @@ function fakeResponse(ok: boolean, jsonObj: unknown): Response {
 
 {
   // 5b. validateOnly prođe -> šalje se pravi poziv sa validateOnly: false
-  const callPayloads: any[] = [];
+  const callPayloads: Array<{ validateOnly?: boolean }> = [];
   let callIndex = 0;
   const successfulFetch: GoogleAdsFetchImpl = async (_url, init) => {
     const parsed = JSON.parse(String(init?.body || "{}"));

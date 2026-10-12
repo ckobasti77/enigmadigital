@@ -210,9 +210,9 @@ try {
     fields: ["metrics.impressions"],
     segments: ["segments.age_range", "segments.gender"],
   });
-} catch (err: any) {
+} catch (err) {
   threwForForbiddenCombo = true;
-  forbiddenReason = err.message;
+  forbiddenReason = (err as Error).message;
 }
 check(
   "buildGaqlQuery za zabranjenu kombinaciju (age_range + gender) baca Error",

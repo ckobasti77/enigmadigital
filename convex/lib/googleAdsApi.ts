@@ -59,7 +59,7 @@ export interface QueryGoogleAdsParams {
  */
 export async function queryGoogleAdsSearchStream(
   params: QueryGoogleAdsParams,
-): Promise<any[]> {
+): Promise<unknown[]> {
   const url = buildSearchStreamUrl(params.customerId, params.version);
   const headers = buildGoogleAdsHeaders({
     developerToken: params.developerToken,
@@ -78,8 +78,8 @@ export async function queryGoogleAdsSearchStream(
     throw new Error(extractGoogleAdsApiError(errorText, res.status));
   }
 
-  const chunks = (await res.json()) as Array<{ results?: any[] }>;
-  const rows: any[] = [];
+  const chunks = (await res.json()) as Array<{ results?: unknown[] }>;
+  const rows: unknown[] = [];
   if (Array.isArray(chunks)) {
     for (const chunk of chunks) {
       if (chunk.results && Array.isArray(chunk.results)) {

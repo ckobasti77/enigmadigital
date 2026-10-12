@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -63,12 +63,16 @@ export function NovostiDashboard() {
   // Lokalno evidentirani postovi (nacrti i novokreirani)
   const [localPosts, setLocalPosts] = useState<PostItem[]>([]);
 
-  // Učitaj lokalne nacrte kad se sazna workspaceId
-  useEffect(() => {
-    if (workspaceId) {
-      setLocalPosts(loadLocalDrafts(workspaceId));
-    }
-  }, [workspaceId]);
+  // Učitaj lokalne nacrte kad se sazna workspaceId. Poredi se sa radnim
+  // prostorom za koji su nacrti već učitani, pa se čitanje desi jednom po
+  // prostoru i bez efekta.
+  const [draftsFor, setDraftsFor] = useState<Id<"workspaces"> | undefined>(
+    undefined,
+  );
+  if (workspaceId && draftsFor !== workspaceId) {
+    setDraftsFor(workspaceId);
+    setLocalPosts(loadLocalDrafts(workspaceId));
+  }
 
   // Sinhronizacija i čuvanje lokalnih nacrta
   const persistLocalPosts = useCallback(

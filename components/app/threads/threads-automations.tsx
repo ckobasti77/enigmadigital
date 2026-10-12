@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
@@ -649,30 +649,34 @@ function AutomationEditorDialog({
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Reset kada se promeni `existing`
-  useMemo(() => {
-    setName(existing?.name ?? "");
-    setTrigger(existing?.trigger ?? "reply_to_our_post");
-    setKeywordsStr(existing?.keywords ? existing.keywords.join(", ") : "");
-    setMatchType(existing?.matchType ?? "contains");
-    setCaseSensitive(existing?.caseSensitive ?? false);
-    setMatchAnyKeyword(existing?.matchAnyKeyword ?? true);
-    setRequireExactPhrase(existing?.requireExactPhrase ?? false);
-    setMatchAnyPost(existing?.matchAnyPost ?? true);
-    setPostId(existing?.postId ?? "");
-    setActionType(existing?.actionType ?? "public_reply");
-    setReplyText(existing?.replyText ?? "");
-    setLinkUrl(existing?.linkUrl ?? "");
-    setTopicTag(existing?.topicTag ?? "");
-    setAutoPublishText(existing?.autoPublishText ?? true);
-    setDailyLimit(
-      existing?.dailyLimit?.toString() ??
-        (existing?.trigger === "keyword" ? "20" : "50"),
-    );
-    setCooldown(existing?.cooldownMinutesPerAuthor?.toString() ?? "60");
-    setMaxPerThread(existing?.maxRepliesPerThread?.toString() ?? "2");
-    setErrorMsg(null);
-  }, [existing]);
+  // Reset kada se promeni `existing`. Poredi se sa vrednošću iz prethodnog
+  // crtanja, pa se forma poravna pre nego što se iscrta — bez `useMemo` koji
+  // upisuje stanje.
+  const [prevExisting, setPrevExisting] = useState(existing);
+  if (existing !== prevExisting) {
+    setPrevExisting(existing);
+      setName(existing?.name ?? "");
+      setTrigger(existing?.trigger ?? "reply_to_our_post");
+      setKeywordsStr(existing?.keywords ? existing.keywords.join(", ") : "");
+      setMatchType(existing?.matchType ?? "contains");
+      setCaseSensitive(existing?.caseSensitive ?? false);
+      setMatchAnyKeyword(existing?.matchAnyKeyword ?? true);
+      setRequireExactPhrase(existing?.requireExactPhrase ?? false);
+      setMatchAnyPost(existing?.matchAnyPost ?? true);
+      setPostId(existing?.postId ?? "");
+      setActionType(existing?.actionType ?? "public_reply");
+      setReplyText(existing?.replyText ?? "");
+      setLinkUrl(existing?.linkUrl ?? "");
+      setTopicTag(existing?.topicTag ?? "");
+      setAutoPublishText(existing?.autoPublishText ?? true);
+      setDailyLimit(
+        existing?.dailyLimit?.toString() ??
+          (existing?.trigger === "keyword" ? "20" : "50"),
+      );
+      setCooldown(existing?.cooldownMinutesPerAuthor?.toString() ?? "60");
+      setMaxPerThread(existing?.maxRepliesPerThread?.toString() ?? "2");
+      setErrorMsg(null);
+  }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -102,16 +102,22 @@ export function PozivnicaClient({ token }: { token: string }) {
 
   const zauzet = status === "radim";
 
+  // „Uđi ručno" se pojavi baš kad `router.push` kasni, pa ne sme da zavisi od
+  // istog rutera: namerno puno učitavanje strane, ne `<Link>`.
+  const udjiRucno = () => window.location.assign("/");
+
   // Adresa iz pozivnice se „zaključa" čim jednom stigne. Bez ovoga: u trenutku
   // uspešne potvrde koda sesija se napravi → pozivnica dobije `usedAt` →
   // reaktivni `getInvite` prestane da bude „vazi" → `inviteState.email` nestane
   // baš dok preusmeravamo. Zaključana vrednost preživljava tu tranziciju.
   const [email, setEmail] = useState("");
-  useEffect(() => {
-    if (inviteState?.status === "vazi" && inviteState.email) {
-      setEmail(inviteState.email);
-    }
-  }, [inviteState]);
+  if (
+    inviteState?.status === "vazi" &&
+    inviteState.email &&
+    inviteState.email !== email
+  ) {
+    setEmail(inviteState.email);
+  }
 
   // Neslaganje potvrde se javlja PRI KUCANJU, ne tek pri slanju (§6).
   const potvrdaGreska =
@@ -323,12 +329,13 @@ export function PozivnicaClient({ token }: { token: string }) {
                     }
                     action={
                       sporoPreusmeravanje ? (
-                        <a
-                          href="/"
+                        <button
+                          type="button"
+                          onClick={udjiRucno}
                           className="text-xs font-medium text-mod underline underline-offset-2"
                         >
                           Uđi ručno
-                        </a>
+                        </button>
                       ) : undefined
                     }
                   >
@@ -524,12 +531,13 @@ export function PozivnicaClient({ token }: { token: string }) {
                     }
                     action={
                       sporoPreusmeravanje ? (
-                        <a
-                          href="/"
+                        <button
+                          type="button"
+                          onClick={udjiRucno}
                           className="text-xs font-medium text-mod underline underline-offset-2"
                         >
                           Uđi ručno
-                        </a>
+                        </button>
                       ) : undefined
                     }
                   >

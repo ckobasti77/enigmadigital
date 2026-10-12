@@ -105,7 +105,18 @@ check("Pokrivenost 500/500 daje hiddenImpressions = 0", covFull.hiddenImpression
 console.log("\n2. Provera geografskih segmenata (B1 — dva odvojena resursa)");
 
 // Provera postojanja odvojenih tabela u shemi
-const tables = (schema as any).tables;
+const tables = (
+  schema as unknown as {
+    tables: Record<
+      string,
+      | {
+          indexes?: Array<{ indexDescriptor: string }>;
+          validator?: { fields?: Record<string, unknown> };
+        }
+      | undefined
+    >;
+  }
+).tables;
 check(
   "Tabela gadsGeographicView postoji u shemi",
   tables.gadsGeographicView !== undefined,
@@ -121,19 +132,19 @@ const userLocIndexes = tables.gadsUserLocationView?.indexes || [];
 
 check(
   "gadsGeographicView ima indeks by_workspace_date",
-  geoIndexes.some((idx: any) => idx.indexDescriptor === "by_workspace_date"),
+  geoIndexes.some((idx) => idx.indexDescriptor === "by_workspace_date"),
 );
 check(
   "gadsGeographicView ima indeks by_upsert_key",
-  geoIndexes.some((idx: any) => idx.indexDescriptor === "by_upsert_key"),
+  geoIndexes.some((idx) => idx.indexDescriptor === "by_upsert_key"),
 );
 check(
   "gadsUserLocationView ima indeks by_workspace_date",
-  userLocIndexes.some((idx: any) => idx.indexDescriptor === "by_workspace_date"),
+  userLocIndexes.some((idx) => idx.indexDescriptor === "by_workspace_date"),
 );
 check(
   "gadsUserLocationView ima indeks by_upsert_key",
-  userLocIndexes.some((idx: any) => idx.indexDescriptor === "by_upsert_key"),
+  userLocIndexes.some((idx) => idx.indexDescriptor === "by_upsert_key"),
 );
 
 // Provera formatera lokacije
@@ -412,7 +423,7 @@ const newSegmentTables = [
 
 for (const tableName of newSegmentTables) {
   // Provera TABLE_OWNERSHIP
-  const ownership = (TABLE_OWNERSHIP as any)[tableName];
+  const ownership = (TABLE_OWNERSHIP as Record<string, { purgedBy?: readonly string[] } | undefined>)[tableName];
   check(
     `TABLE_OWNERSHIP sadrži ${tableName} sa purgedBy: ['google_ads']`,
     ownership !== undefined &&
@@ -423,7 +434,8 @@ for (const tableName of newSegmentTables) {
   // Provera PURGE_STEPS.google_ads
   const gadsPurgeSteps = PURGE_STEPS.google_ads ?? [];
   const isPurgedInSteps = gadsPurgeSteps.some(
-    (step: any) => Array.isArray(step.tables) && step.tables.includes(tableName),
+    (step: { tables?: readonly string[] }) =>
+      Array.isArray(step.tables) && step.tables.includes(tableName),
   );
   check(
     `PURGE_STEPS.google_ads sadrži korak za ${tableName}`,

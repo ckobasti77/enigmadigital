@@ -5,6 +5,7 @@ import {
   internalQuery,
   mutation,
   query,
+  type ActionCtx,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
@@ -533,7 +534,7 @@ export const evaluateKeywordTrigger = internalAction({
 // ── Izvršavanje akcija u Live režimu ─────────────────────────────────────────
 
 async function executeLiveAction(
-  ctx: any,
+  ctx: ActionCtx,
   params: {
     workspaceId: Id<"workspaces">;
     automation: Doc<"threadsAutomations">;
