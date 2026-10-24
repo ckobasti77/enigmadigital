@@ -3,9 +3,9 @@
 import { useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { useQuery } from "convex/react";
 import { Gauge } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackLine } from "@/components/app/feedback";
 import { CountUp } from "@/components/motion/count-up";
@@ -51,7 +51,7 @@ const ICON_TONES: Record<Tone, string> = {
 };
 
 export function QuotaWidget() {
-  const quota = useQuery(api.ytAutomationsApi.quotaStatus);
+  const quota = useProjekatQuery(api.ytAutomationsApi.quotaStatus);
 
   if (quota === undefined) {
     return <Skeleton className="h-[74px] w-full rounded-xl" />;

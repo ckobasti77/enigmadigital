@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { Inbox, MessageCircleReply, MessageCircleQuestion, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,8 +30,8 @@ export function AutomationsDashboard() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<AutomationView | null>(null);
 
-  const automations = useQuery(api.orAutomationsApi.listAutomations);
-  const engine = useQuery(api.orEngine.status);
+  const automations = useProjekatQuery(api.orAutomationsApi.listAutomations);
+  const engine = useProjekatQuery(api.orEngine.status);
 
   const openNew = () => {
     setEditing(null);

@@ -1,9 +1,9 @@
-import { action, internalMutation, mutation } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireActionMembership, requireMembership } from "./lib/auth";
+import { projekatAction, projekatMutation } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import {
   buildThumbnailsSetUrl,
@@ -84,11 +84,10 @@ export const patchVideoThumbnail = internalMutation({
  * reason a caption file does (Y9): the call that carries it needs a token with
  * full write access to the channel, and that does not belong in a browser.
  */
-export const generateThumbnailUploadUrl = mutation({
+export const generateThumbnailUploadUrl = projekatMutation({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
-    await requireMembership(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -180,19 +179,18 @@ function bestThumbnailUrl(body: string): string | null {
  * Fajl se briše iz Convex storage-a kako god da se ovo završi: neuspelo
  * slanje se ponavlja biranjem slike sa diska, ne iz storage-a.
  */
-export const setThumbnail = action({
+export const setThumbnail = projekatAction({
   args: {
     videoId: v.string(),
     storageId: v.id("_storage"),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    // Prijava i članstvo PRE bloka koji briše fajl: `finally` ispod briše
-    // `storageId` kako god se poziv završi, pa bez ove provere je bilo ko,
-    // i neprijavljen, mogao da obriše bilo koji fajl čiji ID zna.
-    await requireActionMembership(ctx);
+    // Omotač proverava prijavu i članstvo pre handlera, pa `finally` ispod
+    // (koji briše `storageId` kako god se poziv završi) ne dosegne neprijavljen
+    // ni tuđ poziv: bez toga bi bilo ko mogao da obriše fajl čiji ID zna.
     try {
-      return await runSetThumbnail(ctx, args);
+      return await runSetThumbnail(ctx, ctx.projekat.workspaceId, args);
     } finally {
       await ctx.storage.delete(args.storageId).catch(() => {});
     }
@@ -201,6 +199,7 @@ export const setThumbnail = action({
 
 async function runSetThumbnail(
   ctx: ActionCtx,
+  workspaceId: Id<"workspaces">,
   args: { videoId: string; storageId: Id<"_storage"> },
 ): Promise<null> {
   const videoId = args.videoId.trim();
@@ -208,12 +207,11 @@ async function runSetThumbnail(
 
   const context: MediaContext = await ctx.runQuery(
     internal.ytMedia.loadMediaContext,
-    {},
+    { workspaceId },
   );
   if (context === null) {
     invalid("Prvo poveži YouTube nalog u Podešavanjima.");
   }
-  const { workspaceId } = context;
 
   // Read and check the image BEFORE the job row: a file that is not an image
   // is the operator's wrong click, not an operation worth recording.

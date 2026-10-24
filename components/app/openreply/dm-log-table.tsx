@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { Inbox } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -68,7 +68,7 @@ const timestampFmt = new Intl.DateTimeFormat("sr-Latn-RS", {
 
 export function DmLogTable() {
   const [status, setStatus] = useState<DmLogStatus | "all">("all");
-  const logs = useQuery(api.orAutomationsApi.listDmLogs, {
+  const logs = useProjekatQuery(api.orAutomationsApi.listDmLogs, {
     status: status === "all" ? undefined : status,
     limit: LOG_LIMIT,
   });

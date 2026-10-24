@@ -1,6 +1,5 @@
 "use client";
 
-import { useQuery } from "convex/react";
 import {
   Captions,
   History,
@@ -13,6 +12,7 @@ import {
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import { Card } from "@/components/ui/card";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -76,7 +76,7 @@ const STATUS_TONES: Record<MediaJob["status"], string> = {
 };
 
 export function YtMediaJobsPanel() {
-  const jobs = useQuery(api.ytMedia.recentJobs, {});
+  const jobs = useProjekatQuery(api.ytMedia.recentJobs, {});
 
   return (
     <Card className="flex flex-col gap-4 p-5 shadow-card">

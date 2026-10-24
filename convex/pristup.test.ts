@@ -154,6 +154,7 @@ describe("neprijavljen poziv pada", () => {
 
     await odbijeno(
       s.t.action(api.ytCaptions.uploadCaption, {
+        workspaceId: s.wsA,
         videoId: "",
         storageId,
         language: "sr",
@@ -162,8 +163,8 @@ describe("neprijavljen poziv pada", () => {
       }),
       "unauthorized",
     );
-    await odbijeno(s.t.action(api.ytCaptions.updateCaption, { captionId: "", storageId }), "unauthorized");
-    await odbijeno(s.t.action(api.ytThumbnails.setThumbnail, { videoId: "", storageId }), "unauthorized");
+    await odbijeno(s.t.action(api.ytCaptions.updateCaption, { workspaceId: s.wsA, captionId: "", storageId }), "unauthorized");
+    await odbijeno(s.t.action(api.ytThumbnails.setThumbnail, { workspaceId: s.wsA, videoId: "", storageId }), "unauthorized");
 
     const fajlPostoji = await s.t.run(
       async (ctx) => (await ctx.storage.get(storageId)) !== null,
@@ -345,11 +346,11 @@ describe("fajlovi za objavu ostaju u svom projektu", () => {
     const ana = kao(s, s.ana);
 
     await boban.mutation(api.instagramPublishStore.registerUpload, { workspaceId: s.wsB, storageId });
-    await boban.mutation(api.threadsPublishStore.registerUpload, { storageId });
+    await boban.mutation(api.threadsPublishStore.registerUpload, { workspaceId: s.wsB, storageId });
     await expect(
       ana.mutation(api.instagramPublishStore.registerUpload, { workspaceId: s.wsA, storageId }),
     ).rejects.toThrow();
-    await expect(ana.mutation(api.threadsPublishStore.registerUpload, { storageId })).rejects.toThrow();
+    await expect(ana.mutation(api.threadsPublishStore.registerUpload, { workspaceId: s.wsA, storageId })).rejects.toThrow();
     // Ponovljena prijava sopstvenog fajla je i dalje u redu.
     await boban.mutation(api.instagramPublishStore.registerUpload, { workspaceId: s.wsB, storageId });
 

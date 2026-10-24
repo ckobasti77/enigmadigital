@@ -2,7 +2,6 @@ import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import { runSync } from "./lib/runSync";
 import {
@@ -37,7 +36,7 @@ import {
   refreshLongLivedToken,
   type RawThreadsPostItem,
 } from "./lib/threadsApi";
-import type { Uloga } from "./lib/uloge";
+import { projekatAction } from "./lib/projekat";
 
 
 /**
@@ -66,10 +65,11 @@ function randomNonce(): string {
 }
 
 /**
- * Javna akcija za autentifikovanog člana:
+ * Javna akcija za vlasnika projekta:
  * Generiše jednokratni nonce, upisuje OAuth state u bazu i vraća Threads autorizacioni URL.
  */
-export const threadsAuthorizeUrl = action({
+export const threadsAuthorizeUrl = projekatAction({
+  uloga: "owner",
   args: {
     redirectUri: v.optional(v.string()),
   },
@@ -85,33 +85,13 @@ export const threadsAuthorizeUrl = action({
       });
     }
 
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member: {
-      workspaceId: Id<"workspaces">;
-      role: Uloga;
-    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
-      userId,
-    });
-
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
+    const { workspaceId, userId } = ctx.projekat;
 
     const effectiveRedirectUri = redirectUri ?? THREADS_REDIRECT_URI;
     const nonce = randomNonce();
 
     await ctx.runMutation(internal.threadsStore.createOAuthState, {
-      workspaceId: member.workspaceId,
+      workspaceId,
       userId,
       nonce,
       redirectUri: effectiveRedirectUri,

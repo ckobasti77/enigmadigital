@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
 import {
   HelpCircle,
   Menu as MenuIcon,
@@ -15,6 +14,11 @@ import {
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import {
+  useProjekatAction,
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -48,11 +52,11 @@ export function InboxSettingsDrawer({
     "icebreakers",
   );
 
-  const profileData = useQuery(api.orProfileMenu.getProfileMenu, {});
-  const automations = useQuery(api.orAutomationsApi.listAutomations, {});
+  const profileData = useProjekatQuery(api.orProfileMenu.getProfileMenu, {});
+  const automations = useProjekatQuery(api.orAutomationsApi.listAutomations, {});
 
-  const saveMenuMutation = useMutation(api.orProfileMenu.saveProfileMenu);
-  const publishAction = useAction(api.orProfileMenu.publish);
+  const saveMenuMutation = useProjekatMutation(api.orProfileMenu.saveProfileMenu);
+  const publishAction = useProjekatAction(api.orProfileMenu.publish);
 
   // Local state for Ice Breakers
   const [iceBreakers, setIceBreakers] = useState<

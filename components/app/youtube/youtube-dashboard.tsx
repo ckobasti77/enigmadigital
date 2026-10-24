@@ -12,6 +12,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import {
   useDateRange,
 } from "@/components/app/date-range-picker";
@@ -65,19 +66,21 @@ export function YouTubeDashboard() {
   const { range } = useDateRange();
   const connections = useQuery(api.connections.list);
 
-  const currentRows = useQuery(api.youtubeStore.dailyTotals, {
+  const currentRows = useProjekatQuery(api.youtubeStore.dailyTotals, {
     from: range.from,
     to: range.to,
   });
-  const previousRows = useQuery(api.youtubeStore.dailyTotals, {
+  const previousRows = useProjekatQuery(api.youtubeStore.dailyTotals, {
     from: range.prevFrom,
     to: range.prevTo,
   });
-  const rawSources = useQuery(api.youtubeStore.trafficSources, {
+  const rawSources = useProjekatQuery(api.youtubeStore.trafficSources, {
     from: range.from,
     to: range.to,
   });
-  const rawVideos = useQuery(api.youtubeStore.videos, { limit: VIDEO_LIMIT });
+  const rawVideos = useProjekatQuery(api.youtubeStore.videos, {
+    limit: VIDEO_LIMIT,
+  });
 
   const sources = useStale(rawSources);
   const videos = useStale(rawVideos);

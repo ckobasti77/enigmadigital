@@ -2,7 +2,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAction } from "convex/react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -25,6 +24,7 @@ import {
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import {
+  useProjekatAction,
   useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -59,9 +59,9 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
     igsid,
   });
 
-  const sendMessageAction = useAction(api.orSend.sendInboxMessage);
-  const sendActionAction = useAction(api.orSend.sendSenderAction);
-  const sendReactionAction = useAction(api.orSend.sendMessageReaction);
+  const sendMessageAction = useProjekatAction(api.orSend.sendInboxMessage);
+  const sendActionAction = useProjekatAction(api.orSend.sendSenderAction);
+  const sendReactionAction = useProjekatAction(api.orSend.sendMessageReaction);
   const markSeenMutation = useProjekatMutation(api.instagramInboxStore.markSeen);
 
   const [text, setText] = useState("");

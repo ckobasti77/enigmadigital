@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAction, useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
   AlertCircle,
@@ -61,6 +60,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FormGroup, FormStack } from "@/components/app/form-kit";
+import {
+  useProjekat,
+  useProjekatAction,
+  useProjekatMutation,
+} from "@/components/app/projekat-provider";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -79,10 +83,11 @@ type ReplyControl =
   | "followers_only";
 
 export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void }) {
-  const getPublishingLimit = useAction(api.threadsPublish.publishingLimit);
-  const generateUploadUrl = useMutation(api.threadsPublishStore.generateUploadUrl);
-  const registerUpload = useMutation(api.threadsPublishStore.registerUpload);
-  const createJob = useMutation(api.threadsPublishStore.createJob);
+  const { spreman } = useProjekat();
+  const getPublishingLimit = useProjekatAction(api.threadsPublish.publishingLimit);
+  const generateUploadUrl = useProjekatMutation(api.threadsPublishStore.generateUploadUrl);
+  const registerUpload = useProjekatMutation(api.threadsPublishStore.registerUpload);
+  const createJob = useProjekatMutation(api.threadsPublishStore.createJob);
 
   // Stanje kvote
   const [quota, setQuota] = useState<{
@@ -108,10 +113,11 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
   // Prvo čitanje kvote. `loadingQuota` kreće kao `true`, pa efekat ne upisuje
   // stanje dok odgovor ne stigne; `fetchQuota` služi za kasnije osvežavanje.
   useEffect(() => {
+    if (!spreman) return;
     getPublishingLimit({})
       .then(setQuota, () => setQuota(null))
       .finally(() => setLoadingQuota(false));
-  }, [getPublishingLimit]);
+  }, [getPublishingLimit, spreman]);
 
   // Forma
   const [mediaType, setMediaType] = useState<ThreadsPublishMediaType>("TEXT");

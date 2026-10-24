@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
 import {
   ChartNoAxesColumn,
   Eye,
@@ -22,6 +21,7 @@ import { PRAVILA_XP } from "@/convex/lib/napredak";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { RateLimitBanner } from "@/components/app/rate-limit-banner";
 import { useNapredak } from "@/components/app/napredak/use-napredak";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import {
   ChannelFocus,
   ChannelFocusSkeleton,
@@ -79,23 +79,23 @@ export function ThreadsDashboard() {
   const [tab, setTab] = useState<ThreadsTab>("overview");
   const { range } = useDateRange();
 
-  const overview = useQuery(api.threadsStore.accountOverview, {
+  const overview = useProjekatQuery(api.threadsStore.accountOverview, {
     from: range.from,
     to: range.to,
   });
 
-  const followerHistory = useQuery(api.threadsStore.followerHistory, {
+  const followerHistory = useProjekatQuery(api.threadsStore.followerHistory, {
     from: range.from,
     to: range.to,
   });
 
-  const media = useQuery(api.threadsStore.mediaList, {
+  const media = useProjekatQuery(api.threadsStore.mediaList, {
     limit: 50,
   });
 
-  const demographics = useQuery(api.threadsStore.demographicsSummary, {});
+  const demographics = useProjekatQuery(api.threadsStore.demographicsSummary, {});
 
-  const attribution = useQuery(
+  const attribution = useProjekatQuery(
     api.threadsFunnels.getThreadsLinkAttributionSummary,
     {
       dateFrom: range.from,
@@ -103,7 +103,7 @@ export function ThreadsDashboard() {
     },
   );
 
-  const unmatchedUrls = useQuery(api.threadsFunnels.listUnmatchedUrls, {
+  const unmatchedUrls = useProjekatQuery(api.threadsFunnels.listUnmatchedUrls, {
     limit: 50,
   });
 

@@ -1,9 +1,8 @@
-import { action, mutation } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireActionMembership, requireMembership } from "./lib/auth";
+import { projekatAction, projekatMutation } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import {
   buildCaptionsDeleteUrl,
@@ -59,13 +58,18 @@ function invalid(message: string): never {
 
 // ── shared preflight ─────────────────────────────────────────────────────────
 
-/** Membership, channel and today's counter — or a sentence saying why not. */
+/**
+ * Channel and today's counter for the project — or a sentence saying why not.
+ * Membership is not checked here: the project wrapper did that before the
+ * action's handler ran, and `workspaceId` is the project it verified.
+ */
 async function loadContext(
   ctx: ActionCtx,
+  workspaceId: Id<"workspaces">,
 ): Promise<NonNullable<MediaContext>> {
   const context: MediaContext = await ctx.runQuery(
     internal.ytMedia.loadMediaContext,
-    {},
+    { workspaceId },
   );
   if (context === null) {
     invalid("Prvo poveži YouTube nalog u Podešavanjima.");
@@ -237,11 +241,10 @@ async function sendCaptionFile(params: {
  * belongs in a browser (Y6 issues a browser token only for video bytes, which
  * are too large to pass through an action at all — a caption file is not).
  */
-export const generateCaptionUploadUrl = mutation({
+export const generateCaptionUploadUrl = projekatMutation({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
-    await requireMembership(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -299,14 +302,14 @@ const captionTrackValidator = v.object({
  * No `ytMediaJobs` row: this reads, it does not change the channel, and a row
  * per panel open would bury the operations that actually did something.
  */
-export const listCaptions = action({
+export const listCaptions = projekatAction({
   args: { videoId: v.string() },
   returns: v.array(captionTrackValidator),
   handler: async (ctx, args) => {
     const videoId = args.videoId.trim();
     if (videoId.length === 0) invalid("Nedostaje ID videa.");
 
-    const context = await loadContext(ctx);
+    const context = await loadContext(ctx, ctx.projekat.workspaceId);
 
     if (!canAffordMedia(context.unitsUsed, QUOTA_COST.captionsList)) {
       invalid(QUOTA_MEDIA_EXHAUSTED_MESSAGE);
@@ -380,7 +383,7 @@ export const listCaptions = action({
  * `isDraft` true znači da je titl okačen ali nije objavljen — korisno da se
  * pregleda u Studiju pre nego što ga gledaoci vide.
  */
-export const uploadCaption = action({
+export const uploadCaption = projekatAction({
   args: {
     videoId: v.string(),
     storageId: v.id("_storage"),
@@ -390,12 +393,11 @@ export const uploadCaption = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    // Prijava i članstvo PRE bloka koji briše fajl: `finally` ispod briše
-    // `storageId` kako god se poziv završi, pa bez ove provere je bilo ko,
-    // i neprijavljen, mogao da obriše bilo koji fajl čiji ID zna.
-    await requireActionMembership(ctx);
+    // Omotač proverava prijavu i članstvo pre handlera, pa `finally` ispod
+    // (koji briše `storageId` kako god se poziv završi) ne dosegne neprijavljen
+    // ni tuđ poziv: bez toga bi bilo ko mogao da obriše fajl čiji ID zna.
     try {
-      return await runUploadCaption(ctx, args);
+      return await runUploadCaption(ctx, ctx.projekat.workspaceId, args);
     } finally {
       // The file has done its job whichever way this ended; a failed send is
       // re-picked from disk, not retried from storage.
@@ -406,6 +408,7 @@ export const uploadCaption = action({
 
 async function runUploadCaption(
   ctx: ActionCtx,
+  workspaceId: Id<"workspaces">,
   args: {
     videoId: string;
     storageId: Id<"_storage">;
@@ -427,8 +430,7 @@ async function runUploadCaption(
     invalid(`Naziv titla može imati najviše ${CAPTION_NAME_MAX} znakova.`);
   }
 
-  const context = await loadContext(ctx);
-  const { workspaceId } = context;
+  const context = await loadContext(ctx, workspaceId);
 
   // Read and check the file BEFORE the job row: a file that is not a caption
   // is the operator's wrong click, not an operation worth recording.
@@ -528,19 +530,18 @@ async function runUploadCaption(
  * Skuplje od slanja novog titla za 50 jedinica — zameniti dva puta je skuplje
  * nego poslati jednom kako treba.
  */
-export const updateCaption = action({
+export const updateCaption = projekatAction({
   args: {
     captionId: v.string(),
     storageId: v.id("_storage"),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    // Prijava i članstvo PRE bloka koji briše fajl: `finally` ispod briše
-    // `storageId` kako god se poziv završi, pa bez ove provere je bilo ko,
-    // i neprijavljen, mogao da obriše bilo koji fajl čiji ID zna.
-    await requireActionMembership(ctx);
+    // Omotač proverava prijavu i članstvo pre handlera, pa `finally` ispod
+    // (koji briše `storageId` kako god se poziv završi) ne dosegne neprijavljen
+    // ni tuđ poziv: bez toga bi bilo ko mogao da obriše fajl čiji ID zna.
     try {
-      return await runUpdateCaption(ctx, args);
+      return await runUpdateCaption(ctx, ctx.projekat.workspaceId, args);
     } finally {
       await ctx.storage.delete(args.storageId).catch(() => {});
     }
@@ -549,13 +550,13 @@ export const updateCaption = action({
 
 async function runUpdateCaption(
   ctx: ActionCtx,
+  workspaceId: Id<"workspaces">,
   args: { captionId: string; storageId: Id<"_storage"> },
 ): Promise<null> {
   const captionId = args.captionId.trim();
   if (captionId.length === 0) invalid("Nedostaje ID titla.");
 
-  const context = await loadContext(ctx);
-  const { workspaceId } = context;
+  const context = await loadContext(ctx, workspaceId);
 
   const { file, contentType } = await readCaptionFile(ctx, args.storageId);
 
@@ -648,15 +649,15 @@ async function runUpdateCaption(
  * YouTube na to odgovara 403, a jedinice su već potrošene. Zato ih panel ni ne
  * nudi za brisanje.
  */
-export const deleteCaption = action({
+export const deleteCaption = projekatAction({
   args: { captionId: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const captionId = args.captionId.trim();
     if (captionId.length === 0) invalid("Nedostaje ID titla.");
 
-    const context = await loadContext(ctx);
-    const { workspaceId } = context;
+    const { workspaceId } = ctx.projekat;
+    const context = await loadContext(ctx, workspaceId);
 
     const jobId = await ctx.runMutation(internal.ytMedia.startJob, {
       workspaceId,

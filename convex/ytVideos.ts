@@ -1,6 +1,7 @@
-import { action, internalMutation, internalQuery } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
+import { projekatAction } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import {
   buildVideosDeleteUrl,
@@ -226,7 +227,7 @@ function normalizeMetadataInput(args: MetadataPatch): MetadataPatch {
  * menja, i tada se ostala polja (licenca, ugrađivanje, oznaka za decu) prenose
  * iz pročitanog resursa — inače bi ih update obrisao isto tako tiho.
  */
-export const updateVideoMetadata = action({
+export const updateVideoMetadata = projekatAction({
   args: {
     videoId: v.string(),
     title: v.optional(v.string()),
@@ -240,10 +241,11 @@ export const updateVideoMetadata = action({
     const videoId = args.videoId.trim();
     if (videoId.length === 0) invalid("Nedostaje ID videa.");
 
-    // Membership is checked inside; null means no active YouTube connection.
+    // The project wrapper has already checked membership and role; null means
+    // no active YouTube connection.
     const context: MediaContext = await ctx.runQuery(
       internal.ytMedia.loadMediaContext,
-      {},
+      { workspaceId: ctx.projekat.workspaceId },
     );
     if (context === null) {
       invalid("Prvo poveži YouTube nalog u Podešavanjima.");
@@ -451,7 +453,8 @@ export const updateVideoMetadata = action({
  * the same thing a moment earlier. That 403 is translated into a sentence that
  * says exactly what happened.
  */
-export const deleteVideo = action({
+export const deleteVideo = projekatAction({
+  uloga: "owner",
   args: { videoId: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -460,7 +463,7 @@ export const deleteVideo = action({
 
     const context: MediaContext = await ctx.runQuery(
       internal.ytMedia.loadMediaContext,
-      {},
+      { workspaceId: ctx.projekat.workspaceId },
     );
     if (context === null) {
       invalid("Prvo poveži YouTube nalog u Podešavanjima.");

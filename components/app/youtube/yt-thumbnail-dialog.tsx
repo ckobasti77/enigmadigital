@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAction, useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import { AlertTriangle, Image as ImageIcon, Loader2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -27,6 +26,10 @@ import { Button } from "@/components/ui/button";
 import type { VideoItem } from "./youtube-videos-grid";
 import { cn } from "@/lib/utils";
 import { FeedbackNote } from "@/components/app/feedback";
+import {
+  useProjekatAction,
+  useProjekatMutation,
+} from "@/components/app/projekat-provider";
 
 /**
  * Setting a custom thumbnail (Y8).
@@ -106,10 +109,10 @@ function YtThumbnailForm({
   onClose: () => void;
   onDone?: () => void;
 }) {
-  const generateUploadUrl = useMutation(
+  const generateUploadUrl = useProjekatMutation(
     api.ytThumbnails.generateThumbnailUploadUrl,
   );
-  const setThumbnail = useAction(api.ytThumbnails.setThumbnail);
+  const setThumbnail = useProjekatAction(api.ytThumbnails.setThumbnail);
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);

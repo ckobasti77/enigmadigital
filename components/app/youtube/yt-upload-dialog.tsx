@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { useAction, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
   AlertTriangle,
@@ -55,6 +54,11 @@ import { formatNumber } from "@/lib/format";
 import { DUR_UI, EASE_UI } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { FeedbackNote } from "@/components/app/feedback";
+import {
+  useProjekatAction,
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 
 gsap.registerPlugin(useGSAP);
 
@@ -158,12 +162,12 @@ function YtUploadForm({
   onBusyChange: (busy: boolean) => void;
   onClose: () => void;
 }) {
-  const status = useQuery(api.ytUpload.uploadStatus);
+  const status = useProjekatQuery(api.ytUpload.uploadStatus);
 
-  const startUpload = useMutation(api.ytUpload.startUpload);
-  const finishUpload = useMutation(api.ytUpload.finishUpload);
-  const failUpload = useMutation(api.ytUpload.failUpload);
-  const issueUploadToken = useAction(api.ytAuth.issueUploadToken);
+  const startUpload = useProjekatMutation(api.ytUpload.startUpload);
+  const finishUpload = useProjekatMutation(api.ytUpload.finishUpload);
+  const failUpload = useProjekatMutation(api.ytUpload.failUpload);
+  const issueUploadToken = useProjekatAction(api.ytAuth.issueUploadToken);
 
   const [file, setFile] = useState<File | null>(null);
   const [probe, setProbe] = useState<Probe>(null);

@@ -1,7 +1,6 @@
-import { mutation, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { normalizeKeyword } from "./lib/orMatch";
 import { readUnitsUsed } from "./ytIngest";
 import {
@@ -13,9 +12,9 @@ import {
 /**
  * Public API for the YouTube automations screen (PLAN.md §9 / Y5).
  *
- * Default V8 runtime — no "use node". Every function is workspace-scoped via
- * `requireMembership`; nothing here trusts an id from the client without first
- * checking that the row belongs to the caller's workspace.
+ * Default V8 runtime — no "use node". Every function goes through the project
+ * wrapper (login, membership and role); nothing here trusts an id from the
+ * client without first checking that the row belongs to the caller's project.
  *
  * Modelled on orAutomationsApi.ts, but YouTube is a different platform and the
  * API says so: there is no DM, no button template, no quick reply and no
@@ -227,11 +226,11 @@ const automationViewValidator = v.object({
  * table: a week of comment logs is a small set, and there is no equivalent of
  * `orCampaignStats` here that a write would have to keep in sync.
  */
-export const listAutomations = query({
+export const listAutomations = projekatQuery({
   args: {},
   returns: v.array(automationViewValidator),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const automations = await ctx.db
       .query("ytAutomations")
@@ -302,14 +301,14 @@ const commentLogViewValidator = v.object({
  * The comment log, newest first, optionally narrowed to one status. Both paths
  * go through an index, so neither scans the table.
  */
-export const listCommentLogs = query({
+export const listCommentLogs = projekatQuery({
   args: {
     status: v.optional(commentLogStatusValidator),
     limit: v.optional(v.number()),
   },
   returns: v.array(commentLogViewValidator),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const limit = Math.min(
       Math.max(Math.floor(args.limit ?? LOG_LIMIT_DEFAULT), 1),
       LOG_LIMIT_MAX,
@@ -374,7 +373,7 @@ export const listCommentLogs = query({
  * `softLimit` is not YouTube's 10 000 but what the comment engine is allowed
  * to touch: the rest is reserved for the analytics sync (lib/ytQuota.ts).
  */
-export const quotaStatus = query({
+export const quotaStatus = projekatQuery({
   args: {},
   returns: v.object({
     unitsUsed: v.number(),
@@ -383,7 +382,7 @@ export const quotaStatus = query({
     softLimit: v.number(),
   }),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const unitsUsed = await readUnitsUsed(ctx, workspaceId);
     return {
       unitsUsed,
@@ -396,11 +395,11 @@ export const quotaStatus = query({
 
 // ── Mutations ────────────────────────────────────────────────────────────────
 
-export const createAutomation = mutation({
+export const createAutomation = projekatMutation({
   args: automationInputValidator.fields,
   returns: v.id("ytAutomations"),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const input = normalizeAutomationInput(args);
     const now = Date.now();
 
@@ -413,14 +412,14 @@ export const createAutomation = mutation({
   },
 });
 
-export const updateAutomation = mutation({
+export const updateAutomation = projekatMutation({
   args: {
     automationId: v.id("ytAutomations"),
     ...automationInputValidator.fields,
   },
   returns: v.null(),
   handler: async (ctx, { automationId, ...rest }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const existing = await ctx.db.get(automationId);
     if (existing === null || existing.workspaceId !== workspaceId) {
       notFound();
@@ -432,14 +431,14 @@ export const updateAutomation = mutation({
   },
 });
 
-export const toggleAutomation = mutation({
+export const toggleAutomation = projekatMutation({
   args: {
     automationId: v.id("ytAutomations"),
     isActive: v.boolean(),
   },
   returns: v.null(),
   handler: async (ctx, { automationId, isActive }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const existing = await ctx.db.get(automationId);
     if (existing === null || existing.workspaceId !== workspaceId) {
       notFound();
@@ -455,11 +454,11 @@ export const toggleAutomation = mutation({
  * record of replies that are still sitting under the videos, and the log table
  * labels the dangling id rather than hiding the row.
  */
-export const deleteAutomation = mutation({
+export const deleteAutomation = projekatMutation({
   args: { automationId: v.id("ytAutomations") },
   returns: v.null(),
   handler: async (ctx, { automationId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const existing = await ctx.db.get(automationId);
     if (existing === null || existing.workspaceId !== workspaceId) {
       notFound();

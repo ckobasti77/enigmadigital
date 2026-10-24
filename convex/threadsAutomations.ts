@@ -3,14 +3,12 @@ import {
   internalAction,
   internalMutation,
   internalQuery,
-  mutation,
-  query,
   type ActionCtx,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import {
   getThreadsMentions,
@@ -1392,7 +1390,7 @@ export const writeLog = internalMutation({
  * VAŽNO (§9):
  * `mode: "draft"` je OBAVEZNA i JEDINA dozvoljena početna vrednost pri kreiranju.
  */
-export const createAutomation = mutation({
+export const createAutomation = projekatMutation({
   args: {
     name: v.string(),
     trigger: triggerValidator,
@@ -1414,7 +1412,7 @@ export const createAutomation = mutation({
   },
   returns: v.id("threadsAutomations"),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const now = Date.now();
 
     const trimmedName = args.name.trim();
@@ -1534,7 +1532,7 @@ export const createAutomation = mutation({
 /**
  * Ažurira postojeće OpenReply pravilo (uključujući promenu draft -> live).
  */
-export const updateAutomation = mutation({
+export const updateAutomation = projekatMutation({
   args: {
     id: v.id("threadsAutomations"),
     name: v.optional(v.string()),
@@ -1558,7 +1556,7 @@ export const updateAutomation = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const existing = await ctx.db.get(args.id);
 
     if (!existing || existing.workspaceId !== workspaceId) {
@@ -1666,11 +1664,11 @@ export const updateAutomation = mutation({
 /**
  * Briše pravilo automatizacije.
  */
-export const deleteAutomation = mutation({
+export const deleteAutomation = projekatMutation({
   args: { id: v.id("threadsAutomations") },
   returns: v.null(),
   handler: async (ctx, { id }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const existing = await ctx.db.get(id);
 
     if (!existing || existing.workspaceId !== workspaceId) {
@@ -1688,14 +1686,14 @@ export const deleteAutomation = mutation({
 /**
  * Uključuje ili isključuje pravilo automatizacije.
  */
-export const toggleAutomation = mutation({
+export const toggleAutomation = projekatMutation({
   args: {
     id: v.id("threadsAutomations"),
     isActive: v.boolean(),
   },
   returns: v.null(),
   handler: async (ctx, { id, isActive }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const existing = await ctx.db.get(id);
 
     if (!existing || existing.workspaceId !== workspaceId) {
@@ -1713,11 +1711,11 @@ export const toggleAutomation = mutation({
 /**
  * Lista svih pravila za aktivni workspace.
  */
-export const listAutomations = query({
+export const listAutomations = projekatQuery({
   args: {},
   returns: v.array(v.any()),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     return await ctx.db
       .query("threadsAutomations")
@@ -1730,11 +1728,11 @@ export const listAutomations = query({
 /**
  * Vraća jedno pravilo po ID-ju.
  */
-export const getAutomation = query({
+export const getAutomation = projekatQuery({
   args: { id: v.id("threadsAutomations") },
   returns: v.union(v.null(), v.any()),
   handler: async (ctx, { id }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const doc = await ctx.db.get(id);
     if (!doc || doc.workspaceId !== workspaceId) return null;
     return doc;
@@ -1744,14 +1742,14 @@ export const getAutomation = query({
 /**
  * Lista logova automatizacije za aktivni workspace.
  */
-export const listAutomationLogs = query({
+export const listAutomationLogs = projekatQuery({
   args: {
     automationId: v.optional(v.id("threadsAutomations")),
     limit: v.optional(v.number()),
   },
   returns: v.array(v.any()),
   handler: async (ctx, { automationId, limit = 50 }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     if (automationId) {
       return await ctx.db

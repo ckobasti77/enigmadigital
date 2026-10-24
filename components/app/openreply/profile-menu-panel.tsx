@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useAction, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
@@ -18,6 +17,11 @@ import {
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import {
+  useProjekatAction,
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import {
   ICE_BREAKERS_MAX,
   ICE_BREAKER_QUESTION_MAX,
@@ -72,9 +76,9 @@ function convexMessage(err: unknown, fallback: string): string {
 }
 
 export function ProfileMenuPanel() {
-  const config = useQuery(api.orProfileMenu.getProfileMenu);
-  const automations = useQuery(api.orAutomationsApi.listAutomations);
-  const engine = useQuery(api.orEngine.status);
+  const config = useProjekatQuery(api.orProfileMenu.getProfileMenu);
+  const automations = useProjekatQuery(api.orAutomationsApi.listAutomations);
+  const engine = useProjekatQuery(api.orEngine.status);
 
   if (config === undefined || automations === undefined) {
     return <ProfileMenuPanelSkeleton />;
@@ -131,10 +135,10 @@ function ProfileMenuForm({
     menuTitles: string[];
   } | null>(null);
 
-  const saveProfileMenu = useMutation(api.orProfileMenu.saveProfileMenu);
-  const publish = useAction(api.orProfileMenu.publish);
-  const unpublish = useAction(api.orProfileMenu.unpublish);
-  const fetchLiveProfile = useAction(api.orProfileMenu.fetchLiveProfile);
+  const saveProfileMenu = useProjekatMutation(api.orProfileMenu.saveProfileMenu);
+  const publish = useProjekatAction(api.orProfileMenu.publish);
+  const unpublish = useProjekatAction(api.orProfileMenu.unpublish);
+  const fetchLiveProfile = useProjekatAction(api.orProfileMenu.fetchLiveProfile);
 
   const busy = pending !== null;
   const hasAutomations = automations.length > 0;

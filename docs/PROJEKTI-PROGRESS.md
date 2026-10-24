@@ -289,3 +289,93 @@ Obrisani su `instagramPublishStore.membershipForAction` i pomoćne `requireWorks
   - Facebook: komentari i „Osveži token“.
 - Podešavanja → Instagram/Facebook „Poveži“ i birač stranice. Kartica sada čeka da se projekat učita pre provere podešavanja. Ako dugme na trenutak kasni, to je očekivano.
 - Ako budeš imao urednika ili klijenta-posmatrača: povezivanje naloga, osvežavanje tokena i izbor Facebook stranice sada može samo vlasnik projekta.
+
+## C05 — Prelazak 2: Threads, YouTube, OpenReply   (2026-10-25 01:32)
+**Fajlovi:**
+- backend (24 fajla grupe):
+  - Threads: `convex/threads.ts`, `threadsStore.ts`, `threadsAutomations.ts`, `threadsFunnels.ts`, `threadsPublish.ts`, `threadsPublishStore.ts`, `threadsReplies.ts`, `threadsSearch.ts`;
+  - YouTube: `convex/youtube.ts`, `youtubeStore.ts`, `ytAuth.ts`, `ytAutomationsApi.ts`, `ytCaptions.ts`, `ytComments.ts`, `ytMedia.ts`, `ytPlaylists.ts`, `ytThumbnails.ts`, `ytUpload.ts`, `ytVideos.ts`;
+  - OpenReply: `convex/openreplyStore.ts`, `orAutomationsApi.ts`, `orEngine.ts`, `orProfileMenu.ts`, `orSend.ts`;
+  - `convex/threadsUploadAccess.ts` nema javnih funkcija i nije menjan.
+- front (28 fajlova u `components/app/`):
+  - `threads/`: `threads-automations`, `threads-composer`, `threads-dashboard`, `threads-jobs-panel`, `threads-replies-moderation`, `threads-search`;
+  - `youtube/`: `quota-widget`, `youtube-dashboard`, `yt-automation-editor-dialog`, `yt-automations-dashboard`, `yt-automations-list`, `yt-captions-panel`, `yt-comment-log-table`, `yt-media-jobs-panel`, `yt-thumbnail-dialog`, `yt-upload-dialog`, `yt-video-edit-dialog`;
+  - `openreply/`: `automation-editor-dialog`, `automations-dashboard`, `automations-list`, `dm-log-table`, `openreply-dashboard`, `profile-menu-panel`;
+  - zajedničke komponente, samo pozivi grupe C05: `instagram/inbox/chat-view` (3 × `orSend`), `instagram/inbox/inbox-settings-drawer` (4), `overview/overview-dashboard` (2 × `openreplyStore.daily`), `settings/connections-settings` (`orEngine` ×3, `youtubeStore.setupInfo`, `youtube.youtubeAuthorizeUrl`, `threadsStore.setupInfo`, `threads.threadsAuthorizeUrl`), `novosti/novosti-editor` (samo `threadsPublishStore.generateUploadUrl`).
+- testovi: nov `convex/izolacija-c05.test.ts`; u `convex/pristup.test.ts` samo potpisi poziva.
+- snimci: `docs/projekti/snimci/C05-threads-1440.png`, `C05-youtube-390.png`.
+
+**Šta je urađeno:**
+Obrađeno je svih 88 javnih funkcija grupe iz mape C02 §5.1. Njih 85 sada ide kroz omotače iz `convex/lib/projekat.ts`, a 3 ostaju sirove uz postojeću oznaku `// javno:` (`threads.completeOAuthFromCallback`, `youtube.completeOAuthFromCallback`, `threadsStore.getDeletionStatus`). Uloge su tačno po mapi:
+- **`projekatQuery` (client_viewer), 30 funkcija:**
+  - `threadsStore.setupInfo/accountOverview/followerHistory/mediaList/demographicsSummary`, `threadsAutomations.listAutomations/getAutomation/listAutomationLogs`, `threadsFunnels.*` (2), `threadsPublishStore.listJobs`, `threadsReplies.listRepliesForPost`, `threadsSearch.getSearchQuotaInfo`;
+  - `youtubeStore.*` (4), `ytAutomationsApi.listAutomations/listCommentLogs/quotaStatus`, `ytMedia.mediaQuotaStatus/recentJobs`, `ytPlaylists.playlists`, `ytUpload.uploadStatus`;
+  - `openreplyStore.campaigns/daily`, `orAutomationsApi.listAutomations/listDmLogs`, `orEngine.status`, `orProfileMenu.getProfileMenu`.
+- **urednik (podrazumevano), 49 funkcija (24 mutacije, 25 akcija):**
+  - Threads: `threadsAutomations` create/update/delete/toggle, `threadsPublish.publishingLimit/repostPost`, `threadsPublishStore.generateUploadUrl/registerUpload/createJob/cancelJob/retryJob`, `threadsReplies.replyToPost/hideReply/unhideReply/approvePendingReply/ignorePendingReply/deleteReply`, `threadsSearch.searchKeyword/lookupProfile`;
+  - YouTube: `ytAuth.issueUploadToken`, `ytAutomationsApi` create/update/toggle/delete, `ytCaptions.*` (5), `ytComments.deleteComment`, `ytPlaylists.listPlaylists/addVideoToPlaylist`, `ytThumbnails.*` (2), `ytUpload.startUpload/finishUpload/failUpload`, `ytVideos.updateVideoMetadata`;
+  - OpenReply: `orAutomationsApi` create/update/toggle/delete, `orProfileMenu.saveProfileMenu/publish/unpublish/fetchLiveProfile`, `orSend.*` (3).
+- **`uloga: "owner"`, 6 funkcija:** `threads.threadsAuthorizeUrl`, `threadsPublish.deletePost`, `youtube.youtubeAuthorizeUrl`, `ytVideos.deleteVideo`, `orEngine.enable/disable`.
+
+**Interne funkcije i pomoćni kod (pravilo 5, D6).** Interne funkcije koje su akcije zvale preko prenetog identiteta sada dobijaju prostor eksplicitno i više ne proveravaju članstvo:
+- `ytMedia.loadMediaContext` prima `workspaceId`; pozivaoci `ytAuth`, `ytCaptions`, `ytComments`, `ytPlaylists`, `ytThumbnails`, `ytVideos` (×2) ga šalju iz `ctx.projekat`. Pomoćne funkcije `loadContext` (u `ytCaptions` i `ytPlaylists`), `runUploadCaption`, `runUpdateCaption` i `runSetThumbnail` primaju `workspaceId` kao parametar.
+- `orSend.loadInboxSendContext` i `orProfileMenu.loadPublishContext` (preko pomoćne `loadToken`) primaju `workspaceId`.
+- Obrisan je `threadsPublishStore.membershipForAction`, jer su mu svih 8 pozivalaca (`threadsPublish` ×3, `threadsReplies` ×5) prešli na `ctx.projekat`.
+- `threads.ts`, `threadsSearch.ts` i `youtube.ts` više ne zovu `instagramStore.getMembership`. `threadsSearch.getSearchQuotaInfo` više nema sopstvenu logiku „prvo članstvo“.
+- Interne funkcije koje su već primale `workspaceId` (`createOAuthState`, `getConnectionForWorkspace`, `ytMedia.startJob/finishJob` i ostale), HTTP akcije, webhook i cron nisu dirani. Provere dokumenta iz argumenta (posao objave, posao upload-a, automatizacija, log komentara, stavka menija) ostale su iste.
+
+**Front.** Svaki poziv ovih funkcija ide kroz `useProjekatQuery/Mutation/Action`; nijedan ne šalje `workspaceId` ručno. Pozivi drugih grupa u istim fajlovima ostali su na sirovim hookovima: `connections.*` i `sync.*` (C07), `postsStore.*` u `novosti-editor` (C06). Tri efekta zovu akciju pri montiranju, pa čekaju `useProjekat().spreman` (obrazac iz C04): kvota u `threads-composer`, automatsko učitavanje titlova u `yt-captions-panel` i tiho učitavanje plejlista u `yt-video-edit-dialog`.
+
+**Provera grep-om.** U 25 fajlova grupe nema nijednog od ovih imena: `requireMembership`, `requireOwner`, `requireWorkspaceAccess`, `requireMembershipIn`, `requireActionMembership`, `getMembership`, `membershipForAction`, `getAuthUserId`, `getWorkspaceForUser`. Nijedna javna funkcija grupe nema `workspaceId` u sopstvenim `args`. Na frontu nijedan poziv C05 funkcije ne ide kroz `useQuery/useMutation/useAction`. Čuvar broji 343 javne funkcije: omotačem 162 (C04: 77), sa proverom 168, javno 13, bez provere 0.
+
+**Podela posla.** Pet radnika (Sonnet) je radilo po jedan modul, svaki na svojim fajlovima: Threads nalog, statistika, automatizacije, levak i pretraga; Threads objava i odgovori; YouTube nalog, statistika i automatizacije; YouTube media sloj; OpenReply. Zajedničke komponente `connections-settings` i `yt-comment-log-table` (pozivi dva modula), test izolacije, potpise u `pristup.test.ts` i razvojni prikaz radio sam ja. Svaki diff sam pročitao.
+
+**Šta je iz grupe ostalo:** ništa od javnih funkcija ni poziva grupe. Svesno ostaje:
+- `instagramStore.getMembership`, jer ga i dalje zove `gbp.ts` (C07 ga briše).
+- Pozivi drugih grupa u zajedničkim fajlovima (`connections.*`, `sync.*` → C07; `postsStore.*` → C06).
+
+**ODLUKE:**
+- **Zajednički fajl sa pozivima dva modula** (`yt-comment-log-table`: `ytAutomationsApi.listCommentLogs` i `ytComments.deleteComment`) i `connections-settings` (tri modula) menjao sam ja, da dva radnika nikad ne diraju isti fajl.
+- **Uloge po mapi menjaju ponašanje za ne-vlasnike.** Za Jovana kao vlasnika ništa se ne menja.
+  - Povezivanje Threads i YouTube naloga, brisanje Threads objave i YouTube videa i uključivanje/isključivanje OpenReply motora sada traže `owner` (do sada svaki član).
+  - Sve mutacije i akcije grupe traže urednika, pa ih `client_viewer` ne pokreće. U `chat-view` tihi `mark_seen` posmatraču pada u postojeći `.catch(() => {})`.
+- **Redosled provera:** `threadsAuthorizeUrl` i `youtubeAuthorizeUrl` su ranije prvo proveravali env aplikacije, pa prijavu. Sada omotač prvo proverava prijavu, članstvo i ulogu (isto kao C04 za Instagram i Facebook).
+- **Pretraga Threads-a:** `searchKeyword` i `lookupProfile` su neprijavljenom i nečlanu VRAĆALI `{ status: "error" }`; sada omotač baca grešku pre handlera. `threads-search.tsx` već ima `try/catch` oko oba poziva i grešku upisuje u rezultat, pa UI nije menjan. Član projekta ide istim putem kao ranije.
+- **`setupInfo` (Threads i YouTube)** su ranije tražili samo prijavu ili prvo članstvo, a sada traže članstvo u projektu iz argumenta (CV), po mapi.
+- **Fajl za YouTube titl i sličicu:** `requireActionMembership` pre `try { … } finally { obriši storageId }` (zakrpa iz C01) zamenio je omotač, koji proverava prijavu i članstvo pre handlera. `finally` ostaje, a test pokazuje da odbijen poziv ne briše fajl.
+- **Test, ne kod:** `ytUpload.failUpload/finishUpload` za tuđ posao kroz sopstveni projekat tiho vraćaju `null` (`claimJob`), kao i pre C05. Test to proverava tako, umesto da očekuje grešku.
+- **Razvojni prikaz:** svih pet ekrana grupe je već bilo registrovano u `app/dev-ux/[[...slug]]/page.tsx`. Fiksture nisu menjane. Lista OpenReply automatizacija je prazna jer za `orAutomationsApi.listAutomations` nikad nije postojala fikstura (od ranije).
+- **Skill `impeccable` nije pozvan:** korak ne menja izgled ni tekst ekrana, samo hookove poziva.
+
+**Novi paketi:** nema
+
+**Testovi:**
+- `convex/izolacija-c05.test.ts`, 18 testova. „Odbijeno“ znači da član samo projekta A dobija `forbidden` nad B. Po modulu:
+  - **Threads nalog, statistika i levak:** 7 upita nad B odbijeno; `mediaList` u A vidi samo objave A, a Jovan (član oba) u B vidi B; povezivanje: B i urednik odbijeni, OAuth stanje ne nastaje.
+  - **Threads automatizacije:** 3 upita i 4 mutacije nad B odbijeni; lista u A ne sadrži pravilo B; tuđe pravilo kroz A „nije pronađeno“ i ostaje netaknuto; posmatrač čita, ali ne menja.
+  - **Threads pretraga:** kvota B i obe akcije nad B odbijene; kvota A broji samo pretrage A; posmatrač ne pretražuje.
+  - **Threads objava:** spisak, 5 mutacija i 3 akcije nad B odbijeni; spisak u A ne sadrži posao B; otkazivanje tuđeg posla kroz A daje „nije pronađena“ i posao ostaje u redu; posmatrač ne objavljuje; brisanje objave odbija urednika.
+  - **Threads odgovori:** upit, mutacija i 5 akcija nad B odbijeni, posao odgovora ne nastaje; posmatrač čita, ali ne odgovara i ne moderira.
+  - **YouTube nalog i statistika:** 4 upita nad B odbijena; dani u A samo A, Jovan u B vidi B; povezivanje: B i urednik odbijeni, OAuth stanje ne nastaje.
+  - **YouTube automatizacije:** 3 upita i 4 mutacije nad B odbijeni; lista u A samo A; tuđe pravilo kroz A ostaje netaknuto; posmatrač ne menja.
+  - **YouTube media:** 4 upita, 5 mutacija i 11 akcija nad B odbijeni; odbijen poziv ne briše fajl iz storage-a; poslovi u A ne sadrže posao B; tuđ posao kroz A ostaje `pending`; posmatrač ne menja ni ne pokreće; brisanje videa odbija urednika.
+  - **OpenReply:** 6 upita, 7 mutacija i 6 akcija nad B odbijeni; kampanje i automatizacije u A samo A; tuđa automatizacija kroz A „nije pronađena“ i ostaje netaknuta; posmatrač ne menja i ne šalje; motor odbija urednika.
+- `convex/pristup.test.ts`: menjani su samo potpisi poziva (`ytCaptions.uploadCaption/updateCaption`, `ytThumbnails.setThumbnail`, `threadsPublishStore.registerUpload` dobijaju `workspaceId`). Tvrdnje su iste.
+
+**Rezultat provere:**
+- Automatske provere su prošle:
+  - codegen ✓, typecheck ✓;
+  - lint ✓ (0 grešaka; broj upozorenja u svakom izmenjenom fajlu isti kao u HEAD);
+  - `npx vitest run` ✓ (120/120);
+  - `verify-pristup` ✓ (0 bez provere), `regresije.mjs` ✓ (14/14), `npm run build` ✓.
+- Razvojni prikaz (Playwright, 1440×900 i 390×844):
+  - 9 ekrana vraća 200, bez grešaka i upozorenja u konzoli: `/threads` (i četiri jezička: objavljivanje, moderacija, automatizacije, pretraga), `/youtube` (i dijalog „Izmeni video“ sa automatskim učitavanjem plejlista), `/youtube/automatizacije`, `/openreply`, `/openreply/automatizacije`, `/settings`, `/`, `/instagram/inbox`, `/novosti`;
+  - snimci `/threads` (1440) i `/youtube` (390) pokazuju da podaci stižu kroz nove hookove;
+  - dev server je ugašen, a privremeni fajlovi Playwright-a obrisani.
+
+**Za Jovana ujutru:**
+- Posle deploya (zajedno sa ostatkom runa) proveri da sve radi kao pre:
+  - Threads: pregled, objava (kvota se učita), otkazivanje posla, sakrij i odgovori na odgovor, automatizacije, pretraga;
+  - YouTube: pregled, „Izmeni video“ (plejliste), titlovi, sličica, slanje videa, automatizacije i log komentara;
+  - OpenReply: kampanje, automatizacije, ledolomci i meni (sačuvaj i objavi), slanje poruke iz Instagram inboxa.
+- Podešavanja → Threads/YouTube „Poveži“ i OpenReply uključi/isključi. To sada može samo vlasnik projekta.

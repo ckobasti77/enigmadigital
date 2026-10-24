@@ -1,6 +1,6 @@
-import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
+import { projekatAction } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import { fetchAccessToken, parseYouTubeCredentials } from "./lib/youtubeApi";
 import type { MediaContext } from "./ytMedia";
@@ -14,7 +14,7 @@ import type { MediaContext } from "./ytMedia";
  * how it ended; the bytes never touch it.
  *
  * Ovaj token nosi pun `youtube.force-ssl` opseg i Google ga ne može suziti.
- * Zato se izdaje samo prijavljenom članu radnog prostora, traje jedan sat, i
+ * Zato se izdaje samo prijavljenom uredniku projekta, traje jedan sat, i
  * koristi se isključivo za resumable upload iz browsera. Sve ostale operacije
  * (metapodaci, thumbnail, titlovi, brisanje komentara) idu kroz Convex akcije
  * gde token nikad ne napušta backend.
@@ -28,15 +28,16 @@ import type { MediaContext } from "./ytMedia";
  */
 const UPLOAD_TOKEN_TTL_MS = 55 * 60 * 1000;
 
-export const issueUploadToken = action({
+export const issueUploadToken = projekatAction({
   args: {},
   returns: v.object({ accessToken: v.string(), expiresAt: v.number() }),
   handler: async (ctx): Promise<{ accessToken: string; expiresAt: number }> => {
-    // Membership is checked inside; a caller who is not a member never gets a
-    // token, and neither does one whose workspace has no YouTube connected.
+    // The project wrapper has already checked membership and role before this
+    // handler runs, so a caller outside the project never gets a token; neither
+    // does one whose project has no YouTube connected.
     const context: MediaContext = await ctx.runQuery(
       internal.ytMedia.loadMediaContext,
-      {},
+      { workspaceId: ctx.projekat.workspaceId },
     );
     if (context === null) {
       throw new ConvexError({

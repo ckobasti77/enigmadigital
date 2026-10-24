@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
@@ -12,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { normalizeKeyword } from "@/convex/lib/orMatch";
 import {
   Dialog,
@@ -135,8 +135,8 @@ function YtAutomationEditorForm({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const createAutomation = useMutation(api.ytAutomationsApi.createAutomation);
-  const updateAutomation = useMutation(api.ytAutomationsApi.updateAutomation);
+  const createAutomation = useProjekatMutation(api.ytAutomationsApi.createAutomation);
+  const updateAutomation = useProjekatMutation(api.ytAutomationsApi.updateAutomation);
 
   const addKeyword = (raw: string) => {
     const keyword = normalizeKeyword(raw);

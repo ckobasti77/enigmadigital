@@ -32,6 +32,7 @@ import type { Provider } from "@/convex/lib/providers";
 import {
   useProjekat,
   useProjekatAction,
+  useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
 import { Button } from "@/components/ui/button";
@@ -546,9 +547,9 @@ function Ga4Card({ connection }: { connection?: ConnectionView }) {
 // ── OpenReply ────────────────────────────────────────────────────────────────
 
 function OpenReplyCard() {
-  const status = useQuery(api.orEngine.status);
-  const enable = useMutation(api.orEngine.enable);
-  const disable = useMutation(api.orEngine.disable);
+  const status = useProjekatQuery(api.orEngine.status);
+  const enable = useProjekatMutation(api.orEngine.enable);
+  const disable = useProjekatMutation(api.orEngine.disable);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2210,8 +2211,8 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
 function YouTubeCard({ connection }: { connection?: ConnectionView }) {
   const save = useMutation(api.connections.save);
   const remove = useMutation(api.connections.remove);
-  const setup = useQuery(api.youtubeStore.setupInfo);
-  const getOAuthUrl = useAction(api.youtube.youtubeAuthorizeUrl);
+  const setup = useProjekatQuery(api.youtubeStore.setupInfo);
+  const getOAuthUrl = useProjekatAction(api.youtube.youtubeAuthorizeUrl);
 
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -2738,8 +2739,8 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
 
 function ThreadsCard({ connection }: { connection?: ConnectionView }) {
   const remove = useMutation(api.connections.remove);
-  const setup = useQuery(api.threadsStore.setupInfo);
-  const getOAuthUrl = useAction(api.threads.threadsAuthorizeUrl);
+  const setup = useProjekatQuery(api.threadsStore.setupInfo);
+  const getOAuthUrl = useProjekatAction(api.threads.threadsAuthorizeUrl);
 
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);

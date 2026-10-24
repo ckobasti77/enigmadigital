@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
   AlertCircle,
@@ -55,6 +54,10 @@ import {
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { EmptyState } from "@/components/app/empty-state";
 import { Field, FormGroup, FormStack } from "@/components/app/form-kit";
+import {
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
 import { formatNumber, formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -114,8 +117,8 @@ const LOG_STATUS_CONFIG: Record<
 
 export function ThreadsAutomations() {
   const [tab, setTab] = useState<"rules" | "log">("rules");
-  const automations = useQuery(api.threadsAutomations.listAutomations);
-  const logs = useQuery(api.threadsAutomations.listAutomationLogs, { limit: 100 });
+  const automations = useProjekatQuery(api.threadsAutomations.listAutomations);
+  const logs = useProjekatQuery(api.threadsAutomations.listAutomationLogs, { limit: 100 });
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAutomation, setEditingAutomation] = useState<AutomationDoc | null>(null);
@@ -125,9 +128,9 @@ export function ThreadsAutomations() {
   const [pendingGoLive, setPendingGoLive] = useState<AutomationDoc | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const toggleAutomation = useMutation(api.threadsAutomations.toggleAutomation);
-  const updateAutomation = useMutation(api.threadsAutomations.updateAutomation);
-  const deleteAutomation = useMutation(api.threadsAutomations.deleteAutomation);
+  const toggleAutomation = useProjekatMutation(api.threadsAutomations.toggleAutomation);
+  const updateAutomation = useProjekatMutation(api.threadsAutomations.updateAutomation);
+  const deleteAutomation = useProjekatMutation(api.threadsAutomations.deleteAutomation);
 
   const handleToggleActive = async (id: Id<"threadsAutomations">, current: boolean) => {
     try {
@@ -598,8 +601,8 @@ function AutomationEditorDialog({
   onOpenChange: (open: boolean) => void;
   existing: AutomationDoc | null;
 }) {
-  const createAutomation = useMutation(api.threadsAutomations.createAutomation);
-  const updateAutomation = useMutation(api.threadsAutomations.updateAutomation);
+  const createAutomation = useProjekatMutation(api.threadsAutomations.createAutomation);
+  const updateAutomation = useProjekatMutation(api.threadsAutomations.updateAutomation);
 
   const [name, setName] = useState(existing?.name ?? "");
   const [trigger, setTrigger] = useState<TriggerType>(

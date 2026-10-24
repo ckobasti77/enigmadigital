@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useAction, useQuery } from "convex/react";
 import {
   AlertCircle,
   AtSign,
@@ -27,6 +26,10 @@ import {
   Video,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -42,7 +45,7 @@ export function ThreadsSearch() {
   const [activeTab, setActiveTab] = useState<SearchTab>("keyword");
 
   // ── 24h Kvote ─────────────────────────────────────────────────────────────
-  const quotaInfo = useQuery(api.threadsSearch.getSearchQuotaInfo, {});
+  const quotaInfo = useProjekatQuery(api.threadsSearch.getSearchQuotaInfo, {});
 
   // ── Stanje za pretragu ključnih reči ───────────────────────────────────────
   const [keywordQuery, setKeywordQuery] = useState("");
@@ -60,8 +63,8 @@ export function ThreadsSearch() {
   const [profileResult, setProfileResult] =
     useState<LookupProfileResult | null>(null);
 
-  const searchKeywordAction = useAction(api.threadsSearch.searchKeyword);
-  const lookupProfileAction = useAction(api.threadsSearch.lookupProfile);
+  const searchKeywordAction = useProjekatAction(api.threadsSearch.searchKeyword);
+  const lookupProfileAction = useProjekatAction(api.threadsSearch.lookupProfile);
 
   const handleKeywordSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();

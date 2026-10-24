@@ -13,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/system/empty-state";
 import { FocusCard } from "@/components/app/system/focus-card";
@@ -47,15 +48,15 @@ export function OpenReplyDashboard() {
   const { range } = useDateRange();
   const connections = useQuery(api.connections.list);
 
-  const currentRows = useQuery(api.openreplyStore.daily, {
+  const currentRows = useProjekatQuery(api.openreplyStore.daily, {
     from: range.from,
     to: range.to,
   });
-  const previousRows = useQuery(api.openreplyStore.daily, {
+  const previousRows = useProjekatQuery(api.openreplyStore.daily, {
     from: range.prevFrom,
     to: range.prevTo,
   });
-  const rawCampaigns = useQuery(api.openreplyStore.campaigns);
+  const rawCampaigns = useProjekatQuery(api.openreplyStore.campaigns);
 
   const campaigns = useStale(rawCampaigns);
 

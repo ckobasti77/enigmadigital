@@ -1,9 +1,8 @@
-import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { normalizeKeyword } from "./lib/orMatch";
 import { shortLinkOrigin } from "./lib/orLink";
 import {
@@ -30,8 +29,8 @@ import {
 /**
  * Public API for the OpenReply automations screen (PLAN.md §4 / Step 5).
  *
- * Default V8 runtime — no "use node". Every function is workspace-scoped via
- * `requireMembership`; nothing here trusts a `workspaceId` from the client.
+ * Default V8 runtime — no "use node". Every function is scoped to the project
+ * by the `projekat*` wrapper (membership + role checked there).
  *
  * Any write that changes what an automation *is* (name, keywords, active flag)
  * or that removes one re-runs `orRollup.recompute` for it, because the
@@ -477,15 +476,15 @@ const automationViewValidator = v.object({
 });
 
 /**
- * All automations for the caller's workspace, newest first, each joined with
+ * All automations for the project, newest first, each joined with
  * its rolled-up counters (`orCampaignStats`, keyed by the automation id) and
  * its tracked short link.
  */
-export const listAutomations = query({
+export const listAutomations = projekatQuery({
   args: {},
   returns: v.array(automationViewValidator),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const automations = await ctx.db
       .query("orAutomations")
@@ -594,7 +593,7 @@ const dmLogViewValidator = v.object({
  * The DM log, newest first. Optionally narrowed to one automation or one
  * status — each filter has its own index, so no full-table scan.
  */
-export const listDmLogs = query({
+export const listDmLogs = projekatQuery({
   args: {
     automationId: v.optional(v.id("orAutomations")),
     status: v.optional(dmLogStatusValidator),
@@ -602,7 +601,7 @@ export const listDmLogs = query({
   },
   returns: v.array(dmLogViewValidator),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const limit = Math.min(
       Math.max(Math.floor(args.limit ?? DM_LOG_LIMIT_DEFAULT), 1),
       DM_LOG_LIMIT_MAX,
@@ -802,11 +801,11 @@ async function syncDerived(
   });
 }
 
-export const createAutomation = mutation({
+export const createAutomation = projekatMutation({
   args: automationInputValidator.fields,
   returns: v.id("orAutomations"),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const input = normalizeAutomationInput(args);
     const now = Date.now();
 
@@ -822,14 +821,14 @@ export const createAutomation = mutation({
   },
 });
 
-export const updateAutomation = mutation({
+export const updateAutomation = projekatMutation({
   args: {
     automationId: v.id("orAutomations"),
     ...automationInputValidator.fields,
   },
   returns: v.null(),
   handler: async (ctx, { automationId, ...rest }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const existing = await ctx.db.get(automationId);
     if (existing === null || existing.workspaceId !== workspaceId) {
       throw new ConvexError({
@@ -846,14 +845,14 @@ export const updateAutomation = mutation({
   },
 });
 
-export const toggleAutomation = mutation({
+export const toggleAutomation = projekatMutation({
   args: {
     automationId: v.id("orAutomations"),
     isActive: v.boolean(),
   },
   returns: v.null(),
   handler: async (ctx, { automationId, isActive }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const existing = await ctx.db.get(automationId);
     if (existing === null || existing.workspaceId !== workspaceId) {
       throw new ConvexError({
@@ -879,11 +878,11 @@ export const toggleAutomation = mutation({
  * links already sitting in DMs keep resolving. The recompute drops the
  * automation's `orCampaignStats` row, so it leaves the dashboard immediately.
  */
-export const deleteAutomation = mutation({
+export const deleteAutomation = projekatMutation({
   args: { automationId: v.id("orAutomations") },
   returns: v.null(),
   handler: async (ctx, { automationId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const existing = await ctx.db.get(automationId);
     if (existing === null || existing.workspaceId !== workspaceId) {
       throw new ConvexError({

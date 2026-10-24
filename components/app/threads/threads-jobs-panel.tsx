@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
   AlertCircle,
@@ -34,6 +33,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
+import {
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { formatBelgradeShort } from "@/lib/belgrade-time";
 import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -53,9 +56,9 @@ const STATUS_TONES: Record<ThreadsPublishStatus, string> = {
 };
 
 export function ThreadsJobsPanel() {
-  const jobs = useQuery(api.threadsPublishStore.listJobs);
-  const cancelJob = useMutation(api.threadsPublishStore.cancelJob);
-  const retryJob = useMutation(api.threadsPublishStore.retryJob);
+  const jobs = useProjekatQuery(api.threadsPublishStore.listJobs);
+  const cancelJob = useProjekatMutation(api.threadsPublishStore.cancelJob);
+  const retryJob = useProjekatMutation(api.threadsPublishStore.retryJob);
 
   const [pending, setPending] = useState<{
     job: PublishJob;

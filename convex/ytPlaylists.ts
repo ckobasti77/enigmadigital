@@ -1,8 +1,9 @@
-import { action, internalMutation, query } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
-import { requireMembership } from "./lib/auth";
+import type { Id } from "./_generated/dataModel";
+import { projekatAction, projekatQuery } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import {
   buildPlaylistItemsInsertUrl,
@@ -54,11 +55,11 @@ const playlistValidator = v.object({
  * "fetch them once" rather than as "this channel has no playlists". The two
  * are told apart by the wording in the dropdown, never by claiming the second.
  */
-export const playlists = query({
+export const playlists = projekatQuery({
   args: {},
   returns: v.array(playlistValidator),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("ytPlaylists")
       .withIndex("by_workspace_playlist", (q) => q.eq("workspaceId", workspaceId))
@@ -153,10 +154,17 @@ export const bumpPlaylistCount = internalMutation({
 
 // ── shared preflight ─────────────────────────────────────────────────────────
 
-async function loadContext(ctx: ActionCtx): Promise<NonNullable<MediaContext>> {
+/**
+ * Membership is not checked here: the project wrapper did that before the
+ * action's handler ran, and `workspaceId` is the project it verified.
+ */
+async function loadContext(
+  ctx: ActionCtx,
+  workspaceId: Id<"workspaces">,
+): Promise<NonNullable<MediaContext>> {
   const context: MediaContext = await ctx.runQuery(
     internal.ytMedia.loadMediaContext,
-    {},
+    { workspaceId },
   );
   if (context === null) {
     invalid("Prvo poveži YouTube nalog u Podešavanjima.");
@@ -190,14 +198,14 @@ type PlaylistResource = {
  * can usefully hold anyway, so the rest are left unfetched rather than
  * silently paged in behind the operator's back.
  */
-export const listPlaylists = action({
+export const listPlaylists = projekatAction({
   args: {},
   returns: v.array(playlistValidator),
   handler: async (ctx): Promise<
     { playlistId: string; title: string; itemCount: number }[]
   > => {
-    const context = await loadContext(ctx);
-    const { workspaceId } = context;
+    const { workspaceId } = ctx.projekat;
+    const context = await loadContext(ctx, workspaceId);
 
     const jobId = await ctx.runMutation(internal.ytMedia.startJob, {
       workspaceId,
@@ -302,7 +310,7 @@ export const listPlaylists = action({
  *
  * Reverzibilno je: unos se u Studiju uklanja iz plejliste, sam video ostaje.
  */
-export const addVideoToPlaylist = action({
+export const addVideoToPlaylist = projekatAction({
   args: { playlistId: v.string(), videoId: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -311,8 +319,8 @@ export const addVideoToPlaylist = action({
     if (playlistId.length === 0) invalid("Izaberi plejlistu.");
     if (videoId.length === 0) invalid("Nedostaje ID videa.");
 
-    const context = await loadContext(ctx);
-    const { workspaceId } = context;
+    const { workspaceId } = ctx.projekat;
+    const context = await loadContext(ctx, workspaceId);
 
     const localTitle: string | null = await ctx.runQuery(
       internal.ytVideos.loadVideoTitle,

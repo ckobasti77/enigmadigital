@@ -1,13 +1,12 @@
-import { query, mutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { encryptCredentials } from "./lib/crypto";
 
 /**
  * OpenReply Native Engine Status & Configuration (PLAN.md §4 / Step 1).
  */
 
-export const status = query({
+export const status = projekatQuery({
   args: {},
   returns: v.object({
     enabled: v.boolean(),
@@ -18,7 +17,7 @@ export const status = query({
     igProfessionalIdSet: v.boolean(),
   }),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const orConn = await ctx.db
       .query("connections")
@@ -64,11 +63,12 @@ export const status = query({
   },
 });
 
-export const enable = mutation({
+export const enable = projekatMutation({
+  uloga: "owner",
   args: {},
   returns: v.id("connections"),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const igConn = await ctx.db
       .query("connections")
@@ -106,11 +106,12 @@ export const enable = mutation({
   },
 });
 
-export const disable = mutation({
+export const disable = projekatMutation({
+  uloga: "owner",
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const existing = await ctx.db
       .query("connections")

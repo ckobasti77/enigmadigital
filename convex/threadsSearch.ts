@@ -1,8 +1,6 @@
-import { action, internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { ConvexError, v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { v } from "convex/values";
 import { decryptCredentials } from "./lib/crypto";
 import {
   lookupThreadsProfile,
@@ -10,7 +8,7 @@ import {
   type RawThreadsKeywordSearchItem,
 } from "./lib/threadsApi";
 import { sanitizeThreadsError } from "./lib/threadsShared";
-import type { Uloga } from "./lib/uloge";
+import { projekatAction, projekatQuery } from "./lib/projekat";
 
 /**
  * ============================================================================
@@ -247,7 +245,7 @@ export const recordSearchUsageInternal = internalMutation({
 
 // ── Javni upit za prikaz kvota u UI-ju ───────────────────────────────────────
 
-export const getSearchQuotaInfo = query({
+export const getSearchQuotaInfo = projekatQuery({
   args: {},
   returns: v.object({
     keywordSearch: v.object({
@@ -260,18 +258,7 @@ export const getSearchQuotaInfo = query({
     }),
   }),
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({ code: "unauthorized" });
-    }
-    const membership = await ctx.db
-      .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .first();
-    if (membership === null) {
-      throw new ConvexError({ code: "forbidden" });
-    }
-    const workspaceId = membership.workspaceId;
+    const { workspaceId } = ctx.projekat;
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
 
     const recentUsage = await ctx.db
@@ -306,7 +293,7 @@ export const getSearchQuotaInfo = query({
 
 // ── Javna akcija: Pretraga po ključnoj reči ─────────────────────────────────
 
-export const searchKeyword = action({
+export const searchKeyword = projekatAction({
   args: {
     q: v.string(),
     searchType: v.optional(v.union(v.literal("TOP"), v.literal("RECENT"))),
@@ -338,35 +325,7 @@ export const searchKeyword = action({
     errorMessage: v.optional(v.string()),
   }),
   handler: async (ctx, args): Promise<SearchKeywordResult> => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      return {
-        status: "error",
-        scope: keywordScope(),
-        scopeIsAssumed: !hasAdvancedAccess(),
-        items: [],
-        errorMessage: "Niste prijavljeni.",
-      };
-    }
-
-    const member: {
-      workspaceId: Id<"workspaces">;
-      role: Uloga;
-    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
-      userId,
-    });
-
-    if (member === null) {
-      return {
-        status: "error",
-        scope: keywordScope(),
-        scopeIsAssumed: !hasAdvancedAccess(),
-        items: [],
-        errorMessage: "Niste član aktivnog radnog prostora.",
-      };
-    }
-
-    const workspaceId = member.workspaceId;
+    const { workspaceId } = ctx.projekat;
 
     const connection = await ctx.runQuery(
       internal.threadsPublishStore.getConnectionForWorkspace,
@@ -508,7 +467,7 @@ export const searchKeyword = action({
 
 // ── Javna akcija: Lookup profila ────────────────────────────────────────────
 
-export const lookupProfile = action({
+export const lookupProfile = projekatAction({
   args: {
     username: v.string(),
   },
@@ -534,33 +493,7 @@ export const lookupProfile = action({
     errorMessage: v.optional(v.string()),
   }),
   handler: async (ctx, { username }): Promise<LookupProfileResult> => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      return {
-        status: "error",
-        scope: profileScope(),
-        scopeIsAssumed: !hasAdvancedAccess(),
-        errorMessage: "Niste prijavljeni.",
-      };
-    }
-
-    const member: {
-      workspaceId: Id<"workspaces">;
-      role: Uloga;
-    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
-      userId,
-    });
-
-    if (member === null) {
-      return {
-        status: "error",
-        scope: profileScope(),
-        scopeIsAssumed: !hasAdvancedAccess(),
-        errorMessage: "Niste član aktivnog radnog prostora.",
-      };
-    }
-
-    const workspaceId = member.workspaceId;
+    const { workspaceId } = ctx.projekat;
 
     const connection = await ctx.runQuery(
       internal.threadsPublishStore.getConnectionForWorkspace,

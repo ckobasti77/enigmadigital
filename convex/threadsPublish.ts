@@ -1,10 +1,10 @@
-import { action, internalAction } from "./_generated/server";
+import { internalAction } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { decryptCredentials } from "./lib/crypto";
+import { projekatAction } from "./lib/projekat";
 import {
   createThreadsContainer,
   deleteThreadsPost,
@@ -625,9 +625,9 @@ export const runPublishJob = internalAction({
 // ── Javne akcije za UI (§4.4, §8) ───────────────────────────────────────────
 
 /**
- * Vraća trenutno stanje kvote objavljivanja za Threads nalog radnog prostora.
+ * Vraća trenutno stanje kvote objavljivanja za Threads nalog projekta.
  */
-export const publishingLimit = action({
+export const publishingLimit = projekatAction({
   args: {},
   // `used`/`total` su OPCIONI namerno. Kvota koja nije pročitana nema
   // vrednost — a `?? 0` / `?? 250` bi UI-ju rekli „0 od 250 iskorišćeno“,
@@ -655,28 +655,9 @@ export const publishingLimit = action({
     deleteTotal?: number;
     error?: string;
   }> => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member = await ctx.runQuery(
-      internal.threadsPublishStore.membershipForAction,
-      { userId },
-    );
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
-
     const connection = await ctx.runQuery(
       internal.threadsPublishStore.getConnectionForWorkspace,
-      { workspaceId: member.workspaceId },
+      { workspaceId: ctx.projekat.workspaceId },
     );
     if (connection === null || !connection.threadsUserId) {
       return { connected: false };
@@ -731,7 +712,7 @@ export const publishingLimit = action({
 /**
  * Repostuje postojeću objavu na profilu (§4.4).
  */
-export const repostPost = action({
+export const repostPost = projekatAction({
   args: { mediaId: v.string() },
   returns: v.object({
     success: v.boolean(),
@@ -739,28 +720,9 @@ export const repostPost = action({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, { mediaId }) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member = await ctx.runQuery(
-      internal.threadsPublishStore.membershipForAction,
-      { userId },
-    );
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
-
     const connection = await ctx.runQuery(
       internal.threadsPublishStore.getConnectionForWorkspace,
-      { workspaceId: member.workspaceId },
+      { workspaceId: ctx.projekat.workspaceId },
     );
     if (connection === null || !connection.threadsUserId) {
       throw new ConvexError({
@@ -785,7 +747,8 @@ export const repostPost = action({
 /**
  * Briše objavu sa Threads-a uz proveru kvote brisanja (§4.4: 100 brisanja/24h).
  */
-export const deletePost = action({
+export const deletePost = projekatAction({
+  uloga: "owner",
   args: { mediaId: v.string() },
   returns: v.object({
     success: v.boolean(),
@@ -793,28 +756,9 @@ export const deletePost = action({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, { mediaId }) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member = await ctx.runQuery(
-      internal.threadsPublishStore.membershipForAction,
-      { userId },
-    );
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
-
     const connection = await ctx.runQuery(
       internal.threadsPublishStore.getConnectionForWorkspace,
-      { workspaceId: member.workspaceId },
+      { workspaceId: ctx.projekat.workspaceId },
     );
     if (connection === null || !connection.threadsUserId) {
       throw new ConvexError({

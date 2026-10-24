@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useAction, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
   AlertCircle,
@@ -26,6 +25,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { EmptyState } from "@/components/app/empty-state";
+import {
+  useProjekatAction,
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -39,24 +43,24 @@ const HIDE_STATUS_LABELS: Record<string, { label: string; tone: string }> = {
 };
 
 export function ThreadsRepliesModeration() {
-  const mediaList = useQuery(api.threadsStore.mediaList, { limit: 50 });
+  const mediaList = useProjekatQuery(api.threadsStore.mediaList, { limit: 50 });
   const [selectedPostId, setSelectedPostId] = useState<string>("");
 
   // Postavi prvu objavu kao izabranu kad stignu podaci
   const effectivePostId =
     selectedPostId || (mediaList && mediaList.length > 0 ? mediaList[0].mediaId : "");
 
-  const replies = useQuery(
+  const replies = useProjekatQuery(
     api.threadsReplies.listRepliesForPost,
     effectivePostId ? { postId: effectivePostId } : "skip",
   );
 
-  const hideReply = useAction(api.threadsReplies.hideReply);
-  const unhideReply = useAction(api.threadsReplies.unhideReply);
-  const approvePendingReply = useAction(api.threadsReplies.approvePendingReply);
-  const ignorePendingReply = useAction(api.threadsReplies.ignorePendingReply);
-  const replyToPost = useMutation(api.threadsReplies.replyToPost);
-  const deleteReply = useAction(api.threadsReplies.deleteReply);
+  const hideReply = useProjekatAction(api.threadsReplies.hideReply);
+  const unhideReply = useProjekatAction(api.threadsReplies.unhideReply);
+  const approvePendingReply = useProjekatAction(api.threadsReplies.approvePendingReply);
+  const ignorePendingReply = useProjekatAction(api.threadsReplies.ignorePendingReply);
+  const replyToPost = useProjekatMutation(api.threadsReplies.replyToPost);
+  const deleteReply = useProjekatAction(api.threadsReplies.deleteReply);
 
   // Stanje filtera (svi odgovori ili samo na čekanju)
   const [filterTab, setFilterTab] = useState<"all" | "pending">("all");

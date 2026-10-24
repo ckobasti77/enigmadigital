@@ -1,5 +1,4 @@
 import {
-  action,
   internalQuery,
   internalMutation,
   internalAction,
@@ -9,7 +8,7 @@ import type { Doc } from "./_generated/dataModel";
 import { api, internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatAction } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
 import {
@@ -1124,9 +1123,11 @@ export const queueFollowUp = internalMutation({
 
 /**
  * Load context for sending a direct inbox message or action from the operator.
+ * The caller (a `projekatAction`) already checked membership.
  */
 export const loadInboxSendContext = internalQuery({
   args: {
+    workspaceId: v.id("workspaces"),
     platform: orPlatformValidator,
     igsid: v.string(),
   },
@@ -1140,7 +1141,7 @@ export const loadInboxSendContext = internalQuery({
     }),
   ),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = args;
     const platform = resolvePlatform(args.platform);
 
     const conn = await ctx.db
@@ -1176,7 +1177,7 @@ export const loadInboxSendContext = internalQuery({
  * Send a direct message to a user from the Inbox UI.
  * Strictly checks the 24-hour messaging window and UTF-8 byte limits!
  */
-export const sendInboxMessage = action({
+export const sendInboxMessage = projekatAction({
   args: {
     platform: v.optional(orPlatformValidator),
     igsid: v.string(),
@@ -1208,6 +1209,7 @@ export const sendInboxMessage = action({
   handler: async (ctx, args) => {
     const platform = resolvePlatform(args.platform);
     const context = await ctx.runQuery(internal.orSend.loadInboxSendContext, {
+      workspaceId: ctx.projekat.workspaceId,
       platform,
       igsid: args.igsid,
     });
@@ -1332,7 +1334,7 @@ export const sendInboxMessage = action({
  * Send sender action (typing_on, typing_off, mark_seen) to a conversation.
  * Must be a standalone API call without message payload.
  */
-export const sendSenderAction = action({
+export const sendSenderAction = projekatAction({
   args: {
     platform: v.optional(orPlatformValidator),
     igsid: v.string(),
@@ -1346,6 +1348,7 @@ export const sendSenderAction = action({
   handler: async (ctx, args) => {
     const platform = resolvePlatform(args.platform);
     const context = await ctx.runQuery(internal.orSend.loadInboxSendContext, {
+      workspaceId: ctx.projekat.workspaceId,
       platform,
       igsid: args.igsid,
     });
@@ -1401,7 +1404,7 @@ export const sendSenderAction = action({
 /**
  * Send a message reaction (react / unreact) to a specific message ID.
  */
-export const sendMessageReaction = action({
+export const sendMessageReaction = projekatAction({
   args: {
     platform: v.optional(orPlatformValidator),
     igsid: v.string(),
@@ -1413,6 +1416,7 @@ export const sendMessageReaction = action({
   handler: async (ctx, args) => {
     const platform = resolvePlatform(args.platform);
     const context = await ctx.runQuery(internal.orSend.loadInboxSendContext, {
+      workspaceId: ctx.projekat.workspaceId,
       platform,
       igsid: args.igsid,
     });

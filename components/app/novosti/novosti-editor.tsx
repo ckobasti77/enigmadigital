@@ -35,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { FeedbackNote } from "@/components/app/feedback";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import {
   FormGroup,
   FormStack,
@@ -151,7 +152,7 @@ export function NovostiEditor({
   const saveRevisionMutation = useMutation(api.postsStore.saveRevision);
   const unpublishMutation = useMutation(api.postsStore.unpublish);
   const archiveMutation = useMutation(api.postsStore.archive);
-  const generateUploadUrlMutation = useMutation(
+  const generateUploadUrlMutation = useProjekatMutation(
     api.threadsPublishStore.generateUploadUrl,
   );
 

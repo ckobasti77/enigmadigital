@@ -77,11 +77,11 @@ export function OverviewDashboard() {
   });
 
   // ── OpenReply Queries ───────────────────────────────────────────────────
-  const orCurrent = useQuery(api.openreplyStore.daily, {
+  const orCurrent = useProjekatQuery(api.openreplyStore.daily, {
     from: range.from,
     to: range.to,
   });
-  const orPrevious = useQuery(api.openreplyStore.daily, {
+  const orPrevious = useProjekatQuery(api.openreplyStore.daily, {
     from: range.prevFrom,
     to: range.prevTo,
   });

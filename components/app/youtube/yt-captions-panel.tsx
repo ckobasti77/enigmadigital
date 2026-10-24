@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { useAction, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
   AlertTriangle,
@@ -51,6 +50,12 @@ import { formatNumber } from "@/lib/format";
 import { DUR_UI, EASE_UI } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { FeedbackNote } from "@/components/app/feedback";
+import {
+  useProjekat,
+  useProjekatAction,
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 
 gsap.registerPlugin(useGSAP);
 
@@ -142,13 +147,16 @@ function YtCaptionsContent({
   video: VideoItem;
   onClose: () => void;
 }) {
-  const quota = useQuery(api.ytMedia.mediaQuotaStatus);
+  const { spreman } = useProjekat();
+  const quota = useProjekatQuery(api.ytMedia.mediaQuotaStatus);
 
-  const listCaptions = useAction(api.ytCaptions.listCaptions);
-  const uploadCaption = useAction(api.ytCaptions.uploadCaption);
-  const updateCaption = useAction(api.ytCaptions.updateCaption);
-  const deleteCaption = useAction(api.ytCaptions.deleteCaption);
-  const generateUploadUrl = useMutation(api.ytCaptions.generateCaptionUploadUrl);
+  const listCaptions = useProjekatAction(api.ytCaptions.listCaptions);
+  const uploadCaption = useProjekatAction(api.ytCaptions.uploadCaption);
+  const updateCaption = useProjekatAction(api.ytCaptions.updateCaption);
+  const deleteCaption = useProjekatAction(api.ytCaptions.deleteCaption);
+  const generateUploadUrl = useProjekatMutation(
+    api.ytCaptions.generateCaptionUploadUrl,
+  );
 
   const [tracks, setTracks] = useState<CaptionTrack[] | null>(null);
   const [listing, setListing] = useState(false);
@@ -184,10 +192,11 @@ function YtCaptionsContent({
   // the only automatic load there is — everything after it is a button.
   const loaded = useRef(false);
   useEffect(() => {
+    if (!spreman) return;
     if (loaded.current) return;
     loaded.current = true;
     void refresh();
-  }, [refresh]);
+  }, [spreman, refresh]);
 
   /** Put the file in Convex storage; the action reads it from there. */
   const putInStorage = async (chosen: File): Promise<Id<"_storage">> => {

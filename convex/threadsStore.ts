@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 import { connectionStatusValidator } from "./lib/providers";
 import { beginPurgeRun, clearFinishedRuns } from "./purge";
 import { getThreadsAppId, getThreadsAppSecret } from "./lib/threadsApi";
@@ -330,13 +330,12 @@ export const getDeletionStatus = query({
 /**
  * Provera da li su THREADS_APP_ID i THREADS_APP_SECRET podešeni.
  */
-export const setupInfo = query({
+export const setupInfo = projekatQuery({
   args: {},
   returns: v.object({
     isConfigured: v.boolean(),
   }),
-  handler: async (ctx) => {
-    await requireMembership(ctx);
+  handler: async () => {
     const appId = getThreadsAppId();
     const appSecret = getThreadsAppSecret();
     return {
@@ -1008,7 +1007,7 @@ export const recordThreadsQuota = internalMutation({
  * Pregled stanja naloga, poslednje sinhronizacije i kumulativnih metrika naloga (§5.4).
  * Striktno čuva razliku između 0 (stvarna nula) i null (odsustvo podatka).
  */
-export const accountOverview = query({
+export const accountOverview = projekatQuery({
   args: {
     from: v.optional(v.string()),
     to: v.optional(v.string()),
@@ -1044,7 +1043,7 @@ export const accountOverview = query({
     totalsFetchedAt: v.union(v.number(), v.null()),
   }),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const connection = await ctx.db
       .query("connections")
@@ -1175,7 +1174,7 @@ export const accountOverview = query({
 /**
  * Istorija snimaka broja pratilaca iz threadsFollowerSnapshots za grafikon.
  */
-export const followerHistory = query({
+export const followerHistory = projekatQuery({
   args: {
     from: v.optional(v.string()),
     to: v.optional(v.string()),
@@ -1188,7 +1187,7 @@ export const followerHistory = query({
     }),
   ),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("threadsFollowerSnapshots")
       .withIndex("by_workspace_date", (q) => q.eq("workspaceId", workspaceId))
@@ -1214,7 +1213,7 @@ export const followerHistory = query({
  * Lista Threads objava sa metrikama po objavi (§5.3).
  * mediaType se čuva kao sirov string bez ikakvog mapiranja ili podrazumevanih vrednosti (B.7).
  */
-export const mediaList = query({
+export const mediaList = projekatQuery({
   args: {
     limit: v.optional(v.number()),
   },
@@ -1261,7 +1260,7 @@ export const mediaList = query({
     }),
   ),
   handler: async (ctx, { limit = 50 }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const maxItems = limit > 0 ? Math.min(limit, 100) : 50;
 
     const posts = await ctx.db
@@ -1320,7 +1319,7 @@ export const mediaList = query({
  * Demografski podaci o publici iz threadsDemographics.
  * Obavezno poštuje limit od min 100 pratilaca (§5.4).
  */
-export const demographicsSummary = query({
+export const demographicsSummary = projekatQuery({
   args: {},
   returns: v.object({
     state: v.union(
@@ -1352,7 +1351,7 @@ export const demographicsSummary = query({
     ),
   }),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const latestSnapshot = await ctx.db
       .query("threadsFollowerSnapshots")

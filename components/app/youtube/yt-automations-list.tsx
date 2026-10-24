@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
@@ -14,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,8 +69,8 @@ export function YtAutomationsList({
   automations: YtAutomationView[];
   onEdit: (automation: YtAutomationView) => void;
 }) {
-  const toggleAutomation = useMutation(api.ytAutomationsApi.toggleAutomation);
-  const deleteAutomation = useMutation(api.ytAutomationsApi.deleteAutomation);
+  const toggleAutomation = useProjekatMutation(api.ytAutomationsApi.toggleAutomation);
+  const deleteAutomation = useProjekatMutation(api.ytAutomationsApi.deleteAutomation);
 
   const [busyId, setBusyId] = useState<Id<"ytAutomations"> | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

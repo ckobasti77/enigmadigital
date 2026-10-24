@@ -1,15 +1,13 @@
-import {
-  action,
-  internalMutation,
-  internalQuery,
-  mutation,
-  query,
-} from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import {
+  projekatAction,
+  projekatMutation,
+  projekatQuery,
+} from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import { createUsageTracker } from "./lib/metaRateLimit";
 import {
@@ -40,9 +38,9 @@ import {
  * are separate on purpose — the operator edits without every keystroke
  * reaching Meta, and `publishedAt` is what says whether the two agree.
  *
- * Every function is workspace-scoped via `requireMembership`; the actions get
- * their `workspaceId` from an internal query that did the check, never from
- * the client.
+ * Every public function goes through the `projekat*` wrapper (membership and
+ * role are checked there); the actions pass its `workspaceId` on to the
+ * internal query.
  */
 
 const LINK_URL_MAX = 1000;
@@ -124,15 +122,15 @@ const profileMenuViewValidator = v.object({
 });
 
 /**
- * What this workspace has saved, with the name of every automation it points
+ * What this project has saved, with the name of every automation it points
  * at resolved. Returns empty lists when nothing was ever saved, so the screen
  * has one shape to render.
  */
-export const getProfileMenu = query({
+export const getProfileMenu = projekatQuery({
   args: {},
   returns: profileMenuViewValidator,
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const row = await ctx.db
       .query("orProfileMenus")
@@ -215,16 +213,16 @@ function keepOrMintPayload(
  * `publish` action does that, and `publishedAt` is cleared to null when the
  * saved shape stops matching what was published.
  */
-export const saveProfileMenu = mutation({
+export const saveProfileMenu = projekatMutation({
   args: {
     iceBreakers: v.array(iceBreakerInputValidator),
     menuItems: v.array(menuItemInputValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
-    // An entry may only point at an automation from this workspace, and only
+    // An entry may only point at an automation from this project, and only
     // at one that still exists — the payload is built out of that id.
     const requireOwnAutomation = async (
       automationId: Id<"orAutomations">,
@@ -340,12 +338,13 @@ type PublishContext = {
 } | null;
 
 /**
- * Everything an action needs: the membership check, the saved lists and the
- * workspace's Instagram credentials. Null when no Instagram account is
- * connected — there is nothing to write to then.
+ * Everything an action needs: the saved lists and the project's Instagram
+ * credentials. The caller (a `projekatAction`) already checked membership.
+ * Null when no Instagram account is connected — there is nothing to write to
+ * then.
  */
 export const loadPublishContext = internalQuery({
-  args: {},
+  args: { workspaceId: v.id("workspaces") },
   returns: v.union(
     v.null(),
     v.object({
@@ -368,9 +367,7 @@ export const loadPublishContext = internalQuery({
       ),
     }),
   ),
-  handler: async (ctx): Promise<PublishContext> => {
-    const { workspaceId } = await requireMembership(ctx);
-
+  handler: async (ctx, { workspaceId }): Promise<PublishContext> => {
     const igConn = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>
@@ -440,10 +437,11 @@ export const recordPublishResult = internalMutation({
 /** Shared preamble: context + a decrypted token, or a Serbian error. */
 async function loadToken(
   ctx: ActionCtx,
+  workspaceId: Id<"workspaces">,
 ): Promise<{ context: NonNullable<PublishContext>; token: string }> {
   const context: PublishContext = await ctx.runQuery(
     internal.orProfileMenu.loadPublishContext,
-    {},
+    { workspaceId },
   );
 
   if (context === null) {
@@ -479,11 +477,11 @@ async function graphError(res: Response): Promise<string> {
  * a messenger profile field by deleting it, so removing the last ice breaker
  * and publishing has to actually take it off the profile.
  */
-export const publish = action({
+export const publish = projekatAction({
   args: {},
   returns: v.null(),
   handler: async (ctx): Promise<null> => {
-    const { context, token } = await loadToken(ctx);
+    const { context, token } = await loadToken(ctx, ctx.projekat.workspaceId);
 
     const iceBreakers = buildIceBreakersField(context.iceBreakers);
     const persistentMenu = buildPersistentMenuField(context.menuItems);
@@ -580,11 +578,11 @@ export const publish = action({
  * Take both fields off the Instagram account. What is saved here stays saved,
  * so publishing puts it back.
  */
-export const unpublish = action({
+export const unpublish = projekatAction({
   args: {},
   returns: v.null(),
   handler: async (ctx): Promise<null> => {
-    const { context, token } = await loadToken(ctx);
+    const { context, token } = await loadToken(ctx, ctx.projekat.workspaceId);
 
     const tracker = createUsageTracker();
     try {
@@ -630,7 +628,7 @@ export const unpublish = action({
  * way to tell that a publish from another tool (or another app) overwrote
  * ours. Read one field per request, the documented form.
  */
-export const fetchLiveProfile = action({
+export const fetchLiveProfile = projekatAction({
   args: {},
   returns: v.object({
     iceBreakerQuestions: v.array(v.string()),
@@ -639,7 +637,7 @@ export const fetchLiveProfile = action({
   handler: async (
     ctx,
   ): Promise<{ iceBreakerQuestions: string[]; menuTitles: string[] }> => {
-    const { context, token } = await loadToken(ctx);
+    const { context, token } = await loadToken(ctx, ctx.projekat.workspaceId);
 
     const base = buildMessengerProfileUrl(getMetaGraphVersion());
 

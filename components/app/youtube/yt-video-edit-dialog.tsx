@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAction, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
   AlertTriangle,
@@ -41,6 +40,11 @@ import { YtThumbnailDialog } from "./yt-thumbnail-dialog";
 import type { VideoItem } from "./youtube-videos-grid";
 import { cn } from "@/lib/utils";
 import { FeedbackNote } from "@/components/app/feedback";
+import {
+  useProjekat,
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 
 /**
  * Editing one video's metadata (Y7).
@@ -128,8 +132,10 @@ function YtVideoEditForm({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const updateVideoMetadata = useAction(api.ytVideos.updateVideoMetadata);
-  const deleteVideo = useAction(api.ytVideos.deleteVideo);
+  const updateVideoMetadata = useProjekatAction(
+    api.ytVideos.updateVideoMetadata,
+  );
+  const deleteVideo = useProjekatAction(api.ytVideos.deleteVideo);
 
   const finalTags =
     tagDraft.trim().length > 0 && !tags.includes(tagDraft.trim())
@@ -526,9 +532,12 @@ function ImmediateSection({
   video: VideoItem;
   disabled: boolean;
 }) {
-  const cachedPlaylists = useQuery(api.ytPlaylists.playlists);
-  const listPlaylists = useAction(api.ytPlaylists.listPlaylists);
-  const addVideoToPlaylist = useAction(api.ytPlaylists.addVideoToPlaylist);
+  const { spreman } = useProjekat();
+  const cachedPlaylists = useProjekatQuery(api.ytPlaylists.playlists);
+  const listPlaylists = useProjekatAction(api.ytPlaylists.listPlaylists);
+  const addVideoToPlaylist = useProjekatAction(
+    api.ytPlaylists.addVideoToPlaylist,
+  );
 
   const [thumbnailOpen, setThumbnailOpen] = useState(false);
   const [thumbnailDone, setThumbnailDone] = useState(false);
@@ -564,11 +573,12 @@ function ImmediateSection({
   // operator was not doing; „Osveži spisak” is the same call with a message.
   const autoLoaded = useRef(false);
   useEffect(() => {
+    if (!spreman) return;
     if (autoLoaded.current) return;
     if (cachedPlaylists === undefined || cachedPlaylists.length > 0) return;
     autoLoaded.current = true;
     void listPlaylists().catch(() => {});
-  }, [cachedPlaylists, listPlaylists]);
+  }, [spreman, cachedPlaylists, listPlaylists]);
 
   const handleAdd = async () => {
     if (playlistId === "") return;

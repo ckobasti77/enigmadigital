@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useAction, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import { Inbox, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -94,12 +97,12 @@ function commentUrl(videoId: string, commentId: string): string | null {
 
 export function YtCommentLogTable() {
   const [status, setStatus] = useState<YtCommentLogStatus | "all">("all");
-  const logs = useQuery(api.ytAutomationsApi.listCommentLogs, {
+  const logs = useProjekatQuery(api.ytAutomationsApi.listCommentLogs, {
     status: status === "all" ? undefined : status,
     limit: LOG_LIMIT,
   });
 
-  const deleteComment = useAction(api.ytComments.deleteComment);
+  const deleteComment = useProjekatAction(api.ytComments.deleteComment);
   const [pendingDelete, setPendingDelete] = useState<YtCommentLogView | null>(
     null,
   );

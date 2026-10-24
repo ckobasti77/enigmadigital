@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
@@ -15,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { normalizeKeyword } from "@/convex/lib/orMatch";
 import { PLATFORM_LABELS } from "@/convex/lib/orPlatform";
 import {
@@ -290,8 +290,8 @@ function AutomationEditorForm({
     missing.push("bar jedna ključna reč");
   if (dmMessage.trim().length === 0) missing.push("tekst poruke");
 
-  const createAutomation = useMutation(api.orAutomationsApi.createAutomation);
-  const updateAutomation = useMutation(api.orAutomationsApi.updateAutomation);
+  const createAutomation = useProjekatMutation(api.orAutomationsApi.createAutomation);
+  const updateAutomation = useProjekatMutation(api.orAutomationsApi.updateAutomation);
 
   const addKeyword = (raw: string) => {
     const keyword = normalizeKeyword(raw);

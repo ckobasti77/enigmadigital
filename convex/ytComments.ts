@@ -1,7 +1,8 @@
-import { action, internalMutation, internalQuery } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { projekatAction } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import {
   buildCommentsDeleteUrl,
@@ -85,7 +86,7 @@ export const markCommentDeleted = internalMutation({
  * only exists when the deletion was started from the log table, and it is used
  * for the job's label and for striking the row through afterwards.
  */
-export const deleteComment = action({
+export const deleteComment = projekatAction({
   args: {
     commentId: v.string(),
     logId: v.optional(v.id("ytCommentLogs")),
@@ -95,10 +96,11 @@ export const deleteComment = action({
     const commentId = args.commentId.trim();
     if (commentId.length === 0) invalid("Nedostaje ID komentara.");
 
-    // Membership is checked inside; null means no active YouTube connection.
+    // The project wrapper has already checked membership and role; null means
+    // no active YouTube connection.
     const context: MediaContext = await ctx.runQuery(
       internal.ytMedia.loadMediaContext,
-      {},
+      { workspaceId: ctx.projekat.workspaceId },
     );
     if (context === null) {
       invalid("Prvo poveži YouTube nalog u Podešavanjima.");

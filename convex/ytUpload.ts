@@ -1,8 +1,7 @@
-import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { VIDEO_UPLOAD_DAILY_LIMIT } from "./lib/ytQuota";
 import {
   DEFAULT_VIDEO_CATEGORY_ID,
@@ -55,17 +54,17 @@ function invalid(message: string): never {
  * ceiling, and an upload spends none of it. Two numbers that move for
  * different reasons do not belong in one widget.
  */
-export const uploadStatus = query({
+export const uploadStatus = projekatQuery({
   args: {},
   returns: v.object({
     uploadsUsed: v.number(),
     uploadsRemaining: v.number(),
     uploadLimit: v.number(),
-    /** False when the workspace has no active YouTube connection. */
+    /** False when the project has no active YouTube connection. */
     connected: v.boolean(),
   }),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const conn = await ctx.db
       .query("connections")
@@ -114,7 +113,7 @@ const uploadMetadataValidator = v.object({
  * failed upload of a 2 GB file over a phone connection is twenty minutes the
  * operator does not get back.
  */
-export const startUpload = mutation({
+export const startUpload = projekatMutation({
   args: {
     title: v.string(),
     description: v.string(),
@@ -126,7 +125,7 @@ export const startUpload = mutation({
     metadata: uploadMetadataValidator,
   }),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const conn = await ctx.db
       .query("connections")
@@ -206,7 +205,7 @@ export const startUpload = mutation({
  * The job row, if it belongs to the caller and is still open.
  *
  * Ownership is checked rather than assumed: these are public mutations that
- * take an id, and a job id from another workspace must not be closable from
+ * take an id, and a job id from another project must not be closable from
  * here. `pending` is checked too — a second call for a job already closed is a
  * retry that would otherwise rewrite history.
  */
@@ -233,7 +232,7 @@ async function claimJob(
  * comments are genuinely zero on a video published a second ago, and the next
  * sync overwrites the rest (thumbnail, duration, real figures).
  */
-export const finishUpload = mutation({
+export const finishUpload = projekatMutation({
   args: {
     jobId: v.id("ytMediaJobs"),
     videoId: v.string(),
@@ -241,7 +240,7 @@ export const finishUpload = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const videoId = args.videoId.trim();
     if (videoId.length === 0) invalid("YouTube nije vratio ID videa.");
@@ -294,7 +293,7 @@ export const finishUpload = mutation({
  * back. If it did, the attempt counts — a cancelled 900 MB transfer is not
  * free, and pretending otherwise is how a retry loop hides.
  */
-export const failUpload = mutation({
+export const failUpload = projekatMutation({
   args: {
     jobId: v.id("ytMediaJobs"),
     message: v.string(),
@@ -302,7 +301,7 @@ export const failUpload = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const job = await claimJob(ctx, args.jobId, workspaceId);
     if (job === null) return null;

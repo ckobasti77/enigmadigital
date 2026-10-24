@@ -1,6 +1,6 @@
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 
 /**
  * OpenReply persistence & query layer (V8 runtime).
@@ -120,12 +120,12 @@ const campaignViewValidator = v.object({
   syncedAt: v.number(),
 });
 
-/** List all campaign stats for the caller's workspace. */
-export const campaigns = query({
+/** List all campaign stats for the project. */
+export const campaigns = projekatQuery({
   args: {},
   returns: v.array(campaignViewValidator),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("orCampaignStats")
       .withIndex("by_workspace_campaign", (q) =>
@@ -149,11 +149,11 @@ export const campaigns = query({
 });
 
 /** Daily totals in [from, to] ascending by date. */
-export const daily = query({
+export const daily = projekatQuery({
   args: { from: v.string(), to: v.string() },
   returns: v.array(dailyPointValidator),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("orDailyTotals")
       .withIndex("by_workspace_date", (q) =>

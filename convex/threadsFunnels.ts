@@ -1,7 +1,7 @@
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 import {
   extractSlugFromShortUrl,
   normalizeUrl,
@@ -262,7 +262,7 @@ export const recomputeAttributionForDates = internalMutation({
  * kao i broj nespojenih URL-ova.
  * Ako podatak za neki izvor nedostaje, polje je ODSUTNO (ne 0).
  */
-export const getThreadsLinkAttributionSummary = query({
+export const getThreadsLinkAttributionSummary = projekatQuery({
   args: {
     dateFrom: v.optional(v.string()),
     dateTo: v.optional(v.string()),
@@ -300,7 +300,7 @@ export const getThreadsLinkAttributionSummary = query({
     }),
   }),
   handler: async (ctx, { dateFrom, dateTo }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const origin = shortLinkOrigin() ?? "";
 
     const rowsQuery = ctx.db
@@ -433,7 +433,7 @@ export const getThreadsLinkAttributionSummary = query({
 /**
  * Vraća listu nespojenih URL-ova za analizu rupa u praćenju linkova.
  */
-export const listUnmatchedUrls = query({
+export const listUnmatchedUrls = projekatQuery({
   args: {
     limit: v.optional(v.number()),
   },
@@ -448,7 +448,7 @@ export const listUnmatchedUrls = query({
     }),
   ),
   handler: async (ctx, { limit = 50 }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const rows = await ctx.db
       .query("threadsLinkAttribution")

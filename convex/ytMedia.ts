@@ -1,8 +1,8 @@
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 import { extractYouTubeApiError } from "./lib/youtubeApi";
 import { QUOTA_MEDIA_LIMIT, remainingMediaUnits } from "./lib/ytQuota";
 import { readUnitsUsed } from "./ytIngest";
@@ -13,9 +13,9 @@ import { readUnitsUsed } from "./ytIngest";
  *
  * Three things live here:
  *
- *   1. `loadMediaContext` — one transaction that answers "may this caller act
- *      on which channel, with which credentials, and what is left of today's
- *      budget". Every media action starts with it.
+ *   1. `loadMediaContext` — one transaction that answers "which channel, with
+ *      which credentials, and what is left of today's budget" for the project
+ *      the wrapper already verified. Every media action starts with it.
  *   2. `startJob` / `finishJob` — the `ytMediaJobs` row. Media operations are
  *      rare, manual and often irreversible, so each one leaves a record of
  *      what was attempted and how it ended, including when it never started.
@@ -42,7 +42,7 @@ import { readUnitsUsed } from "./ytIngest";
  * and a caption panel must never quote the engine's headroom — it would
  * promise 2 000 units that media is not allowed to spend.
  */
-export const mediaQuotaStatus = query({
+export const mediaQuotaStatus = projekatQuery({
   args: {},
   returns: v.object({
     unitsUsed: v.number(),
@@ -50,7 +50,7 @@ export const mediaQuotaStatus = query({
     mediaLimit: v.number(),
   }),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const unitsUsed = await readUnitsUsed(ctx, workspaceId);
     return {
       unitsUsed,
@@ -195,7 +195,7 @@ const RECENT_JOBS_MAX = 50;
  * outcome — the action died, or the browser closed mid-upload — and hiding it
  * would leave the operator wondering where their video went.
  */
-export const recentJobs = query({
+export const recentJobs = projekatQuery({
   args: { limit: v.optional(v.number()) },
   returns: v.array(
     v.object({
@@ -211,7 +211,7 @@ export const recentJobs = query({
     }),
   ),
   handler: async (ctx, { limit }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const take = Math.min(
       Math.max(1, Math.floor(limit ?? RECENT_JOBS_DEFAULT)),
       RECENT_JOBS_MAX,
@@ -250,13 +250,14 @@ export type MediaContext = {
  * one read, so the affordability check and the call it guards cannot see two
  * different counters.
  *
- * Returns `null` when the workspace has no active YouTube connection: that is
+ * Returns `null` when the project has no active YouTube connection: that is
  * "nothing to work with", not a fault, and the caller says so in Serbian.
- * A caller who is not a member never gets that far — `requireMembership`
- * throws first.
+ * Membership is not checked here: the caller is a project action, and the
+ * project wrapper has already verified the member before its handler ran. The
+ * `workspaceId` it passes in is that verified project.
  */
 export const loadMediaContext = internalQuery({
-  args: {},
+  args: { workspaceId: v.id("workspaces") },
   returns: v.union(
     v.null(),
     v.object({
@@ -266,9 +267,7 @@ export const loadMediaContext = internalQuery({
       unitsUsed: v.number(),
     }),
   ),
-  handler: async (ctx): Promise<MediaContext> => {
-    const { workspaceId } = await requireMembership(ctx);
-
+  handler: async (ctx, { workspaceId }): Promise<MediaContext> => {
     const conn = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>

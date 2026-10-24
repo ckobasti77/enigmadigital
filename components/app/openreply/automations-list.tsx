@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,8 +47,8 @@ export function AutomationsList({
   automations: AutomationView[];
   onEdit: (automation: AutomationView) => void;
 }) {
-  const toggleAutomation = useMutation(api.orAutomationsApi.toggleAutomation);
-  const deleteAutomation = useMutation(api.orAutomationsApi.deleteAutomation);
+  const toggleAutomation = useProjekatMutation(api.orAutomationsApi.toggleAutomation);
+  const deleteAutomation = useProjekatMutation(api.orAutomationsApi.deleteAutomation);
 
   const [busyId, setBusyId] = useState<Id<"orAutomations"> | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

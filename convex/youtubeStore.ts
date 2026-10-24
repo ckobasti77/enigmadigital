@@ -1,6 +1,6 @@
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 import { clearFinishedRuns } from "./purge";
 import { getYouTubeClientId, getYouTubeClientSecret } from "./lib/youtubeApi";
 
@@ -166,11 +166,11 @@ const dailyPointValidator = v.object({
 });
 
 /** Channel daily totals in [from, to], ascending by date. */
-export const dailyTotals = query({
+export const dailyTotals = projekatQuery({
   args: { from: v.string(), to: v.string() },
   returns: v.array(dailyPointValidator),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("ytDailyTotals")
       .withIndex("by_workspace_date", (q) =>
@@ -213,11 +213,11 @@ const DEFAULT_VIDEO_LIMIT = 25;
 const MAX_VIDEO_LIMIT = 100;
 
 /** Newest videos first. `limit` defaults to 25 and is clamped to 100. */
-export const videos = query({
+export const videos = projekatQuery({
   args: { limit: v.optional(v.number()) },
   returns: v.array(videoViewValidator),
   handler: async (ctx, { limit }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const take = Math.min(
       Math.max(1, Math.floor(limit ?? DEFAULT_VIDEO_LIMIT)),
       MAX_VIDEO_LIMIT,
@@ -258,11 +258,11 @@ const trafficSourceViewValidator = v.object({
  * summed per `sourceType`, biggest first. The dashboard wants the share of
  * views per source, not a daily series.
  */
-export const trafficSources = query({
+export const trafficSources = projekatQuery({
   args: { from: v.string(), to: v.string() },
   returns: v.array(trafficSourceViewValidator),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("ytTrafficSources")
       .withIndex("by_workspace_date", (q) =>
@@ -411,13 +411,12 @@ export const saveConnectedCredentials = internalMutation({
 /**
  * Check whether YouTube OAuth env vars are configured.
  */
-export const setupInfo = query({
+export const setupInfo = projekatQuery({
   args: {},
   returns: v.object({
     isConfigured: v.boolean(),
   }),
-  handler: async (ctx) => {
-    await requireMembership(ctx);
+  handler: async () => {
     const clientId = getYouTubeClientId();
     const clientSecret = getYouTubeClientSecret();
     return {

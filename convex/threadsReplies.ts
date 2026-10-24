@@ -1,9 +1,12 @@
-import { action, internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { getAuthUserId } from "@convex-dev/auth/server";
-import { requireMembership } from "./lib/auth";
+import {
+  projekatAction,
+  projekatMutation,
+  projekatQuery,
+} from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import {
   deleteThreadsPost,
@@ -45,35 +48,17 @@ const pollAttachmentValidator = v.object({
 /**
  * Sakriva odgovor na Threads objavi (§5.2).
  */
-export const hideReply = action({
+export const hideReply = projekatAction({
   args: { replyId: v.string() },
   returns: v.object({
     success: v.boolean(),
     error: v.optional(v.string()),
   }),
   handler: async (ctx, { replyId }) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member = await ctx.runQuery(
-      internal.threadsPublishStore.membershipForAction,
-      { userId },
-    );
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
-
+    const { workspaceId } = ctx.projekat;
     const connection = await ctx.runQuery(
       internal.threadsPublishStore.getConnectionForWorkspace,
-      { workspaceId: member.workspaceId },
+      { workspaceId },
     );
     if (connection === null || !connection.threadsUserId) {
       throw new ConvexError({
@@ -93,7 +78,7 @@ export const hideReply = action({
 
       if (res.success) {
         await ctx.runMutation(internal.threadsReplies.patchReplyHideStatus, {
-          workspaceId: member.workspaceId,
+          workspaceId,
           replyId,
           hideStatus: "HIDDEN",
         });
@@ -112,35 +97,17 @@ export const hideReply = action({
 /**
  * Otkriva prethodno sakriven odgovor na Threads objavi (§5.2).
  */
-export const unhideReply = action({
+export const unhideReply = projekatAction({
   args: { replyId: v.string() },
   returns: v.object({
     success: v.boolean(),
     error: v.optional(v.string()),
   }),
   handler: async (ctx, { replyId }) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member = await ctx.runQuery(
-      internal.threadsPublishStore.membershipForAction,
-      { userId },
-    );
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
-
+    const { workspaceId } = ctx.projekat;
     const connection = await ctx.runQuery(
       internal.threadsPublishStore.getConnectionForWorkspace,
-      { workspaceId: member.workspaceId },
+      { workspaceId },
     );
     if (connection === null || !connection.threadsUserId) {
       throw new ConvexError({
@@ -160,7 +127,7 @@ export const unhideReply = action({
 
       if (res.success) {
         await ctx.runMutation(internal.threadsReplies.patchReplyHideStatus, {
-          workspaceId: member.workspaceId,
+          workspaceId,
           replyId,
           hideStatus: "UNHUSHED",
         });
@@ -179,35 +146,17 @@ export const unhideReply = action({
 /**
  * Odobrava odgovor koji čeka odobrenje (Dodatak A.2).
  */
-export const approvePendingReply = action({
+export const approvePendingReply = projekatAction({
   args: { replyId: v.string() },
   returns: v.object({
     success: v.boolean(),
     error: v.optional(v.string()),
   }),
   handler: async (ctx, { replyId }) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member = await ctx.runQuery(
-      internal.threadsPublishStore.membershipForAction,
-      { userId },
-    );
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
-
+    const { workspaceId } = ctx.projekat;
     const connection = await ctx.runQuery(
       internal.threadsPublishStore.getConnectionForWorkspace,
-      { workspaceId: member.workspaceId },
+      { workspaceId },
     );
     if (connection === null || !connection.threadsUserId) {
       throw new ConvexError({
@@ -229,7 +178,7 @@ export const approvePendingReply = action({
         await ctx.runMutation(
           internal.threadsReplies.patchReplyApprovalStatus,
           {
-            workspaceId: member.workspaceId,
+            workspaceId,
             replyId,
             approvalStatus: "approved",
           },
@@ -249,35 +198,17 @@ export const approvePendingReply = action({
 /**
  * Ignoriše odgovor koji čeka odobrenje (Dodatak A.2).
  */
-export const ignorePendingReply = action({
+export const ignorePendingReply = projekatAction({
   args: { replyId: v.string() },
   returns: v.object({
     success: v.boolean(),
     error: v.optional(v.string()),
   }),
   handler: async (ctx, { replyId }) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member = await ctx.runQuery(
-      internal.threadsPublishStore.membershipForAction,
-      { userId },
-    );
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
-
+    const { workspaceId } = ctx.projekat;
     const connection = await ctx.runQuery(
       internal.threadsPublishStore.getConnectionForWorkspace,
-      { workspaceId: member.workspaceId },
+      { workspaceId },
     );
     if (connection === null || !connection.threadsUserId) {
       throw new ConvexError({
@@ -299,7 +230,7 @@ export const ignorePendingReply = action({
         await ctx.runMutation(
           internal.threadsReplies.patchReplyApprovalStatus,
           {
-            workspaceId: member.workspaceId,
+            workspaceId,
             replyId,
             approvalStatus: "ignored",
           },
@@ -321,7 +252,7 @@ export const ignorePendingReply = action({
  * Kreira posao u `threadsPublishJobs` sa `replyToId`, koji prolazi kroz isti red
  * i rate-limit zaštitu kao svaka druga objava (§4.4, §8).
  */
-export const replyToPost = mutation({
+export const replyToPost = projekatMutation({
   args: {
     replyToId: v.string(),
     text: v.string(),
@@ -342,7 +273,7 @@ export const replyToPost = mutation({
       autoPublishText,
     },
   ) => {
-    const { workspaceId, userId } = await requireMembership(ctx);
+    const { workspaceId, userId } = ctx.projekat;
     const now = Date.now();
 
     const trimmedText = text.trim();
@@ -427,7 +358,7 @@ export const replyToPost = mutation({
 /**
  * Briše odgovor sa Threads-a uz obaveznu prethodnu proveru 24h kvote brisanja (§4.4, §8).
  */
-export const deleteReply = action({
+export const deleteReply = projekatAction({
   args: { replyId: v.string() },
   returns: v.object({
     success: v.boolean(),
@@ -435,28 +366,10 @@ export const deleteReply = action({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, { replyId }) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member = await ctx.runQuery(
-      internal.threadsPublishStore.membershipForAction,
-      { userId },
-    );
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
-
+    const { workspaceId } = ctx.projekat;
     const connection = await ctx.runQuery(
       internal.threadsPublishStore.getConnectionForWorkspace,
-      { workspaceId: member.workspaceId },
+      { workspaceId },
     );
     if (connection === null || !connection.threadsUserId) {
       throw new ConvexError({
@@ -511,7 +424,7 @@ export const deleteReply = action({
 
       if (res.success) {
         await ctx.runMutation(internal.threadsReplies.deleteReplyRow, {
-          workspaceId: member.workspaceId,
+          workspaceId,
           replyId,
         });
       }
@@ -601,7 +514,7 @@ export const deleteReplyRow = internalMutation({
 /**
  * Vraća listu odgovora za određenu objavu.
  */
-export const listRepliesForPost = query({
+export const listRepliesForPost = projekatQuery({
   args: {
     postId: v.string(),
   },
@@ -629,7 +542,7 @@ export const listRepliesForPost = query({
     }),
   ),
   handler: async (ctx, { postId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const rows = await ctx.db
       .query("threadsReplies")

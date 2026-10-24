@@ -1,10 +1,10 @@
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { DocumentByName, SystemDataModel } from "convex/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { connectionStatusValidator } from "./lib/providers";
 import {
   ABANDONED_AFTER_DUE_MS,
@@ -122,11 +122,10 @@ export function uploadUrlFor(storageId: Id<"_storage">): string {
 /**
  * Jednokratni URL za direktan upload fajla iz browsera u Convex storage.
  */
-export const generateUploadUrl = mutation({
+export const generateUploadUrl = projekatMutation({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
-    await requireMembership(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -134,11 +133,11 @@ export const generateUploadUrl = mutation({
 /**
  * Evidentira da je fajl stigao u storage pre nego što je posao kreiran.
  */
-export const registerUpload = mutation({
+export const registerUpload = projekatMutation({
   args: { storageId: v.id("_storage") },
   returns: v.null(),
   handler: async (ctx, { storageId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const meta: StorageMetadata | null = await ctx.db.system.get(
       "_storage",
@@ -280,7 +279,7 @@ async function trackControlledUrls(
 /**
  * Kreira novu Threads objavu (odmah ili zakazanu) uz detaljnu validaciju svih pravila.
  */
-export const createJob = mutation({
+export const createJob = projekatMutation({
 
   args: {
     mediaType: mediaTypeValidator,
@@ -328,7 +327,7 @@ export const createJob = mutation({
       pollAttachment,
     },
   ) => {
-    const { workspaceId, userId } = await requireMembership(ctx);
+    const { workspaceId, userId } = ctx.projekat;
     const now = Date.now();
 
     // 1. Provera broja stavki
@@ -727,11 +726,11 @@ function isStaleClaim(job: Doc<"threadsPublishJobs">, now: number): boolean {
 /**
  * Otkazuje objavu koja je na čekanju ili je zaglavljena u slanju.
  */
-export const cancelJob = mutation({
+export const cancelJob = projekatMutation({
   args: { jobId: v.id("threadsPublishJobs") },
   returns: v.null(),
   handler: async (ctx, { jobId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const job = await ctx.db.get(jobId);
     if (job === null || job.workspaceId !== workspaceId) {
       invalid("Objava nije pronađena.");
@@ -761,11 +760,11 @@ export const cancelJob = mutation({
 /**
  * Ponovo šalje neuspelu objavu.
  */
-export const retryJob = mutation({
+export const retryJob = projekatMutation({
   args: { jobId: v.id("threadsPublishJobs") },
   returns: v.null(),
   handler: async (ctx, { jobId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const job = await ctx.db.get(jobId);
     if (job === null || job.workspaceId !== workspaceId) {
       invalid("Objava nije pronađena.");
@@ -824,13 +823,13 @@ const LIVE_TAKE = 25;
 const CLOSED_TAKE = 8;
 
 /**
- * Lista nedavnih Threads objava za radni prostor.
+ * Lista nedavnih Threads objava za projekat.
  */
-export const listJobs = query({
+export const listJobs = projekatQuery({
   args: {},
   returns: v.array(jobViewValidator),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const groups: Array<[Doc<"threadsPublishJobs">["status"], number]> = [
       ["queued", LIVE_TAKE],
@@ -1450,22 +1449,6 @@ export const getConnectionForWorkspace = internalQuery({
       encryptedCredentials: connection.encryptedCredentials,
       status: connection.status,
     };
-  },
-});
-
-/**
- * Vraća workspace ID korisnika za akciju.
- */
-export const membershipForAction = internalQuery({
-  args: { userId: v.id("users") },
-  returns: v.union(v.null(), v.object({ workspaceId: v.id("workspaces") })),
-  handler: async (ctx, { userId }) => {
-    const membership = await ctx.db
-      .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .first();
-    if (membership === null) return null;
-    return { workspaceId: membership.workspaceId };
   },
 });
 
