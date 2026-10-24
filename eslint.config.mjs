@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "convex/_generated/**",
     // Zastareli worktree-ovi i skillovi (nisu deo aplikacije)
     ".claude/**",
+    // Noćni run: runner, logovi i pomoćni fajlovi (nisu deo aplikacije)
+    ".nocni-run/**",
   ]),
 ]);
 
