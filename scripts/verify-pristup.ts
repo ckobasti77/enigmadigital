@@ -17,7 +17,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { proveriPristup, type IzvorniFajl } from "../lib/pristup-cuvar";
+import { convexPreskace, proveriPristup, type IzvorniFajl } from "../lib/pristup-cuvar";
 
 const koren = fileURLToPath(new URL("../convex/", import.meta.url));
 
@@ -31,6 +31,8 @@ function skupi(dir: string, izlaz: IzvorniFajl[]): void {
     }
     if (!/\.tsx?$/.test(ulaz.name)) continue;
     if (/\.(test|spec)\.tsx?$/.test(ulaz.name) || ulaz.name.endsWith(".d.ts")) continue;
+    // Convex ne deployuje fajl sa više tačaka u imenu (npr. `*.pomoc.ts`).
+    if (convexPreskace(ulaz.name)) continue;
     izlaz.push({
       putanja: relative(koren, puna).replace(/\\/g, "/"),
       tekst: readFileSync(puna, "utf8"),
@@ -43,9 +45,13 @@ skupi(koren, fajlovi);
 const rezultat = proveriPristup(fajlovi);
 
 const ukupno =
-  rezultat.proverene.length + rezultat.javne.length + rezultat.pale.length;
+  rezultat.omotacem.length +
+  rezultat.proverene.length +
+  rezultat.javne.length +
+  rezultat.pale.length;
 console.log(
-  `Javnih Convex funkcija: ${ukupno} (sa proverom ${rezultat.proverene.length}, ` +
+  `Javnih Convex funkcija: ${ukupno} (omotačem ${rezultat.omotacem.length}, ` +
+    `sa proverom ${rezultat.proverene.length}, ` +
     `označene kao javne ${rezultat.javne.length}, bez provere ${rezultat.pale.length}).`,
 );
 for (const j of rezultat.javne) {

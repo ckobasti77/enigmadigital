@@ -30,6 +30,7 @@ import RetentionPage from "@/app/(app)/analytics/retencija/page";
 import OpenReplyAutomationsPage from "@/app/(app)/openreply/automatizacije/page";
 import LoginPage from "@/app/login/page";
 import { LeadDetailPageClient } from "@/app/(app)/leadovi/[companyId]/lead-detail-page-client";
+import { ProjekatProvider } from "@/components/app/projekat-provider";
 import { UxHarness } from "../harness";
 import { SistemVodic } from "../sistem/vodic";
 
@@ -116,9 +117,12 @@ export default async function DevUxPage({
 
   return (
     <UxHarness prazno={prazno === "1"} pad={pad}>
-      <AppShell>
-        {profilId ? <LeadDetailPageClient companyId={profilId} /> : Page && <Page />}
-      </AppShell>
+      {/* Isto kao `app/(app)/layout.tsx`: do C08 prvi projekat iz fiksture. */}
+      <ProjekatProvider>
+        <AppShell>
+          {profilId ? <LeadDetailPageClient companyId={profilId} /> : Page && <Page />}
+        </AppShell>
+      </ProjekatProvider>
     </UxHarness>
   );
 }

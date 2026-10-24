@@ -80,6 +80,7 @@ import {
   parseIgDemographicsResponse,
   type RawDemographicsResponse,
 } from "./lib/igDemographics";
+import type { Uloga } from "./lib/uloge";
 
 /**
  * ============================================================================
@@ -312,7 +313,7 @@ export const getOAuthUrl = action({
     }
     const member: {
       workspaceId: Id<"workspaces">;
-      role: "owner" | "client_viewer";
+      role: Uloga;
     } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
       userId,
     });
@@ -539,7 +540,7 @@ export const completeOAuth = action({
 
     const member: {
       workspaceId: Id<"workspaces">;
-      role: "owner" | "client_viewer";
+      role: Uloga;
     } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
       userId,
     });
@@ -1954,7 +1955,7 @@ export const pollStoriesManual = action({
     }
     const member: {
       workspaceId: Id<"workspaces">;
-      role: "owner" | "client_viewer";
+      role: Uloga;
     } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
       userId,
     });

@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { deleteLoginMachinery, requireMembership } from "./lib/auth";
 import { isEmailInAllowlist } from "./auth";
+import { ulogaValidator } from "./lib/uloge";
 
 /**
  * Upravljanje članovima radnog prostora (sekcija „Pristup").
@@ -12,7 +13,7 @@ import { isEmailInAllowlist } from "./auth";
  * sa onim iz članstva pozivaoca, isto kao `invitesStore`.
  */
 
-const uloga = v.union(v.literal("owner"), v.literal("client_viewer"));
+const uloga = ulogaValidator;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // listMembers — spisak članova za sekciju „Pristup".

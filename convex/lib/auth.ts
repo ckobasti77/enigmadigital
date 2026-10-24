@@ -3,11 +3,12 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "../_generated/api";
 import type { ActionCtx, MutationCtx, QueryCtx } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
+import type { Uloga } from "./uloge";
 
 export type Membership = {
   userId: Id<"users">;
   workspaceId: Id<"workspaces">;
-  role: "owner" | "client_viewer";
+  role: Uloga;
 };
 
 /**

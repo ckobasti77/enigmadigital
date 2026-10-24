@@ -21,6 +21,7 @@ import {
   isAnalyticsNoDataError,
   type YouTubeAnalyticsReport,
 } from "./lib/youtubeApi";
+import type { Uloga } from "./lib/uloge";
 
 
 /**
@@ -503,7 +504,7 @@ export const youtubeAuthorizeUrl = action({
 
     const member: {
       workspaceId: Id<"workspaces">;
-      role: "owner" | "client_viewer";
+      role: Uloga;
     } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
       userId,
     });

@@ -1467,6 +1467,14 @@ export const EXTRA_TABLE_OWNERSHIP: Record<string, Disposition> = {
     excluded:
       "Sopstvena kontrola pristupa (pozivnice za registraciju), ne podaci preuzeti od providera. Prekid veze sa Meta/Google ih ne dodiruje; ostaju dok postoji nalog.",
   },
+  projekatDomeni: {
+    excluded:
+      "Podešavanje projekta (koji domen otvara koji panel), ne podaci preuzeti od providera. Prekid veze ga ne dodiruje; menja se i briše u Podešavanjima projekta.",
+  },
+  projekatTajne: {
+    excluded:
+      "Sopstvene tajne projekta (CAPI token, tajna za novosti, Puls token), šifrovane. Ista klasa kao `ingestTokens`: prekid veze sa provajderom ih ne opoziva; menjaju se i brišu u Podešavanjima projekta.",
+  },
   connections: {
     excluded:
       "Sam red kredencijala. Njega briše `connections.remove` / završnica purge-a (`deleteConnectionRow`), a ne korak brisanja — on je ono što POKREĆE brisanje.",

@@ -38,6 +38,12 @@ export type JavnaFunkcija = {
 export type Pad = JavnaFunkcija & { razlog: string };
 
 export type RezultatCuvara = {
+  /**
+   * Javne funkcije napravljene omotačem iz `convex/lib/projekat.ts`
+   * (`projekatQuery`, `prijavljenMutation`, …): proveravaju pozivaoca po
+   * konstrukciji.
+   */
+  omotacem: JavnaFunkcija[];
   /** Javne funkcije koje proveravaju pozivaoca. */
   proverene: JavnaFunkcija[];
   /** Javne funkcije označene `// javno: <razlog>`. */
@@ -62,7 +68,36 @@ export const PROVERE_PRIJAVE: readonly string[] = [
   "resolveUserWorkspace",
 ];
 
-const OZNAKA_JAVNO = /^\s*\/\/\s*javno:\s*(\S.*)$/;
+/**
+ * Omotači pristupa iz `convex/lib/projekat.ts` (PROJEKTI-PLAN §5) i vrsta
+ * funkcije koju prave. Funkcija napravljena omotačem je javna i proverava
+ * pozivaoca po konstrukciji (prijava, članstvo u projektu ili vlasnik
+ * platforme).
+ */
+export const OMOTACI: Readonly<Record<string, VrstaFunkcije>> = {
+  projekatQuery: "query",
+  projekatMutation: "mutation",
+  projekatAction: "action",
+  prijavljenQuery: "query",
+  prijavljenMutation: "mutation",
+  platformaQuery: "query",
+  platformaMutation: "mutation",
+};
+
+/** Fajl u kome žive omotači, relativno u odnosu na `convex/`. */
+export const FAJL_OMOTACA = "lib/projekat.ts";
+
+/**
+ * Convex ne deployuje fajl čije osnovno ime ima više od jedne tačke
+ * (`x.test.ts`, `projekatProba.pomoc.ts`), pa njegove funkcije nisu javne.
+ * Čuvar preskače isto što preskače i Convex.
+ */
+export function convexPreskace(imeFajla: string): boolean {
+  const osnova = imeFajla.split("/").pop() ?? imeFajla;
+  return osnova.split(".").length > 2;
+}
+
+const OZNAKA_JAVNO =/^\s*\/\/\s*javno:\s*(\S.*)$/;
 const VRSTE: readonly VrstaFunkcije[] = ["query", "mutation", "action"];
 const INTERNE = ["internalQuery", "internalMutation", "internalAction"];
 
@@ -78,10 +113,14 @@ type AnaliziranFajl = {
   uvozi: Map<string, Uvoz>;
   /** Lokalno ime → vrsta registracije iz `_generated/server`. */
   registracije: Map<string, VrstaFunkcije | "interna">;
+  /** Lokalno ime → omotač iz `lib/projekat.ts` (vrsta funkcije koju pravi). */
+  omotaci: Map<string, VrstaFunkcije>;
   /** Pomoćne funkcije najvišeg nivoa: ime → telo. */
   pomocne: Map<string, ts.Node>;
   /** Javne funkcije sa svojim pozivom registracije. */
-  javneFunkcije: Array<JavnaFunkcija & { poziv: ts.Node; iznad: string | undefined }>;
+  javneFunkcije: Array<
+    JavnaFunkcija & { poziv: ts.Node; iznad: string | undefined; omotac: boolean }
+  >;
   /** Sve registrovane funkcije (javne i interne): ime → poziv. */
   sveRegistrovane: Map<string, ts.Node>;
 };
@@ -135,6 +174,7 @@ function analiziraj(fajl: IzvorniFajl, poznate: Set<string>): AnaliziranFajl {
     linije: fajl.tekst.split(/\r?\n/),
     uvozi: new Map(),
     registracije: new Map(),
+    omotaci: new Map(),
     pomocne: new Map(),
     javneFunkcije: [],
     sveRegistrovane: new Map(),
@@ -158,6 +198,9 @@ function analiziraj(fajl: IzvorniFajl, poznate: Set<string>): AnaliziranFajl {
           }
         } else if (cilj !== undefined) {
           a.uvozi.set(lokalno, { modul: cilj, ime: uvezeno });
+          if (cilj === FAJL_OMOTACA && Object.hasOwn(OMOTACI, uvezeno)) {
+            a.omotaci.set(lokalno, OMOTACI[uvezeno]);
+          }
         }
       }
     }
@@ -170,7 +213,8 @@ function analiziraj(fajl: IzvorniFajl, poznate: Set<string>): AnaliziranFajl {
     javno: boolean,
   ) => {
     if (!ts.isIdentifier(poziv.expression)) return;
-    const vrsta = a.registracije.get(poziv.expression.text);
+    const omotac = a.omotaci.get(poziv.expression.text);
+    const vrsta = omotac ?? a.registracije.get(poziv.expression.text);
     if (vrsta === undefined) return;
     a.sveRegistrovane.set(ime, poziv);
     if (vrsta === "interna" || !javno) return;
@@ -182,6 +226,7 @@ function analiziraj(fajl: IzvorniFajl, poznate: Set<string>): AnaliziranFajl {
       linija: pocetak + 1,
       poziv,
       iznad: pocetak > 0 ? a.linije[pocetak - 1] : undefined,
+      omotac: omotac !== undefined,
     });
   };
 
@@ -291,7 +336,14 @@ export function proveriPristup(fajlovi: readonly IzvorniFajl[]): RezultatCuvara 
     for (const [ime, cvor] of a.sveRegistrovane) tela.set(`${a.putanja}#${ime}`, { cvor, fajl: a });
   }
 
+  // Funkcija napravljena omotačem proverava pozivaoca sama po sebi, pa važi i
+  // kao cilj jednog skoka preko `api.x.y`.
   const proveravajuca = new Set<string>();
+  for (const a of analizirani) {
+    for (const f of a.javneFunkcije) {
+      if (f.omotac) proveravajuca.add(`${a.putanja}#${f.ime}`);
+    }
+  }
   const doFiksiranja = (
     kandidati: Array<[string, { cvor: ts.Node; fajl: AnaliziranFajl }]>,
     pratiReference: boolean,
@@ -333,7 +385,7 @@ export function proveriPristup(fajlovi: readonly IzvorniFajl[]): RezultatCuvara 
     true,
   );
 
-  const rezultat: RezultatCuvara = { proverene: [], javne: [], pale: [] };
+  const rezultat: RezultatCuvara = { omotacem: [], proverene: [], javne: [], pale: [] };
   for (const a of analizirani) {
     for (const f of a.javneFunkcije) {
       const opis: JavnaFunkcija = {
@@ -349,6 +401,10 @@ export function proveriPristup(fajlovi: readonly IzvorniFajl[]): RezultatCuvara 
       }
       if (f.iznad !== undefined && /^\s*\/\/\s*javno:?\s*$/.test(f.iznad)) {
         rezultat.pale.push({ ...opis, razlog: "oznaka `// javno:` bez razloga" });
+        continue;
+      }
+      if (f.omotac) {
+        rezultat.omotacem.push(opis);
         continue;
       }
       if (pominjeProveru(f.poziv, a, proverava, true)) {

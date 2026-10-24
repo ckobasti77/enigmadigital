@@ -3,11 +3,12 @@
 import { createContext, useContext } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Uloga } from "@/convex/lib/uloge";
 
 type WorkspaceContextValue = {
   user: { id: string; email: string | null; name: string | null } | null;
   workspace: { id: string; name: string; slug: string } | null;
-  role: "owner" | "client_viewer" | null;
+  role: Uloga | null;
   isLoading: boolean;
 };
 

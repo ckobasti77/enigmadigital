@@ -60,6 +60,7 @@ import {
   normalizePagePosts,
   translateFacebookError,
 } from "./lib/facebookContent";
+import type { Uloga } from "./lib/uloge";
 
 /**
  * ============================================================================
@@ -365,7 +366,7 @@ export const getOAuthUrl = action({
 
     const member: {
       workspaceId: Id<"workspaces">;
-      role: "owner" | "client_viewer";
+      role: Uloga;
     } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
       userId,
     });
@@ -598,7 +599,7 @@ async function requireWorkspace(ctx: ActionCtx): Promise<Id<"workspaces">> {
   }
   const member: {
     workspaceId: Id<"workspaces">;
-    role: "owner" | "client_viewer";
+    role: Uloga;
   } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
     userId,
   });
@@ -631,7 +632,7 @@ async function requireOwnerWorkspace(
   }
   const member: {
     workspaceId: Id<"workspaces">;
-    role: "owner" | "client_viewer";
+    role: Uloga;
   } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
     userId,
   });

@@ -38,6 +38,7 @@ import { FIXTURES_ANALITIKA, PRAZNO_ANALITIKA } from "./fixtures-analitika";
 import { FIXTURES_KANALI, PRAZNO_KANALI } from "./fixtures-kanali";
 import { FIXTURES_NAPREDAK, PRAZNO_NAPREDAK } from "./fixtures-napredak";
 import { FIXTURES_OGLASI, PRAZNO_OGLASI } from "./fixtures-oglasi";
+import { FIXTURES_PROJEKTI, PRAZNO_PROJEKTI } from "./fixtures-projekti";
 
 // ── Ljuska ───────────────────────────────────────────────────────────────────
 
@@ -1076,6 +1077,7 @@ Object.assign(
   FIXTURES_KANALI,
   FIXTURES_OGLASI,
   FIXTURES_NAPREDAK,
+  FIXTURES_PROJEKTI,
 );
 
 // ── Prazan nalog (`?ux=1&prazno=1`) ──────────────────────────────────────────
@@ -1098,6 +1100,7 @@ const PRAZNO: Record<string, Fixture> = {
   ...PRAZNO_KANALI,
   ...PRAZNO_OGLASI,
   ...PRAZNO_NAPREDAK,
+  ...PRAZNO_PROJEKTI,
 };
 
 /** `undefined` za sve što nije pokriveno — ekran tada crta skeleton, ne laž. */

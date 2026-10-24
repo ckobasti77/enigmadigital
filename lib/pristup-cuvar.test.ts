@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { proveriPristup, type IzvorniFajl } from "./pristup-cuvar";
+import { convexPreskace, proveriPristup, type IzvorniFajl } from "./pristup-cuvar";
 
 const SERVER = `import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";\n`;
 
@@ -151,7 +151,7 @@ export const losa = action({ args: {}, handler: async (ctx) => {
 export async function pomoc() { return 1; }`,
         ),
       ]),
-    ).toEqual({ proverene: [], javne: [], pale: [] });
+    ).toEqual({ omotacem: [], proverene: [], javne: [], pale: [] });
   });
 
   test("prepoznaje preimenovan uvoz registracije", () => {
@@ -164,5 +164,46 @@ export const skriveno = javniUpit({ args: {}, handler: async () => null });`,
         ),
       ]),
     ).toEqual(["skriveno"]);
+  });
+
+  test("funkcija napravljena omotačem iz lib/projekat.ts je javna i proverena", () => {
+    const r = proveriPristup([
+      fajl("lib/projekat.ts", SERVER + "export const projekatQuery = 1;"),
+      fajl(
+        "leadovi.ts",
+        `import { projekatQuery, projekatMutation as izmena, platformaMutation } from "./lib/projekat";
+export const spisak = projekatQuery({ args: {}, handler: async () => [] });
+export const sacuvaj = izmena({ uloga: "owner", args: {}, handler: async () => null });
+export const novi = platformaMutation({ args: {}, handler: async () => null });`,
+      ),
+    ]);
+    expect(r.pale).toEqual([]);
+    expect(r.omotacem.map((f) => [f.ime, f.vrsta])).toEqual([
+      ["spisak", "query"],
+      ["sacuvaj", "mutation"],
+      ["novi", "mutation"],
+    ]);
+  });
+
+  test("isto ime uvezeno iz drugog fajla nije omotač", () => {
+    expect(
+      imenaPalih([
+        fajl("lib/drugo.ts", "export const projekatQuery = (x: unknown) => x;"),
+        fajl(
+          "foo.ts",
+          SERVER +
+            `import { projekatQuery } from "./lib/drugo";
+export const lazno = projekatQuery({ args: {}, handler: async () => null });
+export const sirovo = query({ args: {}, handler: async () => null });`,
+        ),
+      ]),
+    ).toEqual(["sirovo"]);
+  });
+
+  test("fajlovi koje Convex ne deployuje (više tačaka u imenu) se preskaču", () => {
+    expect(convexPreskace("projekatProba.pomoc.ts")).toBe(true);
+    expect(convexPreskace("pristup.test.ts")).toBe(true);
+    expect(convexPreskace("lib/projekat.ts")).toBe(false);
+    expect(convexPreskace("projekti.ts")).toBe(false);
   });
 });

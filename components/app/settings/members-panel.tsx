@@ -35,11 +35,12 @@ import { FeedbackNote } from "@/components/app/feedback";
 import { StatusPill } from "./status-pill";
 import { useWorkspace } from "@/components/app/workspace-provider";
 import { formatDateTime } from "@/lib/format";
+import type { Uloga } from "@/convex/lib/uloge";
 
 type Clan = {
   userId: Id<"users">;
   email: string | null;
-  role: "owner" | "client_viewer";
+  role: Uloga;
   joinedAt: number;
   hasPassword: boolean;
   emailVerified: boolean;
@@ -67,6 +68,7 @@ const ULOGA_META: Record<
   { label: string; tone: "accent" | "muted" }
 > = {
   owner: { label: "Vlasnik", tone: "accent" },
+  urednik: { label: "Urednik", tone: "muted" },
   client_viewer: { label: "Pregled", tone: "muted" },
 };
 

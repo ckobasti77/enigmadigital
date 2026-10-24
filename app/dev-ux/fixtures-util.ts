@@ -10,6 +10,8 @@ export type R<Q extends FunctionReference<"query">> = FunctionReturnType<Q>;
 export type Fixture = (args: Record<string, unknown>) => unknown;
 
 export const WS = "ws_ux_test_000000000000000" as Id<"workspaces">;
+/** Drugi projekat u razvojnom prikazu („ScanMe“). */
+export const WS_SCANME = "ws_ux_scanme_0000000000000" as Id<"workspaces">;
 export const USER = "user_ux_test_00000000000000" as Id<"users">;
 
 export const HOUR = 3_600_000;

@@ -17,6 +17,7 @@ import {
   sanitizeGbpError,
   type GbpCredentials,
 } from "./lib/gbpApi";
+import type { Uloga } from "./lib/uloge";
 
 /**
  * Google Business Profile (GBP) akcije: OAuth tok i provera stanja pristupa (GB1).
@@ -65,7 +66,7 @@ export const gbpAuthorizeUrl = action({
 
     const member: {
       workspaceId: Id<"workspaces">;
-      role: "owner" | "client_viewer";
+      role: Uloga;
     } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
       userId,
     });
@@ -240,7 +241,7 @@ export const checkGbpAccess = action({
 
     const member: {
       workspaceId: Id<"workspaces">;
-      role: "owner" | "client_viewer";
+      role: Uloga;
     } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
       userId,
     });

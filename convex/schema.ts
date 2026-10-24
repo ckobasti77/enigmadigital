@@ -12,6 +12,14 @@ import {
   naOtvaranjuValidator,
   osnovaValidator,
 } from "./lib/napredakValidators";
+import { ulogaValidator } from "./lib/uloge";
+import {
+  brendValidator,
+  kljucTajneValidator,
+  mozakValidator,
+  podesavanjaValidator,
+  vrstaProjektaValidator,
+} from "./lib/projekatPolja";
 
 // Multi-tenant from day one (PLAN.md §3). V1 is single-user, but every future
 // table carries a `workspaceId`, so onboarding clients later needs no migration.
@@ -22,18 +30,55 @@ export default defineSchema({
   // Convex Auth: users, authAccounts, authSessions, authVerificationCodes, …
   ...authTables,
 
+  // Projekat (PROJEKTI-PLAN §3–§4). U kodu ostaje `workspace` (P1). Sve nove
+  // kolone su opcione, pa postojeći redovi ostaju validni bez migracije.
   workspaces: defineTable({
     name: v.string(),
     slug: v.string(),
+    /** Bez vrednosti = „interni“ (P3). */
+    vrsta: v.optional(vrstaProjektaValidator),
+    brend: v.optional(brendValidator),
+    /** Praćeni domeni sajta; najviše 20 (proverava mutacija, C11). */
+    sajtovi: v.optional(v.array(v.string())),
+    podesavanja: v.optional(podesavanjaValidator),
+    /** Uključeni moduli; bez vrednosti = svi (C11 validira ključeve). */
+    moduli: v.optional(v.array(v.string())),
+    mozak: v.optional(mozakValidator),
+    arhiviran: v.optional(v.boolean()),
+    redosled: v.optional(v.number()),
+    createdBy: v.optional(v.id("users")),
   }).index("by_slug", ["slug"]),
 
   members: defineTable({
     workspaceId: v.id("workspaces"),
     userId: v.id("users"),
-    role: v.union(v.literal("owner"), v.literal("client_viewer")),
+    role: ulogaValidator,
   })
     .index("by_user", ["userId"])
+    .index("by_workspace", ["workspaceId"])
+    // Članstvo u TAČNO jednom projektu (omotači iz `lib/projekat.ts`).
+    .index("by_user_workspace", ["userId", "workspaceId"]),
+
+  // Panel domen → projekat (P5). Jedan host = jedan projekat; jedinstvenost
+  // čuva mutacija (C11). Host je normalizovan (`normalizujHost`).
+  projekatDomeni: defineTable({
+    host: v.string(),
+    workspaceId: v.id("workspaces"),
+    createdAt: v.number(),
+    createdBy: v.optional(v.id("users")),
+  })
+    .index("by_host", ["host"])
     .index("by_workspace", ["workspaceId"]),
+
+  // Tajne projekta koje su danas u env-u (C12). Šifruje `lib/crypto.ts`; upit
+  // nikad ne vraća vrednost, samo da li je postavljena.
+  projekatTajne: defineTable({
+    workspaceId: v.id("workspaces"),
+    kljuc: kljucTajneValidator,
+    sifrovano: v.string(),
+    updatedAt: v.number(),
+    updatedBy: v.optional(v.id("users")),
+  }).index("by_workspace_kljuc", ["workspaceId", "kljuc"]),
 
   // Pozivnice za registraciju. SIROV TOKEN SE NIKAD NE UPISUJE — u bazi stoji
   // samo SHA-256 heš (hex). Sirovi token postoji tačno jednom, u povratnoj
@@ -116,6 +161,9 @@ export default defineSchema({
     nonce: v.string(),
     redirectUri: v.string(),
     createdAt: v.number(),
+    // Adresa panela na koju se korisnik vraća posle povezivanja (P6). Puni je
+    // i proverava C12 (domen projekta ili hub); bez vrednosti = dosadašnje.
+    povratak: v.optional(v.string()),
   })
     .index("by_nonce", ["nonce"])
     // Metenje isteklih nonce-ova ide kroz opseg po vremenu, ne kroz `.filter()`

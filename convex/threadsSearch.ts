@@ -10,6 +10,7 @@ import {
   type RawThreadsKeywordSearchItem,
 } from "./lib/threadsApi";
 import { sanitizeThreadsError } from "./lib/threadsShared";
+import type { Uloga } from "./lib/uloge";
 
 /**
  * ============================================================================
@@ -350,7 +351,7 @@ export const searchKeyword = action({
 
     const member: {
       workspaceId: Id<"workspaces">;
-      role: "owner" | "client_viewer";
+      role: Uloga;
     } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
       userId,
     });
@@ -545,7 +546,7 @@ export const lookupProfile = action({
 
     const member: {
       workspaceId: Id<"workspaces">;
-      role: "owner" | "client_viewer";
+      role: Uloga;
     } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
       userId,
     });

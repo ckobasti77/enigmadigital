@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { requireMembership } from "./lib/auth";
 import { providerValidator } from "./lib/providers";
+import { ulogaValidator } from "./lib/uloge";
 
 /**
  * ============================================================================
@@ -128,7 +129,7 @@ export const getMembership = internalQuery({
     v.null(),
     v.object({
       workspaceId: v.id("workspaces"),
-      role: v.union(v.literal("owner"), v.literal("client_viewer")),
+      role: ulogaValidator,
     }),
   ),
   handler: async (ctx, { userId }) => {
