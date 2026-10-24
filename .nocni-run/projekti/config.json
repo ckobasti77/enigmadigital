@@ -1,0 +1,39 @@
+{
+  "name": "PROJEKTI",
+  "slug": "projekti",
+  "branch": "projekti-run",
+  "owner": "Jovan",
+  "lang": "sr",
+  "defaultModel": "claude-opus-5-5",
+  "planDoc": "docs/PROJEKTI-PLAN.md",
+  "progressDoc": "docs/PROJEKTI-PROGRESS.md",
+  "plansDir": "docs/projekti/planovi",
+  "screenshotsDir": "docs/projekti/snimci",
+  "gates": [
+    { "name": "codegen", "cmd": "npx convex codegen", "when": "changed:convex/", "timeoutMin": 15 },
+    { "name": "typecheck", "cmd": "npm run typecheck", "timeoutMin": 20 },
+    { "name": "lint", "cmd": "npm run lint", "timeoutMin": 20 },
+    { "name": "test", "cmd": "npx --no-install vitest run", "kind": "vitest", "timeoutMin": 30 },
+    { "name": "pristup", "cmd": "node --import ./scripts/ts-hooks.mjs scripts/verify-pristup.ts", "timeoutMin": 10 },
+    { "name": "regresije", "cmd": "node .nocni-run/projekti/regresije.mjs", "timeoutMin": 20 },
+    { "name": "build", "cmd": "npm run build", "timeoutMin": 30, "agent": false }
+  ],
+  "maxFixAttempts": 2,
+  "budgetUsd": 0,
+  "deny": [
+    "Bash(npx convex deploy:*)", "Bash(npx convex dev:*)", "Bash(npx convex env:*)", "Bash(npx convex run:*)",
+    "Bash(npx convex import:*)", "Bash(npx convex export:*)", "Bash(npx convex data:*)", "Bash(npx convex logs:*)",
+    "Bash(convex deploy:*)", "Bash(convex dev:*)", "Bash(npm run deploy:convex:*)", "Bash(npm run convex:dev:*)",
+    "Bash(vercel:*)", "Bash(npx vercel:*)", "Bash(gh:*)", "Bash(git worktree:*)",
+    "PowerShell(npx convex deploy:*)", "PowerShell(npx convex dev:*)", "PowerShell(npx convex env:*)", "PowerShell(npx convex run:*)",
+    "PowerShell(npm run deploy:convex:*)", "PowerShell(vercel:*)", "PowerShell(git push:*)", "PowerShell(git commit:*)",
+    "PowerShell(git reset:*)", "PowerShell(git checkout:*)", "PowerShell(git stash:*)",
+    "Read(./.env*)", "Read(./env.personal.txt)", "Read(./client_secret_*)", "Read(./enigma-command-center-*)", "Read(./.threads-probe-token*)"
+  ],
+  "commitExclude": [],
+  "ownPaths": [],
+  "mcp": { "playwright": true, "playwrightPackage": "@playwright/mcp@0.0.83" },
+  "env": {},
+  "devPorts": [3000, 3001, 3105, 5173],
+  "commitTrailer": "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_012CNyV44fBRL8xhWX1EgZdp"
+}

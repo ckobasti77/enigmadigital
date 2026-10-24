@@ -70,3 +70,13 @@ logs/
 
 # B-faze UI boosta: lokalni snimci (~4 MB po fazi); A-snimci ostaju u repou
 nocni-run/ux/b*
+
+# nocni run projekti (logovi i stanje runnera)
+.nocni-run/projekti/logs/
+.nocni-run/projekti/tmp/
+.nocni-run/projekti/state.json
+.nocni-run/projekti/state.json.tmp
+.nocni-run/projekti/state.bad.json
+.nocni-run/projekti/STOP
+.nocni-run/projekti/baseline.txt
+.nocni-run/projekti/mcp.json

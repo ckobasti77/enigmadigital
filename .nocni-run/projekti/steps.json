@@ -1,0 +1,22 @@
+[
+  {"id": "C01", "title": "Bezbednost: zakrpe javnih funkcija i čuvar pristupa", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 180},
+  {"id": "C02", "title": "Arhitektura projekata (plan)", "model": "claude-opus-5-5", "effort": "max", "mode": "plan", "session": "nova", "resumeFrom": null, "timeoutMin": 120},
+  {"id": "C03", "title": "Temelj: šema, omotači, API projekata, testovi", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "ista", "resumeFrom": "C02", "timeoutMin": 240},
+  {"id": "C04", "title": "Prelazak 1: analitika, atribucija, Instagram, Facebook", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 240},
+  {"id": "C05", "title": "Prelazak 2: Threads, YouTube, OpenReply", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 240},
+  {"id": "C06", "title": "Prelazak 3: leadovi, novosti, napredak, obaveštenja", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 240},
+  {"id": "C07", "title": "Prelazak 4: oglasi, pravila, veze, članovi; strogi čuvar", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 240},
+  {"id": "C08", "title": "Rute /[projekat], hub i paneli po domenu", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 240},
+  {"id": "C09", "title": "Birač projekta i ljuska", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 210},
+  {"id": "C10", "title": "Plan: podešavanja, brend, env, OAuth, kvote", "model": "claude-opus-5-5", "effort": "high", "mode": "plan", "session": "nova", "resumeFrom": null, "timeoutMin": 90},
+  {"id": "C11", "title": "Podešavanja i brend projekta, čarobnjak", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "ista", "resumeFrom": "C10", "timeoutMin": 240},
+  {"id": "C12", "title": "Env u podešavanja, tajne, OAuth povratak", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 210},
+  {"id": "C13", "title": "Globalne kvote, pozivnice i uloge", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 210},
+  {"id": "C14", "title": "Leadovi po projektu: ICP šabloni, ScanMe, mozak", "model": "claude-opus-5-5", "effort": "high", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 210},
+  {"id": "C15", "title": "Plan: hub i veze među projektima", "model": "claude-opus-5-5", "effort": "high", "mode": "plan", "session": "nova", "resumeFrom": null, "timeoutMin": 90},
+  {"id": "C16", "title": "Hub „Svi projekti“, zdravlje veza, napredak", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "ista", "resumeFrom": "C15", "timeoutMin": 240},
+  {"id": "C17", "title": "Unakrsni leadovi, Puls, leadovi sa sajta, ScanMe uputstvo", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 240},
+  {"id": "C18", "title": "Prolaz: prazna stanja, telefon, pristupačnost", "model": "claude-sonnet-5-5", "effort": "high", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 150},
+  {"id": "C19", "title": "Revizija: izolacija, bezbednost, regresije", "model": "claude-opus-5-5", "effort": "max", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 240},
+  {"id": "C20", "title": "Završni izveštaj", "model": "claude-opus-5-5", "effort": "high", "mode": "auto", "session": "nova", "resumeFrom": null, "timeoutMin": 120}
+]
