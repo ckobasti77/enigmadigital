@@ -555,6 +555,7 @@ async function exchangeSteps(
  * The one-time `state` nonce both authenticates the request and resolves the
  * target workspace.
  */
+// javno: OAuth povratak bez sesije; pristup dokazuje jednokratni state koji je napravio prijavljen član
 export const completeOAuthFromCallback = action({
   args: { state: v.string(), code: v.string() },
   handler: async (ctx, { state, code }): Promise<FacebookOAuthResult> => {

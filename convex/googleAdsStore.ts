@@ -1,8 +1,8 @@
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { WithoutSystemFields } from "convex/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { requireMembership, requireWorkspaceAccess } from "./lib/auth";
 import {
   calculateRollingQuota,
   getGoogleAdsDailyLimit,
@@ -1648,13 +1648,12 @@ export const getGoogleAdsAssets = query({
     workspaceId: v.optional(v.id("workspaces")),
   },
   handler: async (ctx, args) => {
-    let wsId: Id<"workspaces">;
-    if (args.workspaceId) {
-      wsId = args.workspaceId;
-    } else {
-      const membership = await requireMembership(ctx);
-      wsId = membership.workspaceId;
-    }
+    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
+    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
+    const { workspaceId: wsId } = await requireWorkspaceAccess(
+      ctx,
+      args.workspaceId,
+    );
 
     const assets = await ctx.db
       .query("gadsAssets")
@@ -1688,13 +1687,12 @@ export const getGoogleAdsStructure = query({
     workspaceId: v.optional(v.id("workspaces")),
   },
   handler: async (ctx, args) => {
-    let wsId: Id<"workspaces">;
-    if (args.workspaceId) {
-      wsId = args.workspaceId;
-    } else {
-      const membership = await requireMembership(ctx);
-      wsId = membership.workspaceId;
-    }
+    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
+    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
+    const { workspaceId: wsId } = await requireWorkspaceAccess(
+      ctx,
+      args.workspaceId,
+    );
 
     const account = await ctx.db
       .query("adAccounts")
@@ -1772,13 +1770,12 @@ export const getGoogleAdsConversionActions = query({
     workspaceId: v.optional(v.id("workspaces")),
   },
   handler: async (ctx, args) => {
-    let wsId: Id<"workspaces">;
-    if (args.workspaceId) {
-      wsId = args.workspaceId;
-    } else {
-      const membership = await requireMembership(ctx);
-      wsId = membership.workspaceId;
-    }
+    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
+    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
+    const { workspaceId: wsId } = await requireWorkspaceAccess(
+      ctx,
+      args.workspaceId,
+    );
 
     return await ctx.db
       .query("gadsConversionActions")
@@ -1795,13 +1792,12 @@ export const getGoogleAdsBudgets = query({
     workspaceId: v.optional(v.id("workspaces")),
   },
   handler: async (ctx, args) => {
-    let wsId: Id<"workspaces">;
-    if (args.workspaceId) {
-      wsId = args.workspaceId;
-    } else {
-      const membership = await requireMembership(ctx);
-      wsId = membership.workspaceId;
-    }
+    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
+    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
+    const { workspaceId: wsId } = await requireWorkspaceAccess(
+      ctx,
+      args.workspaceId,
+    );
 
     const budgets = await ctx.db
       .query("gadsBudgets")
@@ -1859,13 +1855,12 @@ export const getGoogleAdsSearchTerms = query({
     to: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    let wsId: Id<"workspaces">;
-    if (args.workspaceId) {
-      wsId = args.workspaceId;
-    } else {
-      const membership = await requireMembership(ctx);
-      wsId = membership.workspaceId;
-    }
+    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
+    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
+    const { workspaceId: wsId } = await requireWorkspaceAccess(
+      ctx,
+      args.workspaceId,
+    );
 
     const fromDate = args.from ?? "1970-01-01";
     const toDate = args.to ?? "2099-12-31";
@@ -2039,13 +2034,12 @@ export const getGoogleAdsNegativeKeywords = query({
     campaignId: v.optional(v.id("adCampaigns")),
   },
   handler: async (ctx, args) => {
-    let wsId: Id<"workspaces">;
-    if (args.workspaceId) {
-      wsId = args.workspaceId;
-    } else {
-      const membership = await requireMembership(ctx);
-      wsId = membership.workspaceId;
-    }
+    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
+    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
+    const { workspaceId: wsId } = await requireWorkspaceAccess(
+      ctx,
+      args.workspaceId,
+    );
 
     const sharedSets = await ctx.db
       .query("gadsSharedSets")
@@ -2326,13 +2320,12 @@ export const getGoogleAdsSegments = query({
     to: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    let wsId: Id<"workspaces">;
-    if (args.workspaceId) {
-      wsId = args.workspaceId;
-    } else {
-      const membership = await requireMembership(ctx);
-      wsId = membership.workspaceId;
-    }
+    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
+    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
+    const { workspaceId: wsId } = await requireWorkspaceAccess(
+      ctx,
+      args.workspaceId,
+    );
 
     const fromDate = args.from ?? "1970-01-01";
     const toDate = args.to ?? "2099-12-31";
@@ -2568,19 +2561,17 @@ export const getGoogleAdsSegments = query({
 
 /**
  * Seed realistic synthetic Google Ads data for verification and testing.
+ *
+ * Interna: upisuje sintetičke podatke u prostor iz argumenta, pa ne sme biti
+ * dostupna iz pregledača (ranije je bila javna i primala bilo čiji prostor bez
+ * provere). Pokreće se samo iz Convex konzole ili drugih internih funkcija.
  */
-export const seedGoogleAdsData = mutation({
+export const seedGoogleAdsData = internalMutation({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
   },
   handler: async (ctx, args) => {
-    let workspaceId: Id<"workspaces">;
-    if (args.workspaceId) {
-      workspaceId = args.workspaceId;
-    } else {
-      const membership = await requireMembership(ctx);
-      workspaceId = membership.workspaceId;
-    }
+    const workspaceId = args.workspaceId;
 
     const now = Date.now();
     const accountExternalId = "seed_gads_act_8921";
@@ -3038,19 +3029,16 @@ export const seedGoogleAdsData = mutation({
 
 /**
  * Clean up all seeded Google Ads data.
+ *
+ * Interna, iz istog razloga kao `seedGoogleAdsData`: briše podatke prostora
+ * iz argumenta.
  */
-export const clearGoogleAdsSeeds = mutation({
+export const clearGoogleAdsSeeds = internalMutation({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
+    workspaceId: v.id("workspaces"),
   },
   handler: async (ctx, args) => {
-    let workspaceId: Id<"workspaces">;
-    if (args.workspaceId) {
-      workspaceId = args.workspaceId;
-    } else {
-      const membership = await requireMembership(ctx);
-      workspaceId = membership.workspaceId;
-    }
+    const workspaceId = args.workspaceId;
 
     // Find accounts with provider google_ads
     const accounts = await ctx.db

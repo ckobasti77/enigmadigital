@@ -1,4 +1,4 @@
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
@@ -221,10 +221,11 @@ export const markConnectionExpired = internalMutation({
 
 /**
  * Označava Threads konekciju kao istekla na osnovu Meta korisničkog identifikatora (externalId).
- * Poziva se iz deauthorize callback endpointa.
+ * Poziva je samo Convex HTTP akcija `/threads/deauthorize` (http.ts), posle
+ * provere Meta potpisa — zato je interna.
  * Red se NE briše (poštuje pravilo za status u schema.ts).
  */
-export const markExpiredByExternalId = mutation({
+export const markExpiredByExternalId = internalMutation({
   args: { externalId: v.string() },
   returns: v.null(),
   handler: async (ctx, { externalId }) => {
@@ -243,10 +244,11 @@ export const markExpiredByExternalId = mutation({
 
 /**
  * Pokreće proces brisanja podataka za Threads nalog na osnovu Meta korisničkog identifikatora (externalId).
- * Poziva se iz data-deletion callback endpointa.
+ * Poziva je samo Convex HTTP akcija `/threads/data-deletion` (http.ts), posle
+ * provere Meta potpisa — zato je interna.
  * Koristi postojeći purge mehanizam (beginPurgeRun) i vraća confirmationCode.
  */
-export const triggerDataDeletionByExternalId = mutation({
+export const triggerDataDeletionByExternalId = internalMutation({
   args: { externalId: v.string() },
   returns: v.object({
     confirmationCode: v.string(),
@@ -290,7 +292,10 @@ export const triggerDataDeletionByExternalId = mutation({
 
 /**
  * Očitava status zahteva za brisanje podataka na osnovu koda potvrde.
+ * Javna stranica `/deletion-status` ga zove bez prijave (Meta šalje korisnika
+ * tamo); vraća samo status i vreme, ništa o nalogu ni projektu.
  */
+// javno: Meta status brisanja na /deletion-status, bez prijave; vraća samo status i vreme
 export const getDeletionStatus = query({
   args: { confirmationCode: v.string() },
   returns: v.union(
@@ -309,17 +314,16 @@ export const getDeletionStatus = query({
         finishedAt: Date.now(),
       };
     }
-    try {
-      const run = await ctx.db.get(confirmationCode as Id<"purgeRuns">);
-      if (run === null) return null;
-      return {
-        status: run.status,
-        startedAt: run.startedAt,
-        finishedAt: run.finishedAt ?? null,
-      };
-    } catch {
-      return null;
-    }
+    // Samo kod koji je zaista ID brisanja: ID bilo koje druge tabele se ne čita.
+    const runId = ctx.db.normalizeId("purgeRuns", confirmationCode);
+    if (runId === null) return null;
+    const run = await ctx.db.get(runId);
+    if (run === null) return null;
+    return {
+      status: run.status,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt ?? null,
+    };
   },
 });
 

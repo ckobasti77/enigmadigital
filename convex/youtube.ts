@@ -551,6 +551,7 @@ export interface YouTubeOAuthResult {
  * 7. Saves connection row with status "active".
  * 8. Triggers initial sync in background.
  */
+// javno: OAuth povratak bez sesije; pristup dokazuje jednokratni state koji je napravio prijavljen član
 export const completeOAuthFromCallback = action({
   args: {
     state: v.string(),

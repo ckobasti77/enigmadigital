@@ -109,6 +109,7 @@ export interface GbpOAuthResult {
  * 5. Šifruje `{ clientId, clientSecret, refreshToken }` i upisuje u `connections` tabelu.
  * 6. NE povlači naloge i lokacije (to pripada GB2, i puklo bi na 0 QPM pre odobrenja).
  */
+// javno: OAuth povratak bez sesije; pristup dokazuje jednokratni state koji je napravio prijavljen član
 export const completeOAuthFromCallback = action({
   args: {
     state: v.string(),

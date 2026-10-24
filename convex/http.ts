@@ -42,6 +42,11 @@ import {
   type RawMediaFieldsResponse,
   type StoredMediaChild,
 } from "./lib/instagramApi";
+import {
+  izvuciSignedRequest,
+  metaKorisnikId,
+  proveriSignedRequest,
+} from "./lib/metaSignedRequest";
 
 const http = httpRouter();
 
@@ -1069,6 +1074,99 @@ http.route({
     }
 
     return new Response("ok", { status: 200 });
+  }),
+});
+
+// Route 2f/2g — POST: Threads deautorizacija i zahtev za brisanje podataka
+//
+// Meta ih šalje na Next rute `/api/meta/deauthorize` i `/api/meta/data-deletion`
+// (te adrese su upisane u Meta konzoli), a Next samo prosleđuje sirovo telo
+// ovamo. Potpis `signed_request` se proverava OVDE, tajnom `THREADS_APP_SECRET`
+// iz Convex env-a, i tek posle toga se zove interna mutacija — javne mutacije
+// za ovo više ne postoje, pa niko ne može da obriše ili ugasi tuđu vezu
+// pogađanjem Meta korisničkog ID-a.
+
+function metaJson(telo: unknown, status: number): Response {
+  return new Response(JSON.stringify(telo), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/** Meta korisnički ID iz zahteva sa ispravnim potpisom, ili odgovor 401. */
+async function proverenMetaKorisnik(
+  request: Request,
+): Promise<{ ok: true; korisnikId: string } | { ok: false; odgovor: Response }> {
+  const telo = await request.text();
+  const signedRequest = izvuciSignedRequest(
+    request.headers.get("content-type"),
+    telo,
+  );
+  if (signedRequest === null) {
+    return {
+      ok: false,
+      odgovor: metaJson({ error: "Nedostaje signed_request parametar." }, 401),
+    };
+  }
+  const tajna = process.env.THREADS_APP_SECRET;
+  if (!tajna?.trim()) {
+    console.error("[meta signed_request] THREADS_APP_SECRET nije podešen.");
+  }
+  const payload = await proveriSignedRequest(signedRequest, tajna);
+  const korisnikId = payload === null ? null : metaKorisnikId(payload);
+  if (korisnikId === null) {
+    return {
+      ok: false,
+      odgovor: metaJson({ error: "Neispravan potpis ili nevalidan payload." }, 401),
+    };
+  }
+  return { ok: true, korisnikId };
+}
+
+http.route({
+  path: "/threads/deauthorize",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const provera = await proverenMetaKorisnik(request);
+    if (!provera.ok) return provera.odgovor;
+    try {
+      await ctx.runMutation(internal.threadsStore.markExpiredByExternalId, {
+        externalId: provera.korisnikId,
+      });
+      return metaJson({ success: true }, 200);
+    } catch (err) {
+      console.error(
+        "[meta deauthorize] Greška pri ažuriranju veze:",
+        err instanceof Error ? err.message : "nepoznata greška",
+      );
+      return metaJson({ error: "Došlo je do greške prilikom obrade zahteva." }, 500);
+    }
+  }),
+});
+
+http.route({
+  path: "/threads/data-deletion",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const provera = await proverenMetaKorisnik(request);
+    if (!provera.ok) return provera.odgovor;
+    try {
+      const { confirmationCode } = await ctx.runMutation(
+        internal.threadsStore.triggerDataDeletionByExternalId,
+        { externalId: provera.korisnikId },
+      );
+      // Adresu stranice za status dodaje Next ruta: ona zna domen aplikacije.
+      return metaJson({ confirmation_code: confirmationCode }, 200);
+    } catch (err) {
+      console.error(
+        "[meta data-deletion] Greška pri pokretanju brisanja:",
+        err instanceof Error ? err.message : "nepoznata greška",
+      );
+      return metaJson(
+        { error: "Došlo je do greške prilikom obrade zahteva za brisanje." },
+        500,
+      );
+    }
   }),
 });
 

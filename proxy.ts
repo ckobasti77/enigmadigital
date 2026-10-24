@@ -86,11 +86,16 @@ export const config = {
   // redirecting before our route handler can run. Each callback route performs
   // the whole exchange server-side via the one-time `state` nonce, so it needs
   // no auth context from the middleware.
+  //
+  // `api/meta/data-deletion` and `api/meta/deauthorize` are Meta's server-to-
+  // server callbacks: nobody is signed in, so the auth redirect would answer
+  // Meta with a bounce to /login. The routes only forward the body to a Convex
+  // HTTP action, which checks Meta's `signed_request` signature itself.
   matcher: [
-    "/((?!.*\\..*|_next|api/auth/callback/instagram|api/auth/callback/facebook|api/auth/callback/youtube|api/auth/callback/threads|r/|privacy(?:$|/)|cookies(?:$|/)|pozivnica(?:$|/)).*)",
+    "/((?!.*\\..*|_next|api/auth/callback/instagram|api/auth/callback/facebook|api/auth/callback/youtube|api/auth/callback/threads|api/meta/data-deletion|api/meta/deauthorize|r/|privacy(?:$|/)|cookies(?:$|/)|pozivnica(?:$|/)).*)",
     "/",
     // Two lookaheads rather than one alternation: Next refuses a capturing
     // group inside a matcher, and `(instagram|facebook)` is one.
-    "/(api|trpc)((?!/auth/callback/instagram)(?!/auth/callback/facebook)(?!/auth/callback/youtube)(?!/auth/callback/threads).*)",
+    "/(api|trpc)((?!/auth/callback/instagram)(?!/auth/callback/facebook)(?!/auth/callback/youtube)(?!/auth/callback/threads)(?!/meta/data-deletion)(?!/meta/deauthorize).*)",
   ],
 };

@@ -164,7 +164,24 @@ export const registerUpload = mutation({
       .query("igPublishUploads")
       .withIndex("by_storage", (q) => q.eq("storageId", storageId))
       .first();
-    if (existing !== null) return null;
+    if (existing !== null) {
+      // Tuđ račun se ne preuzima: fajl je prijavio drugi projekat.
+      if (existing.workspaceId !== workspaceId) {
+        invalid("Fajl nije pronađen. Dodaj ga ponovo i pošalji.");
+      }
+      return null;
+    }
+
+    // Fajl koji već pripada nekom poslu se ne prijavljuje ponovo: račun koji
+    // niko ne preuzme čistač posle roka briše zajedno sa fajlom, pa bi tako
+    // nestao fajl tog posla (i tuđeg, ako se zna njegov ID).
+    const alreadyOwned = await ctx.db
+      .query("igPublishFiles")
+      .withIndex("by_storage", (q) => q.eq("storageId", storageId))
+      .first();
+    if (alreadyOwned !== null) {
+      invalid("Fajl nije pronađen. Dodaj ga ponovo i pošalji.");
+    }
 
     await ctx.db.insert("igPublishUploads", {
       workspaceId,
@@ -190,8 +207,7 @@ async function claimUploads(
       .query("igPublishUploads")
       .withIndex("by_storage", (q) => q.eq("storageId", storageId))
       .first();
-    // No receipt is not a problem: a caller that never registered still gets a
-    // working job, it just never had a gap to close.
+    // `createJob` already refused any file that is not this workspace's.
     if (receipt !== null) await ctx.db.delete(receipt._id);
   }
 }
@@ -289,6 +305,29 @@ export const createJob = mutation({
       );
       if (meta === null) {
         invalid("Fajl više nije dostupan. Dodaj ga ponovo i pošalji.");
+      }
+      // Posao sme da preuzme samo fajl ovog projekta: onaj koji je prijavio
+      // (`registerUpload` odmah posle slanja) ili koji već nosi njegov posao
+      // (ponovljeno slanje iste objave, koje provera duplikata ispod odbija
+      // svojom porukom). Bez ove provere je ID tuđeg fajla bio dovoljan da se
+      // on objavi ovde, a posle obriše tuđem poslu.
+      const receipt = await ctx.db
+        .query("igPublishUploads")
+        .withIndex("by_storage", (q) => q.eq("storageId", storageId))
+        .first();
+      const inJob =
+        receipt === null
+          ? await ctx.db
+              .query("igPublishFiles")
+              .withIndex("by_storage", (q) => q.eq("storageId", storageId))
+              .first()
+          : null;
+      const ours =
+        receipt !== null
+          ? receipt.workspaceId === workspaceId
+          : inJob !== null && inJob.workspaceId === workspaceId;
+      if (!ours) {
+        invalid("Fajl nije pronađen. Dodaj ga ponovo i pošalji.");
       }
       const contentType = meta.contentType ?? "";
       const fileProblem = checkFile({

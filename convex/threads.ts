@@ -143,6 +143,7 @@ export interface ThreadsOAuthResult {
  * 5. Čita profil naloga (/me?fields=id,username)
  * 6. Šifruje long-lived token i upisuje vezu u bazu sa statusom "active"
  */
+// javno: OAuth povratak bez sesije; pristup dokazuje jednokratni state koji je napravio prijavljen član
 export const completeOAuthFromCallback = action({
   args: {
     state: v.string(),

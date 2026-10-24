@@ -1,7 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { requireMembership } from "./lib/auth";
+import { requireMembership, requireWorkspaceAccess } from "./lib/auth";
 import { slugify } from "./lib/slug";
 import { getKeyEvents } from "./lib/ga4Catalog";
 import { hashEmail, hashPhone } from "./lib/metaAudienceHash";
@@ -319,8 +319,11 @@ export const recordOpenReplyConversion = mutation({
     eventId: v.string(),
   }),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
-    const targetWs = args.workspaceId ?? workspaceId;
+    // Prosleđeni prostor mora biti pozivaočev; bez njega važi sopstveni.
+    const { workspaceId: targetWs } = await requireWorkspaceAccess(
+      ctx,
+      args.workspaceId,
+    );
 
     const now = Date.now();
     const eventTime = Math.floor(now / 1000);

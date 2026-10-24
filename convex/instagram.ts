@@ -6,6 +6,7 @@ import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { requireActionMembership } from "./lib/auth";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import { runSync, sanitizeSyncError } from "./lib/runSync";
 import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
@@ -267,7 +268,10 @@ function chunked<T>(list: T[], size: number): T[][] {
  */
 export const getOAuthConfig = action({
   args: {},
-  handler: async (): Promise<{ isConfigured: boolean; appId: string | null }> => {
+  handler: async (ctx): Promise<{ isConfigured: boolean; appId: string | null }> => {
+    // Zove ga samo kartica u Podešavanjima: stanje podešavanja servera nije za
+    // neprijavljene.
+    await requireActionMembership(ctx);
     const appId = process.env.INSTAGRAM_APP_ID?.trim();
     const appSecret = process.env.INSTAGRAM_APP_SECRET?.trim();
     const isConfigured = Boolean(appId && appSecret);
@@ -563,6 +567,7 @@ const OAUTH_STATE_TTL_MS = 15 * 60 * 1000; // authorize -> callback within 15 mi
  * The redirectUri used for the token exchange is the one stored with the
  * nonce, guaranteeing an exact match with the authorize request.
  */
+// javno: OAuth povratak bez sesije; pristup dokazuje jednokratni state koji je napravio prijavljen član
 export const completeOAuthFromCallback = action({
   args: {
     state: v.string(),

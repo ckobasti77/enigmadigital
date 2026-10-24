@@ -6,7 +6,7 @@ import {
 } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { requireMembership, requireWorkspaceAccess } from "./lib/auth";
 
 export const metricValidator = v.union(
   v.literal("cpa"),
@@ -84,8 +84,11 @@ export const listRules = query({
     workspaceId: v.optional(v.id("workspaces")),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
-    const targetWorkspaceId = args.workspaceId ?? workspaceId;
+    // Prosleđeni prostor mora biti pozivaočev; bez njega važi njegov sopstveni.
+    const { workspaceId: targetWorkspaceId } = await requireWorkspaceAccess(
+      ctx,
+      args.workspaceId,
+    );
 
     const rules = await ctx.db
       .query("rules")
@@ -104,8 +107,11 @@ export const ensureTemplateRules = mutation({
     workspaceId: v.optional(v.id("workspaces")),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
-    const targetWorkspaceId = args.workspaceId ?? workspaceId;
+    // Prosleđeni prostor mora biti pozivaočev; bez njega važi njegov sopstveni.
+    const { workspaceId: targetWorkspaceId } = await requireWorkspaceAccess(
+      ctx,
+      args.workspaceId,
+    );
 
     const existing = await ctx.db
       .query("rules")
@@ -394,6 +400,9 @@ export const listRuleFirings = query({
 
     let firings;
     if (args.ruleId) {
+      // Istorija tuđeg pravila se ne čita: pravilo mora biti iz ovog prostora.
+      const rule = await ctx.db.get(args.ruleId);
+      if (rule === null || rule.workspaceId !== workspaceId) return [];
       firings = await ctx.db
         .query("ruleFirings")
         .withIndex("by_ruleId_and_firedAt", (q) => q.eq("ruleId", args.ruleId!))
@@ -501,7 +510,15 @@ export const getEvaluationContext = internalQuery({
 
     if (args.specificRuleId) {
       const single = await ctx.db.get(args.specificRuleId);
-      if (single) rules = [single];
+      // Kad je dat i prostor, pravilo mora biti iz njega (ručno pokretanje
+      // šalje prostor pozivaoca; tuđe pravilo se tada ne procenjuje).
+      if (
+        single &&
+        (args.specificWorkspaceId === undefined ||
+          single.workspaceId === args.specificWorkspaceId)
+      ) {
+        rules = [single];
+      }
     } else if (args.specificWorkspaceId) {
       rules = await ctx.db
         .query("rules")

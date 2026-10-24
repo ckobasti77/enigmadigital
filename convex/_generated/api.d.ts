@@ -94,6 +94,7 @@ import type * as lib_metaAdsWrite from "../lib/metaAdsWrite.js";
 import type * as lib_metaAudienceHash from "../lib/metaAudienceHash.js";
 import type * as lib_metaCapi from "../lib/metaCapi.js";
 import type * as lib_metaRateLimit from "../lib/metaRateLimit.js";
+import type * as lib_metaSignedRequest from "../lib/metaSignedRequest.js";
 import type * as lib_napredak from "../lib/napredak.js";
 import type * as lib_napredakValidators from "../lib/napredakValidators.js";
 import type * as lib_notifications from "../lib/notifications.js";
@@ -268,6 +269,7 @@ declare const fullApi: ApiFromModules<{
   "lib/metaAudienceHash": typeof lib_metaAudienceHash;
   "lib/metaCapi": typeof lib_metaCapi;
   "lib/metaRateLimit": typeof lib_metaRateLimit;
+  "lib/metaSignedRequest": typeof lib_metaSignedRequest;
   "lib/napredak": typeof lib_napredak;
   "lib/napredakValidators": typeof lib_napredakValidators;
   "lib/notifications": typeof lib_notifications;

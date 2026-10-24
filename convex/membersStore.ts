@@ -194,11 +194,19 @@ export const removeMember = mutation({
     // gleda ni `members` ni `authAccounts`, pa bi novi `signUp` te adrese opet
     // prošao. Ekran to mora reći kad uklanja takvu adresu. (Uklanjanje iz
     // `ALLOWED_EMAILS` je ručna izmena env-a, van ovog toka.)
-    await deleteLoginMachinery(ctx, args.userId);
-
     // Članstvo mete u ovom prostoru se briše; `users` red OSTAJE jer
     // `leadStageEvents.actorUserId` i istorija pokazuju na njega.
     for (const m of meta) await ctx.db.delete(m._id);
+
+    // Prijava se gasi samo kad meti ne ostane nijedno članstvo: uklanjanje iz
+    // ovog prostora ne sme da je izbaci iz drugog.
+    const preostalaClanstva = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .first();
+    if (preostalaClanstva === null) {
+      await deleteLoginMachinery(ctx, args.userId);
+    }
 
     return { prenetoLeadova: assignments.length };
   },

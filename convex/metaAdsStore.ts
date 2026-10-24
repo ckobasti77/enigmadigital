@@ -1,8 +1,8 @@
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { providerValidator } from "./lib/providers";
-import { requireMembership } from "./lib/auth";
+import { requireMembership, requireMembershipIn, requireWorkspaceAccess } from "./lib/auth";
 import {
   QUOTA_TTL_MS,
   determineGateState,
@@ -349,14 +349,22 @@ export const upsertStructure = internalMutation({
 });
 
 /**
- * Public query for fetching a single ad by ID.
+ * Public query for fetching a single ad by ID — only an ad of a workspace the
+ * caller belongs to (it used to return any workspace's ad to anyone).
  */
 export const getAdById = query({
   args: {
     adId: v.id("ads"),
   },
   handler: async (ctx, { adId }) => {
-    return await ctx.db.get(adId);
+    const ad = await ctx.db.get(adId);
+    if (ad === null) {
+      // Postojanje oglasa ne otkriva se neprijavljenom pozivaocu.
+      await requireMembership(ctx);
+      return null;
+    }
+    await requireMembershipIn(ctx, ad.workspaceId);
+    return ad;
   },
 });
 
@@ -982,7 +990,10 @@ export const listAdInsights = query({
     to: v.string(),   // "YYYY-MM-DD"
   },
   handler: async (ctx, { adId, from, to }) => {
-    await requireMembership(ctx);
+    const { workspaceId } = await requireMembership(ctx);
+    // Uvidi tuđeg oglasa se ne čitaju: oglas mora biti iz ovog prostora.
+    const ad = await ctx.db.get(adId);
+    if (ad === null || ad.workspaceId !== workspaceId) return [];
     return await ctx.db
       .query("adInsights")
       .withIndex("by_ad_date", (q) =>
@@ -2074,6 +2085,13 @@ export const pinBattle = mutation({
   },
   handler: async (ctx, { adSetId, from, to, name }) => {
     const { workspaceId } = await requireMembership(ctx);
+    const adSet = await ctx.db.get(adSetId);
+    if (adSet === null || adSet.workspaceId !== workspaceId) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Ad Set nije pronađen.",
+      });
+    }
     const existing = await ctx.db
       .query("pinnedBattles")
       .withIndex("by_workspace_adset", (q) =>
@@ -2143,8 +2161,15 @@ export const listPinnedBattles = query({
 
     return await Promise.all(
       pinned.map(async (p) => {
-        const adSet = await ctx.db.get(p.adSetId);
-        const campaign = adSet ? await ctx.db.get(adSet.campaignId) : null;
+        // Prikvačen tuđ Ad Set (pre provere u pinBattle) se čita kao nepoznat.
+        const stored = await ctx.db.get(p.adSetId);
+        const adSet =
+          stored !== null && stored.workspaceId === workspaceId ? stored : null;
+        const storedCampaign = adSet ? await ctx.db.get(adSet.campaignId) : null;
+        const campaign =
+          storedCampaign !== null && storedCampaign.workspaceId === workspaceId
+            ? storedCampaign
+            : null;
         const ads = adSet
           ? await ctx.db
               .query("ads")
@@ -2613,10 +2638,12 @@ export const getAudienceTos = query({
     externalId: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = await requireWorkspaceAccess(ctx, args.workspaceId);
     let account = null;
     if (args.adAccountId) {
       account = await ctx.db.get(args.adAccountId);
+      // Tuđ nalog oglasa se čita kao nepostojeći.
+      if (account !== null && account.workspaceId !== workspaceId) account = null;
     } else {
       account = await ctx.db
         .query("adAccounts")
@@ -2670,13 +2697,16 @@ export const listAudiences = query({
     adAccountId: v.optional(v.id("adAccounts")),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = await requireWorkspaceAccess(ctx, args.workspaceId);
 
+    // Indeks po nalogu ne zna za prostor: redovi tuđeg naloga se izbacuju.
     const rows = args.adAccountId
-      ? await ctx.db
-          .query("adAudiences")
-          .withIndex("by_account", (q) => q.eq("adAccountId", args.adAccountId!))
-          .collect()
+      ? (
+          await ctx.db
+            .query("adAudiences")
+            .withIndex("by_account", (q) => q.eq("adAccountId", args.adAccountId!))
+            .collect()
+        ).filter((row) => row.workspaceId === workspaceId)
       : await ctx.db
           .query("adAudiences")
           .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))

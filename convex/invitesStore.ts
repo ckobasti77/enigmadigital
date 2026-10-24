@@ -140,8 +140,16 @@ export const createInvite = mutation({
         .withIndex("by_user", (q) => q.eq("userId", postojeciKorisnik._id))
         .collect();
       const jeAktivanClan = clanstva.length > 0;
+      // Nalog sa članstvom u DRUGOM prostoru ovaj prostor ne sme da briše (ni
+      // kad je registracija zaglavljena): to je tuđ korisnik.
+      const imaTudjeClanstvo = clanstva.some(
+        (c) => c.workspaceId !== args.workspaceId,
+      );
 
-      if (postojeciKorisnik.emailVerificationTime !== undefined && jeAktivanClan) {
+      if (
+        (postojeciKorisnik.emailVerificationTime !== undefined && jeAktivanClan) ||
+        imaTudjeClanstvo
+      ) {
         throw new ConvexError({
           code: "conflict",
           message:
@@ -191,6 +199,7 @@ export const createInvite = mutation({
 // ─────────────────────────────────────────────────────────────────────────────
 // getInvite — JAVAN upit (§4.3). Vraća SAMO { status, email? }.
 // ─────────────────────────────────────────────────────────────────────────────
+// javno: ekran pozivnice pre registracije; vraća samo status i adresu važeće pozivnice
 export const getInvite = query({
   args: { token: v.string() },
   returns: v.object({
@@ -219,6 +228,7 @@ export const getInvite = query({
 // ─────────────────────────────────────────────────────────────────────────────
 // pripremiRegistraciju — JAVNA mutacija (§4.4a). Ponovna provera pa readyUntil.
 // ─────────────────────────────────────────────────────────────────────────────
+// javno: registracija preko pozivnice; pristup dokazuje token pozivnice
 export const pripremiRegistraciju = mutation({
   args: { token: v.string(), email: v.optional(v.string()) },
   returns: v.object({ email: v.string() }),
@@ -490,6 +500,7 @@ function konstantnoVremeJednako(a: string, b: string): boolean {
  * NIJEDAN password nalog ne postoji — postojeći `users` red od ranije (npr. OTP)
  * ga NE blokira.
  */
+// javno: ekran prijave pita da li treba napraviti prvi admin nalog; vraća samo da/ne
 export const trebaSetup = query({
   args: {},
   returns: v.boolean(),
@@ -510,6 +521,7 @@ export const trebaSetup = query({
  * vrednost ni poruku greške. „Nije konfigurisano", „šifra nije tačna" i „nalog
  * već postoji" su tri različite poruke.
  */
+// javno: prvi admin nalog; pristup dokazuje ADMIN_SETUP_CODE i radi samo dok nema nijednog naloga
 export const pripremiAdminSetup = mutation({
   args: { setupCode: v.string(), email: v.string() },
   returns: v.null(),

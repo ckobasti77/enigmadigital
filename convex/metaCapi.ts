@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { action, internalAction, type ActionCtx } from "./_generated/server";
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { type Id } from "./_generated/dataModel";
 import {
   CapiEventItem,
@@ -15,6 +15,7 @@ import {
 import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
 import { sanitizeApiResponse, extractMetaAdsError } from "./lib/metaAdsApi";
 import { sanitizePii } from "./lib/metaAudienceHash";
+import { requireActionMembership } from "./lib/auth";
 
 export { CAPI_DISPATCH_LOCK_TTL_MS };
 
@@ -317,14 +318,12 @@ export const triggerCapiDispatchAction = action({
     workspaceId: v.optional(v.id("workspaces")),
   },
   handler: async (ctx, args): Promise<CapiDispatchResult> => {
-    const wsId =
-      args.workspaceId ??
-      ((await ctx.runQuery(api.workspaces.currentContext))?.workspace?.id as
-        | Id<"workspaces">
-        | undefined);
-    if (!wsId) {
-      throw new Error("Radni prostor nije izabran ili niste prijavljeni.");
-    }
+    // Prijava i članstvo: prosleđeni prostor mora biti pozivaočev (ranije se
+    // uzimao bez provere); bez njega važi pozivaočev sopstveni.
+    const { workspaceId: wsId } = await requireActionMembership(
+      ctx,
+      args.workspaceId,
+    );
 
     return await ctx.runAction(internal.metaCapi.sendPendingCapiEventsAction, {
       workspaceId: wsId,

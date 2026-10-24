@@ -2,7 +2,7 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { requireMembership, requireMembershipIn } from "./lib/auth";
 import {
   normalizeCompanyName,
   normalizeDomain,
@@ -899,7 +899,9 @@ export const createImport = mutation({
     sourceSheet: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
+    // createImportCore veruje prosleđenom prostoru: pozivalac mora biti njegov
+    // član (ranije se proveravala samo prijava, pa je uvoz mogao u tuđi prostor).
+    const membership = await requireMembershipIn(ctx, args.workspaceId);
 
     return await createImportCore(ctx, {
       workspaceId: args.workspaceId,
@@ -2628,6 +2630,11 @@ export const listImportRows = query({
       });
     }
 
+    // Uvoz mora biti iz ovog prostora: indeks po odluci ne zna za prostor, pa
+    // bi inače vratio redove tuđeg uvoza.
+    const imp = await ctx.db.get(args.importId);
+    if (imp === null || imp.workspaceId !== args.workspaceId) return [];
+
     const rows = args.decision
       ? await ctx.db
           .query("leadImportRows")
@@ -2647,8 +2654,7 @@ export const listImportRows = query({
     // žive firme (createdCompanyId ili matchedCompanyId), da ekran može da menja
     // FIRMU, ne staging red. Ako firma ne postoji (obrisana posle uvoza), oba su
     // undefined — prikaz to kaže izričito, NE pretvara u „nova firma".
-    const imp = await ctx.db.get(args.importId);
-    const applied = imp?.status === "primenjen";
+    const applied = imp.status === "primenjen";
 
     type FirmaTemperatura =
       | "nova_firma"

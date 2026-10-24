@@ -3,7 +3,7 @@ import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { requireActionMembership, requireMembership } from "./lib/auth";
 import { decryptCredentials } from "./lib/crypto";
 import {
   buildCaptionsDeleteUrl,
@@ -390,6 +390,10 @@ export const uploadCaption = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    // Prijava i članstvo PRE bloka koji briše fajl: `finally` ispod briše
+    // `storageId` kako god se poziv završi, pa bez ove provere je bilo ko,
+    // i neprijavljen, mogao da obriše bilo koji fajl čiji ID zna.
+    await requireActionMembership(ctx);
     try {
       return await runUploadCaption(ctx, args);
     } finally {
@@ -531,6 +535,10 @@ export const updateCaption = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    // Prijava i članstvo PRE bloka koji briše fajl: `finally` ispod briše
+    // `storageId` kako god se poziv završi, pa bez ove provere je bilo ko,
+    // i neprijavljen, mogao da obriše bilo koji fajl čiji ID zna.
+    await requireActionMembership(ctx);
     try {
       return await runUpdateCaption(ctx, args);
     } finally {

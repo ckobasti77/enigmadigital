@@ -2,7 +2,7 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { requireMembership, requireMembershipIn } from "./lib/auth";
 import {
   normalizeCompanyName,
   normalizeDomain,
@@ -282,7 +282,9 @@ export const linkInboundToCompany = mutation({
     sourceUrl: v.string(),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
+    // Pozivalac mora biti član prosleđenog prostora (ranije se zapis poredio
+    // samo sa prostorom iz argumenta, pa je tuđ prostor prolazio).
+    const membership = await requireMembershipIn(ctx, args.workspaceId);
 
     const inbound = await ctx.db.get(args.inboundId);
     if (!inbound || inbound.workspaceId !== args.workspaceId) {
@@ -559,7 +561,8 @@ export const dismissInbound = mutation({
     reason: v.string(),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
+    // Pozivalac mora biti član prosleđenog prostora (isti razlog kao gore).
+    const membership = await requireMembershipIn(ctx, args.workspaceId);
 
     const reasonClean = args.reason.trim();
     if (!reasonClean) {

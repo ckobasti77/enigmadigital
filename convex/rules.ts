@@ -2,8 +2,9 @@
 
 import { action, internalAction, type ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { Resend as ResendClient } from "resend";
+import { requireActionMembership } from "./lib/auth";
 import { decryptCredentials } from "./lib/crypto";
 import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
 import type { Id } from "./_generated/dataModel";
@@ -19,12 +20,14 @@ import type { EvaluationRuleContext } from "./rulesStore";
 
 // ── Email Notification Helpers ───────────────────────────────────────────────
 
-function getAppBaseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.APP_URL ||
-    "https://app.enigma-it.com"
-  );
+/**
+ * Adresa aplikacije za link u mejlu, ili `null` kad nije podešena. Nema
+ * zakucane rezervne adrese: pogrešan domen u mejlu vodi na tuđi sajt, a mejl
+ * bez linka i dalje kaže šta se desilo.
+ */
+function getAppBaseUrl(): string | null {
+  const url = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL)?.trim();
+  return url ? url.replace(/\/+$/, "") : null;
 }
 
 function formatMetricUnit(
@@ -93,7 +96,7 @@ function buildRuleAlertHtml(opts: {
   windowDays: number;
   impressions: number;
   actionTaken: "notify" | "pause" | "pause_and_notify" | "notify_only_write_disabled";
-  deepLinkUrl: string;
+  deepLinkUrl: string | null;
 }): string {
   const opSymbol = getOperatorSymbol(opts.operator);
   const metricLabel = getMetricLabel(opts.metric);
@@ -151,11 +154,11 @@ function buildRuleAlertHtml(opts: {
         </td>
       </tr>
 
-      <tr>
+      ${opts.deepLinkUrl === null ? "" : `<tr>
         <td style="padding:8px 32px 24px;">
           <a href="${opts.deepLinkUrl}" style="display:inline-block;background:#58c4ff;color:#0b1221;font-size:14px;font-weight:700;text-decoration:none;padding:12px 24px;border-radius:10px;">Otvori u Command Center-u →</a>
         </td>
-      </tr>
+      </tr>`}
 
       <tr>
         <td style="padding:16px 32px 32px;border-top:1px solid rgba(96,128,180,0.15);">
@@ -208,7 +211,15 @@ async function sendRuleNotificationEmail(opts: {
 
   const from = process.env.EMAIL_FROM ?? "Enigma <onboarding@resend.dev>";
   const baseUrl = getAppBaseUrl();
-  const deepLinkUrl = `${baseUrl}/ads?campaignId=${encodeURIComponent(opts.targetId)}`;
+  const deepLinkUrl =
+    baseUrl === null
+      ? null
+      : `${baseUrl}/ads?campaignId=${encodeURIComponent(opts.targetId)}`;
+  if (deepLinkUrl === null) {
+    console.warn(
+      `[rules] APP_URL / NEXT_PUBLIC_APP_URL nije postavljen — mejl za pravilo "${opts.ruleName}" ide bez linka ka aplikaciji.`,
+    );
+  }
 
   const subject = `${opts.metric.toUpperCase()} alert: ${opts.targetName}`;
   const html = buildRuleAlertHtml({
@@ -229,8 +240,8 @@ async function sendRuleNotificationEmail(opts: {
     `Objekat: ${opts.targetName} (${opts.scope})\n` +
     `Izmerena metrika: ${opts.metric.toUpperCase()} = ${formatMetricUnit(opts.metric, opts.observedValue)}\n` +
     `Prag pravila: ${getOperatorSymbol(opts.operator)} ${formatMetricUnit(opts.metric, opts.threshold)} (${opts.windowDays} dana, ${opts.impressions} impresija)\n` +
-    `Akcija: ${opts.actionTaken}\n\n` +
-    `Pregledaj detalje: ${deepLinkUrl}`;
+    `Akcija: ${opts.actionTaken}` +
+    (deepLinkUrl === null ? "" : `\n\nPregledaj detalje: ${deepLinkUrl}`);
 
   try {
     const resend = new ResendClient(apiKey);
@@ -553,7 +564,13 @@ export const evaluateRulesInternal = internalAction({
 });
 
 /**
- * Manual user trigger from UI or testing.
+ * Manual user trigger from the Pravila screen.
+ *
+ * Only a signed-in OWNER, and only over the rules of their own workspace (the
+ * one passed in, which they must belong to, or their own): a pause is a real
+ * Meta write. Without a workspace this used to walk every rule of every
+ * workspace, for anyone who called it — the cron is the only caller allowed
+ * to do that, and it is internal.
  */
 export const manualEvaluateRules = action({
   args: {
@@ -561,9 +578,16 @@ export const manualEvaluateRules = action({
     ruleId: v.optional(v.id("rules")),
   },
   handler: async (ctx, args): Promise<EvaluationResultSummary> => {
+    const membership = await requireActionMembership(ctx, args.workspaceId);
+    if (membership.role !== "owner") {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Pravila može ručno da pokrene samo vlasnik projekta.",
+      });
+    }
     return await runRuleEvaluations(ctx, {
       specificRuleId: args.ruleId,
-      specificWorkspaceId: args.workspaceId,
+      specificWorkspaceId: membership.workspaceId,
     });
   },
 });

@@ -2,7 +2,7 @@ import { mutation, query } from "./_generated/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { requireMembership, requireMembershipIn } from "./lib/auth";
 import { normalizeDomain, normalizePhoneRs } from "./lib/leadNormalize";
 
 /**
@@ -205,7 +205,9 @@ export const addSuppression = mutation({
     reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
+    // Pozivalac mora biti član prosleđenog prostora: lista „ne kontaktiraj"
+    // tuđeg prostora se ne menja.
+    const membership = await requireMembershipIn(ctx, args.workspaceId);
 
     let normalizedValue = "";
     switch (args.matchOn) {

@@ -5,6 +5,7 @@ import { api, internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { decryptCredentials } from "./lib/crypto";
+import { requireActionMembership } from "./lib/auth";
 import { runSync, sanitizeSyncError } from "./lib/runSync";
 import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
 import {
@@ -1470,14 +1471,10 @@ async function getMetaAdsAuth(
   actId: string;
   adAccountId: Id<"adAccounts">;
 }> {
-  const wsId =
-    workspaceId ??
-    ((await ctx.runQuery(api.workspaces.currentContext))?.workspace?.id as
-      | Id<"workspaces">
-      | undefined);
-  if (!wsId) {
-    throw new Error("Radni prostor nije izabran ili niste prijavljeni.");
-  }
+  // Prijava i članstvo pre svega: prosleđeni prostor mora biti pozivaočev
+  // (ranije se uzimao bez ikakve provere, pa je bilo ko mogao da radi tuđim
+  // Meta tokenom); bez njega važi pozivaočev sopstveni.
+  const { workspaceId: wsId } = await requireActionMembership(ctx, workspaceId);
 
   const conn = await ctx.runQuery(internal.connections.getMetaAdsForWorkspace, {
     workspaceId: wsId,
@@ -2058,7 +2055,7 @@ export const getAdPreviewAction = action({
       api.metaAdsStore.getAdById,
       { adId: args.adId },
     );
-    if (!ad) {
+    if (!ad || ad.workspaceId !== auth.workspaceId) {
       throw new Error("Oglas nije pronađen.");
     }
 
@@ -2263,6 +2260,19 @@ export const listAdPixelsAction = action({
     const actId = args.accountExternalId
       ? normalizeAdAccountId(args.accountExternalId)
       : auth.actId;
+    if (actId !== auth.actId) {
+      // Samo nalog ovog prostora: token ume da vidi i naloge koji mu ne pripadaju.
+      const accounts = await ctx.runQuery(internal.metaAdsStore.getAccounts, {
+        workspaceId: auth.workspaceId,
+      });
+      if (!accounts.some((a) => normalizeAdAccountId(a.externalId) === actId)) {
+        return {
+          success: false,
+          pixels: [],
+          error: "Nalog oglasa nije povezan sa ovim projektom.",
+        };
+      }
+    }
     const tracker = createUsageTracker();
     try {
       const res = await tracker.fetch(buildAdPixelsUrl(actId, auth.token));

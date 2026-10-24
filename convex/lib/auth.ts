@@ -1,6 +1,7 @@
 import { ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { internal } from "../_generated/api";
+import type { ActionCtx, MutationCtx, QueryCtx } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
 
 export type Membership = {
@@ -34,6 +35,79 @@ export async function requireMembership(ctx: QueryCtx): Promise<Membership> {
     workspaceId: membership.workspaceId,
     role: membership.role,
   };
+}
+
+/**
+ * Membership in ONE named workspace, or throw.
+ *
+ * `requireMembership` answers "which workspace is mine" and a function that
+ * then reads `args.workspaceId` instead of that answer trusts whatever the
+ * caller sent — any signed-in user could read or write another workspace by
+ * passing its id. Every function that takes a `workspaceId` from the client
+ * checks it here: the caller must be a member of exactly that workspace.
+ *
+ * Same error shape as `requireMembership` (`unauthorized` / `forbidden`).
+ */
+export async function requireMembershipIn(
+  ctx: QueryCtx,
+  workspaceId: Id<"workspaces">,
+): Promise<Membership> {
+  const userId = await getAuthUserId(ctx);
+  if (userId === null) {
+    throw new ConvexError({ code: "unauthorized" });
+  }
+  // A user has a handful of memberships at most; the index narrows to them.
+  const memberships = await ctx.db
+    .query("members")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .take(100);
+  const membership = memberships.find((m) => m.workspaceId === workspaceId);
+  if (membership === undefined) {
+    throw new ConvexError({
+      code: "forbidden",
+      message: "Nemaš pristup ovom projektu.",
+    });
+  }
+  return { userId, workspaceId, role: membership.role };
+}
+
+/**
+ * The workspace a call is about: the one passed in (the caller must be a
+ * member of it) or, when none is passed, the caller's own
+ * (`requireMembership`). For functions whose `workspaceId` argument is
+ * optional — leaving it out keeps today's behaviour, passing someone else's is
+ * refused.
+ */
+export async function requireWorkspaceAccess(
+  ctx: QueryCtx,
+  workspaceId: Id<"workspaces"> | undefined,
+): Promise<Membership> {
+  return workspaceId === undefined
+    ? await requireMembership(ctx)
+    : await requireMembershipIn(ctx, workspaceId);
+}
+
+/**
+ * `requireWorkspaceAccess` for an action, which has no `ctx.db`: the signed-in
+ * user comes from the auth token, the membership check runs in
+ * `adActionsStore.resolveUserWorkspace`.
+ */
+export async function requireActionMembership(
+  ctx: ActionCtx,
+  workspaceId?: Id<"workspaces">,
+): Promise<Membership> {
+  const userId = await getAuthUserId(ctx);
+  if (userId === null) {
+    throw new ConvexError({ code: "unauthorized", message: "Niste prijavljeni." });
+  }
+  const resolved: {
+    workspaceId: Id<"workspaces">;
+    role: Membership["role"];
+  } = await ctx.runQuery(internal.adActionsStore.resolveUserWorkspace, {
+    userId,
+    explicitWorkspaceId: workspaceId,
+  });
+  return { userId, workspaceId: resolved.workspaceId, role: resolved.role };
 }
 
 /**

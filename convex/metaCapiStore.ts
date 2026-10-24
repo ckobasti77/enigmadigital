@@ -4,7 +4,7 @@ import {
   internalQuery,
   query,
 } from "./_generated/server";
-import { requireMembership } from "./lib/auth";
+import { requireWorkspaceAccess } from "./lib/auth";
 import { CAPI_MAX_BATCH_SIZE, hasMatchableIdentity } from "./lib/metaCapi";
 
 /**
@@ -243,8 +243,11 @@ export const getCapiStats = query({
     ),
   }),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
-    const targetWs = args.workspaceId ?? workspaceId;
+    // Prosleđeni prostor mora biti pozivaočev; bez njega važi sopstveni.
+    const { workspaceId: targetWs } = await requireWorkspaceAccess(
+      ctx,
+      args.workspaceId,
+    );
 
     // Check environment variables without throwing
     const missing: string[] = [];

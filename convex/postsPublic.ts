@@ -75,6 +75,7 @@ export const publicPostDetailValidator = v.object({
  * Podržava filtriranje po kategoriji i paginaciju.
  * NIKADA ne vraća draft, scheduled ni archived postove.
  */
+// javno: javni blog sajta čita samo objavljene postove
 export const listPublished = query({
   args: {
     workspaceSlug: v.string(),
@@ -205,6 +206,7 @@ export const listPublished = query({
  * Vraća celokupan javni sadržaj posta uključujući telo (body) i SEO polja.
  * Ako post ne postoji, nije u statusu "published", ili mu je datum objave u budućnosti, vraća null.
  */
+// javno: javni blog sajta čita samo objavljen post
 export const getPublishedBySlug = query({
   args: {
     workspaceSlug: v.string(),
