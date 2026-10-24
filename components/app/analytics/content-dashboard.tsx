@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { ChartNoAxesColumn, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useDateRange } from "@/components/app/date-range-picker";
@@ -32,31 +33,31 @@ export function ContentDashboard() {
   const { range } = useDateRange();
   const connections = useQuery(api.connections.list);
 
-  const currentDaily = useQuery(api.analytics.daily, {
+  const currentDaily = useProjekatQuery(api.analytics.daily, {
     from: range.from,
     to: range.to,
   });
-  const previousDaily = useQuery(api.analytics.daily, {
+  const previousDaily = useProjekatQuery(api.analytics.daily, {
     from: range.prevFrom,
     to: range.prevTo,
   });
 
   const pagesData = useStale(
-    useQuery(api.analytics.contentPages, {
+    useProjekatQuery(api.analytics.contentPages, {
       from: range.from,
       to: range.to,
     }),
   );
 
   const landingData = useStale(
-    useQuery(api.analytics.landingPages, {
+    useProjekatQuery(api.analytics.landingPages, {
       from: range.from,
       to: range.to,
     }),
   );
 
   const eventsData = useStale(
-    useQuery(api.analytics.eventsByName, {
+    useProjekatQuery(api.analytics.eventsByName, {
       from: range.from,
       to: range.to,
     }),

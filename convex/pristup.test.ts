@@ -136,7 +136,7 @@ describe("neprijavljen poziv pada", () => {
       "unauthorized",
     );
     await odbijeno(t.action(api.metaCapi.triggerCapiDispatchAction, { workspaceId: s.wsA }), "unauthorized");
-    await odbijeno(t.action(api.instagram.getOAuthConfig, {}), "unauthorized");
+    await odbijeno(t.action(api.instagram.getOAuthConfig, { workspaceId: s.wsA }), "unauthorized");
 
     // Ništa nije upisano.
     const upisano = await t.run(async (ctx) => ({
@@ -344,12 +344,14 @@ describe("fajlovi za objavu ostaju u svom projektu", () => {
     const boban = kao(s, s.boban);
     const ana = kao(s, s.ana);
 
-    await boban.mutation(api.instagramPublishStore.registerUpload, { storageId });
+    await boban.mutation(api.instagramPublishStore.registerUpload, { workspaceId: s.wsB, storageId });
     await boban.mutation(api.threadsPublishStore.registerUpload, { storageId });
-    await expect(ana.mutation(api.instagramPublishStore.registerUpload, { storageId })).rejects.toThrow();
+    await expect(
+      ana.mutation(api.instagramPublishStore.registerUpload, { workspaceId: s.wsA, storageId }),
+    ).rejects.toThrow();
     await expect(ana.mutation(api.threadsPublishStore.registerUpload, { storageId })).rejects.toThrow();
     // Ponovljena prijava sopstvenog fajla je i dalje u redu.
-    await boban.mutation(api.instagramPublishStore.registerUpload, { storageId });
+    await boban.mutation(api.instagramPublishStore.registerUpload, { workspaceId: s.wsB, storageId });
 
     const racuni = await s.t.run(async (ctx) => ({
       ig: (await ctx.db.query("igPublishUploads").collect()).map((r) => r.workspaceId),

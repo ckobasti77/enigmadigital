@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatAction, useProjekatQuery } from "@/components/app/projekat-provider";
 import {
   AlertCircle,
   Archive,
@@ -68,8 +68,8 @@ function StoryCountdown({ expiresAt }: { expiresAt: number }) {
 }
 
 export function InstagramStories() {
-  const data = useQuery(api.instagramStore.getStoriesOverview, {});
-  const pollManual = useAction(api.instagram.pollStoriesManual);
+  const data = useProjekatQuery(api.instagramStore.getStoriesOverview, {});
+  const pollManual = useProjekatAction(api.instagram.pollStoriesManual);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
 

@@ -1,10 +1,10 @@
 "use node";
 
-import { action, internalAction, type ActionCtx } from "./_generated/server";
+import { internalAction, type ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { ConvexError, v } from "convex/values";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { v } from "convex/values";
+import { projekatAction } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import { runSync, sanitizeSyncError } from "./lib/runSync";
 import {
@@ -1362,7 +1362,7 @@ export const syncGa4 = internalAction({
  * Enforces 45-second cache, sends 4 small runRealtimeReport requests concurrently.
  * Respects readGate: on "stop" writes state "unavailable" and does not throw.
  */
-export const refreshRealtime = action({
+export const refreshRealtime = projekatAction({
   args: {},
   returns: v.object({
     refreshed: v.boolean(),
@@ -1380,17 +1380,7 @@ export const refreshRealtime = action({
     error?: string;
     fetchedAt?: number;
   }> => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new ConvexError({ code: "unauthorized" });
-
-    const userWs = await ctx.runQuery(
-      internal.workspaces.getWorkspaceForUser,
-      { userId },
-    );
-    if (!userWs) {
-      throw new ConvexError({ code: "forbidden" });
-    }
-    const workspaceId = userWs.workspaceId;
+    const { workspaceId } = ctx.projekat;
 
     // 1. Check existing snapshot in ga4Realtime for 45s cache
     const existing = await ctx.runQuery(internal.ga4Store.getRealtime, {
@@ -1596,21 +1586,11 @@ export const refreshRealtime = action({
 /**
  * Public action for manually refreshing GA4 configuration from Settings screen (A7).
  */
-export const refreshGa4Config = action({
+export const refreshGa4Config = projekatAction({
   args: {},
   returns: v.object({ ok: v.boolean(), error: v.optional(v.string()) }),
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new ConvexError({ code: "unauthorized" });
-
-    const userWs = await ctx.runQuery(
-      internal.workspaces.getWorkspaceForUser,
-      { userId },
-    );
-    if (!userWs) {
-      throw new ConvexError({ code: "forbidden" });
-    }
-    const workspaceId = userWs.workspaceId;
+    const { workspaceId } = ctx.projekat;
 
     const conn = await ctx.runQuery(internal.connections.getGa4ForWorkspace, {
       workspaceId,

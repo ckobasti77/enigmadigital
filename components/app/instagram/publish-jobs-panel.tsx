@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { CalendarClock, History, RotateCw, X } from "lucide-react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
+import {
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import {
   KIND_LABELS,
   PUBLISHED_UNCONFIRMED_LABEL,
@@ -75,9 +78,9 @@ function convexMessage(err: unknown, fallback: string): string {
 }
 
 export function PublishJobsPanel() {
-  const jobs = useQuery(api.instagramPublishStore.listJobs);
-  const cancelJob = useMutation(api.instagramPublishStore.cancelJob);
-  const retryJob = useMutation(api.instagramPublishStore.retryJob);
+  const jobs = useProjekatQuery(api.instagramPublishStore.listJobs);
+  const cancelJob = useProjekatMutation(api.instagramPublishStore.cancelJob);
+  const retryJob = useProjekatMutation(api.instagramPublishStore.retryJob);
 
   const [pending, setPending] = useState<{
     job: PublishJob;

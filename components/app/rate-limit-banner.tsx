@@ -1,7 +1,7 @@
 "use client";
 
-import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { FeedbackNote } from "@/components/app/feedback";
 import { formatClockTime } from "@/lib/format";
 
@@ -22,7 +22,7 @@ import { formatClockTime } from "@/lib/format";
  * imenuje samo čije podatke to zaustavlja na ovom ekranu.
  */
 export function RateLimitBanner({ network }: { network: string }) {
-  const status = useQuery(api.metaSyncStore.rateLimit);
+  const status = useProjekatQuery(api.metaSyncStore.rateLimit);
 
   if (status === undefined || !status.limited) return null;
 

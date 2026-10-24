@@ -5,8 +5,7 @@ import { action, internalAction, type ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
-import { getAuthUserId } from "@convex-dev/auth/server";
-import { requireActionMembership } from "./lib/auth";
+import { projekatAction } from "./lib/projekat";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import { runSync, sanitizeSyncError } from "./lib/runSync";
 import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
@@ -80,7 +79,6 @@ import {
   parseIgDemographicsResponse,
   type RawDemographicsResponse,
 } from "./lib/igDemographics";
-import type { Uloga } from "./lib/uloge";
 
 /**
  * ============================================================================
@@ -267,12 +265,12 @@ function chunked<T>(list: T[], size: number): T[][] {
  * Check if the Meta developer app environment variables are configured.
  * When missing, the Settings card displays a waiting status.
  */
-export const getOAuthConfig = action({
+export const getOAuthConfig = projekatAction({
+  uloga: "owner",
   args: {},
-  handler: async (ctx): Promise<{ isConfigured: boolean; appId: string | null }> => {
+  handler: async (): Promise<{ isConfigured: boolean; appId: string | null }> => {
     // Zove ga samo kartica u Podešavanjima: stanje podešavanja servera nije za
-    // neprijavljene.
-    await requireActionMembership(ctx);
+    // neprijavljene, a povezivanje naloga je radnja vlasnika projekta.
     const appId = process.env.INSTAGRAM_APP_ID?.trim();
     const appSecret = process.env.INSTAGRAM_APP_SECRET?.trim();
     const isConfigured = Boolean(appId && appSecret);
@@ -290,7 +288,8 @@ export const getOAuthConfig = action({
  * persisted (workspace + redirectUri) so the PUBLIC callback route can finish
  * the token exchange server-side, with no dependency on the browser session.
  */
-export const getOAuthUrl = action({
+export const getOAuthUrl = projekatAction({
+  uloga: "owner",
   args: {
     redirectUri: v.string(),
     state: v.optional(v.string()), // ignored; kept for signature compatibility
@@ -304,29 +303,10 @@ export const getOAuthUrl = action({
       });
     }
 
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-    const member: {
-      workspaceId: Id<"workspaces">;
-      role: Uloga;
-    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
-      userId,
-    });
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
-
+    const { workspaceId, userId } = ctx.projekat;
     const nonce = randomUUID();
     await ctx.runMutation(internal.instagramStore.createOAuthState, {
-      workspaceId: member.workspaceId,
+      workspaceId,
       userId,
       nonce,
       redirectUri,
@@ -524,35 +504,15 @@ async function exchangeCodeAndConnect(
  * Complete OAuth from the authenticated client (legacy path — used by the
  * Settings page when the code arrives via URL/localStorage fallback).
  */
-export const completeOAuth = action({
+export const completeOAuth = projekatAction({
+  uloga: "owner",
   args: {
     code: v.string(),
     redirectUri: v.string(),
   },
   handler: async (ctx, { code, redirectUri }): Promise<OAuthResult> => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member: {
-      workspaceId: Id<"workspaces">;
-      role: Uloga;
-    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
-      userId,
-    });
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
-
     return exchangeCodeAndConnect(ctx, {
-      workspaceId: member.workspaceId,
+      workspaceId: ctx.projekat.workspaceId,
       code,
       redirectUri,
     });
@@ -1941,35 +1901,15 @@ export const pollAllIgStories = internalAction({
 });
 
 /**
- * Manual action to trigger story poll for the current workspace.
+ * Manual action to trigger story poll for the current project.
  */
-export const pollStoriesManual = action({
+export const pollStoriesManual = projekatAction({
   args: {},
   handler: async (ctx): Promise<{ success: boolean; count: number }> => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-    const member: {
-      workspaceId: Id<"workspaces">;
-      role: Uloga;
-    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
-      userId,
-    });
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
-
     const conn: Doc<"connections"> | null = await ctx.runQuery(
       internal.instagramStore.getWorkspaceConnection,
       {
-        workspaceId: member.workspaceId,
+        workspaceId: ctx.projekat.workspaceId,
         provider: "meta_ig",
       },
     );

@@ -1,8 +1,8 @@
-import { action, internalQuery } from "./_generated/server";
+import { internalQuery } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
-import { requireMembership } from "./lib/auth";
 import { decryptCredentials } from "./lib/crypto";
+import { projekatAction } from "./lib/projekat";
 import { createUsageTracker } from "./lib/metaRateLimit";
 import {
   getMetaGraphVersion,
@@ -73,10 +73,12 @@ function parseIsoTimestamp(iso?: string): number {
 }
 
 /**
- * Internal query to resolve membership and credentials for sync action.
+ * Internal query to resolve credentials for the sync action. Membership is
+ * not checked here: the trust boundary is the `projekatAction` wrapper, which
+ * passes in the already verified `workspaceId`.
  */
 export const loadSyncContext = internalQuery({
-  args: {},
+  args: { workspaceId: v.id("workspaces") },
   returns: v.union(
     v.null(),
     v.object({
@@ -85,9 +87,7 @@ export const loadSyncContext = internalQuery({
       encryptedCredentials: v.string(),
     }),
   ),
-  handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
-
+  handler: async (ctx, { workspaceId }) => {
     const igConn = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>
@@ -116,7 +116,7 @@ export const loadSyncContext = internalQuery({
  * Action to sync conversations and messages on-demand from Instagram Graph API.
  * Pulls up to 20 conversations and up to 20 messages per conversation (Graph API limit).
  */
-export const syncConversations = action({
+export const syncConversations = projekatAction({
   args: {},
   returns: v.object({
     syncedConversations: v.number(),
@@ -125,7 +125,7 @@ export const syncConversations = action({
   handler: async (ctx) => {
     const syncContext = await ctx.runQuery(
       internal.instagramInbox.loadSyncContext,
-      {},
+      { workspaceId: ctx.projekat.workspaceId },
     );
 
     if (syncContext === null) {

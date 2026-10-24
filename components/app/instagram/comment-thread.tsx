@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAction } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
@@ -23,6 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackLine } from "@/components/app/feedback";
+import { useProjekatAction } from "@/components/app/projekat-provider";
 import { formatNumber, formatRelativeTime } from "@/lib/format";
 import { useOptimisticToggle } from "@/lib/use-optimistic-toggle";
 import { cn } from "@/lib/utils";
@@ -162,7 +162,7 @@ function ReplyComposer({
   onDone: () => void;
   onError: (message: string | null) => void;
 }) {
-  const reply = useAction(api.igComments.replyToComment);
+  const reply = useProjekatAction(api.igComments.replyToComment);
   const ref = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -271,8 +271,8 @@ function CommentActions({
   onToggleReply: () => void;
   onError: (message: string | null) => void;
 }) {
-  const setHidden = useAction(api.igComments.setCommentHidden);
-  const remove = useAction(api.igComments.deleteComment);
+  const setHidden = useProjekatAction(api.igComments.setCommentHidden);
+  const remove = useProjekatAction(api.igComments.deleteComment);
 
   const flag = useOptimisticToggle(hidden);
   const [confirming, setConfirming] = useState(false);

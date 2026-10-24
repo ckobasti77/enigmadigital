@@ -1388,6 +1388,7 @@ export const sendSenderAction = action({
 
     if (args.senderAction === "mark_seen") {
       await ctx.runMutation(api.instagramInboxStore.markSeen, {
+        workspaceId: context.workspaceId,
         igsid: args.igsid,
         platform,
       });

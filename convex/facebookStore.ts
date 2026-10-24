@@ -1,7 +1,6 @@
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 import { connectionStatusValidator } from "./lib/providers";
 import { getFacebookAppSecret } from "./lib/facebookApi";
 import { hasSignatureSecret } from "./lib/webhookSecrets";
@@ -554,11 +553,11 @@ const dailyViewValidator = v.object({
 });
 
 /** Daily Page stats in [from, to] inclusive, ascending. */
-export const dailyHistory = query({
+export const dailyHistory = projekatQuery({
   args: { from: v.string(), to: v.string() },
   returns: v.array(dailyViewValidator),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("fbPageDaily")
       .withIndex("by_workspace_date", (q) =>
@@ -604,11 +603,11 @@ const postViewValidator = v.object({
  * Deleted posts stay in the list. They are marked, not hidden: the numbers they
  * collected are still true, and an operator needs to see what disappeared.
  */
-export const postsList = query({
+export const postsList = projekatQuery({
   args: { limit: v.optional(v.number()) },
   returns: v.array(postViewValidator),
   handler: async (ctx, { limit }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const maxItems = limit && limit > 0 ? Math.min(limit, 100) : 50;
 
     const rows = await ctx.db
@@ -649,7 +648,7 @@ export const postsList = query({
  * environment changes and a card that only learns them on mount would keep
  * showing yesterday's verdict.
  */
-export const setupInfo = query({
+export const setupInfo = projekatQuery({
   args: {},
   returns: v.object({
     webhookUrl: v.union(v.string(), v.null()),
@@ -657,9 +656,8 @@ export const setupInfo = query({
     verifyTokenSet: v.boolean(),
     appSecretSet: v.boolean(),
   }),
-  handler: async (ctx) => {
-    await requireMembership(ctx);
-
+  handler: async () => {
+    // Članstvo u projektu proverava omotač; odgovor ne zavisi od projekta.
     const appId =
       process.env.FACEBOOK_APP_ID?.trim() || process.env.META_APP_ID?.trim();
     const appSecret = getFacebookAppSecret();
@@ -683,7 +681,7 @@ export const setupInfo = query({
  * Who is connected — the one thing every Facebook screen asks before it draws
  * anything. Returns null when no Page is connected, which is the empty state.
  */
-export const pageInfo = query({
+export const pageInfo = projekatQuery({
   args: {},
   returns: v.union(
     v.null(),
@@ -696,8 +694,7 @@ export const pageInfo = query({
     }),
   ),
   handler: async (ctx) => {
-    const { workspaceId }: { workspaceId: Id<"workspaces"> } =
-      await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const conn = await ctx.db
       .query("connections")

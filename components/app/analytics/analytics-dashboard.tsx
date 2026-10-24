@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Activity, ChartNoAxesColumn, Info, Radio, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useDateRange } from "@/components/app/date-range-picker";
@@ -70,21 +71,21 @@ export function AnalyticsDashboard() {
   const connections = useQuery(api.connections.list);
   // Stale-while-loading: switching the range keeps the last numbers on screen
   // (the tiles tween to the new ones) instead of flashing skeletons.
-  const currentRows = useQuery(api.analytics.daily, {
+  const currentRows = useProjekatQuery(api.analytics.daily, {
     from: range.from,
     to: range.to,
   });
-  const previousRows = useQuery(api.analytics.daily, {
+  const previousRows = useProjekatQuery(api.analytics.daily, {
     from: range.prevFrom,
     to: range.prevTo,
   });
   const traffic = useStale(
-    useQuery(api.analytics.traffic, { from: range.from, to: range.to }),
+    useProjekatQuery(api.analytics.traffic, { from: range.from, to: range.to }),
   );
   const reportMeta = useStale(
-    useQuery(api.analytics.reportMeta, { reportKey: "daily" }),
+    useProjekatQuery(api.analytics.reportMeta, { reportKey: "daily" }),
   );
-  const ga4Config = useStale(useQuery(api.analytics.ga4Configuration));
+  const ga4Config = useStale(useProjekatQuery(api.analytics.ga4Configuration));
 
   // Dan poslednjeg očitavanja u zoni propertija: do njega je dan bez reda
   // „nije bilo saobraćaja" (0), posle njega „još nije očitano" (rupa) — F4.

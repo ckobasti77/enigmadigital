@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Megaphone, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useDateRange } from "@/components/app/date-range-picker";
@@ -33,7 +34,7 @@ export function AdsPerformanceDashboard() {
   const [level, setLevel] = useState<"campaign" | "keyword">("campaign");
 
   const currentData = useStale(
-    useQuery(api.analytics.adsPerformance, {
+    useProjekatQuery(api.analytics.adsPerformance, {
       from: range.from,
       to: range.to,
       level,
@@ -41,7 +42,7 @@ export function AdsPerformanceDashboard() {
   );
 
   const previousData = useStale(
-    useQuery(api.analytics.adsPerformance, {
+    useProjekatQuery(api.analytics.adsPerformance, {
       from: range.prevFrom,
       to: range.prevTo,
       level,

@@ -1,8 +1,8 @@
-import { action } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { projekatAction, type ProjekatActionCtx } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
 import {
@@ -32,9 +32,10 @@ import type { FbModerationContext } from "./fbCommentsStore";
  *
  * Every action follows the same four steps, in this order and no other:
  *
- *   1. `openSession` — membership is checked BEFORE anything leaves this
- *      deployment. It also hands over the credentials, so an action that
- *      skipped the check would have no token to call Facebook with.
+ *   1. `openSession` — membership in the project is checked BEFORE anything
+ *      leaves this deployment, by the `projekatAction` wrapper every action
+ *      here is registered with (editor or owner). `openSession` then hands over
+ *      the credentials of that project's Page, from `ctx.projekat`.
  *   2. the stored row is read, which is what proves the comment sits under one
  *      of OUR posts.
  *   3. the call goes out.
@@ -76,10 +77,10 @@ type ModerationSession = {
  * A bulk action opens this ONCE for the whole selection — decrypting the
  * credentials fifty times to do the same fifty calls would be work for nothing.
  */
-async function openSession(ctx: ActionCtx): Promise<ModerationSession> {
+async function openSession(ctx: ProjekatActionCtx): Promise<ModerationSession> {
   const context: FbModerationContext = await ctx.runQuery(
     internal.fbCommentsStore.loadModerationContext,
-    {},
+    { workspaceId: ctx.projekat.workspaceId, userId: ctx.projekat.userId },
   );
   if (context === null) invalid(NO_CONNECTION);
 
@@ -273,7 +274,7 @@ async function deleteOne(
  * so it appears indented under its parent immediately instead of six hours
  * later, and the parent stops counting as unanswered at the same instant.
  */
-export const replyToComment = action({
+export const replyToComment = projekatAction({
   args: { commentId: v.string(), message: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -342,7 +343,7 @@ export const replyToComment = action({
  * Hide or show a comment. Reversible, which is why it asks for no confirmation
  * — the screen flips the state straight away and puts it back if this fails.
  */
-export const setCommentHidden = action({
+export const setCommentHidden = projekatAction({
   args: { commentId: v.string(), hidden: v.boolean() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -353,7 +354,7 @@ export const setCommentHidden = action({
 });
 
 /** Delete a comment. There is no undo, on Facebook or here. */
-export const deleteComment = action({
+export const deleteComment = projekatAction({
   args: {
     commentId: v.string(),
     acknowledgeAutomation: v.optional(v.boolean()),
@@ -385,7 +386,7 @@ export const deleteComment = action({
  * rather than surfaced as a failure: the state the operator wanted is the state
  * that exists, which is not a problem.
  */
-export const setCommentLiked = action({
+export const setCommentLiked = projekatAction({
   args: { commentId: v.string(), liked: v.boolean() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -432,7 +433,7 @@ export const setCommentLiked = action({
 });
 
 /** The same, on a whole post. Same endpoint — `/likes` takes any object id. */
-export const setPostLiked = action({
+export const setPostLiked = projekatAction({
   args: { postId: v.string(), liked: v.boolean() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -546,7 +547,7 @@ function normalizeSelection(commentIds: string[]): string[] {
   return unique;
 }
 
-export const bulkSetHidden = action({
+export const bulkSetHidden = projekatAction({
   args: { commentIds: v.array(v.string()), hidden: v.boolean() },
   returns: bulkResultValidator,
   handler: async (ctx, args): Promise<BulkResult> => {
@@ -558,7 +559,7 @@ export const bulkSetHidden = action({
   },
 });
 
-export const bulkDelete = action({
+export const bulkDelete = projekatAction({
   args: {
     commentIds: v.array(v.string()),
     acknowledgeAutomation: v.optional(v.boolean()),

@@ -1,8 +1,8 @@
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 
 /**
  * ============================================================================
@@ -365,14 +365,16 @@ export type ModerationContext = {
 } | null;
 
 /**
- * Membership check + credentials, in ONE transaction.
+ * Credentials of the project's Instagram connection.
  *
- * Every moderation action starts here, and `requireMembership` throwing is what
- * makes "check membership before calling Instagram" true rather than intended:
- * an action that skipped this step would have no token to call with.
+ * Every moderation action starts here, and an action that skipped this step
+ * would have no token to call with. This function does NOT check membership:
+ * the trust boundary is the `projekatAction` wrapper of the caller, which
+ * verifies membership and role before the action body runs and then passes the
+ * verified `workspaceId` and `userId` in.
  */
 export const loadModerationContext = internalQuery({
-  args: {},
+  args: { workspaceId: v.id("workspaces"), userId: v.id("users") },
   returns: v.union(
     v.null(),
     v.object({
@@ -382,9 +384,7 @@ export const loadModerationContext = internalQuery({
       encryptedCredentials: v.string(),
     }),
   ),
-  handler: async (ctx): Promise<ModerationContext> => {
-    const { workspaceId, userId } = await requireMembership(ctx);
-
+  handler: async (ctx, { workspaceId, userId }): Promise<ModerationContext> => {
     const conn = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>
@@ -714,7 +714,7 @@ function matchesSearch(text: string, username: string, needle: string): boolean 
  * a thread whose REPLY matches, because looking for a phrase you remember
  * writing should find the conversation it is in.
  */
-export const listThreads = query({
+export const listThreads = projekatQuery({
   args: {
     filter: v.optional(commentFilterValidator),
     search: v.optional(v.string()),
@@ -723,7 +723,7 @@ export const listThreads = query({
   },
   returns: v.array(threadViewValidator),
   handler: async (ctx, { filter = "unanswered", search, mediaId, limit }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const maxThreads =
       limit && limit > 0 ? Math.min(limit, MAX_THREADS_CEILING) : MAX_THREADS;
     const needle = (search ?? "").trim().toLowerCase();
@@ -872,7 +872,7 @@ export const listThreads = query({
  * flat hundred: the number is a floor, and saying so is the honest version of
  * a screen with no "load more" (V1).
  */
-export const filterCounts = query({
+export const filterCounts = projekatQuery({
   args: {},
   returns: v.object({
     all: v.number(),
@@ -883,7 +883,7 @@ export const filterCounts = query({
     cap: v.number(),
   }),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const window = await ctx.db
       .query("igComments")

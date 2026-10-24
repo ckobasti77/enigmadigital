@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useAction } from "convex/react";
 import { MessageSquare, RefreshCw, Sparkles } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatAction } from "@/components/app/projekat-provider";
 import { ConversationList } from "./conversation-list";
 import { ChatView } from "./chat-view";
 import { InboxSettingsDrawer } from "./inbox-settings-drawer";
@@ -21,7 +21,7 @@ export function InboxView() {
     title: string;
   } | null>(null);
 
-  const syncAction = useAction(api.instagramInbox.syncConversations);
+  const syncAction = useProjekatAction(api.instagramInbox.syncConversations);
 
   const handleSync = async () => {
     try {

@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAction, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import {
   Activity,
@@ -25,8 +29,8 @@ import { cn } from "@/lib/utils";
 
 export function RealtimeDashboard() {
   const connections = useQuery(api.connections.list);
-  const snapshot = useQuery(api.analytics.realtimeSnapshot);
-  const refresh = useAction(api.ga4.refreshRealtime);
+  const snapshot = useProjekatQuery(api.analytics.realtimeSnapshot);
+  const refresh = useProjekatAction(api.ga4.refreshRealtime);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [secondsAgo, setSecondsAgo] = useState<number | null>(null);

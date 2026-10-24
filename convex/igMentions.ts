@@ -1,4 +1,4 @@
-import { action, internalAction } from "./_generated/server";
+import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
@@ -23,6 +23,7 @@ import {
   translateModerationError,
 } from "./lib/igComments";
 import type { ModerationContext } from "./igCommentsStore";
+import { projekatAction } from "./lib/projekat";
 
 /**
  * ============================================================================
@@ -218,7 +219,7 @@ export const fetchMentionContext = internalAction({
  * Public action: reply to a mention.
  * POST /{ig-user-id}/mentions
  */
-export const replyToMention = action({
+export const replyToMention = projekatAction({
   args: {
     mentionId: v.id("igMentions"),
     message: v.string(),
@@ -233,7 +234,7 @@ export const replyToMention = action({
 
     const context: ModerationContext = await ctx.runQuery(
       internal.igCommentsStore.loadModerationContext,
-      {},
+      { workspaceId: ctx.projekat.workspaceId, userId: ctx.projekat.userId },
     );
     if (context === null) {
       invalid(

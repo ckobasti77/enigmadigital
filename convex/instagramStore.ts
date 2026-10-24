@@ -1,7 +1,7 @@
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 import { providerValidator } from "./lib/providers";
 import { ulogaValidator } from "./lib/uloge";
 
@@ -745,11 +745,11 @@ const dailyViewValidator = v.object({
 /**
  * Get daily account stats in [from, to] inclusive date range, ascending.
  */
-export const dailyHistory = query({
+export const dailyHistory = projekatQuery({
   args: { from: v.string(), to: v.string() },
   returns: v.array(dailyViewValidator),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("igAccountDaily")
       .withIndex("by_workspace_date", (q) =>
@@ -785,7 +785,7 @@ export const metricPointValidator = v.object({
  * Get daily metric series for a specified metric and optional breakdown.
  * Preserves 3 states: "value", "suppressed", "unavailable".
  */
-export const metricSeries = query({
+export const metricSeries = projekatQuery({
   args: {
     metric: v.string(),
     from: v.string(),
@@ -795,7 +795,7 @@ export const metricSeries = query({
   },
   returns: v.array(metricPointValidator),
   handler: async (ctx, { metric, from, to, dimensionKey, dimensionValue }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("igMetricDaily")
       .withIndex("by_workspace_metric_date", (q) =>
@@ -866,13 +866,13 @@ const mediaViewValidator = v.object({
  * Deleted posts stay in the list. They are marked, not hidden: the numbers they
  * collected are still true, and an operator needs to see what disappeared.
  */
-export const mediaList = query({
+export const mediaList = projekatQuery({
   args: {
     limit: v.optional(v.number()),
   },
   returns: v.array(mediaViewValidator),
   handler: async (ctx, { limit }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const maxItems = limit && limit > 0 ? Math.min(limit, 100) : 50;
 
     const rows = await ctx.db
@@ -983,13 +983,13 @@ export const mediaDetailValidator = v.object({
 /**
  * Fetch detailed metrics, 3-state breakdown, and dimensional rows for a single post.
  */
-export const getMediaDetail = query({
+export const getMediaDetail = projekatQuery({
   args: {
     mediaId: v.string(),
   },
   returns: v.union(v.null(), mediaDetailValidator),
   handler: async (ctx, { mediaId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const media = await ctx.db
       .query("igMediaStats")
       .withIndex("by_workspace_media", (q) =>
@@ -1569,14 +1569,14 @@ export const demographicsSummaryValidator = v.object({
 /**
  * Public query for audience demographics on /instagram/publika screen.
  */
-export const getDemographicsSummary = query({
+export const getDemographicsSummary = projekatQuery({
   args: {
     metric: v.union(v.literal("follower"), v.literal("engaged")),
     timeframe: v.string(),
   },
   returns: demographicsSummaryValidator,
   handler: async (ctx, { metric, timeframe }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const connection = await ctx.db
       .query("connections")
@@ -1770,13 +1770,13 @@ export const storiesOverviewValidator = v.object({
 /**
  * Query active (live) and archived stories with stats and breakdown dimensions for /instagram/stories (G4).
  */
-export const getStoriesOverview = query({
+export const getStoriesOverview = projekatQuery({
   args: {
     now: v.optional(v.number()),
   },
   returns: storiesOverviewValidator,
   handler: async (ctx, { now }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const conn = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>

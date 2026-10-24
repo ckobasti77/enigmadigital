@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { CountUp } from "@/components/motion/count-up";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -53,25 +54,25 @@ export function OverviewDashboard() {
   const syncHealth = useQuery(api.sync.health);
 
   // ── GA4 Queries ──────────────────────────────────────────────────────────
-  const ga4Current = useQuery(api.analytics.daily, {
+  const ga4Current = useProjekatQuery(api.analytics.daily, {
     from: range.from,
     to: range.to,
   });
-  const ga4Previous = useQuery(api.analytics.daily, {
+  const ga4Previous = useProjekatQuery(api.analytics.daily, {
     from: range.prevFrom,
     to: range.prevTo,
   });
 
   // ── Instagram Queries ───────────────────────────────────────────────────
-  const igCurrent = useQuery(api.instagramStore.dailyHistory, {
+  const igCurrent = useProjekatQuery(api.instagramStore.dailyHistory, {
     from: range.from,
     to: range.to,
   });
-  const igPrevious = useQuery(api.instagramStore.dailyHistory, {
+  const igPrevious = useProjekatQuery(api.instagramStore.dailyHistory, {
     from: range.prevFrom,
     to: range.prevTo,
   });
-  const igMedia = useQuery(api.instagramStore.mediaList, {
+  const igMedia = useProjekatQuery(api.instagramStore.mediaList, {
     limit: 50,
   });
 
@@ -86,7 +87,7 @@ export function OverviewDashboard() {
   });
 
   // ── Attribution Report ──────────────────────────────────────────────────
-  const attributionReport = useQuery(api.attribution.report, {
+  const attributionReport = useProjekatQuery(api.attribution.report, {
     from: range.from,
     to: range.to,
   });

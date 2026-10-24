@@ -1,16 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "convex/react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PostDetailView } from "./post-detail-view";
 import { PostDetailSkeleton } from "./post-detail-skeleton";
 
 export function PostDetailContainer({ mediaId }: { mediaId: string }) {
-  const data = useQuery(api.instagramStore.getMediaDetail, { mediaId });
+  const data = useProjekatQuery(api.instagramStore.getMediaDetail, { mediaId });
 
   if (data === undefined) {
     return <PostDetailSkeleton />;

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
 import {
   ChartNoAxesColumn,
   Eye,
@@ -13,6 +12,7 @@ import {
   Unplug,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
 import { RateLimitBanner } from "@/components/app/rate-limit-banner";
@@ -52,17 +52,17 @@ const DESCRIPTION =
  */
 export function FacebookDashboard() {
   const { range } = useDateRange();
-  const pageInfo = useQuery(api.facebookStore.pageInfo);
+  const pageInfo = useProjekatQuery(api.facebookStore.pageInfo);
 
-  const currentRows = useQuery(api.facebookStore.dailyHistory, {
+  const currentRows = useProjekatQuery(api.facebookStore.dailyHistory, {
     from: range.from,
     to: range.to,
   });
-  const previousRows = useQuery(api.facebookStore.dailyHistory, {
+  const previousRows = useProjekatQuery(api.facebookStore.dailyHistory, {
     from: range.prevFrom,
     to: range.prevTo,
   });
-  const rawPosts = useQuery(api.facebookStore.postsList, { limit: 30 });
+  const rawPosts = useProjekatQuery(api.facebookStore.postsList, { limit: 30 });
 
   const posts = useStale(rawPosts);
 
@@ -109,7 +109,7 @@ export function FacebookDashboard() {
 
   // Spremnost kanala: sve iz upita koje ekran i ljuska već drže otvorene.
   const sync = useChannelSync("meta_fb");
-  const commentCounts = useQuery(api.fbCommentsStore.filterCounts);
+  const commentCounts = useProjekatQuery(api.fbCommentsStore.filterCounts);
   const now = useNow();
   const lastPostAt = useMemo(() => {
     if (!posts) return null;

@@ -28,6 +28,9 @@ import AudiencePage from "@/app/(app)/analytics/posetioci/page";
 import RealtimePage from "@/app/(app)/analytics/uzivo/page";
 import RetentionPage from "@/app/(app)/analytics/retencija/page";
 import OpenReplyAutomationsPage from "@/app/(app)/openreply/automatizacije/page";
+import InstagramInboxPage from "@/app/(app)/instagram/inbox/page";
+import InstagramAudiencePage from "@/app/(app)/instagram/publika/page";
+import InstagramStoriesPage from "@/app/(app)/instagram/stories/page";
 import LoginPage from "@/app/login/page";
 import { LeadDetailPageClient } from "@/app/(app)/leadovi/[companyId]/lead-detail-page-client";
 import { ProjekatProvider } from "@/components/app/projekat-provider";
@@ -80,6 +83,11 @@ const PAGES: Record<string, ComponentType> = {
   "analytics/uzivo": RealtimePage,
   "analytics/retencija": RetentionPage,
   "openreply/automatizacije": OpenReplyAutomationsPage,
+  // C04: ostali podekrani Instagrama (bez sintetičkih podataka crtaju
+  // učitavanje); kompozer i dalje nije ovde, iz istog razloga kao gore.
+  "instagram/inbox": InstagramInboxPage,
+  "instagram/publika": InstagramAudiencePage,
+  "instagram/stories": InstagramStoriesPage,
 };
 
 export const dynamic = "force-dynamic";

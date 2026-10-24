@@ -2,7 +2,6 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "convex/react";
 import {
   Clock,
   MessageCircle,
@@ -12,6 +11,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { formatRelativeTime } from "@/lib/format";
@@ -37,7 +37,7 @@ export function ConversationList({
   const [filter, setFilter] = useState<FilterType>("all");
   const [search, setSearch] = useState("");
 
-  const conversations = useQuery(
+  const conversations = useProjekatQuery(
     api.instagramInboxStore.listConversations,
     {
       filter,

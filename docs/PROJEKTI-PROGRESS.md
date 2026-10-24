@@ -152,3 +152,140 @@ Tačka 5: čuvar `npm run verify:pristup` (`scripts/verify-pristup.ts` + čista 
 **Za Jovana ujutru:**
 - Ništa vidljivo se nije promenilo. Posle deploya (zajedno sa ostatkom runa) prijava i svi ekrani treba da rade kao pre; provider bira tvoj jedini projekat.
 - Convex deploy dodaje indeks `members.by_user_workspace` (mala tabela, bez čekanja).
+
+## C04 — Prelazak 1: analitika, atribucija, Instagram, Facebook   (2026-10-25 00:51)
+**Fajlovi:**
+- backend: 19 fajlova grupe i jedan red u `convex/orSend.ts`:
+  - `convex/analytics.ts`, `ga4.ts`, `attribution.ts`;
+  - `instagram.ts`, `instagramStore.ts`, `instagramInbox.ts`, `instagramInboxStore.ts`, `instagramPublish.ts`, `instagramPublishStore.ts`;
+  - `igComments.ts`, `igCommentsStore.ts`, `igMentions.ts`, `igMentionsStore.ts`;
+  - `facebook.ts`, `facebookStore.ts`, `fbComments.ts`, `fbCommentsStore.ts`;
+  - `moderationLog.ts`, `metaSyncStore.ts`;
+  - `convex/orSend.ts`: samo poziv `markSeen` (plan C02 §4.1, pravilo 11).
+- front (32 fajla u `components/app/`):
+  - `analytics/`: `acquisition-dashboard`, `ads-performance-dashboard`, `analytics-dashboard`, `audience-dashboard`, `content-dashboard`, `realtime-dashboard`, `retention-dashboard`;
+  - `attribution/attribution-dashboard`;
+  - `facebook/`: `facebook-dashboard`, `fb-comment-thread`, `fb-comments-moderation`, `fb-post-comments-panel`;
+  - `instagram/`: `comment-thread`, `comments-moderation`, `instagram-dashboard`, `instagram-demographics`, `instagram-stories`, `mention-card`, `metric-explorer`, `post-comments-panel`, `publish-composer`, `publish-jobs-panel`;
+  - `instagram/inbox/`: `chat-view`, `conversation-list`, `inbox-view`;
+  - `instagram/post-detail/post-detail-container`;
+  - `overview/overview-dashboard`, `rate-limit-banner`;
+  - `settings/`: `connections-settings`, `ga4-configuration`, `moderation-audit-log`, `sync-schedule`.
+- testovi: nov `convex/izolacija-c04.test.ts`; u `convex/pristup.test.ts` samo potpisi poziva.
+- razvojni prikaz: `app/dev-ux/[[...slug]]/page.tsx` (tri podekrana Instagrama).
+- snimci: `docs/projekti/snimci/C04-analytics-1440.png`, `C04-instagram-390.png`.
+
+**Šta je urađeno:**
+Obrađene su sve 74 javne funkcije grupe iz mape C02 §5.1. Njih 72 sada ide kroz omotače iz `convex/lib/projekat.ts`. Ostale 2 (`instagram.completeOAuthFromCallback` i `facebook.completeOAuthFromCallback`) ostaju sirove, uz postojeću oznaku `// javno:`. Uloge su tačno po mapi:
+- **`projekatQuery` (client_viewer), 38 funkcija:**
+  - `analytics.*` (15), `attribution.report`, `instagramStore.*` (6);
+  - `instagramInboxStore.listConversations/getConversation/listMessages`, `instagramPublishStore.listJobs`;
+  - `igCommentsStore.listThreads/filterCounts`, `igMentionsStore.listMentions`;
+  - `facebookStore.*` (4), `fbCommentsStore.listThreads/filterCounts`;
+  - `moderationLog.listModerationLogs`, `metaSyncStore.rateLimit/jobStatus`.
+- **urednik (podrazumevano), 26 funkcija:**
+  - `ga4.refreshRealtime/refreshGa4Config`, `attribution.recordOpenReplyConversion`, `instagram.pollStoriesManual`;
+  - `instagramInbox.syncConversations`, `instagramInboxStore.markSeen`;
+  - `instagramPublish.publishingLimit`, `instagramPublishStore.generateUploadUrl/registerUpload/createJob/cancelJob/retryJob`;
+  - `igComments.*` (6), `igMentions.replyToMention`, `fbComments.*` (7).
+- **`uloga: "owner"`, 8 funkcija:** `instagram.getOAuthConfig/getOAuthUrl/completeOAuth` i `facebook.getOAuthUrl/listPages/selectPage/connectWithSystemUserToken/refreshTokenNow`.
+
+**Interne funkcije i pomoćni kod.** Interne funkcije koje su akcije zvale preko prenetog identiteta sada dobijaju prostor eksplicitno i više ne proveravaju članstvo (D6):
+- `igCommentsStore.loadModerationContext` i `fbCommentsStore.loadModerationContext` primaju `workspaceId` i `userId`;
+- `instagramInbox.loadSyncContext` prima `workspaceId`;
+- `igMentionsStore.getMentionForReply` je već primao `workspaceId` i proveravao vlasništvo, pa nije menjan.
+
+Obrisani su `instagramPublishStore.membershipForAction` i pomoćne `requireWorkspace`/`requireOwnerWorkspace` u `facebook.ts`, jer im nije ostao nijedan pozivalac. `ga4.ts`, `facebook.ts` i `instagram.ts` više ne zovu `workspaces.getWorkspaceForUser` ni `instagramStore.getMembership`. `orSend.sendSenderAction` sada u `markSeen` šalje `workspaceId: context.workspaceId`. Provere dokumenta iz argumenta (posao objave, komentar, spominjanje, medij) ostale su iste.
+
+**Front.** Svaki poziv ovih funkcija ide kroz `useProjekatQuery/Mutation/Action`. Pozivi drugih grupa u istim fajlovima ostali su na `useQuery`/`useAction`: `connections.list`, `sync.health` i `publicRouteLimit.*` (C07), `openreplyStore.*` i `orSend.*` (C05).
+
+**Provera grep-om.** U 19 fajlova grupe nema nijednog od ovih imena: `requireMembership`, `requireOwner`, `requireWorkspaceAccess`, `requireMembershipIn`, `requireActionMembership`, `getMembership`, `getWorkspaceForUser`, `membershipForAction`, `getAuthUserId`. Nijedan poziv grupe na frontu ne ide kroz sirov hook. Čuvar broji 343 javne funkcije: omotačem 77, sa proverom 253, javno 13, bez provere 0.
+
+**Podela posla.** Pet radnika je radilo po jedan modul, svaki na svojim fajlovima: analitika; Instagram nalog i sadržaj; inbox i objava; komentari i spominjanja; Facebook. Atribuciju, dnevnik moderacije, metaSync, zajedničke ekrane (`instagram-dashboard`, `overview-dashboard`, `connections-settings`) i testove radio sam ja. Svaki diff sam pročitao.
+
+**Šta je iz grupe ostalo (svesno):**
+- `workspaces.getWorkspaceForUser` više nema pozivaoca. Po planu (§5.2) ga briše C07, zajedno sa `currentContext`.
+- `instagramStore.getMembership` ostaje, jer ga zovu `threads.ts`, `threadsSearch.ts`, `youtube.ts` (C05) i `gbp.ts` (C07).
+- Fajlovi `chat-view`, `publish-composer`, `comments-moderation`, `instagram-dashboard`, `overview-dashboard`, `connections-settings` i analitički ekrani i dalje imaju pozive drugih grupa:
+  - `orSend.*` i `openreplyStore.daily` prelaze u C05;
+  - `connections.*`, `sync.*` i `publicRouteLimit.*` prelaze u C07.
+
+**ODLUKE:**
+- **`connections-settings.tsx` čeka projekat pre poziva pri učitavanju.** `useProjekatAction` odbija poziv dok `workspaceId` nije stigao. Tri efekta zovu akciju čim se kartica montira:
+  - provera Meta podešavanja (Instagram);
+  - rezervni put OAuth koda (Instagram, `ig_code` u adresi ili u `localStorage`);
+  - automatsko otvaranje birača Facebook stranice.
+
+  Rezervni put bi pročitao i obrisao kod pre nego što je projekat poznat, pa bi se kod izgubio. Zato sva tri efekta počinju sa `if (!spreman) return;` (iz `useProjekat()`) i imaju `spreman` u zavisnostima. Ništa drugo u fajlu nije menjano.
+- **Uloge po mapi menjaju ponašanje za ne-vlasnike.** Za Jovana kao vlasnika ništa se ne menja.
+  - Facebook `listPages`, `selectPage`, `refreshTokenNow` i Instagram `getOAuthUrl`, `completeOAuth` ranije je mogao da pozove svaki član. Sada traže `owner` (mapa: O). Urednik koji klikne „Osveži token“ dobija poruku omotača.
+  - `getOAuthConfig` (owner) ne-vlasniku tiho vraća „nije podešeno“, jer kartica hvata grešku.
+  - `refreshRealtime`, `refreshGa4Config`, `publishingLimit`, `markSeen` i `syncConversations` traže urednika, pa ih `client_viewer` ne pokreće.
+  - Na ekranu „Uživo“ automatsko osvežavanje hvata grešku tiho. Ručno „Osveži“ nema `catch` (od ranije), pa bi kod posmatrača ostavilo neuhvaćenu grešku u konzoli. UI logiku nisam menjao: to je van recepta, a danas posmatrača nema.
+- **Redosled provera:** `instagram.getOAuthUrl` i `facebook.getOAuthUrl` su ranije prvo proveravali env aplikacije, pa tek onda prijavu. Sada omotač prvo proverava prijavu i članstvo. Neprijavljen pozivalac zato dobija „Niste prijavljeni.“ umesto poruke o nepodešenoj Meta aplikaciji.
+- **`attribution.recordOpenReplyConversion`:** opcioni `workspaceId` je uklonjen iz sopstvenih argumenata (recept §4.1, tačka 2), a omotač ga traži kao obavezan. Test iz C01 ga je već slao, pa njegov poziv nije menjan.
+- **Razvojni prikaz:**
+  - `/instagram/inbox`, `/instagram/publika` i `/instagram/stories` nisu bili registrovani u `app/dev-ux/[[...slug]]/page.tsx` (sa `?ux=1` su davali 404 i pre C04). Dodao sam ih da bi ekrani grupe mogli da se otvore. Bez sintetičkih podataka crtaju učitavanje i prazna stanja; fiksture nisu menjane.
+  - `/instagram/objavi` sam i dalje ostavio van, iz razloga koji je zapisao B8: akcija kvote ne radi nad lažnim Convex-om.
+  - `/instagram/objave/[mediaId]` je dinamička ruta, a harness je ne podržava.
+- **Testovi izolacije** su u jednom fajlu, `convex/izolacija-c04.test.ts` (plan C02 §9), sa po jednim `describe` za svaki modul. Za funkcije koje zovu Metu ili Google proverava se samo odbijanje u omotaču, jer ono dolazi pre bilo kakvog mrežnog poziva. Pozitivan put sa pravom vezom ne može da se testira bez mreže.
+
+**Novi paketi:** nema
+
+**Testovi:**
+- `convex/izolacija-c04.test.ts`, 11 testova. „Odbijeno“ ovde znači da član samo projekta A dobija `forbidden` nad B. Po modulu:
+  - **Analitika:**
+    - svih 15 upita i 2 akcije nad B su odbijeni;
+    - u A se vide samo redovi A, a Jovan (član oba) u B vidi B;
+    - `client_viewer` čita, ali ne pokreće osvežavanje.
+  - **Atribucija:**
+    - odbijeni su izveštaj B i upis konverzije u B;
+    - posmatrač ne može da upiše konverziju, i ništa se ne upisuje;
+    - urednik upisuje u A.
+  - **Instagram nalog:**
+    - 6 upita i 4 akcije nad B su odbijeni, i ne nastaje OAuth stanje;
+    - povezivanje (3 akcije) odbija urednika, a osvežavanje priča odbija posmatrača;
+    - urednik prolazi omotač i dobija poruku „nije povezan“.
+  - **Inbox:**
+    - 3 upita, `markSeen` i sinhronizacija nad B su odbijeni;
+    - posmatrač ništa ne menja;
+    - `markSeen` u A ne dira isti razgovor u B.
+  - **Objava:**
+    - spisak, 5 mutacija i kvota nad B su odbijeni;
+    - posmatrač ništa ne menja;
+    - tuđ posao preko sopstvenog projekta daje „nije pronađena“ i ostaje netaknut;
+    - spisak u A ne sadrži posao B.
+  - **Komentari i spominjanja:**
+    - 3 upita i 7 akcija nad B su odbijeni;
+    - posmatrač ne moderira;
+    - u A se ne vide komentari B;
+    - bez veze moderacija ne stiže do Mete i ništa se ne menja.
+  - **Facebook:**
+    - nad B je odbijeno 6 upita, 5 akcija vlasnika i 7 akcija moderacije;
+    - posmatrač ne moderira, a u A se ne vide komentari B;
+    - urednik ne može da menja vezu stranice.
+  - **Dnevnik moderacije i metaSync:**
+    - nad B su odbijeni;
+    - posmatrač u A vidi samo zapise i poslove A.
+- `convex/pristup.test.ts`: menjani su samo potpisi poziva (`getOAuthConfig` i `registerUpload` dobijaju `workspaceId`). Tvrdnje su iste.
+
+**Rezultat provere:**
+- Automatske provere su prošle:
+  - codegen ✓, typecheck ✓;
+  - lint ✓ (0 grešaka; izmenjeni fajlovi bez upozorenja);
+  - `npx vitest run` ✓ (102/102);
+  - `verify-pristup` ✓ (0 bez provere), `regresije.mjs` ✓ (14/14), `npm run build` ✓.
+- Razvojni prikaz (Playwright, 1440×900):
+  - 17 ekrana grupe vraća 200, sa ispravnim naslovom i bez grešaka u konzoli: `/`, `/analytics` i 7 podekrana, `/atribucija`, `/instagram`, `/instagram/{komentari,inbox,publika,stories}`, `/facebook`, `/facebook/komentari`, `/settings`;
+  - jedino upozorenje je Recharts „width(-1)“ na `/analytics/posetioci`, od ranije (prvi prikaz grafikona);
+  - snimci `/analytics` (1440) i `/instagram` (390) pokazuju da podaci stižu kroz nove hookove;
+  - dev server je ugašen.
+
+**Za Jovana ujutru:**
+- Posle deploya (zajedno sa ostatkom runa) proveri da sve radi kao pre:
+  - Analitika, i na „Uživo“ dugme „Osveži“;
+  - Atribucija;
+  - Instagram: u komentarima sakrij i odgovori, u inboxu otvori razgovor, objavi sliku, osveži priče;
+  - Facebook: komentari i „Osveži token“.
+- Podešavanja → Instagram/Facebook „Poveži“ i birač stranice. Kartica sada čeka da se projekat učita pre provere podešavanja. Ako dugme na trenutak kasni, to je očekivano.
+- Ako budeš imao urednika ili klijenta-posmatrača: povezivanje naloga, osvežavanje tokena i izbor Facebook stranice sada može samo vlasnik projekta.

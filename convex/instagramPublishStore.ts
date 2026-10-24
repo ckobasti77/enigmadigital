@@ -1,10 +1,10 @@
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { DocumentByName, SystemDataModel } from "convex/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { connectionStatusValidator } from "./lib/providers";
 import {
   ABANDONED_AFTER_DUE_MS,
@@ -124,11 +124,10 @@ export function uploadUrlFor(storageId: Id<"_storage">): string {
  * neither the memory nor the time for that. What comes back is a storage id,
  * and that id is the whole of the job's input.
  */
-export const generateUploadUrl = mutation({
+export const generateUploadUrl = projekatMutation({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
-    await requireMembership(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -147,11 +146,11 @@ export const generateUploadUrl = mutation({
  * job takes the file over, so a row surviving past the TTL means exactly one
  * thing, and the sweep can act on it without checking anything else.
  */
-export const registerUpload = mutation({
+export const registerUpload = projekatMutation({
   args: { storageId: v.id("_storage") },
   returns: v.null(),
   handler: async (ctx, { storageId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const meta: StorageMetadata | null = await ctx.db.system.get(
       "_storage",
@@ -227,7 +226,7 @@ async function claimUploads(
  * again in the publish action for images (which can read the file), and
  * Instagram's own container `ERROR` status is the last line for video.
  */
-export const createJob = mutation({
+export const createJob = projekatMutation({
   args: {
     kind: kindValidator,
     caption: v.optional(v.string()),
@@ -266,7 +265,7 @@ export const createJob = mutation({
       trialGraduationStrategy,
     },
   ) => {
-    const { workspaceId, userId } = await requireMembership(ctx);
+    const { workspaceId, userId } = ctx.projekat;
     const now = Date.now();
 
     const countProblem = checkItemCount(kind, storageIds.length);
@@ -483,11 +482,11 @@ function isStaleClaim(job: Doc<"igPublishJobs">, now: number): boolean {
  * The files stay put until the 24h sweep — a cancel is often a change of mind,
  * and the row is already the record of what happened.
  */
-export const cancelJob = mutation({
+export const cancelJob = projekatMutation({
   args: { jobId: v.id("igPublishJobs") },
   returns: v.null(),
   handler: async (ctx, { jobId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const job = await ctx.db.get(jobId);
     if (job === null || job.workspaceId !== workspaceId) {
       invalid("Objava nije pronađena.");
@@ -523,11 +522,11 @@ export const cancelJob = mutation({
  * creating a container and publishing it, the retry publishes that same
  * container instead of building a second copy of the same post.
  */
-export const retryJob = mutation({
+export const retryJob = projekatMutation({
   args: { jobId: v.id("igPublishJobs") },
   returns: v.null(),
   handler: async (ctx, { jobId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const job = await ctx.db.get(jobId);
     if (job === null || job.workspaceId !== workspaceId) {
       invalid("Objava nije pronađena.");
@@ -592,11 +591,11 @@ const CLOSED_TAKE = 8;
  * has the local file it just picked, and a public address to somebody's
  * unpublished video has no business travelling any further than it must.
  */
-export const listJobs = query({
+export const listJobs = projekatQuery({
   args: {},
   returns: v.array(jobViewValidator),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const groups: Array<[Doc<"igPublishJobs">["status"], number]> = [
       ["queued", LIVE_TAKE],
@@ -1368,20 +1367,6 @@ export const getConnectionForWorkspace = internalQuery({
       encryptedCredentials: connection.encryptedCredentials,
       status: connection.status,
     };
-  },
-});
-
-/** Membership for an action, which cannot reach `ctx.db` itself. */
-export const membershipForAction = internalQuery({
-  args: { userId: v.id("users") },
-  returns: v.union(v.null(), v.object({ workspaceId: v.id("workspaces") })),
-  handler: async (ctx, { userId }) => {
-    const membership = await ctx.db
-      .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .first();
-    if (membership === null) return null;
-    return { workspaceId: membership.workspaceId };
   },
 });
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAction } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
@@ -18,6 +17,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatAction } from "@/components/app/projekat-provider";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -159,7 +159,7 @@ function ReplyComposer({
   onDone: () => void;
   onError: (message: string | null) => void;
 }) {
-  const reply = useAction(api.fbComments.replyToComment);
+  const reply = useProjekatAction(api.fbComments.replyToComment);
   const ref = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -276,9 +276,9 @@ function CommentActions({
   onToggleReply: () => void;
   onError: (message: string | null) => void;
 }) {
-  const setHidden = useAction(api.fbComments.setCommentHidden);
-  const setLiked = useAction(api.fbComments.setCommentLiked);
-  const remove = useAction(api.fbComments.deleteComment);
+  const setHidden = useProjekatAction(api.fbComments.setCommentHidden);
+  const setLiked = useProjekatAction(api.fbComments.setCommentLiked);
+  const remove = useProjekatAction(api.fbComments.deleteComment);
 
   const hiddenFlag = useOptimisticToggle(hidden);
   const likedFlag = useOptimisticToggle(liked);

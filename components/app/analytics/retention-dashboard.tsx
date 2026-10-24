@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import {
   Info,
@@ -36,7 +37,7 @@ function cohortFill(alphaPct: number): string {
 
 export function RetentionDashboard() {
   const connections = useQuery(api.connections.list);
-  const data = useQuery(api.analytics.cohortRetention, { granularity: "WEEKLY" });
+  const data = useProjekatQuery(api.analytics.cohortRetention, { granularity: "WEEKLY" });
 
   const [selectedCohortNames] = useState<string[]>([]);
 

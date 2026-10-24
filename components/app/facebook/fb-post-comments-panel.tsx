@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useAction, useQuery } from "convex/react";
 import { ChevronDown, MessageCircle, ThumbsUp } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackLine } from "@/components/app/feedback";
@@ -36,7 +39,7 @@ export function FbPostCommentsPanel({
   deleted: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const threads = useQuery(
+  const threads = useProjekatQuery(
     api.fbCommentsStore.listThreads,
     open ? { postId, filter: "all" as const, limit: 50 } : "skip",
   );
@@ -126,7 +129,7 @@ function PostLikeButton({
   postId: string;
   likedByUs?: boolean;
 }) {
-  const setPostLiked = useAction(api.fbComments.setPostLiked);
+  const setPostLiked = useProjekatAction(api.fbComments.setPostLiked);
   const [error, setError] = useState<string | null>(null);
 
   const flag = useOptimisticToggle(likedByUs === true);

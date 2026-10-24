@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAction } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import {
   AlertTriangle,
@@ -18,6 +17,7 @@ import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { FeedbackLine } from "@/components/app/feedback";
+import { useProjekatAction } from "@/components/app/projekat-provider";
 import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { convexMessage } from "./comment-thread";
@@ -49,7 +49,7 @@ function MentionReplyComposer({
   onDone: () => void;
   onError: (message: string | null) => void;
 }) {
-  const reply = useAction(api.igMentions.replyToMention);
+  const reply = useProjekatAction(api.igMentions.replyToMention);
   const ref = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);

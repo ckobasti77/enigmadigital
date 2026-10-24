@@ -1,12 +1,8 @@
-import {
-  internalMutation,
-  mutation,
-  query,
-} from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import {
   formatRemainingMessagingWindow,
   getRemainingMessagingWindowMs,
@@ -52,7 +48,7 @@ async function resolveWorkspace(
  * List conversations for the workspace with filter & search support.
  * Sorted by `updatedAt` (or `lastMessageAt`) descending.
  */
-export const listConversations = query({
+export const listConversations = projekatQuery({
   args: {
     filter: v.optional(
       v.union(v.literal("all"), v.literal("unread"), v.literal("expiring")),
@@ -61,7 +57,7 @@ export const listConversations = query({
     platform: v.optional(orPlatformValidator),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const targetPlatform = resolvePlatform(args.platform);
     const now = Date.now();
 
@@ -154,13 +150,13 @@ export const listConversations = query({
 /**
  * Get single conversation metadata and window status.
  */
-export const getConversation = query({
+export const getConversation = projekatQuery({
   args: {
     igsid: v.string(),
     platform: v.optional(orPlatformValidator),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const targetPlatform = resolvePlatform(args.platform);
     const now = Date.now();
 
@@ -218,14 +214,14 @@ export const getConversation = query({
 /**
  * List messages inside a conversation (ordered chronologically for display).
  */
-export const listMessages = query({
+export const listMessages = projekatQuery({
   args: {
     igsid: v.string(),
     platform: v.optional(orPlatformValidator),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const limit = Math.min(args.limit ?? 50, 100);
 
     const rows = await ctx.db
@@ -270,14 +266,14 @@ export const listMessages = query({
 /**
  * Mark a conversation as seen (resets unreadCount).
  */
-export const markSeen = mutation({
+export const markSeen = projekatMutation({
   args: {
     igsid: v.string(),
     platform: v.optional(orPlatformValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const targetPlatform = resolvePlatform(args.platform);
 
     const rows = await ctx.db

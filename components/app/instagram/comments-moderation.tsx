@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useAction, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import {
   AtSign,
   EyeOff,
@@ -25,6 +25,10 @@ import { Arrive, ArrivalScope } from "@/components/motion/arrive";
 import { EmptyState } from "@/components/app/empty-state";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackNote } from "@/components/app/feedback";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { formatNumber, pluralSr } from "@/lib/format";
 import { CommentThread, convexMessage } from "./comment-thread";
 import { MentionCard } from "./mention-card";
@@ -78,8 +82,8 @@ export function CommentsModeration() {
   const [selection, setSelection] = useState<Set<string>>(new Set());
 
   const connections = useQuery(api.connections.list);
-  const counts = useQuery(api.igCommentsStore.filterCounts);
-  const threads = useQuery(
+  const counts = useProjekatQuery(api.igCommentsStore.filterCounts);
+  const threads = useProjekatQuery(
     api.igCommentsStore.listThreads,
     filter !== "mentions"
       ? {
@@ -88,7 +92,7 @@ export function CommentsModeration() {
         }
       : "skip",
   );
-  const mentions = useQuery(
+  const mentions = useProjekatQuery(
     api.igMentionsStore.listMentions,
     filter === "mentions"
       ? {
@@ -371,8 +375,8 @@ function SelectionBar({
   capped: boolean;
   atLimit: boolean;
 }) {
-  const bulkHide = useAction(api.igComments.bulkSetHidden);
-  const bulkDelete = useAction(api.igComments.bulkDelete);
+  const bulkHide = useProjekatAction(api.igComments.bulkSetHidden);
+  const bulkDelete = useProjekatAction(api.igComments.bulkDelete);
 
   const [pending, setPending] = useState<"hide" | "delete" | null>(null);
   const [busy, setBusy] = useState(false);

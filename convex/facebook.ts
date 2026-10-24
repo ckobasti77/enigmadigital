@@ -3,7 +3,7 @@ import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { projekatAction } from "./lib/projekat";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import { runSync } from "./lib/runSync";
 import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
@@ -60,7 +60,6 @@ import {
   normalizePagePosts,
   translateFacebookError,
 } from "./lib/facebookContent";
-import type { Uloga } from "./lib/uloge";
 
 /**
  * ============================================================================
@@ -348,7 +347,8 @@ async function subscribePageToWebhook(
  * dependency on the browser session — the same design the Instagram flow uses,
  * and for the same reason: a login round trip must not be able to eat the code.
  */
-export const getOAuthUrl = action({
+export const getOAuthUrl = projekatAction({
+  uloga: "owner",
   args: { redirectUri: v.string() },
   handler: async (ctx, { redirectUri }): Promise<{ url: string }> => {
     const clientId = getFacebookAppId();
@@ -356,30 +356,11 @@ export const getOAuthUrl = action({
       invalid("Čeka Meta app — dodaj FACEBOOK_APP_ID/SECRET u env");
     }
 
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member: {
-      workspaceId: Id<"workspaces">;
-      role: Uloga;
-    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
-      userId,
-    });
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
+    const { workspaceId, userId } = ctx.projekat;
 
     const nonce = randomNonce();
     await ctx.runMutation(internal.facebookStore.createOAuthState, {
-      workspaceId: member.workspaceId,
+      workspaceId,
       userId,
       nonce,
       redirectUri,
@@ -588,63 +569,6 @@ export const completeOAuthFromCallback = action({
 
 // ── Page picker ──────────────────────────────────────────────────────────────
 
-/** Resolve the caller's workspace, or throw. Used by every authenticated action. */
-async function requireWorkspace(ctx: ActionCtx): Promise<Id<"workspaces">> {
-  const userId = await getAuthUserId(ctx);
-  if (userId === null) {
-    throw new ConvexError({
-      code: "unauthorized",
-      message: "Niste prijavljeni.",
-    });
-  }
-  const member: {
-    workspaceId: Id<"workspaces">;
-    role: Uloga;
-  } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
-    userId,
-  });
-  if (member === null) {
-    throw new ConvexError({
-      code: "forbidden",
-      message: "Niste član aktivnog workspace-a.",
-    });
-  }
-  return member.workspaceId;
-}
-
-/**
- * Like {@link requireWorkspace}, but also demands the `owner` role.
- *
- * Writing a new grant is the same class of action as `connections.save` /
- * `remove`, which are owner-only (R1/6): a `client_viewer` exists in order to
- * only look at things and must not be able to swap the token the whole
- * workspace syncs with.
- */
-async function requireOwnerWorkspace(
-  ctx: ActionCtx,
-): Promise<Id<"workspaces">> {
-  const userId = await getAuthUserId(ctx);
-  if (userId === null) {
-    throw new ConvexError({
-      code: "unauthorized",
-      message: "Niste prijavljeni.",
-    });
-  }
-  const member: {
-    workspaceId: Id<"workspaces">;
-    role: Uloga;
-  } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
-    userId,
-  });
-  if (member === null || member.role !== "owner") {
-    throw new ConvexError({
-      code: "forbidden",
-      message: "Samo vlasnik radnog prostora može da menja pristup.",
-    });
-  }
-  return member.workspaceId;
-}
-
 type StoredConnection = {
   connectionId: Id<"connections">;
   pageId: string;
@@ -679,7 +603,8 @@ async function requireStoredUserToken(
 }
 
 /** Every Page the connected account administers, for the picker. */
-export const listPages = action({
+export const listPages = projekatAction({
+  uloga: "owner",
   args: {},
   returns: v.array(
     v.object({
@@ -699,7 +624,7 @@ export const listPages = action({
       connected: boolean;
     }>
   > => {
-    const workspaceId = await requireWorkspace(ctx);
+    const { workspaceId } = ctx.projekat;
     const { conn, userToken } = await requireStoredUserToken(ctx, workspaceId);
 
     const pages = await withUsageTracker(ctx, workspaceId, (tracker) =>
@@ -715,14 +640,15 @@ export const listPages = action({
 });
 
 /** Switch the workspace to a different Page the same account administers. */
-export const selectPage = action({
+export const selectPage = projekatAction({
+  uloga: "owner",
   args: { pageId: v.string() },
   returns: v.object({ pageId: v.string(), pageName: v.union(v.string(), v.null()) }),
   handler: async (
     ctx,
     { pageId },
   ): Promise<{ pageId: string; pageName: string | null }> => {
-    const workspaceId = await requireWorkspace(ctx);
+    const { workspaceId } = ctx.projekat;
     const { userToken } = await requireStoredUserToken(ctx, workspaceId);
 
     // Three Meta calls to swap Page, and the readings matter even when the
@@ -784,7 +710,8 @@ export const selectPage = action({
  *
  * The OAuth path is untouched and still available; this is an additional way in.
  */
-export const connectWithSystemUserToken = action({
+export const connectWithSystemUserToken = projekatAction({
+  uloga: "owner",
   args: { systemUserToken: v.string(), pageId: v.string() },
   returns: v.object({
     success: v.boolean(),
@@ -801,7 +728,7 @@ export const connectWithSystemUserToken = action({
     pageId: string;
     pageName: string | null;
   }> => {
-    const workspaceId = await requireOwnerWorkspace(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const token = systemUserToken.trim();
     if (token.length < 10) {
@@ -1013,14 +940,15 @@ export const refreshConnectionToken = internalAction({
 });
 
 /** The button in Settings. Forces the refresh regardless of remaining time. */
-export const refreshTokenNow = action({
+export const refreshTokenNow = projekatAction({
+  uloga: "owner",
   args: {},
   returns: v.object({
     success: v.boolean(),
     message: v.string(),
   }),
   handler: async (ctx): Promise<{ success: boolean; message: string }> => {
-    const workspaceId = await requireWorkspace(ctx);
+    const { workspaceId } = ctx.projekat;
     const conn: StoredConnection | null = await ctx.runQuery(
       internal.facebookStore.getConnection,
       { workspaceId },

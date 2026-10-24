@@ -29,6 +29,11 @@ import {
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Provider } from "@/convex/lib/providers";
+import {
+  useProjekat,
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -751,9 +756,10 @@ function OpenReplyCard() {
 // ── Instagram (Meta OAuth Flow & Insights) ───────────────────────────────────
 
 function InstagramCard({ connection }: { connection?: ConnectionView }) {
-  const getOAuthConfig = useAction(api.instagram.getOAuthConfig);
-  const getOAuthUrl = useAction(api.instagram.getOAuthUrl);
-  const completeOAuth = useAction(api.instagram.completeOAuth);
+  const { spreman } = useProjekat();
+  const getOAuthConfig = useProjekatAction(api.instagram.getOAuthConfig);
+  const getOAuthUrl = useProjekatAction(api.instagram.getOAuthUrl);
+  const completeOAuth = useProjekatAction(api.instagram.completeOAuth);
   const removeConnection = useMutation(api.connections.remove);
 
   const [configState, setConfigState] = useState<{
@@ -783,8 +789,9 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
     };
   }, []);
 
-  // Check env configuration on mount
+  // Check env configuration on mount (once the project is known)
   useEffect(() => {
+    if (!spreman) return;
     let active = true;
     getOAuthConfig()
       .then((cfg) => {
@@ -800,11 +807,13 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
     return () => {
       active = false;
     };
-  }, [getOAuthConfig]);
+  }, [spreman, getOAuthConfig]);
 
-  // Handle incoming OAuth callback code in URL parameters
+  // Handle incoming OAuth callback code in URL parameters. Waits for the
+  // project: the code is read (and cleared) only once it can be exchanged.
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!spreman) return;
 
     const urlParams = new URLSearchParams(window.location.search);
 
@@ -885,7 +894,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
           setConnecting(false);
         });
     }
-  }, [completeOAuth]);
+  }, [spreman, completeOAuth]);
 
   async function handleStartConnect() {
     setError(null);
@@ -1189,8 +1198,9 @@ function FacebookPagePicker({
   autoOpen: boolean;
   onSwitched: (name: string | null) => void;
 }) {
-  const listPages = useAction(api.facebook.listPages);
-  const selectPage = useAction(api.facebook.selectPage);
+  const { spreman } = useProjekat();
+  const listPages = useProjekatAction(api.facebook.listPages);
+  const selectPage = useProjekatAction(api.facebook.selectPage);
 
   const [open, setOpen] = useState(autoOpen);
   // `null` means "not fetched yet" — which is also what makes the spinner a
@@ -1207,7 +1217,7 @@ function FacebookPagePicker({
   const loading = open && pages === null && error === null;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !spreman) return;
     let active = true;
     listPages()
       .then((result) => {
@@ -1221,7 +1231,7 @@ function FacebookPagePicker({
     return () => {
       active = false;
     };
-  }, [open, listPages]);
+  }, [open, spreman, listPages]);
 
   async function handleSelect(pageId: string) {
     setSwitching(pageId);
@@ -1324,12 +1334,14 @@ function FacebookPagePicker({
 }
 
 function FacebookCard({ connection }: { connection?: ConnectionView }) {
-  const setup = useQuery(api.facebookStore.setupInfo);
-  const getOAuthUrl = useAction(api.facebook.getOAuthUrl);
-  const refreshToken = useAction(api.facebook.refreshTokenNow);
-  const connectSystemUser = useAction(api.facebook.connectWithSystemUserToken);
+  const setup = useProjekatQuery(api.facebookStore.setupInfo);
+  const getOAuthUrl = useProjekatAction(api.facebook.getOAuthUrl);
+  const refreshToken = useProjekatAction(api.facebook.refreshTokenNow);
+  const connectSystemUser = useProjekatAction(
+    api.facebook.connectWithSystemUserToken,
+  );
   const removeConnection = useMutation(api.connections.remove);
-  const pageInfo = useQuery(api.facebookStore.pageInfo);
+  const pageInfo = useProjekatQuery(api.facebookStore.pageInfo);
 
   const [connecting, setConnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);

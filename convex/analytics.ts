@@ -1,6 +1,5 @@
-import { query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 import { getKeyEvents, resolveMetric } from "./lib/ga4Catalog";
 
 /**
@@ -33,11 +32,11 @@ const dailyPointValidator = v.object({
 });
 
 /** Daily totals in [from, to], ascending by date. */
-export const daily = query({
+export const daily = projekatQuery({
   args: { from: v.string(), to: v.string() },
   returns: v.array(dailyPointValidator),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("ga4Daily")
       .withIndex("by_workspace_date", (q) =>
@@ -99,7 +98,7 @@ const trafficRowValidator = v.object({
  * top 20 tuples by sessions, plus totals over ALL tuples so the share bar
  * denominator is the whole period, not just the visible rows.
  */
-export const traffic = query({
+export const traffic = projekatQuery({
   args: { from: v.string(), to: v.string() },
   returns: v.object({
     rows: v.array(trafficRowValidator),
@@ -108,7 +107,7 @@ export const traffic = query({
     totalKeyEvents: v.number(),
   }),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("ga4TrafficDaily")
       .withIndex("by_workspace_date_dims", (q) =>
@@ -181,11 +180,11 @@ export const reportMetaDocValidator = v.union(
   }),
 );
 
-export const reportMeta = query({
+export const reportMeta = projekatQuery({
   args: { reportKey: v.optional(v.string()) },
   returns: reportMetaDocValidator,
   handler: async (ctx, { reportKey = "daily" }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     return await ctx.db
       .query("ga4ReportMeta")
       .withIndex("by_workspace_report", (q) =>
@@ -225,7 +224,7 @@ const channelTotalsValidator = v.object({
  * Acquisition breakdown by channel comparing first touch and session touch (A3/A4).
  * Reads `acq_channel_first` and `acq_channel_session` using index `by_workspace_report_date`.
  */
-export const acquisitionByChannel = query({
+export const acquisitionByChannel = projekatQuery({
   args: { from: v.string(), to: v.string() },
   returns: v.object({
     rows: v.array(channelRowValidator),
@@ -235,7 +234,7 @@ export const acquisitionByChannel = query({
     reportMetaSession: reportMetaDocValidator,
   }),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const [firstRows, sessionRows, reportMetaFirst, reportMetaSession] =
       await Promise.all([
@@ -417,7 +416,7 @@ const sourceAcqRowValidator = v.object({
  * Acquisition breakdown by source/medium for either "first" or "session" touch (A3/A4).
  * Reads `acq_source_first` or `acq_source_session` via `by_workspace_report_date`.
  */
-export const acquisitionBySource = query({
+export const acquisitionBySource = projekatQuery({
   args: {
     from: v.string(),
     to: v.string(),
@@ -434,7 +433,7 @@ export const acquisitionBySource = query({
     reportMeta: reportMetaDocValidator,
   }),
   handler: async (ctx, { from, to, scope }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const reportKey =
       scope === "first" ? "acq_source_first" : "acq_source_session";
@@ -570,7 +569,7 @@ const contentPagesTotalsValidator = v.object({
 /**
  * Content breakdown by pagePath: top 20 by screenPageViews + remainder + totals.
  */
-export const contentPages = query({
+export const contentPages = projekatQuery({
   args: { from: v.string(), to: v.string() },
   returns: v.object({
     rows: v.array(contentPageRowValidator),
@@ -580,7 +579,7 @@ export const contentPages = query({
     reportMeta: reportMetaDocValidator,
   }),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const [rows, reportMeta] = await Promise.all([
       ctx.db
@@ -704,7 +703,7 @@ const landingPagesTotalsValidator = v.object({
 /**
  * Landing pages breakdown by landingPage: top 20 by sessions + remainder + totals.
  */
-export const landingPages = query({
+export const landingPages = projekatQuery({
   args: { from: v.string(), to: v.string() },
   returns: v.object({
     rows: v.array(landingPageRowValidator),
@@ -714,7 +713,7 @@ export const landingPages = query({
     reportMeta: reportMetaDocValidator,
   }),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const [rows, reportMeta] = await Promise.all([
       ctx.db
@@ -831,7 +830,7 @@ const eventTotalsValidator = v.object({
 /**
  * Events breakdown by eventName: top 20 by eventCount + remainder + totals.
  */
-export const eventsByName = query({
+export const eventsByName = projekatQuery({
   args: { from: v.string(), to: v.string() },
   returns: v.object({
     rows: v.array(eventRowValidator),
@@ -841,7 +840,7 @@ export const eventsByName = query({
     reportMeta: reportMetaDocValidator,
   }),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const [rows, reportMeta, config] = await Promise.all([
       ctx.db
@@ -973,7 +972,7 @@ const audienceDeviceTotalsValidator = v.object({
 /**
  * Audience device breakdown: daily stacked area series + per-device totals.
  */
-export const audienceDevice = query({
+export const audienceDevice = projekatQuery({
   args: { from: v.string(), to: v.string() },
   returns: v.object({
     series: v.array(audienceDeviceSeriesPointValidator),
@@ -983,7 +982,7 @@ export const audienceDevice = query({
     reportMeta: reportMetaDocValidator,
   }),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const [rows, reportMeta] = await Promise.all([
       ctx.db
@@ -1131,7 +1130,7 @@ const audienceGeoTotalsValidator = v.object({
 /**
  * Audience geography breakdown: top 10 countries or cities with horizontal rank.
  */
-export const audienceGeo = query({
+export const audienceGeo = projekatQuery({
   args: {
     from: v.string(),
     to: v.string(),
@@ -1146,7 +1145,7 @@ export const audienceGeo = query({
     reportMeta: reportMetaDocValidator,
   }),
   handler: async (ctx, { from, to, level }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const [rows, reportMeta] = await Promise.all([
       ctx.db
@@ -1247,7 +1246,7 @@ const timeOfDayTotalsValidator = v.object({
  * Time of day breakdown: 7 x 24 heatmap matrix (dayOfWeek x hour).
  * dayOfWeek is derived from `date` in property timezone (0=Sunday, 1=Monday ... 6=Saturday).
  */
-export const timeOfDay = query({
+export const timeOfDay = projekatQuery({
   args: { from: v.string(), to: v.string() },
   returns: v.object({
     matrix: v.array(v.array(timeCellValidator)), // 7 days x 24 hours
@@ -1257,7 +1256,7 @@ export const timeOfDay = query({
     reportMeta: reportMetaDocValidator,
   }),
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const [rows, reportMeta] = await Promise.all([
       ctx.db
@@ -1357,7 +1356,7 @@ const realtimeItemValidator = v.object({
 /**
  * Returns latest realtime snapshot for the workspace (last 30 minutes).
  */
-export const realtimeSnapshot = query({
+export const realtimeSnapshot = projekatQuery({
   args: {},
   returns: v.union(
     v.null(),
@@ -1375,7 +1374,7 @@ export const realtimeSnapshot = query({
     }),
   ),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const doc = await ctx.db
       .query("ga4Realtime")
@@ -1424,7 +1423,7 @@ const cohortGroupValidator = v.object({
  * Retention is dynamically calculated on read (cohortActiveUsers / cohortTotalUsers).
  * Never saved, unavailable if either numerator/denominator is missing/unavailable.
  */
-export const cohortRetention = query({
+export const cohortRetention = projekatQuery({
   args: {
     granularity: v.optional(v.string()),
   },
@@ -1434,7 +1433,7 @@ export const cohortRetention = query({
     thresholdedCount: v.number(),
   }),
   handler: async (ctx, { granularity = "WEEKLY" }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const rows = await ctx.db
       .query("ga4Cohorts")
@@ -1597,7 +1596,7 @@ const adsDailyPointValidator = v.object({
  * F4: If thresholded days exist, derived ratios are undefined ("unavailable").
  * 4.4b: Returns accurate adsLinkStatus based on googleAdsLinks in ga4Config.
  */
-export const adsPerformance = query({
+export const adsPerformance = projekatQuery({
   args: {
     from: v.string(),
     to: v.string(),
@@ -1625,7 +1624,7 @@ export const adsPerformance = query({
     reportMeta: reportMetaDocValidator,
   }),
   handler: async (ctx, { from, to, level }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const reportKey = level === "campaign" ? "ads_campaign" : "ads_keyword";
 
     const [rows, reportMeta, dailyMeta, catalog, config] = await Promise.all([
@@ -1883,7 +1882,7 @@ export const adsPerformance = query({
 
 // ── GA4 PROPERTY CONFIGURATION QUERY (A7 §4.5) ──────────────────────────────
 
-export const ga4Configuration = query({
+export const ga4Configuration = projekatQuery({
   args: {},
   returns: v.union(
     v.null(),
@@ -1963,7 +1962,7 @@ export const ga4Configuration = query({
     }),
   ),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const config = await ctx.db
       .query("ga4Config")

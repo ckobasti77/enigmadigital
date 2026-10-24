@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import { Gauge, Timer } from "lucide-react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatClockTime, formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -87,7 +88,7 @@ const ORDER: MetaProvider[] = ["meta_ig", "meta_fb"];
  * održavati istinitom.
  */
 export function SyncSchedule({ connected }: { connected: Provider[] }) {
-  const jobs = useQuery(api.metaSyncStore.jobStatus);
+  const jobs = useProjekatQuery(api.metaSyncStore.jobStatus);
 
   const networks = ORDER.filter((provider) => connected.includes(provider));
   if (networks.length === 0) return null;
@@ -150,7 +151,7 @@ export function SyncSchedule({ connected }: { connected: Provider[] }) {
  * oglase zajedno — pa red namerno ne imenuje mrežu.
  */
 function MetaUsageLine() {
-  const status = useQuery(api.metaSyncStore.rateLimit);
+  const status = useProjekatQuery(api.metaSyncStore.rateLimit);
   if (status === undefined || status.state === "ok") return null;
 
   const held = status.state !== "warn";

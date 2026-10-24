@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { TabNav } from "@/components/app/tab-nav";
 import {
   TimelineChart,
@@ -179,7 +179,7 @@ export function MetricExplorer({
     ? "follow_type"
     : (breakdown as BreakdownDim) || undefined;
 
-  const points = useQuery(
+  const points = useProjekatQuery(
     api.instagramStore.metricSeries,
     isFollowers
       ? "skip"

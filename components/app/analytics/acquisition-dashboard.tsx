@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { ChartNoAxesColumn, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useDateRange } from "@/components/app/date-range-picker";
@@ -37,24 +38,24 @@ export function AcquisitionDashboard() {
 
   const [sourceScope, setSourceScope] = useState<"first" | "session">("first");
 
-  const currentDaily = useQuery(api.analytics.daily, {
+  const currentDaily = useProjekatQuery(api.analytics.daily, {
     from: range.from,
     to: range.to,
   });
-  const previousDaily = useQuery(api.analytics.daily, {
+  const previousDaily = useProjekatQuery(api.analytics.daily, {
     from: range.prevFrom,
     to: range.prevTo,
   });
 
   const channels = useStale(
-    useQuery(api.analytics.acquisitionByChannel, {
+    useProjekatQuery(api.analytics.acquisitionByChannel, {
       from: range.from,
       to: range.to,
     }),
   );
 
   const sources = useStale(
-    useQuery(api.analytics.acquisitionBySource, {
+    useProjekatQuery(api.analytics.acquisitionBySource, {
       from: range.from,
       to: range.to,
       scope: sourceScope,

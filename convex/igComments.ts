@@ -1,4 +1,3 @@
-import { action } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
@@ -18,6 +17,7 @@ import {
   translateModerationError,
 } from "./lib/igComments";
 import type { ModerationContext } from "./igCommentsStore";
+import { projekatAction, type ProjekatActionCtx } from "./lib/projekat";
 
 /**
  * ============================================================================
@@ -32,9 +32,11 @@ import type { ModerationContext } from "./igCommentsStore";
  *
  * Every action follows the same four steps, in this order and no other:
  *
- *   1. `openContext` — membership is checked BEFORE anything leaves this
- *      deployment. It also hands over the credentials, so an action that
- *      skipped the check would have no token to call Instagram with.
+ *   1. `openSession` — the `projekatAction` wrapper has already checked
+ *      membership and role in the project BEFORE anything leaves this
+ *      deployment. `openSession` hands over the credentials of that project's
+ *      connection, so an action that skipped it would have no token to call
+ *      Instagram with.
  *   2. the stored row is read, which is what proves the comment sits under one
  *      of OUR posts. Somebody else's comment on somebody else's post is not
  *      ours to touch, and never has a row here.
@@ -77,10 +79,10 @@ type ModerationSession = {
  * A bulk action opens this ONCE for the whole selection — decrypting the
  * credentials fifty times to do the same fifty calls would be work for nothing.
  */
-async function openSession(ctx: ActionCtx): Promise<ModerationSession> {
+async function openSession(ctx: ProjekatActionCtx): Promise<ModerationSession> {
   const context: ModerationContext = await ctx.runQuery(
     internal.igCommentsStore.loadModerationContext,
-    {},
+    { workspaceId: ctx.projekat.workspaceId, userId: ctx.projekat.userId },
   );
   if (context === null) invalid(NO_CONNECTION);
 
@@ -273,7 +275,7 @@ async function deleteOne(
  * so it appears indented under its parent immediately instead of six hours
  * later, and the parent stops counting as unanswered at the same instant.
  */
-export const replyToComment = action({
+export const replyToComment = projekatAction({
   args: { commentId: v.string(), message: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -342,7 +344,7 @@ export const replyToComment = action({
  * Hide or show a comment. Reversible, which is why it asks for no confirmation
  * — the screen flips the state straight away and puts it back if this fails.
  */
-export const setCommentHidden = action({
+export const setCommentHidden = projekatAction({
   args: { commentId: v.string(), hidden: v.boolean() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -353,7 +355,7 @@ export const setCommentHidden = action({
 });
 
 /** Delete a comment. There is no undo, on Instagram or here. */
-export const deleteComment = action({
+export const deleteComment = projekatAction({
   args: {
     commentId: v.string(),
     acknowledgeAutomation: v.optional(v.boolean()),
@@ -445,7 +447,7 @@ function normalizeSelection(commentIds: string[]): string[] {
   return unique;
 }
 
-export const bulkSetHidden = action({
+export const bulkSetHidden = projekatAction({
   args: { commentIds: v.array(v.string()), hidden: v.boolean() },
   returns: bulkResultValidator,
   handler: async (ctx, args): Promise<BulkResult> => {
@@ -457,7 +459,7 @@ export const bulkSetHidden = action({
   },
 });
 
-export const bulkDelete = action({
+export const bulkDelete = projekatAction({
   args: {
     commentIds: v.array(v.string()),
     acknowledgeAutomation: v.optional(v.boolean()),
@@ -481,7 +483,7 @@ export const bulkDelete = action({
  * `is_comment_enabled`. Instagram named them differently — see
  * `buildMediaNodeUrl` in lib/instagramApi.ts.
  */
-export const setCommentsEnabled = action({
+export const setCommentsEnabled = projekatAction({
   args: { mediaId: v.string(), enabled: v.boolean() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {

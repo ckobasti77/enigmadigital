@@ -9,7 +9,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
   CalendarClock,
@@ -23,6 +23,11 @@ import {
   Zap,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import {
+  useProjekatAction,
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
   ALT_TEXT_MAX,
@@ -153,13 +158,15 @@ type PublishingLimit = {
 
 export function PublishComposer() {
   const connections = useQuery(api.connections.list);
-  const jobs = useQuery(api.instagramPublishStore.listJobs);
-  const generateUploadUrl = useMutation(
+  const jobs = useProjekatQuery(api.instagramPublishStore.listJobs);
+  const generateUploadUrl = useProjekatMutation(
     api.instagramPublishStore.generateUploadUrl,
   );
-  const registerUpload = useMutation(api.instagramPublishStore.registerUpload);
-  const createJob = useMutation(api.instagramPublishStore.createJob);
-  const fetchLimit = useAction(api.instagramPublish.publishingLimit);
+  const registerUpload = useProjekatMutation(
+    api.instagramPublishStore.registerUpload,
+  );
+  const createJob = useProjekatMutation(api.instagramPublishStore.createJob);
+  const fetchLimit = useProjekatAction(api.instagramPublish.publishingLimit);
 
   const [kind, setKind] = useState<PublishKind>("IMAGE");
   const [items, setItems] = useState<PickedItem[]>([]);

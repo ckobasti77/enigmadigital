@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction } from "convex/react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -24,6 +24,10 @@ import {
   XCircle,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import {
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -48,17 +52,17 @@ interface ChatViewProps {
 const COMMON_EMOJIS = ["❤️", "👍", "🔥", "😂", "😮", "👏", "🙌", "😍"];
 
 export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
-  const conversation = useQuery(api.instagramInboxStore.getConversation, {
+  const conversation = useProjekatQuery(api.instagramInboxStore.getConversation, {
     igsid,
   });
-  const messagesData = useQuery(api.instagramInboxStore.listMessages, {
+  const messagesData = useProjekatQuery(api.instagramInboxStore.listMessages, {
     igsid,
   });
 
   const sendMessageAction = useAction(api.orSend.sendInboxMessage);
   const sendActionAction = useAction(api.orSend.sendSenderAction);
   const sendReactionAction = useAction(api.orSend.sendMessageReaction);
-  const markSeenMutation = useMutation(api.instagramInboxStore.markSeen);
+  const markSeenMutation = useProjekatMutation(api.instagramInboxStore.markSeen);
 
   const [text, setText] = useState("");
   const [isSending, setIsSending] = useState(false);

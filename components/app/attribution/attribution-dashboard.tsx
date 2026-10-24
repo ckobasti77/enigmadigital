@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useQuery } from "convex/react";
 import { ArrowRight, MousePointerClick, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/system/empty-state";
 import { FocusCard } from "@/components/app/system/focus-card";
@@ -26,7 +27,7 @@ export function AttributionDashboard() {
   const { range } = useDateRange();
   const connections = useQuery(api.connections.list);
 
-  const rawReport = useQuery(api.attribution.report, {
+  const rawReport = useProjekatQuery(api.attribution.report, {
     from: range.from,
     to: range.to,
   });

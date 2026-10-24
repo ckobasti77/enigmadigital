@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useAction } from "convex/react";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -124,12 +127,12 @@ function formatCustomerId(id?: string): string {
 }
 
 export function Ga4Configuration() {
-  const config = useQuery(api.analytics.ga4Configuration);
+  const config = useProjekatQuery(api.analytics.ga4Configuration);
   // Zona i valuta stižu i uz svaki GA4 izveštaj (Data API). Analitika čita
   // odatle, a ovaj panel iz Admin API-ja — kad Admin poziv padne, ovde je
   // pisalo izmišljeno „UTC" dok je Analitika pokazivala pravu zonu (F12).
-  const reportMeta = useQuery(api.analytics.reportMeta, { reportKey: "daily" });
-  const refresh = useAction(api.ga4.refreshGa4Config);
+  const reportMeta = useProjekatQuery(api.analytics.reportMeta, { reportKey: "daily" });
+  const refresh = useProjekatAction(api.ga4.refreshGa4Config);
   const [refreshing, setRefreshing] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(
     null,

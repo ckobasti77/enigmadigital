@@ -1,7 +1,7 @@
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 
 /**
  * ============================================================================
@@ -286,14 +286,14 @@ export const recordMentionReply = internalMutation({
 /**
  * List mentions for the moderation screen, newest first.
  */
-export const listMentions = query({
+export const listMentions = projekatQuery({
   args: {
     search: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   returns: v.array(mentionViewValidator),
   handler: async (ctx, { search, limit }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const maxMentions =
       limit && limit > 0 ? Math.min(limit, MAX_MENTIONS) : MAX_MENTIONS;
     const needle = (search ?? "").trim().toLowerCase();

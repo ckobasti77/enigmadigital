@@ -13,6 +13,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { PRAVILA_XP } from "@/convex/lib/napredak";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
@@ -60,25 +61,25 @@ export function InstagramDashboard() {
   const { range } = useDateRange();
   const connections = useQuery(api.connections.list);
 
-  const currentRows = useQuery(api.instagramStore.dailyHistory, {
+  const currentRows = useProjekatQuery(api.instagramStore.dailyHistory, {
     from: range.from,
     to: range.to,
   });
-  const previousRows = useQuery(api.instagramStore.dailyHistory, {
+  const previousRows = useProjekatQuery(api.instagramStore.dailyHistory, {
     from: range.prevFrom,
     to: range.prevTo,
   });
-  const profileViewsCurrent = useQuery(api.instagramStore.metricSeries, {
+  const profileViewsCurrent = useProjekatQuery(api.instagramStore.metricSeries, {
     metric: "profile_views",
     from: range.from,
     to: range.to,
   });
-  const profileViewsPrevious = useQuery(api.instagramStore.metricSeries, {
+  const profileViewsPrevious = useProjekatQuery(api.instagramStore.metricSeries, {
     metric: "profile_views",
     from: range.prevFrom,
     to: range.prevTo,
   });
-  const rawMedia = useQuery(api.instagramStore.mediaList, {
+  const rawMedia = useProjekatQuery(api.instagramStore.mediaList, {
     limit: 30,
   });
 
@@ -170,7 +171,7 @@ export function InstagramDashboard() {
 
   // Spremnost kanala: sve iz upita koje ekran i ljuska već drže otvorene.
   const sync = useChannelSync("meta_ig");
-  const commentCounts = useQuery(api.igCommentsStore.filterCounts);
+  const commentCounts = useProjekatQuery(api.igCommentsStore.filterCounts);
   const now = useNow();
   const lastPostAt = useMemo(() => {
     if (!media) return null;

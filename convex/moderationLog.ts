@@ -1,7 +1,6 @@
-import { query } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 
 /**
  * ============================================================================
@@ -125,11 +124,11 @@ function fromFacebook(row: Doc<"fbModerationLogs">): ModerationLogView {
  * screen. Filtering by platform or status happens on the returned window, and
  * the screen says so: this is "the last N actions", not a searchable archive.
  */
-export const listModerationLogs = query({
+export const listModerationLogs = projekatQuery({
   args: { limit: v.optional(v.number()) },
   returns: v.array(moderationLogViewValidator),
   handler: async (ctx, args): Promise<ModerationLogView[]> => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const limit = Math.min(
       Math.max(Math.floor(args.limit ?? LOG_LIMIT_DEFAULT), 1),
       LOG_LIMIT_MAX,

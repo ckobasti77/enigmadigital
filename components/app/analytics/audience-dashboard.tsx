@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { ChartNoAxesColumn, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useDateRange } from "@/components/app/date-range-picker";
@@ -34,24 +35,24 @@ export function AudienceDashboard() {
 
   const [geoLevel, setGeoLevel] = useState<"country" | "city">("country");
 
-  const currentDaily = useQuery(api.analytics.daily, {
+  const currentDaily = useProjekatQuery(api.analytics.daily, {
     from: range.from,
     to: range.to,
   });
-  const previousDaily = useQuery(api.analytics.daily, {
+  const previousDaily = useProjekatQuery(api.analytics.daily, {
     from: range.prevFrom,
     to: range.prevTo,
   });
 
   const deviceData = useStale(
-    useQuery(api.analytics.audienceDevice, {
+    useProjekatQuery(api.analytics.audienceDevice, {
       from: range.from,
       to: range.to,
     }),
   );
 
   const geoData = useStale(
-    useQuery(api.analytics.audienceGeo, {
+    useProjekatQuery(api.analytics.audienceGeo, {
       from: range.from,
       to: range.to,
       level: geoLevel,
@@ -59,7 +60,7 @@ export function AudienceDashboard() {
   );
 
   const timeData = useStale(
-    useQuery(api.analytics.timeOfDay, {
+    useProjekatQuery(api.analytics.timeOfDay, {
       from: range.from,
       to: range.to,
     }),

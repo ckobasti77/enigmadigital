@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import {
   Eye,
   EyeOff,
@@ -109,7 +109,7 @@ export function ModerationAuditLog() {
   const [platform, setPlatform] = useState<PlatformFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
 
-  const rows = useQuery(api.moderationLog.listModerationLogs, {
+  const rows = useProjekatQuery(api.moderationLog.listModerationLogs, {
     limit: LOG_LIMIT,
   });
 

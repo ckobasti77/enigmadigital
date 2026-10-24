@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useAction, useQuery } from "convex/react";
 import {
   ChevronDown,
   MessageCircle,
@@ -12,6 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { FeedbackLine } from "@/components/app/feedback";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { formatNumber } from "@/lib/format";
 import { useOptimisticToggle } from "@/lib/use-optimistic-toggle";
 import { cn } from "@/lib/utils";
@@ -41,7 +44,7 @@ export function PostCommentsPanel({
   deleted: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const threads = useQuery(
+  const threads = useProjekatQuery(
     api.igCommentsStore.listThreads,
     open ? { mediaId, filter: "all" as const, limit: 50 } : "skip",
   );
@@ -135,7 +138,7 @@ function CommentsEnabledSwitch({
   mediaId: string;
   commentsEnabled?: boolean;
 }) {
-  const setEnabled = useAction(api.igComments.setCommentsEnabled);
+  const setEnabled = useProjekatAction(api.igComments.setCommentsEnabled);
   const [error, setError] = useState<string | null>(null);
 
   // Undefined means no sync has asked yet. Assuming "on" is the honest guess —

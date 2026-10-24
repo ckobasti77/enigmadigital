@@ -1,10 +1,10 @@
-import { action, internalAction } from "./_generated/server";
+import { internalAction } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { v, ConvexError } from "convex/values";
+import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { decryptCredentials } from "./lib/crypto";
+import { projekatAction } from "./lib/projekat";
 import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
 import {
   buildContainerStatusUrl,
@@ -855,7 +855,7 @@ async function createSingleContainer(
  * render either way, so the failure comes back as a sentence in `error` and
  * the composer shows it next to the count instead of instead of the screen.
  */
-export const publishingLimit = action({
+export const publishingLimit = projekatAction({
   args: {},
   returns: v.object({
     connected: v.boolean(),
@@ -871,28 +871,11 @@ export const publishingLimit = action({
     total: number;
     error?: string;
   }> => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member = await ctx.runQuery(
-      internal.instagramPublishStore.membershipForAction,
-      { userId },
-    );
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
+    const { workspaceId } = ctx.projekat;
 
     const connection = await ctx.runQuery(
       internal.instagramPublishStore.getConnectionForWorkspace,
-      { workspaceId: member.workspaceId },
+      { workspaceId },
     );
     if (connection === null || !connection.igUserId) {
       return { connected: false, used: 0, total: PUBLISH_LIMIT_FALLBACK };
@@ -943,7 +926,7 @@ export const publishingLimit = action({
         error: "Instagram trenutno ne odgovara na pitanje o kvoti.",
       };
     } finally {
-      await tracker.flush(ctx, member.workspaceId);
+      await tracker.flush(ctx, workspaceId);
     }
   },
 });

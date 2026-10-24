@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useAction, useQuery } from "convex/react";
 import { EyeOff, Inbox, Search, Trash2, Unplug, X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { FB_BULK_ACTION_MAX } from "@/convex/lib/facebookContent";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -63,9 +66,9 @@ export function FbCommentsModeration() {
   const [search, setSearch] = useState("");
   const [selection, setSelection] = useState<Set<string>>(new Set());
 
-  const pageInfo = useQuery(api.facebookStore.pageInfo);
-  const counts = useQuery(api.fbCommentsStore.filterCounts);
-  const threads = useQuery(api.fbCommentsStore.listThreads, {
+  const pageInfo = useProjekatQuery(api.facebookStore.pageInfo);
+  const counts = useProjekatQuery(api.fbCommentsStore.filterCounts);
+  const threads = useProjekatQuery(api.fbCommentsStore.listThreads, {
     filter,
     search: search.trim() || undefined,
   });
@@ -312,8 +315,8 @@ function SelectionBar({
   capped: boolean;
   atLimit: boolean;
 }) {
-  const bulkHide = useAction(api.fbComments.bulkSetHidden);
-  const bulkDelete = useAction(api.fbComments.bulkDelete);
+  const bulkHide = useProjekatAction(api.fbComments.bulkSetHidden);
+  const bulkDelete = useProjekatAction(api.fbComments.bulkDelete);
 
   const [pending, setPending] = useState<"hide" | "delete" | null>(null);
   const [busy, setBusy] = useState(false);

@@ -1,6 +1,6 @@
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 import { providerValidator } from "./lib/providers";
 import {
   BACKOFF_MIN_MS,
@@ -322,7 +322,7 @@ export const lastOkAt = internalQuery({
  * where somebody who wants to know can go and look; `state` and `peak` are
  * still returned for exactly that.
  */
-export const rateLimit = query({
+export const rateLimit = projekatQuery({
   args: {},
   returns: v.object({
     state: gateStateValidator,
@@ -331,7 +331,7 @@ export const rateLimit = query({
     peak: v.number(),
   }),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const row = await ctx.db
       .query("metaApiUsage")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
@@ -350,7 +350,7 @@ export const rateLimit = query({
  * cadences themselves are NOT returned — they are compiled into `crons.ts`, and
  * a second copy in the database would be a second thing to keep true.
  */
-export const jobStatus = query({
+export const jobStatus = projekatQuery({
   args: {},
   returns: v.array(
     v.object({
@@ -362,7 +362,7 @@ export const jobStatus = query({
     }),
   ),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("metaSyncJobs")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))

@@ -1,8 +1,8 @@
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 import { resolvePlatform } from "./lib/orPlatform";
 
 /**
@@ -335,14 +335,15 @@ export type FbModerationContext = {
 } | null;
 
 /**
- * Membership check + credentials, in ONE transaction.
+ * Credentials of the project's Page, for a moderation action.
  *
- * Every moderation action starts here, and `requireMembership` throwing is what
- * makes "check membership before calling Facebook" true rather than intended:
- * an action that skipped this step would have no token to call with.
+ * Every moderation action starts here, but membership is NOT checked here: the
+ * `projekatAction` wrapper of the caller has already proven that the user is an
+ * editor (or owner) of exactly this `workspaceId`, and passes both ids from
+ * `ctx.projekat`. This function must only ever be called from such an action.
  */
 export const loadModerationContext = internalQuery({
-  args: {},
+  args: { workspaceId: v.id("workspaces"), userId: v.id("users") },
   returns: v.union(
     v.null(),
     v.object({
@@ -352,9 +353,7 @@ export const loadModerationContext = internalQuery({
       encryptedCredentials: v.string(),
     }),
   ),
-  handler: async (ctx): Promise<FbModerationContext> => {
-    const { workspaceId, userId } = await requireMembership(ctx);
-
+  handler: async (ctx, { workspaceId, userId }): Promise<FbModerationContext> => {
     const conn = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>
@@ -690,7 +689,7 @@ function matchesSearch(text: string, author: string, needle: string): boolean {
  * a thread whose REPLY matches, because looking for a phrase you remember
  * writing should find the conversation it is in.
  */
-export const listThreads = query({
+export const listThreads = projekatQuery({
   args: {
     filter: v.optional(fbCommentFilterValidator),
     search: v.optional(v.string()),
@@ -699,7 +698,7 @@ export const listThreads = query({
   },
   returns: v.array(fbThreadViewValidator),
   handler: async (ctx, { filter = "unanswered", search, postId, limit }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const maxThreads =
       limit && limit > 0 ? Math.min(limit, MAX_THREADS_CEILING) : MAX_THREADS;
     const needle = (search ?? "").trim().toLowerCase();
@@ -856,7 +855,7 @@ export const listThreads = query({
  * flat hundred: the number is a floor, and saying so is the honest version of
  * a screen with no "load more" (V1).
  */
-export const filterCounts = query({
+export const filterCounts = projekatQuery({
   args: {},
   returns: v.object({
     all: v.number(),
@@ -866,7 +865,7 @@ export const filterCounts = query({
     cap: v.number(),
   }),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const window = await ctx.db
       .query("fbComments")

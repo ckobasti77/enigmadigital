@@ -1,7 +1,6 @@
-import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { requireMembership, requireWorkspaceAccess } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { slugify } from "./lib/slug";
 import { getKeyEvents } from "./lib/ga4Catalog";
 import { hashEmail, hashPhone } from "./lib/metaAudienceHash";
@@ -74,14 +73,14 @@ const attributionReportValidator = v.object({
   unmatchedGa4: v.array(unmatchedTrafficValidator),
 });
 
-export const report = query({
+export const report = projekatQuery({
   args: {
     from: v.string(),
     to: v.string(),
   },
   returns: attributionReportValidator,
   handler: async (ctx, { from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     // 1. Fetch OpenReply campaigns for this workspace
     const rawCampaigns = await ctx.db
@@ -305,9 +304,8 @@ export const report = query({
  * PII is hashed immediately with SHA-256 (convex/lib/metaAudienceHash.ts) — zero raw PII is stored.
  * Dispatch is scheduled via ctx.scheduler.runAfter.
  */
-export const recordOpenReplyConversion = mutation({
+export const recordOpenReplyConversion = projekatMutation({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     automationId: v.optional(v.string()),
     campaignName: v.optional(v.string()),
     eventName: v.optional(v.string()), // default "Lead"
@@ -319,11 +317,7 @@ export const recordOpenReplyConversion = mutation({
     eventId: v.string(),
   }),
   handler: async (ctx, args) => {
-    // Prosleđeni prostor mora biti pozivaočev; bez njega važi sopstveni.
-    const { workspaceId: targetWs } = await requireWorkspaceAccess(
-      ctx,
-      args.workspaceId,
-    );
+    const { workspaceId: targetWs } = ctx.projekat;
 
     const now = Date.now();
     const eventTime = Math.floor(now / 1000);
