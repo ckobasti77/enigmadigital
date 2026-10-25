@@ -547,6 +547,21 @@ function NichePanel({
     }
   };
 
+  // C14: ciljna niša. Firme iz nje dobijaju signal „firma iz ciljne niše“,
+  // koji se boduje samo ako projekat ima pravilo za njega.
+  const postaviCiljnu = async (vrednost: boolean) => {
+    onError(null);
+    try {
+      await upsertNiche({
+        nicheId: nisa._id,
+        naziv: nisa.naziv,
+        ciljna: vrednost,
+      });
+    } catch (err) {
+      onError(getErrorMessage(err));
+    }
+  };
+
   const najviseCms = nisa.sajt.cmsRaspodela[0]?.broj ?? 0;
 
   return (
@@ -559,6 +574,22 @@ function NichePanel({
             <span className="font-mono text-micro text-text-muted">
               ključ: {nisa.slug}
             </span>
+            {moze ? (
+              <label className="mt-1 inline-flex min-h-6 cursor-pointer items-center gap-2 self-start text-micro text-text-muted">
+                <Switch
+                  checked={nisa.ciljna === true}
+                  onCheckedChange={(v) => void postaviCiljnu(v)}
+                  aria-label="Ciljna niša"
+                />
+                <span title={`Firme iz ciljne niše dobijaju signal „firma iz ciljne niše“; boduje se ako projekat ima pravilo za njega.`}>
+                  ciljna niša
+                </span>
+              </label>
+            ) : (
+              nisa.ciljna === true && (
+                <span className="text-micro text-text-muted">ciljna niša</span>
+              )
+            )}
           </div>
           <div className="flex items-center gap-2">
             {/* Ne `Link` na `/leadovi?nisa=…`: ekran je već `/leadovi`, pa bi

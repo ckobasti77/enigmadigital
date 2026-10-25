@@ -123,6 +123,24 @@ Ako neka promenljiva fali, komanda je imenuje. **STANI** i traži od korisnika d
 je postavi (poruka sadrži tačnu PowerShell komandu). Ne nagađaj vrednosti i ne
 ispisuj vrednosti onih koje postoje.
 
+**Projekat.** Token u `ENIGMA_INGEST_TOKEN` određuje projekat u koji uvoz ide
+(Enigma IT, ScanMe, …). Ako korisnik pomene projekat, pitaj da li je postavljen
+token tog projekta; ne nagađaj i ne ispisuj token.
+
+**Mozak projekta (ako postoji).** Pre koraka 3 pročitaj mozak projekta istim
+tokenom (README, „Rad po projektu“):
+
+```powershell
+$baza = $env:ENIGMA_INGEST_URL -replace "/generate-leads/ingest$", ""
+Invoke-RestMethod "$baza/projekti/mozak" -Headers @{ Authorization = "Bearer $env:ENIGMA_INGEST_TOKEN" }
+```
+
+Mozak (`ponuda`, `icpOpis`, `ton`, `zabrane`, `skripte`) služi samo za ton i
+izbor reči u tekstu koji pišeš (opis niše, izveštaj po firmi). **Ne menja**
+pravila dokaza, procenu telefona, A/B/C skor ni filtere. Polje `null` znači da
+ga projekat nije upisao: ne izmišljaj ga. `401` ili `429` nisu razlog za
+prekid runa: nastavi bez mozga i to reci na kraju.
+
 ### 1. Argumenti
 
 `/generate-leads [grad] [niša] [broj] [ima|nema|svejedno]`

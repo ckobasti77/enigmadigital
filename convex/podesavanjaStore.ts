@@ -562,3 +562,16 @@ export const zaMejl = internalQuery({
     };
   },
 });
+
+/**
+ * Mozak projekta za `GET /projekti/mozak` (C14, P15): samo pet polja mozga,
+ * za projekat kome pripada ingest token. Ništa drugo iz projekta.
+ */
+export const mozakZaToken = internalQuery({
+  args: { workspaceId: v.id("workspaces") },
+  returns: v.union(mozakOdgovor, v.null()),
+  handler: async (ctx, { workspaceId }) => {
+    const ws = await ctx.db.get(workspaceId);
+    return ws === null ? null : mozakZaOdgovor(ws);
+  },
+});

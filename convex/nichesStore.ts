@@ -165,6 +165,8 @@ export const upsertNiche = projekatMutation({
     // GL10 (plan §2.3): da li firme u niši žive od termina. Odsustvo u
     // argumentima = ne diraj postojeću vrednost.
     trebaZakazivanje: v.optional(v.boolean()),
+    // C14: da li je niša ciljna (signal „ciljna niša“). Odsustvo = ne diraj.
+    ciljna: v.optional(v.boolean()),
   },
   returns: v.id("niches"),
   handler: async (ctx, args) => {
@@ -193,6 +195,7 @@ export const upsertNiche = projekatMutation({
         ...(typeof args.trebaZakazivanje === "boolean"
           ? { trebaZakazivanje: args.trebaZakazivanje }
           : {}),
+        ...(typeof args.ciljna === "boolean" ? { ciljna: args.ciljna } : {}),
         updatedAt: now,
       });
       return args.nicheId;
@@ -228,6 +231,7 @@ export const upsertNiche = projekatMutation({
       ...(typeof args.trebaZakazivanje === "boolean"
         ? { trebaZakazivanje: args.trebaZakazivanje }
         : {}),
+      ...(typeof args.ciljna === "boolean" ? { ciljna: args.ciljna } : {}),
       createdBy: ctx.projekat.userId,
       createdAt: now,
       updatedAt: now,

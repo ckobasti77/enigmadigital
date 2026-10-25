@@ -55,6 +55,7 @@ import type * as leadScoringStore from "../leadScoringStore.js";
 import type * as leadSiteAuditsStore from "../leadSiteAuditsStore.js";
 import type * as leadSuppressionStore from "../leadSuppressionStore.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_ciljnaNisa from "../lib/ciljnaNisa.js";
 import type * as lib_cronLock from "../lib/cronLock.js";
 import type * as lib_crypto from "../lib/crypto.js";
 import type * as lib_facebookApi from "../lib/facebookApi.js";
@@ -247,6 +248,7 @@ declare const fullApi: ApiFromModules<{
   leadSiteAuditsStore: typeof leadSiteAuditsStore;
   leadSuppressionStore: typeof leadSuppressionStore;
   "lib/auth": typeof lib_auth;
+  "lib/ciljnaNisa": typeof lib_ciljnaNisa;
   "lib/cronLock": typeof lib_cronLock;
   "lib/crypto": typeof lib_crypto;
   "lib/facebookApi": typeof lib_facebookApi;

@@ -63,6 +63,46 @@ vrednosti):
 node "…/tools/generate-leads/run.mjs" proveri-env
 ```
 
+## Rad po projektu (više projekata)
+
+Panel ima više projekata (Enigma IT, ScanMe, …) i svaki ima **svoje** leadove,
+niše, pravila ocenjivanja i tokene za uvoz. **Projekat određuje token, ne
+komanda:** uvoz poslat tokenom projekta ScanMe završava u pregledu uvoza
+ScanMe-a, i nijedan argument skilla to ne menja.
+
+- **Token po projektu.** U panelu otvori projekat → Podešavanja → Pristup →
+  Tokeni za uvoz → nov token (pravi ga samo vlasnik projekta). Token jednog
+  projekta ne vidi ni ne puni drugi projekat.
+- **Prebacivanje projekta** = drugi token u `ENIGMA_INGEST_TOKEN`. Adresa
+  (`ENIGMA_INGEST_URL`) je ista za sve projekte. Primer za jedan PowerShell
+  prozor, bez menjanja trajne vrednosti:
+
+  ```powershell
+  $env:ENIGMA_INGEST_TOKEN = "<token projekta ScanMe>"
+  ```
+
+- **Niše i ocena.** Projekat sa šablonom „QR za lokale“ ima ciljne niše
+  (`kafici`, `restorani`, `hoteli`, `frizerski-saloni`, `kozmeticki-saloni`,
+  `auto-saloni`, `izlagaci-na-sajmovima`). Firma koju uvoz upiše u ciljnu nišu
+  dobija u panelu signal „firma iz ciljne niše“; skill za to ne radi ništa
+  posebno, dovoljno je da `nisa` bude tačan slug. Niše `kafici`, `hoteli`,
+  `auto-saloni` i `izlagaci-na-sajmovima` nisu u `lib/nise.mjs`, pa ih skill
+  još ne ume da traži: `nadjiNisu` vraća `null` i skill pita za upite. „Kafić“
+  skill danas svrstava u `restorani`, koja je takođe ciljna.
+- **Mozak projekta.** Ponuda, kome prodajemo, ton, šta ne govorimo i skripte
+  upisuju se u panelu (Podešavanja projekta → Mozak). Skill ih čita istim
+  tokenom, sa iste adrese, putanja `/projekti/mozak`:
+
+  ```powershell
+  $baza = $env:ENIGMA_INGEST_URL -replace "/generate-leads/ingest$", ""
+  Invoke-RestMethod "$baza/projekti/mozak" -Headers @{ Authorization = "Bearer $env:ENIGMA_INGEST_TOKEN" }
+  ```
+
+  Odgovor ima tačno pet polja (`ponuda`, `icpOpis`, `ton`, `zabrane`,
+  `skripte`); prazno polje je `null`. `401` znači nepoznat ili opozvan token,
+  `429` plafon od 120 čitanja na sat po projektu. Ništa drugo iz projekta ne
+  izlazi ovom rutom.
+
 ## Primer runa
 
 ```

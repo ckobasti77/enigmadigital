@@ -318,6 +318,11 @@ export const LEAD_SIGNAL_KINDS = [
   "samo_instagram",
   "visok_broj_recenzija",
   "novootvorena_firma",
+  // C14 (PROJEKTI-PLAN §10): firma je u niši koju projekat označi kao ciljnu
+  // (`niches.ciljna`). NIKAD SE NE UPISUJE u `leadSignals`: izvodi se pri
+  // čitanju iz niše firme (`convex/lib/ciljnaNisa.ts`), pa promena oznake
+  // niše odmah važi i ne ostavlja zastareo signal.
+  "ciljna_nisa",
   "landing_opened",
   "r_link_clicked",
   "komentar",

@@ -20,6 +20,7 @@ import {
   podesavanjaValidator,
   vrstaProjektaValidator,
 } from "./lib/projekatPolja";
+import { sablonLeadovaValidator } from "./lib/sabloniLeadova";
 
 // Multi-tenant from day one (PLAN.md §3). V1 is single-user, but every future
 // table carries a `workspaceId`, so onboarding clients later needs no migration.
@@ -44,6 +45,8 @@ export default defineSchema({
     /** Uključeni moduli; bez vrednosti = svi (C11 validira ključeve). */
     moduli: v.optional(v.array(v.string())),
     mozak: v.optional(mozakValidator),
+    /** Šablon leadova (C14); bez vrednosti = „web_agencija“ (`sablonProjekta`). */
+    sablonLeadova: v.optional(sablonLeadovaValidator),
     arhiviran: v.optional(v.boolean()),
     redosled: v.optional(v.number()),
     createdBy: v.optional(v.id("users")),
@@ -3600,6 +3603,9 @@ export default defineSchema({
       v.literal("samo_instagram"),
       v.literal("visok_broj_recenzija"),
       v.literal("novootvorena_firma"),
+      // C14: izvodi se pri čitanju iz niše firme i ovde se nikad ne upisuje;
+      // u uniji je samo da bi tip vrste signala bio jedan (`LeadSignalKind`).
+      v.literal("ciljna_nisa"),
       v.literal("landing_opened"),
       v.literal("r_link_clicked"),
       v.literal("komentar"),
@@ -4144,6 +4150,10 @@ export default defineSchema({
     // se upisuje SAMO kad je ovo `true`. OPCIONO NAMERNO: odsustvo = niko nije
     // rekao, pa se signal ne izvodi (nepoznato ≠ poznato).
     trebaZakazivanje: v.optional(v.boolean()),
+    // C14 (PROJEKTI-PLAN §10): niša u koju projekat cilja. Firme iz nje pri
+    // čitanju dobijaju signal `ciljna_nisa` (ne upisuje se u `leadSignals`).
+    // Upisuje je šablon ili čovek. OPCIONO NAMERNO: odsustvo = nije ciljna.
+    ciljna: v.optional(v.boolean()),
     createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
     updatedAt: v.number(),

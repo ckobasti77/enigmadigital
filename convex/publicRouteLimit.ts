@@ -51,6 +51,12 @@ export const GENERATE_LEADS_HOURLY_CAP = 30;
 export const GENERATE_LEADS_SNIMAK_HOURLY_CAP = 300;
 
 /**
+ * `GET /projekti/mozak` (C14): skill čita mozak projekta jednom po pokretanju.
+ * Isti ingest token, zaseban plafon po satu: čitanje ne sme da potroši uvoze.
+ */
+export const PROJEKTI_MOZAK_HOURLY_CAP = 120;
+
+/**
  * Claim one call against a route's hourly budget. Returns `true` when it is
  * within the ceiling (and counts it), `false` when the ceiling is reached.
  *

@@ -1,15 +1,31 @@
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
 import {
   LEAD_SIGNAL_KINDS,
   isKnownLeadSignalKind,
-  type LeadSignalKind,
+  normalizeNicheSlug,
 } from "./lib/leadNormalize";
 import {
   scoreLead,
   type LeadScore,
 } from "./lib/leadScoring";
+import {
+  ciljneNise,
+  firmaUCiljnojNisi,
+  pravilaTraziCiljnuNisu,
+  signaliSaCiljnomNisom,
+} from "./lib/ciljnaNisa";
+import {
+  NISE_SABLONA,
+  PRAVILA_SABLONA,
+  PRAVILA_WEB_AGENCIJA,
+  sablonLeadovaValidator,
+  sablonProjekta,
+  type PraviloSablona,
+  type SablonLeadova,
+} from "./lib/sabloniLeadova";
 
 /**
  * ============================================================================
@@ -27,184 +43,48 @@ import {
  */
 
 /**
- * Podrazumevani skup ICP pravila za Enigma IT digitalne usluge u Srbiji.
- *
- * Ciljna grupa: male firme i preduzetnici (turističke agencije, frizerski/kozmetički
- * saloni sa zakazivanjem i webshopom, online butici i trgovina).
+ * Podrazumevani skup = pravila šablona „Web agencija“ (C14). Pravila su
+ * preseljena doslovno u `convex/lib/sabloniLeadova.ts`, da bi ih čitali i
+ * čarobnjak i ekran bez Convex servera u klijentskom paketu; ime ostaje zbog
+ * postojećih provera (`scripts/verify-lead-scoring.ts`).
  */
-export const DEFAULT_ICP_RULES: ReadonlyArray<{
-  name: string;
-  axis: "fit" | "intent";
-  signalKind: LeadSignalKind;
-  weight: number;
-  comment: string;
-}> = [
-  // --------------------------------------------------------------------------
-  // FIT PRAVILA — koliko firma strukturno odgovara našim uslugama
-  // --------------------------------------------------------------------------
-  {
-    name: "Nema sajt",
-    axis: "fit",
-    signalKind: "nema_sajt",
-    weight: 30,
-    // Firma bez sajta ima primarnu i najočigledniju potrebu za izradom web prezentacije, što je bazična usluga agencije.
-    comment: "Firma bez sajta ima primarnu i najočigledniju potrebu za izradom web prezentacije, što je bazična usluga agencije.",
-  },
-  {
-    name: "Sajt ne radi ili je parkiran",
-    axis: "fit",
-    signalKind: "sajt_ne_radi",
-    weight: 28,
-    // Firma je nekad platila domen i sajt, pa je danas mrtav ili parkiran — potreba je ista kao kod firme bez sajta, a razgovor je lakši jer je odluka o ulaganju već jednom doneta.
-    comment: "Firma je nekad platila domen i sajt, pa je danas mrtav ili parkiran — potreba je ista kao kod firme bez sajta, a razgovor je lakši jer je odluka o ulaganju već jednom doneta.",
-  },
-  {
-    name: "Sajt bez HTTPS-a",
-    axis: "fit",
-    signalKind: "sajt_bez_https",
-    weight: 12,
-    // Sajt bez sertifikata pretraživači i pregledači izričito označavaju kao nebezbedan, što je merljiva šteta po ugled firme i konkretan, proverljiv povod za poziv.
-    comment: "Sajt bez sertifikata pretraživači i pregledači izričito označavaju kao nebezbedan, što je merljiva šteta po ugled firme i konkretan, proverljiv povod za poziv.",
-  },
-  // GL10 (sajt-ocena-plan.md §2.3): sajt postoji, ali ga treba popraviti.
-  // Težine su ispod „Nema sajt" (30) i „Sajt ne radi" (28): postojeći sajt
-  // je slabiji povod od nikakvog, ali je razgovor konkretniji — ima šta da se
-  // pokaže. Sve se može prekalibrisati sa ekrana „Ocenjivanje" bez deploy-a.
-  {
-    name: "Sajt je spor na mobilnom",
-    axis: "fit",
-    signalKind: "sajt_spor",
-    weight: 18,
-    comment: "Lighthouse mobilni performance ispod 50 znači da se sajt na telefonu učitava sekundama — merljiv gubitak poziva i prvi konkretan argument za redizajn ili ubrzanje.",
-  },
-  {
-    name: "Sajt ima loš SEO",
-    axis: "fit",
-    signalKind: "sajt_los_seo",
-    weight: 14,
-    comment: "Lighthouse SEO ispod 60 znači da sajt nema osnovne naslove, opise i meta oznake, pa ga Google slabo prikazuje — firma plaća sajt koji niko ne nalazi.",
-  },
-  {
-    name: "Sajt je slabo upotrebljiv",
-    axis: "fit",
-    signalKind: "sajt_slab_ux",
-    weight: 20,
-    comment: "Prosek Claudeovih ocena (prvi utisak, jasnoća ponude, put do kontakta, mobilna upotrebljivost, ažurnost) do 2,5 od 5 — posetilac ne razume šta firma nudi ni kako da je pozove.",
-  },
-  {
-    name: "Sajt nema jasan put do kontakta",
-    axis: "fit",
-    signalKind: "sajt_bez_puta_do_kontakta",
-    weight: 16,
-    comment: "Telefon, forma ili termin su tri i više klikova od početne, ili ih Claude nije našao — sajt koji ne vodi ka kontaktu ne donosi posao, a popravka je mala i vidljiva.",
-  },
-  {
-    name: "Sajt na zastareloj tehnologiji",
-    axis: "fit",
-    signalKind: "sajt_zastarela_tehnologija",
-    weight: 22,
-    comment: "Joomla 3, Drupal 7, Flash, stranica bez responsive rasporeda ili tabelarni HTML — tehnologija bez zakrpa i bez mobilne verzije, gde je nov sajt jeftiniji od popravke.",
-  },
-  {
-    name: "Nema zakazivanja u niši koja ga traži",
-    axis: "fit",
-    signalKind: "sajt_bez_zakazivanja",
-    weight: 20,
-    comment: "Frizeri, kozmetika, stomatolozi i teretane žive od termina, a sajt nema ni alat ni formu za zakazivanje — svaki termin ide preko telefona i poruka, što je tačno ono što Enigma prodaje.",
-  },
-  {
-    name: "Koristi booking treće strane",
-    axis: "fit",
-    signalKind: "koristi_third_party_booking",
-    weight: 20,
-    // Firma već prepoznaje vrednost digitalnog zakazivanja i plaća eksterna rešenja (Setmore, Dikidi), pa je idealan kandidat za sopstveni integrisani sistem bez provizija.
-    comment: "Firma već prepoznaje vrednost digitalnog zakazivanja i plaća eksterna rešenja (Setmore, Dikidi), pa je idealan kandidat za sopstveni integrisani sistem bez provizija.",
-  },
-  {
-    name: "Samo Facebook",
-    axis: "fit",
-    signalKind: "samo_facebook",
-    weight: 15,
-    // Prisustvo isključivo na Facebook-u pokazuje digitalnu svest ali i ranjivost bez sopstvenog domena i profesionalnog brendinga.
-    comment: "Prisustvo isključivo na Facebook-u pokazuje digitalnu svest ali i ranjivost bez sopstvenog domena i profesionalnog brendinga.",
-  },
-  {
-    name: "Samo Instagram",
-    axis: "fit",
-    signalKind: "samo_instagram",
-    weight: 15,
-    // Aktivnost samo na Instagramu dokazuje postojanje vizuelnog sadržaja i baze pratilaca, ali nedostatak webshopa ili sajta ograničava direktnu prodaju.
-    comment: "Aktivnost samo na Instagramu dokazuje postojanje vizuelnog sadržaja i baze pratilaca, ali nedostatak webshopa ili sajta ograničava direktnu prodaju.",
-  },
-  {
-    name: "Visok broj recenzija",
-    axis: "fit",
-    signalKind: "visok_broj_recenzija",
-    weight: 20,
-    // Veliki broj recenzija (100+) uz dobru ocenu dokazuje stabilan obim posla, stalne mušterije i budžet za ulaganje u digitalni rast.
-    comment: "Veliki broj recenzija (100+) uz dobru ocenu dokazuje stabilan obim posla, stalne mušterije i budžet za ulaganje u digitalni rast.",
-  },
-  {
-    name: "Novootvorena firma",
-    axis: "fit",
-    signalKind: "novootvorena_firma",
-    weight: 10,
-    // Novootvoreni biznisi grade svoj vizuelni identitet i digitalne kanale od nule, pa im je potreban kompletan paket usluga.
-    comment: "Novootvoreni biznisi grade svoj vizuelni identitet i digitalne kanale od nule, pa im je potreban kompletan paket usluga.",
-  },
+export const DEFAULT_ICP_RULES = PRAVILA_WEB_AGENCIJA;
 
-  // --------------------------------------------------------------------------
-  // INTENT PRAVILA — trenutna zainteresovanost i angažovanje na tržištu
-  // --------------------------------------------------------------------------
-  {
-    name: "Pitao za cenu",
-    axis: "intent",
-    signalKind: "pitao_cenu",
-    weight: 40,
-    // Direktan upit za cenu je najjasniji signal trenutne kupovne namere i spremnosti za momentalni razgovor o saradnji.
-    comment: "Direktan upit za cenu je najjasniji signal trenutne kupovne namere i spremnosti za momentalni razgovor o saradnji.",
-  },
-  {
-    name: "Kliknuo /r/ link",
-    axis: "intent",
-    signalKind: "r_link_clicked",
-    weight: 25,
-    // Klik na praćeni link u poruci ili ponudi dokazuje aktivnu radoznalost i angažovanje donosioca odluke.
-    comment: "Klik na praćeni link u poruci ili ponudi dokazuje aktivnu radoznalost i angažovanje donosioca odluke.",
-  },
-  {
-    name: "Otvorio landing stranicu",
-    axis: "intent",
-    signalKind: "landing_opened",
-    weight: 20,
-    // Otvaranje pripremljene demo/besplatne stranice potvrđuje da je klijent pogledao naš predlog neposredno pre sastanka.
-    comment: "Otvaranje pripremljene demo/besplatne stranice potvrđuje da je klijent pogledao naš predlog neposredno pre sastanka.",
-  },
-  {
-    name: "Poslao DM",
-    axis: "intent",
-    signalKind: "dm",
-    weight: 15,
-    // Privatna poruka na društvenim mrežama predstavlja direktnu dvosmernu komunikaciju i visok nivo proaktivnog interesovanja.
-    comment: "Privatna poruka na društvenim mrežama predstavlja direktnu dvosmernu komunikaciju i visok nivo proaktivnog interesovanja.",
-  },
-  {
-    name: "Ostavio komentar",
-    axis: "intent",
-    signalKind: "komentar",
-    weight: 10,
-    // Komentar na objavi pokazuje interesovanje za ponuđeni sadržaj, temu ili ponudu agencije.
-    comment: "Komentar na objavi pokazuje interesovanje za ponuđeni sadržaj, temu ili ponudu agencije.",
-  },
-  {
-    name: "Pominjanje (mention)",
-    axis: "intent",
-    signalKind: "mention",
-    weight: 10,
-    // Javno pominjanje profila ili usluga agencije ukazuje na svest o brendu i preporuku.
-    comment: "Javno pominjanje profila ili usluga agencije ukazuje na svest o brendu i preporuku.",
-  },
-];
+/** Šablon projekta (C14); bez vrednosti „Web agencija“. */
+async function sablonZa(
+  ctx: { db: QueryCtx["db"] },
+  workspaceId: Id<"workspaces">,
+): Promise<SablonLeadova> {
+  const ws = await ctx.db.get(workspaceId);
+  return ws === null ? "prazno" : sablonProjekta(ws);
+}
+
+/** Pravila šablona projekta — podrazumevani skup za seed i dopunu. */
+async function podrazumevanaPravila(
+  ctx: { db: QueryCtx["db"] },
+  workspaceId: Id<"workspaces">,
+): Promise<ReadonlyArray<PraviloSablona>> {
+  return PRAVILA_SABLONA[await sablonZa(ctx, workspaceId)];
+}
+
+async function upisiPravilo(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  rule: PraviloSablona,
+  now: number,
+): Promise<void> {
+  await ctx.db.insert("leadIcpRules", {
+    workspaceId,
+    name: rule.name,
+    axis: rule.axis,
+    signalKind: rule.signalKind,
+    weight: rule.weight,
+    rationale: rule.comment,
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
 
 /**
  * Računa ocenu pojedinačne firme na osnovu njenih signala i važećih pravila radnog prostora.
@@ -233,6 +113,16 @@ export const scoreCompany = projekatQuery({
       .query("leadIcpRules")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
       .collect();
+
+    // Ciljna niša (C14) se izvodi samo kad je neko pravilo traži.
+    if (pravilaTraziCiljnuNisu(rules)) {
+      const ciljne = await ciljneNise(ctx, args.workspaceId);
+      return scoreLead(
+        signaliSaCiljnomNisom(signals, company, firmaUCiljnojNisi(company, ciljne)),
+        rules,
+        Date.now(),
+      );
+    }
 
     return scoreLead(signals, rules, Date.now());
   },
@@ -280,13 +170,29 @@ export const scoreCompanies = projekatQuery({
       ),
     );
 
+    // Ciljna niša (C14): firme i niše se čitaju samo kad je pravilo traži.
+    // Firma koja ne pripada projektu ne dobija signal.
+    const trebaNisa = pravilaTraziCiljnuNisu(rules);
+    const ciljne = trebaNisa ? await ciljneNise(ctx, args.workspaceId) : null;
+    const firme = trebaNisa
+      ? await Promise.all(args.companyIds.map((id) => ctx.db.get(id)))
+      : null;
+
     const now = Date.now();
     const result: Record<string, LeadScore> = {};
 
     for (let i = 0; i < args.companyIds.length; i++) {
       const companyId = args.companyIds[i];
       const signals = signalsPerCompany[i];
-      result[companyId] = scoreLead(signals, rules, now);
+      const firma = firme?.[i] ?? null;
+      result[companyId] =
+        ciljne !== null && firma !== null && firma.workspaceId === args.workspaceId
+          ? scoreLead(
+              signaliSaCiljnomNisom(signals, firma, firmaUCiljnojNisi(firma, ciljne)),
+              rules,
+              now,
+            )
+          : scoreLead(signals, rules, now);
     }
 
     return result;
@@ -447,7 +353,9 @@ export const deleteIcpRule = projekatMutation({
 
 /**
  * Upisuje podrazumevani skup ICP pravila SAMO ako radni prostor nema nijedno pravilo.
- * Nikada ne prepisuje postojeća pravila (§0, LM6).
+ * Nikada ne prepisuje postojeća pravila (§0, LM6). Skup je šablon projekta
+ * (C14): Enigma i projekti bez šablona dobijaju „Web agencija“, kao do sada;
+ * „Prazno“ ne upisuje ništa.
  */
 export const seedDefaultIcpRules = projekatMutation({
   args: {},
@@ -473,22 +381,12 @@ export const seedDefaultIcpRules = projekatMutation({
     const now = Date.now();
     let count = 0;
 
-    for (const rule of DEFAULT_ICP_RULES) {
-      await ctx.db.insert("leadIcpRules", {
-        workspaceId: args.workspaceId,
-        name: rule.name,
-        axis: rule.axis,
-        signalKind: rule.signalKind,
-        weight: rule.weight,
-        rationale: rule.comment,
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
-      });
+    for (const rule of await podrazumevanaPravila(ctx, args.workspaceId)) {
+      await upisiPravilo(ctx, args.workspaceId, rule, now);
       count++;
     }
 
-    return { seeded: true, count };
+    return { seeded: count > 0, count };
   },
 });
 
@@ -522,7 +420,9 @@ export const missingDefaultIcpRules = projekatQuery({
     // pravilo, i to ne znači da pravilo fali.
     const pokriveno = new Set(existing.map((r) => r.signalKind));
 
-    return DEFAULT_ICP_RULES.filter(
+    // Šablon projekta (C14), ne zakucan Enigma skup.
+    const pravila = await podrazumevanaPravila(ctx, args.workspaceId);
+    return pravila.filter(
       (rule) => !pokriveno.has(rule.signalKind),
     ).map((rule) => ({
       signalKind: rule.signalKind as string,
@@ -557,22 +457,127 @@ export const addMissingDefaultIcpRules = projekatMutation({
     const now = Date.now();
     const addedNames: string[] = [];
 
-    for (const rule of DEFAULT_ICP_RULES) {
+    for (const rule of await podrazumevanaPravila(ctx, args.workspaceId)) {
       if (pokriveno.has(rule.signalKind)) continue;
-      await ctx.db.insert("leadIcpRules", {
-        workspaceId: args.workspaceId,
-        name: rule.name,
-        axis: rule.axis,
-        signalKind: rule.signalKind,
-        weight: rule.weight,
-        rationale: rule.comment,
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
-      });
+      await upisiPravilo(ctx, args.workspaceId, rule, now);
       addedNames.push(rule.name);
     }
 
     return { added: addedNames.length, addedNames };
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Šabloni (C14, PROJEKTI-PLAN §10)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Šablon projekta i da li projekat već ima pravila (ekran i čarobnjak). */
+export const sablonLeadova = projekatQuery({
+  args: {},
+  returns: v.object({
+    sablon: sablonLeadovaValidator,
+    imaPravila: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const prvo = await ctx.db
+      .query("leadIcpRules")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
+      .first();
+    return {
+      sablon: await sablonZa(ctx, args.workspaceId),
+      imaPravila: prvo !== null,
+    };
+  },
+});
+
+/**
+ * Primenjuje šablon na projekat: pamti ga (`workspaces.sablonLeadova`),
+ * upisuje njegova pravila i dodaje njegove niše kao ciljne.
+ *
+ * SAMO DOK PROJEKAT NEMA NIJEDNO PRAVILO. Šablon preko postojećih pravila bi
+ * promenio bodovanje firmi koje projekat već ima (npr. Enigma): novo pravilo
+ * menja i najveći mogući zbir ose. Postojeća pravila se menjaju ručno.
+ *
+ * Niše se dodaju po slugu: postojeća niša se ne preimenuje i ne gubi ništa;
+ * dobija samo oznaku ciljne i odluku o zakazivanju, i to samo ako ih još nema
+ * (odluka čoveka se ne prepisuje).
+ */
+export const primeniSablon = projekatMutation({
+  args: {
+    sablon: sablonLeadovaValidator,
+  },
+  returns: v.object({
+    dodatoPravila: v.number(),
+    dodateNise: v.number(),
+    oznaceneNise: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const workspaceId = args.workspaceId;
+    const postojece = await ctx.db
+      .query("leadIcpRules")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .first();
+    if (postojece !== null) {
+      throw new ConvexError({
+        code: "conflict",
+        message:
+          "Projekat već ima pravila ocenjivanja. Šablon se bira dok pravila nema; postojeća menjaš ručno.",
+      });
+    }
+
+    await ctx.db.patch(workspaceId, { sablonLeadova: args.sablon });
+
+    const now = Date.now();
+    let dodatoPravila = 0;
+    for (const rule of PRAVILA_SABLONA[args.sablon]) {
+      await upisiPravilo(ctx, workspaceId, rule, now);
+      dodatoPravila++;
+    }
+
+    let dodateNise = 0;
+    let oznaceneNise = 0;
+    for (const nisa of NISE_SABLONA[args.sablon]) {
+      // Slug iz šablona je već normalizovan (test); ovde je samo odbrana.
+      const slug = normalizeNicheSlug(nisa.slug);
+      const postojeca = await ctx.db
+        .query("niches")
+        .withIndex("by_workspace_slug", (q) =>
+          q.eq("workspaceId", workspaceId).eq("slug", slug),
+        )
+        .first();
+      if (postojeca === null) {
+        await ctx.db.insert("niches", {
+          workspaceId,
+          slug,
+          naziv: nisa.naziv,
+          ...(nisa.sifreDelatnosti
+            ? { sifreDelatnosti: [...nisa.sifreDelatnosti] }
+            : {}),
+          ...(nisa.trebaZakazivanje !== undefined
+            ? { trebaZakazivanje: nisa.trebaZakazivanje }
+            : {}),
+          ciljna: true,
+          createdBy: ctx.projekat.userId,
+          createdAt: now,
+          updatedAt: now,
+        });
+        dodateNise++;
+        continue;
+      }
+      const izmena: { ciljna?: boolean; trebaZakazivanje?: boolean } = {};
+      if (postojeca.ciljna === undefined) izmena.ciljna = true;
+      if (
+        postojeca.trebaZakazivanje === undefined &&
+        nisa.trebaZakazivanje !== undefined
+      ) {
+        izmena.trebaZakazivanje = nisa.trebaZakazivanje;
+      }
+      if (Object.keys(izmena).length > 0) {
+        await ctx.db.patch(postojeca._id, { ...izmena, updatedAt: now });
+        oznaceneNise++;
+      }
+    }
+
+    return { dodatoPravila, dodateNise, oznaceneNise };
   },
 });

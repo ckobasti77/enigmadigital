@@ -16,10 +16,14 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/convex/_generated/api";
 import { proveriBoju, proveriIme } from "@/convex/lib/podesavanjaPravila";
-import { SABLONI_LEADOVA } from "@/convex/lib/sabloniLeadova";
+import {
+  SABLONI_LEADOVA,
+  type SablonLeadova,
+} from "@/convex/lib/sabloniLeadova";
 import { predloziSlug } from "@/lib/slug-predlog";
 import { cn } from "@/lib/utils";
 import { FeedbackLine } from "../feedback";
+import { IzborSablona } from "../leadovi/izbor-sablona";
 import { Field } from "../form-kit";
 import { ModuleTile } from "../module-tile";
 import { moduleNavItem, type ModuleKey } from "../nav-items";
@@ -43,8 +47,8 @@ import { UserMenu } from "../user-menu";
  *
  *   1 Osnovno   ime, adresa (P8), vrsta  → projekat nastaje odmah
  *   2 Izgled    boja i logo (može da se preskoči)
- *  (3 Leadovi   šablon — tek kad postoji više od „Prazno“, C14)
- *   3 Kanali    šta je povezano; povezuje se u podešavanjima projekta
+ *   3 Leadovi   šablon pravila i niša („Web agencija“, „QR za lokale“, „Prazno“)
+ *   4 Kanali    šta je povezano; povezuje se u podešavanjima projekta
  *
  * Projekat nastaje posle prvog koraka: logo traži projekat, a prekinut
  * čarobnjak ne gubi ništa (projekat je odmah u biraču i na hubu). Koraci
@@ -59,7 +63,7 @@ type Korak = "osnovno" | "izgled" | "leadovi" | "kanali";
 const KORACI: readonly Korak[] = [
   "osnovno",
   "izgled",
-  // Korak bez izbora nije korak: „Prazno“ je jedini šablon dok C14 ne doda ostale.
+  // Korak bez izbora nije korak: pojavljuje se samo kad postoji više šablona.
   ...(SABLONI_LEADOVA.length > 1 ? (["leadovi"] as const) : []),
   "kanali",
 ];
@@ -145,6 +149,8 @@ export function NoviProjekat() {
                         setKorak(KORACI[KORACI.indexOf("izgled") + 1])
                       }
                     />
+                  ) : korak === "leadovi" ? (
+                    <Leadovi onDalje={() => setKorak("kanali")} />
                   ) : (
                     <Kanali slug={slug} />
                   )}
@@ -465,7 +471,71 @@ function IzgledForma({
   );
 }
 
-// ── 3. Kanali ──────────────────────────────────────────────────────────────
+// ── 3. Leadovi ─────────────────────────────────────────────────────────────
+
+function Leadovi({ onDalje }: { onDalje: () => void }) {
+  const stanje = useProjekatQuery(api.leadScoringStore.sablonLeadova);
+  const primeni = useProjekatMutation(api.leadScoringStore.primeniSablon);
+  const [sablon, setSablon] = useState<SablonLeadova>("prazno");
+  const [radim, setRadim] = useState(false);
+  const [greska, setGreska] = useState<string | null>(null);
+
+  if (stanje === undefined) return <Skeleton className="h-64 w-full rounded-lg" />;
+
+  const naziv = SABLONI_LEADOVA.find((s) => s.kljuc === sablon)?.naziv ?? "";
+
+  const dalje = async () => {
+    // „Prazno“ je stanje novog projekta; nema šta da se upiše.
+    if (sablon === "prazno" || stanje.imaPravila) {
+      onDalje();
+      return;
+    }
+    setRadim(true);
+    setGreska(null);
+    try {
+      await primeni({ sablon });
+      onDalje();
+    } catch (err) {
+      setGreska(porukaGreske(err, "Šablon nije primenjen. Pokušaj ponovo."));
+      setRadim(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-copy font-medium text-foreground">Leadovi</h2>
+        <p className="mt-1 text-meta text-text-muted">
+          Pravila ocenjivanja i niše sa kojima projekat kreće. Težine i niše
+          posle menjaš u Leadovima.
+        </p>
+      </div>
+      {stanje.imaPravila ? (
+        <p className="text-meta text-text-muted">
+          Projekat već ima pravila ocenjivanja; menjaš ih u Leadovima.
+        </p>
+      ) : (
+        <IzborSablona vrednost={sablon} onChange={setSablon} disabled={radim} />
+      )}
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <Button
+          type="button"
+          variant="primary"
+          disabled={radim}
+          aria-busy={radim}
+          onClick={() => void dalje()}
+          className="h-10 px-4"
+        >
+          {sablon === "prazno" || stanje.imaPravila ? "Dalje" : `Primeni „${naziv}“`}
+          <ArrowRight aria-hidden />
+        </Button>
+        {greska && <FeedbackLine tone="danger">{greska}</FeedbackLine>}
+      </div>
+    </div>
+  );
+}
+
+// ── 4. Kanali ──────────────────────────────────────────────────────────────
 
 const KANALI: ReadonlyArray<{
   provider: string;

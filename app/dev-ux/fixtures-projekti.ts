@@ -2,6 +2,7 @@ import { getFunctionName, type FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { proveriSlugProjekta } from "@/convex/lib/projekatSlug";
+import { PRAVILA_WEB_AGENCIJA } from "@/convex/lib/sabloniLeadova";
 import { USER, WS, WS_KLIJENT, WS_SCANME, type Fixture, type R } from "./fixtures-util";
 
 /**
@@ -202,6 +203,22 @@ const MOZAK_ENIGMA: R<typeof api.podesavanjaStore.mozak> = {
   skripte: null,
 };
 
+/** Enigmina pravila ocenjivanja = šablon „Web agencija“ (C14). */
+const PRAVILA_ENIGMA_UX: R<typeof api.leadScoringStore.listIcpRules> =
+  PRAVILA_WEB_AGENCIJA.map((p, i) => ({
+    _id: `ux_pravilo_${String(i).padStart(18, "0")}` as Id<"leadIcpRules">,
+    _creationTime: 0,
+    workspaceId: WS,
+    name: p.name,
+    axis: p.axis,
+    signalKind: p.signalKind,
+    weight: p.weight,
+    rationale: p.comment,
+    isActive: true,
+    createdAt: 0,
+    updatedAt: 0,
+  }));
+
 const PRAZAN_MOZAK: R<typeof api.podesavanjaStore.mozak> = {
   ponuda: null,
   icpOpis: null,
@@ -211,6 +228,18 @@ const PRAZAN_MOZAK: R<typeof api.podesavanjaStore.mozak> = {
 };
 
 export const FIXTURES_PROJEKTI: Record<string, Fixture> = {
+  // Šabloni leadova (C14): Enigma ima pravila „Web agencija“, ScanMe i
+  // klijent kreću prazni, pa jezičak „Ocenjivanje“ nudi izbor šablona.
+  [getFunctionName(api.leadScoringStore.sablonLeadova)]: (args) =>
+    (args.workspaceId === WS || args.workspaceId === undefined
+      ? { sablon: "web_agencija", imaPravila: true }
+      : { sablon: "prazno", imaPravila: false }) satisfies R<typeof api.leadScoringStore.sablonLeadova>,
+  [getFunctionName(api.leadScoringStore.listIcpRules)]: (args) =>
+    (args.workspaceId === WS || args.workspaceId === undefined
+      ? PRAVILA_ENIGMA_UX.filter((p) => args.axis === undefined || p.axis === args.axis)
+      : []) satisfies R<typeof api.leadScoringStore.listIcpRules>,
+  [getFunctionName(api.leadScoringStore.missingDefaultIcpRules)]: () =>
+    [] satisfies R<typeof api.leadScoringStore.missingDefaultIcpRules>,
   [getFunctionName(api.podesavanjaStore.procitaj)]: (args) => {
     const stavka = PROJEKTI_UX.find((p) => p.workspaceId === args.workspaceId) ?? PROJEKTI_UX[0];
     const enigma = stavka.slug === "enigma-it";

@@ -1152,3 +1152,79 @@ Obrađene su sve 88 javnih funkcija grupe iz mape C02 §5.1: 82 sada idu kroz om
   - pozovi svoju adresu u drugi projekat: posle prijave „Prihvati poziv u …“ dodaje projekat u birač.
 - U Pristupu promeni ulogu probnog člana; poslednjeg vlasnika ne može da spusti.
 - Van spiska plana, nepokriveno: `analytics/realtime-dashboard.tsx`, `notifications-bell.tsx`, `napredak/*`, `hub/novi-projekat.tsx` (lično ili vlasnik platforme) i dugmad u `ga4-configuration.tsx` (posmatrač ih ne vidi, jer se kartica ne crta). Za C18/C19.
+
+
+## C14 — Leadovi po projektu: ICP šabloni, ScanMe, mozak   (2026-10-25 08:30)
+**Fajlovi:**
+- backend:
+  - novi: `convex/lib/ciljnaNisa.ts` (izvedeni signal „ciljna niša“);
+  - izmenjeni: `convex/lib/sabloniLeadova.ts` (šabloni kao podaci: „Web agencija“, „QR za lokale“, „Prazno“; pravila i niše, `sablonProjekta`, validator), `convex/leadScoringStore.ts` (Enigmina pravila preseljena u šablon, `DEFAULT_ICP_RULES` ostaje kao ime; seed i dopuna po šablonu projekta; novi `sablonLeadova` i `primeniSablon`; ciljna niša u `scoreCompany`/`scoreCompanies`), `convex/leadFiltersStore.ts` (ciljna niša u `listLeadsForMap`), `convex/nichesStore.ts` (`upsertNiche` prima `ciljna`), `convex/projekti.ts` (`kreirajProjekat` upisuje `sablonLeadova: "prazno"`), `convex/podesavanjaStore.ts` (interni `mozakZaToken`), `convex/http.ts` (`GET /projekti/mozak`), `convex/publicRouteLimit.ts` (`PROJEKTI_MOZAK_HOURLY_CAP`), `convex/lib/leadNormalize.ts` i `convex/schema.ts` (signal `ciljna_nisa`, `workspaces.sablonLeadova`, `niches.ciljna`), `convex/_generated/api.d.ts` (codegen).
+- front:
+  - novi: `components/app/leadovi/izbor-sablona.tsx`;
+  - izmenjeni: `components/app/hub/novi-projekat.tsx` (korak 3 „Leadovi“), `components/app/leadovi/scoring-rules-panel.tsx` (prazno stanje nudi šablon), `components/app/leadovi/niches-panel.tsx` (prekidač „ciljna niša“), `components/app/leadovi/lead-labels.ts`, `lib/signal-colors.ts` (natpis i neutralna kategorija novog signala);
+  - razvojni prikaz: `app/dev-ux/fixtures-projekti.ts` (`sablonLeadova`, `listIcpRules`, `missingDefaultIcpRules`).
+- dokumentacija: `tools/generate-leads/README.md` (odeljak „Rad po projektu“), `tools/generate-leads/SKILL.md` (projekat i mozak u koraku 0).
+- testovi: novi `lib/sabloni-leadova.test.ts`, `convex/leadovi-c14.test.ts`.
+- snimci: `docs/projekti/snimci/C14-ocenjivanje-scanme-1536.png`, `C14-carobnjak-leadovi-{1440,390}.png`, `C14-nise-ciljna-1440.png`.
+
+**Šta je urađeno:**
+- **Šabloni kao podaci** (`convex/lib/sabloniLeadova.ts`, čist modul koji uvoze i backend i ekran):
+  - „Web agencija“ = dosadašnjih 20 Enigminih pravila, preseljenih doslovno (ime, signal, osa, težina, obrazloženje), plus 4 Enigmine ciljne niše (frizerski i kozmetički saloni, turističke agencije, butici; slug, šifre i zakazivanje iz `tools/generate-leads/lib/nise.mjs`);
+  - „QR za lokale“ = 7 Fit pravila (ciljna niša 30, visok broj recenzija 25, novootvoren lokal 20, nema sajt 15, sajt ne radi 12, samo Instagram 12, samo Facebook 10) i 6 Intent pravila sa istim težinama kao Enigma, plus 7 niša: kafići i barovi, restorani, hoteli i smeštaj, frizerski saloni, kozmetički saloni, auto saloni, izlagači na sajmovima;
+  - „Prazno“ = ništa.
+- **Jedan nov signal: `ciljna_nisa`** („firma iz ciljne niše“). Izvodi se pri čitanju iz niše firme (`leadCompanies.nicheId`) kad je niša označena kao ciljna (`niches.ciljna`), i nikad se ne upisuje u `leadSignals`. Izvodi se samo kad projekat ima aktivno pravilo za njega; bez tog pravila bodovanje je bajt za bajt isto kao pre (nema dodatnih čitanja).
+- **Projekat pamti šablon** (`workspaces.sablonLeadova`). Bez vrednosti važi „Web agencija“, pa Enigma i `seedDefaultIcpRules`, `missingDefaultIcpRules` i `addMissingDefaultIcpRules` rade kao do sada; novi projekat kreće kao „Prazno“. Sve tri funkcije sada rade sa šablonom projekta.
+- **`primeniSablon`** (urednik) pamti šablon, upisuje pravila i dodaje niše kao ciljne, i to samo dok projekat nema nijedno pravilo. Postojeća niša istog sluga se ne preimenuje; dobija samo oznaku ciljne i zakazivanje, ako ih čovek nije već odredio.
+- **UI:**
+  - čarobnjak „Novi projekat“ ima 4 koraka; korak „Leadovi“ nudi tri šablona (podrazumevano „Prazno“), a dugme glasi „Primeni „QR za lokale““ ili „Dalje“;
+  - prazno stanje jezička „Ocenjivanje“ nudi „Web agencija“ i „QR za lokale“ sa brojem pravila po osi i brojem niša, i jedno `primary` dugme „Primeni šablon …“;
+  - kartica niše ima prekidač „ciljna niša“ (posmatrač vidi tekst).
+- **Mozak projekta:** `GET <CONVEX_SITE_URL>/projekti/mozak` sa `Authorization: Bearer <ingest token projekta>` vraća tačno pet polja mozga tog projekta (prazno = `null`); bez tokena ili sa lažnim i opozvanim tokenom vraća 401, a plafon je 120 čitanja na sat po projektu. README i SKILL za `tools/generate-leads` objašnjavaju rad po projektu: token određuje projekat, prebacivanje projekta je drugi token, mozak se čita istim tokenom. Ništa nije pokretano.
+
+**ODLUKE:**
+- **Novi signal i njegov izvor:** samo `ciljna_nisa` (od dozvoljena 3). Podatak je niša firme (`leadCompanies.nicheId`), koju već upisuju uvoz iz tabele i generate-leads (`upit.nisa`, `nisa` u redu), a oznaku ciljne niše upisuje šablon ili čovek (prekidač u kartici niše). Drugi kandidati („ima meni na sajtu“, „izlagač na sajmu“) nemaju podatak u postojećem uvozu, pa nisu dodati; izlagači su pokriveni nišom.
+- **Signal se izvodi pri čitanju, ne upisuje.** Upisan signal bi zastareo čim se oznaka niše ili niša firme promeni, a stari redovi bi tražili migraciju. U šemi `leadSignals.kind` je dodat samo zato da tip vrste signala ostane jedan; pomoćnik odbacuje eventualno upisan `ciljna_nisa`, da baza ne nadjača nišu. Vreme opažanja je `createdAt` firme (trenutak dodele niše se ne beleži, a Fit ne slabi).
+- **Izvođenje samo uz pravilo:** bez aktivnog pravila za `ciljna_nisa` ništa se ne čita i ništa se ne menja, pa ni `unmatchedSignalKinds` Enigme ne dobija novi signal. Tako je „Enigma boduje isto“ zagarantovano kodom, a ne samo podacima.
+- **Šablon samo dok nema pravila:** `primeniSablon` odbija projekat sa pravilima (`conflict`). Šablon preko postojećih pravila bi promenio bodovanje (svako novo pravilo menja i najveći zbir ose), a to je zabranjeno za Enigmu. Postojeća pravila se menjaju ručno, kao i do sada.
+- **Bez vrednosti = „Web agencija“, novi projekat = „Prazno“:** Enigma (i svaki projekat pre C14) ostaje na istom podrazumevanom skupu bez migracije; novi projekat bez izbora ne dobija tuđa pravila. Prazno stanje „Ocenjivanja“ u projektu „Prazno“ nema unapred izabran šablon (`primary` je onemogućeno dok se ne izabere).
+- **Uloga:** `primeniSablon` traži urednika, isto kao `seedDefaultIcpRules` i ostale izmene pravila i niša (C06).
+- **Niše:** slugovi koji postoje u `nise.mjs` su preuzeti (`restorani`, `frizerski-saloni`, `kozmeticki-saloni`), da skill upisuje firme baš u njih. „Saloni“ iz zadatka su dve niše (frizerski i kozmetički), jer ih skill tako razlikuje. `kafici` je odvojena niša jer je zadatak navodi; skill danas „kafić“ svrstava u `restorani`, koja je takođe ciljna, pa bodovanje ne gubi ništa. Niše nemaju opis (ne izmišljam ScanMe ponudu; opis piše skill ili čovek), a zakazivanje je upisano samo gde ga `nise.mjs` zna.
+- **Težine QR šablona** su moja procena (Jovan ih menja na ekranu bez deploya): ciljna niša nosi najviše, jer je QR proizvod za lokale; signali o kvalitetu sajta i booking su izostavljeni, jer su povod za prodaju sajta, ne QR-a. Intent pravila imaju iste težine kao Enigma, a obrazloženja su prepisana za lokale.
+- **Šabloni „Web agencija“ niše su ciljne**, ali ta pravila nemaju `ciljna_nisa`, pa oznaka ne utiče na bodovanje dok neko ne doda pravilo.
+- **Mozak preko HTTP-a:** odgovor je samo pet polja (bez imena projekta), jer zadatak kaže „samo polja mozga“. Ruta beleži upotrebu tokena (`lastUsedAt`) i ima zaseban plafon, da čitanje ne troši uvoze. Token projekta koji ne postoji daje isti 401 kao nepoznat token.
+- **Ekran:** prazno stanje „Ocenjivanja“ uz izbor šablona nema ikonicu i poravnato je uz vrh; inače `primary` dugme pada ispod pregiba na 1536 × 695 (prva verzija, proveren snimkom). Posmatrač i dalje vidi staru centriranu verziju sa ikonicom, bez izbora.
+- **`DEFAULT_ICP_RULES`** ostaje kao izvoz (alias šablona), jer ga uvozi `scripts/verify-lead-scoring.ts`. Konstante 20/14/6 u `scoring-rules-panel.tsx` su uklonjene: brojevi sada stižu iz šablona, a uvoz iz čistog modula ne vuče Convex server u klijentski paket.
+
+**Novi paketi:** nema
+
+**Testovi:**
+- `lib/sabloni-leadova.test.ts` (node, 9):
+  - „Web agencija“ je tačno Enigmin skup od pre C14 (20 pravila, ručno prepisan iz commita 59a4f56: ime, signal, osa, težina);
+  - na pet primera daje isti rezultat kao stari skup (uključujući slabljenje namere i ponovljene signale); primer: Fit 50/260, Intent 40/120;
+  - bez pravila za ciljnu nišu signal se ne izvodi; projekat bez šablona je „Web agencija“;
+  - QR koristi samo poznate signale, tačno jedan nov (`ciljna_nisa`), svaki signal jednom; niše i slugovi prolaze `normalizeNicheSlug`;
+  - lokal iz ciljne niše 55 bodova, iz neciljne 25, isti maksimum; upisan `ciljna_nisa` ne nadjačava nišu; „Prazno“ je prazno.
+- `convex/leadovi-c14.test.ts` (edge-runtime, 10):
+  - Enigma bez šablona: seed daje 20 pravila, ocena firme je ista (50/260, 40/120), a niša označena kao ciljna ne menja ništa; šablon preko postojećih pravila se odbija i pravila ostaju ista;
+  - „QR za lokale“ u ScanMe: 13 pravila i 7 ciljnih niša, a Enigma ostaje sa 20 pravila i bez niša;
+  - lokal iz ciljne niše 55 bodova prema 25 za firmu iz neciljne niše i firmu bez niše, kroz `scoreCompany` i `scoreCompanies`; oznaka niše važi odmah;
+  - postojeća niša dobija oznaku samo ako je čovek nije odredio;
+  - član drugog projekta i posmatrač ne primenjuju šablon;
+  - novi projekat je „Prazno“ (seed upisuje 0); posle „Web agencija“ dobija 20 pravila i 4 niše; dopuna nudi pravila šablona projekta (u QR projektu „Lokal iz ciljne niše“, ne Enigmina);
+  - mozak: token A vraća mozak A, token B mozak B (tačno pet ključeva, bez teksta A); bez tokena, sa lažnim i sa opozvanim tokenom 401 bez sadržaja.
+
+**Rezultat provere:**
+- codegen ✓, typecheck ✓;
+- lint ✓ (0 grešaka; u izmenjenim fajlovima nema novih upozorenja);
+- `npx vitest run` ✓ (621/621, 38 fajlova);
+- `verify-pristup` ✓ (366 javnih: omotačem 351, javno 15, bez omotača 0);
+- `regresije.mjs` ✓ (14/14); `npm run build` ✓.
+- Razvojni prikaz (Playwright): `/scanme/leadovi?tab=scoring` na 1440 × 900 i 1536 × 695 (izbor QR šablona, dugme iznad pregiba posle sabijanja), čarobnjak `/novi` korak 3 na 1440 i 390, kartica niše u Enigmi sa prekidačem. Konzola je bez grešaka i upozorenja. Dev server je ugašen (port 3105 slobodan), a otpaci Playwright-a iz `docs/projekti/snimci/` obrisani.
+
+**Za Jovana ujutru:**
+- Convex deploy dodaje opciona polja `workspaces.sablonLeadova` i `niches.ciljna` i vrstu signala `ciljna_nisa` (bez migracije).
+- Enigma: Leadovi → Podešavanja leadova → Ocenjivanje treba da izgleda i boduje kao pre; u Nišama se pojavio prekidač „ciljna niša“ (u Enigmi ne menja ocene dok ne dodaš pravilo „firma iz ciljne niše“).
+- Novi projekat ScanMe kroz čarobnjak, korak „Leadovi“ → „QR za lokale“: u Ocenjivanju 13 pravila, u Nišama 7 ciljnih niša. Proveri i pregledaj težine QR pravila (moja procena).
+- Generate-leads po projektu: u ScanMe → Podešavanja → Pristup napravi token za uvoz; za run ScanMe-a postavi ga u `ENIGMA_INGEST_TOKEN` (README, „Rad po projektu“). Ponovo pokreni `tools/generate-leads/install.ps1`, da instalirani skill dobije nov SKILL.md.
+- Mozak: upiši ga u Podešavanja projekta → Mozak, pa probaj `Invoke-RestMethod "<HTTP Actions URL>/projekti/mozak" -Headers @{ Authorization = "Bearer <token>" }` (primer je u README). Token jednog projekta vraća samo mozak tog projekta.
+- `kafici`, `hoteli`, `auto-saloni` i `izlagaci-na-sajmovima` nisu u `tools/generate-leads/lib/nise.mjs`: skill za njih pita za upite. Ako ih želiš kao stalne niše skilla, to je mala dopuna tog fajla.

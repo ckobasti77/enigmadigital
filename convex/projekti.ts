@@ -349,8 +349,8 @@ export const proveriSlug = platformaQuery({
 
 /**
  * Novi projekat (samo vlasnik platforme, P3). Adresa prolazi P8 i mora biti
- * slobodna; kreator postaje `owner`. Šablon ICP-a i ostala podešavanja nisu
- * ovde (C11, C14).
+ * slobodna; kreator postaje `owner`. Projekat kreće sa šablonom leadova
+ * „Prazno“; šablon bira čarobnjak (`leadScoringStore.primeniSablon`, C14).
  */
 export const kreirajProjekat = platformaMutation({
   args: {
@@ -389,6 +389,9 @@ export const kreirajProjekat = platformaMutation({
       vrsta: args.vrsta ?? "interni",
       createdBy: userId,
       redosled: postojeca.length,
+      // Bez izbora projekat nema pravila ni niša (C14); bez ove vrednosti bi
+      // važio „Web agencija“ (Enigmin skup), koji važi samo za stare projekte.
+      sablonLeadova: "prazno",
     });
     await ctx.db.insert("members", { workspaceId, userId, role: "owner" });
     return { workspaceId, slug };

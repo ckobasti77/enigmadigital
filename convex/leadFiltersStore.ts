@@ -4,6 +4,11 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { hydrateLeadRowExtras, LEAD_STAGE_VALIDATOR } from "./leadCrmStore";
 import { scoreLead, type LeadSignalInput } from "./lib/leadScoring";
+import {
+  firmaUCiljnojNisi,
+  pravilaTraziCiljnuNisu,
+  signaliSaCiljnomNisom,
+} from "./lib/ciljnaNisa";
 import { ucitajPoslednjeOcene, type SazetakOcene } from "./leadSiteAuditsStore";
 import { PRAG_SPOR_SAJT } from "./lib/siteScore";
 
@@ -1001,11 +1006,20 @@ export const listLeadsForMap = projekatQuery({
     const nazivPoNisi = new Map<string, string>();
     for (const nisa of nise) nazivPoNisi.set(String(nisa._id), nisa.naziv);
 
+    // Ciljna niša (C14) se izvodi samo kad je neko pravilo traži; niše su
+    // već učitane u `ucitajOsnovu`.
+    const ciljne = pravilaTraziCiljnuNisu(rules)
+      ? new Set(nise.filter((n) => n.ciljna === true).map((n) => String(n._id)))
+      : null;
+
     const tacke = saKoordinatama.map((red) => {
       // Filtrirano gore; TypeScript to ne vidi kroz `filter`.
       const company = red.company as Doc<"leadCompanies">;
+      const signali = signaliPoFirmi.get(String(company._id)) ?? [];
       const score = scoreLead(
-        signaliPoFirmi.get(String(company._id)) ?? [],
+        ciljne === null
+          ? signali
+          : signaliSaCiljnomNisom(signali, company, firmaUCiljnojNisi(company, ciljne)),
         rules,
         now,
       );

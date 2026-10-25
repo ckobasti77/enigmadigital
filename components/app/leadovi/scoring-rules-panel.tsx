@@ -18,7 +18,12 @@ import {
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { LEAD_SIGNAL_KINDS, type LeadSignalKind } from "@/convex/lib/leadNormalize";
+import {
+  SABLONI_LEADOVA,
+  type SablonLeadova,
+} from "@/convex/lib/sabloniLeadova";
 import { leadSignalLabel } from "./lead-labels";
+import { IzborSablona } from "./izbor-sablona";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,34 +45,18 @@ import { cn } from "@/lib/utils";
  * Ekran „Ocenjivanje" — podešavanje ICP pravila po kojima se računaju Fit i
  * Intent ose leadova. Backend je gotov (convex/leadScoringStore.ts); ovaj panel
  * ga samo vozi: listIcpRules, upsertIcpRule, setIcpRuleActive, deleteIcpRule i
- * seedDefaultIcpRules. Ocena se nigde ne dira — ona se i dalje računa isključivo
+ * primeniSablon (prazno stanje nudi šablon projekta, C14). Ocena se nigde ne dira — ona se i dalje računa isključivo
  * pri čitanju.
  *
  * Tri stanja se NIKADA ne smeju pomešati:
  *   - učitavanje  → skeletoni (nešto stiže)
- *   - prazno      → mirna ponuda da se ubace podrazumevana pravila (stanje SADA)
+ *   - prazno      → mirna ponuda da se primeni šablon pravila (stanje SADA)
  *   - neuspeh     → crvena poruka sa razlogom i ponovnim pokušajem
  * Prazno nije greška i ne sme da liči na grešku.
  */
 
 type RuleDoc = Doc<"leadIcpRules">;
 type Axis = "fit" | "intent";
-
-/**
- * Broj podrazumevanih pravila (DEFAULT_ICP_RULES u convex/leadScoringStore.ts:
- * 14 za Fit + 6 za Intent; GL10 je dodao šest Fit pravila o kvalitetu sajta).
- * Ne uvozi se odatle jer taj modul povlači Convex server
- * (`./_generated/server`) u klijentski bundle. Ako se skup ikada promeni,
- * stvarni broj ubačenih pravila stiže iz `seed(...)` i prikazuje se u potvrdi —
- * on je merodavan, ova konstanta je samo najava.
- */
-const DEFAULT_RULE_COUNT = 20;
-
-/** Koliko podrazumevanih pravila ima svaka osa — prati DEFAULT_ICP_RULES. */
-const DEFAULT_RULE_COUNT_BY_AXIS: Record<Axis, number> = {
-  fit: 14,
-  intent: 6,
-};
 
 const AXIS_META: Record<
   Axis,
@@ -321,27 +310,32 @@ function EmptyScoring({
   notice: Notice | null;
 }) {
   const moze = useMoze("urednik");
-  const seed = useProjekatMutation(api.leadScoringStore.seedDefaultIcpRules);
+  const stanje = useProjekatQuery(api.leadScoringStore.sablonLeadova);
+  const primeni = useProjekatMutation(api.leadScoringStore.primeniSablon);
+  // `null` = čovek još nije izabrao; projekat bez šablona („Prazno“) nema
+  // predlog, jer bi tuđi skup pravila izgledao kao preporuka.
+  const [izbor, setIzbor] = useState<SablonLeadova | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const predlog =
+    stanje === undefined || stanje.sablon === "prazno" ? null : stanje.sablon;
+  const sablon = izbor ?? predlog;
+  const naziv = SABLONI_LEADOVA.find((s) => s.kljuc === sablon)?.naziv;
+
   async function handleSeed() {
+    if (sablon === null) return;
     setSeeding(true);
     setError(null);
     try {
       // Uspeh preusmerava komponentu u popunjeno stanje (listIcpRules je
       // reaktivan), pa se potvrda računa tamo. Ovde ostaje samo neuspeh.
-      const res = await seed();
-      if (!res.seeded) {
-        // Neko je u međuvremenu već ubacio pravila (dve iste sesije). Nije
-        // greška — lista će se sama osvežiti; ostavljamo mirnu belešku.
-        setError(null);
-      }
+      await primeni({ sablon });
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Ubacivanje podrazumevanih pravila nije uspelo.",
+          : "Primena šablona nije uspela.",
       );
     } finally {
       setSeeding(false);
@@ -349,7 +343,12 @@ function EmptyScoring({
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center py-10">
+    <div
+      className={cn(
+        "flex flex-1 justify-center",
+        moze ? "items-start py-4" : "items-center py-10",
+      )}
+    >
       <div className="w-full max-w-xl">
         {/* Neuspeh je crven i odvojen — nikad ne izgleda kao prazno stanje. */}
         {error && (
@@ -366,76 +365,76 @@ function EmptyScoring({
           <FeedbackNote tone={notice.tone} title={notice.title} className="mb-6" />
         )}
 
-        <div className="rounded-2xl border border-line bg-surface/60 p-8 text-center">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-xl border border-mod-line bg-mod-soft text-mod">
-            <SlidersHorizontal className="size-6" />
-          </div>
+        <div className="rounded-2xl border border-line bg-surface/60 p-6 sm:p-8">
+          <div className="text-center">
+            {/* Uz izbor šablona ikonica bi gurnula dugme ispod pregiba
+                na 1536×695; posmatrač je i dalje vidi. */}
+            {!moze && (
+              <div className="mx-auto mb-5 flex size-12 items-center justify-center rounded-xl border border-mod-line bg-mod-soft text-mod">
+                <SlidersHorizontal className="size-6" />
+              </div>
+            )}
 
-          <h2 className="mt-5 text-h2 text-foreground">
-            Ocenjivanje još nije uključeno
-          </h2>
-          <p className="mx-auto mt-2.5 max-w-md text-sm leading-relaxed text-text-muted">
-            Nijedno pravilo bodovanja ne postoji, pa se{" "}
-            <span className="text-foreground">Fit</span> i{" "}
-            <span className="text-foreground">Intent</span> ocene ne računaju —
-            zato svaka firma u tabeli stoji kao{" "}
-            <span className="font-medium text-foreground">„Nema pravila”</span>.
-            Podrazumevani skup pokriva {DEFAULT_RULE_COUNT} signala, kalibrisan za
-            Enigmine usluge, i odmah vraća ocene u tabelu.
-          </p>
-
-          <div className="mx-auto mt-6 grid max-w-sm grid-cols-2 gap-3 text-left">
-            {(["fit", "intent"] as const).map((axis) => {
-              const meta = AXIS_META[axis];
-              const Icon = meta.icon;
-              return (
-                <div
-                  key={axis}
-                  className="rounded-xl border border-line bg-surface px-3.5 py-3"
-                >
-                  <div className="flex items-center gap-2">
-                    <Icon className="size-4 text-text-muted" />
-                    <span className="text-sm font-medium text-foreground">
-                      {meta.label}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-micro leading-relaxed text-text-muted">
-                    {DEFAULT_RULE_COUNT_BY_AXIS[axis]} pravila
-                  </p>
-                </div>
-              );
-            })}
+            <h2 className="text-h2 text-foreground">
+              Ocenjivanje još nije uključeno
+            </h2>
+            <p className="mx-auto mt-2.5 max-w-md text-sm leading-relaxed text-text-muted">
+              Nijedno pravilo bodovanja ne postoji, pa se{" "}
+              <span className="text-foreground">Fit</span> i{" "}
+              <span className="text-foreground">Intent</span> ocene ne računaju —
+              zato svaka firma u tabeli stoji kao{" "}
+              <span className="font-medium text-foreground">„Nema pravila”</span>.
+              {moze &&
+                " Šablon donosi pravila i ciljne niše za vrstu posla projekta i odmah vraća ocene u tabelu."}
+            </p>
           </div>
 
           {moze && (
-            <div className="mt-7 flex flex-col items-center gap-3">
-              <Button
-                size="lg"
-                className="w-full gap-2 font-semibold sm:w-auto"
-                onClick={handleSeed}
-                disabled={seeding}
-              >
-                {seeding ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    <span>Ubacivanje…</span>
-                  </>
+            <>
+              <div className="mx-auto mt-5 max-w-md">
+                {stanje === undefined ? (
+                  <Skeleton className="h-40 w-full rounded-lg" />
                 ) : (
-                  <>
-                    <Plus className="size-4" />
-                    <span>Ubaci {DEFAULT_RULE_COUNT} podrazumevanih pravila</span>
-                  </>
+                  <IzborSablona
+                    vrednost={sablon}
+                    onChange={setIzbor}
+                    ponudi={["web_agencija", "qr_lokali"]}
+                    disabled={seeding}
+                  />
                 )}
-              </Button>
-              <button
-                type="button"
-                onClick={onAddManually}
-                disabled={seeding}
-                className="text-sm font-medium text-mod transition-opacity hover:opacity-80 disabled:opacity-50"
-              >
-                Ili dodaj prvo pravilo ručno
-              </button>
-            </div>
+              </div>
+              <div className="mt-5 flex flex-col items-center gap-3">
+                <Button
+                  size="lg"
+                  variant="primary"
+                  className="w-full gap-2 font-semibold sm:w-auto"
+                  onClick={handleSeed}
+                  disabled={seeding || sablon === null}
+                >
+                  {seeding ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      <span>Primenjujem…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="size-4" />
+                      <span>
+                        {naziv ? `Primeni šablon „${naziv}”` : "Izaberi šablon"}
+                      </span>
+                    </>
+                  )}
+                </Button>
+                <button
+                  type="button"
+                  onClick={onAddManually}
+                  disabled={seeding}
+                  className="text-sm font-medium text-mod transition-opacity hover:opacity-80 disabled:opacity-50"
+                >
+                  Ili dodaj prvo pravilo ručno
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>

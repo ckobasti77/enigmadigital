@@ -24,6 +24,8 @@ export const LEAD_SIGNAL_LABELS: Record<LeadSignalKind, string> = {
   samo_instagram: "samo Instagram",
   visok_broj_recenzija: "visok broj recenzija",
   novootvorena_firma: "novootvorena firma",
+  // C14: izvodi se iz niše firme kad je niša označena kao ciljna.
+  ciljna_nisa: "firma iz ciljne niše",
   landing_opened: "otvorio landing stranicu",
   r_link_clicked: "kliknuo na naš link",
   komentar: "komentar",

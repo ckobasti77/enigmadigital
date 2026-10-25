@@ -21,6 +21,7 @@ import {
   GENERATE_LEADS_HOURLY_CAP,
   GENERATE_LEADS_SNIMAK_HOURLY_CAP,
   IG_MEDIA_HOURLY_CAP,
+  PROJEKTI_MOZAK_HOURLY_CAP,
   ROUTE_WINDOW_MS,
 } from "./publicRouteLimit";
 import {
@@ -2187,6 +2188,68 @@ http.route({
     });
 
     return ingestOdgovor({ storageId, bajtova: blob.size, tip }, 200);
+  }),
+});
+
+// Route 9 — GET: mozak projekta za skillove (C14, PROJEKTI-PLAN P15)
+//
+// Skill (npr. `/generate-leads`) se predstavlja ingest tokenom projekta, isto
+// kao pri uvozu, i dobija SAMO pet polja mozga tog projekta: ponudu, opis
+// kupca, ton, zabrane i skripte. Projekat se zna iz tokena; zahtev ne može da
+// izabere drugi projekat. Polje bez vrednosti je `null`, nikad izmišljen tekst.
+// Telo odgovora se ne loguje (može da nosi interne skripte prodaje).
+http.route({
+  path: "/projekti/mozak",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const authHeader = request.headers.get("authorization") ?? "";
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.slice("Bearer ".length).trim()
+      : "";
+    if (!token) {
+      return ingestOdgovor({ greska: "neispravan token" }, 401);
+    }
+
+    const tokenRow = await ctx.runQuery(
+      internal.ingestTokensStore.findValidTokenByHash,
+      { tokenHash: await sha256Hex(token) },
+    );
+    if (tokenRow === null) {
+      return ingestOdgovor({ greska: "neispravan token" }, 401);
+    }
+
+    const withinCap = await ctx.runMutation(
+      internal.publicRouteLimit.claimRouteCall,
+      {
+        workspaceId: tokenRow.workspaceId,
+        route: "projekti-mozak",
+        limit: PROJEKTI_MOZAK_HOURLY_CAP,
+        windowMs: ROUTE_WINDOW_MS,
+      },
+    );
+    if (!withinCap) {
+      return ingestOdgovor(
+        {
+          greska: "previše zahteva",
+          detalj: `Najviše ${PROJEKTI_MOZAK_HOURLY_CAP} čitanja mozga na sat po projektu.`,
+        },
+        429,
+      );
+    }
+
+    const mozak = await ctx.runQuery(internal.podesavanjaStore.mozakZaToken, {
+      workspaceId: tokenRow.workspaceId,
+    });
+    if (mozak === null) {
+      // Token projekta koji više ne postoji: isto kao nepoznat token.
+      return ingestOdgovor({ greska: "neispravan token" }, 401);
+    }
+
+    await ctx.runMutation(internal.ingestTokensStore.markTokenUsed, {
+      tokenId: tokenRow.tokenId,
+    });
+
+    return ingestOdgovor(mozak, 200);
   }),
 });
 

@@ -63,6 +63,8 @@ export const SIGNAL_CATEGORY: Record<LeadSignalKind, SignalCategory> = {
   samo_instagram: "mreze",
   visok_broj_recenzija: "reputacija",
   novootvorena_firma: "nova",
+  // Niša nije nijedna od kategorija iznad; neutralan čip.
+  ciljna_nisa: "ostalo",
   landing_opened: "ostalo",
   r_link_clicked: "ostalo",
   komentar: "ostalo",
