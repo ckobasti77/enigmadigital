@@ -2,6 +2,7 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { projekatQuery } from "./lib/projekat";
 import { providerValidator } from "./lib/providers";
+import { metaAppRed } from "./globalneKvoteStore";
 import {
   BACKOFF_MIN_MS,
   USAGE_STOP_PCT,
@@ -50,6 +51,10 @@ const gateValidator = v.object({
 
 /**
  * Fold one pass's usage readings into the workspace row.
+ *
+ * Only the project's own part lands here (`X-Business-Use-Case-Usage`, codes
+ * 17 / 32 / 613 / 429). The app part (`X-App-Usage`, code 4) is shared by every
+ * project and goes to `globalneKvote` (`globalneKvoteStore.zabeleziMetaApp`).
  *
  * The percentages are REPLACED, not accumulated: they already describe the
  * whole rolling window as of the last answer, so the newest reading is the only
@@ -165,6 +170,47 @@ function resolveGate(
   return { state: "ok", retryAt: null, peak };
 }
 
+const STROGOST: Record<GateState, number> = { ok: 0, warn: 1, stop: 2, backoff: 3 };
+
+/**
+ * The worse of the project's own gate and the shared app gate (PROJEKTI-PLAN
+ * §9). `globalno` says the shared app is the one holding things back, so the
+ * screen can add that the limit applies to every project.
+ */
+function resolveCombined(
+  projectRow: Parameters<typeof resolveGate>[0],
+  appRow: {
+    callCount?: number;
+    cpuTime?: number;
+    totalTime?: number;
+    updatedAt: number;
+    backoffUntil?: number;
+  } | null,
+  now: number,
+): { state: GateState; retryAt: number | null; peak: number; globalno: boolean } {
+  const project = resolveGate(projectRow, now);
+  const app = resolveGate(
+    appRow === null
+      ? null
+      : {
+          callCount: appRow.callCount ?? 0,
+          cpuTime: appRow.cpuTime ?? 0,
+          totalTime: appRow.totalTime ?? 0,
+          updatedAt: appRow.updatedAt,
+          backoffUntil: appRow.backoffUntil,
+        },
+    now,
+  );
+  const appWorse = STROGOST[app.state] > STROGOST[project.state];
+  const chosen = appWorse ? app : project;
+  return {
+    state: chosen.state,
+    retryAt: chosen.retryAt,
+    peak: Math.max(project.peak, app.peak),
+    globalno: appWorse,
+  };
+}
+
 /** What the schedulers ask before spending a call. */
 export const gate = internalQuery({
   args: { workspaceId: v.id("workspaces") },
@@ -174,7 +220,8 @@ export const gate = internalQuery({
       .query("metaApiUsage")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .unique();
-    return resolveGate(row, Date.now());
+    const g = resolveCombined(row, await metaAppRed(ctx.db), Date.now());
+    return { state: g.state, retryAt: g.retryAt, peak: g.peak };
   },
 });
 
@@ -329,6 +376,8 @@ export const rateLimit = projekatQuery({
     limited: v.boolean(),
     retryAt: v.union(v.number(), v.null()),
     peak: v.number(),
+    /** Ograničava zajednička Meta aplikacija, pa važi za sve projekte. */
+    globalno: v.boolean(),
   }),
   handler: async (ctx) => {
     const { workspaceId } = ctx.projekat;
@@ -337,7 +386,7 @@ export const rateLimit = projekatQuery({
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .unique();
 
-    const resolved = resolveGate(row, Date.now());
+    const resolved = resolveCombined(row, await metaAppRed(ctx.db), Date.now());
     return {
       ...resolved,
       limited: resolved.state === "stop" || resolved.state === "backoff",

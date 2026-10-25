@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { useProjekatAction, useProjekatQuery } from "@/components/app/projekat-provider";
+import { SamoZa } from "@/components/app/samo-za";
 import {
   AlertCircle,
   Archive,
@@ -136,19 +137,21 @@ export function InstagramStories() {
           </span>
         </div>
 
-        <Button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-        >
-          <RefreshCw
-            className={cn("size-3.5", isRefreshing && "animate-spin")}
-            aria-hidden="true"
-          />
-          <span>{isRefreshing ? "Osvežavanje..." : "Osveži priče"}</span>
-        </Button>
+        <SamoZa uloga="urednik">
+          <Button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+          >
+            <RefreshCw
+              className={cn("size-3.5", isRefreshing && "animate-spin")}
+              aria-hidden="true"
+            />
+            <span>{isRefreshing ? "Osvežavanje..." : "Osveži priče"}</span>
+          </Button>
+        </SamoZa>
       </div>
 
       {/* 1. ŽIVE PRIČE (Live Stories) */}

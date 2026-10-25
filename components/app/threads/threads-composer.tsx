@@ -61,6 +61,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FormGroup, FormStack } from "@/components/app/form-kit";
 import {
+  useMoze,
   useProjekat,
   useProjekatAction,
   useProjekatMutation,
@@ -86,7 +87,14 @@ type ReplyControl =
   | "parent_post_author_only"
   | "followers_only";
 
-export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void }) {
+/** Objava je sva izmena: posmatrač projekta ne vidi pisanje objave. */
+export function ThreadsComposer(props: { onJobCreated?: () => void }) {
+  const mozeUrediti = useMoze("urednik");
+  if (!mozeUrediti) return null;
+  return <ThreadsComposerForm {...props} />;
+}
+
+function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
   const { spreman } = useProjekat();
   const potvrda = usePotvrdaProjekta();
   const getPublishingLimit = useProjekatAction(api.threadsPublish.publishingLimit);

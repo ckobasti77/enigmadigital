@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { EyeOff, Inbox, Search, Trash2, Unplug, X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -317,6 +318,7 @@ function SelectionBar({
 }) {
   const bulkHide = useProjekatAction(api.fbComments.bulkSetHidden);
   const bulkDelete = useProjekatAction(api.fbComments.bulkDelete);
+  const mozeUrediti = useMoze("urednik");
 
   const [pending, setPending] = useState<"hide" | "delete" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -329,7 +331,8 @@ function SelectionBar({
   const ids = [...selection];
   const count = ids.length;
 
-  if (selectableCount === 0) return null;
+  // Grupne radnje su posao urednika; posmatrač komentare samo čita.
+  if (selectableCount === 0 || !mozeUrediti) return null;
 
   const report = (
     result: { succeeded: number; failed: number; firstError: string | null },

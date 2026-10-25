@@ -7,6 +7,8 @@ import {
 } from "@/components/app/objavljujes-kao";
 import { ProjekatLink } from "@/components/app/projekat-link";
 import {
+  useMoze,
+  useProjekat,
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -255,7 +257,26 @@ type PlanResult = FunctionReturnType<typeof api.adActions.validateCampaignPlan>;
 type CreateResult = FunctionReturnType<typeof api.adActions.createCampaignFull>;
 type PixelsResult = FunctionReturnType<typeof api.metaAds.listAdPixelsAction>;
 
+/**
+ * Kampanju pravi samo vlasnik projekta (kreira se na nalogu oglasa). Ostali
+ * koji stignu na ovu adresu vide samo napomenu, bez ijednog polja.
+ */
 export function NewCampaignWizard() {
+  const { spreman } = useProjekat();
+  const mozeVlasnik = useMoze("owner");
+  if (!spreman) return null;
+  if (!mozeVlasnik) {
+    return (
+      <FeedbackNote
+        tone="warning"
+        title="Novu kampanju može da napravi samo vlasnik projekta."
+      />
+    );
+  }
+  return <NewCampaignWizardInner />;
+}
+
+function NewCampaignWizardInner() {
   const accounts = useProjekatQuery(api.metaAdsStore.listAccounts);
   const context = useProjekatQuery(api.metaAdsStore.getCreationContext);
   const pagePosts = useProjekatQuery(api.metaAdsStore.listPagePostsForCreative, { limit: 30 });

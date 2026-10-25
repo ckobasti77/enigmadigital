@@ -1,14 +1,9 @@
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { WithoutSystemFields } from "convex/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { projekatQuery } from "./lib/projekat";
-import {
-  calculateRollingQuota,
-  getGoogleAdsDailyLimit,
-  type GoogleAdsRateGate,
-  ROLLING_WINDOW_MS,
-} from "./lib/googleAdsQuota";
+import { stanjeGoogleAds } from "./globalneKvoteStore";
 import {
   formatQualityComponent,
   formatQualityScore,
@@ -45,7 +40,8 @@ export {
  *   - `ads` (Ad Group Ads) upserted by natural key `[workspaceId, externalId]`
  *   - `adInsights` upserted by `[adId, date, breakdownHash, hour]`
  *   - `gadsKeywordQuality` upserted by `[workspaceId, keywordId, date]`
- *   - `gadsQuota` managed by workspace / customer ID with sliding 24h window
+ *   - `gadsQuota` managed by workspace / customer ID with sliding 24h window,
+ *     written by `globalneKvoteStore.ts` together with the shared counter
  *   - `gadsGeographicView` upserted by `[workspaceId, campaignExternalId, locationType, date]`
  *   - `gadsUserLocationView` upserted by `[workspaceId, campaignExternalId, date]`
  *   - `gadsDeviceStats` upserted by `[workspaceId, campaignExternalId, device, date]`
@@ -3088,129 +3084,59 @@ export const clearGoogleAdsSeeds = internalMutation({
   },
 });
 
-// ── Quota Gate Queries & Mutations ───────────────────────────────────────────
+// ── Kvota (zajednička za sve projekte) ──────────────────────────────────────
+
+/*
+ * Brojač operacija developer tokena upisuje `globalneKvoteStore.ts`
+ * (`rezervisi`, `ispraviGoogleAds`): globalni sat i red projekta u `gadsQuota`
+ * u istoj transakciji. Kapija koja je gledala samo red projekta
+ * (`getGadsGate`) i `recordGadsOperations`, koji nikad nije imao pozivaoca,
+ * uklonjeni su u multi-projekat runu; isti oblik reda sada piše
+ * `globalneKvoteStore.pomeriGoogleAds`.
+ */
 
 /**
- * Read the current Google Ads rate gate status for a workspace.
+ * Kvota Google Ads operacija za ekran (Stanje sinhronizacije). `now` daje
+ * klijent (zaokružen na minut), jer upit ne čita sat. `null` kad projekat nema
+ * Google Ads vezu.
  */
-export const getGadsGate = internalQuery({
-  args: {
-    workspaceId: v.id("workspaces"),
-    customerId: v.optional(v.string()),
-    now: v.number(),
-  },
-  handler: async (ctx, { workspaceId, customerId, now }): Promise<GoogleAdsRateGate> => {
-    let quotaDoc = null;
-    if (customerId) {
-      quotaDoc = await ctx.db
-        .query("gadsQuota")
-        .withIndex("by_workspace_customer", (q) =>
-          q.eq("workspaceId", workspaceId).eq("customerId", customerId),
-        )
-        .first();
-    }
-    if (!quotaDoc) {
-      quotaDoc = await ctx.db
-        .query("gadsQuota")
-        .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
-        .first();
-    }
-
-    const { level, dailyLimit } = getGoogleAdsDailyLimit();
-
-    if (!quotaDoc) {
-      return {
-        state: "ok",
-        peakPct: 0,
-        consumed24h: 0,
-        remaining24h: dailyLimit,
-        dailyLimit,
-        accessLevel: level,
-        stale: false,
-        updatedAt: now,
-      };
-    }
-
-    const operations = quotaDoc.operations ?? [];
-    const rolling = calculateRollingQuota(
-      operations,
-      quotaDoc.dailyLimit ?? dailyLimit,
-      now,
-    );
-    const stale = now - quotaDoc.updatedAt > ROLLING_WINDOW_MS;
-
+export const kvotaGoogleAds = projekatQuery({
+  args: { now: v.number() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      /** Ovaj projekat u klizećih 24 h. */
+      projekat: v.number(),
+      /** Zagarantovan deo projekta. */
+      deoProjekta: v.number(),
+      /** Svi projekti zajedno u klizećih 24 h. */
+      ukupno: v.number(),
+      /** Plafon za sve projekte (95 % limita developer tokena). */
+      zajednickiLimit: v.number(),
+      /** Koliko projekat još sme. */
+      dostupno: v.number(),
+      projekata: v.number(),
+      obnovaU: v.number(),
+    }),
+  ),
+  handler: async (ctx, { now }) => {
+    const { workspaceId } = ctx.projekat;
+    const veza = await ctx.db
+      .query("connections")
+      .withIndex("by_workspace_provider", (q) =>
+        q.eq("workspaceId", workspaceId).eq("provider", "google_ads"),
+      )
+      .first();
+    if (veza === null || veza.status === "disconnecting") return null;
+    const s = await stanjeGoogleAds(ctx.db, workspaceId, now);
     return {
-      state: rolling.state,
-      peakPct: rolling.peakPct,
-      consumed24h: rolling.consumed24h,
-      remaining24h: rolling.remaining24h,
-      dailyLimit: quotaDoc.dailyLimit ?? dailyLimit,
-      accessLevel: (quotaDoc.accessLevel as typeof level) ?? level,
-      stale,
-      updatedAt: quotaDoc.updatedAt,
+      projekat: s.projekat,
+      deoProjekta: s.R,
+      ukupno: s.ukupno,
+      zajednickiLimit: s.Z,
+      dostupno: s.dostupno,
+      projekata: s.N,
+      obnovaU: s.obnovaU,
     };
   },
 });
-
-/**
- * Record operation consumption in the sliding 24-hour window.
- */
-export const recordGadsOperations = internalMutation({
-  args: {
-    workspaceId: v.id("workspaces"),
-    customerId: v.optional(v.string()),
-    operationCount: v.number(),
-    now: v.number(),
-  },
-  handler: async (ctx, { workspaceId, customerId, operationCount, now }) => {
-    if (operationCount <= 0) return;
-
-    let quotaDoc = null;
-    if (customerId) {
-      quotaDoc = await ctx.db
-        .query("gadsQuota")
-        .withIndex("by_workspace_customer", (q) =>
-          q.eq("workspaceId", workspaceId).eq("customerId", customerId),
-        )
-        .first();
-    }
-    if (!quotaDoc) {
-      quotaDoc = await ctx.db
-        .query("gadsQuota")
-        .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
-        .first();
-    }
-
-    const { level, dailyLimit } = getGoogleAdsDailyLimit();
-    const existingOps = quotaDoc?.operations ?? [];
-    const updatedOps = [...existingOps, { timestamp: now, count: operationCount }];
-    const rolling = calculateRollingQuota(
-      updatedOps,
-      quotaDoc?.dailyLimit ?? dailyLimit,
-      now,
-    );
-
-    const data = {
-      workspaceId,
-      customerId,
-      accessLevel: quotaDoc?.accessLevel ?? level,
-      dailyLimit: quotaDoc?.dailyLimit ?? dailyLimit,
-      consumed24h: rolling.consumed24h,
-      remaining24h: rolling.remaining24h,
-      peakPct: rolling.peakPct,
-      state: rolling.state,
-      operations: updatedOps.filter(
-        (o) => o.timestamp >= now - ROLLING_WINDOW_MS,
-      ),
-      lastCallAt: now,
-      updatedAt: now,
-    };
-
-    if (quotaDoc) {
-      await ctx.db.patch(quotaDoc._id, data);
-    } else {
-      await ctx.db.insert("gadsQuota", data);
-    }
-  },
-});
-

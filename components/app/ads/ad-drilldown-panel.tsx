@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
-import { useProjekatQuery } from "@/components/app/projekat-provider";
+import { useMoze, useProjekatQuery } from "@/components/app/projekat-provider";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -118,6 +118,8 @@ export function AdDrilldownPanel({
   const [activeTab, setActiveTab] = useState<"demographics" | "placements" | "hourly">("demographics");
   const [openPreviewDialog, setOpenPreviewDialog] = useState(false);
   const panelRef = usePanelDismiss(onClose);
+  // Meta pregled poziva Meta API (radnja urednika); posmatrač ga ne vidi.
+  const mozeUrednik = useMoze("urednik");
 
   const data = useProjekatQuery(api.metaAdsStore.getAdDrilldown, {
     adId,
@@ -262,7 +264,7 @@ export function AdDrilldownPanel({
           {formatRankingBadge("Kvalitet", rankings.qualityRanking)}
           {formatRankingBadge("Angažovanje", rankings.engagementRanking)}
           {formatRankingBadge("Konverzija", rankings.conversionRanking)}
-          {!isGoogleAds ? (
+          {!isGoogleAds && mozeUrednik ? (
             <button
               type="button"
               onClick={() => setOpenPreviewDialog(true)}
@@ -271,7 +273,7 @@ export function AdDrilldownPanel({
               <span>Meta pregled</span>
               <ExternalLink className="size-3" />
             </button>
-          ) : ad.previewUrl ? (
+          ) : isGoogleAds && ad.previewUrl ? (
             <a
               href={ad.previewUrl}
               target="_blank"

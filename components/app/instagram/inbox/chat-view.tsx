@@ -28,10 +28,12 @@ import {
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
+import { SamoZa } from "@/components/app/samo-za";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -57,6 +59,8 @@ const COMMON_EMOJIS = ["❤️", "👍", "🔥", "😂", "😮", "👏", "🙌",
 
 export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
   const potvrda = usePotvrdaProjekta();
+  // Posmatrač čita razgovor; slanje, reakcije i podešavanja inboxa su posao urednika.
+  const mozeUrediti = useMoze("urednik");
   const conversation = useProjekatQuery(api.instagramInboxStore.getConversation, {
     igsid,
   });
@@ -105,11 +109,11 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
   // Mark seen when opening
   const unreadCount = conversation?.unreadCount ?? 0;
   useEffect(() => {
-    if (unreadCount > 0) {
+    if (unreadCount > 0 && mozeUrediti) {
       markSeenMutation({ igsid }).catch(() => {});
       sendActionAction({ igsid, senderAction: "mark_seen" }).catch(() => {});
     }
-  }, [unreadCount, igsid, markSeenMutation, sendActionAction]);
+  }, [unreadCount, mozeUrediti, igsid, markSeenMutation, sendActionAction]);
 
   // UTF-8 byte counting
   const byteLength = getUtf8ByteLength(text);
@@ -328,15 +332,17 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
             </div>
           )}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onOpenSettings}
-            title="Podešavanja inboxa (Ledolomci, meni profila, brzi odgovori)"
-            className="size-8 text-muted-foreground hover:text-foreground"
-          >
-            <SlidersHorizontal className="size-4" />
-          </Button>
+          <SamoZa uloga="urednik">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onOpenSettings}
+              title="Podešavanja inboxa (Ledolomci, meni profila, brzi odgovori)"
+              className="size-8 text-muted-foreground hover:text-foreground"
+            >
+              <SlidersHorizontal className="size-4" />
+            </Button>
+          </SamoZa>
         </div>
       </div>
 
@@ -492,29 +498,44 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                 {/* Active reactions pill list */}
                 {msg.reactions && msg.reactions.length > 0 && (
                   <div className="flex flex-wrap gap-1">
-                    {msg.reactions.map((r, rIdx) => (
-                      <button
-                        key={rIdx}
-                        type="button"
-                        onClick={() =>
-                          handleReactionClick(msg.mid, r.emoji, r.isOurs)
-                        }
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs shadow-2xs transition-transform active:scale-95",
-                          r.isOurs
-                            ? "border-accent/40 bg-accent/15 text-accent font-bold"
-                            : "border-line bg-surface text-foreground",
-                        )}
-                        title={r.isOurs ? "Kliknite da uklonite vašu reakciju" : undefined}
-                      >
-                        <span>{r.emoji}</span>
-                      </button>
-                    ))}
+                    {msg.reactions.map((r, rIdx) =>
+                      mozeUrediti ? (
+                        <button
+                          key={rIdx}
+                          type="button"
+                          onClick={() =>
+                            handleReactionClick(msg.mid, r.emoji, r.isOurs)
+                          }
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs shadow-2xs transition-transform active:scale-95",
+                            r.isOurs
+                              ? "border-accent/40 bg-accent/15 text-accent font-bold"
+                              : "border-line bg-surface text-foreground",
+                          )}
+                          title={r.isOurs ? "Kliknite da uklonite vašu reakciju" : undefined}
+                        >
+                          <span>{r.emoji}</span>
+                        </button>
+                      ) : (
+                        // Posmatrač vidi reakciju, ali je ne uklanja.
+                        <span
+                          key={rIdx}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs shadow-2xs",
+                            r.isOurs
+                              ? "border-accent/40 bg-accent/15 text-accent font-bold"
+                              : "border-line bg-surface text-foreground",
+                          )}
+                        >
+                          <span>{r.emoji}</span>
+                        </span>
+                      ),
+                    )}
                   </div>
                 )}
 
                 {/* Emoji Reaction trigger */}
-                {isWindowOpen && (
+                {isWindowOpen && mozeUrediti && (
                   <div className="relative opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       type="button"
@@ -555,170 +576,172 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
       </div>
 
       {/* ── Composer / 24h Expired Guard ─────────────────────────────────── */}
-      <div className="border-t border-line bg-surface p-3 shrink-0">
-        {errorMessage && (
-          <div className="mb-2 flex items-center justify-between rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
-            <span>{errorMessage}</span>
-            <button
-              type="button"
-              onClick={() => setErrorMessage(null)}
-              className="text-destructive/80 hover:text-destructive"
-            >
-              <X className="size-3.5" />
-            </button>
-          </div>
-        )}
-
-        {/* 24-HOUR WINDOW EXPIRED GUARD */}
-        {!isWindowOpen ? (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-center space-y-2">
-            <div className="flex items-center justify-center gap-2 text-destructive font-semibold text-sm">
-              <XCircle className="size-5" />
-              <span>Prozor za odgovor je istekao.</span>
+      <SamoZa uloga="urednik">
+        <div className="border-t border-line bg-surface p-3 shrink-0">
+          {errorMessage && (
+            <div className="mb-2 flex items-center justify-between rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
+              <span>{errorMessage}</span>
+              <button
+                type="button"
+                onClick={() => setErrorMessage(null)}
+                className="text-destructive/80 hover:text-destructive"
+              >
+                <X className="size-3.5" />
+              </button>
             </div>
-            <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
-              Instagram dozvoljava odgovor 24 sata od poslednje poruke korisnika.
-              Polje za unos biće automatski omogućeno čim korisnik pošalje novu poruku.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {/* Quick replies preview tray */}
-            {attachedQuickReplies.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-lg bg-surface-sunken border border-line">
-                <span className="text-[11px] text-muted-foreground font-medium mr-1">
-                  Brzi odgovori:
-                </span>
-                {attachedQuickReplies.map((label, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent"
-                  >
-                    <span>{label}</span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setAttachedQuickReplies(
-                          attachedQuickReplies.filter((_, i) => i !== idx),
-                        )
-                      }
-                      className="text-accent hover:text-destructive transition-colors ml-0.5"
+          )}
+
+          {/* 24-HOUR WINDOW EXPIRED GUARD */}
+          {!isWindowOpen ? (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-center space-y-2">
+              <div className="flex items-center justify-center gap-2 text-destructive font-semibold text-sm">
+                <XCircle className="size-5" />
+                <span>Prozor za odgovor je istekao.</span>
+              </div>
+              <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
+                Instagram dozvoljava odgovor 24 sata od poslednje poruke korisnika.
+                Polje za unos biće automatski omogućeno čim korisnik pošalje novu poruku.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {/* Quick replies preview tray */}
+              {attachedQuickReplies.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-lg bg-surface-sunken border border-line">
+                  <span className="text-[11px] text-muted-foreground font-medium mr-1">
+                    Brzi odgovori:
+                  </span>
+                  {attachedQuickReplies.map((label, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent"
                     >
-                      <X className="size-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Active Attachment Pill */}
-            {activeAttachment && (
-              <div className="flex items-center justify-between rounded-lg border border-accent/30 bg-accent/10 px-3 py-1.5 text-xs text-accent">
-                <div className="flex items-center gap-2">
-                  <Paperclip className="size-3.5" />
-                  <span>
-                    Prilog: <strong>{activeAttachment.type}</strong>
-                    {activeAttachment.url && ` (${activeAttachment.url})`}
-                  </span>
+                      <span>{label}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAttachedQuickReplies(
+                            attachedQuickReplies.filter((_, i) => i !== idx),
+                          )
+                        }
+                        className="text-accent hover:text-destructive transition-colors ml-0.5"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveAttachment(null)}
-                  className="hover:text-destructive"
-                >
-                  <X className="size-3.5" />
-                </button>
-              </div>
-            )}
+              )}
 
-            {/* Input & Action buttons */}
-            <form onSubmit={handleSendMessage} className="space-y-2">
-              <div className="relative">
-                <Textarea
-                  value={text}
-                  onChange={handleTextChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  placeholder="Napišite poruku... (Shift+Enter za novi red)"
-                  rows={2}
-                  className="resize-none text-sm pr-20 bg-surface-raised"
-                />
-
-                {/* Live Byte Counter */}
-                <div className="absolute right-2 bottom-2 text-[11px] font-mono">
-                  <span
-                    className={cn(
-                      byteLength > 1000
-                        ? "text-destructive font-bold"
-                        : byteLength > 800
-                          ? "text-warning font-semibold"
-                          : "text-muted-foreground",
-                    )}
-                  >
-                    {byteLength}
-                  </span>
-                  <span className="text-muted-foreground"> / 1000 B</span>
-                </div>
-              </div>
-
-              <ObjavljujesKao kanal="instagram" radnja="Šalješ" />
-
-              {/* Bottom bar controls */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1">
-                  <Button
+              {/* Active Attachment Pill */}
+              {activeAttachment && (
+                <div className="flex items-center justify-between rounded-lg border border-accent/30 bg-accent/10 px-3 py-1.5 text-xs text-accent">
+                  <div className="flex items-center gap-2">
+                    <Paperclip className="size-3.5" />
+                    <span>
+                      Prilog: <strong>{activeAttachment.type}</strong>
+                      {activeAttachment.url && ` (${activeAttachment.url})`}
+                    </span>
+                  </div>
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setAttachmentModalOpen(true)}
-                    className="text-xs text-muted-foreground hover:text-foreground h-8 px-2"
+                    onClick={() => setActiveAttachment(null)}
+                    className="hover:text-destructive"
                   >
-                    <Paperclip className="size-3.5 mr-1" />
-                    Prilog
-                  </Button>
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              )}
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSendHeartSticker}
-                    disabled={isSending}
-                    className="text-xs text-muted-foreground hover:text-danger h-8 px-2"
-                    title="Pošalji lajk srce"
-                  >
-                    <Heart className="size-3.5 text-danger mr-1" />
-                    Lajk
-                  </Button>
+              {/* Input & Action buttons */}
+              <form onSubmit={handleSendMessage} className="space-y-2">
+                <div className="relative">
+                  <Textarea
+                    value={text}
+                    onChange={handleTextChange}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    placeholder="Napišite poruku... (Shift+Enter za novi red)"
+                    rows={2}
+                    className="resize-none text-sm pr-20 bg-surface-raised"
+                  />
+
+                  {/* Live Byte Counter */}
+                  <div className="absolute right-2 bottom-2 text-[11px] font-mono">
+                    <span
+                      className={cn(
+                        byteLength > 1000
+                          ? "text-destructive font-bold"
+                          : byteLength > 800
+                            ? "text-warning font-semibold"
+                            : "text-muted-foreground",
+                      )}
+                    >
+                      {byteLength}
+                    </span>
+                    <span className="text-muted-foreground"> / 1000 B</span>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={
-                      isSending ||
-                      isByteLimitExceeded ||
-                      (!text.trim() && !activeAttachment)
-                    }
-                    className="font-medium h-8 px-4"
-                  >
-                    {isSending ? (
-                      <Loader2 className="size-3.5 animate-spin mr-1.5" />
-                    ) : (
-                      <Send className="size-3.5 mr-1.5" />
-                    )}
-                    {potvrda("Pošalji")}
-                  </Button>
+                <ObjavljujesKao kanal="instagram" radnja="Šalješ" />
+
+                {/* Bottom bar controls */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAttachmentModalOpen(true)}
+                      className="text-xs text-muted-foreground hover:text-foreground h-8 px-2"
+                    >
+                      <Paperclip className="size-3.5 mr-1" />
+                      Prilog
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSendHeartSticker}
+                      disabled={isSending}
+                      className="text-xs text-muted-foreground hover:text-danger h-8 px-2"
+                      title="Pošalji lajk srce"
+                    >
+                      <Heart className="size-3.5 text-danger mr-1" />
+                      Lajk
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={
+                        isSending ||
+                        isByteLimitExceeded ||
+                        (!text.trim() && !activeAttachment)
+                      }
+                      className="font-medium h-8 px-4"
+                    >
+                      {isSending ? (
+                        <Loader2 className="size-3.5 animate-spin mr-1.5" />
+                      ) : (
+                        <Send className="size-3.5 mr-1.5" />
+                      )}
+                      {potvrda("Pošalji")}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </form>
-          </div>
-        )}
-      </div>
+              </form>
+            </div>
+          )}
+        </div>
+      </SamoZa>
 
       {/* ── Attachment Selector Dialog ──────────────────────────────────── */}
       <Dialog open={attachmentModalOpen} onOpenChange={setAttachmentModalOpen}>

@@ -1048,3 +1048,107 @@ Obrađene su sve 88 javnih funkcija grupe iz mape C02 §5.1: 82 sada idu kroz om
 - Postavi i obriši jednu tajnu (npr. token za Puls): posle upisa piše „Postavljeno · datum“, vrednost se nigde ne vidi.
 - Poveži jedan kanal iz Enigme pa iz ScanMe-a (posle mapiranja domena i u hubu): povratak mora da stigne na Podešavanja istog projekta. Isti Instagram nalog u drugom projektu treba da dobije poruku „Ovaj nalog je već povezan u drugom projektu…“.
 - Generate-leads skill: link na pregled uvoza sada dolazi iz domena projekta (ili `HUB_HOSTS`, ili env za Enigmu); bez toga skill piše „(aplikacija nije vratila URL)“.
+
+## C13 — Globalne kvote, pozivnice i uloge   (2026-10-25 07:45)
+**Fajlovi:**
+- backend, novi:
+  - `convex/lib/globalneKvote.ts`: čista formula rezerve (`smeDaPotrosi`, `dostupno`), plafoni, pacifički dan i vreme obnove, poruke korisniku;
+  - `convex/globalneKvoteStore.ts`: jedino mesto koje upisuje `globalneKvote` i brojač projekta u istoj transakciji (`rezervisi`, `vrati`, `ispraviGoogleAds`, `zatvoriYoutubeDan`, `stanje`, `zabeleziMetaApp`, `ocisti`);
+  - `convex/lib/ytKvotaAkcija.ts`: rezervacija i povraćaj YouTube izmena iz akcija.
+- backend, izmenjeni:
+  - `schema.ts` (tabela `globalneKvote`, `invites.uloga`, indeks `invites.by_email`), `lib/purgeMap.ts` (izuzetak), `crons.ts` (čišćenje), `lib/cronLock.ts` (`ytSync`, `ytPoll`, `gadsSync`), `connections.ts` (`listByProviderRedom`, razlog preskoka Google Ads-a);
+  - YouTube: `ytIngest.ts`, `ytReply.ts`, `ytPoll.ts`, `ytMedia.ts`, `ytCaptions.ts`, `ytComments.ts`, `ytPlaylists.ts`, `ytThumbnails.ts`, `ytVideos.ts`, `ytUpload.ts`, `ytAutomationsApi.ts`, `youtube.ts`, `lib/ytQuota.ts`;
+  - Google Ads: `googleAds.ts`, `googleAdsStore.ts` (`kvotaGoogleAds`), `adActions.ts`, `lib/googleAdsQuota.ts`;
+  - Meta: `lib/metaRateLimit.ts`, `metaSyncStore.ts`, `metaAdsStore.ts`;
+  - pozivnice i uloge: `auth.ts`, `invitesStore.ts` (`prihvatiPozivnicu`, uloga, `panelOrigin`, projekat u `getInvite`), `membersStore.ts` (`promeniUlogu`);
+  - `_generated/api.d.ts` (codegen).
+- front:
+  - novi: `components/app/samo-za.tsx`, `lib/pozivnica-token.ts`;
+  - `components/app/projekat-provider.tsx` (`useMoze`), `auth-gate.tsx` (`PozivnicaCatcher`), `app/login/login-client.tsx` (parkira `?pozivnica=`), `app/pozivnica/[token]/pozivnica-client.tsx` (prihvatanje, druga adresa, prijava pa prihvatanje, „Poziv u …“), `settings/invites-panel.tsx` (uloga, link na panel domen), `settings/members-panel.tsx` (promena uloge, nov tekst), `app/(app)/[projekat]/settings/page.tsx` (jezičci po ulozi), `settings/purge-state.tsx`, `command-palette.tsx` (radnje po ulozi);
+  - kvote: `youtube/quota-widget.tsx`, `youtube/yt-captions-panel.tsx`, `youtube/yt-upload-dialog.tsx`, `settings/sync-health.tsx` (red „Kvota Google oglasa“), `rate-limit-banner.tsx`, `settings/sync-schedule.tsx`;
+  - uloge u UI-ju (radnici): 70-ak fajlova u `components/app/{leadovi,novosti,instagram,facebook,threads,youtube,openreply,ads,rules,settings}`. Spisak ekrana iz plana je u `lib/uloge-ui-cuvar.test.ts`, uz ulaze u dijaloge (npr. `leads-dashboard`, `leads-today`, `instagram-dashboard`, `youtube-dashboard`, `campaigns-table`, `campaign-detail`, `hook-battle-view`, `audiences-view`, `ads-dashboard`, `inbox-view`, `threads-dashboard`, `threads-replies-moderation`, `threads-search`, `yt-comment-log-table`).
+- razvojni prikaz: `app/dev-ux/harness.tsx` (`odjavljen`, `?uloga=`), `app/dev-ux/[[...slug]]/page.tsx` (`/pozivnica-ux?ux=1&stanje=…`), fiksture (`fixtures.ts`, `fixtures-kanali.ts`, `fixtures-oglasi.ts`, `fixtures-projekti.ts`).
+- čuvar: `scripts/verify-pristup.ts` (`invitesStore.prihvatiPozivnicu` na spisku, sa razlogom).
+- testovi: novi `lib/globalne-kvote.test.ts`, `lib/pozivnica-token.test.ts`, `lib/uloge-ui-cuvar.test.ts`, `convex/kvote.test.ts`, `convex/pozivnice.test.ts`.
+- snimci: `docs/projekti/snimci/C13-pozivnica-{prihvatanje-1440,druga-adresa-1440,postojeci-nalog-390,nov-nalog-390}.png`, `C13-pristup-clanovi-1536.png`, `C13-youtube-kvota-1536.png`, `C13-integracije-urednik-1536.png`, `C13-leadovi-posmatrac-1440.png`.
+
+**Šta je urađeno:**
+- **Zajedničke kvote (P11).** YouTube jedinice i uploadi, Google Ads operacije i Meta procenat aplikacije imaju globalni brojač u `globalneKvote`. Brojive kvote idu kroz jednu mutaciju, `rezervisi`. Ona u istoj transakciji čita globalni red, red projekta i broj aktivnih projekata, primenjuje formulu iz plana (deo `R = floor(Z/N)`, pozajmica samo dok ne zadire u neiskorišćen deo drugih) i uvećava oba brojača. Svaki poziv API-ja se rezerviše PRE slanja, a vraća se samo kad zahtev nije ni stigao do Google-a. Nijedan brojač zajedničke kvote više nije samo po projektu: stare provere nad redom projekta (`canAfford`, `canAffordMedia`, `readGadsGate`/`getGadsGate`, `recordQuotaUsage`) su uklonjene.
+- **YouTube:** odgovori (plafon 8.000), izmene (6.000, isti brojač) i upload (100) prelaze na pacifički dan; `quotaExceeded` zatvara globalni dan za sve projekte. Ekrani pokazuju „Potrošeno X od R (deo ovog projekta) · svi projekti: G od 8.000“ i vreme obnove po Beogradu (`09:00`, osim u nedeljama prelaska vremena) umesto zakucanog „09:00“.
+- **Google Ads:** sinhronizacija rezerviše 22 operacije (broj `searchStream` upita, test čuva taj broj) i posle prolaza ispravlja na stvarni broj; akcije pisanja rezervišu 2. Kapija sada stvarno broji (do sada je `gadsQuota` ostajao prazan). Ručno „Sinhronizuj“ kaže razlog odlaganja, a „Stanje sinhronizacije“ ima red „Kvota Google oglasa“.
+- **Meta:** `X-App-Usage` i kod 4 idu u zajednički red (važe za sve projekte), BUC i kodovi 17/32/613/429 u red projekta. Kapija uzima strože stanje, a traka dopisuje „Ograničenje važi za sve projekte.“ kad drži aplikacija. `app_id_util_pct` iz uvida takođe ide u zajednički red.
+- **Cron:** YouTube sinhronizacija, poller komentara i Google Ads sinhronizacija dobili su bravu i idu projekat po projekat (najstarija sinhronizacija prva). Pre svakog projekta čitaju stanje: prazan zajednički bazen prekida prolaz, a projekat bez prostora se preskače.
+- **Pozivnice:** `WORKSPACE_SLUG` je obrisan. Pozivnica nosi ulogu (podrazumevano urednik) i važi za svoj projekat:
+  - nov nalog dobija članstvo i ulogu u `beforeSessionCreation`;
+  - postojeći korisnik posle prijave klikne „Prihvati poziv u …“ i dobija dodatno članstvo;
+  - link ide na primarni panel domen projekta, inače na adresu sa koje je napravljen;
+  - član drugog projekta više nije „conflict“ i ništa mu se ne briše;
+  - bootstrap admina ide u osnivački projekat (ili pravi „Prvi projekat“).
+
+  Tok prijave lozinkom i kodom nije menjan.
+- **Uloge u UI-ju (P9):** `useMoze` i `<SamoZa>`. Posmatrač ne vidi nijedno dugme za izmenu; urednik ne vidi veze, akcije pisanja nad oglasima, pravila, brisanje, članove ni podešavanja projekta. Vlasnik menja ulogu člana iz tabele članova.
+
+**ODLUKE:**
+- **Logika kvota je u dva nova fajla:** `lib/globalneKvote.ts` (čista) i `globalneKvoteStore.ts` (jedini upis). `lib/ytQuota.ts`, `googleAdsQuota.ts` i `metaRateLimit.ts` zadržavaju konstante, parsiranje i čistu aritmetiku. Funkcije koje su proveravale samo red projekta su obrisane (nisu imale druge pozivaoce); oblik reda `gadsQuota` je isti (piše ga `pomeriGoogleAds`).
+- **`quotaExceeded` (403):** globalni brojač se diže na 8.000 (staju svi projekti do pacifičke ponoći), a brojač projekta ostaje stvarna potrošnja, da „deo ovog projekta“ ne laže. Isto radi i poller komentara, ne samo `ytReply` (plan je pominjao samo njega).
+- **Povraćaj kad zahtev nije stigao do Google-a (status 0)** važi sada i za listu i brisanje titlova, brisanje komentara i brisanje videa, koji su ranije knjižili i taj slučaj. Rezervni (resumable) pokušaj titla rezerviše drugu cenu tek kad zatreba; višak se vraća pre zatvaranja posla.
+- **Poller rezerviše 1 jedinicu po strani** pre čitanja (ranije je knjižio zbir posle).
+- **Google Ads akcije pisanja rezervišu 2 operacije** (validate_only + izvršenje), kao što su postojeće kapije već tražile; plan je za dve akcije napisao 1. `validateGoogleAdsCampaignPlan` (samo validate_only) i dalje se ne broji, jer ga plan ne navodi.
+- **Cron Google Ads preskače projekat koji nema prostora za ceo prolaz** (22 operacije), a prekida kad je zajednički bazen pun.
+- **Meta:** red projekta se upisuje kad god je Meta odgovorila (i bez BUC zaglavlja, sa nulama), da čist prolaz i dalje gasi isteklo čekanje projekta, kao ranije. U šemu je dodato `uvidiAt` (nije u planu), da `uvidiAppPct` ima isti TTL od sat vremena.
+- **N (broj projekata koji dele bazen):** broji se veza koja nije `disconnecting` (i `error`/`expired`) u projektu koji nije arhiviran; projekat koji pita se uvek broji. Kad se veza drugog projekta prekine, njegov deo se oslobađa odmah.
+- **Prikaz:**
+  - `mediaLimit` i `uploadLimit` su efektivna granica projekta (potrošeno + dostupno), pa traka i provera „staje li“ kažu isto što i backend;
+  - „svi projekti: …“ se piše samo kad kvotu deli više od jednog projekta;
+  - javni upit Google Ads kvote prima `now` sa klijenta (zaokružen na minut), jer upit ne čita sat; YouTube upiti stanja i dalje čitaju sat, kao i ranije.
+- **Prelazak na pacifički dan:** na dan deploya brojači projekata kreću od nule (E18); moguće jednodnevno prekoračenje pokriva stvarni 403. `ytCommentLogs.date` (dnevnik, ne kvota) ostaje UTC.
+- **`syncNow` za Google Ads baca `quota_exceeded` sa razlogom** umesto da vrati rezultat; kartica ga prikazuje kroz postojeću traku greške.
+- **`getInvite.postojiNalog`** = potvrđen nalog **i** password nalog (plan: samo potvrđen). Potvrđen nalog bez lozinke ide kroz registraciju, koja kači lozinku na postojeći red.
+- **`prihvatiPozivnicu` ne menja postojeće članstvo** (ni ulogu) i obeležava pozivnicu iskorišćenom. Posle prihvatanja vodi na `/<slug>` (na panel domenu proxy to svodi na `/`). Bootstrap pozivnica nosi ulogu `owner`. `consumeOpenInvite` je izvezen samo zbog testa.
+- **Razvojni prikaz pozivnice je `/pozivnica-ux?ux=1&stanje=nov|postojeci|prijavljen|druga`**, jer matcher proxy-ja izuzima `/pozivnica`. `?uloga=urednik|client_viewer` menja ulogu u fiksturi projekta.
+- **Uloge:**
+  - urednik na Integracijama vidi „Sinhronizuj“ (backend je urednik, plan §7.4), iako §1.1 kaže „bez dugmadi“; ostala dugmad veza vidi samo vlasnik;
+  - posmatraču su sakriveni Integracije, Sajt i oglasi i Pristup, pa mu je podrazumevani jezičak Projekat;
+  - `components/app/sync-status.tsx` nije na spisku čuvara: to je samo tačka sa linkom, bez radnje (plan je tu pretpostavio dugme);
+  - ko bez uloge otvori adresu izmene direktno (nova objava, režim poziva, uvoz, nova kampanja) vidi jednu rečenicu umesto forme; stavke bočne trake ostaju (to su ekrani), a ⌘K radnje se filtriraju po ulozi;
+  - posmatrač ne šalje „pročitano“ u inboxu (ne briše „nepročitano“ ekipi).
+- **Radnici:** četiri radnika (Sonnet), dva od njih u dve ture. Tri su radila uloge u UI-ju (po oblastima, bez preklapanja fajlova), jedan Convex testove. Svaki izveštaj i deo diffova sam pregledao (`git diff -w`: uglavnom omoti i uslovi), a sve provere pustio sam. Testovi nisu našli grešku u kodu.
+- **CRLF:** Python skripte su na Windowsu upisale CRLF u 37 fajlova; vraćeno na LF pre provera (originali su LF).
+
+**Novi paketi:** nema
+
+**Testovi:**
+- `lib/globalne-kvote.test.ts`:
+  - formula: N = 1, primer iz plana, N = 3 sa ostatkom deljenja, granica, trošak 0, `dostupno` nad mrežom stanja;
+  - plafoni 8.000/6.000/100 i 2.736/14.250/95.000; broj `searchStream` poziva = procena;
+  - pacifički dan i obnova (i dani od 23 i 25 sati), vreme po Beogradu, UTC sat i prozor, poruke;
+  - Meta zaglavlja (aplikacija/projekat), kod 4 naspram 17/32/613/429.
+- `lib/pozivnica-token.test.ts`: parkira se samo oblik pravog tokena (nema open redirect-a); `WORKSPACE_SLUG`/`WORKSPACE_NAME` ne postoje u kodu, a `auth.ts` i `invitesStore.ts` ne traže projekat po slugu.
+- `lib/uloge-ui-cuvar.test.ts`: svaki ekran sa izmenama koristi `useMoze` ili `<SamoZa>`; spisak nema nepostojeći fajl.
+- `convex/kvote.test.ts` (39):
+  - dva projekta troše istu YouTube kvotu i ne prelaze 8.000/6.000/100;
+  - rezerva štiti drugi projekat (primer iz plana, i oba povezana od početka);
+  - 40 istovremenih rezervacija; `vrati`; `zatvoriYoutubeDan`; N bez arhiviranih i `disconnecting`; `ingestComment`;
+  - Google Ads: sat, `gadsQuota`, ispravka, klizeći prozor, rezerva;
+  - Meta: kod 4 svima, kod 32 jednom projektu, `globalno`; `ocisti`.
+- `convex/pozivnice.test.ts` (31):
+  - pozivnica za B ne daje pristup A; nov korisnik dobija članstvo i ulogu iz pozivnice; stara pozivnica bez uloge daje urednika;
+  - postojeći korisnik dobija drugo članstvo, a druga adresa i neprijavljen poziv se odbijaju;
+  - istekla i povučena pozivnica; član istog projekta je `conflict`; `getInvite`; `ALLOWED_EMAILS` bez projekta;
+  - `promeniUlogu` (poslednji vlasnik, urednik, nečlan); `listInvites`; bootstrap admina u osnivačkom projektu i u praznoj bazi.
+
+**Rezultat provere:**
+- codegen ✓, typecheck ✓, lint ✓ (0 grešaka; upozorenja su stara), `npx vitest run` ✓ (602/602, 36 fajlova), `verify-pristup` ✓, `regresije.mjs` ✓ (14/14), `npm run build` ✓ (uključuje pokrivenost brisanja).
+- Razvojni prikaz (Playwright): pozivnica u četiri stanja (1440 i 390), Pristup (1536×695: uloga i „Napravi pozivnicu“ iznad pregiba), YouTube kvota sa dva projekta, Integracije kao urednik, Leadovi kao posmatrač.
+- Jedina greška u konzoli je neslaganje hidracije `caret-color` na poljima registracije. Taj stil ubacuje sam Playwright snimak (sakriva kursor), ne kod.
+- Dev server je ugašen (port 3105 slobodan), otpaci Playwright-a su obrisani.
+
+**Za Jovana ujutru:**
+- Deploy dodaje tabelu `globalneKvote`, indeks `invites.by_email` i cron „prune globalne kvote“. Novih env promenljivih nema; `NEXT_PUBLIC_SITE_URL` kod više ne čita.
+- Google Ads kapija sada zaista broji: ako sinhronizacija bude odložena, razlog i vreme stoje u kartici i u „Stanje sinhronizacije“.
+- YouTube brojač na dan deploya kreće od nule (pacifički dan).
+- Pozivnice:
+  - u ScanMe-u napravi pozivnicu sa ulogom „Pregled“ za probnu adresu i registruj se: nalog treba da vidi samo ScanMe i nijedno dugme za izmenu;
+  - pozovi svoju adresu u drugi projekat: posle prijave „Prihvati poziv u …“ dodaje projekat u birač.
+- U Pristupu promeni ulogu probnog člana; poslednjeg vlasnika ne može da spusti.
+- Van spiska plana, nepokriveno: `analytics/realtime-dashboard.tsx`, `notifications-bell.tsx`, `napredak/*`, `hub/novi-projekat.tsx` (lično ili vlasnik platforme) i dugmad u `ga4-configuration.tsx` (posmatrač ih ne vidi, jer se kartica ne crta). Za C18/C19.

@@ -22,10 +22,12 @@ import {
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
+import { SamoZa } from "@/components/app/samo-za";
 import {
   ICE_BREAKERS_MAX,
   ICE_BREAKER_QUESTION_MAX,
@@ -145,7 +147,9 @@ function ProfileMenuForm({
   const unpublish = useProjekatAction(api.orProfileMenu.unpublish);
   const fetchLiveProfile = useProjekatAction(api.orProfileMenu.fetchLiveProfile);
 
-  const busy = pending !== null;
+  // Posmatrač vidi postavljene ledolomce i meni, ali polja su mu zaključana.
+  const mozeUrediti = useMoze("urednik");
+  const busy = pending !== null || !mozeUrediti;
   const hasAutomations = automations.length > 0;
 
   /** Everything the mutation takes, or a Serbian reason it cannot be built. */
@@ -468,78 +472,80 @@ function ProfileMenuForm({
         </section>
 
         {/* Akcije */}
-        <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3.5">
-          <ObjavljujesKao
-            kanal="instagram"
-            radnja="Objavljuješ"
-            className="w-full"
-          />
-          <Button
-            type="button"
-            size="sm"
-            onClick={handlePublish}
-            disabled={busy || !igConnected}
-            className="font-semibold"
-          >
-            {pending === "publish" ? (
-              <>
-                <Loader2 className="size-3.5 animate-spin" />
-                <span>Objavljujem…</span>
-              </>
-            ) : (
-              <span>{potvrda("Objavi na Instagramu")}</span>
-            )}
-          </Button>
+        <SamoZa uloga="urednik">
+          <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3.5">
+            <ObjavljujesKao
+              kanal="instagram"
+              radnja="Objavljuješ"
+              className="w-full"
+            />
+            <Button
+              type="button"
+              size="sm"
+              onClick={handlePublish}
+              disabled={busy || !igConnected}
+              className="font-semibold"
+            >
+              {pending === "publish" ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Objavljujem…</span>
+                </>
+              ) : (
+                <span>{potvrda("Objavi na Instagramu")}</span>
+              )}
+            </Button>
 
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={handleSave}
-            disabled={busy}
-          >
-            {pending === "save" ? (
-              <>
-                <Loader2 className="size-3.5 animate-spin" />
-                <span>Čuvam…</span>
-              </>
-            ) : (
-              <span>Sačuvaj bez objave</span>
-            )}
-          </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={handleSave}
+              disabled={busy}
+            >
+              {pending === "save" ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Čuvam…</span>
+                </>
+              ) : (
+                <span>Sačuvaj bez objave</span>
+              )}
+            </Button>
 
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={handleCheck}
-            disabled={busy || !igConnected}
-            className="text-text-muted hover:text-foreground"
-          >
-            {pending === "check" ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="size-3.5" />
-            )}
-            <span>Proveri šta je objavljeno</span>
-          </Button>
-
-          {config.publishedAt !== null && (
             <Button
               type="button"
               size="sm"
               variant="ghost"
-              onClick={handleRemove}
-              disabled={busy}
-              className="text-text-muted hover:text-danger"
+              onClick={handleCheck}
+              disabled={busy || !igConnected}
+              className="text-text-muted hover:text-foreground"
             >
-              {pending === "remove" ? (
+              {pending === "check" ? (
                 <Loader2 className="size-3.5 animate-spin" />
-              ) : null}
-              <span>Ukloni sa Instagrama</span>
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+              <span>Proveri šta je objavljeno</span>
             </Button>
-          )}
-        </div>
+
+            {config.publishedAt !== null && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={handleRemove}
+                disabled={busy}
+                className="text-text-muted hover:text-danger"
+              >
+                {pending === "remove" ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : null}
+                <span>Ukloni sa Instagrama</span>
+              </Button>
+            )}
+          </div>
+        </SamoZa>
 
         {live !== null && <LiveProfile live={live} />}
       </div>
@@ -567,6 +573,8 @@ function PublishState({
   igConnected: boolean;
   hasAutomations: boolean;
 }) {
+  const mozeUrediti = useMoze("urednik");
+
   if (!igConnected) {
     return (
       <StatusStrip tone="danger">
@@ -585,8 +593,9 @@ function PublishState({
   if (!hasAutomations) {
     return (
       <StatusStrip tone="warning">
-        Napravi bar jednu automatizaciju — pitanje i stavka menija pokreću njenu
-        poruku.
+        {mozeUrediti
+          ? "Napravi bar jednu automatizaciju — pitanje i stavka menija pokreću njenu poruku."
+          : "Nema nijedne automatizacije — pitanje i stavka menija pokreću njenu poruku."}
       </StatusStrip>
     );
   }
@@ -602,8 +611,8 @@ function PublishState({
   if (config.publishedAt === null) {
     return (
       <StatusStrip tone="warning">
-        Izmene su sačuvane kod nas, ali nisu na Instagramu. Klikni „Objavi na
-        Instagramu”.
+        Izmene su sačuvane kod nas, ali nisu na Instagramu.
+        {mozeUrediti ? " Klikni „Objavi na Instagramu”." : ""}
       </StatusStrip>
     );
   }
@@ -691,15 +700,17 @@ function EntryRow({
   return (
     <div className="flex items-start gap-2 rounded-lg border border-line-soft bg-surface p-2.5">
       <div className="min-w-0 flex-1 space-y-2">{children}</div>
-      <button
-        type="button"
-        onClick={onRemove}
-        disabled={disabled}
-        aria-label={removeLabel}
-        className="shrink-0 rounded-md p-1.5 text-text-muted transition-colors hover:text-danger disabled:opacity-50"
-      >
-        <X className="size-3.5" />
-      </button>
+      <SamoZa uloga="urednik">
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={disabled}
+          aria-label={removeLabel}
+          className="shrink-0 rounded-md p-1.5 text-text-muted transition-colors hover:text-danger disabled:opacity-50"
+        >
+          <X className="size-3.5" />
+        </button>
+      </SamoZa>
     </div>
   );
 }
@@ -750,17 +761,19 @@ function AddRowButton({
   children: React.ReactNode;
 }) {
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      onClick={onClick}
-      disabled={disabled}
-      className="w-full border-dashed border-line text-text-muted hover:text-foreground"
-    >
-      <Plus className="size-3.5" />
-      <span>{children}</span>
-    </Button>
+    <SamoZa uloga="urednik">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onClick}
+        disabled={disabled}
+        className="w-full border-dashed border-line text-text-muted hover:text-foreground"
+      >
+        <Plus className="size-3.5" />
+        <span>{children}</span>
+      </Button>
+    </SamoZa>
   );
 }
 

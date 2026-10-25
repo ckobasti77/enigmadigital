@@ -25,6 +25,7 @@ import { EmptyState } from "@/components/app/empty-state";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackNote } from "@/components/app/feedback";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -376,6 +377,7 @@ function SelectionBar({
 }) {
   const bulkHide = useProjekatAction(api.igComments.bulkSetHidden);
   const bulkDelete = useProjekatAction(api.igComments.bulkDelete);
+  const mozeUrediti = useMoze("urednik");
 
   const [pending, setPending] = useState<"hide" | "delete" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -388,7 +390,8 @@ function SelectionBar({
   const ids = [...selection];
   const count = ids.length;
 
-  if (selectableCount === 0) return null;
+  // Grupne radnje su posao urednika; posmatrač komentare samo čita.
+  if (selectableCount === 0 || !mozeUrediti) return null;
 
   const report = (
     result: { succeeded: number; failed: number; firstError: string | null },

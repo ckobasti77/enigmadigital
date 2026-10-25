@@ -398,6 +398,32 @@ export const listByProvider = internalQuery({
 });
 
 /**
+ * Isto što i `listByProvider`, ali redom po poslednjoj sinhronizaciji
+ * (najstarija prva, nikad sinhronizovana pre svih). Cron prolazi kroz
+ * zajedničku kvotu (YouTube, Google Ads) idu ovim redom, pa kad kvota
+ * ponestane, isti projekat nije uvek prvi (plan C10 §6.4).
+ */
+export const listByProviderRedom = internalQuery({
+  args: { provider: providerValidator },
+  returns: v.array(
+    v.object({
+      connectionId: v.id("connections"),
+      workspaceId: v.id("workspaces"),
+    }),
+  ),
+  handler: async (ctx, { provider }) => {
+    const rows = await ctx.db
+      .query("connections")
+      .withIndex("by_provider", (q) => q.eq("provider", provider))
+      .collect();
+    return rows
+      .filter((c) => c.status !== "disconnecting")
+      .sort((a, b) => (a.lastSyncAt ?? 0) - (b.lastSyncAt ?? 0))
+      .map((c) => ({ connectionId: c._id, workspaceId: c.workspaceId }));
+  },
+});
+
+/**
  * Check that a connection belongs to the project the call came from; returns
  * non-secret fields. Membership was already checked by the project wrapper.
  */
@@ -525,7 +551,17 @@ export const syncNow = projekatAction({
     }
 
     if (authorized.provider === "google_ads") {
-      await ctx.runAction(internal.googleAds.syncGoogleAds, { connectionId });
+      const rezultat = await ctx.runAction(internal.googleAds.syncGoogleAds, {
+        connectionId,
+      });
+      // Odložena sinhronizacija se kaže na kartici, ne guta se: zajednička
+      // kvota developer tokena je potrošena (PROJEKTI-PLAN §9).
+      if ("skipped" in rezultat && rezultat.skipped === true) {
+        throw new ConvexError({
+          code: "quota_exceeded",
+          message: rezultat.reason,
+        });
+      }
       return;
     }
 

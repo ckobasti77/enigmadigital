@@ -28,6 +28,7 @@ import { SajtPanel } from "@/components/app/settings/sajt-panel";
 import { useProjekat, useProjekatHref } from "@/components/app/projekat-provider";
 import { PageHeader } from "@/components/app/page-header";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
+import type { Uloga } from "@/convex/lib/uloge";
 
 /**
  * Jezičak je u adresi (`?tab=`), pa birač projekta vodi pravo na „Projekat“, a
@@ -114,15 +115,30 @@ export default function SettingsPage() {
   );
 }
 
+/**
+ * Jezičci po ulozi (P9; backend iste izmene već odbija): „Sajt i oglasi“ i
+ * „Pristup“ vidi samo vlasnik, a „Integracije“ posmatrač ne vidi (urednik vidi
+ * samo stanje veza, bez dugmadi). Dok uloga nije stigla, crtaju se svi.
+ */
+function jezicciZa(uloga: Uloga | null): readonly TabItem<Tab>[] {
+  if (uloga === null || uloga === "owner") return TABS;
+  return TABS.filter(
+    (t) =>
+      t.id !== "sajt" &&
+      t.id !== "pristup" &&
+      !(uloga === "client_viewer" && t.id === "integracije"),
+  );
+}
+
 function Podesavanja() {
   const params = useSearchParams();
   const router = useRouter();
   const ka = useProjekatHref();
   const { uloga } = useProjekat();
-  // „Sajt i oglasi“ vidi samo vlasnik projekta (tajne, piksel, budžet).
-  const tabs = uloga === "owner" ? TABS : TABS.filter((t) => t.id !== "sajt");
+  const tabs = jezicciZa(uloga);
   const izabran = izAdrese(params.get("tab"));
-  const tab = izabran === "sajt" && uloga !== null && uloga !== "owner" ? PODRAZUMEVAN : izabran;
+  // Jezičak koji uloga ne vidi vodi na prvi koji vidi (posmatrač: Projekat).
+  const tab = tabs.some((t) => t.id === izabran) ? izabran : tabs[0].id;
   const copy = COPY[tab];
   const setTab = (sledeci: Tab) => {
     router.replace(`${ka("/settings")}?tab=${sledeci}`, { scroll: false });

@@ -10,11 +10,8 @@ import {
   fetchAccessToken,
   parseYouTubeCredentials,
 } from "./lib/youtubeApi";
-import {
-  QUOTA_COST,
-  QUOTA_MEDIA_EXHAUSTED_MESSAGE,
-  canAffordMedia,
-} from "./lib/ytQuota";
+import { QUOTA_COST, QUOTA_MEDIA_EXHAUSTED_MESSAGE } from "./lib/ytQuota";
+import { rezervisiIzmenu, vratiIzmenu } from "./lib/ytKvotaAkcija";
 import { ytRequest } from "./ytMedia";
 import type { MediaContext } from "./ytMedia";
 
@@ -267,29 +264,38 @@ export const updateVideoMetadata = projekatAction({
     });
 
     const cost = QUOTA_COST.videosList + QUOTA_COST.videosUpdate;
-    if (!canAffordMedia(context.unitsUsed, cost)) {
+    // Reserved before the call — this project's share and the shared
+    // counter of all projects in one step (lib/ytKvotaAkcija.ts).
+    const rezervacija = await rezervisiIzmenu(ctx, workspaceId, cost);
+    if (!rezervacija.ok) {
+      const poruka = rezervacija.poruka ?? QUOTA_MEDIA_EXHAUSTED_MESSAGE;
       await ctx.runMutation(internal.ytMedia.finishJob, {
         jobId,
         status: "skipped_quota" as const,
         unitsSpent: 0,
-        errorMessage: QUOTA_MEDIA_EXHAUSTED_MESSAGE,
+        errorMessage: poruka,
       });
-      invalid(QUOTA_MEDIA_EXHAUSTED_MESSAGE);
+      invalid(poruka);
     }
 
-    // Every metered call is booked the moment it returns, success or not:
-    // Google charged for it either way, and an action that dies halfway must
-    // not leave the counter thinking those units are still there.
+    // The whole read-then-write was reserved above. Every metered call is
+    // counted the moment it returns, success or not: Google charged for it
+    // either way. Whatever was reserved and never called (the write after a
+    // failed read) goes back before the job closes.
+    let reserved = cost;
     let spent = 0;
     const bookUnits = async (units: number): Promise<void> => {
       spent += units;
-      await ctx.runMutation(internal.ytIngest.recordQuotaUsage, {
-        workspaceId,
-        units,
-      });
+    };
+    const settle = async (): Promise<void> => {
+      if (reserved > spent) {
+        await vratiIzmenu(ctx, workspaceId, reserved - spent);
+        reserved = spent;
+      }
     };
 
     const failJob = async (message: string): Promise<never> => {
+      await settle();
       await ctx.runMutation(internal.ytMedia.finishJob, {
         jobId,
         status: "failed" as const,
@@ -482,14 +488,18 @@ export const deleteVideo = projekatAction({
       ...(localTitle !== null ? { title: localTitle } : {}),
     });
 
-    if (!canAffordMedia(context.unitsUsed, QUOTA_COST.videosDelete)) {
+    // Reserved before the call — this project's share and the shared
+    // counter of all projects in one step (lib/ytKvotaAkcija.ts).
+    const rezervacija = await rezervisiIzmenu(ctx, workspaceId, QUOTA_COST.videosDelete);
+    if (!rezervacija.ok) {
+      const poruka = rezervacija.poruka ?? QUOTA_MEDIA_EXHAUSTED_MESSAGE;
       await ctx.runMutation(internal.ytMedia.finishJob, {
         jobId,
         status: "skipped_quota" as const,
         unitsSpent: 0,
-        errorMessage: QUOTA_MEDIA_EXHAUSTED_MESSAGE,
+        errorMessage: poruka,
       });
-      invalid(QUOTA_MEDIA_EXHAUSTED_MESSAGE);
+      invalid(poruka);
     }
 
     let spent = 0;
@@ -510,6 +520,7 @@ export const deleteVideo = projekatAction({
       );
       token = await fetchAccessToken(creds);
     } catch (err) {
+      await vratiIzmenu(ctx, workspaceId, QUOTA_COST.videosDelete);
       return await failJob(
         err instanceof Error
           ? err.message
@@ -520,11 +531,12 @@ export const deleteVideo = projekatAction({
     const res = await ytRequest(buildVideosDeleteUrl(videoId), token, {
       method: "DELETE",
     });
-    spent = QUOTA_COST.videosDelete;
-    await ctx.runMutation(internal.ytIngest.recordQuotaUsage, {
-      workspaceId,
-      units: spent,
-    });
+    // Status 0 never reached Google, so nothing was metered.
+    if (res.status === 0) {
+      await vratiIzmenu(ctx, workspaceId, QUOTA_COST.videosDelete);
+    } else {
+      spent = QUOTA_COST.videosDelete;
+    }
 
     if (!res.ok) {
       if (res.status === 403) {

@@ -197,6 +197,7 @@ const rateLimit: R<typeof api.metaSyncStore.rateLimit> = {
   limited: false,
   retryAt: null,
   peak: 31,
+  globalno: false,
 };
 
 // ── Kontrolna tabla / Analitika ──────────────────────────────────────────────

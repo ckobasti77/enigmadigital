@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { useProjekatMutation } from "@/components/app/projekat-provider";
+import { SamoZa } from "@/components/app/samo-za";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
 import {
@@ -29,8 +30,20 @@ import { cn } from "@/lib/utils";
  *
  * „Nije moguće proceniti" je izbor ravnopravan broju, a ne prazno polje —
  * pravilo 4 iz §0 zabranjuje da se nepoznato piše kao 50 %.
+ *
+ * Ispravka je izmena podataka, pa je posmatrač ne dobija (`…Telo` je sama forma).
  */
-export function PhoneConfidenceDialog({
+export function PhoneConfidenceDialog(
+  props: ComponentProps<typeof PhoneConfidenceDialogTelo>,
+) {
+  return (
+    <SamoZa uloga="urednik">
+      <PhoneConfidenceDialogTelo {...props} />
+    </SamoZa>
+  );
+}
+
+function PhoneConfidenceDialogTelo({
   identity,
   personName,
   open,

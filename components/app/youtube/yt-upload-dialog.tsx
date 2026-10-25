@@ -51,6 +51,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatNumber } from "@/lib/format";
+import { vremeUBeogradu } from "@/convex/lib/globalneKvote";
 import { DUR_UI, EASE_UI } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { FeedbackNote } from "@/components/app/feedback";
@@ -59,6 +60,7 @@ import {
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatMutation,
   useProjekatQuery,
@@ -107,6 +109,9 @@ type Stage = "form" | "uploading" | "done";
  */
 export function YtUploadButton() {
   const [open, setOpen] = useState(false);
+  const mozeUrediti = useMoze("urednik");
+
+  if (!mozeUrediti) return null;
 
   return (
     <>
@@ -134,6 +139,10 @@ export function YtUploadDialog({
   // only thing holding the abort handle, leaving a large upload running with
   // nothing on screen to show it or stop it. "Prekini slanje" is the way out.
   const [busy, setBusy] = useState(false);
+
+  // Slanje videa je izmena: posmatrač projekta nema ovaj dijalog.
+  const mozeUrediti = useMoze("urednik");
+  if (!mozeUrediti) return null;
 
   return (
     <Dialog
@@ -567,9 +576,12 @@ function YtUploadForm({
 
       {dailyLimitReached && (
         <p className="text-xs leading-relaxed text-danger">
-          Danas je poslato {formatNumber(status.uploadLimit)} videa, koliko je
-          dnevni limit ove aplikacije. Limit postoji da greška u ponavljanju ne
-          okači isti fajl sto puta. Nastavlja se sutra.
+          {/* Svoj deo nije potrošen, a ništa ne ostaje: pun je zajednički limit. */}
+          {status.uploadsUsed < status.deoProjekta
+            ? "Zajednički dnevni limit slanja videa za sve projekte je dostignut."
+            : `Danas je poslato ${formatNumber(status.uploadsUsed)} od ${formatNumber(status.deoProjekta)} videa za ovaj projekat.`}{" "}
+          Limit postoji da greška u ponavljanju ne okači isti fajl sto puta.
+          Ponovo sutra u {vremeUBeogradu(status.obnovaU)}.
         </p>
       )}
       {metadataProblem !== null && file !== null && !uploading && (

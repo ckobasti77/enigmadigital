@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { api } from "@/convex/_generated/api";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -77,6 +78,10 @@ const ACTION_VERBS: Record<AdActionType, string> = {
 };
 
 export function AdActionDialog(props: AdActionDialogProps) {
+  // Pauziranje, budžet i dupliranje menjaju nalog oglasa: samo vlasnik.
+  const mozeVlasnik = useMoze("owner");
+  if (!mozeVlasnik) return null;
+
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       {props.open && <AdActionDialogInner {...props} />}

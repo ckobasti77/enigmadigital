@@ -12,7 +12,10 @@ import {
   UserCheck,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { useProjekatQuery } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { PRAVILA_XP } from "@/convex/lib/napredak";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
@@ -58,6 +61,7 @@ const DESCRIPTION =
  */
 export function InstagramDashboard() {
   const { range } = useDateRange();
+  const mozeUrediti = useMoze("urednik");
   const connections = useProjekatQuery(api.connections.list);
 
   const currentRows = useProjekatQuery(api.instagramStore.dailyHistory, {
@@ -200,7 +204,8 @@ export function InstagramDashboard() {
         variant="module"
         description={DESCRIPTION}
         actions={
-          igConnected && (
+          igConnected &&
+          mozeUrediti && (
             <Button
               variant="primary"
               render={<ProjekatLink href="/instagram/objavi" />}

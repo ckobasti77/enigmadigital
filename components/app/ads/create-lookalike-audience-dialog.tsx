@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -42,7 +43,16 @@ interface CreateLookalikeAudienceDialogProps {
   onSuccess?: () => void;
 }
 
-export function CreateLookalikeAudienceDialog({
+/** Publiku pravi samo vlasnik; za ostale se dijalog uopšte ne crta. */
+export function CreateLookalikeAudienceDialog(
+  props: CreateLookalikeAudienceDialogProps,
+) {
+  const mozeVlasnik = useMoze("owner");
+  if (!mozeVlasnik) return null;
+  return <CreateLookalikeAudienceDialogInner {...props} />;
+}
+
+function CreateLookalikeAudienceDialogInner({
   open,
   onOpenChange,
   tosStatus,

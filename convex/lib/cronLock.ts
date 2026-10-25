@@ -25,6 +25,9 @@ export const CRON_LOCKS = {
   adsAll: "meta:ads:all",
   adRules: "meta:ads:rules",
   capiDispatch: "meta:capi:dispatch",
+  ytSync: "youtube:sync",
+  ytPoll: "youtube:poll",
+  gadsSync: "google_ads:sync",
 } as const;
 
 /**

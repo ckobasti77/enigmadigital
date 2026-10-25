@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/app/system/empty-state";
+import { useMoze } from "@/components/app/projekat-provider";
 import {
   POST_CATEGORIES,
   getCategoryLabel,
@@ -87,8 +88,10 @@ export function NovostiBoard({
 }: {
   posts: PostItem[];
   isLoading: boolean;
-  onEditPost: (post: PostItem) => void;
+  /** Bez njega (posmatrač) kartice se samo čitaju: nisu dugme i ne otvaraju formu. */
+  onEditPost?: (post: PostItem) => void;
 }) {
+  const moze = useMoze("urednik");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
@@ -115,6 +118,14 @@ export function NovostiBoard({
   const filtering = selectedCategory !== "all" || searchQuery.trim() !== "";
 
   if (!isLoading && posts.length === 0) {
+    // Posmatraču se ne nudi pisanje: samo činjenica da još nema postova.
+    if (!moze) {
+      return (
+        <EmptyState icon={Newspaper} title="Još nema postova">
+          Ovde će stajati članci i beleške za sajt, čim ih urednici napišu.
+        </EmptyState>
+      );
+    }
     return (
       <EmptyState
         icon={Newspaper}
@@ -198,7 +209,7 @@ function BoardColumn({
   column: Column;
   posts: PostItem[];
   isLoading: boolean;
-  onEditPost: (post: PostItem) => void;
+  onEditPost?: (post: PostItem) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const Icon = column.icon;
@@ -270,14 +281,10 @@ function PostCard({
 }: {
   post: PostItem;
   dot: string;
-  onEdit: (post: PostItem) => void;
+  onEdit?: (post: PostItem) => void;
 }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onEdit(post)}
-      className="group/post hover-lift flex w-full cursor-pointer flex-col gap-1.5 rounded-lg border border-line bg-card p-3 text-left shadow-card transition-colors hover:border-mod-line focus-visible:border-mod-line focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-    >
+  const sadrzaj = (
+    <>
       <span className="flex items-start gap-2">
         <span
           aria-hidden
@@ -301,6 +308,24 @@ function PostCard({
           ? `objavljeno ${formatDateTime(post.publishedAt)}`
           : `izmenjeno ${formatDateTime(post.updatedAt)}`}
       </span>
+    </>
+  );
+
+  if (!onEdit) {
+    return (
+      <div className="flex w-full flex-col gap-1.5 rounded-lg border border-line bg-card p-3 text-left shadow-card">
+        {sadrzaj}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onEdit(post)}
+      className="group/post hover-lift flex w-full cursor-pointer flex-col gap-1.5 rounded-lg border border-line bg-card p-3 text-left shadow-card transition-colors hover:border-mod-line focus-visible:border-mod-line focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
+      {sadrzaj}
     </button>
   );
 }

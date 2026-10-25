@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { FeedbackNote } from "@/components/app/feedback";
 import { leadGapLabel } from "./lead-labels";
 import { useProjekat, useProjekatMutation } from "@/components/app/projekat-provider";
+import { SamoZa } from "@/components/app/samo-za";
 import { cn } from "@/lib/utils";
 
 type LeadGapFillDialogProps = {
@@ -60,7 +61,16 @@ const LAWFUL_BASIS_OPTIONS = [
   },
 ];
 
-export function LeadGapFillDialog({
+/** Dopuna je izmena podataka, pa je posmatrač ne dobija (`…Telo` je sama forma). */
+export function LeadGapFillDialog(props: LeadGapFillDialogProps) {
+  return (
+    <SamoZa uloga="urednik">
+      <LeadGapFillDialogTelo {...props} />
+    </SamoZa>
+  );
+}
+
+function LeadGapFillDialogTelo({
   company,
   gapType,
   isOpen,

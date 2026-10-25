@@ -12,11 +12,8 @@ import {
   fetchAccessToken,
   parseYouTubeCredentials,
 } from "./lib/youtubeApi";
-import {
-  QUOTA_COST,
-  QUOTA_MEDIA_EXHAUSTED_MESSAGE,
-  canAffordMedia,
-} from "./lib/ytQuota";
+import { QUOTA_COST, QUOTA_MEDIA_EXHAUSTED_MESSAGE } from "./lib/ytQuota";
+import { rezervisiIzmenu, vratiIzmenu } from "./lib/ytKvotaAkcija";
 import {
   CAPTION_MAX_BYTES,
   CAPTION_NAME_MAX,
@@ -43,8 +40,9 @@ import type { MediaContext } from "./ytMedia";
  * Jedan poslat titl je 400 jedinica — osam automatskih odgovora na komentare.
  * Deset titlova je 4 000, dve trećine celog dnevnog plafona za izmene (6 000)
  * i polovina Google-ovog dnevnog budžeta. Ovo je jedino mesto u aplikaciji gde
- * jedan klik pojede vidljiv deo dana, pa svaka operacija ovde ide kroz
- * `canAffordMedia` (Y6), koji čuva 2 000 jedinica za motor za komentare, i
+ * jedan klik pojede vidljiv deo dana, pa svaka operacija ovde pre poziva
+ * rezerviše cenu kroz `lib/ytKvotaAkcija.ts` (plafon izmena čuva 2 000 jedinica
+ * za motor za komentare, a zajednički brojač deli kvotu svih projekata), i
  * svaka ostavlja red u `ytMediaJobs`.
  *
  * Fajl ne izlazi iz backenda: browser ga okači u Convex storage, akcija ga
@@ -59,7 +57,7 @@ function invalid(message: string): never {
 // ── shared preflight ─────────────────────────────────────────────────────────
 
 /**
- * Channel and today's counter for the project — or a sentence saying why not.
+ * Channel and credentials for the project — or a sentence saying why not.
  * Membership is not checked here: the project wrapper did that before the
  * action's handler ran, and `workspaceId` is the project it verified.
  */
@@ -155,8 +153,11 @@ async function sendCaptionFile(params: {
   unitCost: number;
   /** Book units the moment a metered attempt returns, success or not. */
   book: (units: number) => Promise<void>;
-  /** Does today's budget still pay for a second full-price attempt? */
-  canRetry: () => boolean;
+  /**
+   * Does today's budget still pay for a second full-price attempt? Reserves
+   * it when it does, so the answer and the booking are one step.
+   */
+  canRetry: () => Promise<boolean>;
 }): Promise<SendResult> {
   const { body, contentType } = buildMultipartRelatedBody({
     metadata: params.metadata,
@@ -182,7 +183,7 @@ async function sendCaptionFile(params: {
   if ([401, 403, 404].includes(multipart.status)) {
     return { ok: false, message: firstError, via: "multipart" };
   }
-  if (!params.canRetry()) {
+  if (!(await params.canRetry())) {
     return {
       ok: false,
       message: `${firstError} — a za rezervni pokušaj nema dovoljno kvote danas.`,
@@ -310,15 +311,18 @@ export const listCaptions = projekatAction({
     if (videoId.length === 0) invalid("Nedostaje ID videa.");
 
     const context = await loadContext(ctx, ctx.projekat.workspaceId);
+    const cost = QUOTA_COST.captionsList;
 
-    if (!canAffordMedia(context.unitsUsed, QUOTA_COST.captionsList)) {
-      invalid(QUOTA_MEDIA_EXHAUSTED_MESSAGE);
+    const rezervacija = await rezervisiIzmenu(ctx, context.workspaceId, cost);
+    if (!rezervacija.ok) {
+      invalid(rezervacija.poruka ?? QUOTA_MEDIA_EXHAUSTED_MESSAGE);
     }
 
     let token: string;
     try {
       token = await resolveToken(context);
     } catch (err) {
+      await vratiIzmenu(ctx, context.workspaceId, cost);
       invalid(
         err instanceof Error
           ? err.message
@@ -327,10 +331,8 @@ export const listCaptions = projekatAction({
     }
 
     const res = await ytRequest(buildCaptionsListUrl(videoId), token);
-    await ctx.runMutation(internal.ytIngest.recordQuotaUsage, {
-      workspaceId: context.workspaceId,
-      units: QUOTA_COST.captionsList,
-    });
+    // Status 0 never reached Google, so nothing was metered.
+    if (res.status === 0) await vratiIzmenu(ctx, context.workspaceId, cost);
 
     if (!res.ok) {
       if (res.status === 403) {
@@ -444,25 +446,39 @@ async function runUploadCaption(
   });
 
   const cost = QUOTA_COST.captionsInsert;
-  if (!canAffordMedia(context.unitsUsed, cost)) {
+  const rezervacija = await rezervisiIzmenu(ctx, workspaceId, cost);
+  if (!rezervacija.ok) {
+    const poruka = rezervacija.poruka ?? QUOTA_MEDIA_EXHAUSTED_MESSAGE;
     await ctx.runMutation(internal.ytMedia.finishJob, {
       jobId,
       status: "skipped_quota" as const,
       unitsSpent: 0,
-      errorMessage: QUOTA_MEDIA_EXHAUSTED_MESSAGE,
+      errorMessage: poruka,
     });
-    invalid(QUOTA_MEDIA_EXHAUSTED_MESSAGE);
+    invalid(poruka);
   }
 
+  // `reserved` is what is booked against the counters, `spent` what Google
+  // actually metered. Whatever is left over goes back before the job closes.
+  let reserved: number = cost;
   let spent = 0;
   const book = async (units: number): Promise<void> => {
     spent += units;
-    await ctx.runMutation(internal.ytIngest.recordQuotaUsage, {
-      workspaceId,
-      units,
-    });
+  };
+  const canRetry = async (): Promise<boolean> => {
+    if (reserved - spent >= cost) return true;
+    const ponovo = await rezervisiIzmenu(ctx, workspaceId, cost);
+    if (ponovo.ok) reserved += cost;
+    return ponovo.ok;
+  };
+  const settle = async (): Promise<void> => {
+    if (reserved > spent) {
+      await vratiIzmenu(ctx, workspaceId, reserved - spent);
+      reserved = spent;
+    }
   };
   const failJob = async (message: string): Promise<never> => {
+    await settle();
     await ctx.runMutation(internal.ytMedia.finishJob, {
       jobId,
       status: "failed" as const,
@@ -500,13 +516,14 @@ async function runUploadCaption(
     fileContentType: contentType,
     unitCost: cost,
     book,
-    canRetry: () => canAffordMedia(context.unitsUsed + spent, cost),
+    canRetry,
   });
 
   if (!sent.ok) {
     return await failJob(`Slanje titla nije uspelo — ${sent.message}`);
   }
 
+  await settle();
   await ctx.runMutation(internal.ytMedia.finishJob, {
     jobId,
     status: "done" as const,
@@ -567,25 +584,39 @@ async function runUpdateCaption(
   });
 
   const cost = QUOTA_COST.captionsUpdate;
-  if (!canAffordMedia(context.unitsUsed, cost)) {
+  const rezervacija = await rezervisiIzmenu(ctx, workspaceId, cost);
+  if (!rezervacija.ok) {
+    const poruka = rezervacija.poruka ?? QUOTA_MEDIA_EXHAUSTED_MESSAGE;
     await ctx.runMutation(internal.ytMedia.finishJob, {
       jobId,
       status: "skipped_quota" as const,
       unitsSpent: 0,
-      errorMessage: QUOTA_MEDIA_EXHAUSTED_MESSAGE,
+      errorMessage: poruka,
     });
-    invalid(QUOTA_MEDIA_EXHAUSTED_MESSAGE);
+    invalid(poruka);
   }
 
+  // `reserved` is what is booked against the counters, `spent` what Google
+  // actually metered. Whatever is left over goes back before the job closes.
+  let reserved: number = cost;
   let spent = 0;
   const book = async (units: number): Promise<void> => {
     spent += units;
-    await ctx.runMutation(internal.ytIngest.recordQuotaUsage, {
-      workspaceId,
-      units,
-    });
+  };
+  const canRetry = async (): Promise<boolean> => {
+    if (reserved - spent >= cost) return true;
+    const ponovo = await rezervisiIzmenu(ctx, workspaceId, cost);
+    if (ponovo.ok) reserved += cost;
+    return ponovo.ok;
+  };
+  const settle = async (): Promise<void> => {
+    if (reserved > spent) {
+      await vratiIzmenu(ctx, workspaceId, reserved - spent);
+      reserved = spent;
+    }
   };
   const failJob = async (message: string): Promise<never> => {
+    await settle();
     await ctx.runMutation(internal.ytMedia.finishJob, {
       jobId,
       status: "failed" as const,
@@ -622,13 +653,14 @@ async function runUpdateCaption(
     fileContentType: contentType,
     unitCost: cost,
     book,
-    canRetry: () => canAffordMedia(context.unitsUsed + spent, cost),
+    canRetry,
   });
 
   if (!sent.ok) {
     return await failJob(`Zamena titla nije uspela — ${sent.message}`);
   }
 
+  await settle();
   await ctx.runMutation(internal.ytMedia.finishJob, {
     jobId,
     status: "done" as const,
@@ -665,14 +697,17 @@ export const deleteCaption = projekatAction({
       title: `Brisanje titla ${captionId}`,
     });
 
-    if (!canAffordMedia(context.unitsUsed, QUOTA_COST.captionsDelete)) {
+    const cost = QUOTA_COST.captionsDelete;
+    const rezervacija = await rezervisiIzmenu(ctx, workspaceId, cost);
+    if (!rezervacija.ok) {
+      const poruka = rezervacija.poruka ?? QUOTA_MEDIA_EXHAUSTED_MESSAGE;
       await ctx.runMutation(internal.ytMedia.finishJob, {
         jobId,
         status: "skipped_quota" as const,
         unitsSpent: 0,
-        errorMessage: QUOTA_MEDIA_EXHAUSTED_MESSAGE,
+        errorMessage: poruka,
       });
-      invalid(QUOTA_MEDIA_EXHAUSTED_MESSAGE);
+      invalid(poruka);
     }
 
     let spent = 0;
@@ -690,6 +725,7 @@ export const deleteCaption = projekatAction({
     try {
       token = await resolveToken(context);
     } catch (err) {
+      await vratiIzmenu(ctx, workspaceId, cost);
       return await failJob(
         err instanceof Error
           ? err.message
@@ -700,11 +736,12 @@ export const deleteCaption = projekatAction({
     const res = await ytRequest(buildCaptionsDeleteUrl(captionId), token, {
       method: "DELETE",
     });
-    spent = QUOTA_COST.captionsDelete;
-    await ctx.runMutation(internal.ytIngest.recordQuotaUsage, {
-      workspaceId,
-      units: spent,
-    });
+    // Status 0 never reached Google, so nothing was metered.
+    if (res.status === 0) {
+      await vratiIzmenu(ctx, workspaceId, cost);
+    } else {
+      spent = cost;
+    }
 
     if (!res.ok) {
       if (res.status === 403) {

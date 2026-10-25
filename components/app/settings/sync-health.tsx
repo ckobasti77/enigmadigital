@@ -6,7 +6,8 @@ import { useProjekatQuery } from "@/components/app/projekat-provider";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatRelativeTime } from "@/lib/format";
+import { formatNumber, formatRelativeTime } from "@/lib/format";
+import { vremeUBeogradu } from "@/convex/lib/globalneKvote";
 import { StatusPill, PROVIDER_LABELS } from "./status-pill";
 
 type HealthEntry = FunctionReturnType<typeof api.sync.health>[number];
@@ -156,6 +157,74 @@ function MetaAdsQuota() {
   );
 }
 
+const MINUT_MS = 60_000;
+
+/**
+ * Operacije Google Ads developer tokena za klizećih 24 h. Token dele svi
+ * projekti, pa red kaže i deo ovog projekta i zbir svih, a kad je deo potrošen,
+ * zašto sinhronizacija čeka i kad se nastavlja. Ćuti bez Google Ads veze.
+ */
+function GoogleAdsKvota() {
+  const now = useTickingNow(MINUT_MS);
+  // Zaokruženo na minut: upit ne čita sat, a nova pretplata svakog trenutka
+  // bila bi bez razloga.
+  const minut = now === null ? null : Math.floor(now / MINUT_MS) * MINUT_MS;
+  const kvota = useProjekatQuery(
+    api.googleAdsStore.kvotaGoogleAds,
+    minut === null ? "skip" : { now: minut },
+  );
+  if (kvota === undefined || kvota === null) return null;
+
+  const deljeno = kvota.projekata > 1;
+  const granica = kvota.projekat + kvota.dostupno;
+  const pct = granica > 0 ? Math.round((kvota.projekat / granica) * 100) : 100;
+  const potroseno = kvota.dostupno === 0;
+  const barTone = potroseno ? "bg-danger" : pct >= 80 ? "bg-warning" : "bg-mod-strong";
+
+  return (
+    <div className="mt-5 border-t border-line-soft pt-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="heading-caps text-micro font-medium text-text-muted">
+          Kvota Google oglasa
+        </span>
+        <span className="font-mono text-sm tabular-nums text-foreground">
+          {formatNumber(kvota.projekat)} od {formatNumber(deljeno ? kvota.deoProjekta : kvota.zajednickiLimit)}
+        </span>
+      </div>
+
+      <div
+        className="mt-2 h-1 w-full overflow-hidden rounded-full bg-surface-raised"
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label="Iskorišćenost kvote Google oglasa"
+      >
+        <div
+          className={`h-full rounded-full ${barTone} motion-safe:transition-[width] motion-safe:duration-500`}
+          style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+        />
+      </div>
+
+      <p className="mt-2 text-micro text-text-muted">
+        operacija za 24 h
+        {deljeno
+          ? ` (deo ovog projekta) · svi projekti: ${formatNumber(kvota.ukupno)} od ${formatNumber(kvota.zajednickiLimit)}`
+          : ""}
+      </p>
+
+      {potroseno && (
+        <p className="mt-2 text-xs text-danger">
+          {kvota.ukupno >= kvota.zajednickiLimit
+            ? "Google Ads sinhronizacija je odložena: zajednička kvota svih projekata je potrošena."
+            : "Google Ads sinhronizacija je odložena: deo kvote za ovaj projekat je potrošen."}{" "}
+          Ponovo oko {vremeUBeogradu(kvota.obnovaU)}.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** Last sync run per provider — status, when it ran, and error text if it failed. */
 export function SyncHealth({ entries }: { entries: HealthEntry[] | undefined }) {
   return (
@@ -218,6 +287,7 @@ export function SyncHealth({ entries }: { entries: HealthEntry[] | undefined }) 
       </div>
 
       <MetaAdsQuota />
+      <GoogleAdsKvota />
     </section>
   );
 }

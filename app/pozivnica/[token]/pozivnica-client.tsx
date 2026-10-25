@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,7 +12,9 @@ import {
   EyeOff,
   KeyRound,
   LoaderCircle,
+  LogIn,
   RotateCw,
+  UserPlus,
   X,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -86,7 +88,10 @@ function porukaGreske(error: unknown): string {
 export function PozivnicaClient({ token }: { token: string }) {
   const inviteState = useQuery(api.invitesStore.getInvite, { token });
   const pripremiRegistraciju = useMutation(api.invitesStore.pripremiRegistraciju);
-  const { signIn } = useAuthActions();
+  const prihvatiPozivnicu = useMutation(api.invitesStore.prihvatiPozivnicu);
+  const { signIn, signOut } = useAuthActions();
+  const { isAuthenticated, isLoading: authSeUcitava } = useConvexAuth();
+  const ja = useQuery(api.projekti.ja, isAuthenticated ? {} : "skip");
   const router = useRouter();
 
   const [korak, setKorak] = useState<"lozinka" | "kod">("lozinka");
@@ -101,6 +106,43 @@ export function PozivnicaClient({ token }: { token: string }) {
   const [resendCooldown, setResendCooldown] = useState(0);
 
   const zauzet = status === "radim";
+
+  // Postojeći korisnik prihvata poziv posle prijave (dodatno članstvo).
+  const [prihvatam, setPrihvatam] = useState(false);
+  const [greskaPrihvatanja, setGreskaPrihvatanja] = useState<string | null>(null);
+  // Ime projekta se „zaključa“ kao i adresa ispod: posle prihvatanja ili
+  // registracije pozivnica više ne važi, pa ga upit više ne vraća baš dok
+  // preusmeravamo.
+  const [imeProjekta, setImeProjekta] = useState<string | null>(null);
+  if (
+    inviteState?.status === "vazi" &&
+    inviteState.projekat !== undefined &&
+    inviteState.projekat.ime !== imeProjekta
+  ) {
+    setImeProjekta(inviteState.projekat.ime);
+  }
+  const postojiNalog =
+    inviteState?.status === "vazi" && inviteState.postojiNalog === true;
+
+  async function prihvati() {
+    if (prihvatam) return;
+    setPrihvatam(true);
+    setGreskaPrihvatanja(null);
+    try {
+      const { slug } = await prihvatiPozivnicu({ token });
+      // U hubu je projekat na `/<slug>`; na panel domenu tog projekta proxy
+      // kanonski preusmerava `/<slug>` na `/`.
+      router.push(`/${slug}`);
+    } catch (error) {
+      console.error("Prihvatanje pozivnice nije uspelo");
+      setGreskaPrihvatanja(porukaGreske(error));
+      setPrihvatam(false);
+    }
+  }
+
+  async function odjavi() {
+    await signOut();
+  }
 
   // „Uđi ručno" se pojavi baš kad `router.push` kasni, pa ne sme da zavisi od
   // istog rutera: namerno puno učitavanje strane, ne `<Link>`.
@@ -231,7 +273,7 @@ export function PozivnicaClient({ token }: { token: string }) {
             zato nema gornji razmak. */}
         <div className="rounded-xl border bg-card p-8 shadow-elev-1 [&>*:first-child]:mt-0">
 
-          {inviteState === undefined ? (
+          {inviteState === undefined || authSeUcitava ? (
             /* ─────────── Učitavanje pozivnice ─────────── */
             <div className="mt-6 space-y-4" role="status" aria-live="polite">
               <div className="h-7 w-40 animate-pulse rounded bg-surface-raised" />
@@ -261,6 +303,95 @@ export function PozivnicaClient({ token }: { token: string }) {
                 className="mt-4 w-full justify-center text-xs text-muted-foreground hover:text-foreground"
               >
                 Idi na prijavu
+              </Button>
+            </div>
+          ) : isAuthenticated && korak === "lozinka" && status !== "uspeh" ? (
+            /* ─────────── Prijavljen korisnik: prihvatanje poziva ─────────── */
+            <div className="mt-6">
+              <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-mod">
+                <UserPlus className="size-5" aria-hidden />
+              </div>
+              <h1 className="mt-4 text-h2 text-foreground">
+                {imeProjekta ? `Poziv u ${imeProjekta}` : "Poziv u projekat"}
+              </h1>
+              {ja === undefined ? (
+                <div className="mt-4 space-y-3" role="status" aria-live="polite">
+                  <div className="h-12 w-full animate-pulse rounded bg-surface-raised" />
+                  <span className="sr-only">Učitavam nalog…</span>
+                </div>
+              ) : ja.email !== null && ja.email.trim().toLowerCase() === email ? (
+                <>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    Poziv je za tvoju adresu{" "}
+                    <span className="font-medium text-foreground">{email}</span>.
+                    Projekat se dodaje u tvoj spisak, a ostali projekti ostaju
+                    isti.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={prihvati}
+                    disabled={prihvatam}
+                    className="mt-6 h-11 w-full"
+                  >
+                    {prihvatam ? (
+                      <>
+                        <LoaderCircle className="animate-spin" />
+                        Prihvatam…
+                      </>
+                    ) : (
+                      <>
+                        {imeProjekta ? `Prihvati poziv u ${imeProjekta}` : "Prihvati poziv"}
+                        <ArrowRight />
+                      </>
+                    )}
+                  </Button>
+                  {greskaPrihvatanja && (
+                    <FeedbackNote tone="danger" title="Poziv nije prihvaćen" className="mt-4">
+                      {greskaPrihvatanja}
+                    </FeedbackNote>
+                  )}
+                </>
+              ) : (
+                <>
+                  <FeedbackNote tone="warning" title="Poziv je za drugu adresu" className="mt-4">
+                    {`Prijavljen si kao ${ja.email ?? "nalog bez adrese"}; poziv je za ${email}. Odjavi se pa se prijavi kao ${email}.`}
+                  </FeedbackNote>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={odjavi}
+                    className="mt-4 h-11 w-full"
+                  >
+                    Odjavi se
+                  </Button>
+                </>
+              )}
+            </div>
+          ) : postojiNalog && korak === "lozinka" && status !== "uspeh" ? (
+            /* ─────────── Postojeći nalog, odjavljen: prijava pa prihvatanje ─────────── */
+            <div className="mt-6">
+              <div className="flex size-10 items-center justify-center rounded-full border border-line-strong text-mod">
+                <LogIn className="size-5" aria-hidden />
+              </div>
+              <h1 className="mt-4 text-h2 text-foreground">
+                {imeProjekta ? `Poziv u ${imeProjekta}` : "Poziv u projekat"}
+              </h1>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Za <span className="font-medium text-foreground">{email}</span>{" "}
+                nalog već postoji. Prijavi se svojom lozinkom, pa prihvati poziv
+                jednim klikom.
+              </p>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() =>
+                  router.push(`/login?pozivnica=${encodeURIComponent(token)}`)
+                }
+                className="mt-6 h-11 w-full"
+              >
+                Prijavi se da prihvatiš poziv
+                <ArrowRight />
               </Button>
             </div>
           ) : korak === "kod" ? (
@@ -398,7 +529,9 @@ export function PozivnicaClient({ token }: { token: string }) {
               <div className="mt-6 flex size-10 items-center justify-center rounded-full border border-line-strong text-mod">
                 <KeyRound className="size-5" aria-hidden />
               </div>
-              <h1 className="mt-4 text-h2 text-foreground">Napravi nalog</h1>
+              <h1 className="mt-4 text-h2 text-foreground">
+                {imeProjekta ? `Poziv u ${imeProjekta}` : "Napravi nalog"}
+              </h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 Pozivnica važi za adresu ispod. Postavi lozinku, pa potvrdi adresu
                 jednim kodom sa mejla — traži se samo pri registraciji.

@@ -55,6 +55,7 @@ import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { EmptyState } from "@/components/app/empty-state";
 import { Field, FormGroup, FormStack } from "@/components/app/form-kit";
 import {
+  useMoze,
   useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -119,6 +120,8 @@ export function ThreadsAutomations() {
   const [tab, setTab] = useState<"rules" | "log">("rules");
   const automations = useProjekatQuery(api.threadsAutomations.listAutomations);
   const logs = useProjekatQuery(api.threadsAutomations.listAutomationLogs, { limit: 100 });
+  // Posmatrač vidi pravila i log, ali ih ne menja.
+  const mozeUrediti = useMoze("urednik");
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAutomation, setEditingAutomation] = useState<AutomationDoc | null>(null);
@@ -245,7 +248,7 @@ export function ThreadsAutomations() {
         onChange={setTab}
         panelId="threads-automations-panel"
         trailing={
-          tab === "rules" ? (
+          tab === "rules" && mozeUrediti ? (
             <Button
               type="button"
               size="sm"
@@ -272,7 +275,9 @@ export function ThreadsAutomations() {
               </div>
             ) : automations.length === 0 ? (
               <EmptyState icon={Zap}>
-                Nema kreiranih pravila automatizacije za Threads. Kliknite na „Novo pravilo” da kreirate prvo pravilo.
+                {mozeUrediti
+                  ? "Nema kreiranih pravila automatizacije za Threads. Kliknite na „Novo pravilo” da kreirate prvo pravilo."
+                  : "Nema kreiranih pravila automatizacije za Threads."}
               </EmptyState>
             ) : (
               <div className="grid grid-cols-1 gap-4">
@@ -298,12 +303,14 @@ export function ThreadsAutomations() {
         )}
       </TabPanel>
 
-      {/* Editor Dialog */}
-      <AutomationEditorDialog
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
-        existing={editingAutomation}
-      />
+      {/* Editor Dialog — samo za urednika */}
+      {mozeUrediti && (
+        <AutomationEditorDialog
+          open={editorOpen}
+          onOpenChange={setEditorOpen}
+          existing={editingAutomation}
+        />
+      )}
 
       {/* Confirm Dialog: Draft -> Live */}
       <ConfirmDialog
@@ -350,6 +357,7 @@ function AutomationCard({
   onRequestDraft: () => void;
 }) {
   const isDraft = item.mode === "draft";
+  const mozeUrediti = useMoze("urednik");
 
   return (
     <Card
@@ -383,29 +391,33 @@ function AutomationCard({
               <span className="text-micro text-text-muted">
                 {item.isActive ? "Uključeno" : "Isključeno"}
               </span>
-              <Switch checked={item.isActive} onCheckedChange={onToggleActive} />
+              {mozeUrediti && (
+                <Switch checked={item.isActive} onCheckedChange={onToggleActive} />
+              )}
             </div>
 
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onEdit}
-                className="size-7 p-0 text-text-muted hover:text-foreground"
-                title="Izmeni pravilo"
-              >
-                <Edit2 className="size-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onDelete}
-                className="size-7 p-0 text-text-muted hover:bg-danger/10 hover:text-danger"
-                title="Obriši pravilo"
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
-            </div>
+            {mozeUrediti && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onEdit}
+                  className="size-7 p-0 text-text-muted hover:text-foreground"
+                  title="Izmeni pravilo"
+                >
+                  <Edit2 className="size-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onDelete}
+                  className="size-7 p-0 text-text-muted hover:bg-danger/10 hover:text-danger"
+                  title="Obriši pravilo"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -469,27 +481,29 @@ function AutomationCard({
           </span>
         </div>
 
-        <div>
-          {isDraft ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onRequestLive}
-              className="h-7 text-xs font-semibold text-success border-success/30 hover:bg-success/10"
-            >
-              Prebaci u Uživo
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onRequestDraft}
-              className="h-7 text-xs font-medium text-text-muted hover:text-foreground"
-            >
-              Vrati u Skicu
-            </Button>
-          )}
-        </div>
+        {mozeUrediti && (
+          <div>
+            {isDraft ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRequestLive}
+                className="h-7 text-xs font-semibold text-success border-success/30 hover:bg-success/10"
+              >
+                Prebaci u Uživo
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRequestDraft}
+                className="h-7 text-xs font-medium text-text-muted hover:text-foreground"
+              >
+                Vrati u Skicu
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </Card>
   );

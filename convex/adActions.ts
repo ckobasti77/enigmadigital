@@ -53,7 +53,7 @@ import {
   runGoogleAdsMutateWithValidateOnly,
   type GoogleAdsFullCampaignCreateInput,
 } from "./lib/googleAdsWrite";
-import { readGadsGate, checkGoogleAdsQuota } from "./lib/googleAdsQuota";
+import type { RezultatRezervacije } from "./globalneKvoteStore";
 import { graniceBudzeta, type GraniceBudzeta } from "./lib/podesavanja";
 import { podesavanjaZaAkciju } from "./lib/podesavanjaAkcija";
 
@@ -1687,16 +1687,25 @@ export const createGoogleAdsCampaignFull = projekatAction({
     }
 
     // 5. Pre-flight Quota Check (B1)
-    const quotaGate = await readGadsGate(ctx, workspaceId, customerId);
-    const quotaCheck = checkGoogleAdsQuota(
-      quotaGate.consumed24h,
-      quotaGate.dailyLimit,
-      2,
+    // Validate_only + izvršenje = 2 operacije developer tokena, koje dele svi
+    // projekti: rezervišu se pre slanja (deo projekta i zajednički sat zajedno).
+    const quotaRez: RezultatRezervacije = await ctx.runMutation(
+      internal.globalneKvoteStore.rezervisi,
+      {
+        kljuc: "google_ads",
+        klasa: "operacije",
+        workspaceId,
+        trosak: 2,
+        customerId,
+      },
     );
-    if (quotaCheck.skipped) {
+    if (!quotaRez.ok) {
       throw new ConvexError({
         code: "quota_exceeded",
-        message: `Google Ads kvota je prekoračena: ${quotaCheck.reason}`,
+        message: (quotaRez.poruka ?? "Google Ads kvota je potrošena.").replace(
+          "Google Ads sinhronizacija je odložena",
+          "Google Ads akcija nije poslata",
+        ),
       });
     }
 
@@ -2032,16 +2041,25 @@ export const changeGoogleAdsBudget = projekatAction({
       });
     }
 
-    const quotaGate = await readGadsGate(ctx, workspaceId, customerId);
-    const quotaCheck = checkGoogleAdsQuota(
-      quotaGate.consumed24h,
-      quotaGate.dailyLimit,
-      2,
+    // Validate_only + izvršenje = 2 operacije developer tokena, koje dele svi
+    // projekti: rezervišu se pre slanja (deo projekta i zajednički sat zajedno).
+    const quotaRez: RezultatRezervacije = await ctx.runMutation(
+      internal.globalneKvoteStore.rezervisi,
+      {
+        kljuc: "google_ads",
+        klasa: "operacije",
+        workspaceId,
+        trosak: 2,
+        customerId,
+      },
     );
-    if (quotaCheck.skipped) {
+    if (!quotaRez.ok) {
       throw new ConvexError({
         code: "quota_exceeded",
-        message: `Google Ads kvota je prekoračena: ${quotaCheck.reason}`,
+        message: (quotaRez.poruka ?? "Google Ads kvota je potrošena.").replace(
+          "Google Ads sinhronizacija je odložena",
+          "Google Ads akcija nije poslata",
+        ),
       });
     }
 
@@ -2170,16 +2188,25 @@ export const pauseResumeGoogleAds = projekatAction({
       },
     );
 
-    const quotaGate = await readGadsGate(ctx, workspaceId, customerId);
-    const quotaCheck = checkGoogleAdsQuota(
-      quotaGate.consumed24h,
-      quotaGate.dailyLimit,
-      2,
+    // Validate_only + izvršenje = 2 operacije developer tokena, koje dele svi
+    // projekti: rezervišu se pre slanja (deo projekta i zajednički sat zajedno).
+    const quotaRez: RezultatRezervacije = await ctx.runMutation(
+      internal.globalneKvoteStore.rezervisi,
+      {
+        kljuc: "google_ads",
+        klasa: "operacije",
+        workspaceId,
+        trosak: 2,
+        customerId,
+      },
     );
-    if (quotaCheck.skipped) {
+    if (!quotaRez.ok) {
       throw new ConvexError({
         code: "quota_exceeded",
-        message: `Google Ads kvota je prekoračena: ${quotaCheck.reason}`,
+        message: (quotaRez.poruka ?? "Google Ads kvota je potrošena.").replace(
+          "Google Ads sinhronizacija je odložena",
+          "Google Ads akcija nije poslata",
+        ),
       });
     }
 

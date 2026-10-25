@@ -10,8 +10,9 @@ import {
   parseYouTubeCredentials,
   youtubeApiErrorReason,
 } from "./lib/youtubeApi";
-import { readUnitsUsed } from "./ytIngest";
-import { QUOTA_COST, canAfford } from "./lib/ytQuota";
+import { QUOTA_COST } from "./lib/ytQuota";
+import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
+import type { RezultatRezervacije } from "./globalneKvoteStore";
 
 /**
  * YouTube comment poller (Y4).
@@ -58,15 +59,15 @@ type PollContext = {
   channelId: string;
   encryptedCredentials: string;
   hasActiveAutomations: boolean;
-  unitsUsed: number;
   /** Newest videos first — the per-video fallback walks these. */
   recentVideoIds: string[];
 } | null;
 
 /**
  * Everything the poll needs before it spends a single unit: whose channel,
- * which credentials, whether anything is listening, and what today's budget
- * looks like.
+ * which credentials and whether anything is listening. The budget is not read
+ * here: every page is reserved against the shared counter right before it is
+ * fetched (`globalneKvoteStore.rezervisi`).
  */
 export const loadPollContext = internalQuery({
   args: { connectionId: v.id("connections") },
@@ -77,7 +78,6 @@ export const loadPollContext = internalQuery({
       channelId: v.string(),
       encryptedCredentials: v.string(),
       hasActiveAutomations: v.boolean(),
-      unitsUsed: v.number(),
       recentVideoIds: v.array(v.string()),
     }),
   ),
@@ -111,7 +111,6 @@ export const loadPollContext = internalQuery({
       channelId,
       encryptedCredentials: conn.encryptedCredentials,
       hasActiveAutomations: active !== null,
-      unitsUsed: await readUnitsUsed(ctx, conn.workspaceId),
       recentVideoIds: recent.map((v) => v.videoId),
     };
   },
@@ -188,13 +187,33 @@ export const pollComments = internalAction({
     // Nothing is listening — do not spend a unit finding that out again.
     if (!context.hasActiveAutomations) return null;
 
-    // No budget even to read. Reading is 1 unit, so this only trips once the
-    // day's replies have already eaten the allowance.
-    if (!canAfford(context.unitsUsed, QUOTA_COST.commentThreadsList)) {
-      return null;
-    }
+    const { workspaceId, channelId, recentVideoIds } = context;
 
-    const { workspaceId, channelId, unitsUsed, recentVideoIds } = context;
+    // One page costs 1 unit, reserved — this project's share and the shared
+    // counter of all projects together — before it is fetched. No budget even
+    // to read only happens once the day's replies have eaten the allowance.
+    const reserveRead = async (): Promise<boolean> => {
+      const rezervacija: RezultatRezervacije = await ctx.runMutation(
+        internal.globalneKvoteStore.rezervisi,
+        {
+          kljuc: "youtube",
+          klasa: "odgovori",
+          workspaceId,
+          trosak: QUOTA_COST.commentThreadsList,
+        },
+      );
+      return rezervacija.ok;
+    };
+    // The request never reached Google (DNS, TLS, a dropped socket): nothing
+    // was metered, so the reserved unit goes back.
+    const refundRead = async (): Promise<void> => {
+      await ctx.runMutation(internal.globalneKvoteStore.vrati, {
+        kljuc: "youtube",
+        klasa: "odgovori",
+        workspaceId,
+        trosak: QUOTA_COST.commentThreadsList,
+      });
+    };
 
     let token: string;
     try {
@@ -211,7 +230,6 @@ export const pollComments = internalAction({
     }
 
     const cutoff = Date.now() - COMMENT_MAX_AGE_MS;
-    let unitsSpent = 0;
 
     /**
      * Page through commentThreads for one scope: the whole channel when
@@ -225,19 +243,26 @@ export const pollComments = internalAction({
      */
     const collect = async (
       videoId?: string,
-    ): Promise<{ comments: IncomingComment[]; unsupported: boolean }> => {
+    ): Promise<{
+      comments: IncomingComment[];
+      unsupported: boolean;
+      outOfBudget: boolean;
+    }> => {
       const found: IncomingComment[] = [];
       let pageToken: string | undefined = undefined;
       let reachedBacklog = false;
+      let outOfBudget = false;
 
       for (let page = 0; page < MAX_PAGES; page++) {
-        if (!canAfford(unitsUsed + unitsSpent, QUOTA_COST.commentThreadsList)) {
+        if (!(await reserveRead())) {
+          outOfBudget = true;
           break;
         }
 
         let body: CommentThreadsResponse;
+        let res: Response;
         try {
-          const res = await fetch(
+          res = await fetch(
             buildCommentThreadsUrl({
               channelId,
               videoId,
@@ -246,16 +271,31 @@ export const pollComments = internalAction({
             }),
             { headers: { Authorization: `Bearer ${token}` } },
           );
-          // The read is metered whether or not it answers, so book it either way.
-          unitsSpent += QUOTA_COST.commentThreadsList;
-
+        } catch (err) {
+          await refundRead();
+          console.warn(
+            "YouTube: commentThreads.list —",
+            extractYouTubeApiError(
+              err instanceof Error ? err.message : String(err),
+            ),
+          );
+          break;
+        }
+        // The read is metered whether or not it answers; it was reserved above.
+        try {
           if (!res.ok) {
             const text = await res.text().catch(() => "");
             if (
               res.status === 403 &&
               youtubeApiErrorReason(text) === "quotaExceeded"
             ) {
-              // Nothing to do but wait for the reset (midnight Pacific).
+              // The Google Cloud budget behind every project is gone: close
+              // the shared counter and wait for the reset (midnight Pacific).
+              await ctx.runMutation(
+                internal.globalneKvoteStore.zatvoriYoutubeDan,
+                {},
+              );
+              outOfBudget = true;
               break;
             }
             // Only the channel-wide sweep can be unsupported; a per-video
@@ -268,7 +308,7 @@ export const pollComments = internalAction({
                 "YouTube: allThreadsRelatedToChannelId nije podržan na ovom nalogu — prelazim na obilazak videa.",
                 extractYouTubeApiError(text),
               );
-              return { comments: found, unsupported: true };
+              return { comments: found, unsupported: true, outOfBudget };
             }
             console.warn(
               "YouTube: commentThreads.list —",
@@ -305,29 +345,18 @@ export const pollComments = internalAction({
         if (!pageToken || reachedBacklog) break;
       }
 
-      return { comments: found, unsupported: false };
+      return { comments: found, unsupported: false, outOfBudget };
     };
 
     const sweep = await collect();
     const comments: IncomingComment[] = [...sweep.comments];
 
-    if (sweep.unsupported) {
+    if (sweep.unsupported && !sweep.outOfBudget) {
       for (const videoId of recentVideoIds) {
-        if (!canAfford(unitsUsed + unitsSpent, QUOTA_COST.commentThreadsList)) {
-          break;
-        }
         const perVideo = await collect(videoId);
         comments.push(...perVideo.comments);
+        if (perVideo.outOfBudget) break;
       }
-    }
-
-    // Book the reads before ingesting, so the affordability check each match
-    // makes is against a budget that already includes them.
-    if (unitsSpent > 0) {
-      await ctx.runMutation(internal.ytIngest.recordQuotaUsage, {
-        workspaceId,
-        units: unitsSpent,
-      });
     }
 
     // Oldest first: people get answered in the order they wrote, and if the
@@ -358,27 +387,40 @@ export const pollComments = internalAction({
 });
 
 /**
- * Cron fan-out: poll every connected YouTube channel. One channel's failure is
- * logged and stepped over so it cannot block the rest.
+ * Cron fan-out: poll every connected YouTube channel, one project after
+ * another (oldest sync first) under one lock. Before each project the shared
+ * budget is read: when the whole pool is spent the pass stops, and a project
+ * without its share and without room to borrow is skipped while the next one
+ * carries on. One channel's failure is logged and stepped over so it cannot
+ * block the rest.
  */
 export const pollAllYouTubeComments = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
-    const connectionIds = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "youtube" },
-    );
-    for (const connectionId of connectionIds) {
-      try {
-        await ctx.runAction(internal.ytPoll.pollComments, { connectionId });
-      } catch (err) {
-        console.warn(
-          "YouTube: obilazak komentara nije uspeo —",
-          err instanceof Error ? err.message : String(err),
-        );
+    await withCronLock(ctx, CRON_LOCKS.ytPoll, async () => {
+      const veze = await ctx.runQuery(
+        internal.connections.listByProviderRedom,
+        { provider: "youtube" },
+      );
+      for (const { connectionId, workspaceId } of veze) {
+        const stanje = await ctx.runQuery(internal.globalneKvoteStore.stanje, {
+          kljuc: "youtube",
+          klasa: "odgovori",
+          workspaceId,
+        });
+        if (stanje.ukupno + QUOTA_COST.commentThreadsList > stanje.Z) break;
+        if (stanje.dostupno < QUOTA_COST.commentThreadsList) continue;
+        try {
+          await ctx.runAction(internal.ytPoll.pollComments, { connectionId });
+        } catch (err) {
+          console.warn(
+            "YouTube: obilazak komentara nije uspeo —",
+            err instanceof Error ? err.message : String(err),
+          );
+        }
       }
-    }
+    });
     return null;
   },
 });

@@ -49,6 +49,8 @@ const DOZVOLJENI_DIREKTNI: Readonly<Record<string, string>> = {
   "invitesStore.pripremiRegistraciju": "registracija preko pozivnice; pristup dokazuje token",
   "invitesStore.trebaSetup": "ekran prijave pita da li treba prvi admin nalog; vraća samo da/ne",
   "invitesStore.pripremiAdminSetup": "prvi admin nalog; pristup dokazuje ADMIN_SETUP_CODE",
+  "invitesStore.prihvatiPozivnicu":
+    "prijavljen korisnik prihvata pozivnicu u drugi projekat; projekat nosi token pozivnice, a adresa mora da se poklapa",
   "postsPublic.listPublished": "javni blog sajta po slugu projekta; samo objavljene objave",
   "webhookHealth.status": "stanje webhook-a cele platforme; samo vlasnik platforme",
   "facebook.completeOAuthFromCallback": "OAuth povratak (serverska ruta); projekat nosi potpisano OAuth stanje",

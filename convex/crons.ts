@@ -291,4 +291,13 @@ crons.interval(
   {},
 );
 
+// Zajedničke kvote svih projekata (PROJEKTI-PLAN §9): YouTube dani stariji od
+// 3 dana i Google Ads sati stariji od 48 h više ne ulaze ni u jedan prozor.
+crons.interval(
+  "prune globalne kvote",
+  { hours: 24 },
+  internal.globalneKvoteStore.ocisti,
+  {},
+);
+
 export default crons;

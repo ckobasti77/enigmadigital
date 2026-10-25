@@ -6,6 +6,7 @@ import { ConvexError } from "convex/values";
 import { ArrowRight, History, LoaderCircle, Plus, Upload, XCircle } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import {
+  useMoze,
   useProjekat,
   useProjekatMutation,
   useProjekatQuery,
@@ -16,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackNote } from "@/components/app/feedback";
+import { EmptyState } from "@/components/app/system/empty-state";
 import { FocusCard } from "@/components/app/system/focus-card";
 import { ProgressBar } from "@/components/app/system/progress";
 import { useNow } from "@/components/app/use-now";
@@ -50,7 +52,24 @@ function porukaGreske(err: unknown): string {
   return String(err);
 }
 
+/**
+ * Cela strana je uvoz (otpremanje, primena, odustajanje), pa je posmatrač ne
+ * dobija — samo kratko objašnjenje, bez radnje.
+ */
 export function ImportDashboard() {
+  const moze = useMoze("urednik");
+  const { spreman } = useProjekat();
+  if (moze) return <ImportDashboardTelo />;
+  if (!spreman) return <ImportDashboardSkeleton />;
+  return (
+    <EmptyState icon={Upload} title="Uvoz leadova nije dostupan">
+      Leadove uvoze urednici i vlasnik projekta, a u ovom projektu imaš pristup
+      samo za pregled.
+    </EmptyState>
+  );
+}
+
+function ImportDashboardTelo() {
   const { workspaceId, spreman } = useProjekat();
   const [tab, setTab] = useState<Tab>("staging");
   // A5 §2 tačka 5: „Odustani od uvoza" i iz trake na stranici, ne samo iz

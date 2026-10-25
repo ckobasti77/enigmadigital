@@ -10,11 +10,8 @@ import {
   fetchAccessToken,
   parseYouTubeCredentials,
 } from "./lib/youtubeApi";
-import {
-  QUOTA_COST,
-  QUOTA_MEDIA_EXHAUSTED_MESSAGE,
-  canAffordMedia,
-} from "./lib/ytQuota";
+import { QUOTA_COST, QUOTA_MEDIA_EXHAUSTED_MESSAGE } from "./lib/ytQuota";
+import { rezervisiIzmenu, vratiIzmenu } from "./lib/ytKvotaAkcija";
 import {
   THUMBNAIL_FORBIDDEN_HINT,
   THUMBNAIL_MAX_BYTES,
@@ -230,14 +227,18 @@ async function runSetThumbnail(
   });
 
   const cost = QUOTA_COST.thumbnailsSet;
-  if (!canAffordMedia(context.unitsUsed, cost)) {
+  // Reserved before the call — this project's share and the shared
+  // counter of all projects in one step (lib/ytKvotaAkcija.ts).
+  const rezervacija = await rezervisiIzmenu(ctx, workspaceId, cost);
+  if (!rezervacija.ok) {
+    const poruka = rezervacija.poruka ?? QUOTA_MEDIA_EXHAUSTED_MESSAGE;
     await ctx.runMutation(internal.ytMedia.finishJob, {
       jobId,
       status: "skipped_quota" as const,
       unitsSpent: 0,
-      errorMessage: QUOTA_MEDIA_EXHAUSTED_MESSAGE,
+      errorMessage: poruka,
     });
-    invalid(QUOTA_MEDIA_EXHAUSTED_MESSAGE);
+    invalid(poruka);
   }
 
   let spent = 0;
@@ -258,6 +259,7 @@ async function runSetThumbnail(
     );
     token = await fetchAccessToken(creds);
   } catch (err) {
+    await vratiIzmenu(ctx, workspaceId, cost);
     return await failJob(
       err instanceof Error
         ? err.message
@@ -276,10 +278,8 @@ async function runSetThumbnail(
   // reached it. Everything else is metered whether it succeeded or not.
   if (res.status !== 0) {
     spent = cost;
-    await ctx.runMutation(internal.ytIngest.recordQuotaUsage, {
-      workspaceId,
-      units: spent,
-    });
+  } else {
+    await vratiIzmenu(ctx, workspaceId, cost);
   }
 
   if (!res.ok) {

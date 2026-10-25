@@ -3,14 +3,15 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { deleteLoginMachinery } from "./lib/auth";
-import { projekatMutation, projekatQuery } from "./lib/projekat";
 import {
-  normalizeEmail,
-  isEmailInAllowlist,
-  WORKSPACE_SLUG,
-  WORKSPACE_NAME,
-} from "./auth";
+  prijavljenMutation,
+  projekatMutation,
+  projekatQuery,
+} from "./lib/projekat";
+import { normalizeEmail, isEmailInAllowlist, otvorenaPozivnica } from "./auth";
 import { sha256Hex } from "./lib/metaAudienceHash";
+import { ulogaValidator } from "./lib/uloge";
+import { osnivackiProjekatId, primarniDomen } from "./lib/podesavanja";
 
 /**
  * Pozivnice za registraciju (prijava-plan.md §3–§8).
@@ -20,7 +21,13 @@ import { sha256Hex } from "./lib/metaAudienceHash";
  * odatle u link koji vlasnik prosleđuje ručno.
  *
  * `getInvite` i `pripremiRegistraciju` su JAVNE: poziva ih neko ko još nema
- * nalog, pa NE primaju `workspaceId` i NE otkrivaju ništa o radnom prostoru.
+ * nalog, pa NE primaju `workspaceId`. `getInvite` imaocu VAŽEĆEG tokena kaže
+ * samo ime, boju i logo projekta u koji je pozvan (naslov „Poziv u …“).
+ *
+ * Pozivnica važi za SVOJ projekat (multi-projekat run): nov nalog dobija
+ * članstvo i ulogu iz pozivnice u `beforeSessionCreation` (auth.ts), a
+ * postojeći korisnik je prihvata posle prijave (`prihvatiPozivnicu`) i dobija
+ * dodatno članstvo.
  */
 
 const EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 dana
@@ -95,11 +102,15 @@ export const createInvite = projekatMutation({
   uloga: "owner",
   args: {
     email: v.string(),
+    /** Uloga u ovom projektu; bez vrednosti = urednik (E16). */
+    uloga: v.optional(ulogaValidator),
   },
   returns: v.object({
     token: v.string(),
     email: v.string(),
     expiresAt: v.number(),
+    /** `https://<primarni domen projekta>`, ili null kad projekat nema domen. */
+    panelOrigin: v.union(v.string(), v.null()),
   }),
   handler: async (ctx, args) => {
     const email = normalizeEmail(args.email);
@@ -110,22 +121,25 @@ export const createInvite = projekatMutation({
       });
     }
 
-    // Odbij SAMO potvrđenog, AKTIVNOG člana. Sve ostalo je adresa koja sme opet
-    // da se pozove — i to čistimo do kraja.
+    // Odbij SAMO člana OVOG projekta. Sve ostalo je adresa koja sme da se
+    // pozove.
     //
-    // Tri stanja koja `users` red za istu adresu može da ima:
-    //   • potvrđen (emailVerificationTime) + ima `members` red  → pravi, upotrebljiv
-    //     nalog → ODBIJ (upućuje na „Zaboravio sam lozinku").
-    //   • potvrđen ALI bez `members` reda → UKLONJEN član (removeMember briše
+    // Stanja koja `users` red za istu adresu može da ima:
+    //   • član ovog projekta → ODBIJ („već je član ovog projekta").
+    //   • član DRUGOG projekta → pravi nalog, ne dira se ništa: pozivnicu
+    //     prihvata posle prijave (`prihvatiPozivnicu`) i dobija dodatno
+    //     članstvo.
+    //   • bez ijednog članstva, potvrđen → UKLONJEN član (removeMember briše
     //     članstvo i login, a `users` red ostavlja). Sme ponovo da se pozove.
-    //   • nepotvrđen → ZAGLAVLJENA registracija. Convex Auth (v0.0.95) u koraku 1
-    //     commit-uje `users` + `authAccounts` password red PRE slanja koda; ako kod
-    //     pukne, ostaje poluispečen nalog koji ne može da se prijavi. Sme opet.
+    //   • bez ijednog članstva, nepotvrđen → ZAGLAVLJENA registracija. Convex
+    //     Auth (v0.0.95) u koraku 1 commit-uje `users` + `authAccounts` password
+    //     red PRE slanja koda; ako kod pukne, ostaje poluispečen nalog. Sme opet.
     //
-    // U oba „sme opet" slučaja resetujemo sve (login zapisi + članstvo + `users`
-    // red) da nova registracija krene čisto: da ostane stari password red, `signUp`
-    // sa drugom lozinkom bi pukao sa „account already exists"; da ostane potvrđen
-    // `users` red, `signUp` bi se zakačio na njega i preskočio pravljenje članstva.
+    // U dva poslednja slučaja resetujemo sve (login zapisi + `users` red) da
+    // nova registracija krene čisto: da ostane stari password red, `signUp` sa
+    // drugom lozinkom bi pukao sa „account already exists"; da ostane potvrđen
+    // `users` red, `signUp` bi se zakačio na njega. Korisnik sa članstvom bilo
+    // gde se nikad ne briše.
     const postojeciKorisnik = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", email))
@@ -135,27 +149,16 @@ export const createInvite = projekatMutation({
         .query("members")
         .withIndex("by_user", (q) => q.eq("userId", postojeciKorisnik._id))
         .collect();
-      const jeAktivanClan = clanstva.length > 0;
-      // Nalog sa članstvom u DRUGOM prostoru ovaj prostor ne sme da briše (ni
-      // kad je registracija zaglavljena): to je tuđ korisnik.
-      const imaTudjeClanstvo = clanstva.some(
-        (c) => c.workspaceId !== args.workspaceId,
-      );
-
-      if (
-        (postojeciKorisnik.emailVerificationTime !== undefined && jeAktivanClan) ||
-        imaTudjeClanstvo
-      ) {
+      if (clanstva.some((c) => c.workspaceId === args.workspaceId)) {
         throw new ConvexError({
           code: "conflict",
-          message:
-            'Osoba sa tom adresom već ima nalog. Ako je zaboravila lozinku, neka koristi „Zaboravio sam lozinku".',
+          message: "Ta osoba je već član ovog projekta.",
         });
       }
-
-      await deleteLoginMachinery(ctx, postojeciKorisnik._id);
-      for (const clan of clanstva) await ctx.db.delete(clan._id);
-      await ctx.db.delete(postojeciKorisnik._id);
+      if (clanstva.length === 0) {
+        await deleteLoginMachinery(ctx, postojeciKorisnik._id);
+        await ctx.db.delete(postojeciKorisnik._id);
+      }
     }
 
     // Već postoji važeća neiskorišćena pozivnica → ne pravimo tiho drugu.
@@ -186,21 +189,40 @@ export const createInvite = projekatMutation({
       createdBy: ctx.projekat.userId,
       createdAt: now,
       expiresAt,
+      uloga: args.uloga ?? "urednik",
     });
 
-    return { token, email, expiresAt };
+    // Link vodi na panel domen projekta kad ga ima; inače ga klijent gradi na
+    // adresi sa koje je pozivnica napravljena.
+    const domen = await primarniDomen(ctx.db, args.workspaceId);
+    return {
+      token,
+      email,
+      expiresAt,
+      panelOrigin: domen !== null ? `https://${domen}` : null,
+    };
   },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// getInvite — JAVAN upit (§4.3). Vraća SAMO { status, email? }.
+// getInvite — JAVAN upit (§4.3). Vraća status, a uz VAŽEĆU pozivnicu i adresu,
+// projekat (ime, boja, logo) i da li za adresu već postoji nalog.
 // ─────────────────────────────────────────────────────────────────────────────
-// javno: ekran pozivnice pre registracije; vraća samo status i adresu važeće pozivnice
+// javno: ekran pozivnice pre registracije; uz važeću pozivnicu vraća adresu, ime/boju/logo projekta i da li nalog postoji
 export const getInvite = query({
   args: { token: v.string() },
   returns: v.object({
     status: statusValidator,
     email: v.optional(v.string()),
+    projekat: v.optional(
+      v.object({
+        ime: v.string(),
+        boja: v.union(v.string(), v.null()),
+        logoUrl: v.union(v.string(), v.null()),
+      }),
+    ),
+    /** Za adresu postoji potvrđen nalog sa lozinkom: prihvata se posle prijave. */
+    postojiNalog: v.optional(v.boolean()),
   }),
   handler: async (ctx, { token }) => {
     if (!token) return { status: "ne_postoji" as const };
@@ -214,10 +236,111 @@ export const getInvite = query({
     if (invite === null) return { status: "ne_postoji" as const };
 
     const status = classifyInvite(invite, Date.now());
-    // `email` se otkriva samo kad pozivnica važi — inače ništa o adresi/prostoru.
-    return status === "vazi"
-      ? { status, email: invite.email }
-      : { status };
+    // Adresa, projekat i nalog se otkrivaju samo kad pozivnica važi — inače
+    // ništa o adresi ni o projektu.
+    if (status !== "vazi") return { status };
+
+    const ws = await ctx.db.get(invite.workspaceId);
+    const logoId = ws?.brend?.logoStorageId;
+    return {
+      status,
+      email: invite.email,
+      ...(ws !== null
+        ? {
+            projekat: {
+              ime: ws.name,
+              boja: ws.brend?.boja ?? null,
+              logoUrl: logoId !== undefined ? await ctx.storage.getUrl(logoId) : null,
+            },
+          }
+        : {}),
+      postojiNalog: await imaNalogSaLozinkom(ctx, invite.email),
+    };
+  },
+});
+
+/**
+ * Potvrđen `users` red sa password nalogom za adresu: takva osoba se prijavljuje
+ * lozinkom i prihvata pozivnicu posle prijave. Bez password naloga ide kroz
+ * registraciju (lozinka se kači na postojeći potvrđen red, `shouldLinkViaEmail`).
+ */
+async function imaNalogSaLozinkom(
+  ctx: { db: QueryCtx["db"] },
+  email: string,
+): Promise<boolean> {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("email", (q) => q.eq("email", email))
+    .first();
+  if (user === null || user.emailVerificationTime === undefined) return false;
+  const nalog = await ctx.db
+    .query("authAccounts")
+    .withIndex("providerAndAccountId", (q) =>
+      q.eq("provider", "password").eq("providerAccountId", email),
+    )
+    .first();
+  return nalog !== null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// prihvatiPozivnicu — postojeći, PRIJAVLJEN korisnik prihvata pozivnicu u još
+// jedan projekat i dobija dodatno članstvo sa ulogom iz pozivnice.
+// ─────────────────────────────────────────────────────────────────────────────
+export const prihvatiPozivnicu = prijavljenMutation({
+  args: { token: v.string() },
+  returns: v.object({ slug: v.string() }),
+  handler: async (ctx, { token }) => {
+    const porukaZa: Record<Exclude<ZapisStatus, "vazi">, string> = {
+      istekla: "Pozivnica je istekla.",
+      iskoriscena: "Pozivnica je već iskorišćena.",
+      povucena: "Pozivnica je povučena.",
+    };
+    if (!token) {
+      throw new ConvexError({ code: "invite_ne_postoji", message: "Pozivnica ne postoji." });
+    }
+    const tokenHash = await sha256Hex(token);
+    const inv = await ctx.db
+      .query("invites")
+      .withIndex("by_token_hash", (q) => q.eq("tokenHash", tokenHash))
+      .first();
+    if (inv === null) {
+      throw new ConvexError({ code: "invite_ne_postoji", message: "Pozivnica ne postoji." });
+    }
+    const status = classifyInvite(inv, Date.now());
+    if (status !== "vazi") {
+      throw new ConvexError({ code: "invite_" + status, message: porukaZa[status] });
+    }
+
+    const user = await ctx.db.get(ctx.korisnik.userId);
+    if (user === null || !user.email || normalizeEmail(user.email) !== inv.email) {
+      throw new ConvexError({
+        code: "email_mismatch",
+        message: "Pozivnica je za drugu adresu.",
+      });
+    }
+
+    const ws = await ctx.db.get(inv.workspaceId);
+    if (ws === null) {
+      throw new ConvexError({ code: "invite_ne_postoji", message: "Pozivnica ne postoji." });
+    }
+
+    // Postojeće članstvo se ne menja (ni uloga): pozivnica ne sme da spusti
+    // vlasnika na urednika.
+    const clanstvo = await ctx.db
+      .query("members")
+      .withIndex("by_user_workspace", (q) =>
+        q.eq("userId", ctx.korisnik.userId).eq("workspaceId", inv.workspaceId),
+      )
+      .first();
+    if (clanstvo === null) {
+      await ctx.db.insert("members", {
+        workspaceId: inv.workspaceId,
+        userId: ctx.korisnik.userId,
+        role: inv.uloga ?? "urednik",
+      });
+    }
+    await ctx.db.patch(inv._id, { usedAt: Date.now(), usedByUserId: ctx.korisnik.userId });
+    return { slug: ws.slug };
   },
 });
 
@@ -282,6 +405,7 @@ export const listInvites = projekatQuery({
       createdAt: v.number(),
       expiresAt: v.number(),
       createdByEmail: v.union(v.string(), v.null()),
+      uloga: ulogaValidator,
     }),
   ),
   handler: async (ctx, args) => {
@@ -304,6 +428,7 @@ export const listInvites = projekatQuery({
         createdAt: inv.createdAt,
         expiresAt: inv.expiresAt,
         createdByEmail: autor?.email ?? null,
+        uloga: inv.uloga ?? "urednik",
       });
     }
     return zapisi;
@@ -386,27 +511,9 @@ export const smeDaDobijeKod = internalQuery({
     // 1. nasleđena allowlista (env se čita i unutar query-ja)
     if (isEmailInAllowlist(email)) return true;
 
-    // 2. otvoren invite prozor
-    const now = Date.now();
-    const workspaces = await ctx.db
-      .query("workspaces")
-      .withIndex("by_slug", (q) => q.eq("slug", WORKSPACE_SLUG))
-      .collect();
-    for (const ws of workspaces) {
-      const invites = await ctx.db
-        .query("invites")
-        .withIndex("by_workspace_email", (q) =>
-          q.eq("workspaceId", ws._id).eq("email", email),
-        )
-        .collect();
-      const otvoren = invites.some(
-        (inv) =>
-          inv.readyUntil !== undefined &&
-          inv.readyUntil > now &&
-          inv.usedAt === undefined &&
-          inv.revokedAt === undefined,
-      );
-      if (otvoren) return true;
+    // 2. otvoren invite prozor, u bilo kom projektu
+    if ((await otvorenaPozivnica(ctx.db, email, Date.now())) !== null) {
+      return true;
     }
 
     // 3. postojeći verifikovan član (reset lozinke)
@@ -445,23 +552,20 @@ async function postojiPasswordNalog(ctx: {
   return acc !== null;
 }
 
-/** Najstariji workspace sa `WORKSPACE_SLUG`, ili sveže napravljen ako ga nema. */
+/**
+ * Osnivački projekat (najstariji red u `workspaces`, E4), ili „Prvi projekat“
+ * kad baza nema nijedan (E15). Ime se posle menja u podešavanjima.
+ */
 async function nadjiIliNapraviWorkspace(
   ctx: MutationCtx,
 ): Promise<Id<"workspaces">> {
-  const workspaces = await ctx.db
-    .query("workspaces")
-    .withIndex("by_slug", (q) => q.eq("slug", WORKSPACE_SLUG))
-    .collect();
-  if (workspaces.length === 0) {
-    return await ctx.db.insert("workspaces", {
-      name: WORKSPACE_NAME,
-      slug: WORKSPACE_SLUG,
-    });
-  }
-  return workspaces.reduce((oldest, c) =>
-    c._creationTime < oldest._creationTime ? c : oldest,
-  )._id;
+  const osnivacki = await osnivackiProjekatId(ctx.db);
+  if (osnivacki !== null) return osnivacki;
+  return await ctx.db.insert("workspaces", {
+    name: "Prvi projekat",
+    slug: "prvi-projekat",
+    vrsta: "interni",
+  });
 }
 
 /**
@@ -561,7 +665,9 @@ export const pripremiAdminSetup = mutation({
     }
     const clan = await ctx.db
       .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", uid))
+      .withIndex("by_user_workspace", (q) =>
+        q.eq("userId", uid).eq("workspaceId", workspaceId),
+      )
       .first();
     if (clan === null) {
       await ctx.db.insert("members", { workspaceId, userId: uid, role: "owner" });
@@ -593,6 +699,7 @@ export const pripremiAdminSetup = mutation({
         createdAt: now,
         expiresAt: now + EXPIRY_MS,
         readyUntil: now + READY_MS,
+        uloga: "owner",
       });
     }
 

@@ -30,11 +30,13 @@ import {
 import { api } from "@/convex/_generated/api";
 import type { Provider } from "@/convex/lib/providers";
 import {
+  useMoze,
   useProjekat,
   useProjekatAction,
   useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
+import { SamoZa } from "@/components/app/samo-za";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -271,25 +273,27 @@ function SyncFooter({ connection }: { connection?: ConnectionView }) {
             ? `Poslednja sinhronizacija ${formatRelativeTime(connection.lastSyncAt)}`
             : "Još nije sinhronizovano"}
         </span>
-        <div className="flex items-center gap-3">
-          {syncing && <FeedbackLine tone="progress">Povlačim podatke…</FeedbackLine>}
-          {done && !syncing && (
-            <FeedbackLine tone="success">Podaci su osveženi</FeedbackLine>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSync}
-            disabled={!connection || syncing}
-          >
-            {syncing ? (
-              <LoaderCircle className="animate-spin" />
-            ) : (
-              <RefreshCw />
+        <SamoZa uloga="urednik">
+          <div className="flex items-center gap-3">
+            {syncing && <FeedbackLine tone="progress">Povlačim podatke…</FeedbackLine>}
+            {done && !syncing && (
+              <FeedbackLine tone="success">Podaci su osveženi</FeedbackLine>
             )}
-            {syncing ? "Sinhronizujem…" : "Sinhronizuj"}
-          </Button>
-        </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSync}
+              disabled={!connection || syncing}
+            >
+              {syncing ? (
+                <LoaderCircle className="animate-spin" />
+              ) : (
+                <RefreshCw />
+              )}
+              {syncing ? "Sinhronizujem…" : "Sinhronizuj"}
+            </Button>
+          </div>
+        </SamoZa>
       </div>
       {error && <FeedbackNote tone="danger" title={error} />}
     </div>
@@ -308,15 +312,19 @@ function SavedCredentials({
   detail: string;
   onEdit: () => void;
 }) {
+  // Kredencijale menja samo vlasnik; ostali vide samo da su sačuvani.
+  const mozeVlasnik = useMoze("owner");
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
       <div className="flex items-center gap-2 text-xs text-text-muted">
         <Lock className="size-3.5 shrink-0 text-success" aria-hidden />
         <span>{detail}</span>
       </div>
-      <Button variant="ghost" size="sm" onClick={onEdit}>
-        Izmeni
-      </Button>
+      {mozeVlasnik && (
+        <Button variant="ghost" size="sm" onClick={onEdit}>
+          Izmeni
+        </Button>
+      )}
     </div>
   );
 }
@@ -415,6 +423,8 @@ function DisconnectZone({
 // ── GA4 ──────────────────────────────────────────────────────────────────────
 
 function Ga4Card({ connection }: { connection?: ConnectionView }) {
+  // Veze menja samo vlasnik; ostali vide samo stanje kartice.
+  const mozeVlasnik = useMoze("owner");
   const save = useProjekatMutation(api.connections.save);
   const [upozorenje, setUpozorenje] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -479,7 +489,7 @@ function Ga4Card({ connection }: { connection?: ConnectionView }) {
             onEdit={startEdit}
           />
         </div>
-      ) : (
+      ) : !mozeVlasnik ? null : (
         <form onSubmit={handleSave} className="mt-6">
           <FormStack>
             <FormGroup title="Property">
@@ -565,6 +575,8 @@ function Ga4Card({ connection }: { connection?: ConnectionView }) {
 // ── OpenReply ────────────────────────────────────────────────────────────────
 
 function OpenReplyCard() {
+  // Uključivanje i gašenje engine-a sme samo vlasnik.
+  const mozeVlasnik = useMoze("owner");
   const status = useProjekatQuery(api.orEngine.status);
   const enable = useProjekatMutation(api.orEngine.enable);
   const disable = useProjekatMutation(api.orEngine.disable);
@@ -654,7 +666,7 @@ function OpenReplyCard() {
                     {status.webhookUrl ?? "CONVEX_SITE_URL nije podešen"}
                   </span>
                 </div>
-                {status.webhookUrl && (
+                {status.webhookUrl && mozeVlasnik && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -684,26 +696,28 @@ function OpenReplyCard() {
 
               {/* Odvojeno, ali bez potvrde: gašenje engine-a se vraća jednim
                   klikom, a potvrda koja stoji pred svime prestane da se čita. */}
-              <DangerZone
-                title="Isključi OpenReply"
-                description="Komentari prestaju da pokreću poruke. Automatizacije i log ostaju."
-              >
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDisable}
-                  disabled={busy}
-                  className="border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
+              {mozeVlasnik && (
+                <DangerZone
+                  title="Isključi OpenReply"
+                  description="Komentari prestaju da pokreću poruke. Automatizacije i log ostaju."
                 >
-                  {busy ? (
-                    <LoaderCircle className="animate-spin" />
-                  ) : (
-                    <Trash2 className="size-3.5" />
-                  )}
-                  Isključi
-                </Button>
-              </DangerZone>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDisable}
+                    disabled={busy}
+                    className="border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
+                  >
+                    {busy ? (
+                      <LoaderCircle className="animate-spin" />
+                    ) : (
+                      <Trash2 className="size-3.5" />
+                    )}
+                    Isključi
+                  </Button>
+                </DangerZone>
+              )}
             </div>
           ) : (
             <div className="mt-5 space-y-4">
@@ -713,24 +727,26 @@ function OpenReplyCard() {
                   slali DM.
                 </p>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleEnable}
-                disabled={busy || !status.igConnected}
-              >
-                {busy ? (
-                  <>
-                    <LoaderCircle className="size-4 animate-spin" />
-                    Uključujem…
-                  </>
-                ) : (
-                  <>
-                    <Check />
-                    Uključi OpenReply
-                  </>
-                )}
-              </Button>
+              {mozeVlasnik && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleEnable}
+                  disabled={busy || !status.igConnected}
+                >
+                  {busy ? (
+                    <>
+                      <LoaderCircle className="size-4 animate-spin" />
+                      Uključujem…
+                    </>
+                  ) : (
+                    <>
+                      <Check />
+                      Uključi OpenReply
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           )}
 
@@ -775,6 +791,8 @@ function OpenReplyCard() {
 // ── Instagram (Meta OAuth Flow & Insights) ───────────────────────────────────
 
 function InstagramCard({ connection }: { connection?: ConnectionView }) {
+  // Povezivanje sme samo vlasnik; ostali vide samo stanje veze.
+  const mozeVlasnik = useMoze("owner");
   const { spreman } = useProjekat();
   const getOAuthConfig = useProjekatAction(api.instagram.getOAuthConfig);
   const getOAuthUrl = useProjekatAction(api.instagram.getOAuthUrl);
@@ -811,7 +829,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
 
   // Check env configuration on mount (once the project is known)
   useEffect(() => {
-    if (!spreman) return;
+    if (!spreman || !mozeVlasnik) return;
     let active = true;
     getOAuthConfig()
       .then((cfg) => {
@@ -827,7 +845,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
     return () => {
       active = false;
     };
-  }, [spreman, getOAuthConfig]);
+  }, [spreman, mozeVlasnik, getOAuthConfig]);
 
   // Handle incoming OAuth callback code in URL parameters. Waits for the
   // project: the code is read (and cleared) only once it can be exchanged.
@@ -946,9 +964,9 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
 
   // Determine status pill
   let statusNode: ReactNode;
-  if (!configState.loaded) {
+  if (mozeVlasnik && !configState.loaded) {
     statusNode = <StatusPill tone="muted">Učitavanje…</StatusPill>;
-  } else if (!configState.isConfigured) {
+  } else if (mozeVlasnik && !configState.isConfigured) {
     statusNode = (
       <StatusPill tone="warning">
         Čeka Meta app — dodaj INSTAGRAM_APP_ID/SECRET u env
@@ -996,7 +1014,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
       )}
 
       {/* Connected State */}
-      {configState.isConfigured && isConnected && !connecting && (
+      {(configState.isConfigured || !mozeVlasnik) && isConnected && !connecting && (
         <div className="mt-5">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
             <div className="space-y-1">
@@ -1015,14 +1033,16 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
                 </p>
               )}
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleStartConnect}
-              disabled={connecting || disconnecting || oauthNijePodesen}
-            >
-              Ponovo poveži
-            </Button>
+            {mozeVlasnik && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleStartConnect}
+                disabled={connecting || disconnecting || oauthNijePodesen}
+              >
+                Ponovo poveži
+              </Button>
+            )}
           </div>
 
           {/* Upozorenje pre nego što nastane problem: token koji ističe za
@@ -1050,18 +1070,20 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
             Instagram Login-a za sinhronizaciju uvida (pratioci, doseg, posete
             profilu, angažovanost, statistika objava i Reels-a).
           </p>
-          <Button
-            size="sm"
-            onClick={handleStartConnect}
-            disabled={connecting || oauthNijePodesen}
-          >
-            {connecting ? (
-              <LoaderCircle className="animate-spin" />
-            ) : (
-              <ExternalLink />
-            )}
-            Poveži Instagram
-          </Button>
+          {mozeVlasnik && (
+            <Button
+              size="sm"
+              onClick={handleStartConnect}
+              disabled={connecting || oauthNijePodesen}
+            >
+              {connecting ? (
+                <LoaderCircle className="animate-spin" />
+              ) : (
+                <ExternalLink />
+              )}
+              Poveži Instagram
+            </Button>
+          )}
         </div>
       )}
 
@@ -1356,6 +1378,8 @@ function FacebookPagePicker({
 }
 
 function FacebookCard({ connection }: { connection?: ConnectionView }) {
+  // Povezivanje, osvežavanje tokena i izbor stranice sme samo vlasnik.
+  const mozeVlasnik = useMoze("owner");
   const setup = useProjekatQuery(api.facebookStore.setupInfo);
   const getOAuthUrl = useProjekatAction(api.facebook.getOAuthUrl);
   const oauthNijePodesen = useOAuthNijePodesen();
@@ -1573,39 +1597,41 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
                   })()}
                 </p>
               </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
-                {/* Osvežavanje re-kuje Page token iz korisničkog tokena — a
-                    System User token nema šta da osveži i ne ističe. */}
-                {!isSystemUser && (
+              {mozeVlasnik && (
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  {/* Osvežavanje re-kuje Page token iz korisničkog tokena — a
+                      System User token nema šta da osveži i ne ističe. */}
+                  {!isSystemUser && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRefresh}
+                      disabled={refreshing || disconnecting}
+                    >
+                      {refreshing ? (
+                        <LoaderCircle className="animate-spin" />
+                      ) : (
+                        <RefreshCw />
+                      )}
+                      Osveži token
+                    </Button>
+                  )}
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    onClick={handleRefresh}
-                    disabled={refreshing || disconnecting}
+                    onClick={startEditAccess}
+                    disabled={connecting || disconnecting || savingSu}
                   >
-                    {refreshing ? (
-                      <LoaderCircle className="animate-spin" />
-                    ) : (
-                      <RefreshCw />
-                    )}
-                    Osveži token
+                    Izmeni pristup
                   </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={startEditAccess}
-                  disabled={connecting || disconnecting || savingSu}
-                >
-                  Izmeni pristup
-                </Button>
-              </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* Izbor druge stranice ide preko /me/accounts, što traži korisnički
               token — nedostupno kad je veza na System User tokenu. */}
-          {isConnected && !isSystemUser && connection.externalId && (
+          {mozeVlasnik && isConnected && !isSystemUser && connection.externalId && (
             <FacebookPagePicker
               currentPageId={connection.externalId}
               autoOpen={autoOpenPicker}
@@ -1634,7 +1660,7 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
 
           {/* Connect / edit panel: for a fresh Page, or when the operator opens
               „Izmeni pristup” to switch an existing one (e.g. onto System User). */}
-          {(!isConnected || editingAccess) && (
+          {mozeVlasnik && (!isConnected || editingAccess) && (
             <div className="space-y-4">
               <div className="inline-flex rounded-lg border border-line-soft bg-surface-raised/30 p-0.5">
                 <button
@@ -1841,6 +1867,8 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
 // ── Meta Ads (System User Token) ─────────────────────────────────────────────
 
 function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
+  // Veze menja samo vlasnik; ostali vide samo stanje kartice.
+  const mozeVlasnik = useMoze("owner");
   const save = useProjekatMutation(api.connections.save);
   const [upozorenje, setUpozorenje] = useState<string | null>(null);
   const remove = useProjekatMutation(api.connections.remove);
@@ -1929,7 +1957,7 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
             onEdit={startEdit}
           />
         </div>
-      ) : (
+      ) : !mozeVlasnik ? null : (
         <form onSubmit={handleSave} className="mt-6">
           <FormStack>
             <FormGroup title="Nalog">
@@ -2024,6 +2052,8 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
 // ── Google Ads (OAuth + Developer Token) ────────────────────────────────────
 
 function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
+  // Veze menja samo vlasnik; ostali vide samo stanje kartice.
+  const mozeVlasnik = useMoze("owner");
   const save = useProjekatMutation(api.connections.save);
   const [upozorenje, setUpozorenje] = useState<string | null>(null);
   const remove = useProjekatMutation(api.connections.remove);
@@ -2117,7 +2147,7 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
             onEdit={startEdit}
           />
         </div>
-      ) : (
+      ) : !mozeVlasnik ? null : (
         <form onSubmit={handleSave} className="mt-6">
           <FormStack>
             <FormGroup title="Nalog">
@@ -2236,6 +2266,8 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
 // ── YouTube (OAuth, read-only) ─────────────────────────────────
 
 function YouTubeCard({ connection }: { connection?: ConnectionView }) {
+  // Povezivanje i ručni kredencijali sme samo vlasnik.
+  const mozeVlasnik = useMoze("owner");
   const save = useProjekatMutation(api.connections.save);
   const remove = useProjekatMutation(api.connections.remove);
   const setup = useProjekatQuery(api.youtubeStore.setupInfo);
@@ -2431,158 +2463,162 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                   >
                     Potrebno je ponovo autorizovati pristup kanalu kako bi se nastavila sinhronizacija i upravljanje.
                   </FeedbackNote>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleStartConnect}
-                    disabled={connecting || !setup.isConfigured || oauthNijePodesen}
-                  >
-                    {connecting ? (
-                      <>
-                        <LoaderCircle className="animate-spin" />
-                        Preusmeravam…
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw />
-                        Poveži ponovo
-                      </>
-                    )}
-                  </Button>
+                  {mozeVlasnik && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleStartConnect}
+                      disabled={connecting || !setup.isConfigured || oauthNijePodesen}
+                    >
+                      {connecting ? (
+                        <>
+                          <LoaderCircle className="animate-spin" />
+                          Preusmeravam…
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw />
+                          Poveži ponovo
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               )}
 
-              <div className="rounded-lg border border-line-soft bg-surface-raised/20 p-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAdvanced((prev) => !prev);
-                    if (editing) setEditing(false);
-                  }}
-                  className="flex w-full items-center justify-between text-left text-xs font-medium text-text-muted hover:text-foreground transition-colors"
-                >
-                  <span>Napredno: Ručno podešavanje kredencijala</span>
-                  <span className="text-[11px] font-normal text-text-subtle">
-                    {showAdvanced || editing ? "Sakrij" : "Prikaži"}
-                  </span>
-                </button>
+              {mozeVlasnik && (
+                <div className="rounded-lg border border-line-soft bg-surface-raised/20 p-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAdvanced((prev) => !prev);
+                      if (editing) setEditing(false);
+                    }}
+                    className="flex w-full items-center justify-between text-left text-xs font-medium text-text-muted hover:text-foreground transition-colors"
+                  >
+                    <span>Napredno: Ručno podešavanje kredencijala</span>
+                    <span className="text-[11px] font-normal text-text-subtle">
+                      {showAdvanced || editing ? "Sakrij" : "Prikaži"}
+                    </span>
+                  </button>
 
-                {(showAdvanced || editing) && (
-                  <div className="mt-3 space-y-3">
-                    <p className="text-xs text-text-muted">
-                      Preporučujemo automatsko povezivanje Google OAuth putem. Ručni unos koristite samo ukoliko koristite prilagođeni GCP projekat.
-                    </p>
-                    {!editing ? (
-                      <SavedCredentials
-                        detail={`Kredencijali sačuvani${
-                          connection.externalId ? ` · kanal ${connection.externalId}` : ""
-                        }`}
-                        onEdit={startEdit}
-                      />
-                    ) : (
-                      <form onSubmit={handleSave} className="mt-4">
-                        <FormStack>
-                          <FormGroup title="Kanal">
-                            <Field label="Channel ID" error={channelProblem} required>
-                              {(field) => (
-                                <Input
-                                  {...field}
-                                  placeholder="npr. UCabcdefghijklmnopqrstuv"
-                                  value={channelId}
-                                  onChange={(event) => setChannelId(event.target.value)}
-                                  disabled={saving}
-                                  className="font-mono text-xs"
-                                  required
-                                />
-                              )}
-                            </Field>
-                          </FormGroup>
-
-                          <FormGroup title="Pristup">
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                              <Field label="OAuth Client ID" required>
+                  {(showAdvanced || editing) && (
+                    <div className="mt-3 space-y-3">
+                      <p className="text-xs text-text-muted">
+                        Preporučujemo automatsko povezivanje Google OAuth putem. Ručni unos koristite samo ukoliko koristite prilagođeni GCP projekat.
+                      </p>
+                      {!editing ? (
+                        <SavedCredentials
+                          detail={`Kredencijali sačuvani${
+                            connection.externalId ? ` · kanal ${connection.externalId}` : ""
+                          }`}
+                          onEdit={startEdit}
+                        />
+                      ) : (
+                        <form onSubmit={handleSave} className="mt-4">
+                          <FormStack>
+                            <FormGroup title="Kanal">
+                              <Field label="Channel ID" error={channelProblem} required>
                                 {(field) => (
                                   <Input
                                     {...field}
-                                    placeholder="xxxx.apps.googleusercontent.com"
-                                    value={clientId}
-                                    onChange={(event) => setClientId(event.target.value)}
+                                    placeholder="npr. UCabcdefghijklmnopqrstuv"
+                                    value={channelId}
+                                    onChange={(event) => setChannelId(event.target.value)}
                                     disabled={saving}
                                     className="font-mono text-xs"
                                     required
                                   />
                                 )}
                               </Field>
-                              <Field label="OAuth Client Secret" required>
+                            </FormGroup>
+
+                            <FormGroup title="Pristup">
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <Field label="OAuth Client ID" required>
+                                  {(field) => (
+                                    <Input
+                                      {...field}
+                                      placeholder="xxxx.apps.googleusercontent.com"
+                                      value={clientId}
+                                      onChange={(event) => setClientId(event.target.value)}
+                                      disabled={saving}
+                                      className="font-mono text-xs"
+                                      required
+                                    />
+                                  )}
+                                </Field>
+                                <Field label="OAuth Client Secret" required>
+                                  {(field) => (
+                                    <Input
+                                      {...field}
+                                      type="password"
+                                      placeholder="GOCSPX-…"
+                                      value={clientSecret}
+                                      onChange={(event) => setClientSecret(event.target.value)}
+                                      disabled={saving}
+                                      className="font-mono text-xs"
+                                      required
+                                    />
+                                  )}
+                                </Field>
+                              </div>
+
+                              <Field label="OAuth Refresh Token" required>
                                 {(field) => (
                                   <Input
                                     {...field}
                                     type="password"
-                                    placeholder="GOCSPX-…"
-                                    value={clientSecret}
-                                    onChange={(event) => setClientSecret(event.target.value)}
+                                    placeholder="1//04…"
+                                    value={refreshToken}
+                                    onChange={(event) => setRefreshToken(event.target.value)}
                                     disabled={saving}
                                     className="font-mono text-xs"
                                     required
                                   />
                                 )}
                               </Field>
+                            </FormGroup>
+
+                            <div className="flex items-center gap-3">
+                              <Button
+                                type="submit"
+                                size="sm"
+                                disabled={saving || channelProblem !== null}
+                              >
+                                {saving ? (
+                                  <>
+                                    <LoaderCircle className="animate-spin" />
+                                    Čuvam…
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check />
+                                    Sačuvaj
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setEditing(false);
+                                  setError(null);
+                                }}
+                              >
+                                Otkaži
+                              </Button>
                             </div>
-
-                            <Field label="OAuth Refresh Token" required>
-                              {(field) => (
-                                <Input
-                                  {...field}
-                                  type="password"
-                                  placeholder="1//04…"
-                                  value={refreshToken}
-                                  onChange={(event) => setRefreshToken(event.target.value)}
-                                  disabled={saving}
-                                  className="font-mono text-xs"
-                                  required
-                                />
-                              )}
-                            </Field>
-                          </FormGroup>
-
-                          <div className="flex items-center gap-3">
-                            <Button
-                              type="submit"
-                              size="sm"
-                              disabled={saving || channelProblem !== null}
-                            >
-                              {saving ? (
-                                <>
-                                  <LoaderCircle className="animate-spin" />
-                                  Čuvam…
-                                </>
-                              ) : (
-                                <>
-                                  <Check />
-                                  Sačuvaj
-                                </>
-                              )}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setEditing(false);
-                                setError(null);
-                              }}
-                            >
-                              Otkaži
-                            </Button>
-                          </div>
-                        </FormStack>
-                      </form>
-                    )}
-                  </div>
-                )}
-              </div>
+                          </FormStack>
+                        </form>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
-          ) : (
+          ) : mozeVlasnik ? (
             <>
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 p-4">
                 <div className="space-y-1">
@@ -2720,7 +2756,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                 )}
               </div>
             </>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -2770,6 +2806,8 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
 // ── Threads (OAuth) ──────────────────────────────────────────────────────────
 
 function ThreadsCard({ connection }: { connection?: ConnectionView }) {
+  // Povezivanje sme samo vlasnik; ostali vide samo stanje veze.
+  const mozeVlasnik = useMoze("owner");
   const remove = useProjekatMutation(api.connections.remove);
   const setup = useProjekatQuery(api.threadsStore.setupInfo);
   const getOAuthUrl = useProjekatAction(api.threads.threadsAuthorizeUrl);
@@ -2906,28 +2944,30 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
                   >
                     Potrebno je ponovo autorizovati pristup nalogu kako bi se nastavila sinhronizacija i upravljanje.
                   </FeedbackNote>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleStartConnect}
-                    disabled={connecting || !setup.isConfigured || oauthNijePodesen}
-                  >
-                    {connecting ? (
-                      <>
-                        <LoaderCircle className="animate-spin" />
-                        Preusmeravam…
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw />
-                        Poveži ponovo
-                      </>
-                    )}
-                  </Button>
+                  {mozeVlasnik && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleStartConnect}
+                      disabled={connecting || !setup.isConfigured || oauthNijePodesen}
+                    >
+                      {connecting ? (
+                        <>
+                          <LoaderCircle className="animate-spin" />
+                          Preusmeravam…
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw />
+                          Poveži ponovo
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               )}
             </>
-          ) : (
+          ) : mozeVlasnik ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 p-4">
               <div className="space-y-1">
                 <p className="text-xs font-medium text-foreground">
@@ -2956,7 +2996,7 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
                 )}
               </Button>
             </div>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -3006,6 +3046,9 @@ export function ConnectionsSettings() {
   const connections = useProjekatQuery(api.connections.list);
   const health = useProjekatQuery(api.sync.health);
   const oauthNijePodesen = useOAuthNijePodesen();
+  // Veze menja samo vlasnik; urednik vidi stanje i sme da sinhronizuje.
+  const mozeVlasnik = useMoze("owner");
+  const mozeUrednik = useMoze("urednik");
 
   if (connections === undefined) {
     return <ConnectionsSettingsSkeleton />;
@@ -3066,14 +3109,16 @@ export function ConnectionsSettings() {
         <FocusCard
           eyebrow="Integracije"
           action={
-            <Button
-              variant="primary"
-              render={<a href={sledece.href} />}
-              nativeButton={false}
-            >
-              {sledece.label}
-              <ArrowDown data-icon="inline-end" aria-hidden />
-            </Button>
+            mozeVlasnik ? (
+              <Button
+                variant="primary"
+                render={<a href={sledece.href} />}
+                nativeButton={false}
+              >
+                {sledece.label}
+                <ArrowDown data-icon="inline-end" aria-hidden />
+              </Button>
+            ) : undefined
           }
           aside={
             <SegmentedMeter
@@ -3107,7 +3152,7 @@ export function ConnectionsSettings() {
       <div id="integracija-ga4" className={SIDRO}>
         <Ga4Card connection={byProvider.get("ga4")} />
       </div>
-      {byProvider.has("ga4") && <Ga4Configuration />}
+      {byProvider.has("ga4") && mozeUrednik && <Ga4Configuration />}
       <div id="integracija-openreply" className={SIDRO}>
         <OpenReplyCard />
       </div>

@@ -9,11 +9,8 @@ import {
   fetchAccessToken,
   parseYouTubeCredentials,
 } from "./lib/youtubeApi";
-import {
-  QUOTA_COST,
-  QUOTA_MEDIA_EXHAUSTED_MESSAGE,
-  canAffordMedia,
-} from "./lib/ytQuota";
+import { QUOTA_COST, QUOTA_MEDIA_EXHAUSTED_MESSAGE } from "./lib/ytQuota";
+import { rezervisiIzmenu, vratiIzmenu } from "./lib/ytKvotaAkcija";
 import { ytRequest } from "./ytMedia";
 import type { MediaContext } from "./ytMedia";
 
@@ -134,14 +131,18 @@ export const deleteComment = projekatAction({
         : {}),
     });
 
-    if (!canAffordMedia(context.unitsUsed, QUOTA_COST.commentsDelete)) {
+    // Reserved before the call — this project's share and the shared
+    // counter of all projects in one step (lib/ytKvotaAkcija.ts).
+    const rezervacija = await rezervisiIzmenu(ctx, workspaceId, QUOTA_COST.commentsDelete);
+    if (!rezervacija.ok) {
+      const poruka = rezervacija.poruka ?? QUOTA_MEDIA_EXHAUSTED_MESSAGE;
       await ctx.runMutation(internal.ytMedia.finishJob, {
         jobId,
         status: "skipped_quota" as const,
         unitsSpent: 0,
-        errorMessage: QUOTA_MEDIA_EXHAUSTED_MESSAGE,
+        errorMessage: poruka,
       });
-      invalid(QUOTA_MEDIA_EXHAUSTED_MESSAGE);
+      invalid(poruka);
     }
 
     let spent = 0;
@@ -162,6 +163,7 @@ export const deleteComment = projekatAction({
       );
       token = await fetchAccessToken(creds);
     } catch (err) {
+      await vratiIzmenu(ctx, workspaceId, QUOTA_COST.commentsDelete);
       return await failJob(
         err instanceof Error
           ? err.message
@@ -172,12 +174,13 @@ export const deleteComment = projekatAction({
     const res = await ytRequest(buildCommentsDeleteUrl(commentId), token, {
       method: "DELETE",
     });
-    // Metered whether it succeeded or not, so it is booked either way.
-    spent = QUOTA_COST.commentsDelete;
-    await ctx.runMutation(internal.ytIngest.recordQuotaUsage, {
-      workspaceId,
-      units: spent,
-    });
+    // Metered whether it succeeded or not — except when the request never
+    // reached Google (status 0): then the reserved units go back.
+    if (res.status === 0) {
+      await vratiIzmenu(ctx, workspaceId, QUOTA_COST.commentsDelete);
+    } else {
+      spent = QUOTA_COST.commentsDelete;
+    }
 
     // 404 means the comment is already gone — the desired end state, reached
     // by someone else. Recording it as a failure would invite a second try

@@ -26,7 +26,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackLine } from "@/components/app/feedback";
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekat,
+  useProjekatMutation,
+} from "@/components/app/projekat-provider";
 import { Chip, TemperatureChip, type ChipTone } from "@/components/app/system/chip";
 import { EmptyState } from "@/components/app/system/empty-state";
 import { FocusCard } from "@/components/app/system/focus-card";
@@ -133,7 +137,34 @@ function nestoJeOtvoreno(): boolean {
   );
 }
 
-export function CallMode({
+/**
+ * Ceo režim je beleženje ishoda (tasteri 1–4 i „Zakaži sastanak" pišu u bazu),
+ * pa ga posmatrač ne otvara — dobija kratko objašnjenje i put nazad.
+ */
+export function CallMode({ onExit }: { onExit: () => void }) {
+  const moze = useMoze("urednik");
+  const { spreman } = useProjekat();
+  if (moze) return <CallModeTelo onExit={onExit} />;
+  // Dok projekat stiže uloga se još ne zna: ne sme da bljesne poruka uredniku.
+  if (!spreman) return null;
+  return (
+    <EmptyState
+      icon={PhoneOff}
+      title="Režim poziva nije dostupan"
+      action={
+        <Button variant="outline" onClick={onExit}>
+          <ArrowLeft data-icon="inline-start" aria-hidden />
+          Nazad na Danas
+        </Button>
+      }
+    >
+      Režim poziva služi za beleženje ishoda poziva, a u ovom projektu imaš
+      pristup samo za pregled.
+    </EmptyState>
+  );
+}
+
+function CallModeTelo({
   onExit,
 }: {
   onExit: () => void;

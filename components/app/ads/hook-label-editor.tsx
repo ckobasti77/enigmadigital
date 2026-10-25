@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekatMutation,
+} from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Input } from "@/components/ui/input";
@@ -28,6 +31,8 @@ export function HookLabelEditor({
   variant = "badge",
   onUpdated,
 }: HookLabelEditorProps) {
+  // Oznaku menja urednik; posmatrač je samo čita, bez olovke i bez „Dodaj“.
+  const mozeDaMenja = useMoze("urednik");
   const [isEditing, setIsEditing] = useState(false);
   const [label, setLabel] = useState(currentLabel ?? "");
   const [isSaving, setIsSaving] = useState(false);
@@ -79,7 +84,7 @@ export function HookLabelEditor({
     }
   };
 
-  if (isEditing) {
+  if (isEditing && mozeDaMenja) {
     return (
       <div
         className={cn("flex items-center gap-1.5", className)}
@@ -137,18 +142,37 @@ export function HookLabelEditor({
         <span className="font-medium text-foreground">
           {hasCustomLabel ? currentLabel : fallbackName}
         </span>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            startEditing();
-          }}
-          className="rounded p-0.5 opacity-0 group-hover/hook:opacity-100 hover:bg-surface-raised text-mod transition-opacity"
-          title="Izmeni hook oznaku"
-          aria-label="Izmeni hook oznaku"
-        >
-          <Edit2 className="size-3" />
-        </button>
+        {mozeDaMenja && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              startEditing();
+            }}
+            className="rounded p-0.5 opacity-0 group-hover/hook:opacity-100 hover:bg-surface-raised text-mod transition-opacity"
+            title="Izmeni hook oznaku"
+            aria-label="Izmeni hook oznaku"
+          >
+            <Edit2 className="size-3" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (!mozeDaMenja) {
+    // Bez oznake nema šta da se pokaže posmatraču (nema ni „Dodaj“).
+    if (!hasCustomLabel) return null;
+    return (
+      <div
+        className={cn(
+          "inline-flex items-center gap-1 max-w-full",
+          className,
+        )}
+      >
+        <span className="inline-flex items-center gap-1 rounded border border-mod-line bg-mod-soft px-2 py-0.5 text-micro font-semibold text-mod truncate">
+          <span className="truncate">{currentLabel}</span>
+        </span>
       </div>
     );
   }

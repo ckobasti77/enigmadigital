@@ -47,7 +47,7 @@ export function RateLimitBanner({ network }: { network: string }) {
           : "Potrošen je skoro ceo dozvoljeni obim poziva ka Meti."
       }
     >
-      {`${when} Podaci na ovom ekranu (${network}) su poslednji koje smo uspeli da preuzmemo. Obim se deli između Instagrama, Facebook stranice i oglasa, pa je uzrok mogao biti bilo koji od njih.`}
+      {`${when} Podaci na ovom ekranu (${network}) su poslednji koje smo uspeli da preuzmemo. Obim se deli između Instagrama, Facebook stranice i oglasa, pa je uzrok mogao biti bilo koji od njih.${status.globalno ? " Ograničenje važi za sve projekte." : ""}`}
     </FeedbackNote>
   );
 }

@@ -45,10 +45,12 @@ import {
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
 import {
+  useMoze,
   useProjekat,
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
+import { SamoZa } from "@/components/app/samo-za";
 
 /**
  * Editing one video's metadata (Y7).
@@ -92,6 +94,9 @@ export function YtVideoEditDialog({
   video: VideoItem | null;
   onOpenChange: (open: boolean) => void;
 }) {
+  // Izmena podataka videa je posao urednika; posmatrač nema ovaj dijalog.
+  const mozeUrediti = useMoze("urednik");
+  if (!mozeUrediti) return null;
   return (
     <Dialog
       open={video !== null}
@@ -461,31 +466,33 @@ function YtVideoEditForm({
         {/* Sličica i plejliste — obe idu odmah, nezavisno od dugmeta ispod */}
         <ImmediateSection video={video} disabled={submitting} />
 
-        {/* Brisanje videa */}
-        <div className="flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/5 p-3.5">
-          <AlertTriangle
-            className="mt-0.5 size-3.5 shrink-0 text-danger"
-            aria-hidden
-          />
-          <div className="flex-1 text-xs leading-relaxed text-foreground">
-            <p className="font-semibold text-danger">Brisanje videa</p>
-            <p className="mt-1">
-              Video, njegova statistika i svi komentari ispod njega nestaju
-              trajno. Za privremeno sklanjanje postoji privatnost.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setConfirmingDelete(true)}
-              disabled={submitting}
-              className="mt-2.5 border-danger/40 text-danger hover:bg-danger/10 hover:text-danger"
-            >
-              <Trash2 className="mr-1.5 size-3.5" />
-              Obriši video
-            </Button>
+        {/* Brisanje videa — samo vlasnik projekta */}
+        <SamoZa uloga="owner">
+          <div className="flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/5 p-3.5">
+            <AlertTriangle
+              className="mt-0.5 size-3.5 shrink-0 text-danger"
+              aria-hidden
+            />
+            <div className="flex-1 text-xs leading-relaxed text-foreground">
+              <p className="font-semibold text-danger">Brisanje videa</p>
+              <p className="mt-1">
+                Video, njegova statistika i svi komentari ispod njega nestaju
+                trajno. Za privremeno sklanjanje postoji privatnost.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmingDelete(true)}
+                disabled={submitting}
+                className="mt-2.5 border-danger/40 text-danger hover:bg-danger/10 hover:text-danger"
+              >
+                <Trash2 className="mr-1.5 size-3.5" />
+                Obriši video
+              </Button>
+            </div>
           </div>
-        </div>
+        </SamoZa>
       </div>
 
       <ObjavljujesKao kanal="youtube" radnja="Menjaš" />

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useProjekatQuery } from "@/components/app/projekat-provider";
+import { ProjekatLink } from "@/components/app/projekat-link";
+import { useMoze, useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
 import type { GapType } from "@/convex/leadGapsStore";
@@ -84,6 +85,8 @@ const GAP_CARDS: ReadonlyArray<{
 ];
 
 export function GapsPanel() {
+  // Posmatrač vidi rupe, ali ih ne popunjava: kartica nosi samo „Otvori profil".
+  const moze = useMoze("urednik");
   const [selectedGap, setSelectedGap] = useState<GapType>("bez_telefona");
   const [gapFillCompany, setGapFillCompany] = useState<Doc<"leadCompanies"> | null>(null);
 
@@ -232,14 +235,25 @@ export function GapsPanel() {
                 </>
               }
               primary={
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setGapFillCompany(company)}
-                >
-                  <ShieldAlert data-icon="inline-start" aria-hidden />
-                  Popuni rupu
-                </Button>
+                moze ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setGapFillCompany(company)}
+                  >
+                    <ShieldAlert data-icon="inline-start" aria-hidden />
+                    Popuni rupu
+                  </Button>
+                ) : (
+                  <Button
+                    render={<ProjekatLink href={`/leadovi/${company._id}`} />}
+                    nativeButton={false}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    Otvori profil
+                  </Button>
+                )
               }
             />
           );

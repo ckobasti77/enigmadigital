@@ -22,7 +22,7 @@ import {
   ObjavljujesKao,
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import { useMoze, useProjekatMutation } from "@/components/app/projekat-provider";
 import {
   evaluatePublishGates,
   extractConvexErrorMessage,
@@ -49,6 +49,7 @@ export function PublishReadinessPanel({
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishSuccess, setPublishSuccess] = useState<string | null>(null);
 
+  const moze = useMoze("urednik");
   const publishMutation = useProjekatMutation(api.postsStore.publish);
   const potvrda = usePotvrdaProjekta();
 
@@ -142,7 +143,7 @@ export function PublishReadinessPanel({
               : gates.humanizer.reason
           }
           action={
-            !gates.humanizer.passed && onRunHumanizer ? (
+            moze && !gates.humanizer.passed && onRunHumanizer ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -217,41 +218,43 @@ export function PublishReadinessPanel({
         </div>
       )}
 
-      {/* Dugme za objavljivanje */}
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-        <ObjavljujesKao kanal="sajt" radnja="Objavljuješ" className="basis-full" />
-        <div className="text-xs text-text-muted">
-          {!post._id ? (
-            <span>Post mora prvo biti kreiran/sačuvan kao nacrt.</span>
-          ) : !gates.allPassed ? (
-            <span>
-            </span>
-          ) : (
-            <span className="text-success">
-            </span>
-          )}
-        </div>
+      {/* Dugme za objavljivanje — posmatrač ga ne vidi */}
+      {moze && (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+          <ObjavljujesKao kanal="sajt" radnja="Objavljuješ" className="basis-full" />
+          <div className="text-xs text-text-muted">
+            {!post._id ? (
+              <span>Post mora prvo biti kreiran/sačuvan kao nacrt.</span>
+            ) : !gates.allPassed ? (
+              <span>
+              </span>
+            ) : (
+              <span className="text-success">
+              </span>
+            )}
+          </div>
 
-        <Button
-          type="button"
-          onClick={handlePublish}
-          disabled={!gates.allPassed || isPublishing || isSaving || !post._id}
-          variant="primary"
-          className="gap-2 font-medium"
-        >
-          {isPublishing ? (
-            <>
-              <Loader2 className="size-4 animate-spin" />
-              <span>Objavljujem…</span>
-            </>
-          ) : (
-            <>
-              <Send className="size-4" />
-              <span>{potvrda(post.status === "published" ? "Ponovo objavi" : "Objavi post")}</span>
-            </>
-          )}
-        </Button>
-      </div>
+          <Button
+            type="button"
+            onClick={handlePublish}
+            disabled={!gates.allPassed || isPublishing || isSaving || !post._id}
+            variant="primary"
+            className="gap-2 font-medium"
+          >
+            {isPublishing ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                <span>Objavljujem…</span>
+              </>
+            ) : (
+              <>
+                <Send className="size-4" />
+                <span>{potvrda(post.status === "published" ? "Ponovo objavi" : "Objavi post")}</span>
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }

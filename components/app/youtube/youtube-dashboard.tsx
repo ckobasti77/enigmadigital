@@ -11,7 +11,10 @@ import {
   UserPlus,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { useProjekatQuery } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import {
   useDateRange,
 } from "@/components/app/date-range-picker";
@@ -63,6 +66,7 @@ const DESCRIPTION =
  */
 export function YouTubeDashboard() {
   const { range } = useDateRange();
+  const mozeUrediti = useMoze("urednik");
   const connections = useProjekatQuery(api.connections.list);
 
   const currentRows = useProjekatQuery(api.youtubeStore.dailyTotals, {
@@ -144,7 +148,7 @@ export function YouTubeDashboard() {
       <PageHeader
         variant="module"
         description={DESCRIPTION}
-        actions={ytConnected && <YtUploadButton />}
+        actions={ytConnected && mozeUrediti && <YtUploadButton />}
       />
 
       {!ytConnected ? (

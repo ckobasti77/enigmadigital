@@ -36,7 +36,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import { useMoze, useProjekatMutation } from "@/components/app/projekat-provider";
 import { leadStageLabel } from "./lead-labels";
 import { ALL_STAGES, stageRequiresNote } from "./lead-chips";
 import { getErrorMessage } from "./lead-quick-dialogs";
@@ -243,10 +243,13 @@ export function LeadPrimaryButton({
   appearance?: ActionAppearance;
   className?: string;
 }) {
-  // „Dopuni" bez dijaloga dopune je u stvari „Otvori profil".
-  const kind: PrimaryAction["kind"] =
-    action.kind === "fill" && !onFill ? "open" : action.kind;
-  const label = action.kind === "fill" && !onFill ? "Otvori" : action.label;
+  const moze = useMoze("urednik");
+  // „Dopuni" bez dijaloga dopune je u stvari „Otvori profil". Posmatrač ne
+  // beleži, ne zakazuje i ne dopunjava, pa i njemu glavna radnja vodi na profil.
+  const samoOtvori =
+    (action.kind === "fill" && !onFill) || (!moze && action.kind !== "open");
+  const kind: PrimaryAction["kind"] = samoOtvori ? "open" : action.kind;
+  const label = samoOtvori ? "Otvori" : action.label;
   const Icon = ACTION_ICON[kind];
   // U tabeli je kolona radnji uska: pun natpis ostaje u oblačiću i za čitač.
   const natpis = appearance === "full" && kind === "outcome" ? "Ishod" : label;
@@ -347,6 +350,7 @@ export function LeadRowActions({
 }) {
   const { assignment, company } = item;
   const companyId = assignment.companyId;
+  const moze = useMoze("urednik");
   const assignLead = useProjekatMutation(api.leadCrmStore.assignLead);
   const pickStage = useStagePick({
     companyId,
@@ -412,57 +416,69 @@ export function LeadRowActions({
             <DropdownMenuLabel className="truncate">
               {company?.name ?? "Nepoznata firma"}
             </DropdownMenuLabel>
-            <ContactMenuItems kind="phone" contacts={item.telefoni} onPick={onCall} />
+            {/* Poziv iz menija ostaje link i posmatraču, ali ne otvara traku za
+                beleženje ishoda. */}
+            <ContactMenuItems
+              kind="phone"
+              contacts={item.telefoni}
+              onPick={moze ? onCall : undefined}
+            />
             <ContactMenuItems kind="email" contacts={item.emailovi} />
-            <DropdownMenuItem onClick={() => onOpenDialog("meeting")}>
-              {meetingAt !== undefined ? <CalendarClock /> : <CalendarPlus />}
-              {meetingAt !== undefined ? (
-                <>
-                  <span>Sastanak</span>
-                  <span className="ml-auto pl-3 text-micro text-text-muted">
-                    {formatDayRelative(meetingAt, now)} {formatClockTime(meetingAt)} · izmeni
-                  </span>
-                </>
-              ) : (
-                "Zakaži sastanak…"
+            {moze && (
+              <DropdownMenuItem onClick={() => onOpenDialog("meeting")}>
+                {meetingAt !== undefined ? <CalendarClock /> : <CalendarPlus />}
+                {meetingAt !== undefined ? (
+                  <>
+                    <span>Sastanak</span>
+                    <span className="ml-auto pl-3 text-micro text-text-muted">
+                      {formatDayRelative(meetingAt, now)} {formatClockTime(meetingAt)} · izmeni
+                    </span>
+                  </>
+                ) : (
+                  "Zakaži sastanak…"
+                )}
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuGroup>
+          {moze && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Tag />
+                    Promeni fazu
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-52">
+                    <StageMenuItems current={assignment.stage} onPick={pickStage} />
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuItem onClick={() => onOpenDialog("nextAction")}>
+                  <Calendar />
+                  Sledeći korak…
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onOpenDialog("outcome")}>
+                  <Activity />
+                  Zabeleži ishod…
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onOpenDialog("touch")}>
+                  <PhoneCall />
+                  Zabeleži dodir…
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              {selfUserId && !isMine && (
+                <DropdownMenuItem onClick={assignSelf}>
+                  <UserCheck />
+                  Dodeli meni
+                </DropdownMenuItem>
               )}
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <Tag />
-                Promeni fazu
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-52">
-                <StageMenuItems current={assignment.stage} onPick={pickStage} />
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuItem onClick={() => onOpenDialog("nextAction")}>
-              <Calendar />
-              Sledeći korak…
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onOpenDialog("outcome")}>
-              <Activity />
-              Zabeleži ishod…
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onOpenDialog("touch")}>
-              <PhoneCall />
-              Zabeleži dodir…
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          {selfUserId && !isMine && (
-            <DropdownMenuItem onClick={assignSelf}>
-              <UserCheck />
-              Dodeli meni
-            </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onOpenDialog("assign")}>
+                <Users />
+                Dodeli drugom…
+              </DropdownMenuItem>
+            </>
           )}
-          <DropdownMenuItem onClick={() => onOpenDialog("assign")}>
-            <Users />
-            Dodeli drugom…
-          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem render={<ProjekatLink href={`/leadovi/${companyId}`} />}>
             <ExternalLink />

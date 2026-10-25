@@ -15,7 +15,10 @@ import {
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekatMutation,
+} from "@/components/app/projekat-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -136,6 +139,8 @@ function AutomationCard({
   onDelete: () => void;
 }) {
   const PostIcon = automation.matchAnyPost ? Images : ImageIcon;
+  // Posmatrač vidi stanje automatizacije, ali ne menja ništa.
+  const mozeUrediti = useMoze("urednik");
 
   return (
     <Card
@@ -206,32 +211,37 @@ function AutomationCard({
             disabled={busy}
             onLabel="Aktivno"
             offLabel="Isključeno"
+            readOnly={!mozeUrediti}
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onEdit}
-            disabled={busy}
-            className="border-line text-text-muted hover:text-foreground"
-          >
-            <Pencil className="size-3" />
-            <span>Izmeni</span>
-          </Button>
-          {/* Brisanje odvojeno od izmene — razmak i linija, da promašen
-              klik ne padne na susedno dugme. */}
-          <span className="mx-1 h-5 w-px bg-line-soft" aria-hidden />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            onClick={onDelete}
-            disabled={busy}
-            aria-label={`Obriši automatizaciju ${automation.name}`}
-            className="border-danger/25 text-danger/80 hover:bg-danger/10 hover:text-danger"
-          >
-            <Trash2 className="size-3" />
-          </Button>
+          {mozeUrediti && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onEdit}
+                disabled={busy}
+                className="border-line text-text-muted hover:text-foreground"
+              >
+                <Pencil className="size-3" />
+                <span>Izmeni</span>
+              </Button>
+              {/* Brisanje odvojeno od izmene — razmak i linija, da promašen
+                  klik ne padne na susedno dugme. */}
+              <span className="mx-1 h-5 w-px bg-line-soft" aria-hidden />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                onClick={onDelete}
+                disabled={busy}
+                aria-label={`Obriši automatizaciju ${automation.name}`}
+                className="border-danger/25 text-danger/80 hover:bg-danger/10 hover:text-danger"
+              >
+                <Trash2 className="size-3" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

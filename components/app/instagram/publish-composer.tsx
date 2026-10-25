@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatMutation,
   useProjekatQuery,
@@ -159,7 +160,20 @@ type PublishingLimit = {
   error?: string;
 };
 
+/** Objava je sva izmena: posmatrač projekta ne vidi pisanje objave. */
 export function PublishComposer() {
+  const mozeUrediti = useMoze("urednik");
+  if (!mozeUrediti) {
+    return (
+      <p className="text-sm text-text-muted">
+        Objave pišu urednik i vlasnik projekta.
+      </p>
+    );
+  }
+  return <PublishComposerForm />;
+}
+
+function PublishComposerForm() {
   const potvrda = usePotvrdaProjekta();
   const connections = useProjekatQuery(api.connections.list);
   const jobs = useProjekatQuery(api.instagramPublishStore.listJobs);

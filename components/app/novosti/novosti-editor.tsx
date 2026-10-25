@@ -34,7 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { FeedbackNote } from "@/components/app/feedback";
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import { useMoze, useProjekatMutation } from "@/components/app/projekat-provider";
 import {
   FormGroup,
   FormStack,
@@ -65,7 +65,16 @@ export interface NovostiEditorProps {
   onSaved: (post: PostItem) => void;
 }
 
-export function NovostiEditor({
+/**
+ * Uređivač je u celini izmena (čuvanje, slika, objava), pa ga posmatrač ne
+ * dobija; tablu sa postovima vidi, ali se iz nje ne otvara forma.
+ */
+export function NovostiEditor(props: NovostiEditorProps) {
+  const moze = useMoze("urednik");
+  return moze ? <NovostiEditorTelo {...props} /> : null;
+}
+
+function NovostiEditorTelo({
   initialPost,
   workspaceId,
   onBack,

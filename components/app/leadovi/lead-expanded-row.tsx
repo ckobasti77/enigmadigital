@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { ProjekatLink } from "@/components/app/projekat-link";
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import { useMoze, useProjekatMutation } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import {
   Activity,
@@ -90,6 +90,7 @@ export function LeadExpandedRow({
   const { assignment, company } = item;
   const companyId = assignment.companyId;
 
+  const moze = useMoze("urednik");
   const logTouch = useProjekatMutation(api.leadCrmStore.logTouch);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -187,7 +188,7 @@ export function LeadExpandedRow({
                     ? `Telefon: ${t.value} (${t.personName})`
                     : `Telefon firme: ${t.value}`
                 }
-                onOpen={() => onCall(t.value)}
+                onOpen={moze ? () => onCall(t.value) : undefined}
               />
             ))
           ) : (
@@ -288,13 +289,15 @@ export function LeadExpandedRow({
               <span className={untouchedTooLong ? "font-medium text-danger" : "text-text-muted"}>
                 Nema zabeleženog dodira.
               </span>
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={() => onOpenDialog("touch")}
-              >
-                Zabeleži
-              </Button>
+              {moze && (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => onOpenDialog("touch")}
+                >
+                  Zabeleži
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -320,21 +323,25 @@ export function LeadExpandedRow({
                   „{assignment.nextActionNote}”
                 </span>
               )}
-              <Button
-                size="xs"
-                variant="ghost"
-                onClick={() => onOpenDialog("nextAction")}
-                className="text-text-muted hover:text-foreground"
-              >
-                Izmeni
-              </Button>
+              {moze && (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  onClick={() => onOpenDialog("nextAction")}
+                  className="text-text-muted hover:text-foreground"
+                >
+                  Izmeni
+                </Button>
+              )}
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-text-muted">Nije planiran.</span>
-              <Button size="xs" variant="outline" onClick={() => onOpenDialog("nextAction")}>
-                Postavi
-              </Button>
+              {moze && (
+                <Button size="xs" variant="outline" onClick={() => onOpenDialog("nextAction")}>
+                  Postavi
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -365,15 +372,17 @@ export function LeadExpandedRow({
                   „{assignment.meetingNote}”
                 </span>
               )}
-              <Button
-                size="xs"
-                variant="ghost"
-                onClick={() => onOpenDialog("meeting")}
-                className="text-text-muted hover:text-foreground"
-              >
-                Izmeni
-              </Button>
-              {meetingUnresolved && (
+              {moze && (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  onClick={() => onOpenDialog("meeting")}
+                  className="text-text-muted hover:text-foreground"
+                >
+                  Izmeni
+                </Button>
+              )}
+              {moze && meetingUnresolved && (
                 <Button size="xs" variant="outline" onClick={() => onOpenDialog("outcome")}>
                   <Activity />
                   Zabeleži ishod
@@ -383,45 +392,51 @@ export function LeadExpandedRow({
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-text-muted">Nije zakazan.</span>
-              <Button size="xs" variant="outline" onClick={() => onOpenDialog("meeting")}>
-                Zakaži
-              </Button>
+              {moze && (
+                <Button size="xs" variant="outline" onClick={() => onOpenDialog("meeting")}>
+                  Zakaži
+                </Button>
+              )}
             </div>
           )}
         </div>
       </Section>
 
-      {/* Beleška + profil */}
-      <Section title="Beleška">
-        <label htmlFor={`note-${assignment._id}`} className="sr-only">
-          Beleška za {company?.name ?? "firmu"}
-        </label>
-        <Textarea
-          id={`note-${assignment._id}`}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault();
-              void saveNote();
-            }
-          }}
-          placeholder="Kratka beleška — upisuje se u istoriju kao dodir „beleška”…"
-          className="min-h-14 text-xs"
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="xs"
-            disabled={saving || !note.trim()}
-            onClick={saveNote}
-          >
-            {saving ? "Upisujem…" : "Sačuvaj belešku"}
-          </Button>
-          <span className="text-micro text-text-muted">Ctrl+Enter</span>
-          {noteState && (
-            <FeedbackLine tone={noteState.tone}>{noteState.text}</FeedbackLine>
-          )}
-        </div>
+      {/* Beleška + profil (posmatrač dobija samo profil) */}
+      <Section title={moze ? "Beleška" : "Profil"}>
+        {moze && (
+          <>
+            <label htmlFor={`note-${assignment._id}`} className="sr-only">
+              Beleška za {company?.name ?? "firmu"}
+            </label>
+            <Textarea
+              id={`note-${assignment._id}`}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  void saveNote();
+                }
+              }}
+              placeholder="Kratka beleška — upisuje se u istoriju kao dodir „beleška”…"
+              className="min-h-14 text-xs"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="xs"
+                disabled={saving || !note.trim()}
+                onClick={saveNote}
+              >
+                {saving ? "Upisujem…" : "Sačuvaj belešku"}
+              </Button>
+              <span className="text-micro text-text-muted">Ctrl+Enter</span>
+              {noteState && (
+                <FeedbackLine tone={noteState.tone}>{noteState.text}</FeedbackLine>
+              )}
+            </div>
+          </>
+        )}
         <ProjekatLink
           href={`/leadovi/${companyId}`}
           className={cn(

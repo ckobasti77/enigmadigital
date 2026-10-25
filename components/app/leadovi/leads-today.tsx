@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ProjekatLink } from "@/components/app/projekat-link";
-import { useProjekatQuery } from "@/components/app/projekat-provider";
+import { useMoze, useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
 import type { LeadScore } from "@/convex/lib/leadScoring";
@@ -89,6 +89,9 @@ const VRATI_SE_DANA = 3;
 const XP_POZIV = PRAVILA_XP.dodir.xp + PRAVILA_XP.ishod.xp;
 
 export function LeadsToday() {
+  // Posmatrač vidi trake i brojeve, ali ne zove, ne beleži i ne dopunjava:
+  // umesto radnje kartica nosi „Otvori" (profil).
+  const moze = useMoze("urednik");
   const now = useNow();
   const { applyQuery, setNav } = useLeadFilters();
   const napredak = useNapredak();
@@ -347,7 +350,9 @@ export function LeadsToday() {
                 </>
               }
               primary={
-                phone ? (
+                !moze ? (
+                  <OtvoriProfil companyId={item.assignment.companyId} />
+                ) : phone ? (
                   <span className="flex items-center gap-2">
                     <Button
                       render={<a href={telHref(phone)} />}
@@ -373,15 +378,17 @@ export function LeadsToday() {
                 ) : null
               }
               secondary={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setDialog({ kind: "outcome", item })}
-                  className="text-text-muted"
-                >
-                  <Activity data-icon="inline-start" aria-hidden />
-                  Zabeleži ishod
-                </Button>
+                moze ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDialog({ kind: "outcome", item })}
+                    className="text-text-muted"
+                  >
+                    <Activity data-icon="inline-start" aria-hidden />
+                    Zabeleži ishod
+                  </Button>
+                ) : undefined
               }
             >
               {strip && (
@@ -455,33 +462,27 @@ export function LeadsToday() {
                 </span>
               }
               primary={
-                bezIshoda ? (
+                bezIshoda && moze ? (
                   <Button variant="secondary" size="sm" onClick={() => setDialog({ kind: "outcome", item })}>
                     <Activity data-icon="inline-start" aria-hidden />
                     Zabeleži ishod
                   </Button>
                 ) : (
-                  <Button
-                    render={<ProjekatLink href={`/leadovi/${item.assignment.companyId}`} />}
-                    nativeButton={false}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    <ExternalLink data-icon="inline-start" aria-hidden />
-                    Otvori
-                  </Button>
+                  <OtvoriProfil companyId={item.assignment.companyId} />
                 )
               }
               secondary={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setDialog({ kind: "touch", item })}
-                  className="text-text-muted"
-                >
-                  <PhoneCall data-icon="inline-start" aria-hidden />
-                  Zabeleži dodir
-                </Button>
+                moze ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDialog({ kind: "touch", item })}
+                    className="text-text-muted"
+                  >
+                    <PhoneCall data-icon="inline-start" aria-hidden />
+                    Zabeleži dodir
+                  </Button>
+                ) : undefined
               }
             />
           );
@@ -544,10 +545,14 @@ export function LeadsToday() {
                 </>
               }
               primary={
-                <Button variant="secondary" size="sm" onClick={() => setFillCompany(company)}>
-                  <PhoneOff data-icon="inline-start" aria-hidden />
-                  Dopuni
-                </Button>
+                moze ? (
+                  <Button variant="secondary" size="sm" onClick={() => setFillCompany(company)}>
+                    <PhoneOff data-icon="inline-start" aria-hidden />
+                    Dopuni
+                  </Button>
+                ) : (
+                  <OtvoriProfil companyId={company._id} />
+                )
               }
             />
           );
@@ -569,6 +574,21 @@ export function LeadsToday() {
   );
 }
 
+/** Glavna radnja kartice za posmatrača: samo profil firme. */
+function OtvoriProfil({ companyId }: { companyId: string }) {
+  return (
+    <Button
+      render={<ProjekatLink href={`/leadovi/${companyId}`} />}
+      nativeButton={false}
+      variant="secondary"
+      size="sm"
+    >
+      <ExternalLink data-icon="inline-start" aria-hidden />
+      Otvori
+    </Button>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Fokus: „Danas X / Y poziva" + jedino primarno dugme
 // ─────────────────────────────────────────────────────────────────────────────
@@ -580,6 +600,7 @@ export function LeadsToday() {
  * crta se samo kad ima koga zvati: mrtvo primarno dugme je gore od nijednog.
  */
 function DanasFokus({ zovi }: { zovi: ZoviSada | null }) {
+  const moze = useMoze("urednik");
   const stanje = useNapredak();
   const sada = useSada();
   const napredak = stanje?.ukljucen && stanje.spremno ? stanje : null;
@@ -598,20 +619,22 @@ function DanasFokus({ zovi }: { zovi: ZoviSada | null }) {
           <Skeleton className="h-9 w-52 rounded-lg" />
         ) : uRedu > 0 ? (
           <div className="flex flex-col items-start gap-1.5 md:items-end">
-            <Button
-              render={<ProjekatLink href={REZIM_POZIVA_HREF} />}
-              nativeButton={false}
-              variant="primary"
-              size="lg"
-              className="touch-target px-4"
-            >
-              <PhoneCall data-icon="inline-start" aria-hidden />
-              Započni režim poziva
-              <ArrowRight data-icon="inline-end" aria-hidden />
-            </Button>
+            {moze && (
+              <Button
+                render={<ProjekatLink href={REZIM_POZIVA_HREF} />}
+                nativeButton={false}
+                variant="primary"
+                size="lg"
+                className="touch-target px-4"
+              >
+                <PhoneCall data-icon="inline-start" aria-hidden />
+                Započni režim poziva
+                <ArrowRight data-icon="inline-end" aria-hidden />
+              </Button>
+            )}
             <span className="text-meta text-text-muted">
               <span className="font-mono tabular-nums text-foreground">{uRedu}</span>{" "}
-              {pluralSr(uRedu, "firma", "firme", "firmi")} u redu, jedna po jedna
+              {pluralSr(uRedu, "firma", "firme", "firmi")} u redu{moze && ", jedna po jedna"}
             </span>
           </div>
         ) : (

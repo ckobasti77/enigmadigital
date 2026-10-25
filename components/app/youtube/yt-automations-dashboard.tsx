@@ -5,7 +5,11 @@ import { ProjekatLink } from "@/components/app/projekat-link";
 import type { FunctionReturnType } from "convex/server";
 import { Inbox, MessageSquareReply, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { useProjekatQuery } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
+import { SamoZa } from "@/components/app/samo-za";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,6 +39,7 @@ export function YtAutomationsDashboard() {
 
   const automations = useProjekatQuery(api.ytAutomationsApi.listAutomations);
   const connections = useProjekatQuery(api.connections.list);
+  const mozeUrediti = useMoze("urednik");
 
   const openNew = () => {
     setEditing(null);
@@ -74,10 +79,12 @@ export function YtAutomationsDashboard() {
         onChange={setTab}
         panelId="youtube-automations-panel"
         trailing={
-          <Button type="button" variant="primary" size="sm" onClick={openNew}>
-            <Plus />
-            <span>Nova automatizacija</span>
-          </Button>
+          mozeUrediti ? (
+            <Button type="button" variant="primary" size="sm" onClick={openNew}>
+              <Plus />
+              <span>Nova automatizacija</span>
+            </Button>
+          ) : undefined
         }
       />
 
@@ -185,20 +192,32 @@ function NoAutomations({ onCreate }: { onCreate: () => void }) {
   // prateća radnja.
   return (
     <Card className="border border-dashed border-line bg-card ring-0">
-      <EmptyState
-        icon={MessageSquareReply}
-        title="Napravi prvu automatizaciju"
-        action={
-          <Button type="button" variant="secondary" size="sm" onClick={onCreate}>
-            <Plus className="size-4" />
-            <span>Nova automatizacija</span>
-          </Button>
+      <SamoZa
+        uloga="urednik"
+        inace={
+          <EmptyState
+            icon={MessageSquareReply}
+            title="Još nema automatizacija"
+          >
+            Automatizacije pravi urednik ili vlasnik projekta.
+          </EmptyState>
         }
       >
-        Izaberi ključnu reč i napiši odgovor. Svako ko tu reč napiše u komentaru
-        dobija javan odgovor sa kanala — i, ako hoćeš, komentar ide na
-        moderaciju.
-      </EmptyState>
+        <EmptyState
+          icon={MessageSquareReply}
+          title="Napravi prvu automatizaciju"
+          action={
+            <Button type="button" variant="secondary" size="sm" onClick={onCreate}>
+              <Plus className="size-4" />
+              <span>Nova automatizacija</span>
+            </Button>
+          }
+        >
+          Izaberi ključnu reč i napiši odgovor. Svako ko tu reč napiše u komentaru
+          dobija javan odgovor sa kanala — i, ako hoćeš, komentar ide na
+          moderaciju.
+        </EmptyState>
+      </SamoZa>
     </Card>
   );
 }

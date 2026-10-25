@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -53,6 +54,10 @@ export interface NewHookVersionDialogProps {
 }
 
 export function NewHookVersionDialog(props: NewHookVersionDialogProps) {
+  // Nova verzija hook-a pravi oglas na nalogu: samo vlasnik.
+  const mozeVlasnik = useMoze("owner");
+  if (!mozeVlasnik) return null;
+
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       {props.open && <NewHookVersionDialogLoader {...props} />}

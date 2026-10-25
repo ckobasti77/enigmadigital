@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { readRail } from "./app-shell";
+import { KLJUC_POZIVNICE, putanjaPozivnice } from "@/lib/pozivnica-token";
 
 /**
  * Kapija prijave za sve strane iza naloga: hub „Svi projekti“ i ekrane
@@ -35,9 +36,34 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         <RedirectToLogin />
       </Unauthenticated>
 
-      <Authenticated>{children}</Authenticated>
+      <Authenticated>
+        <PozivnicaCatcher />
+        {children}
+      </Authenticated>
     </>
   );
+}
+
+/**
+ * Posle prijave vrati korisnika na pozivnicu koju je prijava parkirala
+ * (`/login?pozivnica=<token>`, postojeći nalog prihvata poziv u drugi
+ * projekat). Token se čita i briše odmah, i koristi se samo ako ima tačan
+ * oblik tokena (`lib/pozivnica-token.ts`), pa ne može da odvede na tuđu adresu.
+ */
+function PozivnicaCatcher() {
+  const router = useRouter();
+  useEffect(() => {
+    let parkiran: string | null = null;
+    try {
+      parkiran = window.sessionStorage.getItem(KLJUC_POZIVNICE);
+      window.sessionStorage.removeItem(KLJUC_POZIVNICE);
+    } catch {
+      // storage unavailable — nothing to resume
+    }
+    const putanja = putanjaPozivnice(parkiran);
+    if (putanja !== null) router.replace(putanja);
+  }, [router]);
+  return null;
 }
 
 /**

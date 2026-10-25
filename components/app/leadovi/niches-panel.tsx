@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { pojasKvaliteta, POJAS_NATPISI } from "@/convex/lib/siteScore";
 import { FeedbackNote } from "@/components/app/feedback";
 import {
+  useMoze,
   useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -164,6 +165,7 @@ export function NichesPanel({
   /** Postavlja filter po niši i prebacuje na jezičak sa tabelom. */
   onShowCompanies: (slug: string) => void;
 }) {
+  const moze = useMoze("urednik");
   const nise = useProjekatQuery(api.nichesStore.listNiches);
   const upsertNiche = useProjekatMutation(api.nichesStore.upsertNiche);
   const deleteNiche = useProjekatMutation(api.nichesStore.deleteNiche);
@@ -250,23 +252,24 @@ export function NichesPanel({
               <p className="text-xs leading-relaxed text-text-muted">
                 Nišu obično pravi skill `/generate-leads` sam, pri prvom uvozu:
                 ako ključ niše iz upita ne postoji, napravi je i upiše opis.
-                Ovde je praviš ručno kad želiš da pripremiš platforme i opis
-                pre prvog uvoza.
+                {moze &&
+                  " Ovde je praviš ručno kad želiš da pripremiš platforme i opis pre prvog uvoza."}
               </p>
             </div>
-            {novaNisa === null ? (
-              <Button size="sm" onClick={() => setNovaNisa("")} className="gap-1.5">
-                <Plus className="size-3.5" />
-                Nova niša
-              </Button>
-            ) : (
-              <NovaNisaForma
-                value={novaNisa}
-                onChange={setNovaNisa}
-                onSubmit={napraviNisu}
-                onCancel={() => setNovaNisa(null)}
-              />
-            )}
+            {moze &&
+              (novaNisa === null ? (
+                <Button size="sm" onClick={() => setNovaNisa("")} className="gap-1.5">
+                  <Plus className="size-3.5" />
+                  Nova niša
+                </Button>
+              ) : (
+                <NovaNisaForma
+                  value={novaNisa}
+                  onChange={setNovaNisa}
+                  onSubmit={napraviNisu}
+                  onCancel={() => setNovaNisa(null)}
+                />
+              ))}
           </CardContent>
         </Card>
       ) : (
@@ -277,7 +280,7 @@ export function NichesPanel({
               <span className="text-micro font-semibold text-text-muted">
                 {nise.length} niša u radnom prostoru
               </span>
-              {novaNisa === null && (
+              {moze && novaNisa === null && (
                 <Button
                   size="xs"
                   variant="outline"
@@ -448,6 +451,7 @@ function NichePanel({
   onDelete: () => void;
   onShowCompanies: (slug: string) => void;
 }) {
+  const moze = useMoze("urednik");
   const updateOpis = useProjekatMutation(api.nichesStore.updateNicheOpis);
   const upsertNiche = useProjekatMutation(api.nichesStore.upsertNiche);
   const upsertPlatform = useProjekatMutation(api.nichesStore.upsertNichePlatform);
@@ -570,15 +574,17 @@ function NichePanel({
               <Table2 className="size-3.5" />
               Prikaži firme ({nisa.brojaci.firmi})
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={onDelete}
-              className="gap-1.5 text-xs text-text-muted hover:text-danger"
-            >
-              <Trash2 className="size-3.5" />
-              Obriši
-            </Button>
+            {moze && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={onDelete}
+                className="gap-1.5 text-xs text-text-muted hover:text-danger"
+              >
+                <Trash2 className="size-3.5" />
+                Obriši
+              </Button>
+            )}
           </div>
         </div>
 
@@ -589,7 +595,7 @@ function NichePanel({
               Opis
             </h4>
             <OpisAutor nisa={nisa} />
-            {!urediOpis && (
+            {moze && !urediOpis && (
               <Button
                 size="xs"
                 variant="ghost"
@@ -637,7 +643,8 @@ function NichePanel({
             </p>
           ) : (
             <p className="text-xs text-text-muted">
-              Nema opisa. Skill ga piše pri uvozu; do tada ga možeš napisati sam.
+              Nema opisa. Skill ga piše pri uvozu
+              {moze ? "; do tada ga možeš napisati sam." : "."}
             </p>
           )}
         </section>
@@ -648,7 +655,7 @@ function NichePanel({
             <h4 className="text-micro font-semibold uppercase tracking-wider text-text-muted">
               Platforme ({nisa.platforme.length})
             </h4>
-            {novaPlatforma === null && (
+            {moze && novaPlatforma === null && (
               <Button
                 size="xs"
                 variant="ghost"
@@ -679,14 +686,16 @@ function NichePanel({
                   {p.url && p.napomena && (
                     <span className="text-micro text-text-muted">{p.napomena}</span>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => void skloniPlatformu(p._id)}
-                    aria-label={`Ukloni platformu ${PLATFORMA_NATPISI[p.platforma]}`}
-                    className="cursor-pointer rounded p-1 text-text-muted transition-colors hover:bg-danger/10 hover:text-danger"
-                  >
-                    <X className="size-3" />
-                  </button>
+                  {moze && (
+                    <button
+                      type="button"
+                      onClick={() => void skloniPlatformu(p._id)}
+                      aria-label={`Ukloni platformu ${PLATFORMA_NATPISI[p.platforma]}`}
+                      className="cursor-pointer rounded p-1 text-text-muted transition-colors hover:bg-danger/10 hover:text-danger"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -763,16 +772,24 @@ function NichePanel({
             <h4 className="text-micro font-semibold uppercase tracking-wider text-text-muted">
               Sajtovi
             </h4>
-            <label className="ml-auto inline-flex cursor-pointer items-center gap-2 text-micro text-text-muted">
-              <span title={`Kad je uključeno, sajt bez alata ili forme za termin dobija signal „nema zakazivanja".`}>
-                niša traži zakazivanje
+            {moze ? (
+              <label className="ml-auto inline-flex cursor-pointer items-center gap-2 text-micro text-text-muted">
+                <span title={`Kad je uključeno, sajt bez alata ili forme za termin dobija signal „nema zakazivanja".`}>
+                  niša traži zakazivanje
+                </span>
+                <Switch
+                  checked={nisa.trebaZakazivanje === true}
+                  onCheckedChange={(v) => void postaviZakazivanje(v)}
+                  aria-label="Niša traži zakazivanje"
+                />
+              </label>
+            ) : (
+              <span className="ml-auto text-micro text-text-muted">
+                {nisa.trebaZakazivanje === true
+                  ? "niša traži zakazivanje"
+                  : "niša ne traži zakazivanje"}
               </span>
-              <Switch
-                checked={nisa.trebaZakazivanje === true}
-                onCheckedChange={(v) => void postaviZakazivanje(v)}
-                aria-label="Niša traži zakazivanje"
-              />
-            </label>
+            )}
           </div>
 
           {nisa.sajt.ocenjeno === 0 ? (
@@ -847,7 +864,7 @@ function NichePanel({
             <h4 className="text-micro font-semibold uppercase tracking-wider text-text-muted">
               Šifre delatnosti (APR)
             </h4>
-            {!urediSifre && (
+            {moze && !urediSifre && (
               <Button
                 size="xs"
                 variant="ghost"

@@ -47,6 +47,7 @@ import {
 import { PillToggle } from "./yt-automation-editor-dialog";
 import type { VideoItem } from "./youtube-videos-grid";
 import { formatNumber } from "@/lib/format";
+import { vremeUBeogradu } from "@/convex/lib/globalneKvote";
 import { DUR_UI, EASE_UI } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { FeedbackNote } from "@/components/app/feedback";
@@ -55,6 +56,7 @@ import {
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
 import {
+  useMoze,
   useProjekat,
   useProjekatAction,
   useProjekatMutation,
@@ -124,6 +126,9 @@ export function YtCaptionsPanel({
   video: VideoItem | null;
   onOpenChange: (open: boolean) => void;
 }) {
+  // Titlovi su sva izmena (i čitanje troši kvotu): posmatrač nema ovaj panel.
+  const mozeUrediti = useMoze("urednik");
+  if (!mozeUrediti) return null;
   return (
     <Dialog
       open={video !== null}
@@ -841,7 +846,15 @@ function CaptionFilePicker({
 // ── the price, before the click ──────────────────────────────────────────────
 
 type MediaQuota =
-  | { unitsUsed: number; unitsRemaining: number; mediaLimit: number }
+  | {
+      unitsUsed: number;
+      unitsRemaining: number;
+      mediaLimit: number;
+      /** Zagarantovan deo ovog projekta (kvotu dele svi projekti). */
+      deoProjekta: number;
+      projekata: number;
+      obnovaU: number;
+    }
   | undefined;
 
 function affordable(quota: MediaQuota, cost: number): boolean {
@@ -928,9 +941,13 @@ function CostPanel({
       ) : (
         <p className="mt-2 text-xs leading-relaxed text-danger">
           Ostalo je samo {formatNumber(quota.unitsRemaining)} jedinica za
-          izmene, a ovo traži {formatNumber(cost)}. Ostatak dnevnog budžeta je
-          rezervisan za automatske odgovore na komentare i ne troši se ovde.
-          Pokušaj sutra.
+          izmene, a ovo traži {formatNumber(cost)}
+          {quota.projekata > 1
+            ? ` (deo ovog projekta: ${formatNumber(quota.deoProjekta)})`
+            : ""}
+          . Ostatak dnevnog budžeta je rezervisan za automatske odgovore na
+          komentare i ne troši se ovde. Kvota se obnavlja u{" "}
+          {vremeUBeogradu(quota.obnovaU)}.
         </p>
       )}
     </div>

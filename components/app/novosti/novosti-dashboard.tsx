@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { useProjekat } from "@/components/app/projekat-provider";
+import { useMoze, useProjekat } from "@/components/app/projekat-provider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
@@ -54,6 +54,8 @@ function saveLocalDrafts(workspaceId: string, drafts: PostItem[]): void {
 
 export function NovostiDashboard() {
   const { spreman, slug, workspaceId } = useProjekat();
+  // Posmatrač vidi tablu sa postovima, ali ne piše, ne uređuje i ne objavljuje.
+  const moze = useMoze("urednik");
 
   const [activeView, setActiveView] = useState<"table" | "editor">("table");
   const [editingPost, setEditingPost] = useState<Partial<PostItem> | null>(null);
@@ -147,6 +149,7 @@ export function NovostiDashboard() {
   };
 
   const handleEditPost = (post: PostItem) => {
+    if (!moze) return;
     setEditingPost(post);
     setActiveView("editor");
   };
@@ -181,7 +184,7 @@ export function NovostiDashboard() {
     );
   }
 
-  if (activeView === "editor") {
+  if (activeView === "editor" && moze) {
     return (
       <div className="flex flex-1 flex-col gap-6">
         {/* Uređivač ima svoje zaglavlje; ovde ostaje samo H1 za čitač ekrana. */}
@@ -204,17 +207,19 @@ export function NovostiDashboard() {
         description={DESCRIPTION}
         info={INFO}
         actions={
-          <Button type="button" variant="primary" onClick={handleCreateNew}>
-            <Plus aria-hidden />
-            Novi post
-          </Button>
+          moze ? (
+            <Button type="button" variant="primary" onClick={handleCreateNew}>
+              <Plus aria-hidden />
+              Novi post
+            </Button>
+          ) : undefined
         }
       />
 
       <NovostiBoard
         posts={allPosts}
         isLoading={publishedData === undefined}
-        onEditPost={handleEditPost}
+        onEditPost={moze ? handleEditPost : undefined}
       />
     </div>
   );

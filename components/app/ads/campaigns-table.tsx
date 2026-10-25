@@ -12,6 +12,7 @@ import { activatable } from "@/lib/activate";
 const spendDef = resolveMetric("spend")!;
 const cpaDef = resolveMetric("costPerResult")!;
 import { cn } from "@/lib/utils";
+import { useMoze } from "@/components/app/projekat-provider";
 import {
   ArrowDown,
   ArrowUp,
@@ -187,6 +188,8 @@ export function CampaignsTable({
   campaigns: CampaignRow[];
   onSelectCampaign: (id: Id<"adCampaigns">) => void;
 }) {
+  // Pauziranje i budžet su radnje nad nalogom oglasa: samo vlasnik.
+  const mozeVlasnik = useMoze("owner");
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT);
   const [platformFilter, setPlatformFilter] = useState<"all" | "meta" | "google">("all");
   const [activeAction, setActiveAction] = useState<{
@@ -396,6 +399,8 @@ export function CampaignsTable({
               ) : (
                 rows.map((row) => {
                   const sparkValues = row.dailySpend.map((d) => d.spend);
+                  const jeGoogle =
+                    row.provider === "google_ads" || row.provider === "google";
                   return (
                     <TableRow
                       key={row._id}
@@ -509,7 +514,7 @@ export function CampaignsTable({
                       <TableCell className="pr-5 text-right">
                         <div className="flex items-center justify-end gap-2">
                           {/* Row Actions (Stop propagation to prevent row click) */}
-                          {row.provider !== "google_ads" && row.provider !== "google" ? (
+                          {!jeGoogle && mozeVlasnik ? (
                             <div
                               className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity"
                               onClick={(e) => e.stopPropagation()}
@@ -556,13 +561,20 @@ export function CampaignsTable({
                                 <TrendingUp className="size-3" />
                               </button>
                             </div>
-                          ) : (
+                          ) : jeGoogle ? (
                             <span className="text-micro text-text-muted/60 font-mono px-1">
                               read-only
                             </span>
-                          )}
+                          ) : null}
 
-                          <div className="flex items-center gap-1 text-text-muted group-hover:text-foreground transition-colors pl-1 border-l border-line-soft/60">
+                          <div
+                            className={cn(
+                              "flex items-center gap-1 text-text-muted group-hover:text-foreground transition-colors",
+                              // Razdelnik stoji samo uz dugmad (ili oznaku) levo od njega.
+                              (mozeVlasnik || jeGoogle) &&
+                                "pl-1 border-l border-line-soft/60",
+                            )}
+                          >
                             <span className="font-mono tabular-nums text-micro">
                               {row.adSetsCount} {row.adSetsCount === 1 ? (row.provider === "google_ads" ? "grupa" : "set") : (row.provider === "google_ads" ? "grupa" : "setova")}
                             </span>

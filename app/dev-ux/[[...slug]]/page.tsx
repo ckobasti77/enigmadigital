@@ -34,6 +34,7 @@ import InstagramStoriesPage from "@/app/(app)/[projekat]/instagram/stories/page"
 import InstagramPublishPage from "@/app/(app)/[projekat]/instagram/objavi/page";
 import InstagramPostDetailPage from "@/app/(app)/[projekat]/instagram/objave/[mediaId]/page";
 import { LoginClient } from "@/app/login/login-client";
+import { PozivnicaClient } from "@/app/pozivnica/[token]/pozivnica-client";
 import { LeadDetailPageClient } from "@/app/(app)/[projekat]/leadovi/[companyId]/lead-detail-page-client";
 import { AuthGate } from "@/components/app/auth-gate";
 import { SviProjekti } from "@/components/app/hub/svi-projekti";
@@ -121,11 +122,14 @@ export default async function DevUxPage({
     pad?: string;
     panel?: string;
     rezim?: string;
+    stanje?: string;
+    uloga?: string;
   }>;
 }) {
   if (process.env.NODE_ENV === "production") notFound();
   const { slug: putanja = [] } = await params;
-  const { prazno, pad, panel, rezim: trazeniRezim } = await searchParams;
+  const { prazno, pad, panel, rezim: trazeniRezim, stanje, uloga } =
+    await searchParams;
 
   if (putanja.join("/") === "sistem") {
     return (
@@ -146,6 +150,22 @@ export default async function DevUxPage({
     return (
       <UxHarness>
         <LoginClient brend={p ? { ime: p.ime, boja: p.boja, logoUrl: p.logoUrl } : null} />
+      </UxHarness>
+    );
+  }
+
+  // Ekran pozivnice je javna ruta van ljuske (`/pozivnica` matcher proxy-ja
+  // izuzima, pa se razvojni prikaz otvara kao `/pozivnica-ux?ux=1`).
+  // `&stanje=nov|postojeci|prijavljen|druga` bira slučaj: nov nalog
+  // (registracija), postojeći nalog pre prijave, prijavljen sa istom adresom
+  // (prihvatanje) i prijavljen sa drugom adresom.
+  if (putanja.join("/") === "pozivnica-ux") {
+    const izbor = ["nov", "postojeci", "prijavljen", "druga"].includes(stanje ?? "")
+      ? (stanje as string)
+      : "nov";
+    return (
+      <UxHarness odjavljen={izbor === "nov" || izbor === "postojeci"}>
+        <PozivnicaClient token={`ux-${izbor}`} />
       </UxHarness>
     );
   }
@@ -193,7 +213,7 @@ export default async function DevUxPage({
   if (!profilId && !objavaId && !Page) notFound();
 
   return (
-    <UxHarness prazno={prazno === "1"} pad={pad}>
+    <UxHarness prazno={prazno === "1"} pad={pad} uloga={uloga}>
       {/* Isto kao `app/(app)/layout.tsx` i `app/(app)/[projekat]/layout.tsx`. */}
       <AuthGate>
         <ProjekatProvider slug={projekat} rezim={rezim}>

@@ -23,7 +23,10 @@ import {
 } from "@/lib/rule-sentence";
 import { cn } from "@/lib/utils";
 import { FeedbackNote } from "@/components/app/feedback";
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekatMutation,
+} from "@/components/app/projekat-provider";
 import {
   Loader2,
   Shield,
@@ -59,6 +62,10 @@ export function RuleEditorDialog({
   ruleToEdit,
   onSaved,
 }: RuleEditorDialogProps) {
+  // Pravila pravi i menja samo vlasnik; za ostale se dijalog uopšte ne crta.
+  const mozeVlasnik = useMoze("owner");
+  if (!mozeVlasnik) return null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPopup className="max-w-xl sm:max-w-xl">

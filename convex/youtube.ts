@@ -6,6 +6,7 @@ import { projekatAction } from "./lib/projekat";
 import { redirectUriZa } from "./lib/oauthPovratak";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import { runSync, sanitizeSyncError } from "./lib/runSync";
+import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
 import {
   YOUTUBE_ANALYTICS_REPORTS_URL,
   YOUTUBE_DATA_API_BASE_URL,
@@ -439,24 +440,29 @@ export const syncYouTube = internalAction({
 });
 
 /**
- * Cron fan-out (every 6h): sync every YouTube connection. Per-connection errors
- * are already recorded on `syncRuns` by `runSync`, so we swallow here to keep
- * one bad connection from blocking the rest.
+ * Cron fan-out (every 6h): sync every YouTube connection, one project after
+ * another, oldest sync first, under one lock so two passes never overlap on
+ * the shared Data API budget. Per-connection errors are already recorded on
+ * `syncRuns` by `runSync`, so we swallow here to keep one bad connection from
+ * blocking the rest. The analytics sync spends the 2 000 units kept for it
+ * (`QUOTA_RESERVE_FOR_SYNC`), which the comment engine and media never touch.
  */
 export const syncAllYouTube = internalAction({
   args: {},
   handler: async (ctx) => {
-    const connectionIds = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "youtube" },
-    );
-    for (const connectionId of connectionIds) {
-      try {
-        await ctx.runAction(internal.youtube.syncYouTube, { connectionId });
-      } catch {
-        // recorded on syncRuns; continue with the next connection
+    await withCronLock(ctx, CRON_LOCKS.ytSync, async () => {
+      const veze = await ctx.runQuery(
+        internal.connections.listByProviderRedom,
+        { provider: "youtube" },
+      );
+      for (const { connectionId } of veze) {
+        try {
+          await ctx.runAction(internal.youtube.syncYouTube, { connectionId });
+        } catch {
+          // recorded on syncRuns; continue with the next connection
+        }
       }
-    }
+    });
   },
 });
 

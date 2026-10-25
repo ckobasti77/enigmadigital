@@ -18,12 +18,9 @@ import {
   parseYouTubeCredentials,
   youtubeApiErrorReason,
 } from "./lib/youtubeApi";
-import {
-  QUOTA_COST,
-  QUOTA_EXHAUSTED_MESSAGE,
-  canAfford,
-  remainingUnits,
-} from "./lib/ytQuota";
+import { QUOTA_COST } from "./lib/ytQuota";
+import { obnovaYoutube, vremeUBeogradu } from "./lib/globalneKvote";
+import type { RezultatRezervacije } from "./globalneKvoteStore";
 
 /**
  * YouTube reply / moderation engine (Y4) — the cousin of orSend.ts.
@@ -277,22 +274,16 @@ export const replyToComment = internalAction({
       return null;
     };
 
-    // YouTube says the budget is gone, and YouTube is authoritative: our own
-    // counter runs on a UTC day while the real quota resets at midnight
-    // Pacific. Burn what is left of today's allowance so the rest of the queue
-    // stops instead of making the same doomed call fifty times.
+    // YouTube says the budget is gone, and YouTube is authoritative: the
+    // budget belongs to the Google Cloud project behind EVERY project here, so
+    // the shared counter is closed until Pacific midnight and the rest of every
+    // project's queue stops instead of making the same doomed call fifty
+    // times. This project's own counter stays what it really spent.
     const handleQuotaExceeded = async (): Promise<null> => {
-      const unitsUsed: number = await ctx.runQuery(
-        internal.ytIngest.loadQuotaUsage,
-        { workspaceId },
-      );
-      await ctx.runMutation(internal.ytIngest.recordQuotaUsage, {
-        workspaceId,
-        units: remainingUnits(unitsUsed),
-      });
+      await ctx.runMutation(internal.globalneKvoteStore.zatvoriYoutubeDan, {});
       return await finish({
         status: "skipped_quota",
-        errorMessage: QUOTA_EXHAUSTED_MESSAGE,
+        errorMessage: `Zajednička YouTube kvota svih projekata je potrošena. Odgovori se nastavljaju u ${vremeUBeogradu(obnovaYoutube(Date.now()))}.`,
       });
     };
 
@@ -334,22 +325,19 @@ export const replyToComment = internalAction({
         : QUOTA_COST.commentsSetModerationStatus;
 
     // Attempt 1 spends what ingest already reserved. A retry is a fresh 50
-    // units, so it is checked and booked here before the call goes out.
+    // units, so it is reserved here — this project's share and the shared
+    // counter together — before the call goes out.
     if (attempts > 1) {
-      const unitsUsed: number = await ctx.runQuery(
-        internal.ytIngest.loadQuotaUsage,
-        { workspaceId },
+      const rezervacija: RezultatRezervacije = await ctx.runMutation(
+        internal.globalneKvoteStore.rezervisi,
+        { kljuc: "youtube", klasa: "odgovori", workspaceId, trosak: mainCost },
       );
-      if (!canAfford(unitsUsed, mainCost)) {
+      if (!rezervacija.ok) {
         return await finish({
           status: "skipped_quota",
-          errorMessage: QUOTA_EXHAUSTED_MESSAGE,
+          errorMessage: rezervacija.poruka,
         });
       }
-      await ctx.runMutation(internal.ytIngest.recordQuotaUsage, {
-        workspaceId,
-        units: mainCost,
-      });
     }
 
     let token: string;

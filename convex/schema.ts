@@ -100,10 +100,14 @@ export default defineSchema({
     usedAt: v.optional(v.number()),
     usedByUserId: v.optional(v.id("users")),
     revokedAt: v.optional(v.number()),
+    // Uloga koju pozivnica daje u svom projektu; bez vrednosti = urednik (E14).
+    uloga: v.optional(ulogaValidator),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_token_hash", ["tokenHash"])
-    .index("by_workspace_email", ["workspaceId", "email"]),
+    .index("by_workspace_email", ["workspaceId", "email"])
+    // Kapija prijave traži otvoren prozor pozivnice u SVIM projektima.
+    .index("by_email", ["email"]),
 
   // Per-integration credentials. The secret (token / service account JSON /
   // connection string) is AES-256-GCM encrypted before write; the plaintext is
@@ -2555,7 +2559,7 @@ export default defineSchema({
   // engine before it starves the numbers (lib/ytQuota.ts).
   ytQuotaUsage: defineTable({
     workspaceId: v.id("workspaces"),
-    date: v.string(), // "YYYY-MM-DD", UTC (utcDateKey)
+    date: v.string(), // "YYYY-MM-DD", pacifički dan (lib/globalneKvote.ts, E18)
     unitsUsed: v.number(),
     // videos.insert calls made today. Kept apart from `unitsUsed` because
     // Google meters uploads separately: an upload does not cost a single unit
@@ -2563,6 +2567,38 @@ export default defineSchema({
     uploadsUsed: v.optional(v.number()),
     updatedAt: v.number(),
   }).index("by_workspace_date", ["workspaceId", "date"]),
+
+  // Brojači kvota koje dele SVI projekti (PROJEKTI-PLAN §9, plan C10 §6.1): YouTube
+  // po Google Cloud projektu, Google Ads po developer tokenu, Meta procenat
+  // aplikacije. Bez `workspaceId`: brojači po projektu ostaju u `ytQuotaUsage`,
+  // `gadsQuota`, `metaApiUsage` i `metaAdsQuota`. Upisuje samo
+  // `globalneKvoteStore.ts`; stari redovi se brišu cron-om.
+  globalneKvote: defineTable({
+    kljuc: v.union(
+      v.literal("youtube"),
+      v.literal("google_ads"),
+      v.literal("meta_app"),
+    ),
+    // youtube: pacifički dan "YYYY-MM-DD"; google_ads: UTC sat "YYYY-MM-DDTHH";
+    // meta_app: "tekuce".
+    datum: v.string(),
+    // youtube: Data API jedinice svih projekata; google_ads: operacije u tom
+    // satu; meta_app: 0.
+    jedinice: v.number(),
+    // youtube: videos.insert svih projekata.
+    uploadi: v.optional(v.number()),
+    // meta_app: poslednje očitavanje X-App-Usage (0–100) i prigušenje cele
+    // aplikacije (kod 4).
+    callCount: v.optional(v.number()),
+    cpuTime: v.optional(v.number()),
+    totalTime: v.optional(v.number()),
+    // meta_app: x-fb-ads-insights-throttle app_id_util_pct i kad je stiglo.
+    uvidiAppPct: v.optional(v.number()),
+    uvidiAt: v.optional(v.number()),
+    backoffUntil: v.optional(v.number()),
+    backoffMs: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index("by_kljuc_datum", ["kljuc", "datum"]),
 
   // ── YouTube media operations (Y6) ───────────────────────────────────────────
   // One row per media operation an operator started: an upload, a metadata

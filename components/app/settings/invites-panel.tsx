@@ -20,11 +20,14 @@ import { Field } from "@/components/app/form-kit";
 import { FeedbackNote } from "@/components/app/feedback";
 import { StatusPill } from "./status-pill";
 import {
+  useMoze,
   useProjekat,
   useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
+import { SegmentedToggle } from "@/components/app/analytics/segmented-toggle";
 import { formatDateTime } from "@/lib/format";
+import { NAZIV_ULOGE, type Uloga } from "@/convex/lib/uloge";
 
 type ZapisStatus = "vazi" | "istekla" | "iskoriscena" | "povucena";
 
@@ -52,11 +55,29 @@ function porukaGreske(error: unknown): string {
   return "Pozivnica nije napravljena iz nepoznatog razloga. Pokušaj ponovo.";
 }
 
-type NovaPozivnica = { token: string; email: string; expiresAt: number };
+type NovaPozivnica = {
+  token: string;
+  email: string;
+  expiresAt: number;
+  panelOrigin: string | null;
+};
+
+/** Urednik je podrazumevan: radi posao, a veze i članove ostavlja vlasniku. */
+const ULOGE_POZIVNICE: readonly { value: Uloga; label: string }[] = [
+  { value: "urednik", label: NAZIV_ULOGE.urednik },
+  { value: "client_viewer", label: NAZIV_ULOGE.client_viewer },
+  { value: "owner", label: NAZIV_ULOGE.owner },
+];
+
+const OPIS_ULOGE: Record<Uloga, string> = {
+  urednik: "Radi sa leadovima, objavama i porukama; ne dira veze, članove ni podešavanja.",
+  client_viewer: "Samo gleda brojeve i sadržaj; ne menja ništa.",
+  owner: "Sve, uključujući veze, brisanje, članove i podešavanja projekta.",
+};
 
 export function InvitesPanel() {
-  const { spreman, uloga } = useProjekat();
-  const jeVlasnik = uloga === "owner";
+  const { spreman } = useProjekat();
+  const jeVlasnik = useMoze("owner");
 
   const invites = useProjekatQuery(
     api.invitesStore.listInvites,
@@ -67,6 +88,7 @@ export function InvitesPanel() {
   const deleteInvite = useProjekatMutation(api.invitesStore.deleteInvite);
 
   const [email, setEmail] = useState("");
+  const [uloga, setUloga] = useState<Uloga>("urednik");
   const [radim, setRadim] = useState(false);
   const [greska, setGreska] = useState<string | null>(null);
   const [nova, setNova] = useState<NovaPozivnica | null>(null);
@@ -74,9 +96,11 @@ export function InvitesPanel() {
   const [povlacim, setPovlacim] = useState<string | null>(null);
   const [brisem, setBrisem] = useState<string | null>(null);
 
+  // Link vodi na panel domen projekta kad ga ima, inače na adresu sa koje je
+  // pozivnica napravljena (hub ili lokalni razvoj).
   const link = nova
     ? `${
-        process.env.NEXT_PUBLIC_SITE_URL ??
+        nova.panelOrigin ??
         (typeof window !== "undefined" ? window.location.origin : "")
       }/pozivnica/${nova.token}`
     : "";
@@ -93,7 +117,7 @@ export function InvitesPanel() {
     setKopirano(false);
     setRadim(true);
     try {
-      const rezultat = await createInvite({ email: email.trim() });
+      const rezultat = await createInvite({ email: email.trim(), uloga });
       setNova(rezultat);
       setEmail("");
     } catch (error) {
@@ -147,9 +171,22 @@ export function InvitesPanel() {
         <h3 className="text-sm font-medium text-foreground">Nova pozivnica</h3>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
           Unesi email osobe. Dobićeš link koji joj prosleđuješ ručno — registruje
-          se sa tačno tom adresom. Link se prikazuje jednom; posle zatvaranja se
-          ne može ponovo videti.
+          se sa tačno tom adresom, a ko već ima nalog prihvata poziv posle
+          prijave. Link se prikazuje jednom; posle zatvaranja se ne može ponovo
+          videti.
         </p>
+
+        <div className="mt-4 flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-foreground">Uloga</span>
+          <SegmentedToggle
+            options={ULOGE_POZIVNICE}
+            value={uloga}
+            onChange={setUloga}
+            ariaLabel="Uloga u projektu"
+            className="self-start"
+          />
+          <p className="text-xs text-text-muted">{OPIS_ULOGE[uloga]}</p>
+        </div>
 
         <form onSubmit={napravi} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
           <Field label="Email" className="flex-1">
@@ -254,6 +291,7 @@ export function InvitesPanel() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Adresa</TableHead>
+                  <TableHead>Uloga</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Napravljena</TableHead>
                   <TableHead>Ističe</TableHead>
@@ -267,6 +305,9 @@ export function InvitesPanel() {
                   return (
                     <TableRow key={inv._id}>
                       <TableCell className="font-mono text-xs">{inv.email}</TableCell>
+                      <TableCell className="text-xs text-text-muted">
+                        {NAZIV_ULOGE[inv.uloga]}
+                      </TableCell>
                       <TableCell>
                         <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
                       </TableCell>

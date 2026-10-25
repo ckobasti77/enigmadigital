@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import {
+  useMoze,
   useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -59,6 +60,8 @@ export function ThreadsJobsPanel() {
   const jobs = useProjekatQuery(api.threadsPublishStore.listJobs);
   const cancelJob = useProjekatMutation(api.threadsPublishStore.cancelJob);
   const retryJob = useProjekatMutation(api.threadsPublishStore.retryJob);
+  // Posmatrač vidi red i istoriju, ali ne otkazuje i ne ponavlja slanje.
+  const mozeUrediti = useMoze("urednik");
 
   const [pending, setPending] = useState<{
     job: PublishJob;
@@ -143,7 +146,9 @@ export function ThreadsJobsPanel() {
                 <TableHead className="py-2.5 font-medium">Status</TableHead>
                 <TableHead className="py-2.5 font-medium">Termin / Vreme</TableHead>
                 <TableHead className="py-2.5 font-medium text-center">Pokušaji</TableHead>
-                <TableHead className="py-2.5 text-right font-medium">Akcije</TableHead>
+                {mozeUrediti && (
+                  <TableHead className="py-2.5 text-right font-medium">Akcije</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody className="divide-y divide-line/40 text-xs">
@@ -222,33 +227,35 @@ export function ThreadsJobsPanel() {
                     </TableCell>
 
                     {/* Akcije */}
-                    <TableCell className="py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {job.status === "failed" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setPending({ job, action: "retry" })}
-                            className="h-7 gap-1 px-2 text-xs"
-                          >
-                            <RotateCw className="size-3" aria-hidden="true" />
-                            <span>Pokušaj ponovo</span>
-                          </Button>
-                        )}
+                    {mozeUrediti && (
+                      <TableCell className="py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {job.status === "failed" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setPending({ job, action: "retry" })}
+                              className="h-7 gap-1 px-2 text-xs"
+                            >
+                              <RotateCw className="size-3" aria-hidden="true" />
+                              <span>Pokušaj ponovo</span>
+                            </Button>
+                          )}
 
-                        {job.cancellable && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setPending({ job, action: "cancel" })}
-                            className="h-7 gap-1 px-2 text-xs text-danger hover:bg-danger/10 hover:text-danger"
-                          >
-                            <X className="size-3" aria-hidden="true" />
-                            <span>Otkaži</span>
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
+                          {job.cancellable && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setPending({ job, action: "cancel" })}
+                              className="h-7 gap-1 px-2 text-xs text-danger hover:bg-danger/10 hover:text-danger"
+                            >
+                              <X className="size-3" aria-hidden="true" />
+                              <span>Otkaži</span>
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}

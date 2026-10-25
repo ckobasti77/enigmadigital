@@ -22,6 +22,7 @@ import {
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
 import { useProjekatAction } from "@/components/app/projekat-provider";
+import { SamoZa } from "@/components/app/samo-za";
 import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { convexMessage } from "./comment-thread";
@@ -261,19 +262,21 @@ export function MentionCard({ mention }: { mention: MentionData }) {
           )}
 
           {/* Jedina dozvoljena radnja: Odgovori (bez sakrivanja i bez brisanja) */}
-          <div className="mt-2 flex flex-wrap items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              aria-expanded={replyOpen}
-              onClick={() => setReplyOpen((open) => !open)}
-              className="text-text-muted hover:text-foreground"
-            >
-              <Reply data-icon="inline-start" />
-              {isReplied ? "Ponovo odgovori" : "Odgovori"}
-            </Button>
-          </div>
+          <SamoZa uloga="urednik">
+            <div className="mt-2 flex flex-wrap items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                aria-expanded={replyOpen}
+                onClick={() => setReplyOpen((open) => !open)}
+                className="text-text-muted hover:text-foreground"
+              >
+                <Reply data-icon="inline-start" />
+                {isReplied ? "Ponovo odgovori" : "Odgovori"}
+              </Button>
+            </div>
+          </SamoZa>
 
           {replyOpen && (
             <MentionReplyComposer

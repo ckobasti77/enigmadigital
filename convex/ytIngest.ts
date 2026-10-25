@@ -1,14 +1,12 @@
-import { internalMutation, internalQuery } from "./_generated/server";
-import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { matchKeywords, utcDateKey } from "./lib/orMatch";
-import {
-  QUOTA_COST,
-  QUOTA_EXHAUSTED_MESSAGE,
-  canAfford,
-} from "./lib/ytQuota";
+import { QUOTA_COST } from "./lib/ytQuota";
+import { pacifickiDan } from "./lib/globalneKvote";
+import { rezervisiYoutube } from "./globalneKvoteStore";
 
 /**
  * YouTube comment ingest (Y4) — the cousin of orIngest.ts, with two
@@ -37,14 +35,13 @@ const ingestResultValidator = v.union(
 // ── quota bookkeeping ────────────────────────────────────────────────────────
 
 /**
- * Units spent today.
+ * Units the project has spent today.
  *
- * The day is keyed in UTC like every other daily table here, while YouTube's
- * own quota resets at midnight Pacific. The two boundaries are ~8h apart, so
- * a counter that resets at 16:00 PT can hand out a fresh budget in the middle
- * of YouTube's day. The reply path treats a real `quotaExceeded` from YouTube
- * as authoritative and closes the engine for the rest of our day, which is the
- * backstop for that gap.
+ * The day is the Pacific day (lib/globalneKvote.ts, E18), the same day Google
+ * resets the quota on, so "resumes at 09:00" is true. The counter is this
+ * project's share; the shared counter of all projects lives in
+ * `globalneKvote` and is written in the same transaction by
+ * `globalneKvoteStore.rezervisiYoutube`.
  */
 export async function readUnitsUsed(
   ctx: QueryCtx,
@@ -53,62 +50,11 @@ export async function readUnitsUsed(
   const row = await ctx.db
     .query("ytQuotaUsage")
     .withIndex("by_workspace_date", (q) =>
-      q.eq("workspaceId", workspaceId).eq("date", utcDateKey(Date.now())),
+      q.eq("workspaceId", workspaceId).eq("date", pacifickiDan(Date.now())),
     )
     .first();
   return row?.unitsUsed ?? 0;
 }
-
-/** Add to today's counter, creating the row on first spend. */
-async function addUnitsUsed(
-  ctx: MutationCtx,
-  workspaceId: Id<"workspaces">,
-  units: number,
-): Promise<void> {
-  if (units <= 0) return;
-  const now = Date.now();
-  const date = utcDateKey(now);
-  const row = await ctx.db
-    .query("ytQuotaUsage")
-    .withIndex("by_workspace_date", (q) =>
-      q.eq("workspaceId", workspaceId).eq("date", date),
-    )
-    .first();
-
-  if (row === null) {
-    await ctx.db.insert("ytQuotaUsage", {
-      workspaceId,
-      date,
-      unitsUsed: units,
-      updatedAt: now,
-    });
-    return;
-  }
-  await ctx.db.patch(row._id, {
-    unitsUsed: row.unitsUsed + units,
-    updatedAt: now,
-  });
-}
-
-/** Book quota an action has just spent (poller pages, reply retries). */
-export const recordQuotaUsage = internalMutation({
-  args: {
-    workspaceId: v.id("workspaces"),
-    units: v.number(),
-  },
-  returns: v.null(),
-  handler: async (ctx, { workspaceId, units }) => {
-    await addUnitsUsed(ctx, workspaceId, units);
-    return null;
-  },
-});
-
-/** Units the workspace has spent today; 0 when nothing has been spent yet. */
-export const loadQuotaUsage = internalQuery({
-  args: { workspaceId: v.id("workspaces") },
-  returns: v.number(),
-  handler: async (ctx, { workspaceId }) => readUnitsUsed(ctx, workspaceId),
-});
 
 // ── uploads: a second counter on the same row (Y10) ──────────────────────────
 
@@ -121,8 +67,8 @@ export const loadQuotaUsage = internalQuery({
  * its allowance. The ceiling it works against is ours, not Google's
  * (lib/ytQuota.ts, VIDEO_UPLOAD_DAILY_LIMIT).
  *
- * Both counters live on one row so a day has one record, and both are written
- * from this file so nothing has to guess how the row gets created.
+ * Both counters live on one row so a day has one record; both are written by
+ * `globalneKvoteStore.ts`, together with the shared counter of all projects.
  */
 export async function readUploadsUsed(
   ctx: QueryCtx,
@@ -131,50 +77,10 @@ export async function readUploadsUsed(
   const row = await ctx.db
     .query("ytQuotaUsage")
     .withIndex("by_workspace_date", (q) =>
-      q.eq("workspaceId", workspaceId).eq("date", utcDateKey(Date.now())),
+      q.eq("workspaceId", workspaceId).eq("date", pacifickiDan(Date.now())),
     )
     .first();
   return row?.uploadsUsed ?? 0;
-}
-
-/**
- * Move today's upload counter, creating the row on the first one.
- *
- * `delta` is signed: an upload is booked when it is started, and given back
- * when the resumable session turned out never to have opened — nothing was
- * sent, so nothing was used. Never below zero.
- */
-export async function addUploadsUsed(
-  ctx: MutationCtx,
-  workspaceId: Id<"workspaces">,
-  delta: number,
-): Promise<void> {
-  if (delta === 0) return;
-  const now = Date.now();
-  const date = utcDateKey(now);
-  const row = await ctx.db
-    .query("ytQuotaUsage")
-    .withIndex("by_workspace_date", (q) =>
-      q.eq("workspaceId", workspaceId).eq("date", date),
-    )
-    .first();
-
-  if (row === null) {
-    // A refund with no row to refund from is a no-op, not a negative counter.
-    if (delta < 0) return;
-    await ctx.db.insert("ytQuotaUsage", {
-      workspaceId,
-      date,
-      unitsUsed: 0,
-      uploadsUsed: delta,
-      updatedAt: now,
-    });
-    return;
-  }
-  await ctx.db.patch(row._id, {
-    uploadsUsed: Math.max(0, (row.uploadsUsed ?? 0) + delta),
-    updatedAt: now,
-  });
 }
 
 // ── automation cost & matching ───────────────────────────────────────────────
@@ -327,24 +233,30 @@ export const ingestComment = internalMutation({
       return "no_match";
     }
 
-    // 6. Can we afford to act on it? The check happens here rather than at
-    // send time because a burst of matching comments would otherwise each pass
-    // an affordability test that none of them had yet paid for.
-    const unitsUsed = await readUnitsUsed(ctx, args.workspaceId);
-    if (!canAfford(unitsUsed, matchedCost)) {
+    // 6–7. Can we afford to act on it — and if so, reserve it now. The check
+    // happens here rather than at send time because a burst of matching
+    // comments would otherwise each pass an affordability test that none of
+    // them had yet paid for. The reservation books this project's share and
+    // the shared counter of all projects in this same transaction, so two
+    // projects cannot both pass the last free units. The send path spends
+    // exactly what was reserved on its first attempt and reserves any retry
+    // separately.
+    const rezervacija = await rezervisiYoutube(
+      ctx,
+      args.workspaceId,
+      "odgovori",
+      matchedCost,
+    );
+    if (!rezervacija.ok) {
       await ctx.db.insert("ytCommentLogs", {
         ...logRow,
         automationId: matchedAutomation._id,
         matchedKeyword,
         status: "skipped_quota",
-        errorMessage: QUOTA_EXHAUSTED_MESSAGE,
+        errorMessage: rezervacija.poruka,
       });
       return "skipped_quota";
     }
-
-    // 7. Reserve the cost now. The send path spends exactly what was reserved
-    // on its first attempt and books any retry separately.
-    await addUnitsUsed(ctx, args.workspaceId, matchedCost);
 
     const commentLogId = await ctx.db.insert("ytCommentLogs", {
       ...logRow,

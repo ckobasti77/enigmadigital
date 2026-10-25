@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronDown, MessageCircle, ThumbsUp } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -134,6 +135,10 @@ function PostLikeButton({
 
   const flag = useOptimisticToggle(likedByUs === true);
   const value = flag.value;
+  const mozeUrediti = useMoze("urednik");
+
+  // Lajk stranice je radnja urednika; posmatrač ga ne vidi.
+  if (!mozeUrediti) return null;
 
   const toggle = async () => {
     const next = !value;

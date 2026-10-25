@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  useMoze,
   useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -405,6 +406,8 @@ export function LeadFilterBar() {
   const preseti = useProjekatQuery(api.leadFiltersStore.listPresets);
   const savePreset = useProjekatMutation(api.leadFiltersStore.savePreset);
   const deletePreset = useProjekatMutation(api.leadFiltersStore.deletePreset);
+  // Sačuvani preseti su zajednički tima: posmatrač ih koristi, ne piše i ne briše.
+  const moze = useMoze("urednik");
 
   // ── Tekstualna pretraga: URL se ne prepisuje na svaki pritisak tastera ──
   const [tekst, setTekst] = useState(filters.q);
@@ -742,19 +745,22 @@ export function LeadFilterBar() {
               >
                 {p.naziv}
               </button>
-              <button
-                type="button"
-                onClick={() => setZaBrisanje({ id: p._id, naziv: p.naziv })}
-                aria-label={`Obriši preset ${p.naziv}`}
-                className="cursor-pointer rounded-r-lg px-1 py-0.5 text-text-muted hover:bg-danger/10 hover:text-danger"
-              >
-                <Trash2 className="size-3" />
-              </button>
+              {moze && (
+                <button
+                  type="button"
+                  onClick={() => setZaBrisanje({ id: p._id, naziv: p.naziv })}
+                  aria-label={`Obriši preset ${p.naziv}`}
+                  className="cursor-pointer rounded-r-lg px-1 py-0.5 text-text-muted hover:bg-danger/10 hover:text-danger"
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              )}
             </span>
           ))
         )}
 
         {imePreseta === null ? (
+          moze &&
           aktivnihGrupa > 0 && (
             <button
               type="button"

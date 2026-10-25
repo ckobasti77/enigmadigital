@@ -6,6 +6,7 @@ import { CalendarClock, History, RotateCw, X } from "lucide-react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import {
+  useMoze,
   useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -81,6 +82,8 @@ export function PublishJobsPanel() {
   const jobs = useProjekatQuery(api.instagramPublishStore.listJobs);
   const cancelJob = useProjekatMutation(api.instagramPublishStore.cancelJob);
   const retryJob = useProjekatMutation(api.instagramPublishStore.retryJob);
+  // Posmatrač vidi red i istoriju, ali ne otkazuje i ne ponavlja slanje.
+  const mozeUrediti = useMoze("urednik");
 
   const [pending, setPending] = useState<{
     job: PublishJob;
@@ -158,9 +161,11 @@ export function PublishJobsPanel() {
                 <TableHead className="h-9 text-xs font-medium text-text-muted">
                   Kada
                 </TableHead>
-                <TableHead className="h-9 pr-3 text-right text-xs font-medium text-text-muted">
-                  Radnja
-                </TableHead>
+                {mozeUrediti && (
+                  <TableHead className="h-9 pr-3 text-right text-xs font-medium text-text-muted">
+                    Radnja
+                  </TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -168,6 +173,7 @@ export function PublishJobsPanel() {
                 <JobRow
                   key={job._id}
                   job={job}
+                  canAct={mozeUrediti}
                   onCancel={() => setPending({ job, action: "cancel" })}
                   onRetry={() => setPending({ job, action: "retry" })}
                 />
@@ -226,10 +232,13 @@ function describeJob(job: PublishJob): string {
 
 function JobRow({
   job,
+  canAct,
   onCancel,
   onRetry,
 }: {
   job: PublishJob;
+  /** Otkazivanje i ponovno slanje su posao urednika. */
+  canAct: boolean;
   onCancel: () => void;
   onRetry: () => void;
 }) {
@@ -287,34 +296,36 @@ function JobRow({
           )}
         </TableCell>
 
-        <TableCell className="py-2 pr-3 text-right">
-          {job.cancellable && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              onClick={onCancel}
-              className="text-text-muted hover:text-danger"
-            >
-              <X data-icon="inline-start" />
-              Otkaži
-            </Button>
-          )}
-          {job.status === "failed" && !job.filesDeleted && (
-            <Button type="button" variant="outline" size="xs" onClick={onRetry}>
-              <RotateCw data-icon="inline-start" />
-              Pokušaj ponovo
-            </Button>
-          )}
-          {job.status === "failed" && job.filesDeleted && (
-            <span className="text-micro text-text-muted">Fajlovi obrisani</span>
-          )}
-        </TableCell>
+        {canAct && (
+          <TableCell className="py-2 pr-3 text-right">
+            {job.cancellable && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={onCancel}
+                className="text-text-muted hover:text-danger"
+              >
+                <X data-icon="inline-start" />
+                Otkaži
+              </Button>
+            )}
+            {job.status === "failed" && !job.filesDeleted && (
+              <Button type="button" variant="outline" size="xs" onClick={onRetry}>
+                <RotateCw data-icon="inline-start" />
+                Pokušaj ponovo
+              </Button>
+            )}
+            {job.status === "failed" && job.filesDeleted && (
+              <span className="text-micro text-text-muted">Fajlovi obrisani</span>
+            )}
+          </TableCell>
+        )}
       </TableRow>
 
       {hasError && (
         <TableRow className="border-line-soft hover:bg-transparent">
-          <TableCell colSpan={4} className="px-3 pb-2 pt-0">
+          <TableCell colSpan={canAct ? 4 : 3} className="px-3 pb-2 pt-0">
             <p
               className={cn(
                 "rounded-md border px-2.5 py-1.5 text-micro leading-relaxed",

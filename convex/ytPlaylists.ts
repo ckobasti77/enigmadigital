@@ -11,11 +11,8 @@ import {
   fetchAccessToken,
   parseYouTubeCredentials,
 } from "./lib/youtubeApi";
-import {
-  QUOTA_COST,
-  QUOTA_MEDIA_EXHAUSTED_MESSAGE,
-  canAffordMedia,
-} from "./lib/ytQuota";
+import { QUOTA_COST, QUOTA_MEDIA_EXHAUSTED_MESSAGE } from "./lib/ytQuota";
+import { rezervisiIzmenu, vratiIzmenu } from "./lib/ytKvotaAkcija";
 import { ytRequest } from "./ytMedia";
 import type { MediaContext } from "./ytMedia";
 
@@ -30,7 +27,8 @@ import type { MediaContext } from "./ytMedia";
  * Zato spisak plejlista stoji u tabeli `ytPlaylists` i padajući meni ga čita
  * odatle besplatno, a osvežavanje je dugme koje čovek pritisne — ne poll.
  * Dodavanje videa u plejlistu je, s druge strane, isto što i jedan odgovor na
- * komentar, pa ide kroz `canAffordMedia` (Y6) i ostavlja red u `ytMediaJobs`.
+ * komentar, pa pre poziva rezerviše cenu (`lib/ytKvotaAkcija.ts`) i ostavlja
+ * red u `ytMediaJobs`.
  */
 
 function invalid(message: string): never {
@@ -213,14 +211,18 @@ export const listPlaylists = projekatAction({
       title: "Učitavanje plejlista",
     });
 
-    if (!canAffordMedia(context.unitsUsed, QUOTA_COST.playlistsList)) {
+    // Reserved before the call — this project's share and the shared
+    // counter of all projects in one step (lib/ytKvotaAkcija.ts).
+    const rezervacija = await rezervisiIzmenu(ctx, workspaceId, QUOTA_COST.playlistsList);
+    if (!rezervacija.ok) {
+      const poruka = rezervacija.poruka ?? QUOTA_MEDIA_EXHAUSTED_MESSAGE;
       await ctx.runMutation(internal.ytMedia.finishJob, {
         jobId,
         status: "skipped_quota" as const,
         unitsSpent: 0,
-        errorMessage: QUOTA_MEDIA_EXHAUSTED_MESSAGE,
+        errorMessage: poruka,
       });
-      invalid(QUOTA_MEDIA_EXHAUSTED_MESSAGE);
+      invalid(poruka);
     }
 
     let spent = 0;
@@ -238,6 +240,7 @@ export const listPlaylists = projekatAction({
     try {
       token = await resolveToken(context);
     } catch (err) {
+      await vratiIzmenu(ctx, workspaceId, QUOTA_COST.playlistsList);
       return await failJob(
         err instanceof Error
           ? err.message
@@ -251,10 +254,8 @@ export const listPlaylists = projekatAction({
     );
     if (res.status !== 0) {
       spent = QUOTA_COST.playlistsList;
-      await ctx.runMutation(internal.ytIngest.recordQuotaUsage, {
-        workspaceId,
-        units: spent,
-      });
+    } else {
+      await vratiIzmenu(ctx, workspaceId, QUOTA_COST.playlistsList);
     }
 
     if (!res.ok) {
@@ -337,14 +338,18 @@ export const addVideoToPlaylist = projekatAction({
           : "Dodavanje u plejlistu",
     });
 
-    if (!canAffordMedia(context.unitsUsed, QUOTA_COST.playlistItemsInsert)) {
+    // Reserved before the call — this project's share and the shared
+    // counter of all projects in one step (lib/ytKvotaAkcija.ts).
+    const rezervacija = await rezervisiIzmenu(ctx, workspaceId, QUOTA_COST.playlistItemsInsert);
+    if (!rezervacija.ok) {
+      const poruka = rezervacija.poruka ?? QUOTA_MEDIA_EXHAUSTED_MESSAGE;
       await ctx.runMutation(internal.ytMedia.finishJob, {
         jobId,
         status: "skipped_quota" as const,
         unitsSpent: 0,
-        errorMessage: QUOTA_MEDIA_EXHAUSTED_MESSAGE,
+        errorMessage: poruka,
       });
-      invalid(QUOTA_MEDIA_EXHAUSTED_MESSAGE);
+      invalid(poruka);
     }
 
     let spent = 0;
@@ -362,6 +367,7 @@ export const addVideoToPlaylist = projekatAction({
     try {
       token = await resolveToken(context);
     } catch (err) {
+      await vratiIzmenu(ctx, workspaceId, QUOTA_COST.playlistItemsInsert);
       return await failJob(
         err instanceof Error
           ? err.message
@@ -381,10 +387,8 @@ export const addVideoToPlaylist = projekatAction({
     });
     if (res.status !== 0) {
       spent = QUOTA_COST.playlistItemsInsert;
-      await ctx.runMutation(internal.ytIngest.recordQuotaUsage, {
-        workspaceId,
-        units: spent,
-      });
+    } else {
+      await vratiIzmenu(ctx, workspaceId, QUOTA_COST.playlistItemsInsert);
     }
 
     if (!res.ok) {

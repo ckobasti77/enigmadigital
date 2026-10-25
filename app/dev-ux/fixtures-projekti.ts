@@ -259,6 +259,32 @@ export const FIXTURES_PROJEKTI: Record<string, Fixture> = {
   [getFunctionName(api.projekti.mojProjekat)]: (args) => projekatZaSlug(args.slug),
   [getFunctionName(api.projekti.ja)]: () =>
     ({ ...KORISNIK, platformaVlasnik: true }) satisfies R<typeof api.projekti.ja>,
+  // Ekran pozivnice (`/pozivnica?ux=1&stanje=…`): stanje nosi token, jer lažni
+  // klijent razrešava po imenu funkcije i argumentima.
+  [getFunctionName(api.invitesStore.getInvite)]: (args) => {
+    const scanme = { ime: "ScanMe", boja: "#22c55e", logoUrl: null };
+    switch (args.token) {
+      case "ux-nov":
+        return { status: "vazi", email: "novi.clan@example.com", projekat: scanme, postojiNalog: false };
+      case "ux-postojeci":
+        return { status: "vazi", email: KORISNIK.email, projekat: scanme, postojiNalog: true };
+      case "ux-prijavljen":
+        return { status: "vazi", email: KORISNIK.email, projekat: scanme, postojiNalog: true };
+      case "ux-druga":
+        return { status: "vazi", email: "druga.adresa@example.com", projekat: scanme, postojiNalog: true };
+      default:
+        return { status: "ne_postoji" };
+    }
+  },
+  [getFunctionName(api.invitesStore.prihvatiPozivnicu)]: () =>
+    ({ slug: "scanme" }) satisfies FunctionReturnType<typeof api.invitesStore.prihvatiPozivnicu>,
+  [getFunctionName(api.invitesStore.createInvite)]: (args) =>
+    ({
+      token: "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCdE",
+      email: String(args.email ?? ""),
+      expiresAt: Date.UTC(2026, 10, 1, 12),
+      panelOrigin: null,
+    }) satisfies FunctionReturnType<typeof api.invitesStore.createInvite>,
 };
 
 /**

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import { useState, type ComponentProps } from "react";
+import { useMoze, useProjekatMutation } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -30,8 +30,15 @@ type Phase = "ask" | "answered" | "missed";
  *   - „Zakaži sastanak” → otvara dijalog sastanka; tamo se poziv može upisati
  *                        kao dodir uz izričito čekiranje
  * „Zatvori” samo sklanja traku.
+ *
+ * Cela traka je beleženje, pa je posmatrač ne dobija.
  */
-export function LeadCallStrip({
+export function LeadCallStrip(props: ComponentProps<typeof LeadCallStripTelo>) {
+  const moze = useMoze("urednik");
+  return moze ? <LeadCallStripTelo {...props} /> : null;
+}
+
+function LeadCallStripTelo({
   companyId,
   phone,
   onClose,

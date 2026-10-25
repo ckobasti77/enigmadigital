@@ -13,7 +13,10 @@ import {
   Trash2,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekatMutation,
+} from "@/components/app/projekat-provider";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -149,6 +152,8 @@ function AutomationCard({
   onDelete: () => void;
 }) {
   const ScopeIcon = automation.matchAnyVideo ? PlaySquare : Film;
+  // Posmatrač vidi stanje automatizacije, ali ništa ne menja.
+  const mozeUrediti = useMoze("urednik");
 
   return (
     <Card
@@ -223,29 +228,34 @@ function AutomationCard({
             disabled={busy}
             onLabel="Aktivno"
             offLabel="Isključeno"
+            readOnly={!mozeUrediti}
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onEdit}
-            disabled={busy}
-            className="border-line text-text-muted hover:text-foreground"
-          >
-            <Pencil className="size-3" />
-            <span>Izmeni</span>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            onClick={onDelete}
-            disabled={busy}
-            aria-label={`Obriši automatizaciju ${automation.name}`}
-            className="border-line text-danger/80 hover:bg-danger/10 hover:text-danger"
-          >
-            <Trash2 className="size-3" />
-          </Button>
+          {mozeUrediti && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onEdit}
+                disabled={busy}
+                className="border-line text-text-muted hover:text-foreground"
+              >
+                <Pencil className="size-3" />
+                <span>Izmeni</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                onClick={onDelete}
+                disabled={busy}
+                aria-label={`Obriši automatizaciju ${automation.name}`}
+                className="border-line text-danger/80 hover:bg-danger/10 hover:text-danger"
+              >
+                <Trash2 className="size-3" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

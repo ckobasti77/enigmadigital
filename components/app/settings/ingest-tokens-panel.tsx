@@ -28,6 +28,7 @@ import { Field } from "@/components/app/form-kit";
 import { FeedbackNote } from "@/components/app/feedback";
 import { StatusPill } from "./status-pill";
 import {
+  useMoze,
   useProjekat,
   useProjekatMutation,
   useProjekatQuery,
@@ -63,8 +64,8 @@ function porukaGreske(error: unknown): string {
 }
 
 export function IngestTokensPanel() {
-  const { spreman, uloga } = useProjekat();
-  const jeVlasnik = uloga === "owner";
+  const { spreman } = useProjekat();
+  const jeVlasnik = useMoze("owner");
 
   const tokens = useProjekatQuery(
     api.ingestTokensStore.listIngestTokens,

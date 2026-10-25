@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MessageSquare, RefreshCw, Sparkles } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { SamoZa } from "@/components/app/samo-za";
 import { useProjekatAction } from "@/components/app/projekat-provider";
 import { ConversationList } from "./conversation-list";
 import { ChatView } from "./chat-view";
@@ -99,32 +100,34 @@ export function InboxView() {
                 </p>
               </div>
 
-              <div className="flex gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSettingsOpen(true)}
-                  className="text-xs font-medium"
-                >
-                  <Sparkles className="size-3.5 mr-1.5 text-accent" />
-                  Ledolomci i meni
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSync}
-                  disabled={isSyncing}
-                  className="text-xs font-medium"
-                >
-                  <RefreshCw
-                    className={cn(
-                      "size-3.5 mr-1.5",
-                      isSyncing && "animate-spin",
-                    )}
-                  />
-                  Sinhronizuj
-                </Button>
-              </div>
+              <SamoZa uloga="urednik">
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSettingsOpen(true)}
+                    className="text-xs font-medium"
+                  >
+                    <Sparkles className="size-3.5 mr-1.5 text-accent" />
+                    Ledolomci i meni
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSync}
+                    disabled={isSyncing}
+                    className="text-xs font-medium"
+                  >
+                    <RefreshCw
+                      className={cn(
+                        "size-3.5 mr-1.5",
+                        isSyncing && "animate-spin",
+                      )}
+                    />
+                    Sinhronizuj
+                  </Button>
+                </div>
+              </SamoZa>
             </div>
           )}
         </div>

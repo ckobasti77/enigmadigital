@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -22,6 +23,8 @@ import {
 import { formatNumber } from "@/lib/format";
 
 export function CapiSection() {
+  // Ručno slanje događaja ka Meti sme samo vlasnik; ostali vide samo stanje.
+  const mozeVlasnik = useMoze("owner");
   const [dispatching, setDispatching] = useState(false);
   const [feedback, setFeedback] = useState<{
     tone: "success" | "warning" | "danger";
@@ -114,20 +117,22 @@ export function CapiSection() {
           </CardDescription>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleManualDispatch}
-            disabled={dispatching || (pendingCount !== undefined && pendingCount === 0)}
-            className="text-xs"
-          >
-            <RefreshCw
-              className={`mr-1.5 size-3.5 ${dispatching ? "animate-spin" : ""}`}
-            />
-            {dispatching ? "Slanje..." : "Pošalji na čekanju"}
-          </Button>
-        </div>
+        {mozeVlasnik && (
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleManualDispatch}
+              disabled={dispatching || (pendingCount !== undefined && pendingCount === 0)}
+              className="text-xs"
+            >
+              <RefreshCw
+                className={`mr-1.5 size-3.5 ${dispatching ? "animate-spin" : ""}`}
+              />
+              {dispatching ? "Slanje..." : "Pošalji na čekanju"}
+            </Button>
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4">

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
+import { SamoZa } from "@/components/app/samo-za";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { formatRelativeTime } from "@/lib/format";
@@ -57,27 +58,30 @@ export function ConversationList({
             </h2>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onSync}
-              disabled={isSyncing}
-              title="Sinhronizuj razgovore sa Instagrama"
-              className="size-8 text-muted-foreground hover:text-foreground"
-            >
-              <RefreshCw className={cn("size-4", isSyncing && "animate-spin")} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onOpenSettings}
-              title="Podešavanja ledolomaca i menija"
-              className="size-8 text-muted-foreground hover:text-foreground"
-            >
-              <SlidersHorizontal className="size-4" />
-            </Button>
-          </div>
+          {/* Sinhronizacija i podešavanja su posao urednika. */}
+          <SamoZa uloga="urednik">
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onSync}
+                disabled={isSyncing}
+                title="Sinhronizuj razgovore sa Instagrama"
+                className="size-8 text-muted-foreground hover:text-foreground"
+              >
+                <RefreshCw className={cn("size-4", isSyncing && "animate-spin")} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onOpenSettings}
+                title="Podešavanja ledolomaca i menija"
+                className="size-8 text-muted-foreground hover:text-foreground"
+              >
+                <SlidersHorizontal className="size-4" />
+              </Button>
+            </div>
+          </SamoZa>
         </div>
 
         {/* Search Bar */}

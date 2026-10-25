@@ -31,6 +31,7 @@ import {
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatMutation,
 } from "@/components/app/projekat-provider";
@@ -77,6 +78,10 @@ export function YtThumbnailDialog({
   // suggest that upload never finished.
   const [instance, setInstance] = useState(0);
   const [busy, setBusy] = useState(false);
+
+  // Postavljanje sličice je izmena: posmatrač projekta nema ovaj dijalog.
+  const mozeUrediti = useMoze("urednik");
+  if (!mozeUrediti) return null;
 
   return (
     <Dialog

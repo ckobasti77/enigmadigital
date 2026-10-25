@@ -21,7 +21,10 @@ import { PRAVILA_XP } from "@/convex/lib/napredak";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { RateLimitBanner } from "@/components/app/rate-limit-banner";
 import { useNapredak } from "@/components/app/napredak/use-napredak";
-import { useProjekatQuery } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import {
   ChannelFocus,
   ChannelFocusSkeleton,
@@ -78,6 +81,7 @@ const DESCRIPTION =
 export function ThreadsDashboard() {
   const [tab, setTab] = useState<ThreadsTab>("overview");
   const { range } = useDateRange();
+  const mozeUrediti = useMoze("urednik");
 
   const overview = useProjekatQuery(api.threadsStore.accountOverview, {
     from: range.from,
@@ -188,6 +192,7 @@ export function ThreadsDashboard() {
         description={DESCRIPTION}
         actions={
           // Na jezičku Objavljivanje primarno dugme je slanje same objave.
+          mozeUrediti &&
           tab !== "publish" && (
             <Button variant="primary" onClick={() => setTab("publish")}>
               <Send aria-hidden />

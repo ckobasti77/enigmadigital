@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
+  useMoze,
   useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -87,6 +88,7 @@ const AXIS_META: Record<
 type Notice = { tone: FeedbackTone; title: string };
 
 export function ScoringRulesPanel() {
+  const moze = useMoze("urednik");
   const rules = useProjekatQuery(api.leadScoringStore.listIcpRules);
 
   const [form, setForm] = useState<{ mode: "new"; axis?: Axis } | { mode: "edit"; rule: RuleDoc } | null>(null);
@@ -198,19 +200,21 @@ export function ScoringRulesPanel() {
             ekranu, ali ne ulazi u zbir.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <MissingDefaultsButton
-            onNotice={setNotice}
-          />
-          <Button
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setForm({ mode: "new" })}
-          >
-            <Plus className="size-3.5" />
-            <span>Dodaj pravilo</span>
-          </Button>
-        </div>
+        {moze && (
+          <div className="flex flex-wrap items-center gap-2">
+            <MissingDefaultsButton
+              onNotice={setNotice}
+            />
+            <Button
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setForm({ mode: "new" })}
+            >
+              <Plus className="size-3.5" />
+              <span>Dodaj pravilo</span>
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -316,6 +320,7 @@ function EmptyScoring({
   onAddManually: () => void;
   notice: Notice | null;
 }) {
+  const moze = useMoze("urednik");
   const seed = useProjekatMutation(api.leadScoringStore.seedDefaultIcpRules);
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -402,34 +407,36 @@ function EmptyScoring({
             })}
           </div>
 
-          <div className="mt-7 flex flex-col items-center gap-3">
-            <Button
-              size="lg"
-              className="w-full gap-2 font-semibold sm:w-auto"
-              onClick={handleSeed}
-              disabled={seeding}
-            >
-              {seeding ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  <span>Ubacivanje…</span>
-                </>
-              ) : (
-                <>
-                  <Plus className="size-4" />
-                  <span>Ubaci {DEFAULT_RULE_COUNT} podrazumevanih pravila</span>
-                </>
-              )}
-            </Button>
-            <button
-              type="button"
-              onClick={onAddManually}
-              disabled={seeding}
-              className="text-sm font-medium text-mod transition-opacity hover:opacity-80 disabled:opacity-50"
-            >
-              Ili dodaj prvo pravilo ručno
-            </button>
-          </div>
+          {moze && (
+            <div className="mt-7 flex flex-col items-center gap-3">
+              <Button
+                size="lg"
+                className="w-full gap-2 font-semibold sm:w-auto"
+                onClick={handleSeed}
+                disabled={seeding}
+              >
+                {seeding ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    <span>Ubacivanje…</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="size-4" />
+                    <span>Ubaci {DEFAULT_RULE_COUNT} podrazumevanih pravila</span>
+                  </>
+                )}
+              </Button>
+              <button
+                type="button"
+                onClick={onAddManually}
+                disabled={seeding}
+                className="text-sm font-medium text-mod transition-opacity hover:opacity-80 disabled:opacity-50"
+              >
+                Ili dodaj prvo pravilo ručno
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -455,6 +462,7 @@ function AxisColumn({
   onDelete: (rule: RuleDoc) => void;
   onToggle: (rule: RuleDoc, isActive: boolean) => void;
 }) {
+  const moze = useMoze("urednik");
   const meta = AXIS_META[axis];
   const Icon = meta.icon;
   const activeSum = rules
@@ -510,15 +518,17 @@ function AxisColumn({
         <span className="text-micro text-text-muted">
           {activeCount} aktivno · {rules.length} ukupno
         </span>
-        <Button
-          size="xs"
-          variant="ghost"
-          className="gap-1 text-text-muted hover:text-foreground"
-          onClick={onAdd}
-        >
-          <Plus className="size-3" />
-          <span>Dodaj</span>
-        </Button>
+        {moze && (
+          <Button
+            size="xs"
+            variant="ghost"
+            className="gap-1 text-text-muted hover:text-foreground"
+            onClick={onAdd}
+          >
+            <Plus className="size-3" />
+            <span>Dodaj</span>
+          </Button>
+        )}
       </div>
     </section>
   );
@@ -535,6 +545,7 @@ function RuleRow({
   onDelete: () => void;
   onToggle: (isActive: boolean) => void;
 }) {
+  const moze = useMoze("urednik");
   return (
     <li
       className={cn(
@@ -570,38 +581,46 @@ function RuleRow({
             </div>
             <div className="text-micro text-text-muted">težina</div>
           </div>
-          <Switch
-            checked={rule.isActive}
-            onCheckedChange={onToggle}
-            aria-label={
-              rule.isActive
-                ? `Isključi pravilo ${rule.name}`
-                : `Uključi pravilo ${rule.name}`
-            }
-          />
+          {moze ? (
+            <Switch
+              checked={rule.isActive}
+              onCheckedChange={onToggle}
+              aria-label={
+                rule.isActive
+                  ? `Isključi pravilo ${rule.name}`
+                  : `Uključi pravilo ${rule.name}`
+              }
+            />
+          ) : (
+            !rule.isActive && (
+              <span className="text-micro text-text-muted">isključeno</span>
+            )
+          )}
         </div>
       </div>
 
-      <div className="mt-2.5 flex items-center justify-end gap-1 border-t border-line-soft pt-2">
-        <Button
-          size="xs"
-          variant="ghost"
-          className="gap-1 text-text-muted hover:text-foreground"
-          onClick={onEdit}
-        >
-          <Pencil className="size-3" />
-          <span>Izmeni</span>
-        </Button>
-        <Button
-          size="xs"
-          variant="ghost"
-          className="gap-1 text-text-muted hover:text-danger"
-          onClick={onDelete}
-        >
-          <Trash2 className="size-3" />
-          <span>Obriši</span>
-        </Button>
-      </div>
+      {moze && (
+        <div className="mt-2.5 flex items-center justify-end gap-1 border-t border-line-soft pt-2">
+          <Button
+            size="xs"
+            variant="ghost"
+            className="gap-1 text-text-muted hover:text-foreground"
+            onClick={onEdit}
+          >
+            <Pencil className="size-3" />
+            <span>Izmeni</span>
+          </Button>
+          <Button
+            size="xs"
+            variant="ghost"
+            className="gap-1 text-text-muted hover:text-danger"
+            onClick={onDelete}
+          >
+            <Trash2 className="size-3" />
+            <span>Obriši</span>
+          </Button>
+        </div>
+      )}
     </li>
   );
 }

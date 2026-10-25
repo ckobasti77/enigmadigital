@@ -7,6 +7,14 @@
  * or moderating a comment costs 50 each. Ten thousand units is therefore about
  * two hundred automatic replies a day and not one more, which is the whole
  * reason this module exists.
+ *
+ * The budget belongs to the Google Cloud project, i.e. to EVERY project in the
+ * app at once (PROJEKTI-PLAN §9). The ceilings below are therefore applied to
+ * the shared counter, with a fair share per project, by
+ * `lib/globalneKvote.ts` (`smeDaPotrosi`) and `globalneKvoteStore.ts`
+ * (`rezervisi`, which books the project's share and the shared counter in one
+ * transaction). Nothing compares a project's own counter against a ceiling on
+ * its own any more.
  */
 
 /** Google's default per-project daily allowance for the Data API v3. */
@@ -71,28 +79,6 @@ export const QUOTA_RESERVE_FOR_SYNC = 2000;
 /** The ceiling the comment engine actually works against (8 000 by default). */
 export const QUOTA_SOFT_LIMIT = QUOTA_DAILY_DEFAULT - QUOTA_RESERVE_FOR_SYNC;
 
-/** May we still spend `cost` units today without eating into the reserve? */
-export function canAfford(used: number, cost: number): boolean {
-  return used + cost <= QUOTA_SOFT_LIMIT;
-}
-
-/** Units left below the soft limit; never negative. */
-export function remainingUnits(used: number): number {
-  return Math.max(0, QUOTA_SOFT_LIMIT - used);
-}
-
-/** How many more public replies today's remaining budget pays for. */
-export function estimatedRepliesLeft(used: number): number {
-  return Math.max(
-    0,
-    Math.floor(remainingUnits(used) / QUOTA_COST.commentsInsert),
-  );
-}
-
-/** What a log row says when the engine stopped rather than overspend. */
-export const QUOTA_EXHAUSTED_MESSAGE =
-  "Dnevna YouTube kvota je potrošena — odgovor nije poslat. Automatski odgovori se nastavljaju kada se kvota resetuje.";
-
 // ── media operations: a second, lower ceiling (Y6) ───────────────────────────
 
 /**
@@ -111,23 +97,13 @@ export const QUOTA_EXHAUSTED_MESSAGE =
  */
 export const QUOTA_COMMENTS_MIN_RESERVE = 2000;
 
-/** The ceiling media operations work against (6 000 by default). */
-export const QUOTA_MEDIA_LIMIT = QUOTA_SOFT_LIMIT - QUOTA_COMMENTS_MIN_RESERVE;
-
 /**
- * May a media operation still spend `cost` units today?
+ * The ceiling media operations work against (6 000 by default).
  *
- * Note this reads the SAME `used` counter as `canAfford` — one budget, two
+ * It caps the SAME units counter as `QUOTA_SOFT_LIMIT` — one budget, two
  * ceilings. Media stops 2 000 units earlier; replies do not.
  */
-export function canAffordMedia(used: number, cost: number): boolean {
-  return used + cost <= QUOTA_MEDIA_LIMIT;
-}
-
-/** Units left below the media ceiling; never negative. */
-export function remainingMediaUnits(used: number): number {
-  return Math.max(0, QUOTA_MEDIA_LIMIT - used);
-}
+export const QUOTA_MEDIA_LIMIT = QUOTA_SOFT_LIMIT - QUOTA_COMMENTS_MIN_RESERVE;
 
 /** What a media job row says when it was refused rather than overspend. */
 export const QUOTA_MEDIA_EXHAUSTED_MESSAGE =

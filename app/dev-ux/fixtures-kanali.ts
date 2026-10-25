@@ -1009,18 +1009,32 @@ function ytListLogs(args: Record<string, unknown>): R<typeof api.ytAutomationsAp
   return typeof args.limit === "number" ? rows.slice(0, Math.max(1, args.limit)) : rows;
 }
 
-// Meka granica je 8 000, medijska 6 000; potrošeno 2 350 (50 jedinica po odgovoru).
+// Pacifička ponoć 20. 10. 2026 (07:00 UTC = 09:00 po Beogradu): obnova kvote.
+const YT_OBNOVA = Date.UTC(2026, 9, 20, 7, 0, 0);
+
+// Meka granica je 8 000, medijska 6 000, a kvotu dele dva projekta (deo 4 000 i
+// 3 000). Ovaj projekat je potrošio 2 350, drugi 750: ostatak po pravilu
+// rezerve je 1 650 za odgovore i 650 za izmene.
 const ytQuotaStatus: R<typeof api.ytAutomationsApi.quotaStatus> = {
   unitsUsed: 2350,
-  unitsRemaining: 5650,
-  repliesLeft: 113,
+  unitsRemaining: 1650,
+  repliesLeft: 33,
   softLimit: 8000,
+  deoProjekta: 4000,
+  ukupno: 3100,
+  projekata: 2,
+  obnovaU: YT_OBNOVA,
 };
 
 const ytMediaQuota: R<typeof api.ytMedia.mediaQuotaStatus> = {
   unitsUsed: 2350,
-  unitsRemaining: 3650,
-  mediaLimit: 6000,
+  unitsRemaining: 650,
+  mediaLimit: 3000,
+  deoProjekta: 3000,
+  ukupno: 3100,
+  zajednickiLimit: 6000,
+  projekata: 2,
+  obnovaU: YT_OBNOVA,
 };
 
 type YtJob = R<typeof api.ytMedia.recentJobs>[number];
@@ -1095,8 +1109,10 @@ const ytPlaylists: R<typeof api.ytPlaylists.playlists> = [
 
 const ytUploadStatus: R<typeof api.ytUpload.uploadStatus> = {
   uploadsUsed: 1,
-  uploadsRemaining: 99,
-  uploadLimit: 100,
+  uploadsRemaining: 49,
+  uploadLimit: 50,
+  deoProjekta: 50,
+  obnovaU: YT_OBNOVA,
   connected: true,
 };
 
@@ -1243,21 +1259,32 @@ export const PRAZNO_KANALI: Record<string, Fixture> = {
   [fn(api.ytAutomationsApi.listCommentLogs)]: () => [],
   [fn(api.ytAutomationsApi.quotaStatus)]: () => ({
     unitsUsed: 0,
-    unitsRemaining: 8000,
-    repliesLeft: 160,
+    unitsRemaining: 4000,
+    repliesLeft: 80,
     softLimit: 8000,
+    deoProjekta: 4000,
+    ukupno: 3100,
+    projekata: 2,
+    obnovaU: YT_OBNOVA,
   }) satisfies R<typeof api.ytAutomationsApi.quotaStatus>,
   [fn(api.ytMedia.mediaQuotaStatus)]: () => ({
     unitsUsed: 0,
-    unitsRemaining: 6000,
-    mediaLimit: 6000,
+    unitsRemaining: 3000,
+    mediaLimit: 3000,
+    deoProjekta: 3000,
+    ukupno: 3100,
+    zajednickiLimit: 6000,
+    projekata: 2,
+    obnovaU: YT_OBNOVA,
   }) satisfies R<typeof api.ytMedia.mediaQuotaStatus>,
   [fn(api.ytMedia.recentJobs)]: () => [],
   [fn(api.ytPlaylists.playlists)]: () => [],
   [fn(api.ytUpload.uploadStatus)]: () => ({
     uploadsUsed: 0,
-    uploadsRemaining: 100,
-    uploadLimit: 100,
+    uploadsRemaining: 50,
+    uploadLimit: 50,
+    deoProjekta: 50,
+    obnovaU: YT_OBNOVA,
     connected: false,
   }) satisfies R<typeof api.ytUpload.uploadStatus>,
 };

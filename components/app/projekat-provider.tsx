@@ -17,7 +17,7 @@ import type {
 } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import type { Uloga } from "@/convex/lib/uloge";
+import { imaUlogu, type Uloga } from "@/convex/lib/uloge";
 import {
   KOLACIC_PROJEKAT,
   ekranIzPutanje,
@@ -142,6 +142,18 @@ export function useProjekat(): ProjekatKontekst {
     throw new Error("useProjekat mora da se koristi unutar ProjekatProvider-a");
   }
   return kontekst;
+}
+
+/**
+ * Da li uloga u tekućem projektu sme ono što traži `minimalna` (P9):
+ * `urednik` radi posao (leadovi, objave, poruke), `owner` još i veze,
+ * brisanje, članove i podešavanja, a `client_viewer` samo gleda. Backend te
+ * izmene već odbija; UI samo ne nudi dugme koje bi puklo. Dok projekat nije
+ * učitan odgovor je `false`, pa se dugme za izmenu ne pojavi pa nestane.
+ */
+export function useMoze(minimalna: Uloga): boolean {
+  const { uloga } = useProjekat();
+  return uloga !== null && imaUlogu(uloga, minimalna);
 }
 
 /**

@@ -35,6 +35,7 @@ import { useNapredak } from "./napredak/use-napredak";
 import {
   useEkranPutanja,
   useModulUkljucen,
+  useMoze,
   useProjekat,
   useProjekatHref,
 } from "./projekat-provider";
@@ -66,6 +67,11 @@ type Entry = {
    * kroz prefiks tekućeg; uz natpis stoji znak tog projekta.
    */
   projekat?: Pick<ProjekatZaPrelazak, "ime" | "boja" | "logoUrl">;
+  /**
+   * Najniža uloga kojoj se radnja nudi (P9): posmatrač ne dobija radnje
+   * izmene, a urednik ne dobija ono što je samo za vlasnika.
+   */
+  uloga?: "urednik" | "owner";
 };
 
 type Section = { key: string; title: string; entries: Entry[] };
@@ -82,6 +88,7 @@ const ACTIONS: Entry[] = [
     href: REZIM_POZIVA_HREF,
     icon: PhoneCall,
     module: "leadovi",
+    uloga: "urednik",
   },
   {
     id: "action:/leadovi/uvoz",
@@ -90,6 +97,7 @@ const ACTIONS: Entry[] = [
     href: "/leadovi/uvoz",
     icon: Upload,
     module: "leadovi",
+    uloga: "urednik",
   },
   {
     id: "action:/instagram/objavi",
@@ -98,6 +106,7 @@ const ACTIONS: Entry[] = [
     href: "/instagram/objavi",
     icon: SquarePen,
     module: "instagram",
+    uloga: "urednik",
   },
   {
     id: "action:/ads/nova-kampanja",
@@ -106,6 +115,7 @@ const ACTIONS: Entry[] = [
     href: "/ads/nova-kampanja",
     icon: Megaphone,
     module: "oglasi",
+    uloga: "owner",
   },
 ];
 
@@ -238,6 +248,8 @@ export function CommandPalette() {
   const napredak = useNapredak();
   const { rezim } = useProjekat();
   const ukljucen = useModulUkljucen();
+  const mozeUrednik = useMoze("urednik");
+  const mozeVlasnik = useMoze("owner");
   // Drugi projekti stižu samo dok je paleta otvorena, u hubu (vidi dole).
   const [drugiProjekti, setDrugiProjekti] = useState<ProjekatZaPrelazak[]>([]);
 
@@ -337,8 +349,11 @@ export function CommandPalette() {
     const q = fold(query.trim());
     // Ekran i radnja isključenog modula projekta nisu ponuđeni (PROJEKTI-PLAN
     // §8, „Moduli“); zadaci i misije ostaju, jer nose posao koji čeka.
+    // Radnja izmene se ne nudi ulozi koja je ne sme (backend je ionako odbija).
     const vidljiv = (e: Entry) =>
-      e.projekat !== undefined || e.module === undefined || ukljucen(e.module);
+      (e.uloga === undefined ||
+        (e.uloga === "owner" ? mozeVlasnik : mozeUrednik)) &&
+      (e.projekat !== undefined || e.module === undefined || ukljucen(e.module));
     const match = (list: Entry[]) =>
       q ? list.filter((e) => fold(`${e.title} ${e.hint}`).includes(q)) : list;
 
@@ -367,7 +382,18 @@ export function CommandPalette() {
       { key: "nedavno", title: "Nedavno", entries: recentEntries },
       { key: "ekrani", title: "Ekrani", entries: match(SCREENS.filter(vidljiv)) },
     ].filter((section) => section.entries.length > 0);
-  }, [query, tasks, projekti, misije, recent, currentHref, desktop, ukljucen]);
+  }, [
+    query,
+    tasks,
+    projekti,
+    misije,
+    recent,
+    currentHref,
+    desktop,
+    ukljucen,
+    mozeUrednik,
+    mozeVlasnik,
+  ]);
 
   const flat = useMemo(() => sections.flatMap((s) => s.entries), [sections]);
 

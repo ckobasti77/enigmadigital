@@ -85,6 +85,49 @@ export const listMembers = projekatQuery({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// promeniUlogu — vlasnik menja ulogu člana ovog projekta (E16).
+// ─────────────────────────────────────────────────────────────────────────────
+export const promeniUlogu = projekatMutation({
+  uloga: "owner",
+  args: {
+    userId: v.id("users"),
+    uloga,
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const clanovi = await ctx.db
+      .query("members")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
+      .collect();
+    const meta = clanovi.filter((m) => m.userId === args.userId);
+    if (meta.length === 0) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Ta osoba nije član ovog projekta.",
+      });
+    }
+
+    // Isto pravilo kao kod uklanjanja: projekat ne sme ostati bez vlasnika.
+    const metaJeOwner = meta.some((m) => m.role === "owner");
+    if (metaJeOwner && args.uloga !== "owner") {
+      const ownera = clanovi.filter((m) => m.role === "owner").length;
+      if (ownera <= 1) {
+        throw new ConvexError({
+          code: "bad_request",
+          message:
+            "Ne možeš da spustiš poslednjeg vlasnika. Prvo dodeli ulogu vlasnika nekom drugom.",
+        });
+      }
+    }
+
+    for (const m of meta) {
+      if (m.role !== args.uloga) await ctx.db.patch(m._id, { role: args.uloga });
+    }
+    return null;
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // removeMember — ukloni člana i prenesi njegove leadove na drugog.
 // ─────────────────────────────────────────────────────────────────────────────
 export const removeMember = projekatMutation({

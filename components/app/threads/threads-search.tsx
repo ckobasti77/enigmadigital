@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -41,7 +42,20 @@ import type {
 
 type SearchTab = "keyword" | "profile";
 
+/** Pretraga troši dnevnu kvotu naloga i traži urednika; posmatrač je nema. */
 export function ThreadsSearch() {
+  const mozeUrediti = useMoze("urednik");
+  if (!mozeUrediti) {
+    return (
+      <p className="text-sm text-text-muted">
+        Pretragu Threads-a koriste urednik i vlasnik projekta.
+      </p>
+    );
+  }
+  return <ThreadsSearchForm />;
+}
+
+function ThreadsSearchForm() {
   const [activeTab, setActiveTab] = useState<SearchTab>("keyword");
 
   // ── 24h Kvote ─────────────────────────────────────────────────────────────

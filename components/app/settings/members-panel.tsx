@@ -33,12 +33,13 @@ import {
 import { FeedbackNote } from "@/components/app/feedback";
 import { StatusPill } from "./status-pill";
 import {
+  useMoze,
   useProjekat,
   useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
 import { formatDateTime } from "@/lib/format";
-import type { Uloga } from "@/convex/lib/uloge";
+import { NAZIV_ULOGE, type Uloga } from "@/convex/lib/uloge";
 
 type Clan = {
   userId: Id<"users">;
@@ -53,7 +54,10 @@ type Clan = {
 };
 
 /** Poruka iz ConvexError-a ako je server dao svoju; inače pošten fallback. */
-function porukaGreske(error: unknown): string {
+function porukaGreske(
+  error: unknown,
+  rezerva = "Uklanjanje nije uspelo iz nepoznatog razloga. Pokušaj ponovo.",
+): string {
   const data = (error as { data?: unknown } | null)?.data;
   if (data && typeof data === "object" && "message" in data) {
     const m = (data as { message?: unknown }).message;
@@ -63,7 +67,7 @@ function porukaGreske(error: unknown): string {
   if (/Failed to fetch|NetworkError|Load failed|network|timeout/i.test(tekst)) {
     return "Server nije odgovorio. Proveri vezu i pokušaj ponovo.";
   }
-  return "Uklanjanje nije uspelo iz nepoznatog razloga. Pokušaj ponovo.";
+  return rezerva;
 }
 
 const ULOGA_META: Record<
@@ -79,11 +83,90 @@ function prikazAdrese(clan: Clan): string {
   return clan.email ?? "(bez adrese)";
 }
 
+const REDOSLED_ULOGA: readonly Uloga[] = ["owner", "urednik", "client_viewer"];
+
+/**
+ * Uloga člana. Vlasnik je menja iz istog mesta gde je čita (izbornik na
+ * oznaci); poslednji vlasnik i sopstveni red ostaju samo oznaka, jer bi
+ * promena zaključala projekat bez vlasnika.
+ */
+function UlogaClana({
+  clan,
+  mozeDaMenja,
+  onGreska,
+}: {
+  clan: Clan;
+  mozeDaMenja: boolean;
+  onGreska: (poruka: string | null) => void;
+}) {
+  const promeniUlogu = useProjekatMutation(api.membersStore.promeniUlogu);
+  const [radim, setRadim] = useState(false);
+  const meta = ULOGA_META[clan.role];
+
+  if (!mozeDaMenja) {
+    return <StatusPill tone={meta.tone}>{meta.label}</StatusPill>;
+  }
+
+  async function izaberi(sledeca: string) {
+    if (radim || sledeca === clan.role) return;
+    setRadim(true);
+    onGreska(null);
+    try {
+      await promeniUlogu({ userId: clan.userId, uloga: sledeca as Uloga });
+    } catch (error) {
+      console.error("Promena uloge nije uspela");
+      onGreska(
+        porukaGreske(
+          error,
+          "Promena uloge nije uspela iz nepoznatog razloga. Pokušaj ponovo.",
+        ),
+      );
+    } finally {
+      setRadim(false);
+    }
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={radim}
+            aria-label={`Uloga: ${meta.label}. Promeni ulogu`}
+            className="-ml-2 gap-1.5 px-2"
+          >
+            {radim ? (
+              <LoaderCircle className="size-3 animate-spin" />
+            ) : (
+              <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
+            )}
+            <ChevronsUpDown className="size-3 text-text-muted" />
+          </Button>
+        }
+      />
+      <DropdownMenuContent>
+        <DropdownMenuRadioGroup value={clan.role} onValueChange={izaberi}>
+          {REDOSLED_ULOGA.map((u) => (
+            <DropdownMenuRadioItem key={u} value={u} className="text-xs">
+              {NAZIV_ULOGE[u]}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function MembersPanel() {
   const { spreman } = useProjekat();
+  const jeVlasnik = useMoze("owner");
 
   const clanovi = useProjekatQuery(api.membersStore.listMembers);
   const removeMember = useProjekatMutation(api.membersStore.removeMember);
+  const [greskaUloge, setGreskaUloge] = useState<string | null>(null);
 
   // Član koga uklanjamo (otvoren dijalog), izabrani primalac leadova, i stanja.
   const [meta, setMeta] = useState<Clan | null>(null);
@@ -151,10 +234,17 @@ export function MembersPanel() {
       <div>
         <h3 className="text-sm font-medium text-foreground">Članovi</h3>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          Ko ima pristup projektu. Uklanjanje briše prijavu tog naloga i
-          prenosi njegove leadove na drugog člana — istorija radnji ostaje.
+          Ko ima pristup projektu. Uklanja članstvo u ovom projektu; prijava se
+          gasi tek kad osobi ne ostane nijedan projekat. Leadovi prelaze na
+          drugog člana, istorija radnji ostaje.
         </p>
       </div>
+
+      {greskaUloge && (
+        <FeedbackNote tone="danger" title="Uloga nije promenjena">
+          {greskaUloge}
+        </FeedbackNote>
+      )}
 
       {clanovi === undefined ? (
         <div className="space-y-2">
@@ -177,7 +267,6 @@ export function MembersPanel() {
               </TableHeader>
               <TableBody>
                 {clanovi.map((clan) => {
-                  const uloga = ULOGA_META[clan.role];
                   const poslednjiOwner =
                     clan.role === "owner" && brojOwnera <= 1;
                   return (
@@ -186,7 +275,11 @@ export function MembersPanel() {
                         {prikazAdrese(clan)}
                       </TableCell>
                       <TableCell>
-                        <StatusPill tone={uloga.tone}>{uloga.label}</StatusPill>
+                        <UlogaClana
+                          clan={clan}
+                          mozeDaMenja={jeVlasnik && !clan.isSelf && !poslednjiOwner}
+                          onGreska={setGreskaUloge}
+                        />
                       </TableCell>
                       <TableCell className="text-xs text-text-muted">
                         {formatDateTime(clan.joinedAt)}
@@ -208,10 +301,14 @@ export function MembersPanel() {
                       <TableCell className="text-right">
                         {clan.isSelf ? (
                           <span className="text-xs text-text-muted">Vi</span>
-                        ) : poslednjiOwner ? (
+                        ) : poslednjiOwner || !jeVlasnik ? (
                           <span
                             className="text-xs text-text-muted"
-                            title="Poslednji vlasnik ne može da se ukloni."
+                            title={
+                              poslednjiOwner
+                                ? "Poslednji vlasnik ne može da se ukloni."
+                                : "Članove uklanja vlasnik projekta."
+                            }
                           >
                             —
                           </span>
@@ -248,7 +345,8 @@ export function MembersPanel() {
                   <span className="font-mono text-foreground">
                     {prikazAdrese(meta)}
                   </span>{" "}
-                  iz projekta. Nalog više neće moći da se prijavi.{" "}
+                  iz ovog projekta. Prijava se gasi tek kad osobi ne ostane
+                  nijedan projekat.{" "}
                   {meta.leadCount > 0
                     ? `Njegovih ${meta.leadCount} ${
                         meta.leadCount === 1 ? "lead prelazi" : "leadova prelazi"

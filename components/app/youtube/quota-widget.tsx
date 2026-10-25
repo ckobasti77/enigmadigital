@@ -12,6 +12,8 @@ import { CountUp } from "@/components/motion/count-up";
 import { DUR_UI, EASE_UI, MOTION_QUERIES } from "@/lib/motion";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { vremeUBeogradu } from "@/convex/lib/globalneKvote";
+import { QUOTA_COST } from "@/convex/lib/ytQuota";
 
 gsap.registerPlugin(useGSAP);
 
@@ -57,13 +59,29 @@ export function QuotaWidget() {
     return <Skeleton className="h-[74px] w-full rounded-xl" />;
   }
 
-  const { unitsUsed, softLimit, repliesLeft } = quota;
-  const ratio = softLimit > 0 ? Math.min(1, unitsUsed / softLimit) : 1;
+  const {
+    unitsUsed,
+    unitsRemaining,
+    softLimit,
+    repliesLeft,
+    deoProjekta,
+    ukupno,
+    projekata,
+    obnovaU,
+  } = quota;
+  // The budget is shared by every project with YouTube: the bar is measured
+  // against what THIS project can still reach (used + what the reserve rule
+  // allows), so a full bar and "no replies left" always say the same thing.
+  const ceiling = unitsUsed + unitsRemaining;
+  const ratio = ceiling > 0 ? Math.min(1, unitsUsed / ceiling) : 1;
   const tone: Tone =
     ratio >= DANGER_AT ? "danger" : ratio >= WARNING_AT ? "warning" : "normal";
   // Not "units remaining === 0": with fewer than 50 units left there is no
   // longer room for a single reply, which is the same thing to the reader.
   const exhausted = repliesLeft === 0;
+  const shared = projekata > 1;
+  const sharedSpent = ukupno + QUOTA_COST.commentsInsert > softLimit;
+  const resumesAt = vremeUBeogradu(obnovaU);
 
   return (
     <div
@@ -82,15 +100,32 @@ export function QuotaWidget() {
             />{" "}
             od{" "}
             <span className="font-mono tabular-nums">
-              {formatNumber(softLimit)}
+              {formatNumber(shared ? deoProjekta : softLimit)}
             </span>{" "}
             jedinica danas
+            {shared && (
+              <span className="text-text-muted">
+                {" "}
+                (deo ovog projekta) · svi projekti:{" "}
+                <span className="font-mono tabular-nums">
+                  {formatNumber(ukupno)}
+                </span>{" "}
+                od{" "}
+                <span className="font-mono tabular-nums">
+                  {formatNumber(softLimit)}
+                </span>
+              </span>
+            )}
           </span>
         </p>
 
         {exhausted ? (
           <FeedbackLine tone="danger">
-            Kvota je potrošena — odgovori se nastavljaju sutra u 09:00
+            {sharedSpent && shared
+              ? `Zajednička YouTube kvota svih projekata je potrošena. Odgovori se nastavljaju u ${resumesAt}.`
+              : shared
+                ? `Deo dnevne YouTube kvote za ovaj projekat je potrošen. Odgovori se nastavljaju u ${resumesAt}.`
+                : `Kvota je potrošena. Odgovori se nastavljaju u ${resumesAt}.`}
           </FeedbackLine>
         ) : tone === "normal" ? (
           <p className="text-xs text-text-muted">

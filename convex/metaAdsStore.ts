@@ -9,6 +9,7 @@ import {
   quotaPeak,
 } from "./lib/metaAdsQuota";
 import { deriveRate, META_INSIGHTS_VERSION } from "./lib/metaAdsCatalog";
+import { metaAppRed, upisiUvidiAppPct } from "./globalneKvoteStore";
 
 /**
  * ============================================================================
@@ -2259,6 +2260,12 @@ export const recordQuota = internalMutation({
     if (regainMinutes !== undefined) data.regainMinutes = regainMinutes;
     if (blockedUntil !== undefined) data.blockedUntil = blockedUntil;
 
+    // `app_id_util_pct` opisuje celu Meta aplikaciju, koju dele svi projekti:
+    // ide i u zajednički red, pa ga kapija svakog projekta vidi (PROJEKTI-PLAN §9).
+    if (reading.appIdUtilPct !== undefined) {
+      await upisiUvidiAppPct(ctx, reading.appIdUtilPct, fetchedAt);
+    }
+
     if (existing !== null) {
       await ctx.db.patch(existing._id, data);
     } else {
@@ -2306,8 +2313,20 @@ export const getQuotaGate = internalQuery({
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .unique();
 
+    // `app_id_util_pct` iz zajedničkog reda: procenat cele aplikacije, koji
+    // je možda podigao drugi projekat. Važi dok je svež (isti TTL).
+    const app = await metaAppRed(ctx.db);
+    const appPct =
+      app?.uvidiAppPct !== undefined &&
+      app.uvidiAt !== undefined &&
+      now - app.uvidiAt <= QUOTA_TTL_MS
+        ? app.uvidiAppPct
+        : 0;
+
     if (row === null) {
-      return { state: "ok" as const, peakPct: 0, stale: true };
+      return appPct > 0
+        ? { state: determineGateState(appPct), peakPct: appPct, stale: false }
+        : { state: "ok" as const, peakPct: 0, stale: true };
     }
 
     if (row.blockedUntil !== undefined && row.blockedUntil > now) {
@@ -2323,17 +2342,18 @@ export const getQuotaGate = internalQuery({
 
     if (now - row.fetchedAt > QUOTA_TTL_MS) {
       return {
-        state: "ok" as const,
-        peakPct: 0,
-        stale: true,
+        state: determineGateState(appPct),
+        peakPct: appPct,
+        stale: appPct === 0,
         fetchedAt: row.fetchedAt,
         tier: row.tier,
       };
     }
 
+    const peakPct = Math.max(row.peakPct, appPct);
     return {
-      state: determineGateState(row.peakPct),
-      peakPct: row.peakPct,
+      state: determineGateState(peakPct),
+      peakPct,
       stale: false,
       fetchedAt: row.fetchedAt,
       tier: row.tier,

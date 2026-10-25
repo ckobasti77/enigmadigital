@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ProjekatLink } from "@/components/app/projekat-link";
-import { useProjekatQuery } from "@/components/app/projekat-provider";
+import { useMoze, useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useDateRange } from "@/components/app/date-range-picker";
@@ -57,13 +57,16 @@ const INFO =
   "Klik na kampanju otvara hijerarhiju ad setova i oglasa, analizu video kreativa (Hook i Hold rate) i demografsku raspodelu. Poređenje je sa prethodnim periodom iste dužine.";
 
 function AdsHeader({ canCreate }: { canCreate: boolean }) {
+  // Novu kampanju pravi samo vlasnik; ostali vide zaglavlje bez dugmeta.
+  const mozeVlasnik = useMoze("owner");
   return (
     <PageHeader
       variant="module"
       description={DESCRIPTION}
       info={INFO}
       actions={
-        canCreate && (
+        canCreate &&
+        mozeVlasnik && (
           <Button
             variant="primary"
             render={<ProjekatLink href="/ads/nova-kampanja" />}
@@ -84,6 +87,7 @@ function AdsHeader({ canCreate }: { canCreate: boolean }) {
  * obrnuto obojena (`higherIsBetter={false}`).
  */
 export function AdsDashboard() {
+  const mozeVlasnik = useMoze("owner");
   const { range } = useDateRange();
   const connections = useProjekatQuery(api.connections.list);
   const [selectedCampaignId, setSelectedCampaignId] = useState<Id<"adCampaigns"> | null>(null);
@@ -184,13 +188,15 @@ export function AdsDashboard() {
             { label: "Napravi prvu kampanju — kreira se pauzirana" },
           ]}
           action={
-            <Button
-              variant="primary"
-              render={<ProjekatLink href="/settings" />}
-              nativeButton={false}
-            >
-              Poveži nalog
-            </Button>
+            mozeVlasnik ? (
+              <Button
+                variant="primary"
+                render={<ProjekatLink href="/settings" />}
+                nativeButton={false}
+              >
+                Poveži nalog
+              </Button>
+            ) : undefined
           }
         >
           Posle povezivanja ovde stižu potrošnja, rezultati i kampanje.

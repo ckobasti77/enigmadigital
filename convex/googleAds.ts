@@ -22,12 +22,19 @@ import {
 } from "./lib/googleAdsApi";
 import { buildGaqlQuery } from "./lib/googleAdsCatalog";
 import { calculateGoogleAdsBackfillDepth } from "./lib/googleAdsBackfill";
-import {
-  checkGoogleAdsQuota,
-  readGadsGate,
-} from "./lib/googleAdsQuota";
+import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
+import type { RezultatRezervacije } from "./globalneKvoteStore";
 
 import type { Id } from "./_generated/dataModel";
+
+/**
+ * Koliko `searchStream` upita ima jedan prolaz `syncGoogleAds` (svaki je jedna
+ * operacija developer tokena, bez obzira na broj redova). Rezerviše se pre
+ * prolaza; posle prolaza brojač se ispravlja na stvarni broj poziva. Test
+ * (`lib/globalne-kvote.test.ts`) proverava da se broj poziva `await queryGaql`
+ * u ovom fajlu slaže sa ovom konstantom.
+ */
+export const GADS_OPERACIJA_PO_PROLAZU = 22;
 
 /**
  * Format date YYYY-MM-DD for N days ago.
@@ -111,35 +118,66 @@ export const syncGoogleAds = internalAction({
     });
 
     // ── B1) Pre-flight kvotna kapija ──────────────────────────────────────────
-    const gate = await readGadsGate(ctx, workspaceId, customerId);
-    const quotaCheck = checkGoogleAdsQuota(gate.consumed24h, gate.dailyLimit, 1);
-    if (quotaCheck.skipped) {
+    // Operacije developer tokena dele SVI projekti (PROJEKTI-PLAN §9). Ceo
+    // prolaz se rezerviše unapred — deo projekta i zajednički sat u jednoj
+    // transakciji — a posle prolaza ispravlja na stvarni broj poziva.
+    const rezervacija: RezultatRezervacije = await ctx.runMutation(
+      internal.globalneKvoteStore.rezervisi,
+      {
+        kljuc: "google_ads",
+        klasa: "operacije",
+        workspaceId,
+        trosak: GADS_OPERACIJA_PO_PROLAZU,
+        customerId,
+      },
+    );
+    if (!rezervacija.ok) {
+      const stanje = await ctx.runQuery(internal.globalneKvoteStore.stanje, {
+        kljuc: "google_ads",
+        klasa: "operacije",
+        workspaceId,
+      });
+      const reason =
+        rezervacija.poruka ?? "Google Ads sinhronizacija je odložena: kvota je potrošena.";
       console.warn(
-        `[syncGoogleAds] Sinhronizacija Google Ads naloga ${customerId} za radni prostor ${workspaceId} je sprečena kvotnom kapijom: ${quotaCheck.reason}`,
+        `[syncGoogleAds] Sinhronizacija Google Ads naloga ${customerId} je odložena: ${reason}`,
       );
       return {
         skipped: true,
-        reason: quotaCheck.reason,
-        remaining: quotaCheck.remaining,
-        peakPct: quotaCheck.peakPct,
+        reason,
+        remaining: stanje.dostupno,
+        peakPct: stanje.Z > 0 ? (stanje.ukupno / stanje.Z) * 100 : 100,
       };
     }
 
     const outcomes: GoogleAdsResourceOutcome[] = [];
     let summaryResult: GoogleAdsSyncSummary | undefined;
+    let operacije = 0;
+    // Stvarni broj poziva umesto procene, i kad prolaz pukne na pola.
+    const ispraviNaStvarno = async (): Promise<void> => {
+      const delta = operacije - GADS_OPERACIJA_PO_PROLAZU;
+      if (delta === 0) return;
+      await ctx.runMutation(internal.globalneKvoteStore.ispraviGoogleAds, {
+        workspaceId,
+        customerId,
+        delta,
+      });
+    };
 
     await runSync(
       ctx,
       { workspaceId, provider: "google_ads", connectionId },
       async (): Promise<{ itemsWritten: number; note?: string }> => {
-        const queryGaql = (query: string) =>
-          queryGoogleAdsSearchStream({
+        const queryGaql = (query: string) => {
+          operacije++;
+          return queryGoogleAdsSearchStream({
             customerId,
             query,
             accessToken,
             developerToken,
             loginCustomerId,
           });
+        };
 
         // ── 1. Query Conversion Actions FIRST (GA4 B1, B2) ───────────────────
         const conversionActions: Array<{
@@ -2337,7 +2375,7 @@ export const syncGoogleAds = internalAction({
           note: summaryResult.note,
         };
       },
-    );
+    ).finally(ispraviNaStvarno);
 
     return (
       summaryResult ??
@@ -2351,27 +2389,40 @@ export const syncGoogleAds = internalAction({
 });
 
 /**
- * Cron entry point: Fan-out to sync all active Google Ads connections.
+ * Cron entry point: sync all active Google Ads connections, one project after
+ * another (oldest sync first) under one lock, so two passes never overlap on
+ * the shared developer token. Before each project the shared pool is read:
+ * when it is spent the pass stops, and a project without room for a whole pass
+ * is skipped while the next one carries on.
  */
 export const syncAllGoogleAds = internalAction({
   args: {},
   handler: async (ctx): Promise<void> => {
-    const connectionIds: Id<"connections">[] = await ctx.runQuery(
-      internal.connections.listByProvider,
-      { provider: "google_ads" },
-    );
-
-    for (const connectionId of connectionIds) {
-      try {
-        await ctx.runAction(internal.googleAds.syncGoogleAds, {
-          connectionId,
+    await withCronLock(ctx, CRON_LOCKS.gadsSync, async () => {
+      const veze: { connectionId: Id<"connections">; workspaceId: Id<"workspaces"> }[] =
+        await ctx.runQuery(internal.connections.listByProviderRedom, {
+          provider: "google_ads",
         });
-      } catch (err) {
-        console.error(
-          `Automated sync failed for Google Ads connection ${connectionId}:`,
-          sanitizeSyncError(err),
-        );
+
+      for (const { connectionId, workspaceId } of veze) {
+        const stanje = await ctx.runQuery(internal.globalneKvoteStore.stanje, {
+          kljuc: "google_ads",
+          klasa: "operacije",
+          workspaceId,
+        });
+        if (stanje.ukupno >= stanje.Z) break;
+        if (stanje.dostupno < GADS_OPERACIJA_PO_PROLAZU) continue;
+        try {
+          await ctx.runAction(internal.googleAds.syncGoogleAds, {
+            connectionId,
+          });
+        } catch (err) {
+          console.error(
+            `Automated sync failed for Google Ads connection ${connectionId}:`,
+            sanitizeSyncError(err),
+          );
+        }
       }
-    }
+    });
   },
 });

@@ -21,7 +21,10 @@ import {
   ObjavljujesKao,
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
-import { useProjekatAction } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekatAction,
+} from "@/components/app/projekat-provider";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -290,9 +293,11 @@ function CommentActions({
   const likedFlag = useOptimisticToggle(liked);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const mozeUrediti = useMoze("urednik");
 
-  // Nothing left to do to a comment that is already gone.
-  if (deleted) return null;
+  // Nothing left to do to a comment that is already gone — and a viewer of
+  // the project only reads comments, so the row of actions is not drawn.
+  if (deleted || !mozeUrediti) return null;
 
   const toggleHidden = async () => {
     const next = !hiddenFlag.value;
@@ -527,9 +532,11 @@ export function FbCommentThread({
 }) {
   const [replyOpen, setReplyOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const mozeUrediti = useMoze("urednik");
 
   const deleted = thread.deletedAt !== undefined;
-  const selectable = onSelectedChange !== undefined;
+  // Izbor služi grupnim radnjama, a one su posao urednika.
+  const selectable = onSelectedChange !== undefined && mozeUrediti;
   const permalink = thread.permalink ?? thread.post?.permalink;
 
   return (

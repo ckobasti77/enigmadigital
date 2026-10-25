@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Image from "next/image";
 import {
+  useMoze,
   useProjekatMutation,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -111,6 +112,10 @@ export function HookBattleView({
     from,
     to,
   });
+
+  // Pinovanje bitke je posao urednika; radnje nad nalogom oglasa sme samo vlasnik.
+  const mozeUrednik = useMoze("urednik");
+  const mozeVlasnik = useMoze("owner");
 
   const pinBattleMutation = useProjekatMutation(api.metaAdsStore.pinBattle);
   const unpinBattleMutation = useProjekatMutation(api.metaAdsStore.unpinBattle);
@@ -283,30 +288,32 @@ export function HookBattleView({
             </Popover>
 
             {/* Pin Button */}
-            <Button
-              variant={isPinned ? "default" : "outline"}
-              size="xs"
-              onClick={() => handleTogglePin(isPinned)}
-              disabled={isPinning}
-              className={cn(
-                "h-7 text-xs transition-colors",
-                isPinned
-                  ? "bg-primary text-primary-foreground hover:bg-primary/80 font-semibold"
-                  : "border-line-soft bg-surface text-text-muted hover:text-foreground",
-              )}
-            >
-              {isPinned ? (
-                <>
-                  <Pin className="size-3 fill-current" />
-                  <span>Pinovano</span>
-                </>
-              ) : (
-                <>
-                  <PinOff className="size-3" />
-                  <span>Pinuj bitku</span>
-                </>
-              )}
-            </Button>
+            {mozeUrednik && (
+              <Button
+                variant={isPinned ? "default" : "outline"}
+                size="xs"
+                onClick={() => handleTogglePin(isPinned)}
+                disabled={isPinning}
+                className={cn(
+                  "h-7 text-xs transition-colors",
+                  isPinned
+                    ? "bg-primary text-primary-foreground hover:bg-primary/80 font-semibold"
+                    : "border-line-soft bg-surface text-text-muted hover:text-foreground",
+                )}
+              >
+                {isPinned ? (
+                  <>
+                    <Pin className="size-3 fill-current" />
+                    <span>Pinovano</span>
+                  </>
+                ) : (
+                  <>
+                    <PinOff className="size-3" />
+                    <span>Pinuj bitku</span>
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -383,48 +390,50 @@ export function HookBattleView({
           </div>
 
           {/* Quick Battle Action Triggers */}
-          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-line-soft/60">
-            {loserVersion && (
+          {mozeVlasnik && (
+            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-line-soft/60">
+              {loserVersion && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setActionDialogState({
+                      targetType: "ad",
+                      targetId: loserVersion.externalId,
+                      targetName: loserVersion.displayName || loserVersion.name,
+                      currentStatus: loserVersion.status,
+                      actionType: "pause",
+                    })
+                  }
+                  className="h-8 gap-1.5 text-xs border-danger/40 bg-danger/10 text-danger hover:bg-danger/20 hover:text-danger font-medium"
+                >
+                  <Pause className="size-3.5" />
+                  <span>Pauziraj gubitnika ({loserVersion.displayName || loserVersion.name})</span>
+                </Button>
+              )}
+
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 onClick={() =>
                   setActionDialogState({
-                    targetType: "ad",
-                    targetId: loserVersion.externalId,
-                    targetName: loserVersion.displayName || loserVersion.name,
-                    currentStatus: loserVersion.status,
-                    actionType: "pause",
+                    targetType: "adset",
+                    targetId: adSet.externalId,
+                    targetName: adSet.name,
+                    currentStatus: adSet.status,
+                    currentDailyBudget: adSet.dailyBudget,
+                    actionType: "budget_change",
                   })
                 }
-                className="h-8 gap-1.5 text-xs border-danger/40 bg-danger/10 text-danger hover:bg-danger/20 hover:text-danger font-medium"
+                className="h-8 gap-1.5 text-xs border-mod-line bg-mod-soft text-mod hover:bg-mod-soft hover:text-mod font-medium"
               >
-                <Pause className="size-3.5" />
-                <span>Pauziraj gubitnika ({loserVersion.displayName || loserVersion.name})</span>
+                <TrendingUp className="size-3.5" />
+                <span>Podigni budžet lidera ({adSet.name})</span>
               </Button>
-            )}
-
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                setActionDialogState({
-                  targetType: "adset",
-                  targetId: adSet.externalId,
-                  targetName: adSet.name,
-                  currentStatus: adSet.status,
-                  currentDailyBudget: adSet.dailyBudget,
-                  actionType: "budget_change",
-                })
-              }
-              className="h-8 gap-1.5 text-xs border-mod-line bg-mod-soft text-mod hover:bg-mod-soft hover:text-mod font-medium"
-            >
-              <TrendingUp className="size-3.5" />
-              <span>Podigni budžet lidera ({adSet.name})</span>
-            </Button>
-          </div>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -682,68 +691,70 @@ export function HookBattleView({
 
                       {/* 9. Actions & Drilldown */}
                       <div className="p-3 bg-surface/20 flex items-center justify-between gap-1">
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setActionDialogState({
-                                targetType: "ad",
-                                targetId: version.externalId,
-                                targetName: version.name,
-                                currentStatus: version.status,
-                                actionType:
-                                  version.status === "ACTIVE"
-                                    ? "pause"
-                                    : "resume",
-                              })
-                            }
-                            title={
-                              version.status === "ACTIVE"
-                                ? "Pauziraj oglas"
-                                : "Aktiviraj oglas"
-                            }
-                            className={cn(
-                              "flex size-6 items-center justify-center rounded border transition-colors",
-                              version.status === "ACTIVE"
-                                ? "border-line-soft bg-surface text-text-muted hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
-                                : "border-success/30 bg-success/10 text-success hover:bg-success/20",
-                            )}
-                          >
-                            {version.status === "ACTIVE" ? (
-                              <Pause className="size-3" />
-                            ) : (
-                              <Play className="size-3" />
-                            )}
-                          </button>
+                        {mozeVlasnik && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setActionDialogState({
+                                  targetType: "ad",
+                                  targetId: version.externalId,
+                                  targetName: version.name,
+                                  currentStatus: version.status,
+                                  actionType:
+                                    version.status === "ACTIVE"
+                                      ? "pause"
+                                      : "resume",
+                                })
+                              }
+                              title={
+                                version.status === "ACTIVE"
+                                  ? "Pauziraj oglas"
+                                  : "Aktiviraj oglas"
+                              }
+                              className={cn(
+                                "flex size-6 items-center justify-center rounded border transition-colors",
+                                version.status === "ACTIVE"
+                                  ? "border-line-soft bg-surface text-text-muted hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
+                                  : "border-success/30 bg-success/10 text-success hover:bg-success/20",
+                              )}
+                            >
+                              {version.status === "ACTIVE" ? (
+                                <Pause className="size-3" />
+                              ) : (
+                                <Play className="size-3" />
+                              )}
+                            </button>
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xs"
-                            onClick={() =>
-                              setNewHookState({
-                                sourceAdId: version.externalId,
-                                sourceAdName: version.name,
-                                sourceHookLabel: version.hookLabel,
-                                sourcePrimaryText: version.primaryText,
-                                sourceHeadline: version.headline,
-                                thumbnailUrl: version.thumbnailUrl,
-                              })
-                            }
-                            title="Kreiraj novu verziju hook-a sa izmenjenim tekstom"
-                            className="h-6 text-micro px-2 border-mod-line bg-mod-soft text-mod hover:bg-mod-soft hover:text-mod font-medium gap-1"
-                          >
-                            <Sparkles className="size-3" />
-                            <span>Nova verzija</span>
-                          </Button>
-                        </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              onClick={() =>
+                                setNewHookState({
+                                  sourceAdId: version.externalId,
+                                  sourceAdName: version.name,
+                                  sourceHookLabel: version.hookLabel,
+                                  sourcePrimaryText: version.primaryText,
+                                  sourceHeadline: version.headline,
+                                  thumbnailUrl: version.thumbnailUrl,
+                                })
+                              }
+                              title="Kreiraj novu verziju hook-a sa izmenjenim tekstom"
+                              className="h-6 text-micro px-2 border-mod-line bg-mod-soft text-mod hover:bg-mod-soft hover:text-mod font-medium gap-1"
+                            >
+                              <Sparkles className="size-3" />
+                              <span>Nova verzija</span>
+                            </Button>
+                          </div>
+                        )}
 
                         <Button
                           type="button"
                           variant="ghost"
                           size="xs"
                           onClick={() => setSelectedAdId(version._id)}
-                          className="h-6 text-micro px-2 text-text-muted hover:text-mod hover:bg-surface-raised gap-1"
+                          className="ml-auto h-6 text-micro px-2 text-text-muted hover:text-mod hover:bg-surface-raised gap-1"
                         >
                           <span>Detalji</span>
                           <ChevronRightSquare className="size-3" />

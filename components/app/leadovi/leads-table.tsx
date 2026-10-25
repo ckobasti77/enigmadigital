@@ -37,6 +37,7 @@ import { ChipOverflow } from "@/components/app/system/chip-overflow";
 import { Monogram } from "@/components/app/system/monogram";
 import { SegmentedToggle } from "@/components/app/analytics/segmented-toggle";
 import {
+  useMoze,
   useProjekat,
   useProjekatHref,
   useProjekatQuery,
@@ -399,6 +400,8 @@ function ScoreCell({ score, size }: { score: LeadScore | undefined; size: "sm" |
 
 export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
   const { korisnik, uloga } = useProjekat();
+  // Posmatrač pregleda tabelu, ali tasteri p / i / s ne otvaraju beleženje.
+  const moze = useMoze("urednik");
   const router = useRouter();
   const ka = useProjekatHref();
   // Izvor istine za filtere je URL (GL2, plan §7.1) — ne `useState` ovde.
@@ -627,7 +630,7 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
         // s = Sledeći korak. Tok „nađi → vidi zašto → pozovi → zabeleži ishod"
         // staje u 4 pritiska: j (fokusiraj red) · Space (vidi zašto) · p · i.
         case "p": {
-          if (tag === "BUTTON" || tag === "A") return;
+          if (!moze || tag === "BUTTON" || tag === "A") return;
           const id = cursor ?? ids[0];
           // Isti put kao klik na primarno dugme „Pozovi" — pozove tel: i
           // otvori traku „Pozvao si — kako je prošlo?".
@@ -652,7 +655,7 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
           break;
         }
         case "i": {
-          if (tag === "BUTTON" || tag === "A") return;
+          if (!moze || tag === "BUTTON" || tag === "A") return;
           const id = cursor ?? ids[0];
           const item = sortedItems.find((i) => i.assignment._id === id);
           if (item) {
@@ -662,7 +665,7 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
           break;
         }
         case "s": {
-          if (tag === "BUTTON" || tag === "A") return;
+          if (!moze || tag === "BUTTON" || tag === "A") return;
           const id = cursor ?? ids[0];
           const item = sortedItems.find((i) => i.assignment._id === id);
           if (item) {
@@ -689,7 +692,7 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [sortedItems, cursor, dialog, fillCompany, callStrip, expanded, focusRow, router, ka, toggleExpanded]);
+  }, [sortedItems, cursor, dialog, fillCompany, callStrip, expanded, focusRow, router, ka, toggleExpanded, moze]);
 
   // Filter čita najviše 2000 dodela; preko toga lista nije potpuna, i to se piše.
   const odsecenoNaGranici = activeData?.prekoracen === true;
@@ -1132,9 +1135,13 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
             <Kbd k="j" /> <Kbd k="k" /> redovi ·
             <Kbd k="Enter" /> profil ·
             <Kbd k="Space" /> proširi ·
-            <Kbd k="p" /> pozovi ·
-            <Kbd k="i" /> ishod ·
-            <Kbd k="s" /> sledeći korak ·
+            {moze && (
+              <>
+                <Kbd k="p" /> pozovi ·
+                <Kbd k="i" /> ishod ·
+                <Kbd k="s" /> sledeći korak ·
+              </>
+            )}
             <Kbd k="/" /> pretraga ·
             <Kbd k="Esc" /> zatvori ·
             <Kbd k="?" /> ovaj spisak

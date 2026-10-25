@@ -21,10 +21,6 @@
  * ============================================================================
  */
 
-import type { ActionCtx } from "../_generated/server";
-import type { Id } from "../_generated/dataModel";
-import { internal } from "../_generated/api";
-
 export type GoogleAdsAccessLevel = "explorer" | "basic" | "standard";
 
 export const ACCESS_LEVEL_LIMITS: Record<GoogleAdsAccessLevel, number> = {
@@ -194,17 +190,10 @@ export function checkGoogleAdsQuota(
   };
 }
 
-/**
- * Reads stored quota gate for a workspace from Convex database.
+/*
+ * Kapija koja je čitala samo red projekta (`readGadsGate`) je uklonjena u
+ * multi-projekat runu: operacije developer tokena dele svi projekti, pa i
+ * sinhronizacija i akcije pisanja rezervišu kroz
+ * `globalneKvoteStore.rezervisi` (plafon `lib/globalneKvote.ts`
+ * `plafonGoogleAds` = 95 % limita, isto mesto gde ova kapija staje).
  */
-export async function readGadsGate(
-  ctx: ActionCtx,
-  workspaceId: Id<"workspaces">,
-  customerId?: string,
-): Promise<GoogleAdsRateGate> {
-  return await ctx.runQuery(internal.googleAdsStore.getGadsGate, {
-    workspaceId,
-    customerId,
-    now: Date.now(),
-  });
-}

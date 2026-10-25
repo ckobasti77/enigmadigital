@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useProjekatQuery } from "@/components/app/projekat-provider";
+import { useMoze, useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
@@ -263,6 +263,8 @@ export function CampaignDetail({
     from,
     to,
   });
+  // Pauziranje, aktiviranje, budžet i dupliranje menjaju nalog oglasa: samo vlasnik.
+  const mozeVlasnik = useMoze("owner");
 
   const toggleSet = (setId: string) => {
     setCollapsedSets((prev) => ({
@@ -368,7 +370,7 @@ export function CampaignDetail({
             )}
 
             {/* Campaign Quick Actions (Protected for Google Ads) */}
-            {!isGoogleAds ? (
+            {!isGoogleAds && mozeVlasnik ? (
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -423,11 +425,11 @@ export function CampaignDetail({
                   <span>Promeni budžet</span>
                 </Button>
               </div>
-            ) : (
+            ) : isGoogleAds ? (
               <div className="flex items-center gap-1.5 rounded-lg border border-line-soft bg-surface-raised/40 px-3 py-2 text-xs text-text-muted">
                 <span>Google Ads (Samo za čitanje)</span>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -607,7 +609,7 @@ export function CampaignDetail({
                     </div>
 
                     {/* Ad Set Action Buttons (Protected for Google Ads) */}
-                    {!isGoogleAds && (
+                    {!isGoogleAds && mozeVlasnik && (
                       <div
                         className="flex items-center gap-1.5 pl-2 border-l border-line-soft"
                         onClick={(e) => e.stopPropagation()}
@@ -822,7 +824,7 @@ export function CampaignDetail({
                                     className="flex items-center justify-end gap-1.5"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    {!isGoogleAds && (
+                                    {!isGoogleAds && mozeVlasnik && (
                                       <>
                                         {/* Quick Pause / Resume */}
                                         <button

@@ -9,6 +9,7 @@ import type { Provider } from "@/convex/lib/providers";
 import { Button } from "@/components/ui/button";
 import { FeedbackNote } from "@/components/app/feedback";
 import {
+  useMoze,
   useProjekat,
   useProjekatMutation,
   useProjekatQuery,
@@ -48,9 +49,10 @@ export function usePurgeRun(provider: Provider): PurgeRunView | null | undefined
  * ranije: dugme koje puca na klik je gore od dugmeta kojeg nema.
  */
 export function useIsWorkspaceOwner(): boolean | undefined {
-  const { spreman, uloga } = useProjekat();
+  const { spreman } = useProjekat();
+  const vlasnik = useMoze("owner");
   if (!spreman) return undefined;
-  return uloga === "owner";
+  return vlasnik;
 }
 
 function formatDateTime(value: number): string {

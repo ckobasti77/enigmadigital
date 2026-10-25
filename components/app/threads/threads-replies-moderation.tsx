@@ -30,6 +30,7 @@ import {
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatMutation,
   useProjekatQuery,
@@ -66,6 +67,8 @@ export function ThreadsRepliesModeration() {
   const ignorePendingReply = useProjekatAction(api.threadsReplies.ignorePendingReply);
   const replyToPost = useProjekatMutation(api.threadsReplies.replyToPost);
   const deleteReply = useProjekatAction(api.threadsReplies.deleteReply);
+  // Posmatrač čita odgovore; odobravanje, sakrivanje, odgovor i brisanje su posao urednika.
+  const mozeUrediti = useMoze("urednik");
 
   // Stanje filtera (svi odgovori ili samo na čekanju)
   const [filterTab, setFilterTab] = useState<"all" | "pending">("all");
@@ -405,84 +408,86 @@ export function ThreadsRepliesModeration() {
                   </div>
 
                   {/* Dugmad za akcije */}
-                  <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-end sm:self-start">
-                    {/* Odobravanje za pending */}
-                    {isPending && (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => handleApprovalAction(reply.replyId, "approve")}
-                          className="h-7 gap-1 px-2 text-xs text-success border-success/30 hover:bg-success/10"
-                        >
-                          <Check className="size-3" />
-                          <span>Odobri</span>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => handleApprovalAction(reply.replyId, "ignore")}
-                          className="h-7 gap-1 px-2 text-xs text-text-muted hover:text-foreground"
-                        >
-                          <X className="size-3" />
-                          <span>Ignoriši</span>
-                        </Button>
-                      </>
-                    )}
-
-                    {/* Sakrij / Otkrij */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => handleHideToggle(reply.replyId, reply.hideStatus)}
-                      className="h-7 gap-1 px-2 text-xs"
-                      title={reply.hideStatus === "HIDDEN" ? "Otkrij odgovor" : "Sakrij odgovor"}
-                    >
-                      {reply.hideStatus === "HIDDEN" ? (
+                  {mozeUrediti && (
+                    <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-end sm:self-start">
+                      {/* Odobravanje za pending */}
+                      {isPending && (
                         <>
-                          <Eye className="size-3 text-mod" />
-                          <span>Otkrij</span>
-                        </>
-                      ) : (
-                        <>
-                          <EyeOff className="size-3 text-warning" />
-                          <span>Sakrij</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => handleApprovalAction(reply.replyId, "approve")}
+                            className="h-7 gap-1 px-2 text-xs text-success border-success/30 hover:bg-success/10"
+                          >
+                            <Check className="size-3" />
+                            <span>Odobri</span>
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => handleApprovalAction(reply.replyId, "ignore")}
+                            className="h-7 gap-1 px-2 text-xs text-text-muted hover:text-foreground"
+                          >
+                            <X className="size-3" />
+                            <span>Ignoriši</span>
+                          </Button>
                         </>
                       )}
-                    </Button>
 
-                    {/* Odgovori */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() =>
-                        setReplyingTo({
-                          replyId: reply.replyId,
-                          username: reply.username,
-                        })
-                      }
-                      className="h-7 gap-1 px-2 text-xs"
-                    >
-                      <MessageSquareReply className="size-3" />
-                      <span>Odgovori</span>
-                    </Button>
+                      {/* Sakrij / Otkrij */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => handleHideToggle(reply.replyId, reply.hideStatus)}
+                        className="h-7 gap-1 px-2 text-xs"
+                        title={reply.hideStatus === "HIDDEN" ? "Otkrij odgovor" : "Sakrij odgovor"}
+                      >
+                        {reply.hideStatus === "HIDDEN" ? (
+                          <>
+                            <Eye className="size-3 text-mod" />
+                            <span>Otkrij</span>
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="size-3 text-warning" />
+                            <span>Sakrij</span>
+                          </>
+                        )}
+                      </Button>
 
-                    {/* Obriši */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => setDeletingReplyId(reply.replyId)}
-                      className="h-7 size-7 p-0 text-text-muted hover:bg-danger/10 hover:text-danger"
-                      title="Obriši odgovor (kvota 100/24h)"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  </div>
+                      {/* Odgovori */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() =>
+                          setReplyingTo({
+                            replyId: reply.replyId,
+                            username: reply.username,
+                          })
+                        }
+                        className="h-7 gap-1 px-2 text-xs"
+                      >
+                        <MessageSquareReply className="size-3" />
+                        <span>Odgovori</span>
+                      </Button>
+
+                      {/* Obriši */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => setDeletingReplyId(reply.replyId)}
+                        className="h-7 size-7 p-0 text-text-muted hover:bg-danger/10 hover:text-danger"
+                        title="Obriši odgovor (kvota 100/24h)"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
             })}

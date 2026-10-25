@@ -6,6 +6,7 @@ import type { FunctionReturnType } from "convex/server";
 import { Inbox, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -103,6 +104,8 @@ export function YtCommentLogTable() {
   });
 
   const deleteComment = useProjekatAction(api.ytComments.deleteComment);
+  // Posmatrač čita log, ali komentare ne briše.
+  const mozeUrediti = useMoze("urednik");
   const [pendingDelete, setPendingDelete] = useState<YtCommentLogView | null>(
     null,
   );
@@ -185,9 +188,11 @@ export function YtCommentLogTable() {
                   <TableHead className="h-9 text-right text-xs font-medium text-text-muted">
                     Status
                   </TableHead>
-                  <TableHead className="h-9 pr-5 text-right text-xs font-medium text-text-muted">
-                    Akcija
-                  </TableHead>
+                  {mozeUrediti && (
+                    <TableHead className="h-9 pr-5 text-right text-xs font-medium text-text-muted">
+                      Akcija
+                    </TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -269,24 +274,26 @@ export function YtCommentLogTable() {
                         </div>
                       </TableCell>
 
-                      <TableCell className="py-3 pr-5 text-right align-top">
-                        {isDeleted ? (
-                          <span className="font-mono text-xs text-text-muted">
-                            Obrisan
-                          </span>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setPendingDelete(log)}
-                            aria-label={"Obriši komentar: " + log.commentText}
-                            className="h-7 gap-1 border-line-soft px-2 text-xs text-text-muted hover:border-danger/40 hover:text-danger"
-                          >
-                            <Trash2 className="size-3" aria-hidden />
-                            <span>Obriši</span>
-                          </Button>
-                        )}
-                      </TableCell>
+                      {mozeUrediti && (
+                        <TableCell className="py-3 pr-5 text-right align-top">
+                          {isDeleted ? (
+                            <span className="font-mono text-xs text-text-muted">
+                              Obrisan
+                            </span>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setPendingDelete(log)}
+                              aria-label={"Obriši komentar: " + log.commentText}
+                              className="h-7 gap-1 border-line-soft px-2 text-xs text-text-muted hover:border-danger/40 hover:text-danger"
+                            >
+                              <Trash2 className="size-3" aria-hidden />
+                              <span>Obriši</span>
+                            </Button>
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}

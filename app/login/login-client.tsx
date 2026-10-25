@@ -26,6 +26,7 @@ import {
   type BrendPrijave,
 } from "@/components/app/system/brand-moment";
 import { cn } from "@/lib/utils";
+import { KLJUC_POZIVNICE, jeTokenPozivnice } from "@/lib/pozivnica-token";
 import {
   PASSWORD_RULES,
   prvaGreskaLozinke,
@@ -149,6 +150,32 @@ export function LoginClient({ brend }: { brend: BrendPrijave | null }) {
       // storage unavailable
     }
     window.history.replaceState({}, "", window.location.pathname);
+  }, []);
+
+  // Postojeći nalog prihvata poziv u drugi projekat: token pozivnice se parkira
+  // (kao `ig_code`), a posle prijave ga kapija vraća na `/pozivnica/<token>`.
+  // Parkira se samo vrednost tačnog oblika tokena.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const pozivnica = params.get("pozivnica");
+    if (pozivnica === null) return;
+    if (jeTokenPozivnice(pozivnica)) {
+      try {
+        window.sessionStorage.setItem(KLJUC_POZIVNICE, pozivnica);
+      } catch {
+        // storage unavailable
+      }
+    }
+    params.delete("pozivnica");
+    const ostatak = params.toString();
+    window.history.replaceState(
+      {},
+      "",
+      ostatak.length > 0
+        ? `${window.location.pathname}?${ostatak}`
+        : window.location.pathname,
+    );
   }, []);
 
   useEffect(() => {

@@ -29,6 +29,15 @@ import { internal } from "../_generated/api";
  *      no retry loop: each scheduled pass either goes or does not, and the next
  *      tick is the retry.
  *
+ * ONE APP, MANY PROJECTS (PROJEKTI-PLAN §9). `X-App-Usage` and error code 4
+ * describe the Meta APP, which every project shares; `X-Business-Use-Case-
+ * Usage` and codes 17 / 32 / 613 / 429 describe one page or ad account, i.e.
+ * one project. The two are kept apart: the app part goes to the shared row in
+ * `globalneKvote` (`globalneKvoteStore.zabeleziMetaApp`), the BUC part to the
+ * project's `metaApiUsage` row, and the gate takes the worse of the two. The
+ * app percentage is not split between projects — it is a percentage, not a
+ * count (decision E17) — so every project sees the same app ceiling.
+ *
  * ────────────────────────────────────────────────────────────────────────────
  * THE RULE, AND IT HAS NO EXCEPTIONS (P2)
  *
@@ -111,25 +120,34 @@ function maxUsage(a: MetaUsage, b: MetaUsage): MetaUsage {
   };
 }
 
+/** The two usage readings of one response, kept apart (shared app vs project). */
+export interface UsageReadings {
+  /** `X-App-Usage`: the Meta app, shared by every project. */
+  app: MetaUsage | null;
+  /** `X-Business-Use-Case-Usage`: this project's page or ad account. */
+  buc: MetaUsage | null;
+}
+
 /**
  * Pull the usage percentages out of one response's headers.
  *
  * The two headers have different shapes on purpose: `X-App-Usage` is a single
  * object, while `X-Business-Use-Case-Usage` is keyed by business id and holds
- * an ARRAY per id (one entry per business use case). Both are folded into the
- * same triple by taking the highest number seen — a single account near its
- * own ceiling matters just as much as the app being near its.
+ * an ARRAY per id (one entry per business use case), folded into one triple by
+ * taking the highest number seen. They are returned SEPARATELY: the app reading
+ * belongs to every project at once, the BUC reading to this one.
  *
- * Returns null when neither header is present, which is what a non-Graph
+ * A field is null when its header is absent, which is what a non-Graph
  * response (a CDN redirect, a network error page) looks like.
  */
-export function parseUsageHeaders(headers: Headers): MetaUsage | null {
-  let usage: MetaUsage | null = null;
+export function parseUsageHeaders(headers: Headers): UsageReadings {
+  let app: MetaUsage | null = null;
+  let buc: MetaUsage | null = null;
 
   const appHeader = headers.get("x-app-usage");
   if (appHeader) {
     try {
-      usage = readUsageObject(JSON.parse(appHeader));
+      app = readUsageObject(JSON.parse(appHeader));
     } catch {
       // A malformed header is not worth failing a sync over.
     }
@@ -142,7 +160,7 @@ export function parseUsageHeaders(headers: Headers): MetaUsage | null {
       for (const entries of Object.values(parsed)) {
         if (!Array.isArray(entries)) continue;
         for (const entry of entries) {
-          usage = maxUsage(usage ?? ZERO_USAGE, readUsageObject(entry));
+          buc = maxUsage(buc ?? ZERO_USAGE, readUsageObject(entry));
         }
       }
     } catch {
@@ -150,7 +168,7 @@ export function parseUsageHeaders(headers: Headers): MetaUsage | null {
     }
   }
 
-  return usage;
+  return { app, buc };
 }
 
 /**
@@ -174,6 +192,33 @@ export const THROTTLE_CODES: ReadonlySet<number> = new Set([4, 17, 32, 613]);
 /** Does this Graph API `error.code` mean "too fast"? */
 export function isThrottleCode(code: number | undefined): boolean {
   return code !== undefined && THROTTLE_CODES.has(code);
+}
+
+/**
+ * Code 4 is the APP's limit ("Application request limit reached"): it stops
+ * every project at once. 17 (user), 32 (page) and 613 (call rate) belong to one
+ * project's account, and so does a bare 429.
+ */
+export const APP_THROTTLE_CODE = 4;
+
+/**
+ * Whose throttle is this: the whole app's (code 4), one project's (17, 32,
+ * 613, a bare 429), or not a throttle at all.
+ */
+export function throttleScope(
+  status: number,
+  body: string,
+): "aplikacija" | "projekat" | null {
+  let code: number | undefined;
+  try {
+    const parsed = JSON.parse(body) as { error?: { code?: number } };
+    code = typeof parsed.error?.code === "number" ? parsed.error.code : undefined;
+  } catch {
+    code = undefined;
+  }
+  if (code === APP_THROTTLE_CODE) return "aplikacija";
+  if (isThrottleCode(code) || status === 429) return "projekat";
+  return null;
 }
 
 /**
@@ -234,7 +279,7 @@ export function allowsManual(gate: RateGate): boolean {
   return gate.state === "ok" || gate.state === "warn";
 }
 
-/** Read the stored gate for a workspace. One indexed read. */
+/** Read the stored gate for a workspace (its own row and the shared app row). */
 export async function readGate(
   ctx: ActionCtx,
   workspaceId: Id<"workspaces">,
@@ -250,7 +295,10 @@ export interface UsageTracker {
   /** True once Meta has actually refused a call in this pass. */
   readonly throttled: boolean;
   readonly peak: number;
-  /** One write at the end of a pass, not one per call. */
+  /**
+   * One write per row at the end of a pass, not one per call: the app part to
+   * the shared row, the BUC part to the project's row.
+   */
   flush(ctx: ActionCtx, workspaceId: Id<"workspaces">): Promise<void>;
 }
 
@@ -264,41 +312,59 @@ export interface UsageTracker {
  * report their error bodies back here, and nineteen of them would forget.
  */
 export function createUsageTracker(): UsageTracker {
-  let usage: MetaUsage | null = null;
-  let throttled = false;
+  let app: MetaUsage | null = null;
+  let buc: MetaUsage | null = null;
+  // Code 4 stops the whole app (every project); the rest stop this project.
+  let throttledApp = false;
+  let throttledProject = false;
 
   return {
     async fetch(input, init) {
       const res = await fetch(input, init);
 
       const parsed = parseUsageHeaders(res.headers);
-      if (parsed) usage = usage === null ? parsed : maxUsage(usage, parsed);
+      if (parsed.app) app = app === null ? parsed.app : maxUsage(app, parsed.app);
+      if (parsed.buc) buc = buc === null ? parsed.buc : maxUsage(buc, parsed.buc);
 
-      if (!res.ok && !throttled) {
+      if (!res.ok && !throttledApp && !throttledProject) {
         try {
           const body = await res.clone().text();
-          if (isThrottleResponse(res.status, body)) throttled = true;
+          const scope = throttleScope(res.status, body);
+          if (scope === "aplikacija") throttledApp = true;
+          else if (scope === "projekat") throttledProject = true;
         } catch {
           // Body unavailable — the status alone still counts.
-          if (res.status === 429) throttled = true;
+          if (res.status === 429) throttledProject = true;
         }
       }
 
       return res;
     },
     get throttled() {
-      return throttled;
+      return throttledApp || throttledProject;
     },
     get peak() {
-      return usage === null ? 0 : usagePeak(usage);
+      return Math.max(
+        app === null ? 0 : usagePeak(app),
+        buc === null ? 0 : usagePeak(buc),
+      );
     },
     async flush(ctx, workspaceId) {
-      if (usage === null && !throttled) return;
-      await ctx.runMutation(internal.metaSyncStore.recordUsage, {
-        workspaceId,
-        ...(usage ?? ZERO_USAGE),
-        throttled,
-      });
+      if (app !== null || throttledApp) {
+        await ctx.runMutation(internal.globalneKvoteStore.zabeleziMetaApp, {
+          ...(app ?? ZERO_USAGE),
+          throttled: throttledApp,
+        });
+      }
+      // The project's row is written whenever Meta answered at all, as before:
+      // a clean answer is what ends the project's own wait.
+      if (app !== null || buc !== null || throttledProject) {
+        await ctx.runMutation(internal.metaSyncStore.recordUsage, {
+          workspaceId,
+          ...(buc ?? ZERO_USAGE),
+          throttled: throttledProject,
+        });
+      }
     },
   };
 }

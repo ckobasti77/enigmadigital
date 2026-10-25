@@ -19,6 +19,7 @@ import {
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatMutation,
   useProjekatQuery,
@@ -48,7 +49,14 @@ interface InboxSettingsDrawerProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function InboxSettingsDrawer({
+/** Fioka je sav editor (ledolomci, meni, objava): posmatrač projekta je nema. */
+export function InboxSettingsDrawer(props: InboxSettingsDrawerProps) {
+  const mozeUrediti = useMoze("urednik");
+  if (!mozeUrediti) return null;
+  return <InboxSettingsDrawerForm {...props} />;
+}
+
+function InboxSettingsDrawerForm({
   open,
   onOpenChange,
 }: InboxSettingsDrawerProps) {

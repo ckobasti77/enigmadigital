@@ -16,6 +16,7 @@ import {
   Users,
 } from "lucide-react";
 import { useProjekat } from "@/components/app/projekat-provider";
+import { SamoZa } from "@/components/app/samo-za";
 import { brojPosla, useStaMeCeka } from "@/components/app/use-sta-me-ceka";
 import type { InvalidRule } from "@/convex/lib/leadScoring";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
@@ -269,18 +270,20 @@ export function LeadsDashboard() {
               <div className="flex items-center gap-2">
                 {/* Prateća radnja (UI Boost §8): jedino primarno dugme na
                     Leadovima je „Započni režim poziva" na jezičku „Danas". */}
-                <ProjekatLink
-                  href="/leadovi/uvoz"
-                  data-variant="secondary"
-                  className={buttonVariants({
-                    variant: "secondary",
-                    size: "sm",
-                    className: "gap-2 text-xs",
-                  })}
-                >
-                  <Upload className="size-3.5" aria-hidden />
-                  <span>Uvoz leadova</span>
-                </ProjekatLink>
+                <SamoZa uloga="urednik">
+                  <ProjekatLink
+                    href="/leadovi/uvoz"
+                    data-variant="secondary"
+                    className={buttonVariants({
+                      variant: "secondary",
+                      size: "sm",
+                      className: "gap-2 text-xs",
+                    })}
+                  >
+                    <Upload className="size-3.5" aria-hidden />
+                    <span>Uvoz leadova</span>
+                  </ProjekatLink>
+                </SamoZa>
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={

@@ -19,17 +19,32 @@ function useFakeAuth() {
   );
 }
 
+/** Ista sesija, samo odjavljena — za ekrane koji se otvaraju pre prijave. */
+function useFakeAuthOdjavljen() {
+  const fetchAccessToken = useCallback(async () => null, []);
+  return useMemo(
+    () => ({ isLoading: false, isAuthenticated: false, fetchAccessToken }),
+    [fetchAccessToken],
+  );
+}
+
 /**
  * `prazno` (`?ux=1&prazno=1`) vraća prazan nalog: bez veza ka kanalima i bez
- * redova, za snimanje praznih stanja kanala.
+ * redova, za snimanje praznih stanja kanala. `odjavljen` crta ekran bez
+ * sesije (pozivnica pre prijave). `uloga` (`?ux=1&uloga=client_viewer`)
+ * menja ulogu u tekućem projektu, da se vidi šta urednik i posmatrač ne vide.
  */
 export function UxHarness({
   children,
   prazno = false,
   pad,
+  odjavljen = false,
+  uloga,
 }: {
   children: ReactNode;
   prazno?: boolean;
+  odjavljen?: boolean;
+  uloga?: string;
   /**
    * Modul čiji upiti namerno PADAJU (`?ux=1&pad=napredak`). Služi da se vidi
    * šta ekran radi kad upit baci grešku — pravi Convex klijent tada baca iz
@@ -43,12 +58,24 @@ export function UxHarness({
         if (pad && name.startsWith(`${pad}:`)) {
           throw new Error(`Razvojni prikaz: namerni pad upita ${name}`);
         }
-        return resolveFixture(name, args, prazno);
+        const rez = resolveFixture(name, args, prazno);
+        if (
+          name === "projekti:mojProjekat" &&
+          rez !== null &&
+          typeof rez === "object" &&
+          (uloga === "urednik" || uloga === "client_viewer" || uloga === "owner")
+        ) {
+          return { ...rez, uloga };
+        }
+        return rez;
       }),
-    [prazno, pad],
+    [prazno, pad, uloga],
   );
   return (
-    <ConvexProviderWithAuth client={client} useAuth={useFakeAuth}>
+    <ConvexProviderWithAuth
+      client={client}
+      useAuth={odjavljen ? useFakeAuthOdjavljen : useFakeAuth}
+    >
       {children}
     </ConvexProviderWithAuth>
   );

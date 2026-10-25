@@ -5,7 +5,10 @@ import { ProjekatLink } from "@/components/app/projekat-link";
 import type { FunctionReturnType } from "convex/server";
 import { Inbox, MessageCircleReply, MessageCircleQuestion, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { useProjekatQuery } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +21,7 @@ import { DmLogTable } from "./dm-log-table";
 import { ProfileMenuPanel } from "./profile-menu-panel";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
 import { FeedbackNote } from "@/components/app/feedback";
+import { SamoZa } from "@/components/app/samo-za";
 
 type AutomationView = FunctionReturnType<
   typeof api.orAutomationsApi.listAutomations
@@ -32,6 +36,7 @@ export function AutomationsDashboard() {
 
   const automations = useProjekatQuery(api.orAutomationsApi.listAutomations);
   const engine = useProjekatQuery(api.orEngine.status);
+  const mozeUrediti = useMoze("urednik");
 
   const openNew = () => {
     setEditing(null);
@@ -70,10 +75,12 @@ export function AutomationsDashboard() {
         onChange={setTab}
         panelId="openreply-panel"
         trailing={
-          <Button type="button" variant="primary" size="sm" onClick={openNew}>
-            <Plus />
-            <span>Nova automatizacija</span>
-          </Button>
+          mozeUrediti ? (
+            <Button type="button" variant="primary" size="sm" onClick={openNew}>
+              <Plus />
+              <span>Nova automatizacija</span>
+            </Button>
+          ) : undefined
         }
       />
 
@@ -184,24 +191,38 @@ function NoAutomations({ onCreate }: { onCreate: () => void }) {
       <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-mod-soft text-mod">
         <MessageCircleReply className="size-6" />
       </div>
-      <h3 className="mt-4 text-base font-semibold text-foreground">
-        Napravi prvu automatizaciju
-      </h3>
-      <p className="mx-auto mt-1 max-w-sm text-xs text-text-muted">
-        Izaberi ključnu reč, napiši poruku i dodaj link — ko je napiše u
-        komentaru, dobija DM.
-      </p>
-      <div className="mt-5">
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={onCreate}
-        >
-          <Plus className="size-4" />
-          <span>Nova automatizacija</span>
-        </Button>
-      </div>
+      <SamoZa
+        uloga="urednik"
+        inace={
+          <>
+            <h3 className="mt-4 text-base font-semibold text-foreground">
+              Još nema automatizacija
+            </h3>
+            <p className="mx-auto mt-1 max-w-sm text-xs text-text-muted">
+              Automatizacije pravi urednik ili vlasnik projekta.
+            </p>
+          </>
+        }
+      >
+        <h3 className="mt-4 text-base font-semibold text-foreground">
+          Napravi prvu automatizaciju
+        </h3>
+        <p className="mx-auto mt-1 max-w-sm text-xs text-text-muted">
+          Izaberi ključnu reč, napiši poruku i dodaj link — ko je napiše u
+          komentaru, dobija DM.
+        </p>
+        <div className="mt-5">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={onCreate}
+          >
+            <Plus className="size-4" />
+            <span>Nova automatizacija</span>
+          </Button>
+        </div>
+      </SamoZa>
     </Card>
   );
 }

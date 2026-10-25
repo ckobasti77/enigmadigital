@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -29,6 +30,10 @@ import {
 export function AudiencesView() {
   const audiencesData = useProjekatQuery(api.metaAdsStore.listAudiences);
   const tosData = useProjekatQuery(api.metaAdsStore.getAudienceTos);
+
+  // Osvežavanje i provera uslova rade urednik i vlasnik; publiku pravi samo vlasnik.
+  const mozeUrednik = useMoze("urednik");
+  const mozeVlasnik = useMoze("owner");
 
   const syncAudiences = useProjekatAction(api.metaAds.syncAudiencesAction);
   const checkTos = useProjekatAction(api.metaAds.checkAudienceTosAction);
@@ -129,60 +134,68 @@ export function AudiencesView() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSync}
-            disabled={syncing}
-            className="text-xs"
-          >
-            <RefreshCw
-              className={`mr-1.5 size-3.5 ${syncing ? "animate-spin" : ""}`}
-            />
-            {syncing ? "Sinhronizacija..." : "Osveži publike"}
-          </Button>
+          {mozeUrednik && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSync}
+              disabled={syncing}
+              className="text-xs"
+            >
+              <RefreshCw
+                className={`mr-1.5 size-3.5 ${syncing ? "animate-spin" : ""}`}
+              />
+              {syncing ? "Sinhronizacija..." : "Osveži publike"}
+            </Button>
+          )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setOpenTargetingDialog(true)}
-            className="text-xs"
-          >
-            <Search className="mr-1.5 size-3.5" />
-            Istraži ciljanje
-          </Button>
+          {mozeUrednik && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setOpenTargetingDialog(true)}
+              className="text-xs"
+            >
+              <Search className="mr-1.5 size-3.5" />
+              Istraži ciljanje
+            </Button>
+          )}
 
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => setOpenCustomDialog(true)}
-            disabled={!tosAccepted}
-            title={
-              !tosAccepted
-                ? "Morate prihvatiti Meta ToS pre kreiranja publika"
-                : undefined
-            }
-            className="text-xs"
-          >
-            <Users className="mr-1.5 size-3.5" />
-            Nova prilagođena publika
-          </Button>
+          {mozeVlasnik && (
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => setOpenCustomDialog(true)}
+              disabled={!tosAccepted}
+              title={
+                !tosAccepted
+                  ? "Morate prihvatiti Meta ToS pre kreiranja publika"
+                  : undefined
+              }
+              className="text-xs"
+            >
+              <Users className="mr-1.5 size-3.5" />
+              Nova prilagođena publika
+            </Button>
+          )}
 
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => setOpenLookalikeDialog(true)}
-            disabled={!tosAccepted}
-            title={
-              !tosAccepted
-                ? "Morate prihvatiti Meta ToS pre kreiranja publika"
-                : undefined
-            }
-            className="text-xs"
-          >
-            <Sparkles className="mr-1.5 size-3.5" />
-            Nova Lookalike publika
-          </Button>
+          {mozeVlasnik && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setOpenLookalikeDialog(true)}
+              disabled={!tosAccepted}
+              title={
+                !tosAccepted
+                  ? "Morate prihvatiti Meta ToS pre kreiranja publika"
+                  : undefined
+              }
+              className="text-xs"
+            >
+              <Sparkles className="mr-1.5 size-3.5" />
+              Nova Lookalike publika
+            </Button>
+          )}
         </div>
       </div>
 
@@ -208,25 +221,27 @@ export function AudiencesView() {
           tone="warning"
           title="Status Custom Audience Uslova korišćenja (ToS) nije potvrđen"
           action={
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCheckTos}
-              disabled={checkingTos}
-              className="text-xs border-warning/40 text-warning hover:bg-warning/10"
-            >
-              {checkingTos ? (
-                <>
-                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                  Proveravam...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-1.5 size-3.5" />
-                  Proveri ponovo
-                </>
-              )}
-            </Button>
+            mozeUrednik ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCheckTos}
+                disabled={checkingTos}
+                className="text-xs border-warning/40 text-warning hover:bg-warning/10"
+              >
+                {checkingTos ? (
+                  <>
+                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                    Proveravam...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-1.5 size-3.5" />
+                    Proveri ponovo
+                  </>
+                )}
+              </Button>
+            ) : undefined
           }
         >
           <p className="mt-1">
@@ -245,25 +260,27 @@ export function AudiencesView() {
           tone="warning"
           title="Meta Custom Audience Uslovi korišćenja (ToS) nisu prihvaćeni"
           action={
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCheckTos}
-              disabled={checkingTos}
-              className="text-xs border-warning/40 text-warning hover:bg-warning/10"
-            >
-              {checkingTos ? (
-                <>
-                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                  Proveravam...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-1.5 size-3.5" />
-                  Proveri ponovo
-                </>
-              )}
-            </Button>
+            mozeUrednik ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCheckTos}
+                disabled={checkingTos}
+                className="text-xs border-warning/40 text-warning hover:bg-warning/10"
+              >
+                {checkingTos ? (
+                  <>
+                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                    Proveravam...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-1.5 size-3.5" />
+                    Proveri ponovo
+                  </>
+                )}
+              </Button>
+            ) : undefined
           }
         >
           <div className="flex flex-col gap-2 mt-1">

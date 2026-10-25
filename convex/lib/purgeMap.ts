@@ -1475,6 +1475,10 @@ export const EXTRA_TABLE_OWNERSHIP: Record<string, Disposition> = {
     excluded:
       "Sopstvene tajne projekta (CAPI token, tajna za novosti, Puls token), šifrovane. Ista klasa kao `ingestTokens`: prekid veze sa provajderom ih ne opoziva; menjaju se i brišu u Podešavanjima projekta.",
   },
+  globalneKvote: {
+    excluded:
+      "Brojač kvote koju dele svi projekti (Google Cloud projekat, developer token, Meta aplikacija). Bez podataka projekta i bez PII; stari redovi se brišu cron-om.",
+  },
   connections: {
     excluded:
       "Sam red kredencijala. Njega briše `connections.remove` / završnica purge-a (`deleteConnectionRow`), a ne korak brisanja — on je ono što POKREĆE brisanje.",

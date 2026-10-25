@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackNote } from "@/components/app/feedback";
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import { SamoZa } from "@/components/app/samo-za";
+import {
+  useMoze,
+  useProjekatMutation,
+} from "@/components/app/projekat-provider";
 import { Chip } from "@/components/app/system/chip";
 import { EmptyState } from "@/components/app/system/empty-state";
 import { formatRuleSentence } from "@/lib/rule-sentence";
@@ -48,6 +52,9 @@ export function RulesList({
   onEditRule,
   onEnsureTemplates,
 }: RulesListProps) {
+  // Uključivanje, izmenu i brisanje sme samo vlasnik; šablone sme i urednik.
+  const mozeVlasnik = useMoze("owner");
+  const mozeUrednik = useMoze("urednik");
   const toggleRuleMutation = useProjekatMutation(api.rulesStore.toggleRule);
   const deleteRuleMutation = useProjekatMutation(api.rulesStore.deleteRule);
 
@@ -96,10 +103,12 @@ export function RulesList({
           { label: "Uključi pravilo — evaluator ga proverava na 30 minuta" },
         ]}
         action={
-          <Button type="button" variant="secondary" onClick={onEnsureTemplates}>
-            <Sparkles aria-hidden />
-            Učitaj šablone
-          </Button>
+          mozeUrednik ? (
+            <Button type="button" variant="secondary" onClick={onEnsureTemplates}>
+              <Sparkles aria-hidden />
+              Učitaj šablone
+            </Button>
+          ) : undefined
         }
       >
         Pravilo prati CPA, potrošnju ili konverzije i reaguje kad pređu prag.
@@ -195,21 +204,33 @@ export function RulesList({
 
               {/* Prekidač je radnja kartice; uz njega stoji stanje rečju, da
                   boja nije jedini nosilac. */}
-              <label className="flex shrink-0 cursor-pointer items-center gap-2 text-ui">
+              {mozeVlasnik ? (
+                <label className="flex shrink-0 cursor-pointer items-center gap-2 text-ui">
+                  <span
+                    className={rule.enabled ? "text-foreground" : "text-text-muted"}
+                  >
+                    {rule.enabled ? "Aktivno" : "Isključeno"}
+                  </span>
+                  <Switch
+                    checked={rule.enabled}
+                    onCheckedChange={() => handleToggle(rule._id, rule.enabled)}
+                    aria-label={`Pravilo ${rule.name}: ${
+                      rule.enabled ? "aktivno" : "isključeno"
+                    }`}
+                    className="cursor-pointer"
+                  />
+                </label>
+              ) : (
+                // Ostali vide samo stanje rečju, bez prekidača.
                 <span
-                  className={rule.enabled ? "text-foreground" : "text-text-muted"}
+                  className={cn(
+                    "shrink-0 text-ui",
+                    rule.enabled ? "text-foreground" : "text-text-muted",
+                  )}
                 >
                   {rule.enabled ? "Aktivno" : "Isključeno"}
                 </span>
-                <Switch
-                  checked={rule.enabled}
-                  onCheckedChange={() => handleToggle(rule._id, rule.enabled)}
-                  aria-label={`Pravilo ${rule.name}: ${
-                    rule.enabled ? "aktivno" : "isključeno"
-                  }`}
-                  className="cursor-pointer"
-                />
-              </label>
+              )}
             </div>
 
             {/* Uslov kao rečenica — ono što čuvar zapravo radi. */}
@@ -243,31 +264,33 @@ export function RulesList({
                 </span>
               </div>
 
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => onEditRule(rule)}
-                  aria-label={`Izmeni pravilo ${rule.name}`}
-                  title="Izmeni"
-                  className="touch-target text-text-muted hover:text-foreground"
-                >
-                  <Pencil aria-hidden />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => setPendingDelete(rule)}
-                  disabled={deletingId === rule._id}
-                  aria-label={`Obriši pravilo ${rule.name}`}
-                  title="Obriši"
-                  className="touch-target text-text-muted hover:bg-danger-soft hover:text-danger"
-                >
-                  <Trash2 aria-hidden />
-                </Button>
-              </div>
+              <SamoZa uloga="owner">
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => onEditRule(rule)}
+                    aria-label={`Izmeni pravilo ${rule.name}`}
+                    title="Izmeni"
+                    className="touch-target text-text-muted hover:text-foreground"
+                  >
+                    <Pencil aria-hidden />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setPendingDelete(rule)}
+                    disabled={deletingId === rule._id}
+                    aria-label={`Obriši pravilo ${rule.name}`}
+                    title="Obriši"
+                    className="touch-target text-text-muted hover:bg-danger-soft hover:text-danger"
+                  >
+                    <Trash2 aria-hidden />
+                  </Button>
+                </div>
+              </SamoZa>
             </div>
           </Card>
         );

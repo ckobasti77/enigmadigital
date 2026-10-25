@@ -4,8 +4,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { projekatQuery } from "./lib/projekat";
 import { extractYouTubeApiError } from "./lib/youtubeApi";
-import { QUOTA_MEDIA_LIMIT, remainingMediaUnits } from "./lib/ytQuota";
-import { readUnitsUsed } from "./ytIngest";
+import { stanjeYoutube } from "./globalneKvoteStore";
 
 /**
  * Shared plumbing for every YouTube media operation (Y6) — the layer Y7-Y10
@@ -41,6 +40,11 @@ import { readUnitsUsed } from "./ytIngest";
  * different questions. This one answers "can I still send this file today",
  * and a caption panel must never quote the engine's headroom — it would
  * promise 2 000 units that media is not allowed to spend.
+ *
+ * The budget is shared by every project (PROJEKTI-PLAN §9): `unitsRemaining`
+ * is what THIS project may still spend under the reserve rule, and
+ * `mediaLimit` is the ceiling that leaves it (used + remaining), so the bar
+ * and the "fits" check on screen agree with what the backend will allow.
  */
 export const mediaQuotaStatus = projekatQuery({
   args: {},
@@ -48,14 +52,29 @@ export const mediaQuotaStatus = projekatQuery({
     unitsUsed: v.number(),
     unitsRemaining: v.number(),
     mediaLimit: v.number(),
+    /** Zagarantovan deo ovog projekta. */
+    deoProjekta: v.number(),
+    /** Svi projekti zajedno danas. */
+    ukupno: v.number(),
+    /** Plafon izmena za sve projekte (6.000). */
+    zajednickiLimit: v.number(),
+    /** Broj projekata koji dele kvotu. */
+    projekata: v.number(),
+    /** Pacifička ponoć: kad se kvota obnavlja (ms). */
+    obnovaU: v.number(),
   }),
   handler: async (ctx) => {
     const { workspaceId } = ctx.projekat;
-    const unitsUsed = await readUnitsUsed(ctx, workspaceId);
+    const s = await stanjeYoutube(ctx.db, workspaceId, "izmene", Date.now());
     return {
-      unitsUsed,
-      unitsRemaining: remainingMediaUnits(unitsUsed),
-      mediaLimit: QUOTA_MEDIA_LIMIT,
+      unitsUsed: s.projekat,
+      unitsRemaining: s.dostupno,
+      mediaLimit: s.projekat + s.dostupno,
+      deoProjekta: s.R,
+      ukupno: s.ukupno,
+      zajednickiLimit: s.Z,
+      projekata: s.N,
+      obnovaU: s.obnovaU,
     };
   },
 });
@@ -139,7 +158,7 @@ export async function openMediaJob(
  *
  * `unitsSpent` is what this job actually cost — a failed call is still a
  * metered call, so a failure usually spends units too. Booking those units
- * against the daily counter is a separate step (`ytIngest.recordQuotaUsage`);
+ * against the daily counter is a separate step (`lib/ytKvotaAkcija.ts`);
  * this row is the record, not the meter, and doing both here would double-count
  * every caller that already booked its own spend.
  */
@@ -242,13 +261,13 @@ export type MediaContext = {
   workspaceId: Id<"workspaces">;
   channelId: string;
   encryptedCredentials: string;
-  unitsUsed: number;
 } | null;
 
 /**
- * Whose channel, which credentials, and what today's budget looks like — in
- * one read, so the affordability check and the call it guards cannot see two
- * different counters.
+ * Whose channel and which credentials. The budget is not read here: every
+ * media operation reserves its cost against the shared counter right before
+ * the call (`lib/ytKvotaAkcija.ts`), so the check and the booking are one
+ * transaction.
  *
  * Returns `null` when the project has no active YouTube connection: that is
  * "nothing to work with", not a fault, and the caller says so in Serbian.
@@ -264,7 +283,6 @@ export const loadMediaContext = internalQuery({
       workspaceId: v.id("workspaces"),
       channelId: v.string(),
       encryptedCredentials: v.string(),
-      unitsUsed: v.number(),
     }),
   ),
   handler: async (ctx, { workspaceId }): Promise<MediaContext> => {
@@ -282,7 +300,6 @@ export const loadMediaContext = internalQuery({
       // that address the channel itself care; a per-video call does not.
       channelId: (conn.externalId ?? "").trim(),
       encryptedCredentials: conn.encryptedCredentials,
-      unitsUsed: await readUnitsUsed(ctx, workspaceId),
     };
   },
 });

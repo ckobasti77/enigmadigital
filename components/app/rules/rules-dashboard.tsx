@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
 import {
+  useMoze,
   useProjekat,
   useProjekatAction,
   useProjekatMutation,
@@ -42,7 +43,7 @@ export function RulesDashboard() {
   const [evaluating, setEvaluating] = useState(false);
   const [evalResult, setEvalResult] = useState<EvalResult | null>(null);
 
-  const { spreman, uloga } = useProjekat();
+  const { spreman } = useProjekat();
   const rules = useProjekatQuery(api.rulesStore.listRules);
   const firings = useProjekatQuery(api.rulesStore.listRuleFirings, { limit: 100 });
   const ensureTemplateRules = useProjekatMutation(
@@ -50,8 +51,10 @@ export function RulesDashboard() {
   );
   const manualEvaluate = useProjekatAction(api.rules.manualEvaluateRules);
 
-  // Šablone sme da upiše samo urednik ili vlasnik; posmatrač ih ne seje.
-  const mozeDaUpisuje = uloga === "owner" || uloga === "urednik";
+  // Šablone sme da upiše urednik ili vlasnik (posmatrač ih ne seje); proveru
+  // i nova pravila sme samo vlasnik.
+  const mozeDaUpisuje = useMoze("urednik");
+  const mozeVlasnik = useMoze("owner");
 
   // Auto-seed template rules if empty on initial load (once the project is known)
   useEffect(() => {
@@ -111,21 +114,23 @@ export function RulesDashboard() {
         variant="module"
         description={DESCRIPTION}
         actions={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleTriggerEvaluation}
-              loading={evaluating}
-            >
-              {!evaluating && <Play aria-hidden />}
-              {evaluating ? "Proveravam…" : "Pokreni proveru sad"}
-            </Button>
-            <Button type="button" variant="primary" onClick={handleOpenNew}>
-              <Plus aria-hidden />
-              Novo pravilo
-            </Button>
-          </>
+          mozeVlasnik ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleTriggerEvaluation}
+                loading={evaluating}
+              >
+                {!evaluating && <Play aria-hidden />}
+                {evaluating ? "Proveravam…" : "Pokreni proveru sad"}
+              </Button>
+              <Button type="button" variant="primary" onClick={handleOpenNew}>
+                <Plus aria-hidden />
+                Novo pravilo
+              </Button>
+            </>
+          ) : undefined
         }
       />
 

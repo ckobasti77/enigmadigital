@@ -1,6 +1,7 @@
 "use client";
 
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import type { ComponentProps } from "react";
+import { useMoze, useProjekatMutation } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { LeadStage } from "@/convex/leadCrmStore";
@@ -39,8 +40,33 @@ import { cn } from "@/lib/utils";
  * temperature (isti niz kao pin na mapi i ivica reda); klik otvara meni sa
  * dve radio grupe: faza (zatvorene faze traže obrazloženje → dijalog) i
  * temperatura (upisuje se odmah). Ništa se ne menja bez klika na stavku.
+ *
+ * Posmatrač dobija isti čip, ali bez menija: stanje se čita, ne menja.
  */
-export function LeadStateChip({
+export function LeadStateChip(props: ComponentProps<typeof LeadStateChipTelo>) {
+  const moze = useMoze("urednik");
+  if (moze) return <LeadStateChipTelo {...props} />;
+  const { stage, temperatura, size = "md", className } = props;
+  const temp = normalizeTemperatura(temperatura);
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border font-medium leading-none",
+        size === "sm" ? "h-6 px-2 text-meta" : "h-7 px-2.5 text-ui",
+        TEMPERATURE_CHIP_CLASS[temp],
+        className,
+      )}
+    >
+      <span className="shrink-0">{leadStageLabel(stage)}</span>
+      <span className="shrink-0 text-text-muted">·</span>
+      <span className={cn("shrink-0", TEMPERATURE_TEXT_CLASS[temp])}>
+        {TEMPERATURE_LABEL[temp]}
+      </span>
+    </span>
+  );
+}
+
+function LeadStateChipTelo({
   companyId,
   companyName,
   stage,

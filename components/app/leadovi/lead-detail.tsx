@@ -33,9 +33,15 @@ import { FeedbackNote } from "@/components/app/feedback";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
 import { Chip } from "@/components/app/system/chip";
 import { Monogram } from "@/components/app/system/monogram";
-import { normalizeTemperatura, temperatureVar } from "@/lib/temperature";
+import {
+  TEMPERATURE_CHIP_CLASS,
+  TEMPERATURE_LABEL,
+  normalizeTemperatura,
+  temperatureVar,
+} from "@/lib/temperature";
 import { useNisaZa } from "./use-zovi-sada";
 import {
+  useMoze,
   useProjekat,
   useProjekatMutation,
   useProjekatQuery,
@@ -133,6 +139,7 @@ function Fact({
 
 export function LeadDetail({ companyId }: LeadDetailProps) {
   const { korisnik } = useProjekat();
+  const moze = useMoze("urednik");
   const now = useNow();
   const [tab, setTab] = useState<ProfileTab>("istorija");
   const [gapToFill, setGapToFill] = useState<GapType | null>(null);
@@ -313,18 +320,29 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
                       </span>
                     )}
 
-                    <TemperatureSelect
-                      ariaLabel="Temperatura leada"
-                      value={company.temperatura}
-                      onChange={async (t) => {
-                        setTemperatureError(null);
-                        try {
-                          await setCompanyTemperatura({ companyId, temperatura: t });
-                        } catch (err) {
-                          setTemperatureError(getErrorMessage(err));
-                        }
-                      }}
-                    />
+                    {moze ? (
+                      <TemperatureSelect
+                        ariaLabel="Temperatura leada"
+                        value={company.temperatura}
+                        onChange={async (t) => {
+                          setTemperatureError(null);
+                          try {
+                            await setCompanyTemperatura({ companyId, temperatura: t });
+                          } catch (err) {
+                            setTemperatureError(getErrorMessage(err));
+                          }
+                        }}
+                      />
+                    ) : (
+                      <span
+                        className={cn(
+                          "inline-flex h-7 items-center rounded-md border px-2 text-xs font-semibold",
+                          TEMPERATURE_CHIP_CLASS[temperatura],
+                        )}
+                      >
+                        {TEMPERATURE_LABEL[temperatura]}
+                      </span>
+                    )}
 
                     <StageChip stage={assignment?.stage ?? "nov"} />
 
@@ -482,9 +500,11 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
                 {detail.people.length === 0 ? (
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-muted">
                     <span>Nema kontakt osobe u bazi — kontakt ide na centralu firme.</span>
-                    <Button size="xs" variant="outline" onClick={() => setGapToFill("bez_kontakt_osobe")}>
-                      Dodaj osobu
-                    </Button>
+                    {moze && (
+                      <Button size="xs" variant="outline" onClick={() => setGapToFill("bez_kontakt_osobe")}>
+                        Dodaj osobu
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   <ul className="flex flex-col divide-y divide-line-soft">
@@ -536,16 +556,18 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
                                       href={telHref(identity.value)}
                                       label={identity.value}
                                     />
-                                    <Button
-                                      size="xs"
-                                      variant="ghost"
-                                      onClick={() =>
-                                        setProcenaZa({ identity, personName: p.name })
-                                      }
-                                      className="text-text-muted hover:text-foreground"
-                                    >
-                                      Ispravi procenu
-                                    </Button>
+                                    {moze && (
+                                      <Button
+                                        size="xs"
+                                        variant="ghost"
+                                        onClick={() =>
+                                          setProcenaZa({ identity, personName: p.name })
+                                        }
+                                        className="text-text-muted hover:text-foreground"
+                                      >
+                                        Ispravi procenu
+                                      </Button>
+                                    )}
                                   </div>
                                   {identity.verovatnoca === undefined &&
                                   identity.nijeMoguceProceniti !== true ? (
@@ -953,14 +975,16 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
                         <span className="text-sm font-semibold text-foreground">{leadGapLabel(gap)}</span>
                         <span className="text-xs text-text-muted">{GAP_HINT[gap]}</span>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="shrink-0 text-xs"
-                        onClick={() => setGapToFill(gap)}
-                      >
-                        Popuni
-                      </Button>
+                      {moze && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0 text-xs"
+                          onClick={() => setGapToFill(gap)}
+                        >
+                          Popuni
+                        </Button>
+                      )}
                     </li>
                   ))}
                 </ul>

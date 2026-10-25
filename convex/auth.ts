@@ -3,8 +3,8 @@ import { Email } from "@convex-dev/auth/providers/Email";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { Resend as ResendClient } from "resend";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
-import type { ActionCtx, MutationCtx } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { ActionCtx, MutationCtx, QueryCtx } from "./_generated/server";
 
 /**
  * Normalize email: trim and lowercase so allowlist checks cannot be bypassed
@@ -39,11 +39,45 @@ export function isEmailInAllowlist(email?: string | null): boolean {
 }
 
 /**
+ * Otvorena pozivnica za adresu, u BILO KOM projektu: prozor `readyUntil` je
+ * otvorio `pripremiRegistraciju` tik pre `signUp`-a, a pozivnica nije ni
+ * iskorišćena ni povučena. Kad ih ima više, uzima se ona sa najkasnijim
+ * prozorom (poslednja koju je korisnik otvorio). Čita se preko `by_email`.
+ */
+export async function otvorenaPozivnica(
+  db: QueryCtx["db"],
+  email: string,
+  now: number,
+): Promise<Doc<"invites"> | null> {
+  const invites = await db
+    .query("invites")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .collect();
+  let najkasnija: Doc<"invites"> | null = null;
+  for (const inv of invites) {
+    if (
+      inv.readyUntil === undefined ||
+      inv.readyUntil <= now ||
+      inv.usedAt !== undefined ||
+      inv.revokedAt !== undefined
+    ) {
+      continue;
+    }
+    if (najkasnija === null || (najkasnija.readyUntil ?? 0) < inv.readyUntil) {
+      najkasnija = inv;
+    }
+  }
+  return najkasnija;
+}
+
+/**
  * Da li ovaj korisnik sme da napravi sesiju. Redosled je namerno ovakav (§12.1):
  *
  *   1. postoji `members` red za taj `userId`      → DA  (obična prijava člana)
- *   2. postoji pozivnica sa otvorenim prozorom    → DA  (registracija u toku)
- *   3. email je u `ALLOWED_EMAILS`                 → DA  (nasleđeno)
+ *   2. postoji pozivnica sa otvorenim prozorom    → DA  (registracija u toku,
+ *      pozivnica bilo kog projekta)
+ *   3. email je u `ALLOWED_EMAILS`                 → DA  (nasleđeno; bez
+ *      pozivnice i članstva korisnik ne dobija nijedan projekat, E14)
  *   inače                                         → NE
  *
  * Prva stavka je ISPRAVKA: ranije se gledala samo neiskorišćena pozivnica, pa se
@@ -72,27 +106,8 @@ export async function isEmailAllowed(
   if (!normalized) return false;
 
   // 2. otvoren invite prozor (`pripremiRegistraciju` ga otvara tik pre `signUp`-a)
-  const now = Date.now();
-  const workspaces = await ctx.db
-    .query("workspaces")
-    .withIndex("by_slug", (q) => q.eq("slug", WORKSPACE_SLUG))
-    .collect();
-
-  for (const ws of workspaces) {
-    const invites = await ctx.db
-      .query("invites")
-      .withIndex("by_workspace_email", (q) =>
-        q.eq("workspaceId", ws._id).eq("email", normalized),
-      )
-      .collect();
-    const vazeca = invites.some(
-      (inv) =>
-        inv.readyUntil !== undefined &&
-        inv.readyUntil > now &&
-        inv.usedAt === undefined &&
-        inv.revokedAt === undefined,
-    );
-    if (vazeca) return true;
+  if ((await otvorenaPozivnica(ctx.db, normalized, Date.now())) !== null) {
+    return true;
   }
 
   // 3. nasleđena allowlista
@@ -102,7 +117,9 @@ export async function isEmailAllowed(
 }
 
 /**
- * Potroši otvorenu pozivnicu za `email` — upiši `usedAt`/`usedByUserId`. Zove se
+ * Potroši otvorenu pozivnicu za `email` — upiši `usedAt`/`usedByUserId` i dodaj
+ * članstvo u PROJEKTU POZIVNICE sa ulogom iz pozivnice (bez uloge = urednik,
+ * E14), ako ga korisnik tamo već nema. Postojeće članstvo se ne menja. Zove se
  * ISKLJUČIVO iz `beforeSessionCreation`, tj. tek kad se sesija stvarno pravi
  * (korak 2: potvrda koda), a NE iz `afterUserCreatedOrUpdated` (korak 1: unos
  * lozinke). Zašto je to bitno: `sendVerificationRequest` (korak 1) traži
@@ -114,36 +131,32 @@ export async function isEmailAllowed(
  * ništa ne upisuje. Prekinuta registracija ostavlja `readyUntil` bez `usedAt`;
  * prozor istekne sam i pozivnica ponovo važi (`classifyInvite` ne gleda
  * `readyUntil`).
+ *
+ * Izvezena samo zbog testa (`convex/pozivnice.test.ts`); jedini pozivalac u
+ * kodu je `beforeSessionCreation` ispod.
  */
-async function consumeOpenInvite(
+export async function consumeOpenInvite(
   db: MutationCtx["db"],
   userId: Id<"users">,
   email: string | null,
 ): Promise<void> {
   if (!email) return;
   const now = Date.now();
-  const workspaces = await db
-    .query("workspaces")
-    .withIndex("by_slug", (q) => q.eq("slug", WORKSPACE_SLUG))
-    .collect();
-  for (const ws of workspaces) {
-    const invites = await db
-      .query("invites")
-      .withIndex("by_workspace_email", (q) =>
-        q.eq("workspaceId", ws._id).eq("email", email),
-      )
-      .collect();
-    const aktivna = invites.find(
-      (inv) =>
-        inv.readyUntil !== undefined &&
-        inv.readyUntil > now &&
-        inv.usedAt === undefined &&
-        inv.revokedAt === undefined,
-    );
-    if (aktivna) {
-      await db.patch(aktivna._id, { usedAt: now, usedByUserId: userId });
-      return;
-    }
+  const aktivna = await otvorenaPozivnica(db, email, now);
+  if (aktivna === null) return;
+  await db.patch(aktivna._id, { usedAt: now, usedByUserId: userId });
+  const clanstvo = await db
+    .query("members")
+    .withIndex("by_user_workspace", (q) =>
+      q.eq("userId", userId).eq("workspaceId", aktivna.workspaceId),
+    )
+    .first();
+  if (clanstvo === null) {
+    await db.insert("members", {
+      workspaceId: aktivna.workspaceId,
+      userId,
+      role: aktivna.uloga ?? "urednik",
+    });
   }
 }
 
@@ -282,13 +295,6 @@ function otpEmail(code: string, namena: OtpNamena): string {
 }
 
 /**
- * Jedini workspace u sistemu. Slug se koristi kao ključ pri bootstrap-u naloga,
- * pa mora ostati nepromenjen — menjanje bi odvojilo nove korisnike od postojećih podataka.
- */
-export const WORKSPACE_SLUG = "enigma-it";
-export const WORKSPACE_NAME = "Enigma IT";
-
-/**
  * Prijava email + lozinka.
  *
  * `verify: PasswordVerify` je postavljen (§14): `signUp` NE pravi odmah sesiju,
@@ -362,9 +368,10 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       await consumeOpenInvite(db, typedUserId, email);
     },
 
-    // Fires once right after user document creation or update.
-    // Bootstraps or attaches workspace membership (PLAN.md §3).
-    async afterUserCreatedOrUpdated(ctx, { userId, existingUserId, profile }) {
+    // Fires once right after user document creation or update. Only the gate
+    // lives here: membership comes from the invite, in `beforeSessionCreation`
+    // (E14), and the first admin gets his from `pripremiAdminSetup` (E15).
+    async afterUserCreatedOrUpdated(ctx, { userId, profile }) {
       const db = (ctx as unknown as MutationCtx).db;
       const typedUserId = userId as Id<"users">;
       const rawEmail = profile?.email ?? (await db.get(typedUserId))?.email;
@@ -377,58 +384,10 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       // (createAccount, pre slanja koda), a `sendVerificationRequest` u istom
       // koraku traži još-otvorenu pozivnicu da bi kod uopšte poslao. Trošenje je
       // zato u `beforeSessionCreation` (korak 2), preko `consumeOpenInvite`.
-
-      if (existingUserId) return; // returning user — nothing to do
-
-      const existingMembership = await db
-        .query("members")
-        .withIndex("by_user", (q) => q.eq("userId", typedUserId))
-        .first();
-
-      if (!existingMembership) {
-        // Projekat po dizajnu ima TAČNO JEDAN workspace (slug "enigma-it").
-        // Ranije se ovde čitao samo prvi pogodak; ako bi ih iz bilo kog razloga
-        // bilo više, novi korisnik bi tiho završio u pogrešnom (praznom)
-        // workspace-u i video prazan Command Center bez ijedne poruke o grešci.
-        // Zato sada čitamo SVE sa tim slug-om i biramo determinističko najstariji,
-        // a višak glasno prijavljujemo.
-        const existingWorkspaces = await db
-          .query("workspaces")
-          .withIndex("by_slug", (q) => q.eq("slug", WORKSPACE_SLUG))
-          .collect();
-
-        let workspaceId: Id<"workspaces">;
-
-        if (existingWorkspaces.length === 0) {
-          workspaceId = await db.insert("workspaces", {
-            name: WORKSPACE_NAME,
-            slug: WORKSPACE_SLUG,
-          });
-        } else {
-          const canonical = existingWorkspaces.reduce((oldest, candidate) =>
-            candidate._creationTime < oldest._creationTime ? candidate : oldest,
-          );
-          workspaceId = canonical._id;
-
-          if (existingWorkspaces.length > 1) {
-            const duplicates = existingWorkspaces
-              .filter((w) => w._id !== canonical._id)
-              .map((w) => w._id)
-              .join(", ");
-            console.warn(
-              `[auth] U bazi postoji ${existingWorkspaces.length} workspace-a sa slug-om "${WORKSPACE_SLUG}". ` +
-                `Novi član je pridružen najstarijem (${canonical._id}). ` +
-                `Višak koji treba očistiti: ${duplicates}.`,
-            );
-          }
-        }
-
-        await db.insert("members", {
-          workspaceId,
-          userId: typedUserId,
-          role: "owner",
-        });
-      }
+      //
+      // Ovde se više ne pravi članstvo: ranije je svaki nov nalog postajao
+      // vlasnik projekta „enigma-it“, i onaj pozvan u drugi projekat. Članstvo
+      // i ulogu sada daje pozivnica (E14).
     },
   },
 });

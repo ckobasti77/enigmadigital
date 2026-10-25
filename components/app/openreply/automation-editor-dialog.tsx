@@ -18,7 +18,10 @@ import {
   ObjavljujesKao,
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekatMutation,
+} from "@/components/app/projekat-provider";
 import { normalizeKeyword } from "@/convex/lib/orMatch";
 import { PLATFORM_LABELS } from "@/convex/lib/orPlatform";
 import {
@@ -120,6 +123,9 @@ export function AutomationEditorDialog({
   onOpenChange: (open: boolean) => void;
   automationToEdit: AutomationView | null;
 }) {
+  // Dijalog je sav izmena: posmatrač ga nema.
+  const mozeUrediti = useMoze("urednik");
+  if (!mozeUrediti) return null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPopup className="max-w-2xl sm:max-w-2xl">
@@ -1245,13 +1251,36 @@ export function PillToggle({
   onLabel,
   offLabel,
   disabled,
+  readOnly,
 }: {
   on: boolean;
   onChange: (next: boolean) => void;
   onLabel: string;
   offLabel: string;
   disabled?: boolean;
+  /** Samo prikaz stanja, bez prekidača (posmatrač projekta). */
+  readOnly?: boolean;
 }) {
+  if (readOnly) {
+    return (
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium",
+          on
+            ? "border-success/40 bg-success/10 text-success"
+            : "border-line bg-surface text-text-muted",
+        )}
+      >
+        <span
+          className={cn(
+            "size-2 rounded-full",
+            on ? "bg-success" : "bg-text-muted/40",
+          )}
+        />
+        <span>{on ? onLabel : offLabel}</span>
+      </span>
+    );
+  }
   return (
     <button
       type="button"

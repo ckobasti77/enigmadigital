@@ -183,6 +183,7 @@ function MetaUsageLine() {
           {formatClockTime(status.retryAt)}
         </span>
       )}
+      {status.globalno && <span>Ograničenje važi za sve projekte.</span>}
     </p>
   );
 }

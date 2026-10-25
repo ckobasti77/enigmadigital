@@ -2,15 +2,18 @@ import type { MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
-import { VIDEO_UPLOAD_DAILY_LIMIT } from "./lib/ytQuota";
 import {
   DEFAULT_VIDEO_CATEGORY_ID,
   checkVideoMetadata,
   isVideoCategoryId,
   normalizeTags,
 } from "./lib/ytUpload";
-import { addUploadsUsed, readUploadsUsed } from "./ytIngest";
 import { closeMediaJob, openMediaJob } from "./ytMedia";
+import {
+  rezervisiYoutube,
+  stanjeYoutube,
+  vratiYoutube,
+} from "./globalneKvoteStore";
 
 /**
  * Sending a video (Y10). Default V8 runtime — and, unusually for this app,
@@ -59,7 +62,15 @@ export const uploadStatus = projekatQuery({
   returns: v.object({
     uploadsUsed: v.number(),
     uploadsRemaining: v.number(),
+    /**
+     * What this project may send today: used + what the reserve rule still
+     * allows. With one project it is the whole daily limit (100).
+     */
     uploadLimit: v.number(),
+    /** Zagarantovan deo ovog projekta (100 podeljeno na projekte sa YouTube-om). */
+    deoProjekta: v.number(),
+    /** Pacifička ponoć: kad se brojač obnavlja (ms). */
+    obnovaU: v.number(),
     /** False when the project has no active YouTube connection. */
     connected: v.boolean(),
   }),
@@ -73,11 +84,13 @@ export const uploadStatus = projekatQuery({
       )
       .first();
 
-    const uploadsUsed = await readUploadsUsed(ctx, workspaceId);
+    const s = await stanjeYoutube(ctx.db, workspaceId, "upload", Date.now());
     return {
-      uploadsUsed,
-      uploadsRemaining: Math.max(0, VIDEO_UPLOAD_DAILY_LIMIT - uploadsUsed),
-      uploadLimit: VIDEO_UPLOAD_DAILY_LIMIT,
+      uploadsUsed: s.projekat,
+      uploadsRemaining: s.dostupno,
+      uploadLimit: s.projekat + s.dostupno,
+      deoProjekta: s.R,
+      obnovaU: s.obnovaU,
       connected: conn !== null && conn.status === "active",
     };
   },
@@ -153,10 +166,13 @@ export const startUpload = projekatMutation({
 
     const title = args.title.trim();
 
-    // The ceiling is checked and the upload booked in one transaction, so two
-    // tabs cannot both read 99 and both send.
-    const uploadsUsed = await readUploadsUsed(ctx, workspaceId);
-    if (uploadsUsed >= VIDEO_UPLOAD_DAILY_LIMIT) {
+    // The ceiling is checked and the upload booked in one transaction — this
+    // project's share and the shared counter of all projects together — so
+    // two tabs, or two projects, cannot both read 99 and both send.
+    const rezervacija = await rezervisiYoutube(ctx, workspaceId, "upload", 1);
+    if (!rezervacija.ok) {
+      const poruka =
+        rezervacija.poruka ?? "Dnevni limit poslatih videa je dostignut.";
       const jobId = await openMediaJob(ctx, {
         workspaceId,
         kind: "upload",
@@ -166,13 +182,10 @@ export const startUpload = projekatMutation({
         jobId,
         status: "skipped_quota",
         unitsSpent: 0,
-        errorMessage: `Dnevni limit od ${VIDEO_UPLOAD_DAILY_LIMIT} poslatih videa je dostignut.`,
+        errorMessage: poruka,
       });
-      invalid(
-        `Danas je poslato ${uploadsUsed} od ${VIDEO_UPLOAD_DAILY_LIMIT} videa, koliko je dnevni limit. Pokušaj ponovo sutra.`,
-      );
+      invalid(poruka);
     }
-    await addUploadsUsed(ctx, workspaceId, 1);
 
     const jobId = await openMediaJob(ctx, {
       workspaceId,
@@ -307,7 +320,7 @@ export const failUpload = projekatMutation({
     if (job === null) return null;
 
     if (!args.sessionOpened) {
-      await addUploadsUsed(ctx, workspaceId, -1);
+      await vratiYoutube(ctx, workspaceId, "upload", 1);
     }
 
     await closeMediaJob(ctx, {

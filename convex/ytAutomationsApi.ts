@@ -2,12 +2,8 @@ import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { normalizeKeyword } from "./lib/orMatch";
-import { readUnitsUsed } from "./ytIngest";
-import {
-  QUOTA_SOFT_LIMIT,
-  estimatedRepliesLeft,
-  remainingUnits,
-} from "./lib/ytQuota";
+import { QUOTA_COST } from "./lib/ytQuota";
+import { stanjeYoutube } from "./globalneKvoteStore";
 
 /**
  * Public API for the YouTube automations screen (PLAN.md §9 / Y5).
@@ -372,6 +368,11 @@ export const listCommentLogs = projekatQuery({
  *
  * `softLimit` is not YouTube's 10 000 but what the comment engine is allowed
  * to touch: the rest is reserved for the analytics sync (lib/ytQuota.ts).
+ *
+ * The budget belongs to the Google Cloud project behind every project
+ * (PROJEKTI-PLAN §9). `unitsUsed` is this project's share of today,
+ * `deoProjekta` its guaranteed part, `ukupno` all projects together, and
+ * `unitsRemaining` what the reserve rule still lets THIS project spend.
  */
 export const quotaStatus = projekatQuery({
   args: {},
@@ -380,15 +381,24 @@ export const quotaStatus = projekatQuery({
     unitsRemaining: v.number(),
     repliesLeft: v.number(),
     softLimit: v.number(),
+    deoProjekta: v.number(),
+    ukupno: v.number(),
+    projekata: v.number(),
+    /** Pacifička ponoć: kad se kvota obnavlja (ms). */
+    obnovaU: v.number(),
   }),
   handler: async (ctx) => {
     const { workspaceId } = ctx.projekat;
-    const unitsUsed = await readUnitsUsed(ctx, workspaceId);
+    const s = await stanjeYoutube(ctx.db, workspaceId, "odgovori", Date.now());
     return {
-      unitsUsed,
-      unitsRemaining: remainingUnits(unitsUsed),
-      repliesLeft: estimatedRepliesLeft(unitsUsed),
-      softLimit: QUOTA_SOFT_LIMIT,
+      unitsUsed: s.projekat,
+      unitsRemaining: s.dostupno,
+      repliesLeft: Math.floor(s.dostupno / QUOTA_COST.commentsInsert),
+      softLimit: s.Z,
+      deoProjekta: s.R,
+      ukupno: s.ukupno,
+      projekata: s.N,
+      obnovaU: s.obnovaU,
     };
   },
 });

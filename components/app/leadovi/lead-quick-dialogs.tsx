@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { FeedbackLine, FeedbackNote } from "@/components/app/feedback";
 import { useProjekat, useProjekatMutation } from "@/components/app/projekat-provider";
+import { SamoZa } from "@/components/app/samo-za";
 import { useNow } from "@/components/app/use-now";
 import {
   LEAD_OUTCOME_LABELS,
@@ -45,6 +46,9 @@ import { cn } from "@/lib/utils";
  * Svaki dijalog se MONTIRA tek kad se otvori (roditelj ga crta samo dok je
  * `open`), pa početno stanje forme dolazi iz props-a pri montiranju — nema
  * efekta koji „resetuje” polja.
+ *
+ * Svi dijalozi su izmena podataka, pa ih posmatrač ne dobija: izvezena
+ * komponenta je tanak omot (`SamoZa`), a forma živi u istoimenom `…Telo`.
  */
 
 export type LeadDialogBase = {
@@ -159,7 +163,15 @@ export type MeetingDialogProps = LeadDialogBase & {
  * je dozvoljen (beleži se održan sastanak), ali se to kaže pre čuvanja.
  * Prelazak faze u „Sastanak” se NUDI kao izbor, nikad ne radi sam.
  */
-export function MeetingDialog({
+export function MeetingDialog(props: MeetingDialogProps) {
+  return (
+    <SamoZa uloga="urednik">
+      <MeetingDialogTelo {...props} />
+    </SamoZa>
+  );
+}
+
+function MeetingDialogTelo({
   companyId,
   companyName,
   open,
@@ -388,7 +400,15 @@ export type NextActionDialogProps = LeadDialogBase & {
   current?: { nextActionAt: number; nextActionNote?: string } | null;
 };
 
-export function NextActionDialog({
+export function NextActionDialog(props: NextActionDialogProps) {
+  return (
+    <SamoZa uloga="urednik">
+      <NextActionDialogTelo {...props} />
+    </SamoZa>
+  );
+}
+
+function NextActionDialogTelo({
   companyId,
   companyName,
   open,
@@ -490,7 +510,15 @@ export type StageDialogProps = LeadDialogBase & {
   initialStage: LeadStage;
 };
 
-export function StageDialog({
+export function StageDialog(props: StageDialogProps) {
+  return (
+    <SamoZa uloga="urednik">
+      <StageDialogTelo {...props} />
+    </SamoZa>
+  );
+}
+
+function StageDialogTelo({
   companyId,
   companyName,
   open,
@@ -611,7 +639,15 @@ export type OutcomeDialogProps = LeadDialogBase;
  * zabranu kontakta, dijalog to pokaže i traži izričitu potvrdu — sam predlog
  * ništa ne upisuje.
  */
-export function OutcomeDialog({
+export function OutcomeDialog(props: OutcomeDialogProps) {
+  return (
+    <SamoZa uloga="urednik">
+      <OutcomeDialogTelo {...props} />
+    </SamoZa>
+  );
+}
+
+function OutcomeDialogTelo({
   companyId,
   companyName,
   open,
@@ -805,7 +841,15 @@ export type AssignDialogProps = LeadDialogBase & {
  * Dodela drugom članu tima. Spisak članova ne postoji kao upit, pa se prima
  * ID — „dodeli meni” je posebno dugme jer ne traži ništa.
  */
-export function AssignDialog({
+export function AssignDialog(props: AssignDialogProps) {
+  return (
+    <SamoZa uloga="urednik">
+      <AssignDialogTelo {...props} />
+    </SamoZa>
+  );
+}
+
+function AssignDialogTelo({
   companyId,
   companyName,
   open,
@@ -924,7 +968,15 @@ export type TouchDialogProps = LeadDialogBase & {
   defaultChannel?: (typeof TOUCH_CHANNELS)[number]["id"];
 };
 
-export function TouchDialog({
+export function TouchDialog(props: TouchDialogProps) {
+  return (
+    <SamoZa uloga="urednik">
+      <TouchDialogTelo {...props} />
+    </SamoZa>
+  );
+}
+
+function TouchDialogTelo({
   companyId,
   companyName,
   open,

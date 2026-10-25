@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { FeedbackLine } from "@/components/app/feedback";
 import {
+  useMoze,
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
@@ -139,6 +140,7 @@ function CommentsEnabledSwitch({
   commentsEnabled?: boolean;
 }) {
   const setEnabled = useProjekatAction(api.igComments.setCommentsEnabled);
+  const mozeUrediti = useMoze("urednik");
   const [error, setError] = useState<string | null>(null);
 
   // Undefined means no sync has asked yet. Assuming "on" is the honest guess —
@@ -166,7 +168,12 @@ function CommentsEnabledSwitch({
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <label className="flex cursor-pointer items-center gap-2 text-xs">
+      <label
+        className={cn(
+          "flex items-center gap-2 text-xs",
+          mozeUrediti && "cursor-pointer",
+        )}
+      >
         <span
           className={cn(
             "font-medium",
@@ -175,12 +182,15 @@ function CommentsEnabledSwitch({
         >
           {value ? "Komentari uključeni" : "Komentari isključeni"}
         </span>
-        <Switch
-          checked={value}
-          disabled={flag.pending}
-          onCheckedChange={(next) => void change(next)}
-          aria-label="Komentari na objavi"
-        />
+        {/* Posmatrač vidi stanje, ali prekidač nema. */}
+        {mozeUrediti && (
+          <Switch
+            checked={value}
+            disabled={flag.pending}
+            onCheckedChange={(next) => void change(next)}
+            aria-label="Komentari na objavi"
+          />
+        )}
       </label>
 
       {!value && (

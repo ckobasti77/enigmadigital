@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { LeadStage } from "@/convex/leadCrmStore";
@@ -32,7 +32,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FeedbackNote } from "@/components/app/feedback";
-import { useProjekat, useProjekatMutation } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekat,
+  useProjekatMutation,
+} from "@/components/app/projekat-provider";
 import { Unfold } from "@/components/motion/unfold";
 import { LeadCallStrip } from "./lead-call-strip";
 import { StageMenuItems, useStagePick } from "./lead-row-actions";
@@ -151,8 +155,16 @@ function CallButton({
  * dodir, sledeći korak, faza i vlasnik. Ništa nije nestalo, samo je dobilo
  * redosled. Dijalog se otvara samo tamo gde treba datum ili napomena; faza
  * bez obrazloženja i „dodeli meni" se upisuju odmah.
+ *
+ * Cela traka je rad (poziv vodi u beleženje ishoda), pa je posmatrač ne vidi;
+ * kontakti ostaju na jezičku „Kontakti".
  */
-export function LeadActionBar({
+export function LeadActionBar(props: ComponentProps<typeof LeadActionBarTelo>) {
+  const moze = useMoze("urednik");
+  return moze ? <LeadActionBarTelo {...props} /> : null;
+}
+
+function LeadActionBarTelo({
   companyId,
   companyName,
   assignment,

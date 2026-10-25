@@ -1732,9 +1732,9 @@ const listIngestTokens: R<typeof api.ingestTokensStore.listIngestTokens> = [
 ];
 
 const listInvites: R<typeof api.invitesStore.listInvites> = [
-  { _id: "inv_ux_0000000000001" as Id<"invites">, email: "novi.clan@example.com", status: "vazi", createdAt: now - 1 * DAY, expiresAt: now + 6 * DAY, createdByEmail: "operater@example.com" },
-  { _id: "inv_ux_0000000000002" as Id<"invites">, email: "stara.pozivnica@example.com", status: "istekla", createdAt: now - 20 * DAY, expiresAt: now - 13 * DAY, createdByEmail: "operater@example.com" },
-  { _id: "inv_ux_0000000000003" as Id<"invites">, email: "iskoriscena@example.com", status: "iskoriscena", createdAt: now - 40 * DAY, expiresAt: now - 33 * DAY, createdByEmail: "operater@example.com" },
+  { _id: "inv_ux_0000000000001" as Id<"invites">, email: "novi.clan@example.com", status: "vazi", createdAt: now - 1 * DAY, expiresAt: now + 6 * DAY, createdByEmail: "operater@example.com", uloga: "urednik" },
+  { _id: "inv_ux_0000000000002" as Id<"invites">, email: "stara.pozivnica@example.com", status: "istekla", createdAt: now - 20 * DAY, expiresAt: now - 13 * DAY, createdByEmail: "operater@example.com", uloga: "client_viewer" },
+  { _id: "inv_ux_0000000000003" as Id<"invites">, email: "iskoriscena@example.com", status: "iskoriscena", createdAt: now - 40 * DAY, expiresAt: now - 33 * DAY, createdByEmail: "operater@example.com", uloga: "urednik" },
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1756,6 +1756,16 @@ export const FIXTURES_OGLASI: Record<string, Fixture> = {
   [getFunctionName(api.metaAdsStore.listAudiences)]: () => listAudiences,
   [getFunctionName(api.metaAdsStore.getAudienceTos)]: () => audienceTos,
   [getFunctionName(api.metaAdsStore.quotaStatus)]: () => quotaStatus,
+  // Developer token dele dva projekta (Explorer: plafon 2.736, deo 1.368).
+  [getFunctionName(api.googleAdsStore.kvotaGoogleAds)]: (): R<typeof api.googleAdsStore.kvotaGoogleAds> => ({
+    projekat: 420,
+    deoProjekta: 1368,
+    ukupno: 910,
+    zajednickiLimit: 2736,
+    dostupno: 948,
+    projekata: 2,
+    obnovaU: now + 5 * 60 * 60 * 1000,
+  }),
   [getFunctionName(api.metaCapiStore.getCapiStats)]: () => capiStats,
   [getFunctionName(api.adActionsStore.getTargetContext)]: (args) => targetContext(args),
   [getFunctionName(api.adActionsStore.getAdCreativeDetails)]: (args) => adCreativeDetails(args),
@@ -1822,6 +1832,7 @@ export const PRAZNO_OGLASI: Record<string, Fixture> = {
   }),
   [getFunctionName(api.metaAdsStore.getAudienceTos)]: () => ({ status: "unknown" as const }),
   [getFunctionName(api.metaAdsStore.quotaStatus)]: () => null,
+  [getFunctionName(api.googleAdsStore.kvotaGoogleAds)]: () => null,
   [getFunctionName(api.metaCapiStore.getCapiStats)]: () => ({
     configured: false,
     nedostaje: ["piksel", "capi_token"],

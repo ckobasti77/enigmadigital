@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { formatNumber, formatPercent, formatWatchTime } from "@/lib/format";
 import { YtVideoEditDialog } from "./yt-video-edit-dialog";
 import { YtCaptionsPanel } from "./yt-captions-panel";
+import { SamoZa } from "@/components/app/samo-za";
 import { cn } from "@/lib/utils";
 import { EngagementBadge } from "@/components/app/system/channel-focus";
 import {
@@ -534,16 +535,18 @@ function EditVideoButton({
   title: string;
 }) {
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={onEdit}
-      aria-label={`Izmeni video ${title}`}
-      className="h-7 gap-1 border-line-soft px-2 text-xs text-text-secondary hover:border-line-strong hover:text-foreground"
-    >
-      <Pencil className="size-3" aria-hidden />
-      <span>Izmeni</span>
-    </Button>
+    <SamoZa uloga="urednik">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onEdit}
+        aria-label={`Izmeni video ${title}`}
+        className="h-7 gap-1 border-line-soft px-2 text-xs text-text-secondary hover:border-line-strong hover:text-foreground"
+      >
+        <Pencil className="size-3" aria-hidden />
+        <span>Izmeni</span>
+      </Button>
+    </SamoZa>
   );
 }
 
@@ -562,16 +565,18 @@ function CaptionsButton({
   title: string;
 }) {
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={onOpen}
-      aria-label={`Titlovi za video ${title}`}
-      className="h-7 gap-1 border-line-soft px-2 text-xs text-text-secondary hover:border-line-strong hover:text-foreground"
-    >
-      <Captions className="size-3" aria-hidden />
-      <span>Titlovi</span>
-    </Button>
+    <SamoZa uloga="urednik">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onOpen}
+        aria-label={`Titlovi za video ${title}`}
+        className="h-7 gap-1 border-line-soft px-2 text-xs text-text-secondary hover:border-line-strong hover:text-foreground"
+      >
+        <Captions className="size-3" aria-hidden />
+        <span>Titlovi</span>
+      </Button>
+    </SamoZa>
   );
 }
 
