@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import {
@@ -422,7 +422,7 @@ export function LeadExpandedRow({
             <FeedbackLine tone={noteState.tone}>{noteState.text}</FeedbackLine>
           )}
         </div>
-        <Link
+        <ProjekatLink
           href={`/leadovi/${companyId}`}
           className={cn(
             buttonVariants({ variant: "outline", size: "sm" }),
@@ -431,7 +431,7 @@ export function LeadExpandedRow({
         >
           <ExternalLink className="size-3.5" />
           Otvori profil
-        </Link>
+        </ProjekatLink>
       </Section>
     </div>
   );

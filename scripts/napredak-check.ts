@@ -166,7 +166,7 @@ function rutaPostoji(veza: string): boolean {
   const putanja = veza.split("?")[0];
   const delovi = putanja.split("/").filter((d) => d.length > 0);
   return existsSync(
-    fileURLToPath(new URL(`app/(app)/${delovi.join("/")}/page.tsx`, KOREN)),
+    fileURLToPath(new URL(`app/(app)/[projekat]/${delovi.join("/")}/page.tsx`, KOREN)),
   );
 }
 

@@ -609,3 +609,80 @@ Obrađene su sve 88 javnih funkcija grupe iz mape C02 §5.1: 82 sada idu kroz om
   - Podešavanja: veze („Sinhronizuj“, „Prekini vezu“, ponovni pokušaj brisanja), „Istorija akcija“, „Pristup“ (članovi, pozivnice), napomena o webhook-u na Instagram/Facebook kartici;
   - meni korisnika i kartica u bočnoj traci.
 - Ako budeš imao urednika ili klijenta-posmatrača: oglase, pravila, publike, CAPI, veze, članove i pozivnice sada menja samo vlasnik projekta; urednik i posmatrač ne vide sekciju pozivnica. Napomenu o webhook-u vidi samo vlasnik platforme.
+
+## C08 — Rute /[projekat], hub i paneli po domenu   (2026-10-25 02:45)
+**Fajlovi:**
+- selidba (`mv`, bez `git mv`): `app/(app)/{ads,analytics,atribucija,facebook,instagram,leadovi,napredak,novosti,openreply,rules,settings,threads,youtube}/**` i `app/(app)/page.tsx` → `app/(app)/[projekat]/…` (sadržaj strana nepromenjen);
+- novi: `app/(app)/[projekat]/layout.tsx`, `app/(app)/page.tsx` (hub „Svi projekti“), `components/app/auth-gate.tsx`, `components/app/hub/svi-projekti.tsx`, `components/app/projekat-nedostupan.tsx`, `lib/panel-domen.ts`, testovi `lib/panel-domen.test.ts` i `lib/linkovi-cuvar.test.ts`;
+- izmenjeni: `proxy.ts`, `lib/rutiranje.ts`, `lib/rutiranje.test.ts`, `app/(app)/layout.tsx`, `components/app/app-shell.tsx`, `components/app/projekat-provider.tsx`, `components/app/user-menu.tsx`, `components/app/{app-sidebar,mobile-nav,section-nav,command-palette}.tsx`, `components/app/system/page-header.tsx`, `components/app/leadovi/{leads-map,leads-table,import-row-dialog}.tsx`, `app/dev-ux/[[...slug]]/page.tsx`, `app/dev-ux/fixtures.ts`, `app/dev-ux/fixtures-kanali.ts`, `app/dev-ux/fake-convex.ts`, `convex/projekti.ts` (samo dva komentara), `scripts/napredak-check.ts`, `scripts/notifications-check.ts`, `scripts/b10-provera.mjs` (samo putanje);
+- `next/link` → `ProjekatLink` (samo uvoz i JSX) u 52 fajla:
+  - `components/app/ads/{ads-dashboard,new-campaign-wizard}`, `analytics/` (7 ekrana), `attribution/attribution-dashboard`;
+  - `facebook/{facebook-dashboard,fb-comments-moderation}`, `instagram/{comments-moderation,instagram-content-grid,instagram-dashboard,instagram-demographics,publish-composer,post-detail/post-detail-container,post-detail/post-detail-header}`;
+  - `leadovi/{call-mode,import-review-table,lead-detail,lead-expanded-row,lead-row-actions,leads-dashboard,leads-map-panel,leads-map,leads-table,leads-today,work-card}`, `napredak/napredak-screen`, `openreply/{automations-dashboard,openreply-dashboard,profile-menu-panel}`;
+  - `overview/{command-focus,overview-dashboard,performance-highlights,sync-health-widget,today-block,unconnected-tile}`, `settings/data-and-access`, `system/{kpi-tile,player-card}`, `threads/threads-dashboard`, `youtube/{youtube-dashboard,yt-automations-dashboard}`;
+  - `app-sidebar`, `mobile-nav`, `notifications-bell`, `section-nav`, `sync-status` i `app/(app)/[projekat]/leadovi/[companyId]/lead-detail-page-client.tsx`.
+
+  Uz `app-shell` i `user-menu` (ručno) to su 54 fajla iz plana.
+- snimci: `docs/projekti/snimci/C08-{kontrolna-enigma,leadovi-enigma,kontrolna-scanme,leadovi-scanme,svi-projekti,nedostupan}-{1440,390}.png`.
+
+**Šta je urađeno:**
+- **Rute.** Ekrani projekta su pod `app/(app)/[projekat]/`. Server layout `[projekat]` proverava oblik sluga (`notFound()`), čita `x-panel-rezim` (u panelu i `x-panel-projekat`, kao odbranu) i montira `ProjekatProvider slug rezim` → `AppShell`. `app/(app)/layout.tsx` je samo `AuthGate`, izdvojen iz `AppShell`-a: `ig_code` se parkira i na hubu, a neprijavljen ide na `/login`. `app/(app)/page.tsx` je hub „Svi projekti“: spisak projekata (monogram, ime, uloga) sa vezama na `/<slug>`, gornja traka sa natpisom i menijem korisnika, prazno stanje „Nisi član nijednog projekta.“
+- **Odluka rutiranja** je čista funkcija `odluciRutu` u `lib/rutiranje.ts`:
+  - globalne putanje se ne diraju;
+  - panel: `/S…` → redirect na kanonski oblik, ostalo → rewrite na `/S…` (upit ostaje);
+  - hub: `/` ostaje; stara adresa ekrana → `/<ep_projekat>/…` ili `/` (upit ostaje, pa i `ig_code`); kolačić mora da prođe `jeIspravanSlug`; ostalo prolazi do layout-a.
+- **Proxy** primenjuje odluku posle postojeće provere prijave. Dev blok `?ux=1` je i dalje prvi; matcher, komentari, `/login` za prijavljene, `ig_code` i `/r/:slug` su bez izmene.
+  - Domen razrešava `lib/panel-domen.ts` (`napraviRazresivac`): lokalni i neispravan host = hub bez upita; odgovor i `null` se pamte 60 s; greška ili istek posle 1,5 s = hub sa kešom 10 s; najviše 500 unosa (briše se najstariji); paralelni zahtevi za isti host dele jedan upit.
+  - Zaglavlja `x-panel-rezim`/`x-panel-projekat` se postavljaju na svaki zahtev koji prođe proveru prijave i uvek se prepisuju, pa ih klijent ne može podmetnuti.
+- **Provider** više nema privremeni izvor (`mojiProjekti[0]`): slug i režim su obavezni. `mojProjekat` → `null` (ne postoji ili nije član) crta „Projekat nije dostupan“: u hubu dugme „Svi projekti“, u panelu „Odjavi se“. U hubu, tek posle potvrde članstva, postavlja `ep_projekat=<slug>; Path=/; Max-Age=31536000; SameSite=Lax[; Secure]`.
+- **Front u oba režima.** Svi interni linkovi idu kroz `ProjekatLink`. `router.push` profila firme (tabela, mapa) i ⌘K idu kroz `useProjekatHref`. `useEkranPutanja()` čitaju: boja modula, mrvica, podekrani, aktivna stavka bočne i donje trake, traka podekrana, naslov u `PageHeader`-u i „trenutni ekran“ u ⌘K. `date-range-picker`, `use-lead-filters` i `page-transition` namerno ostaju na punom `usePathname()` (plan §7.8).
+- **Razvojni prikaz sa prefiksom:** `/enigma-it/leadovi?ux=1` i `/scanme/leadovi?ux=1` su hub, adresa bez prefiksa je panel „Enigma IT“ (D10), a `/?ux=1&rezim=hub` je „Svi projekti“. Upiti sa `workspaceId` projekta ScanMe dobijaju prazan nalog. Bez `workspaceId` ostaje Enigma, pa skripte sa `resolveFixture(…, {})` rade bez izmene.
+
+**ODLUKE:**
+- **Meni korisnika radi i van projekta** (`useProjekatOpciono()`, nov izvoz providera). Na hubu prikazuje samo nalog i „Odjava“. Ime projekta, svežina podataka, „Napredak“ i „Podešavanja“ su po projektu, pa se tamo ne crtaju (veza bi bez projekta vodila na staru adresu).
+- **`projekat-nedostupan.tsx` sme da koristi `next/link`** (izuzetak sa razlogom u `lib/linkovi-cuvar.test.ts`): dugme „Svi projekti“ vodi VAN projekta na `/`, a kroz `ProjekatLink` bi `/` postao kontrolna tabla istog, nedostupnog projekta.
+- **Lokalni host se proverava u razrešavaču**, ne posebno u proxy-ju: `razresiPanel(host)` sam normalizuje host i za lokalni vraća `null` bez upita (test „localhost bez poziva“ je na razrešavaču). Dodato je i deljenje upita u letu za paralelne zahteve jedne strane, kojeg nije bilo u planu; sinhrona greška upita ne zaglavljuje host (test).
+- **Razvojni prikaz: prefiks je svaki prvi segment koji nije ime ekrana**, ne samo projekti iz fiksture. Zato `/nepostoji?ux=1` crta „Projekat nije dostupan“, kao prava aplikacija. `&panel=<slug>` simulira panel drugog projekta.
+- **ScanMe u razvojnom prikazu je postojeći „prazan nalog“** (putanja `?prazno=1` u `resolveFixture`): nizovi su prazni i kanali nepovezani, ali zbirni objekti (npr. brojke baze leadova) ostaju iz fiksture Enigme, isto kao danas sa `?prazno=1`. Poseban skup fikstura za ScanMe je van obima koraka.
+- **Živi vodič `/sistem?ux=1`** sada stoji u lažnom Convex-u i `ProjekatProvider`-u (panel „Enigma IT“). Pločice, kartica igrača i `PageHeader` prave adresu kroz projekat, pa bi bez providera vodič pao.
+- **Hub i „Projekat nije dostupan“ nose `data-module="tabla"`**, kao prijava i pravne strane. Nisu modul, ali B10 §10.1 traži boju mesta na svakoj ruti, a bez nje je `scripts/b10-provera.mjs --samo rute` padao. Monogram projekta na hubu je neutralan; boja projekta (P10) je posao C09.
+- **`import-row-dialog.tsx`**: dve veze „Otvori profil firme“ su obični `<a target="_blank">` i nisu bile na spisku plana. Dobile su `useProjekatHref`; inače bi u hubu nova kartica išla preko kolačića umesto direktno u projekat.
+- **`projekti.razresiDomen` nije dodat u `DOZVOLJENI_DIREKTNI`**: proxy je serverski kod van `app/`, `components/` i `lib/` koje front čuvar čita, a poziv ide kroz `fetchQuery` (javna funkcija sa `// javno:`).
+- **Panel i putanje huba:** po pravilu 2 iz §6 i `/novi` na panel domenu ide pod projekat (`/enigma-it/novi` → 404). Panel nema hub.
+- **Redosled u proxy-ju:** domen se razrešava pre provere prijave (kao u planu §7.3), pa i neprijavljen zahtev koristi keš domena. Preusmerenja prijave su nepromenjena.
+- **Napredak nema aktivnu stavku u bočnoj traci**, ni u hubu ni u panelu: to je dodatni ekran (`EXTRA_SCREENS`), ne stavka trake. Isto je i na adresi bez prefiksa, kao pre C08.
+- **Kompozer objave i detalj objave su dodati u razvojni prikaz**, jer prihvatanje traži da se svaki ekran iz `nav-items.ts` otvori pod oba projekta, a ta dva tamo nisu postojala ni pre C08. Kompozer je ranije izostavljen jer lažni klijent sve akcije razrešava kao `undefined`, a red sa dnevnom dozvolom tada pada. Sada `action()` u `fake-convex.ts` vraća fiksturu sa imenom akcije kad postoji (inače i dalje `undefined`, pa se drugi ekrani ne menjaju). Dodata je jedna fikstura, `instagramPublish.publishingLimit` (povezan: 3 od 100; prazan nalog: nije povezan). Detalj objave je dinamička ruta `instagram/objave/<id>`, kao profil firme; bez sintetičkih podataka crta učitavanje.
+- **`scripts/b10-provera.mjs`** (nije u `regresije.mjs`): putanja ekrana sada preskače segment `[projekat]`, a „u ljusci“ su strane pod `(app)/[projekat]`. Nalaz: `--samo rute` nad razvojnim prikazom PROLAZI (ruta bez `data-module` 0, neslaganje 0, ikonice 0); hub `/` je u tabeli „van ljuske“, boja `tabla`.
+- **Python je pri izmenama upisao CRLF.** Svi izmenjeni fajlovi su vraćeni na LF (repo ima `eol=lf`), pa diff nosi samo stvarne izmene.
+- **Skill `impeccable` je pozvan pre UI koda** (hub i prazno stanje projekta): režim Operate, postojeći tokeni i komponente (`EmptyState`, `Button`, `Skeleton`), bez novog vizuelnog jezika.
+
+**Novi paketi:** nema
+
+**Testovi:**
+- `lib/rutiranje.test.ts`: `odluciRutu` za svih 16 redova iz plana §7.2 i svaki ekran u oba režima:
+  - panel: `/`, `/leadovi`, `/<slug>/leadovi` → redirect, `/<slug>` → `/`, `/login`, tuđ slug;
+  - hub: `/`, stara adresa sa kolačićem i bez njega, OAuth upit `ig_code`, neispravan i rezervisan kolačić, `/<slug>/…`, `/novi`;
+  - localhost, globalne putanje u oba režima, greška upita = hub.
+
+  Test „svaki ekran je rezervisano ime“ čita `app/(app)/[projekat]/` (promenjena samo putanja).
+- `lib/panel-domen.test.ts` (10): lokalni i neispravni hostovi bez upita; normalizacija; keš 60 s i istek; `null` se pamti; greška = hub sa kešom 10 s; sinhrona greška; istek posle 1,5 s; deljenje upita u letu; više od 500 unosa briše najstariji; ponovo upisan host postaje najnoviji.
+- `lib/linkovi-cuvar.test.ts` (5): `next/link` samo u `projekat-link.tsx`, `projekat-nedostupan.tsx` i `components/app/hub/**`; `usePathname(` samo u provideru i tri dozvoljena fajla (komentari se ne broje); spiskovi izuzetaka ne sadrže nepostojeći fajl; provera same provere.
+- `scripts/napredak-check.ts`, `scripts/notifications-check.ts`: samo nova putanja strana (`app/(app)/[projekat]/…`).
+
+**Rezultat provere:**
+- codegen ✓ (bez promena u `_generated`), typecheck ✓, lint ✓ (0 grešaka; novi i ručno menjani fajlovi bez upozorenja);
+- `npx vitest run` ✓ (222/222, 17 fajlova);
+- `verify-pristup` ✓ (342 javne: omotačem 329, javno 13, bez omotača 0; front: 15 direktnih poziva, svi sa spiska);
+- `regresije.mjs` ✓ (14/14); `npm run build` ✓ (sve strane projekta su `/[projekat]/…`, `/` je hub).
+- Razvojni prikaz (Playwright skripta, 1440×900):
+  - svaki od 32 ekrana iz `nav-items.ts` pod `/enigma-it/…`, `/scanme/…` i bez prefiksa (96 adresa; detalj objave kao `/instagram/objave/ux_objava_1`), plus profil firme u oba projekta: 98 adresa, sve 200, bez grešaka u konzoli, 0 palih;
+  - sve veze u bočnoj traci nose pravi prefiks; aktivna stavka i mrvica odgovaraju ekranu (osim Napretka, vidi ODLUKE);
+  - meni korisnika: na hubu samo „Odjava“, u projektu `/scanme/napredak` i `/scanme/settings`; mrvica podekrana vodi na `/scanme/leadovi`;
+  - kolačić `ep_projekat=scanme` (Lax, `/`) posle ulaska u ScanMe.
+
+  Dev server je ugašen i port 3105 je slobodan. Ugašen je i Playwright MCP ove sesije (koji `claude.exe` sam podiže iz `--mcp-config`; u koraku nije korišćen). Stablo procesa sesije na kraju sadrži samo ljusku same provere; nijedan `next dev`, skripta, Chromium ni MCP server nije ostao.
+
+**Za Jovana ujutru:**
+- **Do mapiranja domena `digital.enigmait.rs` radi kao hub.** `/` je „Svi projekti“, a stare adrese (`/leadovi`, OAuth povratak na `/settings`) vode na poslednji otvoren projekat (kolačić), odnosno na `/` dok ga nema. Domen se mapira u podešavanjima projekta (ekran pravi C11); do tada nema UI-ja za `projekatDomeni`.
+- Posle deploya proveri: hub `/` → klik na projekat → `/enigma-it`; `/leadovi` vodi na `/enigma-it/leadovi`; aktivna stavka, mrvica i podekrani; ⌘K skok na ekran; profil firme iz tabele i mape; tuđ ili nepostojeći slug (`/nepostoji`) daje „Projekat nije dostupan“.
+- Posle mapiranja domena: `/` je kontrolna tabla Enigme, `/leadovi` ostaje `/leadovi`, a `/enigma-it/leadovi` vodi na `/leadovi`. Proveri i odjavu i prijavu na panel domenu, kao i povezivanje jednog kanala (tačan povratak na `/settings` pravog projekta je posao C12).

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useMemo, useState } from "react";
 import {
   ChartNoAxesColumn,
@@ -147,7 +147,7 @@ export function ThreadsDashboard() {
           action={
             <Button
               variant="primary"
-              render={<Link href="/settings" />}
+              render={<ProjekatLink href="/settings" />}
               nativeButton={false}
             >
               Poveži Threads
@@ -261,7 +261,7 @@ export function ThreadsDashboard() {
                     <Button
                       variant="secondary"
                       size="sm"
-                      render={<Link href="/settings" />}
+                      render={<ProjekatLink href="/settings" />}
                       nativeButton={false}
                     >
                       Otvori podešavanja

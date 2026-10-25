@@ -1,4 +1,4 @@
-import { getFunctionName } from "convex/server";
+import { getFunctionName, type FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { dateKeysBetween } from "@/lib/date-range";
@@ -1145,6 +1145,13 @@ export const FIXTURES_KANALI: Record<string, Fixture> = {
   [fn(api.ytMedia.recentJobs)]: () => ytRecentJobs,
   [fn(api.ytPlaylists.playlists)]: () => ytPlaylists,
   [fn(api.ytUpload.uploadStatus)]: () => ytUploadStatus,
+
+  // Instagram: dnevna dozvola objava kompozera. To je akcija; lažni klijent
+  // i akcije razrešava po imenu, pa kompozer ima šta da nacrta.
+  [fn(api.instagramPublish.publishingLimit)]: () =>
+    ({ connected: true, used: 3, total: 100 }) satisfies FunctionReturnType<
+      typeof api.instagramPublish.publishingLimit
+    >,
 };
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1152,6 +1159,12 @@ export const FIXTURES_KANALI: Record<string, Fixture> = {
 // ════════════════════════════════════════════════════════════════════════════
 
 export const PRAZNO_KANALI: Record<string, Fixture> = {
+  // Instagram bez veze: kompozer pokazuje da nalog nije povezan.
+  [fn(api.instagramPublish.publishingLimit)]: () =>
+    ({ connected: false, used: 0, total: 0 }) satisfies FunctionReturnType<
+      typeof api.instagramPublish.publishingLimit
+    >,
+
   // Facebook: bez povezane stranice pageInfo je null, a liste su prazne.
   [fn(api.facebookStore.pageInfo)]: () => null satisfies R<typeof api.facebookStore.pageInfo>,
   [fn(api.facebookStore.dailyHistory)]: () => [],

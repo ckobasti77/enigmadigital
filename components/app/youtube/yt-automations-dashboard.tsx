@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import type { FunctionReturnType } from "convex/server";
 import { Inbox, MessageSquareReply, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -170,12 +170,12 @@ function EngineStatusStrip({
 
 function SettingsLink({ children }: { children: React.ReactNode }) {
   return (
-    <Link
+    <ProjekatLink
       href="/settings"
       className="text-mod underline-offset-4 hover:underline"
     >
       {children}
-    </Link>
+    </ProjekatLink>
   );
 }
 

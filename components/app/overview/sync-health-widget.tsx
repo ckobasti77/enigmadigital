@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import {
   AlertCircle,
   ArrowUpRight,
@@ -103,13 +103,13 @@ export function SyncHealthWidget({
             );
           })}
         </ul>
-        <Link
+        <ProjekatLink
           href="/settings"
           className="ml-auto inline-flex cursor-pointer items-center gap-1 text-meta font-medium text-mod underline-offset-2 hover:underline"
         >
           Podešavanja
           <ArrowUpRight className="size-3.5" aria-hidden />
-        </Link>
+        </ProjekatLink>
       </div>
 
       {saPorukom.length > 0 && (

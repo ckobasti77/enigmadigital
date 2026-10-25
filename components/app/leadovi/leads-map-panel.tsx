@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { api } from "@/convex/_generated/api";
@@ -139,12 +139,12 @@ export function LeadsMapPanel({
               <p className="font-medium text-foreground">Firma više nema dodelu</p>
             ) : (
               <>
-                <Link
+                <ProjekatLink
                   href={`/leadovi/${companyId}`}
                   className="line-clamp-2 text-copy font-bold text-foreground underline-offset-2 hover:text-mod hover:underline"
                 >
                   {company?.name ?? "Nepoznata firma"}
-                </Link>
+                </ProjekatLink>
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-text-muted">
                   {company?.city && (
                     <span className="inline-flex items-center gap-1">
@@ -174,13 +174,13 @@ export function LeadsMapPanel({
         {/* Radnje — isti red kao u tabeli */}
         {item && (
           <div className="flex items-center justify-between gap-2 border-b border-line-soft px-3.5 py-2">
-            <Link
+            <ProjekatLink
               href={`/leadovi/${companyId}`}
               className="inline-flex items-center gap-1 text-micro font-medium text-text-muted hover:text-foreground"
             >
               <ExternalLink className="size-3" aria-hidden />
               Otvori profil
-            </Link>
+            </ProjekatLink>
             <LeadRowActions
               item={item}
               now={now}

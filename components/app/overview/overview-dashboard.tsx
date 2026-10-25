@@ -1,7 +1,7 @@
 "use client";
 
 import { Component, useMemo, useState, type ReactNode } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import {
   ArrowUpRight,
   LineChart,
@@ -414,7 +414,7 @@ function ConnectNotice({
         {children}
       </p>
       <Button
-        render={<Link href="/settings" />}
+        render={<ProjekatLink href="/settings" />}
         nativeButton={false}
         variant="outline"
         size="sm"
@@ -456,13 +456,13 @@ function SecondaryStats({
             {item.label}
           </p>
           {!item.connected ? (
-            <Link
+            <ProjekatLink
               href="/settings"
               className="mt-1.5 inline-flex items-center gap-1 text-ui text-text-muted underline-offset-2 transition-colors hover:text-foreground hover:underline"
             >
               {item.provider} nije povezan
               <ArrowUpRight className="size-3" aria-hidden />
-            </Link>
+            </ProjekatLink>
           ) : item.loading ? (
             <Skeleton className="mt-2 h-6 w-24" />
           ) : item.value === undefined ? (

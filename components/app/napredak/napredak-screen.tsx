@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { ArrowRight, Target, Trophy } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
@@ -353,7 +353,7 @@ function MisijeDana({ stanje }: { stanje: NapredakUkljucen }) {
                   featured={glavna}
                   action={
                     <Button
-                      render={<Link href={vezaMisije(misija.kljuc, misija.veza)} />}
+                      render={<ProjekatLink href={vezaMisije(misija.kljuc, misija.veza)} />}
                       nativeButton={false}
                       variant={glavna ? "primary" : "secondary"}
                       size="sm"

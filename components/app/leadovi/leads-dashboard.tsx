@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import {
   ArrowLeft,
   CalendarClock,
@@ -269,7 +269,7 @@ export function LeadsDashboard() {
               <div className="flex items-center gap-2">
                 {/* Prateća radnja (UI Boost §8): jedino primarno dugme na
                     Leadovima je „Započni režim poziva" na jezičku „Danas". */}
-                <Link
+                <ProjekatLink
                   href="/leadovi/uvoz"
                   data-variant="secondary"
                   className={buttonVariants({
@@ -280,7 +280,7 @@ export function LeadsDashboard() {
                 >
                   <Upload className="size-3.5" aria-hidden />
                   <span>Uvoz leadova</span>
-                </Link>
+                </ProjekatLink>
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={

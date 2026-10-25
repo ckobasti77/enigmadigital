@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ProgressRing } from "./progress";
@@ -196,7 +196,7 @@ export function PlayerCard({
   }
 
   return (
-    <Link
+    <ProjekatLink
       href={href}
       aria-label={name}
       title={rail ? name : undefined}
@@ -206,6 +206,6 @@ export function PlayerCard({
       )}
     >
       {body}
-    </Link>
+    </ProjekatLink>
   );
 }

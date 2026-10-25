@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
@@ -19,13 +19,13 @@ export function PostDetailContainer({ mediaId }: { mediaId: string }) {
   if (data === null) {
     return (
       <div className="flex flex-col gap-6 py-12">
-        <Link
+        <ProjekatLink
           href="/instagram"
           className="inline-flex w-fit items-center gap-1.5 text-xs text-text-muted transition-colors hover:text-foreground"
         >
           <ArrowLeft className="size-3.5" aria-hidden="true" />
           <span>Nazad na sve objave</span>
-        </Link>
+        </ProjekatLink>
 
         <Card className="flex flex-col items-center justify-center gap-4 p-12 text-center shadow-card ring-line">
           <div className="flex size-12 items-center justify-center rounded-full bg-surface-raised text-text-muted">
@@ -40,7 +40,7 @@ export function PostDetailContainer({ mediaId }: { mediaId: string }) {
             </p>
           </div>
           <Button
-            render={<Link href="/instagram" />}
+            render={<ProjekatLink href="/instagram" />}
             nativeButton={false}
             variant="outline"
             className="mt-2 text-xs"

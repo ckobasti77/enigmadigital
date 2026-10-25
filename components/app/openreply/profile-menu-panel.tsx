@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
@@ -561,12 +561,12 @@ function PublishState({
     return (
       <StatusStrip tone="danger">
         Instagram nalog nije povezan, pa ledolomci i meni ne mogu da se objave.{" "}
-        <Link
+        <ProjekatLink
           href="/settings"
           className="text-mod underline-offset-4 hover:underline"
         >
           Poveži nalog u podešavanjima
-        </Link>
+        </ProjekatLink>
         .
       </StatusStrip>
     );

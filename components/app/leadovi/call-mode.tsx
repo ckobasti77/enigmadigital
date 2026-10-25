@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { api } from "@/convex/_generated/api";
@@ -691,14 +691,14 @@ function Firma({
             </p>
           )}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5 text-ui">
-            <Link
+            <ProjekatLink
               href={`/leadovi/${a.companyId}`}
               target="_blank"
               className="inline-flex cursor-pointer items-center gap-1 font-medium text-mod underline-offset-2 hover:underline"
             >
               Profil firme
               <ExternalLink className="size-3.5" aria-hidden />
-            </Link>
+            </ProjekatLink>
             {sajt && (
               <a
                 href={sajt}
@@ -840,13 +840,13 @@ function ZapisRed({
     <li className="flex flex-col gap-1.5 py-2">
       <div className="flex min-w-0 items-center gap-2">
         <Monogram name={naziv} seed={nisa} size="sm" />
-        <Link
+        <ProjekatLink
           href={`/leadovi/${item.assignment.companyId}`}
           target="_blank"
           className="min-w-0 flex-1 truncate text-ui font-medium text-foreground underline-offset-2 hover:text-mod hover:underline"
         >
           {naziv}
-        </Link>
+        </ProjekatLink>
         <Chip size="sm" tone={prikaz.tone}>
           {prikaz.natpis}
         </Chip>

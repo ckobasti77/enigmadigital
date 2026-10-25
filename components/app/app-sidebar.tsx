@@ -1,8 +1,7 @@
 "use client";
 
 import { Fragment, type ReactElement, type ReactNode, type Ref } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +30,7 @@ import {
   useNapredak,
   useSada,
 } from "./napredak/use-napredak";
-import { useProjekat } from "./projekat-provider";
+import { useEkranPutanja, useProjekat } from "./projekat-provider";
 
 /**
  * ============================================================================
@@ -68,7 +67,7 @@ export function AppSidebar({
   onToggleRail: () => void;
   ref?: Ref<HTMLElement>;
 }) {
-  const pathname = usePathname();
+  const pathname = useEkranPutanja();
   // Najduže poklapanje bira modul: „/instagram/objave/<id>" pada na
   // „/instagram", nikad bez oznake.
   const activeParent = activeHref(pathname);
@@ -258,15 +257,15 @@ function NavRow({
           label={item.label}
           side="right"
           render={
-            <Link href={item.href} aria-current={current} className={rowClass} />
+            <ProjekatLink href={item.href} aria-current={current} className={rowClass} />
           }
         >
           {content}
         </Tip>
       ) : (
-        <Link href={item.href} aria-current={current} className={rowClass}>
+        <ProjekatLink href={item.href} aria-current={current} className={rowClass}>
           {content}
-        </Link>
+        </ProjekatLink>
       )}
 
       {children && !rail && (
@@ -290,7 +289,7 @@ function NavRow({
                     />
                   )}
                   <li className="min-w-0">
-                    <Link
+                    <ProjekatLink
                       href={tab.href}
                       aria-current={selected ? "page" : undefined}
                       title={tab.label}
@@ -302,7 +301,7 @@ function NavRow({
                       )}
                     >
                       <span className="truncate">{tab.label}</span>
-                    </Link>
+                    </ProjekatLink>
                   </li>
                 </Fragment>
               );
@@ -352,7 +351,7 @@ function SidebarFooter({
           label={item.label}
           side={rail ? "right" : "top"}
           render={
-            <Link
+            <ProjekatLink
               href={item.href}
               aria-label={item.label}
               aria-current={settingsActive ? "page" : undefined}

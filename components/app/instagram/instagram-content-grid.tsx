@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import {
   ArrowDown,
   ArrowUp,
@@ -510,13 +510,13 @@ function TopContentCard({
           </span>
         ) : (
           <div className="mt-4 flex items-center gap-2">
-            <Link
+            <ProjekatLink
               href={`/instagram/objave/${item.mediaId}`}
               className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border border-line bg-surface-raised/80 py-1.5 text-xs font-semibold text-foreground transition-colors hover:border-line-strong hover:bg-surface-raised hover:text-mod"
             >
               <BarChart2 className="size-3 text-mod" aria-hidden="true" />
               <span>Detalji objave</span>
-            </Link>
+            </ProjekatLink>
 
             {item.permalink && (
               <a
@@ -583,7 +583,7 @@ function PostCard({
 
       {/* Post Body */}
       <div className="flex flex-1 flex-col p-4">
-        <Link
+        <ProjekatLink
           href={`/instagram/objave/${item.mediaId}`}
           className="line-clamp-2 min-h-8 text-xs leading-relaxed text-foreground/90 transition-colors hover:text-mod"
         >
@@ -592,7 +592,7 @@ function PostCard({
           ) : (
             <span className="text-text-muted italic">Bez opisa</span>
           )}
-        </Link>
+        </ProjekatLink>
 
         {/* Stats Grid */}
         <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg bg-surface-raised/40 border border-line-soft p-2.5 text-center">
@@ -641,13 +641,13 @@ function PostCard({
           </div>
 
           <div className="flex items-center gap-2.5">
-            <Link
+            <ProjekatLink
               href={`/instagram/objave/${item.mediaId}`}
               className="inline-flex items-center gap-1 font-semibold text-xs text-mod hover:underline transition-colors"
             >
               <span>Detalji</span>
               <BarChart2 className="size-3" aria-hidden="true" />
-            </Link>
+            </ProjekatLink>
 
             {deleted ? (
               <GonePost />

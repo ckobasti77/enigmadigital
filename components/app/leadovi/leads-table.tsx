@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
@@ -36,7 +36,11 @@ import { Chip } from "@/components/app/system/chip";
 import { ChipOverflow } from "@/components/app/system/chip-overflow";
 import { Monogram } from "@/components/app/system/monogram";
 import { SegmentedToggle } from "@/components/app/analytics/segmented-toggle";
-import { useProjekat, useProjekatQuery } from "@/components/app/projekat-provider";
+import {
+  useProjekat,
+  useProjekatHref,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { useNow } from "@/components/app/use-now";
 import { Unfold } from "@/components/motion/unfold";
 import { useSetExitLatch } from "@/components/motion/exit-latch";
@@ -338,7 +342,7 @@ function CompanyCell({
       <Monogram name={naziv} seed={nisa} size={size === "md" ? "md" : "sm"} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 items-center gap-1.5">
-          <Link
+          <ProjekatLink
             href={`/leadovi/${companyId}`}
             title={company?.name}
             className={cn(
@@ -347,7 +351,7 @@ function CompanyCell({
             )}
           >
             {naziv}
-          </Link>
+          </ProjekatLink>
           {company?.origin === "inbound" && (
             <Chip size="sm" tone="module">
               Inbound
@@ -396,6 +400,7 @@ function ScoreCell({ score, size }: { score: LeadScore | undefined; size: "sm" |
 export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
   const { korisnik, uloga } = useProjekat();
   const router = useRouter();
+  const ka = useProjekatHref();
   // Izvor istine za filtere je URL (GL2, plan §7.1) — ne `useState` ovde.
   const { filters, args, aktivnihGrupa, clearAll } = useLeadFilters();
   const [page, setPage] = useState<number>(1);
@@ -607,7 +612,7 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
           const item = sortedItems.find((i) => i.assignment._id === id);
           if (item) {
             e.preventDefault();
-            router.push(`/leadovi/${item.assignment.companyId}`);
+            router.push(ka(`/leadovi/${item.assignment.companyId}`));
           }
           break;
         }
@@ -684,7 +689,7 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [sortedItems, cursor, dialog, fillCompany, callStrip, expanded, focusRow, router, toggleExpanded]);
+  }, [sortedItems, cursor, dialog, fillCompany, callStrip, expanded, focusRow, router, ka, toggleExpanded]);
 
   // Filter čita najviše 2000 dodela; preko toga lista nije potpuna, i to se piše.
   const odsecenoNaGranici = activeData?.prekoracen === true;

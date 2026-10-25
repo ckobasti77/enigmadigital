@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useEffect, useRef, type ReactNode } from "react";
 import { activeChannelTab, type ChannelTab } from "./nav-items";
+import { useEkranPutanja } from "./projekat-provider";
 import { cn } from "@/lib/utils";
 import { useScrollEdges } from "@/lib/use-scroll-edges";
 
@@ -33,7 +33,7 @@ export function SectionNav({
   trailing?: ReactNode;
   className?: string;
 }) {
-  const pathname = usePathname();
+  const pathname = useEkranPutanja();
   const active = activeChannelTab(pathname, tabs);
   const listRef = useRef<HTMLElement>(null);
   useScrollEdges(listRef);
@@ -65,7 +65,7 @@ export function SectionNav({
   const renderTab = (tab: ChannelTab) => {
     const selected = tab.href === active;
     return (
-      <Link
+      <ProjekatLink
         key={tab.href}
         href={tab.href}
         data-tab-href={tab.href}
@@ -78,7 +78,7 @@ export function SectionNav({
         )}
       >
         {tab.label}
-      </Link>
+      </ProjekatLink>
     );
   };
 

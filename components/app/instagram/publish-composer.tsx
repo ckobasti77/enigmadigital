@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import {
   useCallback,
   useEffect,
@@ -585,12 +585,12 @@ export function PublishComposer() {
             tone="warning"
             title={SCOPE_NOTICE_TITLE}
             action={
-              <Link
+              <ProjekatLink
                 href="/settings"
                 className="text-xs font-medium text-mod underline-offset-4 hover:underline"
               >
                 Podešavanja
-              </Link>
+              </ProjekatLink>
             }
           >
             {SCOPE_NOTICE_BODY}
@@ -601,12 +601,12 @@ export function PublishComposer() {
               tone="danger"
               title={connectionProblem}
               action={
-                <Link
+                <ProjekatLink
                   href="/settings"
                   className="text-xs font-medium text-mod underline-offset-4 hover:underline"
                 >
                   Poveži
-                </Link>
+                </ProjekatLink>
               }
             >
               Dok nalog nije povezan sa opsegom za objavljivanje, objava ne može

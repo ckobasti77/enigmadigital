@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
-import { useProjekatMutation } from "@/components/app/projekat-provider";
+import { useProjekatHref, useProjekatMutation } from "@/components/app/projekat-provider";
 import { leadSignalLabel } from "./lead-labels";
 
 /**
@@ -216,6 +216,8 @@ export function ImportRowDialog({
     "podaci",
   );
 
+  // Profil firme se otvara u novoj kartici, pa adresa mora da nosi projekat.
+  const ka = useProjekatHref();
   const setRowTemperaturaMutation = useProjekatMutation(
     api.leadImportStore.setRowTemperatura,
   );
@@ -821,7 +823,7 @@ export function ImportRowDialog({
                     </span>
                   </p>
                   <a
-                    href={`/leadovi/${matchedCompanyId}`}
+                    href={ka(`/leadovi/${matchedCompanyId}`)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 rounded-md border border-mod-line bg-mod-soft px-3 py-1.5 text-xs font-semibold text-mod hover:bg-mod-soft transition-colors"
@@ -839,7 +841,7 @@ export function ImportRowDialog({
                     </div>
                     <div className="mt-2.5">
                       <a
-                        href={`/leadovi/${row.createdCompanyId}`}
+                        href={ka(`/leadovi/${row.createdCompanyId}`)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 rounded-md border border-mod-line bg-mod-soft px-3 py-1.5 text-xs font-semibold text-mod hover:bg-mod-soft transition-colors"

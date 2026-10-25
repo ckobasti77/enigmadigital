@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useMemo, useState } from "react";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { ChartNoAxesColumn, Unplug } from "lucide-react";
@@ -134,12 +134,12 @@ export function AcquisitionDashboard() {
       {!ga4Connected ? (
         <EmptyState icon={Unplug}>
           GA4 još nije povezan.{" "}
-          <Link
+          <ProjekatLink
             href="/settings"
             className="text-mod underline-offset-4 hover:underline"
           >
             Poveži ga u podešavanjima
-          </Link>
+          </ProjekatLink>
           .
         </EmptyState>
       ) : loading ? (

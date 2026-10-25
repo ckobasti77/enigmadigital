@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type CSSProperties } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { GapType } from "@/convex/leadGapsStore";
@@ -261,13 +261,13 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
 
   return (
     <div className="flex flex-col gap-6 pb-12">
-      <Link
+      <ProjekatLink
         href="/leadovi"
         className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-text-muted transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" />
         <span>Nazad na leadove</span>
-      </Link>
+      </ProjekatLink>
 
       {/* ── Zaglavlje (B7): ko je firma i u kom je stanju, pa JEDAN fokus —
              „Šta je sledeće" sa jednim primarnim dugmetom. Aura u uglu nosi

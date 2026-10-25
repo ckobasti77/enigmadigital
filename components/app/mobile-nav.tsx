@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { LayoutGrid, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,6 +15,7 @@ import { MOBILE_TAB, MOBILE_TAB_BADGE, MOBILE_TAB_ICON } from "./mobile-tab";
 import { ModuleTile } from "./module-tile";
 import { NavBadge } from "./nav-badge";
 import { NotificationsBell } from "./notifications-bell";
+import { useEkranPutanja } from "./projekat-provider";
 
 /**
  * ============================================================================
@@ -32,7 +32,7 @@ import { NotificationsBell } from "./notifications-bell";
  * kaže gde si.
  */
 export function MobileNav() {
-  const pathname = usePathname();
+  const pathname = useEkranPutanja();
   const [moreOpen, setMoreOpen] = useState(false);
   const active = activeHref(pathname);
   const inBar = mobileBarItems.some((item) => item.href === active);
@@ -58,7 +58,7 @@ export function MobileNav() {
           const isActive = item.href === active;
           const Icon = item.icon;
           return (
-            <Link
+            <ProjekatLink
               key={item.href}
               href={item.href}
               data-module={item.module}
@@ -87,7 +87,7 @@ export function MobileNav() {
               <span className="max-w-full truncate px-1">
                 {item.short ?? item.label}
               </span>
-            </Link>
+            </ProjekatLink>
           );
         })}
 
@@ -185,7 +185,7 @@ function MoreSheet({
               const isActive = item.href === active;
               return (
                 <li key={item.href} data-module={item.module}>
-                  <Link
+                  <ProjekatLink
                     href={item.href}
                     onClick={() => onOpenChange(false)}
                     aria-current={isActive ? "page" : undefined}
@@ -209,7 +209,7 @@ function MoreSheet({
                       />
                     </span>
                     <span className="max-w-full truncate">{item.label}</span>
-                  </Link>
+                  </ProjekatLink>
                 </li>
               );
             })}

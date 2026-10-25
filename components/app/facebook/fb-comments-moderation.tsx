@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useMemo, useState } from "react";
 import { EyeOff, Inbox, Search, Trash2, Unplug, X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -123,12 +123,12 @@ export function FbCommentsModeration() {
     return (
       <EmptyState icon={Unplug}>
         Facebook stranica još nije povezana.{" "}
-        <Link
+        <ProjekatLink
           href="/settings"
           className="text-mod underline-offset-4 hover:underline"
         >
           Poveži je u podešavanjima
-        </Link>
+        </ProjekatLink>
         .
       </EmptyState>
     );

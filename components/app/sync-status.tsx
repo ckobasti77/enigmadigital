@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Disc } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -136,7 +136,7 @@ function SyncDot({ className }: { className?: string }) {
     <Tooltip>
       <TooltipTrigger
         render={
-          <Link
+          <ProjekatLink
             href="/settings"
             aria-label={`${state.headline}. Otvori podešavanja.`}
             className={cn(

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -66,7 +66,7 @@ function AdsHeader({ canCreate }: { canCreate: boolean }) {
         canCreate && (
           <Button
             variant="primary"
-            render={<Link href="/ads/nova-kampanja" />}
+            render={<ProjekatLink href="/ads/nova-kampanja" />}
             nativeButton={false}
           >
             <Plus aria-hidden />
@@ -186,7 +186,7 @@ export function AdsDashboard() {
           action={
             <Button
               variant="primary"
-              render={<Link href="/settings" />}
+              render={<ProjekatLink href="/settings" />}
               nativeButton={false}
             >
               Poveži nalog

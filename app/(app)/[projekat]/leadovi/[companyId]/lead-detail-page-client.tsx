@@ -5,7 +5,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { LeadDetail } from "@/components/app/leadovi/lead-detail";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 
 export function LeadDetailPageClient({ companyId }: { companyId: string }) {

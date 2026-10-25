@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
   Bell,
@@ -31,6 +31,7 @@ import { ModuleTile } from "./module-tile";
 import { useStaMeCeka } from "./use-sta-me-ceka";
 import { ikonaMisije, vezaMisije } from "./napredak/napredak-ikone";
 import { useNapredak } from "./napredak/use-napredak";
+import { useEkranPutanja, useProjekatHref } from "./projekat-provider";
 import { cn } from "@/lib/utils";
 
 type Entry = {
@@ -215,7 +216,8 @@ const fold = (s: string) =>
  */
 export function CommandPalette() {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = useEkranPutanja();
+  const ka = useProjekatHref();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -338,9 +340,9 @@ export function CommandPalette() {
     (entry: Entry) => {
       setOpen(false);
       if (entry.run) entry.run();
-      else if (entry.href && entry.href !== pathname) router.push(entry.href);
+      else if (entry.href && entry.href !== pathname) router.push(ka(entry.href));
     },
-    [pathname, router],
+    [pathname, router, ka],
   );
 
   const onKeyDown = (e: React.KeyboardEvent) => {

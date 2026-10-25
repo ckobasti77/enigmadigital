@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useMemo, useState } from "react";
 import {
   ChartNoAxesColumn,
@@ -203,7 +203,7 @@ export function InstagramDashboard() {
           igConnected && (
             <Button
               variant="primary"
-              render={<Link href="/instagram/objavi" />}
+              render={<ProjekatLink href="/instagram/objavi" />}
               nativeButton={false}
             >
               <Plus aria-hidden />
@@ -229,7 +229,7 @@ export function InstagramDashboard() {
           action={
             <Button
               variant="primary"
-              render={<Link href="/settings" />}
+              render={<ProjekatLink href="/settings" />}
               nativeButton={false}
             >
               Poveži Instagram
@@ -282,7 +282,7 @@ export function InstagramDashboard() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  render={<Link href="/settings" />}
+                  render={<ProjekatLink href="/settings" />}
                   nativeButton={false}
                 >
                   Otvori podešavanja
@@ -291,7 +291,7 @@ export function InstagramDashboard() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  render={<Link href="/instagram/komentari" />}
+                  render={<ProjekatLink href="/instagram/komentari" />}
                   nativeButton={false}
                 >
                   Odgovori na komentare

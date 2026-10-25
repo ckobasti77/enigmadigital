@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import {
   useProjekatAction,
   useProjekatQuery,
@@ -487,11 +487,11 @@ export function NewCampaignWizard() {
         tone="warning"
         title="Nijedan Meta Ads nalog nije povezan"
         action={
-          <Link href="/settings">
+          <ProjekatLink href="/settings">
             <Button size="sm" variant="outline">
               Podešavanja
             </Button>
-          </Link>
+          </ProjekatLink>
         }
       >
         Poveži Meta Ads nalog i pokreni sinhronizaciju, pa se vrati na kreiranje kampanje.
@@ -935,12 +935,12 @@ export function NewCampaignWizard() {
             Nazad
           </Button>
         ) : (
-          <Link href="/ads">
+          <ProjekatLink href="/ads">
             <Button type="button" variant="ghost" size="sm">
               <ArrowLeft className="mr-1.5 size-3.5" />
               Otkaži
             </Button>
-          </Link>
+          </ProjekatLink>
         )}
 
         {step === 1 && (
@@ -1162,12 +1162,12 @@ function ResultPanel({
       </div>
 
       <div className="flex items-center gap-2">
-        <Link href="/ads">
+        <ProjekatLink href="/ads">
           <Button variant="primary" size="sm">
             <PlugZap className="mr-1.5 size-3.5" />
             Idi na kampanje
           </Button>
-        </Link>
+        </ProjekatLink>
         <Button size="sm" variant="outline" onClick={onReset}>
           Nova kampanja
         </Button>

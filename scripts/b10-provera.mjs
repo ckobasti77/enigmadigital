@@ -155,8 +155,11 @@ function sveRute() {
         hodaj(put);
       } else if (ime === "page.tsx") {
         const delovi = relative(join(ROOT, "app"), dir).split(sep).filter(Boolean);
-        const uLjusci = delovi[0] === "(app)";
-        const ruta = "/" + delovi.filter((d) => !/^\(.*\)$/.test(d)).join("/");
+        // Ekrani projekta su pod `(app)/[projekat]`; segment projekta nije deo
+        // putanje ekrana (u panelu ga nema, u hubu je prefiks).
+        const uLjusci = delovi[0] === "(app)" && delovi[1] === "[projekat]";
+        const ruta =
+          "/" + delovi.filter((d) => !/^\(.*\)$/.test(d) && d !== "[projekat]").join("/");
         rute.push({ ruta, uLjusci, fajl: relative(ROOT, put).split(sep).join("/") });
       }
     }

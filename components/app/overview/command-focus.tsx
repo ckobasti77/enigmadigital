@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { ArrowRight, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -219,13 +219,13 @@ function FokusNapredak({
                 </>
               )}
             </p>
-            <Link
+            <ProjekatLink
               href={NAPREDAK_HREF}
               className="inline-flex cursor-pointer items-center gap-1 text-meta font-medium text-mod underline-offset-2 hover:underline"
             >
               Napredak
               <ArrowRight className="size-3.5" aria-hidden />
-            </Link>
+            </ProjekatLink>
           </div>
 
           {misije.length === 0 ? (
@@ -262,7 +262,7 @@ function FokusNapredak({
                     action={
                       <Button
                         render={
-                          <Link href={vezaMisije(misija.kljuc, misija.veza)} />
+                          <ProjekatLink href={vezaMisije(misija.kljuc, misija.veza)} />
                         }
                         nativeButton={false}
                         variant={glavna ? "primary" : "secondary"}
@@ -314,7 +314,7 @@ function SledeciZadatak() {
         </p>
       </div>
       <Button
-        render={<Link href={prvi.veza} />}
+        render={<ProjekatLink href={prvi.veza} />}
         nativeButton={false}
         variant="primary"
         className="touch-target"
@@ -348,7 +348,7 @@ function FokusZadatak({ sabira }: { sabira: boolean }) {
       action={
         prvi && (
           <Button
-            render={<Link href={prvi.veza} />}
+            render={<ProjekatLink href={prvi.veza} />}
             nativeButton={false}
             variant="primary"
           >

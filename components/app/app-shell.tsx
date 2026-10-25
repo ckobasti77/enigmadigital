@@ -8,9 +8,6 @@ import {
   useRef,
   useState,
 } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { Search } from "lucide-react";
@@ -28,6 +25,8 @@ import { DateRangePicker } from "./date-range-picker";
 import { UserMenu } from "./user-menu";
 import { useNapredakFeedback } from "./napredak/napredak-feedback";
 import { NapredakIzvor } from "./napredak/napredak-izvor";
+import { ProjekatLink } from "./projekat-link";
+import { useEkranPutanja } from "./projekat-provider";
 import {
   COMMAND_EVENT,
   RAIL_EVENT,
@@ -40,45 +39,12 @@ import {
 gsap.registerPlugin(useGSAP);
 
 /**
- * Parks an incoming Instagram OAuth code from the URL into localStorage so it
- * survives a login round-trip (the Settings page consumes and removes it).
- * Mounted OUTSIDE <Authenticated> on purpose: it must run even when the
- * session is missing, which is exactly when the code would otherwise be lost.
- */
-function OAuthCodeCatcher() {
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("ig_code") || params.get("code");
-    if (!code) return;
-    try {
-      window.localStorage.setItem(
-        "ig_oauth_code",
-        JSON.stringify({ code, ts: Date.now() }),
-      );
-    } catch {
-      // storage unavailable — nothing we can do
-    }
-  }, []);
-  return null;
-}
-
-/** When the session is confirmed missing, send the user to login. */
-function RedirectToLogin() {
-  const router = useRouter();
-  useEffect(() => {
-    router.replace("/login");
-  }, [router]);
-  return <ShellFallback />;
-}
-
-/**
  * Šina ikonica: izbor se pamti na ovom uređaju. Čitanje i pisanje moraju da
  * prežive privatni prozor i izuzetak — pamćenje je pogodnost, ne uslov.
  */
 const RAIL_KEY = "enigma:nav:rail";
 
-function readRail(): boolean {
+export function readRail(): boolean {
   try {
     return window.localStorage.getItem(RAIL_KEY) === "1";
   } catch {
@@ -98,12 +64,16 @@ function writeRail(rail: boolean) {
   }
 }
 
+/**
+ * Ljuska ekrana projekta. Prijavu proverava `AuthGate` iznad nje (layout
+ * `app/(app)`), pa se ljuska montira tek uz potvrđenu sesiju.
+ */
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const ekran = useEkranPutanja();
   // Boja mesta (UI Boost §3.4). Na koloni sadržaja atribut je u stablu, pa je
   // tačan od prvog kadra; na `<html>` ga upisuje efekat, da ga naslede i
   // portali (dijalog, popover, meni), koji se crtaju van te kolone.
-  const modul = resolveModule(pathname);
+  const modul = resolveModule(ekran);
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.module = modul;
@@ -112,40 +82,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [modul]);
 
-  // Širina bočne trake se zna pre sesije, pa i zamena ljuske (dok se sesija
-  // proverava) već stoji u izabranom obliku — bez skoka kad stigne prava.
-  useEffect(() => {
-    const root = document.documentElement;
-    if (readRail()) root.dataset.sidebar = "rail";
-    return () => {
-      delete root.dataset.sidebar;
-    };
-  }, []);
-
-  return (
-    <>
-      <OAuthCodeCatcher />
-
-      {/* No flash: the shell only mounts once the auth token is confirmed. */}
-      <AuthLoading>
-        <ShellFallback />
-      </AuthLoading>
-
-      <Unauthenticated>
-        <RedirectToLogin />
-      </Unauthenticated>
-
-      <Authenticated>
-        <ShellFrame modul={modul}>{children}</ShellFrame>
-      </Authenticated>
-    </>
-  );
+  return <ShellFrame modul={modul}>{children}</ShellFrame>;
 }
 
 /**
- * Prava ljuska. Montira se tek pod `<Authenticated>` (klijent, posle
- * hidratacije), pa je čitanje `localStorage`-a u inicijalizatoru bezbedno i
- * traka je u izabranom obliku od prvog kadra.
+ * Prava ljuska. Montira se tek pod `<Authenticated>` iz `AuthGate`-a (klijent,
+ * posle hidratacije), pa je čitanje `localStorage`-a u inicijalizatoru
+ * bezbedno i traka je u izabranom obliku od prvog kadra.
  *
  * Slojevi (jedna skala, ništa između): gornja traka 30 · bočna i donja traka
  * 40 · sve što se otvara preko strane (dijalog, list, meni, oblačić) 50.
@@ -303,9 +246,9 @@ function ShellFrame({
 const ROW = "mx-auto w-full max-w-[var(--content-max)] px-[var(--gutter)]";
 
 function Header({ rail }: { rail: boolean }) {
-  const pathname = usePathname();
-  const screen = resolveScreen(pathname);
-  const allTabs = channelTabsFor(pathname);
+  const ekran = useEkranPutanja();
+  const screen = resolveScreen(ekran);
+  const allTabs = channelTabsFor(ekran);
   // Jedan jedini podekran nije izbor, pa mu ne treba traka.
   const tabs = allTabs && allTabs.length > 1 ? allTabs : undefined;
 
@@ -371,12 +314,12 @@ function Breadcrumb({ screen }: { screen: ReturnType<typeof resolveScreen> }) {
         <ol className="flex min-w-0 items-baseline gap-1.5 text-sm">
           {screen.parent && (
             <li className="hidden shrink-0 items-baseline gap-1.5 sm:flex">
-              <Link
+              <ProjekatLink
                 href={screen.parent.href}
                 className="text-text-muted transition-colors hover:text-foreground"
               >
                 {screen.parent.label}
-              </Link>
+              </ProjekatLink>
               <span aria-hidden className="text-line-strong">
                 /
               </span>
@@ -413,20 +356,5 @@ function CommandTrigger() {
         ⌘K
       </kbd>
     </button>
-  );
-}
-
-function ShellFallback() {
-  return (
-    <>
-      <div className="material material-edge-r fixed inset-y-0 left-0 z-40 hidden w-[var(--sidebar-width)] md:block" />
-      <div className="flex min-w-0 min-h-full flex-1 flex-col md:pl-[var(--sidebar-width)]">
-        <div className="material h-[var(--chrome-height)] shrink-0" />
-        <div className="mx-auto flex w-full max-w-[var(--content-max)] flex-1 flex-col gap-4 px-[var(--gutter)] py-8">
-          <Skeleton className="h-7 w-40" />
-          <Skeleton className="h-32 w-full max-w-2xl" />
-        </div>
-      </div>
-    </>
   );
 }

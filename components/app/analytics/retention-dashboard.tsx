@@ -11,7 +11,7 @@ import {
   Unplug,
   Users,
 } from "lucide-react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/app/empty-state";
@@ -90,9 +90,9 @@ export function RetentionDashboard() {
     return (
       <EmptyState icon={Unplug}>
         Google Analytics nije povezan. Povežite GA4 nalog sa JSON ključem servisnog naloga u{" "}
-        <Link href="/settings" className="underline underline-offset-4 hover:text-foreground">
+        <ProjekatLink href="/settings" className="underline underline-offset-4 hover:text-foreground">
           Podešavanjima
-        </Link>{" "}
+        </ProjekatLink>{" "}
         da biste pratili kohortnu retenciju posetilaca.
       </EmptyState>
     );

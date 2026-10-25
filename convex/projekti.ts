@@ -27,7 +27,7 @@ import { ulogaValidator, type Uloga } from "./lib/uloge";
  * projekta primaju `workspaceId` kroz omotače iz `lib/projekat.ts`.
  *
  * Backend nikad ne bira „prvi projekat“ umesto pozivaoca: `mojProjekat` traži
- * slug, a privremeni izvor projekta (do rutiranja u C08) živi samo na frontu.
+ * slug, a slug daje ruta `[projekat]` (u hubu putanja, u panelu domen).
  * ============================================================================
  */
 
@@ -60,8 +60,7 @@ async function uStavku(ctx: QueryCtx, ws: Doc<"workspaces">, uloga: Uloga) {
 
 /**
  * Svi projekti prijavljenog korisnika, redom članstva (`by_user` indeks,
- * najstarije prvo). Element [0] je zato isti red koji je dosad vraćao
- * `requireMembership().first()` — na tome stoji privremeni izvor na frontu.
+ * najstarije prvo). Čita ga hub „Svi projekti“.
  */
 export const mojiProjekti = prijavljenQuery({
   args: {},

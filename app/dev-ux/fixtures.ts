@@ -27,6 +27,7 @@ import {
   HOUR,
   USER,
   WS,
+  WS_SCANME,
   lcg,
   now,
   range,
@@ -1096,13 +1097,19 @@ const PRAZNO: Record<string, Fixture> = {
   ...PRAZNO_PROJEKTI,
 };
 
-/** `undefined` za sve što nije pokriveno — ekran tada crta skeleton, ne laž. */
+/**
+ * `undefined` za sve što nije pokriveno — ekran tada crta skeleton, ne laž.
+ *
+ * Upit projekta „ScanMe“ (`workspaceId === WS_SCANME`) dobija prazan nalog:
+ * taj projekat još nema veza ni redova. Bez `workspaceId` ostaje „Enigma IT“,
+ * pa skripte koje zovu `resolveFixture(…, {})` rade kao i pre.
+ */
 export function resolveFixture(
   name: string,
   args: Record<string, unknown>,
   prazno = false,
 ): unknown {
-  if (prazno) {
+  if (prazno || args.workspaceId === WS_SCANME) {
     const po = PRAZNO[name];
     if (po) return po(args);
     const rez = FIXTURES[name]?.(args);

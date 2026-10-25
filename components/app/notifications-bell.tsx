@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { Bell, Clock3, EyeOff, RotateCcw } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
@@ -301,13 +301,13 @@ function Stavka({
         </p>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <Link
+        <ProjekatLink
           href={zadatak.veza}
           onClick={onNavigate}
           className="inline-flex h-7 items-center gap-1 rounded-md border border-mod-line bg-mod-soft px-2.5 text-meta font-medium text-mod transition-colors hover:border-mod"
         >
           {zadatak.radnja}
-        </Link>
+        </ProjekatLink>
         <Button
           type="button"
           variant="ghost"

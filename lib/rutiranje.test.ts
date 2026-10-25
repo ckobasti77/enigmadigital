@@ -11,6 +11,7 @@ import {
   jeIspravanSlug,
   jeLokalniHost,
   normalizujHost,
+  odluciRutu,
   prefiksProjekta,
   proveriSlugProjekta,
   putanjaEkrana,
@@ -97,8 +98,7 @@ describe("pravila adrese projekta (P8)", () => {
   });
 
   test("svaki ekran aplikacije je rezervisano ime", () => {
-    // Do C08 ekrani su direktno u app/(app); C08 ovde menja putanju na app/(app)/[projekat].
-    const dir = fileURLToPath(new URL("../app/(app)/", import.meta.url));
+    const dir = fileURLToPath(new URL("../app/(app)/[projekat]/", import.meta.url));
     const ekrani = readdirSync(dir, { withFileTypes: true })
       .filter((d) => d.isDirectory() && !d.name.startsWith("[") && !d.name.startsWith("("))
       .map((d) => d.name)
@@ -137,5 +137,98 @@ describe("host (P5)", () => {
     expect(jeLokalniHost("127.0.0.1")).toBe(true);
     expect(jeLokalniHost("enigma.localhost")).toBe(true);
     expect(jeLokalniHost("digital.enigmait.rs")).toBe(false);
+  });
+});
+
+describe("odluciRutu (ulaz: proxy, plan C02 §7.2)", () => {
+  const panel = (pathname: string, search = "") =>
+    odluciRutu({ pathname, search, panelSlug: "enigma-it", kolacicProjekat: undefined });
+  const hub = (pathname: string, kolacic?: string, search = "") =>
+    odluciRutu({ pathname, search, panelSlug: null, kolacicProjekat: kolacic });
+
+  test("1. panel: / → rewrite na kontrolnu tablu projekta", () => {
+    expect(panel("/")).toEqual({ tip: "rewrite", putanja: "/enigma-it" });
+  });
+
+  test("2. panel: /leadovi → rewrite, upit ostaje", () => {
+    expect(panel("/leadovi", "?tab=map")).toEqual({ tip: "rewrite", putanja: "/enigma-it/leadovi?tab=map" });
+    expect(panel("/leadovi/uvoz")).toEqual({ tip: "rewrite", putanja: "/enigma-it/leadovi/uvoz" });
+  });
+
+  test("3. panel: /<slug>/leadovi → redirect na kanonski oblik", () => {
+    expect(panel("/enigma-it/leadovi")).toEqual({ tip: "redirect", putanja: "/leadovi" });
+    expect(panel("/enigma-it/leadovi", "?tab=x")).toEqual({ tip: "redirect", putanja: "/leadovi?tab=x" });
+  });
+
+  test("4. panel: /<slug> → redirect na /", () => {
+    expect(panel("/enigma-it")).toEqual({ tip: "redirect", putanja: "/" });
+    expect(panel("/enigma-it", "?ig_code=a")).toEqual({ tip: "redirect", putanja: "/?ig_code=a" });
+  });
+
+  test("5. panel: prijava je globalna", () => {
+    expect(panel("/login")).toEqual({ tip: "dalje" });
+  });
+
+  test("6. panel: tuđ projekat ide pod ovaj (pa 404), ne na drugi projekat", () => {
+    expect(panel("/scanme/leadovi")).toEqual({ tip: "rewrite", putanja: "/enigma-it/scanme/leadovi" });
+    // Prefiks koji samo počinje imenom projekta nije taj projekat.
+    expect(panel("/enigma-itx")).toEqual({ tip: "rewrite", putanja: "/enigma-it/enigma-itx" });
+  });
+
+  test("7. hub: / ostaje „Svi projekti“", () => {
+    expect(hub("/")).toEqual({ tip: "dalje" });
+    expect(hub("/", "scanme")).toEqual({ tip: "dalje" });
+  });
+
+  test("8. hub: stara adresa sa kolačićem → poslednji projekat", () => {
+    expect(hub("/leadovi", "scanme", "?tab=x")).toEqual({ tip: "redirect", putanja: "/scanme/leadovi?tab=x" });
+    expect(hub("/analytics/uzivo", "enigma-it")).toEqual({ tip: "redirect", putanja: "/enigma-it/analytics/uzivo" });
+  });
+
+  test("9. hub: stara adresa bez kolačića → /", () => {
+    expect(hub("/leadovi")).toEqual({ tip: "redirect", putanja: "/" });
+  });
+
+  test("10. hub: OAuth povratak bez kolačića čuva upit (ig_code)", () => {
+    expect(hub("/settings", undefined, "?ig_code=abc")).toEqual({ tip: "redirect", putanja: "/?ig_code=abc" });
+  });
+
+  test("11. hub: neispravan ili rezervisan kolačić se ne koristi", () => {
+    for (const kolacic of ["login", "A B", "", "leadovi", "../x"]) {
+      expect(hub("/leadovi", kolacic), kolacic).toEqual({ tip: "redirect", putanja: "/" });
+    }
+  });
+
+  test("12. hub: /<slug>/… prolazi (članstvo proverava layout)", () => {
+    expect(hub("/scanme/leadovi")).toEqual({ tip: "dalje" });
+    expect(hub("/enigma-it")).toEqual({ tip: "dalje" });
+    expect(hub("/nepostoji/leadovi", "scanme")).toEqual({ tip: "dalje" });
+  });
+
+  test("13. hub: putanje huba van projekta prolaze", () => {
+    expect(hub("/novi")).toEqual({ tip: "dalje" });
+  });
+
+  test("14. localhost je hub: odluka dobija panelSlug null", () => {
+    // Razrešavač domena lokalni host ni ne pita (lib/panel-domen.test.ts).
+    expect(hub("/enigma-it")).toEqual({ tip: "dalje" });
+  });
+
+  test("15. globalne putanje se ne diraju ni u panelu ni u hubu", () => {
+    for (const p of ["/api/x", "/_next/x", "/r/x", "/pozivnica/t", "/deletion-status", "/privacy", "/cookies", "/dev-ux/x", "/logo.png", "/login"]) {
+      expect(panel(p), p).toEqual({ tip: "dalje" });
+      expect(hub(p, "scanme"), p).toEqual({ tip: "dalje" });
+    }
+  });
+
+  test("16. greška upita domena = hub: stara adresa ide na projekat iz kolačića", () => {
+    expect(hub("/leadovi", "enigma-it")).toEqual({ tip: "redirect", putanja: "/enigma-it/leadovi" });
+  });
+
+  test("svaki ekran je stara adresa u hubu i put pod projekat u panelu", () => {
+    for (const ekran of EKRANI) {
+      expect(hub(`/${ekran}`, "scanme"), ekran).toEqual({ tip: "redirect", putanja: `/scanme/${ekran}` });
+      expect(panel(`/${ekran}`), ekran).toEqual({ tip: "rewrite", putanja: `/enigma-it/${ekran}` });
+    }
   });
 });

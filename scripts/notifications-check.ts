@@ -193,13 +193,13 @@ function punSnimak(): Snimak {
 // ── rute na disku ────────────────────────────────────────────────────────────
 
 /**
- * Postoji li stranica za ovu putanju? Traži se `page.tsx` u grupi `(app)`,
+ * Postoji li stranica za ovu putanju? Traži se `page.tsx` pod `(app)/[projekat]`,
  * uključujući dinamičke segmente (`[companyId]`).
  */
 function rutaPostoji(putanja: string): boolean {
   const delovi = putanja.split("/").filter((d) => d.length > 0);
-  const kandidati = [`app/(app)/${delovi.join("/")}/page.tsx`];
-  if (delovi.length === 0) kandidati.push("app/(app)/page.tsx");
+  const kandidati = [`app/(app)/[projekat]/${delovi.join("/")}/page.tsx`];
+  if (delovi.length === 0) kandidati.push("app/(app)/[projekat]/page.tsx");
   return kandidati.some((rel) =>
     existsSync(fileURLToPath(new URL(rel, KOREN))),
   );

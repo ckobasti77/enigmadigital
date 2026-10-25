@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { Table, BarChart2, Unplug, Users, UserCheck } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
@@ -59,12 +59,12 @@ export function InstagramDemographics() {
       {!igConnected ? (
         <EmptyState icon={Unplug}>
           Instagram još nije povezan.{" "}
-          <Link
+          <ProjekatLink
             href="/settings"
             className="text-mod underline-offset-4 hover:underline"
           >
             Poveži ga u podešavanjima
-          </Link>
+          </ProjekatLink>
           .
         </EmptyState>
       ) : (

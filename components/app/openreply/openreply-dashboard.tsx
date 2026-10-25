@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useMemo, useState } from "react";
 import {
   ArrowRight,
@@ -119,7 +119,7 @@ export function OpenReplyDashboard() {
           action={
             <Button
               variant="primary"
-              render={<Link href="/settings" />}
+              render={<ProjekatLink href="/settings" />}
               nativeButton={false}
             >
               Poveži OpenReply
@@ -147,7 +147,7 @@ export function OpenReplyDashboard() {
                 action={
                   <Button
                     variant="primary"
-                    render={<Link href="/openreply/automatizacije" />}
+                    render={<ProjekatLink href="/openreply/automatizacije" />}
                     nativeButton={false}
                   >
                     Otvori automatizacije

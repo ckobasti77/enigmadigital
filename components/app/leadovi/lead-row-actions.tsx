@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { LeadStage } from "@/convex/leadCrmStore";
@@ -305,7 +305,7 @@ export function LeadPrimaryButton({
       return (
         <Button
           {...shared}
-          render={<Link href={`/leadovi/${companyId}`} />}
+          render={<ProjekatLink href={`/leadovi/${companyId}`} />}
           nativeButton={false}
         >
           {body}
@@ -464,7 +464,7 @@ export function LeadRowActions({
             Dodeli drugom…
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem render={<Link href={`/leadovi/${companyId}`} />}>
+          <DropdownMenuItem render={<ProjekatLink href={`/leadovi/${companyId}`} />}>
             <ExternalLink />
             Otvori profil
           </DropdownMenuItem>
@@ -472,7 +472,7 @@ export function LeadRowActions({
               gde da se pokaže — stavka je onemogućena i kaže zašto. */}
           {company?.lat !== undefined && company?.lng !== undefined ? (
             <DropdownMenuItem
-              render={<Link href={`/leadovi?tab=map&firma=${companyId}`} />}
+              render={<ProjekatLink href={`/leadovi?tab=map&firma=${companyId}`} />}
             >
               <MapPin />
               Prikaži na mapi

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useState } from "react";
 import { ArrowRight, MousePointerClick, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -66,7 +66,7 @@ export function AttributionDashboard() {
           action={
             <Button
               variant="primary"
-              render={<Link href="/settings" />}
+              render={<ProjekatLink href="/settings" />}
               nativeButton={false}
             >
               Otvori podešavanja
@@ -87,7 +87,7 @@ export function AttributionDashboard() {
             action={
               <Button
                 variant="primary"
-                render={<Link href="/openreply/automatizacije" />}
+                render={<ProjekatLink href="/openreply/automatizacije" />}
                 nativeButton={false}
               >
                 Otvori automatizacije

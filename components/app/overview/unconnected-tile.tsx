@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { ArrowUpRight, Unplug } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +20,7 @@ export function UnconnectedTile({
   className?: string;
 }) {
   return (
-    <Link
+    <ProjekatLink
       href="/settings"
       aria-label={`${label}: ${providerName} nije povezan — otvori Podešavanja`}
       className={cn(
@@ -44,6 +44,6 @@ export function UnconnectedTile({
         Poveži u Podešavanjima
         <ArrowUpRight className="size-3.5" aria-hidden />
       </span>
-    </Link>
+    </ProjekatLink>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, type ComponentType, type ReactNode } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -224,7 +224,7 @@ function TileShell({
     );
   }
   return (
-    <Link
+    <ProjekatLink
       href={href}
       aria-label={`${label} — otvori detalj`}
       className="group/tile hover-lift relative block cursor-pointer rounded-xl"
@@ -242,7 +242,7 @@ function TileShell({
         aria-hidden
         className="absolute top-3 right-3 size-4 text-mod opacity-0 transition-opacity duration-(--duration-fast) group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100"
       />
-    </Link>
+    </ProjekatLink>
   );
 }
 

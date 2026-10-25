@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { ArrowRight, Info } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -235,12 +235,12 @@ export function WorkCard({
         {monogram && <Monogram name={name} seed={monogram.seed} className="mt-0.5" />}
         <div className="min-w-0 flex-1">
           {href ? (
-            <Link
+            <ProjekatLink
               href={href}
               className="block truncate text-copy font-bold text-foreground underline-offset-2 transition-colors hover:text-mod hover:underline"
             >
               {name}
-            </Link>
+            </ProjekatLink>
           ) : (
             <span className="block truncate text-copy font-bold text-foreground">
               {name}

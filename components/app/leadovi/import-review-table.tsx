@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { ConvexError } from "convex/values";
 import {
   AlertTriangle,
@@ -1291,14 +1291,14 @@ export function ImportReviewTable({
                                   <div className="flex items-center gap-1 text-[11px] text-mod font-medium">
                                     <Building2 className="size-3 shrink-0" />
                                     <span className="truncate">već postoji u bazi</span>
-                                    <Link
+                                    <ProjekatLink
                                       href={`/leadovi?companyId=${row.matchedCompanyId}`}
                                       target="_blank"
                                       className="inline-flex items-center text-mod hover:underline shrink-0"
                                       title="Otvori firmu u bazi"
                                     >
                                       <ExternalLink className="size-2.5" />
-                                    </Link>
+                                    </ProjekatLink>
                                   </div>
                                 )}
                                 {row.decision === "nerazreseno" && (
@@ -1443,14 +1443,14 @@ export function ImportReviewTable({
                       )}>
                         <div className="flex items-center justify-end gap-1.5">
                           {isPrimenjen && row.createdCompanyId && (
-                            <Link
+                            <ProjekatLink
                               href={`/leadovi/${row.createdCompanyId}`}
                               className="inline-flex items-center gap-1 rounded-md border border-mod-line bg-mod-soft px-2 py-1 text-xs font-medium text-mod hover:bg-mod-soft transition-colors shrink-0"
                               title="Otvori u leadovima"
                             >
                               <span>Otvori u leadovima</span>
                               <ExternalLink className="size-3" />
-                            </Link>
+                            </ProjekatLink>
                           )}
                           <Button
                             type="button"

@@ -1,13 +1,9 @@
-import { AppShell } from "@/components/app/app-shell";
-import { ProjekatProvider } from "@/components/app/projekat-provider";
+import { AuthGate } from "@/components/app/auth-gate";
 
 export default function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // Do rutiranja `/[projekat]` (C08) provider uzima prvi projekat korisnika.
-  return (
-    <ProjekatProvider>
-      <AppShell>{children}</AppShell>
-    </ProjekatProvider>
-  );
+  // Prijava za hub „Svi projekti“ i za sve ekrane projekta; projekat i ljusku
+  // daje layout `[projekat]`.
+  return <AuthGate>{children}</AuthGate>;
 }

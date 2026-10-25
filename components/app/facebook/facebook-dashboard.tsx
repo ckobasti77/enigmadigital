@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useMemo, useState } from "react";
 import {
   ChartNoAxesColumn,
@@ -138,7 +138,7 @@ export function FacebookDashboard() {
           fbConnected && (
             <Button
               variant="primary"
-              render={<Link href="/facebook/komentari" />}
+              render={<ProjekatLink href="/facebook/komentari" />}
               nativeButton={false}
             >
               <MessageCircle aria-hidden />
@@ -163,7 +163,7 @@ export function FacebookDashboard() {
           action={
             <Button
               variant="primary"
-              render={<Link href="/settings" />}
+              render={<ProjekatLink href="/settings" />}
               nativeButton={false}
             >
               Poveži Facebook
@@ -218,7 +218,7 @@ export function FacebookDashboard() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  render={<Link href="/settings" />}
+                  render={<ProjekatLink href="/settings" />}
                   nativeButton={false}
                 >
                   Otvori podešavanja

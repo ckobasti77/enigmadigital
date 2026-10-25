@@ -9,9 +9,9 @@ import {
   type RefObject,
 } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useRouter } from "next/navigation";
-import { useProjekatQuery } from "@/components/app/projekat-provider";
+import { useProjekatHref, useProjekatQuery } from "@/components/app/projekat-provider";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { api } from "@/convex/_generated/api";
@@ -194,6 +194,7 @@ function Legenda({ className }: { className?: string }) {
 
 function LeadsMapAll() {
   const router = useRouter();
+  const ka = useProjekatHref();
   const { filters, args, nav, setNav, aktivnihGrupa, clearAll } = useLeadFilters();
   const data = useProjekatQuery(api.leadFiltersStore.listLeadsForMap, args);
 
@@ -239,8 +240,8 @@ function LeadsMapAll() {
     [setNav],
   );
   const onOpenProfile = useCallback(
-    (companyId: string) => router.push(`/leadovi/${companyId}`),
-    [router],
+    (companyId: string) => router.push(ka(`/leadovi/${companyId}`)),
+    [router, ka],
   );
   const onStyleState = useCallback((s: MapStyleState) => setStil(s), []);
 
@@ -271,7 +272,7 @@ function LeadsMapAll() {
               {pluralSr(tacke.length, "firma", "firme", "firmi")} na mapi
             </span>
             {data.bezKoordinata > 0 && (
-              <Link
+              <ProjekatLink
                 href={uTabeluHref}
                 title={"Otvara tabelu sa istim filterima i dodatim filterom „bez koordinata”."}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 font-medium text-text-muted transition-colors hover:border-line-strong hover:text-foreground"
@@ -280,7 +281,7 @@ function LeadsMapAll() {
                 <span className="font-mono tabular-nums">{data.bezKoordinata}</span>
                 <Table2 className="size-3" aria-hidden />
                 prikaži u tabeli
-              </Link>
+              </ProjekatLink>
             )}
             {stil.faza === "ready" && stil.izvor === "openfreemap" && (
               <span className="text-micro">· rezervni izvor mape (OpenFreeMap)</span>
@@ -477,13 +478,13 @@ function PraznoStanje({
       <p className="max-w-md text-xs leading-relaxed text-text-muted">{objasnjenje}</p>
       <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
         {ukupno > 0 && (
-          <Link
+          <ProjekatLink
             href={uTabeluHref}
             className={cn(buttonVariants({ size: "sm", variant: "outline" }), "gap-1.5 text-xs")}
           >
             <Table2 className="size-3.5" aria-hidden />
             Prikaži ih u tabeli ({ukupno})
-          </Link>
+          </ProjekatLink>
         )}
         {aktivnihGrupa > 0 && (
           <Button size="sm" variant="ghost" onClick={onClearAll} className="text-xs">
@@ -654,7 +655,7 @@ function LeadsMapSingle({ company, fit }: Extract<LeadsMapProps, { mode: "single
       {stil.faza === "error" && (
         <GreskaMape poruka={stil.poruka} onRetry={() => setRetryKey((k) => k + 1)} />
       )}
-      <Link
+      <ProjekatLink
         href={`/leadovi?tab=map&firma=${company._id}`}
         className={cn(
           buttonVariants({ size: "xs", variant: "outline" }),
@@ -663,7 +664,7 @@ function LeadsMapSingle({ company, fit }: Extract<LeadsMapProps, { mode: "single
       >
         <ExternalLink className="size-3" aria-hidden />
         Otvori na mapi
-      </Link>
+      </ProjekatLink>
       {stil.faza === "ready" && (
         <span className="absolute bottom-2 right-2 z-[5] rounded-md border border-line bg-surface/90 px-2 py-0.5 text-micro text-text-muted backdrop-blur-sm">
           {company.koordinateIzvor === "rucno" ? "koordinate: ručno" : "koordinate: Nominatim"}

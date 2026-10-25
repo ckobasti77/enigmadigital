@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { ExternalLink, ShieldCheck } from "lucide-react";
 import type { Provider } from "@/convex/lib/providers";
 import { GOOGLE_PERMISSIONS_URL } from "@/lib/policy-links";
@@ -134,12 +134,12 @@ export function DataAndAccess({ connected }: { connected: Provider[] }) {
           Nepovratno. Brisanje se odvija u pozadini i kartica pokazuje dokle je
           stiglo. Prekid veze može da izvede samo vlasnik radnog prostora.
           Detaljno u{" "}
-          <Link
+          <ProjekatLink
             href="/privacy"
             className="text-mod underline underline-offset-2 transition-colors hover:text-mod"
           >
             politici privatnosti
-          </Link>
+          </ProjekatLink>
           .
         </p>
         <p className="text-xs leading-relaxed text-text-muted">

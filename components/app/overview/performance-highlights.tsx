@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import {
   Flame,
   ArrowUpRight,
@@ -85,13 +85,13 @@ export function PerformanceHighlights({
                   Top kampanja po konverzijama
                 </span>
               </div>
-              <Link
+              <ProjekatLink
                 href="/atribucija"
                 className="group flex items-center gap-1 text-xs text-text-muted transition-colors hover:text-mod"
               >
                 <span>Levak</span>
                 <ArrowUpRight className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-              </Link>
+              </ProjekatLink>
             </div>
 
             {!hasOpenReply || !hasGa4 ? (
@@ -104,12 +104,12 @@ export function PerformanceHighlights({
                       ? "OpenReply nije povezan"
                       : "GA4 nije povezan"}
                 </p>
-                <Link
+                <ProjekatLink
                   href="/settings"
                   className="mt-3 text-xs text-mod underline-offset-4 hover:underline"
                 >
                   Poveži integracije u Podešavanjima →
-                </Link>
+                </ProjekatLink>
               </div>
             ) : !topCampaign ? (
               <div className="flex flex-col items-center justify-center py-10 text-center">
@@ -178,12 +178,12 @@ export function PerformanceHighlights({
               <MessageCircleReply className="size-3 text-mod" />
               <span>Automatizacija: OpenReply + GA4 UTM</span>
             </span>
-            <Link
+            <ProjekatLink
               href="/atribucija"
               className="text-text-secondary hover:text-mod transition-colors"
             >
               Kompletan levak →
-            </Link>
+            </ProjekatLink>
           </div>
         </div>
 
@@ -199,13 +199,13 @@ export function PerformanceHighlights({
                   Top Instagram objava po dosegu
                 </span>
               </div>
-              <Link
+              <ProjekatLink
                 href="/instagram"
                 className="group flex items-center gap-1 text-xs text-text-muted transition-colors hover:text-mod"
               >
                 <span>Instagram</span>
                 <ArrowUpRight className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-              </Link>
+              </ProjekatLink>
             </div>
 
             {!hasInstagram ? (
@@ -214,12 +214,12 @@ export function PerformanceHighlights({
                 <p className="mt-2 text-xs text-text-muted">
                   Instagram nalog nije povezan
                 </p>
-                <Link
+                <ProjekatLink
                   href="/settings"
                   className="mt-3 text-xs text-mod underline-offset-4 hover:underline"
                 >
                   Poveži Instagram u Podešavanjima →
-                </Link>
+                </ProjekatLink>
               </div>
             ) : !topPost ? (
               <div className="flex flex-col items-center justify-center py-10 text-center">
@@ -302,12 +302,12 @@ export function PerformanceHighlights({
                 <ExternalLink className="size-3" />
               </a>
             ) : (
-              <Link
+              <ProjekatLink
                 href="/instagram"
                 className="text-text-secondary hover:text-mod transition-colors"
               >
                 Sve objave →
-              </Link>
+              </ProjekatLink>
             )}
           </div>
         </div>

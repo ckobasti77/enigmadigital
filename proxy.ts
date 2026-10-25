@@ -1,14 +1,31 @@
 import { NextResponse } from "next/server";
+import { fetchQuery } from "convex/nextjs";
 import {
   convexAuthNextjsMiddleware,
   createRouteMatcher,
   nextjsMiddlewareRedirect,
 } from "@convex-dev/auth/nextjs/server";
+import { api } from "@/convex/_generated/api";
+import { napraviRazresivac } from "@/lib/panel-domen";
+import { KOLACIC_PROJEKAT, odluciRutu } from "@/lib/rutiranje";
+import { resolveServerConvexUrl } from "@/lib/server-convex-url";
 
 // Next.js 16 renamed Middleware → Proxy. This file replaces `middleware.ts`
 // (see node_modules/next/dist/docs/.../16-proxy.md). Runs on the Node runtime.
 
 const isSignInPage = createRouteMatcher(["/login"]);
+
+// Domen → projekat panela (PROJEKTI-PLAN §6, P5). Lokalni host je hub bez
+// upita; odgovor se pamti 60 s po hostu; greška ili istek upita = hub (prijava
+// i članstvo i dalje važe, pa hub ništa ne otvara).
+const razresiPanel = napraviRazresivac({
+  dohvati: async (host) => {
+    const url = resolveServerConvexUrl();
+    if (!url.ok) throw new Error(url.logDetail);
+    const r = await fetchQuery(api.projekti.razresiDomen, { host }, { url: url.url });
+    return r?.slug ?? null;
+  },
+});
 
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
   // Razvojni prikaz sa sintetičkim podacima (A1 §6, `scripts/ux-snapshots.mjs`):
@@ -27,6 +44,15 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
     return NextResponse.rewrite(url);
   }
 
+  // Režim: panel domen zaključan na jedan projekat ili hub. Zaglavlja čita
+  // server layout `[projekat]` (i prijava, za brend). Postavljaju se na svaki
+  // zahtev i uvek prepisuju, pa vrednost koju pošalje klijent ne prolazi.
+  const panelSlug = await razresiPanel(request.headers.get("host"));
+  const zaglavlja = new Headers(request.headers);
+  zaglavlja.set("x-panel-rezim", panelSlug ? "panel" : "hub");
+  if (panelSlug) zaglavlja.set("x-panel-projekat", panelSlug);
+  else zaglavlja.delete("x-panel-projekat");
+
   const authed = await convexAuth.isAuthenticated();
 
   // The two rules are disjoint (login vs everything-else), so no redirect loop.
@@ -44,6 +70,25 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
       : "/login";
     return nextjsMiddlewareRedirect(request, target);
   }
+
+  // Rutiranje projekata (samo prijavljeni ili /login): kanonske adrese panela,
+  // stare adrese ekrana u hubu, rewrite panela na `/<slug>/…`. Odluka je čista
+  // funkcija u `lib/rutiranje.ts`; ovde se samo primenjuje.
+  const odluka = odluciRutu({
+    pathname: request.nextUrl.pathname,
+    search: request.nextUrl.search,
+    panelSlug,
+    kolacicProjekat: request.cookies.get(KOLACIC_PROJEKAT)?.value,
+  });
+  if (odluka.tip === "redirect") {
+    return nextjsMiddlewareRedirect(request, odluka.putanja);
+  }
+  if (odluka.tip === "rewrite") {
+    return NextResponse.rewrite(new URL(odluka.putanja, request.url), {
+      request: { headers: zaglavlja },
+    });
+  }
+  return NextResponse.next({ request: { headers: zaglavlja } });
 });
 
 export const config = {

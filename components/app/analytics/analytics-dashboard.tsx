@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useMemo, useState } from "react";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Activity, ChartNoAxesColumn, Info, Radio, Unplug } from "lucide-react";
@@ -47,7 +47,7 @@ export function AnalyticsHeaderAction() {
   return (
     <Button
       variant="primary"
-      render={<Link href="/analytics/uzivo" />}
+      render={<ProjekatLink href="/analytics/uzivo" />}
       nativeButton={false}
     >
       <Radio data-icon="inline-start" aria-hidden />
@@ -153,7 +153,7 @@ export function AnalyticsDashboard() {
           action={
             <Button
               variant="primary"
-              render={<Link href="/settings" />}
+              render={<ProjekatLink href="/settings" />}
               nativeButton={false}
             >
               Poveži GA4
@@ -184,12 +184,12 @@ export function AnalyticsDashboard() {
                   dana.
                 </span>
               </div>
-              <Link
+              <ProjekatLink
                 href="/settings"
                 className="shrink-0 font-medium text-foreground underline-offset-4 hover:underline"
               >
                 Podešavanja
-              </Link>
+              </ProjekatLink>
             </div>
           )}
 

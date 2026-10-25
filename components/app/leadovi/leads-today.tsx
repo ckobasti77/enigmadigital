@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
@@ -462,7 +462,7 @@ export function LeadsToday() {
                   </Button>
                 ) : (
                   <Button
-                    render={<Link href={`/leadovi/${item.assignment.companyId}`} />}
+                    render={<ProjekatLink href={`/leadovi/${item.assignment.companyId}`} />}
                     nativeButton={false}
                     variant="secondary"
                     size="sm"
@@ -599,7 +599,7 @@ function DanasFokus({ zovi }: { zovi: ZoviSada | null }) {
         ) : uRedu > 0 ? (
           <div className="flex flex-col items-start gap-1.5 md:items-end">
             <Button
-              render={<Link href={REZIM_POZIVA_HREF} />}
+              render={<ProjekatLink href={REZIM_POZIVA_HREF} />}
               nativeButton={false}
               variant="primary"
               size="lg"

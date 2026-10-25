@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { usePathname } from "next/navigation";
 import { Info } from "lucide-react";
 import {
   moduleNavItem,
@@ -15,6 +14,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useEkranPutanja } from "../projekat-provider";
 
 /**
  * ============================================================================
@@ -56,7 +56,7 @@ export function PageHeader({
   /** Duže objašnjenje (kriterijumi, imenioci) — iza dugmeta „i". */
   info?: ReactNode;
 }) {
-  const pathname = usePathname();
+  const pathname = useEkranPutanja();
   const screenTitle = resolveScreen(pathname)?.title;
 
   if (variant === "module") {

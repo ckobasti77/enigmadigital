@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
@@ -19,7 +18,8 @@ import { cn } from "@/lib/utils";
 import { NAPREDAK_HREF, screenExists, settingsNavItem } from "./nav-items";
 import { SyncStatusLine } from "./sync-status";
 import { PlayerAvatar, initialsOf } from "./system/player-card";
-import { useProjekat } from "./projekat-provider";
+import { ProjekatLink } from "./projekat-link";
+import { useProjekatOpciono } from "./projekat-provider";
 
 /**
  * Meni korisnika u gornjoj traci (UI Boost §7.2).
@@ -38,10 +38,12 @@ const ITEM =
   "h-8 cursor-pointer gap-2.5 px-2 text-ui text-text-secondary data-highlighted:bg-foreground/8 data-highlighted:text-foreground [&_svg]:text-text-muted data-highlighted:[&_svg]:text-foreground";
 
 export function UserMenu({ className }: { className?: string }) {
-  // Nalog ne zavisi od projekta (`projekti.ja` radi i u hubu); ime projekta
-  // daje provider kad ga ima.
+  // Nalog ne zavisi od projekta (`projekti.ja` radi i u hubu); ime projekta,
+  // svežinu i veze ekrana daje provider kad ga ima. Na hubu „Svi projekti“
+  // projekta nema, pa meni nosi samo nalog i odjavu.
   const ja = useQuery(api.projekti.ja);
-  const { ime: imeProjekta } = useProjekat();
+  const projekat = useProjekatOpciono();
+  const imeProjekta = projekat?.ime ?? null;
   const { signOut } = useAuthActions();
   const router = useRouter();
 
@@ -90,29 +92,34 @@ export function UserMenu({ className }: { className?: string }) {
               {imeProjekta}
             </p>
           )}
-          <SyncStatusLine className="mt-2" />
+          {projekat && <SyncStatusLine className="mt-2" />}
         </div>
 
         <DropdownMenuSeparator />
 
-        {screenExists(NAPREDAK_HREF) && (
-          <DropdownMenuLinkItem
-            render={<Link href={NAPREDAK_HREF} />}
-            className={ITEM}
-          >
-            <Trophy />
-            Napredak
-          </DropdownMenuLinkItem>
-        )}
-        <DropdownMenuLinkItem
-          render={<Link href={settingsNavItem.href} />}
-          className={ITEM}
-        >
-          <Settings />
-          {settingsNavItem.label}
-        </DropdownMenuLinkItem>
+        {projekat && (
+          <>
+            {screenExists(NAPREDAK_HREF) && (
+              <DropdownMenuLinkItem
+                render={<ProjekatLink href={NAPREDAK_HREF} />}
+                className={ITEM}
+              >
+                <Trophy />
+                Napredak
+              </DropdownMenuLinkItem>
+            )}
+            <DropdownMenuLinkItem
+              render={<ProjekatLink href={settingsNavItem.href} />}
+              className={ITEM}
+            >
+              <Settings />
+              {settingsNavItem.label}
+            </DropdownMenuLinkItem>
 
-        <DropdownMenuSeparator />
+            <DropdownMenuSeparator />
+          </>
+        )}
+
 
         <DropdownMenuItem
           onClick={() => void handleSignOut()}

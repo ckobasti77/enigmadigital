@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   type ReactNode,
 } from "react";
@@ -18,11 +19,13 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { Uloga } from "@/convex/lib/uloge";
 import {
+  KOLACIC_PROJEKAT,
   ekranIzPutanje,
   prefiksProjekta,
   putanjaEkrana,
   type Rezim,
 } from "@/lib/rutiranje";
+import { ProjekatNedostupan } from "./projekat-nedostupan";
 
 /**
  * ============================================================================
@@ -34,14 +37,16 @@ import {
  * izostavi ni da pošalje drugi (tipovi to ne dozvoljavaju, a u runtime-u se
  * `workspaceId` upisuje poslednji).
  *
- * Izvor projekta:
- *   - od C08: slug iz rute `[projekat]` (prop `slug`) i režim iz zaglavlja;
- *   - do C08 (privremeno, SAMO na frontu): prvi projekat korisnika, tj.
- *     `mojiProjekti[0]` — isti red koji je backend do C07 birao kao „prvo
- *     članstvo“. Backend nikad ne bira projekat sam.
+ * Izvor projekta je slug iz rute `[projekat]` (prop `slug`), a režim
+ * (`hub`/`panel`) daje server layout iz zaglavlja `x-panel-rezim` koje
+ * postavlja `proxy.ts`. Backend nikad ne bira projekat sam.
  *
- * Upiti čekaju potvrđenu sesiju (`useConvexAuth`), pa provider sme da stoji
- * iznad `AppShell`-ovog `<Authenticated>`.
+ * Slug koji ne postoji ili za koji pozivalac nije član daje isti odgovor
+ * (`mojProjekat` → `null`): umesto ekrana stoji „Projekat nije dostupan“.
+ * U hubu provider, tek posle potvrde članstva, pamti projekat u kolačiću
+ * `ep_projekat` (stare adrese poput `/leadovi` vode na njega).
+ *
+ * Upiti čekaju potvrđenu sesiju (`useConvexAuth`).
  * ============================================================================
  */
 
@@ -54,7 +59,7 @@ export type ProjekatKontekst = {
   kratkoIme: string | null;
   uloga: Uloga | null;
   rezim: Rezim;
-  /** „“ (panel, i svuda do C08) ili „/<slug>“ (hub). */
+  /** „“ (panel) ili „/<slug>“ (hub). */
   prefiks: string;
   brend: { boja: string | null; logoUrl: string | null; faviconUrl: string | null };
   /** `null` = svi moduli. */
@@ -67,26 +72,30 @@ const ProjekatContext = createContext<ProjekatKontekst | null>(null);
 
 export function ProjekatProvider({
   slug,
-  rezim = "hub",
+  rezim,
   children,
 }: {
-  /** Od C08 uvek; do tada nema (privremeni izvor: prvi projekat korisnika). */
-  slug?: string;
-  rezim?: Rezim;
+  /** Slug iz rute `[projekat]`. */
+  slug: string;
+  rezim: Rezim;
   children: ReactNode;
 }) {
   const { isAuthenticated } = useConvexAuth();
-  const spisak = useQuery(
-    api.projekti.mojiProjekti,
-    isAuthenticated && slug === undefined ? {} : "skip",
-  );
-  const efektivniSlug = slug ?? spisak?.[0]?.slug;
   const projekat = useQuery(
     api.projekti.mojProjekat,
-    isAuthenticated && efektivniSlug !== undefined ? { slug: efektivniSlug } : "skip",
+    isAuthenticated ? { slug } : "skip",
   );
-  // Pre rutiranja (C08) adrese nemaju prefiks projekta.
-  const prefiks = slug === undefined ? "" : prefiksProjekta(slug, rezim);
+  const prefiks = prefiksProjekta(slug, rezim);
+  const potvrdjen = projekat?.slug ?? null;
+
+  // Poslednji projekat u hubu (stare adrese, plan C02 §7.6). Tek posle potvrde
+  // članstva, pa u kolačić ne ulazi slug na koji korisnik nema pravo. Panel
+  // ga ne koristi: domen je već zaključan na jedan projekat.
+  useEffect(() => {
+    if (rezim !== "hub" || potvrdjen === null) return;
+    const bezbedno = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${KOLACIC_PROJEKAT}=${potvrdjen}; Path=/; Max-Age=31536000; SameSite=Lax${bezbedno}`;
+  }, [rezim, potvrdjen]);
 
   const vrednost = useMemo<ProjekatKontekst>(
     () => ({
@@ -111,7 +120,9 @@ export function ProjekatProvider({
   );
 
   return (
-    <ProjekatContext.Provider value={vrednost}>{children}</ProjekatContext.Provider>
+    <ProjekatContext.Provider value={vrednost}>
+      {projekat === null ? <ProjekatNedostupan rezim={rezim} /> : children}
+    </ProjekatContext.Provider>
   );
 }
 
@@ -121,6 +132,14 @@ export function useProjekat(): ProjekatKontekst {
     throw new Error("useProjekat mora da se koristi unutar ProjekatProvider-a");
   }
   return kontekst;
+}
+
+/**
+ * Projekat kad ga ima, `null` van projekta (hub „Svi projekti“). Samo za
+ * delove koji stoje na oba mesta, kao meni korisnika.
+ */
+export function useProjekatOpciono(): ProjekatKontekst | null {
+  return useContext(ProjekatContext);
 }
 
 // ── Hookovi koji sami ubacuju projekat ──────────────────────────────────────

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { AlertTriangle, ArrowRight, CircleDot, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -125,7 +125,7 @@ function Lista({ preskociPrvi }: { preskociPrvi: boolean }) {
                 </p>
               </div>
               <Button
-                render={<Link href={zadatak.veza} />}
+                render={<ProjekatLink href={zadatak.veza} />}
                 nativeButton={false}
                 variant="secondary"
                 size="sm"

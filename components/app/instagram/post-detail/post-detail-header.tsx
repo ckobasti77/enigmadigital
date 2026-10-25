@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { ArrowLeft, ExternalLink, Film, Layers, Image as ImageIcon, MessageSquareOff, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { formatLongDate, formatClockTime } from "@/lib/format";
@@ -62,13 +62,13 @@ export function PostDetailHeader({
     <div className="flex flex-col gap-4">
       {/* Navigation breadcrumb */}
       <div>
-        <Link
+        <ProjekatLink
           href="/instagram"
           className="inline-flex items-center gap-1.5 text-xs font-medium text-text-muted transition-colors hover:text-text-primary"
         >
           <ArrowLeft className="size-3.5" aria-hidden="true" />
           Nazad na sve objave
-        </Link>
+        </ProjekatLink>
       </div>
 
       <Card className="overflow-hidden p-6 shadow-card ring-line">

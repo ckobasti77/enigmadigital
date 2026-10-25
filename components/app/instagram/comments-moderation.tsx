@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ProjekatLink } from "@/components/app/projekat-link";
 import { useMemo, useState } from "react";
 import {
   AtSign,
@@ -154,12 +154,12 @@ export function CommentsModeration() {
     return (
       <EmptyState icon={Unplug}>
         Instagram još nije povezan.{" "}
-        <Link
+        <ProjekatLink
           href="/settings"
           className="text-mod underline-offset-4 hover:underline"
         >
           Poveži ga u podešavanjima
-        </Link>
+        </ProjekatLink>
         .
       </EmptyState>
     );
