@@ -4,6 +4,7 @@ import { useCallback, useMemo, type ReactNode } from "react";
 import { ConvexProviderWithAuth } from "convex/react";
 import { createFakeConvexClient } from "./fake-convex";
 import { resolveFixture } from "./fixtures";
+import { projektiUx } from "./fixtures-hub";
 
 /**
  * Omotač koji pravim ekranima podmeće lažni Convex klijent i „ulogovanu"
@@ -33,6 +34,8 @@ function useFakeAuthOdjavljen() {
  * redova, za snimanje praznih stanja kanala. `odjavljen` crta ekran bez
  * sesije (pozivnica pre prijave). `uloga` (`?ux=1&uloga=client_viewer`)
  * menja ulogu u tekućem projektu, da se vidi šta urednik i posmatrač ne vide.
+ * `projekata` (`?ux=1&rezim=hub&projekata=1|22`) menja broj projekata
+ * korisnika, za hub „Svi projekti“ sa jednim i sa više od 20 projekata.
  */
 export function UxHarness({
   children,
@@ -40,8 +43,10 @@ export function UxHarness({
   pad,
   odjavljen = false,
   uloga,
+  projekata,
 }: {
   children: ReactNode;
+  projekata?: number;
   prazno?: boolean;
   odjavljen?: boolean;
   uloga?: string;
@@ -58,6 +63,9 @@ export function UxHarness({
         if (pad && name.startsWith(`${pad}:`)) {
           throw new Error(`Razvojni prikaz: namerni pad upita ${name}`);
         }
+        if (projekata !== undefined && name === "projekti:mojiProjekti") {
+          return projektiUx(projekata);
+        }
         const rez = resolveFixture(name, args, prazno);
         if (
           name === "projekti:mojProjekat" &&
@@ -69,7 +77,7 @@ export function UxHarness({
         }
         return rez;
       }),
-    [prazno, pad, uloga],
+    [prazno, pad, uloga, projekata],
   );
   return (
     <ConvexProviderWithAuth

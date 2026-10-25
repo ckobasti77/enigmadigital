@@ -1,9 +1,10 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { projekatMutation, projekatQuery } from "./lib/projekat";
+import { prijavljenMutation, prijavljenQuery } from "./lib/projekat";
+import { imaUlogu, type Uloga } from "./lib/uloge";
 import { citajKanale, citajLeadove, citajUvoze } from "./notificationsStore";
 import { napraviZadatke, type Zadatak } from "./lib/notifications";
 import {
@@ -14,7 +15,7 @@ import {
   PODRAZUMEVANO,
   danKljuc,
   dodajDane,
-  generisiMisije,
+  generisiMisijeIzProjekata,
   izvedi,
   izvediProfil,
   jeDanKljuc,
@@ -35,6 +36,7 @@ import {
   type Posao,
   type Potvrde,
   type UlazIzvedi,
+  type UlazMisija,
 } from "./lib/napredak";
 import { podesavanjaValidator } from "./lib/napredakValidators";
 
@@ -70,6 +72,15 @@ import { podesavanjaValidator } from "./lib/napredakValidators";
  * — tipično 60–150 dokumenata. Jedini krupni dokumenti su redovi uvoza, i oni
  * se čitaju najviše `CAP_REDOVA` po danu. `zamrzniDan` jednom dnevno čita isto
  * što i zvono (`notificationsStore.staMeCeka`).
+ *
+ * P12 (C16): NAPREDAK JE JEDAN ZA KORISNIKA PREKO SVIH PROJEKATA. Lični redovi
+ * (`obim: "korisnik"`, bez `workspaceId`) drže sidro, zbir, podešavanja i
+ * potvrde; događaji se čitaju iz svakog projekta u kome je korisnik član
+ * (najviše `MAKS_PROJEKATA`), istim indeksima kao pre, i spajaju u jedan niz
+ * za `obracunajDan`. Misije dana dolaze iz posla svih projekata u kojima je
+ * korisnik urednik ili vlasnik. Stari redovi po projektu se ne brišu; jednom
+ * ih čita prelazak (`preseliPodesavanja`, `preseliStaro`), a XP se ponovo
+ * izvodi iz događaja — ništa se ne gubi.
  */
 
 // ── granice čitanja (po izvoru i po DANU) ────────────────────────────────────
@@ -96,20 +107,84 @@ const ODMAH_DANA = 3;
 const MAKS_DANA_KORAK = 14;
 /** Najviše potvrda u jednom pozivu `potvrdi`. */
 const MAKS_POTVRDA = 30;
+/** Napredak sabira najviše ovoliko projekata (PROJEKTI-PLAN §11). */
+export const MAKS_PROJEKATA = 20;
+/** Koliko starih dana po projektu prelazak prenosi (misije prošlih dana). */
+const MAKS_DANA_PRELAZA = 400;
+/**
+ * Budžet čitanja za misije svih projekata zajedno (isti obrazac kao
+ * `projekti.stanjeProjekata`): projekat koji prekorači svoj deo se preskače.
+ */
+const BUDZET_DOKUMENATA = 24_000;
+const BUDZET_UPITA = 2_400;
+
+// ── igrač: korisnik i njegovi projekti ───────────────────────────────────────
+
+type Igrac = {
+  userId: Id<"users">;
+  /** Projekti u kojima je korisnik član, redom članstva, najviše 20. */
+  projekti: Array<{ workspaceId: Id<"workspaces">; uloga: Uloga }>;
+  /** Član je više od 20 projekata: računa se prvih 20. */
+  nepotpuno: boolean;
+};
+
+async function ucitajIgraca(ctx: QueryCtx, userId: Id<"users">): Promise<Igrac> {
+  const clanstva = await ctx.db
+    .query("members")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .take(MAKS_PROJEKATA + 1);
+  const projekti: Igrac["projekti"] = [];
+  const vidjeni = new Set<string>();
+  for (const clan of clanstva.slice(0, MAKS_PROJEKATA)) {
+    // Duplikat reda u `members` ne sme da udvostruči događaje.
+    if (vidjeni.has(clan.workspaceId)) continue;
+    vidjeni.add(clan.workspaceId);
+    projekti.push({ workspaceId: clan.workspaceId, uloga: clan.role });
+  }
+  return { userId, projekti, nepotpuno: clanstva.length > MAKS_PROJEKATA };
+}
+
+/** Lični red (P12): bez `workspaceId`, sa `obim: "korisnik"`. */
+const OBIM = "korisnik" as const;
+
+function jeLicni(red: { workspaceId?: Id<"workspaces">; obim?: "korisnik" }): boolean {
+  return red.obim === OBIM && red.workspaceId === undefined;
+}
 
 // ── podešavanja ──────────────────────────────────────────────────────────────
 
 async function redPodesavanja(
   ctx: QueryCtx,
   userId: Id<"users">,
-  workspaceId: Id<"workspaces">,
 ): Promise<Doc<"napredakPodesavanja"> | null> {
-  return await ctx.db
+  const redovi = await ctx.db
     .query("napredakPodesavanja")
     .withIndex("by_user_workspace", (q) =>
-      q.eq("userId", userId).eq("workspaceId", workspaceId),
+      q.eq("userId", userId).eq("workspaceId", undefined),
     )
-    .first();
+    .take(5);
+  return redovi.find(jeLicni) ?? null;
+}
+
+/** Najsvežiji stari red podešavanja po projektu (pre C16); `null` ako nema. */
+async function staroPodesavanje(
+  ctx: QueryCtx,
+  igrac: Igrac,
+): Promise<Doc<"napredakPodesavanja"> | null> {
+  let najsveziji: Doc<"napredakPodesavanja"> | null = null;
+  for (const p of igrac.projekti) {
+    const red = await ctx.db
+      .query("napredakPodesavanja")
+      .withIndex("by_user_workspace", (q) =>
+        q.eq("userId", igrac.userId).eq("workspaceId", p.workspaceId),
+      )
+      .first();
+    if (red === null) continue;
+    if (najsveziji === null || (red.updatedAt ?? 0) > (najsveziji.updatedAt ?? 0)) {
+      najsveziji = red;
+    }
+  }
+  return najsveziji;
 }
 
 /** Red iz baze preko podrazumevanih vrednosti — polje koje fali je podrazumevano. */
@@ -123,12 +198,14 @@ function izReda(red: Doc<"napredakPodesavanja"> | null): Podesavanja {
   };
 }
 
-async function ucitajPodesavanja(
-  ctx: QueryCtx,
-  userId: Id<"users">,
-  workspaceId: Id<"workspaces">,
-): Promise<Podesavanja> {
-  return izReda(await redPodesavanja(ctx, userId, workspaceId));
+/**
+ * Lična podešavanja. Dok lični red ne postoji (pre prelaska), važi najsvežiji
+ * stari red po projektu — isti koji će prelazak preneti.
+ */
+async function ucitajPodesavanja(ctx: QueryCtx, igrac: Igrac): Promise<Podesavanja> {
+  const licni = await redPodesavanja(ctx, igrac.userId);
+  if (licni !== null) return izReda(licni);
+  return izReda(await staroPodesavanje(ctx, igrac));
 }
 
 // ── redovi dana ──────────────────────────────────────────────────────────────
@@ -139,26 +216,21 @@ function jeRedDana(red: Doc<"napredakDan">): red is RedDana {
   return red.dan !== undefined && jeDanKljuc(red.dan);
 }
 
-/** Sidro: poslednji dan koji je zamrznut. Red bez ispravnog datuma se preskače. */
-async function ucitajSidro(
-  ctx: QueryCtx,
-  userId: Id<"users">,
-  workspaceId: Id<"workspaces">,
-): Promise<RedDana | null> {
-  const red = await ctx.db
+/** Sidro: poslednji lični dan koji je zamrznut. Red bez ispravnog datuma se preskače. */
+async function ucitajSidro(ctx: QueryCtx, userId: Id<"users">): Promise<RedDana | null> {
+  const redovi = await ctx.db
     .query("napredakDan")
     .withIndex("by_user_workspace_dan", (q) =>
-      q.eq("userId", userId).eq("workspaceId", workspaceId),
+      q.eq("userId", userId).eq("workspaceId", undefined),
     )
     .order("desc")
-    .first();
-  return red !== null && jeRedDana(red) ? red : null;
+    .take(5);
+  return redovi.find((red): red is RedDana => jeLicni(red) && jeRedDana(red)) ?? null;
 }
 
 async function ucitajRedove(
   ctx: QueryCtx,
   userId: Id<"users">,
-  workspaceId: Id<"workspaces">,
   odDana: string,
   doDana: string | null,
   najvise: number,
@@ -168,12 +240,12 @@ async function ucitajRedove(
     .withIndex("by_user_workspace_dan", (q) => {
       const od = q
         .eq("userId", userId)
-        .eq("workspaceId", workspaceId)
+        .eq("workspaceId", undefined)
         .gte("dan", odDana);
       return doDana === null ? od : od.lte("dan", doDana);
     })
     .take(najvise);
-  return redovi.filter(jeRedDana);
+  return redovi.filter((red): red is RedDana => jeLicni(red) && jeRedDana(red));
 }
 
 // ── događaji: svaka tabela na isti oblik ─────────────────────────────────────
@@ -550,24 +622,28 @@ async function vanOpsega(
 }
 
 /**
- * Svi događaji u zadatim opsezima. Opsezi su susedni dani (granice čitanja
- * važe PO DANU, da gust jučerašnji dan ne pojede današnji), poređani po vremenu.
+ * Svi događaji u zadatim opsezima, iz svih projekata igrača (P12). Opsezi su
+ * susedni dani (granice čitanja važe PO DANU i PO PROJEKTU, da gust jučerašnji
+ * dan ili veliki projekat ne pojede ostale), poređani po vremenu.
  */
 async function ucitajDogadjaje(
   ctx: QueryCtx,
-  workspaceId: Id<"workspaces">,
-  userId: Id<"users">,
+  igrac: Igrac,
   opsezi: readonly Opseg[],
 ): Promise<Ucitano> {
-  if (opsezi.length === 0) return { dogadjaji: [], odseceno: false };
+  if (opsezi.length === 0 || igrac.projekti.length === 0) {
+    return { dogadjaji: [], odseceno: false };
+  }
   const ceo: Opseg = {
     od: opsezi[0].od,
     doPre: opsezi[opsezi.length - 1].doPre,
   };
-  const delovi = await Promise.all([
-    vanOpsega(ctx, workspaceId, ceo),
-    ...opsezi.map((o) => izOpsega(ctx, workspaceId, userId, o)),
-  ]);
+  const delovi = await Promise.all(
+    igrac.projekti.flatMap(({ workspaceId }) => [
+      vanOpsega(ctx, workspaceId, ceo),
+      ...opsezi.map((o) => izOpsega(ctx, workspaceId, igrac.userId, o)),
+    ]),
+  );
   return {
     dogadjaji: delovi.flatMap((d) => d.dogadjaji),
     odseceno: delovi.some((d) => d.odseceno),
@@ -595,27 +671,26 @@ function opseziDana(
 async function redoviPotvrda(
   ctx: QueryCtx,
   userId: Id<"users">,
-  workspaceId: Id<"workspaces">,
   opseg: string,
   najvise: number,
 ): Promise<Doc<"napredakPotvrde">[]> {
-  return await ctx.db
+  const redovi = await ctx.db
     .query("napredakPotvrde")
     .withIndex("by_user_workspace_opseg", (q) =>
-      q.eq("userId", userId).eq("workspaceId", workspaceId).eq("opseg", opseg),
+      q.eq("userId", userId).eq("workspaceId", undefined).eq("opseg", opseg),
     )
     .take(najvise);
+  return redovi.filter(jeLicni);
 }
 
 async function ucitajPotvrde(
   ctx: QueryCtx,
   userId: Id<"users">,
-  workspaceId: Id<"workspaces">,
   sidro: string,
 ): Promise<Potvrde> {
   const [dnevne, trajne] = await Promise.all([
-    redoviPotvrda(ctx, userId, workspaceId, sidro, CAP_POTVRDA_DANA),
-    redoviPotvrda(ctx, userId, workspaceId, OPSEG_TRAJNO, CAP_POTVRDA_TRAJNIH),
+    redoviPotvrda(ctx, userId, sidro, CAP_POTVRDA_DANA),
+    redoviPotvrda(ctx, userId, OPSEG_TRAJNO, CAP_POTVRDA_TRAJNIH),
   ]);
   let nivo = 1;
   const trajniKljucevi: string[] = [];
@@ -631,23 +706,24 @@ async function ucitajPotvrde(
   };
 }
 
-/** Kada je napravljeno korisnikovo pravilo koje je SADA uključeno; `null` ako nema. */
-async function aktivnoPravilo(
-  ctx: QueryCtx,
-  workspaceId: Id<"workspaces">,
-  userId: Id<"users">,
-): Promise<number | null> {
-  const ukljucena = await ctx.db
-    .query("rules")
-    .withIndex("by_workspace_and_enabled", (q) =>
-      q.eq("workspaceId", workspaceId).eq("enabled", true),
-    )
-    .take(CAP_PRAVILA);
+/**
+ * Kada je napravljeno korisnikovo pravilo koje je SADA uključeno, u bilo kom
+ * njegovom projektu; `null` ako nema.
+ */
+async function aktivnoPravilo(ctx: QueryCtx, igrac: Igrac): Promise<number | null> {
   let najranije: number | null = null;
-  for (const pravilo of ukljucena) {
-    if (pravilo.createdBy !== userId) continue;
-    if (najranije === null || pravilo._creationTime < najranije) {
-      najranije = pravilo._creationTime;
+  for (const { workspaceId } of igrac.projekti) {
+    const ukljucena = await ctx.db
+      .query("rules")
+      .withIndex("by_workspace_and_enabled", (q) =>
+        q.eq("workspaceId", workspaceId).eq("enabled", true),
+      )
+      .take(CAP_PRAVILA);
+    for (const pravilo of ukljucena) {
+      if (pravilo.createdBy !== igrac.userId) continue;
+      if (najranije === null || pravilo._creationTime < najranije) {
+        najranije = pravilo._creationTime;
+      }
     }
   }
   return najranije;
@@ -659,20 +735,20 @@ function osnovaReda(red: Doc<"napredakDan"> | null): Osnova {
   return red?.osnova ?? praznaOsnova();
 }
 
-/** Sve što `izvedi` / `izvediProfil` traže, pročitano iz baze. */
+/** Sve što `izvedi` / `izvediProfil` traže, pročitano iz baze (svi projekti igrača). */
 async function pripremiUlaz(
   ctx: QueryCtx,
-  userId: Id<"users">,
-  workspaceId: Id<"workspaces">,
+  igrac: Igrac,
   podesavanja: Podesavanja,
 ): Promise<UlazIzvedi> {
-  const sidroRed = await ucitajSidro(ctx, userId, workspaceId);
+  const userId = igrac.userId;
+  const sidroRed = await ucitajSidro(ctx, userId);
   if (sidroRed === null) {
     return {
       korisnik: String(userId),
       sidro: null,
       prviDan: false,
-      odseceno: false,
+      odseceno: igrac.nepotpuno,
       osnova: praznaOsnova(),
       dogadjaji: [],
       misijePoDanu: {},
@@ -688,12 +764,12 @@ async function pripremiUlaz(
   const juce = dodajDane(sidro, -1);
 
   const [ucitano, redovi, potvrde, aktivnoPraviloAt] = await Promise.all([
-    ucitajDogadjaje(ctx, workspaceId, userId, opseziDana(juce, sidro, true)),
-    ucitajRedove(ctx, userId, workspaceId, juce, null, CAP_REDOVA_DANA),
-    ucitajPotvrde(ctx, userId, workspaceId, sidro),
+    ucitajDogadjaje(ctx, igrac, opseziDana(juce, sidro, true)),
+    ucitajRedove(ctx, userId, juce, null, CAP_REDOVA_DANA),
+    ucitajPotvrde(ctx, userId, sidro),
     // Jednom otključano ostaje otključano — pravila se tada više ne čitaju.
     osnova.otkljucano["cuvar_budzeta"] === undefined
-      ? aktivnoPravilo(ctx, workspaceId, userId)
+      ? aktivnoPravilo(ctx, igrac)
       : Promise.resolve(null),
   ]);
 
@@ -708,7 +784,8 @@ async function pripremiUlaz(
     korisnik: String(userId),
     sidro,
     prviDan: sidroRed.prvi === true,
-    odseceno: ucitano.odseceno,
+    // Više od 20 projekata: deo događaja se ne čita → „odsečeno“, ne nula.
+    odseceno: ucitano.odseceno || igrac.nepotpuno,
     osnova,
     dogadjaji: ucitano.dogadjaji,
     misijePoDanu,
@@ -779,6 +856,10 @@ const stanjeUkljucenoValidator = v.object({
       xp: v.number(),
       zavrsena: v.boolean(),
       veza: v.string(),
+      /** P12: projekat iz čijeg posla je misija (samo dok je korisnik član). */
+      projekat: v.optional(
+        v.object({ workspaceId: v.id("workspaces"), slug: v.string(), ime: v.string() }),
+      ),
     }),
   ),
   bonus: v.object({
@@ -885,57 +966,87 @@ const profilValidator = v.union(
 
 // ── upiti ────────────────────────────────────────────────────────────────────
 
+type StanjeIzvedeno = ReturnType<typeof izvedi>;
+type StanjeUkljuceno = Extract<StanjeIzvedeno, { ukljucen: true }>;
+type ProjekatMisije = { workspaceId: Id<"workspaces">; slug: string; ime: string };
+type MisijaIzlaz = Omit<StanjeUkljuceno["misije"][number], "projekat"> & {
+  projekat?: ProjekatMisije;
+};
+type StanjeSaProjektima =
+  | { ukljucen: false; podesavanja: Podesavanja }
+  | (Omit<StanjeUkljuceno, "misije"> & { misije: MisijaIzlaz[] });
+
 /**
- * XP, nivo, niz, misije dana, nedeljni prstenovi i poslednji događaji.
+ * Misija nosi ID projekta (tekst); ekran dobija slug i ime, i to samo za
+ * projekat u kome je korisnik i dalje član (bez toga misija ostaje bez veze
+ * na drugi projekat).
+ */
+async function saProjektima(
+  ctx: QueryCtx,
+  igrac: Igrac,
+  stanje: StanjeIzvedeno,
+): Promise<StanjeSaProjektima> {
+  if (!stanje.ukljucen) return stanje;
+  const clan = new Set<string>(igrac.projekti.map((p) => p.workspaceId));
+  const info = new Map<string, ProjekatMisije | null>();
+  const misije: MisijaIzlaz[] = [];
+  for (const m of stanje.misije) {
+    const { projekat, ...ostalo } = m;
+    if (projekat === undefined || !clan.has(projekat)) {
+      misije.push(ostalo);
+      continue;
+    }
+    if (!info.has(projekat)) {
+      const id = ctx.db.normalizeId("workspaces", projekat);
+      const ws = id === null ? null : await ctx.db.get(id);
+      info.set(projekat, ws === null ? null : { workspaceId: ws._id, slug: ws.slug, ime: ws.name });
+    }
+    const p = info.get(projekat) ?? null;
+    misije.push(p === null ? ostalo : { ...ostalo, projekat: p });
+  }
+  return { ...stanje, misije };
+}
+
+/**
+ * XP, nivo, niz, misije dana, nedeljni prstenovi i poslednji događaji — zbir
+ * svih projekata prijavljenog korisnika (P12).
  *
  * Kad je Napredak isključen vraća se oblik BEZ ijednog XP polja — ljuska ne
  * može ni slučajno da nacrta broj koji korisnik nije tražio.
  */
-export const stanje = projekatQuery({
+export const stanje = prijavljenQuery({
   args: {},
   returns: v.union(stanjeIskljucenoValidator, stanjeUkljucenoValidator),
-  handler: async (ctx, args) => {
-    const { userId } = ctx.projekat;
+  handler: async (ctx) => {
+    const igrac = await ucitajIgraca(ctx, ctx.korisnik.userId);
+    const podesavanja = await ucitajPodesavanja(ctx, igrac);
+    if (!podesavanja.ukljucen) {
+      return await saProjektima(ctx, igrac, stanjeIskljuceno(podesavanja));
+    }
 
-    const podesavanja = await ucitajPodesavanja(
+    return await saProjektima(
       ctx,
-      userId,
-      args.workspaceId,
-    );
-    if (!podesavanja.ukljucen) return stanjeIskljuceno(podesavanja);
-
-    return izvedi(
-      await pripremiUlaz(ctx, userId, args.workspaceId, podesavanja),
+      igrac,
+      izvedi(await pripremiUlaz(ctx, igrac, podesavanja)),
     );
   },
 });
 
-/** Dostignuća, lični rekordi i mapa aktivnosti za 12 nedelja. */
-export const profil = projekatQuery({
+/** Dostignuća, lični rekordi i mapa aktivnosti za 12 nedelja (svi projekti). */
+export const profil = prijavljenQuery({
   args: {},
   returns: profilValidator,
-  handler: async (ctx, args) => {
-    const { userId } = ctx.projekat;
-
-    const podesavanja = await ucitajPodesavanja(
-      ctx,
-      userId,
-      args.workspaceId,
-    );
+  handler: async (ctx) => {
+    const igrac = await ucitajIgraca(ctx, ctx.korisnik.userId);
+    const podesavanja = await ucitajPodesavanja(ctx, igrac);
     if (!podesavanja.ukljucen) return { ukljucen: false as const };
 
-    const ulaz = await pripremiUlaz(
-      ctx,
-      userId,
-      args.workspaceId,
-      podesavanja,
-    );
+    const ulaz = await pripremiUlaz(ctx, igrac, podesavanja);
     const zakljuceniDani: Array<{ dan: string; xp: number }> = [];
     if (ulaz.sidro !== null) {
       const redovi = await ucitajRedove(
         ctx,
-        userId,
-        args.workspaceId,
+        igrac.userId,
         dodajDane(ulaz.sidro, -(MAPA_DANA - 1)),
         ulaz.sidro,
         MAPA_DANA + 1,
@@ -965,10 +1076,29 @@ function proveriCilj(
   return vrednost;
 }
 
-/** Podešavanja → Napredak. Menja samo ono što je poslato. */
-export const podesi = projekatMutation({
-  // Lični red pozivaoca: i posmatrač podešava svoj Napredak.
-  uloga: "client_viewer",
+/**
+ * Prelazak podešavanja (P12): dok lični red ne postoji, prenosi se najsvežiji
+ * stari red po projektu. Zove ga i `podesi`, da prva izmena ne pregazi stare
+ * ciljeve podrazumevanim vrednostima.
+ */
+async function preseliPodesavanja(ctx: MutationCtx, igrac: Igrac): Promise<void> {
+  if ((await redPodesavanja(ctx, igrac.userId)) !== null) return;
+  const staro = await staroPodesavanje(ctx, igrac);
+  if (staro === null) return;
+  await ctx.db.insert("napredakPodesavanja", {
+    userId: igrac.userId,
+    obim: OBIM,
+    ...(staro.ukljucen !== undefined ? { ukljucen: staro.ukljucen } : {}),
+    ...(staro.vikendNePrekida !== undefined ? { vikendNePrekida: staro.vikendNePrekida } : {}),
+    ...(staro.ciljPozivi !== undefined ? { ciljPozivi: staro.ciljPozivi } : {}),
+    ...(staro.ciljSastanci !== undefined ? { ciljSastanci: staro.ciljSastanci } : {}),
+    ...(staro.ciljObjave !== undefined ? { ciljObjave: staro.ciljObjave } : {}),
+    updatedAt: staro.updatedAt ?? Date.now(),
+  });
+}
+
+/** Podešavanja → Napredak (lična, za sve projekte). Menja samo ono što je poslato. */
+export const podesi = prijavljenMutation({
   args: {
     ukljucen: v.optional(v.boolean()),
     vikendNePrekida: v.optional(v.boolean()),
@@ -978,7 +1108,7 @@ export const podesi = projekatMutation({
   },
   returns: podesavanjaValidator,
   handler: async (ctx, args) => {
-    const { userId } = ctx.projekat;
+    const igrac = await ucitajIgraca(ctx, ctx.korisnik.userId);
 
     const izmena = {
       ...(args.ukljucen !== undefined ? { ukljucen: args.ukljucen } : {}),
@@ -997,21 +1127,18 @@ export const podesi = projekatMutation({
       updatedAt: Date.now(),
     };
 
-    const postojeci = await redPodesavanja(
-      ctx,
-      userId,
-      args.workspaceId,
-    );
+    await preseliPodesavanja(ctx, igrac);
+    const postojeci = await redPodesavanja(ctx, igrac.userId);
     if (postojeci) {
       await ctx.db.patch(postojeci._id, izmena);
     } else {
       await ctx.db.insert("napredakPodesavanja", {
-        workspaceId: args.workspaceId,
-        userId,
+        userId: igrac.userId,
+        obim: OBIM,
         ...izmena,
       });
     }
-    return await ucitajPodesavanja(ctx, userId, args.workspaceId);
+    return await ucitajPodesavanja(ctx, igrac);
   },
 });
 
@@ -1022,7 +1149,6 @@ export const podesi = projekatMutation({
 async function upisiPotvrde(
   ctx: MutationCtx,
   userId: Id<"users">,
-  workspaceId: Id<"workspaces">,
   kljucevi: readonly string[],
 ): Promise<number> {
   const now = Date.now();
@@ -1039,13 +1165,7 @@ async function upisiPotvrde(
     }
     let redovi = poOpsegu.get(p.opseg);
     if (redovi === undefined) {
-      redovi = await redoviPotvrda(
-        ctx,
-        userId,
-        workspaceId,
-        p.opseg,
-        CAP_POTVRDA_TRAJNIH,
-      );
+      redovi = await redoviPotvrda(ctx, userId, p.opseg, CAP_POTVRDA_TRAJNIH);
       poOpsegu.set(p.opseg, redovi);
     }
     const postojeci = redovi.find((r) => r.kljuc === p.kljuc);
@@ -1061,8 +1181,8 @@ async function upisiPotvrde(
         postojeci.vrednost = p.vrednost;
       } else {
         const id = await ctx.db.insert("napredakPotvrde", {
-          workspaceId,
           userId,
+          obim: OBIM,
           opseg: p.opseg,
           kljuc: p.kljuc,
           vrednost: p.vrednost,
@@ -1077,8 +1197,8 @@ async function upisiPotvrde(
 
     if (postojeci) continue;
     const id = await ctx.db.insert("napredakPotvrde", {
-      workspaceId,
       userId,
+      obim: OBIM,
       opseg: p.opseg,
       kljuc: p.kljuc,
       potvrdjenoAt: now,
@@ -1090,28 +1210,20 @@ async function upisiPotvrde(
   return upisano;
 }
 
-/** „Video sam" — proslava se posle osvežavanja ne ponavlja. */
-export const potvrdi = projekatMutation({
-  uloga: "client_viewer",
+/** „Video sam" — proslava se posle osvežavanja ne ponavlja (lično, svi projekti). */
+export const potvrdi = prijavljenMutation({
   args: {
     kljucevi: v.array(v.string()),
   },
   returns: v.object({ potvrdjeno: v.number() }),
   handler: async (ctx, args) => {
-    const { userId } = ctx.projekat;
-
     if (args.kljucevi.length > MAKS_POTVRDA) {
       throw new ConvexError({
         code: "bad_request",
         message: `Najviše ${MAKS_POTVRDA} potvrda odjednom.`,
       });
     }
-    const potvrdjeno = await upisiPotvrde(
-      ctx,
-      userId,
-      args.workspaceId,
-      args.kljucevi,
-    );
+    const potvrdjeno = await upisiPotvrde(ctx, ctx.korisnik.userId, args.kljucevi);
     return { potvrdjeno };
   },
 });
@@ -1120,27 +1232,28 @@ export const potvrdi = projekatMutation({
 
 /**
  * Zaključava dane od `osnova.do + 1` do `doDana`: svaki dan se obračuna iz
- * događaja, doda na zbir i upiše u svoj red (XP, brojači, „uračunat").
+ * događaja svih projekata, doda na zbir i upiše u svoj lični red (XP,
+ * brojači, „uračunat").
  *
  * Posle ovoga se događaji tih dana više ne čitaju — čita se zbir.
  */
 async function zakljuciDo(
   ctx: MutationCtx,
-  workspaceId: Id<"workspaces">,
-  userId: Id<"users">,
+  igrac: Igrac,
   pocetna: Osnova,
   doDana: string,
   podesavanja: Podesavanja,
 ): Promise<Osnova> {
   if (pocetna.do === null || pocetna.do >= doDana) return pocetna;
+  const userId = igrac.userId;
   const prvi = dodajDane(pocetna.do, 1);
   const now = Date.now();
 
   const [ucitano, redovi, aktivnoPraviloAt] = await Promise.all([
-    ucitajDogadjaje(ctx, workspaceId, userId, opseziDana(prvi, doDana, false)),
-    ucitajRedove(ctx, userId, workspaceId, prvi, doDana, MAKS_DANA_KORAK + 2),
+    ucitajDogadjaje(ctx, igrac, opseziDana(prvi, doDana, false)),
+    ucitajRedove(ctx, userId, prvi, doDana, MAKS_DANA_KORAK + 2),
     pocetna.otkljucano["cuvar_budzeta"] === undefined
-      ? aktivnoPravilo(ctx, workspaceId, userId)
+      ? aktivnoPravilo(ctx, igrac)
       : Promise.resolve(null),
   ]);
   const redPoDanu = new Map<string, RedDana>();
@@ -1172,8 +1285,8 @@ async function zakljuciDo(
       // Dan koji niko nije otvorio, a nešto se desilo (zakazana objava):
       // red postoji samo zbog mape aktivnosti.
       await ctx.db.insert("napredakDan", {
-        workspaceId,
         userId,
+        obim: OBIM,
         dan,
         ...zakljucak,
       });
@@ -1182,8 +1295,8 @@ async function zakljuciDo(
   return osnova;
 }
 
-/** Vreme najstarijeg događaja koji bi korisniku mogao da donese XP. */
-async function najstarijiDogadjaj(
+/** Vreme najstarijeg događaja jednog projekta koji bi korisniku mogao da donese XP. */
+async function najstarijiUProjektu(
   ctx: QueryCtx,
   workspaceId: Id<"workspaces">,
   userId: Id<"users">,
@@ -1268,6 +1381,16 @@ async function najstarijiDogadjaj(
   return vremena.length > 0 ? Math.min(...vremena) : null;
 }
 
+/** Najstariji događaj u svim projektima igrača. */
+async function najstarijiDogadjaj(ctx: QueryCtx, igrac: Igrac): Promise<number | null> {
+  let najstariji: number | null = null;
+  for (const { workspaceId } of igrac.projekti) {
+    const t = await najstarijiUProjektu(ctx, workspaceId, igrac.userId);
+    if (t !== null && (najstariji === null || t < najstariji)) najstariji = t;
+  }
+  return najstariji;
+}
+
 /**
  * Prvi dan: sve što je korisnik zaradio PRE nego što je Napredak postojao
  * upisuje se kao viđeno. Istorija se računa (pošten početak sa stvarnim
@@ -1275,20 +1398,105 @@ async function najstarijiDogadjaj(
  */
 async function potvrdiZateceno(
   ctx: MutationCtx,
-  userId: Id<"users">,
-  workspaceId: Id<"workspaces">,
+  igrac: Igrac,
   podesavanja: Podesavanja,
 ): Promise<void> {
-  const zateceno = izvedi(
-    await pripremiUlaz(ctx, userId, workspaceId, podesavanja),
-  );
+  const zateceno = izvedi(await pripremiUlaz(ctx, igrac, podesavanja));
   if (!zateceno.ukljucen || zateceno.proslave.length === 0) return;
   await upisiPotvrde(
     ctx,
-    userId,
-    workspaceId,
+    igrac.userId,
     zateceno.proslave.map((p) => p.kljuc),
   );
+}
+
+// ── prelazak sa napretka po projektu (P12, C16) ──────────────────────────────
+
+/**
+ * Jednom po korisniku, pre prvog ličnog dana: prenosi ono što se ne može
+ * izvesti iz događaja.
+ *
+ *   - potvrde: unija trajnih (nivo = najviši, dostignuća) i potvrda od juče,
+ *     da se stare proslave ne ponove;
+ *   - misije prošlih dana (i stanje „na otvaranju“), da bonus i misije tih
+ *     dana uđu u ponovo izveden zbir. Kad više projekata ima red istog dana,
+ *     uzima se red prvog projekta po redosledu članstva.
+ *
+ * Zbir (`osnova`) se NE prenosi: `zamrzniDan` ga ponovo računa iz događaja
+ * svih projekata, od najstarijeg. Stari redovi ostaju netaknuti.
+ */
+async function preseliStaro(ctx: MutationCtx, igrac: Igrac, dan: string): Promise<void> {
+  const userId = igrac.userId;
+  const licni = await ctx.db
+    .query("napredakDan")
+    .withIndex("by_user_workspace_dan", (q) =>
+      q.eq("userId", userId).eq("workspaceId", undefined),
+    )
+    .take(5);
+  if (licni.some(jeLicni)) return;
+
+  await preseliPodesavanja(ctx, igrac);
+
+  // ── potvrde ────────────────────────────────────────────────────────────────
+  const juce = dodajDane(dan, -1);
+  const potvrde = new Map<string, { opseg: string; kljuc: string; vrednost?: number }>();
+  for (const { workspaceId } of igrac.projekti) {
+    // „trajno" je posle svakog datuma, pa jedan opseg od juče hvata i trajne.
+    const redovi = await ctx.db
+      .query("napredakPotvrde")
+      .withIndex("by_user_workspace_opseg", (q) =>
+        q.eq("userId", userId).eq("workspaceId", workspaceId).gte("opseg", juce),
+      )
+      .take(CAP_POTVRDA_TRAJNIH + 2 * CAP_POTVRDA_DANA);
+    for (const red of redovi) {
+      if (red.opseg === undefined || red.kljuc === undefined) continue;
+      const kljuc = `${red.opseg}|${red.kljuc}`;
+      const bilo = potvrde.get(kljuc);
+      if (red.kljuc === "nivo") {
+        const vrednost = Math.max(bilo?.vrednost ?? 0, red.vrednost ?? 1);
+        potvrde.set(kljuc, { opseg: red.opseg, kljuc: red.kljuc, vrednost });
+      } else if (bilo === undefined) {
+        potvrde.set(kljuc, { opseg: red.opseg, kljuc: red.kljuc });
+      }
+    }
+  }
+  const now = Date.now();
+  for (const p of potvrde.values()) {
+    await ctx.db.insert("napredakPotvrde", {
+      userId,
+      obim: OBIM,
+      opseg: p.opseg,
+      kljuc: p.kljuc,
+      ...(p.vrednost !== undefined ? { vrednost: p.vrednost } : {}),
+      potvrdjenoAt: now,
+    });
+  }
+
+  // ── misije prošlih dana ────────────────────────────────────────────────────
+  const poDanu = new Map<string, Doc<"napredakDan">>();
+  for (const { workspaceId } of igrac.projekti) {
+    const redovi = await ctx.db
+      .query("napredakDan")
+      .withIndex("by_user_workspace_dan", (q) =>
+        q.eq("userId", userId).eq("workspaceId", workspaceId),
+      )
+      .order("desc")
+      .take(MAKS_DANA_PRELAZA);
+    for (const red of redovi) {
+      if (!jeRedDana(red) || red.misije === undefined) continue;
+      if (!poDanu.has(red.dan)) poDanu.set(red.dan, red);
+    }
+  }
+  for (const [d, red] of poDanu) {
+    await ctx.db.insert("napredakDan", {
+      userId,
+      obim: OBIM,
+      dan: d,
+      ...(red.misije !== undefined ? { misije: red.misije } : {}),
+      ...(red.naOtvaranju !== undefined ? { naOtvaranju: red.naOtvaranju } : {}),
+      ...(red.zamrznutoAt !== undefined ? { zamrznutoAt: red.zamrznutoAt } : {}),
+    });
+  }
 }
 
 // ── zamrzavanje dana ─────────────────────────────────────────────────────────
@@ -1341,97 +1549,75 @@ async function danaOdObjave(
   return Math.max(0, Math.floor((now - Math.max(...vremena)) / DAN));
 }
 
-/**
- * Zamrzava današnji dan: bira misije iz živog stanja i upisuje red sidra.
- *
- * ZAŠTO ZASEBNA MUTACIJA, a ne „prva mutacija dana":
- *   - upit ne može da piše, pa neko mora da pozove mutaciju;
- *   - cron u ponoć bi misije birao iz stanja u 00:00, pre jutarnje
- *     sinhronizacije, i pravio redove za dane kad niko nije otvorio aplikaciju;
- *   - kačenje na domenske mutacije (dodir, ishod, objava…) bi isti kod razvuklo
- *     kroz desetak fajlova, a dan u kom je čovek samo gledao ostao bi bez misija.
- *
- * Zato je klijent zove kad `stanje.dan` nije današnji beogradski datum. Poziv
- * je idempotentan: drugi tab dobija `novo: false`. Dan se računa iz SERVERSKOG
- * sata, nikad iz argumenta.
- */
-export const zamrzniDan = projekatMutation({
-  uloga: "client_viewer",
-  args: {},
-  returns: v.object({
-    dan: v.string(),
-    novo: v.boolean(),
-    misija: v.number(),
+const hitnostValidator = v.union(v.literal("visoka"), v.literal("srednja"), v.literal("niska"));
+const posaoValidator = v.object({
+  broj: v.number(),
+  hitnost: v.optional(hitnostValidator),
+  veza: v.optional(v.string()),
+});
+
+const ulazProjektaValidator = v.object({
+  zoviSada: v.number(),
+  ukupnoDodela: v.number(),
+  zaostali: posaoValidator,
+  nereseniRedovi: posaoValidator,
+  uvoziUPregledu: posaoValidator,
+  bezTelefona: posaoValidator,
+  komentari: posaoValidator,
+  mozeObjava: v.boolean(),
+  danaOdObjave: v.union(v.number(), v.null()),
+  naOtvaranju: v.object({
+    zaostali: v.number(),
+    nereseniRedovi: v.number(),
+    imaPrimenjenUvoz: v.boolean(),
+    odseceno: v.boolean(),
   }),
-  handler: async (ctx, args) => {
-    const { userId } = ctx.projekat;
+});
 
-    const workspaceId = args.workspaceId;
-    const now = Date.now();
-    const dan = danKljuc(now);
+type UlazProjekta = {
+  zoviSada: number;
+  ukupnoDodela: number;
+  zaostali: Posao;
+  nereseniRedovi: Posao;
+  uvoziUPregledu: Posao;
+  bezTelefona: Posao;
+  komentari: Posao;
+  mozeObjava: boolean;
+  danaOdObjave: number | null;
+  naOtvaranju: {
+    zaostali: number;
+    nereseniRedovi: number;
+    imaPrimenjenUvoz: boolean;
+    odseceno: boolean;
+  };
+};
 
-    const podesavanja = await ucitajPodesavanja(ctx, userId, workspaceId);
-    // Isključen Napredak ne pravi redove. Kad se ponovo uključi, zaostali dani
-    // se zaključe iz događaja — XP se ne gubi, samo se ne prikazuje.
-    if (!podesavanja.ukljucen) return { dan, novo: false, misija: 0 };
-
-    const prethodni = await ucitajSidro(ctx, userId, workspaceId);
-    if (prethodni !== null && prethodni.dan >= dan) {
-      return { dan, novo: false, misija: prethodni.misije?.length ?? 0 };
-    }
-
-    // ── zbir do prekjuče ─────────────────────────────────────────────────────
-    const cilj = dodajDane(dan, -2);
-    let osnova: Osnova;
-    if (prethodni?.osnova !== undefined && prethodni.osnova.do !== null) {
-      osnova = prethodni.osnova;
-    } else {
-      // Prvi put: istorija sa autorom se računa od svog prvog događaja.
-      const najstariji = await najstarijiDogadjaj(ctx, workspaceId, userId);
-      const pocetak = najstariji === null ? null : danKljuc(najstariji);
-      osnova = {
-        ...praznaOsnova(),
-        do: pocetak !== null && pocetak <= cilj ? dodajDane(pocetak, -1) : cilj,
-      };
-    }
-    const zaostatak = osnova.do === null ? 0 : razlikaDana(cilj, osnova.do);
-    if (zaostatak > 0 && zaostatak <= ODMAH_DANA) {
-      osnova = await zakljuciDo(ctx, workspaceId, userId, osnova, cilj, podesavanja);
-    }
-    const kasni = zaostatak > ODMAH_DANA;
-
-    // ── živo stanje: isti čitači kao zvono ───────────────────────────────────
+/**
+ * Živo stanje jednog projekta za izbor misija — isti čitači kao zvono.
+ * Interna: `zamrzniDan` je zove samo za projekte iz spiska članstava
+ * pozivaoca, sa delom budžeta čitanja (`transactionLimits`).
+ */
+export const ulazMisijaProjekta = internalQuery({
+  args: { workspaceId: v.id("workspaces"), now: v.number() },
+  returns: ulazProjektaValidator,
+  handler: async (ctx, { workspaceId, now }): Promise<UlazProjekta> => {
     const pomeraj = pomerajMin(now);
-    const [uvozi, leadovi, kanali, veze, primenjen, odObjave, ovaNedelja] =
-      await Promise.all([
-        citajUvoze(ctx, workspaceId),
-        citajLeadove(ctx, workspaceId, now, pomeraj),
-        citajKanale(ctx, workspaceId),
-        ctx.db
-          .query("connections")
-          .withIndex("by_workspace_provider", (q) =>
-            q.eq("workspaceId", workspaceId),
-          )
-          .take(20),
-        ctx.db
-          .query("leadImports")
-          .withIndex("by_workspace_status", (q) =>
-            q.eq("workspaceId", workspaceId).eq("status", "primenjen"),
-          )
-          .first(),
-        danaOdObjave(ctx, workspaceId, now),
-        // Korisnikovi lead događaji od ponedeljka: sastanci nedelje i „da li
-        // je ikad zvao" za prvi cilj.
-        ctx.db
-          .query("leadStageEvents")
-          .withIndex("by_workspace_actor_time", (q) =>
-            q
-              .eq("workspaceId", workspaceId)
-              .eq("actorUserId", userId)
-              .gte("occurredAt", pocetakDana(ponedeljak(dan))),
-          )
-          .take(CAP_LEAD),
-      ]);
+    const [uvozi, leadovi, kanali, veze, primenjen, odObjave] = await Promise.all([
+      citajUvoze(ctx, workspaceId),
+      citajLeadove(ctx, workspaceId, now, pomeraj),
+      citajKanale(ctx, workspaceId),
+      ctx.db
+        .query("connections")
+        .withIndex("by_workspace_provider", (q) => q.eq("workspaceId", workspaceId))
+        .take(20),
+      ctx.db
+        .query("leadImports")
+        .withIndex("by_workspace_status", (q) =>
+          q.eq("workspaceId", workspaceId).eq("status", "primenjen"),
+        )
+        .first(),
+      danaOdObjave(ctx, workspaceId, now),
+    ]);
 
     const zadaci = napraviZadatke({
       now,
@@ -1458,70 +1644,119 @@ export const zamrzniDan = projekatMutation({
       undefined,
     );
 
-    const nedeljaDogadjaji: Dogadjaj[] = [];
-    for (const ev of ovaNedelja) {
-      const d = await izLeadDogadjaja(ctx, workspaceId, ev);
-      if (d !== null) nedeljaDogadjaji.push(d);
-    }
-    let sastanciNedelje = 0;
-    let pozivaNedelje = 0;
-    for (let d = ponedeljak(dan); d <= dan; d = dodajDane(d, 1)) {
-      const brojevi = obracunajDan(nedeljaDogadjaji, String(userId), d).brojevi;
-      sastanciNedelje += brojevi.sastanci;
-      pozivaNedelje += brojevi.pozivi;
-    }
-
-    const nereseniRedovi = uvozi.saNerazresenim.reduce(
-      (zbir, u) => zbir + u.broj,
-      0,
-    );
-
-    const misije = generisiMisije(
-      {
-        zoviSada: leadovi.zoviSada,
-        // Dok zaključavanje istorije kasni, zbir još ne zna — tada se ne
-        // pretpostavlja „nikad nije zvao".
-        bezPozivaDoSad:
-          !kasni && osnova.brojaci.pozivi === 0 && pozivaNedelje === 0,
-        ukupnoDodela: leadovi.ukupnoDodela,
-        zaostali: posao(zadatak("leadovi.zaostali")),
-        nereseniRedovi: posao(zadatak("uvoz.nerazreseni")),
-        uvoziUPregledu: posao(zadatak("uvoz.u_pregledu")),
-        bezTelefona: posao(zadatak("leadovi.bez_telefona")),
-        komentari: {
-          broj: komentari.reduce((zbir, z) => zbir + z.broj, 0),
-          ...(najviseKomentara
-            ? { hitnost: najviseKomentara.hitnost, veza: najviseKomentara.veza }
-            : {}),
-        },
-        mozeObjava: veze.some(
-          (veza) =>
-            KANALI_ZA_OBJAVU.has(veza.provider) &&
-            veza.status !== "disconnecting",
-        ),
-        danaOdObjave: odObjave,
-        sastanciNedelje,
-        ciljSastanci: podesavanja.ciljSastanci,
+    return {
+      zoviSada: leadovi.zoviSada,
+      ukupnoDodela: leadovi.ukupnoDodela,
+      zaostali: posao(zadatak("leadovi.zaostali")),
+      nereseniRedovi: posao(zadatak("uvoz.nerazreseni")),
+      uvoziUPregledu: posao(zadatak("uvoz.u_pregledu")),
+      bezTelefona: posao(zadatak("leadovi.bez_telefona")),
+      komentari: {
+        broj: komentari.reduce((zbir, z) => zbir + z.broj, 0),
+        ...(najviseKomentara
+          ? { hitnost: najviseKomentara.hitnost, veza: najviseKomentara.veza }
+          : {}),
       },
-      dan,
-    );
-
-    await ctx.db.insert("napredakDan", {
-      workspaceId,
-      userId,
-      dan,
-      misije,
-      zamrznutoAt: now,
-      prvi: prethodni === null,
+      mozeObjava: veze.some(
+        (veza) => KANALI_ZA_OBJAVU.has(veza.provider) && veza.status !== "disconnecting",
+      ),
+      danaOdObjave: odObjave,
       naOtvaranju: {
         zaostali: leadovi.zaostaliKoraci,
-        nereseniRedovi,
+        nereseniRedovi: uvozi.saNerazresenim.reduce((zbir, u) => zbir + u.broj, 0),
         imaPrimenjenUvoz: primenjen !== null,
         odseceno: leadovi.zaostaliOdsecen || uvozi.odseceni,
-        at: now,
       },
-      osnova,
-    });
+    };
+  },
+});
+
+/**
+ * Zamrzava današnji dan: bira misije iz živog stanja svih projekata i
+ * upisuje lični red sidra.
+ *
+ * ZAŠTO ZASEBNA MUTACIJA, a ne „prva mutacija dana":
+ *   - upit ne može da piše, pa neko mora da pozove mutaciju;
+ *   - cron u ponoć bi misije birao iz stanja u 00:00, pre jutarnje
+ *     sinhronizacije, i pravio redove za dane kad niko nije otvorio aplikaciju;
+ *   - kačenje na domenske mutacije (dodir, ishod, objava…) bi isti kod razvuklo
+ *     kroz desetak fajlova, a dan u kom je čovek samo gledao ostao bi bez misija.
+ *
+ * Zato je klijent zove kad `stanje.dan` nije današnji beogradski datum. Poziv
+ * je idempotentan: drugi tab dobija `novo: false`. Dan se računa iz SERVERSKOG
+ * sata, nikad iz argumenta.
+ */
+export const zamrzniDan = prijavljenMutation({
+  args: {},
+  returns: v.object({
+    dan: v.string(),
+    novo: v.boolean(),
+    misija: v.number(),
+  }),
+  handler: async (ctx) => {
+    const userId = ctx.korisnik.userId;
+    const now = Date.now();
+    const dan = danKljuc(now);
+    const igrac = await ucitajIgraca(ctx, userId);
+
+    // P12: jednom po korisniku, pre prvog ličnog dana.
+    await preseliStaro(ctx, igrac, dan);
+
+    const podesavanja = await ucitajPodesavanja(ctx, igrac);
+    // Isključen Napredak ne pravi redove. Kad se ponovo uključi, zaostali dani
+    // se zaključe iz događaja — XP se ne gubi, samo se ne prikazuje.
+    if (!podesavanja.ukljucen) return { dan, novo: false, misija: 0 };
+
+    const prethodni = await ucitajSidro(ctx, userId);
+    if (prethodni !== null && prethodni.dan >= dan && prethodni.osnova !== undefined) {
+      return { dan, novo: false, misija: prethodni.misije?.length ?? 0 };
+    }
+    // Današnji red prenet iz projekta (prelazak) zadržava svoje misije; dobija
+    // samo zbir.
+    const preneto = prethodni !== null && prethodni.dan === dan ? prethodni : null;
+
+    // ── zbir do prekjuče ─────────────────────────────────────────────────────
+    const cilj = dodajDane(dan, -2);
+    let osnova: Osnova;
+    if (prethodni?.osnova !== undefined && prethodni.osnova.do !== null) {
+      osnova = prethodni.osnova;
+    } else {
+      // Prvi put (i posle prelaska): istorija sa autorom se računa od prvog
+      // događaja u bilo kom projektu.
+      const najstariji = await najstarijiDogadjaj(ctx, igrac);
+      const pocetak = najstariji === null ? null : danKljuc(najstariji);
+      osnova = {
+        ...praznaOsnova(),
+        do: pocetak !== null && pocetak <= cilj ? dodajDane(pocetak, -1) : cilj,
+      };
+    }
+    const zaostatak = osnova.do === null ? 0 : razlikaDana(cilj, osnova.do);
+    if (zaostatak > 0 && zaostatak <= ODMAH_DANA) {
+      osnova = await zakljuciDo(ctx, igrac, osnova, cilj, podesavanja);
+    }
+    const kasni = zaostatak > ODMAH_DANA;
+
+    let brojMisija: number;
+    if (preneto !== null) {
+      await ctx.db.patch(preneto._id, {
+        osnova,
+        zamrznutoAt: preneto.zamrznutoAt ?? now,
+      });
+      brojMisija = preneto.misije?.length ?? 0;
+    } else {
+      const { misije, naOtvaranju } = await misijeDana(ctx, igrac, dan, now, osnova, kasni, podesavanja);
+      await ctx.db.insert("napredakDan", {
+        userId,
+        obim: OBIM,
+        dan,
+        misije,
+        zamrznutoAt: now,
+        prvi: prethodni === null,
+        naOtvaranju,
+        osnova,
+      });
+      brojMisija = misije.length;
+    }
 
     // Potvrde misija i bonusa starijih dana više ničemu ne služe.
     const stare = await ctx.db
@@ -1529,66 +1764,157 @@ export const zamrzniDan = projekatMutation({
       .withIndex("by_user_workspace_opseg", (q) =>
         q
           .eq("userId", userId)
-          .eq("workspaceId", workspaceId)
+          .eq("workspaceId", undefined)
           .lt("opseg", dodajDane(dan, -1)),
       )
       .take(50);
-    for (const red of stare) await ctx.db.delete(red._id);
-
-    if (kasni) {
-      await ctx.scheduler.runAfter(0, internal.napredak.nastaviZakljucavanje, {
-        workspaceId,
-        userId,
-      });
-    } else if (prethodni === null) {
-      await potvrdiZateceno(ctx, userId, workspaceId, podesavanja);
+    for (const red of stare) {
+      if (jeLicni(red)) await ctx.db.delete(red._id);
     }
 
-    return { dan, novo: true, misija: misije.length };
+    if (kasni) {
+      await ctx.scheduler.runAfter(0, internal.napredak.nastaviZakljucavanje, { userId });
+    } else if (prethodni === null) {
+      await potvrdiZateceno(ctx, igrac, podesavanja);
+    }
+
+    return { dan, novo: true, misija: brojMisija };
   },
 });
 
 /**
+ * Misije dana iz posla svih projekata u kojima je korisnik urednik ili
+ * vlasnik (posmatrač nema posla koji misija može da zada). Svaki projekat se
+ * čita kroz interni upit sa svojim delom budžeta; projekat koji ga prekorači
+ * se preskače, a „na otvaranju“ tada beleži da je brojanje odsečeno.
+ */
+async function misijeDana(
+  ctx: MutationCtx,
+  igrac: Igrac,
+  dan: string,
+  now: number,
+  osnova: Osnova,
+  kasni: boolean,
+  podesavanja: Podesavanja,
+): Promise<{ misije: MisijaDef[]; naOtvaranju: NaOtvaranju }> {
+  const userId = igrac.userId;
+
+  // Korisnikovi lead događaji od ponedeljka, u svim projektima: sastanci
+  // nedelje i „da li je ikad zvao" za prvi cilj.
+  const nedeljaDogadjaji: Dogadjaj[] = [];
+  for (const { workspaceId } of igrac.projekti) {
+    const ovaNedelja = await ctx.db
+      .query("leadStageEvents")
+      .withIndex("by_workspace_actor_time", (q) =>
+        q
+          .eq("workspaceId", workspaceId)
+          .eq("actorUserId", userId)
+          .gte("occurredAt", pocetakDana(ponedeljak(dan))),
+      )
+      .take(CAP_LEAD);
+    for (const ev of ovaNedelja) {
+      const d = await izLeadDogadjaja(ctx, workspaceId, ev);
+      if (d !== null) nedeljaDogadjaji.push(d);
+    }
+  }
+  let sastanciNedelje = 0;
+  let pozivaNedelje = 0;
+  for (let d = ponedeljak(dan); d <= dan; d = dodajDane(d, 1)) {
+    const brojevi = obracunajDan(nedeljaDogadjaji, String(userId), d).brojevi;
+    sastanciNedelje += brojevi.sastanci;
+    pozivaNedelje += brojevi.pozivi;
+  }
+  // Dok zaključavanje istorije kasni, zbir još ne zna — tada se ne
+  // pretpostavlja „nikad nije zvao".
+  const bezPozivaDoSad = !kasni && osnova.brojaci.pozivi === 0 && pozivaNedelje === 0;
+
+  const urednicki = igrac.projekti.filter((p) => imaUlogu(p.uloga, "urednik"));
+  const deo = Math.max(1, urednicki.length);
+  const ulazi: Array<{ projekat: string; ulaz: UlazMisija }> = [];
+  const naOtvaranju: NaOtvaranju = {
+    zaostali: 0,
+    nereseniRedovi: 0,
+    imaPrimenjenUvoz: false,
+    odseceno: false,
+    at: now,
+  };
+  for (const { workspaceId } of urednicki) {
+    let u: UlazProjekta;
+    try {
+      // Tip je napisan ručno: poziv funkcije iz istog fajla bi inače napravio
+      // kružni tip (guidelines, „Function calling“).
+      u = await ctx.runQuery(
+        internal.napredak.ulazMisijaProjekta,
+        { workspaceId, now },
+        {
+          transactionLimits: {
+            documentsRead: Math.floor(BUDZET_DOKUMENATA / deo),
+            databaseQueries: Math.floor(BUDZET_UPITA / deo),
+          },
+        },
+      );
+    } catch {
+      naOtvaranju.odseceno = true;
+      continue;
+    }
+    naOtvaranju.zaostali += u.naOtvaranju.zaostali;
+    naOtvaranju.nereseniRedovi += u.naOtvaranju.nereseniRedovi;
+    naOtvaranju.imaPrimenjenUvoz ||= u.naOtvaranju.imaPrimenjenUvoz;
+    naOtvaranju.odseceno ||= u.naOtvaranju.odseceno;
+    ulazi.push({
+      projekat: workspaceId,
+      ulaz: {
+        zoviSada: u.zoviSada,
+        bezPozivaDoSad,
+        ukupnoDodela: u.ukupnoDodela,
+        zaostali: u.zaostali,
+        nereseniRedovi: u.nereseniRedovi,
+        uvoziUPregledu: u.uvoziUPregledu,
+        bezTelefona: u.bezTelefona,
+        komentari: u.komentari,
+        mozeObjava: u.mozeObjava,
+        danaOdObjave: u.danaOdObjave,
+        sastanciNedelje,
+        ciljSastanci: podesavanja.ciljSastanci,
+      },
+    });
+  }
+  return { misije: generisiMisijeIzProjekata(ulazi, dan), naOtvaranju };
+}
+
+/**
  * Nastavlja zaključavanje kad je zaostatak veći od `ODMAH_DANA` (prvo
- * uključivanje sa istorijom, povratak posle odmora). Jedan korak zaključa
- * najviše `MAKS_DANA_KORAK` dana i zakaže sledeći, da nijedna transakcija ne
- * čita istoriju odjednom.
+ * uključivanje sa istorijom, povratak posle odmora, prelazak na napredak
+ * preko projekata). Jedan korak zaključa najviše `MAKS_DANA_KORAK` dana i
+ * zakaže sledeći, da nijedna transakcija ne čita istoriju odjednom.
+ *
+ * `workspaceId` je ostao opcion samo zbog poslova zakazanih pre C16 (stari
+ * oblik argumenata); ne koristi se.
  */
 export const nastaviZakljucavanje = internalMutation({
-  args: { workspaceId: v.id("workspaces"), userId: v.id("users") },
+  args: { userId: v.id("users"), workspaceId: v.optional(v.id("workspaces")) },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const sidroRed = await ucitajSidro(ctx, args.userId, args.workspaceId);
+    const sidroRed = await ucitajSidro(ctx, args.userId);
     if (sidroRed === null || sidroRed.osnova === undefined) return null;
 
     const cilj = dodajDane(sidroRed.dan, -2);
     const osnova: Osnova = sidroRed.osnova;
     if (osnova.do === null || osnova.do >= cilj) return null;
 
-    const podesavanja = await ucitajPodesavanja(
-      ctx,
-      args.userId,
-      args.workspaceId,
-    );
+    const igrac = await ucitajIgraca(ctx, args.userId);
+    const podesavanja = await ucitajPodesavanja(ctx, igrac);
     const granica = dodajDane(osnova.do, MAKS_DANA_KORAK);
     const korakDo = granica < cilj ? granica : cilj;
-    const nova = await zakljuciDo(
-      ctx,
-      args.workspaceId,
-      args.userId,
-      osnova,
-      korakDo,
-      podesavanja,
-    );
+    const nova = await zakljuciDo(ctx, igrac, osnova, korakDo, podesavanja);
     await ctx.db.patch(sidroRed._id, { osnova: nova });
 
     if (nova.do !== null && nova.do < cilj) {
       await ctx.scheduler.runAfter(0, internal.napredak.nastaviZakljucavanje, {
-        workspaceId: args.workspaceId,
         userId: args.userId,
       });
     } else if (sidroRed.prvi === true) {
-      await potvrdiZateceno(ctx, args.userId, args.workspaceId, podesavanja);
+      await potvrdiZateceno(ctx, igrac, podesavanja);
     }
     return null;
   },

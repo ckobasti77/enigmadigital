@@ -37,6 +37,7 @@ import {
   type R,
 } from "./fixtures-util";
 import { FIXTURES_ANALITIKA, PRAZNO_ANALITIKA } from "./fixtures-analitika";
+import { FIXTURES_HUB } from "./fixtures-hub";
 import { FIXTURES_KANALI, PRAZNO_KANALI } from "./fixtures-kanali";
 import { FIXTURES_NAPREDAK, PRAZNO_NAPREDAK } from "./fixtures-napredak";
 import { FIXTURES_OGLASI, PRAZNO_OGLASI } from "./fixtures-oglasi";
@@ -903,6 +904,39 @@ const staMeCeka: R<typeof api.notificationsStore.staMeCeka> = {
   now,
 };
 
+function staMeCekaOd(zadaci: typeof staMeCekaZadaci): R<typeof api.notificationsStore.staMeCeka> {
+  return {
+    zadaci,
+    sklonjeni: [],
+    bedzevi: bedzeviOd(zadaci),
+    ukupno: zadaci.length,
+    nepotpuno: zadaci.some((z) => z.odsecen),
+    now,
+  };
+}
+
+/**
+ * C16: zvono po projektu. Enigma (i upit bez projekta) ima pun spisak; ScanMe
+ * jedan zadatak (uvoz na pregledu), klijent nijedan, a izmišljeni projekti
+ * huba deo Enigminog posla (deterministično, po broju projekta).
+ */
+function staMeCekaZa(args: Record<string, unknown>): R<typeof api.notificationsStore.staMeCeka> {
+  const ws = args.workspaceId;
+  if (ws === undefined || ws === WS) return staMeCeka;
+  if (ws === WS_KLIJENT) return staMeCekaOd([]);
+  if (ws === WS_SCANME) {
+    const uvoz = staMeCekaZadaci.find((z) => z.kljuc === "uvoz.u_pregledu") ?? staMeCekaZadaci[0];
+    return staMeCekaOd(uvoz ? [uvoz] : []);
+  }
+  const m = typeof ws === "string" ? /^ws_ux_hub_(\d+)_/.exec(ws) : null;
+  const i = m ? Number(m[1]) : 0;
+  const koliko = i % 3;
+  const od = i % Math.max(1, staMeCekaZadaci.length);
+  return staMeCekaOd(
+    [...staMeCekaZadaci.slice(od), ...staMeCekaZadaci.slice(0, od)].slice(0, koliko),
+  );
+}
+
 // ── Pravila (A6: /rules) ─────────────────────────────────────────────────────
 
 const RULE_CPA_ID = "rule_ux_cpa" as Id<"rules">;
@@ -1056,7 +1090,7 @@ const FIXTURES: Record<string, Fixture> = {
     const lead = LEADOVI.find((l) => l.company._id === args.companyId);
     return lead ? { item: lead, now } : null;
   },
-  [getFunctionName(api.notificationsStore.staMeCeka)]: () => staMeCeka,
+  [getFunctionName(api.notificationsStore.staMeCeka)]: (args) => staMeCekaZa(args),
   // C09: titlovi videa se čitaju akcijom; bez fiksture lažni klijent vrati
   // `undefined` i panel titlova pukne. Video bez titlova je pošteno stanje.
   [getFunctionName(api.ytCaptions.listCaptions)]: () =>
@@ -1086,6 +1120,7 @@ Object.assign(
   FIXTURES_OGLASI,
   FIXTURES_NAPREDAK,
   FIXTURES_PROJEKTI,
+  FIXTURES_HUB,
 );
 
 // ── Prazan nalog (`?ux=1&prazno=1`) ──────────────────────────────────────────

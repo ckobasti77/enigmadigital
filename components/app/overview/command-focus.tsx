@@ -14,9 +14,10 @@ import { LevelBadge, StreakFlame } from "@/components/app/system/reward-badges";
 import { NAPREDAK_HREF, type ModuleKey } from "@/components/app/nav-items";
 import {
   ikonaMisije,
+  naslovMisije,
   radnjaMisije,
-  vezaMisije,
 } from "@/components/app/napredak/napredak-ikone";
+import { MisijaLink } from "@/components/app/napredak/misija-link";
 import {
   stanjeNiza,
   useNapredak,
@@ -118,7 +119,7 @@ function FokusNapredak({
   saZadatkom: boolean;
 }) {
   const sada = useSada();
-  const { korisnik } = useProjekat();
+  const { korisnik, slug } = useProjekat();
   const { nivo, niz, xp, misije, bonus } = stanje;
   const ime = korisnik?.ime?.trim() || null;
 
@@ -248,7 +249,7 @@ function FokusNapredak({
                 return (
                   <MissionCard
                     key={misija.kljuc}
-                    title={misija.naslov}
+                    title={naslovMisije(misija, slug)}
                     icon={ikonaMisije(misija.kljuc)}
                     value={misija.napredak}
                     max={misija.cilj}
@@ -261,9 +262,7 @@ function FokusNapredak({
                     className="bg-background/50 shadow-none"
                     action={
                       <Button
-                        render={
-                          <ProjekatLink href={vezaMisije(misija.kljuc, misija.veza)} />
-                        }
+                        render={<MisijaLink misija={misija} />}
                         nativeButton={false}
                         variant={glavna ? "primary" : "secondary"}
                         size={glavna ? "default" : "sm"}

@@ -1231,3 +1231,77 @@ Obrađene su sve 88 javnih funkcija grupe iz mape C02 §5.1: 82 sada idu kroz om
 
 ## C15 - Plan: hub i veze među projektima   (2026-10-25 08:47)
 **Plan korak.** Plan je upisan u `docs/projekti/planovi/C15.md`. Kod nije menjan.
+
+## C16 — Hub „Svi projekti“, zdravlje veza, napredak   (2026-10-25 09:52)
+**Fajlovi:**
+- backend:
+  - novi: `convex/hubStore.ts` (`pregledProjekta`), `convex/lib/hubAgregati.ts` (čisti zbirovi), `convex/lib/vezeProjekta.ts` (veze projekta sa poslednjim prolazom);
+  - izmenjeni: `convex/lib/zdravljeVeza.ts` (pragovi po provajderu, crveno, `razlogZdravlja`, `najgoraVeza`), `convex/projekti.ts` (`stanjeProjekata` čita veze kroz `citajVezeProjekta`), `convex/napredak.ts` (P12: lični napredak preko svih projekata, lenji prelazak, misije iz svih projekata, interni `ulazMisijaProjekta`), `convex/lib/napredak.ts` (`MisijaDef.projekat`, `generisiMisijeIzProjekata`), `convex/lib/napredakValidators.ts`, `convex/schema.ts` (`obim` na tri tabele napretka), `convex/_generated/api.d.ts` (codegen).
+- front:
+  - novi: `components/app/hub/red-projekta.tsx`, `components/app/hub/ceka-te.tsx`, `components/app/napredak/misija-link.tsx`, `lib/hub-zbir.ts`;
+  - izmenjeni: `components/app/hub/svi-projekti.tsx` (ceo ekran), `components/app/projekat-provider.tsx` (`useQueryZaProjekat`), `components/app/projekat-birac.tsx` (natpis crvene tačke), `components/app/napredak/{use-napredak,napredak-feedback,napredak-screen,napredak-izvor,napredak-ikone}.ts(x)`, `components/app/overview/command-focus.tsx`, `components/app/command-palette.tsx`, `components/app/settings/napredak-settings.tsx`.
+- razvojni prikaz: nov `app/dev-ux/fixtures-hub.ts`; izmenjeni `app/dev-ux/fixtures.ts` (zvono po projektu), `fixtures-projekti.ts`, `fixtures-napredak.ts` (`stanjeZaOdgovor`, misija iz ScanMe-a), `harness.tsx` (`projekata`), `[[...slug]]/page.tsx` (`&projekata=1|22`, `data-module` na hubu), `sistem/vodic-napredak.tsx`.
+- čuvari: `scripts/verify-pristup.ts` (pet funkcija napretka na spisku direktnih poziva, sa razlogom), `lib/linkovi-cuvar.test.ts` (`misija-link.tsx` sme `next/link`; `useQueryZaProjekat` samo u hubu).
+- testovi: novi `convex/hub-c16.test.ts`, `convex/napredak-p12.test.ts`, `lib/hub-agregati.test.ts`, `lib/hub-zbir.test.ts`; izmenjeni `lib/zdravlje-veza.test.ts`, `convex/izolacija-c06.test.ts` (blok „napredak“).
+- snimci: `docs/projekti/snimci/C16-svi-projekti-{1,3,22}-1440.png`, `C16-svi-projekti-3-390.png`, `C16-ceka-te-390.png`, `C16-zdravlje-veza-1536.png`, `C16-napredak-1440.png`.
+
+**Šta je urađeno:**
+- **„Svi projekti“ (`/` u hubu).** Red po projektu: znak, ime (ceo red je veza na `/<slug>`), uloga, tačka zdravlja sa detaljima veza i jedna linija razloga najgore veze; kolone Posete, Novi leadovi (+ upiti), Pratioci (+ promena u periodu), Oglasi (valuta naloga), Poruke · sada, Čeka. Period je isti birač kao u projektu (7/28/90 dana, prilagođen raspon). Desno je „Čeka te“: zbirno „šta me čeka“ svih projekata sa imenom projekta, najviše 8 pa „Prikaži sve“, a projekat čiji upit padne piše se kao „Bez podataka: …“. Na telefonu su redovi kartice (mreža 2 × 3), a „Čeka te“ je red na vrhu koji se otvara.
+- **Upiti po projektu.** Svaki red sam zove `hubStore.pregledProjekta` (`projekatQuery`, CV) i postojeći `notificationsStore.staMeCeka` kroz nov hook `useQueryZaProjekat(workspaceId, …)`, pa svaki projekat ima svoju transakciju i svoju proveru članstva. Brojke se traže za prvih 20 nearhiviranih projekata (redosled, pa ime); ostali i arhivirani su obične veze. Svaka kolona čita preko indeksa sa `workspaceId` i ima kapu (posete 366 dana, firme 2.001, upiti 501, uvidi oglasa 10.001, razgovori 501). Nepoznato je `null` sa razlogom (nije povezano, nema podataka, previše podataka, više valuta, modul isključen) i crta se kao „—“ sa razlogom u oblačiću i za čitač ekrana.
+- **Zdravlje veza.** Jedno pravilo za birač i hub (`razlogZdravlja`): crveno za `error`/`expired`, pao prolaz bez svežijih podataka, token ≤ 2 dana i podatke starije od `max(72 h, 4 × razmak)`; žuto za token ≤ 14 dana, zaglavljen prolaz i podatke starije od `max(24 h, 2 × razmak)`. Razmak po provajderu je iz `crons.ts` (Threads 24 h → žuto tek posle 48 h). Detalji veze u hubu: stanje, „sinhronizovano pre …“, istek, poslednja greška prolaza i kvota (YouTube/Google Ads deo projekta, Meta procenat aplikacije).
+- **Napredak preko projekata (P12).** XP, niz, nivo i dostignuća se izvode iz događaja SVIH projekata u kojima je korisnik član (najviše 20), istim indeksima kao pre; lični redovi (`obim: "korisnik"`, bez `workspaceId`) drže sidro, zbir, podešavanja i potvrde. Misije dana dolaze iz posla projekata u kojima je korisnik urednik ili vlasnik, svaki projekat kroz interni upit sa svojim delom budžeta čitanja; misija pamti projekat, a ekran, fokus kontrolne table i ⌘K vode u taj projekat (naslov „… · ScanMe“). Javne funkcije napretka su `prijavljen*` bez argumenta projekta; stranica Napredak i kartica igrača prikazuju zbir.
+- **Postojeći napredak se ne gubi.** Prvi `zamrzniDan` posle deploya prenosi stara podešavanja (najsvežiji red), potvrde (unija; nivo = najviši) i misije prošlih dana, a zbir ponovo računa iz događaja (zaključavanje u koracima od 14 dana). `podesi` pre toga prenese stara podešavanja, a `stanje` ih čita i pre prelaska. Stari redovi po projektu ostaju netaknuti.
+
+**ODLUKE:**
+- **Odluke iz plana C15** (C15 nije menjao fajlove, pa ih ovde upisuje C16; pun tekst je u `docs/projekti/planovi/C15.md` §0.2):
+  - F1: hub čita po projektu (`pregledProjekta` + `staMeCeka` kroz `useQueryZaProjekat`, samo u `components/app/hub/**`).
+  - F2: period je isti `useDateRange`; beogradski dani; backend preko `lokalnoUEpohu`.
+  - F3: „Poruke · sada“ je stanje, ne zbir perioda.
+  - F4: pratioci = zbir poslednjih ukupnih brojeva Instagram/Facebook/Threads; YouTube nije u zbiru (nema ukupnog broja u bazi).
+  - F5: oglasi samo uz jednu valutu; kapa 10.000 redova.
+  - F6: granica 20 nearhiviranih projekata; ostali i arhivirani bez brojki.
+  - F7: pragovi zdravlja po provajderu i crveno; natpis „Veza ne radi ili uskoro prestaje“.
+  - F8: isti tabele napretka, lični red bez `workspaceId` sa `obim: "korisnik"`; stari redovi ostaju.
+  - F9: funkcije napretka su `prijavljen*` i na spisku direktnih poziva; blok „napredak“ u `izolacija-c06` menja tvrdnje.
+  - F10: lenji prelazak bez ručnog koraka.
+  - F11: misije iz projekata gde je korisnik urednik ili vlasnik; u panelu misija drugog projekta nema vezu.
+  - F12–F21: posao C17 (unakrsni leadovi, Puls, leadovi sa sajta), ovde se ne sprovode.
+- **Test „najgora veza pobeđuje“** (`lib/zdravlje-veza.test.ts`) imao je token koji ističe za 24 h kao primer žutog. Po pragu F7 to je sada crveno, pa je ulaz te tvrdnje promenjen na 5 dana (tvrdnja „najgore pobeđuje → upozorenje“ je ista), a nov test tvrdi da 24 h, 2 dana i istekao token daju crveno.
+- **Blok „napredak“ u `izolacija-c06`:** tvrdnja „isključen napredak u A ostaje uključen u B“ je uklonjena jer P12 menja pravilo (jedno podešavanje za sve projekte). Umesto nje: neprijavljen ne čita ni ne menja napredak, funkcije odbijaju `workspaceId` kao argument, podešavanje je jedan lični red; a `napredak-p12.test.ts` tvrdi da korisnik nikad ne dobija XP ni misiju iz projekta u kome nije član.
+- **Meta kvota u detaljima veze** koristi postojeće pragove kapije (`USAGE_WARN_PCT` 80, `USAGE_STOP_PCT` 95), ne 90 % iz plana: jedno pravilo u aplikaciji.
+- **Kolona „Veze“ je spojena sa imenom projekta** (tačka pored imena, razlog ispod), umesto posebne kolone iz skice: šest kolona brojki staje na 1440 sa desnom kolonom „Čeka te“, a razlog ima mesto da se pročita. Detalji veza su u oblačiću (`Popover`) na tački, jedinom interaktivnom mestu u redu pored veze na projekat.
+- **Nije urađeno iz plana C15:** `profil.poProjektu` (doprinos po projektu) — događaji u obračunu ne nose projekat, pa bi to tražilo drugi obračun po projektu; i napomena o webhook greškama za vlasnika platforme u šini huba (ostaje na kartici Integracije). Nijedno nije traženo u prompt-u C16.
+- **Prelazak, isti dan u dva projekta:** kad više starih projekata ima red istog dana, prenosi se red prvog projekta po redosledu članstva (plan je predlagao red sa više ispunjenih misija; to bi tražilo obračun pri prelasku). Danas u produkciji postoji samo Enigma, pa se ništa ne spaja.
+- **Prenet današnji red** (otvoren pre deploya) zadržava svoje misije i dobija samo zbir, umesto novih misija; zato `zamrzniDan` sada smatra dan zamrznutim tek kad sidro ima `osnova`.
+- **Napredak misije se meri ličnim brojačima dana** (svi projekti): poziv u Enigmi napreduje i misiju „Pozovi“ iz ScanMe-a. Jedna misija po oblasti važi preko projekata.
+- **`nastaviZakljucavanje` zadržava opcioni `workspaceId`** u argumentima, samo da poslovi zakazani pre deploya (stari oblik) ne padnu na validaciji; ne koristi se.
+- **`NapredakIzvor` se više ne prazni pri prelasku na drugi projekat**, samo pri odjavi (napredak je isti u svim projektima).
+- **Razvojni prikaz:** zvono je sada po projektu (ScanMe ima jedan zadatak, „Uvoz čeka pregled“, klijent nijedan, izmišljeni projekti huba deo Enigminog posla); fikstura birača za ScanMe je zato `ceka: 1` umesto 0, da birač i zvono kažu isto. Hub u razvojnom prikazu dobija `data-module="tabla"` kao prava strana. `&projekata=1|22` menja broj projekata; u spisku od 22 jedan izmišljen projekat („Kafić Lipa“) namerno pada da se vidi red u grešci — Next u razvoju tada u konzoli piše jednu grešku koju je uhvatila granica (`QuietBoundary`), to nije kvar.
+- **Pomoćni Python i heredoc:** jedna izmena je upisala znak „backspace“ umesto `\b` u regex čuvara; nađeno testom i ispravljeno, a svi izmenjeni fajlovi su provereni (bez `\x08` i bez CRLF).
+- Skill `impeccable` je pozvan pre UI koda (režim Operate, postojeći tokeni i komponente; bez nove animacije sekcija).
+
+**Novi paketi:** nema
+
+**Testovi:**
+- `convex/hub-c16.test.ts` (6): **portfolio ne vraća projekat čiji korisnik nije član** (neprijavljen, član samo A nad B, stranac, vlasnik klijentskog projekta nad A), posmatrač čita svoj; Jovan dobija A u A i B u B; nepoznato je `null` sa razlogom (nepovezano, GA4 bez dana, isključen modul); zbirovi: posete sa uključivim granicama, pratioci i promena, oglasi samo dnevni redovi bez preseka, dve valute → „—“, neodgovorene poruke; zdravlje: najgora veza, razlog i broj dana, veza u prekidu se ne broji; neispravan period se odbija.
+- `convex/napredak-p12.test.ts` (5): **napredak sabira dva projekta** (poziv u A + poziv u B = 2 × 10 XP, jedan lični red sidra); korisnik ne dobija XP iz projekta u kome nije član, a dva korisnika ne dele zbir; misija nosi projekat i jedna je po oblasti, posmatrač nema misija; prelazak: stari red sa misijom, podešavanja i potvrde (nivo 3, dostignuće) daju isti XP (poziv + misija = 70), stari redovi netaknuti, drugi `zamrzniDan` idempotentan; `podesi` pre prvog dana ne briše stare ciljeve.
+- `lib/zdravlje-veza.test.ts` (+3): **zdravlje računa pragove** — crveno za token ≤ 2 dana i istekao; žuto/crveno za stare podatke po provajderu (GA4 24/72 h, Threads 48/96 h; lead mašina i Google Business bez pravila starosti); razlog najgore veze.
+- `lib/hub-agregati.test.ts` (3): kapa brojanja, pratioci (samo povezani, promena uz obe tačke), potrošnja (valute, kapa, samo dnevni redovi).
+- `lib/hub-zbir.test.ts` (4): zbir „šta me čeka“ tri projekta i redosled, projekat u grešci i „učitava“, veza zadatka u projekat, tekst razloga veze.
+- `lib/linkovi-cuvar.test.ts` (+1): `useQueryZaProjekat` samo u hubu (sa proverom same provere).
+- `convex/izolacija-c06.test.ts`: blok „napredak“ prema P12 (vidi ODLUKE).
+
+**Rezultat provere:**
+- codegen ✓, typecheck ✓, lint ✓ (0 grešaka; izmenjeni i novi fajlovi bez upozorenja);
+- `npx vitest run` ✓ (643/643, 42 fajla);
+- `verify-pristup` ✓ (367 javnih: omotačem 352, javno 15, bez omotača 0; front: svi direktni pozivi sa spiska);
+- `regresije.mjs` ✓ (14/14, uključuje `verify:napredak` 145/145); `npm run build` ✓ (pokrivenost brisanja: 143 tabele).
+- Razvojni prikaz (Playwright): hub sa 3 projekta na 1440 × 900 i 390 × 844 (kartice, otvoreno „Čeka te“, bez vodoravnog klizača), sa 1 i 22 projekta na 1440 (20 sa brojkama, 2 ispod, arhiviran u grupi, red u grešci), detalji veza na 1536 × 695 (fokus i „Čeka te“ iznad pregiba), ekran Napredak sa misijom iz ScanMe-a. Dev server je ugašen (port 3105 slobodan), otpaci Playwright-a obrisani, a ugašen je i Playwright MCP ove sesije (`--output-dir docs/projekti/snimci`); Playwright MCP druge sesije na mašini nije diran.
+- Završni prolaz (tačne komande iz cilja): codegen ✓, typecheck ✓, lint ✓ (0 grešaka), `npx --no-install vitest run` ✓ (643/643), `verify-pristup` ✓, `regresije.mjs` ✓ (14/14).
+
+**Za Jovana ujutru:**
+- Deploy dodaje samo opciono polje `obim` na tri tabele napretka (bez indeksa, bez migracije).
+- Prvo otvaranje posle deploya prenosi napredak: kartica igrača kratko „sabira“, a XP, nivo, niz i dostignuća treba da budu isti kao pre deploya (i bez ponovljenih proslava). Ako se razlikuju, javi broj pre i posle.
+- Hub (domen huba ili host bez mapiranja): `/` pokazuje red po projektu i „Čeka te“; proveri da su brojke Enigme iste kao na kontrolnoj tabli i u zvonu, i da je ScanMe pun „—“ sa razlogom „Kanal nije povezan“ dok ga ne povežeš.
+- Tačka u biraču sada pocrveni i kad token ističe za ≤ 2 dana ili kad veza nema novih podataka 72 h (Threads 96 h); natpis kaže „Veza ne radi ili uskoro prestaje“, a hub kaže tačan razlog.
+- Podešavanja → Napredak sada važe za sve projekte.

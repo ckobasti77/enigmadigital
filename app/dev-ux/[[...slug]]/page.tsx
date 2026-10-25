@@ -124,11 +124,12 @@ export default async function DevUxPage({
     rezim?: string;
     stanje?: string;
     uloga?: string;
+    projekata?: string;
   }>;
 }) {
   if (process.env.NODE_ENV === "production") notFound();
   const { slug: putanja = [] } = await params;
-  const { prazno, pad, panel, rezim: trazeniRezim, stanje, uloga } =
+  const { prazno, pad, panel, rezim: trazeniRezim, stanje, uloga, projekata } =
     await searchParams;
 
   if (putanja.join("/") === "sistem") {
@@ -184,10 +185,19 @@ export default async function DevUxPage({
   }
 
   if (putanja.length === 0 && trazeniRezim === "hub") {
+    // `&projekata=1|22`: hub sa jednim ili sa više od 20 projekata (C16).
+    const broj = Number(projekata);
     return (
-      <UxHarness prazno={prazno === "1"} pad={pad}>
+      <UxHarness
+        prazno={prazno === "1"}
+        pad={pad}
+        projekata={Number.isInteger(broj) && broj >= 1 && broj <= 40 ? broj : undefined}
+      >
         <AuthGate>
-          <SviProjekti />
+          {/* Isto kao `app/(app)/page.tsx`: hub nosi boju Kontrolne table. */}
+          <div data-module="tabla" className="flex min-h-full flex-1 flex-col">
+            <SviProjekti />
+          </div>
         </AuthGate>
       </UxHarness>
     );

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { Sparkles } from "lucide-react";
+import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { danKljuc } from "@/convex/lib/napredak";
 import { LevelUpBanner } from "@/components/app/system/level-up-banner";
@@ -16,10 +17,7 @@ import {
   RewardToast,
   RewardToastViewport,
 } from "@/components/app/system/reward-toast";
-import {
-  useProjekat,
-  useProjekatMutation,
-} from "@/components/app/projekat-provider";
+import { useProjekat } from "@/components/app/projekat-provider";
 import {
   izdvojiNagrade,
   novoPamcenje,
@@ -125,8 +123,8 @@ export function useNapredakFeedback(): ReactNode {
   const stanje = useNapredak();
   const sada = useSada();
   const vidljivo = useVidljivo();
-  const zamrzniDan = useProjekatMutation(api.napredak.zamrzniDan);
-  const potvrdi = useProjekatMutation(api.napredak.potvrdi);
+  const zamrzniDan = useMutation(api.napredak.zamrzniDan);
+  const potvrdi = useMutation(api.napredak.potvrdi);
 
   const [red] = useState(napraviRed);
   const { toasts, nivo } = useSyncExternalStore(

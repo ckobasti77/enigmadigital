@@ -20,7 +20,7 @@ import { PlayerCard } from "@/components/app/system/player-card";
 import { AchievementBadge } from "@/components/app/system/reward-badges";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/format";
-import { NAPREDAK_ULAZ } from "../fixtures-napredak";
+import { NAPREDAK_ULAZ, stanjeZaOdgovor } from "../fixtures-napredak";
 import { Grupa, Sekcija } from "./delovi";
 
 /**
@@ -76,7 +76,7 @@ export function VodicNapredak() {
   };
 
   if (!stanje.ukljucen || !profil.ukljucen) return null;
-  const kartica = napredakZaKarticu(stanje, 0);
+  const kartica = napredakZaKarticu(stanjeZaOdgovor(stanje), 0);
 
   return (
     <Sekcija

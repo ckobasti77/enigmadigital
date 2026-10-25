@@ -13,9 +13,11 @@ import {
   type Dogadjaj,
   type MisijaDef,
   type Osnova,
+  type Stanje,
   type UlazIzvedi,
 } from "@/convex/lib/napredak";
-import { USER, lcg, now, type Fixture, type R } from "./fixtures-util";
+import { PROJEKTI_UX } from "./fixtures-projekti";
+import { USER, WS, WS_SCANME, lcg, now, type Fixture, type R } from "./fixtures-util";
 
 /**
  * Sintetički Napredak za razvojni prikaz (B4 → snimci u B5).
@@ -89,9 +91,10 @@ const DANAS_DOGADJAJI: Dogadjaj[] = [
 ];
 
 const MISIJE_DANAS: MisijaDef[] = [
-  { kljuc: "pozovi", cilj: 3, xp: 60, oblast: "pozivi", veza: "/leadovi" },
-  { kljuc: "uvoz_redovi", cilj: 5, xp: 50, oblast: "uvoz", veza: "/leadovi/uvoz" },
-  { kljuc: "komentari", cilj: 3, xp: 30, oblast: "kanali", veza: "/instagram/komentari" },
+  { kljuc: "pozovi", cilj: 3, xp: 60, oblast: "pozivi", veza: "/leadovi", projekat: WS },
+  // P12 (C16): misije dolaze iz posla svih projekata — ova je iz ScanMe-a.
+  { kljuc: "uvoz_redovi", cilj: 5, xp: 50, oblast: "uvoz", veza: "/leadovi/uvoz", projekat: WS_SCANME },
+  { kljuc: "komentari", cilj: 3, xp: 30, oblast: "kanali", veza: "/instagram/komentari", projekat: WS },
 ];
 
 /** Zbir zaključenih dana: 1.045 XP i niz od 2 dana zaključno sa prekjuče. */
@@ -178,7 +181,22 @@ function zakljuceniDani(): Array<{ dan: string; xp: number }> {
   return out;
 }
 
-const stanje: R<typeof api.napredak.stanje> = izvedi(NAPREDAK_ULAZ);
+/**
+ * Izvedeno stanje u oblik odgovora `napredak.stanje`: misija umesto ID-ja
+ * projekta nosi slug i ime (isto što radi `saProjektima` u Convex-u).
+ */
+export function stanjeZaOdgovor(s: Stanje): R<typeof api.napredak.stanje> {
+  if (!s.ukljucen) return s;
+  return {
+    ...s,
+    misije: s.misije.map(({ projekat, ...m }) => {
+      const p = PROJEKTI_UX.find((x) => x.workspaceId === projekat);
+      return p ? { ...m, projekat: { workspaceId: p.workspaceId, slug: p.slug, ime: p.ime } } : m;
+    }),
+  };
+}
+
+const stanje: R<typeof api.napredak.stanje> = stanjeZaOdgovor(izvedi(NAPREDAK_ULAZ));
 const profil: R<typeof api.napredak.profil> = izvediProfil({
   ...NAPREDAK_ULAZ,
   zakljuceniDani: zakljuceniDani(),
@@ -199,7 +217,7 @@ const PRAZAN_ULAZ: UlazIzvedi = {
   potvrde: { dnevne: [], trajne: [], nivo: 1 },
 };
 
-const praznoStanje: R<typeof api.napredak.stanje> = izvedi(PRAZAN_ULAZ);
+const praznoStanje: R<typeof api.napredak.stanje> = stanjeZaOdgovor(izvedi(PRAZAN_ULAZ));
 const prazanProfil: R<typeof api.napredak.profil> = izvediProfil({
   ...PRAZAN_ULAZ,
   zakljuceniDani: [],

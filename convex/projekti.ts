@@ -20,7 +20,8 @@ import {
 } from "./lib/projekatPolja";
 import { normalizujHost, proveriSlugProjekta } from "./lib/projekatSlug";
 import { ulogaValidator, type Uloga } from "./lib/uloge";
-import { zdravljeProjekta, type VezaZaZdravlje } from "./lib/zdravljeVeza";
+import { citajVezeProjekta } from "./lib/vezeProjekta";
+import { zdravljeProjekta } from "./lib/zdravljeVeza";
 
 /**
  * ============================================================================
@@ -158,7 +159,6 @@ export const MAKS_STANJA_PROJEKATA = 20;
  */
 const BUDZET_DOKUMENATA = 24_000;
 const BUDZET_UPITA = 2_400;
-const MAKS_VEZA = 50;
 
 const zdravljeValidator = v.union(
   v.literal("ok"),
@@ -200,30 +200,7 @@ export const stanjeProjekata = prijavljenQuery({
       const workspaceId = clan.workspaceId;
       if ((await ctx.db.get(workspaceId)) === null) continue;
 
-      const veze = await ctx.db
-        .query("connections")
-        .withIndex("by_workspace_provider", (q) => q.eq("workspaceId", workspaceId))
-        .take(MAKS_VEZA);
-      const zaZdravlje: VezaZaZdravlje[] = [];
-      for (const veza of veze) {
-        if (veza.status === "disconnecting") continue;
-        const prolaz = await ctx.db
-          .query("syncRuns")
-          .withIndex("by_workspace_provider", (q) =>
-            q.eq("workspaceId", workspaceId).eq("provider", veza.provider),
-          )
-          .order("desc")
-          .first();
-        zaZdravlje.push({
-          status: veza.status,
-          expiresAt: veza.expiresAt,
-          lastSyncAt: veza.lastSyncAt,
-          poslednjiProlaz:
-            prolaz === null
-              ? null
-              : { status: prolaz.status, startedAt: prolaz.startedAt, finishedAt: prolaz.finishedAt },
-        });
-      }
+      const zaZdravlje = await citajVezeProjekta(ctx, workspaceId);
 
       let ceka: number | null = null;
       if (!previse) {

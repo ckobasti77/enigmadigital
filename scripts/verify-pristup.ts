@@ -63,6 +63,13 @@ const DOZVOLJENI_DIREKTNI: Readonly<Record<string, string>> = {
     "OAuth povratak (serverska ruta, pre razmene): adresa panela iz jednokratnog state-a, proverena na serveru",
   "oauthPovratak.stanje":
     "kartica Integracije pita da li je OAUTH_CALLBACK_ORIGIN podešen na serveru; vraća samo da/ne",
+  "napredak.stanje":
+    "lični napredak preko svih projekata (P12): XP, niz i misije iz projekata u kojima je korisnik član",
+  "napredak.profil": "lični napredak preko svih projekata (P12): dostignuća, rekordi i mapa aktivnosti",
+  "napredak.podesi": "lična podešavanja napretka (P12); važe u svim projektima korisnika",
+  "napredak.potvrdi": "lične potvrde viđenih proslava napretka (P12)",
+  "napredak.zamrzniDan":
+    "lični dan napretka (P12); misije bira iz projekata u kojima je korisnik urednik ili vlasnik",
 };
 
 const koren = fileURLToPath(new URL("../", import.meta.url));

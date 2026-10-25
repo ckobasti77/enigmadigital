@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ProjekatLink } from "@/components/app/projekat-link";
 import { ArrowRight, Target, Trophy } from "lucide-react";
+import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,10 +18,7 @@ import {
   LevelBadge,
   StreakFlame,
 } from "@/components/app/system/reward-badges";
-import {
-  useProjekat,
-  useProjekatMutation,
-} from "@/components/app/projekat-provider";
+import { useProjekat } from "@/components/app/projekat-provider";
 import type { ModuleKey } from "@/components/app/nav-items";
 import { formatNumber, formatShortDate, pluralSr } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -30,9 +27,10 @@ import { GranicaNapretka } from "./napredak-izvor";
 import {
   ikonaDostignuca,
   ikonaMisije,
+  naslovMisije,
   radnjaMisije,
-  vezaMisije,
 } from "./napredak-ikone";
+import { MisijaLink } from "./misija-link";
 import {
   stanjeNiza,
   useNapredak,
@@ -289,6 +287,7 @@ function UcitavanjeFokusa() {
 // ── misije dana ──────────────────────────────────────────────────────────────
 
 function MisijeDana({ stanje }: { stanje: NapredakUkljucen }) {
+  const { slug } = useProjekat();
   if (!stanje.spremno) return null;
   const { misije, bonus } = stanje;
   // Prva nezavršena je sledeći korak: šira je i jedina nosi primarno dugme.
@@ -344,7 +343,7 @@ function MisijeDana({ stanje }: { stanje: NapredakUkljucen }) {
               return (
                 <MissionCard
                   key={misija.kljuc}
-                  title={misija.naslov}
+                  title={naslovMisije(misija, slug)}
                   icon={ikonaMisije(misija.kljuc)}
                   value={misija.napredak}
                   max={misija.cilj}
@@ -353,7 +352,7 @@ function MisijeDana({ stanje }: { stanje: NapredakUkljucen }) {
                   featured={glavna}
                   action={
                     <Button
-                      render={<ProjekatLink href={vezaMisije(misija.kljuc, misija.veza)} />}
+                      render={<MisijaLink misija={misija} />}
                       nativeButton={false}
                       variant={glavna ? "primary" : "secondary"}
                       size="sm"
@@ -520,7 +519,7 @@ function Rekordi({ profil }: { profil: NapredakProfil | undefined }) {
 
 function Iskljuceno() {
   const { spreman } = useProjekat();
-  const podesi = useProjekatMutation(api.napredak.podesi);
+  const podesi = useMutation(api.napredak.podesi);
   const [ukljucuje, setUkljucuje] = useState(false);
   const [greska, setGreska] = useState(false);
 

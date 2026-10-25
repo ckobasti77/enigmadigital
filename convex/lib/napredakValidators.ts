@@ -19,6 +19,8 @@ export const misijaDefValidator = v.object({
   xp: broj,
   oblast: v.string(),
   veza: v.string(),
+  // P12 (C16): projekat iz čijeg posla je misija (ID kao tekst).
+  projekat: v.optional(v.string()),
 });
 
 /** Brojači jednog dana — `Brojevi`. */

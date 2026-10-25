@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import { REZIM_POZIVA_HREF } from "@/components/app/nav-items";
+import { putanjaEkrana, type Rezim } from "@/lib/rutiranje";
 import {
   AlarmClockCheck,
   CalendarCheck,
@@ -124,4 +125,41 @@ const DOGADJAJ: Record<string, Ikona> = {
 /** Ikonica uz „+N XP" — po vrsti događaja koji je doneo XP. */
 export function ikonaDogadjaja(vrsta: string): Ikona {
   return DOGADJAJ[vrsta] ?? Sparkles;
+}
+
+/** Misija u obliku koji čita odredište (P12: misija nosi projekat). */
+type MisijaZaVezu = {
+  kljuc: string;
+  veza: string;
+  naslov: string;
+  projekat?: { slug: string; ime: string };
+};
+
+export type OdredisteMisije =
+  /** Ekran tekućeg projekta: `ProjekatLink` dodaje prefiks. */
+  | { vrsta: "ekran"; href: string }
+  /** Pun put u drugi projekat (`/<slug>/…`), samo u hubu. */
+  | { vrsta: "projekat"; href: string };
+
+/**
+ * Kuda vodi misija iz tekućeg projekta (P12, C16). Misija iz drugog projekta
+ * u hubu vodi u taj projekat; u panelu prelaza nema (`null`), pa se misija
+ * prikazuje bez veze.
+ */
+export function odredisteMisije(
+  misija: MisijaZaVezu,
+  tekuci: { slug: string | null; rezim: Rezim },
+): OdredisteMisije | null {
+  const ekran = vezaMisije(misija.kljuc, misija.veza);
+  if (misija.projekat === undefined || misija.projekat.slug === tekuci.slug) {
+    return { vrsta: "ekran", href: ekran };
+  }
+  if (tekuci.rezim !== "hub") return null;
+  return { vrsta: "projekat", href: putanjaEkrana(ekran, `/${misija.projekat.slug}`) };
+}
+
+/** Naslov misije; misija drugog projekta nosi njegovo ime („… · ScanMe“). */
+export function naslovMisije(misija: MisijaZaVezu, tekuciSlug: string | null): string {
+  if (misija.projekat === undefined || misija.projekat.slug === tekuciSlug) return misija.naslov;
+  return `${misija.naslov} · ${misija.projekat.ime}`;
 }

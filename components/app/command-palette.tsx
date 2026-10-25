@@ -30,7 +30,7 @@ import {
 } from "./nav-items";
 import { ModuleTile } from "./module-tile";
 import { useStaMeCeka } from "./use-sta-me-ceka";
-import { ikonaMisije, vezaMisije } from "./napredak/napredak-ikone";
+import { ikonaMisije, naslovMisije, odredisteMisije } from "./napredak/napredak-ikone";
 import { useNapredak } from "./napredak/use-napredak";
 import {
   useEkranPutanja,
@@ -60,6 +60,8 @@ type Entry = {
   run?: () => void;
   /** Desni natpis je sama radnja, pa nosi boju modula. */
   emphasis?: boolean;
+  /** `href` je pun put u drugi projekat (misija iz drugog projekta, P12). */
+  vanProjekta?: boolean;
   /** XP koji stavka nosi (misija dana) — zlatno, jer je nagrada. */
   xp?: number;
   /**
@@ -246,7 +248,7 @@ export function CommandPalette() {
   const listRef = useRef<HTMLDivElement>(null);
   const staMeCeka = useStaMeCeka();
   const napredak = useNapredak();
-  const { rezim } = useProjekat();
+  const { rezim, slug } = useProjekat();
   const ukljucen = useModulUkljucen();
   const mozeUrednik = useMoze("urednik");
   const mozeVlasnik = useMoze("owner");
@@ -284,18 +286,27 @@ export function CommandPalette() {
   // se stiglo i koliko nosi, a Enter vodi na istu adresu kao dugme na kartici.
   const misije = useMemo<Entry[]>(() => {
     if (!napredak?.ukljucen || !napredak.spremno) return [];
+    // Misija drugog projekta vodi u taj projekat (hub); panel prelaza nema,
+    // pa je tamo nema ni ovde.
     return napredak.misije
       .filter((m) => !m.zavrsena)
-      .map((m) => ({
-        id: `mission:${m.kljuc}`,
-        href: vezaMisije(m.kljuc, m.veza),
-        title: m.naslov,
-        hint: `${m.napredak} / ${m.cilj}`,
-        xp: m.xp,
-        icon: ikonaMisije(m.kljuc),
-        module: resolveModule(m.veza.split(/[?#]/)[0]),
-      }));
-  }, [napredak]);
+      .flatMap((m) => {
+        const kuda = odredisteMisije(m, { slug, rezim });
+        if (kuda === null) return [];
+        return [
+          {
+            id: `mission:${m.kljuc}`,
+            href: kuda.href,
+            ...(kuda.vrsta === "projekat" ? { vanProjekta: true } : {}),
+            title: naslovMisije(m, slug),
+            hint: `${m.napredak} / ${m.cilj}`,
+            xp: m.xp,
+            icon: ikonaMisije(m.kljuc),
+            module: resolveModule(m.veza.split(/[?#]/)[0]),
+          },
+        ];
+      });
+  }, [napredak, slug, rezim]);
 
   // „Prebaci na <projekat>“: isti ekran u drugom projektu. Panel je
   // zaključan na jedan projekat, pa tamo sekcije nema.
@@ -401,7 +412,7 @@ export function CommandPalette() {
     (entry: Entry) => {
       setOpen(false);
       if (entry.run) entry.run();
-      else if (entry.projekat && entry.href) router.push(entry.href);
+      else if ((entry.projekat || entry.vanProjekta) && entry.href) router.push(entry.href);
       else if (entry.href && entry.href !== pathname) router.push(ka(entry.href));
     },
     [pathname, router, ka],

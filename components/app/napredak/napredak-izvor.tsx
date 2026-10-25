@@ -21,7 +21,8 @@ function Pretplata() {
   useEffect(() => {
     postaviIzvorNapretka({ stanje, pao: false });
   }, [stanje]);
-  // Odjava ili zamena radnog prostora: sledeći čitalac ne sme da vidi tuđe.
+  // Odjava: sledeći čitalac ne sme da vidi tuđe. Prelazak na drugi projekat
+  // ne menja ništa — napredak je jedan za korisnika (P12).
   useEffect(() => () => postaviIzvorNapretka(null), []);
   return null;
 }

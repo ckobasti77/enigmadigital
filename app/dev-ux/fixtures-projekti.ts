@@ -59,15 +59,16 @@ export const PROJEKTI_UX: Stavka[] = [
 /**
  * Stanje za birač projekta. Enigma ima jednu integraciju u grešci (isto kao
  * fikstura veza) i onoliko zadataka koliko pokazuje njeno zvono, ScanMe još
- * nema veza, a kod klijenta broj „šta me čeka“ nije stigao (birač tada piše
- * „—“). Broj Enigme daje `fixtures.ts`, iz iste fiksture zvona.
+ * nema veza i ima jedan zadatak (uvoz na pregledu, isto kao njegovo zvono od
+ * C16), a kod klijenta broj „šta me čeka“ nije stigao (birač tada piše „—“).
+ * Broj Enigme daje `fixtures.ts`, iz iste fiksture zvona.
  */
 export function stanjeProjekataUx(
   cekaEnigma: number,
 ): R<typeof api.projekti.stanjeProjekata> {
   return [
     { workspaceId: WS, zdravlje: "greska", ceka: cekaEnigma },
-    { workspaceId: WS_SCANME, zdravlje: "bez_veza", ceka: 0 },
+    { workspaceId: WS_SCANME, zdravlje: "bez_veza", ceka: 1 },
     { workspaceId: WS_KLIJENT, zdravlje: "ok", ceka: null },
   ];
 }

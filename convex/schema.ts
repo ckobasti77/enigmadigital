@@ -4514,8 +4514,11 @@ export default defineSchema({
   //   napredakPodesavanja čovekov izbor (uključeno, vikend, nedeljni ciljevi)
   //   napredakPotvrde     koje proslave je čovek već video
   //
-  // Sve tri su LIČNE (korisnik × radni prostor) i ne sadrže ničiji sadržaj —
-  // samo brojeve, datume i ključeve.
+  // Sve tri su LIČNE i ne sadrže ničiji sadržaj — samo brojeve, datume i
+  // ključeve. Do C16 su bile po (korisnik × radni prostor). Od C16 (P12) je
+  // napredak jedan za korisnika preko svih projekata: lični red nema
+  // `workspaceId`, a ima `obim: "korisnik"`. Stari redovi po projektu ostaju
+  // kao istorija; čita ih samo prelazak u `convex/napredak.ts`.
   //
   // SVA POLJA SU OPCIONA NAMERNO (isto pravilo kao `notificationState`): red
   // upisan pre nego što se neko polje uvede ne sme da obori čitanje. Upis uvek
@@ -4528,6 +4531,8 @@ export default defineSchema({
     workspaceId: v.optional(v.id("workspaces")),
     // OPCIONO NAMERNO: vidi gore.
     userId: v.optional(v.id("users")),
+    // P12 (C16): "korisnik" = lični red preko svih projekata (bez `workspaceId`).
+    obim: v.optional(v.literal("korisnik")),
     // OPCIONO NAMERNO: beogradski datum „2026-10-11". Poslednji red po ovom
     // polju je „sidro" — dan koji upit smatra današnjim, bez čitanja sata.
     dan: v.optional(v.string()),
@@ -4562,6 +4567,8 @@ export default defineSchema({
     workspaceId: v.optional(v.id("workspaces")),
     // OPCIONO NAMERNO: vidi gore.
     userId: v.optional(v.id("users")),
+    // P12 (C16): "korisnik" = lični red preko svih projekata (bez `workspaceId`).
+    obim: v.optional(v.literal("korisnik")),
     // OPCIONO NAMERNO (svih pet): odsustvo = podrazumevana vrednost iz
     // `PODRAZUMEVANO` (uključeno, vikend ne prekida niz, ciljevi 25 / 3 / 2).
     ukljucen: v.optional(v.boolean()),
@@ -4579,6 +4586,8 @@ export default defineSchema({
     workspaceId: v.optional(v.id("workspaces")),
     // OPCIONO NAMERNO: vidi gore.
     userId: v.optional(v.id("users")),
+    // P12 (C16): "korisnik" = lični red preko svih projekata (bez `workspaceId`).
+    obim: v.optional(v.literal("korisnik")),
     // OPCIONO NAMERNO: „trajno" (nivo, dostignuća) ili datum (misije i bonus
     // tog dana). Potvrde starih dana se brišu pri zamrzavanju novog.
     opseg: v.optional(v.string()),

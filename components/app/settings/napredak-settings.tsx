@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
+import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { GRANICE_CILJA } from "@/convex/lib/napredak";
 import { Button } from "@/components/ui/button";
@@ -14,17 +15,14 @@ import {
   useNapredakPao,
   type NapredakStanje,
 } from "@/components/app/napredak/use-napredak";
-import {
-  useProjekat,
-  useProjekatMutation,
-} from "@/components/app/projekat-provider";
+import { useProjekat } from "@/components/app/projekat-provider";
 
 /**
  * ============================================================================
  * PODEŠAVANJA → NAPREDAK (UI Boost §6.1, §6.5, §6.6)
  * ============================================================================
  *
- * Tri odluke, i sve tri su lične (važe za ovog korisnika, ne za radni prostor):
+ * Tri odluke, i sve tri su lične (važe za ovog korisnika u svim projektima, P12):
  *
  *   Prikazuj XP i proslave   isključeno = nema XP-a, misija, niza ni proslava
  *   Nedeljni ciljevi         pozivi / sastanci / objave — tri prstena
@@ -109,7 +107,7 @@ function StanjePrekidaca({
 
 function Forma({ podesavanja }: { podesavanja: Podesavanja }) {
   const { spreman } = useProjekat();
-  const podesi = useProjekatMutation(api.napredak.podesi);
+  const podesi = useMutation(api.napredak.podesi);
 
   const [ciljevi, setCiljevi] = useState<Record<KljucCilja, string>>({
     ciljPozivi: String(podesavanja.ciljPozivi),
@@ -174,8 +172,8 @@ function Forma({ podesavanja }: { podesavanja: Podesavanja }) {
           </span>
           <span className="mt-0.5 block text-meta leading-relaxed text-text-muted">
             {podesavanja.ukljucen
-              ? "Kartica igrača, misije dana, niz i nagrade su uključeni."
-              : "Nema XP-a, misija, niza ni proslava. Radnje se i dalje beleže, pa je posle uključivanja sve tu."}
+              ? "Kartica igrača, misije dana, niz i nagrade su uključeni, isto za sve tvoje projekte."
+              : "Nema XP-a, misija, niza ni proslava ni u jednom projektu. Radnje se i dalje beleže, pa je posle uključivanja sve tu."}
           </span>
         </label>
       </FormGroup>

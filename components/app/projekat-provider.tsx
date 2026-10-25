@@ -202,6 +202,27 @@ export function useProjekatQuery<
   return useQuery(upit as FunctionReference<"query">, pun);
 }
 
+/**
+ * `useQuery` nad funkcijom projekta za ZADATI projekat, van `ProjekatProvider`-a.
+ * Samo za hub „Svi projekti“ (`components/app/hub/**`, čuva ga
+ * `lib/linkovi-cuvar.test.ts`): red po projektu zove isti upit za svaki
+ * projekat iz `mojiProjekti`, a članstvo i dalje proverava omotač na serveru.
+ */
+export function useQueryZaProjekat<
+  Q extends FunctionReference<"query", "public", SaProjektom>,
+>(
+  workspaceId: Id<"workspaces"> | null,
+  upit: Q,
+  ...args: ArgsUpita<Q>
+): FunctionReturnType<Q> | undefined {
+  const zadati = args[0];
+  const pun =
+    zadati === "skip" || workspaceId === null
+      ? "skip"
+      : ({ ...(zadati ?? {}), workspaceId } as FunctionArgs<Q>);
+  return useQuery(upit as FunctionReference<"query">, pun);
+}
+
 const NIJE_UCITAN = "Projekat još nije učitan. Pokušaj ponovo za trenutak.";
 
 /** `useMutation` nad funkcijom projekta. */

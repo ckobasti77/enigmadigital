@@ -2,9 +2,10 @@
 /**
  * Izolacija grupe C06 (leadovi, novosti, napredak, obaveštenja): za svaki
  * modul član projekta A ne čita projekat B i ne menja ga, `client_viewer` ne
- * menja podatke projekta, a funkcije vlasnika odbijaju urednika. Napredak i
- * zvono su lični redovi po projektu: posmatrač ih menja, ali samo svoje i samo
- * u projektu u kome jeste, a isti ključ u drugom projektu je drugi red.
+ * menja podatke projekta, a funkcije vlasnika odbijaju urednika. Zvono je
+ * lični red po projektu: posmatrač ga menja, ali samo svoje i samo u projektu
+ * u kome jeste, a isti ključ u drugom projektu je drugi red. Napredak je od
+ * C16 (P12) jedan za korisnika preko svih projekata (`napredak-p12.test.ts`).
  */
 import type { FunctionReference } from "convex/server";
 import { describe, expect, test } from "vitest";
@@ -692,45 +693,45 @@ describe("novosti", () => {
   });
 });
 
-// ── napredak (lični redovi po projektu) ──────────────────────────────────────
+// ── napredak (P12: lični, jedan za korisnika preko svih projekata) ───────────
 
 describe("napredak", () => {
-  test("član A ne čita i ne menja napredak u B", async () => {
+  test("bez prijave nema napretka; funkcije ne primaju projekat", async () => {
     const s = await napraviSvet();
-    await upitiNadBOdbijeni(s, [
-      [api.napredak.stanje, {}],
-      [api.napredak.profil, {}],
-    ]);
-    await izmeneNadBOdbijene(s, [
-      [api.napredak.podesi, { ukljucen: false }],
-      [api.napredak.potvrdi, { kljucevi: [] }],
-      [api.napredak.zamrzniDan, {}],
-    ]);
+    await odbijeno(s.t.query(api.napredak.stanje, {}), "unauthorized");
+    await odbijeno(s.t.query(api.napredak.profil, {}), "unauthorized");
+    await odbijeno(s.t.mutation(api.napredak.podesi, { ukljucen: false }), "unauthorized");
+    await odbijeno(s.t.mutation(api.napredak.potvrdi, { kljucevi: [] }), "unauthorized");
+    await odbijeno(s.t.mutation(api.napredak.zamrzniDan, {}), "unauthorized");
+    // C16 (P12): projekat nije argument — tuđ `workspaceId` ne može ni da se pošalje.
+    await expect(
+      kao(s, s.ana).query(api.napredak.stanje, { workspaceId: s.wsB } as never),
+    ).rejects.toThrow();
+    await expect(
+      kao(s, s.ana).mutation(api.napredak.podesi, { workspaceId: s.wsB, ukljucen: false } as never),
+    ).rejects.toThrow();
     const redovi = await s.t.run(async (ctx) => ctx.db.query("napredakPodesavanja").collect());
     expect(redovi).toEqual([]);
   });
 
-  test("posmatrač podešava svoj napredak; podešavanje u A ne dira B", async () => {
+  test("posmatrač podešava svoj napredak; podešavanje važi za sve projekte", async () => {
     const s = await napraviSvet();
-    await kao(s, s.viewer).mutation(api.napredak.podesi, {
-      workspaceId: s.wsA,
-      ukljucen: false,
-    });
+    await kao(s, s.viewer).mutation(api.napredak.podesi, { ukljucen: false });
 
-    // Jovan je član oba projekta: isključen napredak u A ostaje uključen u B.
-    await kao(s, s.jovan).mutation(api.napredak.podesi, { workspaceId: s.wsA, ukljucen: false });
-    const uA = await kao(s, s.jovan).query(api.napredak.stanje, { workspaceId: s.wsA });
-    const uB = await kao(s, s.jovan).query(api.napredak.stanje, { workspaceId: s.wsB });
-    expect(uA.ukljucen).toBe(false);
-    expect(uB.ukljucen).toBe(true);
+    // Jovan je član oba projekta: jedno podešavanje, jedan red, svuda isto.
+    await kao(s, s.jovan).mutation(api.napredak.podesi, { ukljucen: false });
+    const stanje = await kao(s, s.jovan).query(api.napredak.stanje, {});
+    expect(stanje.ukljucen).toBe(false);
+    const ana = await kao(s, s.ana).query(api.napredak.stanje, {});
+    expect(ana.ukljucen).toBe(true);
 
     const redovi = await s.t.run(async (ctx) => ctx.db.query("napredakPodesavanja").collect());
     expect(
-      redovi.map((r) => [r.userId, r.workspaceId, r.ukljucen]).sort(),
+      redovi.map((r) => [r.userId, r.workspaceId ?? null, r.obim, r.ukljucen]).sort(),
     ).toEqual(
       [
-        [s.viewer, s.wsA, false],
-        [s.jovan, s.wsA, false],
+        [s.viewer, null, "korisnik", false],
+        [s.jovan, null, "korisnik", false],
       ].sort(),
     );
   });

@@ -1,11 +1,11 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import { nizUOpasnosti } from "@/convex/lib/napredak";
 import type { PlayerProgress } from "@/components/app/system/player-card";
-import { useProjekatQuery } from "@/components/app/projekat-provider";
 
 /**
  * ============================================================================
@@ -13,7 +13,9 @@ import { useProjekatQuery } from "@/components/app/projekat-provider";
  * ============================================================================
  *
  * Kartica igrača, ⌘K, ekran `/napredak`, Podešavanja i povratna informacija
- * (toast, nov nivo) čitaju ISTI upit sa istim argumentom. Convex klijent
+ * (toast, nov nivo) čitaju ISTI upit sa istim argumentom. Od C16 (P12)
+ * napredak je jedan za korisnika preko svih projekata: upit nema argument
+ * projekta, pa je isti u svakom projektu i ne menja se pri prelasku. Convex klijent
  * deduplikuje pretplatu po (funkcija, argumenti), pa pet površina košta
  * koliko i jedna.
  *
@@ -62,12 +64,12 @@ function prijaviIzvor(javi: () => void): () => void {
  * granice.
  */
 export function useNapredakPretplata(): NapredakStanje | undefined {
-  return useProjekatQuery(api.napredak.stanje);
+  return useQuery(api.napredak.stanje, {});
 }
 
 /**
- * `undefined` dok se ne zna projekat, dok odgovor ne stigne — ili kad je
- * upit pao (vidi `useNapredakPao`). Nikad ne baca.
+ * `undefined` dok odgovor ne stigne — ili kad je upit pao (vidi
+ * `useNapredakPao`). Nikad ne baca.
  */
 export function useNapredak(): NapredakStanje | undefined {
   return useSyncExternalStore(
@@ -111,7 +113,7 @@ export function useNapredakZastoj(): boolean {
 
 /** Samo na ekranu Napredak, i tamo iza granice greške — ovaj hook baca. */
 export function useNapredakProfil(): NapredakProfil | undefined {
-  return useProjekatQuery(api.napredak.profil);
+  return useQuery(api.napredak.profil, {});
 }
 
 // ── sat ──────────────────────────────────────────────────────────────────────

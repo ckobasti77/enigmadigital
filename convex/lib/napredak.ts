@@ -571,6 +571,12 @@ export type MisijaDef = {
   xp: number;
   oblast: string;
   veza: string;
+  /**
+   * P12 (C16): ID projekta iz čijeg posla je misija izabrana (string, jer ovaj
+   * modul ne uvozi Convex tipove). Bez vrednosti = misija pre C16. Napredak
+   * misije se meri ličnim brojačima dana, preko svih projekata.
+   */
+  projekat?: string;
 };
 
 type OpisMisije = {
@@ -642,16 +648,17 @@ function hes(tekst: string): number {
   return h >>> 0;
 }
 
-/**
- * Bira do tri misije za dan.
- *
- * Redosled: hitnost (kao u zvonu), pa najviše jedna misija po oblasti, a
- * jednako hitne razdvaja heš datuma — isti dan i isto stanje uvek daju iste
- * misije, a sutra dolazi druga iz iste grupe.
- */
-export function generisiMisije(ulaz: UlazMisija, dan: string): MisijaDef[] {
-  type Kandidat = { kljuc: KljucMisije; cilj: number; hitnost: Hitnost; veza: string };
-  const kandidati: Kandidat[] = [];
+type KandidatMisije = {
+  kljuc: KljucMisije;
+  cilj: number;
+  hitnost: Hitnost;
+  veza: string;
+  projekat?: string;
+};
+
+/** Kandidati za misije iz živog stanja jednog projekta. */
+function kandidatiMisija(ulaz: UlazMisija, projekat?: string): KandidatMisije[] {
+  const kandidati: KandidatMisije[] = [];
   const dodaj = (kljuc: KljucMisije, cilj: number, posao?: Posao): void => {
     if (!Number.isFinite(cilj) || cilj <= 0) return;
     kandidati.push({
@@ -659,6 +666,7 @@ export function generisiMisije(ulaz: UlazMisija, dan: string): MisijaDef[] {
       cilj: Math.trunc(cilj),
       hitnost: posao?.hitnost ?? MISIJE[kljuc].hitnost,
       veza: posao?.veza ?? MISIJE[kljuc].veza,
+      ...(projekat !== undefined ? { projekat } : {}),
     });
   };
 
@@ -681,14 +689,22 @@ export function generisiMisije(ulaz: UlazMisija, dan: string): MisijaDef[] {
   if (ulaz.ukupnoDodela > 0 && ulaz.sastanciNedelje < ulaz.ciljSastanci) {
     dodaj("sastanak", 1);
   }
+  return kandidati;
+}
 
+/** Hitnost, pa heš datuma, pa ključ, pa (isti ključ iz dva projekta) heš projekta. */
+function izaberiMisije(kandidati: KandidatMisije[], dan: string): MisijaDef[] {
   kandidati.sort((a, b) => {
     const h = HITNOST_RANG[a.hitnost] - HITNOST_RANG[b.hitnost];
     if (h !== 0) return h;
     const ha = hes(`${dan}|${a.kljuc}`);
     const hb = hes(`${dan}|${b.kljuc}`);
     if (ha !== hb) return ha - hb;
-    return a.kljuc < b.kljuc ? -1 : 1;
+    if (a.kljuc !== b.kljuc) return a.kljuc < b.kljuc ? -1 : 1;
+    const pa = hes(`${dan}|${a.kljuc}|${a.projekat ?? ""}`);
+    const pb = hes(`${dan}|${b.kljuc}|${b.projekat ?? ""}`);
+    if (pa !== pb) return pa - pb;
+    return (a.projekat ?? "") < (b.projekat ?? "") ? -1 : 1;
   });
 
   const izabrane: MisijaDef[] = [];
@@ -704,9 +720,37 @@ export function generisiMisije(ulaz: UlazMisija, dan: string): MisijaDef[] {
       xp: opis.xp,
       oblast: opis.oblast,
       veza: k.veza,
+      ...(k.projekat !== undefined ? { projekat: k.projekat } : {}),
     });
   }
   return izabrane;
+}
+
+/**
+ * Bira do tri misije za dan.
+ *
+ * Redosled: hitnost (kao u zvonu), pa najviše jedna misija po oblasti, a
+ * jednako hitne razdvaja heš datuma — isti dan i isto stanje uvek daju iste
+ * misije, a sutra dolazi druga iz iste grupe.
+ */
+export function generisiMisije(ulaz: UlazMisija, dan: string): MisijaDef[] {
+  return izaberiMisije(kandidatiMisija(ulaz), dan);
+}
+
+/**
+ * P12 (C16): misije dana iz posla SVIH projekata korisnika. Ista pravila kao
+ * `generisiMisije` (najviše 3, najviše jedna po oblasti); misija pamti projekat
+ * iz kog je došla, da veza vodi u taj projekat. Sa jednim projektom bez ID-ja
+ * rezultat je isti kao `generisiMisije`.
+ */
+export function generisiMisijeIzProjekata(
+  ulazi: readonly { projekat: string; ulaz: UlazMisija }[],
+  dan: string,
+): MisijaDef[] {
+  return izaberiMisije(
+    ulazi.flatMap((u) => kandidatiMisija(u.ulaz, u.projekat)),
+    dan,
+  );
 }
 
 export function naslovMisije(def: { kljuc: string; cilj: number }): string {
@@ -1365,6 +1409,8 @@ export type Stanje =
         xp: number;
         zavrsena: boolean;
         veza: string;
+        /** P12: ID projekta iz čijeg posla je misija (bez vrednosti pre C16). */
+        projekat?: string;
       }>;
       bonus: { xp: number; moguc: boolean; osvojen: boolean; preostaloMisija: number };
       prstenovi: Prsten[];
@@ -1520,6 +1566,7 @@ export function izvedi(ulaz: UlazIzvedi): Stanje {
     xp: m.xp,
     zavrsena: m.zavrsena,
     veza: m.veza,
+    ...(m.projekat !== undefined ? { projekat: m.projekat } : {}),
   }));
 
   const nedelja =

@@ -555,7 +555,7 @@ function Redovi({
 const ZDRAVLJE = {
   ok: { klasa: "bg-success", tekst: "Veze rade" },
   upozorenje: { klasa: "bg-warning", tekst: "Veze traže pažnju" },
-  greska: { klasa: "bg-danger", tekst: "Veza je u grešci" },
+  greska: { klasa: "bg-danger", tekst: "Veza ne radi ili uskoro prestaje" },
 } as const;
 
 /** Tačka stanja veza; bez veza nema tačke. Tekst je u oblačiću i za čitač ekrana. */
