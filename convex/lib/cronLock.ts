@@ -28,6 +28,7 @@ export const CRON_LOCKS = {
   ytSync: "youtube:sync",
   ytPoll: "youtube:poll",
   gadsSync: "google_ads:sync",
+  puls: "puls:sync",
 } as const;
 
 /**

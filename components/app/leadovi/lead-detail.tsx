@@ -66,6 +66,8 @@ import {
   platformHref,
 } from "./platform-links";
 import { getErrorMessage } from "./lead-quick-dialogs";
+import { KopirajUProjekat, UnakrsneOznake } from "./unakrsni-projekti";
+import { SamoZa } from "@/components/app/samo-za";
 import { leadGapLabel, personRoleLabel } from "./lead-labels";
 import {
   describeNextUp,
@@ -300,6 +302,7 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
                   <Chip size="sm" tone={company.origin === "inbound" ? "module" : "muted"}>
                     {company.origin === "inbound" ? "Inbound" : "Uvoz"}
                   </Chip>
+                  <UnakrsneOznake companyId={companyId} kopijaIz={company.kopijaIz} />
                 </div>
 
                   {/* Jedan red činjenica (§8): grad · temperatura · faza · sledeći korak · sastanak · vlasnik */}
@@ -412,6 +415,11 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
               {temperatureError}
             </FeedbackNote>
           )}
+
+          {/* Unakrsni leadovi (P13): kopija u drugi interni projekat. */}
+          <SamoZa uloga="urednik">
+            <KopirajUProjekat companyId={companyId} companyName={company.name} />
+          </SamoZa>
 
           {/* Fokus profila: „Šta je sledeće" — jedna rečenica iz stanja (§8) —
               i odmah ispod radnje, od kojih je tačno jedna primarna. */}

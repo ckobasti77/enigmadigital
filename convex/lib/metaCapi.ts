@@ -50,7 +50,12 @@ export interface CapiEventItem {
   action_source: "website" | "business_messaging";
   user_data: CapiUserData;
   custom_data?: Record<string, unknown>;
+  /** C17: stranica događaja sa sajta (Meta ga traži za `action_source: "website"`). */
+  event_source_url?: string;
 }
+
+/** Najduža adresa stranice koja se šalje kao `event_source_url`. */
+export const CAPI_EVENT_SOURCE_URL_MAX = 500;
 
 export interface CapiValidationResult {
   valid: boolean;
@@ -145,6 +150,22 @@ export function validateCapiEvent(
       valid: false,
       reason: "Identifikator događaja (event_id) je obavezan za deduplikaciju.",
     };
+  }
+
+  // 3b. event_source_url, kad postoji: https:// i najviše 500 znakova (C17).
+  if (event.event_source_url !== undefined) {
+    let https = false;
+    try {
+      https = new URL(event.event_source_url).protocol === "https:";
+    } catch {
+      https = false;
+    }
+    if (!https || event.event_source_url.length > CAPI_EVENT_SOURCE_URL_MAX) {
+      return {
+        valid: false,
+        reason: "Adresa stranice (event_source_url) mora početi sa https:// i imati najviše 500 znakova.",
+      };
+    }
   }
 
   // 4. user_data has at least one identifier

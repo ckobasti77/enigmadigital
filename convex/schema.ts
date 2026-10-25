@@ -21,6 +21,7 @@ import {
   vrstaProjektaValidator,
 } from "./lib/projekatPolja";
 import { sablonLeadovaValidator } from "./lib/sabloniLeadova";
+import { pulsGreskaValidator } from "./lib/puls";
 
 // Multi-tenant from day one (PLAN.md §3). V1 is single-user, but every future
 // table carries a `workspaceId`, so onboarding clients later needs no migration.
@@ -87,6 +88,20 @@ export default defineSchema({
     updatedAt: v.number(),
     updatedBy: v.optional(v.id("users")),
   }).index("by_workspace_kljuc", ["workspaceId", "kljuc"]),
+
+  // Puls (C17, PROJEKTI-PLAN §11): snimak brojki sa sopstvenog sajta projekta,
+  // na 15 minuta. Jedan red po prolazu, uspeh (`metrike`) ili greška
+  // (`greska`). Token i telo odgovora se ne čuvaju; `poruka` je naša rečenica.
+  // Redovi stariji od 90 dana se brišu pri upisu novog.
+  pulsSnimci: defineTable({
+    workspaceId: v.id("workspaces"),
+    at: v.number(), // naš trenutak poziva
+    vreme: v.optional(v.number()), // „vreme“ iz odgovora, ms
+    metrike: v.optional(v.record(v.string(), v.number())),
+    oznake: v.optional(v.record(v.string(), v.string())),
+    greska: v.optional(v.object({ kod: pulsGreskaValidator, poruka: v.string() })),
+    trajanjeMs: v.optional(v.number()),
+  }).index("by_workspace_at", ["workspaceId", "at"]),
 
   // Pozivnice za registraciju. SIROV TOKEN SE NIKAD NE UPISUJE — u bazi stoji
   // samo SHA-256 heš (hex). Sirovi token postoji tačno jednom, u povratnoj
@@ -1785,7 +1800,12 @@ export default defineSchema({
     sourceKind: v.union(
       v.literal("link_redirect"),
       v.literal("openreply_conversion"),
+      // C17: upit sa forme na sajtu projekta (`POST /projekti/lead`).
+      v.literal("website_lead"),
     ),
+    // C17: stranica na kojoj je događaj nastao (Meta ga traži za
+    // `action_source: "website"`). Samo `https://`, najviše 500 znakova.
+    eventSourceUrl: v.optional(v.string()),
     hashedEmail: v.optional(v.string()), // 64 hex karaktera, mala slova SHA-256
     hashedPhone: v.optional(v.string()), // 64 hex karaktera, mala slova SHA-256
     // Sirova IP adresa posetioca. Izuzetak od pravila "samo heševi" jer Meta Conversions API
@@ -3402,13 +3422,27 @@ export default defineSchema({
     // čitanju iz same ocene (`convex/lib/siteScore.ts`).
     poslednjaOcenaSajtaAt: v.optional(v.number()),
     poslednjaOcenaSajtaId: v.optional(v.id("leadSiteAudits")),
+
+    // C17 (P13): firma je kopirana iz drugog internog projekta. Izvorni ID
+    // ostaje i kad izvor bude obrisan (istorija: „izvor više ne postoji“).
+    // OPCIONO NAMERNO: odsustvo = firma nije kopija.
+    kopijaIz: v.optional(
+      v.object({
+        workspaceId: v.id("workspaces"),
+        companyId: v.id("leadCompanies"),
+        at: v.number(),
+        userId: v.id("users"),
+      }),
+    ),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_pib", ["workspaceId", "pib"])
     .index("by_workspace_companywall", ["workspaceId", "companyWallUrl"])
     .index("by_workspace_domain", ["workspaceId", "domainNormalized"])
     .index("by_workspace_name_city", ["workspaceId", "nameNormalized", "city"])
-    .index("by_workspace_niche", ["workspaceId", "nicheId"]),
+    .index("by_workspace_niche", ["workspaceId", "nicheId"])
+    // C17: da li je firma iz drugog projekta već kopirana ovde.
+    .index("by_workspace_kopija", ["workspaceId", "kopijaIz.companyId"]),
 
   // 2) leadPeople — fizičko lice vezano za firmu (§2.2)
   //
@@ -4201,6 +4235,10 @@ export default defineSchema({
     lastUsedAt: v.optional(v.number()),
     // OPCIONO NAMERNO: odsustvo = token važi. Opozvan token ostaje kao trag.
     revokedAt: v.optional(v.number()),
+    // C17: namena tokena. „sajt“ ume SAMO da prijavi lead sa forme
+    // (`POST /projekti/lead`); uvoz, snimci i mozak ga odbijaju. Odsustvo =
+    // „uvoz“ (svi tokeni pre C17).
+    namena: v.optional(v.union(v.literal("uvoz"), v.literal("sajt"))),
   })
     .index("by_hash", ["tokenHash"])
     .index("by_workspace", ["workspaceId"]),
@@ -4246,23 +4284,29 @@ export default defineSchema({
   //
   // Nijedan inbound zapis ne sme da izmisli naziv firme. Ako naziv nije poznat,
   // polje ne postoji — ne upisuje se prazan string, ni handle, ni „Nepoznato".
+  //
+  // C17 (F18): upit sa forme na sajtu projekta (`platform: "website"`) JEDINI
+  // sme da čuva sirov kontakt (`kontakt`), jer ga je ispitanik sam poslao.
+  // `dismissInbound` ga briše. Za društvene mreže zabrana ostaje.
   leadInbound: defineTable({
     workspaceId: v.id("workspaces"),
     platform: v.union(
       v.literal("instagram"),
       v.literal("facebook"),
       v.literal("threads"),
+      v.literal("website"),
     ),
     kind: v.union(
       v.literal("komentar"),
       v.literal("odgovor"),
       v.literal("dm"),
       v.literal("mention"),
+      v.literal("forma"),
     ),
     // Stabilan ID događaja na platformi — jedini ključ protiv duplog upisa
     externalId: v.string(),
     // Autor: SAMO ID sa platforme i heš handle-a. Sirov handle, e-mail i
-    // broj telefona NE SMEJU da uđu u ovu tabelu.
+    // broj telefona NE SMEJU da uđu u ovu tabelu (osim `kontakt` za formu).
     authorPlatformId: v.optional(v.string()),
     authorHandleHash: v.optional(v.string()),
     // Tekst poruke je poslovni sadržaj i ostaje, ali se ne loguje nigde.
@@ -4290,9 +4334,33 @@ export default defineSchema({
     // Ako autor nije mogao da se proveri na listi zabrane
     suppressionUnverifiable: v.optional(v.array(v.string())),
     createdAt: v.number(),
+
+    // ── C17: forma na sajtu (samo `platform: "website"`) ────────────────────
+    kontakt: v.optional(
+      v.object({
+        ime: v.optional(v.string()),
+        email: v.optional(v.string()),
+        telefon: v.optional(v.string()),
+        firma: v.optional(v.string()),
+      }),
+    ),
+    utm: v.optional(
+      v.object({
+        source: v.optional(v.string()),
+        medium: v.optional(v.string()),
+        campaign: v.optional(v.string()),
+        term: v.optional(v.string()),
+        content: v.optional(v.string()),
+      }),
+    ),
+    eventId: v.optional(v.string()),
+    ingestTokenId: v.optional(v.id("ingestTokens")),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_status", ["workspaceId", "status"])
+    // C17: upiti sa sajta koji čekaju (zvono, „Upiti sa sajta“) bez čitanja
+    // novih komentara sa mreža.
+    .index("by_workspace_platform_status", ["workspaceId", "platform", "status"])
     .index("by_workspace_platform_external", [
       "workspaceId",
       "platform",

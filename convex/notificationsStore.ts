@@ -597,6 +597,33 @@ const staMeCekaValidator = v.object({
   now: v.number(),
 });
 
+/** Najviše upita sa sajta koje zvono broji pre nego što kaže „101+“. */
+const CAP_UPITA_SA_SAJTA = 100;
+
+/**
+ * C17: upiti sa forme na sajtu koji čekaju („nov“). Indeks po platformi i
+ * statusu: novi komentari sa mreža se ne čitaju. Najstariji je prvi (indeks
+ * se završava sa `_creationTime`).
+ */
+async function citajUpiteSaSajta(
+  ctx: QueryCtx,
+  workspaceId: Id<"workspaces">,
+): Promise<Snimak["upitiSaSajta"]> {
+  const redovi = await ctx.db
+    .query("leadInbound")
+    .withIndex("by_workspace_platform_status", (q) =>
+      q.eq("workspaceId", workspaceId).eq("platform", "website").eq("status", "nov"),
+    )
+    .take(CAP_UPITA_SA_SAJTA + 1);
+  if (redovi.length === 0) return null;
+  const odsecen = redovi.length > CAP_UPITA_SA_SAJTA;
+  return {
+    broj: odsecen ? CAP_UPITA_SA_SAJTA : redovi.length,
+    najstarijiAt: redovi[0].createdAt,
+    odsecen,
+  };
+}
+
 /**
  * „Šta me čeka“ za jedan projekat i jednog korisnika. Deli ga upit zvona
  * (ispod) i broj u biraču projekta (`projekti.stanjeProjekata`), pa je
@@ -619,11 +646,12 @@ export async function izracunajStaMeCeka(
     ? Math.trunc(o.pomerajMin ?? 0)
     : 0;
 
-  const [uvozi, integracijeUKvaru, leadovi, kanali] = await Promise.all([
+  const [uvozi, integracijeUKvaru, leadovi, kanali, upitiSaSajta] = await Promise.all([
     citajUvoze(ctx, o.workspaceId),
     citajIntegracije(ctx, o.workspaceId, now),
     citajLeadove(ctx, o.workspaceId, now, pomerajMin),
     citajKanale(ctx, o.workspaceId),
+    citajUpiteSaSajta(ctx, o.workspaceId),
   ]);
 
   const snimak: Snimak = {
@@ -634,6 +662,7 @@ export async function izracunajStaMeCeka(
     uvoziOdseceni: uvozi.odseceni,
     integracijeUKvaru,
     ...leadovi,
+    upitiSaSajta,
     kanali,
   };
 

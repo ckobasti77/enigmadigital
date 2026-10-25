@@ -27,6 +27,7 @@ import {
 import { Field } from "@/components/app/form-kit";
 import { FeedbackNote } from "@/components/app/feedback";
 import { StatusPill } from "./status-pill";
+import { SegmentedToggle } from "@/components/app/analytics/segmented-toggle";
 import {
   useMoze,
   useProjekat,
@@ -49,6 +50,18 @@ import { formatDateTime } from "@/lib/format";
  * `listIngestTokens` i `revokeIngestToken` idu kroz omotač sa ulogom
  * vlasnika, pa poziv mimo ekrana ne prolazi.
  */
+
+type Namena = "uvoz" | "sajt";
+
+const NAMENE: readonly { value: Namena; label: string }[] = [
+  { value: "uvoz", label: "Uvoz leadova (skill)" },
+  { value: "sajt", label: "Forma na sajtu" },
+];
+
+const NAZIV_NAMENE: Record<Namena, string> = {
+  uvoz: "Uvoz (skill)",
+  sajt: "Forma na sajtu",
+};
 
 function porukaGreske(error: unknown): string {
   const data = (error as { data?: unknown } | null)?.data;
@@ -75,9 +88,12 @@ export function IngestTokensPanel() {
   const revokeToken = useProjekatMutation(api.ingestTokensStore.revokeIngestToken);
 
   const [naziv, setNaziv] = useState("");
+  const [namena, setNamena] = useState<Namena>("uvoz");
   const [radim, setRadim] = useState(false);
   const [greska, setGreska] = useState<string | null>(null);
-  const [novi, setNovi] = useState<{ token: string; naziv: string } | null>(null);
+  const [novi, setNovi] = useState<{ token: string; naziv: string; namena: Namena } | null>(
+    null,
+  );
   const [kopirano, setKopirano] = useState(false);
   const [zaOpoziv, setZaOpoziv] = useState<{
     _id: Id<"ingestTokens">;
@@ -98,8 +114,8 @@ export function IngestTokensPanel() {
     setKopirano(false);
     setRadim(true);
     try {
-      const rezultat = await createToken({ naziv: naziv.trim() });
-      setNovi(rezultat);
+      const rezultat = await createToken({ naziv: naziv.trim(), namena });
+      setNovi({ ...rezultat, namena });
       setNaziv("");
     } catch (error) {
       // Namerno bez `error` u logu: poruka providera ume da nosi argumente.
@@ -139,26 +155,44 @@ export function IngestTokensPanel() {
     <div className="space-y-8">
       <Card className="gap-0 p-5 shadow-card ring-line">
         <h3 className="text-sm font-medium text-foreground">
-          Tokeni za uvoz (skill)
+          Tokeni za uvoz i formu na sajtu
         </h3>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
           Token kojim se <span className="font-mono">/generate-leads</span> skill
-          predstavlja aplikaciji. Ono što pošalje ide u „Uvoz” na pregled — ne
-          upisuje se pravo u leadove. Token se prikazuje jednom; posle
+          ili forma na sajtu projekta predstavlja aplikaciji. Uvoz ide na pregled,
+          a upit sa forme u „Upiti sa sajta”. Token se prikazuje jednom; posle
           zatvaranja se ne može ponovo videti.
         </p>
 
+        <div className="mt-4 flex flex-col gap-1.5">
+          <SegmentedToggle
+            ariaLabel="Namena tokena"
+            options={NAMENE}
+            value={namena}
+            onChange={setNamena}
+            className="self-start"
+          />
+          {namena === "sajt" && (
+            <p className="text-xs text-text-muted">
+              Ovaj token ume samo da prijavi lead sa sajtova projekta.
+            </p>
+          )}
+        </div>
+
         <form
           onSubmit={napravi}
-          className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"
+          className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end"
         >
-          <Field label="Naziv (sa koje mašine)" className="flex-1">
+          <Field
+            label={namena === "sajt" ? "Naziv (za koji sajt)" : "Naziv (sa koje mašine)"}
+            className="flex-1"
+          >
             {(field) => (
               <Input
                 {...field}
                 name="ingest-token-naziv"
                 autoComplete="off"
-                placeholder="Jovanov laptop"
+                placeholder={namena === "sajt" ? "Sajt scanme.rs" : "Jovanov laptop"}
                 value={naziv}
                 onChange={(e) => {
                   setNaziv(e.target.value);
@@ -217,6 +251,7 @@ export function IngestTokensPanel() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Naziv</TableHead>
+                  <TableHead>Namena</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Napravljen</TableHead>
                   <TableHead>Poslednji put korišćen</TableHead>
@@ -228,6 +263,9 @@ export function IngestTokensPanel() {
                 {tokens.map((t) => (
                   <TableRow key={t._id}>
                     <TableCell className="font-mono text-xs">{t.naziv}</TableCell>
+                    <TableCell className="text-xs text-text-muted">
+                      {NAZIV_NAMENE[t.namena]}
+                    </TableCell>
                     <TableCell>
                       {t.revokedAt === null ? (
                         <StatusPill tone="success">Važi</StatusPill>
@@ -321,6 +359,21 @@ export function IngestTokensPanel() {
                 </Button>
               </div>
 
+              {novi.namena === "sajt" ? (
+              <div className="rounded-lg border border-line bg-surface p-3 text-xs leading-relaxed text-text-muted">
+                <p className="font-medium text-foreground">Gde ide</p>
+                <p className="mt-1">
+                  U env promenljivu{" "}
+                  <span className="font-mono text-foreground">ENIGMA_LEAD_TOKEN</span>{" "}
+                  na serveru sajta, odakle forma šalje upit na{" "}
+                  <span className="font-mono text-foreground">POST /projekti/lead</span>.
+                  Token ume samo da prijavi lead, i to sa sajtova ovog projekta.
+                </p>
+                <p className="mt-2">
+                  Ne stavljaj ga u repo, u chat ni u URL.
+                </p>
+              </div>
+              ) : (
               <div className="rounded-lg border border-line bg-surface p-3 text-xs leading-relaxed text-text-muted">
                 <p className="font-medium text-foreground">Gde ide</p>
                 <p className="mt-1">
@@ -338,6 +391,7 @@ export function IngestTokensPanel() {
                   Ne stavljaj ga u repo, u chat ni u URL.
                 </p>
               </div>
+              )}
             </div>
           )}
 

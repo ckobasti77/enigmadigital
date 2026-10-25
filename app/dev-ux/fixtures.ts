@@ -46,6 +46,7 @@ import {
   PRAZNO_PROJEKTI,
   stanjeProjekataUx,
 } from "./fixtures-projekti";
+import { FIXTURES_VEZE, UPITI_SA_SAJTA_ZVONO } from "./fixtures-veze";
 
 // ── Ljuska ───────────────────────────────────────────────────────────────────
 
@@ -890,6 +891,7 @@ const staMeCekaSnimak: Snimak = {
   bezProcene: 123,
   procenaOdsecena: false,
   neocenjenSajt: 94,
+  upitiSaSajta: UPITI_SA_SAJTA_ZVONO,
   kanali: [],
 };
 
@@ -1121,6 +1123,7 @@ Object.assign(
   FIXTURES_NAPREDAK,
   FIXTURES_PROJEKTI,
   FIXTURES_HUB,
+  FIXTURES_VEZE,
 );
 
 // ── Prazan nalog (`?ux=1&prazno=1`) ──────────────────────────────────────────

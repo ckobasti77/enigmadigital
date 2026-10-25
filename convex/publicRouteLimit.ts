@@ -1,4 +1,4 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
@@ -55,6 +55,15 @@ export const GENERATE_LEADS_SNIMAK_HOURLY_CAP = 300;
  * Isti ingest token, zaseban plafon po satu: čitanje ne sme da potroši uvoze.
  */
 export const PROJEKTI_MOZAK_HOURLY_CAP = 120;
+
+/**
+ * `POST /projekti/lead` (C17): upiti sa forme na sajtu. Dve kape: po tokenu
+ * (ruta `projekti-lead:<tokenId>`) i po projektu (ruta `projekti-lead`). Token
+ * za sajt može biti javan (u pregledaču), pa kapa ograničava štetu dok se ne
+ * opozove; poziv sa servera ScanMe-a ima jedan IP, pa se prozor po IP-u ne pravi.
+ */
+export const PROJEKTI_LEAD_PO_TOKENU_HOURLY_CAP = 60;
+export const PROJEKTI_LEAD_HOURLY_CAP = 300;
 
 /**
  * Claim one call against a route's hourly budget. Returns `true` when it is
@@ -126,6 +135,25 @@ export const claimRouteCall = internalMutation({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => claimPublicRouteCall(ctx, args),
+});
+
+/**
+ * Koliko ms je ostalo do kraja tekućeg prozora rute (za `Retry-After` posle
+ * 429). Bez reda ili posle isteka prozora: 0.
+ */
+export const preostaloProzora = internalQuery({
+  args: { workspaceId: v.id("workspaces"), route: v.string(), sada: v.number() },
+  returns: v.number(),
+  handler: async (ctx, { workspaceId, route, sada }) => {
+    const row = await ctx.db
+      .query("publicRouteUsage")
+      .withIndex("by_workspace_route", (q) =>
+        q.eq("workspaceId", workspaceId).eq("route", route),
+      )
+      .unique();
+    if (row === null) return 0;
+    return Math.max(0, row.windowStartedAt + ROUTE_WINDOW_MS - sada);
+  },
 });
 
 /**

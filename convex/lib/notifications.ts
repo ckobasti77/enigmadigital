@@ -109,6 +109,7 @@ export const POZNATI_KLJUCEVI: readonly string[] = [
   "leadovi.bez_telefona",
   "leadovi.bez_procene",
   "leadovi.neocenjen_sajt",
+  "leadovi.upiti_sa_sajta",
   "kanali.bez_odgovora",
 ];
 
@@ -202,6 +203,12 @@ export type Snimak = {
 
   /** Firma iz tabele koja IMA sajt, a sajt nikad nije ocenjen. */
   neocenjenSajt: number;
+
+  /**
+   * C17: upiti sa forme na sajtu projekta koji čekaju (status „nov“).
+   * Opciono: snimak bez ovog polja (stariji pozivaoci, provere) nema zadatak.
+   */
+  upitiSaSajta?: { broj: number; najstarijiAt: number; odsecen: boolean } | null;
 
   kanali: KanalStavka[];
 };
@@ -448,7 +455,28 @@ export function napraviZadatke(s: Snimak): Zadatak[] {
     odsecen: s.dodeleOdsecene,
   });
 
-  // 10) Kanali bez odgovora ──────────────────────────────────────────────────
+  // 10) Upiti sa sajta (C17) ────────────────────────────────────────────────
+  //
+  // Neko je sam popunio formu na sajtu projekta i čeka odgovor; posle 24 h
+  // to je hitno, isto pravilo kao uvoz koji čeka pregled.
+  if (s.upitiSaSajta) {
+    const u = s.upitiSaSajta;
+    const stoji = s.now - u.najstarijiAt;
+    dodaj({
+      kljuc: "leadovi.upiti_sa_sajta",
+      naslov: `${u.broj} ${mnozina(u.broj, "upit sa sajta čeka", "upita sa sajta čekaju", "upita sa sajta čeka")}`,
+      broj: u.broj,
+      hitnost: stoji >= PRAG_HITNO_MS ? "visoka" : "srednja",
+      veza: "/leadovi",
+      radnja: "Otvori upite",
+      imenilac:
+        u.broj === 1 ? `stoji ${trajanje(stoji)}` : `najstariji stoji ${trajanje(stoji)}`,
+      bedz: "/leadovi",
+      odsecen: u.odsecen,
+    });
+  }
+
+  // 11) Kanali bez odgovora ──────────────────────────────────────────────────
   for (const kanal of s.kanali) {
     dodaj({
       kljuc: `kanali.bez_odgovora:${kanal.kljuc}`,

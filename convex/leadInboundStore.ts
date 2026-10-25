@@ -6,8 +6,11 @@ import { projekatMutation, projekatQuery } from "./lib/projekat";
 import {
   normalizeCompanyName,
   normalizeDomain,
+  normalizePhoneRs,
   isKnownLeadSignalKind,
 } from "./lib/leadNormalize";
+import { podesavanjaProjekta } from "./lib/podesavanja";
+import { domenFirmeIzMejla } from "./lib/leadSajt";
 import {
   deriveSignalsFromInboundText,
   mapInboundKindToSignal,
@@ -33,8 +36,8 @@ import { isSuppressed } from "./leadSuppressionStore";
 
 export interface RecordInboundArgs {
   workspaceId: Id<"workspaces">;
-  platform: "instagram" | "facebook" | "threads";
-  kind: "komentar" | "odgovor" | "dm" | "mention";
+  platform: "instagram" | "facebook" | "threads" | "website";
+  kind: "komentar" | "odgovor" | "dm" | "mention" | "forma";
   externalId: string;
   authorPlatformId?: string;
   authorHandleHash?: string;
@@ -42,6 +45,18 @@ export interface RecordInboundArgs {
   occurredAt: number;
   sourceUrl?: string;
   suppressionUnverifiableReason?: string;
+  /**
+   * C17 (F18): samo upit sa forme na sajtu (`platform: "website"`). Sirov
+   * kontakt sme da stoji samo ovde, jer ga je ispitanik sam poslao.
+   * `zabranjen` = kontakt je već proveren na listi zabrane i pogođen.
+   */
+  forma?: {
+    kontakt: { ime?: string; email?: string; telefon?: string; firma?: string };
+    utm?: { source?: string; medium?: string; campaign?: string; term?: string; content?: string };
+    eventId?: string;
+    ingestTokenId: Id<"ingestTokens">;
+    zabranjen: boolean;
+  };
 }
 
 /**
@@ -75,8 +90,16 @@ export async function recordInboundInternal(
   let linkedCompanyId: Id<"leadCompanies"> | undefined;
   let linkedPersonId: Id<"leadPeople"> | undefined;
 
+  // C17: forma je kontakt već proverila na listi zabrane (email, telefon,
+  // domen firme); pogodak je konačan, bez daljeg povezivanja.
+  if (args.forma?.zabranjen) {
+    status = "zabranjen_kontakt";
+  }
+
   // 2. Provera autora i povezivanja sa ranije poznatom firmom
-  if (!args.authorPlatformId) {
+  if (status === "zabranjen_kontakt") {
+    // već odlučeno (forma)
+  } else if (!args.authorPlatformId) {
     suppressionUnverifiable.push("nedostaje_author_platform_id");
   } else {
     // Dva ciljana upita po indeksu (autor + status) umesto učitavanja SVIH
@@ -129,7 +152,7 @@ export async function recordInboundInternal(
 
   // Ako autor nije bio povezan sa firmom, provera zabrane po kontaktu (telefon/email/PIB)
   // nije mogla da se izvede jer ti podaci još uvek ne postoje za ovaj inbound nalog.
-  if (status === "nov" && suppressionUnverifiable.length === 0) {
+  if (status === "nov" && suppressionUnverifiable.length === 0 && !args.forma) {
     suppressionUnverifiable.push(
       "autor_nije_povezan_sa_kontakt_podacima_za_proveru",
     );
@@ -156,6 +179,14 @@ export async function recordInboundInternal(
     suppressionUnverifiable:
       suppressionUnverifiable.length > 0 ? suppressionUnverifiable : undefined,
     createdAt: Date.now(),
+    ...(args.forma
+      ? {
+          kontakt: args.forma.kontakt,
+          utm: args.forma.utm,
+          eventId: args.forma.eventId,
+          ingestTokenId: args.forma.ingestTokenId,
+        }
+      : {}),
   });
 
   return { status: "upisano", inboundId };
@@ -213,6 +244,8 @@ async function writeSignalsForInbound(
   },
 ): Promise<void> {
   const { workspaceId, companyId, personId, inbound, fallbackSourceUrl } = params;
+  // Upit sa forme (C17) ide kroz `napraviFirmuIzUpita`, ne ovuda.
+  if (inbound.kind === "forma") return;
   const signalKind = mapInboundKindToSignal(inbound.kind);
   const source = `inbound_${inbound.platform}`;
   const sourceUrl = inbound.sourceUrl ?? fallbackSourceUrl;
@@ -286,6 +319,14 @@ export const linkInboundToCompany = projekatMutation({
       throw new ConvexError({
         code: "not_found",
         message: "Inbound zapis nije pronađen.",
+      });
+    }
+    // C17: upit sa sajta ima sopstveni kontakt i pravni osnov; ovde bi dobio
+    // identitet društvene mreže. Ide kroz `napraviFirmuIzUpita`.
+    if (inbound.platform === "website") {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Upit sa sajta se povezuje kroz „Napravi firmu“.",
       });
     }
 
@@ -578,9 +619,181 @@ export const dismissInbound = projekatMutation({
       dismissReason: reasonClean,
       dismissedAt: Date.now(),
       dismissedBy: ctx.projekat.userId,
+      // C17 (F18): sirov kontakt sa forme ne ostaje posle odbacivanja.
+      kontakt: undefined,
     });
 
     return { success: true };
+  },
+});
+
+/**
+ * C17 (F18, F19): upit sa forme na sajtu → nova firma u projektu.
+ *
+ * Ispitanik je sam poslao ime, firmu i kontakt, pa je pravni osnov
+ * `data_subject_request`, a izvor stranica forme (ili prvi sajt projekta).
+ * Naziv firme se ne izmišlja: `kontakt.firma`, pa `kontakt.ime`, pa naziv koji
+ * čovek upiše (`nazivFirme`); bez ičega se odbija.
+ */
+export const napraviFirmuIzUpita = projekatMutation({
+  args: {
+    inboundId: v.id("leadInbound"),
+    nazivFirme: v.optional(v.string()),
+  },
+  returns: v.object({ companyId: v.id("leadCompanies") }),
+  handler: async (ctx, args) => {
+    const inbound = await ctx.db.get(args.inboundId);
+    if (
+      !inbound ||
+      inbound.workspaceId !== args.workspaceId ||
+      inbound.platform !== "website"
+    ) {
+      throw new ConvexError({ code: "not_found", message: "Upit nije pronađen." });
+    }
+    if (inbound.status === "zabranjen_kontakt") {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Kontakt je na listi zabrane u ovom projektu.",
+      });
+    }
+    if (inbound.status !== "nov") {
+      throw new ConvexError({ code: "conflict", message: "Upit je već obrađen." });
+    }
+
+    const kontakt = inbound.kontakt ?? {};
+    const naziv =
+      kontakt.firma?.trim() || kontakt.ime?.trim() || args.nazivFirme?.trim() || "";
+    if (naziv.length === 0) {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Upit nema ni firmu ni ime; upiši naziv firme.",
+      });
+    }
+    if (naziv.length > 160) {
+      throw new ConvexError({ code: "invalid", message: "Naziv firme je predug." });
+    }
+
+    // Lista zabrane se proverava ponovo: mogla je da se promeni posle prijema.
+    const zabrana = await isSuppressed(ctx, {
+      workspaceId: args.workspaceId,
+      email: kontakt.email,
+      phone: kontakt.telefon,
+      domain: domenFirmeIzMejla(kontakt.email),
+    });
+    if (zabrana.suppressed) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Kontakt je na listi zabrane u ovom projektu.",
+      });
+    }
+
+    const podesavanja = await podesavanjaProjekta(ctx, args.workspaceId);
+    const prviSajt = podesavanja.sajtovi.vrednost?.[0];
+    const sourceUrl =
+      inbound.sourceUrl ?? (prviSajt ? `https://${prviSajt}` : "Forma na sajtu projekta");
+    const lawfulBasis = "data_subject_request";
+    const izvor = "inbound_website";
+    const now = Date.now();
+
+    const companyId = await ctx.db.insert("leadCompanies", {
+      workspaceId: args.workspaceId,
+      name: naziv,
+      nameNormalized: normalizeCompanyName(naziv),
+      origin: "inbound",
+      firstSeenSource: izvor,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: ctx.projekat.userId,
+    });
+    await ctx.db.insert("leadFieldProvenance", {
+      workspaceId: args.workspaceId,
+      entityTable: "leadCompanies",
+      entityId: companyId,
+      fieldName: "name",
+      value: naziv,
+      source: kontakt.firma?.trim() || kontakt.ime?.trim() ? izvor : "user_edit",
+      sourceUrl,
+      confidence: "tacno",
+      humanConfirmed: true,
+      observedAt: now,
+    });
+
+    let personId: Id<"leadPeople"> | undefined;
+    const ime = kontakt.ime?.trim();
+    if (ime) {
+      personId = await ctx.db.insert("leadPeople", {
+        workspaceId: args.workspaceId,
+        companyId,
+        name: ime,
+        role: "nepoznato",
+        roleConfidence: "nepoznato",
+        createdAt: now,
+      });
+      await ctx.db.insert("leadFieldProvenance", {
+        workspaceId: args.workspaceId,
+        entityTable: "leadPeople",
+        entityId: personId,
+        fieldName: "name",
+        value: ime,
+        source: izvor,
+        sourceUrl,
+        confidence: "tacno",
+        humanConfirmed: false,
+        observedAt: now,
+      });
+    }
+
+    if (kontakt.email) {
+      await ctx.db.insert("leadIdentities", {
+        workspaceId: args.workspaceId,
+        companyId,
+        personId,
+        kind: "email",
+        value: kontakt.email,
+        valueNormalized: kontakt.email.trim().toLowerCase(),
+        lawfulBasis,
+        sourceUrl,
+        createdAt: now,
+        createdBy: ctx.projekat.userId,
+      });
+    }
+    if (kontakt.telefon) {
+      await ctx.db.insert("leadIdentities", {
+        workspaceId: args.workspaceId,
+        companyId,
+        personId,
+        kind: "phone",
+        value: kontakt.telefon,
+        valueNormalized: normalizePhoneRs(kontakt.telefon),
+        lawfulBasis,
+        sourceUrl,
+        createdAt: now,
+        createdBy: ctx.projekat.userId,
+      });
+    }
+
+    // Signali iz poruke (pitao_cenu…) idu na firmu, sa vremenom upita.
+    for (const ds of inbound.derivedSignals) {
+      if (!isKnownLeadSignalKind(ds)) continue;
+      await ctx.db.insert("leadSignals", {
+        workspaceId: args.workspaceId,
+        companyId,
+        personId,
+        kind: ds,
+        value: inbound.text,
+        observedAt: inbound.occurredAt,
+        source: izvor,
+        sourceUrl,
+      });
+    }
+
+    await ctx.db.patch(inbound._id, {
+      status: "povezan",
+      linkedCompanyId: companyId,
+      linkedPersonId: personId,
+    });
+
+    return { companyId };
   },
 });
 
@@ -602,6 +815,7 @@ export const listInbound = projekatQuery({
         v.literal("instagram"),
         v.literal("facebook"),
         v.literal("threads"),
+        v.literal("website"),
       ),
     ),
     limit: v.optional(v.number()),
@@ -610,7 +824,20 @@ export const listInbound = projekatQuery({
     const maxLimit = Math.min(args.limit ?? 100, 500);
 
     let records;
-    if (args.status) {
+    if (args.status && args.platform) {
+      // C17: platforma + status preko indeksa, da upiti sa sajta ne ostanu
+      // iza stotinu novih komentara sa mreža.
+      records = await ctx.db
+        .query("leadInbound")
+        .withIndex("by_workspace_platform_status", (q) =>
+          q
+            .eq("workspaceId", args.workspaceId)
+            .eq("platform", args.platform!)
+            .eq("status", args.status!),
+        )
+        .order("desc")
+        .take(maxLimit);
+    } else if (args.status) {
       records = await ctx.db
         .query("leadInbound")
         .withIndex("by_workspace_status", (q) =>

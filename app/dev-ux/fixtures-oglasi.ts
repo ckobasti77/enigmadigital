@@ -1727,8 +1727,9 @@ const webhookHealthStatus: R<typeof api.webhookHealth.status> = (["instagram", "
 }));
 
 const listIngestTokens: R<typeof api.ingestTokensStore.listIngestTokens> = [
-  { _id: "ingt_ux_0000000000001" as Id<"ingestTokens">, naziv: "Test mašina — laptop", createdAt: now - 20 * DAY, lastUsedAt: now - 2 * DAY, revokedAt: null, createdByEmail: "operater@example.com" },
-  { _id: "ingt_ux_0000000000002" as Id<"ingestTokens">, naziv: "Test mašina — stari računar", createdAt: now - 60 * DAY, lastUsedAt: null, revokedAt: now - 40 * DAY, createdByEmail: "operater@example.com" },
+  { _id: "ingt_ux_0000000000001" as Id<"ingestTokens">, naziv: "Test mašina — laptop", createdAt: now - 20 * DAY, lastUsedAt: now - 2 * DAY, revokedAt: null, createdByEmail: "operater@example.com", namena: "uvoz" },
+  { _id: "ingt_ux_0000000000003" as Id<"ingestTokens">, naziv: "Sajt — kontakt forma", createdAt: now - 5 * DAY, lastUsedAt: now - 3 * HOUR, revokedAt: null, createdByEmail: "operater@example.com", namena: "sajt" },
+  { _id: "ingt_ux_0000000000002" as Id<"ingestTokens">, naziv: "Test mašina — stari računar", createdAt: now - 60 * DAY, lastUsedAt: null, revokedAt: now - 40 * DAY, createdByEmail: "operater@example.com", namena: "uvoz" },
 ];
 
 const listInvites: R<typeof api.invitesStore.listInvites> = [

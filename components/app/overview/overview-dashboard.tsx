@@ -28,6 +28,7 @@ import {
 } from "@/components/app/analytics/sessions-chart";
 import { brojPosla, useStaMeCeka } from "@/components/app/use-sta-me-ceka";
 import { UnconnectedTile } from "./unconnected-tile";
+import { PoslovanjeKartica } from "./poslovanje-kartica";
 import {
   PerformanceHighlights,
   PerformanceHighlightsSkeleton,
@@ -262,6 +263,9 @@ export function OverviewDashboard() {
           </TileBoundary>
         </div>
       </section>
+
+      {/* Brojke poslovanja sa sajta projekta (Puls), ispod kanala. */}
+      <PoslovanjeKartica />
 
       {/* Glavni sadržaj ekrana: kretanje sesija i ključnih događaja kroz period. */}
       {!hasGa4 ? (

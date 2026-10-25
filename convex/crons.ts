@@ -300,4 +300,9 @@ crons.interval(
   {},
 );
 
+// Puls (C17, PROJEKTI-PLAN §11): brojke sa sopstvenog sajta svakog projekta
+// koji ga je podesio. Nije Meta posao (ne troši Meta kvotu), pa ide na
+// `interval`, po pravilu sa vrha ovog fajla.
+crons.interval("puls", { minutes: 15 }, internal.puls.pokupiSve, {});
+
 export default crons;

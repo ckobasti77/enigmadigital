@@ -1475,6 +1475,10 @@ export const EXTRA_TABLE_OWNERSHIP: Record<string, Disposition> = {
     excluded:
       "Sopstvene tajne projekta (CAPI token, tajna za novosti, Puls token), šifrovane. Ista klasa kao `ingestTokens`: prekid veze sa provajderom ih ne opoziva; menjaju se i brišu u Podešavanjima projekta.",
   },
+  pulsSnimci: {
+    excluded:
+      "Brojke sa sopstvenog sajta projekta (Puls), ne podaci provajdera; prekid veze sa Meta/Google ih ne dodiruje. Čisti ih Puls posle 90 dana.",
+  },
   globalneKvote: {
     excluded:
       "Brojač kvote koju dele svi projekti (Google Cloud projekat, developer token, Meta aplikacija). Bez podataka projekta i bez PII; stari redovi se brišu cron-om.",

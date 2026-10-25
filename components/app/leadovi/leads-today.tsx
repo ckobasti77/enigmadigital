@@ -49,6 +49,7 @@ import { axisPct, zastoSignals } from "./lead-columns";
 import { leadSignalLabel } from "./lead-labels";
 import { groupMeetings, type MeetingItem } from "./meetings-panel";
 import { WorkCard, WorkSection } from "./work-card";
+import { UpitiSaSajta } from "./upiti-sa-sajta";
 import {
   isMeetingUnresolved,
   rowEdge,
@@ -289,6 +290,9 @@ export function LeadsToday() {
           </p>
         )}
       </section>
+
+      {/* ── Upiti sa sajta: neko je sam tražio kontakt — pre hladnih poziva ── */}
+      <UpitiSaSajta />
 
       {/* ── Zovi sada ── */}
       <WorkSection

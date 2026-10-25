@@ -1,5 +1,6 @@
-import { v } from "convex/values";
-import { internalMutation, internalQuery } from "./_generated/server";
+import { v, type ObjectType } from "convex/values";
+import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { projekatQuery } from "./lib/projekat";
 import { podesavanjaProjekta, stanjeTajne } from "./lib/podesavanja";
 import { CAPI_MAX_BATCH_SIZE, hasMatchableIdentity } from "./lib/metaCapi";
@@ -10,74 +11,88 @@ import { CAPI_MAX_BATCH_SIZE, hasMatchableIdentity } from "./lib/metaCapi";
  * ============================================================================
  */
 
+const recordCapiEventArgs = {
+  workspaceId: v.id("workspaces"),
+  eventName: v.string(),
+  eventTime: v.number(), // Unix timestamp in seconds
+  eventId: v.string(),
+  actionSource: v.union(
+    v.literal("website"),
+    v.literal("business_messaging"),
+  ),
+  sourceKind: v.union(
+    v.literal("link_redirect"),
+    v.literal("openreply_conversion"),
+    v.literal("website_lead"),
+  ),
+  hashedEmail: v.optional(v.string()),
+  hashedPhone: v.optional(v.string()),
+  clientIpAddress: v.optional(v.string()),
+  clientUserAgent: v.optional(v.string()),
+  fbc: v.optional(v.string()),
+  fbp: v.optional(v.string()),
+  // C17: stranica na kojoj je nastao događaj sa sajta (`event_source_url`).
+  eventSourceUrl: v.optional(v.string()),
+};
+
 /**
  * Records a new CAPI event into capiEvents with deterministic eventId deduplication.
  * If no identifiers are provided, returns null without inserting (B-F1d).
+ *
+ * A plain function too (C17): `leadSajt.primiLeadSaSajta` is itself a mutation
+ * and writes the event in the same transaction as the lead.
  */
+export async function upisiCapiDogadjaj(
+  ctx: MutationCtx,
+  args: ObjectType<typeof recordCapiEventArgs>,
+): Promise<Id<"capiEvents"> | null> {
+  // B-F1(d): Bez ijednog identifikatora koji Meta uparuje, događaj se NE upisuje.
+  // Samo user-agent NIJE dovoljan — Meta ga ne priznaje kao parametar za
+  // uparivanje, pa bi takav događaj pet puta pokušao i pao. Bolje da ga nema.
+  // clientUserAgent se i dalje upisuje (dole) i šalje uz pravi identifikator;
+  // samo prestaje da bude jedini razlog za upis.
+  if (!hasMatchableIdentity(args)) {
+    return null;
+  }
+
+  // Check for existing eventId to prevent duplicates
+  const existing = await ctx.db
+    .query("capiEvents")
+    .withIndex("by_event_id", (q) =>
+      q.eq("workspaceId", args.workspaceId).eq("eventId", args.eventId),
+    )
+    .first();
+
+  if (existing !== null) {
+    return existing._id;
+  }
+
+  const fields = {
+    workspaceId: args.workspaceId,
+    eventName: args.eventName.trim(),
+    eventTime: args.eventTime,
+    eventId: args.eventId.trim(),
+    actionSource: args.actionSource,
+    sourceKind: args.sourceKind,
+    hashedEmail: args.hashedEmail?.trim().toLowerCase(),
+    hashedPhone: args.hashedPhone?.trim().toLowerCase(),
+    clientIpAddress: args.clientIpAddress?.trim(),
+    clientUserAgent: args.clientUserAgent?.trim(),
+    fbc: args.fbc?.trim(),
+    fbp: args.fbp?.trim(),
+    eventSourceUrl: args.eventSourceUrl?.trim(),
+    status: "pending" as const,
+    attempts: 0,
+    syncedAt: Date.now(),
+  };
+
+  return await ctx.db.insert("capiEvents", fields);
+}
+
 export const recordCapiEvent = internalMutation({
-  args: {
-    workspaceId: v.id("workspaces"),
-    eventName: v.string(),
-    eventTime: v.number(), // Unix timestamp in seconds
-    eventId: v.string(),
-    actionSource: v.union(
-      v.literal("website"),
-      v.literal("business_messaging"),
-    ),
-    sourceKind: v.union(
-      v.literal("link_redirect"),
-      v.literal("openreply_conversion"),
-    ),
-    hashedEmail: v.optional(v.string()),
-    hashedPhone: v.optional(v.string()),
-    clientIpAddress: v.optional(v.string()),
-    clientUserAgent: v.optional(v.string()),
-    fbc: v.optional(v.string()),
-    fbp: v.optional(v.string()),
-  },
+  args: recordCapiEventArgs,
   returns: v.union(v.null(), v.id("capiEvents")),
-  handler: async (ctx, args) => {
-    // B-F1(d): Bez ijednog identifikatora koji Meta uparuje, događaj se NE upisuje.
-    // Samo user-agent NIJE dovoljan — Meta ga ne priznaje kao parametar za
-    // uparivanje, pa bi takav događaj pet puta pokušao i pao. Bolje da ga nema.
-    // clientUserAgent se i dalje upisuje (dole) i šalje uz pravi identifikator;
-    // samo prestaje da bude jedini razlog za upis.
-    if (!hasMatchableIdentity(args)) {
-      return null;
-    }
-
-    // Check for existing eventId to prevent duplicates
-    const existing = await ctx.db
-      .query("capiEvents")
-      .withIndex("by_event_id", (q) =>
-        q.eq("workspaceId", args.workspaceId).eq("eventId", args.eventId),
-      )
-      .first();
-
-    if (existing !== null) {
-      return existing._id;
-    }
-
-    const fields = {
-      workspaceId: args.workspaceId,
-      eventName: args.eventName.trim(),
-      eventTime: args.eventTime,
-      eventId: args.eventId.trim(),
-      actionSource: args.actionSource,
-      sourceKind: args.sourceKind,
-      hashedEmail: args.hashedEmail?.trim().toLowerCase(),
-      hashedPhone: args.hashedPhone?.trim().toLowerCase(),
-      clientIpAddress: args.clientIpAddress?.trim(),
-      clientUserAgent: args.clientUserAgent?.trim(),
-      fbc: args.fbc?.trim(),
-      fbp: args.fbp?.trim(),
-      status: "pending" as const,
-      attempts: 0,
-      syncedAt: Date.now(),
-    };
-
-    return await ctx.db.insert("capiEvents", fields);
-  },
+  handler: async (ctx, args) => await upisiCapiDogadjaj(ctx, args),
 });
 
 /**

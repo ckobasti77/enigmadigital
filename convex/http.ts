@@ -11,6 +11,9 @@ import {
   isBotUserAgent,
 } from "./lib/orLink";
 import { decryptCredentials } from "./lib/crypto";
+import { extractClientIp } from "./lib/klijentIp";
+import { ingestOdgovor } from "./lib/ingestToken";
+import { preflightLeadaSaSajta, primiLeadSaSajtaHttp } from "./leadSajt";
 import { podesavanjaZaAkciju, procitajTajnu } from "./lib/podesavanjaAkcija";
 import {
   allowsBackground,
@@ -183,25 +186,6 @@ async function hashClientIp(request: Request): Promise<string | undefined> {
   return bufferToHex(digest).slice(0, 32);
 }
 
-/**
- * The RAW client IP — the same source `hashClientIp` reads (first
- * `x-forwarded-for` entry, then `x-real-ip`), but unhashed.
- *
- * This is the ONE place a raw address is read. It goes nowhere but Meta's
- * Conversions API `client_ip_address`, which is the one field Meta requires to
- * be unhashed for matching — a hash is refused there, so the salted digest that
- * feeds `orLinkClicks` cannot double as an identifier. It must never be logged,
- * put in a URL, or written to `orLinkClicks`; `registerClick` keeps it isolated
- * to the `recordCapiEvent` call and the store drops it the moment sending ends.
- */
-function extractClientIp(request: Request): string | undefined {
-  const forwarded = request.headers.get("x-forwarded-for");
-  return (
-    forwarded?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip")?.trim() ||
-    undefined
-  );
-}
 
 // ── Payload Types ────────────────────────────────────────────────────────────
 
@@ -1847,16 +1831,6 @@ export const revalidatePost = internalAction({
 // NIŠTA IZ ZAHTEVA SE NE LOGUJE: ni token, ni njegov heš, ni telo. Telo nosi
 // telefone, mejlove i imena ljudi (§0 pravilo 6), a token je lozinka.
 
-/** Odgovor sa JSON telom i bez keširanja — ovo nikad ne sme da se servira iz keša. */
-function ingestOdgovor(telo: unknown, status: number): Response {
-  return new Response(JSON.stringify(telo), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-    },
-  });
-}
 
 /**
  * Adresa ekrana za pregled uvoza, za link koji se vraća skillu: panel domen
@@ -1901,6 +1875,10 @@ http.route({
 
     if (tokenRow === null) {
       return ingestOdgovor({ greska: "neispravan token" }, 401);
+    }
+    // C17: token za formu na sajtu ume samo da prijavi lead (`/projekti/lead`).
+    if (tokenRow.namena === "sajt") {
+      return ingestOdgovor({ greska: "token nije za uvoz" }, 403);
     }
 
     // 2. Plafon po satu. `claimPublicRouteCall` traži `MutationCtx`, a ovo je
@@ -2116,6 +2094,9 @@ http.route({
     if (tokenRow === null) {
       return ingestOdgovor({ greska: "neispravan token" }, 401);
     }
+    if (tokenRow.namena === "sajt") {
+      return ingestOdgovor({ greska: "token nije za uvoz" }, 403);
+    }
 
     const withinCap = await ctx.runMutation(
       internal.publicRouteLimit.claimRouteCall,
@@ -2217,6 +2198,9 @@ http.route({
     if (tokenRow === null) {
       return ingestOdgovor({ greska: "neispravan token" }, 401);
     }
+    if (tokenRow.namena === "sajt") {
+      return ingestOdgovor({ greska: "token nije za uvoz" }, 403);
+    }
 
     const withinCap = await ctx.runMutation(
       internal.publicRouteLimit.claimRouteCall,
@@ -2251,6 +2235,22 @@ http.route({
 
     return ingestOdgovor(mozak, 200);
   }),
+});
+
+// ── POST /projekti/lead (C17, PROJEKTI-PLAN §11) ─────────────────────────────
+//
+// Forma na sajtu projekta šalje upit sa tokenom namene „sajt“. Logika je u
+// `convex/leadSajt.ts`; ovde su samo rute.
+http.route({
+  path: "/projekti/lead",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => primiLeadSaSajtaHttp(ctx, request)),
+});
+
+http.route({
+  path: "/projekti/lead",
+  method: "OPTIONS",
+  handler: httpAction(async (_ctx, request) => preflightLeadaSaSajta(request)),
 });
 
 export default http;

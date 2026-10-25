@@ -34,7 +34,8 @@ interface PendingCapiRow {
   eventTime: number;
   eventId: string;
   actionSource: "website" | "business_messaging";
-  sourceKind: "link_redirect" | "openreply_conversion";
+  sourceKind: "link_redirect" | "openreply_conversion" | "website_lead";
+  eventSourceUrl?: string;
   hashedEmail?: string;
   hashedPhone?: string;
   clientIpAddress?: string;
@@ -162,6 +163,7 @@ export const sendPendingCapiEventsAction = internalAction({
             event_id: p.eventId,
             action_source: p.actionSource,
             user_data: userData,
+            ...(p.eventSourceUrl ? { event_source_url: p.eventSourceUrl } : {}),
           };
         });
 
@@ -201,6 +203,7 @@ export const sendPendingCapiEventsAction = internalAction({
             event_id: v.event_id,
             action_source: v.action_source,
             user_data: v.user_data,
+            ...(v.event_source_url ? { event_source_url: v.event_source_url } : {}),
           })),
           testEventCode,
         );

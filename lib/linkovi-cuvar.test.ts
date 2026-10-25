@@ -23,6 +23,8 @@ const NEXT_LINK_DOZVOLJEN: Record<string, string> = {
     "vodi VAN tekućeg projekta: na isti ekran drugog projekta (`/<slug>/…`) i na hub (`/`)",
   "components/app/napredak/misija-link.tsx":
     "misija iz drugog projekta (P12) vodi u taj projekat (`/<slug>/…`); misija tekućeg ide kroz `ProjekatLink`",
+  "components/app/leadovi/unakrsni-projekti.tsx":
+    "unakrsni lead (P13) vodi na profil firme u DRUGOM projektu (`/<slug>/leadovi/…`), samo u hubu",
 };
 /** Hub je van projekta: veze idu eksplicitno na `/<slug>`. */
 const NEXT_LINK_FASCIKLA = "components/app/hub/";

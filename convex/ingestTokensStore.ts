@@ -51,10 +51,19 @@ function generateToken(): string {
 // ─────────────────────────────────────────────────────────────────────────────
 // createIngestToken — JEDINI put kad sirov token izlazi iz sistema.
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Namena tokena (C17). „uvoz“ = skill (uvoz, snimci, mozak); „sajt“ = samo
+ * prijava leada sa forme na sajtu projekta (`POST /projekti/lead`). Token
+ * za sajt sme da bude javan (u pregledaču), pa ne otvara ništa drugo.
+ */
+const namenaValidator = v.union(v.literal("uvoz"), v.literal("sajt"));
+
 export const createIngestToken = projekatMutation({
   uloga: "owner",
   args: {
     naziv: v.string(),
+    // Bez vrednosti = „uvoz“ (pozivi pre C17).
+    namena: v.optional(namenaValidator),
   },
   returns: v.object({
     token: v.string(),
@@ -78,6 +87,7 @@ export const createIngestToken = projekatMutation({
       naziv,
       createdBy: ctx.projekat.userId,
       createdAt: Date.now(),
+      namena: args.namena ?? "uvoz",
     });
 
     return { token, naziv };
@@ -99,6 +109,7 @@ export const listIngestTokens = projekatQuery({
       lastUsedAt: v.union(v.number(), v.null()),
       revokedAt: v.union(v.number(), v.null()),
       createdByEmail: v.union(v.string(), v.null()),
+      namena: namenaValidator,
     }),
   ),
   handler: async (ctx, args) => {
@@ -119,6 +130,7 @@ export const listIngestTokens = projekatQuery({
         lastUsedAt: row.lastUsedAt ?? null,
         revokedAt: row.revokedAt ?? null,
         createdByEmail: autor?.email ?? null,
+        namena: row.namena ?? "uvoz",
       });
     }
     return zapisi;
@@ -164,6 +176,7 @@ export const findValidTokenByHash = internalQuery({
       tokenId: v.id("ingestTokens"),
       workspaceId: v.id("workspaces"),
       createdBy: v.id("users"),
+      namena: namenaValidator,
     }),
     v.null(),
   ),
@@ -179,6 +192,7 @@ export const findValidTokenByHash = internalQuery({
       tokenId: row._id,
       workspaceId: row.workspaceId,
       createdBy: row.createdBy,
+      namena: row.namena ?? "uvoz",
     };
   },
 });
