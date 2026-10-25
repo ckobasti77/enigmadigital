@@ -165,7 +165,6 @@ import type * as threadsSearch from "../threadsSearch.js";
 import type * as threadsStore from "../threadsStore.js";
 import type * as threadsUploadAccess from "../threadsUploadAccess.js";
 import type * as webhookHealth from "../webhookHealth.js";
-import type * as workspaces from "../workspaces.js";
 import type * as youtube from "../youtube.js";
 import type * as youtubeStore from "../youtubeStore.js";
 import type * as ytAuth from "../ytAuth.js";
@@ -345,7 +344,6 @@ declare const fullApi: ApiFromModules<{
   threadsStore: typeof threadsStore;
   threadsUploadAccess: typeof threadsUploadAccess;
   webhookHealth: typeof webhookHealth;
-  workspaces: typeof workspaces;
   youtube: typeof youtube;
   youtubeStore: typeof youtubeStore;
   ytAuth: typeof ytAuth;

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
 import { Table, BarChart2, Unplug, Users, UserCheck } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
@@ -40,7 +39,7 @@ export function InstagramDemographics() {
     useState<DemographicTimeframe>("last_30_days");
   const [viewMode, setViewMode] = useState<ViewMode>("chart");
 
-  const connections = useQuery(api.connections.list);
+  const connections = useProjekatQuery(api.connections.list);
   const summary = useProjekatQuery(api.instagramStore.getDemographicsSummary, {
     metric,
     timeframe,

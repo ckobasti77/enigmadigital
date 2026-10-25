@@ -1,8 +1,8 @@
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 
 /**
  * ============================================================================
@@ -126,7 +126,7 @@ export const claimRouteCall = internalMutation({
  * When each public route last hit its ceiling, for the Settings card (R1/2c,2d).
  * Only rows whose cap was tripped inside the current window are worth showing.
  */
-export const routeUsageStatus = query({
+export const routeUsageStatus = projekatQuery({
   args: {},
   returns: v.array(
     v.object({
@@ -135,7 +135,7 @@ export const routeUsageStatus = query({
     }),
   ),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const now = Date.now();
     const rows = await ctx.db
       .query("publicRouteUsage")

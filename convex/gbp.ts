@@ -2,7 +2,6 @@ import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import {
   GBP_ACCOUNTS_API,
@@ -17,7 +16,7 @@ import {
   sanitizeGbpError,
   type GbpCredentials,
 } from "./lib/gbpApi";
-import type { Uloga } from "./lib/uloge";
+import { projekatAction } from "./lib/projekat";
 
 /**
  * Google Business Profile (GBP) akcije: OAuth tok i provera stanja pristupa (GB1).
@@ -38,10 +37,12 @@ function randomNonce(): string {
 }
 
 /**
- * Javna akcija za prijavljene članove radnog prostora:
- * generiše jednokratni state nonce i sastavlja Google OAuth 2.0 autorizacioni URL.
+ * Akcija vlasnika projekta: generiše jednokratni state nonce i sastavlja
+ * Google OAuth 2.0 autorizacioni URL. Prijavu, članstvo i ulogu proverava
+ * omotač projekta.
  */
-export const gbpAuthorizeUrl = action({
+export const gbpAuthorizeUrl = projekatAction({
+  uloga: "owner",
   args: {
     redirectUri: v.optional(v.string()),
   },
@@ -56,31 +57,12 @@ export const gbpAuthorizeUrl = action({
       });
     }
 
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member: {
-      workspaceId: Id<"workspaces">;
-      role: Uloga;
-    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
-      userId,
-    });
-    if (member === null) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Niste član aktivnog workspace-a.",
-      });
-    }
+    const { workspaceId, userId } = ctx.projekat;
 
     const effectiveRedirectUri = redirectUri ?? GBP_DEFAULT_REDIRECT_URI;
     const nonce = randomNonce();
     await ctx.runMutation(internal.gbpStore.createOAuthState, {
-      workspaceId: member.workspaceId,
+      workspaceId,
       userId,
       nonce,
       redirectUri: effectiveRedirectUri,
@@ -226,31 +208,11 @@ export interface CheckGbpAccessResult {
  * samo da bi se utvrdilo stanje pristupa i kvote.
  * Rezultat se klasifikuje kroz `classifyGbpFailure` i beleži u `gbAccessState`.
  */
-export const checkGbpAccess = action({
-  args: {
-    workspaceId: v.id("workspaces"),
-  },
-  handler: async (ctx, { workspaceId }): Promise<CheckGbpAccessResult> => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) {
-      throw new ConvexError({
-        code: "unauthorized",
-        message: "Niste prijavljeni.",
-      });
-    }
-
-    const member: {
-      workspaceId: Id<"workspaces">;
-      role: Uloga;
-    } | null = await ctx.runQuery(internal.instagramStore.getMembership, {
-      userId,
-    });
-    if (member === null || member.workspaceId !== workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
+export const checkGbpAccess = projekatAction({
+  uloga: "owner",
+  args: {},
+  handler: async (ctx): Promise<CheckGbpAccessResult> => {
+    const { workspaceId } = ctx.projekat;
 
     const conn = await ctx.runQuery(internal.gbpStore.getGbConnection, {
       workspaceId,
@@ -259,7 +221,7 @@ export const checkGbpAccess = action({
     if (!conn) {
       throw new ConvexError({
         code: "invalid",
-        message: "Google Business nalog nije povezan za ovaj radni prostor.",
+        message: "Google Business nalog nije povezan za ovaj projekat.",
       });
     }
 

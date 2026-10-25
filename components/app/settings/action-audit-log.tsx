@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -150,13 +150,13 @@ export function ActionAuditLog() {
     null,
   );
 
-  const actions = useQuery(api.adActionsStore.listActions, {
+  const actions = useProjekatQuery(api.adActionsStore.listActions, {
     targetType: targetFilter,
     status: statusFilter,
     limit: 100,
   });
 
-  const stats = useQuery(api.adActionsStore.getActionStats, {});
+  const stats = useProjekatQuery(api.adActionsStore.getActionStats);
 
   // Client-side text search filter
   const filteredActions = useMemo(() => {

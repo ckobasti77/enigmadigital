@@ -12,7 +12,7 @@ function imenaPalih(fajlovi: IzvorniFajl[]): string[] {
   return proveriPristup(fajlovi).pale.map((p) => p.ime);
 }
 
-describe("čuvar pristupa", () => {
+describe("čuvar pristupa (strogi, od C07)", () => {
   test("pada na javnoj funkciji bez provere", () => {
     const r = proveriPristup([
       fajl(
@@ -70,7 +70,7 @@ export const b = query({ args: {}, handler: async () => null });`,
             `export const lazno = mutation({
   args: {},
   handler: async () => {
-    // requireMembership(ctx) ovde nikad nije pozvan
+    // proveriClanstvo(ctx) ovde nikad nije pozvan
     return "getAuthUserId";
   },
 });`,
@@ -79,50 +79,61 @@ export const b = query({ args: {}, handler: async () => null });`,
     ).toEqual(["lazno"]);
   });
 
-  test("prihvata postojeće provere direktno u telu", () => {
+  // Ulazi tri testa ispod su isti kao u čuvaru iz C01, koji je priznavao
+  // proveru po imenu (nekadašnji requireMembership / requireMembershipIn,
+  // ovde neutralno ime `proveriClanstvo`, i getAuthUserId). Od C07 ime provere
+  // više ne važi kao provera: sirova registracija pada (plan C02 §9).
+
+  test("ime provere u telu više ne važi: sirova registracija pada", () => {
     const r = proveriPristup([
       fajl(
         "foo.ts",
         SERVER +
-          `import { requireMembership, requireMembershipIn } from "./lib/auth";
+          `import { proveriClanstvo, proveriClanstvoU } from "./lib/auth";
 import { getAuthUserId } from "@convex-dev/auth/server";
-export const a = query({ args: {}, handler: async (ctx) => (await requireMembership(ctx)).workspaceId });
+export const a = query({ args: {}, handler: async (ctx) => (await proveriClanstvo(ctx)).workspaceId });
 export const b = action({ args: {}, handler: async (ctx) => { await getAuthUserId(ctx); } });
-export const c = mutation({ args: {}, handler: async (ctx, a) => { await requireMembershipIn(ctx, a.w); } });`,
+export const c = mutation({ args: {}, handler: async (ctx, a) => { await proveriClanstvoU(ctx, a.w); } });`,
       ),
     ]);
-    expect(r.pale).toEqual([]);
-    expect(r.proverene.map((f) => f.ime)).toEqual(["a", "b", "c"]);
+    expect(r.omotacem).toEqual([]);
+    expect(r.pale.map((p) => [p.ime, p.vrsta])).toEqual([
+      ["a", "query"],
+      ["b", "action"],
+      ["c", "mutation"],
+    ]);
+    expect(r.pale[0].razlog).toMatch(/omotača/);
   });
 
-  test("prihvata pomoćnu funkciju iz istog fajla i uvezenu iz drugog", () => {
-    const r = proveriPristup([
-      fajl(
-        "lib/kontekst.ts",
-        `import { requireMembership } from "./auth";
+  test("pomoćna funkcija iz istog fajla ili uvezena ne spasava sirovu registraciju", () => {
+    expect(
+      imenaPalih([
+        fajl(
+          "lib/kontekst.ts",
+          `import { proveriClanstvo } from "./auth";
 export async function mojProstor(ctx: unknown) {
-  return (await requireMembership(ctx)).workspaceId;
+  return (await proveriClanstvo(ctx)).workspaceId;
 }`,
-      ),
-      fajl(
-        "foo.ts",
-        SERVER +
-          `import { mojProstor } from "./lib/kontekst";
+        ),
+        fajl(
+          "foo.ts",
+          SERVER +
+            `import { mojProstor } from "./lib/kontekst";
 const lokalna = async (ctx: unknown) => mojProstor(ctx);
 export const a = query({ args: {}, handler: async (ctx) => lokalna(ctx) });
 export const b = query({ args: {}, handler: async (ctx) => mojProstor(ctx) });`,
-      ),
-    ]);
-    expect(r.pale).toEqual([]);
+        ),
+      ]),
+    ).toEqual(["a", "b"]);
   });
 
-  test("poziv interne funkcije koja proverava se računa, zakazivanje lanca ne", () => {
+  test("poziv interne funkcije koja proverava ne spasava sirovu registraciju", () => {
     const fajlovi = [
       fajl(
         "store.ts",
         SERVER +
-          `import { requireMembership } from "./lib/auth";
-export const kontekst = internalQuery({ args: {}, handler: async (ctx) => requireMembership(ctx) });
+          `import { proveriClanstvo } from "./lib/auth";
+export const kontekst = internalQuery({ args: {}, handler: async (ctx) => proveriClanstvo(ctx) });
 export const posao = internalMutation({ args: {}, handler: async (ctx) => {
   await ctx.scheduler.runAfter(0, internal.store.kontekst, {});
 } });`,
@@ -138,7 +149,7 @@ export const losa = action({ args: {}, handler: async (ctx) => {
 } });`,
       ),
     ];
-    expect(imenaPalih(fajlovi)).toEqual(["losa"]);
+    expect(imenaPalih(fajlovi)).toEqual(["dobra", "losa"]);
   });
 
   test("interne funkcije i pomoćne funkcije se ne proveravaju", () => {
@@ -151,7 +162,7 @@ export const losa = action({ args: {}, handler: async (ctx) => {
 export async function pomoc() { return 1; }`,
         ),
       ]),
-    ).toEqual({ omotacem: [], proverene: [], javne: [], pale: [] });
+    ).toEqual({ omotacem: [], javne: [], pale: [] });
   });
 
   test("prepoznaje preimenovan uvoz registracije", () => {
@@ -205,5 +216,29 @@ export const sirovo = query({ args: {}, handler: async () => null });`,
     expect(convexPreskace("pristup.test.ts")).toBe(true);
     expect(convexPreskace("lib/projekat.ts")).toBe(false);
     expect(convexPreskace("projekti.ts")).toBe(false);
+  });
+
+  test("omotač (i preimenovan) i `// javno: <razlog>` prolaze, sirova funkcija pored njih pada", () => {
+    const r = proveriPristup([
+      fajl("lib/projekat.ts", SERVER + "export const projekatQuery = 1;"),
+      fajl(
+        "veze.ts",
+        SERVER +
+          `import { projekatAction as akcija, prijavljenQuery, platformaQuery } from "./lib/projekat";
+export const sinhronizuj = akcija({ uloga: "owner", args: {}, handler: async () => null });
+export const moji = prijavljenQuery({ args: {}, handler: async () => [] });
+export const zdravlje = platformaQuery({ args: {}, handler: async () => [] });
+// javno: OAuth povratak; projekat nosi potpisano stanje
+export const povratak = action({ args: {}, handler: async () => null });
+export const zaboravljena = mutation({ args: {}, handler: async () => null });`,
+      ),
+    ]);
+    expect(r.omotacem.map((f) => [f.ime, f.vrsta, f.omotac])).toEqual([
+      ["sinhronizuj", "action", "projekatAction"],
+      ["moji", "query", "prijavljenQuery"],
+      ["zdravlje", "query", "platformaQuery"],
+    ]);
+    expect(r.javne.map((f) => f.ime)).toEqual(["povratak"]);
+    expect(r.pale.map((f) => f.ime)).toEqual(["zaboravljena"]);
   });
 });

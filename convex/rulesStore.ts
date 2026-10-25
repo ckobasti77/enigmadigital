@@ -1,12 +1,7 @@
-import {
-  internalMutation,
-  internalQuery,
-  mutation,
-  query,
-} from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership, requireWorkspaceAccess } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 
 export const metricValidator = v.union(
   v.literal("cpa"),
@@ -77,22 +72,16 @@ export const TEMPLATE_RULES = [
 // ── Public Queries & Mutations ───────────────────────────────────────────────
 
 /**
- * List all rules for the current workspace.
+ * List all rules for the current project.
  */
-export const listRules = query({
-  args: {
-    workspaceId: v.optional(v.id("workspaces")),
-  },
-  handler: async (ctx, args) => {
-    // Prosleđeni prostor mora biti pozivaočev; bez njega važi njegov sopstveni.
-    const { workspaceId: targetWorkspaceId } = await requireWorkspaceAccess(
-      ctx,
-      args.workspaceId,
-    );
+export const listRules = projekatQuery({
+  args: {},
+  handler: async (ctx) => {
+    const { workspaceId } = ctx.projekat;
 
     const rules = await ctx.db
       .query("rules")
-      .withIndex("by_workspace", (q) => q.eq("workspaceId", targetWorkspaceId))
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .collect();
 
     return rules;
@@ -100,28 +89,22 @@ export const listRules = query({
 });
 
 /**
- * Ensures template rules exist for the workspace if table is empty.
+ * Ensures template rules exist for the project if it has none yet.
  */
-export const ensureTemplateRules = mutation({
-  args: {
-    workspaceId: v.optional(v.id("workspaces")),
-  },
-  handler: async (ctx, args) => {
-    // Prosleđeni prostor mora biti pozivaočev; bez njega važi njegov sopstveni.
-    const { workspaceId: targetWorkspaceId } = await requireWorkspaceAccess(
-      ctx,
-      args.workspaceId,
-    );
+export const ensureTemplateRules = projekatMutation({
+  args: {},
+  handler: async (ctx) => {
+    const { workspaceId } = ctx.projekat;
 
     const existing = await ctx.db
       .query("rules")
-      .withIndex("by_workspace", (q) => q.eq("workspaceId", targetWorkspaceId))
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .collect();
 
     if (existing.length === 0) {
       for (const tpl of TEMPLATE_RULES) {
         await ctx.db.insert("rules", {
-          workspaceId: targetWorkspaceId,
+          workspaceId,
           name: tpl.name,
           scope: tpl.scope,
           condition: tpl.condition,
@@ -139,12 +122,12 @@ export const ensureTemplateRules = mutation({
 /**
  * Get a single rule by ID.
  */
-export const getRule = query({
+export const getRule = projekatQuery({
   args: {
     ruleId: v.id("rules"),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rule = await ctx.db.get(args.ruleId);
     if (!rule || rule.workspaceId !== workspaceId) {
       return null;
@@ -156,9 +139,9 @@ export const getRule = query({
 /**
  * Create a new rule.
  */
-export const createRule = mutation({
+export const createRule = projekatMutation({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     name: v.string(),
     scope: scopeValidator,
     condition: ruleConditionValidator,
@@ -167,16 +150,9 @@ export const createRule = mutation({
     enabled: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const { workspaceId, userId } = await requireMembership(ctx);
-    // B4: u red se upisuje autor, pa red mora da ode u radni prostor POZIVAOCA.
-    // Bez ove provere je `args.workspaceId` mogao da bude tuđi.
-    if (args.workspaceId !== undefined && args.workspaceId !== workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-    const targetWorkspaceId = workspaceId;
+    // Omotač je proverio da je pozivalac vlasnik baš ovog projekta; u red se
+    // upisuje on kao autor.
+    const { workspaceId, userId } = ctx.projekat;
 
     if (!args.name.trim()) {
       throw new ConvexError({
@@ -214,7 +190,7 @@ export const createRule = mutation({
     }
 
     const ruleId = await ctx.db.insert("rules", {
-      workspaceId: targetWorkspaceId,
+      workspaceId,
       name: args.name.trim(),
       scope: args.scope,
       condition: args.condition,
@@ -231,7 +207,8 @@ export const createRule = mutation({
 /**
  * Update an existing rule.
  */
-export const updateRule = mutation({
+export const updateRule = projekatMutation({
+  uloga: "owner",
   args: {
     ruleId: v.id("rules"),
     name: v.string(),
@@ -242,7 +219,7 @@ export const updateRule = mutation({
     enabled: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const existing = await ctx.db.get(args.ruleId);
     if (!existing || existing.workspaceId !== workspaceId) {
       throw new ConvexError({
@@ -302,12 +279,13 @@ export const updateRule = mutation({
 /**
  * Delete a rule and its firing history.
  */
-export const deleteRule = mutation({
+export const deleteRule = projekatMutation({
+  uloga: "owner",
   args: {
     ruleId: v.id("rules"),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const existing = await ctx.db.get(args.ruleId);
     if (!existing || existing.workspaceId !== workspaceId) {
       throw new ConvexError({
@@ -334,13 +312,14 @@ export const deleteRule = mutation({
 /**
  * Toggle enabled status of a rule.
  */
-export const toggleRule = mutation({
+export const toggleRule = projekatMutation({
+  uloga: "owner",
   args: {
     ruleId: v.id("rules"),
     enabled: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const existing = await ctx.db.get(args.ruleId);
     if (!existing || existing.workspaceId !== workspaceId) {
       throw new ConvexError({
@@ -389,18 +368,18 @@ export const listRuleFiringsInternal = internalQuery({
 /**
  * List firing history for the workspace or specific rule.
  */
-export const listRuleFirings = query({
+export const listRuleFirings = projekatQuery({
   args: {
     ruleId: v.optional(v.id("rules")),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const limit = args.limit ?? 50;
 
     let firings;
     if (args.ruleId) {
-      // Istorija tuđeg pravila se ne čita: pravilo mora biti iz ovog prostora.
+      // Istorija tuđeg pravila se ne čita: pravilo mora biti iz ovog projekta.
       const rule = await ctx.db.get(args.ruleId);
       if (rule === null || rule.workspaceId !== workspaceId) return [];
       firings = await ctx.db

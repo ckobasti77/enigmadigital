@@ -124,12 +124,12 @@ describe("neprijavljen poziv pada", () => {
 
     await odbijeno(t.query(api.rulesStore.listRules, { workspaceId: s.wsA }), "unauthorized");
     await odbijeno(t.mutation(api.rulesStore.ensureTemplateRules, { workspaceId: s.wsA }), "unauthorized");
-    await odbijeno(t.action(api.rules.manualEvaluateRules, {}), "unauthorized");
+    await odbijeno(t.action(api.rules.manualEvaluateRules, { workspaceId: s.wsA }), "unauthorized");
     await odbijeno(t.action(api.rules.manualEvaluateRules, { workspaceId: s.wsA }), "unauthorized");
     for (const fn of GADS_CITANJA) {
       await odbijeno(t.query(fn, { workspaceId: s.wsA }), "unauthorized");
     }
-    await odbijeno(t.query(api.metaAdsStore.getAdById, { adId }), "unauthorized");
+    await odbijeno(t.query(api.metaAdsStore.getAdById, { workspaceId: s.wsA, adId }), "unauthorized");
     await odbijeno(t.query(api.metaCapiStore.getCapiStats, { workspaceId: s.wsA }), "unauthorized");
     await odbijeno(
       t.mutation(api.attribution.recordOpenReplyConversion, { workspaceId: s.wsA }),
@@ -184,17 +184,22 @@ describe("član projekta A ne može ništa nad projektom B", () => {
     await odbijeno(ana.action(api.rules.manualEvaluateRules, { workspaceId: s.wsB }), "forbidden");
 
     // Istorija i ručno pokretanje tuđeg pravila preko ID-a ne rade ništa.
-    expect(await ana.query(api.rulesStore.listRuleFirings, { ruleId: praviloB })).toEqual([]);
-    const rezultat = await ana.action(api.rules.manualEvaluateRules, { ruleId: praviloB });
+    expect(
+      await ana.query(api.rulesStore.listRuleFirings, { workspaceId: s.wsA, ruleId: praviloB }),
+    ).toEqual([]);
+    const rezultat = await ana.action(api.rules.manualEvaluateRules, {
+      workspaceId: s.wsA,
+      ruleId: praviloB,
+    });
     expect(rezultat.evaluatedRulesCount).toBe(0);
 
     // Sopstveni prostor radi kao ranije (sa i bez prosleđenog ID-a).
-    expect(await ana.query(api.rulesStore.listRules, {})).toEqual([]);
+    expect(await ana.query(api.rulesStore.listRules, { workspaceId: s.wsA })).toEqual([]);
     await ana.mutation(api.rulesStore.ensureTemplateRules, { workspaceId: s.wsA });
     const mojaPravila = await ana.query(api.rulesStore.listRules, { workspaceId: s.wsA });
     expect(mojaPravila.length).toBeGreaterThan(0);
     expect(mojaPravila.every((r) => r.workspaceId === s.wsA)).toBe(true);
-    const moje = await ana.action(api.rules.manualEvaluateRules, {});
+    const moje = await ana.action(api.rules.manualEvaluateRules, { workspaceId: s.wsA });
     expect(moje.evaluatedRulesCount).toBe(0); // šabloni su isključeni
 
     // B-ova pravila su netaknuta.
@@ -209,7 +214,10 @@ describe("član projekta A ne može ništa nad projektom B", () => {
 
   test("ručno pokretanje pravila traži vlasnika", async () => {
     const s = await napraviSvet();
-    await odbijeno(kao(s, s.viewer).action(api.rules.manualEvaluateRules, {}), "forbidden");
+    await odbijeno(
+      kao(s, s.viewer).action(api.rules.manualEvaluateRules, { workspaceId: s.wsA }),
+      "forbidden",
+    );
   });
 
   test("Google oglasi: sedam čitanja", async () => {
@@ -218,7 +226,7 @@ describe("član projekta A ne može ništa nad projektom B", () => {
     for (const fn of GADS_CITANJA) {
       await odbijeno(ana.query(fn, { workspaceId: s.wsB }), "forbidden");
       await ana.query(fn, { workspaceId: s.wsA });
-      await ana.query(fn, {});
+      await ana.query(fn, { workspaceId: s.wsA });
     }
   });
 
@@ -228,15 +236,30 @@ describe("član projekta A ne može ništa nad projektom B", () => {
     const oglasB = await napraviOglas(s, s.wsB);
     const ana = kao(s, s.ana);
 
-    await odbijeno(ana.query(api.metaAdsStore.getAdById, { adId: oglasB }), "forbidden");
-    expect((await ana.query(api.metaAdsStore.getAdById, { adId: oglasA }))?._id).toBe(oglasA);
+    await odbijeno(
+      ana.query(api.metaAdsStore.getAdById, { workspaceId: s.wsA, adId: oglasB }),
+      "forbidden",
+    );
     expect(
-      await ana.query(api.metaAdsStore.listAdInsights, { adId: oglasB, from: "2026-01-01", to: "2026-12-31" }),
+      (await ana.query(api.metaAdsStore.getAdById, { workspaceId: s.wsA, adId: oglasA }))?._id,
+    ).toBe(oglasA);
+    expect(
+      await ana.query(api.metaAdsStore.listAdInsights, {
+        workspaceId: s.wsA,
+        adId: oglasB,
+        from: "2026-01-01",
+        to: "2026-12-31",
+      }),
     ).toEqual([]);
 
     const setB = await s.t.run(async (ctx) => (await ctx.db.get(oglasB))!.adSetId);
     await expect(
-      ana.mutation(api.metaAdsStore.pinBattle, { adSetId: setB, from: "2026-01-01", to: "2026-01-31" }),
+      ana.mutation(api.metaAdsStore.pinBattle, {
+        workspaceId: s.wsA,
+        adSetId: setB,
+        from: "2026-01-01",
+        to: "2026-01-31",
+      }),
     ).rejects.toThrow();
   });
 

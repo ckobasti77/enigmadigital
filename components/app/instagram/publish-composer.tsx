@@ -9,7 +9,6 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
   CalendarClock,
@@ -157,7 +156,7 @@ type PublishingLimit = {
 };
 
 export function PublishComposer() {
-  const connections = useQuery(api.connections.list);
+  const connections = useProjekatQuery(api.connections.list);
   const jobs = useProjekatQuery(api.instagramPublishStore.listJobs);
   const generateUploadUrl = useProjekatMutation(
     api.instagramPublishStore.generateUploadUrl,

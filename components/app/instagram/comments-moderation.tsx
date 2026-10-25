@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
 import {
   AtSign,
   EyeOff,
@@ -81,7 +80,7 @@ export function CommentsModeration() {
   const [search, setSearch] = useState("");
   const [selection, setSelection] = useState<Set<string>>(new Set());
 
-  const connections = useQuery(api.connections.list);
+  const connections = useProjekatQuery(api.connections.list);
   const counts = useProjekatQuery(api.igCommentsStore.filterCounts);
   const threads = useProjekatQuery(
     api.igCommentsStore.listThreads,

@@ -1,6 +1,6 @@
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { requireMembership } from "./lib/auth";
+import { platformaQuery } from "./lib/projekat";
 import {
   hasSignatureSecret,
   signatureFailureReason,
@@ -105,13 +105,15 @@ const routeHealthValidator = v.object({
   secretConfigured: v.boolean(),
 });
 
-/** Signature health per route, for the Settings cards. */
-export const status = query({
+/**
+ * Signature health per route, for the Settings cards. The counters and the
+ * webhook secrets belong to the whole platform, not to one project, so only
+ * the platform owner reads them (plan C02, D1).
+ */
+export const status = platformaQuery({
   args: {},
   returns: v.array(routeHealthValidator),
   handler: async (ctx) => {
-    await requireMembership(ctx);
-
     const routes: WebhookRoute[] = ["instagram", "facebook", "threads"];
     const out = [];
     for (const route of routes) {

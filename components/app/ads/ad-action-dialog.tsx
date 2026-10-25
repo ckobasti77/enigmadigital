@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { ConvexError } from "convex/values";
 import {
   Dialog,
@@ -86,7 +89,7 @@ function AdActionDialogInner({
   onSuccess,
 }: AdActionDialogProps) {
   // Live target context from database
-  const liveContext = useQuery(api.adActionsStore.getTargetContext, {
+  const liveContext = useProjekatQuery(api.adActionsStore.getTargetContext, {
     targetType,
     targetId,
   });
@@ -121,9 +124,9 @@ function AdActionDialogInner({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Actions
-  const pauseResumeAction = useAction(api.adActions.pauseResume);
-  const changeBudgetAction = useAction(api.adActions.changeBudget);
-  const duplicateAdAction = useAction(api.adActions.duplicateAd);
+  const pauseResumeAction = useProjekatAction(api.adActions.pauseResume);
+  const changeBudgetAction = useProjekatAction(api.adActions.changeBudget);
+  const duplicateAdAction = useProjekatAction(api.adActions.duplicateAd);
 
   // Budget calculations and guardrails
   const newBudgetNum = parseFloat(newBudgetStr);

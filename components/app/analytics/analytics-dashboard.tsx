@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Activity, ChartNoAxesColumn, Info, Radio, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -43,7 +42,7 @@ const COMPACT_GRID =
  * jednom pogledu nisu dozvoljena.
  */
 export function AnalyticsHeaderAction() {
-  const connections = useQuery(api.connections.list);
+  const connections = useProjekatQuery(api.connections.list);
   if (!connections?.some((c) => c.provider === "ga4")) return null;
   return (
     <Button
@@ -68,7 +67,7 @@ export function AnalyticsHeaderAction() {
  */
 export function AnalyticsDashboard() {
   const { range } = useDateRange();
-  const connections = useQuery(api.connections.list);
+  const connections = useProjekatQuery(api.connections.list);
   // Stale-while-loading: switching the range keeps the last numbers on screen
   // (the tiles tween to the new ones) instead of flashing skeletons.
   const currentRows = useProjekatQuery(api.analytics.daily, {

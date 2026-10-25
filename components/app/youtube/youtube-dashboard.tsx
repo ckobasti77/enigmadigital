@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
 import {
   ChartNoAxesColumn,
   Clock,
@@ -64,7 +63,7 @@ const DESCRIPTION =
  */
 export function YouTubeDashboard() {
   const { range } = useDateRange();
-  const connections = useQuery(api.connections.list);
+  const connections = useProjekatQuery(api.connections.list);
 
   const currentRows = useProjekatQuery(api.youtubeStore.dailyTotals, {
     from: range.from,

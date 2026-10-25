@@ -31,7 +31,7 @@ import {
   useNapredak,
   useSada,
 } from "./napredak/use-napredak";
-import { useWorkspace } from "./workspace-provider";
+import { useProjekat } from "./projekat-provider";
 
 /**
  * ============================================================================
@@ -325,7 +325,7 @@ function SidebarFooter({
   rail: boolean;
   settingsActive: boolean;
 }) {
-  const { workspace, user, isLoading } = useWorkspace();
+  const { ime, korisnik, spreman } = useProjekat();
   const napredak = useNapredak();
   const sada = useSada();
   const item = settingsNavItem;
@@ -338,11 +338,11 @@ function SidebarFooter({
       )}
     >
       <PlayerCard
-        loading={isLoading}
+        loading={!spreman}
         rail={rail}
-        initials={initialsOf(user?.name ?? user?.email ?? workspace?.name)}
-        title={workspace?.name ?? "Radni prostor"}
-        subtitle={user?.email ?? undefined}
+        initials={initialsOf(korisnik?.ime ?? korisnik?.email ?? ime)}
+        title={ime ?? "Projekat"}
+        subtitle={korisnik?.email ?? undefined}
         progress={napredakZaKarticu(napredak, sada)}
         href={screenExists(NAPREDAK_HREF) ? NAPREDAK_HREF : undefined}
         className={rail ? "w-11" : "flex-1"}

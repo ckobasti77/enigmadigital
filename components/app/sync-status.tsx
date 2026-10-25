@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Disc } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -65,12 +65,12 @@ const AGE_TICK_MS = 10_000;
 
 /** `undefined` dok odgovor ne stigne. */
 function useSyncState(): { tone: Tone; headline: string } | undefined {
-  const entries = useQuery(api.sync.health);
+  const entries = useProjekatQuery(api.sync.health);
   // Kada su podaci na ekranu poslednji put postali svežiji. Namerno NIJE
   // „poslednja sinhronizacija": većina osvežavanja su sada mali ciljani
   // prolazi koji ne otvaraju red u istoriji, i traka bi tvrdila da je ekran
   // star šest sati dok se kartica ispod nje promenila pre četrdeset sekundi.
-  const freshAt = useQuery(api.sync.freshness);
+  const freshAt = useProjekatQuery(api.sync.freshness);
 
   useTicker(AGE_TICK_MS);
 

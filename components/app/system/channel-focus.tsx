@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Activity, Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Provider } from "@/convex/lib/providers";
@@ -143,8 +143,8 @@ export function ChannelFocusSkeleton() {
 export function useChannelSync(provider: Provider):
   | { connected: boolean; lastSyncAt: number | null; syncFailed: boolean }
   | undefined {
-  const connections = useQuery(api.connections.list);
-  const health = useQuery(api.sync.health);
+  const connections = useProjekatQuery(api.connections.list);
+  const health = useProjekatQuery(api.sync.health);
   if (connections === undefined || health === undefined) return undefined;
 
   const connection = connections.find((c) => c.provider === provider);

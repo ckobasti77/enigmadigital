@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import { ExternalLink, RotateCcw, LoaderCircle } from "lucide-react";
@@ -9,6 +8,11 @@ import { api } from "@/convex/_generated/api";
 import type { Provider } from "@/convex/lib/providers";
 import { Button } from "@/components/ui/button";
 import { FeedbackNote } from "@/components/app/feedback";
+import {
+  useProjekat,
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import {
   GOOGLE_PERMISSIONS_URL,
   META_BUSINESS_APPS_URL,
@@ -32,7 +36,7 @@ export type PurgeRunView = FunctionReturnType<typeof api.purge.status>[number];
 
 /** Poslednje brisanje za jedan servis; `undefined` dok se upit učitava. */
 export function usePurgeRun(provider: Provider): PurgeRunView | null | undefined {
-  const runs = useQuery(api.purge.status);
+  const runs = useProjekatQuery(api.purge.status);
   if (runs === undefined) return undefined;
   return runs.find((run) => run.provider === provider) ?? null;
 }
@@ -40,13 +44,13 @@ export function usePurgeRun(provider: Provider): PurgeRunView | null | undefined
 /**
  * Da li korisnik sme da prekine vezu.
  *
- * Ista provera koju server radi (`requireOwner`), samo ranije: dugme koje puca
- * na klik je gore od dugmeta kojeg nema.
+ * Ista provera koju server radi (omotač projekta sa ulogom vlasnika), samo
+ * ranije: dugme koje puca na klik je gore od dugmeta kojeg nema.
  */
 export function useIsWorkspaceOwner(): boolean | undefined {
-  const context = useQuery(api.workspaces.currentContext);
-  if (context === undefined) return undefined;
-  return context?.role === "owner";
+  const { spreman, uloga } = useProjekat();
+  if (!spreman) return undefined;
+  return uloga === "owner";
 }
 
 function formatDateTime(value: number): string {
@@ -139,7 +143,7 @@ function RevokeNote({ run }: { run: PurgeRunView }) {
  */
 export function PurgeNotice({ provider }: { provider: Provider }) {
   const run = usePurgeRun(provider);
-  const retry = useMutation(api.purge.retry);
+  const retry = useProjekatMutation(api.purge.retry);
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
 

@@ -3,7 +3,6 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { projekatQuery } from "./lib/projekat";
 import { providerValidator } from "./lib/providers";
-import { ulogaValidator } from "./lib/uloge";
 
 /**
  * ============================================================================
@@ -119,28 +118,6 @@ export const storyRowValidator = v.object({
 });
 
 // ── Internal Queries & Mutations (for Sync & Token Actions) ──────────────────
-
-/**
- * Look up workspace membership for an authenticated user.
- */
-export const getMembership = internalQuery({
-  args: { userId: v.id("users") },
-  returns: v.union(
-    v.null(),
-    v.object({
-      workspaceId: v.id("workspaces"),
-      role: ulogaValidator,
-    }),
-  ),
-  handler: async (ctx, { userId }) => {
-    const membership = await ctx.db
-      .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .first();
-    if (!membership) return null;
-    return { workspaceId: membership.workspaceId, role: membership.role };
-  },
-});
 
 /**
  * Look up connection for a workspace and provider.

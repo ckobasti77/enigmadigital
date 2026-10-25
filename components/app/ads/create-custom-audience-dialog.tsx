@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAction } from "convex/react";
+import { useProjekatAction } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import {
   Dialog,
@@ -38,7 +38,7 @@ export function CreateCustomAudienceDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const createCustomAudience = useAction(api.metaAds.createCustomAudienceAction);
+  const createCustomAudience = useProjekatAction(api.metaAds.createCustomAudienceAction);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

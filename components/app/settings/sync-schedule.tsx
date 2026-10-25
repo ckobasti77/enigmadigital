@@ -1,6 +1,5 @@
 "use client";
 
-import { useQuery } from "convex/react";
 import { Gauge, Timer } from "lucide-react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
@@ -196,7 +195,7 @@ function MetaUsageLine() {
  * a ovaj red je jedino mesto gde se to vidi. Ćuti dok se ništa ne probije.
  */
 function RouteCapLine() {
-  const capped = useQuery(api.publicRouteLimit.routeUsageStatus);
+  const capped = useProjekatQuery(api.publicRouteLimit.routeUsageStatus);
   if (capped === undefined || capped.length === 0) return null;
 
   const label = (route: string): string =>

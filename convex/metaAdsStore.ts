@@ -1,8 +1,8 @@
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { providerValidator } from "./lib/providers";
-import { requireMembership, requireMembershipIn, requireWorkspaceAccess } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import {
   QUOTA_TTL_MS,
   determineGateState,
@@ -349,21 +349,22 @@ export const upsertStructure = internalMutation({
 });
 
 /**
- * Public query for fetching a single ad by ID — only an ad of a workspace the
- * caller belongs to (it used to return any workspace's ad to anyone).
+ * Public query for fetching a single ad by ID — only an ad of the project the
+ * caller belongs to (ad of another project is forbidden).
  */
-export const getAdById = query({
+export const getAdById = projekatQuery({
   args: {
     adId: v.id("ads"),
   },
   handler: async (ctx, { adId }) => {
     const ad = await ctx.db.get(adId);
-    if (ad === null) {
-      // Postojanje oglasa ne otkriva se neprijavljenom pozivaocu.
-      await requireMembership(ctx);
-      return null;
+    if (ad === null) return null;
+    if (ad.workspaceId !== ctx.projekat.workspaceId) {
+      throw new ConvexError({
+        code: "forbidden",
+        message: "Nemaš pristup ovom projektu.",
+      });
     }
-    await requireMembershipIn(ctx, ad.workspaceId);
     return ad;
   },
 });
@@ -450,12 +451,12 @@ export const getAdCreativeByAdId = internalQuery({
 /**
  * Public query for reading creative details and preview for an ad.
  */
-export const getAdCreative = query({
+export const getAdCreative = projekatQuery({
   args: {
     adId: v.id("ads"),
   },
   handler: async (ctx, { adId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const creative = await ctx.db
       .query("adCreatives")
       .withIndex("by_ad", (q) => q.eq("adId", adId))
@@ -820,10 +821,10 @@ export const getAccounts = internalQuery({
 
 // ── Public Queries (for Dashboards & Hook Battle) ────────────────────────────
 
-export const listAccounts = query({
+export const listAccounts = projekatQuery({
   args: {},
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     return await ctx.db
       .query("adAccounts")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
@@ -831,13 +832,13 @@ export const listAccounts = query({
   },
 });
 
-export const getAccountCurrency = query({
+export const getAccountCurrency = projekatQuery({
   args: {
     accountId: v.optional(v.union(v.id("adAccounts"), v.string())),
   },
   handler: async (ctx, { accountId }) => {
     if (!accountId) return null;
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     try {
       const byId = await ctx.db.get(accountId as Id<"adAccounts">);
@@ -868,10 +869,10 @@ export const getAccountCurrency = query({
  * povezani u ovom radnom prostoru — potrebni za sastavljanje kreativa
  * (object_story_spec.page_id / instagram_actor_id).
  */
-export const getCreationContext = query({
+export const getCreationContext = projekatQuery({
   args: {},
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const fb = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>
@@ -899,10 +900,10 @@ export const getCreationContext = query({
  * Objave Facebook stranice za promociju (object_story_id = fbPagePosts.postId,
  * već u obliku <page_id>_<post_id>). Najnovije prvo, bez obrisanih.
  */
-export const listPagePostsForCreative = query({
+export const listPagePostsForCreative = projekatQuery({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("fbPagePosts")
       .withIndex("by_workspace_published", (q) => q.eq("workspaceId", workspaceId))
@@ -921,13 +922,13 @@ export const listPagePostsForCreative = query({
   },
 });
 
-export const listCampaigns = query({
+export const listCampaigns = projekatQuery({
   args: {
     accountId: v.optional(v.id("adAccounts")),
     syncPriority: v.optional(v.union(v.literal("hot"), v.literal("cold"))),
   },
   handler: async (ctx, { accountId, syncPriority }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     if (accountId) {
       return await ctx.db
         .query("adCampaigns")
@@ -953,12 +954,12 @@ export const listCampaigns = query({
   },
 });
 
-export const listAdSets = query({
+export const listAdSets = projekatQuery({
   args: {
     campaignId: v.id("adCampaigns"),
   },
   handler: async (ctx, { campaignId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     return await ctx.db
       .query("adSets")
       .withIndex("by_workspace_campaign", (q) =>
@@ -968,12 +969,12 @@ export const listAdSets = query({
   },
 });
 
-export const listAds = query({
+export const listAds = projekatQuery({
   args: {
     adSetId: v.id("adSets"),
   },
   handler: async (ctx, { adSetId }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     return await ctx.db
       .query("ads")
       .withIndex("by_workspace_adset", (q) =>
@@ -983,14 +984,14 @@ export const listAds = query({
   },
 });
 
-export const listAdInsights = query({
+export const listAdInsights = projekatQuery({
   args: {
     adId: v.id("ads"),
     from: v.string(), // "YYYY-MM-DD"
     to: v.string(),   // "YYYY-MM-DD"
   },
   handler: async (ctx, { adId, from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     // Uvidi tuđeg oglasa se ne čitaju: oglas mora biti iz ovog prostora.
     const ad = await ctx.db.get(adId);
     if (ad === null || ad.workspaceId !== workspaceId) return [];
@@ -1017,14 +1018,14 @@ function generateDateKeys(from: string, to: string): string[] {
 /**
  * Aggregated campaigns report for the `/ads` table with sparklines and date filtering.
  */
-export const getCampaignsReport = query({
+export const getCampaignsReport = projekatQuery({
   args: {
     accountId: v.optional(v.id("adAccounts")),
     from: v.string(),
     to: v.string(),
   },
   handler: async (ctx, { accountId, from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     // 1. Fetch campaigns
     let campaignsQuery = ctx.db
@@ -1224,14 +1225,14 @@ export const getCampaignsReport = query({
 /**
  * Full campaign hierarchy with ad sets, ads, per-ad metrics, and sparklines.
  */
-export const getCampaignHierarchy = query({
+export const getCampaignHierarchy = projekatQuery({
   args: {
     campaignId: v.id("adCampaigns"),
     from: v.string(),
     to: v.string(),
   },
   handler: async (ctx, { campaignId, from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const campaign = await ctx.db.get(campaignId);
     if (!campaign || campaign.workspaceId !== workspaceId) {
@@ -1459,14 +1460,14 @@ export const getCampaignHierarchy = query({
 /**
  * Deep drill-down panel metrics for a single ad (core metrics, video funnel, heat table, placement split, hourly pattern).
  */
-export const getAdDrilldown = query({
+export const getAdDrilldown = projekatQuery({
   args: {
     adId: v.id("ads"),
     from: v.string(),
     to: v.string(),
   },
   handler: async (ctx, { adId, from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const ad = await ctx.db.get(adId);
     if (!ad || ad.workspaceId !== workspaceId) return null;
@@ -1850,13 +1851,13 @@ export const getAdDrilldown = query({
 /**
  * Inline edit / update custom hook label on an ad.
  */
-export const setHookLabel = mutation({
+export const setHookLabel = projekatMutation({
   args: {
     adId: v.id("ads"),
     hookLabel: v.string(),
   },
   handler: async (ctx, { adId, hookLabel }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const ad = await ctx.db.get(adId);
     if (!ad || ad.workspaceId !== workspaceId) {
       throw new Error("Oglas nije pronađen ili nemate pristup.");
@@ -1872,14 +1873,14 @@ export const setHookLabel = mutation({
 /**
  * Deep comparison data for all creative versions inside an ad set.
  */
-export const getHookBattle = query({
+export const getHookBattle = projekatQuery({
   args: {
     adSetId: v.id("adSets"),
     from: v.string(),
     to: v.string(),
   },
   handler: async (ctx, { adSetId, from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const adSet = await ctx.db.get(adSetId);
     if (!adSet || adSet.workspaceId !== workspaceId) {
@@ -2076,7 +2077,7 @@ export const getHookBattle = query({
 /**
  * Pin a hook battle for later reference.
  */
-export const pinBattle = mutation({
+export const pinBattle = projekatMutation({
   args: {
     adSetId: v.id("adSets"),
     from: v.string(),
@@ -2084,7 +2085,7 @@ export const pinBattle = mutation({
     name: v.optional(v.string()),
   },
   handler: async (ctx, { adSetId, from, to, name }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const adSet = await ctx.db.get(adSetId);
     if (adSet === null || adSet.workspaceId !== workspaceId) {
       throw new ConvexError({
@@ -2123,14 +2124,14 @@ export const pinBattle = mutation({
 /**
  * Unpin a hook battle.
  */
-export const unpinBattle = mutation({
+export const unpinBattle = projekatMutation({
   args: {
     adSetId: v.id("adSets"),
     from: v.string(),
     to: v.string(),
   },
   handler: async (ctx, { adSetId, from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("pinnedBattles")
       .withIndex("by_workspace_adset", (q) =>
@@ -2149,10 +2150,10 @@ export const unpinBattle = mutation({
 /**
  * List all pinned battles for the current workspace.
  */
-export const listPinnedBattles = query({
+export const listPinnedBattles = projekatQuery({
   args: {},
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const pinned = await ctx.db
       .query("pinnedBattles")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
@@ -2427,7 +2428,7 @@ export const advanceBackfill = internalMutation({
  * Vraća `null` dok nijedan poziv nije prošao — widget tada ćuti umesto da
  * prikaže nulu koju niko nije izmerio.
  */
-export const quotaStatus = query({
+export const quotaStatus = projekatQuery({
   args: {},
   returns: v.union(
     v.null(),
@@ -2445,7 +2446,7 @@ export const quotaStatus = query({
     }),
   ),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const row = await ctx.db
       .query("metaAdsQuota")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
@@ -2620,9 +2621,8 @@ export const recordAudienceTos = internalMutation({
  * Rule 3: Date.now() is NOT called inside Convex query.
  * When row does not exist, returns status: "unknown" (not "not_accepted").
  */
-export const getAudienceTos = query({
+export const getAudienceTos = projekatQuery({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     adAccountId: v.optional(v.id("adAccounts")),
   },
   returns: v.object({
@@ -2638,7 +2638,7 @@ export const getAudienceTos = query({
     externalId: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireWorkspaceAccess(ctx, args.workspaceId);
+    const { workspaceId } = ctx.projekat;
     let account = null;
     if (args.adAccountId) {
       account = await ctx.db.get(args.adAccountId);
@@ -2691,13 +2691,12 @@ export const getAudienceTosInternal = internalQuery({
 /**
  * Public query listing custom and lookalike audiences for workspace.
  */
-export const listAudiences = query({
+export const listAudiences = projekatQuery({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     adAccountId: v.optional(v.id("adAccounts")),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireWorkspaceAccess(ctx, args.workspaceId);
+    const { workspaceId } = ctx.projekat;
 
     // Indeks po nalogu ne zna za prostor: redovi tuđeg naloga se izbacuju.
     const rows = args.adAccountId

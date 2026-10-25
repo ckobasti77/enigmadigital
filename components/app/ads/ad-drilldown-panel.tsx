@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -119,7 +119,7 @@ export function AdDrilldownPanel({
   const [openPreviewDialog, setOpenPreviewDialog] = useState(false);
   const panelRef = usePanelDismiss(onClose);
 
-  const data = useQuery(api.metaAdsStore.getAdDrilldown, {
+  const data = useProjekatQuery(api.metaAdsStore.getAdDrilldown, {
     adId,
     from,
     to,

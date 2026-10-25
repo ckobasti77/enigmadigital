@@ -42,12 +42,6 @@ import { FIXTURES_PROJEKTI, PRAZNO_PROJEKTI } from "./fixtures-projekti";
 
 // ── Ljuska ───────────────────────────────────────────────────────────────────
 
-const currentContext: R<typeof api.workspaces.currentContext> = {
-  user: { id: USER, email: "operater@example.com", name: "Test Operater" },
-  workspace: { id: WS, name: "Enigma IT (probni)", slug: "enigma-probni" },
-  role: "owner",
-};
-
 const connections: R<typeof api.connections.list> = [
   {
     _id: "conn_ga4_test" as Id<"connections">,
@@ -1019,7 +1013,6 @@ const postsPrazno: R<typeof api.postsPublic.listPublished> = {
 // ── Razrešavanje po imenu funkcije ───────────────────────────────────────────
 
 const FIXTURES: Record<string, Fixture> = {
-  [getFunctionName(api.workspaces.currentContext)]: () => currentContext,
   [getFunctionName(api.connections.list)]: () => connections,
   [getFunctionName(api.sync.health)]: () => syncHealth,
   [getFunctionName(api.sync.freshness)]: () => freshness,

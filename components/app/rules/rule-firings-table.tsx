@@ -1,8 +1,8 @@
 "use client";
 
-import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Chip } from "@/components/app/system/chip";
 import { EmptyState } from "@/components/app/system/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,7 +26,7 @@ const TARGET_LABEL: Record<string, string> = {
  * izmerenu vrednost, radnju i da li je mejl poslat.
  */
 export function RuleFiringsTable({ ruleId }: RuleFiringsTableProps) {
-  const firings = useQuery(api.rulesStore.listRuleFirings, {
+  const firings = useProjekatQuery(api.rulesStore.listRuleFirings, {
     ruleId,
     limit: 100,
   });

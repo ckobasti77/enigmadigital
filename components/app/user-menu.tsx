@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
 import { LogOut, Settings, Trophy } from "lucide-react";
 import {
   DropdownMenu,
@@ -13,11 +14,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { NAPREDAK_HREF, screenExists, settingsNavItem } from "./nav-items";
 import { SyncStatusLine } from "./sync-status";
 import { PlayerAvatar, initialsOf } from "./system/player-card";
-import { useWorkspace } from "./workspace-provider";
+import { useProjekat } from "./projekat-provider";
 
 /**
  * Meni korisnika u gornjoj traci (UI Boost §7.2).
@@ -36,7 +38,10 @@ const ITEM =
   "h-8 cursor-pointer gap-2.5 px-2 text-ui text-text-secondary data-highlighted:bg-foreground/8 data-highlighted:text-foreground [&_svg]:text-text-muted data-highlighted:[&_svg]:text-foreground";
 
 export function UserMenu({ className }: { className?: string }) {
-  const { user, workspace, isLoading } = useWorkspace();
+  // Nalog ne zavisi od projekta (`projekti.ja` radi i u hubu); ime projekta
+  // daje provider kad ga ima.
+  const ja = useQuery(api.projekti.ja);
+  const { ime: imeProjekta } = useProjekat();
   const { signOut } = useAuthActions();
   const router = useRouter();
 
@@ -46,14 +51,14 @@ export function UserMenu({ className }: { className?: string }) {
     router.push("/login");
   }
 
-  if (isLoading) {
+  if (ja === undefined) {
     return (
       <Skeleton className={cn("size-11 rounded-full md:size-8", className)} />
     );
   }
 
-  const name = user?.name ?? user?.email ?? "Nalog";
-  const initials = initialsOf(user?.name ?? user?.email ?? workspace?.name);
+  const name = ja.ime ?? ja.email ?? "Nalog";
+  const initials = initialsOf(ja.ime ?? ja.email ?? imeProjekta);
 
   return (
     <DropdownMenu>
@@ -77,12 +82,12 @@ export function UserMenu({ className }: { className?: string }) {
       >
         <div className="px-2 pb-2 pt-1.5">
           <p className="truncate text-ui font-medium text-foreground">{name}</p>
-          {user?.name && user.email && (
-            <p className="truncate text-meta text-text-muted">{user.email}</p>
+          {ja.ime && ja.email && (
+            <p className="truncate text-meta text-text-muted">{ja.email}</p>
           )}
-          {workspace?.name && (
+          {imeProjekta && (
             <p className="truncate text-meta text-text-muted">
-              {workspace.name}
+              {imeProjekta}
             </p>
           )}
           <SyncStatusLine className="mt-2" />

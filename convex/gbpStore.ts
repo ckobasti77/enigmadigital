@@ -1,6 +1,6 @@
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 import { clearFinishedRuns } from "./purge";
 import { connectionStatusValidator } from "./lib/providers";
 import { getGbpClientId, getGbpClientSecret } from "./lib/gbpApi";
@@ -216,9 +216,9 @@ export const recordAccessOutcome = internalMutation({
 });
 
 /**
- * Vraća stanje pristupa Google Business API-ju za aktivni radni prostor prijavljenog korisnika.
+ * Vraća stanje pristupa Google Business API-ju za projekat prijavljenog korisnika.
  */
-export const getAccessState = query({
+export const getAccessState = projekatQuery({
   args: {},
   returns: v.union(
     v.null(),
@@ -235,7 +235,7 @@ export const getAccessState = query({
     }),
   ),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     return await ctx.db
       .query("gbAccessState")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
@@ -246,13 +246,12 @@ export const getAccessState = query({
 /**
  * Proverava da li su Google Business OAuth env promenljive konfigurisane.
  */
-export const setupInfo = query({
+export const setupInfo = projekatQuery({
   args: {},
   returns: v.object({
     isConfigured: v.boolean(),
   }),
-  handler: async (ctx) => {
-    await requireMembership(ctx);
+  handler: async () => {
     const clientId = getGbpClientId();
     const clientSecret = getGbpClientSecret();
     return {

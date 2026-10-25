@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useAction } from "convex/react";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,14 +29,14 @@ export function CapiSection() {
   } | null>(null);
 
   const [clientNowSec] = useState(() => Math.floor(Date.now() / 1000));
-  const stats = useQuery(api.metaCapiStore.getCapiStats, { nowSec: clientNowSec });
-  const triggerDispatch = useAction(api.metaCapi.triggerCapiDispatchAction);
+  const stats = useProjekatQuery(api.metaCapiStore.getCapiStats, { nowSec: clientNowSec });
+  const triggerDispatch = useProjekatAction(api.metaCapi.triggerCapiDispatchAction);
 
   const handleManualDispatch = async () => {
     setDispatching(true);
     setFeedback(null);
     try {
-      const res = await triggerDispatch({});
+      const res = await triggerDispatch();
       if (res.skipped) {
         setFeedback({
           tone: "warning",

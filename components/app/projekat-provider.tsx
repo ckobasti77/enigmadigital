@@ -37,8 +37,8 @@ import {
  * Izvor projekta:
  *   - od C08: slug iz rute `[projekat]` (prop `slug`) i režim iz zaglavlja;
  *   - do C08 (privremeno, SAMO na frontu): prvi projekat korisnika, tj.
- *     `mojiProjekti[0]` — isti red koji backend danas vraća iz
- *     `requireMembership().first()`. Backend nikad ne bira projekat sam.
+ *     `mojiProjekti[0]` — isti red koji je backend do C07 birao kao „prvo
+ *     članstvo“. Backend nikad ne bira projekat sam.
  *
  * Upiti čekaju potvrđenu sesiju (`useConvexAuth`), pa provider sme da stoji
  * iznad `AppShell`-ovog `<Authenticated>`.

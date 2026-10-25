@@ -1,8 +1,8 @@
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import type { WithoutSystemFields } from "convex/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership, requireWorkspaceAccess } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 import {
   calculateRollingQuota,
   getGoogleAdsDailyLimit,
@@ -1643,17 +1643,10 @@ export const upsertGoogleAdsData = internalMutation({
 /**
  * Dohvata podatke o Google Ads assetima, njihovim performansama i kombinacijama (GA7).
  */
-export const getGoogleAdsAssets = query({
-  args: {
-    workspaceId: v.optional(v.id("workspaces")),
-  },
-  handler: async (ctx, args) => {
-    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
-    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
-    const { workspaceId: wsId } = await requireWorkspaceAccess(
-      ctx,
-      args.workspaceId,
-    );
+export const getGoogleAdsAssets = projekatQuery({
+  args: {},
+  handler: async (ctx) => {
+    const { workspaceId: wsId } = ctx.projekat;
 
     const assets = await ctx.db
       .query("gadsAssets")
@@ -1682,17 +1675,10 @@ export const getGoogleAdsAssets = query({
  * Dohvata kompletnu strukturu Google Ads naloga za radni prostor (GA3).
  * Vraća nalog, MCC hijerarhiju (customer_client), kampanje sa budžetima i kriterijume ciljanja.
  */
-export const getGoogleAdsStructure = query({
-  args: {
-    workspaceId: v.optional(v.id("workspaces")),
-  },
-  handler: async (ctx, args) => {
-    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
-    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
-    const { workspaceId: wsId } = await requireWorkspaceAccess(
-      ctx,
-      args.workspaceId,
-    );
+export const getGoogleAdsStructure = projekatQuery({
+  args: {},
+  handler: async (ctx) => {
+    const { workspaceId: wsId } = ctx.projekat;
 
     const account = await ctx.db
       .query("adAccounts")
@@ -1765,17 +1751,10 @@ export const getGoogleAdsStructure = query({
 /**
  * Dohvata listu konverzionih akcija definisanih na nalogu (GA4 B1).
  */
-export const getGoogleAdsConversionActions = query({
-  args: {
-    workspaceId: v.optional(v.id("workspaces")),
-  },
-  handler: async (ctx, args) => {
-    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
-    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
-    const { workspaceId: wsId } = await requireWorkspaceAccess(
-      ctx,
-      args.workspaceId,
-    );
+export const getGoogleAdsConversionActions = projekatQuery({
+  args: {},
+  handler: async (ctx) => {
+    const { workspaceId: wsId } = ctx.projekat;
 
     return await ctx.db
       .query("gadsConversionActions")
@@ -1787,17 +1766,10 @@ export const getGoogleAdsConversionActions = query({
 /**
  * Dohvata listu budžeta sa vezanim kampanjama i izvedenim limitima potrošnje (GA3 B2, B3 & GA4 A1, A2).
  */
-export const getGoogleAdsBudgets = query({
-  args: {
-    workspaceId: v.optional(v.id("workspaces")),
-  },
-  handler: async (ctx, args) => {
-    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
-    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
-    const { workspaceId: wsId } = await requireWorkspaceAccess(
-      ctx,
-      args.workspaceId,
-    );
+export const getGoogleAdsBudgets = projekatQuery({
+  args: {},
+  handler: async (ctx) => {
+    const { workspaceId: wsId } = ctx.projekat;
 
     const budgets = await ctx.db
       .query("gadsBudgets")
@@ -1845,9 +1817,8 @@ export const getGoogleAdsBudgets = query({
  * zbir prikaza po search terminima je UVEK manji ili jednak ukupnom broju prikaza kampanje.
  * Ta razlika se prikazuje kao podatak bez izmišljene stavke "ostalo".
  */
-export const getGoogleAdsSearchTerms = query({
+export const getGoogleAdsSearchTerms = projekatQuery({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     campaignId: v.optional(v.id("adCampaigns")),
     campaignExternalId: v.optional(v.string()),
     adGroupId: v.optional(v.id("adSets")),
@@ -1855,12 +1826,7 @@ export const getGoogleAdsSearchTerms = query({
     to: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
-    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
-    const { workspaceId: wsId } = await requireWorkspaceAccess(
-      ctx,
-      args.workspaceId,
-    );
+    const { workspaceId: wsId } = ctx.projekat;
 
     const fromDate = args.from ?? "1970-01-01";
     const toDate = args.to ?? "2099-12-31";
@@ -2028,18 +1994,12 @@ export const getGoogleAdsSearchTerms = query({
 /**
  * Dohvata deljene negativne liste (shared_set + shared_criterion) i negativne kriterijume kampanja (GA5 B5).
  */
-export const getGoogleAdsNegativeKeywords = query({
+export const getGoogleAdsNegativeKeywords = projekatQuery({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     campaignId: v.optional(v.id("adCampaigns")),
   },
-  handler: async (ctx, args) => {
-    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
-    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
-    const { workspaceId: wsId } = await requireWorkspaceAccess(
-      ctx,
-      args.workspaceId,
-    );
+  handler: async (ctx) => {
+    const { workspaceId: wsId } = ctx.projekat;
 
     const sharedSets = await ctx.db
       .query("gadsSharedSets")
@@ -2138,7 +2098,7 @@ export const getGoogleAdsNegativeKeywords = query({
 /**
  * Fetch keyword quality scores and metrics report for a campaign, ad group, or workspace (GA5 B1, B2).
  */
-export const getKeywordQualityReport = query({
+export const getKeywordQualityReport = projekatQuery({
   args: {
     campaignId: v.optional(v.id("adCampaigns")),
     adGroupId: v.optional(v.id("adSets")),
@@ -2146,7 +2106,7 @@ export const getKeywordQualityReport = query({
     to: v.string(),
   },
   handler: async (ctx, { campaignId, adGroupId, from, to }) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     let recordsQuery = ctx.db
       .query("gadsKeywordQuality")
@@ -2311,21 +2271,15 @@ export const getKeywordQualityReport = query({
  *   - Demografiju (B4): age_range_view i gender_view (sa očuvanim UNDETERMINED).
  *   - Pokrivenost i pravilo B5: zbir po segmentima nije jednak zbiru kampanje; označeno kao razlaganje.
  */
-export const getGoogleAdsSegments = query({
+export const getGoogleAdsSegments = projekatQuery({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     campaignId: v.optional(v.id("adCampaigns")),
     campaignExternalId: v.optional(v.string()),
     from: v.optional(v.string()),
     to: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Prosleđeni prostor mora biti pozivaočev (ranije se uzimao bez ikakve
-    // provere, pa ga je mogao pročitati bilo ko); bez njega važi sopstveni.
-    const { workspaceId: wsId } = await requireWorkspaceAccess(
-      ctx,
-      args.workspaceId,
-    );
+    const { workspaceId: wsId } = ctx.projekat;
 
     const fromDate = args.from ?? "1970-01-01";
     const toDate = args.to ?? "2099-12-31";

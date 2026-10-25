@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useMutation, useQuery } from "convex/react";
 import { Check, Copy, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -20,7 +19,11 @@ import {
 import { Field } from "@/components/app/form-kit";
 import { FeedbackNote } from "@/components/app/feedback";
 import { StatusPill } from "./status-pill";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import {
+  useProjekat,
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { formatDateTime } from "@/lib/format";
 
 type ZapisStatus = "vazi" | "istekla" | "iskoriscena" | "povucena";
@@ -52,16 +55,16 @@ function porukaGreske(error: unknown): string {
 type NovaPozivnica = { token: string; email: string; expiresAt: number };
 
 export function InvitesPanel() {
-  const { workspace } = useWorkspace();
-  const workspaceId = workspace?.id as Id<"workspaces"> | undefined;
+  const { spreman, uloga } = useProjekat();
+  const jeVlasnik = uloga === "owner";
 
-  const invites = useQuery(
+  const invites = useProjekatQuery(
     api.invitesStore.listInvites,
-    workspaceId ? { workspaceId } : "skip",
+    jeVlasnik ? {} : "skip",
   );
-  const createInvite = useMutation(api.invitesStore.createInvite);
-  const revokeInvite = useMutation(api.invitesStore.revokeInvite);
-  const deleteInvite = useMutation(api.invitesStore.deleteInvite);
+  const createInvite = useProjekatMutation(api.invitesStore.createInvite);
+  const revokeInvite = useProjekatMutation(api.invitesStore.revokeInvite);
+  const deleteInvite = useProjekatMutation(api.invitesStore.deleteInvite);
 
   const [email, setEmail] = useState("");
   const [radim, setRadim] = useState(false);
@@ -78,15 +81,19 @@ export function InvitesPanel() {
       }/pozivnica/${nova.token}`
     : "";
 
+  // Pozivnice pravi i vidi samo vlasnik projekta (isto kao tokeni ispod):
+  // pozivnica je novi nalog sa pristupom projektu.
+  if (!jeVlasnik) return null;
+
   async function napravi(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    if (!workspaceId || radim) return;
+    if (!spreman || radim) return;
     setGreska(null);
     setNova(null);
     setKopirano(false);
     setRadim(true);
     try {
-      const rezultat = await createInvite({ workspaceId, email: email.trim() });
+      const rezultat = await createInvite({ email: email.trim() });
       setNova(rezultat);
       setEmail("");
     } catch (error) {
@@ -108,10 +115,10 @@ export function InvitesPanel() {
   }
 
   async function povuci(inviteId: Id<"invites">) {
-    if (!workspaceId || povlacim) return;
+    if (!spreman || povlacim) return;
     setPovlacim(inviteId);
     try {
-      await revokeInvite({ workspaceId, inviteId });
+      await revokeInvite({ inviteId });
     } catch (error) {
       console.error("Povlačenje pozivnice nije uspelo");
       setGreska(porukaGreske(error));
@@ -121,10 +128,10 @@ export function InvitesPanel() {
   }
 
   async function obrisi(inviteId: Id<"invites">) {
-    if (!workspaceId || brisem) return;
+    if (!spreman || brisem) return;
     setBrisem(inviteId);
     try {
-      await deleteInvite({ workspaceId, inviteId });
+      await deleteInvite({ inviteId });
     } catch (error) {
       console.error("Brisanje pozivnice nije uspelo");
       setGreska(porukaGreske(error));
@@ -158,14 +165,14 @@ export function InvitesPanel() {
                   setEmail(e.target.value);
                   setGreska(null);
                 }}
-                disabled={radim || !workspaceId}
+                disabled={radim || !spreman}
                 className="h-10"
               />
             )}
           </Field>
           <Button
             type="submit"
-            disabled={radim || !workspaceId || email.trim().length === 0}
+            disabled={radim || !spreman || email.trim().length === 0}
             className="h-10 shrink-0"
           >
             {radim ? (

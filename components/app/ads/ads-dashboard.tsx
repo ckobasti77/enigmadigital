@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useDateRange } from "@/components/app/date-range-picker";
@@ -85,21 +85,21 @@ function AdsHeader({ canCreate }: { canCreate: boolean }) {
  */
 export function AdsDashboard() {
   const { range } = useDateRange();
-  const connections = useQuery(api.connections.list);
+  const connections = useProjekatQuery(api.connections.list);
   const [selectedCampaignId, setSelectedCampaignId] = useState<Id<"adCampaigns"> | null>(null);
   const [selectedBattleAdSetId, setSelectedBattleAdSetId] = useState<Id<"adSets"> | null>(null);
 
-  const report = useQuery(api.metaAdsStore.getCampaignsReport, {
+  const report = useProjekatQuery(api.metaAdsStore.getCampaignsReport, {
     from: range.from,
     to: range.to,
   });
   // Isti upit za prethodni period iste dužine — jedini izvor poređenja.
-  const previousReport = useQuery(api.metaAdsStore.getCampaignsReport, {
+  const previousReport = useProjekatQuery(api.metaAdsStore.getCampaignsReport, {
     from: range.prevFrom,
     to: range.prevTo,
   });
 
-  const pinnedBattles = useQuery(api.metaAdsStore.listPinnedBattles);
+  const pinnedBattles = useProjekatQuery(api.metaAdsStore.listPinnedBattles);
 
   const metaSync = useChannelSync("meta_ads");
   const googleSync = useChannelSync("google_ads");

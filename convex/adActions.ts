@@ -1,9 +1,9 @@
 "use node";
 
-import { action, type ActionCtx } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { projekatAction, type Projekat } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
 import {
@@ -126,28 +126,14 @@ interface TargetInfo {
   internalId?: string;
 }
 
+/**
+ * Članstvo je već proverio omotač `projekatAction`; ovde se samo nalazi veza i
+ * dešifruje token za projekat iz `ctx.projekat`.
+ */
 async function resolveAuthAndToken(
   ctx: ActionCtx,
-  explicitWorkspaceId?: Id<"workspaces">,
+  { userId, workspaceId }: Pick<Projekat, "userId" | "workspaceId">,
 ): Promise<ResolvedAuth> {
-  const userId = await getAuthUserId(ctx);
-  if (!userId) {
-    throw new ConvexError({
-      code: "unauthorized",
-      message: "Niste prijavljeni.",
-    });
-  }
-
-  // Get user's active workspace
-  const workspaceRes: { workspaceId: Id<"workspaces"> } = await ctx.runQuery(
-    internal.adActionsStore.resolveUserWorkspace,
-    {
-      userId,
-      explicitWorkspaceId,
-    },
-  );
-  const workspaceId = workspaceRes.workspaceId;
-
   // Fetch Meta Ads connection
   const conn: {
     _id: Id<"connections">;
@@ -162,7 +148,7 @@ async function resolveAuthAndToken(
   if (!conn) {
     throw new ConvexError({
       code: "missing_connection",
-      message: "Meta Ads integracija nije povezana u ovom radnom prostoru.",
+      message: "Meta Ads integracija nije povezana u ovom projektu.",
     });
   }
 
@@ -191,9 +177,9 @@ export interface PauseResumeResult {
   status: "ACTIVE" | "PAUSED";
 }
 
-export const pauseResume = action({
+export const pauseResume = projekatAction({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     targetType: v.union(
       v.literal("campaign"),
       v.literal("adset"),
@@ -219,7 +205,7 @@ export const pauseResume = action({
     // 2. Resolve Auth & Access Token
     const { userId, workspaceId, accessToken } = await resolveAuthAndToken(
       ctx,
-      args.workspaceId,
+      ctx.projekat,
     );
 
     // 3. Fetch Target Details for context
@@ -325,9 +311,9 @@ export interface ChangeBudgetResult {
   newDailyBudget: number;
 }
 
-export const changeBudget = action({
+export const changeBudget = projekatAction({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     targetType: v.union(v.literal("campaign"), v.literal("adset")),
     targetId: v.string(), // externalId
     newDailyBudget: v.number(), // Daily budget in EUR
@@ -346,7 +332,7 @@ export const changeBudget = action({
     // 2. Resolve Auth & Access Token
     const { userId, workspaceId, accessToken } = await resolveAuthAndToken(
       ctx,
-      args.workspaceId,
+      ctx.projekat,
     );
 
     // 3. Fetch Target Details
@@ -521,9 +507,9 @@ export interface DuplicateAdResult {
   status: "PAUSED";
 }
 
-export const duplicateAd = action({
+export const duplicateAd = projekatAction({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     adId: v.string(), // externalId of ad
     newName: v.optional(v.string()),
   },
@@ -534,7 +520,7 @@ export const duplicateAd = action({
     // 2. Resolve Auth & Access Token
     const { userId, workspaceId, accessToken } = await resolveAuthAndToken(
       ctx,
-      args.workspaceId,
+      ctx.projekat,
     );
 
     // 3. Fetch Target Details
@@ -654,9 +640,9 @@ export interface CreateHookVersionResult {
   status: "PAUSED";
 }
 
-export const createHookVersion = action({
+export const createHookVersion = projekatAction({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     sourceAdId: v.string(), // externalId of source ad
     newName: v.string(),
     hookLabel: v.string(),
@@ -697,7 +683,7 @@ export const createHookVersion = action({
     // 3. Resolve Auth & Access Token
     const { userId, workspaceId, accessToken } = await resolveAuthAndToken(
       ctx,
-      args.workspaceId,
+      ctx.projekat,
     );
 
     // 4. GUARDRAIL: Max copies per ad set (MAX_HOOK_COPIES, default 5)
@@ -1036,7 +1022,7 @@ async function resolveMetaAccount(
     throw new ConvexError({
       code: "missing_account",
       message:
-        "Izabrani Meta nalog nije pronađen u ovom radnom prostoru. Pokreni sinhronizaciju naloga pa pokušaj ponovo.",
+        "Izabrani Meta nalog nije pronađen u ovom projektu. Pokreni sinhronizaciju naloga pa pokušaj ponovo.",
     });
   }
   return {
@@ -1188,9 +1174,9 @@ export interface CreateCampaignFullResult {
   message?: string;
 }
 
-export const createCampaignFull = action({
+export const createCampaignFull = projekatAction({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     accountExternalId: v.string(),
     requestId: v.string(),
     campaign: campaignArgValidator,
@@ -1204,7 +1190,7 @@ export const createCampaignFull = action({
     // 2. Auth + izabrani nalog
     const { userId, workspaceId, accessToken } = await resolveAuthAndToken(
       ctx,
-      args.workspaceId,
+      ctx.projekat,
     );
     const account = await resolveMetaAccount(ctx, workspaceId, args.accountExternalId);
 
@@ -1413,9 +1399,9 @@ export interface ValidateCampaignPlanResult {
  * dodatno proverava tek pri kreiranju (validate_only im traži pravi roditeljski
  * id, koga u suvom prolazu nema). Ništa se ne kreira.
  */
-export const validateCampaignPlan = action({
+export const validateCampaignPlan = projekatAction({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     accountExternalId: v.string(),
     campaign: campaignArgValidator,
     adSet: adSetArgValidator,
@@ -1424,7 +1410,7 @@ export const validateCampaignPlan = action({
   handler: async (ctx, args): Promise<ValidateCampaignPlanResult> => {
     assertWriteEnabled();
 
-    const { workspaceId, accessToken } = await resolveAuthAndToken(ctx, args.workspaceId);
+    const { workspaceId, accessToken } = await resolveAuthAndToken(ctx, ctx.projekat);
     const account = await resolveMetaAccount(ctx, workspaceId, args.accountExternalId);
 
     const campaignInput = toCampaignInput(args.campaign);
@@ -1519,33 +1505,14 @@ interface ResolvedGoogleAdsAuth {
   loginCustomerId?: string;
 }
 
+/**
+ * Članstvo i uloga vlasnika (B7) već su proverene u omotaču
+ * `projekatAction({ uloga: "owner" })`; ovde se samo nalazi veza i token.
+ */
 async function resolveGoogleAdsAuth(
   ctx: ActionCtx,
-  explicitWorkspaceId?: Id<"workspaces">,
+  { userId, workspaceId }: Pick<Projekat, "userId" | "workspaceId">,
 ): Promise<ResolvedGoogleAdsAuth> {
-  const userId = await getAuthUserId(ctx);
-  if (!userId) {
-    throw new ConvexError({
-      code: "unauthorized",
-      message: "Niste prijavljeni.",
-    });
-  }
-
-  const workspaceRes: { workspaceId: Id<"workspaces">; role?: string } =
-    await ctx.runQuery(internal.adActionsStore.resolveUserWorkspace, {
-      userId,
-      explicitWorkspaceId,
-    });
-  const workspaceId = workspaceRes.workspaceId;
-
-  // B7: Pisanje traži rolu owner. client_viewer ne piše.
-  if (workspaceRes.role !== "owner") {
-    throw new ConvexError({
-      code: "forbidden",
-      message: "Ovu radnju može da izvede samo vlasnik radnog prostora (owner).",
-    });
-  }
-
   const conn: {
     _id: Id<"connections">;
     encryptedCredentials: string;
@@ -1560,7 +1527,7 @@ async function resolveGoogleAdsAuth(
   if (!conn || !conn.externalId) {
     throw new ConvexError({
       code: "missing_connection",
-      message: "Google Ads integracija nije povezana u ovom radnom prostoru.",
+      message: "Google Ads integracija nije povezana u ovom projektu.",
     });
   }
 
@@ -1611,9 +1578,9 @@ export interface CreateGoogleAdsCampaignResult {
   result: unknown;
 }
 
-export const createGoogleAdsCampaignFull = action({
+export const createGoogleAdsCampaignFull = projekatAction({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     campaign: v.object({
       name: v.string(),
       channelType: v.string(),
@@ -1658,7 +1625,7 @@ export const createGoogleAdsCampaignFull = action({
     assertWriteEnabled();
 
     // 2. Auth & Role (B7: owner only) + Credentials
-    const auth = await resolveGoogleAdsAuth(ctx, args.workspaceId);
+    const auth = await resolveGoogleAdsAuth(ctx, ctx.projekat);
     const {
       userId,
       workspaceId,
@@ -1805,9 +1772,9 @@ export interface ValidateGoogleAdsCampaignPlanResult {
   validateOnlyError?: string;
 }
 
-export const validateGoogleAdsCampaignPlan = action({
+export const validateGoogleAdsCampaignPlan = projekatAction({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     campaign: v.object({
       name: v.string(),
       channelType: v.string(),
@@ -1849,7 +1816,7 @@ export const validateGoogleAdsCampaignPlan = action({
   },
   handler: async (ctx, args): Promise<ValidateGoogleAdsCampaignPlanResult> => {
     assertWriteEnabled();
-    const auth = await resolveGoogleAdsAuth(ctx, args.workspaceId);
+    const auth = await resolveGoogleAdsAuth(ctx, ctx.projekat);
     const {
       workspaceId,
       accessToken,
@@ -1970,9 +1937,9 @@ export interface ChangeGoogleAdsBudgetResult {
   confirmationWarning: string;
 }
 
-export const changeGoogleAdsBudget = action({
+export const changeGoogleAdsBudget = projekatAction({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     campaignId: v.string(), // externalId
     budgetId: v.string(), // externalId of budget
     newDailyBudget: v.number(),
@@ -1986,7 +1953,7 @@ export const changeGoogleAdsBudget = action({
       });
     }
 
-    const auth = await resolveGoogleAdsAuth(ctx, args.workspaceId);
+    const auth = await resolveGoogleAdsAuth(ctx, ctx.projekat);
     const {
       userId,
       workspaceId,
@@ -2143,9 +2110,9 @@ export interface PauseResumeGoogleAdsResult {
   status: "ACTIVE" | "PAUSED";
 }
 
-export const pauseResumeGoogleAds = action({
+export const pauseResumeGoogleAds = projekatAction({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     campaignId: v.string(), // externalId
     desiredStatus: v.union(
       v.literal("ACTIVE"),
@@ -2175,7 +2142,7 @@ export const pauseResumeGoogleAds = action({
       });
     }
 
-    const auth = await resolveGoogleAdsAuth(ctx, args.workspaceId);
+    const auth = await resolveGoogleAdsAuth(ctx, ctx.projekat);
     const {
       userId,
       workspaceId,

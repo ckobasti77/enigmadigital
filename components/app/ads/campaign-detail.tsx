@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
@@ -77,7 +77,7 @@ function KeywordQualitySection({
   to: string;
   currency?: string;
 }) {
-  const report = useQuery(api.googleAdsStore.getKeywordQualityReport, {
+  const report = useProjekatQuery(api.googleAdsStore.getKeywordQualityReport, {
     campaignId,
     from,
     to,
@@ -258,7 +258,7 @@ export function CampaignDetail({
     actionType: AdActionType;
   } | null>(null);
 
-  const data = useQuery(api.metaAdsStore.getCampaignHierarchy, {
+  const data = useProjekatQuery(api.metaAdsStore.getCampaignHierarchy, {
     campaignId,
     from,
     to,

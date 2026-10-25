@@ -36,7 +36,6 @@ import {
   resolveScreen,
   type ModuleKey,
 } from "./nav-items";
-import { WorkspaceProvider } from "./workspace-provider";
 
 gsap.registerPlugin(useGSAP);
 
@@ -137,9 +136,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </Unauthenticated>
 
       <Authenticated>
-        <WorkspaceProvider>
-          <ShellFrame modul={modul}>{children}</ShellFrame>
-        </WorkspaceProvider>
+        <ShellFrame modul={modul}>{children}</ShellFrame>
       </Authenticated>
     </>
   );

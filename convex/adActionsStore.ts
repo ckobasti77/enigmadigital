@@ -1,11 +1,7 @@
-import {
-  internalMutation,
-  internalQuery,
-  query,
-} from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 
 export const actionTypeValidator = v.union(
   v.literal("pause"),
@@ -30,43 +26,6 @@ export const actionStatusValidator = v.union(
   v.literal("error"),
   v.literal("blocked"),
 );
-
-export const resolveUserWorkspace = internalQuery({
-  args: {
-    userId: v.id("users"),
-    explicitWorkspaceId: v.optional(v.id("workspaces")),
-  },
-  handler: async (ctx, args) => {
-    if (args.explicitWorkspaceId) {
-      const membership = await ctx.db
-        .query("members")
-        .withIndex("by_user", (q) => q.eq("userId", args.userId))
-        .filter((q) => q.eq(q.field("workspaceId"), args.explicitWorkspaceId))
-        .first();
-      if (!membership) {
-        throw new ConvexError({
-          code: "forbidden",
-          message: "Nemate pristup navedenom radnom prostoru.",
-        });
-      }
-      return { workspaceId: args.explicitWorkspaceId, role: membership.role };
-    }
-
-    const membership = await ctx.db
-      .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .first();
-
-    if (!membership) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate dodeljen radni prostor.",
-      });
-    }
-
-    return { workspaceId: membership.workspaceId, role: membership.role };
-  },
-});
 
 export const getMetaConnectionForWorkspace = internalQuery({
   args: { workspaceId: v.id("workspaces") },
@@ -311,13 +270,13 @@ export const getTargetForAction = internalQuery({
 });
 
 // Client query for dialog context
-export const getTargetContext = query({
+export const getTargetContext = projekatQuery({
   args: {
     targetType: targetTypeValidator,
     targetId: v.string(),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     // Reuse internal query logic
     const today = new Date().toISOString().slice(0, 10);
     let name = "";
@@ -736,7 +695,7 @@ const auditActionRowValidator = v.object({
   ),
 });
 
-export const listActions = query({
+export const listActions = projekatQuery({
   args: {
     targetType: v.optional(
       v.union(
@@ -759,7 +718,7 @@ export const listActions = query({
   },
   returns: v.array(auditActionRowValidator),
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const limit = args.limit ?? 100;
 
     const rows = await ctx.db
@@ -822,10 +781,10 @@ export const listActions = query({
   },
 });
 
-export const getActionStats = query({
+export const getActionStats = projekatQuery({
   args: {},
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const rows = await ctx.db
       .query("adActions")
@@ -938,12 +897,12 @@ export const getSourceAdForHookVersion = internalQuery({
   },
 });
 
-export const getAdCreativeDetails = query({
+export const getAdCreativeDetails = projekatQuery({
   args: {
     adExternalId: v.string(),
   },
   handler: async (ctx, args) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const ad = await ctx.db
       .query("ads")

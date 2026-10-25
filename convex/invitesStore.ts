@@ -2,7 +2,8 @@ import { internalQuery, mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { deleteLoginMachinery, requireMembership } from "./lib/auth";
+import { deleteLoginMachinery } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import {
   normalizeEmail,
   isEmailInAllowlist,
@@ -90,9 +91,9 @@ function generateToken(): string {
 // ─────────────────────────────────────────────────────────────────────────────
 // createInvite — vlasnik pravi pozivnicu (§4.1). JEDINI put kad sirovi token izlazi.
 // ─────────────────────────────────────────────────────────────────────────────
-export const createInvite = mutation({
+export const createInvite = projekatMutation({
+  uloga: "owner",
   args: {
-    workspaceId: v.id("workspaces"),
     email: v.string(),
   },
   returns: v.object({
@@ -101,11 +102,6 @@ export const createInvite = mutation({
     expiresAt: v.number(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({ code: "forbidden" });
-    }
-
     const email = normalizeEmail(args.email);
     if (!email || !EMAIL_OBLIK.test(email)) {
       throw new ConvexError({
@@ -187,7 +183,7 @@ export const createInvite = mutation({
       workspaceId: args.workspaceId,
       email,
       tokenHash,
-      createdBy: membership.userId,
+      createdBy: ctx.projekat.userId,
       createdAt: now,
       expiresAt,
     });
@@ -275,8 +271,9 @@ export const pripremiRegistraciju = mutation({
 // ─────────────────────────────────────────────────────────────────────────────
 // listInvites — spisak za sekciju „Pristup" (§8). Sirov token se NE vraća.
 // ─────────────────────────────────────────────────────────────────────────────
-export const listInvites = query({
-  args: { workspaceId: v.id("workspaces") },
+export const listInvites = projekatQuery({
+  uloga: "owner",
+  args: {},
   returns: v.array(
     v.object({
       _id: v.id("invites"),
@@ -288,11 +285,6 @@ export const listInvites = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({ code: "forbidden" });
-    }
-
     const now = Date.now();
     const rows = await ctx.db
       .query("invites")
@@ -321,18 +313,13 @@ export const listInvites = query({
 // ─────────────────────────────────────────────────────────────────────────────
 // revokeInvite — povlačenje neiskorišćene pozivnice. Istorija ostaje.
 // ─────────────────────────────────────────────────────────────────────────────
-export const revokeInvite = mutation({
+export const revokeInvite = projekatMutation({
+  uloga: "owner",
   args: {
-    workspaceId: v.id("workspaces"),
     inviteId: v.id("invites"),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({ code: "forbidden" });
-    }
-
     const inv = await ctx.db.get(args.inviteId);
     if (inv === null || inv.workspaceId !== args.workspaceId) {
       throw new ConvexError({ code: "forbidden" });
@@ -359,18 +346,13 @@ export const revokeInvite = mutation({
 // pristup ne obriše slučajno. Ništa ne zavisi od `invites` reda kao stranog
 // ključa, pa je brisanje bezopasno.
 // ─────────────────────────────────────────────────────────────────────────────
-export const deleteInvite = mutation({
+export const deleteInvite = projekatMutation({
+  uloga: "owner",
   args: {
-    workspaceId: v.id("workspaces"),
     inviteId: v.id("invites"),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({ code: "forbidden" });
-    }
-
     const inv = await ctx.db.get(args.inviteId);
     if (inv === null) return null; // već obrisana — idempotentno
     if (inv.workspaceId !== args.workspaceId) {

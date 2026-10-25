@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useMutation } from "convex/react";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Input } from "@/components/ui/input";
@@ -33,7 +33,7 @@ export function HookLabelEditor({
   const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const setHookLabelMutation = useMutation(api.metaAdsStore.setHookLabel);
+  const setHookLabelMutation = useProjekatMutation(api.metaAdsStore.setHookLabel);
 
   const startEditing = () => {
     setLabel(currentLabel ?? "");

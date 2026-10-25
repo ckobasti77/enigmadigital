@@ -1,10 +1,6 @@
 import { v } from "convex/values";
-import {
-  internalMutation,
-  internalQuery,
-  query,
-} from "./_generated/server";
-import { requireWorkspaceAccess } from "./lib/auth";
+import { internalMutation, internalQuery } from "./_generated/server";
+import { projekatQuery } from "./lib/projekat";
 import { CAPI_MAX_BATCH_SIZE, hasMatchableIdentity } from "./lib/metaCapi";
 
 /**
@@ -217,9 +213,8 @@ export const markCapiEventsRejected = internalMutation({
  * Rule 1: Real 0 is 0.
  * Rule 3: Date.now() is NOT called inside Convex query.
  */
-export const getCapiStats = query({
+export const getCapiStats = projekatQuery({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     nowSec: v.optional(v.number()), // passed from client
   },
   returns: v.object({
@@ -243,11 +238,7 @@ export const getCapiStats = query({
     ),
   }),
   handler: async (ctx, args) => {
-    // Prosleđeni prostor mora biti pozivaočev; bez njega važi sopstveni.
-    const { workspaceId: targetWs } = await requireWorkspaceAccess(
-      ctx,
-      args.workspaceId,
-    );
+    const { workspaceId: targetWs } = ctx.projekat;
 
     // Check environment variables without throwing
     const missing: string[] = [];

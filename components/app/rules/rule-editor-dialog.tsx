@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -24,6 +23,7 @@ import {
 } from "@/lib/rule-sentence";
 import { cn } from "@/lib/utils";
 import { FeedbackNote } from "@/components/app/feedback";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import {
   Loader2,
   Shield,
@@ -112,8 +112,8 @@ function RuleEditorForm({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const createRuleMutation = useMutation(api.rulesStore.createRule);
-  const updateRuleMutation = useMutation(api.rulesStore.updateRule);
+  const createRuleMutation = useProjekatMutation(api.rulesStore.createRule);
+  const updateRuleMutation = useProjekatMutation(api.rulesStore.updateRule);
 
   // Live plain-language preview
   const livePreview = formatRuleSentence({

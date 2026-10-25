@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useAction } from "convex/react";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,11 +27,11 @@ import {
 } from "lucide-react";
 
 export function AudiencesView() {
-  const audiencesData = useQuery(api.metaAdsStore.listAudiences, {});
-  const tosData = useQuery(api.metaAdsStore.getAudienceTos, {});
+  const audiencesData = useProjekatQuery(api.metaAdsStore.listAudiences);
+  const tosData = useProjekatQuery(api.metaAdsStore.getAudienceTos);
 
-  const syncAudiences = useAction(api.metaAds.syncAudiencesAction);
-  const checkTos = useAction(api.metaAds.checkAudienceTosAction);
+  const syncAudiences = useProjekatAction(api.metaAds.syncAudiencesAction);
+  const checkTos = useProjekatAction(api.metaAds.checkAudienceTosAction);
 
   const [syncing, setSyncing] = useState(false);
   const [checkingTos, setCheckingTos] = useState(false);
@@ -44,7 +47,7 @@ export function AudiencesView() {
     setSyncing(true);
     setFeedback(null);
     try {
-      const res = await syncAudiences({});
+      const res = await syncAudiences();
       setFeedback({
         tone: "success",
         message: `Sinhronizovano ${res.count} publika sa Meta Marketing API-ja.`,
@@ -64,7 +67,7 @@ export function AudiencesView() {
     setCheckingTos(true);
     setFeedback(null);
     try {
-      const res = await checkTos({});
+      const res = await checkTos();
       if (res.status === "accepted") {
         setFeedback({
           tone: "success",

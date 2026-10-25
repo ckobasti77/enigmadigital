@@ -2,7 +2,6 @@
 
 import { Component, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
 import {
   ArrowUpRight,
   LineChart,
@@ -50,8 +49,8 @@ import { formatNumber, formatSignedPercent } from "@/lib/format";
 
 export function OverviewDashboard() {
   const { range } = useDateRange();
-  const connections = useQuery(api.connections.list);
-  const syncHealth = useQuery(api.sync.health);
+  const connections = useProjekatQuery(api.connections.list);
+  const syncHealth = useProjekatQuery(api.sync.health);
 
   // ── GA4 Queries ──────────────────────────────────────────────────────────
   const ga4Current = useProjekatQuery(api.analytics.daily, {

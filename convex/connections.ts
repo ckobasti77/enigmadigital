@@ -1,14 +1,17 @@
-import { query, mutation, internalQuery, action } from "./_generated/server";
+import { internalQuery } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { z } from "zod";
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 import {
   connectionStatusValidator,
   providerValidator,
   type Provider,
 } from "./lib/providers";
-import { requireMembership, requireOwner } from "./lib/auth";
+import {
+  projekatAction,
+  projekatMutation,
+  projekatQuery,
+} from "./lib/projekat";
 import { encryptCredentials } from "./lib/crypto";
 import { runSync } from "./lib/runSync";
 import { allowsManual, readGate } from "./lib/metaRateLimit";
@@ -161,15 +164,15 @@ const connectionViewValidator = v.object({
 });
 
 /**
- * Connections for the caller's workspace — SAFE fields only. The explicit
+ * Connections for the caller's project — SAFE fields only. The explicit
  * `returns` validator has no `encryptedCredentials`, so an accidental leak
  * becomes a hard runtime error. Plaintext is never fetched here at all.
  */
-export const list = query({
+export const list = projekatQuery({
   args: {},
   returns: v.array(connectionViewValidator),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>
@@ -202,7 +205,8 @@ export const list = query({
  * only look at things, must not be able to reach either. The UI already hides
  * the form from a viewer, so anyone who hits this got here some other way.
  */
-export const save = mutation({
+export const save = projekatMutation({
+  uloga: "owner",
   args: {
     provider: providerValidator,
     externalId: v.optional(v.string()),
@@ -210,7 +214,7 @@ export const save = mutation({
     secret: v.string(),
   },
   handler: async (ctx, { provider, externalId, externalIdAlt, secret }) => {
-    const { workspaceId } = await requireOwner(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const trimmedSecret = secret.trim();
     const validated = validateCredentials(
@@ -285,16 +289,16 @@ export const save = mutation({
  * is flagged `disconnecting` and stays until `purgeRuns` says the last step
  * came back empty.
  *
- * And it takes the owner role. `requireMembership` hands back any membership
- * regardless of `role`, which meant `client_viewer` — a role that exists in
- * order to only look at things — could irreversibly erase a workspace's whole
- * dataset.
+ * And it takes the owner role. Plain membership used to be enough, which meant
+ * `client_viewer` — a role that exists in order to only look at things — could
+ * irreversibly erase a project's whole dataset.
  */
-export const remove = mutation({
+export const remove = projekatMutation({
+  uloga: "owner",
   args: { connectionId: v.id("connections") },
   returns: v.null(),
   handler: async (ctx, { connectionId }) => {
-    const { workspaceId } = await requireOwner(ctx);
+    const { workspaceId } = ctx.projekat;
     const conn = await ctx.db.get(connectionId);
     if (conn === null || conn.workspaceId !== workspaceId) {
       throw new ConvexError({ code: "forbidden" });
@@ -360,9 +364,12 @@ export const listByProvider = internalQuery({
   },
 });
 
-/** Authorize a caller against a connection's workspace; returns non-secret fields. */
+/**
+ * Check that a connection belongs to the project the call came from; returns
+ * non-secret fields. Membership was already checked by the project wrapper.
+ */
 export const authorizeForSync = internalQuery({
-  args: { connectionId: v.id("connections"), userId: v.id("users") },
+  args: { connectionId: v.id("connections"), workspaceId: v.id("workspaces") },
   returns: v.union(
     v.null(),
     v.object({
@@ -370,19 +377,13 @@ export const authorizeForSync = internalQuery({
       provider: providerValidator,
     }),
   ),
-  handler: async (ctx, { connectionId, userId }) => {
+  handler: async (ctx, { connectionId, workspaceId }) => {
     const conn = await ctx.db.get(connectionId);
     if (conn === null) return null;
     // Mid-erasure the credentials are already gone (P3), so there is nothing
     // left to sync with — refuse rather than record a failed run.
     if (conn.status === "disconnecting") return null;
-    const membership = await ctx.db
-      .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .first();
-    if (membership === null || membership.workspaceId !== conn.workspaceId) {
-      return null;
-    }
+    if (conn.workspaceId !== workspaceId) return null;
     return { workspaceId: conn.workspaceId, provider: conn.provider };
   },
 });
@@ -425,15 +426,12 @@ export const getMetaAdsForWorkspace = internalQuery({
  * action, which records its own run. Providers not yet implemented fall back to
  * a no-op run so the button still gives feedback.
  */
-export const syncNow = action({
+export const syncNow = projekatAction({
   args: { connectionId: v.id("connections") },
   handler: async (ctx, { connectionId }) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new ConvexError({ code: "unauthorized" });
-
     const authorized = await ctx.runQuery(
       internal.connections.authorizeForSync,
-      { connectionId, userId },
+      { connectionId, workspaceId: ctx.projekat.workspaceId },
     );
     if (authorized === null) throw new ConvexError({ code: "forbidden" });
 

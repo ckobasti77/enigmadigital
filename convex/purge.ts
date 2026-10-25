@@ -2,15 +2,13 @@ import {
   internalAction,
   internalMutation,
   internalQuery,
-  mutation,
-  query,
 } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { providerValidator, type Provider } from "./lib/providers";
-import { requireMembership, requireOwner } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import { PURGE_BATCH, purgeSteps } from "./lib/purgeMap";
 import { manualRevokeMessage, revokeProviderAccess } from "./lib/revokeAccess";
@@ -614,11 +612,11 @@ const purgeRunViewValidator = v.object({
  * gone yet" is not a privileged question, and a viewer who watched an owner
  * press the button deserves the same answer.
  */
-export const status = query({
+export const status = projekatQuery({
   args: {},
   returns: v.array(purgeRunViewValidator),
   handler: async (ctx) => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const rows = await ctx.db
       .query("purgeRuns")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
@@ -653,11 +651,12 @@ export const status = query({
  * deletions that really happened, and throwing them away would re-walk tables
  * that are already empty for no reason.
  */
-export const retry = mutation({
+export const retry = projekatMutation({
+  uloga: "owner",
   args: { provider: providerValidator },
   returns: v.null(),
   handler: async (ctx, { provider }) => {
-    const { workspaceId } = await requireOwner(ctx);
+    const { workspaceId } = ctx.projekat;
 
     const rows = await ctx.db
       .query("purgeRuns")

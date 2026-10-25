@@ -2,7 +2,10 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
-import { useQuery, useMutation } from "convex/react";
+import {
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
@@ -103,14 +106,14 @@ export function HookBattleView({
     thumbnailUrl?: string;
   } | null>(null);
 
-  const data = useQuery(api.metaAdsStore.getHookBattle, {
+  const data = useProjekatQuery(api.metaAdsStore.getHookBattle, {
     adSetId,
     from,
     to,
   });
 
-  const pinBattleMutation = useMutation(api.metaAdsStore.pinBattle);
-  const unpinBattleMutation = useMutation(api.metaAdsStore.unpinBattle);
+  const pinBattleMutation = useProjekatMutation(api.metaAdsStore.pinBattle);
+  const unpinBattleMutation = useProjekatMutation(api.metaAdsStore.unpinBattle);
 
   const handleTogglePin = async (currentPinned: boolean) => {
     try {

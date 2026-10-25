@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { Inbox, MessageSquareReply, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -35,7 +34,7 @@ export function YtAutomationsDashboard() {
   const [editing, setEditing] = useState<YtAutomationView | null>(null);
 
   const automations = useProjekatQuery(api.ytAutomationsApi.listAutomations);
-  const connections = useQuery(api.connections.list);
+  const connections = useProjekatQuery(api.connections.list);
 
   const openNew = () => {
     setEditing(null);

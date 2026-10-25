@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useQuery } from "convex/react";
 import { ArrowRight, MousePointerClick, Unplug } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
@@ -25,7 +24,7 @@ import { formatNumber, formatPercent, pluralSr } from "@/lib/format";
 
 export function AttributionDashboard() {
   const { range } = useDateRange();
-  const connections = useQuery(api.connections.list);
+  const connections = useProjekatQuery(api.connections.list);
 
   const rawReport = useProjekatQuery(api.attribution.report, {
     from: range.from,

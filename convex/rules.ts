@@ -1,10 +1,10 @@
 "use node";
 
-import { action, internalAction, type ActionCtx } from "./_generated/server";
+import { internalAction, type ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import { Resend as ResendClient } from "resend";
-import { requireActionMembership } from "./lib/auth";
+import { projekatAction } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import { createUsageTracker, type UsageTracker } from "./lib/metaRateLimit";
 import type { Id } from "./_generated/dataModel";
@@ -566,28 +566,20 @@ export const evaluateRulesInternal = internalAction({
 /**
  * Manual user trigger from the Pravila screen.
  *
- * Only a signed-in OWNER, and only over the rules of their own workspace (the
- * one passed in, which they must belong to, or their own): a pause is a real
- * Meta write. Without a workspace this used to walk every rule of every
- * workspace, for anyone who called it — the cron is the only caller allowed
- * to do that, and it is internal.
+ * Only an OWNER of the project, and only over the rules of that project (the
+ * one passed in, which the wrapper has already checked): a pause is a real
+ * Meta write. The cron is the only caller allowed to walk every rule of every
+ * workspace, and it is internal.
  */
-export const manualEvaluateRules = action({
+export const manualEvaluateRules = projekatAction({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     ruleId: v.optional(v.id("rules")),
   },
   handler: async (ctx, args): Promise<EvaluationResultSummary> => {
-    const membership = await requireActionMembership(ctx, args.workspaceId);
-    if (membership.role !== "owner") {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Pravila može ručno da pokrene samo vlasnik projekta.",
-      });
-    }
     return await runRuleEvaluations(ctx, {
       specificRuleId: args.ruleId,
-      specificWorkspaceId: membership.workspaceId,
+      specificWorkspaceId: ctx.projekat.workspaceId,
     });
   },
 });

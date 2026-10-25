@@ -1,11 +1,11 @@
 "use node";
 
-import { action, internalAction, type ActionCtx } from "./_generated/server";
+import { internalAction, type ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { decryptCredentials } from "./lib/crypto";
-import { requireActionMembership } from "./lib/auth";
+import { projekatAction } from "./lib/projekat";
 import { runSync, sanitizeSyncError } from "./lib/runSync";
 import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
 import {
@@ -1463,7 +1463,7 @@ export const syncAllAdsInsights = internalAction({
 
 async function getMetaAdsAuth(
   ctx: ActionCtx,
-  workspaceId?: Id<"workspaces">,
+  workspaceId: Id<"workspaces">,
 ): Promise<{
   workspaceId: Id<"workspaces">;
   connectionId: Id<"connections">;
@@ -1471,17 +1471,14 @@ async function getMetaAdsAuth(
   actId: string;
   adAccountId: Id<"adAccounts">;
 }> {
-  // Prijava i članstvo pre svega: prosleđeni prostor mora biti pozivaočev
-  // (ranije se uzimao bez ikakve provere, pa je bilo ko mogao da radi tuđim
-  // Meta tokenom); bez njega važi pozivaočev sopstveni.
-  const { workspaceId: wsId } = await requireActionMembership(ctx, workspaceId);
-
+  // Članstvo je već proverio omotač akcije (projekatAction): `workspaceId`
+  // stiže iz `ctx.projekat`, ovde se više ne proverava.
   const conn = await ctx.runQuery(internal.connections.getMetaAdsForWorkspace, {
-    workspaceId: wsId,
+    workspaceId,
   });
   if (!conn || !conn.encryptedCredentials) {
     throw new Error(
-      "Meta Ads nalog nije povezan za ovaj radni prostor. Povežite ga u Podešavanjima.",
+      "Meta Ads nalog nije povezan za ovaj projekat. Povežite ga u Podešavanjima.",
     );
   }
 
@@ -1491,7 +1488,7 @@ async function getMetaAdsAuth(
   }
 
   const account = await ctx.runQuery(internal.metaAdsStore.getAccounts, {
-    workspaceId: wsId,
+    workspaceId,
   });
   const firstAct = account?.[0];
   if (!firstAct) {
@@ -1499,7 +1496,7 @@ async function getMetaAdsAuth(
   }
 
   return {
-    workspaceId: wsId,
+    workspaceId,
     connectionId: conn._id,
     token: token.trim(),
     actId: normalizeAdAccountId(firstAct.externalId),
@@ -1629,20 +1626,18 @@ export async function evaluateAudienceTos(
 /**
  * On-demand action to check and refresh Custom Audience Terms of Service (ToS) status.
  */
-export const checkAudienceTosAction = action({
+export const checkAudienceTosAction = projekatAction({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     adAccountId: v.optional(v.id("adAccounts")),
   },
   handler: async (
     ctx,
-    args,
   ): Promise<{
     status: "accepted" | "not_accepted" | "unknown";
     checkedAt?: number;
     error?: string;
   }> => {
-    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const auth = await getMetaAdsAuth(ctx, ctx.projekat.workspaceId);
     const tracker = createUsageTracker();
 
     try {
@@ -1669,16 +1664,14 @@ export const checkAudienceTosAction = action({
 /**
  * On-demand action to sync all Custom and Lookalike audiences from Meta Marketing API.
  */
-export const syncAudiencesAction = action({
+export const syncAudiencesAction = projekatAction({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     adAccountId: v.optional(v.id("adAccounts")),
   },
   handler: async (
     ctx,
-    args,
   ): Promise<{ success: boolean; count: number; written: number }> => {
-    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const auth = await getMetaAdsAuth(ctx, ctx.projekat.workspaceId);
     const version = getMetaGraphVersion();
     const tracker = createUsageTracker();
     const collector = createQuotaCollector();
@@ -1786,9 +1779,9 @@ export const syncAudiencesAction = action({
  * Creates a Custom Audience from a customer list with SHA-256 hashed identifiers.
  * Enforces ToS Gate before any write.
  */
-export const createCustomAudienceAction = action({
+export const createCustomAudienceAction = projekatAction({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     name: v.string(),
     description: v.optional(v.string()),
     customerFileSource: v.optional(v.string()), // "USER_PROVIDED_ONLY"
@@ -1810,7 +1803,7 @@ export const createCustomAudienceAction = action({
     ctx,
     args,
   ): Promise<{ audienceId: string; name: string }> => {
-    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const auth = await getMetaAdsAuth(ctx, ctx.projekat.workspaceId);
     const version = getMetaGraphVersion();
     const tracker = createUsageTracker();
 
@@ -1921,9 +1914,9 @@ export const createCustomAudienceAction = action({
  * Validates seed audience size and spec before any network call.
  * Enforces ToS Gate.
  */
-export const createLookalikeAudienceAction = action({
+export const createLookalikeAudienceAction = projekatAction({
+  uloga: "owner",
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     name: v.string(),
     seedAudienceId: v.string(),
     spec: v.object({
@@ -1936,7 +1929,7 @@ export const createLookalikeAudienceAction = action({
     ctx,
     args,
   ): Promise<{ audienceId: string; name: string }> => {
-    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const auth = await getMetaAdsAuth(ctx, ctx.projekat.workspaceId);
     const version = getMetaGraphVersion();
     const tracker = createUsageTracker();
 
@@ -2043,17 +2036,16 @@ export interface AdPreviewResult {
  * Cache TTL is strictly 12 hours (never 24h).
  * Stale preview is returned if refresh fails, with relative age warning.
  */
-export const getAdPreviewAction = action({
+export const getAdPreviewAction = projekatAction({
   args: {
     adId: v.id("ads"),
     adFormat: v.optional(v.string()), // default "DESKTOP_FEED_STANDARD"
-    workspaceId: v.optional(v.id("workspaces")),
   },
   handler: async (ctx, args): Promise<AdPreviewResult> => {
-    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const auth = await getMetaAdsAuth(ctx, ctx.projekat.workspaceId);
     const ad: Doc<"ads"> | null = await ctx.runQuery(
       api.metaAdsStore.getAdById,
-      { adId: args.adId },
+      { workspaceId: auth.workspaceId, adId: args.adId },
     );
     if (!ad || ad.workspaceId !== auth.workspaceId) {
       throw new Error("Oglas nije pronađen.");
@@ -2166,14 +2158,13 @@ export interface TargetingSearchResult {
  * Read-only targeting search (C5).
  * Strictly queries Meta targeting search endpoint; never mutates anything on Meta.
  */
-export const searchTargetingAction = action({
+export const searchTargetingAction = projekatAction({
   args: {
     query: v.string(),
     type: v.optional(v.string()), // default "adinterest"
-    workspaceId: v.optional(v.id("workspaces")),
   },
   handler: async (ctx, args): Promise<TargetingSearchResult> => {
-    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const auth = await getMetaAdsAuth(ctx, ctx.projekat.workspaceId);
     const searchType = args.type?.trim() || "adinterest";
     const q = args.query.trim();
 
@@ -2250,13 +2241,12 @@ export interface AdPixelsResult {
  * Read-only lista piksela naloga (MA8) — za izbor promoted_object kod
  * konverzionih ciljeva u čarobnjaku kreiranja. Ništa ne menja.
  */
-export const listAdPixelsAction = action({
+export const listAdPixelsAction = projekatAction({
   args: {
-    workspaceId: v.optional(v.id("workspaces")),
     accountExternalId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<AdPixelsResult> => {
-    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const auth = await getMetaAdsAuth(ctx, ctx.projekat.workspaceId);
     const actId = args.accountExternalId
       ? normalizeAdAccountId(args.accountExternalId)
       : auth.actId;
@@ -2317,14 +2307,13 @@ export interface DeliveryEstimateResult {
  * Read-only reach / delivery estimate query (C4 & C5).
  * Formats results strictly as ranges, never single numbers; returns "—" if unknown.
  */
-export const getDeliveryEstimateAction = action({
+export const getDeliveryEstimateAction = projekatAction({
   args: {
     targetingSpec: v.optional(v.any()),
     optimizationGoal: v.optional(v.string()),
-    workspaceId: v.optional(v.id("workspaces")),
   },
   handler: async (ctx, args): Promise<DeliveryEstimateResult> => {
-    const auth = await getMetaAdsAuth(ctx, args.workspaceId);
+    const auth = await getMetaAdsAuth(ctx, ctx.projekat.workspaceId);
     const tracker = createUsageTracker();
     const collector = createQuotaCollector();
 

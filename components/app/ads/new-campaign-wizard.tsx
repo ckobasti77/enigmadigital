@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useAction, useQuery } from "convex/react";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import { ConvexError } from "convex/values";
@@ -249,13 +252,13 @@ type CreateResult = FunctionReturnType<typeof api.adActions.createCampaignFull>;
 type PixelsResult = FunctionReturnType<typeof api.metaAds.listAdPixelsAction>;
 
 export function NewCampaignWizard() {
-  const accounts = useQuery(api.metaAdsStore.listAccounts, {});
-  const context = useQuery(api.metaAdsStore.getCreationContext, {});
-  const pagePosts = useQuery(api.metaAdsStore.listPagePostsForCreative, { limit: 30 });
+  const accounts = useProjekatQuery(api.metaAdsStore.listAccounts);
+  const context = useProjekatQuery(api.metaAdsStore.getCreationContext);
+  const pagePosts = useProjekatQuery(api.metaAdsStore.listPagePostsForCreative, { limit: 30 });
 
-  const validatePlan = useAction(api.adActions.validateCampaignPlan);
-  const createFull = useAction(api.adActions.createCampaignFull);
-  const listPixels = useAction(api.metaAds.listAdPixelsAction);
+  const validatePlan = useProjekatAction(api.adActions.validateCampaignPlan);
+  const createFull = useProjekatAction(api.adActions.createCampaignFull);
+  const listPixels = useProjekatAction(api.metaAds.listAdPixelsAction);
 
   // Zahtev-nonce: jednom po pokušaju, sprečava dva klika → dve kampanje.
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useAction } from "convex/react";
+import { useProjekatAction } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import {
   Dialog,
@@ -51,7 +51,7 @@ export function CreateLookalikeAudienceDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const createLookalikeAudience = useAction(
+  const createLookalikeAudience = useProjekatAction(
     api.metaAds.createLookalikeAudienceAction,
   );
 

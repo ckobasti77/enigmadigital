@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 
@@ -11,7 +11,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 export function useAccountCurrency(
   adAccountId?: string | Id<"adAccounts">,
 ): string | undefined {
-  const currency = useQuery(api.metaAdsStore.getAccountCurrency, {
+  const currency = useProjekatQuery(api.metaAdsStore.getAccountCurrency, {
     accountId: adAccountId,
   });
 

@@ -525,3 +525,87 @@ Zajednički fajlovi sa pozivima više modula dodeljeni su tačno jednom radniku.
   - Podešavanja → ingest tokeni.
 - Convex deploy dodaje indeks `notificationState.by_user_workspace_kljuc` (mala tabela, bez čekanja).
 - Ako budeš imao urednika ili klijenta-posmatrača: posmatrač više ne menja leadove ni novosti i ne vidi dugme za izvoz kontakata. Napredak i zvono i dalje podešava sam.
+
+## C07 — Prelazak 4: oglasi, pravila, veze, članovi; strogi čuvar   (2026-10-25 02:55)
+**Fajlovi:**
+- backend (18 fajlova grupe i dva obrisana):
+  - oglasi: `convex/adActions.ts`, `adActionsStore.ts`, `metaAds.ts`, `metaAdsStore.ts`, `metaCapi.ts`, `metaCapiStore.ts`, `googleAdsStore.ts`;
+  - pravila: `convex/rules.ts`, `rulesStore.ts`;
+  - veze i ostalo: `convex/connections.ts`, `sync.ts`, `purge.ts`, `gbp.ts`, `gbpStore.ts`, `publicRouteLimit.ts`, `webhookHealth.ts`;
+  - članovi i pozivnice: `convex/membersStore.ts`, `invitesStore.ts`;
+  - „prvo članstvo“: `convex/lib/auth.ts` (ostao samo `deleteLoginMachinery`), `convex/instagramStore.ts` (obrisan `getMembership`);
+  - **obrisani:** `convex/workspaces.ts` (`currentContext`, `getWorkspaceForUser`), `components/app/workspace-provider.tsx`;
+  - `convex/_generated/api.d.ts` (codegen).
+- front (51 fajl):
+  - `components/app/ads/`: `ad-action-dialog`, `ad-drilldown-panel`, `ad-preview-dialog`, `ads-dashboard`, `audiences-view`, `campaign-detail`, `capi-section`, `create-custom-audience-dialog`, `create-lookalike-audience-dialog`, `hook-battle-view`, `hook-label-editor`, `new-campaign-wizard`, `new-hook-version-dialog`, `targeting-search-dialog`, `use-account-currency`;
+  - `components/app/rules/`: `rule-editor-dialog`, `rule-firings-table`, `rules-dashboard`, `rules-list`;
+  - `components/app/settings/`: `action-audit-log`, `connections-settings`, `invites-panel`, `members-panel`, `purge-state`, `sync-health`, `sync-schedule`, `webhook-health`;
+  - samo `connections.list` / `sync.*`: `analytics/` (7 ekrana), `attribution/attribution-dashboard`, `instagram/{comments-moderation,instagram-dashboard,instagram-demographics,publish-composer}`, `openreply/openreply-dashboard`, `overview/overview-dashboard`, `youtube/{youtube-dashboard,yt-automations-dashboard}`, `sync-status`, `system/channel-focus`;
+  - ljuska bez `useWorkspace`: `app-shell`, `app-sidebar`, `user-menu`, `overview/command-focus`; komentar u `projekat-provider`;
+  - razvojni prikaz: `app/dev-ux/fixtures.ts` (obrisana fikstura `currentContext`).
+- čuvar: `lib/pristup-cuvar.ts` (samo strogo pravilo; blaga verzija iz C01 ukinuta), nov `lib/front-cuvar.ts`, `scripts/verify-pristup.ts`.
+- testovi: novi `convex/izolacija-c07.test.ts`, `izolacija-c07-meta.test.ts`, `izolacija-c07-akcije.test.ts`, `izolacija-c07-pravila.test.ts`, `izolacija-c07-veze.test.ts`, `lib/front-cuvar.test.ts`; izmenjeni `lib/pristup-cuvar.test.ts`, `convex/pristup.test.ts` (samo potpisi poziva).
+- snimci: `docs/projekti/snimci/C07-pristup-1440.png`, `C07-oglasi-1440.png`, `C07-meni-390.png`.
+
+**Šta je urađeno:**
+Obrađene su sve 88 javnih funkcija grupe iz mape C02 §5.1: 82 sada idu kroz omotače, 5 ostaju javne uz postojeću oznaku `// javno:` (`gbp.completeOAuthFromCallback` i četiri funkcije registracije u `invitesStore`, tok menja C13), a `workspaces.currentContext` je obrisan. Uloge su tačno po mapi:
+- **`projekatQuery` (client_viewer), 42 funkcije:** `adActionsStore.*` (4), `metaAdsStore` (18 upita), `metaCapiStore.getCapiStats`, `googleAdsStore.*` (8), `rulesStore.listRules/getRule/listRuleFirings`, `connections.list`, `gbpStore.*` (2), `sync.freshness/health`, `purge.status`, `publicRouteLimit.routeUsageStatus`, `membersStore.listMembers`.
+- **urednik (podrazumevano), 11 funkcija:** `metaAds.checkAudienceTosAction/syncAudiencesAction/getAdPreviewAction/searchTargetingAction/listAdPixelsAction/getDeliveryEstimateAction`, `metaAdsStore.setHookLabel/pinBattle/unpinBattle`, `rulesStore.ensureTemplateRules`, `connections.syncNow`.
+- **`uloga: "owner"`, 28 funkcija:** `adActions.*` (10), `metaAds.createCustomAudienceAction/createLookalikeAudienceAction`, `metaCapi.triggerCapiDispatchAction`, `rules.manualEvaluateRules`, `rulesStore.createRule/updateRule/deleteRule/toggleRule`, `connections.save/remove`, `gbp.gbpAuthorizeUrl/checkGbpAccess`, `purge.retry`, `membersStore.removeMember`, `invitesStore.listInvites/createInvite/revokeInvite/deleteInvite`.
+- **`platformaQuery`, 1 funkcija:** `webhookHealth.status` (stanje cele platforme, D1).
+
+**„Prvo članstvo“ je uklonjeno (plan §5.2).** Obrisani su `requireMembership`, `requireOwner`, `requireMembershipIn`, `requireWorkspaceAccess`, `requireActionMembership` (`lib/auth.ts`), `workspaces.currentContext` i `getWorkspaceForUser` (ceo fajl), `instagramStore.getMembership`, `adActionsStore.resolveUserWorkspace` i ručna provera vlasnika u `resolveGoogleAdsAuth`. Pomoćne funkcije akcija (`resolveAuthAndToken`, `resolveGoogleAdsAuth`, `getMetaAdsAuth`) više ne proveravaju članstvo, nego dobijaju projekat iz `ctx.projekat` (D6). Interni `connections.authorizeForSync` umesto `userId` prima `workspaceId` i samo poredi vezu sa projektom. `grep withIndex("by_user"` nad `members` nalazi samo `auth.ts`, `invitesStore.ts`, `membersStore.ts`, `lib/projekat.ts` i `projekti.ts` (provera iz plana §5.2).
+
+**Front.** Svaki poziv ovih funkcija ide kroz `useProjekatQuery/Mutation/Action`. `WorkspaceProvider` i `useWorkspace` su obrisani, a `AppShell` više ne montira provider. Kartica u bočnoj traci i fokus kontrolne table čitaju `useProjekat()`, meni korisnika čita `projekti.ja` (radi i bez projekta) i ime projekta iz providera, a `useIsWorkspaceOwner` čita `useProjekat().uloga`. `ensureTemplateRules` se zove samo za urednika i vlasnika, i tek kad je projekat učitan. Efekat pregleda oglasa koji sam zove akciju čeka `spreman`.
+
+**Strogi čuvar.** `verify-pristup.ts` sada pada za svaku javnu `query`/`mutation`/`action` koja nije napravljena omotačem (`projekat*`, `prijavljen*`, `platforma*`) niti ima `// javno: <razlog>`. Ime provere u telu (nekadašnje pomoćne funkcije članstva, `getAuthUserId`) više ne važi; blaga verzija čuvara iz C01, koja je priznavala proveru po imenu, ukinuta je zajedno sa listom tih imena. Nad repoom: **342 javne funkcije (omotačem 329, javno 13, bez omotača 0)**, tačno broj iz plana (337 − 1 + 6). Nov **front čuvar** (`lib/front-cuvar.ts`, pokreće ga ista skripta) AST-om traži `useQuery/useMutation/useAction/usePaginatedQuery(api.…)` i `client.query/mutation/action(api.…)` u `app/`, `components/` i `lib/`, i pada za svaku funkciju van spiska funkcija bez projekta. Spisak je u skripti, sa razlogom za svaku stavku (16 stavki: `projekti.mojiProjekti/mojProjekat/ja/kreirajProjekat`, četiri funkcije pozivnica i prijave, `postsPublic.listPublished`, `webhookHealth.status`, pet OAuth povrataka, `threadsStore.getDeletionStatus`). Skripta proverava i da je svaka stavka zaista javna funkcija bez projekta, pa funkcija projekta ne može tiho da uđe na spisak. Nad repoom: 15 direktnih poziva, svi sa spiska.
+
+**Podela posla.** Pet radnika (Sonnet) je radilo paralelno, svaki na svojim fajlovima: Meta oglasi i CAPI (backend); akcije nad oglasima i Google oglasi (backend); pravila (backend i front); veze, sinhronizacija, brisanje, GBP i brojač ruta (backend i pozivi u 21 zajedničkom ekranu); zatim front oglasa. Članove, pozivnice, `webhookHealth`, uklanjanje „prvog članstva“ i `WorkspaceProvider`-a, čuvare, `pristup.test.ts` i test `izolacija-c07.test.ts` radio sam ja. Svaki diff sam pročitao.
+
+**Šta je ostalo:** ništa od javnih funkcija ni poziva grupa C04–C07. Svesno ostaje:
+- `notificationState` indeksi `by_user_kljuc` i `by_user` (bez čitaoca od C06); vidi ODLUKE.
+- Ime `useIsWorkspaceOwner` (koristi ga `connections-settings`); menja se samo telo.
+
+**ODLUKE:**
+- **Test izolacije je u pet fajlova, ne u jednom.** Plan (§9) imenuje `izolacija-c07.test.ts`. Radnici su paralelno pisali po jedan fajl po modulu (`izolacija-c07-{meta,akcije,pravila,veze}.test.ts`), a `izolacija-c07.test.ts` pokriva članove, pozivnice i `webhookHealth`. Spajanje bi bilo mehaničko premeštanje bez nove provere, uz rizik sudara imena pomoćnih funkcija.
+- **Blaga verzija čuvara iz C01 je ukinuta, a ne ostavljena kao opcija.** Plan (§9, C07) traži da ime provere više ne važi kao provera, a prihvatanje traži da `requireMembership` ostane samo u istorijskim komentarima; lista imena blagog režima bi bila živ kod sa tim imenom. Tri testa iz C01 koja su proveravala prihvatanje provere po imenu (direktno u telu, kroz pomoćnu funkciju, kroz poziv interne provere) zadržala su iste ulaze, ali sada tvrde suprotno: sirova registracija pada. To je pooštrenje koje korak traži, ne slabljenje provere. U ulazima je ime nekadašnje pomoćne funkcije zamenjeno neutralnim `proveriClanstvo` (strogom čuvaru ime je svejedno). Polje `proverene` je uklonjeno iz rezultata, jer je u strogom pravilu uvek prazno; jedna tvrdnja oblika rezultata (`toEqual({ omotacem, javne, pale })`) je zato kraća za to polje.
+- **Grep iz prihvatanja** (`requireMembership|currentContext|useWorkspace` u `convex app components lib`) posle ovog koraka nalazi samo četiri istorijska komentara: `leadImportStore.ts` ×2, `projekti.ts` i jedan u `lib/pristup-cuvar.test.ts` (objašnjava odakle potiču ulazi testova).
+- **Spisak dozvoljenih direktnih poziva** je u `scripts/verify-pristup.ts` (kako traži zadatak), a logika i test su u `lib/front-cuvar.ts`. Dodat je `projekti.kreirajProjekat` (plan §5.4; funkcija postoji od C03). `projekti.stanjeProjekata` dodaje C09, kad funkcija bude postojala. Front čuvar proverava i serverske rute (`ConvexHttpClient`), pa su pet OAuth povrataka i `getDeletionStatus` na spisku sa razlogom.
+- **`webhookHealth.status` je `platformaQuery`**, pa bi ostalim članovima upit pao i srušio karticu veza. `WebhookSignatureNote` zato šalje upit samo kad je `useProjekat().platformaVlasnik`; ostalima ne crta ništa.
+- **Panel pozivnica se crta samo vlasniku** (`invites-panel.tsx`, isti obrazac kao tokeni ispod njega iz C06): `listInvites` po mapi traži vlasnika, a upit koji padne ruši ekran posmatraču i uredniku. Spisak članova i dalje vidi svaki član (CV); dugme „Ukloni“ ostaje, a ne-vlasnik dobija poruku omotača.
+- **Dugmad koja ne-vlasniku sada ne prolaze nisu sakrivena** (oglasi, pravila, publike, CAPI, uklanjanje člana), kao i u C04–C06: UI logika je van recepta, a danas urednika ni posmatrača nema. Greške hvataju postojeći `try/catch` blokovi. Jedini dodat `catch` je na dugmetu „Učitaj šablone“ u praznom stanju pravila (ranije je vraćao neuhvaćeno odbijanje).
+- **Tekst u dirnutim fajlovima, P1:** „radni prostor“ → „projekat“ u porukama dirnutih funkcija, u opisu i dijalogu sekcije „Članovi“, i rezervni naslov kartice u bočnoj traci („Radni prostor“ → „Projekat“, vidi se samo dok se projekat učitava).
+- **`members-panel` opis „Uklanjanje briše prijavu tog naloga“** nije tačan za člana više projekata (prijava se gasi tek kad ne ostane nijedno članstvo, od C03). Nisam ga prepravljao: to je tekst ekrana, a tok članova i pozivnica menja C13.
+- **Stari indeksi zvona (`notificationState.by_user_kljuc`, `by_user`) nisu obrisani.** C06 ih je ostavio „za C07 ili C19“. Nisu ostatak prelaska na omotače, a brisanje indeksa je promena pri deployu bez koristi za izolaciju; najkonzervativnije je ostaviti ih za C19.
+- **`metaAds.getAdPreviewAction`** zove javni `metaAdsStore.getAdById` sa `workspaceId` (plan §4.1, pravilo 11). Oglas iz drugog projekta sada daje `forbidden` umesto „Oglas nije pronađen.“; oba su odbijanje.
+- **Redosled provera:** u svim prebačenim akcijama (GBP povezivanje, akcije oglasa) prijava, članstvo i uloga se proveravaju pre provere env-a i prekidača `ADS_WRITE_ENABLED`. Nečlan i ne-vlasnik dobijaju `forbidden` pre poruke „pisanje je isključeno“ ili „čeka konfiguraciju“.
+- **Uloge po mapi menjaju ponašanje za ne-vlasnike.** Za Jovana kao vlasnika ništa se ne menja. Do sada je svaki član mogao da: pravi, menja, uključuje i briše pravila; pokreće Meta akcije pisanja (samo Google su tražile vlasnika); pravi publike i pokreće CAPI; proverava GBP pristup; uklanja članove i pravi, vidi, povlači i briše pozivnice. Sve to sada traži vlasnika. `client_viewer` više ne pokreće `syncNow`, `ensureTemplateRules`, oznake i prikačene bitke oglasa ni čitajuće Meta akcije.
+- **Skill `impeccable` nije pozvan:** korak ne menja izgled ekrana. Izmene na frontu su hookovi poziva, jedna sekcija koja se ne-vlasniku ne crta (isti obrazac kao postojeća) i reči „radni prostor“ → „projekat“.
+
+**Novi paketi:** nema
+
+**Testovi:**
+- `convex/izolacija-c07.test.ts` (6): **članovi** — član A ne čita ni ne uklanja članove B (B ostaje), u A vidi samo članove A, Jovan u B vidi B; posmatrač čita, urednik i posmatrač ne uklanjaju; član samo B se ne uklanja kroz A, a uklanjanje Jovana iz A ne dira njegovo članstvo u B. **Pozivnice** — 4 funkcije nad B odbijene, tuđa pozivnica kroz A se ne povlači i ne briše; urednik i posmatrač ne vide i ne prave pozivnice; vlasnik pravi u A, spisak A nema B. **Webhook** — čita samo vlasnik platforme; neprijavljen, vlasnik samo klijentskog projekta, urednik, posmatrač i stranac su odbijeni.
+- `convex/izolacija-c07-meta.test.ts` (6): 19 upita, 3 mutacije i 9 akcija nad B odbijeni; neprijavljen i stranac ne prolaze; u A samo podaci A, Jovan u B vidi B; tuđ oglas kroz A je zabranjen ili prazan, a B ostaje; posmatrač čita, ali ne menja i ne pokreće; publike i CAPI okidač traže vlasnika.
+- `convex/izolacija-c07-akcije.test.ts` (11): akcije nad oglasima — 4 upita i 10 akcija nad B odbijeni, urednik i posmatrač ne pokreću nijednu od 10, bez prijave sve pada, dnevnik i statistika u A samo A, vlasnik A prolazi omotač i staje na „nije povezano“; Google oglasi — 8 upita nad B odbijeno, posmatrač čita, A vidi samo svoje redove u 4 tabele.
+- `convex/izolacija-c07-pravila.test.ts` (6): 3 upita, 5 mutacija i akcija nad B odbijeni i pravilo B ostaje; tuđe pravilo kroz A se ne otkriva i ne menja; posmatrač ne učitava šablone; urednik učitava šablone, ali ne piše pravila; vlasnik radi sve u A; neprijavljen i stranac ne ulaze.
+- `convex/izolacija-c07-veze.test.ts` (13): veze, sinhronizacija, brisanje, GBP i brojač ruta — B odbijen za sve; u A samo A, Jovan u B vidi B; `remove`, `retry` i `syncNow` kroz pogrešan projekat ne diraju B; posmatrač ne pokreće `syncNow`; `save`, `remove`, `retry`, `gbpAuthorizeUrl` i `checkGbpAccess` odbijaju urednika; GBP OAuth stanje ne nastaje za B ni za urednika.
+- `lib/pristup-cuvar.test.ts` (13): tri testa iz C01 sa istim ulazima sada tvrde strogo pravilo — ime provere u telu, pomoćna funkcija (iz istog fajla ili uvezena) ni poziv interne provere ne spasavaju sirovu registraciju; nov test: omotač (i preimenovan, sa izvornim imenom omotača) i `// javno:` prolaze, a sirova funkcija pored njih pada. Ostali testovi iz C01 i C03 su nepromenjeni.
+- `lib/front-cuvar.test.ts` (5): direktan poziv funkcije projekta pada, a sa spiska prolazi sa razlogom; prepoznaju se `useMutation`, `useAction`, `usePaginatedQuery`, poziv u više redova i `as`; serverske rute (`client.action/mutation`); `useProjekat*`, generička implementacija, komentar i string nisu direktan poziv; spisak sme da sadrži samo javne funkcije bez projekta (funkcija projekta, nepostojeća i stavka bez razloga padaju).
+- `convex/pristup.test.ts`: menjani su samo potpisi poziva (`workspaceId: s.wsA` umesto izostavljenog ili opcionog). Tvrdnje su iste.
+
+**Rezultat provere:**
+- codegen ✓, typecheck ✓;
+- lint ✓ (0 grešaka; broj nalaza u svakom od 77 izmenjenih fajlova isti kao u HEAD, novi fajlovi bez nalaza);
+- `npx --no-install vitest run` ✓ (190/190, 15 fajlova);
+- `verify-pristup` ✓ (342 javne: omotačem 329, javno 13, bez omotača 0; front: 15 direktnih poziva, svi sa spiska);
+- `regresije.mjs` ✓ (14/14), `npm run build` ✓.
+- Razvojni prikaz (Playwright, 1440×900 i 390×844): `/settings` (Integracije i Pristup), `/ads`, `/rules` i `/` sa otvorenim menijem korisnika crtaju podatke kroz nove hookove, bez grešaka i upozorenja u konzoli. Meni korisnika pokazuje ime, adresu i projekat „Enigma IT“. Dev server je ugašen, a privremeni fajlovi Playwright-a obrisani.
+
+**Za Jovana ujutru:**
+- Posle deploya (zajedno sa ostatkom runa) proveri da sve radi kao pre:
+  - Oglasi: pregled, detalj kampanje, pauza/budžet/dupliranje, nova kampanja, nova verzija hooka, publike, CAPI;
+  - Pravila: spisak, novo pravilo, izmena, uključi/isključi, „Pokreni proveru sad“;
+  - Podešavanja: veze („Sinhronizuj“, „Prekini vezu“, ponovni pokušaj brisanja), „Istorija akcija“, „Pristup“ (članovi, pozivnice), napomena o webhook-u na Instagram/Facebook kartici;
+  - meni korisnika i kartica u bočnoj traci.
+- Ako budeš imao urednika ili klijenta-posmatrača: oglase, pravila, publike, CAPI, veze, članove i pozivnice sada menja samo vlasnik projekta; urednik i posmatrač ne vide sekciju pozivnica. Napomenu o webhook-u vidi samo vlasnik platforme.

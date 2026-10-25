@@ -27,7 +27,7 @@ import {
 } from "@/components/app/napredak/use-napredak";
 import { QuietBoundary } from "@/components/app/quiet-boundary";
 import { useStaMeCeka } from "@/components/app/use-sta-me-ceka";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import { useProjekat } from "@/components/app/projekat-provider";
 import { belgradeInputsFor } from "@/lib/belgrade-time";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -118,9 +118,9 @@ function FokusNapredak({
   saZadatkom: boolean;
 }) {
   const sada = useSada();
-  const { user } = useWorkspace();
+  const { korisnik } = useProjekat();
   const { nivo, niz, xp, misije, bonus } = stanje;
-  const ime = user?.name?.trim() || null;
+  const ime = korisnik?.ime?.trim() || null;
 
   // Prva nezavršena je sledeći korak: ide prva, šira je i nosi primarno dugme.
   const sledeca = misije.find((m) => !m.zavrsena)?.kljuc;

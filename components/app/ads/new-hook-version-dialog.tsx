@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useAction, useQuery } from "convex/react";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import { ConvexError } from "convex/values";
 import {
@@ -54,7 +57,7 @@ export function NewHookVersionDialog(props: NewHookVersionDialogProps) {
 }
 
 function NewHookVersionDialogLoader(props: NewHookVersionDialogProps) {
-  const liveDetails = useQuery(api.adActionsStore.getAdCreativeDetails, {
+  const liveDetails = useProjekatQuery(api.adActionsStore.getAdCreativeDetails, {
     adExternalId: props.sourceAdId,
   });
 
@@ -123,7 +126,7 @@ function NewHookVersionDialogForm({
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const createHookVersionAction = useAction(api.adActions.createHookVersion);
+  const createHookVersionAction = useProjekatAction(api.adActions.createHookVersion);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

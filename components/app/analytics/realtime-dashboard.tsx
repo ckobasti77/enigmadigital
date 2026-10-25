@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery } from "convex/react";
 import {
   useProjekatAction,
   useProjekatQuery,
@@ -28,7 +27,7 @@ import { formatNumber, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export function RealtimeDashboard() {
-  const connections = useQuery(api.connections.list);
+  const connections = useProjekatQuery(api.connections.list);
   const snapshot = useProjekatQuery(api.analytics.realtimeSnapshot);
   const refresh = useProjekatAction(api.ga4.refreshRealtime);
 

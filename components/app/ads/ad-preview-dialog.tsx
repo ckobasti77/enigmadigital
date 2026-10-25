@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import {
+  useProjekat,
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { type Id } from "@/convex/_generated/dataModel";
 import {
   Dialog,
@@ -55,8 +59,9 @@ export function AdPreviewDialog({
     error?: string;
   } | null>(null);
 
-  const getPreview = useAction(api.metaAds.getAdPreviewAction);
-  const creative = useQuery(api.metaAdsStore.getAdCreative, { adId });
+  const { spreman } = useProjekat();
+  const getPreview = useProjekatAction(api.metaAds.getAdPreviewAction);
+  const creative = useProjekatQuery(api.metaAdsStore.getAdCreative, { adId });
 
   const handleManualRefresh = async () => {
     setLoading(true);
@@ -89,7 +94,7 @@ export function AdPreviewDialog({
 
   useEffect(() => {
     let active = true;
-    if (!open) {
+    if (!open || !spreman) {
       return;
     }
 
@@ -125,7 +130,7 @@ export function AdPreviewDialog({
     return () => {
       active = false;
     };
-  }, [open, adId, format, getPreview]);
+  }, [open, spreman, adId, format, getPreview]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

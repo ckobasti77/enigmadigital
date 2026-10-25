@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
+import {
+  useProjekat,
+  useProjekatAction,
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
 import { Chip } from "@/components/app/system/chip";
 import { PageHeader } from "@/components/app/system/page-header";
@@ -37,17 +42,24 @@ export function RulesDashboard() {
   const [evaluating, setEvaluating] = useState(false);
   const [evalResult, setEvalResult] = useState<EvalResult | null>(null);
 
-  const rules = useQuery(api.rulesStore.listRules, {});
-  const firings = useQuery(api.rulesStore.listRuleFirings, { limit: 100 });
-  const ensureTemplateRules = useMutation(api.rulesStore.ensureTemplateRules);
-  const manualEvaluate = useAction(api.rules.manualEvaluateRules);
+  const { spreman, uloga } = useProjekat();
+  const rules = useProjekatQuery(api.rulesStore.listRules);
+  const firings = useProjekatQuery(api.rulesStore.listRuleFirings, { limit: 100 });
+  const ensureTemplateRules = useProjekatMutation(
+    api.rulesStore.ensureTemplateRules,
+  );
+  const manualEvaluate = useProjekatAction(api.rules.manualEvaluateRules);
 
-  // Auto-seed template rules if empty on initial load
+  // Šablone sme da upiše samo urednik ili vlasnik; posmatrač ih ne seje.
+  const mozeDaUpisuje = uloga === "owner" || uloga === "urednik";
+
+  // Auto-seed template rules if empty on initial load (once the project is known)
   useEffect(() => {
+    if (!spreman || !mozeDaUpisuje) return;
     if (rules !== undefined && rules.length === 0) {
-      ensureTemplateRules({}).catch(console.error);
+      ensureTemplateRules().catch(console.error);
     }
-  }, [rules, ensureTemplateRules]);
+  }, [spreman, mozeDaUpisuje, rules, ensureTemplateRules]);
 
   const handleOpenNew = () => {
     setEditingRule(null);
@@ -63,7 +75,7 @@ export function RulesDashboard() {
     setEvaluating(true);
     setEvalResult(null);
     try {
-      const res = await manualEvaluate({});
+      const res = await manualEvaluate();
       setEvalResult({
         ok: true,
         title:
@@ -191,7 +203,9 @@ export function RulesDashboard() {
             <RulesList
               rules={rules}
               onEditRule={handleEditRule}
-              onEnsureTemplates={() => ensureTemplateRules({})}
+              onEnsureTemplates={() => {
+                ensureTemplateRules().catch(console.error);
+              }}
             />
           </div>
         ) : (

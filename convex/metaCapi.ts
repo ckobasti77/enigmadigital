@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { action, internalAction, type ActionCtx } from "./_generated/server";
+import { internalAction, type ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { type Id } from "./_generated/dataModel";
 import {
@@ -15,7 +15,7 @@ import {
 import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
 import { sanitizeApiResponse, extractMetaAdsError } from "./lib/metaAdsApi";
 import { sanitizePii } from "./lib/metaAudienceHash";
-import { requireActionMembership } from "./lib/auth";
+import { projekatAction } from "./lib/projekat";
 
 export { CAPI_DISPATCH_LOCK_TTL_MS };
 
@@ -313,20 +313,12 @@ export const sendPendingCapiEventsAction = internalAction({
 /**
  * Public trigger to dispatch pending CAPI events manually on demand.
  */
-export const triggerCapiDispatchAction = action({
-  args: {
-    workspaceId: v.optional(v.id("workspaces")),
-  },
-  handler: async (ctx, args): Promise<CapiDispatchResult> => {
-    // Prijava i članstvo: prosleđeni prostor mora biti pozivaočev (ranije se
-    // uzimao bez provere); bez njega važi pozivaočev sopstveni.
-    const { workspaceId: wsId } = await requireActionMembership(
-      ctx,
-      args.workspaceId,
-    );
-
+export const triggerCapiDispatchAction = projekatAction({
+  uloga: "owner",
+  args: {},
+  handler: async (ctx): Promise<CapiDispatchResult> => {
     return await ctx.runAction(internal.metaCapi.sendPendingCapiEventsAction, {
-      workspaceId: wsId,
+      workspaceId: ctx.projekat.workspaceId,
     });
   },
 });

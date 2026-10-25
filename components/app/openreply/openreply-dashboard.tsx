@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
 import {
   ArrowRight,
   Camera,
@@ -46,7 +45,7 @@ import {
  */
 export function OpenReplyDashboard() {
   const { range } = useDateRange();
-  const connections = useQuery(api.connections.list);
+  const connections = useProjekatQuery(api.connections.list);
 
   const currentRows = useProjekatQuery(api.openreplyStore.daily, {
     from: range.from,

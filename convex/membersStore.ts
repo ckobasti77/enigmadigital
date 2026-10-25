@@ -1,16 +1,15 @@
-import { mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
-import { deleteLoginMachinery, requireMembership } from "./lib/auth";
+import { deleteLoginMachinery } from "./lib/auth";
 import { isEmailInAllowlist } from "./auth";
 import { ulogaValidator } from "./lib/uloge";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 
 /**
- * Upravljanje članovima radnog prostora (sekcija „Pristup").
+ * Upravljanje članovima projekta (sekcija „Pristup").
  *
- * `role` polje se NAMERNO ne koristi kao sistem dozvola (to je van opsega) —
- * ovde služi samo za prikaz i za pravilo „ne briši poslednjeg ownera". Sve
- * funkcije gateuju kroz `requireMembership` i porede `workspaceId` iz argumenta
- * sa onim iz članstva pozivaoca, isto kao `invitesStore`.
+ * Pristup daju omotači iz `lib/projekat.ts`: spisak čita svaki član projekta,
+ * a uklanjanje člana traži vlasnika projekta (PROJEKTI-PLAN §5). Pravilo „ne
+ * briši poslednjeg ownera" ostaje u handleru.
  */
 
 const uloga = ulogaValidator;
@@ -18,8 +17,8 @@ const uloga = ulogaValidator;
 // ─────────────────────────────────────────────────────────────────────────────
 // listMembers — spisak članova za sekciju „Pristup".
 // ─────────────────────────────────────────────────────────────────────────────
-export const listMembers = query({
-  args: { workspaceId: v.id("workspaces") },
+export const listMembers = projekatQuery({
+  args: {},
   returns: v.array(
     v.object({
       userId: v.id("users"),
@@ -34,11 +33,6 @@ export const listMembers = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({ code: "forbidden" });
-    }
-
     const rows = await ctx.db
       .query("members")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
@@ -83,7 +77,7 @@ export const listMembers = query({
         emailVerified: user?.emailVerificationTime !== undefined,
         inAllowlist: email ? isEmailInAllowlist(email) : false,
         leadCount: leadovi.length,
-        isSelf: clan.userId === membership.userId,
+        isSelf: clan.userId === ctx.projekat.userId,
       });
     }
     return zapisi;
@@ -93,9 +87,9 @@ export const listMembers = query({
 // ─────────────────────────────────────────────────────────────────────────────
 // removeMember — ukloni člana i prenesi njegove leadove na drugog.
 // ─────────────────────────────────────────────────────────────────────────────
-export const removeMember = mutation({
+export const removeMember = projekatMutation({
+  uloga: "owner",
   args: {
-    workspaceId: v.id("workspaces"),
     userId: v.id("users"),
     // NIJE opcion: bez izabranog primaoca, prenešeni leadovi bi pokazivali na
     // obrisanog vlasnika. Ekran bira, ne pogađa.
@@ -103,16 +97,11 @@ export const removeMember = mutation({
   },
   returns: v.object({ prenetoLeadova: v.number() }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({ code: "forbidden" });
-    }
-
     // Ne možeš sebe — zaključao bi se napolju.
-    if (args.userId === membership.userId) {
+    if (args.userId === ctx.projekat.userId) {
       throw new ConvexError({
         code: "bad_request",
-        message: "Ne možeš da ukloniš sam/a sebe iz radnog prostora.",
+        message: "Ne možeš da ukloniš sam/a sebe iz projekta.",
       });
     }
 
@@ -134,7 +123,7 @@ export const removeMember = mutation({
     if (meta.length === 0) {
       throw new ConvexError({
         code: "not_found",
-        message: "Ta osoba nije član ovog radnog prostora.",
+        message: "Ta osoba nije član ovog projekta.",
       });
     }
 
@@ -144,7 +133,7 @@ export const removeMember = mutation({
     if (!primalacJeClan) {
       throw new ConvexError({
         code: "bad_request",
-        message: "Primalac leadova mora biti član ovog radnog prostora.",
+        message: "Primalac leadova mora biti član ovog projekta.",
       });
     }
 
@@ -184,8 +173,8 @@ export const removeMember = mutation({
         kind: "dodela",
         fromValue: String(args.userId),
         toValue: String(args.preuzimaLeadoveUserId),
-        actorUserId: membership.userId,
-        note: "Vlasništvo prenešeno pri uklanjanju člana iz radnog prostora.",
+        actorUserId: ctx.projekat.userId,
+        note: "Vlasništvo prenešeno pri uklanjanju člana iz projekta.",
         occurredAt: now,
       });
     }

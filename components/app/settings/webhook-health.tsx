@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { FeedbackNote } from "@/components/app/feedback";
+import { useProjekat } from "@/components/app/projekat-provider";
 import { formatRelativeTime } from "@/lib/format";
 
 /**
@@ -22,7 +23,10 @@ export function WebhookSignatureNote({
 }: {
   route: "instagram" | "facebook" | "threads";
 }) {
-  const health = useQuery(api.webhookHealth.status);
+  // Brojači i tajne webhook-a su stanje cele platforme: vidi ih samo vlasnik
+  // platforme (ostalima upit bi pao, pa se ni ne šalje).
+  const { platformaVlasnik } = useProjekat();
+  const health = useQuery(api.webhookHealth.status, platformaVlasnik ? {} : "skip");
   if (health === undefined) return null;
 
   const entry = health.find((item) => item.route === route);

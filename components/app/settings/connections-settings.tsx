@@ -7,7 +7,6 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
@@ -217,7 +216,7 @@ function CardShell({
  * zauvek prestane da bude potvrda i postane deo pozadine.
  */
 function SyncFooter({ connection }: { connection?: ConnectionView }) {
-  const syncNow = useAction(api.connections.syncNow);
+  const syncNow = useProjekatAction(api.connections.syncNow);
   const [syncing, setSyncing] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -400,7 +399,7 @@ function DisconnectZone({
 // ── GA4 ──────────────────────────────────────────────────────────────────────
 
 function Ga4Card({ connection }: { connection?: ConnectionView }) {
-  const save = useMutation(api.connections.save);
+  const save = useProjekatMutation(api.connections.save);
   const [editing, setEditing] = useState(false);
   const [propertyId, setPropertyId] = useState("");
   const [json, setJson] = useState("");
@@ -761,7 +760,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
   const getOAuthConfig = useProjekatAction(api.instagram.getOAuthConfig);
   const getOAuthUrl = useProjekatAction(api.instagram.getOAuthUrl);
   const completeOAuth = useProjekatAction(api.instagram.completeOAuth);
-  const removeConnection = useMutation(api.connections.remove);
+  const removeConnection = useProjekatMutation(api.connections.remove);
 
   const [configState, setConfigState] = useState<{
     loaded: boolean;
@@ -1341,7 +1340,7 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
   const connectSystemUser = useProjekatAction(
     api.facebook.connectWithSystemUserToken,
   );
-  const removeConnection = useMutation(api.connections.remove);
+  const removeConnection = useProjekatMutation(api.connections.remove);
   const pageInfo = useProjekatQuery(api.facebookStore.pageInfo);
 
   const [connecting, setConnecting] = useState(false);
@@ -1820,8 +1819,8 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
 // ── Meta Ads (System User Token) ─────────────────────────────────────────────
 
 function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
-  const save = useMutation(api.connections.save);
-  const remove = useMutation(api.connections.remove);
+  const save = useProjekatMutation(api.connections.save);
+  const remove = useProjekatMutation(api.connections.remove);
   const [editing, setEditing] = useState(false);
   const [accountId, setAccountId] = useState("");
   const [token, setToken] = useState("");
@@ -2000,8 +1999,8 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
 // ── Google Ads (OAuth + Developer Token) ────────────────────────────────────
 
 function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
-  const save = useMutation(api.connections.save);
-  const remove = useMutation(api.connections.remove);
+  const save = useProjekatMutation(api.connections.save);
+  const remove = useProjekatMutation(api.connections.remove);
   const [editing, setEditing] = useState(false);
   const [customerId, setCustomerId] = useState("");
   const [loginCustomerId, setLoginCustomerId] = useState("");
@@ -2209,8 +2208,8 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
 // ── YouTube (OAuth, read-only) ─────────────────────────────────
 
 function YouTubeCard({ connection }: { connection?: ConnectionView }) {
-  const save = useMutation(api.connections.save);
-  const remove = useMutation(api.connections.remove);
+  const save = useProjekatMutation(api.connections.save);
+  const remove = useProjekatMutation(api.connections.remove);
   const setup = useProjekatQuery(api.youtubeStore.setupInfo);
   const getOAuthUrl = useProjekatAction(api.youtube.youtubeAuthorizeUrl);
 
@@ -2738,7 +2737,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
 // ── Threads (OAuth) ──────────────────────────────────────────────────────────
 
 function ThreadsCard({ connection }: { connection?: ConnectionView }) {
-  const remove = useMutation(api.connections.remove);
+  const remove = useProjekatMutation(api.connections.remove);
   const setup = useProjekatQuery(api.threadsStore.setupInfo);
   const getOAuthUrl = useProjekatAction(api.threads.threadsAuthorizeUrl);
 
@@ -2971,8 +2970,8 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
 // ── page body ────────────────────────────────────────────────────────────────
 
 export function ConnectionsSettings() {
-  const connections = useQuery(api.connections.list);
-  const health = useQuery(api.sync.health);
+  const connections = useProjekatQuery(api.connections.list);
+  const health = useProjekatQuery(api.sync.health);
 
   if (connections === undefined) {
     return <ConnectionsSettingsSkeleton />;

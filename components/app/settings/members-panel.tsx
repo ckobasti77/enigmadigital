@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
 import { Check, ChevronsUpDown, LoaderCircle } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -33,7 +32,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FeedbackNote } from "@/components/app/feedback";
 import { StatusPill } from "./status-pill";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import {
+  useProjekat,
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { formatDateTime } from "@/lib/format";
 import type { Uloga } from "@/convex/lib/uloge";
 
@@ -77,14 +80,10 @@ function prikazAdrese(clan: Clan): string {
 }
 
 export function MembersPanel() {
-  const { workspace } = useWorkspace();
-  const workspaceId = workspace?.id as Id<"workspaces"> | undefined;
+  const { spreman } = useProjekat();
 
-  const clanovi = useQuery(
-    api.membersStore.listMembers,
-    workspaceId ? { workspaceId } : "skip",
-  );
-  const removeMember = useMutation(api.membersStore.removeMember);
+  const clanovi = useProjekatQuery(api.membersStore.listMembers);
+  const removeMember = useProjekatMutation(api.membersStore.removeMember);
 
   // Član koga uklanjamo (otvoren dijalog), izabrani primalac leadova, i stanja.
   const [meta, setMeta] = useState<Clan | null>(null);
@@ -115,7 +114,7 @@ export function MembersPanel() {
   }
 
   async function potvrdi() {
-    if (!workspaceId || !meta || uklanjam) return;
+    if (!spreman || !meta || uklanjam) return;
     // Primalac se traži samo kad ima leadova za prenos; bez njih je izbor bez
     // dejstva, pa ga ne namećemo (ali arg mutacije ostaje popunjen — vidi dole).
     if (meta.leadCount > 0 && !primalac) {
@@ -134,7 +133,6 @@ export function MembersPanel() {
     setGreska(null);
     try {
       await removeMember({
-        workspaceId,
         userId: meta.userId,
         preuzimaLeadoveUserId: preuzima,
       });
@@ -153,7 +151,7 @@ export function MembersPanel() {
       <div>
         <h3 className="text-sm font-medium text-foreground">Članovi</h3>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          Ko ima pristup radnom prostoru. Uklanjanje briše prijavu tog naloga i
+          Ko ima pristup projektu. Uklanjanje briše prijavu tog naloga i
           prenosi njegove leadove na drugog člana — istorija radnji ostaje.
         </p>
       </div>
@@ -250,7 +248,7 @@ export function MembersPanel() {
                   <span className="font-mono text-foreground">
                     {prikazAdrese(meta)}
                   </span>{" "}
-                  iz radnog prostora. Nalog više neće moći da se prijavi.{" "}
+                  iz projekta. Nalog više neće moći da se prijavi.{" "}
                   {meta.leadCount > 0
                     ? `Njegovih ${meta.leadCount} ${
                         meta.leadCount === 1 ? "lead prelazi" : "leadova prelazi"

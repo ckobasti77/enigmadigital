@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAction } from "convex/react";
+import { useProjekatAction } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import {
   Dialog,
@@ -63,7 +63,7 @@ export function TargetingSearchDialog({
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const searchTargeting = useAction(api.metaAds.searchTargetingAction);
+  const searchTargeting = useProjekatAction(api.metaAds.searchTargetingAction);
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();

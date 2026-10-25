@@ -1,7 +1,7 @@
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import { v, type Infer } from "convex/values";
 import { providerValidator, ALL_PROVIDERS } from "./lib/providers";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 
 /** A "running" row older than this is reported as stale (a crashed/timed-out sync). */
 const STALE_MS = 15 * 60 * 1000;
@@ -106,11 +106,11 @@ type HealthEntry = Infer<typeof healthEntryValidator>;
  * reads `lastDataAt`, the last time a pass actually WROTE, and never
  * `lastOkAt`. The age on screen is the age of the DATA.
  */
-export const freshness = query({
+export const freshness = projekatQuery({
   args: {},
   returns: v.union(v.number(), v.null()),
   handler: async (ctx): Promise<number | null> => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
 
     let best: number | null = null;
     const consider = (value: number | undefined) => {
@@ -139,12 +139,12 @@ export const freshness = query({
   },
 });
 
-/** Latest sync run per provider for the caller's workspace. */
-export const health = query({
+/** Latest sync run per provider for the caller's project. */
+export const health = projekatQuery({
   args: {},
   returns: v.array(healthEntryValidator),
   handler: async (ctx): Promise<HealthEntry[]> => {
-    const { workspaceId } = await requireMembership(ctx);
+    const { workspaceId } = ctx.projekat;
     const now = Date.now();
     const entries: HealthEntry[] = [];
     for (const provider of ALL_PROVIDERS) {

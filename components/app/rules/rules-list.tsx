@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
@@ -9,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackNote } from "@/components/app/feedback";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { Chip } from "@/components/app/system/chip";
 import { EmptyState } from "@/components/app/system/empty-state";
 import { formatRuleSentence } from "@/lib/rule-sentence";
@@ -48,8 +48,8 @@ export function RulesList({
   onEditRule,
   onEnsureTemplates,
 }: RulesListProps) {
-  const toggleRuleMutation = useMutation(api.rulesStore.toggleRule);
-  const deleteRuleMutation = useMutation(api.rulesStore.deleteRule);
+  const toggleRuleMutation = useProjekatMutation(api.rulesStore.toggleRule);
+  const deleteRuleMutation = useProjekatMutation(api.rulesStore.deleteRule);
 
   const [deletingId, setDeletingId] = useState<Id<"rules"> | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Doc<"rules"> | null>(null);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
-import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -71,7 +71,7 @@ function useTickingNow(intervalMs: number): number | null {
 }
 
 function MetaAdsQuota() {
-  const quota = useQuery(api.metaAdsStore.quotaStatus);
+  const quota = useProjekatQuery(api.metaAdsStore.quotaStatus);
   const now = useTickingNow(30_000);
   if (quota === undefined || quota === null) return null;
 
