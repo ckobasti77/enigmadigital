@@ -32,7 +32,12 @@ import { ModuleTile } from "./module-tile";
 import { useStaMeCeka } from "./use-sta-me-ceka";
 import { ikonaMisije, vezaMisije } from "./napredak/napredak-ikone";
 import { useNapredak } from "./napredak/use-napredak";
-import { useEkranPutanja, useProjekat, useProjekatHref } from "./projekat-provider";
+import {
+  useEkranPutanja,
+  useModulUkljucen,
+  useProjekat,
+  useProjekatHref,
+} from "./projekat-provider";
 import { ProjektiZaPaletu, type ProjekatZaPrelazak } from "./projekat-birac";
 import { ProjekatZnak } from "./projekat-znak";
 import { QuietBoundary } from "./quiet-boundary";
@@ -232,6 +237,7 @@ export function CommandPalette() {
   const staMeCeka = useStaMeCeka();
   const napredak = useNapredak();
   const { rezim } = useProjekat();
+  const ukljucen = useModulUkljucen();
   // Drugi projekti stižu samo dok je paleta otvorena, u hubu (vidi dole).
   const [drugiProjekti, setDrugiProjekti] = useState<ProjekatZaPrelazak[]>([]);
 
@@ -329,6 +335,10 @@ export function CommandPalette() {
 
   const sections = useMemo<Section[]>(() => {
     const q = fold(query.trim());
+    // Ekran i radnja isključenog modula projekta nisu ponuđeni (PROJEKTI-PLAN
+    // §8, „Moduli“); zadaci i misije ostaju, jer nose posao koji čeka.
+    const vidljiv = (e: Entry) =>
+      e.projekat !== undefined || e.module === undefined || ukljucen(e.module);
     const match = (list: Entry[]) =>
       q ? list.filter((e) => fold(`${e.title} ${e.hint}`).includes(q)) : list;
 
@@ -338,7 +348,7 @@ export function CommandPalette() {
           .filter((href) => href !== currentHref)
           .flatMap((href) => {
             const entry = BY_HREF.get(href);
-            return entry ? [{ ...entry, id: `recent:${href}` }] : [];
+            return entry && vidljiv(entry) ? [{ ...entry, id: `recent:${href}` }] : [];
           })
           .slice(0, RECENT_SHOWN);
 
@@ -348,16 +358,16 @@ export function CommandPalette() {
         title: "Radnje",
         entries: match([
           ...(q ? tasks : tasks.slice(0, TASKS_SHOWN)),
-          ...ACTIONS,
+          ...ACTIONS.filter(vidljiv),
           ...(desktop ? [RAIL_ACTION] : []),
         ]),
       },
       { key: "projekti", title: "Projekti", entries: match(projekti) },
       { key: "misije", title: "Misije dana", entries: match(misije) },
       { key: "nedavno", title: "Nedavno", entries: recentEntries },
-      { key: "ekrani", title: "Ekrani", entries: match(SCREENS) },
+      { key: "ekrani", title: "Ekrani", entries: match(SCREENS.filter(vidljiv)) },
     ].filter((section) => section.entries.length > 0);
-  }, [query, tasks, projekti, misije, recent, currentHref, desktop]);
+  }, [query, tasks, projekti, misije, recent, currentHref, desktop, ukljucen]);
 
   const flat = useMemo(() => sections.flatMap((s) => s.entries), [sections]);
 

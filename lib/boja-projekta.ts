@@ -30,6 +30,21 @@ export const KONTRAST_TEKSTA = 4.5;
 export const KONTRAST_GRANICE = 3;
 
 const HEX = /^#([0-9a-f]{6})$/i;
+
+/**
+ * Predlozi boje projekta u podešavanjima i čarobnjaku (podatak, kao boja iz
+ * baze; komponente ih crtaju kroz `stilProjekta`). Bez žute i zlatne (zlatna
+ * je nagrada) i bez crvene (greška); svaka prolazi oba uslova kontrasta bez
+ * pomeranja, što čuva test.
+ */
+export const PREDLOZI_BOJA = [
+  "#38bdf8",
+  "#22c55e",
+  "#2dd4bf",
+  "#a78bfa",
+  "#f472b6",
+  "#fb923c",
+] as const;
 const KORAK_L = 0.01;
 const MAKS_KORAKA = 120;
 

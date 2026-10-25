@@ -47,7 +47,12 @@ export default defineSchema({
     arhiviran: v.optional(v.boolean()),
     redosled: v.optional(v.number()),
     createdBy: v.optional(v.id("users")),
-  }).index("by_slug", ["slug"]),
+  })
+    .index("by_slug", ["slug"])
+    // Fajl brenda pripada tačno jednom projektu (C11, `postaviSlikuBrenda`):
+    // provera ide preko indeksa, ne prolazom kroz sve projekte.
+    .index("by_logo", ["brend.logoStorageId"])
+    .index("by_favicon", ["brend.faviconStorageId"]),
 
   members: defineTable({
     workspaceId: v.id("workspaces"),

@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useQuery } from "convex/react";
-import { ChevronRight, FolderOpen } from "lucide-react";
+import { ChevronRight, FolderOpen, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/convex/_generated/api";
 import { NAZIV_ULOGE } from "@/convex/lib/uloge";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "../system/empty-state";
 import { initials } from "../system/monogram";
+import { NOVI_PROJEKAT_HREF, NOVI_PROJEKAT_POSTOJI } from "../nav-items";
 import { UserMenu } from "../user-menu";
 
 /**
@@ -25,6 +27,8 @@ const ROW = "mx-auto w-full max-w-[var(--content-max)] px-[var(--gutter)]";
 
 export function SviProjekti() {
   const projekti = useQuery(api.projekti.mojiProjekti);
+  const ja = useQuery(api.projekti.ja);
+  const praviProjekte = NOVI_PROJEKAT_POSTOJI && ja?.platformaVlasnik === true;
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -33,6 +37,18 @@ export function SviProjekti() {
           <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
             Svi projekti
           </h1>
+          {praviProjekte && (
+            <Button
+              variant="secondary"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={NOVI_PROJEKAT_HREF} />}
+              className="touch-target"
+            >
+              <Plus aria-hidden />
+              Novi projekat
+            </Button>
+          )}
           <UserMenu />
         </div>
       </header>

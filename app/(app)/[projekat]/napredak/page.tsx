@@ -1,7 +1,8 @@
 import { NapredakScreen } from "@/components/app/napredak/napredak-screen";
 
 export const metadata = {
-  title: "Napredak · Enigma Command Center",
+  // Ime projekta dodaje šablon iz layout-a `[projekat]`.
+  title: "Napredak",
 };
 
 export default function NapredakPage() {

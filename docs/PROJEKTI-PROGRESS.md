@@ -758,3 +758,141 @@ Obrađene su sve 88 javnih funkcija grupe iz mape C02 §5.1: 82 sada idu kroz om
 
 ## C10 - Plan: podešavanja, brend, env, OAuth, kvote   (2026-10-25 04:39)
 **Plan korak.** Plan je upisan u `docs/projekti/planovi/C10.md`. Kod nije menjan.
+
+## C11 — Podešavanja i brend projekta, čarobnjak   (2026-10-25 05:25)
+**Fajlovi:**
+- backend:
+  - novi: `convex/podesavanjaStore.ts`, `convex/lib/podesavanjaPravila.ts`, `convex/lib/moduli.ts`, `convex/lib/sabloniLeadova.ts`;
+  - izmenjeni: `convex/projekti.ts` (`javniBrend`, `proveriSlug`, `sajtovi` u `mojProjekat`, pravila polja iz `podesavanjaPravila`), `convex/lib/projekatPolja.ts` (`sajtovi` u odgovoru), `convex/schema.ts` (indeksi `workspaces.by_logo` i `by_favicon`), `convex/_generated/api.d.ts` (codegen).
+- front:
+  - novi: `components/app/settings/{projekat-panel,mozak-panel,izbor-boje,slika-brenda}.tsx`, `components/app/hub/novi-projekat.tsx`, `app/(app)/novi/page.tsx`, `app/login/login-client.tsx` (dosadašnji sadržaj `app/login/page.tsx`, premešten bez izmene osim imena komponente i propa `brend`), `lib/slug-predlog.ts`;
+  - izmenjeni: `app/login/page.tsx` (sada serverska strana sa brendom i `generateMetadata`), `app/(app)/[projekat]/layout.tsx` (`generateMetadata`), `app/(app)/[projekat]/settings/page.tsx` (`?tab=`, jezičci Projekat i Mozak), `app/(app)/[projekat]/{napredak,novosti,rules}/page.tsx` (samo naslov), `components/app/system/brand-moment.tsx`, `components/app/projekat-znak.tsx` (veličina `lg`), `components/app/projekat-provider.tsx` (`vrsta`, `sajtovi`, `useModulUkljucen`), `components/app/nav-items.ts` (`NOVI_PROJEKAT_POSTOJI = true`, `vidljiveSekcije`, `donjaTraka`), `components/app/{app-shell,app-sidebar,mobile-nav,command-palette,projekat-birac}.tsx`, `components/app/hub/svi-projekti.tsx`, `lib/rutiranje.ts`, `lib/boja-projekta.ts` (`PREDLOZI_BOJA`);
+  - razvojni prikaz: `app/dev-ux/[[...slug]]/page.tsx` (`/novi`, prijava sa `&panel=`), `app/dev-ux/fixtures-projekti.ts`, `app/dev-ux/fake-convex.ts`.
+- čuvar: `scripts/verify-pristup.ts` (`projekti.javniBrend` i `projekti.proveriSlug` na spisku, sa razlogom).
+- testovi: novi `convex/podesavanja-c11.test.ts`, `convex/javni-brend.test.ts`, `lib/podesavanja-pravila.test.ts`; dopunjeni `convex/projekti.test.ts`, `lib/rutiranje.test.ts`; `convex/projekatTest.pomoc.ts` (`odbijeno` prima i `not_found`).
+- snimci: `docs/projekti/snimci/C11-podesavanja-projekat-{1440,1536,390}.png`, `C11-podesavanja-mozak-{1440,1536}.png`, `C11-carobnjak-korak1-{1440,390}.png`, `C11-carobnjak-korak2-1440.png`, `C11-carobnjak-kanali-1440.png`, `C11-prijava-panel-scanme-1440.png`, `C11-hub-novi-projekat-1440.png`.
+
+**Šta je urađeno:**
+- **Podešavanja** imaju jezičak u adresi (`?tab=`). Bez parametra se otvara „Integracije“, jer OAuth povratak i `ig_code` traže karticu veza. Birač projekta vodi na `?tab=projekat`. Novi jezičci:
+  - **Projekat**: Identitet (ime, kratko ime, boja sa šest predloga i poljem `#rrggbb`, vrsta; jedno `primary` „Sačuvaj izmene“), Znak projekta (pregled znaka i trake, logo, ikonica; čuvaju se odmah), Domeni panela (samo vlasnik platforme), Sajtovi, Moduli (prekidač po modulu, „Uključi sve“). Urednik i posmatrač vide iste podatke kao tekst, a prekidači su im onemogućeni.
+  - **Mozak**: pet polja (ponuda, kome prodajemo, ton, šta ne govorimo, skripte), do 4.000 znakova, lepljiva traka sa „Sačuvaj“; ostale uloge samo čitaju.
+- **Backend** (`convex/podesavanjaStore.ts`):
+  - `procitaj` (owner), `mozak` (svaki član);
+  - `uploadUrlBrenda`, `postaviSlikuBrenda`, `sacuvajSajtove`, `sacuvajModule`, `sacuvajMozak` (owner);
+  - `dodajDomen`/`ukloniDomen` (owner koji je i vlasnik platforme).
+
+  Pravila polja su čiste funkcije u `convex/lib/podesavanjaPravila.ts`, ista na frontu i u mutaciji; `azurirajProjekat` i `kreirajProjekat` ih sada koriste (poruke su iste).
+- **Logo i ikonica** idu kroz Convex storage:
+  - logo: PNG/JPG/WebP do 512 KB; ikonica: PNG/ICO do 128 KB; SVG nije dozvoljen;
+  - server prihvata samo fajl otpremljen u poslednjih 10 min koji nije logo ni ikonica nijednog projekta (provera preko indeksa), a stari fajl briše posle zamene;
+  - klijent unapred proverava i dimenzije (logo ≥ 64 px, ikonica kvadratna 32–512 px).
+
+  Birač, ⌘K, panel i „Objavljuješ kao …“ prikazuju logo bez izmene, jer `ProjekatZnak` već crta `logoUrl`.
+- **Prijava po domenu**: `app/login/page.tsx` je serverska strana. Na panel domenu (`x-panel-rezim: panel` iz proxy-ja) zove javni `projekti.javniBrend({ host })`, koji vraća samo ime, boju i logo, i to samo za mapiran host koji nije arhiviran; istek je 1,5 s, a kvar daje podrazumevan izgled. `BrandMoment` tada crta znak i ime projekta, a aurora prelazi u boju projekta. Naslov je „Prijava · <projekat>“, ikonica je logo.
+- **Naslov i favicon po projektu**: `generateMetadata` u layout-u `[projekat]` (sesija iz `convexAuthNextjsToken`, `mojProjekat`, istek 1,5 s) daje šablon „%s · <projekat>“, podrazumevano „<projekat> · Enigma Digital“, i ikonicu (favicon ili logo).
+- **Moduli**: isključen modul nestaje iz bočne trake (prazna grupa nestaje cela), iz liste „Više“ i iz ⌘K (ekrani, radnje, nedavno), a donja traka popunjava njegovu ćeliju sledećim uključenim modulom. `ModulCuvar` u ljusci preusmerava rutu isključenog modula na kontrolnu tablu. `modulUkljucen` je jedna funkcija (`convex/lib/moduli.ts`) koju koristi i `putanjaZaPrelazak`.
+- **Čarobnjak `/novi`** (samo vlasnik platforme; ostali vide „Nove projekte pravi vlasnik platforme.“):
+  1. Osnovno: ime, adresa predložena iz imena i proverena uživo kroz `projekti.proveriSlug`, vrsta. Projekat nastaje odmah.
+  2. Izgled: boja i logo, uz „Preskoči“.
+  3. Spremnost kanala: 8 kanala sa stanjem iz `connections.list`, „Otvori projekat“ i „Poveži kanale“ (→ podešavanja).
+
+  Novi projekat je odmah (reaktivno) u biraču i na hubu. Hub ima dugme „Novi projekat“ za vlasnika platforme, a `NOVI_PROJEKAT_POSTOJI = true` pali stavku u biraču (D19).
+
+**ODLUKE:**
+- **Odluke iz plana C10** (C10 nije menjao fajlove, pa ih ovde upisuje C11; pun tekst je u `docs/projekti/planovi/C10.md` §0.2):
+  - E1: vrstu projekta menja samo vlasnik platforme, i u UI-ju (D7).
+  - E2: C11 pali `NOVI_PROJEKAT_POSTOJI` (D19).
+  - E3: isti spoljni nalog u dva projekta: Instagram, Facebook stranica i Threads se odbijaju, ostali kanali dobijaju upozorenje; posao C12.
+  - E4: osnivački projekat je najstariji red u `workspaces`.
+  - E5: granice izmene budžeta (5 / 5.000 / EUR) važe za svaki projekat; gornja granica nove kampanje bez vrednosti znači da je pravljenje isključeno.
+  - E6: ime pošiljaoca bez vrednosti je ime projekta (osnivački: iz `EMAIL_FROM`); OTP mejlovi se ne menjaju.
+  - E7: `META_CAPI_TEST_EVENT_CODE` važi samo za osnivački projekat.
+  - E8: `OAUTH_CALLBACK_ORIGIN` čita samo Convex.
+  - E9: nova env promenljiva `HUB_HOSTS` (Convex).
+  - E10: povratak OAuth-a sa klijenta je samo origin; putanju gradi server.
+  - E11: javni brend vraća samo ime, boju i logo, samo za mapiran host; na prijavi je ikonica logo.
+  - E12: logo i ikonica bez SVG-a; fajl mora biti nov (10 min) i ničiji.
+  - E13: `?tab=` u podešavanjima, podrazumevano „Integracije“.
+  - E14: pozvan korisnik dobija članstvo i ulogu iz pozivnice (C13); korisnik iz `ALLOWED_EMAILS` bez pozivnice nema projekat.
+  - E15: bootstrap admina ide u osnivački projekat; `WORKSPACE_SLUG` se briše (C13).
+  - E16: pozivnica nosi ulogu; `membersStore.promeniUlogu` (C13).
+  - E17: Meta procenat aplikacije se ne deli na projekte.
+  - E18: YouTube brojači po pacifičkom danu (C13).
+  - E19: moduli su izgled, ne pravo pristupa; backend ne zabranjuje podatke isključenog modula.
+  - E20: ključevi modula su u `convex/lib/moduli.ts`, a test čuva jednakost sa `MODULE_KEYS`.
+- **Indeksi `workspaces.by_logo` i `by_favicon`** nisu bili u planu. Provera „fajl nije brend drugog projekta“ u javnoj mutaciji ne sme da prolazi kroz sve projekte (pravilo runa), a Convex ume da indeksira ugnežđena polja.
+- **Odbijen fajl brenda se ne briše**, jer možda nije naš (svako ko zna ID može da ga pošalje). Fajl koji klijent otpremi, a server odbije, ostaje bez vlasnika; to je retko, jer klijent iste uslove proverava unapred.
+- **Isti fajl ne može biti i logo i ikonica**, ni u istom projektu: zamena jednog bi obrisala drugi.
+- **Logo i ikonica se čuvaju odmah**, van „Sačuvaj izmene“: otpremanje je radnja, a forma ima jedno `primary` dugme na ekranu.
+- **Raspored jezička Projekat**: Identitet i Znak projekta su u dve kolone, ime i kratko ime u jednom redu, a adresa je napomena ispod imena.
+  - Prva verzija (sve u jednoj koloni) spuštala je „Sačuvaj izmene“ ispod pregiba na 1536 × 695; sada staje (snimak `C11-podesavanja-projekat-1536.png`).
+  - Brojač kratkog imena je „6/24“ umesto `CharCount`-a, koji pri granici od 24 znaka stalno upozorava.
+- **Mozak**: pet polja ne mogu da stanu iznad pregiba, pa je traka sa „Sačuvaj“ lepljiva uz dno (na telefonu iznad donje navigacije).
+- **Postojeći jezičci (Integracije, Pristup, Istorija, Moderacija, Napredak) i dalje se prikazuju svim ulogama.** Sakrivanje po ulogama je posao C13; nove sekcije C11 već poštuju uloge (menja samo vlasnik, domene samo vlasnik platforme).
+- **`procitaj` vraća domene i vlasniku projekta koji nije vlasnik platforme**, jer sopstveni domeni nisu tajna. UI crta sekciju Domeni samo vlasniku platforme, a backend samo njemu dozvoljava izmenu.
+- **Serverski Convex poziv u `generateMetadata`** (layout `[projekat]` i prijava): D8 kaže da aplikacija nema serverske Convex pozive za članstvo. Ovde se poziv koristi samo za naslov i ikonicu, sa sesijom korisnika i istekom 1,5 s, a svaki kvar daje podrazumevani naslov. Članstvo i dalje proverava provider.
+- **Naslovi strana**: „Napredak“, „Novosti i članci“ i „Pravila i zaštita budžeta“ više nemaju „· Enigma Command Center“; sufiks daje šablon projekta. Root naslov (hub) ostaje „Enigma Command Center“, a čarobnjak je „Novi projekat · Enigma Digital“.
+- **Čarobnjak**:
+  - projekat nastaje posle prvog koraka (logo traži projekat, a prekid ne gubi rad);
+  - korak „Leadovi“ se ne prikazuje dok je „Prazno“ jedini šablon (`SABLONI_LEADOVA`), pa čarobnjak danas ima 3 koraka; kad C14 doda šablone, korak se sam pojavi;
+  - iz čarobnjaka se kanali ne povezuju (OAuth vodi na podešavanja), a spremnost broji samo kanale sa spiska.
+- **⌘K**: ekrani, radnje i „Nedavno“ isključenog modula se ne nude. Zadaci iz zvona i misije ostaju, jer nose posao koji čeka.
+- **Predlozi boja** (`PREDLOZI_BOJA`, 6): bez žute i zlatne (nagrada) i bez crvene (greška); svaka prolazi kontrast bez pomeranja (test).
+- **Hub „Svi projekti“**: monogrami ostaju neutralni (izgled huba je posao C16); dodato je samo dugme „Novi projekat“.
+- **Razvojni prikaz**:
+  - lažni klijent sada i za mutaciju vraća fiksturu sa njenim imenom kad postoji (do sada `undefined`);
+  - jedina takva fikstura je `projekti.kreirajProjekat`, koja „pravi“ ScanMe, pa se koraci 2 i 3 vide nad pravim oblikom podataka;
+  - prijava na panel domenu se simulira sa `/login?ux=1&panel=<slug>`.
+- **Prettier**: pri jednoj popravci slučajno je preformatirao `components/app/hub/svi-projekti.tsx` (repo nema prettier konfiguraciju). Fajl je vraćen na HEAD (`git show`, samo čitanje), a izmena ponovo upisana ručno, pa diff nosi samo stvarnu izmenu.
+
+**Novi paketi:** nema
+
+**Testovi:**
+- `lib/podesavanja-pravila.test.ts` (node):
+  - ime i kratko ime;
+  - boja: normalizacija, 6 loših oblika, predlozi prolaze kontrast;
+  - domen: velika slova, završna tačka, punycode; 13 loših unosa (protokol, putanja, port, `@`, razmak, bez TLD-a, crtice, `..`, lokalni hostovi, prazno); duži od 253 znaka;
+  - sajtovi: `www.`, duplikati, 20 prolazi a 21 ne, loš unos;
+  - moduli: `null` = svi, ceo skup → `null`, redosled i duplikati; `tabla`, `sistem` i nepoznat se odbijaju;
+  - mozak: 4.000 prolazi, 4.001 ne;
+  - slike: tipovi, granice veličine, SVG, prazan fajl;
+  - predlog adrese: dijakritika, „Đ“, crtice, 40 znakova.
+- `convex/podesavanja-c11.test.ts` (edge-runtime):
+  - urednik i posmatrač dobijaju `forbidden` za svih 8 izmena i za `procitaj`, a projekat ostaje isti;
+  - mozak čitaju svi članovi, a nečlan i neprijavljen ne; vlasnik A ne menja B;
+  - sajtovi, moduli i mozak se upisuju normalizovano i brišu praznim; `mojProjekat` vraća sajtove;
+  - vlasnik klijentskog projekta ne menja vrstu (D7), ali menja brend;
+  - domeni: samo vlasnik platforme, host jedinstven u celoj bazi („već dodat“ / „drugom projektu“), najviše 5, tuđ domen se ne uklanja, razrešavanje domena prati upis i brisanje;
+  - slike: postavljanje, zamena briše stari fajl, `null` uklanja; SVG i prevelika ikonica se odbijaju (fajl ostaje); star fajl (11 min) se odbija; tuđ logo i sopstveni logo kao ikonica se odbijaju.
+- `convex/javni-brend.test.ts`:
+  - radi bez prijave, a ključevi odgovora su tačno `ime`, `boja`, `logoUrl`;
+  - u odgovoru nema sluga, ID-a, kratkog imena, sajtova, mozga ni podešavanja;
+  - projekat bez brenda daje `null` boju i logo;
+  - nepoznat, lokalni i neispravan host i arhiviran projekat daju `null`.
+- `convex/projekti.test.ts` (+2): `proveriSlug` (slobodan, normalizacija, zauzet, rezervisan, neispravan; vlasnik klijentskog projekta i neprijavljen se odbijaju); napravljen projekat je odmah u `mojiProjekti` kao `owner`.
+- `lib/rutiranje.test.ts` (+4): `MODULI_PROJEKTA` = `MODULE_KEYS` bez table i podešavanja; `modulUkljucen`; bočna traka bez isključenih modula i praznih grupa; donja traka uvek ima tri ćelije (popuna), a sa samo kontrolnom tablom jednu.
+
+**Rezultat provere:**
+- codegen ✓, typecheck ✓;
+- lint ✓: 0 grešaka; u izmenjenim i novim fajlovima jedino je staro upozorenje `adminLozinkaGreska` u premeštenom kodu prijave;
+- `npx vitest run` ✓ (332/332, 23 fajla);
+- `verify-pristup` ✓ (354 javne: omotačem 340, javno 14, bez omotača 0; front: 21 direktan poziv, svi sa spiska);
+- `regresije.mjs` ✓ (14/14); `npm run build` ✓ (uključuje proveru pokrivenosti brisanja; `/novi` i `/login` su dinamičke).
+- Razvojni prikaz (Playwright, 1440×900, 1536×695, 390×844):
+  - podešavanja → Projekat: izbor boje menja pregled i pali „Sačuvaj izmene“; Mozak; prijava na panel domenu ScanMe;
+  - čarobnjak: korak 1 sa predlogom adrese „djordjevic-pekara“ i proverom „Slobodna“, korak 2, korak 3; hub sa dugmetom „Novi projekat“;
+  - u projektu „Klijent d.o.o.“ bočna traka ima samo tablu, leadove, novosti i analitiku, a `/klijent-doo/instagram` preusmerava na kontrolnu tablu.
+
+  Konzola je bez grešaka i upozorenja; jedno upozorenje Base UI o dugmetu kao linku je nađeno i ispravljeno (`nativeButton={false}`). Dev server je ugašen (port 3105 slobodan), a otpaci Playwright-a iz `docs/projekti/snimci/` obrisani.
+
+**Za Jovana ujutru:**
+- Convex deploy dodaje indekse `workspaces.by_logo` i `by_favicon` (mala tabela, bez čekanja).
+- Posle deploya, Podešavanja projekta Enigma IT → Projekat:
+  - promeni boju i sačuvaj: traka na vrhu i birač treba da promene boju;
+  - otpremi logo i ikonicu: pojave se u biraču i kao ikonica kartice pregledača;
+  - dodaj domen `digital.enigmait.rs` (i u Vercel, ako već nije);
+  - upiši sajtove `enigmait.rs` i `digital.enigmait.rs`.
+- Odjavi se na mapiranom panel domenu: prijava treba da pokaže znak i ime projekta. U hubu ostaje „Enigma / Command Center“.
+- Hub → „Novi projekat“: napravi ScanMe (adresa `scanme`), boja, logo. Projekat se odmah pojavi u biraču i na hubu.
+- Isključi jedan modul u nekom projektu: nestaje iz bočne trake, donje trake i ⌘K, a njegova adresa vodi na kontrolnu tablu.
+- Mozak projekta: upiši ponudu i kupca (čitaće ih skillovi posle C14).

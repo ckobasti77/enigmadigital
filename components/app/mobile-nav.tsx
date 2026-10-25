@@ -7,7 +7,7 @@ import { LayoutGrid, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   activeHref,
-  mobileBarItems,
+  donjaTraka,
   navItems,
   resolveModule,
 } from "./nav-items";
@@ -15,7 +15,7 @@ import { MOBILE_TAB, MOBILE_TAB_BADGE, MOBILE_TAB_ICON } from "./mobile-tab";
 import { ModuleTile } from "./module-tile";
 import { NavBadge } from "./nav-badge";
 import { NotificationsBell } from "./notifications-bell";
-import { useEkranPutanja } from "./projekat-provider";
+import { useEkranPutanja, useModulUkljucen } from "./projekat-provider";
 
 /**
  * ============================================================================
@@ -35,6 +35,9 @@ export function MobileNav() {
   const pathname = useEkranPutanja();
   const [moreOpen, setMoreOpen] = useState(false);
   const active = activeHref(pathname);
+  // Isključen modul projekta nema ćeliju; mesto mu popuni sledeća stavka.
+  const ukljucen = useModulUkljucen();
+  const mobileBarItems = donjaTraka(ukljucen);
   const inBar = mobileBarItems.some((item) => item.href === active);
 
   // List postoji samo na telefonu: ako se prozor raširi dok je otvoren,
@@ -148,6 +151,7 @@ function MoreSheet({
   onOpenChange: (open: boolean) => void;
   active: string | undefined;
 }) {
+  const ukljucen = useModulUkljucen();
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
@@ -181,7 +185,7 @@ function MoreSheet({
           </div>
 
           <ul className="grid min-h-0 grid-cols-3 gap-1 overflow-y-auto px-3 pb-4">
-            {navItems.map((item) => {
+            {navItems.filter((item) => ukljucen(item.module)).map((item) => {
               const isActive = item.href === active;
               return (
                 <li key={item.href} data-module={item.module}>

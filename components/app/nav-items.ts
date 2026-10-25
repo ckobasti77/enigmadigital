@@ -13,6 +13,9 @@ import {
 } from "lucide-react";
 import { FacebookIcon, InstagramIcon, ThreadsIcon } from "./brand-glyphs";
 
+/** Pita da li je modul uključen u projektu (`useModulUkljucen`). */
+export type Ukljucen = (modul: ModuleKey) => boolean;
+
 export type NavIcon = ComponentType<{ className?: string }>;
 
 /**
@@ -138,10 +141,40 @@ export const navItems: NavItem[] = [
  * kliza vodoravno.
  */
 const MOBILE_BAR_HREFS = ["/", "/leadovi", "/instagram"];
+const MOBILE_BAR_CELLS = MOBILE_BAR_HREFS.length;
 
 export const mobileBarItems: NavItem[] = navItems.filter((item) =>
   MOBILE_BAR_HREFS.includes(item.href),
 );
+
+/**
+ * Grupe bočne trake samo sa uključenim modulima (PROJEKTI-PLAN §8, „Moduli“);
+ * grupa bez ijedne stavke nestaje cela.
+ */
+export function vidljiveSekcije(ukljucen: Ukljucen): NavSection[] {
+  return navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => ukljucen(item.module)),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
+/**
+ * Tri ćelije donje trake u projektu: podrazumevane stavke koje su uključene,
+ * a mesto isključene popuni sledeća uključena stavka navigacije, pa traka
+ * nikad nema praznu ćeliju.
+ */
+export function donjaTraka(ukljucen: Ukljucen): NavItem[] {
+  const prve = mobileBarItems.filter((item) => ukljucen(item.module));
+  const dopuna = navItems.filter(
+    (item) =>
+      item !== settingsNavItem &&
+      !prve.includes(item) &&
+      ukljucen(item.module),
+  );
+  return [...prve, ...dopuna].slice(0, MOBILE_BAR_CELLS);
+}
 
 /**
  * Ekran koji ima svoje mesto u gornjoj traci, ali ne i u navigaciji — otvara
@@ -420,7 +453,7 @@ export function ekranZaPrelazak(
  * postoji (isti obrazac kao `screenExists`: nema mrtve kontrole). Pali je
  * korak koji pravi čarobnjak novog projekta.
  */
-export const NOVI_PROJEKAT_POSTOJI = false;
+export const NOVI_PROJEKAT_POSTOJI = true;
 export const NOVI_PROJEKAT_HREF = "/novi";
 
 /** Ekran napretka (upisan u `EXTRA_SCREENS`). */

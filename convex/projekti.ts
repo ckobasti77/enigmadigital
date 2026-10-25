@@ -7,9 +7,11 @@ import {
   clanstvoKorisnika,
   jeVlasnikPlatforme,
   platformaMutation,
+  platformaQuery,
   prijavljenQuery,
   projekatMutation,
 } from "./lib/projekat";
+import { proveriBoju, proveriIme, proveriKratkoIme } from "./lib/podesavanjaPravila";
 import {
   jaValidator,
   projekatValidator,
@@ -34,7 +36,6 @@ import { zdravljeProjekta, type VezaZaZdravlje } from "./lib/zdravljeVeza";
  * ============================================================================
  */
 
-const BOJA = /^#[0-9a-f]{6}$/;
 const MAKS_CLANSTAVA = 100;
 
 async function urlFajla(
@@ -117,6 +118,7 @@ export const mojProjekat = prijavljenQuery({
         faviconUrl: await urlFajla(ctx, ws.brend?.faviconStorageId),
         vrsta: ws.vrsta ?? ("interni" as const),
         moduli: ws.moduli ?? null,
+        sajtovi: ws.sajtovi ?? [],
         uloga: clan.role,
         korisnik: {
           id: userId,
@@ -286,6 +288,66 @@ export const razresiDomen = query({
 });
 
 /**
+ * Brend panel domena za ekran prijave (plan C10 §2.2, E11). Vraća samo ime,
+ * boju i logo, i to samo za host mapiran na projekat (ne arhiviran): to je
+ * ono što taj domen i inače pokazuje svakom posetiocu. Slug, ID, ikonica i
+ * podešavanja ne izlaze, a nemapiran host ne otkriva ništa.
+ */
+// javno: ekran prijave na panel domenu; samo ime, boja i logo mapiranog hosta
+export const javniBrend = query({
+  args: { host: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      ime: v.string(),
+      boja: v.union(v.string(), v.null()),
+      logoUrl: v.union(v.string(), v.null()),
+    }),
+  ),
+  handler: async (ctx, { host }) => {
+    const h = normalizujHost(host);
+    if (h === null) return null;
+    const red = await ctx.db
+      .query("projekatDomeni")
+      .withIndex("by_host", (q) => q.eq("host", h))
+      .first();
+    if (red === null) return null;
+    const ws = await ctx.db.get(red.workspaceId);
+    if (ws === null || ws.arhiviran === true) return null;
+    return {
+      ime: ws.name,
+      boja: ws.brend?.boja ?? null,
+      logoUrl: await urlFajla(ctx, ws.brend?.logoStorageId),
+    };
+  },
+});
+
+/**
+ * Da li je adresa slobodna za novi projekat (čarobnjak, uživo dok se kuca).
+ * Samo vlasnik platforme, isto kao `kreirajProjekat`.
+ */
+export const proveriSlug = platformaQuery({
+  args: { slug: v.string() },
+  returns: v.union(
+    v.object({ ok: v.literal(true) }),
+    v.object({ ok: v.literal(false), poruka: v.string() }),
+  ),
+  handler: async (ctx, args) => {
+    const slug = args.slug.trim().toLowerCase();
+    const provera = proveriSlugProjekta(slug);
+    if (!provera.ok) return { ok: false as const, poruka: provera.razlog };
+    const zauzet = await ctx.db
+      .query("workspaces")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .first();
+    if (zauzet !== null) {
+      return { ok: false as const, poruka: "Ova adresa projekta je zauzeta." };
+    }
+    return { ok: true as const };
+  },
+});
+
+/**
  * Novi projekat (samo vlasnik platforme, P3). Adresa prolazi P8 i mora biti
  * slobodna; kreator postaje `owner`. Šablon ICP-a i ostala podešavanja nisu
  * ovde (C11, C14).
@@ -298,13 +360,9 @@ export const kreirajProjekat = platformaMutation({
   },
   returns: v.object({ workspaceId: v.id("workspaces"), slug: v.string() }),
   handler: async (ctx, args) => {
-    const ime = args.ime.trim();
-    if (ime.length < 2 || ime.length > 60) {
-      throw new ConvexError({
-        code: "invalid",
-        message: "Ime projekta mora imati od 2 do 60 znakova.",
-      });
-    }
+    const imeP = proveriIme(args.ime);
+    if (!imeP.ok) throw new ConvexError({ code: "invalid", message: imeP.poruka });
+    const ime = imeP.vrednost;
     const slug = args.slug.trim().toLowerCase();
     const provera = proveriSlugProjekta(slug);
     if (!provera.ok) {
@@ -341,7 +399,8 @@ export const kreirajProjekat = platformaMutation({
  * Osnovni podaci projekta (vlasnik projekta). Adresa (slug) se ne menja.
  * `null` briše vrednost. Vrstu menja samo vlasnik platforme: inače bi vlasnik
  * klijentskog projekta mogao da ga proglasi internim i postane vlasnik
- * platforme po P3. Domeni, logo, podešavanja, moduli i mozak su C11/C12.
+ * platforme po P3. Logo, ikonica, sajtovi, moduli, mozak i domeni su u
+ * `podesavanjaStore.ts`; podešavanja sajta i budžeta dodaje C12.
  */
 export const azurirajProjekat = projekatMutation({
   uloga: "owner",
@@ -362,14 +421,9 @@ export const azurirajProjekat = projekatMutation({
     const izmena: Partial<Doc<"workspaces">> = {};
 
     if (args.ime !== undefined) {
-      const ime = args.ime.trim();
-      if (ime.length < 2 || ime.length > 60) {
-        throw new ConvexError({
-          code: "invalid",
-          message: "Ime projekta mora imati od 2 do 60 znakova.",
-        });
-      }
-      izmena.name = ime;
+      const p = proveriIme(args.ime);
+      if (!p.ok) throw new ConvexError({ code: "invalid", message: p.poruka });
+      izmena.name = p.vrednost;
     }
 
     if (args.vrsta !== undefined && args.vrsta !== (ws.vrsta ?? "interni")) {
@@ -388,25 +442,16 @@ export const azurirajProjekat = projekatMutation({
     if (args.kratkoIme !== undefined || args.boja !== undefined) {
       const brend = { ...(ws.brend ?? {}) };
       if (args.kratkoIme !== undefined) {
-        const kratko = args.kratkoIme?.trim() ?? "";
-        if (kratko.length > 24) {
-          throw new ConvexError({
-            code: "invalid",
-            message: "Kratko ime može imati najviše 24 znaka.",
-          });
-        }
-        if (kratko.length === 0) delete brend.kratkoIme;
-        else brend.kratkoIme = kratko;
+        const p = proveriKratkoIme(args.kratkoIme);
+        if (!p.ok) throw new ConvexError({ code: "invalid", message: p.poruka });
+        if (p.vrednost === null) delete brend.kratkoIme;
+        else brend.kratkoIme = p.vrednost;
       }
       if (args.boja !== undefined) {
-        const boja = args.boja?.trim().toLowerCase() ?? "";
-        if (boja.length === 0) delete brend.boja;
-        else if (!BOJA.test(boja)) {
-          throw new ConvexError({
-            code: "invalid",
-            message: "Boja mora biti u obliku #rrggbb.",
-          });
-        } else brend.boja = boja;
+        const p = proveriBoju(args.boja);
+        if (!p.ok) throw new ConvexError({ code: "invalid", message: p.poruka });
+        if (p.vrednost === null) delete brend.boja;
+        else brend.boja = p.vrednost;
       }
       izmena.brend = brend;
     }

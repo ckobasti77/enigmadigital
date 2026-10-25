@@ -10,7 +10,7 @@ import type { ConvexReactClient } from "convex/react";
  * koriste: `watchQuery` vraća „watch" čiji `localQueryResult()` odmah daje
  * sintetički rezultat (ili `undefined` = ekran crta skeleton). Akcija vraća
  * fiksturu sa svojim imenom kad je ima (npr. dnevna dozvola Instagram
- * objava), inače `undefined`; mutacije su prazna obećanja. Nema mreže, nema
+ * objava), inače `undefined`; isto i mutacija (npr. novi projekat). Nema mreže, nema
  * pretplata, nema tajni.
  *
  * Koristi se SAMO iz `app/dev-ux` (koji u produkciji vraća 404).
@@ -39,8 +39,13 @@ export function createFakeConvexClient(
     async query(query: FunctionReference<"query">, args?: Record<string, unknown>) {
       return resolve(getFunctionName(query), args ?? {});
     },
-    async mutation() {
-      return undefined;
+    // Mutacija vraća fiksturu sa svojim imenom kad je ima (npr. novi projekat
+    // u čarobnjaku), inače `undefined`, kao i do sada.
+    async mutation(
+      mutation: FunctionReference<"mutation">,
+      args?: Record<string, unknown>,
+    ) {
+      return resolve(getFunctionName(mutation), args ?? {});
     },
     async action(action: FunctionReference<"action">, args?: Record<string, unknown>) {
       return resolve(getFunctionName(action), args ?? {});

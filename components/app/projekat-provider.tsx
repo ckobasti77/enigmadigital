@@ -21,6 +21,7 @@ import type { Uloga } from "@/convex/lib/uloge";
 import {
   KOLACIC_PROJEKAT,
   ekranIzPutanje,
+  modulUkljucen,
   prefiksProjekta,
   putanjaEkrana,
   type Rezim,
@@ -64,11 +65,18 @@ export type ProjekatKontekst = {
   brend: { boja: string | null; logoUrl: string | null; faviconUrl: string | null };
   /** `null` = svi moduli. */
   moduli: string[] | null;
+  /** „interni“ ili „klijent“; `null` dok projekat nije učitan. */
+  vrsta: "interni" | "klijent" | null;
+  /** Praćeni domeni sajta (podešavanja projekta). */
+  sajtovi: string[];
   korisnik: { id: Id<"users">; email: string | null; ime: string | null } | null;
   platformaVlasnik: boolean;
 };
 
 const ProjekatContext = createContext<ProjekatKontekst | null>(null);
+
+/** Stalna prazna lista, da kontekst ne menja identitet dok projekat stiže. */
+const BEZ_SAJTOVA: string[] = [];
 
 export function ProjekatProvider({
   slug,
@@ -113,6 +121,8 @@ export function ProjekatProvider({
         faviconUrl: projekat?.faviconUrl ?? null,
       },
       moduli: projekat?.moduli ?? null,
+      vrsta: projekat?.vrsta ?? null,
+      sajtovi: projekat?.sajtovi ?? BEZ_SAJTOVA,
       korisnik: projekat?.korisnik ?? null,
       platformaVlasnik: projekat?.platformaVlasnik ?? false,
     }),
@@ -227,6 +237,15 @@ export function useEkranPutanja(): string {
   const pathname = usePathname();
   const { prefiks } = useProjekat();
   return ekranIzPutanje(pathname, prefiks);
+}
+
+/**
+ * Da li je modul uključen u tekućem projektu (`moduli` bez vrednosti = svi;
+ * kontrolna tabla i podešavanja uvek). Van projekta je sve uključeno.
+ */
+export function useModulUkljucen(): (modul: string) => boolean {
+  const moduli = useContext(ProjekatContext)?.moduli ?? null;
+  return useCallback((modul: string) => modulUkljucen(moduli, modul), [moduli]);
 }
 
 /** Pravi adresu linka za ekran u tekućem projektu (`/leadovi` → `/enigma-it/leadovi`). */

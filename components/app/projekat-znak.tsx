@@ -20,6 +20,8 @@ const VELICINA = {
   xs: { kutija: "size-5 rounded-[5px] text-micro", slova: 1 },
   sm: { kutija: "size-6 rounded-md text-micro", slova: 2 },
   md: { kutija: "size-7 rounded-md text-meta", slova: 2 },
+  // Ekran prijave na panel domenu: znak je tamo brend, ne ukras u redu.
+  lg: { kutija: "size-14 rounded-xl text-title", slova: 2 },
 } as const;
 
 export type ProjekatZaZnak = {

@@ -443,7 +443,7 @@ function TeloMenija({
             </Link>
           )}
           <ProjekatLink
-            href="/settings"
+            href="/settings?tab=projekat"
             role="menuitem"
             tabIndex={-1}
             onClick={zatvori}

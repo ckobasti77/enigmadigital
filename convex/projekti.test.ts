@@ -360,3 +360,29 @@ describe("stanjeProjekata (birač projekta)", () => {
     ).toBe(true);
   });
 });
+
+describe("proveriSlug (čarobnjak, C11)", () => {
+  test("pravila P8 i zauzetost; samo vlasnik platforme", async () => {
+    const s = await napraviSvet();
+    const jovan = kao(s, s.jovan);
+    const provera = (slug: string) => jovan.query(api.projekti.proveriSlug, { slug });
+    expect(await provera("nova-firma")).toEqual({ ok: true });
+    expect(await provera(" Nova-Firma ")).toEqual({ ok: true });
+    expect(await provera("scanme")).toEqual({ ok: false, poruka: "Ova adresa projekta je zauzeta." });
+    expect((await provera("leadovi")).ok).toBe(false);
+    expect((await provera("novi")).ok).toBe(false);
+    expect((await provera("-x-")).ok).toBe(false);
+    await odbijeno(kao(s, s.klijent).query(api.projekti.proveriSlug, { slug: "x-y" }), "forbidden");
+    await odbijeno(s.t.query(api.projekti.proveriSlug, { slug: "x-y" }), "unauthorized");
+  });
+
+  test("napravljen projekat je odmah u spisku (birač) sa vlasnikom", async () => {
+    const s = await napraviSvet();
+    const jovan = kao(s, s.jovan);
+    await jovan.mutation(api.projekti.kreirajProjekat, { ime: "Nova firma", slug: "nova-firma" });
+    const spisak = await jovan.query(api.projekti.mojiProjekti, {});
+    expect(spisak.map((p) => [p.slug, p.uloga])).toContainEqual(["nova-firma", "owner"]);
+    expect((await jovan.query(api.projekti.mojProjekat, { slug: "nova-firma" }))?.sajtovi).toEqual([]);
+    expect((await jovan.query(api.projekti.proveriSlug, { slug: "nova-firma" })).ok).toBe(false);
+  });
+});

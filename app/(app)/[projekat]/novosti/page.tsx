@@ -5,7 +5,8 @@ import {
 } from "@/components/app/novosti/novosti-dashboard";
 
 export const metadata = {
-  title: "Novosti i članci · Enigma Command Center",
+  // Ime projekta dodaje šablon iz layout-a `[projekat]`.
+  title: "Novosti i članci",
 };
 
 export default function NovostiPage() {

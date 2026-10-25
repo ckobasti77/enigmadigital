@@ -1,7 +1,16 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { History, KeyRound, Link2, ShieldCheck, Trophy } from "lucide-react";
+import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  BookOpen,
+  FolderCog,
+  History,
+  KeyRound,
+  Link2,
+  ShieldCheck,
+  Trophy,
+} from "lucide-react";
 import {
   ConnectionsSettings,
   ConnectionsSettingsSkeleton,
@@ -12,37 +21,70 @@ import { InvitesPanel } from "@/components/app/settings/invites-panel";
 import { MembersPanel } from "@/components/app/settings/members-panel";
 import { IngestTokensPanel } from "@/components/app/settings/ingest-tokens-panel";
 import { NapredakSettings } from "@/components/app/settings/napredak-settings";
+import { ProjekatPanel } from "@/components/app/settings/projekat-panel";
+import { MozakPanel } from "@/components/app/settings/mozak-panel";
+import { useProjekatHref } from "@/components/app/projekat-provider";
 import { PageHeader } from "@/components/app/page-header";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
 
-type Tab = "connections" | "audit" | "moderation" | "access" | "napredak";
+/**
+ * Jezičak je u adresi (`?tab=`), pa birač projekta vodi pravo na „Projekat“, a
+ * povratak sa povezivanja kanala na „Integracije“. Bez parametra (ili sa
+ * nepoznatim) otvara se „Integracije“: kartice veza čitaju `ig_connected`,
+ * `ig_code` i ostale parametre samo kad su montirane.
+ */
+type Tab =
+  | "integracije"
+  | "projekat"
+  | "mozak"
+  | "pristup"
+  | "istorija"
+  | "moderacija"
+  | "napredak";
 
 const TABS: readonly TabItem<Tab>[] = [
-  { id: "connections", label: "Integracije", icon: Link2 },
-  { id: "audit", label: "Istorija akcija", icon: History },
-  { id: "moderation", label: "Moderacija", icon: ShieldCheck },
-  { id: "access", label: "Pristup", icon: KeyRound },
+  { id: "integracije", label: "Integracije", icon: Link2 },
+  { id: "projekat", label: "Projekat", icon: FolderCog },
+  { id: "mozak", label: "Mozak", icon: BookOpen },
+  { id: "pristup", label: "Pristup", icon: KeyRound },
+  { id: "istorija", label: "Istorija akcija", icon: History },
+  { id: "moderacija", label: "Moderacija", icon: ShieldCheck },
   { id: "napredak", label: "Napredak", icon: Trophy },
 ];
 
+const PODRAZUMEVAN: Tab = "integracije";
+
+function izAdrese(vrednost: string | null): Tab {
+  return TABS.some((t) => t.id === vrednost) ? (vrednost as Tab) : PODRAZUMEVAN;
+}
+
 const COPY: Record<Tab, { title: string; blurb: string; info?: string }> = {
-  connections: {
+  integracije: {
     title: "Integracije",
     blurb: "Poveži izvore podataka; kredencijali se čuvaju enkriptovano.",
     info: "Kredencijali se koriste isključivo pri sinhronizaciji i sigurnim akcijama.",
   },
-  audit: {
+  projekat: {
+    title: "Projekat",
+    blurb: "Ime, izgled, domeni, sajtovi i moduli ovog projekta.",
+    info: "Menja ih vlasnik projekta; vrstu projekta i domene samo vlasnik platforme.",
+  },
+  mozak: {
+    title: "Mozak projekta",
+    blurb: "Ponuda, kupac, ton, zabrane i skripte za skillove leadova i sadržaja.",
+  },
+  istorija: {
     title: "Istorija akcija",
     blurb:
       "Revizorski trag komandi na Meta Ads nalozima: pauziranje, budžet, dupliranje.",
   },
-  moderation: {
+  moderacija: {
     title: "Moderacija",
     blurb:
       "Ko je i kada odgovorio, sakrio ili obrisao komentar na Instagramu i Facebooku.",
     info: "Spisak uključuje i radnje koje je Meta odbila.",
   },
-  access: {
+  pristup: {
     title: "Pristup",
     blurb:
       "Članovi, pozivnice za registraciju i tokeni kojima se skill predstavlja aplikaciji.",
@@ -55,8 +97,23 @@ const COPY: Record<Tab, { title: string; blurb: string; info?: string }> = {
 };
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState<Tab>("connections");
+  // `useSearchParams` traži Suspense granicu.
+  return (
+    <Suspense fallback={<ConnectionsSettingsSkeleton />}>
+      <Podesavanja />
+    </Suspense>
+  );
+}
+
+function Podesavanja() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const ka = useProjekatHref();
+  const tab = izAdrese(params.get("tab"));
   const copy = COPY[tab];
+  const setTab = (sledeci: Tab) => {
+    router.replace(`${ka("/settings")}?tab=${sledeci}`, { scroll: false });
+  };
 
   return (
     <div className="w-full">
@@ -73,13 +130,17 @@ export default function SettingsPage() {
       />
 
       <TabPanel id="settings-panel">
-        {tab === "connections" ? (
+        {tab === "integracije" ? (
           <Suspense fallback={<ConnectionsSettingsSkeleton />}>
             <ConnectionsSettings />
           </Suspense>
-        ) : tab === "audit" ? (
+        ) : tab === "projekat" ? (
+          <ProjekatPanel />
+        ) : tab === "mozak" ? (
+          <MozakPanel />
+        ) : tab === "istorija" ? (
           <ActionAuditLog />
-        ) : tab === "moderation" ? (
+        ) : tab === "moderacija" ? (
           <ModerationAuditLog />
         ) : tab === "napredak" ? (
           <NapredakSettings />

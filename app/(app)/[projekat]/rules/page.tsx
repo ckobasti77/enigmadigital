@@ -5,7 +5,8 @@ import {
 } from "@/components/app/rules/rules-dashboard";
 
 export const metadata = {
-  title: "Pravila i zaštita budžeta · Enigma Command Center",
+  // Ime projekta dodaje šablon iz layout-a `[projekat]`.
+  title: "Pravila i zaštita budžeta",
 };
 
 export default function RulesPage() {

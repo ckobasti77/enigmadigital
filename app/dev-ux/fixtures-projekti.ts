@@ -1,5 +1,7 @@
-import { getFunctionName } from "convex/server";
+import { getFunctionName, type FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { proveriSlugProjekta } from "@/convex/lib/projekatSlug";
 import { USER, WS, WS_KLIJENT, WS_SCANME, type Fixture, type R } from "./fixtures-util";
 
 /**
@@ -69,6 +71,12 @@ export function stanjeProjekataUx(
   ];
 }
 
+/** Praćeni sajtovi po projektu (podatak, kao boja). */
+const SAJTOVI_UX: Record<string, string[]> = {
+  "enigma-it": ["enigmait.rs", "digital.enigmait.rs"],
+  scanme: ["scanme.rs"],
+};
+
 const KORISNIK = { id: USER, email: "operater@example.com", ime: "Test Operater" };
 
 function projekatZaSlug(slug: unknown): R<typeof api.projekti.mojProjekat> {
@@ -84,13 +92,68 @@ function projekatZaSlug(slug: unknown): R<typeof api.projekti.mojProjekat> {
     faviconUrl: null,
     vrsta: stavka.vrsta,
     moduli: stavka.moduli,
+    sajtovi: SAJTOVI_UX[stavka.slug] ?? [],
     uloga: stavka.uloga,
     korisnik: KORISNIK,
     platformaVlasnik: true,
   };
 }
 
+/** Mozak Enigme za jezičak „Mozak“ (ostali projekti ga nemaju). */
+const MOZAK_ENIGMA: R<typeof api.podesavanjaStore.mozak> = {
+  ponuda: "Sajt za malu firmu za 10 dana, sa SEO osnovom i Google profilom. Od 690 €.",
+  icpOpis: "Frizeri, saloni lepote, stomatolozi i majstori u Beogradu i Novom Sadu, bez sajta ili sa zastarelim sajtom.",
+  ton: "Kratko, konkretno, na „ti“. Bez stručnih izraza.",
+  zabrane: null,
+  skripte: null,
+};
+
+const PRAZAN_MOZAK: R<typeof api.podesavanjaStore.mozak> = {
+  ponuda: null,
+  icpOpis: null,
+  ton: null,
+  zabrane: null,
+  skripte: null,
+};
+
 export const FIXTURES_PROJEKTI: Record<string, Fixture> = {
+  [getFunctionName(api.podesavanjaStore.procitaj)]: (args) => {
+    const stavka = PROJEKTI_UX.find((p) => p.workspaceId === args.workspaceId) ?? PROJEKTI_UX[0];
+    const enigma = stavka.slug === "enigma-it";
+    return {
+      sajtovi: SAJTOVI_UX[stavka.slug] ?? [],
+      moduli: stavka.moduli,
+      mozak: enigma ? MOZAK_ENIGMA : PRAZAN_MOZAK,
+      domeni: enigma
+        ? [
+            {
+              domenId: "ux_domen_000000000000000000" as Id<"projekatDomeni">,
+              host: "digital.enigmait.rs",
+              primarni: true,
+              createdAt: 0,
+            },
+          ]
+        : [],
+    } satisfies R<typeof api.podesavanjaStore.procitaj>;
+  },
+  [getFunctionName(api.podesavanjaStore.mozak)]: (args) =>
+    args.workspaceId === WS || args.workspaceId === undefined ? MOZAK_ENIGMA : PRAZAN_MOZAK,
+  // Čarobnjak: zauzete su adrese postojećih projekata, ostalo prati pravila P8.
+  [getFunctionName(api.projekti.proveriSlug)]: (args) => {
+    const slug = String(args.slug ?? "");
+    const p = proveriSlugProjekta(slug);
+    if (!p.ok) return { ok: false, poruka: p.razlog };
+    if (PROJEKTI_UX.some((x) => x.slug === slug)) {
+      return { ok: false, poruka: "Ova adresa projekta je zauzeta." };
+    }
+    return { ok: true };
+  },
+  // Lažni klijent nema bazu: „napravljen“ projekat je ScanMe (prazan nalog),
+  // pa se koraci posle prvog vide nad pravim oblikom podataka.
+  [getFunctionName(api.projekti.kreirajProjekat)]: () =>
+    ({ workspaceId: WS_SCANME, slug: "scanme" }) satisfies FunctionReturnType<
+      typeof api.projekti.kreirajProjekat
+    >,
   [getFunctionName(api.projekti.mojiProjekti)]: () => PROJEKTI_UX,
   [getFunctionName(api.projekti.mojProjekat)]: (args) => projekatZaSlug(args.slug),
   [getFunctionName(api.projekti.ja)]: () =>

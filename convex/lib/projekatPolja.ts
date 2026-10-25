@@ -95,6 +95,8 @@ export const projekatValidator = v.object({
   faviconUrl: tekstIliNull,
   vrsta: vrstaProjektaValidator,
   moduli: v.union(v.array(v.string()), v.null()),
+  /** Praćeni domeni sajta (nisu tajna; „Objavljuješ na sajtu …“). */
+  sajtovi: v.array(v.string()),
   uloga: ulogaValidator,
   korisnik: v.object({
     id: v.id("users"),

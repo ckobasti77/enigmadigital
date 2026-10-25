@@ -73,7 +73,7 @@ export function kao(s: Svet, userId: Id<"users">) {
 /** Poziv mora da padne sa ConvexError kodom (i, ako je dat, porukom). */
 export async function odbijeno(
   poziv: Promise<unknown>,
-  kod: "unauthorized" | "forbidden" | "invalid" | "conflict",
+  kod: "unauthorized" | "forbidden" | "invalid" | "conflict" | "not_found",
   poruka?: RegExp,
 ): Promise<void> {
   const greska = await poziv.then(

@@ -5,6 +5,8 @@ import { describe, expect, test } from "vitest";
 import {
   EKRANI,
   GLOBALNE_PUTANJE,
+  MODULI_PROJEKTA,
+  modulUkljucen,
   REZERVISANI_SLUGOVI,
   ekranIzPutanje,
   jeGlobalnaPutanja,
@@ -18,7 +20,14 @@ import {
   putanjaZaPrelazak,
   type EkranZaPrelazak,
 } from "./rutiranje";
-import { ekranZaPrelazak } from "../components/app/nav-items";
+import {
+  MODULE_KEYS,
+  donjaTraka,
+  ekranZaPrelazak,
+  navSections,
+  vidljiveSekcije,
+  type ModuleKey,
+} from "../components/app/nav-items";
 
 describe("putanjaEkrana (izlaz: adresa linka)", () => {
   test.each([
@@ -285,5 +294,40 @@ describe("putanjaZaPrelazak (promena projekta čuva ekran, plan C02 §8.4)", () 
     expect(putanjaZaPrelazak({ ekran: "/x?y=1", cilj: { slug: "b", moduli: ["oglasi"] }, ekranZa })).toBe("/b/x");
     expect(putanjaZaPrelazak({ ekran: "/x", cilj: { slug: "b", moduli: ["leadovi"] }, ekranZa })).toBe("/b");
     expect(pozvano).toEqual(["/x", "/x"]);
+  });
+});
+
+describe("moduli projekta (C11)", () => {
+  test("ključevi za isključivanje = moduli navigacije bez table i podešavanja", () => {
+    expect([...MODULI_PROJEKTA].sort()).toEqual(
+      MODULE_KEYS.filter((k) => k !== "tabla" && k !== "sistem").sort(),
+    );
+  });
+
+  test("bez vrednosti su svi uključeni; tabla i podešavanja uvek", () => {
+    expect(modulUkljucen(null, "oglasi")).toBe(true);
+    expect(modulUkljucen(undefined, "oglasi")).toBe(true);
+    expect(modulUkljucen(["leadovi"], "oglasi")).toBe(false);
+    expect(modulUkljucen(["leadovi"], "leadovi")).toBe(true);
+    expect(modulUkljucen([], "tabla")).toBe(true);
+    expect(modulUkljucen([], "sistem")).toBe(true);
+  });
+
+  test("bočna traka: isključen modul nestaje, prazna grupa nestaje cela", () => {
+    const samo = (lista: ModuleKey[]) => (m: ModuleKey) => modulUkljucen(lista, m);
+    expect(vidljiveSekcije(() => true)).toEqual(navSections);
+    const leadoviAnalitika = vidljiveSekcije(samo(["leadovi", "analitika"]));
+    const stavke = leadoviAnalitika.flatMap((s) => s.items.map((i) => i.module));
+    expect(stavke).toEqual(["tabla", "leadovi", "analitika"]);
+    expect(leadoviAnalitika.map((s) => s.title)).not.toContain("Kanali");
+    expect(leadoviAnalitika.map((s) => s.title)).not.toContain("Automatizacija");
+  });
+
+  test("donja traka uvek ima tri ćelije; mesto isključenog popuni sledeći modul", () => {
+    expect(donjaTraka(() => true).map((i) => i.href)).toEqual(["/", "/leadovi", "/instagram"]);
+    const bezInstagrama = donjaTraka((m) => modulUkljucen(["leadovi", "novosti"], m));
+    expect(bezInstagrama.map((i) => i.href)).toEqual(["/", "/leadovi", "/novosti"]);
+    const samoTabla = donjaTraka((m) => modulUkljucen([], m));
+    expect(samoTabla.map((i) => i.href)).toEqual(["/"]);
   });
 });

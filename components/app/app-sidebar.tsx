@@ -17,9 +17,9 @@ import {
   activeChannelTab,
   activeHref,
   navChildrenFor,
-  navSections,
   screenExists,
   settingsNavItem,
+  vidljiveSekcije,
   type NavItem,
 } from "./nav-items";
 import { ModuleTile } from "./module-tile";
@@ -30,7 +30,11 @@ import {
   useNapredak,
   useSada,
 } from "./napredak/use-napredak";
-import { useEkranPutanja, useProjekat } from "./projekat-provider";
+import {
+  useEkranPutanja,
+  useModulUkljucen,
+  useProjekat,
+} from "./projekat-provider";
 import { ProjekatBirac } from "./projekat-birac";
 
 /**
@@ -72,6 +76,9 @@ export function AppSidebar({
   // Najduže poklapanje bira modul: „/instagram/objave/<id>" pada na
   // „/instagram", nikad bez oznake.
   const activeParent = activeHref(pathname);
+  // Isključen modul projekta nema stavku (PROJEKTI-PLAN §8, „Moduli“).
+  const ukljucen = useModulUkljucen();
+  const sekcije = vidljiveSekcije(ukljucen);
 
   return (
     <TooltipProvider delay={200}>
@@ -112,7 +119,7 @@ export function AppSidebar({
           aria-label="Glavna navigacija"
           className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2.5 pb-1 pt-1"
         >
-          {navSections.map((section, index) => (
+          {sekcije.map((section, index) => (
             <div
               key={section.title}
               role="group"

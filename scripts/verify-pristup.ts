@@ -39,6 +39,10 @@ const DOZVOLJENI_DIREKTNI: Readonly<Record<string, string>> = {
     "provider razrešava projekat po slugu; tuđ i nepostojeći slug daju null",
   "projekti.ja": "nalog prijavljenog korisnika (meni korisnika); radi i u hubu, bez projekta",
   "projekti.kreirajProjekat": "pravljenje novog projekta (vlasnik platforme); projekat još ne postoji",
+  "projekti.proveriSlug":
+    "čarobnjak novog projekta (vlasnik platforme) proverava adresu dok se kuca; projekat još ne postoji",
+  "projekti.javniBrend":
+    "ekran prijave na panel domenu (serverska strana, pre prijave): samo ime, boja i logo mapiranog hosta",
   "projekti.stanjeProjekata":
     "birač projekta: tačka veza i broj „šta me čeka“ za sve projekte prijavljenog korisnika; čita samo njegova članstva",
   "invitesStore.getInvite": "ekran pozivnice pre registracije; pristup dokazuje token, nalog još ne postoji",

@@ -18,6 +18,9 @@ import {
   HUB_PUTANJE,
   jeIspravanSlug,
 } from "../convex/lib/projekatSlug";
+import { modulUkljucen } from "../convex/lib/moduli";
+
+export { MODULI_PROJEKTA, modulUkljucen } from "../convex/lib/moduli";
 
 export {
   EKRANI,
@@ -155,9 +158,6 @@ export function odluciRutu(u: UlazRutiranja): OdlukaRutiranja {
 /** Ekran u koji vodi prelazak: adresa bez prefiksa i modul (za `moduli`). */
 export type EkranZaPrelazak = { href: string; modul: string };
 
-/** Moduli koje projekat ne može da isključi (kontrolna tabla, podešavanja). */
-const UVEK_UKLJUCENI: ReadonlySet<string> = new Set(["tabla", "sistem"]);
-
 /**
  * Promena projekta čuva ekran (plan C02 §8.4): `/enigma-it/analytics` →
  * `/scanme/analytics`.
@@ -175,10 +175,7 @@ export function putanjaZaPrelazak(o: {
   const [putanja] = podeli(o.ekran);
   const ekran = o.ekranZa(putanja);
   const iskljucen =
-    ekran !== undefined &&
-    o.cilj.moduli !== null &&
-    !UVEK_UKLJUCENI.has(ekran.modul) &&
-    !o.cilj.moduli.includes(ekran.modul);
+    ekran !== undefined && !modulUkljucen(o.cilj.moduli, ekran.modul);
   const href = ekran === undefined || iskljucen ? "/" : ekran.href;
   return `/${o.cilj.slug}${href === "/" ? "" : href}`;
 }

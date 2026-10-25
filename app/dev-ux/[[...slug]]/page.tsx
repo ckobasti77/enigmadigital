@@ -33,13 +33,15 @@ import InstagramAudiencePage from "@/app/(app)/[projekat]/instagram/publika/page
 import InstagramStoriesPage from "@/app/(app)/[projekat]/instagram/stories/page";
 import InstagramPublishPage from "@/app/(app)/[projekat]/instagram/objavi/page";
 import InstagramPostDetailPage from "@/app/(app)/[projekat]/instagram/objave/[mediaId]/page";
-import LoginPage from "@/app/login/page";
+import { LoginClient } from "@/app/login/login-client";
 import { LeadDetailPageClient } from "@/app/(app)/[projekat]/leadovi/[companyId]/lead-detail-page-client";
 import { AuthGate } from "@/components/app/auth-gate";
 import { SviProjekti } from "@/components/app/hub/svi-projekti";
+import { NoviProjekat } from "@/components/app/hub/novi-projekat";
 import { ProjekatProvider } from "@/components/app/projekat-provider";
 import { EKRANI } from "@/lib/rutiranje";
 import { UxHarness } from "../harness";
+import { PROJEKTI_UX } from "../fixtures-projekti";
 import { SistemVodic } from "../sistem/vodic";
 
 /**
@@ -136,11 +138,27 @@ export default async function DevUxPage({
   }
 
   // Prijava je van ljuske. Prava ruta čita pravi Convex (`trebaSetup`), pa se
-  // za snimak crta ovde, nad lažnim klijentom i bez `AppShell`-a.
+  // za snimak crta ovde, nad lažnim klijentom i bez `AppShell`-a. Sa
+  // `&panel=<slug>` simulira panel domen: brend je isti oblik koji daje
+  // `projekti.javniBrend` (ime, boja, logo).
   if (putanja.join("/") === "login") {
+    const p = panel ? PROJEKTI_UX.find((x) => x.slug === panel) : undefined;
     return (
       <UxHarness>
-        <LoginPage />
+        <LoginClient brend={p ? { ime: p.ime, boja: p.boja, logoUrl: p.logoUrl } : null} />
+      </UxHarness>
+    );
+  }
+
+  // Čarobnjak „Novi projekat“ je hub putanja, van ljuske projekta.
+  if (putanja.join("/") === "novi") {
+    return (
+      <UxHarness prazno={prazno === "1"} pad={pad}>
+        <AuthGate>
+          <div data-module="tabla" className="flex min-h-full flex-1 flex-col">
+            <NoviProjekat />
+          </div>
+        </AuthGate>
       </UxHarness>
     );
   }

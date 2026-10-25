@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { Search } from "lucide-react";
@@ -27,7 +28,11 @@ import { UserMenu } from "./user-menu";
 import { useNapredakFeedback } from "./napredak/napredak-feedback";
 import { NapredakIzvor } from "./napredak/napredak-izvor";
 import { ProjekatLink } from "./projekat-link";
-import { useEkranPutanja, useProjekat } from "./projekat-provider";
+import {
+  useEkranPutanja,
+  useModulUkljucen,
+  useProjekat,
+} from "./projekat-provider";
 import { ProjekatBiracMobilni } from "./projekat-birac";
 import {
   COMMAND_EVENT,
@@ -222,7 +227,9 @@ function ShellFrame({
           tabIndex={-1}
           className="mx-auto flex w-full max-w-[var(--content-max)] flex-1 flex-col px-[var(--gutter)] py-8 pb-24 outline-none md:pb-8"
         >
-          <PageTransition>{children}</PageTransition>
+          <ModulCuvar modul={modul}>
+            <PageTransition>{children}</PageTransition>
+          </ModulCuvar>
         </main>
       </div>
       <MobileNav />
@@ -233,6 +240,28 @@ function ShellFrame({
       {nagrade}
     </>
   );
+}
+
+/**
+ * Ekran modula koji je isključen u ovom projektu se ne crta: ruta vodi na
+ * kontrolnu tablu (PROJEKTI-PLAN §8, „Moduli“). Odluka čeka potvrđen
+ * projekat, da stara adresa ne skoči pre nego što su moduli poznati.
+ */
+function ModulCuvar({
+  modul,
+  children,
+}: {
+  modul: ModuleKey;
+  children: React.ReactNode;
+}) {
+  const { spreman, prefiks } = useProjekat();
+  const ukljucen = useModulUkljucen();
+  const router = useRouter();
+  const iskljucen = spreman && !ukljucen(modul);
+  useEffect(() => {
+    if (iskljucen) router.replace(prefiks || "/");
+  }, [iskljucen, prefiks, router]);
+  return iskljucen ? null : <>{children}</>;
 }
 
 /**
