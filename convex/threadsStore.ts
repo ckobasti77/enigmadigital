@@ -200,13 +200,16 @@ export const markExpiredByExternalId = internalMutation({
   args: { externalId: v.string() },
   returns: v.null(),
   handler: async (ctx, { externalId }) => {
-    const conn = await ctx.db
+    // Svi redovi tog naloga (C19), ali ne veza u prekidu: njen status čita
+    // brisanje podataka, pa bi „expired“ zaustavio brisanje koje je u toku.
+    const veze = await ctx.db
       .query("connections")
       .withIndex("by_provider", (q) => q.eq("provider", "threads"))
       .filter((q) => q.eq(q.field("externalId"), externalId))
-      .first();
+      .take(20);
 
-    if (conn !== null) {
+    for (const conn of veze) {
+      if (conn.status === "disconnecting") continue;
       await ctx.db.patch(conn._id, { status: "expired" });
     }
     return null;
@@ -225,39 +228,47 @@ export const triggerDataDeletionByExternalId = internalMutation({
     confirmationCode: v.string(),
   }),
   handler: async (ctx, { externalId }) => {
-    const conn = await ctx.db
+    // Svi redovi tog naloga, u svim projektima (C19): Meta traži brisanje
+    // podataka korisnika, a isti nalog može postojati u drugom projektu dok se
+    // veza prvog još briše. Kod potvrde je prvi pronađen ili pokrenut run.
+    const veze = await ctx.db
       .query("connections")
       .withIndex("by_provider", (q) => q.eq("provider", "threads"))
       .filter((q) => q.eq(q.field("externalId"), externalId))
-      .first();
+      .take(20);
 
-    if (conn === null) {
+    if (veze.length === 0) {
       // Nalog nije pronađen — podaci ne postoje ili su već obrisani
       return { confirmationCode: `del_completed_${Date.now()}` };
     }
 
-    if (conn.status === "disconnecting") {
-      // Brisanje je već pokrenuto — pronađi aktivan ili postojeći run
-      const existingRun = await ctx.db
-        .query("purgeRuns")
-        .withIndex("by_workspace_provider", (q) =>
-          q.eq("workspaceId", conn.workspaceId).eq("provider", "threads"),
-        )
-        .first();
-      if (existingRun !== null) {
-        return { confirmationCode: existingRun._id };
+    let confirmationCode: string | null = null;
+    for (const conn of veze) {
+      if (conn.status === "disconnecting") {
+        // Brisanje je već pokrenuto — pronađi aktivan ili postojeći run
+        const existingRun = await ctx.db
+          .query("purgeRuns")
+          .withIndex("by_workspace_provider", (q) =>
+            q.eq("workspaceId", conn.workspaceId).eq("provider", "threads"),
+          )
+          .first();
+        if (existingRun !== null) {
+          confirmationCode ??= existingRun._id;
+          continue;
+        }
       }
+
+      await clearFinishedRuns(ctx, conn.workspaceId, "threads");
+      await ctx.db.patch(conn._id, { status: "disconnecting" });
+      const runId = await beginPurgeRun(ctx, {
+        workspaceId: conn.workspaceId,
+        provider: "threads",
+        connectionId: conn._id,
+      });
+      confirmationCode ??= runId;
     }
 
-    await clearFinishedRuns(ctx, conn.workspaceId, "threads");
-    await ctx.db.patch(conn._id, { status: "disconnecting" });
-    const runId = await beginPurgeRun(ctx, {
-      workspaceId: conn.workspaceId,
-      provider: "threads",
-      connectionId: conn._id,
-    });
-
-    return { confirmationCode: runId };
+    return { confirmationCode: confirmationCode ?? `del_completed_${Date.now()}` };
   },
 });
 
@@ -357,10 +368,18 @@ export const recordWebhookReply = internalMutation({
 
     let workspaceId: Id<"workspaces"> | undefined;
     if (args.accountId) {
+      // Veza u prekidu se ne broji (isto pravilo kao E3, C19): dok se njeni
+      // podaci brišu, isti nalog sme da bude povezan u drugom projektu, i
+      // odgovor pripada tom projektu.
       const conn = await ctx.db
         .query("connections")
         .withIndex("by_provider", (q) => q.eq("provider", "threads"))
-        .filter((q) => q.eq(q.field("externalId"), args.accountId))
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("externalId"), args.accountId),
+            q.neq(q.field("status"), "disconnecting"),
+          ),
+        )
         .first();
       workspaceId = conn?.workspaceId;
     }
@@ -426,9 +445,14 @@ export const recordWebhookReply = internalMutation({
       return null;
     }
 
+    // Red odgovora u OVOM projektu (C19): isti odgovor može biti zapisan i u
+    // drugom projektu (npr. odgovor jednog naloga na objavu drugog), a webhook
+    // ne sme da menja tuđi red umesto da upiše svoj.
     const existing = await ctx.db
       .query("threadsReplies")
-      .withIndex("by_reply_id", (q) => q.eq("replyId", args.id))
+      .withIndex("by_workspace_reply", (q) =>
+        q.eq("workspaceId", workspaceId).eq("replyId", args.id),
+      )
       .first();
 
     const ts =

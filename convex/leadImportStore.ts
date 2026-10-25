@@ -3,6 +3,7 @@ import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
+import { uploadProjekta } from "./lib/projekatUploadi";
 import {
   normalizeCompanyName,
   normalizeDomain,
@@ -898,6 +899,15 @@ export const createImport = projekatMutation({
     sourceSheet: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Snimci sajta (ID-jevi fajlova) stižu samo iz skilla, uz token projekta
+    // (C19): uvoz iz tabele ih nikad ne šalje, a ID tuđeg fajla bi posle
+    // „Poništi uvoz“ bio obrisan.
+    if (args.rows.some((r) => r.sajtOcena?.snimci !== undefined)) {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Snimci sajta stižu samo iz skilla, uz token za uvoz.",
+      });
+    }
     // createImportCore veruje prosleđenom projektu: omotač je proverio članstvo.
     return await createImportCore(ctx, {
       workspaceId: args.workspaceId,
@@ -958,6 +968,37 @@ export const createImportFromIngest = internalMutation({
     rowsCount: v.number(),
   }),
   handler: async (ctx, args) => {
+    // Snimak sajta važi samo ako ga je otpremio token ovog projekta
+    // (`/generate-leads/snimak` → `projekatUploadi`, C19). ID tuđeg ili
+    // nepoznatog fajla se izostavlja, a izveštaj uvoza to kaže.
+    let odbijenihSnimaka = 0;
+    const rows: ParsedLeadRow[] = [];
+    for (const red of args.rows as ParsedLeadRow[]) {
+      const snimci = red.sajtOcena?.snimci;
+      if (red.sajtOcena === undefined || snimci === undefined) {
+        rows.push(red);
+        continue;
+      }
+      const prihvaceni: { desktopId?: Id<"_storage">; mobilniId?: Id<"_storage"> } = {};
+      for (const kljuc of ["desktopId", "mobilniId"] as const) {
+        const id = snimci[kljuc];
+        if (id === undefined) continue;
+        if (await uploadProjekta(ctx, args.workspaceId, id, ["lead_snimak"])) {
+          prihvaceni[kljuc] = id;
+        } else {
+          odbijenihSnimaka++;
+        }
+      }
+      rows.push({ ...red, sajtOcena: { ...red.sajtOcena, snimci: prihvaceni } });
+    }
+    const warnings =
+      odbijenihSnimaka === 0
+        ? args.warnings
+        : [
+            ...args.warnings,
+            `Izostavljeno snimaka sajta: ${odbijenihSnimaka} (nisu otpremljeni tokenom ovog projekta).`,
+          ];
+
     return await createImportCore(ctx, {
       workspaceId: args.workspaceId,
       uploadedBy: args.uploadedBy,
@@ -972,10 +1013,10 @@ export const createImportFromIngest = internalMutation({
       sheetsChosen: [],
       headerRowIndex: -1,
       sourceSheet: "generate-leads",
-      rows: args.rows as ParsedLeadRow[],
+      rows,
       // Skill ne preskače redove tiho: ono što nije ušlo, izveštaj imenuje.
       skippedCount: 0,
-      warnings: args.warnings,
+      warnings,
       nisaOpis: args.nisaOpis,
     });
   },
@@ -2213,6 +2254,27 @@ async function applyRows(
     };
 }
 
+/**
+ * Vlasnik leadova iz uvoza: onaj ko je uvoz poslao, ako je i dalje član ovog
+ * projekta (C19). Uvoz iz skilla nosi kreatora ingest tokena, a on je mogao
+ * biti uklonjen posle pravljenja tokena; lead se tada dodeljuje onome ko
+ * primenjuje uvoz, ne bivšem članu.
+ */
+async function vlasnikLeadovaUvoza(
+  ctx: MutationCtx & { projekat: { userId: Id<"users"> } },
+  workspaceId: Id<"workspaces">,
+  uploadedBy: Id<"users"> | undefined,
+): Promise<Id<"users">> {
+  if (uploadedBy === undefined) return ctx.projekat.userId;
+  const clan = await ctx.db
+    .query("members")
+    .withIndex("by_user_workspace", (q) =>
+      q.eq("userId", uploadedBy).eq("workspaceId", workspaceId),
+    )
+    .first();
+  return clan !== null ? uploadedBy : ctx.projekat.userId;
+}
+
 export const applyImport = projekatMutation({
   args: {
     importId: v.id("leadImports"),
@@ -2245,7 +2307,7 @@ export const applyImport = projekatMutation({
     const rezultat = await applyRows(ctx, {
       workspaceId: args.workspaceId,
       importDoc,
-      ownerUserId: importDoc.uploadedBy ?? ctx.projekat.userId,
+      ownerUserId: await vlasnikLeadovaUvoza(ctx, args.workspaceId, importDoc.uploadedBy),
       actorUserId: ctx.projekat.userId,
       now,
       samoNeprimenjeni: false,
@@ -2294,7 +2356,7 @@ export const applyRemainingRows = projekatMutation({
     return await applyRows(ctx, {
       workspaceId: args.workspaceId,
       importDoc,
-      ownerUserId: importDoc.uploadedBy ?? ctx.projekat.userId,
+      ownerUserId: await vlasnikLeadovaUvoza(ctx, args.workspaceId, importDoc.uploadedBy),
       actorUserId: ctx.projekat.userId,
       now,
       samoNeprimenjeni: true,

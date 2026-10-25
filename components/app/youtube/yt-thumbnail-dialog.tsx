@@ -123,6 +123,7 @@ function YtThumbnailForm({
     api.ytThumbnails.generateThumbnailUploadUrl,
   );
   const setThumbnail = useProjekatAction(api.ytThumbnails.setThumbnail);
+  const registrujUpload = useProjekatMutation(api.projekatUploadi.registrujUpload);
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -175,6 +176,8 @@ function YtThumbnailForm({
         throw new Error("Slika nije stigla do servera. Pokušaj ponovo.");
       }
       const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+      // Akcija prihvata samo sliku prijavljenu u ovom projektu kao sličicu.
+      await registrujUpload({ storageId, svrha: "yt_slicica" });
 
       await setThumbnail({ videoId: video.videoId, storageId });
       onDone?.();

@@ -179,7 +179,7 @@ export function NovostiDashboard() {
         tone="warning"
         title="Projekat nije izabran"
       >
-        Molimo prijavite se ili izaberite projekat da biste upravljali objavama.
+        Za upravljanje objavama prijavi se i izaberi projekat.
       </FeedbackNote>
     );
   }

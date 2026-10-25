@@ -31,15 +31,26 @@ import { razloziPosiljaoca } from "./lib/podesavanja";
 async function posiljalacMejla(
   ctx: ActionCtx,
   workspaceId: Id<"workspaces">,
-): Promise<{ from: string; appBaseUrl: string | null }> {
-  const { ime, adresaPanela } = await ctx.runQuery(internal.podesavanjaStore.zaMejl, {
+): Promise<{ from: string; appBaseUrl: string | null; osnivacki: boolean }> {
+  const { ime, adresaPanela, osnivacki } = await ctx.runQuery(internal.podesavanjaStore.zaMejl, {
     workspaceId,
   });
   const adresa = razloziPosiljaoca(process.env.EMAIL_FROM).adresa ?? "onboarding@resend.dev";
   return {
     from: `${ime.replace(/[<>"\r\n]/g, "").trim()} <${adresa}>`,
     appBaseUrl: adresaPanela,
+    osnivacki,
   };
+}
+
+/** Tekst iz pravila i sa Mete (ime pravila, naziv kampanje) ide u HTML mejla kao tekst. */
+function bezHtml(tekst: string): string {
+  return tekst
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function formatMetricUnit(
@@ -110,6 +121,8 @@ function buildRuleAlertHtml(opts: {
   actionTaken: "notify" | "pause" | "pause_and_notify" | "notify_only_write_disabled";
   deepLinkUrl: string | null;
 }): string {
+  const ruleName = bezHtml(opts.ruleName);
+  const targetName = bezHtml(opts.targetName);
   const opSymbol = getOperatorSymbol(opts.operator);
   const metricLabel = getMetricLabel(opts.metric);
   const observedFormatted = formatMetricUnit(opts.metric, opts.observedValue);
@@ -134,8 +147,8 @@ function buildRuleAlertHtml(opts: {
       <tr>
         <td style="padding:32px 32px 16px;">
           <p style="margin:0;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#58c4ff;">Enigma Command Center · Pravila</p>
-          <h1 style="margin:12px 0 0;font-size:22px;line-height:1.3;color:#f3f7ff;font-weight:700;">Upozorenje: ${opts.ruleName}</h1>
-          <p style="margin:8px 0 0;font-size:14px;line-height:1.5;color:rgba(193,211,245,0.75);">Aktivirano je automatsko pravilo za ${scopeLabel.toLowerCase()} <strong style="color:#f3f7ff;">${opts.targetName}</strong>.</p>
+          <h1 style="margin:12px 0 0;font-size:22px;line-height:1.3;color:#f3f7ff;font-weight:700;">Upozorenje: ${ruleName}</h1>
+          <p style="margin:8px 0 0;font-size:14px;line-height:1.5;color:rgba(193,211,245,0.75);">Aktivirano je automatsko pravilo za ${scopeLabel.toLowerCase()} <strong style="color:#f3f7ff;">${targetName}</strong>.</p>
         </td>
       </tr>
 
@@ -144,7 +157,7 @@ function buildRuleAlertHtml(opts: {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b1221;border:1px solid rgba(96,128,180,0.2);border-radius:10px;padding:16px;">
             <tr>
               <td style="padding:6px 12px;font-size:13px;color:rgba(193,211,245,0.7);">Ciljani objekat:</td>
-              <td style="padding:6px 12px;font-size:13px;color:#f3f7ff;font-weight:600;text-align:right;">${opts.targetName} (${scopeLabel})</td>
+              <td style="padding:6px 12px;font-size:13px;color:#f3f7ff;font-weight:600;text-align:right;">${targetName} (${scopeLabel})</td>
             </tr>
             <tr>
               <td style="padding:6px 12px;font-size:13px;color:rgba(193,211,245,0.7);">Izmerena metrika:</td>
@@ -197,6 +210,7 @@ async function sendRuleNotificationEmail(opts: {
   allowedEmails: string[];
   from: string;
   appBaseUrl: string | null;
+  osnivacki: boolean;
 }): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey || apiKey.trim().length === 0) {
@@ -206,8 +220,10 @@ async function sendRuleNotificationEmail(opts: {
     return false;
   }
 
-  // Resolve recipients
-  const envAllowed = process.env.ALLOWED_EMAILS
+  // Resolve recipients. Članovi projekta; adrese iz `ALLOWED_EMAILS` samo za
+  // osnivački projekat (P4, kao i ostale env vrednosti): podaci drugog
+  // projekta ne idu ljudima koji nisu njegovi članovi.
+  const envAllowed = opts.osnivacki && process.env.ALLOWED_EMAILS
     ? process.env.ALLOWED_EMAILS.split(/[,;\s]+/)
         .map((e) => e.trim().toLowerCase())
         .filter(Boolean)
@@ -557,7 +573,31 @@ export const evaluateRulesCron = internalAction({
       writeDisabledFallbacksCount: 0,
     };
     await withCronLock(ctx, CRON_LOCKS.adRules, async () => {
-      summary = await runRuleEvaluations(ctx);
+      // Projekat po projekat (PROJEKTI-PLAN §9, C19): jedan veliki projekat
+      // ili greška u jednom ne obara procenu ostalih.
+      const projekti: Id<"workspaces">[] = await ctx.runQuery(
+        internal.rulesStore.projektiSaPravilima,
+        {},
+      );
+      for (const workspaceId of projekti) {
+        try {
+          const deo = await runRuleEvaluations(ctx, { specificWorkspaceId: workspaceId });
+          summary = {
+            evaluatedRulesCount: summary.evaluatedRulesCount + deo.evaluatedRulesCount,
+            totalTargetsChecked: summary.totalTargetsChecked + deo.totalTargetsChecked,
+            firingsCount: summary.firingsCount + deo.firingsCount,
+            notificationsSentCount: summary.notificationsSentCount + deo.notificationsSentCount,
+            pausesExecutedCount: summary.pausesExecutedCount + deo.pausesExecutedCount,
+            writeDisabledFallbacksCount:
+              summary.writeDisabledFallbacksCount + deo.writeDisabledFallbacksCount,
+          };
+        } catch (err) {
+          console.error(
+            `[rules] Procena pravila projekta ${workspaceId} nije uspela:`,
+            sanitizeSyncError(err),
+          );
+        }
+      }
     });
     return summary;
   },

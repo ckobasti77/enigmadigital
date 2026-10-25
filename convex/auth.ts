@@ -144,6 +144,15 @@ export async function consumeOpenInvite(
   const now = Date.now();
   const aktivna = await otvorenaPozivnica(db, email, now);
   if (aktivna === null) return;
+  // Samo nov nalog dobija članstvo pri prvoj sesiji (C19). Ko je već član
+  // nekog projekta, poziv prihvata sam, posle prijave (`prihvatiPozivnicu`):
+  // inače bi vlasnik bilo kog projekta mogao da otvori prozor svoje pozivnice
+  // za tuđu adresu i da je učlani pri njenoj sledećoj običnoj prijavi.
+  const vecClan = await db
+    .query("members")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .first();
+  if (vecClan !== null) return;
   await db.patch(aktivna._id, { usedAt: now, usedByUserId: userId });
   const clanstvo = await db
     .query("members")

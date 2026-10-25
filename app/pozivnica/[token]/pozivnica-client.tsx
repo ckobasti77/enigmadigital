@@ -316,7 +316,7 @@ export function PozivnicaClient({ token }: { token: string }) {
               </h1>
               {ja === undefined ? (
                 <div className="mt-4 space-y-3" role="status" aria-live="polite">
-                  <div className="h-12 w-full animate-pulse rounded bg-surface-raised" />
+                  <div className="h-12 w-full motion-safe:animate-pulse rounded bg-surface-raised" />
                   <span className="sr-only">Učitavam nalog…</span>
                 </div>
               ) : ja.email !== null && ja.email.trim().toLowerCase() === email ? (
@@ -336,7 +336,7 @@ export function PozivnicaClient({ token }: { token: string }) {
                   >
                     {prihvatam ? (
                       <>
-                        <LoaderCircle className="animate-spin" />
+                        <LoaderCircle className="motion-safe:animate-spin" />
                         Prihvatam…
                       </>
                     ) : (

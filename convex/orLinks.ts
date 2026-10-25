@@ -9,7 +9,7 @@ import {
   formatFbc,
 } from "./lib/orLink";
 import { slugify } from "./lib/slug";
-import { bazaKratkihLinkova } from "./lib/podesavanja";
+import { bazaKratkihLinkova, podesavanjaProjekta, stanjeTajne } from "./lib/podesavanja";
 import { utcDateKey } from "./lib/orMatch";
 import {
   claimPublicRouteCall,
@@ -324,20 +324,25 @@ export const registerClick = internalMutation({
       // baš nehaširanu adresu za uparivanje; args.ipHash (heš) ostaje samo u
       // orLinkClicks. Bez ijednog od IP/fbc/fbp/email/telefon događaj se ne
       // upisuje (recordCapiEvent vrati null) — user-agent sam nije dovoljan.
-      const capiEventDocId = await ctx.runMutation(
-        internal.metaCapiStore.recordCapiEvent,
-        {
-          workspaceId: link.workspaceId,
-          eventName: "PageView",
-          eventTime,
-          eventId,
-          actionSource: "website",
-          sourceKind: "link_redirect",
-          clientIpAddress: args.clientIp,
-          clientUserAgent,
-          fbc,
-        },
-      );
+      // Događaj nastaje samo kad projekat ima i piksel i CAPI token (C19, isto
+      // kao forma sa sajta): inače bi sirova IP ležala u redu koji se nikad ne
+      // šalje ni briše.
+      const capiPodesen =
+        (await podesavanjaProjekta(ctx, link.workspaceId)).pikselId.vrednost !== null &&
+        (await stanjeTajne(ctx, link.workspaceId, "meta_capi_token")).postavljeno;
+      const capiEventDocId = !capiPodesen
+        ? null
+        : await ctx.runMutation(internal.metaCapiStore.recordCapiEvent, {
+            workspaceId: link.workspaceId,
+            eventName: "PageView",
+            eventTime,
+            eventId,
+            actionSource: "website",
+            sourceKind: "link_redirect",
+            clientIpAddress: args.clientIp,
+            clientUserAgent,
+            fbc,
+          });
 
       // Scheduled sending via ctx.scheduler.runAfter (only if event was successfully recorded)
       if (capiEventDocId !== null) {

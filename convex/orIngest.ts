@@ -54,10 +54,14 @@ async function resolveWorkspace(
   // `externalIdAlt` is only ever an account id on Instagram, where the webhook
   // may name either the app-scoped id or the professional one. On Facebook it
   // holds the Page's NAME, so it is deliberately not compared here.
-  const conn = connections.find((c) =>
-    platform === "instagram"
-      ? c.externalId === accountId || c.externalIdAlt === accountId
-      : c.externalId === accountId,
+  // Veza u prekidu se preskače (C19, isto pravilo kao E3): dok se ona briše,
+  // isti nalog sme da bude povezan u drugom projektu, i događaj ide tamo.
+  const conn = connections.find(
+    (c) =>
+      c.status !== "disconnecting" &&
+      (platform === "instagram"
+        ? c.externalId === accountId || c.externalIdAlt === accountId
+        : c.externalId === accountId),
   );
   if (!conn) {
     console.warn(

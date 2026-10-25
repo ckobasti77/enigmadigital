@@ -865,7 +865,9 @@ export async function manageThreadsReply({
   replyId: string;
   hide: boolean;
 }): Promise<{ success: boolean }> {
-  return await threadsPost<{ success: boolean }>(`${replyId}/manage_reply`, {
+  // ID iz argumenta javne funkcije: kodiran, da `../` ili `?` ne promene
+  // endpoint koji se zove tokenom projekta (C19).
+  return await threadsPost<{ success: boolean }>(`${encodeURIComponent(replyId)}/manage_reply`, {
     accessToken,
     params: {
       hide: String(hide),
@@ -965,7 +967,7 @@ export async function managePendingReply({
   replyId: string;
   approve: boolean;
 }): Promise<{ success: boolean }> {
-  const raw = await threadsPost<unknown>(`${replyId}/manage_pending_reply`, {
+  const raw = await threadsPost<unknown>(`${encodeURIComponent(replyId)}/manage_pending_reply`, {
     accessToken,
     params: {
       approve: String(approve),
@@ -1280,7 +1282,7 @@ export async function repostThreadsPost({
   mediaId: string;
 }): Promise<{ id?: string; media_type?: string }> {
   return await threadsPost<{ id?: string; media_type?: string }>(
-    `${mediaId}/repost`,
+    `${encodeURIComponent(mediaId)}/repost`,
     {
       accessToken,
     },
@@ -1299,7 +1301,7 @@ export async function deleteThreadsPost({
   mediaId: string;
 }): Promise<{ success: boolean; deleted_id?: string }> {
   return await threadsDelete<{ success: boolean; deleted_id?: string }>(
-    mediaId,
+    encodeURIComponent(mediaId),
     {
       accessToken,
     },

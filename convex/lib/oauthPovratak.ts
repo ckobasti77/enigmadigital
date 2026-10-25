@@ -34,7 +34,7 @@ export const OAUTH_NIJE_PODESEN = {
 
 export const POVRATAK_ODBIJEN = {
   code: "povratak_odbijen",
-  message: "Povezivanje mora da krene sa panela ovog projekta ili sa huba.",
+  message: "Povezivanje mora da krene sa panela ovog projekta ili sa ekrana „Svi projekti“.",
 } as const;
 
 /** Koliko dugo traje autorizacioni tok (izdavanje stanja → callback). */
@@ -167,6 +167,7 @@ export const oauthStanjeArgs = {
 /** Odgovor svih pet `consumeOAuthState` mutacija (kad stanje postoji). */
 export const potrosenoStanjeValidator = v.object({
   workspaceId: v.id("workspaces"),
+  userId: v.id("users"),
   redirectUri: v.string(),
   createdAt: v.number(),
   povratak: v.union(v.string(), v.null()),
@@ -209,6 +210,7 @@ export async function upisiOAuthStanje(
 
 export type PotrosenoStanje = {
   workspaceId: Id<"workspaces">;
+  userId: Id<"users">;
   redirectUri: string;
   createdAt: number;
   povratak: string | null;
@@ -218,6 +220,9 @@ export type PotrosenoStanje = {
  * Pročita i obriše stanje (jednokratno). Stanje drugog provajdera se ne troši.
  * Povratak se ponovo proverava: domen je mogao biti uklonjen u međuvremenu,
  * pa neuspeh daje `povratak: null` (callback tada ide na `/settings`).
+ * Stanje važi samo dok je onaj ko je pokrenuo povezivanje i dalje vlasnik
+ * projekta (svih pet tokova traži vlasnika, C19): uklonjen ili spušten član ne
+ * završava povezivanje koje je ranije započeo.
  */
 export async function potrosiOAuthStanje(
   ctx: MutationCtx,
@@ -230,8 +235,16 @@ export async function potrosiOAuthStanje(
     .first();
   if (red === null || red.provider !== provider) return null;
   await ctx.db.delete(red._id);
+  const pokretac = await ctx.db
+    .query("members")
+    .withIndex("by_user_workspace", (q) =>
+      q.eq("userId", red.userId).eq("workspaceId", red.workspaceId),
+    )
+    .first();
+  if (pokretac === null || pokretac.role !== "owner") return null;
   return {
     workspaceId: red.workspaceId,
+    userId: red.userId,
     redirectUri: red.redirectUri,
     createdAt: red.createdAt,
     povratak: await ponovoProveren(ctx.db, red.workspaceId, red.povratak),

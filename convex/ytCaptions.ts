@@ -395,18 +395,39 @@ export const uploadCaption = projekatAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    // Omotač proverava prijavu i članstvo pre handlera, pa `finally` ispod
-    // (koji briše `storageId` kako god se poziv završi) ne dosegne neprijavljen
-    // ni tuđ poziv: bez toga bi bilo ko mogao da obriše fajl čiji ID zna.
+    // Omotač proverava prijavu i članstvo pre handlera, a fajl mora biti
+    // prijavljen u ovom projektu kao titl (C19), pa `finally` ispod (koji briše
+    // fajl kako god se poziv završi) ne dosegne tuđ fajl čiji se ID zna.
+    const { workspaceId } = ctx.projekat;
+    await zahtevajFajlTitla(ctx, workspaceId, args.storageId);
     try {
-      return await runUploadCaption(ctx, ctx.projekat.workspaceId, args);
+      return await runUploadCaption(ctx, workspaceId, args);
     } finally {
       // The file has done its job whichever way this ended; a failed send is
       // re-picked from disk, not retried from storage.
-      await ctx.storage.delete(args.storageId).catch(() => {});
+      await ctx
+        .runMutation(internal.projekatUploadi.potrosiUpload, {
+          workspaceId,
+          storageId: args.storageId,
+        })
+        .catch(() => {});
     }
   },
 });
+
+/** Fajl titla mora biti prijavljen u ovom projektu (`projekatUploadi`), inače se ne dira. */
+async function zahtevajFajlTitla(
+  ctx: ActionCtx,
+  workspaceId: Id<"workspaces">,
+  storageId: Id<"_storage">,
+): Promise<void> {
+  const nas: boolean = await ctx.runQuery(internal.projekatUploadi.uploadZaAkciju, {
+    workspaceId,
+    storageId,
+    svrha: "yt_titl",
+  });
+  if (!nas) invalid("Fajl titla nije pronađen. Izaberi ga ponovo.");
+}
 
 async function runUploadCaption(
   ctx: ActionCtx,
@@ -554,13 +575,19 @@ export const updateCaption = projekatAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    // Omotač proverava prijavu i članstvo pre handlera, pa `finally` ispod
-    // (koji briše `storageId` kako god se poziv završi) ne dosegne neprijavljen
-    // ni tuđ poziv: bez toga bi bilo ko mogao da obriše fajl čiji ID zna.
+    // Isto kao `uploadCaption`: omotač, pa fajl prijavljen u ovom projektu
+    // kao titl, tek onda `finally` koji ga briše.
+    const { workspaceId } = ctx.projekat;
+    await zahtevajFajlTitla(ctx, workspaceId, args.storageId);
     try {
-      return await runUpdateCaption(ctx, ctx.projekat.workspaceId, args);
+      return await runUpdateCaption(ctx, workspaceId, args);
     } finally {
-      await ctx.storage.delete(args.storageId).catch(() => {});
+      await ctx
+        .runMutation(internal.projekatUploadi.potrosiUpload, {
+          workspaceId,
+          storageId: args.storageId,
+        })
+        .catch(() => {});
     }
   },
 });

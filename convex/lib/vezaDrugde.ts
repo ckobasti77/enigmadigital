@@ -13,7 +13,9 @@ import type { Provider } from "./providers";
  * dva projekta tiho slao poruke i komentare u pogrešan projekat. Zato se kod
  * ta tri kanala povezivanje naloga koji je već povezan u drugom projektu
  * odbija. Kod ostalih (YouTube, Meta i Google oglasi, GA4) cron radi po vezi,
- * pa je dovoljno upozorenje (rizik je samo dupla potrošnja kvote).
+ * pa se veza upisuje uz upozorenje. Rizik nije samo dupla kvota (C19): oba
+ * projekta mogu da menjaju isti nalog (pravila oglasa, automatizacije
+ * komentara na istom YouTube kanalu odgovaraju dvaput), pa to upozorenje kaže.
  *
  * Veza u prekidu (`disconnecting`) se ne broji: posle prekida u jednom
  * projektu, drugi sme da poveže isti nalog. Poruke ne otkrivaju ime drugog
@@ -27,7 +29,7 @@ export const NALOG_U_DRUGOM_PROJEKTU = {
 } as const;
 
 export const UPOZORENJE_NALOG_DRUGDE =
-  "Isti nalog je povezan i u drugom projektu, pa oba projekta troše njegovu kvotu.";
+  "Isti nalog je povezan i u drugom projektu: oba troše njegovu kvotu i oba mogu da ga menjaju. Automatska pravila i automatizacije komentara uključi samo u jednom.";
 
 /** Kanali čiji webhook upisuje u prvi pronađeni projekat: tu se odbija. */
 export const ODBIJA_DRUGDE: ReadonlySet<Provider> = new Set<Provider>([

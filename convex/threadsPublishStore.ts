@@ -5,6 +5,12 @@ import { v, ConvexError } from "convex/values";
 import type { DocumentByName, SystemDataModel } from "convex/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
+import {
+  ROK_PRIJAVE_MS,
+  fajlBrenda,
+  fajlObjaveDrugogProjekta,
+  prijavaUploada,
+} from "./lib/projekatUploadi";
 import { connectionStatusValidator } from "./lib/providers";
 import {
   ABANDONED_AFTER_DUE_MS,
@@ -167,6 +173,21 @@ export const registerUpload = projekatMutation({
       .first();
     if (alreadyOwned !== null) {
       invalid("Fajl nije pronađen. Dodaj ga ponovo i pošalji.");
+    }
+
+    // Ni fajl koji ima drugog vlasnika (logo projekta, slika posta, titl,
+    // sličica, fajl Instagram objave drugog projekta), ni star fajl: kompozer
+    // prijavljuje fajl odmah posle slanja, a čistač bi posle roka obrisao i
+    // tuđ fajl (C19).
+    if (
+      (await fajlBrenda(ctx, storageId)) ||
+      (await prijavaUploada(ctx, storageId)) !== null ||
+      (await fajlObjaveDrugogProjekta(ctx, storageId, workspaceId))
+    ) {
+      invalid("Fajl nije pronađen. Dodaj ga ponovo i pošalji.");
+    }
+    if (meta._creationTime < Date.now() - ROK_PRIJAVE_MS) {
+      invalid("Otpremanje je isteklo. Dodaj fajl ponovo i pošalji.");
     }
 
     await ctx.db.insert("threadsPublishUploads", {

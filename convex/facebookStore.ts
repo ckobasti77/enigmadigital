@@ -510,7 +510,9 @@ export const resolveConnectionByPage = internalQuery({
       .withIndex("by_provider", (q) => q.eq("provider", "meta_fb"))
       .collect();
 
-    const conn = rows.find((c) => c.externalId === pageId);
+    // Veza u prekidu se preskače (C19): ista stranica sme biti povezana u
+    // drugom projektu dok se ona briše, i događaj pripada tom projektu.
+    const conn = rows.find((c) => c.status !== "disconnecting" && c.externalId === pageId);
     if (!conn) return null;
     return { connectionId: conn._id, workspaceId: conn.workspaceId };
   },

@@ -11,7 +11,12 @@ import { providerValidator, type Provider } from "./lib/providers";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { decryptCredentials } from "./lib/crypto";
 import { PURGE_BATCH, purgeSteps } from "./lib/purgeMap";
-import { manualRevokeMessage, revokeProviderAccess } from "./lib/revokeAccess";
+import {
+  OPOZIV_CELOG_NALOGA,
+  manualRevokeMessage,
+  preskocenOpozivPoruka,
+  revokeProviderAccess,
+} from "./lib/revokeAccess";
 
 /**
  * ============================================================================
@@ -360,6 +365,8 @@ export const credentialsForRevoke = internalQuery({
       provider: providerValidator,
       encryptedCredentials: v.string(),
       encryptedUserCredentials: v.union(v.string(), v.null()),
+      /** Isti provajder je povezan i u drugom projektu (C19). */
+      deljenaDozvola: v.boolean(),
     }),
   ),
   handler: async (ctx, { runId, fenceToken }) => {
@@ -376,10 +383,25 @@ export const credentialsForRevoke = internalQuery({
     // Already wiped by a settled attempt — nothing left to revoke with.
     if (connection.encryptedCredentials.length === 0) return null;
 
+    // Opoziv celog naloga (Meta, Google) ne sme da ugasi vezu drugog projekta
+    // (C19). Ne zna se da li je to isti nalog, pa se opoziv preskače čim drugi
+    // projekat ima vezu istog provajdera.
+    let deljenaDozvola = false;
+    if (OPOZIV_CELOG_NALOGA.has(connection.provider)) {
+      const veze = await ctx.db
+        .query("connections")
+        .withIndex("by_provider", (q) => q.eq("provider", connection.provider))
+        .collect();
+      deljenaDozvola = veze.some(
+        (c) => c.workspaceId !== run.workspaceId && c.status !== "disconnecting",
+      );
+    }
+
     return {
       provider: connection.provider,
       encryptedCredentials: connection.encryptedCredentials,
       encryptedUserCredentials: connection.encryptedUserCredentials ?? null,
+      deljenaDozvola,
     };
   },
 });
@@ -408,19 +430,24 @@ export const revokeAndStart = internalAction({
       );
       if (credentials === null) return null; // superseded, or already wiped
 
-      const secret = await decryptCredentials(credentials.encryptedCredentials);
-      const userSecret =
-        credentials.encryptedUserCredentials === null
-          ? undefined
-          : await decryptCredentials(credentials.encryptedUserCredentials);
+      if (credentials.deljenaDozvola) {
+        status = "unsupported";
+        error = preskocenOpozivPoruka(credentials.provider);
+      } else {
+        const secret = await decryptCredentials(credentials.encryptedCredentials);
+        const userSecret =
+          credentials.encryptedUserCredentials === null
+            ? undefined
+            : await decryptCredentials(credentials.encryptedUserCredentials);
 
-      const outcome = await revokeProviderAccess(
-        credentials.provider,
-        secret,
-        userSecret,
-      );
-      status = outcome.status;
-      error = outcome.error;
+        const outcome = await revokeProviderAccess(
+          credentials.provider,
+          secret,
+          userSecret,
+        );
+        status = outcome.status;
+        error = outcome.error;
+      }
     } catch (caught) {
       status = "failed";
       error = `Opoziv nije uspeo: ${

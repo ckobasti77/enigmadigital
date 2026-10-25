@@ -61,6 +61,27 @@ export function manualRevokeMessage(provider: Provider): string {
   }
 }
 
+/**
+ * Provajderi čiji opoziv gasi dozvolu CELOG naloga (C19): Meta `DELETE
+ * /me/permissions` deautorizuje aplikaciju za tog korisnika, a Google opoziv
+ * uklanja dozvolu aplikacije na tom Google nalogu. Kad isti nalog drži vezu i
+ * u drugom projektu, opoziv u jednom bi ugasio i drugi.
+ */
+export const OPOZIV_CELOG_NALOGA: ReadonlySet<Provider> = new Set<Provider>([
+  "meta_fb",
+  "youtube",
+  "google_business",
+]);
+
+/** Poruka kad je opoziv preskočen zbog veze istog provajdera u drugom projektu. */
+export function preskocenOpozivPoruka(provider: Provider): string {
+  const gde =
+    provider === "meta_fb"
+      ? "u podešavanjima Meta naloga: Settings → Business Integrations (https://www.facebook.com/settings?tab=business_tools)"
+      : "na https://myaccount.google.com/permissions";
+  return `Opoziv na nalogu je preskočen: drugi projekat ima vezu istog provajdera, a opoziv bi mogao da ugasi i nju. Ako ovaj nalog više nigde ne koristiš, ukloni aplikaciju ručno ${gde}.`;
+}
+
 const REVOKE_TIMEOUT_MS = 10_000;
 
 /** `fetch` with a ceiling. A revoke that hangs must not hold up the erasure. */

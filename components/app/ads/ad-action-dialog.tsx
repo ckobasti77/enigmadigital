@@ -195,7 +195,7 @@ function AdActionDialogInner({
         maxAllowed: undefined,
         minBudget,
         maxBudget,
-        error: `Granica budzeta je zadata u ${limitCurrency}, a nalog radi u ${accountCurrency}. Podesi granicu u valuti naloga pre nego sto menjas budzet.`,
+        error: `Granica budžeta je zadata u ${limitCurrency}, a nalog radi u ${accountCurrency}. Podesi granicu u valuti naloga pre nego što menjaš budžet.`,
       };
     }
 

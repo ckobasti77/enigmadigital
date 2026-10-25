@@ -1,4 +1,4 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
@@ -367,6 +367,16 @@ export const deleteReply = projekatAction({
   }),
   handler: async (ctx, { replyId }) => {
     const { workspaceId } = ctx.projekat;
+    const smeBrisanje: boolean = await ctx.runQuery(
+      internal.threadsReplies.odgovorZaBrisanje,
+      { workspaceId, replyId },
+    );
+    if (!smeBrisanje) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Odgovor nije pronađen u ovom projektu.",
+      });
+    }
     const connection = await ctx.runQuery(
       internal.threadsPublishStore.getConnectionForWorkspace,
       { workspaceId },
@@ -485,6 +495,33 @@ export const patchReplyApprovalStatus = internalMutation({
       await ctx.db.patch(existing._id, { approvalStatus });
     }
     return null;
+  },
+});
+
+/**
+ * Da li `replyId` sme da se obriše kroz `deleteReply` (C19): odgovor mora biti
+ * zapisan u ovom projektu i ne sme biti objava. Brisanje objave je
+ * `threadsPublish.deletePost` i traži vlasnika (D11); bez ove provere urednik
+ * je ID objave mogao da pošalje kao ID odgovora.
+ */
+export const odgovorZaBrisanje = internalQuery({
+  args: { workspaceId: v.id("workspaces"), replyId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, { workspaceId, replyId }) => {
+    const odgovor = await ctx.db
+      .query("threadsReplies")
+      .withIndex("by_workspace_reply", (q) =>
+        q.eq("workspaceId", workspaceId).eq("replyId", replyId),
+      )
+      .first();
+    if (odgovor === null) return false;
+    const objava = await ctx.db
+      .query("threadsPosts")
+      .withIndex("by_workspace_media", (q) =>
+        q.eq("workspaceId", workspaceId).eq("mediaId", replyId),
+      )
+      .first();
+    return objava === null;
   },
 });
 

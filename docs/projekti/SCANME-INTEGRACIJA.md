@@ -24,7 +24,7 @@ Postoje dva toka:
    - Token za Puls: nasumičan niz od 16 do 256 znakova. Ista vrednost ide u `PULS_TOKEN` na ScanMe-u.
 3. **Pristup → Tokeni za uvoz i formu na sajtu:** novi token, namena **„Forma na sajtu“**. Token se vidi samo jednom; ide u `ENIGMA_LEAD_TOKEN` na ScanMe-u.
 
-Token namene „Forma na sajtu“ ume **samo** da prijavi lead sa sajtova projekta. Uvoz leadova, snimci i mozak ga odbijaju (403). Zato sme da procuri bez veće štete, ali se i dalje drži na serveru (vidi §3).
+Token namene „Forma na sajtu“ ume **samo** da prijavi lead sa sajtova projekta. Uvoz leadova, snimci i mozak ga odbijaju (403). Ipak ga drži **samo na serveru** (vidi §3): ko ga dobije može da šalje lažne leadove sa saglasnošću za marketing (a time i lažne CAPI „Lead“ događaje na piksel projekta) i da popuni satnu kapu tokena, pa prave forme dobijaju 429. Ako procuri, opozovi ga u Pristupu i napravi nov.
 
 ---
 

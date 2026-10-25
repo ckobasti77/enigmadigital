@@ -72,9 +72,12 @@ export const recordWebhookMention = internalMutation({
       .withIndex("by_provider", (q) => q.eq("provider", "meta_ig"))
       .collect();
 
+    // Veza u prekidu se preskače (C19): isti nalog sme biti povezan u drugom
+    // projektu dok se ona briše.
     const conn = connections.find(
       (c) =>
-        c.externalId === args.accountId || c.externalIdAlt === args.accountId,
+        c.status !== "disconnecting" &&
+        (c.externalId === args.accountId || c.externalIdAlt === args.accountId),
     );
 
     if (!conn || conn.status === "disconnecting") {

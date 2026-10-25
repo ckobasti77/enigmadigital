@@ -15,8 +15,9 @@ import { ciljPosleRazmene, ciljPovratka } from "../_lib/povratak";
  * no login round-trip can lose the code anymore. The browser then goes back
  * to the panel the flow started from (`ciljPovratka`), not to this host.
  *
- * LEGACY PATH (code without state): forwards the code to Settings where the
- * authenticated Convex client exchanges it.
+ * CODE WITHOUT STATE: not exchanged anywhere (C19) — Settings shows an error
+ * and the user starts again. Exchanging a stateless code from the address bar
+ * was an OAuth CSRF: a crafted link could connect someone else's account.
  */
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -80,9 +81,14 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Legacy fallback: no state — let Settings finish it (on this host).
+  // Kod bez stanja se ne prosleđuje dalje (C19): pravi tok uvek nosi `state`,
+  // a Settings više ne razmenjuje kod iz adrese — podmetnut link sa tuđim
+  // kodom bi inače povezao tuđ nalog u projekat onoga ko ga otvori.
   if (code) {
-    settingsUrl.searchParams.set("ig_code", code);
+    settingsUrl.searchParams.set(
+      "ig_error",
+      "Instagram nije vratio potvrdu toka. Pokreni povezivanje ponovo.",
+    );
   }
 
   return NextResponse.redirect(settingsUrl);

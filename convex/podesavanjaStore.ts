@@ -4,6 +4,7 @@ import { internalQuery, type QueryCtx } from "./_generated/server";
 import { encryptCredentials } from "./lib/crypto";
 import { jeVlasnikPlatforme, projekatMutation, projekatQuery } from "./lib/projekat";
 import { kljucTajneValidator } from "./lib/projekatPolja";
+import { fajlObjave, prijavaUploada } from "./lib/projekatUploadi";
 import {
   adresaPanela as adresaPanelaProjekta,
   granicaBudzetaValidator,
@@ -233,6 +234,14 @@ export const postaviSlikuBrenda = projekatMutation({
         nevazece("Otpremanje je isteklo. Izaberi sliku ponovo.");
       }
       if ((await fajlVecKoristi(ctx, storageId)) !== null) {
+        nevazece("Ova slika je već u upotrebi. Otpremi novu.");
+      }
+      // Ni fajl koji je drugi posao već prijavio (slika posta, titl, sličica,
+      // objava): zamena loga bi ga posle obrisala (C19).
+      if (
+        (await prijavaUploada(ctx, storageId)) !== null ||
+        (await fajlObjave(ctx, storageId))
+      ) {
         nevazece("Ova slika je već u upotrebi. Otpremi novu.");
       }
     }
@@ -552,13 +561,19 @@ export const adresaPanela = internalQuery({
  */
 export const zaMejl = internalQuery({
   args: { workspaceId: v.id("workspaces") },
-  returns: v.object({ ime: v.string(), adresaPanela: v.union(v.string(), v.null()) }),
+  returns: v.object({
+    ime: v.string(),
+    adresaPanela: v.union(v.string(), v.null()),
+    /** Osnivački projekat (P4): samo on nasleđuje env, i primaoce iz `ALLOWED_EMAILS`. */
+    osnivacki: v.boolean(),
+  }),
   handler: async (ctx, { workspaceId }) => {
     const ws = await ctx.db.get(workspaceId);
     const ime = (await podesavanjaProjekta(ctx, workspaceId)).posiljalacIme.vrednost;
     return {
       ime: ime ?? ws?.name ?? "Command Center",
       adresaPanela: await adresaPanelaProjekta(ctx.db, workspaceId),
+      osnivacki: (await osnivackiProjekatId(ctx.db)) === workspaceId,
     };
   },
 });

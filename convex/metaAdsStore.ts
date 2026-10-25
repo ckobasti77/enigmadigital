@@ -2718,7 +2718,12 @@ export const listAudiences = projekatQuery({
   handler: async (ctx, args) => {
     const { workspaceId } = ctx.projekat;
 
-    // Indeks po nalogu ne zna za prostor: redovi tuđeg naloga se izbacuju.
+    // Indeks po nalogu ne zna za projekat: nalog se prvo proverava (C19), pa
+    // se redovi tuđeg naloga ni ne čitaju. Filter ostaje kao odbrana.
+    const nalog = args.adAccountId ? await ctx.db.get(args.adAccountId) : null;
+    if (args.adAccountId && (nalog === null || nalog.workspaceId !== workspaceId)) {
+      return { audiences: [], count: 0, syncedAt: undefined };
+    }
     const rows = args.adAccountId
       ? (
           await ctx.db

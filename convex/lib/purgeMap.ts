@@ -1475,6 +1475,10 @@ export const EXTRA_TABLE_OWNERSHIP: Record<string, Disposition> = {
     excluded:
       "Sopstvene tajne projekta (CAPI token, tajna za novosti, Puls token), šifrovane. Ista klasa kao `ingestTokens`: prekid veze sa provajderom ih ne opoziva; menjaju se i brišu u Podešavanjima projekta.",
   },
+  projekatUploadi: {
+    excluded:
+      "Evidencija vlasništva fajlova (koji projekat je otpremio sliku posta, titl ili sličicu), ne podaci provajdera. Fajl briše njegov vlasnik: titl i sličicu akcija posle slanja (zajedno sa redom), sliku posta ostaje dok je post koristi.",
+  },
   pulsSnimci: {
     excluded:
       "Brojke sa sopstvenog sajta projekta (Puls), ne podaci provajdera; prekid veze sa Meta/Google ih ne dodiruje. Čisti ih Puls posle 90 dana.",

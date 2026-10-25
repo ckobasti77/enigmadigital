@@ -110,8 +110,14 @@ export const promeniUlogu = projekatMutation({
     // Isto pravilo kao kod uklanjanja: projekat ne sme ostati bez vlasnika.
     const metaJeOwner = meta.some((m) => m.role === "owner");
     if (metaJeOwner && args.uloga !== "owner") {
-      const ownera = clanovi.filter((m) => m.role === "owner").length;
-      if (ownera <= 1) {
+      // Broje se drugi LJUDI sa ulogom vlasnika, ne redovi (C19): dupli red
+      // istog člana ne sme da prođe kao drugi vlasnik.
+      const drugihVlasnika = new Set(
+        clanovi
+          .filter((m) => m.role === "owner" && m.userId !== args.userId)
+          .map((m) => m.userId),
+      ).size;
+      if (drugihVlasnika === 0) {
         throw new ConvexError({
           code: "bad_request",
           message:
@@ -183,8 +189,13 @@ export const removeMember = projekatMutation({
     // Ne možeš poslednjeg ownera — ostao bi prostor bez ijednog vlasnika.
     const metaJeOwner = meta.some((m) => m.role === "owner");
     if (metaJeOwner) {
-      const ownera = clanovi.filter((m) => m.role === "owner").length;
-      if (ownera <= 1) {
+      // Broje se drugi LJUDI sa ulogom vlasnika, ne redovi (C19).
+      const drugihVlasnika = new Set(
+        clanovi
+          .filter((m) => m.role === "owner" && m.userId !== args.userId)
+          .map((m) => m.userId),
+      ).size;
+      if (drugihVlasnika === 0) {
         throw new ConvexError({
           code: "bad_request",
           message:

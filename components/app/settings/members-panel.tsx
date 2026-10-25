@@ -139,7 +139,7 @@ function UlogaClana({
             className="-ml-2 gap-1.5 px-2"
           >
             {radim ? (
-              <LoaderCircle className="size-3 animate-spin" />
+              <LoaderCircle className="size-3 motion-safe:animate-spin" />
             ) : (
               <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
             )}

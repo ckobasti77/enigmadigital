@@ -22,6 +22,7 @@ import {
 } from "./lib/projekatPolja";
 import { sablonLeadovaValidator } from "./lib/sabloniLeadova";
 import { pulsGreskaValidator } from "./lib/puls";
+import { svrhaUploadaValidator } from "./lib/projekatUploadi";
 
 // Multi-tenant from day one (PLAN.md §3). V1 is single-user, but every future
 // table carries a `workspaceId`, so onboarding clients later needs no migration.
@@ -88,6 +89,21 @@ export default defineSchema({
     updatedAt: v.number(),
     updatedBy: v.optional(v.id("users")),
   }).index("by_workspace_kljuc", ["workspaceId", "kljuc"]),
+
+  // Čiji je otpremljen fajl (plan C02 §10.3, C19): naslovna i OG slika
+  // novosti, titl i sličica YouTube-a. Red upisuje `projekatUploadi.
+  // registrujUpload` odmah posle otpremanja; posao koji prima `storageId`
+  // prihvata samo fajl prijavljen u istom projektu, pa ID tuđeg fajla nije
+  // dovoljan da se on pročita, objavi ili obriše.
+  projekatUploadi: defineTable({
+    workspaceId: v.id("workspaces"),
+    storageId: v.id("_storage"),
+    userId: v.id("users"),
+    svrha: svrhaUploadaValidator,
+    createdAt: v.number(),
+  })
+    .index("by_storage", ["storageId"])
+    .index("by_workspace_created", ["workspaceId", "createdAt"]),
 
   // Puls (C17, PROJEKTI-PLAN §11): snimak brojki sa sopstvenog sajta projekta,
   // na 15 minuta. Jedan red po prolazu, uspeh (`metrike`) ili greška

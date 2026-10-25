@@ -208,9 +208,14 @@ function GoogleAdsKvota() {
 
       <p className="mt-2 text-micro text-text-muted">
         operacija za 24 h
-        {deljeno
-          ? ` (deo ovog projekta) · svi projekti: ${formatNumber(kvota.ukupno)} od ${formatNumber(kvota.zajednickiLimit)}`
-          : ""}
+        {deljeno ? (
+          <>
+            {" (deo ovog projekta) · svi projekti: "}
+            <span className="font-mono tabular-nums">
+              {formatNumber(kvota.ukupno)} od {formatNumber(kvota.zajednickiLimit)}
+            </span>
+          </>
+        ) : null}
       </p>
 
       {potroseno && (

@@ -230,6 +230,9 @@ async function claimJob(
   const job = await ctx.db.get(jobId);
   if (job === null || job.workspaceId !== workspaceId) return null;
   if (job.status !== "pending") return null;
+  // Samo posao slanja videa (C19): `failUpload` vraća jedan upload u kvotu, a
+  // zaglavljen posao druge vrste (titl, sličica) nikad nije knjižio upload.
+  if (job.kind !== "upload") return null;
   return job;
 }
 

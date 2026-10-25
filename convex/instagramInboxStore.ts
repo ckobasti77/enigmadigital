@@ -29,10 +29,14 @@ async function resolveWorkspace(
     .withIndex("by_provider", (q) => q.eq("provider", provider))
     .collect();
 
-  const conn = connections.find((c) =>
-    platform === "instagram"
-      ? c.externalId === accountId || c.externalIdAlt === accountId
-      : c.externalId === accountId,
+  // Veza u prekidu se preskače (C19): isti nalog sme biti povezan u drugom
+  // projektu dok se ona briše, i poruka pripada tom projektu.
+  const conn = connections.find(
+    (c) =>
+      c.status !== "disconnecting" &&
+      (platform === "instagram"
+        ? c.externalId === accountId || c.externalIdAlt === accountId
+        : c.externalId === accountId),
   );
   if (!conn) {
     return null;

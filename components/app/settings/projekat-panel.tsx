@@ -358,7 +358,7 @@ function Domeni() {
     try {
       await dodaj({ host: provera.vrednost });
       setUnos("");
-      setStatus({ tip: "uspeh", tekst: "Domen je dodat. Panel radi na njemu za najviše minut." });
+      setStatus({ tip: "uspeh", tekst: "Domen je dodat. Panel će raditi na njemu najkasnije za minut." });
     } catch (err) {
       setStatus({ tip: "greska", tekst: porukaGreske(err, "Domen nije dodat.") });
     } finally {
@@ -387,7 +387,7 @@ function Domeni() {
       {domeni === undefined ? (
         <Skeleton className="h-10 w-full rounded-lg" />
       ) : domeni.length === 0 ? (
-        <p className="text-ui text-text-muted">Nema domena: projekat se otvara samo iz huba.</p>
+        <p className="text-ui text-text-muted">Nema domena: projekat se otvara samo sa ekrana „Svi projekti“.</p>
       ) : (
         <ul className="divide-y divide-line-soft rounded-lg border border-line">
           {domeni.map((d) => (

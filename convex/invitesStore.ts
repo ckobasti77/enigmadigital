@@ -135,11 +135,11 @@ export const createInvite = projekatMutation({
     //     Auth (v0.0.95) u koraku 1 commit-uje `users` + `authAccounts` password
     //     red PRE slanja koda; ako kod pukne, ostaje poluispečen nalog. Sme opet.
     //
-    // U dva poslednja slučaja resetujemo sve (login zapisi + `users` red) da
-    // nova registracija krene čisto: da ostane stari password red, `signUp` sa
-    // drugom lozinkom bi pukao sa „account already exists"; da ostane potvrđen
-    // `users` red, `signUp` bi se zakačio na njega. Korisnik sa članstvom bilo
-    // gde se nikad ne briše.
+    // U poslednjem slučaju resetujemo sve (login zapisi + `users` red) da nova
+    // registracija krene čisto: da ostane stari password red, `signUp` sa
+    // drugom lozinkom bi pukao sa „account already exists". Uklonjen član
+    // (potvrđen) se ne briše (C19, vidi ispod). Korisnik sa članstvom bilo gde
+    // se nikad ne briše.
     const postojeciKorisnik = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", email))
@@ -155,7 +155,12 @@ export const createInvite = projekatMutation({
           message: "Ta osoba je već član ovog projekta.",
         });
       }
-      if (clanstva.length === 0) {
+      // Briše se samo ZAGLAVLJENA registracija (nepotvrđen nalog, C19): takav
+      // red nema ni članstvo ni istoriju. Potvrđen nalog bez članstva je
+      // uklonjen član nekog projekta, čiji ID nosi istorija tog projekta; vlasnik
+      // DRUGOG projekta ga ne sme obrisati. Njemu registracija kači lozinku na
+      // postojeći red, a ako je ima, prijavljuje se i prihvata poziv (C13).
+      if (clanstva.length === 0 && postojeciKorisnik.emailVerificationTime === undefined) {
         await deleteLoginMachinery(ctx, postojeciKorisnik._id);
         await ctx.db.delete(postojeciKorisnik._id);
       }

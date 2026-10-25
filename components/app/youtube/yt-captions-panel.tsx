@@ -167,6 +167,7 @@ function YtCaptionsContent({
   const generateUploadUrl = useProjekatMutation(
     api.ytCaptions.generateCaptionUploadUrl,
   );
+  const registrujUpload = useProjekatMutation(api.projekatUploadi.registrujUpload);
 
   const [tracks, setTracks] = useState<CaptionTrack[] | null>(null);
   const [listing, setListing] = useState(false);
@@ -222,6 +223,8 @@ function YtCaptionsContent({
       throw new Error("Fajl nije stigao do servera. Pokušaj ponovo.");
     }
     const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+    // Akcija prihvata samo fajl prijavljen u ovom projektu kao titl.
+    await registrujUpload({ storageId, svrha: "yt_titl" });
     return storageId;
   };
 

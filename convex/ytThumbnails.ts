@@ -183,13 +183,25 @@ export const setThumbnail = projekatAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    // Omotač proverava prijavu i članstvo pre handlera, pa `finally` ispod
-    // (koji briše `storageId` kako god se poziv završi) ne dosegne neprijavljen
-    // ni tuđ poziv: bez toga bi bilo ko mogao da obriše fajl čiji ID zna.
+    // Omotač proverava prijavu i članstvo pre handlera, a fajl mora biti
+    // prijavljen u ovom projektu kao sličica (C19), pa `finally` ispod (koji
+    // briše fajl kako god se poziv završi) ne dosegne tuđ fajl čiji se ID zna.
+    const { workspaceId } = ctx.projekat;
+    const nas: boolean = await ctx.runQuery(internal.projekatUploadi.uploadZaAkciju, {
+      workspaceId,
+      storageId: args.storageId,
+      svrha: "yt_slicica",
+    });
+    if (!nas) invalid("Slika nije pronađena. Izaberi je ponovo.");
     try {
-      return await runSetThumbnail(ctx, ctx.projekat.workspaceId, args);
+      return await runSetThumbnail(ctx, workspaceId, args);
     } finally {
-      await ctx.storage.delete(args.storageId).catch(() => {});
+      await ctx
+        .runMutation(internal.projekatUploadi.potrosiUpload, {
+          workspaceId,
+          storageId: args.storageId,
+        })
+        .catch(() => {});
     }
   },
 });

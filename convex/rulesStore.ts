@@ -458,6 +458,28 @@ export interface EvaluationRuleContext {
 }
 
 /**
+ * Projekti koji imaju bar jedno uključeno pravilo (cron ih procenjuje jedan po
+ * jedan, C19). Interna: prolazi kroz sve projekte, ali vraća samo ID-jeve.
+ */
+export const projektiSaPravilima = internalQuery({
+  args: {},
+  returns: v.array(v.id("workspaces")),
+  handler: async (ctx) => {
+    const out: Id<"workspaces">[] = [];
+    for (const ws of await ctx.db.query("workspaces").collect()) {
+      const ima = await ctx.db
+        .query("rules")
+        .withIndex("by_workspace_and_enabled", (q) =>
+          q.eq("workspaceId", ws._id).eq("enabled", true),
+        )
+        .first();
+      if (ima !== null) out.push(ws._id);
+    }
+    return out;
+  },
+});
+
+/**
  * Collects all enabled rules and aggregates fresh adInsights metrics for their respective windows.
  */
 export const getEvaluationContext = internalQuery({

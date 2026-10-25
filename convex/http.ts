@@ -15,6 +15,7 @@ import { extractClientIp } from "./lib/klijentIp";
 import { ingestOdgovor } from "./lib/ingestToken";
 import { preflightLeadaSaSajta, primiLeadSaSajtaHttp } from "./leadSajt";
 import { podesavanjaZaAkciju, procitajTajnu } from "./lib/podesavanjaAkcija";
+import { proveriAdresuNaSajtu } from "./lib/podesavanjaPravila";
 import {
   allowsBackground,
   createUsageTracker,
@@ -1781,20 +1782,33 @@ export const revalidatePost = internalAction({
     slug: v.string(),
   },
   handler: async (ctx, args) => {
-    const endpoint = (await podesavanjaZaAkciju(ctx, args.workspaceId)).novostiRevalidateUrl
-      .vrednost;
+    const podesavanja = await podesavanjaZaAkciju(ctx, args.workspaceId);
+    const endpoint = podesavanja.novostiRevalidateUrl.vrednost;
     const secret = await procitajTajnu(ctx, args.workspaceId, "novosti_revalidate_secret");
     if (!endpoint || !secret) {
       console.info("Osvežavanje novosti nije podešeno za ovaj projekat.");
       return;
     }
+    // Adresa upisana u podešavanjima se ponovo proverava protiv sajtova
+    // projekta (C19, kao Puls): sajt je mogao biti uklonjen posle upisa, a
+    // tajna ne sme da ode na adresu koja više nije projektova. Env vrednost
+    // osnivačkog projekta postavlja Jovan i ostaje kakva jeste.
+    if (podesavanja.novostiRevalidateUrl.izvor === "projekat") {
+      const adresa = proveriAdresuNaSajtu(endpoint, podesavanja.sajtovi.vrednost ?? []);
+      if (!adresa.ok || adresa.vrednost === null) {
+        console.warn("Adresa za osvežavanje novosti više nije na sajtovima projekta; poziv nije poslat.");
+        return;
+      }
+    }
 
     const path = `/novosti/${args.slug}`;
+    const prekid = new AbortController();
+    const tajmer = setTimeout(() => prekid.abort(), 10_000);
     try {
       // Adresa treba da bude tačan host (npr. sa www), NE adresa koja
-      // preusmerava: oslanjanje na to da `fetch` prenese zaglavlje
-      // `x-revalidate-secret` kroz preusmerenje na DRUGI host nije
-      // garantovano. Bez zaglavlja ruta vraća 401 i osvežavanje tiho prestane.
+      // preusmerava. Preusmerenje se ne prati (C19): zaglavlje
+      // `x-revalidate-secret` bi otišlo i na host na koji sajt preusmeri, a
+      // bez praćenja ruta jasno vrati 3xx umesto tihog curenja tajne.
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -1802,6 +1816,8 @@ export const revalidatePost = internalAction({
           "x-revalidate-secret": secret,
         },
         body: JSON.stringify({ path }),
+        redirect: "manual",
+        signal: prekid.signal,
       });
 
       if (response.status !== 200) {
@@ -1815,6 +1831,8 @@ export const revalidatePost = internalAction({
       console.error(
         `Neuspelo osvežavanje keša za putanju ${path}: greška pri mrežnom pozivu (${reason}).`,
       );
+    } finally {
+      clearTimeout(tajmer);
     }
   },
 });
@@ -2163,6 +2181,13 @@ http.route({
     const storageId = await ctx.storage.store(
       blob.type ? blob : new Blob([await blob.arrayBuffer()], { type: tip }),
     );
+    // Snimak pripada projektu tokena (C19): uvoz prihvata samo ovako
+    // prijavljen ID, pa tuđ fajl ne može da uđe u ocenu sajta.
+    await ctx.runMutation(internal.projekatUploadi.zapisiSnimakSkilla, {
+      workspaceId: tokenRow.workspaceId,
+      storageId,
+      userId: tokenRow.createdBy,
+    });
 
     await ctx.runMutation(internal.ingestTokensStore.markTokenUsed, {
       tokenId: tokenRow.tokenId,

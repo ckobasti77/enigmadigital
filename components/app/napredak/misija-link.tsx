@@ -24,7 +24,7 @@ export function MisijaLink({
       <span
         {...(ostalo as ComponentProps<"span">)}
         aria-disabled="true"
-        title={misija.projekat ? `Otvori projekat ${misija.projekat.ime} u hubu` : undefined}
+        title={misija.projekat ? `Otvori projekat ${misija.projekat.ime}` : undefined}
       />
     );
   }

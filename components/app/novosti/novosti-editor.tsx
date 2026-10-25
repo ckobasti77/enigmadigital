@@ -163,6 +163,7 @@ function NovostiEditorTelo({
   const generateUploadUrlMutation = useProjekatMutation(
     api.threadsPublishStore.generateUploadUrl,
   );
+  const registrujUpload = useProjekatMutation(api.projekatUploadi.registrujUpload);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -238,6 +239,8 @@ function NovostiEditorTelo({
       }
 
       const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+      // Fajl se odmah prijavljuje projektu; čuvanje nacrta prihvata samo takav.
+      await registrujUpload({ storageId, svrha: "novosti_naslovna" });
       setCoverStorageId(storageId);
       setSuccessMsg("Naslovna slika je uspešno otpremljena u Convex storage.");
     } catch (err: unknown) {

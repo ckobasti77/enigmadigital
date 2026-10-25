@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { projekatMutation } from "./lib/projekat";
+import { SVRHE_NOVOSTI, uploadProjekta } from "./lib/projekatUploadi";
 import { slugify } from "./lib/slug";
 
 /**
@@ -153,6 +154,20 @@ export const updateDraft = projekatMutation({
         code: "not_found",
         message: "Post nije pronađen u ovom projektu.",
       });
+    }
+
+    // Slika posta je fajl ovog projekta (plan C02 §10.3, C19): prijavljen posle
+    // otpremanja (`projekatUploadi.registrujUpload`) ili već slika ovog posta.
+    // ID tuđeg fajla tako ne postaje naslovna slika ovde.
+    for (const slika of [args.coverStorageId, args.ogImageStorageId]) {
+      if (slika === undefined) continue;
+      if (slika === post.coverStorageId || slika === post.ogImageStorageId) continue;
+      if (!(await uploadProjekta(ctx, ctx.projekat.workspaceId, slika, SVRHE_NOVOSTI))) {
+        throw new ConvexError({
+          code: "not_found",
+          message: "Slika nije pronađena u ovom projektu. Otpremi je ponovo.",
+        });
+      }
     }
 
     const updates: Partial<Doc<"posts">> = {};

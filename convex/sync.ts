@@ -44,7 +44,10 @@ export const finishSyncRun = internalMutation({
     });
     if (run.connectionId) {
       const conn = await ctx.db.get(run.connectionId);
-      if (conn) {
+      // Veza u prekidu ostaje u prekidu (C19): prolaz koji se završi posle
+      // „Prekini vezu“ ju je vraćao u „active“, pa je brisanje padalo, a red
+      // je i dalje držao nalog (E3) i primao webhook-ove umesto drugog projekta.
+      if (conn && conn.status !== "disconnecting") {
         // Refresh lastSyncAt and clear a prior "error"; leave "expired" alone —
         // only a real token refresh should resolve that.
         const status = conn.status === "expired" ? "expired" : "active";
@@ -66,7 +69,9 @@ export const failSyncRun = internalMutation({
     });
     if (run.connectionId) {
       const conn = await ctx.db.get(run.connectionId);
-      if (conn) await ctx.db.patch(run.connectionId, { status: "error" });
+      if (conn && conn.status !== "disconnecting") {
+        await ctx.db.patch(run.connectionId, { status: "error" });
+      }
     }
   },
 });

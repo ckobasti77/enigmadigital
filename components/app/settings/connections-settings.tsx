@@ -797,7 +797,6 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
   const getOAuthConfig = useProjekatAction(api.instagram.getOAuthConfig);
   const getOAuthUrl = useProjekatAction(api.instagram.getOAuthUrl);
   const oauthNijePodesen = useOAuthNijePodesen();
-  const completeOAuth = useProjekatAction(api.instagram.completeOAuth);
   const removeConnection = useProjekatMutation(api.connections.remove);
 
   const [configState, setConfigState] = useState<{
@@ -847,8 +846,8 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
     };
   }, [spreman, mozeVlasnik, getOAuthConfig]);
 
-  // Handle incoming OAuth callback code in URL parameters. Waits for the
-  // project: the code is read (and cleared) only once it can be exchanged.
+  // Handle the OAuth callback result in URL parameters. Waits for the project
+  // so the message lands on the right card.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!spreman) return;
@@ -876,26 +875,15 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
       urlParams.get("error_description") ||
       urlParams.get("error");
 
-    // Fallback: the OAuth code may have been parked in localStorage by
-    // OAuthCodeCatcher (app-shell) if the user hit the callback while the
-    // auth session was not yet mounted (e.g. forced to log in again).
-    if (!code && !err) {
-      try {
-        const stored = window.localStorage.getItem("ig_oauth_code");
-        if (stored) {
-          window.localStorage.removeItem("ig_oauth_code");
-          const parsed = JSON.parse(stored) as { code?: string; ts?: number };
-          if (
-            parsed.code &&
-            typeof parsed.ts === "number" &&
-            Date.now() - parsed.ts < 10 * 60 * 1000
-          ) {
-            code = parsed.code;
-          }
-        }
-      } catch {
-        // ignore malformed storage
+    // Kod parkiran pre prijave (OAuthCodeCatcher, ekran prijave) se samo
+    // uklanja: kod bez jednokratnog stanja ovog toka se ne razmenjuje.
+    try {
+      if (window.localStorage.getItem("ig_oauth_code")) {
+        window.localStorage.removeItem("ig_oauth_code");
+        if (!code) code = "parkiran";
       }
+    } catch {
+      // storage unavailable — nothing parked
     }
 
     if (!code && !err) return;
@@ -910,28 +898,15 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
       return;
     }
 
-    if (code) {
-      setTimeout(() => {
-        setConnecting(true);
-        setError(null);
-      }, 0);
-
-      completeOAuth({ code })
-        .then((res) => {
-          setSuccessMessage(
-            res.username
-              ? `Uspešno povezan nalog @${res.username}!`
-              : "Instagram nalog je uspešno povezan!",
-          );
-        })
-        .catch((e) => {
-          setError(convexMessage(e, "Povezivanje Instagram naloga nije uspelo."));
-        })
-        .finally(() => {
-          setConnecting(false);
-        });
-    }
-  }, [spreman, completeOAuth]);
+    // Kod bez stanja (C19): pravi tok uvek nosi `state` i povratna ruta ga
+    // razmenjuje sama, pa se ovde ništa ne povezuje. Inače bi podmetnut link
+    // sa tuđim kodom povezao tuđ nalog u ovaj projekat.
+    setTimeout(() => {
+      setError(
+        "Povezivanje nije završeno: nedostaje potvrda toka. Pokreni ga ponovo dugmetom „Poveži“.",
+      );
+    }, 0);
+  }, [spreman]);
 
   async function handleStartConnect() {
     setError(null);

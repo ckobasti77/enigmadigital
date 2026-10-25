@@ -513,12 +513,41 @@ export const completeOAuth = projekatAction({
   uloga: "owner",
   args: {
     code: v.string(),
+    // Kod se razmenjuje samo uz jednokratno stanje koje je ovaj vlasnik izdao
+    // za ovaj projekat (C19). Bez toga je podmetnut link sa tuđim kodom
+    // (`?ig_code=…`) povezivao tuđ Instagram nalog u projekat žrtve.
+    state: v.string(),
   },
-  handler: async (ctx, { code }): Promise<OAuthResult> => {
+  handler: async (ctx, { code, state }): Promise<OAuthResult> => {
+    const stored: {
+      workspaceId: Id<"workspaces">;
+      userId: Id<"users">;
+      redirectUri: string;
+      createdAt: number;
+    } | null = await ctx.runMutation(internal.instagramStore.consumeOAuthState, {
+      nonce: state,
+    });
+    if (
+      stored === null ||
+      stored.workspaceId !== ctx.projekat.workspaceId ||
+      stored.userId !== ctx.projekat.userId
+    ) {
+      throw new ConvexError({
+        code: "invalid",
+        message:
+          "Nepoznat ili već iskorišćen state parametar. Pokreni povezivanje ponovo iz Podešavanja.",
+      });
+    }
+    if (Date.now() - stored.createdAt > OAUTH_STATE_TTL_MS) {
+      throw new ConvexError({
+        code: "invalid",
+        message: "Autorizacija je istekla. Pokreni povezivanje ponovo.",
+      });
+    }
     return exchangeCodeAndConnect(ctx, {
       workspaceId: ctx.projekat.workspaceId,
       code,
-      redirectUri: redirectUriZa("meta_ig"),
+      redirectUri: stored.redirectUri,
     });
   },
 });
