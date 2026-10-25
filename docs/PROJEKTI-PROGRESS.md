@@ -755,3 +755,6 @@ Obrađene su sve 88 javnih funkcija grupe iz mape C02 §5.1: 82 sada idu kroz om
 - Tačka i broj u meniju dolaze iz pravih veza i zvona: proveri da Enigma pokazuje istu brojku kao zvono i da je tačka crvena ili žuta samo kad nešto zaista ne radi.
 - Otvori po jedan dijalog: nova Instagram objava (potvrda), Threads objava, YouTube upload, odgovor na komentar, poruka u inbox-u, pauza kampanje i promena budžeta — svaki treba da kaže „… kao <nalog> · Enigma IT“, a potvrda „… · Enigma IT“. Dijalozi oglasa pokazuju nalog nad kojim radnja ide. Ručno pogledaj i pet površina iz BLOKADE (odgovor na IG komentar i spominjanje, poruka u inbox razgovoru, meni profila, treći korak nove kampanje).
 - Na panel domenu (kad ga mapiraš) gore levo treba da stoji samo znak i ime, bez menija.
+
+## C10 - Plan: podešavanja, brend, env, OAuth, kvote   (2026-10-25 04:39)
+**Plan korak.** Plan je upisan u `docs/projekti/planovi/C10.md`. Kod nije menjan.
