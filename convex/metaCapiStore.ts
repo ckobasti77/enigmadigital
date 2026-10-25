@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { projekatQuery } from "./lib/projekat";
+import { podesavanjaProjekta, stanjeTajne } from "./lib/podesavanja";
 import { CAPI_MAX_BATCH_SIZE, hasMatchableIdentity } from "./lib/metaCapi";
 
 /**
@@ -219,7 +220,8 @@ export const getCapiStats = projekatQuery({
   },
   returns: v.object({
     configured: v.boolean(),
-    missingEnvVars: v.array(v.string()),
+    /** Šta projektu fali za slanje (nikad vrednost, samo da li postoji). */
+    nedostaje: v.array(v.union(v.literal("piksel"), v.literal("capi_token"))),
     sentCount: v.number(),
     pendingCount: v.number(),
     retryingCount: v.number(),
@@ -240,15 +242,15 @@ export const getCapiStats = projekatQuery({
   handler: async (ctx, args) => {
     const { workspaceId: targetWs } = ctx.projekat;
 
-    // Check environment variables without throwing
-    const missing: string[] = [];
-    if (!process.env.META_PIXEL_ID?.trim()) {
-      missing.push("META_PIXEL_ID");
+    // Piksel i CAPI token projekta (osnivački bez svojih: env). Ne baca.
+    const nedostaje: ("piksel" | "capi_token")[] = [];
+    if ((await podesavanjaProjekta(ctx, targetWs)).pikselId.vrednost === null) {
+      nedostaje.push("piksel");
     }
-    if (!process.env.META_CAPI_TOKEN?.trim()) {
-      missing.push("META_CAPI_TOKEN");
+    if (!(await stanjeTajne(ctx, targetWs, "meta_capi_token")).postavljeno) {
+      nedostaje.push("capi_token");
     }
-    const configured = missing.length === 0;
+    const configured = nedostaje.length === 0;
 
     // 7 days window (in seconds)
     const cutoffSec = args.nowSec ? args.nowSec - 7 * 86400 : 0;
@@ -303,7 +305,7 @@ export const getCapiStats = projekatQuery({
 
     return {
       configured,
-      missingEnvVars: missing,
+      nedostaje,
       sentCount,
       pendingCount,
       retryingCount,

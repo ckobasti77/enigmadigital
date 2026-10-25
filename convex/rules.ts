@@ -17,17 +17,29 @@ import {
 import { sanitizeSyncError } from "./lib/runSync";
 import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
 import type { EvaluationRuleContext } from "./rulesStore";
+import { razloziPosiljaoca } from "./lib/podesavanja";
 
 // ── Email Notification Helpers ───────────────────────────────────────────────
 
 /**
- * Adresa aplikacije za link u mejlu, ili `null` kad nije podešena. Nema
- * zakucane rezervne adrese: pogrešan domen u mejlu vodi na tuđi sajt, a mejl
- * bez linka i dalje kaže šta se desilo.
+ * Pošiljalac i adresa panela za mejl pravila. Ime je podešavanje projekta
+ * (E6: osnivački bez njega uzima ime iz `EMAIL_FROM`, ostali ime projekta), a
+ * adresa pošiljaoca je globalna (`EMAIL_FROM`). Adresa panela je `null` kad
+ * nije podešena: pogrešan domen u mejlu vodi na tuđi sajt, a mejl bez linka i
+ * dalje kaže šta se desilo.
  */
-function getAppBaseUrl(): string | null {
-  const url = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL)?.trim();
-  return url ? url.replace(/\/+$/, "") : null;
+async function posiljalacMejla(
+  ctx: ActionCtx,
+  workspaceId: Id<"workspaces">,
+): Promise<{ from: string; appBaseUrl: string | null }> {
+  const { ime, adresaPanela } = await ctx.runQuery(internal.podesavanjaStore.zaMejl, {
+    workspaceId,
+  });
+  const adresa = razloziPosiljaoca(process.env.EMAIL_FROM).adresa ?? "onboarding@resend.dev";
+  return {
+    from: `${ime.replace(/[<>"\r\n]/g, "").trim()} <${adresa}>`,
+    appBaseUrl: adresaPanela,
+  };
 }
 
 function formatMetricUnit(
@@ -183,6 +195,8 @@ async function sendRuleNotificationEmail(opts: {
   impressions: number;
   actionTaken: "notify" | "pause" | "pause_and_notify" | "notify_only_write_disabled";
   allowedEmails: string[];
+  from: string;
+  appBaseUrl: string | null;
 }): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey || apiKey.trim().length === 0) {
@@ -209,15 +223,15 @@ async function sendRuleNotificationEmail(opts: {
     return false;
   }
 
-  const from = process.env.EMAIL_FROM ?? "Enigma <onboarding@resend.dev>";
-  const baseUrl = getAppBaseUrl();
+  const from = opts.from;
+  const baseUrl = opts.appBaseUrl;
   const deepLinkUrl =
     baseUrl === null
       ? null
       : `${baseUrl}/ads?campaignId=${encodeURIComponent(opts.targetId)}`;
   if (deepLinkUrl === null) {
     console.warn(
-      `[rules] APP_URL / NEXT_PUBLIC_APP_URL nije postavljen — mejl za pravilo "${opts.ruleName}" ide bez linka ka aplikaciji.`,
+      `[rules] Adresa panela projekta nije podešena — mejl za pravilo "${opts.ruleName}" ide bez linka ka aplikaciji.`,
     );
   }
 
@@ -470,6 +484,7 @@ async function runRuleEvaluations(
         actionTaken === "notify_only_write_disabled";
 
       if (shouldNotify) {
+        const posiljalac = await posiljalacMejla(ctx, rule.workspaceId);
         notified = await sendRuleNotificationEmail({
           ruleName: rule.name,
           scope: rule.scope,
@@ -483,6 +498,7 @@ async function runRuleEvaluations(
           impressions: target.impressions,
           actionTaken,
           allowedEmails,
+          ...posiljalac,
         });
 
         if (notified) {

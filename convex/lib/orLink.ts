@@ -3,24 +3,12 @@
  * No Convex imports.
  */
 
-/**
- * Public origin the short links live on — the app's own domain
- * (https://digital.enigmait.rs). Deliberately NOT CONVEX_SITE_URL: a raw
- * *.convex.site link inside an Instagram DM reads as spam. Next rewrites
- * /r/:slug through to the Convex HTTP action (see next.config.ts).
- *
- * Returns null when nothing is configured, which makes callers fall back to
- * sending the raw destination link untracked rather than a broken one.
- */
-export function shortLinkOrigin(): string | null {
-  const raw =
-    process.env.OR_SHORT_LINK_BASE_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.APP_URL ||
-    process.env.SITE_URL;
-  const trimmed = raw?.trim().replace(/\/+$/, "");
-  return trimmed ? trimmed : null;
-}
+// The public origin short links live on is a per-project setting:
+// `bazaKratkihLinkova(ctx, workspaceId)` in `lib/podesavanja.ts` (the app's own
+// panel domain, never CONVEX_SITE_URL — a raw *.convex.site link inside an
+// Instagram DM reads as spam; Next rewrites /r/:slug to the Convex HTTP
+// action, see next.config.ts). `null` there makes callers send the raw
+// destination link untracked rather than a broken one.
 
 const SLUG_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
 const SLUG_LENGTH = 7;

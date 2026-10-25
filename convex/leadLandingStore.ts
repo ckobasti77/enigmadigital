@@ -1,7 +1,8 @@
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
-import { generateLandingSlug, shortLinkOrigin } from "./lib/orLink";
+import { generateLandingSlug } from "./lib/orLink";
+import { bazaKratkihLinkova } from "./lib/podesavanja";
 
 /**
  * ============================================================================
@@ -107,7 +108,7 @@ export const createLanding = projekatMutation({
       status: "napravljena",
     });
 
-    const origin = shortLinkOrigin();
+    const origin = await bazaKratkihLinkova(ctx, args.workspaceId);
     const shortUrl = origin ? `${origin}/r/${slug}` : undefined;
 
     return {
@@ -231,7 +232,7 @@ export const listLandingsForCompany = projekatQuery({
       )
       .collect();
 
-    const origin = shortLinkOrigin();
+    const origin = await bazaKratkihLinkova(ctx, args.workspaceId);
 
     const results = await Promise.all(
       landings.map(async (landing) => {

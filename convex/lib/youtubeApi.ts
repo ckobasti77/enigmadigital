@@ -458,8 +458,7 @@ export function getYouTubeClientSecret(): string | undefined {
 export const YOUTUBE_OAUTH_AUTH_URL =
   "https://accounts.google.com/o/oauth2/v2/auth";
 
-export const YOUTUBE_DEFAULT_REDIRECT_URI =
-  "https://digital.enigmait.rs/api/auth/callback/youtube";
+// `redirect_uri` gradi server iz OAUTH_CALLBACK_ORIGIN (`lib/oauthPovratak.ts`).
 
 export const YOUTUBE_OAUTH_SCOPES = [
   "https://www.googleapis.com/auth/youtube.readonly",
@@ -473,11 +472,11 @@ export const YOUTUBE_OAUTH_SCOPES = [
  */
 export function buildYouTubeAuthorizeUrl({
   clientId,
-  redirectUri = YOUTUBE_DEFAULT_REDIRECT_URI,
+  redirectUri,
   state,
 }: {
   clientId: string;
-  redirectUri?: string;
+  redirectUri: string;
   state: string;
 }): string {
   const url = new URL(YOUTUBE_OAUTH_AUTH_URL);

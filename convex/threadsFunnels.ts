@@ -6,7 +6,7 @@ import {
   extractSlugFromShortUrl,
   normalizeUrl,
 } from "./lib/urlNormalization";
-import { shortLinkOrigin } from "./lib/orLink";
+import { bazaKratkihLinkova } from "./lib/podesavanja";
 
 /**
  * ============================================================================
@@ -43,7 +43,7 @@ export const recomputeAttributionForDates = internalMutation({
   returns: v.null(),
   handler: async (ctx, { workspaceId, dates }) => {
     const now = Date.now();
-    const origin = shortLinkOrigin() ?? "";
+    const origin = (await bazaKratkihLinkova(ctx, workspaceId)) ?? "";
 
     // 1. Učitaj sve praćene linkove za ovaj workspace
     const trackedLinks = await ctx.db
@@ -301,7 +301,7 @@ export const getThreadsLinkAttributionSummary = projekatQuery({
   }),
   handler: async (ctx, { dateFrom, dateTo }) => {
     const { workspaceId } = ctx.projekat;
-    const origin = shortLinkOrigin() ?? "";
+    const origin = (await bazaKratkihLinkova(ctx, workspaceId)) ?? "";
 
     const rowsQuery = ctx.db
       .query("threadsLinkAttribution")

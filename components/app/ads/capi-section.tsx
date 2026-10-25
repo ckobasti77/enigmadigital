@@ -53,7 +53,7 @@ export function CapiSection() {
           setFeedback({
             tone: "warning",
             message:
-              "CAPI nije konfigurisan. Nedostaju promenljive META_PIXEL_ID ili META_CAPI_TOKEN.",
+              "CAPI nije podešen. Podesi Meta piksel i CAPI token u Podešavanjima → Sajt i oglasi.",
           });
         } else {
           setFeedback({
@@ -72,7 +72,7 @@ export function CapiSection() {
   };
 
   const isConfigured = stats?.configured ?? false;
-  const missingVars = stats?.missingEnvVars ?? [];
+  const nedostaje = stats?.nedostaje ?? [];
   const sentCount = stats?.sentCount;
   const pendingCount = stats?.pendingCount;
   const retryingCount = stats?.retryingCount;
@@ -155,10 +155,13 @@ export function CapiSection() {
           >
             <p className="mt-0.5 text-xs text-text-muted">
               Događaji se bezbedno heširaju i čuvaju u bazi u statusu <strong>„na čekanju”</strong>.
-              Da bi se automatski slali ka Meta serveru, potrebno je postaviti promenljive okruženja:{" "}
-              <span className="font-mono font-semibold text-foreground">
-                {missingVars.join(", ")}
-              </span>.
+              Da bi se automatski slali ka Meta serveru, podesi{" "}
+              <span className="font-semibold text-foreground">
+                {nedostaje
+                  .map((n) => (n === "piksel" ? "Meta piksel" : "CAPI token"))
+                  .join(" i ")}
+              </span>{" "}
+              u Podešavanjima → Sajt i oglasi.
             </p>
           </FeedbackNote>
         )}

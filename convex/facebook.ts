@@ -4,6 +4,8 @@ import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { projekatAction } from "./lib/projekat";
+import { redirectUriZa } from "./lib/oauthPovratak";
+import { NALOG_U_DRUGOM_PROJEKTU } from "./lib/vezaDrugde";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import { runSync } from "./lib/runSync";
 import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
@@ -349,8 +351,9 @@ async function subscribePageToWebhook(
  */
 export const getOAuthUrl = projekatAction({
   uloga: "owner",
-  args: { redirectUri: v.string() },
-  handler: async (ctx, { redirectUri }): Promise<{ url: string }> => {
+  args: { povratakOrigin: v.string() },
+  handler: async (ctx, { povratakOrigin }): Promise<{ url: string }> => {
+    const redirectUri = redirectUriZa("meta_fb");
     const clientId = getFacebookAppId();
     if (!clientId) {
       invalid("Čeka Meta app — dodaj FACEBOOK_APP_ID/SECRET u env");
@@ -364,6 +367,7 @@ export const getOAuthUrl = projekatAction({
       userId,
       nonce,
       redirectUri,
+      povratakOrigin,
     });
 
     return {
@@ -492,7 +496,17 @@ async function exchangeSteps(
     );
   }
 
-  const page = pages[0];
+  // E3: stranica koja je već povezana u drugom projektu se preskače (isti
+  // Facebook nalog često administrira stranice više projekata). Ako su sve
+  // tuđe, povezivanje se odbija pre upisa i pre pretplate na webhook.
+  const tudje: string[] = await ctx.runQuery(internal.facebookStore.straniceDrugde, {
+    workspaceId,
+    pageIds: pages.map((p) => String(p.id)),
+  });
+  const page = pages.find((p) => !tudje.includes(String(p.id)));
+  if (page === undefined) {
+    throw new ConvexError(NALOG_U_DRUGOM_PROJEKTU);
+  }
   const pageId = String(page.id);
   const pageToken = String(page.access_token);
 
@@ -540,11 +554,15 @@ async function exchangeSteps(
 // javno: OAuth povratak bez sesije; pristup dokazuje jednokratni state koji je napravio prijavljen član
 export const completeOAuthFromCallback = action({
   args: { state: v.string(), code: v.string() },
-  handler: async (ctx, { state, code }): Promise<FacebookOAuthResult> => {
+  handler: async (
+    ctx,
+    { state, code },
+  ): Promise<FacebookOAuthResult & { povratak: string | null }> => {
     const stored: {
       workspaceId: Id<"workspaces">;
       redirectUri: string;
       createdAt: number;
+      povratak: string | null;
     } | null = await ctx.runMutation(
       internal.facebookStore.consumeOAuthState,
       { nonce: state },
@@ -559,11 +577,12 @@ export const completeOAuthFromCallback = action({
       invalid("Autorizacija je istekla. Pokreni povezivanje ponovo.");
     }
 
-    return await exchangeCodeAndConnect(ctx, {
+    const rezultat = await exchangeCodeAndConnect(ctx, {
       workspaceId: stored.workspaceId,
       code,
       redirectUri: stored.redirectUri,
     });
+    return { ...rezultat, povratak: stored.povratak };
   },
 });
 

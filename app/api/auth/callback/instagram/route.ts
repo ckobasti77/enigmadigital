@@ -3,6 +3,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import { resolveServerConvexUrl } from "@/lib/server-convex-url";
+import { ciljPosleRazmene, ciljPovratka } from "../_lib/povratak";
 
 /**
  * Next.js Route Handler for Instagram OAuth Redirect Callback.
@@ -11,7 +12,8 @@ import { resolveServerConvexUrl } from "@/lib/server-convex-url";
  * `instagram.completeOAuthFromCallback`. The one-time `state` nonce (created
  * by `getOAuthUrl` for an authenticated member) resolves the workspace, so
  * this works even when the browser session is missing on the return leg —
- * no login round-trip can lose the code anymore.
+ * no login round-trip can lose the code anymore. The browser then goes back
+ * to the panel the flow started from (`ciljPovratka`), not to this host.
  *
  * LEGACY PATH (code without state): forwards the code to Settings where the
  * authenticated Convex client exchanges it.
@@ -24,7 +26,15 @@ export async function GET(request: NextRequest) {
   const errorReason = searchParams.get("error_reason");
   const errorDescription = searchParams.get("error_description");
 
-  const settingsUrl = new URL("/settings", request.nextUrl.origin);
+  // Razrešavanje i validacija Convex URL-a: `lib/server-convex-url.ts`.
+  // Neispravna vrednost se ovde NE sme pretvoriti u tihi pad na legacy granu:
+  // legacy grana je za slučaj "nema state-a", a ne za pokvarenu konfiguraciju.
+  const resolvedConvex = resolveServerConvexUrl();
+  const settingsUrl = await ciljPovratka(
+    request,
+    state,
+    resolvedConvex.ok ? resolvedConvex.url : null,
+  );
 
   if (error) {
     settingsUrl.searchParams.set("ig_error", error);
@@ -37,10 +47,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(settingsUrl);
   }
 
-  // Razrešavanje i validacija Convex URL-a: `lib/server-convex-url.ts`.
-  // Neispravna vrednost se ovde NE sme pretvoriti u tihi pad na legacy granu:
-  // legacy grana je za slučaj "nema state-a", a ne za pokvarenu konfiguraciju.
-  const resolvedConvex = resolveServerConvexUrl();
   if (!resolvedConvex.ok) {
     console.error("[Instagram OAuth callback]", resolvedConvex.logDetail);
     settingsUrl.searchParams.set("ig_error", resolvedConvex.reason);
@@ -55,11 +61,12 @@ export async function GET(request: NextRequest) {
         api.instagram.completeOAuthFromCallback,
         { state, code },
       );
-      settingsUrl.searchParams.set("ig_connected", "1");
+      const cilj = ciljPosleRazmene(result.povratak, settingsUrl);
+      cilj.searchParams.set("ig_connected", "1");
       if (result.username) {
-        settingsUrl.searchParams.set("ig_username", result.username);
+        cilj.searchParams.set("ig_username", result.username);
       }
-      return NextResponse.redirect(settingsUrl);
+      return NextResponse.redirect(cilj);
     } catch (err) {
       let message = "Povezivanje Instagram naloga nije uspelo.";
       if (err instanceof ConvexError) {
@@ -73,7 +80,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Legacy fallback: no state (or Convex URL missing) — let Settings finish it.
+  // Legacy fallback: no state — let Settings finish it (on this host).
   if (code) {
     settingsUrl.searchParams.set("ig_code", code);
   }

@@ -16,6 +16,7 @@ import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
 import { sanitizeApiResponse, extractMetaAdsError } from "./lib/metaAdsApi";
 import { sanitizePii } from "./lib/metaAudienceHash";
 import { projekatAction } from "./lib/projekat";
+import { podesavanjaZaAkciju, procitajTajnu } from "./lib/podesavanjaAkcija";
 
 export { CAPI_DISPATCH_LOCK_TTL_MS };
 
@@ -76,7 +77,8 @@ async function scheduleRetryOnFailure(
 /**
  * Core worker for sending pending CAPI events in batches of up to CAPI_MAX_BATCH_SIZE (500).
  * Performs pre-flight local validation on every single event before sending.
- * Wrapped in withCronLock (E) to guarantee exactly one dispatcher runs at a time.
+ * Wrapped in withCronLock (E), one lock per project: exactly one dispatcher per
+ * project runs at a time, and one project never blocks another (C12).
  */
 export const sendPendingCapiEventsAction = internalAction({
   args: {
@@ -89,18 +91,24 @@ export const sendPendingCapiEventsAction = internalAction({
       rejected: 0,
     };
 
+    // Brava po projektu: slanje jednog projekta ne blokira drugi, a dva
+    // dispečera istog projekta i dalje ne rade u isto vreme.
     const executed = await withCronLock(
       ctx,
-      CRON_LOCKS.capiDispatch,
+      `${CRON_LOCKS.capiDispatch}:${workspaceId}`,
       async () => {
-        // B4: Check environment variables
-        const pixelId = process.env.META_PIXEL_ID?.trim();
-        const capiToken = process.env.META_CAPI_TOKEN?.trim();
-        const testEventCode = process.env.META_CAPI_TEST_EVENT_CODE?.trim();
+        // B4: piksel i CAPI token su podešavanja projekta (Podešavanja → Sajt i
+        // oglasi); samo osnivački projekat bez svojih vrednosti nasleđuje env.
+        // Projekat bez njih NIKAD ne šalje na tuđi piksel.
+        const podesavanja = await podesavanjaZaAkciju(ctx, workspaceId);
+        const pixelId = podesavanja.pikselId.vrednost;
+        const capiToken = await procitajTajnu(ctx, workspaceId, "meta_capi_token");
+        // E7: kod testnog događaja važi samo za osnivački piksel.
+        const testEventCode = podesavanja.capiTestKod ?? undefined;
 
         if (!pixelId || !capiToken) {
           console.info(
-            "[Meta CAPI] CAPI nije podešen (nedostaje META_PIXEL_ID ili META_CAPI_TOKEN). Događaji ostaju u statusu 'pending'.",
+            "[Meta CAPI] CAPI nije podešen za ovaj projekat (nedostaje Meta piksel ili CAPI token). Događaji ostaju u statusu 'pending'.",
           );
           result = {
             success: false,

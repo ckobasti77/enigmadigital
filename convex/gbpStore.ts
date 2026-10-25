@@ -1,5 +1,11 @@
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+import {
+  oauthStanjeArgs,
+  potrosenoStanjeValidator,
+  potrosiOAuthStanje,
+  upisiOAuthStanje,
+} from "./lib/oauthPovratak";
 import { projekatQuery } from "./lib/projekat";
 import { clearFinishedRuns } from "./purge";
 import { connectionStatusValidator } from "./lib/providers";
@@ -19,31 +25,10 @@ import { getGbpClientId, getGbpClientSecret } from "./lib/gbpApi";
  * Čisti zastarele nonce-ove (>1h) kako se napušteni pokušaji ne bi gomilali.
  */
 export const createOAuthState = internalMutation({
-  args: {
-    workspaceId: v.id("workspaces"),
-    userId: v.id("users"),
-    nonce: v.string(),
-    redirectUri: v.string(),
-  },
+  args: oauthStanjeArgs,
   returns: v.null(),
-  handler: async (ctx, { workspaceId, userId, nonce, redirectUri }) => {
-    const cutoff = Date.now() - 60 * 60 * 1000;
-    const stale = await ctx.db
-      .query("oauthStates")
-      .withIndex("by_createdAt", (q) => q.lt("createdAt", cutoff))
-      .collect();
-    for (const row of stale) {
-      await ctx.db.delete(row._id);
-    }
-
-    await ctx.db.insert("oauthStates", {
-      workspaceId,
-      userId,
-      provider: "google_business",
-      nonce,
-      redirectUri,
-      createdAt: Date.now(),
-    });
+  handler: async (ctx, args) => {
+    await upisiOAuthStanje(ctx, { ...args, provider: "google_business" });
     return null;
   },
 });
@@ -55,27 +40,8 @@ export const createOAuthState = internalMutation({
  */
 export const consumeOAuthState = internalMutation({
   args: { nonce: v.string() },
-  returns: v.union(
-    v.null(),
-    v.object({
-      workspaceId: v.id("workspaces"),
-      redirectUri: v.string(),
-      createdAt: v.number(),
-    }),
-  ),
-  handler: async (ctx, { nonce }) => {
-    const row = await ctx.db
-      .query("oauthStates")
-      .withIndex("by_nonce", (q) => q.eq("nonce", nonce))
-      .first();
-    if (row === null || row.provider !== "google_business") return null;
-    await ctx.db.delete(row._id);
-    return {
-      workspaceId: row.workspaceId,
-      redirectUri: row.redirectUri,
-      createdAt: row.createdAt,
-    };
-  },
+  returns: v.union(v.null(), potrosenoStanjeValidator),
+  handler: async (ctx, { nonce }) => await potrosiOAuthStanje(ctx, nonce, "google_business"),
 });
 
 // ── Kredencijali i veza ─────────────────────────────────────────────────────

@@ -27,10 +27,9 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    request.nextUrl.origin ||
-    "https://digital.enigmait.rs";
+  // Bez zakucane rezervne adrese: Meta zove tačno domen aplikacije, pa je
+  // njegov origin ispravna adresa strane statusa.
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
 
   return NextResponse.json(
     {

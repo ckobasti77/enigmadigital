@@ -222,10 +222,12 @@ export const updateDraft = projekatMutation({
     if (post.status === "published") {
       const finalSlug = updates.slug ?? post.slug;
       await ctx.scheduler.runAfter(0, internal.http.revalidatePost, {
+        workspaceId: post.workspaceId,
         slug: finalSlug,
       });
       if (updates.slug !== undefined && updates.slug !== post.slug) {
         await ctx.scheduler.runAfter(0, internal.http.revalidatePost, {
+          workspaceId: post.workspaceId,
           slug: post.slug,
         });
       }
@@ -308,6 +310,7 @@ export const archive = projekatMutation({
     // ono što `archive` ne radi — dve komande, dva različita ponašanja.
     if (wasPublished) {
       await ctx.scheduler.runAfter(0, internal.http.revalidatePost, {
+        workspaceId: post.workspaceId,
         slug: post.slug,
       });
     }
@@ -393,6 +396,7 @@ export const publish = projekatMutation({
 
     // Asinhrono osvežavanje Next.js ISR keša (§9).
     await ctx.scheduler.runAfter(0, internal.http.revalidatePost, {
+      workspaceId: post.workspaceId,
       slug: post.slug,
     });
 
@@ -432,6 +436,7 @@ export const unpublish = projekatMutation({
 
     // Asinhrono osvežavanje Next.js ISR keša nakon povlačenja posta (§9).
     await ctx.scheduler.runAfter(0, internal.http.revalidatePost, {
+      workspaceId: post.workspaceId,
       slug: post.slug,
     });
 

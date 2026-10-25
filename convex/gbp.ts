@@ -5,7 +5,6 @@ import type { Id } from "./_generated/dataModel";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import {
   GBP_ACCOUNTS_API,
-  GBP_DEFAULT_REDIRECT_URI,
   buildGbpAuthorizeUrl,
   classifyGbpFailure,
   exchangeCodeForTokens,
@@ -17,6 +16,7 @@ import {
   type GbpCredentials,
 } from "./lib/gbpApi";
 import { projekatAction } from "./lib/projekat";
+import { redirectUriZa } from "./lib/oauthPovratak";
 
 /**
  * Google Business Profile (GBP) akcije: OAuth tok i provera stanja pristupa (GB1).
@@ -44,9 +44,10 @@ function randomNonce(): string {
 export const gbpAuthorizeUrl = projekatAction({
   uloga: "owner",
   args: {
-    redirectUri: v.optional(v.string()),
+    povratakOrigin: v.string(),
   },
-  handler: async (ctx, { redirectUri }): Promise<{ url: string }> => {
+  handler: async (ctx, { povratakOrigin }): Promise<{ url: string }> => {
+    const redirectUri = redirectUriZa("google_business");
     const clientId = getGbpClientId();
     const clientSecret = getGbpClientSecret();
     if (!clientId || !clientSecret) {
@@ -59,18 +60,18 @@ export const gbpAuthorizeUrl = projekatAction({
 
     const { workspaceId, userId } = ctx.projekat;
 
-    const effectiveRedirectUri = redirectUri ?? GBP_DEFAULT_REDIRECT_URI;
     const nonce = randomNonce();
     await ctx.runMutation(internal.gbpStore.createOAuthState, {
       workspaceId,
       userId,
       nonce,
-      redirectUri: effectiveRedirectUri,
+      redirectUri,
+      povratakOrigin,
     });
 
     const url = buildGbpAuthorizeUrl({
       clientId,
-      redirectUri: effectiveRedirectUri,
+      redirectUri,
       state: nonce,
     });
 
@@ -81,6 +82,7 @@ export const gbpAuthorizeUrl = projekatAction({
 export interface GbpOAuthResult {
   success: boolean;
   connectionId: Id<"connections">;
+  povratak: string | null;
 }
 
 /**
@@ -103,6 +105,7 @@ export const completeOAuthFromCallback = action({
       workspaceId: Id<"workspaces">;
       redirectUri: string;
       createdAt: number;
+      povratak: string | null;
     } | null = await ctx.runMutation(
       internal.gbpStore.consumeOAuthState,
       { nonce: state },
@@ -181,6 +184,7 @@ export const completeOAuthFromCallback = action({
     return {
       success: true,
       connectionId,
+      povratak: stored.povratak,
     };
   },
 });

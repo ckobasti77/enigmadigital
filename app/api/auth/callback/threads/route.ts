@@ -4,6 +4,7 @@ import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import { sanitizeThreadsError } from "@/convex/lib/threadsShared";
 import { resolveServerConvexUrl } from "@/lib/server-convex-url";
+import { ciljPosleRazmene, ciljPovratka } from "../_lib/povratak";
 
 /**
  * Next.js Route Handler za Threads OAuth callback redirect.
@@ -19,7 +20,10 @@ export async function GET(request: NextRequest) {
   const error = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
 
-  const settingsUrl = new URL("/settings", request.nextUrl.origin);
+  // Odredište je panel sa kog je povezivanje krenulo (iz `state`-a, proveren
+  // na serveru); bez njega `/settings` ove adrese.
+  const resolved = resolveServerConvexUrl();
+  const settingsUrl = await ciljPovratka(request, state, resolved.ok ? resolved.url : null);
 
   if (error) {
     const errorMsg =
@@ -41,7 +45,6 @@ export async function GET(request: NextRequest) {
   // kvar bio nevidljiv: nedostajao je `convexUrl`, a poruka je tvrdila da Meta nije
   // vratila kod. Svaki uzrok se imenuje, i svaki se loguje na serveru, jer se query
   // parametar gubi kad korisnika preusmeri na prijavu.
-  const resolved = resolveServerConvexUrl();
   if (!resolved.ok) {
     console.error("[Threads OAuth callback]", resolved.logDetail);
     settingsUrl.searchParams.set("threads_error", resolved.reason);
@@ -69,11 +72,12 @@ export async function GET(request: NextRequest) {
       state,
       code,
     });
-    settingsUrl.searchParams.set("threads_connected", "1");
+    const cilj = ciljPosleRazmene(result.povratak, settingsUrl);
+    cilj.searchParams.set("threads_connected", "1");
     if (result.username) {
-      settingsUrl.searchParams.set("threads_account", result.username);
+      cilj.searchParams.set("threads_account", result.username);
     }
-    return NextResponse.redirect(settingsUrl);
+    return NextResponse.redirect(cilj);
   } catch (err) {
     let message = "Povezivanje Threads naloga nije uspelo.";
     if (err instanceof ConvexError) {

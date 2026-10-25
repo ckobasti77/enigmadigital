@@ -2688,21 +2688,21 @@ export const seedGoogleAdsData = internalMutation({
         adGroupExternalId: "gads_ag_web_dev",
         name: "RSA — Premium Web Razvoj & Next.js",
         status: "ACTIVE",
-        previewUrl: "https://digital.enigmait.rs",
+        previewUrl: "https://primer.rs",
       },
       {
         externalId: "gads_ad_rsa_software_1",
         adGroupExternalId: "gads_ag_custom_software",
         name: "RSA — Skalabilna Softverska Rešenja",
         status: "ACTIVE",
-        previewUrl: "https://digital.enigmait.rs",
+        previewUrl: "https://primer.rs",
       },
       {
         externalId: "gads_ad_rsa_brand_1",
         adGroupExternalId: "gads_ag_brand_exact",
         name: "RSA — Zvanični Sajt Enigma IT",
         status: "ACTIVE",
-        previewUrl: "https://digital.enigmait.rs",
+        previewUrl: "https://primer.rs",
       },
     ];
 

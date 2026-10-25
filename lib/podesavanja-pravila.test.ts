@@ -6,7 +6,15 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  BUDZET_PODRAZUMEVANO,
   MAKS_SAJTOVA,
+  pozitivnaGranica,
+  proveriAdresuNaSajtu,
+  proveriBudzet,
+  proveriKratkiLinkoviBaza,
+  proveriPikselId,
+  proveriPosiljalacIme,
+  proveriTajnu,
   proveriBoju,
   proveriDomen,
   proveriIme,
@@ -182,5 +190,119 @@ describe("predlog adrese u čarobnjaku", () => {
     const s = predloziSlug(`${"a".repeat(39)} b`);
     expect(s.length).toBeLessThanOrEqual(40);
     expect(s.endsWith("-")).toBe(false);
+  });
+});
+
+describe("integracije sajta (C12)", () => {
+  test("piksel: 10–20 cifara, prazno briše", () => {
+    expect(vrednost(proveriPikselId(" 1234567890123 "))).toBe("1234567890123");
+    expect(vrednost(proveriPikselId(""))).toBeNull();
+    expect(vrednost(proveriPikselId(null))).toBeNull();
+    for (const los of ["123456789", "1".repeat(21), "12345abc901", "1234 567890"]) {
+      expect(proveriPikselId(los).ok, los).toBe(false);
+    }
+  });
+
+  test("kratki linkovi: samo https origin na domenu ovog projekta", () => {
+    const domeni = ["panel.primer.rs"];
+    expect(vrednost(proveriKratkiLinkoviBaza("https://panel.primer.rs/", domeni))).toBe(
+      "https://panel.primer.rs",
+    );
+    expect(vrednost(proveriKratkiLinkoviBaza("HTTPS://PANEL.PRIMER.RS", domeni))).toBe(
+      "https://panel.primer.rs",
+    );
+    expect(vrednost(proveriKratkiLinkoviBaza("", domeni))).toBeNull();
+    for (const los of [
+      "http://panel.primer.rs",
+      "https://tudji.rs",
+      "https://panel.primer.rs/r",
+      "https://panel.primer.rs?x=1",
+      "https://panel.primer.rs#a",
+      "https://user:pass@panel.primer.rs",
+      "https://panel.primer.rs:8443",
+      "javascript:alert(1)",
+      "panel.primer.rs",
+    ]) {
+      expect(proveriKratkiLinkoviBaza(los, domeni).ok, los).toBe(false);
+    }
+    expect(proveriKratkiLinkoviBaza("https://panel.primer.rs", []).ok).toBe(false);
+  });
+
+  test("adresa na sajtu: https, host (bez www.) je praćen sajt projekta", () => {
+    const sajtovi = ["primer.rs"];
+    expect(vrednost(proveriAdresuNaSajtu("https://www.primer.rs/api/revalidate", sajtovi))).toBe(
+      "https://www.primer.rs/api/revalidate",
+    );
+    expect(vrednost(proveriAdresuNaSajtu("https://primer.rs/api/puls?v=1", sajtovi))).toBe(
+      "https://primer.rs/api/puls?v=1",
+    );
+    expect(vrednost(proveriAdresuNaSajtu(null, sajtovi))).toBeNull();
+    for (const los of [
+      "http://primer.rs/api",
+      "https://tudji.rs/api",
+      "https://user:x@primer.rs/api",
+      "https://primer.rs/api#x",
+      `https://primer.rs/${"a".repeat(200)}`,
+    ]) {
+      expect(proveriAdresuNaSajtu(los, sajtovi).ok, los.slice(0, 40)).toBe(false);
+    }
+  });
+
+  test("ime pošiljaoca: 2–60 znakova, bez znakova koji lome zaglavlje", () => {
+    expect(vrednost(proveriPosiljalacIme("  ScanMe tim "))).toBe("ScanMe tim");
+    expect(vrednost(proveriPosiljalacIme(""))).toBeNull();
+    for (const los of ["A", "x".repeat(61), "Ime <a@b.rs>", 'Ime "x"', "Ime\nBcc: a@b.rs"]) {
+      expect(proveriPosiljalacIme(los).ok, los).toBe(false);
+    }
+  });
+});
+
+describe("budžetske granice (C12)", () => {
+  test("prazno = bez vrednosti projekta; brojevi i tekst sa zarezom", () => {
+    expect(vrednost(proveriBudzet({}))).toEqual({});
+    expect(
+      vrednost(
+        proveriBudzet({ minimum: "10,5", maksimum: 900, valuta: " rsd ", metaMaksDnevno: "50" }),
+      ),
+    ).toEqual({ minimum: 10.5, maksimum: 900, valuta: "RSD", metaMaksDnevno: 50 });
+    expect(vrednost(proveriBudzet({ minimum: null, googleMaksDnevno: "" }))).toEqual({});
+  });
+
+  test("granice se proveravaju nad onim što zaista važi", () => {
+    expect(proveriBudzet({ minimum: 100, maksimum: 50 }).ok).toBe(false);
+    // Bez maksimuma važi podrazumevanih 5.000, pa minimum 6.000 ne prolazi.
+    expect(proveriBudzet({ minimum: 6000 }).ok).toBe(false);
+    expect(proveriBudzet({ metaMaksDnevno: 6000 }).ok).toBe(false);
+    expect(proveriBudzet({ maksimum: 100, googleMaksDnevno: 101 }).ok).toBe(false);
+    expect(proveriBudzet({ maksimum: 100, googleMaksDnevno: 100 }).ok).toBe(true);
+    for (const los of [0, -5, 100_001, "abc", Number.NaN]) {
+      expect(proveriBudzet({ minimum: los }).ok, String(los)).toBe(false);
+    }
+    expect(proveriBudzet({ valuta: "EU" }).ok).toBe(false);
+    expect(proveriBudzet({ valuta: "E1R" }).ok).toBe(false);
+    expect(BUDZET_PODRAZUMEVANO).toEqual({ minimum: 5, maksimum: 5000, valuta: "EUR" });
+  });
+
+  test("granica iz env-a: prazno, 0 i neispravno nisu dozvola", () => {
+    expect(pozitivnaGranica(undefined)).toBeNull();
+    expect(pozitivnaGranica("   ")).toBeNull();
+    expect(pozitivnaGranica("0")).toBeNull();
+    expect(pozitivnaGranica("-3")).toBeNull();
+    expect(pozitivnaGranica("x")).toBeNull();
+    expect(pozitivnaGranica("50")).toBe(50);
+  });
+});
+
+describe("tajne (C12)", () => {
+  test("dužina po vrsti, bez razmaka; poruka ne citira vrednost", () => {
+    expect(vrednost(proveriTajnu("meta_capi_token", ` ${"t".repeat(20)} `))).toBe("t".repeat(20));
+    expect(proveriTajnu("meta_capi_token", "t".repeat(19)).ok).toBe(false);
+    expect(proveriTajnu("meta_capi_token", "t".repeat(513)).ok).toBe(false);
+    expect(proveriTajnu("novosti_revalidate_secret", "s".repeat(16)).ok).toBe(true);
+    expect(proveriTajnu("puls_token", "s".repeat(15)).ok).toBe(false);
+    expect(proveriTajnu("puls_token", "s".repeat(257)).ok).toBe(false);
+    const sRazmakom = proveriTajnu("puls_token", "tajna sa razmakom 1234");
+    expect(sRazmakom.ok).toBe(false);
+    if (!sRazmakom.ok) expect(sRazmakom.poruka).not.toContain("razmakom");
   });
 });

@@ -1,8 +1,15 @@
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import {
+  oauthStanjeArgs,
+  potrosenoStanjeValidator,
+  potrosiOAuthStanje,
+  upisiOAuthStanje,
+} from "./lib/oauthPovratak";
 import { projekatQuery } from "./lib/projekat";
 import { providerValidator } from "./lib/providers";
+import { odbijAkoJeDrugde } from "./lib/vezaDrugde";
 
 /**
  * ============================================================================
@@ -138,66 +145,28 @@ export const getWorkspaceConnection = internalQuery({
 });
 
 /**
- * Persist a one-time OAuth `state` nonce for the connect flow. Also sweeps
+ * Persist a one-time OAuth `state` nonce for the connect flow, with the return
+ * address checked against the project's domains and the hub (P6). Also sweeps
  * stale nonces (>1h) so abandoned attempts never accumulate.
  */
 export const createOAuthState = internalMutation({
-  args: {
-    workspaceId: v.id("workspaces"),
-    userId: v.id("users"),
-    nonce: v.string(),
-    redirectUri: v.string(),
-  },
+  args: oauthStanjeArgs,
   returns: v.null(),
-  handler: async (ctx, { workspaceId, userId, nonce, redirectUri }) => {
-    const cutoff = Date.now() - 60 * 60 * 1000;
-    const stale = await ctx.db
-      .query("oauthStates")
-      .filter((q) => q.lt(q.field("createdAt"), cutoff))
-      .collect();
-    for (const row of stale) {
-      await ctx.db.delete(row._id);
-    }
-
-    await ctx.db.insert("oauthStates", {
-      workspaceId,
-      userId,
-      provider: "meta_ig",
-      nonce,
-      redirectUri,
-      createdAt: Date.now(),
-    });
+  handler: async (ctx, args) => {
+    await upisiOAuthStanje(ctx, { ...args, provider: "meta_ig" });
     return null;
   },
 });
 
 /**
  * Atomically consume (look up + delete) an OAuth `state` nonce.
- * Returns null when the nonce is unknown — i.e. forged, already used, or swept.
+ * Returns null when the nonce is unknown — i.e. forged, already used, swept,
+ * or issued for another provider.
  */
 export const consumeOAuthState = internalMutation({
   args: { nonce: v.string() },
-  returns: v.union(
-    v.null(),
-    v.object({
-      workspaceId: v.id("workspaces"),
-      redirectUri: v.string(),
-      createdAt: v.number(),
-    }),
-  ),
-  handler: async (ctx, { nonce }) => {
-    const row = await ctx.db
-      .query("oauthStates")
-      .withIndex("by_nonce", (q) => q.eq("nonce", nonce))
-      .first();
-    if (row === null) return null;
-    await ctx.db.delete(row._id);
-    return {
-      workspaceId: row.workspaceId,
-      redirectUri: row.redirectUri,
-      createdAt: row.createdAt,
-    };
-  },
+  returns: v.union(v.null(), potrosenoStanjeValidator),
+  handler: async (ctx, { nonce }) => await potrosiOAuthStanje(ctx, nonce, "meta_ig"),
 });
 
 /**
@@ -639,6 +608,10 @@ export const saveConnectedCredentials = internalMutation({
     ctx,
     { workspaceId, externalId, externalIdAlt, encryptedCredentials, expiresAt },
   ) => {
+    // E3: isti IG nalog u dva projekta bi slao komentare i poruke u prvi
+    // pronađeni projekat. Provera ide pre upisa, pa se token ne čuva.
+    await odbijAkoJeDrugde(ctx.db, "meta_ig", [externalId, externalIdAlt], workspaceId);
+
     const existing = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>

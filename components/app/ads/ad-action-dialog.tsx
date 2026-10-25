@@ -29,9 +29,6 @@ import { cn } from "@/lib/utils";
 
 const spendDef = resolveMetric("spend")!;
 
-export const BUDGET_MIN = 5;
-export const BUDGET_MAX = 5000;
-export const BUDGET_LIMIT_CURRENCY = "EUR";
 import {
   AlertTriangle,
   Flame,
@@ -115,6 +112,9 @@ function AdActionDialogInner({
 
   const accountCurrency = liveContext?.currency || undefined;
 
+  // Granice budžeta projekta (Podešavanja → Sajt i oglasi); `undefined` dok se učitavaju.
+  const granice = useProjekatQuery(api.podesavanjaStore.budzetProjekta);
+
   // Form states initialized on mount
   const [newBudgetStr, setNewBudgetStr] = useState<string>(() => {
     if (actionType === "budget_change") {
@@ -148,8 +148,23 @@ function AdActionDialogInner({
   const budgetGuardrails = useMemo(() => {
     if (actionType !== "budget_change") return null;
 
-    const minBudget = BUDGET_MIN;
-    const maxBudget = BUDGET_MAX;
+    // Dok se granice projekta ne učitaju, ograda nije proverljiva: slanje je
+    // zaključano, a ne propušteno sa pretpostavljenim granicama.
+    if (granice === undefined) {
+      return {
+        valid: false,
+        percentChange: 0,
+        minAllowed: undefined,
+        maxAllowed: undefined,
+        minBudget: undefined,
+        maxBudget: undefined,
+        error: "Učitavam granice budžeta…",
+      };
+    }
+
+    const minBudget = granice.minimum;
+    const maxBudget = granice.maksimum;
+    const limitCurrency = granice.valuta;
 
     // Nepoznata valuta i nepoznat trenutni budzet oboje znace da ogradu nije
     // moguce izracunati. Nijedno se ne sme popuniti pretpostavkom — ovde se
@@ -167,7 +182,7 @@ function AdActionDialogInner({
       };
     }
 
-    if (accountCurrency.trim().toUpperCase() !== BUDGET_LIMIT_CURRENCY.toUpperCase()) {
+    if (accountCurrency.trim().toUpperCase() !== limitCurrency.toUpperCase()) {
       return {
         valid: false,
         percentChange: 0,
@@ -175,7 +190,7 @@ function AdActionDialogInner({
         maxAllowed: undefined,
         minBudget,
         maxBudget,
-        error: `Granica budzeta je zadata u ${BUDGET_LIMIT_CURRENCY}, a nalog radi u ${accountCurrency}. Podesi granicu u valuti naloga pre nego sto menjas budzet.`,
+        error: `Granica budzeta je zadata u ${limitCurrency}, a nalog radi u ${accountCurrency}. Podesi granicu u valuti naloga pre nego sto menjas budzet.`,
       };
     }
 
@@ -220,7 +235,7 @@ function AdActionDialogInner({
         maxAllowed: maxAllowed50,
         minBudget,
         maxBudget,
-        error: `Iznos mora biti najmanje ${formatMetric(minBudget, spendDef, BUDGET_LIMIT_CURRENCY)} (BUDGET_MIN).`,
+        error: `Iznos mora biti najmanje ${formatMetric(minBudget, spendDef, limitCurrency)} (granica iz podešavanja projekta).`,
       };
     }
 
@@ -232,7 +247,7 @@ function AdActionDialogInner({
         maxAllowed: maxAllowed50,
         minBudget,
         maxBudget,
-        error: `Iznos ne sme prelaziti ${formatMetric(maxBudget, spendDef, BUDGET_LIMIT_CURRENCY)} (BUDGET_MAX).`,
+        error: `Iznos ne sme prelaziti ${formatMetric(maxBudget, spendDef, limitCurrency)} (granica iz podešavanja projekta).`,
       };
     }
 
@@ -257,7 +272,7 @@ function AdActionDialogInner({
       maxBudget,
       error: null,
     };
-  }, [actionType, newBudgetNum, isBudgetValidNum, effectiveDailyBudget, accountCurrency]);
+  }, [actionType, newBudgetNum, isBudgetValidNum, effectiveDailyBudget, accountCurrency, granice]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

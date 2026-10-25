@@ -896,3 +896,155 @@ Obrađene su sve 88 javnih funkcija grupe iz mape C02 §5.1: 82 sada idu kroz om
 - Hub → „Novi projekat“: napravi ScanMe (adresa `scanme`), boja, logo. Projekat se odmah pojavi u biraču i na hubu.
 - Isključi jedan modul u nekom projektu: nestaje iz bočne trake, donje trake i ⌘K, a njegova adresa vodi na kontrolnu tablu.
 - Mozak projekta: upiši ponudu i kupca (čitaće ih skillovi posle C14).
+
+## C12 — Env u podešavanja, tajne, OAuth povratak   (2026-10-25 06:20)
+**Fajlovi:**
+- backend, novi:
+  - `convex/lib/podesavanja.ts`: jedino čitanje env vrednosti projekta, `podesavanjaProjekta`, `graniceBudzeta`, `stanjeTajne`, `adresaPanela`, `bazaKratkihLinkova`, `osnivackiProjekatId`;
+  - `convex/lib/podesavanjaAkcija.ts`: `podesavanjaZaAkciju`, `procitajTajnu`;
+  - `convex/lib/oauthPovratak.ts`: `redirectUriZa`, `proveriPovratak`, upis i trošenje OAuth stanja;
+  - `convex/oauthPovratak.ts`: javni `procitaj` i `stanje`;
+  - `convex/lib/vezaDrugde.ts`: isti nalog u dva projekta.
+- backend, izmenjeni:
+  - `convex/podesavanjaStore.ts`: `procitaj` dopunjen; nove `sacuvajIntegracijeSajta`, `sacuvajBudzet`, `budzetProjekta`, `postaviTajnu`, `obrisiTajnu`; interne `zaAkciju`, `tajnaZaAkciju`, `adresaPanela`, `zaMejl`;
+  - `convex/lib/podesavanjaPravila.ts`: pravila za piksel, kratke linkove, adresu na sajtu, ime pošiljaoca, budžet i tajne;
+  - OAuth: `instagram.ts`, `facebook.ts`, `threads.ts`, `youtube.ts`, `gbp.ts` i pet store fajlova (`instagramStore`, `facebookStore`, `threadsStore`, `youtubeStore`, `gbpStore`); `lib/threadsShared.ts`, `lib/youtubeApi.ts`, `lib/gbpApi.ts` (obrisane zakucane adrese);
+  - env → podešavanja:
+    - `adActions.ts`, `lib/metaAdsWrite.ts`, `lib/googleAdsWrite.ts` (budžet, radnik);
+    - `metaCapi.ts`, `metaCapiStore.ts` (piksel, token, brava po projektu);
+    - `http.ts` (osvežavanje novosti, link uvoza), `postsStore.ts`, `rules.ts` (link i pošiljalac);
+    - kratki linkovi: `lib/orLink.ts`, `lib/urlNormalization.ts`, `orLinks.ts`, `leadLandingStore.ts`, `orAutomationsApi.ts`, `threadsFunnels.ts`, `threadsPublishStore.ts`;
+  - jedinstvenost naloga: `connections.ts` (`save` vraća `{ connectionId, upozorenje }`);
+  - primeri adresa: `googleAdsStore.ts`, `orProfileMenu.ts`;
+  - `convex/_generated/api.d.ts` (codegen).
+- front:
+  - nov `components/app/settings/sajt-panel.tsx` (jezičak „Sajt i oglasi“);
+  - `app/(app)/[projekat]/settings/page.tsx` (`?tab=sajt`, samo vlasnik);
+  - `components/app/settings/connections-settings.tsx` (OAuth šalje origin, traka „Povezivanje kanala nije podešeno“, upozorenja kod GA4, Meta i Google oglasa i YouTube-a);
+  - `components/app/ads/{ad-action-dialog,new-campaign-wizard,capi-section}.tsx`.
+- rute:
+  - nov `app/api/auth/callback/_lib/povratak.ts`; izmenjene sve callback rute (`instagram`, `facebook`, `threads`, `youtube`, `google-business`);
+  - `app/api/meta/data-deletion/route.ts`; `proxy.ts` (GBP callback u oba unosa matcher-a).
+- razvojni prikaz: `app/dev-ux/fixtures-projekti.ts` (`procitaj` sa podešavanjima i tajnama za tri projekta, `budzetProjekta`, `oauthPovratak.stanje`), `app/dev-ux/fixtures-oglasi.ts`.
+- čuvari i skripte: `scripts/verify-pristup.ts` (`oauthPovratak.procitaj` i `oauthPovratak.stanje` na spisku, sa razlogom), `scripts/test-meta-write.ts` i `scripts/verify-gads-write.ts` (funkcija čitanja granice je preseljena, tvrdnje iste).
+- testovi:
+  - novi: `convex/{podesavanja-env,tajne,capi-projekat,oauth-povratak,veze-jedinstvenost}.test.ts`, `lib/{tajne-cuvar,zakucane-adrese,oauth-povratak}.test.ts`, pomoć `lib/izvorni-kod.pomoc.ts`;
+  - dopunjeni: `lib/podesavanja-pravila.test.ts`;
+  - samo potpisi poziva: `convex/izolacija-c04.test.ts`, `izolacija-c05.test.ts`, `izolacija-c07-veze.test.ts`, `podesavanja-c11.test.ts`.
+- snimci: `docs/projekti/snimci/C12-sajt-i-oglasi-{1536,unos-1536,klijent-1440,scanme-390}.png`, `C12-integracije-1440.png`.
+
+**Šta je urađeno:**
+- **Env → podešavanja (P4).** Jedna funkcija, `podesavanjaProjekta`, za svako polje bira vrednost projekta. Ako je nema, osnivački projekat (najstariji red u `workspaces`) uzima env, a svi ostali dobijaju „nije podešeno“. Zamenjena su sva čitanja iz tabele §8:
+  - praćeni domeni i baza kratkih linkova;
+  - Meta piksel, CAPI token i kod testnog događaja (E7);
+  - budžetske granice: 5 / 5.000 / EUR važe za svaki projekat, a bez gornje granice nove kampanje pravljenje je isključeno (E5);
+  - osvežavanje novosti (adresa i tajna);
+  - ime pošiljaoca mejla pravila (E6).
+
+  Linkovi koje pravi backend (pregled uvoza za skill, mejl pravila) idu kroz `adresaPanela`: primarni domen, pa `HUB_HOSTS`, pa env osnivačkog projekta, inače bez linka. CAPI ima bravu po projektu (`meta:capi:dispatch:<projekat>`).
+- **Tajne** (`projekatTajne`) se šifruju istim AES-GCM kao veze i samo se upisuju i brišu. Nijedan javni upit ne vraća ni tekst ni šifrat, nego samo `{ postavljeno, izvor, updatedAt }`. Šifrat čita samo interni `tajnaZaAkciju`, a tekst postoji samo u memoriji akcije (`procitajTajnu`).
+- **Jezičak „Sajt i oglasi“** (samo vlasnik) ima dve celine:
+  - Integracije sajta: piksel, CAPI token, kratki linkovi, ime pošiljaoca, osvežavanje novosti i njegova tajna, Puls i njegov token. Jedno `primary` dugme „Sačuvaj izmene“; tajne se čuvaju i brišu odmah, uz potvrdu brisanja.
+  - Budžetske granice: dugme „Sačuvaj granice“ (`secondary`).
+
+  Kod osnivačkog projekta nasleđena vrednost stoji kao primer u polju, a uz natpis piše „iz okruženja servera“. Forma i dugme staju iznad pregiba na 1536×695.
+- **OAuth (P6):**
+  - `redirect_uri` za svih pet provajdera gradi server iz `OAUTH_CALLBACK_ORIGIN`, bez podrazumevane adrese; zakucane adrese u tri lib fajla su obrisane.
+  - Klijent šalje samo `window.location.origin`. `proveriPovratak` ga prihvata samo ako je to domen ovog projekta, `HUB_HOSTS`, host callback-a dok nije mapiran, ili lokalni razvoj; putanju (`/settings?tab=integracije` ili `/<slug>/settings?tab=integracije`) gradi sam.
+  - Povratak se upisuje u `oauthStates.povratak` i ponovo proverava pri trošenju. Callback rute posle razmene (i na grešci) vraćaju na tu adresu.
+  - Ostaju kako jesu: putanje callback-a, scope-ovi, `ig_code` i razmena bez sesije preko `state`.
+  - Bez env-a Integracije pokazuju traku i onemogućavaju „Poveži“, a akcija vraća jasnu grešku i ne pravi stanje.
+  - Instagram trošenje stanja sada proverava provajdera. Google Business je dodat u matcher proxy-ja.
+- **Isti nalog u dva projekta** (E3, napomena iz nadzora; plan C10 ga već ima):
+  - Instagram, Facebook stranica i Threads: povezivanje naloga koji je već povezan u drugom projektu se odbija porukom „Ovaj nalog je već povezan u drugom projektu. Prvo prekini vezu tamo.“, pre upisa tokena i pre pretplate na webhook.
+  - YouTube, Meta oglasi, Google oglasi i GA4: veza se upisuje, a kartica pokazuje upozorenje.
+  - Veza u prekidu (`disconnecting`) se ne broji.
+- **Zakucane adrese:** u kodu `convex/`, `lib/` i `proxy.ts` nema `digital.enigmait.rs`, `www.enigmait.rs` ni `app.enigma-it.com`. Ostali su samo komentari, a test to čuva preko AST-a.
+
+**ODLUKE:**
+- **Isti nalog u dva projekta: pravilo je već u planu C10 (E3, §5.6)**, pa nije nova odluka; sprovedeno je kako piše. Dopune:
+  - **Facebook OAuth bira prvu stranicu koja nije povezana u drugom projektu**, ne `pages[0]`; odbija se tek kad su sve tuđe. Isti Facebook nalog (Jovan) administrira stranice i Enigme i ScanMe-a, pa bi `pages[0]` večno odbijao drugi projekat.
+  - **`externalIdAlt` se poredi samo kod Instagrama** (profesionalni nalog). Kod Facebooka je to ime stranice, a kod Google oglasa MCC, koji projekti smeju da dele.
+  - **Provera je u mutaciji upisa**, i u putevima osvežavanja tokena (Facebook): pošto duplikata ne može biti, osvežavanje je nikad ne pogađa.
+  - **Ručni upis kroz `connections.save`** odbija i Instagram i Threads nalog iz drugog projekta, a upozorava za YouTube, Meta i Google oglase i GA4. `save` sada vraća `{ connectionId, upozorenje }`. YouTube upozorenje iz OAuth-a stiže kroz parametar `yt_upozorenje`.
+- **`oauthPovratak.procitaj` ne gleda istek stanja**: upit ne sme da čita sat, a isteklo stanje i dalje vodi na svoj panel, gde razmena javi „Autorizacija je istekla“. Povratak se i tu ponovo proverava protiv današnjih domena. Plan je tražio `null` za isteklo; odstupanje je bezbedno, jer adresa dolazi samo iz baze.
+- **Port u adresi povratka se ne odbija** (host je proveren, putanju gradi server); lokalni razvoj ga treba.
+- **`redirectUriZa` se zove prvo u akciji**, pre provere ključa aplikacije, pa nedostatak `OAUTH_CALLBACK_ORIGIN` daje jasnu grešku i ne upisuje stanje.
+- **Pet `createOAuthState`/`consumeOAuthState` mutacija zove zajedničke pomoćnike** iz `lib/oauthPovratak.ts`. Metenje starih stanja ide preko indeksa i najviše 100 po pozivu (Instagram i Facebook su ranije koristili `.filter()` nad celom tabelom).
+- **Callback na grešci takođe vraća na panel** iz `state`-a (plan: „grane greške upisuju parametre u `cilj`“). Bez `state`-a ide na `/settings` adrese callback-a, kao danas.
+- **Kratki linkovi bez vrednosti projekta ostaju bez praćenja**: nema pada na primarni domen, jer plan za ne-osnivački projekat kaže „vrednost projekta“. Link ide nepraćen, kao i danas kad env nije postavljen.
+- **Adresa osvežavanja i Puls se proveravaju protiv sajtova koji zaista važe**: kod osnivačkog projekta bez svojih sajtova to su domeni iz `TRACKED_DOMAINS`.
+- **Oblik budžeta u `podesavanjaProjekta`**: i minimum, maksimum i valuta nose izvor (`{ vrednost, izvor }`), a `graniceBudzeta` daje granice koje važe (podrazumevano 5 / 5.000 / EUR; maksimum manji od minimuma vraća se na 5.000, isto pravilo kao ranije za env). Plan je za te tri imao gole brojeve; izvor treba formi.
+- **Budžet se čuva ceo blok**, a provera ide nad granicama koje će zaista važiti (minimum 6.000 bez maksimuma ne prolazi, jer važi 5.000).
+- **`getCapiStats.missingEnvVars` je preimenovan u `nedostaje`** (`"piksel" | "capi_token"`), kako plan kaže. Kartica CAPI upućuje na Podešavanja → Sajt i oglasi.
+- **Nova interna `podesavanjaStore.zaMejl`** (nije u planu) daje mejlu pravila ime projekta za pošiljaoca i adresu panela u jednom upitu. Ime se čisti od `<>"` i novog reda. Bez `EMAIL_FROM` adresa ostaje `onboarding@resend.dev`, kao ranije.
+- **`revalidatePost` bez podešavanja samo beleži `console.info`**, ne grešku: projekat bez sajta ne treba da puni log greškama.
+- **`procitaj` vlasniku vraća i nasleđene env vrednosti** (piksel, adrese, granice), jer nisu tajne, a forma ih prikazuje kao primer. Kod testnog događaja se ne vraća.
+- **Jezičak „Sajt i oglasi“ ne postoji za urednika i posmatrača**; `?tab=sajt` ih vodi na Integracije.
+- **Uputstvo ispod polja samo kad traži radnju** („Prvo dodaj domen panela…“). Prva verzija sa uputstvom ispod svakog polja spuštala je „Sačuvaj izmene“ ispod pregiba na 1536×695.
+- **Ruta brisanja podataka (Meta)**: rezerva je `request.nextUrl.origin` umesto zakucane adrese; `NEXT_PUBLIC_APP_URL` ostaje prvi.
+- **Čuvari:** `tajne-cuvar` čita kod u `convex/`, `lib/`, `app/`, `components/` i `proxy.ts`; `zakucane-adrese` čita `convex/`, `lib/` i `proxy.ts`. Oba gledaju tokene iz AST-a, pa komentari ne broje, i preskaču testove, `*.pomoc.ts` i fiksture. Isti čuvar proverava i da `OAUTH_CALLBACK_ORIGIN` i `HUB_HOSTS` imaju po jedno mesto čitanja.
+- **Radnici:** tri radnika (Sonnet). Jedan je preveo budžetske granice na podešavanja; dva su napisala Convex testove: podešavanja, tajne i CAPI, odnosno OAuth povratak i jedinstvenost naloga. Svaki diff sam pročitao, a sve provere pustio sam. Radnici nisu našli grešku u kodu; jedan je otkrio da C11 test `procitaj` čeka stari oblik odgovora, pa je očekivanje dopunjeno novim ključevima (tvrdnja ostaje `toEqual`).
+- **`npx convex codegen` je prvi put pao na DNS grešci** (nedostupan Convex/Sentry); drugi pokušaj je prošao bez nove izmene u `_generated`.
+
+**Novi paketi:** nema
+
+**Testovi:**
+- `convex/podesavanja-env.test.ts` (25):
+  - osnivački projekat dobija svaku env vrednost, a drugi projekti nijednu (ni u JSON-u odgovora);
+  - vrednost projekta pobeđuje env; lanac kratkih linkova;
+  - granice 5 / 5.000 / EUR za svakog; `zaMejl` daje ime projekta;
+  - `adresaPanela` (domen, `HUB_HOSTS`, env, `null`);
+  - pravila kratkih linkova i adresa na sajtu; urednik odbijen.
+- `convex/tajne.test.ts` (25):
+  - šifrat nije tekst; zamena tajne daje nov šifrat;
+  - nijedna javna funkcija (vlasnik i posmatrač) ne vraća ni tekst, ni env token, ni šifrat;
+  - `procitaj` daje samo tri ključa; izvori `projekat`, `env` i `nema`;
+  - brisanje; neispravna vrednost se ne citira u grešci; urednik i posmatrač odbijeni;
+  - `tajnaZaAkciju`; `procitajTajnu` (env samo za osnivački, `null` za oštećen šifrat).
+- `convex/capi-projekat.test.ts` (9):
+  - projekat bez piksela i tokena ne šalje (fetch se ne zove, događaj ostaje `pending`) iako env ima Enigmin piksel;
+  - osnivački šalje na env piksel, a sopstvena vrednost pobeđuje env;
+  - brava A ne blokira B; kod testnog događaja ide samo na Enigmin piksel.
+- `lib/oauth-povratak.test.ts` (13): `oauthCallbackOrigin` (https, http samo lokalno, bez putanje, upita, heša i korisnika) i `redirectUriZa` za svih pet provajdera.
+- `convex/oauth-povratak.test.ts` (59):
+  - bez env-a `oauth_nije_podesen` i nijedno stanje; `stanje`;
+  - panel domen, hub (`HUB_HOSTS`, host callback-a) i lokalni razvoj;
+  - 18 odbijenih adresa: tuđ domen, domen drugog projekta, `http:`, korisnik, putanja, upit, `javascript:`…;
+  - pri trošenju se adresa ponovo proverava; stanje drugog provajdera se ne troši; `procitaj` ne troši;
+  - akcije GBP, YouTube, Threads i Facebook grade pravi `redirect_uri` i upisuju povratak.
+- `convex/veze-jedinstvenost.test.ts` (29):
+  - Instagram (id i profesionalni id, sva četiri ukrštanja), Facebook (OAuth i System User; ime stranice nije id) i Threads se odbijaju, a veza u A ostaje netaknuta;
+  - posle `disconnecting` drugi projekat sme;
+  - YouTube, Meta, Google i GA4 dobijaju upozorenje (zajednički MCC ne broji); isti projekat nikad ne smeta.
+- `lib/tajne-cuvar.test.ts` (5): `projekatTajne` samo u četiri dozvoljena fajla; env vrednosti projekta samo u `lib/podesavanja.ts`; `OAUTH_CALLBACK_ORIGIN` i `HUB_HOSTS` po jedno mesto; provera same provere.
+- `lib/zakucane-adrese.test.ts` (3): nema zakucanih Enigma adresa u stringovima koda; provera same provere (komentar prolazi, string pada).
+- `lib/podesavanja-pravila.test.ts` (+9): piksel, kratki linkovi, adresa na sajtu, ime pošiljaoca, budžet (sa podrazumevanim granicama), granica iz env-a, tajne.
+- samo potpisi poziva (tvrdnje iste): `izolacija-c04`, `izolacija-c05`, `izolacija-c07-veze` (`povratakOrigin` umesto `redirectUri`), `podesavanja-c11` (novi ključevi u `procitaj`).
+
+**Rezultat provere:**
+- codegen ✓ (drugi pokušaj, vidi ODLUKE), typecheck ✓, lint ✓ (0 grešaka), `npm run build` ✓;
+- `npx vitest run` ✓ (508/508, 31 fajl);
+- `verify-pristup` ✓ (361 javna: omotačem 346, javno 15, bez omotača 0; front: svi direktni pozivi sa spiska);
+- `regresije.mjs` ✓ (14/14); `scripts/test-meta-write.ts` i `scripts/verify-gads-write.ts` ✓.
+- Razvojni prikaz (Playwright): „Sajt i oglasi“ za Enigmu (nasleđeno iz env-a, 1536×695: dugme iznad pregiba; greška piksela i unos tajne), ScanMe (390×844) i Klijent (sopstvene vrednosti, postavljen token, 1440×900); Integracije bez grešaka u konzoli. Traka „Povezivanje kanala nije podešeno“ nije viđena na ekranu: fikstura vraća `podeseno: true`. Dev server je ugašen (port 3105 slobodan), a otpaci Playwright-a obrisani. Ugašen je i Playwright MCP ove sesije; jedini preostali Playwright MCP pripada drugoj Claude sesiji na mašini i nije diran.
+- Završni prolaz (tačne komande iz cilja): codegen ✓, typecheck ✓, lint ✓ (0 grešaka), `npx --no-install vitest run` ✓ (508/508), `verify-pristup` ✓, `regresije.mjs` ✓ (14/14).
+- **Ponovna provera posle runner-a (2026-10-25 06:35):** runner je javio da `npx convex codegen` pada (`Unable to pull deployment config … fetch failed`). Uzrok je mreža, ne kod: deployment (`*.convex.cloud/version`) i `api.convex.dev` su odgovarali sa 200, a `provision.convex.dev` je davao `UND_ERR_CONNECT_TIMEOUT`, isto kao ranije u koraku (DNS greška prema Sentry-ju). Kod i `convex/_generated` nisu menjani: `api.d.ts` već sadrži sve nove module iz prvog uspešnog codegen-a, a izmene sadržaja modula ne menjaju generisani fajl. Codegen je pušten ponovo kroz skriptu koja ponavlja pokušaj (`.nocni-run/projekti/tmp/c12-codegen-ponovi.sh`) i prošao je iz prvog pokušaja (exit 0, bez izmene u `_generated`). Zatim su ponovljene sve provere: typecheck ✓, lint ✓ (0 grešaka), `npx --no-install vitest run` ✓ (508/508, 31 fajl), `verify-pristup` ✓, `regresije.mjs` ✓ (14/14). **Napomena za runner:** ako codegen ponovo padne istom porukom, to je nedostupnost Convex servisa sa ove mašine, a ne greška koraka; ponavljanje posle minut-dva je dovoljno.
+
+**Za Jovana ujutru — env pri deployu:**
+- **Convex (prod), obavezno:** `OAUTH_CALLBACK_ORIGIN=https://digital.enigmait.rs`. To je adresa registrovana kod Mete (Instagram, Facebook, Threads) i Google-a (YouTube, Google Business), a putanje `/api/auth/callback/*` su iste. Bez nje nijedan kanal ne može da se poveže; postojeće veze rade.
+- **Convex (prod), po želji:** `HUB_HOSTS=<domen huba>` kad ga izabereš (više hostova odvojenih zarezom, prvi je kanonski). Do tada je hub dozvoljen za povratak samo na hostu iz `OAUTH_CALLBACK_ORIGIN`, dok taj host nije mapiran na projekat.
+- **Convex (prod), da Enigma ne izgubi ništa pre upisa u podešavanja:**
+  - `TRACKED_DOMAINS=enigmait.rs,digital.enigmait.rs`: ovi domeni su do sada bili zakucani; bez njih se linkovi u Threads objavama ne pakuju u `/r/`;
+  - `NOVOSTI_REVALIDATE_URL=https://www.enigmait.rs/api/revalidate`: zakucana rezerva je obrisana; bez nje se novosti ne osvežavaju.
+
+  Isto može i bez env-a: posle deploya upiši sajtove u Podešavanja → Projekat, a adresu u Sajt i oglasi.
+- **Convex (prod), postojeći env i dalje radi, ali samo za Enigma IT:** `META_PIXEL_ID`, `META_CAPI_TOKEN`, `META_CAPI_TEST_EVENT_CODE`, `OR_SHORT_LINK_BASE_URL` (ili `NEXT_PUBLIC_APP_URL`/`APP_URL`/`SITE_URL`), `NOVOSTI_REVALIDATE_SECRET`, `BUDGET_MIN(_EUR)`, `BUDGET_MAX(_EUR)`, `BUDGET_LIMIT_CURRENCY`, `META_ADS_MAX_DAILY_BUDGET`, `GOOGLE_ADS_MAX_DAILY_BUDGET`, `EMAIL_FROM` (ime). Kad ih upišeš u podešavanja Enigme, env se može obrisati.
+- **Convex dev:** `OAUTH_CALLBACK_ORIGIN` samo ako probaš OAuth lokalno, i ta adresa mora biti registrovana kod Mete i Google-a.
+- **Vercel:** ništa novo (E8).
+
+**Za Jovana ujutru — ručna provera:**
+- Podešavanja → Sajt i oglasi u Enigmi: uz polja treba da stoji „iz okruženja servera“ (piksel, kratki linkovi, osvežavanje). U ScanMe-u je sve „Nije podešeno“: tamo ništa ne ide na Enigmin piksel, CAPI ni osvežavanje sajta.
+- Postavi i obriši jednu tajnu (npr. token za Puls): posle upisa piše „Postavljeno · datum“, vrednost se nigde ne vidi.
+- Poveži jedan kanal iz Enigme pa iz ScanMe-a (posle mapiranja domena i u hubu): povratak mora da stigne na Podešavanja istog projekta. Isti Instagram nalog u drugom projektu treba da dobije poruku „Ovaj nalog je već povezan u drugom projektu…“.
+- Generate-leads skill: link na pregled uvoza sada dolazi iz domena projekta (ili `HUB_HOSTS`, ili env za Enigmu); bez toga skill piše „(aplikacija nije vratila URL)“.

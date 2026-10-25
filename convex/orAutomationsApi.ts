@@ -4,7 +4,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { normalizeKeyword } from "./lib/orMatch";
-import { shortLinkOrigin } from "./lib/orLink";
+import { bazaKratkihLinkova } from "./lib/podesavanja";
 import {
   BUTTONS_MAX,
   BUTTON_TITLE_MAX,
@@ -186,7 +186,7 @@ function requireHttpUrl(value: string, label: string): void {
   try {
     parsed = new URL(value);
   } catch {
-    invalid(`${label} mora biti puna adresa, npr. https://enigmait.rs/ponuda.`);
+    invalid(`${label} mora biti puna adresa, npr. https://primer.rs/ponuda.`);
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     invalid(`${label} mora počinjati sa http:// ili https://.`);
@@ -507,7 +507,7 @@ export const listAutomations = projekatQuery({
       .collect();
     const slugById = new Map(links.map((l) => [l.automationId, l.slug]));
 
-    const origin = shortLinkOrigin();
+    const origin = await bazaKratkihLinkova(ctx, workspaceId);
 
     return automations
       .sort((a, b) => b.createdAt - a.createdAt)

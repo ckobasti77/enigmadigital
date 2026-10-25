@@ -5,11 +5,11 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import {
   generateSlug,
-  shortLinkOrigin,
   extractFbclidFromUrl,
   formatFbc,
 } from "./lib/orLink";
 import { slugify } from "./lib/slug";
+import { bazaKratkihLinkova } from "./lib/podesavanja";
 import { utcDateKey } from "./lib/orMatch";
 import {
   claimPublicRouteCall,
@@ -46,7 +46,7 @@ export async function ensureTrackedUrlHelper(
   const destinationUrl = args.destinationUrl.trim();
   if (!destinationUrl) return null;
 
-  const origin = shortLinkOrigin();
+  const origin = await bazaKratkihLinkova(ctx, args.workspaceId);
   if (!origin) return null;
 
   const channel = args.channel ?? "threads";

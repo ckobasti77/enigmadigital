@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { ConvexError } from "convex/values";
+import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import {
   ArrowDown,
@@ -95,6 +96,21 @@ const STATUS_HINT: Record<ConnectionView["status"], string> = {
 };
 
 /** Pull the friendly message out of a thrown ConvexError, else a fallback. */
+/**
+ * Da li server ume da gradi OAuth povratnu adresu (`OAUTH_CALLBACK_ORIGIN`).
+ * `true` samo kad je server sigurno rekao „ne“; dok se učitava, dugme radi
+ * (greška sa servera ionako kaže šta fali).
+ */
+function useOAuthNijePodesen(): boolean {
+  return useQuery(api.oauthPovratak.stanje)?.podeseno === false;
+}
+
+/** Isti nalog je povezan i u drugom projektu (veza je ipak upisana). */
+function UpozorenjeNaloga({ tekst }: { tekst: string | null }) {
+  if (tekst === null) return null;
+  return <FeedbackNote tone="warning" className="mt-4" title={tekst} />;
+}
+
 function convexMessage(err: unknown, fallback: string): string {
   if (err instanceof ConvexError) {
     const data = err.data as { message?: string } | undefined;
@@ -400,6 +416,7 @@ function DisconnectZone({
 
 function Ga4Card({ connection }: { connection?: ConnectionView }) {
   const save = useProjekatMutation(api.connections.save);
+  const [upozorenje, setUpozorenje] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [propertyId, setPropertyId] = useState("");
   const [json, setJson] = useState("");
@@ -433,7 +450,8 @@ function Ga4Card({ connection }: { connection?: ConnectionView }) {
     setSaving(true);
     setError(null);
     try {
-      await save({ provider: "ga4", externalId: propertyId, secret: json });
+      const rezultat = await save({ provider: "ga4", externalId: propertyId, secret: json });
+      setUpozorenje(rezultat.upozorenje);
       setJson("");
       setEditing(false);
     } catch (err) {
@@ -451,6 +469,7 @@ function Ga4Card({ connection }: { connection?: ConnectionView }) {
       subtitle="Service account · read-only"
       status={connectionPill(connection?.status)}
     >
+      <UpozorenjeNaloga tekst={upozorenje} />
       {isConnected && !editing ? (
         <div className="mt-5">
           <SavedCredentials
@@ -759,6 +778,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
   const { spreman } = useProjekat();
   const getOAuthConfig = useProjekatAction(api.instagram.getOAuthConfig);
   const getOAuthUrl = useProjekatAction(api.instagram.getOAuthUrl);
+  const oauthNijePodesen = useOAuthNijePodesen();
   const completeOAuth = useProjekatAction(api.instagram.completeOAuth);
   const removeConnection = useProjekatMutation(api.connections.remove);
 
@@ -878,8 +898,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
         setError(null);
       }, 0);
 
-      const redirectUri = `${window.location.origin}/api/auth/callback/instagram`;
-      completeOAuth({ code, redirectUri })
+      completeOAuth({ code })
         .then((res) => {
           setSuccessMessage(
             res.username
@@ -901,8 +920,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
     setSuccessMessage(null);
     setConnecting(true);
     try {
-      const redirectUri = `${window.location.origin}/api/auth/callback/instagram`;
-      const { url } = await getOAuthUrl({ redirectUri });
+      const { url } = await getOAuthUrl({ povratakOrigin: window.location.origin });
       window.location.href = url;
     } catch (e) {
       setError(convexMessage(e, "Pokretanje autorizacije nije uspelo."));
@@ -1001,7 +1019,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
               variant="ghost"
               size="sm"
               onClick={handleStartConnect}
-              disabled={connecting || disconnecting}
+              disabled={connecting || disconnecting || oauthNijePodesen}
             >
               Ponovo poveži
             </Button>
@@ -1032,7 +1050,11 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
             Instagram Login-a za sinhronizaciju uvida (pratioci, doseg, posete
             profilu, angažovanost, statistika objava i Reels-a).
           </p>
-          <Button size="sm" onClick={handleStartConnect} disabled={connecting}>
+          <Button
+            size="sm"
+            onClick={handleStartConnect}
+            disabled={connecting || oauthNijePodesen}
+          >
             {connecting ? (
               <LoaderCircle className="animate-spin" />
             ) : (
@@ -1336,6 +1358,7 @@ function FacebookPagePicker({
 function FacebookCard({ connection }: { connection?: ConnectionView }) {
   const setup = useProjekatQuery(api.facebookStore.setupInfo);
   const getOAuthUrl = useProjekatAction(api.facebook.getOAuthUrl);
+  const oauthNijePodesen = useOAuthNijePodesen();
   const refreshToken = useProjekatAction(api.facebook.refreshTokenNow);
   const connectSystemUser = useProjekatAction(
     api.facebook.connectWithSystemUserToken,
@@ -1411,8 +1434,7 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
     setSuccessMessage(null);
     setConnecting(true);
     try {
-      const redirectUri = `${window.location.origin}/api/auth/callback/facebook`;
-      const { url } = await getOAuthUrl({ redirectUri });
+      const { url } = await getOAuthUrl({ povratakOrigin: window.location.origin });
       window.location.href = url;
     } catch (err) {
       setError(convexMessage(err, "Pokretanje autorizacije nije uspelo."));
@@ -1664,7 +1686,7 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
                     <Button
                       size="sm"
                       onClick={handleStartConnect}
-                      disabled={connecting || !setup.appConfigured}
+                      disabled={connecting || !setup.appConfigured || oauthNijePodesen}
                     >
                       {connecting ? (
                         <LoaderCircle className="animate-spin" />
@@ -1820,6 +1842,7 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
 
 function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
   const save = useProjekatMutation(api.connections.save);
+  const [upozorenje, setUpozorenje] = useState<string | null>(null);
   const remove = useProjekatMutation(api.connections.remove);
   const [editing, setEditing] = useState(false);
   const [accountId, setAccountId] = useState("");
@@ -1847,11 +1870,12 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
     setSaving(true);
     setError(null);
     try {
-      await save({
+      const rezultat = await save({
         provider: "meta_ads",
         externalId: accountId.trim() || undefined,
         secret: token.trim(),
       });
+      setUpozorenje(rezultat.upozorenje);
       setToken("");
       setEditing(false);
     } catch (err) {
@@ -1895,6 +1919,7 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
       {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
           Ne prikazuje ništa dok brisanja nema. */}
       <PurgeNotice provider="meta_ads" />
+      <UpozorenjeNaloga tekst={upozorenje} />
       {isConnected && !editing ? (
         <div className="mt-5">
           <SavedCredentials
@@ -2000,6 +2025,7 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
 
 function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
   const save = useProjekatMutation(api.connections.save);
+  const [upozorenje, setUpozorenje] = useState<string | null>(null);
   const remove = useProjekatMutation(api.connections.remove);
   const [editing, setEditing] = useState(false);
   const [customerId, setCustomerId] = useState("");
@@ -2038,12 +2064,13 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
     setSaving(true);
     setError(null);
     try {
-      await save({
+      const rezultat = await save({
         provider: "google_ads",
         externalId: customerId.trim().replace(/-/g, ""),
         externalIdAlt: loginCustomerId.trim().replace(/-/g, "") || undefined,
         secret: json,
       });
+      setUpozorenje(rezultat.upozorenje);
 
       setJson("");
       setEditing(false);
@@ -2078,6 +2105,7 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
       {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
           Ne prikazuje ništa dok brisanja nema. */}
       <PurgeNotice provider="google_ads" />
+      <UpozorenjeNaloga tekst={upozorenje} />
       {isConnected && !editing ? (
         <div className="mt-5">
           <SavedCredentials
@@ -2212,6 +2240,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
   const remove = useProjekatMutation(api.connections.remove);
   const setup = useProjekatQuery(api.youtubeStore.setupInfo);
   const getOAuthUrl = useProjekatAction(api.youtube.youtubeAuthorizeUrl);
+  const oauthNijePodesen = useOAuthNijePodesen();
 
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -2224,6 +2253,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [upozorenje, setUpozorenje] = useState<string | null>(null);
 
   const isConnected = connection !== undefined;
 
@@ -2244,6 +2274,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
     const connected = params.get("yt_connected");
     const channel = params.get("yt_channel");
     const err = params.get("yt_error");
+    const drugde = params.get("yt_upozorenje");
 
     if (!connected && !err) return;
 
@@ -2254,6 +2285,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
         setError(err);
         return;
       }
+      setUpozorenje(drugde);
       setSuccessMessage(
         channel
           ? `YouTube kanal „${channel}” je uspešno povezan!`
@@ -2267,8 +2299,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
     setSuccessMessage(null);
     setConnecting(true);
     try {
-      const redirectUri = `${window.location.origin}/api/auth/callback/youtube`;
-      const { url } = await getOAuthUrl({ redirectUri });
+      const { url } = await getOAuthUrl({ povratakOrigin: window.location.origin });
       window.location.href = url;
     } catch (err) {
       setError(convexMessage(err, "Pokretanje Google autorizacije nije uspelo."));
@@ -2299,11 +2330,12 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
         channelId: trimmedChannelId,
       };
 
-      await save({
+      const rezultat = await save({
         provider: "youtube",
         externalId: trimmedChannelId || undefined,
         secret: JSON.stringify(payload),
       });
+      setUpozorenje(rezultat.upozorenje);
 
       setClientId("");
       setClientSecret("");
@@ -2370,6 +2402,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
       ) : (
         <div className="mt-5 space-y-4">
           {successMessage && <FeedbackNote tone="success" title={successMessage} />}
+          {upozorenje && <FeedbackNote tone="warning" title={upozorenje} />}
           {error && <FeedbackNote tone="danger" title={error} />}
 
           {isConnected ? (
@@ -2402,7 +2435,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                     type="button"
                     size="sm"
                     onClick={handleStartConnect}
-                    disabled={connecting || !setup.isConfigured}
+                    disabled={connecting || !setup.isConfigured || oauthNijePodesen}
                   >
                     {connecting ? (
                       <>
@@ -2564,7 +2597,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                   type="button"
                   size="sm"
                   onClick={handleStartConnect}
-                  disabled={connecting || !setup.isConfigured}
+                  disabled={connecting || !setup.isConfigured || oauthNijePodesen}
                 >
                   {connecting ? (
                     <>
@@ -2740,6 +2773,7 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
   const remove = useProjekatMutation(api.connections.remove);
   const setup = useProjekatQuery(api.threadsStore.setupInfo);
   const getOAuthUrl = useProjekatAction(api.threads.threadsAuthorizeUrl);
+  const oauthNijePodesen = useOAuthNijePodesen();
 
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -2778,8 +2812,7 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
     setSuccessMessage(null);
     setConnecting(true);
     try {
-      const redirectUri = `${window.location.origin}/api/auth/callback/threads`;
-      const { url } = await getOAuthUrl({ redirectUri });
+      const { url } = await getOAuthUrl({ povratakOrigin: window.location.origin });
       window.location.href = url;
     } catch (err) {
       setError(convexMessage(err, "Pokretanje Threads autorizacije nije uspelo."));
@@ -2877,7 +2910,7 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
                     type="button"
                     size="sm"
                     onClick={handleStartConnect}
-                    disabled={connecting || !setup.isConfigured}
+                    disabled={connecting || !setup.isConfigured || oauthNijePodesen}
                   >
                     {connecting ? (
                       <>
@@ -2908,7 +2941,7 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
                 type="button"
                 size="sm"
                 onClick={handleStartConnect}
-                disabled={connecting || !setup.isConfigured}
+                disabled={connecting || !setup.isConfigured || oauthNijePodesen}
               >
                 {connecting ? (
                   <>
@@ -2972,6 +3005,7 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
 export function ConnectionsSettings() {
   const connections = useProjekatQuery(api.connections.list);
   const health = useProjekatQuery(api.sync.health);
+  const oauthNijePodesen = useOAuthNijePodesen();
 
   if (connections === undefined) {
     return <ConnectionsSettingsSkeleton />;
@@ -3021,6 +3055,12 @@ export function ConnectionsSettings() {
 
   return (
     <div className="mt-6 flex flex-col gap-5">
+      {oauthNijePodesen && (
+        <FeedbackNote tone="warning" title="Povezivanje kanala nije podešeno na serveru.">
+          Instagram, Facebook, Threads i YouTube se ne mogu povezati dok se u Convex
+          okruženju ne postavi OAUTH_CALLBACK_ORIGIN. Postojeće veze i dalje rade.
+        </FeedbackNote>
+      )}
       {/* Fokus: koliko je izvora povezano, i koji traže pažnju. */}
       <div>
         <FocusCard

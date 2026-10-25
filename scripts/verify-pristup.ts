@@ -57,6 +57,10 @@ const DOZVOLJENI_DIREKTNI: Readonly<Record<string, string>> = {
   "threads.completeOAuthFromCallback": "OAuth povratak (serverska ruta); projekat nosi potpisano OAuth stanje",
   "youtube.completeOAuthFromCallback": "OAuth povratak (serverska ruta); projekat nosi potpisano OAuth stanje",
   "threadsStore.getDeletionStatus": "javna strana statusa brisanja podataka po kodu potvrde",
+  "oauthPovratak.procitaj":
+    "OAuth povratak (serverska ruta, pre razmene): adresa panela iz jednokratnog state-a, proverena na serveru",
+  "oauthPovratak.stanje":
+    "kartica Integracije pita da li je OAUTH_CALLBACK_ORIGIN podešen na serveru; vraća samo da/ne",
 };
 
 const koren = fileURLToPath(new URL("../", import.meta.url));

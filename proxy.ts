@@ -122,7 +122,8 @@ export const config = {
   // the middleware claimed it as a Convex Auth sign-in code, and the browser
   // landed on /login — the route handler never ran and Convex never saw the
   // exchange. Any FUTURE provider callback must be added here too, in BOTH
-  // entries, or it fails the same silent way.
+  // entries, or it fails the same silent way. Google Business was missing and
+  // was added to both entries in the multi-project run (path unchanged).
   //
   // ALL callbacks are FULLY excluded (not just early-returned in
   // the handler) because convexAuthNextjsMiddleware itself intercepts any
@@ -137,10 +138,10 @@ export const config = {
   // Meta with a bounce to /login. The routes only forward the body to a Convex
   // HTTP action, which checks Meta's `signed_request` signature itself.
   matcher: [
-    "/((?!.*\\..*|_next|api/auth/callback/instagram|api/auth/callback/facebook|api/auth/callback/youtube|api/auth/callback/threads|api/meta/data-deletion|api/meta/deauthorize|r/|privacy(?:$|/)|cookies(?:$|/)|pozivnica(?:$|/)).*)",
+    "/((?!.*\\..*|_next|api/auth/callback/instagram|api/auth/callback/facebook|api/auth/callback/youtube|api/auth/callback/threads|api/auth/callback/google-business|api/meta/data-deletion|api/meta/deauthorize|r/|privacy(?:$|/)|cookies(?:$|/)|pozivnica(?:$|/)).*)",
     "/",
     // Two lookaheads rather than one alternation: Next refuses a capturing
     // group inside a matcher, and `(instagram|facebook)` is one.
-    "/(api|trpc)((?!/auth/callback/instagram)(?!/auth/callback/facebook)(?!/auth/callback/youtube)(?!/auth/callback/threads)(?!/meta/data-deletion)(?!/meta/deauthorize).*)",
+    "/(api|trpc)((?!/auth/callback/instagram)(?!/auth/callback/facebook)(?!/auth/callback/youtube)(?!/auth/callback/threads)(?!/auth/callback/google-business)(?!/meta/data-deletion)(?!/meta/deauthorize).*)",
   ],
 };

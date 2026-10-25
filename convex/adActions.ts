@@ -20,7 +20,6 @@ import {
   validateAdInput,
   validateThreadsPlacement,
   evaluateCreateBudgetGate,
-  getMetaAdsMaxDailyBudget,
   buildCampaignParams,
   buildAdSetParams,
   buildAdParams,
@@ -45,7 +44,6 @@ import {
   validateGoogleAdsAdGroupInput,
   validateGoogleAdsAdInput,
   validateGoogleAdsFullCreateInput,
-  getGoogleAdsMaxDailyBudget,
   evaluateGoogleAdsBudgetGate,
   formatGoogleAdsBudgetConfirmation,
   buildGoogleAdsCampaignMutatePayload,
@@ -56,6 +54,8 @@ import {
   type GoogleAdsFullCampaignCreateInput,
 } from "./lib/googleAdsWrite";
 import { readGadsGate, checkGoogleAdsQuota } from "./lib/googleAdsQuota";
+import { graniceBudzeta, type GraniceBudzeta } from "./lib/podesavanja";
+import { podesavanjaZaAkciju } from "./lib/podesavanjaAkcija";
 
 /**
  * ============================================================================
@@ -68,7 +68,9 @@ import { readGadsGate, checkGoogleAdsQuota } from "./lib/googleAdsQuota";
  *    with "Pisanje je isključeno (ADS_WRITE_ENABLED)" BEFORE creating any
  *    database row or making external HTTP requests.
  * 2. Guardrails on Budget:
- *    - Bounds from BUDGET_MIN_EUR (default 5) / BUDGET_MAX_EUR (default 5000)
+ *    - Bounds come from the project settings (Podešavanja → Sajt i oglasi;
+ *      defaults 5 / 5000 / EUR; env only for the founding project, see
+ *      convex/lib/podesavanja.ts)
  *    - Max ±50% change per single action vs current daily budget
  *    - Rejection with clear Serbian explanation
  * 3. Ad Duplication & Hook Iteration:
@@ -83,13 +85,15 @@ import { readGadsGate, checkGoogleAdsQuota } from "./lib/googleAdsQuota";
 
 // ── Environment & Safety Configuration ───────────────────────────────────────
 
-export function getBudgetBounds(): { minBudget: number; maxBudget: number; limitCurrency: string } {
-  const envMin = parseFloat(process.env.BUDGET_MIN ?? process.env.BUDGET_MIN_EUR ?? "5");
-  const envMax = parseFloat(process.env.BUDGET_MAX ?? process.env.BUDGET_MAX_EUR ?? "5000");
-  const minBudget = Number.isFinite(envMin) && envMin > 0 ? envMin : 5;
-  const maxBudget = Number.isFinite(envMax) && envMax >= minBudget ? envMax : 5000;
-  const limitCurrency = (process.env.BUDGET_LIMIT_CURRENCY ?? "EUR").trim().toUpperCase();
-  return { minBudget, maxBudget, limitCurrency };
+/**
+ * Granice budžeta projekta (min / max / valuta / gornja granica nove kampanje),
+ * iz Podešavanja projekta; env samo za osnivački projekat (`lib/podesavanja.ts`).
+ */
+async function graniceProjekta(
+  ctx: Pick<ActionCtx, "runQuery">,
+  workspaceId: Id<"workspaces">,
+): Promise<GraniceBudzeta> {
+  return graniceBudzeta((await podesavanjaZaAkciju(ctx, workspaceId)).budzet);
 }
 
 export function getMaxHookCopies(): number {
@@ -346,7 +350,10 @@ export const changeBudget = projekatAction({
     );
 
     // 4. GUARDRAILS ENFORCEMENT
-    const { minBudget, maxBudget, limitCurrency } = getBudgetBounds();
+    const granice = await graniceProjekta(ctx, workspaceId);
+    const minBudget = granice.minimum;
+    const maxBudget = granice.maksimum;
+    const limitCurrency = granice.valuta;
     const accountCurrency = (target.currency || "").trim().toUpperCase();
 
     // Nepoznata valuta NIJE dozvola da se nastavi. Granice budžeta su brojevi
@@ -370,14 +377,14 @@ export const changeBudget = projekatAction({
     if (args.newDailyBudget < minBudget) {
       throw new ConvexError({
         code: "guardrail_violation",
-        message: `Novi budžet (${args.newDailyBudget} ${limitCurrency}) je ispod minimalno dozvoljenog limita od ${minBudget} ${limitCurrency} (BUDGET_MIN).`,
+        message: `Novi budžet (${args.newDailyBudget} ${limitCurrency}) je ispod minimalno dozvoljenog limita od ${minBudget} ${limitCurrency} (granica iz podešavanja projekta).`,
       });
     }
 
     if (args.newDailyBudget > maxBudget) {
       throw new ConvexError({
         code: "guardrail_violation",
-        message: `Novi budžet (${args.newDailyBudget} ${limitCurrency}) prelazi maksimalno dozvoljeni limit od ${maxBudget} ${limitCurrency} (BUDGET_MAX).`,
+        message: `Novi budžet (${args.newDailyBudget} ${limitCurrency}) prelazi maksimalno dozvoljeni limit od ${maxBudget} ${limitCurrency} (granica iz podešavanja projekta).`,
       });
     }
 
@@ -890,10 +897,11 @@ export const createHookVersion = projekatAction({
 //   - audit red PRE mreže, po svakom objektu; idempotencija preko requestId nonce;
 //   - delimičan pad se OZNAČAVA (ne briše): sve je PAUSED, nula potrošnje.
 //
-// getMetaAdsMaxDailyBudget() se dokumentuje ovde uz ostale env ograde: gornja
-// granica dnevnog budžeta za NOVE kampanje, u valuti BUDGET_LIMIT_CURRENCY. Kad
-// nije postavljena, vraća null i kreiranje je ISKLJUČENO — odsustvo granice nije
-// dozvola.
+// Granice budžeta dolaze iz Podešavanja projekta (Podešavanja → Sajt i oglasi;
+// env samo za osnivački projekat, vidi convex/lib/podesavanja.ts): gornja
+// granica dnevnog budžeta za NOVE kampanje (`metaMaksDnevno`), u valuti granice
+// projekta. Kad nije postavljena, ona je null i kreiranje je ISKLJUČENO —
+// odsustvo granice nije dozvola.
 
 const creativeArgValidator = v.union(
   v.object({
@@ -1209,13 +1217,13 @@ export const createCampaignFull = projekatAction({
       throw new ConvexError({ code: "validation_error", message: errMessage(e) });
     }
 
-    // 5. Sloj A — budžet-kapija (valuta + META_ADS_MAX_DAILY_BUDGET + min)
-    const { minBudget, limitCurrency } = getBudgetBounds();
+    // 5. Sloj A — budžet-kapija (valuta + gornja granica + min, iz podešavanja projekta)
+    const granice = await graniceProjekta(ctx, workspaceId);
     const gate = evaluateCreateBudgetGate({
       accountCurrency: account.currency,
-      limitCurrency,
-      maxDailyBudget: getMetaAdsMaxDailyBudget(),
-      minBudget,
+      limitCurrency: granice.valuta,
+      maxDailyBudget: granice.metaMaksDnevno,
+      minBudget: granice.minimum,
       dailyBudget: adSetInput.dailyBudget ?? 0,
     });
     if (!gate.ok) {
@@ -1448,12 +1456,12 @@ export const validateCampaignPlan = projekatAction({
       }
     }
 
-    const { minBudget, limitCurrency } = getBudgetBounds();
+    const granice = await graniceProjekta(ctx, workspaceId);
     const gateResult = evaluateCreateBudgetGate({
       accountCurrency: account.currency,
-      limitCurrency,
-      maxDailyBudget: getMetaAdsMaxDailyBudget(),
-      minBudget,
+      limitCurrency: granice.valuta,
+      maxDailyBudget: granice.metaMaksDnevno,
+      minBudget: granice.minimum,
       dailyBudget: adSetInput.dailyBudget ?? 0,
     });
 
@@ -1661,14 +1669,13 @@ export const createGoogleAdsCampaignFull = projekatAction({
       { workspaceId, customerId },
     );
     const accountCurrency = account?.currency || "";
-    const { minBudget, limitCurrency } = getBudgetBounds();
-    const maxDailyBudget = getGoogleAdsMaxDailyBudget();
+    const granice = await graniceProjekta(ctx, workspaceId);
 
     const gate = evaluateGoogleAdsBudgetGate({
       accountCurrency,
-      limitCurrency,
-      maxDailyBudget,
-      minBudget,
+      limitCurrency: granice.valuta,
+      maxDailyBudget: granice.googleMaksDnevno,
+      minBudget: granice.minimum,
       dailyBudget: args.campaign.dailyBudget,
     });
 
@@ -1868,14 +1875,13 @@ export const validateGoogleAdsCampaignPlan = projekatAction({
       { workspaceId, customerId },
     );
     const accountCurrency = account?.currency || "";
-    const { minBudget, limitCurrency } = getBudgetBounds();
-    const maxDailyBudget = getGoogleAdsMaxDailyBudget();
+    const granice = await graniceProjekta(ctx, workspaceId);
 
     const gate = evaluateGoogleAdsBudgetGate({
       accountCurrency,
-      limitCurrency,
-      maxDailyBudget,
-      minBudget,
+      limitCurrency: granice.valuta,
+      maxDailyBudget: granice.googleMaksDnevno,
+      minBudget: granice.minimum,
       dailyBudget: args.campaign.dailyBudget,
     });
 
@@ -1972,7 +1978,10 @@ export const changeGoogleAdsBudget = projekatAction({
       },
     );
 
-    const { minBudget, maxBudget, limitCurrency } = getBudgetBounds();
+    const granice = await graniceProjekta(ctx, workspaceId);
+    const minBudget = granice.minimum;
+    const maxBudget = granice.maksimum;
+    const limitCurrency = granice.valuta;
     const accountCurrency = (target.currency || "").trim().toUpperCase();
 
     if (!accountCurrency) {
@@ -1991,13 +2000,13 @@ export const changeGoogleAdsBudget = projekatAction({
     if (args.newDailyBudget < minBudget) {
       throw new ConvexError({
         code: "guardrail_violation",
-        message: `Novi budžet (${args.newDailyBudget} ${limitCurrency}) je ispod minimalno dozvoljenog limita od ${minBudget} ${limitCurrency} (BUDGET_MIN).`,
+        message: `Novi budžet (${args.newDailyBudget} ${limitCurrency}) je ispod minimalno dozvoljenog limita od ${minBudget} ${limitCurrency} (granica iz podešavanja projekta).`,
       });
     }
     if (args.newDailyBudget > maxBudget) {
       throw new ConvexError({
         code: "guardrail_violation",
-        message: `Novi budžet (${args.newDailyBudget} ${limitCurrency}) prelazi maksimalno dozvoljeni limit od ${maxBudget} ${limitCurrency} (BUDGET_MAX).`,
+        message: `Novi budžet (${args.newDailyBudget} ${limitCurrency}) prelazi maksimalno dozvoljeni limit od ${maxBudget} ${limitCurrency} (granica iz podešavanja projekta).`,
       });
     }
 

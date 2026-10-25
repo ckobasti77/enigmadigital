@@ -35,7 +35,6 @@ import {
   validateGoogleAdsAdGroupInput,
   validateGoogleAdsAdInput,
   validateGoogleAdsFullCreateInput,
-  getGoogleAdsMaxDailyBudget,
   evaluateGoogleAdsBudgetGate,
   formatGoogleAdsBudgetConfirmation,
   buildGoogleAdsCampaignMutatePayload,
@@ -52,6 +51,8 @@ import {
   microsToUnits,
   normalizeCustomerId,
 } from "../convex/lib/googleAdsShared";
+
+import { pozitivnaGranica } from "../convex/lib/podesavanjaPravila";
 
 let failures = 0;
 
@@ -329,11 +330,15 @@ const prevGadsEnv = process.env.GOOGLE_ADS_MAX_DAILY_BUDGET;
 
 // 1. Nepostavljen GOOGLE_ADS_MAX_DAILY_BUDGET blokira
 delete process.env.GOOGLE_ADS_MAX_DAILY_BUDGET;
-assert.strictEqual(getGoogleAdsMaxDailyBudget(), null, "Nepostavljen env vraća null");
+assert.strictEqual(
+  pozitivnaGranica(process.env.GOOGLE_ADS_MAX_DAILY_BUDGET),
+  null,
+  "Nepostavljen env vraća null",
+);
 const gateUnset = evaluateGoogleAdsBudgetGate({
   accountCurrency: "EUR",
   limitCurrency: "EUR",
-  maxDailyBudget: getGoogleAdsMaxDailyBudget(),
+  maxDailyBudget: pozitivnaGranica(process.env.GOOGLE_ADS_MAX_DAILY_BUDGET),
   minBudget: 5,
   dailyBudget: 25,
 });
@@ -345,7 +350,7 @@ process.env.GOOGLE_ADS_MAX_DAILY_BUDGET = "50";
 const gateOver = evaluateGoogleAdsBudgetGate({
   accountCurrency: "EUR",
   limitCurrency: "EUR",
-  maxDailyBudget: getGoogleAdsMaxDailyBudget(),
+  maxDailyBudget: pozitivnaGranica(process.env.GOOGLE_ADS_MAX_DAILY_BUDGET),
   minBudget: 5,
   dailyBudget: 100, // 100 > 50
 });

@@ -3,6 +3,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import { resolveServerConvexUrl } from "@/lib/server-convex-url";
+import { ciljPosleRazmene, ciljPovratka } from "../_lib/povratak";
 
 /**
  * Next.js Route Handler za Google Business Profile OAuth redirect.
@@ -19,7 +20,10 @@ export async function GET(request: NextRequest) {
   const error = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
 
-  const settingsUrl = new URL("/settings", request.nextUrl.origin);
+  // Odredište je panel sa kog je povezivanje krenulo (iz `state`-a, proveren
+  // na serveru); bez njega `/settings` ove adrese.
+  const resolved = resolveServerConvexUrl();
+  const settingsUrl = await ciljPovratka(request, state, resolved.ok ? resolved.url : null);
 
   // 1. Google je eksplicitno prijavio grešku ili odbijanje korisnika
   if (error) {
@@ -31,10 +35,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(settingsUrl);
   }
 
-  // 2. Razrešavanje i validacija Convex URL-a: `lib/server-convex-url.ts`.
+  // 2. Validacija Convex URL-a (`lib/server-convex-url.ts`), razrešenog gore.
   // Pogrešno podešen server, odbijen pristup i izostao Google kod su
   // TRI različita kvara i ne smeju da dele jednu poruku.
-  const resolved = resolveServerConvexUrl();
   if (!resolved.ok) {
     console.error("[Google Business OAuth callback]", resolved.logDetail);
     settingsUrl.searchParams.set("gb_error", resolved.reason);
@@ -56,12 +59,13 @@ export async function GET(request: NextRequest) {
 
   try {
     const client = new ConvexHttpClient(convexUrl);
-    await client.action(api.gbp.completeOAuthFromCallback, {
+    const result = await client.action(api.gbp.completeOAuthFromCallback, {
       state,
       code,
     });
-    settingsUrl.searchParams.set("gb_connected", "1");
-    return NextResponse.redirect(settingsUrl);
+    const cilj = ciljPosleRazmene(result.povratak, settingsUrl);
+    cilj.searchParams.set("gb_connected", "1");
+    return NextResponse.redirect(cilj);
   } catch (err) {
     // Samo poruka koju je akcija NAMERNO poslala kroz ConvexError završava u
     // adresnoj traci. Svaka druga greška ostaje u serverskom logu.

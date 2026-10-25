@@ -4,8 +4,8 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import { runSync } from "./lib/runSync";
+import { redirectUriZa } from "./lib/oauthPovratak";
 import {
-  THREADS_REDIRECT_URI,
   THREADS_SCOPES,
   buildThreadsAuthorizeUrl,
   executeThreadsResource,
@@ -71,9 +71,10 @@ function randomNonce(): string {
 export const threadsAuthorizeUrl = projekatAction({
   uloga: "owner",
   args: {
-    redirectUri: v.optional(v.string()),
+    povratakOrigin: v.string(),
   },
-  handler: async (ctx, { redirectUri }): Promise<{ url: string }> => {
+  handler: async (ctx, { povratakOrigin }): Promise<{ url: string }> => {
+    const redirectUri = redirectUriZa("threads");
     const clientId = getThreadsAppId();
     const clientSecret = getThreadsAppSecret();
 
@@ -87,19 +88,19 @@ export const threadsAuthorizeUrl = projekatAction({
 
     const { workspaceId, userId } = ctx.projekat;
 
-    const effectiveRedirectUri = redirectUri ?? THREADS_REDIRECT_URI;
     const nonce = randomNonce();
 
     await ctx.runMutation(internal.threadsStore.createOAuthState, {
       workspaceId,
       userId,
       nonce,
-      redirectUri: effectiveRedirectUri,
+      redirectUri,
+      povratakOrigin,
     });
 
     const url = buildThreadsAuthorizeUrl({
       clientId,
-      redirectUri: effectiveRedirectUri,
+      redirectUri,
       scopes: THREADS_SCOPES,
       state: nonce,
     });
@@ -130,11 +131,15 @@ export const completeOAuthFromCallback = action({
     state: v.string(),
     code: v.string(),
   },
-  handler: async (ctx, { state, code }): Promise<ThreadsOAuthResult> => {
+  handler: async (
+    ctx,
+    { state, code },
+  ): Promise<ThreadsOAuthResult & { povratak: string | null }> => {
     const stored: {
       workspaceId: Id<"workspaces">;
       redirectUri: string;
       createdAt: number;
+      povratak: string | null;
     } | null = await ctx.runMutation(internal.threadsStore.consumeOAuthState, {
       nonce: state,
     });
@@ -228,6 +233,7 @@ export const completeOAuthFromCallback = action({
       connectionId,
       userId: profile.id || shortLived.userId,
       username: profile.username,
+      povratak: stored.povratak,
     };
   },
 });

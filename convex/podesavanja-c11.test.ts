@@ -116,12 +116,20 @@ describe("sajtovi, moduli, mozak", () => {
   test("procitaj vraća sajtove, module, mozak i domene vlasniku", async () => {
     const s = await napraviSvet();
     const odgovor = await kao(s, s.ana).query(api.podesavanjaStore.procitaj, { workspaceId: s.wsA });
-    expect(odgovor).toEqual({
+    // C12 je dodao podešavanja sajta i oglasa i stanje tajni; ovde se proverava
+    // samo deo iz C11, a ostatak pokrivaju `podesavanja-env` i `tajne` testovi.
+    const { jeOsnivacki, podesavanja, tajne, ...c11 } = odgovor;
+    expect(c11).toEqual({
       sajtovi: [],
       moduli: null,
       mozak: { ponuda: null, icpOpis: null, ton: null, zabrane: null, skripte: null },
       domeni: [],
     });
+    expect(typeof jeOsnivacki).toBe("boolean");
+    expect(Object.keys(podesavanja).sort()).toEqual(
+      ["budzet", "kratkiLinkoviBaza", "novostiRevalidateUrl", "pikselId", "posiljalacIme", "pulsUrl", "sajtovi"],
+    );
+    expect(Object.keys(tajne).sort()).toEqual(["meta_capi_token", "novosti_revalidate_secret", "puls_token"]);
   });
 });
 

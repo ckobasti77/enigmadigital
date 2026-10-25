@@ -1146,7 +1146,7 @@ const quotaStatus: R<typeof api.metaAdsStore.quotaStatus> = {
 
 const capiStats: R<typeof api.metaCapiStore.getCapiStats> = {
   configured: true,
-  missingEnvVars: [],
+  nedostaje: [],
   sentCount: 118,
   pendingCount: 3,
   retryingCount: 1,
@@ -1824,7 +1824,7 @@ export const PRAZNO_OGLASI: Record<string, Fixture> = {
   [getFunctionName(api.metaAdsStore.quotaStatus)]: () => null,
   [getFunctionName(api.metaCapiStore.getCapiStats)]: () => ({
     configured: false,
-    missingEnvVars: ["META_PIXEL_ID", "META_CAPI_TOKEN"],
+    nedostaje: ["piksel", "capi_token"],
     sentCount: 0,
     pendingCount: 0,
     retryingCount: 0,

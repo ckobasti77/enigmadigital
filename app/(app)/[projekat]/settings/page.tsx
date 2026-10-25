@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   BookOpen,
   FolderCog,
+  Globe,
   History,
   KeyRound,
   Link2,
@@ -23,7 +24,8 @@ import { IngestTokensPanel } from "@/components/app/settings/ingest-tokens-panel
 import { NapredakSettings } from "@/components/app/settings/napredak-settings";
 import { ProjekatPanel } from "@/components/app/settings/projekat-panel";
 import { MozakPanel } from "@/components/app/settings/mozak-panel";
-import { useProjekatHref } from "@/components/app/projekat-provider";
+import { SajtPanel } from "@/components/app/settings/sajt-panel";
+import { useProjekat, useProjekatHref } from "@/components/app/projekat-provider";
 import { PageHeader } from "@/components/app/page-header";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
 
@@ -36,6 +38,7 @@ import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
 type Tab =
   | "integracije"
   | "projekat"
+  | "sajt"
   | "mozak"
   | "pristup"
   | "istorija"
@@ -45,6 +48,7 @@ type Tab =
 const TABS: readonly TabItem<Tab>[] = [
   { id: "integracije", label: "Integracije", icon: Link2 },
   { id: "projekat", label: "Projekat", icon: FolderCog },
+  { id: "sajt", label: "Sajt i oglasi", icon: Globe },
   { id: "mozak", label: "Mozak", icon: BookOpen },
   { id: "pristup", label: "Pristup", icon: KeyRound },
   { id: "istorija", label: "Istorija akcija", icon: History },
@@ -68,6 +72,11 @@ const COPY: Record<Tab, { title: string; blurb: string; info?: string }> = {
     title: "Projekat",
     blurb: "Ime, izgled, domeni, sajtovi i moduli ovog projekta.",
     info: "Menja ih vlasnik projekta; vrstu projekta i domene samo vlasnik platforme.",
+  },
+  sajt: {
+    title: "Sajt i oglasi",
+    blurb: "Piksel, kratki linkovi, osvežavanje novosti, Puls i granice budžeta oglasa.",
+    info: "Menja ih vlasnik projekta; tajne se samo upisuju i brišu, nikad se ne prikazuju.",
   },
   mozak: {
     title: "Mozak projekta",
@@ -109,7 +118,11 @@ function Podesavanja() {
   const params = useSearchParams();
   const router = useRouter();
   const ka = useProjekatHref();
-  const tab = izAdrese(params.get("tab"));
+  const { uloga } = useProjekat();
+  // „Sajt i oglasi“ vidi samo vlasnik projekta (tajne, piksel, budžet).
+  const tabs = uloga === "owner" ? TABS : TABS.filter((t) => t.id !== "sajt");
+  const izabran = izAdrese(params.get("tab"));
+  const tab = izabran === "sajt" && uloga !== null && uloga !== "owner" ? PODRAZUMEVAN : izabran;
   const copy = COPY[tab];
   const setTab = (sledeci: Tab) => {
     router.replace(`${ka("/settings")}?tab=${sledeci}`, { scroll: false });
@@ -123,7 +136,7 @@ function Podesavanja() {
 
       <TabNav
         className="mt-6"
-        tabs={TABS}
+        tabs={tabs}
         active={tab}
         onChange={setTab}
         panelId="settings-panel"
@@ -136,6 +149,8 @@ function Podesavanja() {
           </Suspense>
         ) : tab === "projekat" ? (
           <ProjekatPanel />
+        ) : tab === "sajt" ? (
+          <SajtPanel />
         ) : tab === "mozak" ? (
           <MozakPanel />
         ) : tab === "istorija" ? (

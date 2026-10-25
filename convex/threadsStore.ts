@@ -1,10 +1,17 @@
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import {
+  oauthStanjeArgs,
+  potrosenoStanjeValidator,
+  potrosiOAuthStanje,
+  upisiOAuthStanje,
+} from "./lib/oauthPovratak";
 
 import type { Id } from "./_generated/dataModel";
 import { projekatQuery } from "./lib/projekat";
 import { connectionStatusValidator } from "./lib/providers";
+import { odbijAkoJeDrugde } from "./lib/vezaDrugde";
 import { beginPurgeRun, clearFinishedRuns } from "./purge";
 import { getThreadsAppId, getThreadsAppSecret } from "./lib/threadsApi";
 import { checkAndLogMediaType } from "./lib/threadsShared";
@@ -26,31 +33,10 @@ import { checkAndLogMediaType } from "./lib/threadsShared";
  * Takođe čisti zastarele nonces (>1h).
  */
 export const createOAuthState = internalMutation({
-  args: {
-    workspaceId: v.id("workspaces"),
-    userId: v.id("users"),
-    nonce: v.string(),
-    redirectUri: v.string(),
-  },
+  args: oauthStanjeArgs,
   returns: v.null(),
-  handler: async (ctx, { workspaceId, userId, nonce, redirectUri }) => {
-    const cutoff = Date.now() - 60 * 60 * 1000;
-    const stale = await ctx.db
-      .query("oauthStates")
-      .withIndex("by_createdAt", (q) => q.lt("createdAt", cutoff))
-      .collect();
-    for (const row of stale) {
-      await ctx.db.delete(row._id);
-    }
-
-    await ctx.db.insert("oauthStates", {
-      workspaceId,
-      userId,
-      provider: "threads",
-      nonce,
-      redirectUri,
-      createdAt: Date.now(),
-    });
+  handler: async (ctx, args) => {
+    await upisiOAuthStanje(ctx, { ...args, provider: "threads" });
     return null;
   },
 });
@@ -61,27 +47,8 @@ export const createOAuthState = internalMutation({
  */
 export const consumeOAuthState = internalMutation({
   args: { nonce: v.string() },
-  returns: v.union(
-    v.null(),
-    v.object({
-      workspaceId: v.id("workspaces"),
-      redirectUri: v.string(),
-      createdAt: v.number(),
-    }),
-  ),
-  handler: async (ctx, { nonce }) => {
-    const row = await ctx.db
-      .query("oauthStates")
-      .withIndex("by_nonce", (q) => q.eq("nonce", nonce))
-      .first();
-    if (row === null || row.provider !== "threads") return null;
-    await ctx.db.delete(row._id);
-    return {
-      workspaceId: row.workspaceId,
-      redirectUri: row.redirectUri,
-      createdAt: row.createdAt,
-    };
-  },
+  returns: v.union(v.null(), potrosenoStanjeValidator),
+  handler: async (ctx, { nonce }) => await potrosiOAuthStanje(ctx, nonce, "threads"),
 });
 
 // ── Konekcija ────────────────────────────────────────────────────────────────
@@ -104,6 +71,10 @@ export const saveConnectedCredentials = internalMutation({
     ctx,
     { workspaceId, userId, username, encryptedCredentials, expiresAt },
   ) => {
+    // E3: isti Threads nalog u dva projekta bi slao odgovore i spominjanja u
+    // prvi pronađeni projekat. Provera ide pre upisa, pa se token ne čuva.
+    await odbijAkoJeDrugde(ctx.db, "threads", [userId], workspaceId);
+
     const existing = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>

@@ -561,7 +561,7 @@ export function NewCampaignWizard() {
 
             <SectionCard
               title="Budžet"
-              desc="Dnevni budžet ide na ad set. Gornju granicu čuva META_ADS_MAX_DAILY_BUDGET i proverava se pri kreiranju."
+              desc="Dnevni budžet ide na ad set. Gornju granicu postavljaš u Podešavanjima → Sajt i oglasi i proverava se pri kreiranju."
             >
               <Field label={`Dnevni budžet${currency ? ` (${currency})` : ""}`} htmlFor="budget">
                 <div className="relative max-w-[220px]">

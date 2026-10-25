@@ -6,7 +6,6 @@ import {
   validateThreadsPlacement,
   isObjectiveAllowedForThreads,
   evaluateCreateBudgetGate,
-  getMetaAdsMaxDailyBudget,
   buildCampaignParams,
   buildAdSetParams,
   buildAdParams,
@@ -18,6 +17,7 @@ import {
   type CreateFetchImpl,
 } from "../convex/lib/metaAdsWrite";
 import { isKnownPlacement } from "../convex/lib/metaAdsApi";
+import { pozitivnaGranica } from "../convex/lib/podesavanjaPravila";
 
 // ── Fiksture ─────────────────────────────────────────────────────────────────
 
@@ -113,14 +113,14 @@ async function runTests() {
   const prevEnv = process.env.META_ADS_MAX_DAILY_BUDGET;
   delete process.env.META_ADS_MAX_DAILY_BUDGET;
   assert.strictEqual(
-    getMetaAdsMaxDailyBudget(),
+    pozitivnaGranica(process.env.META_ADS_MAX_DAILY_BUDGET),
     null,
-    "getMetaAdsMaxDailyBudget() mora vratiti null kada env nije postavljen",
+    "pozitivnaGranica() mora vratiti null kada env nije postavljen",
   );
   const gateUnset = evaluateCreateBudgetGate({
     accountCurrency: "EUR",
     limitCurrency: "EUR",
-    maxDailyBudget: getMetaAdsMaxDailyBudget(),
+    maxDailyBudget: pozitivnaGranica(process.env.META_ADS_MAX_DAILY_BUDGET),
     minBudget: 5,
     dailyBudget: 20,
   });
@@ -128,11 +128,23 @@ async function runTests() {
   assert.strictEqual(gateUnset.code, "max_budget_unset", "Kod mora biti max_budget_unset");
   // Prazan string i nevalidne vrednosti se takođe čitaju kao null.
   process.env.META_ADS_MAX_DAILY_BUDGET = "   ";
-  assert.strictEqual(getMetaAdsMaxDailyBudget(), null, "Prazan string → null");
+  assert.strictEqual(
+    pozitivnaGranica(process.env.META_ADS_MAX_DAILY_BUDGET),
+    null,
+    "Prazan string → null",
+  );
   process.env.META_ADS_MAX_DAILY_BUDGET = "0";
-  assert.strictEqual(getMetaAdsMaxDailyBudget(), null, "0 → null (odsustvo granice nije dozvola)");
+  assert.strictEqual(
+    pozitivnaGranica(process.env.META_ADS_MAX_DAILY_BUDGET),
+    null,
+    "0 → null (odsustvo granice nije dozvola)",
+  );
   process.env.META_ADS_MAX_DAILY_BUDGET = "50";
-  assert.strictEqual(getMetaAdsMaxDailyBudget(), 50, "Validna vrednost → broj");
+  assert.strictEqual(
+    pozitivnaGranica(process.env.META_ADS_MAX_DAILY_BUDGET),
+    50,
+    "Validna vrednost → broj",
+  );
   if (prevEnv === undefined) delete process.env.META_ADS_MAX_DAILY_BUDGET;
   else process.env.META_ADS_MAX_DAILY_BUDGET = prevEnv;
   console.log("  ✓ Nepostavljen/prazan/0 → null → blokirano; validan → broj");

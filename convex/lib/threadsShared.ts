@@ -13,8 +13,7 @@
 export const THREADS_API_BASE = "https://graph.threads.com";
 export const THREADS_AUTHORIZE_URL = "https://threads.com/oauth/authorize";
 export const THREADS_API_VERSION = "v1.0";
-export const THREADS_REDIRECT_URI =
-  "https://digital.enigmait.rs/api/auth/callback/threads";
+// `redirect_uri` gradi server iz OAUTH_CALLBACK_ORIGIN (`lib/oauthPovratak.ts`).
 
 /**
  * Svih 11 definisanih Threads API scope-ova (odeljak 3.4).
@@ -40,12 +39,12 @@ export type ThreadsScope = (typeof THREADS_SCOPES)[number];
  */
 export function buildThreadsAuthorizeUrl({
   clientId,
-  redirectUri = THREADS_REDIRECT_URI,
+  redirectUri,
   scopes = THREADS_SCOPES,
   state,
 }: {
   clientId: string;
-  redirectUri?: string;
+  redirectUri: string;
   scopes?: readonly string[];
   state: string;
 }): string {

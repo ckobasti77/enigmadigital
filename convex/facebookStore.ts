@@ -1,7 +1,14 @@
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+import {
+  oauthStanjeArgs,
+  potrosenoStanjeValidator,
+  potrosiOAuthStanje,
+  upisiOAuthStanje,
+} from "./lib/oauthPovratak";
 import { projekatQuery } from "./lib/projekat";
 import { connectionStatusValidator } from "./lib/providers";
+import { nalogPovezanDrugde, odbijAkoJeDrugde } from "./lib/vezaDrugde";
 import { getFacebookAppSecret } from "./lib/facebookApi";
 import { hasSignatureSecret } from "./lib/webhookSecrets";
 
@@ -58,31 +65,10 @@ export const pagePostRowValidator = v.object({
  * stale nonces (>1h) so abandoned attempts never accumulate.
  */
 export const createOAuthState = internalMutation({
-  args: {
-    workspaceId: v.id("workspaces"),
-    userId: v.id("users"),
-    nonce: v.string(),
-    redirectUri: v.string(),
-  },
+  args: oauthStanjeArgs,
   returns: v.null(),
-  handler: async (ctx, { workspaceId, userId, nonce, redirectUri }) => {
-    const cutoff = Date.now() - 60 * 60 * 1000;
-    const stale = await ctx.db
-      .query("oauthStates")
-      .filter((q) => q.lt(q.field("createdAt"), cutoff))
-      .collect();
-    for (const row of stale) {
-      await ctx.db.delete(row._id);
-    }
-
-    await ctx.db.insert("oauthStates", {
-      workspaceId,
-      userId,
-      provider: "meta_fb",
-      nonce,
-      redirectUri,
-      createdAt: Date.now(),
-    });
+  handler: async (ctx, args) => {
+    await upisiOAuthStanje(ctx, { ...args, provider: "meta_fb" });
     return null;
   },
 });
@@ -93,27 +79,8 @@ export const createOAuthState = internalMutation({
  */
 export const consumeOAuthState = internalMutation({
   args: { nonce: v.string() },
-  returns: v.union(
-    v.null(),
-    v.object({
-      workspaceId: v.id("workspaces"),
-      redirectUri: v.string(),
-      createdAt: v.number(),
-    }),
-  ),
-  handler: async (ctx, { nonce }) => {
-    const row = await ctx.db
-      .query("oauthStates")
-      .withIndex("by_nonce", (q) => q.eq("nonce", nonce))
-      .first();
-    if (row === null || row.provider !== "meta_fb") return null;
-    await ctx.db.delete(row._id);
-    return {
-      workspaceId: row.workspaceId,
-      redirectUri: row.redirectUri,
-      createdAt: row.createdAt,
-    };
-  },
+  returns: v.union(v.null(), potrosenoStanjeValidator),
+  handler: async (ctx, { nonce }) => await potrosiOAuthStanje(ctx, nonce, "meta_fb"),
 });
 
 // ── Connection ───────────────────────────────────────────────────────────────
@@ -137,6 +104,10 @@ export const saveConnectedCredentials = internalMutation({
   },
   returns: v.id("connections"),
   handler: async (ctx, args) => {
+    // E3: ista stranica u dva projekta bi slala komentare u prvi pronađeni
+    // projekat. Provera ide pre upisa i pre pretplate na webhook.
+    await odbijAkoJeDrugde(ctx.db, "meta_fb", [args.pageId], args.workspaceId);
+
     const existing = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>
@@ -198,6 +169,10 @@ export const saveSystemUserPageCredentials = internalMutation({
   },
   returns: v.id("connections"),
   handler: async (ctx, args) => {
+    // E3: ista stranica u dva projekta bi slala komentare u prvi pronađeni
+    // projekat. Provera ide pre upisa i pre pretplate na webhook.
+    await odbijAkoJeDrugde(ctx.db, "meta_fb", [args.pageId], args.workspaceId);
+
     const existing = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>
@@ -268,6 +243,23 @@ export const updateTokenExpiry = internalMutation({
 });
 
 /** The connected Page's id, for a sync action that already has the row. */
+/**
+ * Stranice sa spiska koje su već povezane u drugom projektu (E3). OAuth tok
+ * povezuje prvu stranicu koja NIJE tuđa: isti Facebook nalog često
+ * administrira stranice više projekata.
+ */
+export const straniceDrugde = internalQuery({
+  args: { workspaceId: v.id("workspaces"), pageIds: v.array(v.string()) },
+  returns: v.array(v.string()),
+  handler: async (ctx, { workspaceId, pageIds }) => {
+    const tudje: string[] = [];
+    for (const id of pageIds) {
+      if (await nalogPovezanDrugde(ctx.db, "meta_fb", [id], workspaceId)) tudje.push(id);
+    }
+    return tudje;
+  },
+});
+
 export const getConnection = internalQuery({
   args: { workspaceId: v.id("workspaces") },
   returns: v.union(

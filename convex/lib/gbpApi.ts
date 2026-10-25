@@ -35,9 +35,7 @@ export const GBP_PERFORMANCE_API =
 
 export const GBP_LEGACY_V4 = "https://mybusiness.googleapis.com/v4";
 
-/** Podrazumevani callback URI za Google Business OAuth. */
-export const GBP_DEFAULT_REDIRECT_URI =
-  "https://digital.enigmait.rs/api/auth/callback/google-business";
+// `redirect_uri` gradi server iz OAUTH_CALLBACK_ORIGIN (`lib/oauthPovratak.ts`).
 
 /** Jedinstveni opseg za sve servise Google Business Profile integracije. */
 export const GBP_OAUTH_SCOPES = [
@@ -305,11 +303,11 @@ export function getGbpClientSecret(): string | undefined {
  */
 export function buildGbpAuthorizeUrl({
   clientId,
-  redirectUri = GBP_DEFAULT_REDIRECT_URI,
+  redirectUri,
   state,
 }: {
   clientId: string;
-  redirectUri?: string;
+  redirectUri: string;
   state: string;
 }): string {
   const url = new URL(GBP_OAUTH_AUTH_URL);

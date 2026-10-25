@@ -139,8 +139,8 @@ describe("Threads nalog, statistika i levak", () => {
 
   test("povezivanje naloga: B odbijen, urednik odbijen, OAuth stanje ne nastaje", async () => {
     const s = await napraviSvet();
-    await akcijeNadBOdbijene(s, [[api.threads.threadsAuthorizeUrl, {}]]);
-    await urednikNePokrece(s, [[api.threads.threadsAuthorizeUrl, {}]]);
+    await akcijeNadBOdbijene(s, [[api.threads.threadsAuthorizeUrl, { povratakOrigin: "https://x.test" }]]);
+    await urednikNePokrece(s, [[api.threads.threadsAuthorizeUrl, { povratakOrigin: "https://x.test" }]]);
     const stanja = await s.t.run(async (ctx) => ctx.db.query("oauthStates").collect());
     expect(stanja).toEqual([]);
   });
@@ -431,8 +431,8 @@ describe("YouTube nalog i statistika", () => {
 
   test("povezivanje kanala: B odbijen, urednik odbijen, OAuth stanje ne nastaje", async () => {
     const s = await napraviSvet();
-    await akcijeNadBOdbijene(s, [[api.youtube.youtubeAuthorizeUrl, {}]]);
-    await urednikNePokrece(s, [[api.youtube.youtubeAuthorizeUrl, {}]]);
+    await akcijeNadBOdbijene(s, [[api.youtube.youtubeAuthorizeUrl, { povratakOrigin: "https://x.test" }]]);
+    await urednikNePokrece(s, [[api.youtube.youtubeAuthorizeUrl, { povratakOrigin: "https://x.test" }]]);
     const stanja = await s.t.run(async (ctx) => ctx.db.query("oauthStates").collect());
     expect(stanja).toEqual([]);
   });

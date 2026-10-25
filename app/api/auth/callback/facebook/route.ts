@@ -3,6 +3,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import { resolveServerConvexUrl } from "@/lib/server-convex-url";
+import { ciljPosleRazmene, ciljPovratka } from "../_lib/povratak";
 
 /**
  * Next.js Route Handler for the Facebook Login for Business redirect (F5).
@@ -25,7 +26,10 @@ export async function GET(request: NextRequest) {
   const errorReason = searchParams.get("error_reason");
   const errorDescription = searchParams.get("error_description");
 
-  const settingsUrl = new URL("/settings", request.nextUrl.origin);
+  // Odredište je panel sa kog je povezivanje krenulo (iz `state`-a, proveren
+  // na serveru); bez njega `/settings` ove adrese.
+  const resolved = resolveServerConvexUrl();
+  const settingsUrl = await ciljPovratka(request, state, resolved.ok ? resolved.url : null);
 
   if (error) {
     settingsUrl.searchParams.set("fb_error", errorDescription || error);
@@ -39,7 +43,6 @@ export async function GET(request: NextRequest) {
   // Ova ruta je do 25.08.2026 čitala SAMO `NEXT_PUBLIC_CONVEX_URL`, koju Next
   // ubacuje pri build-u i koja u Route Handler-u na Vercelu ume da bude
   // `undefined` — tada bi ruta tvrdila da Facebook nije vratio kod, iako jeste.
-  const resolved = resolveServerConvexUrl();
   if (!resolved.ok) {
     console.error("[Facebook OAuth callback]", resolved.logDetail);
     settingsUrl.searchParams.set("fb_error", resolved.reason);
@@ -64,16 +67,17 @@ export async function GET(request: NextRequest) {
       state,
       code,
     });
-    settingsUrl.searchParams.set("fb_connected", "1");
+    const cilj = ciljPosleRazmene(result.povratak, settingsUrl);
+    cilj.searchParams.set("fb_connected", "1");
     if (result.pageName) {
-      settingsUrl.searchParams.set("fb_page", result.pageName);
+      cilj.searchParams.set("fb_page", result.pageName);
     }
     // More than one Page means the picker is not decoration — Settings opens
     // it straight away instead of leaving the operator to find it.
     if (result.pageCount > 1) {
-      settingsUrl.searchParams.set("fb_pick", "1");
+      cilj.searchParams.set("fb_pick", "1");
     }
-    return NextResponse.redirect(settingsUrl);
+    return NextResponse.redirect(cilj);
   } catch (err) {
     let message = "Povezivanje Facebook stranice nije uspelo.";
     if (err instanceof ConvexError) {

@@ -165,8 +165,8 @@ describe("Instagram nalog i sadržaj", () => {
   ];
   const VLASNIK: Akcija[] = [
     [api.instagram.getOAuthConfig, {}],
-    [api.instagram.getOAuthUrl, { redirectUri: "https://x.test/cb" }],
-    [api.instagram.completeOAuth, { code: "c", redirectUri: "https://x.test/cb" }],
+    [api.instagram.getOAuthUrl, { povratakOrigin: "https://x.test" }],
+    [api.instagram.completeOAuth, { code: "c" }],
   ];
 
   test("član A ne čita B i ne povezuje nalog u B", async () => {
@@ -386,7 +386,7 @@ describe("Facebook", () => {
     [api.fbCommentsStore.filterCounts, {}],
   ];
   const VLASNIK: Akcija[] = [
-    [api.facebook.getOAuthUrl, { redirectUri: "https://x.test/cb" }],
+    [api.facebook.getOAuthUrl, { povratakOrigin: "https://x.test" }],
     [api.facebook.listPages, {}],
     [api.facebook.selectPage, { pageId: "123" }],
     [api.facebook.connectWithSystemUserToken, { systemUserToken: "t".repeat(20), pageId: "123" }],

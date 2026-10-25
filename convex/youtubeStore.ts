@@ -1,7 +1,14 @@
 import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import {
+  oauthStanjeArgs,
+  potrosenoStanjeValidator,
+  potrosiOAuthStanje,
+  upisiOAuthStanje,
+} from "./lib/oauthPovratak";
 import { projekatQuery } from "./lib/projekat";
 import { clearFinishedRuns } from "./purge";
+import { upozorenjeAkoJeDrugde } from "./lib/vezaDrugde";
 import { getYouTubeClientId, getYouTubeClientSecret } from "./lib/youtubeApi";
 
 
@@ -300,31 +307,10 @@ export const trafficSources = projekatQuery({
  * Sweeps stale nonces (>1h) so abandoned attempts never accumulate.
  */
 export const createOAuthState = internalMutation({
-  args: {
-    workspaceId: v.id("workspaces"),
-    userId: v.id("users"),
-    nonce: v.string(),
-    redirectUri: v.string(),
-  },
+  args: oauthStanjeArgs,
   returns: v.null(),
-  handler: async (ctx, { workspaceId, userId, nonce, redirectUri }) => {
-    const cutoff = Date.now() - 60 * 60 * 1000;
-    const stale = await ctx.db
-      .query("oauthStates")
-      .withIndex("by_createdAt", (q) => q.lt("createdAt", cutoff))
-      .collect();
-    for (const row of stale) {
-      await ctx.db.delete(row._id);
-    }
-
-    await ctx.db.insert("oauthStates", {
-      workspaceId,
-      userId,
-      provider: "youtube",
-      nonce,
-      redirectUri,
-      createdAt: Date.now(),
-    });
+  handler: async (ctx, args) => {
+    await upisiOAuthStanje(ctx, { ...args, provider: "youtube" });
     return null;
   },
 });
@@ -336,27 +322,8 @@ export const createOAuthState = internalMutation({
  */
 export const consumeOAuthState = internalMutation({
   args: { nonce: v.string() },
-  returns: v.union(
-    v.null(),
-    v.object({
-      workspaceId: v.id("workspaces"),
-      redirectUri: v.string(),
-      createdAt: v.number(),
-    }),
-  ),
-  handler: async (ctx, { nonce }) => {
-    const row = await ctx.db
-      .query("oauthStates")
-      .withIndex("by_nonce", (q) => q.eq("nonce", nonce))
-      .first();
-    if (row === null || row.provider !== "youtube") return null;
-    await ctx.db.delete(row._id);
-    return {
-      workspaceId: row.workspaceId,
-      redirectUri: row.redirectUri,
-      createdAt: row.createdAt,
-    };
-  },
+  returns: v.union(v.null(), potrosenoStanjeValidator),
+  handler: async (ctx, { nonce }) => await potrosiOAuthStanje(ctx, nonce, "youtube"),
 });
 
 /**
@@ -369,11 +336,16 @@ export const saveConnectedCredentials = internalMutation({
     channelTitle: v.optional(v.string()),
     encryptedCredentials: v.string(),
   },
-  returns: v.id("connections"),
+  returns: v.object({
+    connectionId: v.id("connections"),
+    /** E3: isti kanal je povezan i u drugom projektu (veza se ipak upisuje). */
+    upozorenje: v.union(v.string(), v.null()),
+  }),
   handler: async (
     ctx,
     { workspaceId, channelId, channelTitle, encryptedCredentials },
   ) => {
+    const upozorenje = await upozorenjeAkoJeDrugde(ctx.db, "youtube", [channelId], workspaceId);
     const existing = await ctx.db
       .query("connections")
       .withIndex("by_workspace_provider", (q) =>
@@ -396,15 +368,16 @@ export const saveConnectedCredentials = internalMutation({
         // A fresh grant invalidates any in-flight purge of the old one (R1/4c).
         generation: (existing.generation ?? 0) + 1,
       });
-      return existing._id;
+      return { connectionId: existing._id, upozorenje };
     }
 
-    return await ctx.db.insert("connections", {
+    const connectionId = await ctx.db.insert("connections", {
       workspaceId,
       provider: "youtube",
       ...patch,
       generation: 1,
     });
+    return { connectionId, upozorenje };
   },
 });
 

@@ -23,6 +23,19 @@ import {
 } from "./lib/metaAdsQuota";
 
 import { normalizeCustomerId } from "./lib/googleAdsShared";
+import {
+  ODBIJA_DRUGDE,
+  odbijAkoJeDrugde,
+  upozorenjeAkoJeDrugde,
+} from "./lib/vezaDrugde";
+
+/** Kanali bez webhook-a: isti nalog u dva projekta daje samo upozorenje (E3). */
+const UPOZORAVA_DRUGDE: ReadonlySet<Provider> = new Set<Provider>([
+  "youtube",
+  "meta_ads",
+  "google_ads",
+  "ga4",
+]);
 
 // ── credential validation (runs BEFORE encryption; never echoes the secret) ──
 
@@ -213,6 +226,11 @@ export const save = projekatMutation({
     externalIdAlt: v.optional(v.string()),
     secret: v.string(),
   },
+  returns: v.object({
+    connectionId: v.id("connections"),
+    /** E3: isti nalog je povezan i u drugom projektu (veza se ipak upisuje). */
+    upozorenje: v.union(v.string(), v.null()),
+  }),
   handler: async (ctx, { provider, externalId, externalIdAlt, secret }) => {
     const { workspaceId } = ctx.projekat;
 
@@ -223,6 +241,20 @@ export const save = projekatMutation({
       trimmedSecret,
       externalIdAlt,
     );
+
+    // E3: kanali sa webhook-om odbijaju nalog koji je već u drugom projektu;
+    // ostali ga upisuju uz upozorenje. Pre šifrovanja i upisa.
+    if (ODBIJA_DRUGDE.has(provider)) {
+      await odbijAkoJeDrugde(
+        ctx.db,
+        provider,
+        [validated.externalId, validated.externalIdAlt],
+        workspaceId,
+      );
+    }
+    const upozorenje = UPOZORAVA_DRUGDE.has(provider)
+      ? await upozorenjeAkoJeDrugde(ctx.db, provider, [validated.externalId], workspaceId)
+      : null;
 
     const encryptedCredentials = await encryptCredentials(trimmedSecret);
 
@@ -254,10 +286,10 @@ export const save = projekatMutation({
           ? { externalIdAlt: validated.externalIdAlt }
           : {}),
       });
-      return existing._id;
+      return { connectionId: existing._id, upozorenje };
     }
 
-    return await ctx.db.insert("connections", {
+    const connectionId = await ctx.db.insert("connections", {
       workspaceId,
       provider,
       encryptedCredentials,
@@ -270,6 +302,7 @@ export const save = projekatMutation({
         ? { externalIdAlt: validated.externalIdAlt }
         : {}),
     });
+    return { connectionId, upozorenje };
   },
 });
 

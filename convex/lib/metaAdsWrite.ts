@@ -541,26 +541,19 @@ export function validateThreadsPlacement(
 // ── Kapija budžeta za NOVE kampanje ─────────────────────────────────────────
 
 /**
- * Gornja granica dnevnog budžeta za nove kampanje, u valuti granice
- * (BUDGET_LIMIT_CURRENCY). `null` znači da granica NIJE postavljena — a
- * odsustvo granice nije dozvola: kapija tada blokira kreiranje.
+ * Granice dolaze iz Podešavanja projekta (`graniceBudzeta` u
+ * `lib/podesavanja.ts`; env samo za osnivački projekat). Gornja granica
+ * `null` znači da NIJE postavljena — a odsustvo granice nije dozvola: kapija
+ * tada blokira kreiranje.
  */
-export function getMetaAdsMaxDailyBudget(): number | null {
-  const raw = process.env.META_ADS_MAX_DAILY_BUDGET;
-  if (raw === undefined || raw.trim() === "") return null;
-  const val = parseFloat(raw);
-  if (!Number.isFinite(val) || val <= 0) return null;
-  return val;
-}
-
 export interface CreateBudgetGateInput {
   /** Valuta izabranog naloga; "" kada nije poznata. */
   accountCurrency: string;
-  /** Valuta u kojoj je izražena granica (BUDGET_LIMIT_CURRENCY). */
+  /** Valuta u kojoj je izražena granica (valuta granice iz podešavanja projekta). */
   limitCurrency: string;
-  /** Gornja granica; `null` kada META_ADS_MAX_DAILY_BUDGET nije postavljen. */
+  /** Gornja granica dnevnog budžeta nove kampanje; `null` kada nije podešena u projektu. */
   maxDailyBudget: number | null;
-  /** Donja granica (BUDGET_MIN). */
+  /** Donja granica iz podešavanja projekta. */
   minBudget: number;
   /** Dnevni budžet ad seta u valuti naloga. */
   dailyBudget: number;
@@ -608,7 +601,7 @@ export function evaluateCreateBudgetGate(
       ok: false,
       code: "max_budget_unset",
       message:
-        "Kreiranje kampanja je isključeno jer META_ADS_MAX_DAILY_BUDGET nije postavljen. Odsustvo granice nije dozvola — postavi gornju granicu dnevnog budžeta.",
+        "Kreiranje kampanja je isključeno jer gornja granica nije podešena u Podešavanjima projekta. Odsustvo granice nije dozvola — postavi gornju granicu dnevnog budžeta.",
     };
   }
   if (!Number.isFinite(input.dailyBudget) || input.dailyBudget <= 0) {
@@ -622,14 +615,14 @@ export function evaluateCreateBudgetGate(
     return {
       ok: false,
       code: "below_min",
-      message: `Dnevni budžet (${input.dailyBudget} ${accountCurrency}) je ispod minimuma od ${input.minBudget} ${accountCurrency} (BUDGET_MIN).`,
+      message: `Dnevni budžet (${input.dailyBudget} ${accountCurrency}) je ispod minimuma od ${input.minBudget} ${accountCurrency} (granica iz podešavanja projekta).`,
     };
   }
   if (input.dailyBudget > input.maxDailyBudget) {
     return {
       ok: false,
       code: "budget_over_limit",
-      message: `Dnevni budžet (${input.dailyBudget} ${accountCurrency}) prelazi granicu od ${input.maxDailyBudget} ${limitCurrency} (META_ADS_MAX_DAILY_BUDGET).`,
+      message: `Dnevni budžet (${input.dailyBudget} ${accountCurrency}) prelazi granicu od ${input.maxDailyBudget} ${limitCurrency} (granica iz podešavanja projekta).`,
     };
   }
   return { ok: true };

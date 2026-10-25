@@ -1,5 +1,3 @@
-import { shortLinkOrigin } from "./orLink";
-
 /**
  * ============================================================================
  * THREADS & OPENREPLY URL NORMALIZATION & DOMAIN VALIDATION (TH10)
@@ -13,36 +11,32 @@ import { shortLinkOrigin } from "./orLink";
  * ============================================================================
  */
 
-/** Podrazumevani domeni našeg projekta */
-const DEFAULT_CONTROLLED_DOMAINS = [
-  "enigmait.rs",
-  "digital.enigmait.rs",
-  "localhost",
-  "127.0.0.1",
-];
+/** Lokalni razvoj se uvek prati; domeni sajta su podatak projekta. */
+const DEFAULT_CONTROLLED_DOMAINS = ["localhost", "127.0.0.1"];
 
 /**
- * Vraća listu svih kontrolisanih domena (uključujući one iz env konfiguracije).
+ * Domeni koje projekat kontroliše: praćeni sajtovi projekta i domen kratkih
+ * linkova (iz `podesavanjaProjekta`, pa osnivački projekat bez svojih
+ * podešavanja nasleđuje env, a drugi projekat nikad tuđe domene).
  */
-export function getControlledDomains(): string[] {
+export function getControlledDomains(p: {
+  sajtovi: readonly string[] | null;
+  kratkiLinkoviBaza: string | null;
+}): string[] {
   const domains = new Set<string>(DEFAULT_CONTROLLED_DOMAINS);
 
-  const origin = shortLinkOrigin();
-  if (origin) {
+  if (p.kratkiLinkoviBaza) {
     try {
-      const parsed = new URL(origin);
+      const parsed = new URL(p.kratkiLinkoviBaza);
       domains.add(parsed.hostname.toLowerCase().replace(/^www\./, ""));
     } catch {
       // Ignoriši neispravan origin
     }
   }
 
-  const extra = process.env.TRACKED_DOMAINS;
-  if (extra) {
-    for (const d of extra.split(",")) {
-      const clean = d.trim().toLowerCase().replace(/^www\./, "");
-      if (clean) domains.add(clean);
-    }
+  for (const d of p.sajtovi ?? []) {
+    const clean = d.trim().toLowerCase().replace(/^www\./, "");
+    if (clean) domains.add(clean);
   }
 
   return Array.from(domains);
@@ -54,7 +48,10 @@ export function getControlledDomains(): string[] {
  * VAŽNO: Ako je URL već kratki `/r/` link (npr. `digital.enigmait.rs/r/slug`),
  * vraća `false` kako se ne bi dvostruko pakovao u novi `/r/` link!
  */
-export function isControlledDomain(rawUrl?: string): boolean {
+export function isControlledDomain(
+  rawUrl: string | undefined,
+  controlled: readonly string[],
+): boolean {
   if (!rawUrl) return false;
 
   let parsed: URL;
@@ -77,7 +74,6 @@ export function isControlledDomain(rawUrl?: string): boolean {
   }
 
   const hostname = parsed.hostname.toLowerCase().replace(/^www\./, "");
-  const controlled = getControlledDomains();
 
   return controlled.some((domain) => {
     return hostname === domain || hostname.endsWith(`.${domain}`);

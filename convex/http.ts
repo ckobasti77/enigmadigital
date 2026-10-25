@@ -9,9 +9,9 @@ import {
   appendUtm,
   appendEventId,
   isBotUserAgent,
-  shortLinkOrigin,
 } from "./lib/orLink";
 import { decryptCredentials } from "./lib/crypto";
+import { podesavanjaZaAkciju, procitajTajnu } from "./lib/podesavanjaAkcija";
 import {
   allowsBackground,
   createUsageTracker,
@@ -1781,38 +1781,36 @@ http.route({
 // ── Novosti On-Demand ISR Revalidation (§9) ───────────────────────────────────
 
 /**
- * Poziva Next.js ISR revalidate rutu na `https://enigmait.rs/api/revalidate`.
+ * Poziva Next.js ISR revalidate rutu sajta projekta (`podesavanja.novostiRevalidateUrl`).
  *
- * Tajna `NOVOSTI_REVALIDATE_SECRET` ide isključivo u zaglavlje `x-revalidate-secret`
- * (nikada u URL, query string ili logove).
+ * Adresa i tajna su podešavanja projekta (Podešavanja → Sajt i oglasi); samo
+ * osnivački projekat bez svojih vrednosti nasleđuje env. Tajna ide isključivo u
+ * zaglavlje `x-revalidate-secret` (nikada u URL, query string ili logove).
  *
  * Poziva se asinhrono preko Convex schedulera iz `postsStore.ts` nakon
  * objavljivanja (`publish`), povlačenja (`unpublish`) i ažuriranja objavljenog posta (`updateDraft`).
  */
-const REVALIDATE_ENDPOINT =
-  process.env.NOVOSTI_REVALIDATE_URL?.trim() ||
-  "https://www.enigmait.rs/api/revalidate";
-
 export const revalidatePost = internalAction({
   args: {
+    workspaceId: v.id("workspaces"),
     slug: v.string(),
   },
-  handler: async (_ctx, args) => {
-    const secret = process.env.NOVOSTI_REVALIDATE_SECRET?.trim();
-    if (!secret) {
-      console.error(
-        "Osvežavanje novosti nije konfigurisano: NOVOSTI_REVALIDATE_SECRET nije postavljen.",
-      );
+  handler: async (ctx, args) => {
+    const endpoint = (await podesavanjaZaAkciju(ctx, args.workspaceId)).novostiRevalidateUrl
+      .vrednost;
+    const secret = await procitajTajnu(ctx, args.workspaceId, "novosti_revalidate_secret");
+    if (!endpoint || !secret) {
+      console.info("Osvežavanje novosti nije podešeno za ovaj projekat.");
       return;
     }
 
     const path = `/novosti/${args.slug}`;
     try {
-      // Direktno na www, NE na apex. `https://enigmait.rs` vraća 308 na www,
-      // a oslanjanje na to da `fetch` prenese zaglavlje `x-revalidate-secret`
-      // kroz preusmerenje na DRUGI host nije garantovano. Bez zaglavlja ruta
-      // vraća 401 i osvežavanje tiho prestane da radi.
-      const response = await fetch(REVALIDATE_ENDPOINT, {
+      // Adresa treba da bude tačan host (npr. sa www), NE adresa koja
+      // preusmerava: oslanjanje na to da `fetch` prenese zaglavlje
+      // `x-revalidate-secret` kroz preusmerenje na DRUGI host nije
+      // garantovano. Bez zaglavlja ruta vraća 401 i osvežavanje tiho prestane.
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1860,14 +1858,23 @@ function ingestOdgovor(telo: unknown, status: number): Response {
 }
 
 /**
- * Adresa aplikacije za link koji se vraća skillu.
- *
- * Namerno ista funkcija koju koriste `/r/` linkovi: `*.convex.site` u
- * terminalu je tačan, ali vodi na Convex, ne na ekran za pregled uvoza.
+ * Adresa ekrana za pregled uvoza, za link koji se vraća skillu: panel domen
+ * projekta, hub, ili (samo osnivački projekat) env (`adresaPanela`). Bez
+ * adrese odgovor ide bez linka; `*.convex.site` bi vodio na Convex, ne na ekran.
  */
-function ingestPregledUrl(importId: string): string {
-  const origin = shortLinkOrigin() ?? "https://digital.enigmait.rs";
-  return `${origin}/leadovi/uvoz?import=${importId}`;
+async function ingestPregledUrl(
+  ctx: ActionCtx,
+  workspaceId: Id<"workspaces">,
+  importId: string,
+): Promise<string | null> {
+  const panel: string | null = await ctx.runQuery(internal.podesavanjaStore.adresaPanela, {
+    workspaceId,
+  });
+  if (panel === null) {
+    console.info("[generate-leads] Adresa panela projekta nije podešena; odgovor ide bez linka.");
+    return null;
+  }
+  return `${panel}/leadovi/uvoz?import=${importId}`;
 }
 
 http.route({
@@ -2062,7 +2069,7 @@ http.route({
       {
         importId: rezultat.importId,
         rowsCount: rezultat.rowsCount,
-        url: ingestPregledUrl(rezultat.importId),
+        url: await ingestPregledUrl(ctx, tokenRow.workspaceId, rezultat.importId),
       },
       200,
     );

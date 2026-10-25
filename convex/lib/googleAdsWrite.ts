@@ -12,7 +12,7 @@
  *   2. Sve se kreira `PAUSED` — builderi hardkoduju status; nema parametra da bude drugačije.
  *   3. Atomičan mutate sa privremenim ID-jevima (`customers/{id}/campaignBudgets/-1`,
  *      `campaigns/-2`, `adGroups/-3`, `adGroupAds/-4`) sa `partialFailure: false`.
- *   4. Ograda budžeta (`GOOGLE_ADS_MAX_DAILY_BUDGET` i `BUDGET_LIMIT_CURRENCY`)
+ *   4. Ograda budžeta (gornja granica, minimum i valuta iz Podešavanja projekta)
  *      sa porukom potvrde o potrošnji do 2x dnevno i do 30.4x mesečno.
  *   5. Video kampanje su READ-ONLY u API-ju — kreiranje i izmena se strogo odbijaju.
  * ============================================================================
@@ -265,26 +265,19 @@ export function validateGoogleAdsFullCreateInput(
 // ── Kapija budžeta za Google Ads kampanje ────────────────────────────────────
 
 /**
- * Gornja granica dnevnog budžeta za nove Google Ads kampanje, u valuti granice
- * (BUDGET_LIMIT_CURRENCY). `null` znači da granica NIJE postavljena — a
- * odsustvo granice nije dozvola: kapija tada blokira kreiranje.
+ * Granice dolaze iz Podešavanja projekta (`graniceBudzeta` u
+ * `lib/podesavanja.ts`; env samo za osnivački projekat). Gornja granica
+ * `null` znači da NIJE postavljena — a odsustvo granice nije dozvola: kapija
+ * tada blokira kreiranje.
  */
-export function getGoogleAdsMaxDailyBudget(): number | null {
-  const raw = process.env.GOOGLE_ADS_MAX_DAILY_BUDGET;
-  if (raw === undefined || raw.trim() === "") return null;
-  const val = parseFloat(raw);
-  if (!Number.isFinite(val) || val <= 0) return null;
-  return val;
-}
-
 export interface GoogleAdsBudgetGateInput {
   /** Valuta izabranog naloga; "" kada nije poznata. */
   accountCurrency: string;
-  /** Valuta u kojoj je izražena granica (BUDGET_LIMIT_CURRENCY). */
+  /** Valuta u kojoj je izražena granica (valuta granice iz podešavanja projekta). */
   limitCurrency: string;
-  /** Gornja granica; `null` kada GOOGLE_ADS_MAX_DAILY_BUDGET nije postavljen. */
+  /** Gornja granica dnevnog budžeta nove kampanje; `null` kada nije podešena u projektu. */
   maxDailyBudget: number | null;
-  /** Donja granica (BUDGET_MIN). */
+  /** Donja granica iz podešavanja projekta. */
   minBudget: number;
   /** Dnevni budžet u valuti naloga (jedinice, ne mikrosi). */
   dailyBudget: number;
@@ -320,7 +313,7 @@ export function formatGoogleAdsBudgetConfirmation(
  *
  * Pravila (B4):
  *   - Valuta naloga mora biti poznata; nepoznata valuta BLOKIRA.
- *   - Valuta naloga mora da se poklopi sa valutom granice (BUDGET_LIMIT_CURRENCY); nepoklapanje BLOKIRA.
+ *   - Valuta naloga mora da se poklopi sa valutom granice iz podešavanja projekta; nepoklapanje BLOKIRA.
  *   - Poređenje se vrši u jedinicama valute, nikada u mikrosima.
  *   - Odsustvo granice (maxDailyBudget === null) BLOKIRA.
  *   - Poruka potvrde OBAVEZNO sadrži upozorenje o 2x i × 30.4.
@@ -351,7 +344,7 @@ export function evaluateGoogleAdsBudgetGate(
       ok: false,
       code: "max_budget_unset",
       message:
-        "Kreiranje kampanja je isključeno jer GOOGLE_ADS_MAX_DAILY_BUDGET nije postavljen. Odsustvo granice nije dozvola — postavi gornju granicu dnevnog budžeta.",
+        "Kreiranje kampanja je isključeno jer gornja granica nije podešena u Podešavanjima projekta. Odsustvo granice nije dozvola — postavi gornju granicu dnevnog budžeta.",
     };
   }
   if (!Number.isFinite(input.dailyBudget) || input.dailyBudget <= 0) {
@@ -365,14 +358,14 @@ export function evaluateGoogleAdsBudgetGate(
     return {
       ok: false,
       code: "below_min",
-      message: `Dnevni budžet (${input.dailyBudget} ${accountCurrency}) je ispod minimuma od ${input.minBudget} ${accountCurrency} (BUDGET_MIN).`,
+      message: `Dnevni budžet (${input.dailyBudget} ${accountCurrency}) je ispod minimuma od ${input.minBudget} ${accountCurrency} (granica iz podešavanja projekta).`,
     };
   }
   if (input.dailyBudget > input.maxDailyBudget) {
     return {
       ok: false,
       code: "budget_over_limit",
-      message: `Dnevni budžet (${input.dailyBudget} ${accountCurrency}) prelazi granicu od ${input.maxDailyBudget} ${limitCurrency} (GOOGLE_ADS_MAX_DAILY_BUDGET).`,
+      message: `Dnevni budžet (${input.dailyBudget} ${accountCurrency}) prelazi granicu od ${input.maxDailyBudget} ${limitCurrency} (granica iz podešavanja projekta).`,
     };
   }
 

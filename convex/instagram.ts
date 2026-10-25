@@ -6,6 +6,7 @@ import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { projekatAction } from "./lib/projekat";
+import { OAUTH_STATE_TTL_MS, redirectUriZa } from "./lib/oauthPovratak";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import { runSync, sanitizeSyncError } from "./lib/runSync";
 import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
@@ -285,16 +286,19 @@ export const getOAuthConfig = projekatAction({
  * Generate Instagram Business Login URL for starting OAuth from the client.
  *
  * Requires an authenticated workspace member: a one-time `state` nonce is
- * persisted (workspace + redirectUri) so the PUBLIC callback route can finish
- * the token exchange server-side, with no dependency on the browser session.
+ * persisted (workspace + redirectUri + checked return address) so the PUBLIC
+ * callback route can finish the token exchange server-side, with no
+ * dependency on the browser session. The redirect URI is built by the server
+ * from OAUTH_CALLBACK_ORIGIN; the client sends only its own origin (P6).
  */
 export const getOAuthUrl = projekatAction({
   uloga: "owner",
   args: {
-    redirectUri: v.string(),
+    povratakOrigin: v.string(),
     state: v.optional(v.string()), // ignored; kept for signature compatibility
   },
-  handler: async (ctx, { redirectUri }): Promise<{ url: string }> => {
+  handler: async (ctx, { povratakOrigin }): Promise<{ url: string }> => {
+    const redirectUri = redirectUriZa("meta_ig");
     const clientId = process.env.INSTAGRAM_APP_ID?.trim();
     if (!clientId) {
       throw new ConvexError({
@@ -310,6 +314,7 @@ export const getOAuthUrl = projekatAction({
       userId,
       nonce,
       redirectUri,
+      povratakOrigin,
     });
 
     const url = buildInstagramAuthorizeUrl({
@@ -508,18 +513,15 @@ export const completeOAuth = projekatAction({
   uloga: "owner",
   args: {
     code: v.string(),
-    redirectUri: v.string(),
   },
-  handler: async (ctx, { code, redirectUri }): Promise<OAuthResult> => {
+  handler: async (ctx, { code }): Promise<OAuthResult> => {
     return exchangeCodeAndConnect(ctx, {
       workspaceId: ctx.projekat.workspaceId,
       code,
-      redirectUri,
+      redirectUri: redirectUriZa("meta_ig"),
     });
   },
 });
-
-const OAUTH_STATE_TTL_MS = 15 * 60 * 1000; // authorize -> callback within 15 min
 
 /**
  * Complete OAuth from the PUBLIC callback route (no browser session needed).
@@ -534,11 +536,15 @@ export const completeOAuthFromCallback = action({
     state: v.string(),
     code: v.string(),
   },
-  handler: async (ctx, { state, code }): Promise<OAuthResult> => {
+  handler: async (
+    ctx,
+    { state, code },
+  ): Promise<OAuthResult & { povratak: string | null }> => {
     const stored: {
       workspaceId: Id<"workspaces">;
       redirectUri: string;
       createdAt: number;
+      povratak: string | null;
     } | null = await ctx.runMutation(internal.instagramStore.consumeOAuthState, {
       nonce: state,
     });
@@ -557,11 +563,12 @@ export const completeOAuthFromCallback = action({
       });
     }
 
-    return exchangeCodeAndConnect(ctx, {
+    const rezultat = await exchangeCodeAndConnect(ctx, {
       workspaceId: stored.workspaceId,
       code,
       redirectUri: stored.redirectUri,
     });
+    return { ...rezultat, povratak: stored.povratak };
   },
 });
 

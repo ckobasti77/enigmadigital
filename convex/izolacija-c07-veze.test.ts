@@ -360,7 +360,11 @@ describe("Brisanje podataka (purge)", () => {
 // ── Google Business Profile ─────────────────────────────────────────────────
 
 describe("Google Business Profile (gbp, gbpStore)", () => {
-  const ENV = ["GOOGLE_BUSINESS_CLIENT_ID", "GOOGLE_BUSINESS_CLIENT_SECRET"] as const;
+  const ENV = [
+    "GOOGLE_BUSINESS_CLIENT_ID",
+    "GOOGLE_BUSINESS_CLIENT_SECRET",
+    "OAUTH_CALLBACK_ORIGIN",
+  ] as const;
   const staro = new Map<string, string | undefined>(ENV.map((k) => [k, process.env[k]]));
 
   afterEach(() => {
@@ -410,18 +414,23 @@ describe("Google Business Profile (gbp, gbpStore)", () => {
     const s = await napraviSvet();
     process.env.GOOGLE_BUSINESS_CLIENT_ID = "klijent-id";
     process.env.GOOGLE_BUSINESS_CLIENT_SECRET = "klijent-tajna";
+    process.env.OAUTH_CALLBACK_ORIGIN = "https://x.test";
+    const povratak = { povratakOrigin: "https://x.test" };
 
-    await akcijeNadBOdbijene(s, [[api.gbp.gbpAuthorizeUrl, {}]]);
-    await urednikNePokrece(s, [[api.gbp.gbpAuthorizeUrl, {}]]);
+    await akcijeNadBOdbijene(s, [[api.gbp.gbpAuthorizeUrl, povratak]]);
+    await urednikNePokrece(s, [[api.gbp.gbpAuthorizeUrl, povratak]]);
     await odbijeno(
-      kao(s, s.viewer).action(api.gbp.gbpAuthorizeUrl, { workspaceId: s.wsA }),
+      kao(s, s.viewer).action(api.gbp.gbpAuthorizeUrl, { ...povratak, workspaceId: s.wsA }),
       "forbidden",
       TREBA_VLASNIK,
     );
     expect(await s.t.run(async (ctx) => ctx.db.query("oauthStates").collect())).toEqual([]);
 
     // Vlasnik A dobija adresu, a stanje se vezuje za A i za njega.
-    const { url } = await kao(s, s.ana).action(api.gbp.gbpAuthorizeUrl, { workspaceId: s.wsA });
+    const { url } = await kao(s, s.ana).action(api.gbp.gbpAuthorizeUrl, {
+      ...povratak,
+      workspaceId: s.wsA,
+    });
     expect(url).toContain("accounts.google.com");
     const stanja = await s.t.run(async (ctx) => ctx.db.query("oauthStates").collect());
     expect(stanja).toHaveLength(1);

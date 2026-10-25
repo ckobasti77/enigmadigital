@@ -99,6 +99,100 @@ function projekatZaSlug(slug: unknown): R<typeof api.projekti.mojProjekat> {
   };
 }
 
+type Procitaj = R<typeof api.podesavanjaStore.procitaj>;
+
+const NIJE = { vrednost: null, izvor: "nije_podeseno" as const };
+const NEMA_TAJNE = { postavljeno: false, izvor: "nema" as const, updatedAt: null };
+
+/**
+ * Jezičak „Sajt i oglasi“: Enigma je osnivački projekat i nasleđuje deo
+ * vrednosti iz env-a (piksel, adresa osvežavanja, tajne), ScanMe nema ništa,
+ * a klijent ima svoje vrednosti i jedan upisan token.
+ */
+function sajtIOglasi(slug: string): Pick<Procitaj, "jeOsnivacki" | "podesavanja" | "tajne"> {
+  if (slug === "enigma-it") {
+    return {
+      jeOsnivacki: true,
+      podesavanja: {
+        sajtovi: { vrednost: SAJTOVI_UX["enigma-it"], izvor: "projekat" },
+        pikselId: { vrednost: "1234567890123", izvor: "env" },
+        kratkiLinkoviBaza: { vrednost: "https://digital.enigmait.rs", izvor: "env" },
+        novostiRevalidateUrl: { vrednost: "https://www.enigmait.rs/api/revalidate", izvor: "env" },
+        pulsUrl: NIJE,
+        posiljalacIme: { vrednost: "Enigma IT", izvor: "env" },
+        budzet: {
+          minimum: NIJE,
+          maksimum: NIJE,
+          valuta: NIJE,
+          metaMaksDnevno: { vrednost: 50, izvor: "env" },
+          googleMaksDnevno: NIJE,
+        },
+      },
+      tajne: {
+        meta_capi_token: { postavljeno: true, izvor: "env", updatedAt: null },
+        novosti_revalidate_secret: { postavljeno: true, izvor: "env", updatedAt: null },
+        puls_token: NEMA_TAJNE,
+      },
+    };
+  }
+  if (slug === "klijent-doo") {
+    return {
+      jeOsnivacki: false,
+      podesavanja: {
+        sajtovi: NIJE,
+        pikselId: { vrednost: "9876543210987", izvor: "projekat" },
+        kratkiLinkoviBaza: NIJE,
+        novostiRevalidateUrl: NIJE,
+        pulsUrl: NIJE,
+        posiljalacIme: { vrednost: "Klijent tim", izvor: "projekat" },
+        budzet: {
+          minimum: { vrednost: 10, izvor: "projekat" },
+          maksimum: { vrednost: 300, izvor: "projekat" },
+          valuta: { vrednost: "RSD", izvor: "projekat" },
+          metaMaksDnevno: { vrednost: 100, izvor: "projekat" },
+          googleMaksDnevno: NIJE,
+        },
+      },
+      tajne: {
+        meta_capi_token: { postavljeno: true, izvor: "projekat", updatedAt: Date.UTC(2026, 9, 24) },
+        novosti_revalidate_secret: NEMA_TAJNE,
+        puls_token: NEMA_TAJNE,
+      },
+    };
+  }
+  return {
+    jeOsnivacki: false,
+    podesavanja: {
+      sajtovi: { vrednost: SAJTOVI_UX[slug] ?? null, izvor: SAJTOVI_UX[slug] ? "projekat" : "nije_podeseno" },
+      pikselId: NIJE,
+      kratkiLinkoviBaza: NIJE,
+      novostiRevalidateUrl: NIJE,
+      pulsUrl: NIJE,
+      posiljalacIme: NIJE,
+      budzet: {
+        minimum: NIJE,
+        maksimum: NIJE,
+        valuta: NIJE,
+        metaMaksDnevno: NIJE,
+        googleMaksDnevno: NIJE,
+      },
+    },
+    tajne: { meta_capi_token: NEMA_TAJNE, novosti_revalidate_secret: NEMA_TAJNE, puls_token: NEMA_TAJNE },
+  };
+}
+
+/** Razrešene granice budžeta (isti oblik kao `budzetProjekta`). */
+function granice(slug: string): R<typeof api.podesavanjaStore.budzetProjekta> {
+  const b = sajtIOglasi(slug).podesavanja.budzet;
+  return {
+    minimum: b.minimum.vrednost ?? 5,
+    maksimum: b.maksimum.vrednost ?? 5000,
+    valuta: b.valuta.vrednost ?? "EUR",
+    metaMaksDnevno: b.metaMaksDnevno.vrednost,
+    googleMaksDnevno: b.googleMaksDnevno.vrednost,
+  };
+}
+
 /** Mozak Enigme za jezičak „Mozak“ (ostali projekti ga nemaju). */
 const MOZAK_ENIGMA: R<typeof api.podesavanjaStore.mozak> = {
   ponuda: "Sajt za malu firmu za 10 dana, sa SEO osnovom i Google profilom. Od 690 €.",
@@ -134,8 +228,15 @@ export const FIXTURES_PROJEKTI: Record<string, Fixture> = {
             },
           ]
         : [],
+      ...sajtIOglasi(stavka.slug),
     } satisfies R<typeof api.podesavanjaStore.procitaj>;
   },
+  [getFunctionName(api.podesavanjaStore.budzetProjekta)]: (args) => {
+    const stavka = PROJEKTI_UX.find((p) => p.workspaceId === args.workspaceId) ?? PROJEKTI_UX[0];
+    return granice(stavka.slug);
+  },
+  [getFunctionName(api.oauthPovratak.stanje)]: () =>
+    ({ podeseno: true }) satisfies R<typeof api.oauthPovratak.stanje>,
   [getFunctionName(api.podesavanjaStore.mozak)]: (args) =>
     args.workspaceId === WS || args.workspaceId === undefined ? MOZAK_ENIGMA : PRAZAN_MOZAK,
   // Čarobnjak: zauzete su adrese postojećih projekata, ostalo prati pravila P8.

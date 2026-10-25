@@ -166,3 +166,173 @@ export function proveriSliku(
   }
   return ok(null);
 }
+
+// ── Integracije sajta (C12) ─────────────────────────────────────────────────
+
+const prazno = (ulaz: string | null | undefined): boolean =>
+  (ulaz?.trim() ?? "").length === 0;
+
+/** Meta piksel: samo cifre, 10–20; prazno briše. */
+export function proveriPikselId(ulaz: string | null): Provera<string | null> {
+  if (prazno(ulaz)) return ok(null);
+  const v = ulaz!.trim();
+  if (!/^\d{10,20}$/.test(v)) return ne("ID piksela je broj od 10 do 20 cifara.");
+  return ok(v);
+}
+
+/** `https:` adresa bez korisnika, lozinke i heša; `null` kad ne prolazi. */
+function httpsAdresa(ulaz: string): URL | null {
+  let url: URL;
+  try {
+    url = new URL(ulaz.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || url.username || url.password || url.hash) return null;
+  return url;
+}
+
+/**
+ * Baza kratkih `/r/` linkova: samo origin (`https://<host>`), a host mora biti
+ * jedan od panel domena ovog projekta (Next prepisuje `/r/` na svakom domenu
+ * aplikacije, a tuđ domen bi slao klikove na tuđ sajt).
+ */
+export function proveriKratkiLinkoviBaza(
+  ulaz: string | null,
+  domeniProjekta: readonly string[],
+): Provera<string | null> {
+  if (prazno(ulaz)) return ok(null);
+  const poruka = "Baza kratkih linkova mora biti domen ovog panela, npr. https://panel.primer.rs.";
+  const url = httpsAdresa(ulaz!);
+  if (url === null || url.port || url.search || (url.pathname !== "/" && url.pathname !== "")) {
+    return ne(poruka);
+  }
+  const host = url.hostname.toLowerCase();
+  if (!domeniProjekta.includes(host)) return ne(poruka);
+  return ok(`https://${host}`);
+}
+
+export const ADRESA_SAJTA_MAX = 200;
+
+/**
+ * Adresa na sajtu projekta (osvežavanje novosti, Puls): `https:`, host (bez
+ * `www.`) je jedan od praćenih sajtova projekta.
+ */
+export function proveriAdresuNaSajtu(
+  ulaz: string | null,
+  sajtovi: readonly string[],
+): Provera<string | null> {
+  if (prazno(ulaz)) return ok(null);
+  const v = ulaz!.trim();
+  const url = httpsAdresa(v);
+  if (url === null || v.length > ADRESA_SAJTA_MAX) {
+    return ne("Adresa mora početi sa https:// i imati najviše 200 znakova.");
+  }
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+  if (!sajtovi.includes(host)) return ne("Adresa mora biti na jednom od sajtova projekta.");
+  return ok(url.href);
+}
+
+/** Ime pošiljaoca mejlova: 2–60 znakova, bez znakova koji lome zaglavlje. */
+export function proveriPosiljalacIme(ulaz: string | null): Provera<string | null> {
+  if (prazno(ulaz)) return ok(null);
+  const v = ulaz!.trim();
+  if (/[<>"\r\n]/.test(v)) {
+    return ne("Ime pošiljaoca ne sme imati znakove < > \" ni novi red.");
+  }
+  if (v.length < IME_MIN || v.length > IME_MAX) {
+    return ne(`Ime pošiljaoca mora imati od ${IME_MIN} do ${IME_MAX} znakova.`);
+  }
+  return ok(v);
+}
+
+// ── Budžetske granice (C12, plan C10 E5) ────────────────────────────────────
+
+/**
+ * Granice izmene budžeta koje važe kad projekat nema svoje: zaštitne ograde za
+ * svaki projekat, ne Enigmin podatak. Gornja granica NOVE kampanje nema
+ * podrazumevanu vrednost: bez nje je pravljenje kampanja isključeno.
+ */
+export const BUDZET_PODRAZUMEVANO = { minimum: 5, maksimum: 5000, valuta: "EUR" } as const;
+export const BUDZET_IZNOS_MAX = 100_000;
+
+/** Pozitivan konačan broj iz teksta (env); sve ostalo je „nije postavljeno“. */
+export function pozitivnaGranica(raw: string | undefined): number | null {
+  if (raw === undefined || raw.trim() === "") return null;
+  const val = parseFloat(raw);
+  if (!Number.isFinite(val) || val <= 0) return null;
+  return val;
+}
+
+export const BUDZET_POLJA = [
+  "minimum",
+  "maksimum",
+  "metaMaksDnevno",
+  "googleMaksDnevno",
+] as const;
+export type BudzetPolje = (typeof BUDZET_POLJA)[number];
+
+export type BudzetUlaz = Partial<Record<BudzetPolje, number | string | null>> & {
+  valuta?: string | null;
+};
+export type Budzet = Partial<Record<BudzetPolje, number>> & { valuta?: string };
+
+function iznos(ulaz: number | string | null | undefined): Provera<number | undefined> {
+  if (ulaz === null || ulaz === undefined) return ok(undefined);
+  if (typeof ulaz === "string") {
+    const t = ulaz.trim().replace(",", ".");
+    if (t.length === 0) return ok(undefined);
+    ulaz = Number(t);
+  }
+  if (!Number.isFinite(ulaz) || ulaz <= 0 || ulaz > BUDZET_IZNOS_MAX) {
+    return ne("Iznos mora biti broj veći od 0 i najviše 100.000.");
+  }
+  return ok(ulaz);
+}
+
+/**
+ * Ceo blok granica (zamenjuje sačuvani). Prazno polje znači „bez vrednosti
+ * projekta“. Poređenja idu nad granicama koje će zaista važiti, tj. sa
+ * podrazumevanim vrednostima za prazna polja.
+ */
+export function proveriBudzet(ulaz: BudzetUlaz): Provera<Budzet> {
+  const out: Budzet = {};
+  for (const polje of BUDZET_POLJA) {
+    const p = iznos(ulaz[polje]);
+    if (!p.ok) return p;
+    if (p.vrednost !== undefined) out[polje] = p.vrednost;
+  }
+  const valuta = ulaz.valuta?.trim().toUpperCase() ?? "";
+  if (valuta.length > 0) {
+    if (!/^[A-Z]{3}$/.test(valuta)) return ne("Valuta je kod od tri slova, npr. EUR.");
+    out.valuta = valuta;
+  }
+  const minimum = out.minimum ?? BUDZET_PODRAZUMEVANO.minimum;
+  const maksimum = out.maksimum ?? BUDZET_PODRAZUMEVANO.maksimum;
+  if (minimum > maksimum) return ne("Minimum mora biti manji od maksimuma.");
+  for (const polje of ["metaMaksDnevno", "googleMaksDnevno"] as const) {
+    const g = out[polje];
+    if (g !== undefined && g > maksimum) {
+      return ne("Najviše dnevno za novu kampanju ne sme biti veće od maksimuma.");
+    }
+  }
+  return ok(out);
+}
+
+// ── Tajne projekta (C12) ────────────────────────────────────────────────────
+
+export type KljucTajne = "meta_capi_token" | "novosti_revalidate_secret" | "puls_token";
+
+const TAJNA_DUZINA: Record<KljucTajne, { min: number; max: number }> = {
+  meta_capi_token: { min: 20, max: 512 },
+  novosti_revalidate_secret: { min: 16, max: 256 },
+  puls_token: { min: 16, max: 256 },
+};
+
+/** Tajna: dužina po vrsti, bez razmaka. Poruka nikad ne citira vrednost. */
+export function proveriTajnu(kljuc: KljucTajne, vrednost: string): Provera<string> {
+  const v = vrednost.trim();
+  const { min, max } = TAJNA_DUZINA[kljuc];
+  if (v.length < min || v.length > max || /\s/.test(v)) return ne("Token izgleda neispravno.");
+  return ok(v);
+}

@@ -55,7 +55,7 @@ function requireHttpUrl(value: string, label: string): void {
   try {
     parsed = new URL(value);
   } catch {
-    invalid(`${label} mora biti puna adresa, npr. https://enigmait.rs/ponuda.`);
+    invalid(`${label} mora biti puna adresa, npr. https://primer.rs/ponuda.`);
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     invalid(`${label} mora počinjati sa http:// ili https://.`);

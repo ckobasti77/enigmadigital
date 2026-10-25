@@ -3,12 +3,12 @@ import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { projekatAction } from "./lib/projekat";
+import { redirectUriZa } from "./lib/oauthPovratak";
 import { decryptCredentials, encryptCredentials } from "./lib/crypto";
 import { runSync, sanitizeSyncError } from "./lib/runSync";
 import {
   YOUTUBE_ANALYTICS_REPORTS_URL,
   YOUTUBE_DATA_API_BASE_URL,
-  YOUTUBE_DEFAULT_REDIRECT_URI,
   buildYouTubeAuthorizeUrl,
   exchangeCodeForTokens,
   extractYouTubeApiError,
@@ -482,9 +482,10 @@ function randomNonce(): string {
 export const youtubeAuthorizeUrl = projekatAction({
   uloga: "owner",
   args: {
-    redirectUri: v.optional(v.string()),
+    povratakOrigin: v.string(),
   },
-  handler: async (ctx, { redirectUri }): Promise<{ url: string }> => {
+  handler: async (ctx, { povratakOrigin }): Promise<{ url: string }> => {
+    const redirectUri = redirectUriZa("youtube");
     const clientId = getYouTubeClientId();
     const clientSecret = getYouTubeClientSecret();
     if (!clientId || !clientSecret) {
@@ -497,18 +498,18 @@ export const youtubeAuthorizeUrl = projekatAction({
 
     const { workspaceId, userId } = ctx.projekat;
 
-    const effectiveRedirectUri = redirectUri ?? YOUTUBE_DEFAULT_REDIRECT_URI;
     const nonce = randomNonce();
     await ctx.runMutation(internal.youtubeStore.createOAuthState, {
       workspaceId,
       userId,
       nonce,
-      redirectUri: effectiveRedirectUri,
+      redirectUri,
+      povratakOrigin,
     });
 
     const url = buildYouTubeAuthorizeUrl({
       clientId,
-      redirectUri: effectiveRedirectUri,
+      redirectUri,
       state: nonce,
     });
 
@@ -521,6 +522,9 @@ export interface YouTubeOAuthResult {
   connectionId: Id<"connections">;
   channelId: string;
   channelTitle: string;
+  /** E3: isti kanal je povezan i u drugom projektu. */
+  upozorenje: string | null;
+  povratak: string | null;
 }
 
 /**
@@ -545,6 +549,7 @@ export const completeOAuthFromCallback = action({
       workspaceId: Id<"workspaces">;
       redirectUri: string;
       createdAt: number;
+      povratak: string | null;
     } | null = await ctx.runMutation(
       internal.youtubeStore.consumeOAuthState,
       { nonce: state },
@@ -618,7 +623,10 @@ export const completeOAuthFromCallback = action({
     const encryptedCredentials = await encryptCredentials(secretJson);
 
     // 4. Save connection in active state
-    const connectionId: Id<"connections"> = await ctx.runMutation(
+    const { connectionId, upozorenje }: {
+      connectionId: Id<"connections">;
+      upozorenje: string | null;
+    } = await ctx.runMutation(
       internal.youtubeStore.saveConnectedCredentials,
       {
         workspaceId: stored.workspaceId,
@@ -642,6 +650,8 @@ export const completeOAuthFromCallback = action({
       connectionId,
       channelId: profile.channelId,
       channelTitle: profile.title,
+      upozorenje,
+      povratak: stored.povratak,
     };
   },
 });

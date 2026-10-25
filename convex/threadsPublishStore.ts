@@ -26,7 +26,8 @@ import {
   retryDelayMs,
   type ThreadsPublishMediaType,
 } from "./lib/threadsPublish";
-import { isControlledDomain } from "./lib/urlNormalization";
+import { getControlledDomains, isControlledDomain } from "./lib/urlNormalization";
+import { podesavanjaProjekta } from "./lib/podesavanja";
 import { ensureTrackedUrlHelper } from "./orLinks";
 
 
@@ -205,8 +206,16 @@ async function trackControlledUrls(
   let text = content.text;
   let linkAttachment = content.linkAttachment;
 
+  // Domeni ovog projekta (sajtovi i domen kratkih linkova); osnivački projekat
+  // bez svojih podešavanja nasleđuje env, drugi projekat nikad tuđe domene.
+  const p = await podesavanjaProjekta(ctx, workspaceId);
+  const domeni = getControlledDomains({
+    sajtovi: p.sajtovi.vrednost,
+    kratkiLinkoviBaza: p.kratkiLinkoviBaza.vrednost,
+  });
+
   // 1. Obrada linkAttachment-a
-  if (linkAttachment && isControlledDomain(linkAttachment)) {
+  if (linkAttachment && isControlledDomain(linkAttachment, domeni)) {
     const shortUrl = await ensureTrackedUrlHelper(ctx, {
       workspaceId,
       destinationUrl: linkAttachment,
@@ -245,7 +254,7 @@ async function trackControlledUrls(
     for (const match of matches) {
       const rawUrl = match[0];
       if (match.index === undefined) continue;
-      if (!isControlledDomain(rawUrl)) continue;
+      if (!isControlledDomain(rawUrl, domeni)) continue;
 
       const shortUrl = await ensureTrackedUrlHelper(ctx, {
         workspaceId,
