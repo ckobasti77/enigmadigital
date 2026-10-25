@@ -1,6 +1,6 @@
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { projekatQuery } from "./lib/projekat";
 
 export const actionTypeValidator = v.union(
@@ -282,8 +282,10 @@ export const getTargetContext = projekatQuery({
     let name = "";
     let status = "";
     let dailyBudget: number | undefined;
-    let currency = "";
     let spendToday = 0;
+    // Nalog oglasa cilja: dijalog ga pokazuje u redu „… na nalogu …“, da se
+    // ne pauzira ili ne menja budžet na pogrešnom nalogu.
+    let nalog: Doc<"adAccounts"> | null = null;
 
     if (args.targetType === "campaign") {
       const campaign = await ctx.db
@@ -298,7 +300,7 @@ export const getTargetContext = projekatQuery({
         status = campaign.status;
         dailyBudget = campaign.dailyBudget;
         const account = await ctx.db.get(campaign.accountId);
-        if (account) currency = account.currency;
+        if (account) nalog = account;
 
         const adSets = await ctx.db
           .query("adSets")
@@ -346,7 +348,7 @@ export const getTargetContext = projekatQuery({
         const campaign = await ctx.db.get(adSet.campaignId);
         if (campaign) {
           const account = await ctx.db.get(campaign.accountId);
-          if (account) currency = account.currency;
+          if (account) nalog = account;
         }
 
         const ads = await ctx.db
@@ -388,7 +390,7 @@ export const getTargetContext = projekatQuery({
           const campaign = await ctx.db.get(adSet.campaignId);
           if (campaign) {
             const account = await ctx.db.get(campaign.accountId);
-            if (account) currency = account.currency;
+            if (account) nalog = account;
           }
         }
 
@@ -413,8 +415,10 @@ export const getTargetContext = projekatQuery({
       name: name || args.targetId,
       status: status || "UNKNOWN",
       dailyBudget,
-      currency,
+      currency: nalog?.currency ?? "",
       spendToday: Math.round(spendToday * 100) / 100,
+      accountName: nalog?.name ?? null,
+      provider: nalog?.provider ?? null,
     };
   },
 });

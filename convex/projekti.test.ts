@@ -222,3 +222,141 @@ describe("azurirajProjekat", () => {
     expect((await s.t.run(async (ctx) => ctx.db.get(s.wsB)))?.vrsta).toBe("klijent");
   });
 });
+
+describe("stanjeProjekata (birač projekta)", () => {
+  const SAT = 60 * 60 * 1000;
+
+  test("samo moji projekti, redom članstva; broj je isti kao u zvonu", async () => {
+    const s = await napraviSvet();
+    const sada = Date.now();
+    const jovan = await kao(s, s.jovan).query(api.projekti.stanjeProjekata, { sada });
+    expect(jovan.map((p) => p.workspaceId)).toEqual([s.wsA, s.wsB]);
+    expect(jovan.map((p) => p.zdravlje)).toEqual(["bez_veza", "bez_veza"]);
+    for (const p of jovan) {
+      const zvono = await kao(s, s.jovan).query(api.notificationsStore.staMeCeka, {
+        workspaceId: p.workspaceId,
+      });
+      expect(p.ceka).toBe(zvono.ukupno);
+    }
+    expect(
+      (await kao(s, s.ana).query(api.projekti.stanjeProjekata, { sada })).map((p) => p.workspaceId),
+    ).toEqual([s.wsA]);
+    expect(
+      (await kao(s, s.klijent).query(api.projekti.stanjeProjekata, { sada })).map((p) => p.workspaceId),
+    ).toEqual([s.wsK]);
+    expect(await kao(s, s.stranac).query(api.projekti.stanjeProjekata, { sada })).toEqual([]);
+    await odbijeno(s.t.query(api.projekti.stanjeProjekata, { sada }), "unauthorized");
+  });
+
+  test("pravila zdravlja po projektu: najgora veza pobeđuje, veza u prekidu se ne broji", async () => {
+    const s = await napraviSvet();
+    const sada = Date.now();
+    await s.t.run(async (ctx) => {
+      const veza = (
+        workspaceId: typeof s.wsA,
+        provider: "ga4" | "meta_ig" | "youtube",
+        polja: { status: "active" | "error" | "expired" | "disconnecting"; expiresAt?: number; lastSyncAt?: number },
+      ) => ctx.db.insert("connections", { workspaceId, provider, encryptedCredentials: "x", ...polja });
+      // A: jedna zdrava veza sa svežim prolazom, jedna u grešci.
+      await veza(s.wsA, "ga4", { status: "active", lastSyncAt: sada - SAT });
+      await ctx.db.insert("syncRuns", {
+        workspaceId: s.wsA,
+        provider: "ga4",
+        startedAt: sada - SAT - 1000,
+        finishedAt: sada - SAT,
+        status: "ok",
+        itemsWritten: 3,
+      });
+      await veza(s.wsA, "meta_ig", { status: "error" });
+      // B: token ističe za 3 dana, a jedna veza je u prekidu.
+      await veza(s.wsB, "youtube", { status: "active", expiresAt: sada + 3 * 24 * SAT });
+      await veza(s.wsB, "ga4", { status: "disconnecting" });
+      // K: samo veza u prekidu.
+      await veza(s.wsK, "ga4", { status: "disconnecting" });
+    });
+
+    const jovan = await kao(s, s.jovan).query(api.projekti.stanjeProjekata, { sada });
+    expect(jovan.map((p) => [p.workspaceId, p.zdravlje])).toEqual([
+      [s.wsA, "greska"],
+      [s.wsB, "upozorenje"],
+    ]);
+    const klijent = await kao(s, s.klijent).query(api.projekti.stanjeProjekata, { sada });
+    expect(klijent[0]?.zdravlje).toBe("bez_veza");
+    // Integracija u grešci je i zadatak u zvonu: broj prati isto pravilo.
+    const zvonoA = await kao(s, s.jovan).query(api.notificationsStore.staMeCeka, {
+      workspaceId: s.wsA,
+    });
+    expect(jovan[0]?.ceka).toBe(zvonoA.ukupno);
+    expect(zvonoA.ukupno).toBeGreaterThan(0);
+  });
+
+  test("preko 20 projekata: stanje za prvih 20, broj se ne računa (null)", async () => {
+    const s = await napraviSvet();
+    const korisnik = await s.t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: "mnogo@enigma.test" });
+      for (let i = 0; i < 21; i++) {
+        const ws = await ctx.db.insert("workspaces", { name: `Projekat ${i}`, slug: `projekat-${i}` });
+        await ctx.db.insert("members", { workspaceId: ws, userId, role: "owner" });
+      }
+      return userId;
+    });
+    const stanja = await kao(s, korisnik).query(api.projekti.stanjeProjekata, { sada: Date.now() });
+    expect(stanja).toHaveLength(20);
+    expect(stanja.every((p) => p.ceka === null)).toBe(true);
+    expect(stanja.every((p) => p.zdravlje === "bez_veza")).toBe(true);
+
+    // Sa tačno 20 broj se računa.
+    const dvadeset = await s.t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: "dvadeset@enigma.test" });
+      for (let i = 0; i < 20; i++) {
+        const ws = await ctx.db.insert("workspaces", { name: `Drugi ${i}`, slug: `drugi-${i}` });
+        await ctx.db.insert("members", { workspaceId: ws, userId, role: "owner" });
+      }
+      return userId;
+    });
+    const sa20 = await kao(s, dvadeset).query(api.projekti.stanjeProjekata, { sada: Date.now() });
+    expect(sa20).toHaveLength(20);
+    expect(sa20.every((p) => typeof p.ceka === "number")).toBe(true);
+  });
+
+  test("projekat koji prekorači svoj deo budžeta čitanja dobija „—“ (null), ostali broj", async () => {
+    // Sa 20 projekata svaki ima 24.000 / 20 = 1.200 dokumenata za „šta me
+    // čeka“; zvono čita do 1.500 telefona, pa ih veliki projekat ima 1.300.
+    const s = await napraviSvet();
+    const { korisnik, veliki } = await s.t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: "budzet@enigma.test" });
+      const prostori = [];
+      for (let i = 0; i < 20; i++) {
+        const ws = await ctx.db.insert("workspaces", { name: `Budžet ${i}`, slug: `budzet-${i}` });
+        await ctx.db.insert("members", { workspaceId: ws, userId, role: "owner" });
+        prostori.push(ws);
+      }
+      const ws = prostori[0];
+      const firma = await ctx.db.insert("leadCompanies", {
+        workspaceId: ws,
+        createdAt: 1,
+        updatedAt: 1,
+        name: "Velika firma",
+        nameNormalized: "velika firma",
+        origin: "import",
+      });
+      for (let i = 0; i < 1300; i++) {
+        await ctx.db.insert("leadIdentities", {
+          workspaceId: ws,
+          companyId: firma,
+          kind: "phone",
+          value: `+3816000${String(i).padStart(5, "0")}`,
+          lawfulBasis: "test",
+          sourceUrl: "https://example.test",
+        });
+      }
+      return { korisnik: userId, veliki: ws };
+    });
+    const stanja = await kao(s, korisnik).query(api.projekti.stanjeProjekata, { sada: Date.now() });
+    expect(stanja).toHaveLength(20);
+    expect(stanja.find((p) => p.workspaceId === veliki)?.ceka).toBeNull();
+    expect(
+      stanja.filter((p) => p.workspaceId !== veliki).every((p) => typeof p.ceka === "number"),
+    ).toBe(true);
+  });
+});

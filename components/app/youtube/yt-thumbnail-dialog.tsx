@@ -27,6 +27,10 @@ import type { VideoItem } from "./youtube-videos-grid";
 import { cn } from "@/lib/utils";
 import { FeedbackNote } from "@/components/app/feedback";
 import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
+import {
   useProjekatAction,
   useProjekatMutation,
 } from "@/components/app/projekat-provider";
@@ -109,6 +113,7 @@ function YtThumbnailForm({
   onClose: () => void;
   onDone?: () => void;
 }) {
+  const potvrda = usePotvrdaProjekta();
   const generateUploadUrl = useProjekatMutation(
     api.ytThumbnails.generateThumbnailUploadUrl,
   );
@@ -306,6 +311,8 @@ function YtThumbnailForm({
         )}
       </div>
 
+      <ObjavljujesKao kanal="youtube" radnja="Menjaš" />
+
       <DialogFooter className="items-center gap-2 border-t border-line pt-3 sm:justify-between">
         <span className="font-mono text-xs tabular-nums text-text-muted">
           50 jedinica kvote
@@ -333,7 +340,7 @@ function YtThumbnailForm({
                 <span>Šaljem…</span>
               </>
             ) : (
-              "Postavi"
+              potvrda("Postavi")
             )}
           </Button>
         </div>

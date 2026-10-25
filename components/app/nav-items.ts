@@ -393,6 +393,36 @@ export function screenExists(href: string): boolean {
   return ROUTES.some((r) => r.href === href);
 }
 
+/**
+ * Ekrani čija adresa nosi ID iz projekta (`/instagram/objave/<id>`). Pri
+ * prelasku u drugi projekat taj ID tamo ne postoji, pa se ide na roditelja.
+ * Profil firme (`/leadovi/<id>`) već pada na „/leadovi“, jer nema svoj red.
+ */
+const EKRANI_SA_ID: ReadonlySet<string> = new Set(["/instagram/objave"]);
+
+/**
+ * Ekran za prelazak u drugi projekat (`putanjaZaPrelazak` u `lib/rutiranje`):
+ * adresa iz registra i modul. `undefined` za rutu van registra.
+ */
+export function ekranZaPrelazak(
+  putanja: string,
+): { href: string; modul: ModuleKey } | undefined {
+  const screen = resolveScreen(putanja);
+  if (screen === undefined) return undefined;
+  const href = EKRANI_SA_ID.has(screen.href)
+    ? (screen.parent?.href ?? "/")
+    : screen.href;
+  return { href, modul: screen.module };
+}
+
+/**
+ * Stavka „Novi projekat“ u biraču projekta stoji tek kad ekran `/novi`
+ * postoji (isti obrazac kao `screenExists`: nema mrtve kontrole). Pali je
+ * korak koji pravi čarobnjak novog projekta.
+ */
+export const NOVI_PROJEKAT_POSTOJI = false;
+export const NOVI_PROJEKAT_HREF = "/novi";
+
 /** Ekran napretka (upisan u `EXTRA_SCREENS`). */
 export const NAPREDAK_HREF = "/napredak";
 

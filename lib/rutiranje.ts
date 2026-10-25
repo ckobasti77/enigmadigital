@@ -151,3 +151,34 @@ export function odluciRutu(u: UlazRutiranja): OdlukaRutiranja {
   }
   return { tip: "dalje" };
 }
+
+/** Ekran u koji vodi prelazak: adresa bez prefiksa i modul (za `moduli`). */
+export type EkranZaPrelazak = { href: string; modul: string };
+
+/** Moduli koje projekat ne može da isključi (kontrolna tabla, podešavanja). */
+const UVEK_UKLJUCENI: ReadonlySet<string> = new Set(["tabla", "sistem"]);
+
+/**
+ * Promena projekta čuva ekran (plan C02 §8.4): `/enigma-it/analytics` →
+ * `/scanme/analytics`.
+ *  1. Upit i heš se skidaju (ID-jevi iz drugog projekta tamo ne važe).
+ *  2. Ekran daje `ekranZa` (komponenta šalje rešavač iz navigacije, koji već
+ *     svodi ekran sa ID-jem na roditelja); nepoznat ekran → kontrolna tabla.
+ *  3. Modul koji nije uključen u cilju → kontrolna tabla.
+ */
+export function putanjaZaPrelazak(o: {
+  /** Putanja ekrana bez prefiksa (`useEkranPutanja()`). */
+  ekran: string;
+  cilj: { slug: string; moduli: readonly string[] | null };
+  ekranZa: (putanja: string) => EkranZaPrelazak | undefined;
+}): string {
+  const [putanja] = podeli(o.ekran);
+  const ekran = o.ekranZa(putanja);
+  const iskljucen =
+    ekran !== undefined &&
+    o.cilj.moduli !== null &&
+    !UVEK_UKLJUCENI.has(ekran.modul) &&
+    !o.cilj.moduli.includes(ekran.modul);
+  const href = ekran === undefined || iskljucen ? "/" : ekran.href;
+  return `/${o.cilj.slug}${href === "/" ? "" : href}`;
+}

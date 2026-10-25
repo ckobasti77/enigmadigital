@@ -31,6 +31,7 @@ import {
   useSada,
 } from "./napredak/use-napredak";
 import { useEkranPutanja, useProjekat } from "./projekat-provider";
+import { ProjekatBirac } from "./projekat-birac";
 
 /**
  * ============================================================================
@@ -81,21 +82,11 @@ export function AppSidebar({
         <div
           className={cn(
             "flex h-[var(--chrome-height)] shrink-0 items-center",
-            rail ? "justify-center" : "justify-between pl-[19px] pr-2.5",
+            rail ? "justify-center gap-0.5 px-1" : "gap-1 px-2.5",
           )}
         >
-          {!rail && (
-            // Brend cijan je boja Kontrolne table — čita se kao modul, ne kao
-            // sirova vrednost.
-            <p
-              data-nav-fade
-              data-module="tabla"
-              className="heading-caps text-micro font-medium"
-            >
-              <span className="text-mod">Enigma</span>
-              <span className="ml-1.5 text-text-muted">/ Command</span>
-            </p>
-          )}
+          {/* Čiji je ovo ekran: birač projekta (u panelu samo znak i ime). */}
+          <ProjekatBirac rail={rail} />
           <Tip
             label={rail ? "Proširi bočnu traku" : "Skupi bočnu traku"}
             side={rail ? "right" : "bottom"}
@@ -108,7 +99,7 @@ export function AppSidebar({
                 aria-expanded={!rail}
                 aria-controls="app-sidebar-nav"
                 aria-label={rail ? "Proširi bočnu traku" : "Skupi bočnu traku"}
-                className="text-text-muted hover:text-foreground"
+                className={cn("shrink-0 text-text-muted hover:text-foreground", rail && "w-5")}
               />
             }
           >

@@ -51,6 +51,10 @@ import { DUR_UI, EASE_UI } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { FeedbackNote } from "@/components/app/feedback";
 import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
+import {
   useProjekat,
   useProjekatAction,
   useProjekatMutation,
@@ -148,6 +152,7 @@ function YtCaptionsContent({
   onClose: () => void;
 }) {
   const { spreman } = useProjekat();
+  const potvrda = usePotvrdaProjekta();
   const quota = useProjekatQuery(api.ytMedia.mediaQuotaStatus);
 
   const listCaptions = useProjekatAction(api.ytCaptions.listCaptions);
@@ -427,7 +432,9 @@ function YtCaptionsContent({
                     <span>Zamenjujem…</span>
                   </>
                 ) : (
-                  `Zameni za ${formatNumber(QUOTA_COST.captionsUpdate)} jedinica`
+                  potvrda(
+                    `Zameni za ${formatNumber(QUOTA_COST.captionsUpdate)} jedinica`,
+                  )
                 )}
               </Button>
             </div>
@@ -481,7 +488,7 @@ function YtCaptionsContent({
                     <span>Brišem…</span>
                   </>
                 ) : (
-                  "Obriši titl"
+                  potvrda("Obriši titl")
                 )}
               </Button>
             </div>
@@ -613,13 +620,17 @@ function YtCaptionsContent({
                     <span>Šaljem…</span>
                   </>
                 ) : (
-                  `Pošalji titl za ${formatNumber(QUOTA_COST.captionsInsert)} jedinica`
+                  potvrda(
+                    `Pošalji titl za ${formatNumber(QUOTA_COST.captionsInsert)} jedinica`,
+                  )
                 )}
               </Button>
             </div>
           </section>
         )}
       </div>
+
+      <ObjavljujesKao kanal="youtube" radnja="Menjaš" />
 
       <DialogFooter className="items-center border-t border-line pt-3 sm:justify-between">
         <span className="font-mono text-xs text-text-muted">

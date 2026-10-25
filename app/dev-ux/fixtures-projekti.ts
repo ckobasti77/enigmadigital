@@ -1,11 +1,12 @@
 import { getFunctionName } from "convex/server";
 import { api } from "@/convex/_generated/api";
-import { USER, WS, WS_SCANME, type Fixture, type R } from "./fixtures-util";
+import { USER, WS, WS_KLIJENT, WS_SCANME, type Fixture, type R } from "./fixtures-util";
 
 /**
- * Projekti u razvojnom prikazu (plan C02 §7.9): „Enigma IT“ i „ScanMe“.
- * Korisnik je vlasnik oba i vlasnik platforme. `mojProjekat` odgovara po
- * slugu; nepoznat slug vraća `null`, kao pravi upit.
+ * Projekti u razvojnom prikazu (plan C02 §7.9): „Enigma IT“, „ScanMe“ i
+ * klijentski „Klijent d.o.o.“. Korisnik je vlasnik sva tri i vlasnik
+ * platforme. `mojProjekat` odgovara po slugu; nepoznat slug vraća `null`,
+ * kao pravi upit. Boje su podatak projekta, ne CSS.
  */
 type Stavka = R<typeof api.projekti.mojiProjekti>[number];
 
@@ -36,7 +37,37 @@ export const PROJEKTI_UX: Stavka[] = [
     redosled: 1,
     moduli: null,
   },
+  {
+    workspaceId: WS_KLIJENT,
+    slug: "klijent-doo",
+    ime: "Klijent d.o.o.",
+    kratkoIme: null,
+    boja: "#a78bfa",
+    logoUrl: null,
+    uloga: "owner",
+    vrsta: "klijent",
+    arhiviran: false,
+    redosled: 2,
+    // Klijent nema kanale i oglase: prelazak sa njih vodi na kontrolnu tablu.
+    moduli: ["leadovi", "novosti", "analitika"],
+  },
 ];
+
+/**
+ * Stanje za birač projekta. Enigma ima jednu integraciju u grešci (isto kao
+ * fikstura veza) i onoliko zadataka koliko pokazuje njeno zvono, ScanMe još
+ * nema veza, a kod klijenta broj „šta me čeka“ nije stigao (birač tada piše
+ * „—“). Broj Enigme daje `fixtures.ts`, iz iste fiksture zvona.
+ */
+export function stanjeProjekataUx(
+  cekaEnigma: number,
+): R<typeof api.projekti.stanjeProjekata> {
+  return [
+    { workspaceId: WS, zdravlje: "greska", ceka: cekaEnigma },
+    { workspaceId: WS_SCANME, zdravlje: "bez_veza", ceka: 0 },
+    { workspaceId: WS_KLIJENT, zdravlje: "ok", ceka: null },
+  ];
+}
 
 const KORISNIK = { id: USER, email: "operater@example.com", ime: "Test Operater" };
 

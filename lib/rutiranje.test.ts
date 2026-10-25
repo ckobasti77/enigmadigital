@@ -15,7 +15,10 @@ import {
   prefiksProjekta,
   proveriSlugProjekta,
   putanjaEkrana,
+  putanjaZaPrelazak,
+  type EkranZaPrelazak,
 } from "./rutiranje";
+import { ekranZaPrelazak } from "../components/app/nav-items";
 
 describe("putanjaEkrana (izlaz: adresa linka)", () => {
   test.each([
@@ -230,5 +233,57 @@ describe("odluciRutu (ulaz: proxy, plan C02 §7.2)", () => {
       expect(hub(`/${ekran}`, "scanme"), ekran).toEqual({ tip: "redirect", putanja: `/scanme/${ekran}` });
       expect(panel(`/${ekran}`), ekran).toEqual({ tip: "rewrite", putanja: `/enigma-it/${ekran}` });
     }
+  });
+});
+
+describe("putanjaZaPrelazak (promena projekta čuva ekran, plan C02 §8.4)", () => {
+  const scanme = { slug: "scanme", moduli: null };
+  const prelaz = (ekran: string, cilj: { slug: string; moduli: string[] | null } = scanme) =>
+    putanjaZaPrelazak({ ekran, cilj, ekranZa: ekranZaPrelazak });
+
+  test("čuva ekran i podekran", () => {
+    expect(prelaz("/analytics")).toBe("/scanme/analytics");
+    expect(prelaz("/analytics/sticanje")).toBe("/scanme/analytics/sticanje");
+    expect(prelaz("/leadovi/uvoz")).toBe("/scanme/leadovi/uvoz");
+    expect(prelaz("/settings")).toBe("/scanme/settings");
+  });
+
+  test("kontrolna tabla je koren projekta, bez završne kose crte", () => {
+    expect(prelaz("/")).toBe("/scanme");
+  });
+
+  test("skida upit i heš", () => {
+    expect(prelaz("/leadovi?rezim=poziv&firma=abc#x")).toBe("/scanme/leadovi");
+    expect(prelaz("/analytics#vrh")).toBe("/scanme/analytics");
+  });
+
+  test("ekran sa ID-jem iz drugog projekta pada na roditelja", () => {
+    expect(prelaz("/leadovi/k5abc123")).toBe("/scanme/leadovi");
+    expect(prelaz("/instagram/objave/1789")).toBe("/scanme/instagram");
+  });
+
+  test("nepoznat ekran vodi na kontrolnu tablu", () => {
+    expect(prelaz("/nepostoji/nesto")).toBe("/scanme");
+  });
+
+  test("isključen modul vodi na kontrolnu tablu; tabla i podešavanja su uvek tu", () => {
+    const samoLeadovi = { slug: "klijent-doo", moduli: ["leadovi"] };
+    expect(prelaz("/analytics", samoLeadovi)).toBe("/klijent-doo");
+    expect(prelaz("/instagram/objave/1789", samoLeadovi)).toBe("/klijent-doo");
+    expect(prelaz("/leadovi/uvoz", samoLeadovi)).toBe("/klijent-doo/leadovi/uvoz");
+    expect(prelaz("/settings", samoLeadovi)).toBe("/klijent-doo/settings");
+    expect(prelaz("/napredak", samoLeadovi)).toBe("/klijent-doo/napredak");
+    expect(prelaz("/", { slug: "klijent-doo", moduli: [] })).toBe("/klijent-doo");
+  });
+
+  test("rešavač se samo zove; pravilo modula ne zavisi od navigacije", () => {
+    const pozvano: string[] = [];
+    const ekranZa = (p: string): EkranZaPrelazak | undefined => {
+      pozvano.push(p);
+      return { href: "/x", modul: "oglasi" };
+    };
+    expect(putanjaZaPrelazak({ ekran: "/x?y=1", cilj: { slug: "b", moduli: ["oglasi"] }, ekranZa })).toBe("/b/x");
+    expect(putanjaZaPrelazak({ ekran: "/x", cilj: { slug: "b", moduli: ["leadovi"] }, ekranZa })).toBe("/b");
+    expect(pozvano).toEqual(["/x", "/x"]);
   });
 });

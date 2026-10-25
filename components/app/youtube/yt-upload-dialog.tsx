@@ -55,6 +55,10 @@ import { DUR_UI, EASE_UI } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { FeedbackNote } from "@/components/app/feedback";
 import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
+import {
   useProjekatAction,
   useProjekatMutation,
   useProjekatQuery,
@@ -162,6 +166,7 @@ function YtUploadForm({
   onBusyChange: (busy: boolean) => void;
   onClose: () => void;
 }) {
+  const potvrda = usePotvrdaProjekta();
   const status = useProjekatQuery(api.ytUpload.uploadStatus);
 
   const startUpload = useProjekatMutation(api.ytUpload.startUpload);
@@ -528,6 +533,8 @@ function YtUploadForm({
       {/* Uvek vidljivo, tik iznad dugmeta — ne u tooltipu. */}
       <PrivateModeNotice />
 
+      <ObjavljujesKao kanal="youtube" radnja="Otpremaš" />
+
       <DialogFooter className="items-center gap-2 border-t border-line pt-3 sm:justify-between">
         <span className="font-mono text-xs tabular-nums text-text-muted">
           {status === undefined
@@ -553,7 +560,7 @@ function YtUploadForm({
             disabled={!canSend}
             className="font-semibold"
           >
-            {uploading ? "Šaljem…" : "Pošalji na YouTube"}
+            {uploading ? "Šaljem…" : potvrda("Pošalji na YouTube")}
           </Button>
         </div>
       </DialogFooter>

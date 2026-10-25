@@ -1,5 +1,5 @@
 import type { QueryCtx } from "./_generated/server";
-import { v, ConvexError } from "convex/values";
+import { v, ConvexError, type Infer } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
   projekatMutation,
@@ -587,6 +587,70 @@ export async function citajKanale(
 
 // ── upit ─────────────────────────────────────────────────────────────────────
 
+const staMeCekaValidator = v.object({
+  zadaci: v.array(zadatakValidator),
+  sklonjeni: v.array(sklonjenValidator),
+  bedzevi: v.record(v.string(), v.number()),
+  ukupno: v.number(),
+  /** Bar jedan brojač je odsečen — vidi komentar o trošku na vrhu fajla. */
+  nepotpuno: v.boolean(),
+  now: v.number(),
+});
+
+/**
+ * „Šta me čeka“ za jedan projekat i jednog korisnika. Deli ga upit zvona
+ * (ispod) i broj u biraču projekta (`projekti.stanjeProjekata`), pa je
+ * pravilo jedno. Pristup proverava pozivalac; ovde se samo čita.
+ *
+ * `sada` daje pozivalac, `pomerajMin` su minuti koje treba dodati na UTC da
+ * bi se dobilo lokalno vreme (`-new Date().getTimezoneOffset()`).
+ */
+export async function izracunajStaMeCeka(
+  ctx: QueryCtx,
+  o: {
+    workspaceId: Id<"workspaces">;
+    userId: Id<"users">;
+    sada: number;
+    pomerajMin?: number;
+  },
+): Promise<Infer<typeof staMeCekaValidator>> {
+  const now = o.sada;
+  const pomerajMin = Number.isFinite(o.pomerajMin ?? 0)
+    ? Math.trunc(o.pomerajMin ?? 0)
+    : 0;
+
+  const [uvozi, integracijeUKvaru, leadovi, kanali] = await Promise.all([
+    citajUvoze(ctx, o.workspaceId),
+    citajIntegracije(ctx, o.workspaceId, now),
+    citajLeadove(ctx, o.workspaceId, now, pomerajMin),
+    citajKanale(ctx, o.workspaceId),
+  ]);
+
+  const snimak: Snimak = {
+    now,
+    pomerajMin,
+    uvoziUPregledu: uvozi.uPregledu,
+    uvoziSaNerazresenim: uvozi.saNerazresenim,
+    uvoziOdseceni: uvozi.odseceni,
+    integracijeUKvaru,
+    ...leadovi,
+    kanali,
+  };
+
+  const svi = napraviZadatke(snimak);
+  const stanja = await ucitajStanja(ctx, o.userId, o.workspaceId);
+  const { zadaci, sklonjeni } = podeliPoStanju(svi, stanja, now);
+
+  return {
+    zadaci,
+    sklonjeni,
+    bedzevi: bedzeviOd(zadaci),
+    ukupno: zadaci.length,
+    nepotpuno: zadaci.some((z) => z.odsecen),
+    now,
+  };
+}
+
 /**
  * Sve površine („zvono", bedževi u navigaciji, blok „Danas") čitaju OVAJ upit i
  * nijedan drugi. Convex klijent deduplikuje isti upit sa istim argumentima u
@@ -602,52 +666,14 @@ export const staMeCeka = projekatQuery({
      */
     pomerajMin: v.optional(v.number()),
   },
-  returns: v.object({
-    zadaci: v.array(zadatakValidator),
-    sklonjeni: v.array(sklonjenValidator),
-    bedzevi: v.record(v.string(), v.number()),
-    ukupno: v.number(),
-    /** Bar jedan brojač je odsečen — vidi komentar o trošku na vrhu fajla. */
-    nepotpuno: v.boolean(),
-    now: v.number(),
-  }),
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    const pomerajMin = Number.isFinite(args.pomerajMin ?? 0)
-      ? Math.trunc(args.pomerajMin ?? 0)
-      : 0;
-
-    const [uvozi, integracijeUKvaru, leadovi, kanali] = await Promise.all([
-      citajUvoze(ctx, args.workspaceId),
-      citajIntegracije(ctx, args.workspaceId, now),
-      citajLeadove(ctx, args.workspaceId, now, pomerajMin),
-      citajKanale(ctx, args.workspaceId),
-    ]);
-
-    const snimak: Snimak = {
-      now,
-      pomerajMin,
-      uvoziUPregledu: uvozi.uPregledu,
-      uvoziSaNerazresenim: uvozi.saNerazresenim,
-      uvoziOdseceni: uvozi.odseceni,
-      integracijeUKvaru,
-      ...leadovi,
-      kanali,
-    };
-
-    const svi = napraviZadatke(snimak);
-    const stanja = await ucitajStanja(ctx, ctx.projekat.userId, args.workspaceId);
-    const { zadaci, sklonjeni } = podeliPoStanju(svi, stanja, now);
-
-    return {
-      zadaci,
-      sklonjeni,
-      bedzevi: bedzeviOd(zadaci),
-      ukupno: zadaci.length,
-      nepotpuno: zadaci.some((z) => z.odsecen),
-      now,
-    };
-  },
+  returns: staMeCekaValidator,
+  handler: async (ctx, args) =>
+    await izracunajStaMeCeka(ctx, {
+      workspaceId: args.workspaceId,
+      userId: ctx.projekat.userId,
+      sada: Date.now(),
+      pomerajMin: args.pomerajMin,
+    }),
 });
 
 // ── mutacije: odloži / sakrij / vrati ────────────────────────────────────────

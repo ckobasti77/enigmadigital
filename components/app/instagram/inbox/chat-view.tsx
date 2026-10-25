@@ -24,6 +24,10 @@ import {
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
+import {
   useProjekatAction,
   useProjekatMutation,
   useProjekatQuery,
@@ -52,6 +56,7 @@ interface ChatViewProps {
 const COMMON_EMOJIS = ["❤️", "👍", "🔥", "😂", "😮", "👏", "🙌", "😍"];
 
 export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
+  const potvrda = usePotvrdaProjekta();
   const conversation = useProjekatQuery(api.instagramInboxStore.getConversation, {
     igsid,
   });
@@ -660,6 +665,8 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                 </div>
               </div>
 
+              <ObjavljujesKao kanal="instagram" radnja="Šalješ" />
+
               {/* Bottom bar controls */}
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1">
@@ -704,7 +711,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                     ) : (
                       <Send className="size-3.5 mr-1.5" />
                     )}
-                    Pošalji
+                    {potvrda("Pošalji")}
                   </Button>
                 </div>
               </div>

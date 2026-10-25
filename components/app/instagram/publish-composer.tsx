@@ -87,6 +87,10 @@ import { CountUp } from "@/components/motion/count-up";
 import { CharCount, Field, FormGroup, FormStack } from "@/components/app/form-kit";
 import { FeedbackNote } from "@/components/app/feedback";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
+import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PublishDropzone, type PickedItem } from "./publish-dropzone";
@@ -156,6 +160,7 @@ type PublishingLimit = {
 };
 
 export function PublishComposer() {
+  const potvrda = usePotvrdaProjekta();
   const connections = useProjekatQuery(api.connections.list);
   const jobs = useProjekatQuery(api.instagramPublishStore.listJobs);
   const generateUploadUrl = useProjekatMutation(
@@ -1165,17 +1170,23 @@ export function PublishComposer() {
                 <p className="text-xs text-text-muted">
                   {IRREVERSIBLE_NOTICE}
                 </p>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="lg"
-                  disabled={!ready}
-                  onClick={() => setConfirmOpen(true)}
-                  className="font-semibold"
-                >
-                  <Send data-icon="inline-start" />
-                  {scheduleOn ? "Zakaži objavu" : "Objavi sada"}
-                </Button>
+                <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-4 gap-y-2">
+                  <ObjavljujesKao
+                    kanal="instagram"
+                    radnja={scheduleOn ? "Zakazuješ" : "Objavljuješ"}
+                  />
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="lg"
+                    disabled={!ready}
+                    onClick={() => setConfirmOpen(true)}
+                    className="font-semibold"
+                  >
+                    <Send data-icon="inline-start" />
+                    {scheduleOn ? "Zakaži objavu" : "Objavi sada"}
+                  </Button>
+                </div>
               </div>
             </FormStack>
           </Card>
@@ -1260,7 +1271,13 @@ export function PublishComposer() {
             trialGraduationStrategy={trialGraduationStrategy}
           />
         }
-        confirmLabel={scheduleOn ? "Zakaži" : "Objavi"}
+        kao={
+          <ObjavljujesKao
+            kanal="instagram"
+            radnja={scheduleOn ? "Zakazuješ" : "Objavljuješ"}
+          />
+        }
+        confirmLabel={potvrda(scheduleOn ? "Zakaži" : "Objavi")}
         busyLabel="Šaljem…"
         busy={busy}
         onConfirm={submit}

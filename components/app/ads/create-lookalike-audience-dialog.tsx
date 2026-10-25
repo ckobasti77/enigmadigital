@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useProjekatAction } from "@/components/app/projekat-provider";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
+import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
 import { api } from "@/convex/_generated/api";
 import {
   Dialog,
@@ -54,6 +61,10 @@ export function CreateLookalikeAudienceDialog({
   const createLookalikeAudience = useProjekatAction(
     api.metaAds.createLookalikeAudienceAction,
   );
+  const potvrda = usePotvrdaProjekta();
+  // Publika nastaje na nalogu koji akcija uzima: prvi Meta nalog oglasa
+  // projekta (`getMetaAdsAuth`), istim indeksom i redom kao ovaj spisak.
+  const nalozi = useProjekatQuery(api.metaAdsStore.listAccounts);
 
   // Filter seed audiences to those with valid size
   const seedOptions = useMemo(() => {
@@ -316,6 +327,16 @@ export function CreateLookalikeAudienceDialog({
             </div>
           )}
 
+          <ObjavljujesKao
+            kanal="meta_ads"
+            radnja="Praviš"
+            nalog={
+              nalozi === undefined
+                ? undefined
+                : (nalozi.find((n) => n.provider === "meta_ads")?.name ?? null)
+            }
+          />
+
           <DialogFooter>
             <Button
               type="button"
@@ -341,7 +362,7 @@ export function CreateLookalikeAudienceDialog({
                   Kreiranje...
                 </>
               ) : (
-                "Kreiraj Lookalike"
+                potvrda("Kreiraj Lookalike")
               )}
             </Button>
           </DialogFooter>

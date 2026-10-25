@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
+  ArrowRightLeft,
   Bell,
   CornerDownLeft,
   Megaphone,
@@ -31,7 +32,11 @@ import { ModuleTile } from "./module-tile";
 import { useStaMeCeka } from "./use-sta-me-ceka";
 import { ikonaMisije, vezaMisije } from "./napredak/napredak-ikone";
 import { useNapredak } from "./napredak/use-napredak";
-import { useEkranPutanja, useProjekatHref } from "./projekat-provider";
+import { useEkranPutanja, useProjekat, useProjekatHref } from "./projekat-provider";
+import { ProjektiZaPaletu, type ProjekatZaPrelazak } from "./projekat-birac";
+import { ProjekatZnak } from "./projekat-znak";
+import { QuietBoundary } from "./quiet-boundary";
+import { fold } from "@/lib/pretraga";
 import { cn } from "@/lib/utils";
 
 type Entry = {
@@ -51,6 +56,11 @@ type Entry = {
   emphasis?: boolean;
   /** XP koji stavka nosi (misija dana) — zlatno, jer je nagrada. */
   xp?: number;
+  /**
+   * „Prebaci na <projekat>“: adresa je već puna (drugi projekat), pa ne ide
+   * kroz prefiks tekućeg; uz natpis stoji znak tog projekta.
+   */
+  projekat?: Pick<ProjekatZaPrelazak, "ime" | "boja" | "logoUrl">;
 };
 
 type Section = { key: string; title: string; entries: Entry[] };
@@ -193,19 +203,13 @@ function rememberScreen(href: string) {
   }
 }
 
-/** Bez dijakritike i malim slovima — „price" nalazi „Priče". */
-const fold = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "");
-
 /**
  * ⌘K — skok na ekran ili pravo na posao (UI Boost §7.4).
  *
- * Sekcije: **Radnje** (ono što čeka u zvonu, pa stalne radnje), **Misije
- * dana** (nezavršene, svaka vodi pravo u svoj posao), **Nedavno** (poslednji
- * otvoreni ekrani) i **Ekrani** (svi). Svaka stavka nosi pločicu u
+ * Sekcije: **Radnje** (ono što čeka u zvonu, pa stalne radnje), **Projekti**
+ * (samo u hubu: „Prebaci na <projekat>“, na isti ekran u tom projektu),
+ * **Misije dana** (nezavršene, svaka vodi pravo u svoj posao), **Nedavno**
+ * (poslednji otvoreni ekrani) i **Ekrani** (svi). Svaka stavka nosi pločicu u
  * boji svog modula, pa se spisak čita i po boji. Dok se kuca, „Nedavno" se
  * sklanja — isti ekran bi se inače javio dvaput.
  *
@@ -227,6 +231,9 @@ export function CommandPalette() {
   const listRef = useRef<HTMLDivElement>(null);
   const staMeCeka = useStaMeCeka();
   const napredak = useNapredak();
+  const { rezim } = useProjekat();
+  // Drugi projekti stižu samo dok je paleta otvorena, u hubu (vidi dole).
+  const [drugiProjekti, setDrugiProjekti] = useState<ProjekatZaPrelazak[]>([]);
 
   const currentHref = resolveScreen(pathname)?.href;
 
@@ -271,6 +278,23 @@ export function CommandPalette() {
         module: resolveModule(m.veza.split(/[?#]/)[0]),
       }));
   }, [napredak]);
+
+  // „Prebaci na <projekat>“: isti ekran u drugom projektu. Panel je
+  // zaključan na jedan projekat, pa tamo sekcije nema.
+  const projekti = useMemo<Entry[]>(
+    () =>
+      rezim !== "hub"
+        ? []
+        : drugiProjekti.map((p) => ({
+            id: `projekat:${p.workspaceId}`,
+            href: p.href,
+            title: `Prebaci na ${p.ime}`,
+            hint: "Projekat",
+            icon: ArrowRightLeft,
+            projekat: { ime: p.ime, boja: p.boja, logoUrl: p.logoUrl },
+          })),
+    [rezim, drugiProjekti],
+  );
 
   // Svako otvaranje kreće čisto: prazan upit, prva stavka istaknuta, sveže
   // „Nedavno". Sve ide u samu radnju otvaranja, ne u efekat na `open`.
@@ -328,11 +352,12 @@ export function CommandPalette() {
           ...(desktop ? [RAIL_ACTION] : []),
         ]),
       },
+      { key: "projekti", title: "Projekti", entries: match(projekti) },
       { key: "misije", title: "Misije dana", entries: match(misije) },
       { key: "nedavno", title: "Nedavno", entries: recentEntries },
       { key: "ekrani", title: "Ekrani", entries: match(SCREENS) },
     ].filter((section) => section.entries.length > 0);
-  }, [query, tasks, misije, recent, currentHref, desktop]);
+  }, [query, tasks, projekti, misije, recent, currentHref, desktop]);
 
   const flat = useMemo(() => sections.flatMap((s) => s.entries), [sections]);
 
@@ -340,6 +365,7 @@ export function CommandPalette() {
     (entry: Entry) => {
       setOpen(false);
       if (entry.run) entry.run();
+      else if (entry.projekat && entry.href) router.push(entry.href);
       else if (entry.href && entry.href !== pathname) router.push(ka(entry.href));
     },
     [pathname, router, ka],
@@ -368,6 +394,12 @@ export function CommandPalette() {
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
+      {open && rezim === "hub" && (
+        // Pad spiska projekata ne sme da obori paletu: sekcija tada izostane.
+        <QuietBoundary>
+          <ProjektiZaPaletu onProjekti={setDrugiProjekti} />
+        </QuietBoundary>
+      )}
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop
           className={cn(
@@ -477,6 +509,9 @@ export function CommandPalette() {
                         <span className="min-w-0 flex-1 truncate">
                           {entry.title}
                         </span>
+                        {entry.projekat && (
+                          <ProjekatZnak projekat={entry.projekat} velicina="xs" />
+                        )}
                         {entry.hint && (
                           <span
                             className={cn(

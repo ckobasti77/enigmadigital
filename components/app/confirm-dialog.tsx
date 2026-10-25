@@ -33,6 +33,7 @@ export function ConfirmDialog({
   busy = false,
   onConfirm,
   tone = "danger",
+  kao,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -44,6 +45,11 @@ export function ConfirmDialog({
   busy?: boolean;
   onConfirm: () => void;
   tone?: "danger" | "accent";
+  /**
+   * Red „Objavljuješ kao …“ (projekat i nalog) tik iznad potvrde, za slanje
+   * koje odlazi napolje.
+   */
+  kao?: ReactNode;
 }) {
   return (
     <Dialog
@@ -60,6 +66,7 @@ export function ConfirmDialog({
             {description}
           </DialogDescription>
         </DialogHeader>
+        {kao}
         <DialogFooter>
           <Button
             type="button"

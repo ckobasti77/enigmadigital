@@ -13,6 +13,7 @@ import { useGSAP } from "@gsap/react";
 import { Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DUR_REDUCED, DUR_UI, EASE_UI, MOTION_QUERIES } from "@/lib/motion";
+import { stilProjekta } from "@/lib/boja-projekta";
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "./app-sidebar";
 import { MobileNav } from "./mobile-nav";
@@ -26,7 +27,8 @@ import { UserMenu } from "./user-menu";
 import { useNapredakFeedback } from "./napredak/napredak-feedback";
 import { NapredakIzvor } from "./napredak/napredak-izvor";
 import { ProjekatLink } from "./projekat-link";
-import { useEkranPutanja } from "./projekat-provider";
+import { useEkranPutanja, useProjekat } from "./projekat-provider";
+import { ProjekatBiracMobilni } from "./projekat-birac";
 import {
   COMMAND_EVENT,
   RAIL_EVENT,
@@ -208,6 +210,7 @@ function ShellFrame({
         Preskoči na sadržaj
       </a>
       <AppSidebar ref={sidebarRef} rail={rail} onToggleRail={toggleRail} />
+      <TrakaProjekta />
       <div
         ref={columnRef}
         data-module={modul}
@@ -229,6 +232,24 @@ function ShellFrame({
       <NapredakIzvor />
       {nagrade}
     </>
+  );
+}
+
+/**
+ * Traka od 2 px preko cele širine, u boji projekta (peta uloga boje,
+ * identitet): čiji je ovo ekran, i kad je bočna traka skupljena ili je nema.
+ * Crta se tek kad je projekat potvrđen, da ne trepne podrazumevanom bojom.
+ */
+function TrakaProjekta() {
+  const { spreman, brend } = useProjekat();
+  if (!spreman) return null;
+  return (
+    <div
+      aria-hidden
+      data-projekat=""
+      style={stilProjekta(brend.boja)}
+      className="pointer-events-none fixed inset-x-0 top-0 z-40 h-0.5 bg-projekat"
+    />
   );
 }
 
@@ -255,6 +276,8 @@ function Header({ rail }: { rail: boolean }) {
   return (
     <header className="material edge-fade-b sticky top-0 z-30 flex shrink-0 flex-col">
       <div className={cn(ROW, "flex h-[var(--chrome-height)] items-center gap-3")}>
+        {/* Na telefonu nema bočne trake, pa birač projekta stoji ovde. */}
+        <ProjekatBiracMobilni className="md:hidden" />
         <Breadcrumb screen={screen} />
 
         <div className="flex shrink-0 items-center gap-2">

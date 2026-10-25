@@ -1184,20 +1184,20 @@ function targetContext(args: Record<string, unknown>): R<typeof api.adActionsSto
   if (type === "campaign") {
     const c = CAMPS.find((x) => x.ext === id);
     if (c) {
-      return { ...base, name: c.spec.name, status: c.spec.status, dailyBudget: c.spec.dailyBudget, currency: c.account.currency, spendToday: r2(c.spec.spendPerDay * 0.6) };
+      return { ...base, name: c.spec.name, status: c.spec.status, dailyBudget: c.spec.dailyBudget, currency: c.account.currency, spendToday: r2(c.spec.spendPerDay * 0.6), accountName: c.account.name, provider: c.account.provider };
     }
   } else if (type === "adset") {
     const s = ALL_SETS.find((x) => x.ext === id);
     if (s) {
-      return { ...base, name: s.spec.name, status: s.spec.status, dailyBudget: s.spec.dailyBudget, currency: s.camp.account.currency, spendToday: r2(s.camp.spec.spendPerDay * 0.3) };
+      return { ...base, name: s.spec.name, status: s.spec.status, dailyBudget: s.spec.dailyBudget, currency: s.camp.account.currency, spendToday: r2(s.camp.spec.spendPerDay * 0.3), accountName: s.camp.account.name, provider: s.camp.account.provider };
     }
   } else {
     const a = ALL_ADS.find((x) => x.ext === id);
     if (a) {
-      return { ...base, name: a.spec.name, status: a.spec.status, dailyBudget: a.set.spec.dailyBudget, currency: a.set.camp.account.currency, spendToday: r2(a.set.camp.spec.spendPerDay * 0.15) };
+      return { ...base, name: a.spec.name, status: a.spec.status, dailyBudget: a.set.spec.dailyBudget, currency: a.set.camp.account.currency, spendToday: r2(a.set.camp.spec.spendPerDay * 0.15), accountName: a.set.camp.account.name, provider: a.set.camp.account.provider };
     }
   }
-  return { ...base, name: String(id), status: "UNKNOWN", dailyBudget: undefined, currency: "", spendToday: 0 };
+  return { ...base, name: String(id), status: "UNKNOWN", dailyBudget: undefined, currency: "", spendToday: 0, accountName: null, provider: null };
 }
 
 function adCreativeDetails(args: Record<string, unknown>): R<typeof api.adActionsStore.getAdCreativeDetails> {

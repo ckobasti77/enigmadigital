@@ -66,6 +66,10 @@ import {
   useProjekatMutation,
 } from "@/components/app/projekat-provider";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
+import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +88,7 @@ type ReplyControl =
 
 export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void }) {
   const { spreman } = useProjekat();
+  const potvrda = usePotvrdaProjekta();
   const getPublishingLimit = useProjekatAction(api.threadsPublish.publishingLimit);
   const generateUploadUrl = useProjekatMutation(api.threadsPublishStore.generateUploadUrl);
   const registerUpload = useProjekatMutation(api.threadsPublishStore.registerUpload);
@@ -1021,7 +1026,12 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
           )}
 
           {/* Dugme za slanje */}
-          <div className="flex items-center justify-end gap-3 border-t border-line-soft pt-4">
+          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t border-line-soft pt-4">
+            <ObjavljujesKao
+              kanal="threads"
+              radnja={isScheduled ? "Zakazuješ" : "Objavljuješ"}
+              className="mr-auto"
+            />
             <Button
               type="button"
               variant="primary"
@@ -1037,7 +1047,7 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
               ) : isScheduled ? (
                 <>
                   <CalendarClock className="size-4" aria-hidden="true" />
-                  <span>Zakaži objavu</span>
+                  <span>{potvrda("Zakaži objavu")}</span>
                 </>
               ) : (
                 <>
@@ -1056,7 +1066,8 @@ export function ThreadsComposer({ onJobCreated }: { onJobCreated?: () => void })
         onOpenChange={setConfirmOpen}
         title="Objavi odmah na Threads"
         description="Ova radnja je nepovratna. Objava će odmah biti poslata na Threads nalog i postati javno vidljiva posetiocima."
-        confirmLabel="Potvrdi i objavi"
+        kao={<ObjavljujesKao kanal="threads" radnja="Objavljuješ" />}
+        confirmLabel={potvrda("Potvrdi i objavi")}
         busyLabel="Šalje se..."
         busy={busy}
         onConfirm={submitJob}

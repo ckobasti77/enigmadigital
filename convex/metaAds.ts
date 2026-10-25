@@ -1487,8 +1487,11 @@ async function getMetaAdsAuth(
     throw new Error("Kredencijali za Meta Ads nisu validni.");
   }
 
+  // Samo Meta nalog: projekat sa Meta i Google oglasima bi inače dobio prvi
+  // nalog bilo kog provajdera (isto kao ostali pozivi `getAccounts` ovde).
   const account = await ctx.runQuery(internal.metaAdsStore.getAccounts, {
     workspaceId,
+    provider: "meta_ads",
   });
   const firstAct = account?.[0];
   if (!firstAct) {

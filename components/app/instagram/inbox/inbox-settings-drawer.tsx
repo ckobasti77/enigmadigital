@@ -15,6 +15,10 @@ import {
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
+import {
   useProjekatAction,
   useProjekatMutation,
   useProjekatQuery,
@@ -48,6 +52,7 @@ export function InboxSettingsDrawer({
   open,
   onOpenChange,
 }: InboxSettingsDrawerProps) {
+  const potvrda = usePotvrdaProjekta();
   const [activeTab, setActiveTab] = useState<"icebreakers" | "menu" | "quickreplies">(
     "icebreakers",
   );
@@ -359,14 +364,21 @@ export function InboxSettingsDrawer({
               )}
             </div>
 
-            <div className="pt-2 flex justify-end gap-2">
+            <div className="pt-2 flex flex-wrap items-center justify-end gap-2">
+              <ObjavljujesKao
+                kanal="instagram"
+                radnja="Objavljuješ"
+                className="mr-auto"
+              />
               <Button
                 onClick={handleSaveAndPublishProfile}
                 disabled={isSaving}
                 className="font-medium"
               >
                 <Send className="size-4 mr-1.5" />
-                {isSaving ? "Objavljivanje..." : "Sačuvaj i objavi na Instagram"}
+                {isSaving
+                  ? "Objavljivanje..."
+                  : potvrda("Sačuvaj i objavi na Instagram")}
               </Button>
             </div>
           </div>
@@ -445,14 +457,21 @@ export function InboxSettingsDrawer({
               )}
             </div>
 
-            <div className="pt-2 flex justify-end gap-2">
+            <div className="pt-2 flex flex-wrap items-center justify-end gap-2">
+              <ObjavljujesKao
+                kanal="instagram"
+                radnja="Objavljuješ"
+                className="mr-auto"
+              />
               <Button
                 onClick={handleSaveAndPublishProfile}
                 disabled={isSaving}
                 className="font-medium"
               >
                 <Send className="size-4 mr-1.5" />
-                {isSaving ? "Objavljivanje..." : "Sačuvaj i objavi na Instagram"}
+                {isSaving
+                  ? "Objavljivanje..."
+                  : potvrda("Sačuvaj i objavi na Instagram")}
               </Button>
             </div>
           </div>

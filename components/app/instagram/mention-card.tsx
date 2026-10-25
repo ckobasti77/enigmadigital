@@ -17,6 +17,10 @@ import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { FeedbackLine } from "@/components/app/feedback";
+import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
 import { useProjekatAction } from "@/components/app/projekat-provider";
 import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -50,6 +54,7 @@ function MentionReplyComposer({
   onError: (message: string | null) => void;
 }) {
   const reply = useProjekatAction(api.igMentions.replyToMention);
+  const potvrda = usePotvrdaProjekta();
   const ref = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -97,11 +102,12 @@ function MentionReplyComposer({
         }}
         className="min-h-14 border-line-soft bg-transparent text-sm"
       />
-      <div className="flex items-center justify-between gap-2">
+      <ObjavljujesKao kanal="instagram" radnja="Odgovaraš" />
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-mono text-micro tabular-nums text-text-muted">
           {text.trim().length} / {REPLY_MAX}
         </span>
-        <div className="flex items-center gap-1.5">
+        <div className="ml-auto flex items-center gap-1.5">
           <Button
             type="button"
             variant="ghost"
@@ -126,7 +132,7 @@ function MentionReplyComposer({
             ) : (
               <>
                 <Send data-icon="inline-start" />
-                Pošalji
+                {potvrda("Pošalji")}
               </>
             )}
           </Button>

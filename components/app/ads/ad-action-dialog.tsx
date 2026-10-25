@@ -8,6 +8,10 @@ import {
 } from "@/components/app/projekat-provider";
 import { ConvexError } from "convex/values";
 import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
+import {
   Dialog,
   DialogPopup,
   DialogHeader,
@@ -65,6 +69,14 @@ const TARGET_TYPE_LABELS: Record<AdTargetType, string> = {
   campaign: "Kampanja",
   adset: "Ad Set",
   ad: "Oglas",
+};
+
+// Radnja u redu „<radnja> na nalogu … · projekat“ iznad potvrde.
+const ACTION_VERBS: Record<AdActionType, string> = {
+  pause: "Pauziraš",
+  resume: "Pokrećeš",
+  budget_change: "Menjaš budžet",
+  duplicate: "Dupliraš",
 };
 
 export function AdActionDialog(props: AdActionDialogProps) {
@@ -127,6 +139,7 @@ function AdActionDialogInner({
   const pauseResumeAction = useProjekatAction(api.adActions.pauseResume);
   const changeBudgetAction = useProjekatAction(api.adActions.changeBudget);
   const duplicateAdAction = useProjekatAction(api.adActions.duplicateAd);
+  const potvrda = usePotvrdaProjekta();
 
   // Budget calculations and guardrails
   const newBudgetNum = parseFloat(newBudgetStr);
@@ -521,6 +534,12 @@ function AdActionDialogInner({
           </div>
         )}
 
+        <ObjavljujesKao
+          kanal={liveContext?.provider === "google_ads" ? "google_ads" : "meta_ads"}
+          radnja={ACTION_VERBS[actionType]}
+          nalog={liveContext === undefined ? undefined : liveContext.accountName}
+        />
+
         <DialogFooter className="gap-2 sm:gap-0">
           <DialogClose render={<Button variant="outline" size="sm" type="button" disabled={loading} />}>
             Otkaži
@@ -549,10 +568,10 @@ function AdActionDialogInner({
               </>
             ) : (
               <>
-                {actionType === "pause" && "Potvrdi pauziranje"}
-                {actionType === "resume" && "Potvrdi aktivaciju"}
-                {actionType === "budget_change" && "Potvrdi promenu budžeta"}
-                {actionType === "duplicate" && "Dupliraj oglas"}
+                {actionType === "pause" && potvrda("Potvrdi pauziranje")}
+                {actionType === "resume" && potvrda("Potvrdi aktivaciju")}
+                {actionType === "budget_change" && potvrda("Potvrdi promenu budžeta")}
+                {actionType === "duplicate" && potvrda("Dupliraj oglas")}
               </>
             )}
           </Button>

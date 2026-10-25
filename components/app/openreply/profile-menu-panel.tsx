@@ -18,6 +18,10 @@ import {
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
+import {
   useProjekatAction,
   useProjekatMutation,
   useProjekatQuery,
@@ -107,6 +111,7 @@ function ProfileMenuForm({
   automations: AutomationView[];
   igConnected: boolean;
 }) {
+  const potvrda = usePotvrdaProjekta();
   const [iceBreakers, setIceBreakers] = useState<IceBreakerRow[]>(() =>
     config.iceBreakers.map((iceBreaker) => ({
       uid: nextUid(),
@@ -464,6 +469,11 @@ function ProfileMenuForm({
 
         {/* Akcije */}
         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3.5">
+          <ObjavljujesKao
+            kanal="instagram"
+            radnja="Objavljuješ"
+            className="w-full"
+          />
           <Button
             type="button"
             size="sm"
@@ -477,7 +487,7 @@ function ProfileMenuForm({
                 <span>Objavljujem…</span>
               </>
             ) : (
-              <span>Objavi na Instagramu</span>
+              <span>{potvrda("Objavi na Instagramu")}</span>
             )}
           </Button>
 

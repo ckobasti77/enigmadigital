@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useProjekatAction } from "@/components/app/projekat-provider";
+import {
+  useProjekatAction,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
+import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
 import { api } from "@/convex/_generated/api";
 import {
   Dialog,
@@ -39,6 +46,10 @@ export function CreateCustomAudienceDialog({
   const [error, setError] = useState<string | null>(null);
 
   const createCustomAudience = useProjekatAction(api.metaAds.createCustomAudienceAction);
+  const potvrda = usePotvrdaProjekta();
+  // Publika nastaje na nalogu koji akcija uzima: prvi Meta nalog oglasa
+  // projekta (`getMetaAdsAuth`), istim indeksom i redom kao ovaj spisak.
+  const nalozi = useProjekatQuery(api.metaAdsStore.listAccounts);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,6 +207,16 @@ export function CreateCustomAudienceDialog({
             </p>
           </div>
 
+          <ObjavljujesKao
+            kanal="meta_ads"
+            radnja="Praviš"
+            nalog={
+              nalozi === undefined
+                ? undefined
+                : (nalozi.find((n) => n.provider === "meta_ads")?.name ?? null)
+            }
+          />
+
           <DialogFooter>
             <Button
               type="button"
@@ -215,7 +236,7 @@ export function CreateCustomAudienceDialog({
                   Kreiranje...
                 </>
               ) : (
-                "Kreiraj publiku"
+                potvrda("Kreiraj publiku")
               )}
             </Button>
           </DialogFooter>

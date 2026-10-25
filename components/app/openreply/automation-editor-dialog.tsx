@@ -14,6 +14,10 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
 import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { normalizeKeyword } from "@/convex/lib/orMatch";
 import { PLATFORM_LABELS } from "@/convex/lib/orPlatform";
@@ -137,6 +141,7 @@ function AutomationEditorForm({
   onClose: () => void;
 }) {
   const isEditing = automationToEdit !== null;
+  const potvrda = usePotvrdaProjekta();
 
   const [name, setName] = useState(automationToEdit?.name ?? "");
   const [platform, setPlatform] = useState<AutomationPlatform>(
@@ -1066,6 +1071,17 @@ function AutomationEditorForm({
         </div>
       </div>
 
+      {/* Automatizacija šalje poruke sa naloga(a) na kojima se okida; Instagram
+          i Facebook su različiti nalozi, pa „Obe” pokazuje oba. */}
+      <div className="flex flex-col gap-1">
+        {platform !== "facebook" && (
+          <ObjavljujesKao kanal="instagram" radnja="Šalješ" />
+        )}
+        {platform !== "instagram" && (
+          <ObjavljujesKao kanal="facebook" radnja="Šalješ" />
+        )}
+      </div>
+
       <DialogFooter className="items-center gap-2 border-t border-line pt-3 sm:justify-between">
         <PillToggle
           on={isActive}
@@ -1101,9 +1117,9 @@ function AutomationEditorForm({
                 <span>Čuvam…</span>
               </>
             ) : isEditing ? (
-              "Sačuvaj izmene"
+              potvrda("Sačuvaj izmene")
             ) : (
-              "Napravi automatizaciju"
+              potvrda("Napravi automatizaciju")
             )}
           </Button>
         </div>

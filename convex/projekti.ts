@@ -1,6 +1,8 @@
 import { ConvexError, v } from "convex/values";
+import { internal } from "./_generated/api";
 import { internalQuery, query, type QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { izracunajStaMeCeka } from "./notificationsStore";
 import {
   clanstvoKorisnika,
   jeVlasnikPlatforme,
@@ -16,6 +18,7 @@ import {
 } from "./lib/projekatPolja";
 import { normalizujHost, proveriSlugProjekta } from "./lib/projekatSlug";
 import { ulogaValidator, type Uloga } from "./lib/uloge";
+import { zdravljeProjekta, type VezaZaZdravlje } from "./lib/zdravljeVeza";
 
 /**
  * ============================================================================
@@ -141,6 +144,127 @@ export const ja = prijavljenQuery({
       platformaVlasnik: await jeVlasnikPlatforme(ctx, userId),
     };
   },
+});
+
+/** Birač projekta računa stanje za najviše ovoliko projekata (plan C02 §8.3). */
+export const MAKS_STANJA_PROJEKATA = 20;
+/**
+ * Budžet čitanja za „šta me čeka“ svih projekata zajedno, deljen na jednake
+ * delove. Granica jedne transakcije je 32.000 dokumenata i 4.096 opsega
+ * indeksa; ostatak ostaje za članstva, veze i prolaze. Projekat koji svoj deo
+ * prekorači dobija `ceka: null` („—“), umesto da obori ceo upit.
+ */
+const BUDZET_DOKUMENATA = 24_000;
+const BUDZET_UPITA = 2_400;
+const MAKS_VEZA = 50;
+
+const zdravljeValidator = v.union(
+  v.literal("ok"),
+  v.literal("upozorenje"),
+  v.literal("greska"),
+  v.literal("bez_veza"),
+);
+
+/**
+ * Stanje projekata za birač: tačka stanja veza i broj „šta me čeka“, za
+ * najviše 20 projekata prijavljenog korisnika (redom članstva, kao
+ * `mojiProjekti`). Čita samo projekte u kojima je pozivalac član.
+ *
+ * Vreme stiže od klijenta (upit ne čita sat). Preko 20 projekata `ceka` je
+ * `null` za sve, a stanje veza se daje za prvih 20; projekat bez reda u
+ * odgovoru birač crta kao nepoznat.
+ */
+export const stanjeProjekata = prijavljenQuery({
+  args: { sada: v.number(), pomerajMin: v.optional(v.number()) },
+  returns: v.array(
+    v.object({
+      workspaceId: v.id("workspaces"),
+      zdravlje: zdravljeValidator,
+      ceka: v.union(v.number(), v.null()),
+    }),
+  ),
+  handler: async (ctx, { sada, pomerajMin }) => {
+    const userId = ctx.korisnik.userId;
+    const clanstva = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .take(MAKS_STANJA_PROJEKATA + 1);
+    const previse = clanstva.length > MAKS_STANJA_PROJEKATA;
+    const obradi = clanstva.slice(0, MAKS_STANJA_PROJEKATA);
+    const deo = Math.max(1, obradi.length);
+
+    const out = [];
+    for (const clan of obradi) {
+      const workspaceId = clan.workspaceId;
+      if ((await ctx.db.get(workspaceId)) === null) continue;
+
+      const veze = await ctx.db
+        .query("connections")
+        .withIndex("by_workspace_provider", (q) => q.eq("workspaceId", workspaceId))
+        .take(MAKS_VEZA);
+      const zaZdravlje: VezaZaZdravlje[] = [];
+      for (const veza of veze) {
+        if (veza.status === "disconnecting") continue;
+        const prolaz = await ctx.db
+          .query("syncRuns")
+          .withIndex("by_workspace_provider", (q) =>
+            q.eq("workspaceId", workspaceId).eq("provider", veza.provider),
+          )
+          .order("desc")
+          .first();
+        zaZdravlje.push({
+          status: veza.status,
+          expiresAt: veza.expiresAt,
+          lastSyncAt: veza.lastSyncAt,
+          poslednjiProlaz:
+            prolaz === null
+              ? null
+              : { status: prolaz.status, startedAt: prolaz.startedAt, finishedAt: prolaz.finishedAt },
+        });
+      }
+
+      let ceka: number | null = null;
+      if (!previse) {
+        try {
+          // Tip je napisan ručno: poziv funkcije iz istog fajla bi inače
+          // napravio kružni tip (guidelines, „Function calling“).
+          const broj: number = await ctx.runQuery(
+            internal.projekti.cekaProjekta,
+            { workspaceId, userId, sada, pomerajMin },
+            {
+              transactionLimits: {
+                documentsRead: Math.floor(BUDZET_DOKUMENATA / deo),
+                databaseQueries: Math.floor(BUDZET_UPITA / deo),
+              },
+            },
+          );
+          ceka = broj;
+        } catch {
+          // Prekoračen deo budžeta (ili pad čitanja): broj nije poznat.
+          ceka = null;
+        }
+      }
+
+      out.push({ workspaceId, zdravlje: zdravljeProjekta(zaZdravlje, sada), ceka });
+    }
+    return out;
+  },
+});
+
+/**
+ * Broj „šta me čeka“ jednog projekta za `stanjeProjekata` (isti pomoćnik kao
+ * zvono). Interna: članstvo je pozivalac već proverio — projekat dolazi iz
+ * njegovog spiska članstava, a `userId` iz prijave.
+ */
+export const cekaProjekta = internalQuery({
+  args: {
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    sada: v.number(),
+    pomerajMin: v.optional(v.number()),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => (await izracunajStaMeCeka(ctx, args)).ukupno,
 });
 
 // javno: proxy razrešava domen pre prijave; vraća samo slug projekta za taj host

@@ -41,6 +41,10 @@ import type { VideoItem } from "./youtube-videos-grid";
 import { cn } from "@/lib/utils";
 import { FeedbackNote } from "@/components/app/feedback";
 import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
+import {
   useProjekat,
   useProjekatAction,
   useProjekatQuery,
@@ -115,6 +119,7 @@ function YtVideoEditForm({
   video: VideoItem;
   onClose: () => void;
 }) {
+  const potvrda = usePotvrdaProjekta();
   const [title, setTitle] = useState(video.title);
 
   const [editDescription, setEditDescription] = useState(false);
@@ -242,6 +247,8 @@ function YtVideoEditForm({
           </p>
         </div>
 
+        <ObjavljujesKao kanal="youtube" radnja="Brišeš" />
+
         <DialogFooter className="border-t border-line pt-3">
           <Button
             type="button"
@@ -265,7 +272,7 @@ function YtVideoEditForm({
                 <span>Brišem…</span>
               </>
             ) : (
-              "Obriši video zauvek"
+              potvrda("Obriši video zauvek")
             )}
           </Button>
         </DialogFooter>
@@ -481,6 +488,8 @@ function YtVideoEditForm({
         </div>
       </div>
 
+      <ObjavljujesKao kanal="youtube" radnja="Menjaš" />
+
       <DialogFooter className="items-center gap-2 border-t border-line pt-3 sm:justify-between">
         <span className="font-mono text-xs text-text-muted">
           {video.videoId}
@@ -507,7 +516,7 @@ function YtVideoEditForm({
                 <span>Čuvam…</span>
               </>
             ) : (
-              "Sačuvaj izmene"
+              potvrda("Sačuvaj izmene")
             )}
           </Button>
         </div>

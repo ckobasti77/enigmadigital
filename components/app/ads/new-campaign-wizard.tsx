@@ -1,6 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
 import { ProjekatLink } from "@/components/app/projekat-link";
 import {
   useProjekatAction,
@@ -259,6 +263,7 @@ export function NewCampaignWizard() {
   const validatePlan = useProjekatAction(api.adActions.validateCampaignPlan);
   const createFull = useProjekatAction(api.adActions.createCampaignFull);
   const listPixels = useProjekatAction(api.metaAds.listAdPixelsAction);
+  const potvrda = usePotvrdaProjekta();
 
   // Zahtev-nonce: jednom po pokušaju, sprečava dva klika → dve kampanje.
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
@@ -922,7 +927,16 @@ export function NewCampaignWizard() {
       )}
 
       {/* Navigacija */}
-      <div className="flex items-center justify-between border-t border-line pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-y-3 border-t border-line pt-4">
+        {step === 3 && (
+          <ObjavljujesKao
+            kanal="meta_ads"
+            radnja="Praviš"
+            nalog={account?.name}
+            className="basis-full"
+          />
+        )}
+
         {step > 1 ? (
           <Button
             type="button"
@@ -970,7 +984,7 @@ export function NewCampaignWizard() {
             ) : (
               <>
                 <Pause className="mr-1.5 size-3.5" />
-                Kreiraj kao pauzirano
+                {potvrda("Kreiraj kao pauzirano")}
               </>
             )}
           </Button>

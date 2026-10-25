@@ -26,6 +26,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { EmptyState } from "@/components/app/empty-state";
 import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
+import {
   useProjekatAction,
   useProjekatMutation,
   useProjekatQuery,
@@ -43,6 +47,7 @@ const HIDE_STATUS_LABELS: Record<string, { label: string; tone: string }> = {
 };
 
 export function ThreadsRepliesModeration() {
+  const potvrda = usePotvrdaProjekta();
   const mediaList = useProjekatQuery(api.threadsStore.mediaList, { limit: 50 });
   const [selectedPostId, setSelectedPostId] = useState<string>("");
 
@@ -511,7 +516,12 @@ export function ThreadsRepliesModeration() {
             rows={3}
             className="text-xs"
           />
-          <div className="mt-3 flex justify-end gap-2">
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+            <ObjavljujesKao
+              kanal="threads"
+              radnja="Odgovaraš"
+              className="mr-auto"
+            />
             <Button
               type="button"
               variant="outline"
@@ -531,7 +541,7 @@ export function ThreadsRepliesModeration() {
               className="gap-1.5"
             >
               <MessageSquareReply className="size-3.5" />
-              <span>Pošalji odgovor</span>
+              <span>{potvrda("Pošalji odgovor")}</span>
             </Button>
           </div>
         </Card>

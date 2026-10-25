@@ -5,6 +5,10 @@ import {
   useProjekatAction,
   useProjekatQuery,
 } from "@/components/app/projekat-provider";
+import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
 import { api } from "@/convex/_generated/api";
 import { ConvexError } from "convex/values";
 import {
@@ -127,6 +131,12 @@ function NewHookVersionDialogForm({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const createHookVersionAction = useProjekatAction(api.adActions.createHookVersion);
+  const potvrda = usePotvrdaProjekta();
+  // Kopija nastaje na nalogu izvornog oglasa: red pokazuje baš taj nalog.
+  const cilj = useProjekatQuery(api.adActionsStore.getTargetContext, {
+    targetType: "ad",
+    targetId: sourceAdId,
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -421,7 +431,14 @@ function NewHookVersionDialogForm({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 border-t border-line bg-card/40 flex items-center justify-between gap-3">
+        <div className="p-4 border-t border-line bg-card/40 flex flex-wrap items-center justify-between gap-3">
+          <ObjavljujesKao
+            kanal="meta_ads"
+            radnja="Praviš"
+            nalog={cilj === undefined ? undefined : cilj.accountName}
+            className="basis-full"
+          />
+
           <DialogClose
             render={
               <Button
@@ -450,7 +467,7 @@ function NewHookVersionDialogForm({
             ) : (
               <>
                 <Copy className="size-3.5" />
-                <span>Kreiraj PAUSED verziju</span>
+                <span>{potvrda("Kreiraj PAUSED verziju")}</span>
               </>
             )}
           </Button>

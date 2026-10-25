@@ -19,6 +19,8 @@ const NEXT_LINK_DOZVOLJEN: Record<string, string> = {
   "components/app/projekat-link.tsx": "omotač: jedino mesto koje pravi link ekrana",
   "components/app/projekat-nedostupan.tsx":
     "vodi VAN projekta, na hub „Svi projekti“ (`/`); kroz projekat bi `/` postao kontrolna tabla",
+  "components/app/projekat-birac.tsx":
+    "vodi VAN tekućeg projekta: na isti ekran drugog projekta (`/<slug>/…`) i na hub (`/`)",
 };
 /** Hub je van projekta: veze idu eksplicitno na `/<slug>`. */
 const NEXT_LINK_FASCIKLA = "components/app/hub/";

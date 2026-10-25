@@ -18,6 +18,10 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FeedbackNote } from "@/components/app/feedback";
+import {
+  ObjavljujesKao,
+  usePotvrdaProjekta,
+} from "@/components/app/objavljujes-kao";
 import { useProjekatMutation } from "@/components/app/projekat-provider";
 import {
   evaluatePublishGates,
@@ -46,6 +50,7 @@ export function PublishReadinessPanel({
   const [publishSuccess, setPublishSuccess] = useState<string | null>(null);
 
   const publishMutation = useProjekatMutation(api.postsStore.publish);
+  const potvrda = usePotvrdaProjekta();
 
   const gates: PublishGateStatus = evaluatePublishGates(post);
   const isDraftOrUnpublished = post.status !== "published";
@@ -214,6 +219,7 @@ export function PublishReadinessPanel({
 
       {/* Dugme za objavljivanje */}
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+        <ObjavljujesKao kanal="sajt" radnja="Objavljuješ" className="basis-full" />
         <div className="text-xs text-text-muted">
           {!post._id ? (
             <span>Post mora prvo biti kreiran/sačuvan kao nacrt.</span>
@@ -241,7 +247,7 @@ export function PublishReadinessPanel({
           ) : (
             <>
               <Send className="size-4" />
-              <span>{post.status === "published" ? "Ponovo objavi" : "Objavi post"}</span>
+              <span>{potvrda(post.status === "published" ? "Ponovo objavi" : "Objavi post")}</span>
             </>
           )}
         </Button>

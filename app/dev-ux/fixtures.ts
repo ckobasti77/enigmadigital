@@ -1,4 +1,4 @@
-import { getFunctionName } from "convex/server";
+import { getFunctionName, type FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { LeadScore } from "@/convex/lib/leadScoring";
@@ -27,6 +27,7 @@ import {
   HOUR,
   USER,
   WS,
+  WS_KLIJENT,
   WS_SCANME,
   lcg,
   now,
@@ -39,7 +40,11 @@ import { FIXTURES_ANALITIKA, PRAZNO_ANALITIKA } from "./fixtures-analitika";
 import { FIXTURES_KANALI, PRAZNO_KANALI } from "./fixtures-kanali";
 import { FIXTURES_NAPREDAK, PRAZNO_NAPREDAK } from "./fixtures-napredak";
 import { FIXTURES_OGLASI, PRAZNO_OGLASI } from "./fixtures-oglasi";
-import { FIXTURES_PROJEKTI, PRAZNO_PROJEKTI } from "./fixtures-projekti";
+import {
+  FIXTURES_PROJEKTI,
+  PRAZNO_PROJEKTI,
+  stanjeProjekataUx,
+} from "./fixtures-projekti";
 
 // ── Ljuska ───────────────────────────────────────────────────────────────────
 
@@ -86,7 +91,8 @@ const connections: R<typeof api.connections.list> = [
     provider: "meta_fb",
     status: "active",
     externalId: "000000000000001",
-    externalIdAlt: null,
+    // Ime stranice: pravi kod ga čuva u `externalIdAlt` (facebookStore.ts).
+    externalIdAlt: "Test Salon stranica",
     accountHandle: "Test Salon stranica",
     lastSyncAt: now - 3 * HOUR,
     expiresAt: null,
@@ -1050,6 +1056,13 @@ const FIXTURES: Record<string, Fixture> = {
     return lead ? { item: lead, now } : null;
   },
   [getFunctionName(api.notificationsStore.staMeCeka)]: () => staMeCeka,
+  // C09: titlovi videa se čitaju akcijom; bez fiksture lažni klijent vrati
+  // `undefined` i panel titlova pukne. Video bez titlova je pošteno stanje.
+  [getFunctionName(api.ytCaptions.listCaptions)]: () =>
+    [] satisfies FunctionReturnType<typeof api.ytCaptions.listCaptions>,
+  // C09: birač projekta — broj Enigme je ukupno iz zvona iznad.
+  [getFunctionName(api.projekti.stanjeProjekata)]: () =>
+    stanjeProjekataUx(staMeCeka.ukupno),
   // Uvoz (A5): istorija, jedan uvoz i njegovi redovi. `getImport` odgovara samo
   // na uvoz koji fixture zaista ima — za ostale vraća `null`, pa ekran kaže
   // „Uvoz nije pronađen" umesto da izmisli sadržaj.
@@ -1095,21 +1108,25 @@ const PRAZNO: Record<string, Fixture> = {
   ...PRAZNO_OGLASI,
   ...PRAZNO_NAPREDAK,
   ...PRAZNO_PROJEKTI,
+  // Prazan nalog je stanje kanala, ne nalog bez projekata: birač ostaje pun.
+  [getFunctionName(api.projekti.stanjeProjekata)]: () =>
+    stanjeProjekataUx(staMeCeka.ukupno),
 };
 
 /**
  * `undefined` za sve što nije pokriveno — ekran tada crta skeleton, ne laž.
  *
- * Upit projekta „ScanMe“ (`workspaceId === WS_SCANME`) dobija prazan nalog:
- * taj projekat još nema veza ni redova. Bez `workspaceId` ostaje „Enigma IT“,
- * pa skripte koje zovu `resolveFixture(…, {})` rade kao i pre.
+ * Upit projekta „ScanMe“ ili „Klijent d.o.o.“ (`WS_SCANME`, `WS_KLIJENT`)
+ * dobija prazan nalog: ti projekti još nemaju veza ni redova. Bez
+ * `workspaceId` ostaje „Enigma IT“, pa skripte koje zovu
+ * `resolveFixture(…, {})` rade kao i pre.
  */
 export function resolveFixture(
   name: string,
   args: Record<string, unknown>,
   prazno = false,
 ): unknown {
-  if (prazno || args.workspaceId === WS_SCANME) {
+  if (prazno || args.workspaceId === WS_SCANME || args.workspaceId === WS_KLIJENT) {
     const po = PRAZNO[name];
     if (po) return po(args);
     const rez = FIXTURES[name]?.(args);

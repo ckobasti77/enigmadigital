@@ -131,6 +131,18 @@
   --mod-line: color-mix(in oklch, var(--mod) 45%, transparent);
   --mod-glow: color-mix(in oklch, var(--mod) 35%, transparent);
 
+  /* ── Identitet projekta — peta uloga boje ─────────────────────────────────
+     Kaže ČIJI je ekran, ne gde si u njemu (to je modul). Samo birač projekta
+     i znak projekta (logo ili inicijali), traka od 2 px na vrhu ljuske i
+     ekran prijave. Vrednost dolazi iz podataka (`brend.boja`, kroz
+     `lib/boja-projekta.ts`, koji bira tekst ≥ 4,5:1 i drži boju ≥ 3:1 prema
+     strani); element koji je postavlja nosi `data-projekat`. Bez boje važi
+     cijan Kontrolne table, čiji par sa tamnim tekstom skripta već meri. */
+  --projekat-osnovna: var(--mod-tabla-strong);
+  --projekat: var(--projekat-osnovna);
+  --projekat-tekst: var(--background);
+  --projekat-soft: color-mix(in oklab, var(--projekat) 14%, transparent);
+
   /* ── Napredak i nagrada (UI Boost §3.7) ───────────────────────────────────
      Zlatna je rezervisana za nagradu: nijedan modul ni kategorija je ne
      koristi, pa „zlatno = zaradio sam" postaje naučen signal. */
@@ -400,6 +412,12 @@
 [data-module="pravila"] { --mod: var(--mod-pravila); --mod-strong: var(--mod-pravila-strong); }
 [data-module="sistem"] { --mod: var(--mod-sistem); --mod-strong: var(--mod-sistem-strong); }
 
+/* Izvedena nijansa projekta se računa tamo gde je boja postavljena (isti
+   razlog kao kod `[data-module]`): sa korena bi svi nasledili podrazumevanu. */
+[data-projekat] {
+  --projekat-soft: color-mix(in oklab, var(--projekat) 14%, transparent);
+}
+
 /* Šina ikonica: izbor piše `AppShell` na `<html>`, pa ga i zamena ljuske dok
    se sesija proverava vidi pre nego što se bočna traka uopšte montira. */
 [data-sidebar="rail"] {
@@ -588,6 +606,9 @@
   --color-mod-soft: var(--mod-soft);
   --color-mod-line: var(--mod-line);
   --color-mod-glow: var(--mod-glow);
+  --color-projekat: var(--projekat);
+  --color-projekat-tekst: var(--projekat-tekst);
+  --color-projekat-soft: var(--projekat-soft);
   --color-cat: var(--cat);
   --color-cat-ink: var(--cat-ink);
   --color-cat-soft: var(--cat-soft);

@@ -13,9 +13,12 @@ import { Component, type ReactNode } from "react";
  * Kada padne, ne prikazuje se ništa. Prateća informacija koja ne stigne mora
  * da ćuti, a ne da stane na put onome zbog čega je ekran otvoren; sve što
  * takva stavka nudi dostupno je i iz navigacije.
+ *
+ * `fallback` je za mesto koje i bez podatka mora nešto da kaže (birač
+ * projekta: „Spisak projekata trenutno nije dostupan.“); bez njega ćuti.
  */
 export class QuietBoundary extends Component<
-  { children: ReactNode },
+  { children: ReactNode; fallback?: ReactNode },
   { failed: boolean }
 > {
   state = { failed: false };
@@ -25,6 +28,6 @@ export class QuietBoundary extends Component<
   }
 
   render() {
-    return this.state.failed ? null : this.props.children;
+    return this.state.failed ? (this.props.fallback ?? null) : this.props.children;
   }
 }

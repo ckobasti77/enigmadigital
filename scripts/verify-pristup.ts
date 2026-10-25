@@ -39,6 +39,8 @@ const DOZVOLJENI_DIREKTNI: Readonly<Record<string, string>> = {
     "provider razrešava projekat po slugu; tuđ i nepostojeći slug daju null",
   "projekti.ja": "nalog prijavljenog korisnika (meni korisnika); radi i u hubu, bez projekta",
   "projekti.kreirajProjekat": "pravljenje novog projekta (vlasnik platforme); projekat još ne postoji",
+  "projekti.stanjeProjekata":
+    "birač projekta: tačka veza i broj „šta me čeka“ za sve projekte prijavljenog korisnika; čita samo njegova članstva",
   "invitesStore.getInvite": "ekran pozivnice pre registracije; pristup dokazuje token, nalog još ne postoji",
   "invitesStore.pripremiRegistraciju": "registracija preko pozivnice; pristup dokazuje token",
   "invitesStore.trebaSetup": "ekran prijave pita da li treba prvi admin nalog; vraća samo da/ne",
