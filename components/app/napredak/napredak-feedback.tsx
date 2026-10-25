@@ -8,17 +8,18 @@ import {
   type ComponentType,
   type ReactNode,
 } from "react";
-import { useMutation } from "convex/react";
 import { Sparkles } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
 import { danKljuc } from "@/convex/lib/napredak";
 import { LevelUpBanner } from "@/components/app/system/level-up-banner";
 import {
   RewardToast,
   RewardToastViewport,
 } from "@/components/app/system/reward-toast";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import {
+  useProjekat,
+  useProjekatMutation,
+} from "@/components/app/projekat-provider";
 import {
   izdvojiNagrade,
   novoPamcenje,
@@ -120,13 +121,12 @@ function napraviRed() {
 }
 
 export function useNapredakFeedback(): ReactNode {
-  const { workspace } = useWorkspace();
-  const workspaceId = workspace?.id as Id<"workspaces"> | undefined;
+  const { spreman } = useProjekat();
   const stanje = useNapredak();
   const sada = useSada();
   const vidljivo = useVidljivo();
-  const zamrzniDan = useMutation(api.napredak.zamrzniDan);
-  const potvrdi = useMutation(api.napredak.potvrdi);
+  const zamrzniDan = useProjekatMutation(api.napredak.zamrzniDan);
+  const potvrdi = useProjekatMutation(api.napredak.potvrdi);
 
   const [red] = useState(napraviRed);
   const { toasts, nivo } = useSyncExternalStore(
@@ -141,7 +141,7 @@ export function useNapredakFeedback(): ReactNode {
   const sidro = stanje?.ukljucen ? stanje.dan : null;
 
   useEffect(() => {
-    if (!workspaceId || !ukljucen || sada === 0) return;
+    if (!spreman || !ukljucen || sada === 0) return;
     const danas = danKljuc(sada);
     if (sidro === danas) return;
     const tekuce = zamrzavanje.current;
@@ -150,7 +150,7 @@ export function useNapredakFeedback(): ReactNode {
     // vrati sa `novo: false` i ovde se ne ponavlja u krug.
     if (pokusaja >= POKUSAJA_ZAMRZAVANJA) return;
     zamrzavanje.current = { dan: danas, pokusaja: pokusaja + 1 };
-    void zamrzniDan({ workspaceId }).then(
+    void zamrzniDan().then(
       () => postaviZastojNapretka(false),
       () => {
         // Sledeći otkucaj sata pokušava ponovo, do granice; posle poslednjeg
@@ -158,7 +158,7 @@ export function useNapredakFeedback(): ReactNode {
         if (pokusaja + 1 >= POKUSAJA_ZAMRZAVANJA) postaviZastojNapretka(true);
       },
     );
-  }, [workspaceId, ukljucen, sidro, sada, zamrzniDan]);
+  }, [spreman, ukljucen, sidro, sada, zamrzniDan]);
 
   // ── nagrade ────────────────────────────────────────────────────────────────
   const pamcenje = useRef(novoPamcenje());
@@ -168,13 +168,13 @@ export function useNapredakFeedback(): ReactNode {
     const nagrade = izdvojiNagrade(stanje, pamcenje.current, vidljivo);
     red.dodaj(nagrade.toasts);
     if (nagrade.nivo) red.nivo(nagrade.nivo);
-    if (nagrade.potvrdi.length > 0 && workspaceId) {
-      void potvrdi({ workspaceId, kljucevi: nagrade.potvrdi }).catch(() => {
+    if (nagrade.potvrdi.length > 0 && spreman) {
+      void potvrdi({ kljucevi: nagrade.potvrdi }).catch(() => {
         // Nepotvrđena proslava se vrati pri sledećem učitavanju — manje zlo
         // nego greška preko posla.
       });
     }
-  }, [stanje, vidljivo, workspaceId, potvrdi, red]);
+  }, [stanje, vidljivo, spreman, potvrdi, red]);
 
   if (!ukljucen) return null;
 

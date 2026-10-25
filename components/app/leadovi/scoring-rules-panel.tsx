@@ -1,7 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import {
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import {
   Flame,
   Loader2,
@@ -12,7 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import type { Doc, Id } from "@/convex/_generated/dataModel";
+import type { Doc } from "@/convex/_generated/dataModel";
 import { LEAD_SIGNAL_KINDS, type LeadSignalKind } from "@/convex/lib/leadNormalize";
 import { leadSignalLabel } from "./lead-labels";
 import { Button } from "@/components/ui/button";
@@ -83,18 +86,14 @@ const AXIS_META: Record<
 
 type Notice = { tone: FeedbackTone; title: string };
 
-export function ScoringRulesPanel({
-  workspaceId,
-}: {
-  workspaceId: Id<"workspaces">;
-}) {
-  const rules = useQuery(api.leadScoringStore.listIcpRules, { workspaceId });
+export function ScoringRulesPanel() {
+  const rules = useProjekatQuery(api.leadScoringStore.listIcpRules);
 
   const [form, setForm] = useState<{ mode: "new"; axis?: Axis } | { mode: "edit"; rule: RuleDoc } | null>(null);
   const [toDelete, setToDelete] = useState<RuleDoc | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
 
-  const setActive = useMutation(api.leadScoringStore.setIcpRuleActive);
+  const setActive = useProjekatMutation(api.leadScoringStore.setIcpRuleActive);
 
   const byAxis = useMemo(() => {
     const groups: Record<Axis, RuleDoc[]> = { fit: [], intent: [] };
@@ -107,7 +106,7 @@ export function ScoringRulesPanel({
 
   async function handleToggle(rule: RuleDoc, isActive: boolean) {
     try {
-      await setActive({ workspaceId, ruleId: rule._id, isActive });
+      await setActive({ ruleId: rule._id, isActive });
     } catch (err) {
       setNotice({
         tone: "danger",
@@ -123,7 +122,6 @@ export function ScoringRulesPanel({
     <>
       {form && (
         <RuleFormDialog
-          workspaceId={workspaceId}
           initial={form.mode === "edit" ? form.rule : undefined}
           defaultAxis={form.mode === "new" ? form.axis : undefined}
           onClose={() => setForm(null)}
@@ -140,7 +138,6 @@ export function ScoringRulesPanel({
       )}
       {toDelete && (
         <DeleteRuleDialog
-          workspaceId={workspaceId}
           rule={toDelete}
           onClose={() => setToDelete(null)}
           onDeleted={(name) =>
@@ -166,7 +163,6 @@ export function ScoringRulesPanel({
     return (
       <>
         <EmptyScoring
-          workspaceId={workspaceId}
           onAddManually={() => setForm({ mode: "new" })}
           notice={notice}
         />
@@ -204,7 +200,6 @@ export function ScoringRulesPanel({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <MissingDefaultsButton
-            workspaceId={workspaceId}
             onNotice={setNotice}
           />
           <Button
@@ -253,16 +248,12 @@ export function ScoringRulesPanel({
  * obećanje koje se ne ispunjava klikom.
  */
 function MissingDefaultsButton({
-  workspaceId,
   onNotice,
 }: {
-  workspaceId: Id<"workspaces">;
   onNotice: (notice: Notice) => void;
 }) {
-  const missing = useQuery(api.leadScoringStore.missingDefaultIcpRules, {
-    workspaceId,
-  });
-  const addMissing = useMutation(api.leadScoringStore.addMissingDefaultIcpRules);
+  const missing = useProjekatQuery(api.leadScoringStore.missingDefaultIcpRules);
+  const addMissing = useProjekatMutation(api.leadScoringStore.addMissingDefaultIcpRules);
   const [radim, setRadim] = useState(false);
 
   // `undefined` je „još se učita", `[]` je „ništa ne fali" — nijedno nije razlog
@@ -272,7 +263,7 @@ function MissingDefaultsButton({
   async function handleAdd() {
     setRadim(true);
     try {
-      const res = await addMissing({ workspaceId });
+      const res = await addMissing();
       onNotice({
         tone: "success",
         title:
@@ -319,15 +310,13 @@ function MissingDefaultsButton({
 /* -------------------------------------------------------------------------- */
 
 function EmptyScoring({
-  workspaceId,
   onAddManually,
   notice,
 }: {
-  workspaceId: Id<"workspaces">;
   onAddManually: () => void;
   notice: Notice | null;
 }) {
-  const seed = useMutation(api.leadScoringStore.seedDefaultIcpRules);
+  const seed = useProjekatMutation(api.leadScoringStore.seedDefaultIcpRules);
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -337,7 +326,7 @@ function EmptyScoring({
     try {
       // Uspeh preusmerava komponentu u popunjeno stanje (listIcpRules je
       // reaktivan), pa se potvrda računa tamo. Ovde ostaje samo neuspeh.
-      const res = await seed({ workspaceId });
+      const res = await seed();
       if (!res.seeded) {
         // Neko je u međuvremenu već ubacio pravila (dve iste sesije). Nije
         // greška — lista će se sama osvežiti; ostavljamo mirnu belešku.
@@ -622,20 +611,18 @@ function RuleRow({
 /* -------------------------------------------------------------------------- */
 
 function RuleFormDialog({
-  workspaceId,
   initial,
   defaultAxis,
   onClose,
   onSaved,
 }: {
-  workspaceId: Id<"workspaces">;
   initial?: RuleDoc;
   defaultAxis?: Axis;
   onClose: () => void;
   onSaved: (mode: "new" | "edit") => void;
 }) {
   const isEditing = !!initial;
-  const upsert = useMutation(api.leadScoringStore.upsertIcpRule);
+  const upsert = useProjekatMutation(api.leadScoringStore.upsertIcpRule);
 
   const [name, setName] = useState(initial?.name ?? "");
   const [axis, setAxis] = useState<Axis>(initial?.axis ?? defaultAxis ?? "fit");
@@ -676,7 +663,6 @@ function RuleFormDialog({
     setSubmitting(true);
     try {
       await upsert({
-        workspaceId,
         ruleId: initial?._id,
         name: trimmedName,
         axis,
@@ -840,17 +826,15 @@ function RuleFormDialog({
 /* -------------------------------------------------------------------------- */
 
 function DeleteRuleDialog({
-  workspaceId,
   rule,
   onClose,
   onDeleted,
 }: {
-  workspaceId: Id<"workspaces">;
   rule: RuleDoc;
   onClose: () => void;
   onDeleted: (name: string) => void;
 }) {
-  const remove = useMutation(api.leadScoringStore.deleteIcpRule);
+  const remove = useProjekatMutation(api.leadScoringStore.deleteIcpRule);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -858,7 +842,7 @@ function DeleteRuleDialog({
     setSubmitting(true);
     setError(null);
     try {
-      await remove({ workspaceId, ruleId: rule._id });
+      await remove({ ruleId: rule._id });
       onDeleted(rule.name);
       onClose();
     } catch (err) {

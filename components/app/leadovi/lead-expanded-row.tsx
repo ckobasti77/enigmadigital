@@ -2,9 +2,8 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useMutation } from "convex/react";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
 import {
   Activity,
   Calendar,
@@ -71,14 +70,12 @@ function Empty({ children }: { children: ReactNode }) {
  * — nema upita po otvorenom redu (O4). Jedini upis je beleška, i to na klik.
  */
 export function LeadExpandedRow({
-  workspaceId,
   item,
   now,
   onCall,
   onOpenDialog,
   stacked = false,
 }: {
-  workspaceId: Id<"workspaces">;
   item: LeadRowItem;
   now: number;
   onCall: (phone: string) => void;
@@ -93,7 +90,7 @@ export function LeadExpandedRow({
   const { assignment, company } = item;
   const companyId = assignment.companyId;
 
-  const logTouch = useMutation(api.leadCrmStore.logTouch);
+  const logTouch = useProjekatMutation(api.leadCrmStore.logTouch);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [noteState, setNoteState] = useState<
@@ -106,7 +103,7 @@ export function LeadExpandedRow({
     setSaving(true);
     setNoteState(null);
     try {
-      await logTouch({ workspaceId, companyId, channel: "beleska", note: clean });
+      await logTouch({ companyId, channel: "beleska", note: clean });
       setNote("");
       setNoteState({ tone: "success", text: "Beleška upisana u istoriju." });
     } catch (err) {

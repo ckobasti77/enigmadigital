@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useId, useRef, useTransition } from "react";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -147,11 +146,11 @@ export function NovostiEditor({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Convex mutations
-  const createPostMutation = useMutation(api.postsStore.create);
-  const updateDraftMutation = useMutation(api.postsStore.updateDraft);
-  const saveRevisionMutation = useMutation(api.postsStore.saveRevision);
-  const unpublishMutation = useMutation(api.postsStore.unpublish);
-  const archiveMutation = useMutation(api.postsStore.archive);
+  const createPostMutation = useProjekatMutation(api.postsStore.create);
+  const updateDraftMutation = useProjekatMutation(api.postsStore.updateDraft);
+  const saveRevisionMutation = useProjekatMutation(api.postsStore.saveRevision);
+  const unpublishMutation = useProjekatMutation(api.postsStore.unpublish);
+  const archiveMutation = useProjekatMutation(api.postsStore.archive);
   const generateUploadUrlMutation = useProjekatMutation(
     api.threadsPublishStore.generateUploadUrl,
   );
@@ -293,7 +292,6 @@ export function NovostiEditor({
       if (!currentId) {
         // Kreiramo novi post preko Convex mutacije
         const res = await createPostMutation({
-          workspaceId,
           title: trimmedTitle,
           slug: slug.trim() || undefined,
           kind,

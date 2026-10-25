@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
-import type { Id, Doc } from "@/convex/_generated/dataModel";
+import type { Doc } from "@/convex/_generated/dataModel";
 import type { GapType } from "@/convex/leadGapsStore";
 import {
   Phone,
@@ -31,11 +30,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FeedbackNote } from "@/components/app/feedback";
 import { leadGapLabel } from "./lead-labels";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import { useProjekat, useProjekatMutation } from "@/components/app/projekat-provider";
 import { cn } from "@/lib/utils";
 
 type LeadGapFillDialogProps = {
-  workspaceId: Id<"workspaces">;
   company: Doc<"leadCompanies"> | null;
   gapType: GapType;
   isOpen: boolean;
@@ -63,15 +61,14 @@ const LAWFUL_BASIS_OPTIONS = [
 ];
 
 export function LeadGapFillDialog({
-  workspaceId,
   company,
   gapType,
   isOpen,
   onOpenChange,
   onSuccess,
 }: LeadGapFillDialogProps) {
-  const { user } = useWorkspace();
-  const fillGapMutation = useMutation(api.leadGapFillStore.fillGap);
+  const { korisnik } = useProjekat();
+  const fillGapMutation = useProjekatMutation(api.leadGapFillStore.fillGap);
 
   // Form states
   const [vrednost, setVrednost] = useState("");
@@ -129,7 +126,6 @@ export function LeadGapFillDialog({
       setErrorMsg(null);
 
       await fillGapMutation({
-        workspaceId,
         companyId: company._id,
         gapType,
         vrednost: gapType === "bez_kontakt_osobe" ? personName : vrednost,
@@ -138,7 +134,7 @@ export function LeadGapFillDialog({
         lawfulBasis: lawfulBasis ? lawfulBasis.trim() : undefined,
         sourceUrl: sourceUrl.trim() ? sourceUrl.trim() : undefined,
         confidence: (confidence ?? "priblizno") as "tacno" | "priblizno",
-        ownerUserId: user?.id as Id<"users"> | undefined,
+        ownerUserId: korisnik?.id,
       });
 
       onSuccess?.();

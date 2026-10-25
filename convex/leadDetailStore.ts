@@ -1,6 +1,5 @@
-import { mutation, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 
 /**
  * LM10 — Ekran jednog leada.
@@ -12,25 +11,16 @@ import { requireMembership } from "./lib/auth";
  * - poreklo tvrdnji za svako pojedinačno polje (leadFieldProvenance)
  * - hronološke signale opažanja (leadSignals, do 200 stavki, uz signalsTruncated zastavicu)
  */
-export const getLeadDetail = query({
+export const getLeadDetail = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
@@ -219,9 +209,8 @@ export const getLeadDetail = query({
  * 4. Telefon bez `personId` nema čiju pripadnost da meri — procena vezanosti
  *    broja za osobu bez osobe je broj bez tvrdnje.
  */
-export const setPhoneConfidence = mutation({
+export const setPhoneConfidence = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     identityId: v.id("leadIdentities"),
     // Ili broj 0–95, ili izričito „nije moguće proceniti" — nikad oboje.
     verovatnoca: v.optional(v.number()),
@@ -230,19 +219,11 @@ export const setPhoneConfidence = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const identity = await ctx.db.get(args.identityId);
     if (!identity || identity.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Kontakt nije pronađen u ovom radnom prostoru.",
+        message: "Kontakt nije pronađen u ovom projektu.",
       });
     }
     if (identity.kind !== "phone") {

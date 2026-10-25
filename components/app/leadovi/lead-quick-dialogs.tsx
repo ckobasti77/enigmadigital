@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -25,7 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FeedbackLine, FeedbackNote } from "@/components/app/feedback";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import { useProjekat, useProjekatMutation } from "@/components/app/projekat-provider";
 import { useNow } from "@/components/app/use-now";
 import {
   LEAD_OUTCOME_LABELS,
@@ -49,7 +48,6 @@ import { cn } from "@/lib/utils";
  */
 
 export type LeadDialogBase = {
-  workspaceId: Id<"workspaces">;
   companyId: Id<"leadCompanies">;
   companyName: string;
   open: boolean;
@@ -162,7 +160,6 @@ export type MeetingDialogProps = LeadDialogBase & {
  * Prelazak faze u „Sastanak” se NUDI kao izbor, nikad ne radi sam.
  */
 export function MeetingDialog({
-  workspaceId,
   companyId,
   companyName,
   open,
@@ -172,10 +169,10 @@ export function MeetingDialog({
   calledPhone,
   onSaved,
 }: MeetingDialogProps) {
-  const setMeeting = useMutation(api.leadCrmStore.setMeeting);
-  const clearMeeting = useMutation(api.leadCrmStore.clearMeeting);
-  const setStage = useMutation(api.leadCrmStore.setStage);
-  const logTouch = useMutation(api.leadCrmStore.logTouch);
+  const setMeeting = useProjekatMutation(api.leadCrmStore.setMeeting);
+  const clearMeeting = useProjekatMutation(api.leadCrmStore.clearMeeting);
+  const setStage = useProjekatMutation(api.leadCrmStore.setStage);
+  const logTouch = useProjekatMutation(api.leadCrmStore.logTouch);
 
   const now = useNow();
   const [phase, setPhase] = useState<"form" | "cancel">("form");
@@ -205,17 +202,15 @@ export function MeetingDialog({
     setBusy(true);
     try {
       await setMeeting({
-        workspaceId,
         companyId,
         meetingAt: ts,
         meetingNote: note.trim() || undefined,
       });
       if (canOfferStage && moveToStage) {
-        await setStage({ workspaceId, companyId, stage: "sastanak" });
+        await setStage({ companyId, stage: "sastanak" });
       }
       if (calledPhone && logCall) {
         await logTouch({
-          workspaceId,
           companyId,
           channel: "poziv",
           note: `Poziv na ${calledPhone}`,
@@ -235,7 +230,6 @@ export function MeetingDialog({
     setBusy(true);
     try {
       await clearMeeting({
-        workspaceId,
         companyId,
         note: cancelNote.trim() || undefined,
       });
@@ -395,14 +389,13 @@ export type NextActionDialogProps = LeadDialogBase & {
 };
 
 export function NextActionDialog({
-  workspaceId,
   companyId,
   companyName,
   open,
   onOpenChange,
   current,
 }: NextActionDialogProps) {
-  const setNextAction = useMutation(api.leadCrmStore.setNextAction);
+  const setNextAction = useProjekatMutation(api.leadCrmStore.setNextAction);
   const now = useNow();
   const [when, setWhen] = useState(() =>
     current ? toDateTimeLocal(current.nextActionAt) : "",
@@ -423,7 +416,6 @@ export function NextActionDialog({
     setBusy(true);
     try {
       await setNextAction({
-        workspaceId,
         companyId,
         nextActionAt: ts,
         nextActionNote: note.trim() || undefined,
@@ -499,7 +491,6 @@ export type StageDialogProps = LeadDialogBase & {
 };
 
 export function StageDialog({
-  workspaceId,
   companyId,
   companyName,
   open,
@@ -507,7 +498,7 @@ export function StageDialog({
   currentStage,
   initialStage,
 }: StageDialogProps) {
-  const setStage = useMutation(api.leadCrmStore.setStage);
+  const setStage = useProjekatMutation(api.leadCrmStore.setStage);
   const [stage, setStageValue] = useState<LeadStage>(initialStage);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -527,7 +518,6 @@ export function StageDialog({
     setBusy(true);
     try {
       await setStage({
-        workspaceId,
         companyId,
         stage,
         note: clean || undefined,
@@ -622,15 +612,14 @@ export type OutcomeDialogProps = LeadDialogBase;
  * ništa ne upisuje.
  */
 export function OutcomeDialog({
-  workspaceId,
   companyId,
   companyName,
   open,
   onOpenChange,
   onSaved,
 }: OutcomeDialogProps) {
-  const recordOutcome = useMutation(api.leadCrmStore.recordOutcome);
-  const addToSuppression = useMutation(
+  const recordOutcome = useProjekatMutation(api.leadCrmStore.recordOutcome);
+  const addToSuppression = useProjekatMutation(
     api.leadCrmStore.addToSuppressionFromOutcome,
   );
 
@@ -651,7 +640,6 @@ export function OutcomeDialog({
     setBusy(true);
     try {
       const res = await recordOutcome({
-        workspaceId,
         companyId,
         outcome: code,
         note: note.trim() || undefined,
@@ -675,7 +663,6 @@ export function OutcomeDialog({
     setBusy(true);
     try {
       await addToSuppression({
-        workspaceId,
         companyId,
         kind: "rekao_ne",
         reason: `Dodato nakon ishoda „${code ? leadOutcomeLabel(code) : ""}”`,
@@ -819,15 +806,14 @@ export type AssignDialogProps = LeadDialogBase & {
  * ID — „dodeli meni” je posebno dugme jer ne traži ništa.
  */
 export function AssignDialog({
-  workspaceId,
   companyId,
   companyName,
   open,
   onOpenChange,
   currentOwnerUserId,
 }: AssignDialogProps) {
-  const { user } = useWorkspace();
-  const assignLead = useMutation(api.leadCrmStore.assignLead);
+  const { korisnik } = useProjekat();
+  const assignLead = useProjekatMutation(api.leadCrmStore.assignLead);
   const [userId, setUserId] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -843,7 +829,6 @@ export function AssignDialog({
     setBusy(true);
     try {
       await assignLead({
-        workspaceId,
         companyId,
         ownerUserId: clean as Id<"users">,
         note: note.trim() || undefined,
@@ -856,7 +841,7 @@ export function AssignDialog({
     }
   };
 
-  const isMine = user?.id !== undefined && user.id === currentOwnerUserId;
+  const isMine = korisnik?.id !== undefined && korisnik.id === currentOwnerUserId;
 
   return (
     <ActionDialog
@@ -885,12 +870,12 @@ export function AssignDialog({
         </>
       }
     >
-      {user?.id && !isMine && (
+      {korisnik?.id && !isMine && (
         <Button
           type="button"
           variant="outline"
           disabled={busy}
-          onClick={() => assign(user.id)}
+          onClick={() => assign(korisnik.id)}
           className="w-full justify-center gap-2 text-xs font-semibold"
         >
           <UserCheck className="size-4 text-mod" />
@@ -940,14 +925,13 @@ export type TouchDialogProps = LeadDialogBase & {
 };
 
 export function TouchDialog({
-  workspaceId,
   companyId,
   companyName,
   open,
   onOpenChange,
   defaultChannel = "poziv",
 }: TouchDialogProps) {
-  const logTouch = useMutation(api.leadCrmStore.logTouch);
+  const logTouch = useProjekatMutation(api.leadCrmStore.logTouch);
   const [channel, setChannel] = useState<string>(defaultChannel);
   const [timeMode, setTimeMode] = useState<"now" | "custom">("now");
   const [when, setWhen] = useState("");
@@ -969,7 +953,6 @@ export function TouchDialog({
     setBusy(true);
     try {
       await logTouch({
-        workspaceId,
         companyId,
         channel,
         note: note.trim() || undefined,

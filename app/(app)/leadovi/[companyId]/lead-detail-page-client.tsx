@@ -1,6 +1,6 @@
 "use client";
 
-import { useWorkspace } from "@/components/app/workspace-provider";
+import { useProjekat } from "@/components/app/projekat-provider";
 import type { Id } from "@/convex/_generated/dataModel";
 import { LeadDetail } from "@/components/app/leadovi/lead-detail";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,9 +9,9 @@ import Link from "next/link";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 
 export function LeadDetailPageClient({ companyId }: { companyId: string }) {
-  const { workspace, isLoading } = useWorkspace();
+  const { spreman, workspaceId } = useProjekat();
 
-  if (isLoading || !workspace) {
+  if (!spreman || workspaceId === null) {
     return (
       <div className="flex flex-col gap-6 py-6">
         <Skeleton className="h-6 w-36" />
@@ -22,8 +22,7 @@ export function LeadDetailPageClient({ companyId }: { companyId: string }) {
     );
   }
 
-  const workspaceId = workspace.id as Id<"workspaces">;
   const validCompanyId = companyId as Id<"leadCompanies">;
 
-  return <LeadDetail workspaceId={workspaceId} companyId={validCompanyId} />;
+  return <LeadDetail companyId={validCompanyId} />;
 }

@@ -1,8 +1,7 @@
-import { query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 import {
   claudeProsek,
   kvalitetSajta,
@@ -75,25 +74,16 @@ export async function ucitajPoslednjeOcene(
 // ─────────────────────────────────────────────────────────────────────────────
 // listSiteAudits — istorija ocena jedne firme, najnovija prva, sa linkovima
 // ─────────────────────────────────────────────────────────────────────────────
-export const listSiteAudits = query({
+export const listSiteAudits = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -19,6 +18,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FeedbackNote } from "@/components/app/feedback";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import {
   evaluatePublishGates,
   extractConvexErrorMessage,
@@ -45,7 +45,7 @@ export function PublishReadinessPanel({
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishSuccess, setPublishSuccess] = useState<string | null>(null);
 
-  const publishMutation = useMutation(api.postsStore.publish);
+  const publishMutation = useProjekatMutation(api.postsStore.publish);
 
   const gates: PublishGateStatus = evaluatePublishGates(post);
   const isDraftOrUnpublished = post.status !== "published";

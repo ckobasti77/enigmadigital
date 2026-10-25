@@ -2,11 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useMutation } from "convex/react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
 import {
   ArrowLeft,
   ArrowRight,
@@ -28,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackLine } from "@/components/app/feedback";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { Chip, TemperatureChip, type ChipTone } from "@/components/app/system/chip";
 import { EmptyState } from "@/components/app/system/empty-state";
 import { FocusCard } from "@/components/app/system/focus-card";
@@ -135,20 +134,18 @@ function nestoJeOtvoreno(): boolean {
 }
 
 export function CallMode({
-  workspaceId,
   onExit,
 }: {
-  workspaceId: Id<"workspaces">;
   onExit: () => void;
 }) {
   const now = useNow();
-  const zovi = useZoviSada(workspaceId);
-  const nisaZa = useNisaZa(workspaceId);
+  const zovi = useZoviSada();
+  const nisaZa = useNisaZa();
   const stanje = useNapredak();
   const napredak = stanje?.ukljucen && stanje.spremno ? stanje : null;
 
-  const logTouch = useMutation(api.leadCrmStore.logTouch);
-  const recordOutcome = useMutation(api.leadCrmStore.recordOutcome);
+  const logTouch = useProjekatMutation(api.leadCrmStore.logTouch);
+  const recordOutcome = useProjekatMutation(api.leadCrmStore.recordOutcome);
 
   const [red, setRed] = useState<ZoviKandidat[] | null>(null);
   const [index, setIndex] = useState(0);
@@ -222,11 +219,10 @@ export function CallMode({
     setGreska(null);
     try {
       if (ishod !== "nije_se_javio" && !dodirUpisan.current.has(kljuc)) {
-        await logTouch({ workspaceId, companyId, channel: "poziv", note: beleska });
+        await logTouch({ companyId, channel: "poziv", note: beleska });
         dodirUpisan.current.add(kljuc);
       }
       const res = await recordOutcome({
-        workspaceId,
         companyId,
         outcome: ishod,
         note: beleska,
@@ -544,7 +540,6 @@ export function CallMode({
           )}
 
           <Sesija
-            workspaceId={workspaceId}
             zapisi={zapisi}
             saIshodom={saIshodom}
             sastanaka={sastanaka}
@@ -558,7 +553,6 @@ export function CallMode({
       )}
 
       <LeadRowDialogs
-        workspaceId={workspaceId}
         dialog={dialog}
         onClose={zatvoriDijalog}
         onSaved={(kind) => {
@@ -730,7 +724,6 @@ function Firma({
 const DNEVNIK_PRIKAZANO = 6;
 
 function Sesija({
-  workspaceId,
   zapisi,
   saIshodom,
   sastanaka,
@@ -739,7 +732,6 @@ function Sesija({
   nisaZa,
   onSledeciKorak,
 }: {
-  workspaceId: Id<"workspaces">;
   zapisi: Zapis[];
   saIshodom: number;
   sastanaka: number;
@@ -792,7 +784,6 @@ function Sesija({
           {vidljivi.map((zapis) => (
             <ZapisRed
               key={zapis.item.assignment._id}
-              workspaceId={workspaceId}
               zapis={zapis}
               nisa={nisaZa(zapis.item.company)}
               onSledeciKorak={onSledeciKorak}
@@ -817,17 +808,15 @@ function Sesija({
 }
 
 function ZapisRed({
-  workspaceId,
   zapis,
   nisa,
   onSledeciKorak,
 }: {
-  workspaceId: Id<"workspaces">;
   zapis: Zapis;
   nisa: string | null;
   onSledeciKorak: (item: LeadRowItem) => void;
 }) {
-  const addToSuppression = useMutation(api.leadCrmStore.addToSuppressionFromOutcome);
+  const addToSuppression = useProjekatMutation(api.leadCrmStore.addToSuppressionFromOutcome);
   const [zabrana, setZabrana] = useState<"predlog" | "cuva" | "dodato" | "greska">("predlog");
   const { item, ishod } = zapis;
   const naziv = item.company?.name ?? "Nepoznata firma";
@@ -837,7 +826,6 @@ function ZapisRed({
     setZabrana("cuva");
     try {
       await addToSuppression({
-        workspaceId,
         companyId: item.assignment.companyId,
         kind: "rekao_ne",
         reason: `Dodato nakon ishoda „${prikaz.natpis}”`,

@@ -1,9 +1,7 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
 import { GRANICE_CILJA } from "@/convex/lib/napredak";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +14,10 @@ import {
   useNapredakPao,
   type NapredakStanje,
 } from "@/components/app/napredak/use-napredak";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import {
+  useProjekat,
+  useProjekatMutation,
+} from "@/components/app/projekat-provider";
 
 /**
  * ============================================================================
@@ -107,9 +108,8 @@ function StanjePrekidaca({
 }
 
 function Forma({ podesavanja }: { podesavanja: Podesavanja }) {
-  const { workspace } = useWorkspace();
-  const workspaceId = workspace?.id as Id<"workspaces"> | undefined;
-  const podesi = useMutation(api.napredak.podesi);
+  const { spreman } = useProjekat();
+  const podesi = useProjekatMutation(api.napredak.podesi);
 
   const [ciljevi, setCiljevi] = useState<Record<KljucCilja, string>>({
     ciljPozivi: String(podesavanja.ciljPozivi),
@@ -126,12 +126,12 @@ function Forma({ podesavanja }: { podesavanja: Podesavanja }) {
     sta: "prikaz" | "vikend" | "ciljevi",
     izmena: Partial<Podesavanja>,
   ) => {
-    if (!workspaceId) return;
+    if (!spreman) return;
     setCuva(sta);
     setGreska(false);
     setSacuvano(false);
     try {
-      await podesi({ workspaceId, ...izmena });
+      await podesi(izmena);
       if (sta === "ciljevi") setSacuvano(true);
     } catch {
       setGreska(true);
@@ -160,7 +160,7 @@ function Forma({ podesavanja }: { podesavanja: Podesavanja }) {
             <Switch
               id={prikazId}
               checked={podesavanja.ukljucen}
-              disabled={cuva !== null || !workspaceId}
+              disabled={cuva !== null || !spreman}
               onCheckedChange={(ukljucen) =>
                 void posalji("prikaz", { ukljucen })
               }
@@ -225,7 +225,7 @@ function Forma({ podesavanja }: { podesavanja: Podesavanja }) {
             <Button
               type="submit"
               variant="primary"
-              disabled={!ispravno || !izmenjeno || !workspaceId}
+              disabled={!ispravno || !izmenjeno || !spreman}
               loading={cuva === "ciljevi"}
             >
               Sačuvaj ciljeve
@@ -245,7 +245,7 @@ function Forma({ podesavanja }: { podesavanja: Podesavanja }) {
             <Switch
               id={vikendId}
               checked={podesavanja.vikendNePrekida}
-              disabled={cuva !== null || !workspaceId}
+              disabled={cuva !== null || !spreman}
               onCheckedChange={(vikendNePrekida) =>
                 void posalji("vikend", { vikendNePrekida })
               }

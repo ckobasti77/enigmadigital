@@ -1,8 +1,7 @@
-import { mutation, query } from "./_generated/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership, requireMembershipIn } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { normalizeDomain, normalizePhoneRs } from "./lib/leadNormalize";
 
 /**
@@ -185,9 +184,8 @@ export async function isSuppressed(
  * Dodaje novi unos u listu zabrane kontakta.
  * Ulazna vrednost se striktno normalizuje. Ako je telefon nenormalizabilan, odbija se.
  */
-export const addSuppression = mutation({
+export const addSuppression = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     kind: v.union(
       v.literal("postojeci_klijent"),
       v.literal("rekao_ne"),
@@ -205,10 +203,6 @@ export const addSuppression = mutation({
     reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Pozivalac mora biti član prosleđenog prostora: lista „ne kontaktiraj"
-    // tuđeg prostora se ne menja.
-    const membership = await requireMembershipIn(ctx, args.workspaceId);
-
     let normalizedValue = "";
     switch (args.matchOn) {
       case "phone": {
@@ -294,7 +288,7 @@ export const addSuppression = mutation({
       matchOn: args.matchOn,
       value: normalizedValue,
       reason: args.reason,
-      addedBy: membership.userId,
+      addedBy: ctx.projekat.userId,
       addedAt: Date.now(),
     });
   },
@@ -303,20 +297,11 @@ export const addSuppression = mutation({
 /**
  * Uklanja unos iz liste zabrane kontakta.
  */
-export const removeSuppression = mutation({
+export const removeSuppression = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     id: v.id("leadSuppression"),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const row = await ctx.db.get(args.id);
     if (row === null || row.workspaceId !== args.workspaceId) {
       throw new ConvexError({
@@ -331,21 +316,11 @@ export const removeSuppression = mutation({
 });
 
 /**
- * Prikazuje sve stavke sa liste zabrane kontakta za radni prostor.
+ * Prikazuje sve stavke sa liste zabrane kontakta za projekat.
  */
-export const listSuppression = query({
-  args: {
-    workspaceId: v.id("workspaces"),
-  },
+export const listSuppression = projekatQuery({
+  args: {},
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     return await ctx.db
       .query("leadSuppression")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))

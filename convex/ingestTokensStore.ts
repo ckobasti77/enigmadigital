@@ -1,6 +1,6 @@
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
-import { requireOwner } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { sha256Hex } from "./lib/metaAudienceHash";
 
 /**
@@ -15,8 +15,9 @@ import { sha256Hex } from "./lib/metaAudienceHash";
  * opoziva i pravi novi.
  *
  * SAMO VLASNIK. Ovaj token je pravo pisanja u staging bez sesije i bez lozinke;
- * `client_viewer` postoji da bi gledao. Provera je u mutaciji (`requireOwner`),
- * ne samo u interfejsu — dugme koje se ne crta i dalje se može pozvati.
+ * `client_viewer` postoji da bi gledao. Proveru radi omotač sa ulogom vlasnika
+ * (`uloga: "owner"`), ne samo interfejs — dugme koje se ne crta i dalje se
+ * može pozvati.
  *
  * NIŠTA ODAVDE NE LOGUJE TOKEN NI HEŠ.
  */
@@ -50,9 +51,9 @@ function generateToken(): string {
 // ─────────────────────────────────────────────────────────────────────────────
 // createIngestToken — JEDINI put kad sirov token izlazi iz sistema.
 // ─────────────────────────────────────────────────────────────────────────────
-export const createIngestToken = mutation({
+export const createIngestToken = projekatMutation({
+  uloga: "owner",
   args: {
-    workspaceId: v.id("workspaces"),
     naziv: v.string(),
   },
   returns: v.object({
@@ -60,11 +61,6 @@ export const createIngestToken = mutation({
     naziv: v.string(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireOwner(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({ code: "forbidden" });
-    }
-
     const naziv = args.naziv.trim();
     if (!naziv) {
       throw new ConvexError({
@@ -80,7 +76,7 @@ export const createIngestToken = mutation({
       workspaceId: args.workspaceId,
       tokenHash,
       naziv,
-      createdBy: membership.userId,
+      createdBy: ctx.projekat.userId,
       createdAt: Date.now(),
     });
 
@@ -91,8 +87,9 @@ export const createIngestToken = mutation({
 // ─────────────────────────────────────────────────────────────────────────────
 // listIngestTokens — spisak za Podešavanja. Heš se NE vraća.
 // ─────────────────────────────────────────────────────────────────────────────
-export const listIngestTokens = query({
-  args: { workspaceId: v.id("workspaces") },
+export const listIngestTokens = projekatQuery({
+  uloga: "owner",
+  args: {},
   returns: v.array(
     v.object({
       _id: v.id("ingestTokens"),
@@ -105,11 +102,6 @@ export const listIngestTokens = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const membership = await requireOwner(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({ code: "forbidden" });
-    }
-
     const rows = await ctx.db
       .query("ingestTokens")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
@@ -136,18 +128,13 @@ export const listIngestTokens = query({
 // ─────────────────────────────────────────────────────────────────────────────
 // revokeIngestToken — opoziv. Red ostaje kao trag da je token postojao.
 // ─────────────────────────────────────────────────────────────────────────────
-export const revokeIngestToken = mutation({
+export const revokeIngestToken = projekatMutation({
+  uloga: "owner",
   args: {
-    workspaceId: v.id("workspaces"),
     tokenId: v.id("ingestTokens"),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const membership = await requireOwner(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({ code: "forbidden" });
-    }
-
     const row = await ctx.db.get(args.tokenId);
     if (row === null || row.workspaceId !== args.workspaceId) {
       throw new ConvexError({ code: "forbidden" });

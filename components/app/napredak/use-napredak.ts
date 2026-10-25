@@ -1,13 +1,11 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
 import { nizUOpasnosti } from "@/convex/lib/napredak";
 import type { PlayerProgress } from "@/components/app/system/player-card";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 
 /**
  * ============================================================================
@@ -64,13 +62,11 @@ function prijaviIzvor(javi: () => void): () => void {
  * granice.
  */
 export function useNapredakPretplata(): NapredakStanje | undefined {
-  const { workspace } = useWorkspace();
-  const workspaceId = workspace?.id as Id<"workspaces"> | undefined;
-  return useQuery(api.napredak.stanje, workspaceId ? { workspaceId } : "skip");
+  return useProjekatQuery(api.napredak.stanje);
 }
 
 /**
- * `undefined` dok se ne zna radni prostor, dok odgovor ne stigne — ili kad je
+ * `undefined` dok se ne zna projekat, dok odgovor ne stigne — ili kad je
  * upit pao (vidi `useNapredakPao`). Nikad ne baca.
  */
 export function useNapredak(): NapredakStanje | undefined {
@@ -115,9 +111,7 @@ export function useNapredakZastoj(): boolean {
 
 /** Samo na ekranu Napredak, i tamo iza granice greške — ovaj hook baca. */
 export function useNapredakProfil(): NapredakProfil | undefined {
-  const { workspace } = useWorkspace();
-  const workspaceId = workspace?.id as Id<"workspaces"> | undefined;
-  return useQuery(api.napredak.profil, workspaceId ? { workspaceId } : "skip");
+  return useProjekatQuery(api.napredak.profil);
 }
 
 // ── sat ──────────────────────────────────────────────────────────────────────

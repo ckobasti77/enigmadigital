@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { LeadStage } from "@/convex/leadCrmStore";
@@ -37,6 +36,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { leadStageLabel } from "./lead-labels";
 import { ALL_STAGES, stageRequiresNote } from "./lead-chips";
 import { getErrorMessage } from "./lead-quick-dialogs";
@@ -94,19 +94,17 @@ export function StageMenuItems({
  * obrazloženje, preda roditelju da otvori dijalog.
  */
 export function useStagePick({
-  workspaceId,
   companyId,
   current,
   onNeedsNote,
   onError,
 }: {
-  workspaceId: Id<"workspaces">;
   companyId: Id<"leadCompanies">;
   current: LeadStage;
   onNeedsNote: (stage: LeadStage) => void;
   onError: (message: string) => void;
 }) {
-  const setStage = useMutation(api.leadCrmStore.setStage);
+  const setStage = useProjekatMutation(api.leadCrmStore.setStage);
   return async (stage: LeadStage) => {
     if (stage === current) return;
     if (stageRequiresNote(stage)) {
@@ -114,7 +112,7 @@ export function useStagePick({
       return;
     }
     try {
-      await setStage({ workspaceId, companyId, stage });
+      await setStage({ companyId, stage });
     } catch (err) {
       onError(getErrorMessage(err));
     }
@@ -323,7 +321,6 @@ export function LeadPrimaryButton({
  * prvenstvo.
  */
 export function LeadRowActions({
-  workspaceId,
   item,
   now,
   selfUserId,
@@ -335,7 +332,6 @@ export function LeadRowActions({
   appearance = "card",
   className,
 }: {
-  workspaceId: Id<"workspaces">;
   item: LeadRowItem;
   now: number;
   selfUserId?: string;
@@ -351,9 +347,8 @@ export function LeadRowActions({
 }) {
   const { assignment, company } = item;
   const companyId = assignment.companyId;
-  const assignLead = useMutation(api.leadCrmStore.assignLead);
+  const assignLead = useProjekatMutation(api.leadCrmStore.assignLead);
   const pickStage = useStagePick({
-    workspaceId,
     companyId,
     current: assignment.stage,
     onNeedsNote: onOpenStageDialog,
@@ -367,7 +362,6 @@ export function LeadRowActions({
     if (!selfUserId) return;
     try {
       await assignLead({
-        workspaceId,
         companyId,
         ownerUserId: selfUserId as Id<"users">,
       });

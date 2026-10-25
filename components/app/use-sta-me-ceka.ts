@@ -1,10 +1,8 @@
 "use client";
 
-import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
 import type { FunctionReturnType } from "convex/server";
-import { useWorkspace } from "./workspace-provider";
+import { useProjekatQuery } from "./projekat-provider";
 
 /**
  * ============================================================================
@@ -57,12 +55,10 @@ export function brojPosla(
   return zadatak?.broj ?? 0;
 }
 
-/** `undefined` dok se ne zna radni prostor ili dok odgovor ne stigne. */
+/** `undefined` dok se ne zna projekat ili dok odgovor ne stigne. */
 export function useStaMeCeka(): StaMeCeka | undefined {
-  const { workspace } = useWorkspace();
-  const workspaceId = workspace?.id as Id<"workspaces"> | undefined;
-  return useQuery(
+  return useProjekatQuery(
     api.notificationsStore.staMeCeka,
-    workspaceId ? { workspaceId, pomerajMin: POMERAJ_MIN } : "skip",
+    { pomerajMin: POMERAJ_MIN },
   );
 }

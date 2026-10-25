@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { LeadStage } from "@/convex/leadCrmStore";
@@ -41,7 +41,6 @@ import { cn } from "@/lib/utils";
  * temperatura (upisuje se odmah). Ništa se ne menja bez klika na stavku.
  */
 export function LeadStateChip({
-  workspaceId,
   companyId,
   companyName,
   stage,
@@ -51,7 +50,6 @@ export function LeadStateChip({
   onError,
   className,
 }: {
-  workspaceId: Id<"workspaces">;
   companyId: Id<"leadCompanies">;
   companyName: string;
   stage: LeadStage;
@@ -62,9 +60,8 @@ export function LeadStateChip({
   className?: string;
 }) {
   const temp = normalizeTemperatura(temperatura);
-  const setTemperatura = useMutation(api.leadCrmStore.setCompanyTemperatura);
+  const setTemperatura = useProjekatMutation(api.leadCrmStore.setCompanyTemperatura);
   const pickStage = useStagePick({
-    workspaceId,
     companyId,
     current: stage,
     onNeedsNote: onOpenStageDialog,
@@ -74,7 +71,7 @@ export function LeadStateChip({
   const pickTemperatura = async (next: Temperatura) => {
     if (next === temp) return;
     try {
-      await setTemperatura({ workspaceId, companyId, temperatura: next });
+      await setTemperatura({ companyId, temperatura: next });
     } catch (err) {
       onError(getErrorMessage(err));
     }

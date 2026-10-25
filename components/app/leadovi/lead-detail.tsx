@@ -2,7 +2,6 @@
 
 import { useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { GapType } from "@/convex/leadGapsStore";
@@ -36,7 +35,11 @@ import { Chip } from "@/components/app/system/chip";
 import { Monogram } from "@/components/app/system/monogram";
 import { normalizeTemperatura, temperatureVar } from "@/lib/temperature";
 import { useNisaZa } from "./use-zovi-sada";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import {
+  useProjekat,
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { useNow } from "@/components/app/use-now";
 import { LeadScoreCell } from "./lead-score-cell";
 import { LeadIdentitiesPanel } from "./lead-identities-panel";
@@ -77,7 +80,6 @@ import {
 import { cn } from "@/lib/utils";
 
 type LeadDetailProps = {
-  workspaceId: Id<"workspaces">;
   companyId: Id<"leadCompanies">;
 };
 
@@ -129,8 +131,8 @@ function Fact({
   );
 }
 
-export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
-  const { user } = useWorkspace();
+export function LeadDetail({ companyId }: LeadDetailProps) {
+  const { korisnik } = useProjekat();
   const now = useNow();
   const [tab, setTab] = useState<ProfileTab>("istorija");
   const [gapToFill, setGapToFill] = useState<GapType | null>(null);
@@ -139,18 +141,18 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
     personName: string;
   } | null>(null);
   const [temperatureError, setTemperatureError] = useState<string | null>(null);
-  const setCompanyTemperatura = useMutation(api.leadCrmStore.setCompanyTemperatura);
+  const setCompanyTemperatura = useProjekatMutation(api.leadCrmStore.setCompanyTemperatura);
   // Niša daje boju monograma — ista kao u tabeli i na karticama.
-  const nisaZa = useNisaZa(workspaceId);
+  const nisaZa = useNisaZa();
 
   // 1. Podaci o firmi, osobama, identitetima, signalima i poreklu
-  const detail = useQuery(api.leadDetailStore.getLeadDetail, { workspaceId, companyId });
+  const detail = useProjekatQuery(api.leadDetailStore.getLeadDetail, { companyId });
   // 2. CRM stanje (vlasnik, faza, sledeći korak, sastanak, istorija)
-  const crm = useQuery(api.leadCrmStore.getLeadCrm, { workspaceId, companyId });
+  const crm = useProjekatQuery(api.leadCrmStore.getLeadCrm, { companyId });
   // 3. Ocenjivanje (fit i intent osa)
-  const score = useQuery(api.leadScoringStore.scoreCompany, { workspaceId, companyId });
+  const score = useProjekatQuery(api.leadScoringStore.scoreCompany, { companyId });
   // 4. Landing tracker status (§7)
-  const landing = useQuery(api.leadLandingStore.landingStatus, { workspaceId, companyId });
+  const landing = useProjekatQuery(api.leadLandingStore.landingStatus, { companyId });
 
   // Telefoni po osobi (§7.4): procena verovatnoće ima smisla samo kad broj
   // nosi `personId` — broj centrale nema čiju pripadnost da meri.
@@ -230,7 +232,7 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
   const meetingUnresolved = assignment ? isMeetingUnresolved(assignment, now) : false;
   const nextUp = describeNextUp(assignment, now);
   const NextUpIcon = NEXT_UP_TONE[nextUp.tone].icon;
-  const isMine = user?.id !== undefined && assignment !== null && String(assignment.ownerUserId) === user.id;
+  const isMine = korisnik?.id !== undefined && assignment !== null && String(assignment.ownerUserId) === korisnik.id;
 
   // Rupe za OVU firmu, po istim pravilima kao `leadGapsStore.listCompaniesWithGap`,
   // ali iz podataka koji su već ovde — bez novog upita.
@@ -317,7 +319,7 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
                       onChange={async (t) => {
                         setTemperatureError(null);
                         try {
-                          await setCompanyTemperatura({ workspaceId, companyId, temperatura: t });
+                          await setCompanyTemperatura({ companyId, temperatura: t });
                         } catch (err) {
                           setTemperatureError(getErrorMessage(err));
                         }
@@ -413,7 +415,6 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
               </div>
             </div>
             <LeadActionBar
-              workspaceId={workspaceId}
               companyId={companyId}
               companyName={company.name}
               assignment={assignment}
@@ -692,7 +693,6 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
                     bez koordinata dobija red koji kaže zašto ih nema. */}
                 <LeadsMap
                   mode="single"
-                  workspaceId={workspaceId}
                   company={company}
                   fit={score?.fit}
                 />
@@ -802,7 +802,7 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
         )}
 
         {tab === "sajt" && (
-          <SiteAuditPanel workspaceId={workspaceId} companyId={companyId} company={company} />
+          <SiteAuditPanel companyId={companyId} company={company} />
         )}
 
         {tab === "landing" && (
@@ -972,7 +972,6 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
 
       {procenaZa && (
         <PhoneConfidenceDialog
-          workspaceId={workspaceId}
           identity={procenaZa.identity}
           personName={procenaZa.personName}
           open
@@ -984,7 +983,6 @@ export function LeadDetail({ workspaceId, companyId }: LeadDetailProps) {
 
       {gapToFill && (
         <LeadGapFillDialog
-          workspaceId={workspaceId}
           company={company}
           gapType={gapToFill}
           isOpen

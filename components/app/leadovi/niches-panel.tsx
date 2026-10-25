@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -23,6 +22,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { pojasKvaliteta, POJAS_NATPISI } from "@/convex/lib/siteScore";
 import { FeedbackNote } from "@/components/app/feedback";
+import {
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { LinkChip, type LinkChipVrsta } from "@/components/app/link-chip";
 import { getErrorMessage } from "./lead-quick-dialogs";
@@ -156,16 +159,14 @@ function PlatformaChip({
 }
 
 export function NichesPanel({
-  workspaceId,
   onShowCompanies,
 }: {
-  workspaceId: Id<"workspaces">;
   /** Postavlja filter po niši i prebacuje na jezičak sa tabelom. */
   onShowCompanies: (slug: string) => void;
 }) {
-  const nise = useQuery(api.nichesStore.listNiches, { workspaceId });
-  const upsertNiche = useMutation(api.nichesStore.upsertNiche);
-  const deleteNiche = useMutation(api.nichesStore.deleteNiche);
+  const nise = useProjekatQuery(api.nichesStore.listNiches);
+  const upsertNiche = useProjekatMutation(api.nichesStore.upsertNiche);
+  const deleteNiche = useProjekatMutation(api.nichesStore.deleteNiche);
 
   const [izabrana, setIzabrana] = useState<Id<"niches"> | null>(null);
   const [greska, setGreska] = useState<string | null>(null);
@@ -183,7 +184,7 @@ export function NichesPanel({
     const naziv = (novaNisa ?? "").trim();
     setGreska(null);
     try {
-      const id = await upsertNiche({ workspaceId, naziv });
+      const id = await upsertNiche({ naziv });
       setNovaNisa(null);
       setIzabrana(id);
     } catch (err) {
@@ -196,7 +197,7 @@ export function NichesPanel({
     setBrisem(true);
     setGreska(null);
     try {
-      await deleteNiche({ workspaceId, nicheId: zaBrisanje._id });
+      await deleteNiche({ nicheId: zaBrisanje._id });
       if (izabrana === zaBrisanje._id) setIzabrana(null);
       setZaBrisanje(null);
     } catch (err) {
@@ -363,7 +364,6 @@ export function NichesPanel({
           {aktivna ? (
             <NichePanel
               key={aktivna._id}
-              workspaceId={workspaceId}
               nisa={aktivna}
               onError={setGreska}
               onDelete={() => setZaBrisanje(aktivna)}
@@ -438,22 +438,20 @@ function NovaNisaForma({
 }
 
 function NichePanel({
-  workspaceId,
   nisa,
   onError,
   onDelete,
   onShowCompanies,
 }: {
-  workspaceId: Id<"workspaces">;
   nisa: NicheRow;
   onError: (msg: string | null) => void;
   onDelete: () => void;
   onShowCompanies: (slug: string) => void;
 }) {
-  const updateOpis = useMutation(api.nichesStore.updateNicheOpis);
-  const upsertNiche = useMutation(api.nichesStore.upsertNiche);
-  const upsertPlatform = useMutation(api.nichesStore.upsertNichePlatform);
-  const deletePlatform = useMutation(api.nichesStore.deleteNichePlatform);
+  const updateOpis = useProjekatMutation(api.nichesStore.updateNicheOpis);
+  const upsertNiche = useProjekatMutation(api.nichesStore.upsertNiche);
+  const upsertPlatform = useProjekatMutation(api.nichesStore.upsertNichePlatform);
+  const deletePlatform = useProjekatMutation(api.nichesStore.deleteNichePlatform);
 
   const [opis, setOpis] = useState(nisa.opis ?? "");
   const [urediOpis, setUrediOpis] = useState(false);
@@ -472,7 +470,7 @@ function NichePanel({
     setCuvam(true);
     onError(null);
     try {
-      await updateOpis({ workspaceId, nicheId: nisa._id, opis });
+      await updateOpis({ nicheId: nisa._id, opis });
       setUrediOpis(false);
     } catch (err) {
       onError(getErrorMessage(err));
@@ -490,7 +488,6 @@ function NichePanel({
         .map((s) => s.trim())
         .filter(Boolean);
       await upsertNiche({
-        workspaceId,
         nicheId: nisa._id,
         naziv: nisa.naziv,
         sifreDelatnosti: lista,
@@ -509,7 +506,6 @@ function NichePanel({
     onError(null);
     try {
       await upsertPlatform({
-        workspaceId,
         nicheId: nisa._id,
         platforma: novaPlatforma.platforma,
         url: novaPlatforma.url.trim() || undefined,
@@ -526,7 +522,7 @@ function NichePanel({
   const skloniPlatformu = async (platformId: Id<"nichePlatforms">) => {
     onError(null);
     try {
-      await deletePlatform({ workspaceId, platformId });
+      await deletePlatform({ platformId });
     } catch (err) {
       onError(getErrorMessage(err));
     }
@@ -538,7 +534,6 @@ function NichePanel({
     onError(null);
     try {
       await upsertNiche({
-        workspaceId,
         nicheId: nisa._id,
         naziv: nisa.naziv,
         trebaZakazivanje: vrednost,

@@ -3,7 +3,6 @@
 // Sirovi fajl se nikada ne šalje na server. Na server ide samo parsiran rezultat kroz createImport.
 
 import { useState, useRef, useCallback } from "react";
-import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
   AlertCircle,
@@ -19,6 +18,7 @@ import {
   Upload,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
   parseLeadWorkbook,
@@ -46,10 +46,8 @@ const SELECTION_REASON_TEXT: Record<
 };
 
 export function ImportFilePicker({
-  workspaceId,
   onImportCreated,
 }: {
-  workspaceId: Id<"workspaces">;
   onImportCreated: (importId: Id<"leadImports">) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
@@ -64,7 +62,7 @@ export function ImportFilePicker({
   const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const createImportMutation = useMutation(api.leadImportStore.createImport);
+  const createImportMutation = useProjekatMutation(api.leadImportStore.createImport);
 
   const parseBuffer = useCallback((buffer: ArrayBuffer, fileName: string, sheetOverride?: string) => {
     try {
@@ -140,7 +138,6 @@ export function ImportFilePicker({
 
     try {
       const res = await createImportMutation({
-        workspaceId,
         fileName: file.name,
         sheetsChosen: [selectedSheet],
         headerRowIndex: parseResult.headerRowIndex,

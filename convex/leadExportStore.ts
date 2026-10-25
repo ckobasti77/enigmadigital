@@ -1,7 +1,6 @@
-import { query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 import {
   CANONICAL_CSV_COLUMNS,
   type CanonicalLeadExportRow,
@@ -42,23 +41,16 @@ function parseReviewCount(raw?: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export const exportLeads = query({
+// Izvoz celog spiska kontakata firmi: potrebna je uloga urednika.
+export const exportLeads = projekatQuery({
+  uloga: "urednik",
   args: {
-    workspaceId: v.id("workspaces"),
     stage: v.optional(v.string()),
     ownerUserId: v.optional(v.id("users")),
     onlyWithPhone: v.optional(v.boolean()),
     search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     // 1. Učitaj firme, ali OGRANIČENO.
     //
     // Ranije je ovde stajao `.collect()` nad celom tabelom, pa se provera
@@ -121,7 +113,7 @@ export const exportLeads = query({
       throw new ConvexError({
         code: "export_limit_exceeded",
         message: preveliko
-          ? `U radnom prostoru ima više od ${MAX_EXPORT_LIMIT} firmi, što prelazi granicu za jedan izvoz. Primenite filtere (faza, vlasnik) da suzite opseg.`
+          ? `U projektu ima više od ${MAX_EXPORT_LIMIT} firmi, što prelazi granicu za jedan izvoz. Primenite filtere (faza, vlasnik) da suzite opseg.`
           : `Zahtevan je izvoz ${targetCompanies.length} leadova, što prelazi maksimalnu granicu od ${MAX_EXPORT_LIMIT} redova po izvozu. Primenite filtere (faza, vlasnik) da suzite opseg.`,
       });
     }

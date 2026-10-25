@@ -1,9 +1,9 @@
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { citajKanale, citajLeadove, citajUvoze } from "./notificationsStore";
 import { napraviZadatke, type Zadatak } from "./lib/notifications";
 import {
@@ -96,13 +96,6 @@ const ODMAH_DANA = 3;
 const MAKS_DANA_KORAK = 14;
 /** Najviše potvrda u jednom pozivu `potvrdi`. */
 const MAKS_POTVRDA = 30;
-
-function zabranjeno(): ConvexError<{ code: string; message: string }> {
-  return new ConvexError({
-    code: "forbidden",
-    message: "Nemate pristup ovom radnom prostoru.",
-  });
-}
 
 // ── podešavanja ──────────────────────────────────────────────────────────────
 
@@ -898,44 +891,42 @@ const profilValidator = v.union(
  * Kad je Napredak isključen vraća se oblik BEZ ijednog XP polja — ljuska ne
  * može ni slučajno da nacrta broj koji korisnik nije tražio.
  */
-export const stanje = query({
-  args: { workspaceId: v.id("workspaces") },
+export const stanje = projekatQuery({
+  args: {},
   returns: v.union(stanjeIskljucenoValidator, stanjeUkljucenoValidator),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) throw zabranjeno();
+    const { userId } = ctx.projekat;
 
     const podesavanja = await ucitajPodesavanja(
       ctx,
-      membership.userId,
+      userId,
       args.workspaceId,
     );
     if (!podesavanja.ukljucen) return stanjeIskljuceno(podesavanja);
 
     return izvedi(
-      await pripremiUlaz(ctx, membership.userId, args.workspaceId, podesavanja),
+      await pripremiUlaz(ctx, userId, args.workspaceId, podesavanja),
     );
   },
 });
 
 /** Dostignuća, lični rekordi i mapa aktivnosti za 12 nedelja. */
-export const profil = query({
-  args: { workspaceId: v.id("workspaces") },
+export const profil = projekatQuery({
+  args: {},
   returns: profilValidator,
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) throw zabranjeno();
+    const { userId } = ctx.projekat;
 
     const podesavanja = await ucitajPodesavanja(
       ctx,
-      membership.userId,
+      userId,
       args.workspaceId,
     );
     if (!podesavanja.ukljucen) return { ukljucen: false as const };
 
     const ulaz = await pripremiUlaz(
       ctx,
-      membership.userId,
+      userId,
       args.workspaceId,
       podesavanja,
     );
@@ -943,7 +934,7 @@ export const profil = query({
     if (ulaz.sidro !== null) {
       const redovi = await ucitajRedove(
         ctx,
-        membership.userId,
+        userId,
         args.workspaceId,
         dodajDane(ulaz.sidro, -(MAPA_DANA - 1)),
         ulaz.sidro,
@@ -975,9 +966,10 @@ function proveriCilj(
 }
 
 /** Podešavanja → Napredak. Menja samo ono što je poslato. */
-export const podesi = mutation({
+export const podesi = projekatMutation({
+  // Lični red pozivaoca: i posmatrač podešava svoj Napredak.
+  uloga: "client_viewer",
   args: {
-    workspaceId: v.id("workspaces"),
     ukljucen: v.optional(v.boolean()),
     vikendNePrekida: v.optional(v.boolean()),
     ciljPozivi: v.optional(v.number()),
@@ -986,8 +978,7 @@ export const podesi = mutation({
   },
   returns: podesavanjaValidator,
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) throw zabranjeno();
+    const { userId } = ctx.projekat;
 
     const izmena = {
       ...(args.ukljucen !== undefined ? { ukljucen: args.ukljucen } : {}),
@@ -1008,7 +999,7 @@ export const podesi = mutation({
 
     const postojeci = await redPodesavanja(
       ctx,
-      membership.userId,
+      userId,
       args.workspaceId,
     );
     if (postojeci) {
@@ -1016,11 +1007,11 @@ export const podesi = mutation({
     } else {
       await ctx.db.insert("napredakPodesavanja", {
         workspaceId: args.workspaceId,
-        userId: membership.userId,
+        userId,
         ...izmena,
       });
     }
-    return await ucitajPodesavanja(ctx, membership.userId, args.workspaceId);
+    return await ucitajPodesavanja(ctx, userId, args.workspaceId);
   },
 });
 
@@ -1100,15 +1091,14 @@ async function upisiPotvrde(
 }
 
 /** „Video sam" — proslava se posle osvežavanja ne ponavlja. */
-export const potvrdi = mutation({
+export const potvrdi = projekatMutation({
+  uloga: "client_viewer",
   args: {
-    workspaceId: v.id("workspaces"),
     kljucevi: v.array(v.string()),
   },
   returns: v.object({ potvrdjeno: v.number() }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) throw zabranjeno();
+    const { userId } = ctx.projekat;
 
     if (args.kljucevi.length > MAKS_POTVRDA) {
       throw new ConvexError({
@@ -1118,7 +1108,7 @@ export const potvrdi = mutation({
     }
     const potvrdjeno = await upisiPotvrde(
       ctx,
-      membership.userId,
+      userId,
       args.workspaceId,
       args.kljucevi,
     );
@@ -1365,18 +1355,17 @@ async function danaOdObjave(
  * je idempotentan: drugi tab dobija `novo: false`. Dan se računa iz SERVERSKOG
  * sata, nikad iz argumenta.
  */
-export const zamrzniDan = mutation({
-  args: { workspaceId: v.id("workspaces") },
+export const zamrzniDan = projekatMutation({
+  uloga: "client_viewer",
+  args: {},
   returns: v.object({
     dan: v.string(),
     novo: v.boolean(),
     misija: v.number(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) throw zabranjeno();
+    const { userId } = ctx.projekat;
 
-    const userId = membership.userId;
     const workspaceId = args.workspaceId;
     const now = Date.now();
     const dan = danKljuc(now);

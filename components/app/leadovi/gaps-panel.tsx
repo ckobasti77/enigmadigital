@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
-import type { Id, Doc } from "@/convex/_generated/dataModel";
+import type { Doc } from "@/convex/_generated/dataModel";
 import type { GapType } from "@/convex/leadGapsStore";
 import {
   Globe,
@@ -22,10 +22,6 @@ import { LeadGapFillDialog } from "./lead-gap-fill-dialog";
 import { WorkCard, WorkSection } from "./work-card";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-type GapsPanelProps = {
-  workspaceId: Id<"workspaces">;
-};
 
 /**
  * ============================================================================
@@ -87,14 +83,13 @@ const GAP_CARDS: ReadonlyArray<{
   },
 ];
 
-export function GapsPanel({ workspaceId }: GapsPanelProps) {
+export function GapsPanel() {
   const [selectedGap, setSelectedGap] = useState<GapType>("bez_telefona");
   const [gapFillCompany, setGapFillCompany] = useState<Doc<"leadCompanies"> | null>(null);
 
-  const gaps = useQuery(api.leadGapsStore.listGaps, { workspaceId });
+  const gaps = useProjekatQuery(api.leadGapsStore.listGaps);
 
-  const gapDetails = useQuery(api.leadGapsStore.listCompaniesWithGap, {
-    workspaceId,
+  const gapDetails = useProjekatQuery(api.leadGapsStore.listCompaniesWithGap, {
     gapType: selectedGap,
     limit: 100,
   });
@@ -261,7 +256,6 @@ export function GapsPanel({ workspaceId }: GapsPanelProps) {
       {/* Dijalog za popunjavanje konkretne rupe (§9.2) */}
       {gapFillCompany && (
         <LeadGapFillDialog
-          workspaceId={workspaceId}
           company={gapFillCompany}
           gapType={selectedGap}
           isOpen

@@ -379,3 +379,149 @@ Obrađeno je svih 88 javnih funkcija grupe iz mape C02 §5.1. Njih 85 sada ide k
   - YouTube: pregled, „Izmeni video“ (plejliste), titlovi, sličica, slanje videa, automatizacije i log komentara;
   - OpenReply: kampanje, automatizacije, ledolomci i meni (sačuvaj i objavi), slanje poruke iz Instagram inboxa.
 - Podešavanja → Threads/YouTube „Poveži“ i OpenReply uključi/isključi. To sada može samo vlasnik projekta.
+
+## C06 — Prelazak 3: leadovi, novosti, napredak, obaveštenja   (2026-10-25 02:20)
+**Fajlovi:**
+- backend (17 fajlova grupe i šema):
+  - leadovi: `convex/leadCrmStore.ts`, `leadDetailStore.ts`, `leadExportStore.ts`, `leadFiltersStore.ts`, `leadGapFillStore.ts`, `leadGapsStore.ts`, `leadImportStore.ts`, `leadInboundStore.ts`, `leadLandingStore.ts`, `leadScoringStore.ts`, `leadSiteAuditsStore.ts`, `leadSuppressionStore.ts`;
+  - `convex/nichesStore.ts`, `ingestTokensStore.ts`, `postsStore.ts`, `napredak.ts`, `notificationsStore.ts`;
+  - `convex/schema.ts`: indeks `notificationState.by_user_workspace_kljuc`;
+  - `convex/postsPublic.ts` nije menjan (ostaje javan uz `// javno:`).
+- front (41 fajl):
+  - `components/app/leadovi/`: `call-mode`, `gaps-panel`, `import-dashboard`, `import-file-picker`, `import-review-table`, `import-row-dialog`, `imports-history`, `lead-action-bar`, `lead-call-strip`, `lead-detail`, `lead-expanded-row`, `lead-export-dialog`, `lead-filter-bar`, `lead-gap-fill-dialog`, `lead-quick-dialogs`, `lead-row-actions`, `lead-row-dialogs`, `lead-state-chip`, `leads-dashboard`, `leads-map-panel`, `leads-map`, `leads-table`, `leads-today`, `meetings-panel`, `niches-panel`, `overdue-panel`, `phone-confidence-dialog`, `scoring-rules-panel`, `site-audit-panel`, `use-zovi-sada`;
+  - `app/(app)/leadovi/[companyId]/lead-detail-page-client.tsx`;
+  - `components/app/novosti/`: `novosti-dashboard`, `novosti-editor` (samo pozivi `postsStore`), `publish-readiness-panel`;
+  - `components/app/napredak/`: `use-napredak`, `napredak-feedback`, `napredak-screen`;
+  - zvono i blok „Šta me čeka“: `components/app/notifications-bell.tsx`, `components/app/use-sta-me-ceka.ts`;
+  - `components/app/settings/`: `ingest-tokens-panel`, `napredak-settings`.
+- testovi: nov `convex/izolacija-c06.test.ts`.
+- snimci: `docs/projekti/snimci/C06-profil-1440.png`, `C06-leadovi-390.png`, `C06-zvono-1440.png`.
+
+**Šta je urađeno:**
+Obrađeno je svih 87 javnih funkcija grupe iz mape C02 §5.1. Njih 85 sada ide kroz omotače iz `convex/lib/projekat.ts`, a 2 ostaju sirove uz postojeću oznaku `// javno:` (`postsPublic.listPublished`, `postsPublic.getPublishedBySlug`). Uloge su tačno po mapi:
+- **`projekatQuery` (client_viewer), 30 funkcija:**
+  - `leadCrmStore.listMeetings/getLeadCrm/listByOwner/listByStage/listOverdue`, `leadDetailStore.getLeadDetail`;
+  - `leadFiltersStore.listLeadsFiltered/countLeadsByFacet/listLeadsForMap/getLeadRow/listPresets`, `leadGapsStore.*` (2), `leadScoringStore.scoreCompany/scoreCompanies/listIcpRules/missingDefaultIcpRules`, `leadSiteAuditsStore.listSiteAudits`;
+  - `leadImportStore.getImport/listImportRows/listImports`, `leadInboundStore.listInbound/getInbound`, `leadSuppressionStore.listSuppression`;
+  - `nichesStore.listNiches`, `leadLandingStore.listLandingsForCompany/landingStatus`;
+  - `napredak.stanje/profil`, `notificationsStore.staMeCeka`.
+- **`projekatQuery` sa `uloga: "urednik"`, 1 funkcija:** `leadExportStore.exportLeads` (izvoz celog spiska kontakata).
+- **urednik (podrazumevano), 45 mutacija:**
+  - `leadCrmStore` (9), `leadDetailStore.setPhoneConfidence`, `leadGapFillStore.fillGap`;
+  - `leadFiltersStore.savePreset/deletePreset`, `leadScoringStore` (5);
+  - `leadImportStore` (9), `leadInboundStore.linkInboundToCompany/dismissInbound`, `leadSuppressionStore.addSuppression/removeSuppression`;
+  - `nichesStore` (5), `leadLandingStore.createLanding/markLandingSent/archiveLanding`;
+  - `postsStore.create/updateDraft/saveRevision/archive/publish/unpublish`.
+- **Mutacije nad ličnim redovima sa `uloga: "client_viewer"`, 6 funkcija:** `napredak.podesi/potvrdi/zamrzniDan`, `notificationsStore.odloziZadatak/sakrijZadatak/vratiZadatak`.
+- **`uloga: "owner"`, 3 funkcije:** `ingestTokensStore.listIngestTokens/createIngestToken/revokeIngestToken`.
+
+**Posebno u C06 (plan §5.1 i §5.2):**
+- **Zvono po projektu.** Šema dobija indeks `notificationState.by_user_workspace_kljuc`. `nadjiStanje` traži red po (korisnik, projekat, ključ), a ne više samo po (korisnik, ključ). Tako odlaganje ili sakrivanje u jednom projektu više ne prepisuje isti ključ u drugom (rupa zapisana u C01). `ucitajStanja` čita preko istog indeksa umesto `by_user` + filtera.
+- **Ciljni član** u `leadCrmStore.assignLead` i `leadGapFillStore.fillGap` (grana „bez vlasnika“) čita se preko `members.by_user_workspace`, umesto `by_user`.
+- `leadFiltersStore.proveriPristup` je obrisan, jer su mu svih pet pozivalaca prešli na omotač.
+- Interne funkcije (`createImportFromIngest`, `recordInbound`, `findValidTokenByHash`, `markTokenUsed`, `pruneRevisions`, `nastaviZakljucavanje`), HTTP akcije i ingest nisu dirani. Provere dokumenta iz argumenta (firma, uvoz, red uvoza, prijem, landing, pravilo, preset, niša, token, objava) ostale su iste.
+- Poruke grešaka u dirnutim funkcijama: „radni prostor“ → „projekat“.
+
+**Front.** Svaki poziv ovih funkcija ide kroz `useProjekatQuery/Mutation`. Nijedan poziv ne šalje `workspaceId` ručno. `postsPublic.listPublished` ostaje direktan `useQuery` sa `workspaceSlug: useProjekat().slug` (§5.4). `useWorkspace()` je uklonjen iz svih fajlova grupe (§5.3, kolona uW). Ostali su samo potrošači iz C07: `app-sidebar`, `command-focus`, `invites-panel`, `members-panel`, `user-menu`, `workspace-provider`.
+- `workspaceId` se više ne prosleđuje kroz props: uklonjen je iz props-a ~35 komponenti leadova, iz `LeadDialogBase` i iz hookova `useZoviSada()`, `useNisaZa()` i `useStagePick()`.
+  - Ostaje samo u uslovu učitavanja na vrhu (`!spreman || workspaceId === null`) u `leads-dashboard`, `import-dashboard` i `lead-detail-page-client`.
+  - U novostima ostaje kao ključ lokalnih nacrta i polje `PostItem`.
+- Efekti koji sami zovu mutaciju (`napredak-feedback`: `zamrzniDan`, `potvrdi`) čekaju `useProjekat().spreman`, po obrascu iz C04. Dugmad zvona i podešavanja napretka su onemogućena dok `!spreman`.
+
+**Provera grep-om.** U 17 backend fajlova grupe nema nijednog od ovih imena: `requireMembership`, `requireOwner`, `requireWorkspaceAccess`, `requireMembershipIn`, `requireActionMembership`, `getMembership`, `membershipForAction`, `getAuthUserId`, `getWorkspaceForUser`, `withIndex("by_user"`. Izuzetak su dva komentara u `leadImportStore.ts` koji opisuju interni ingest. Nijedna javna funkcija grupe nema `workspaceId` u sopstvenim `args`. Na frontu nijedan poziv C06 funkcije ne ide kroz `useQuery/useMutation/useAction`. Čuvar broji 343 javne funkcije: omotačem 247 (C05: 162), sa proverom 83, javno 13, bez provere 0.
+
+**Podela posla.** Četiri radnika (Sonnet) su paralelno radila po jedan modul, backend i front, svaki na svojim fajlovima:
+- CRM, detalj, izvoz i dopuna;
+- uvoz, prijem i lista zabrane;
+- filteri, rupe i ocenjivanje;
+- niše, landing strane, ocene sajta, ingest tokeni i novosti.
+
+Zajednički fajlovi sa pozivima više modula dodeljeni su tačno jednom radniku. Peti radnik je posle toga, sekvencijalno, očistio mrtve `workspaceId` props. Napredak, zvono, šemu i test radio sam ja. Svaki diff sam pročitao.
+
+**Šta je iz grupe ostalo:** ništa od javnih funkcija ni poziva grupe. Svesno ostaje:
+- `notificationState` indeksi `by_user_kljuc` i `by_user` više nemaju čitaoca, ali nisu obrisani (vidi ODLUKE).
+- Komponente `components/app/system/*` nemaju pozive C06 funkcija. Kartica igrača čita napredak kroz `NapredakIzvor` → `useNapredakPretplata` (prebačeno), pa tu nije bilo šta da se menja.
+
+**ODLUKE:**
+- **Mrtvi `workspaceId` props su uklonjeni, a nisu ostavljeni.** Posle prelaska na `useProjekat*` hookove prop više nema svrhu i ostavio bi 26 novih lint upozorenja. Radnici su ga u paralelnom delu namerno ostavljali, da se ne sudare na zajedničkim tipovima. Jedan radnik ga je posle uklonio celim lancem, uz typecheck kao vodič. Broj lint nalaza u svakom izmenjenom fajlu jednak je HEAD-u.
+- **Dugme za izvoz je sakriveno posmatraču** (`leads-table.tsx`, jedan uslov). `exportLeads` po mapi traži urednika. Upit se pokreće tek kad se dijalog otvori, i posmatraču bi bacio grešku koju `useQuery` diže u granicu i tako ruši tabelu. Isti obrazac već ima `ingest-tokens-panel` (spisak tokena se crta samo vlasniku).
+- **Stari indeksi zvona ostaju.** Plan kaže: „`by_user_kljuc` ostaje dok ga nešto čita“. Posle C06 ga ne čita niko, isto kao ni `by_user`. Najkonzervativnije je da se ne brišu u ovom koraku, jer je brisanje indeksa promena pri deployu bez koristi za izolaciju. C07 („pokupi ostatke“) ili C19 mogu da ih obrišu.
+- **`ucitajStanja` je prešao na novi indeks**, iako plan pominje samo `nadjiStanje`. Pravilo runa je da se podaci projekta čitaju preko indeksa sa `workspaceId`. Filter po prostoru u petlji ostao je kao odbrana.
+- **Uloge po mapi menjaju ponašanje za ne-vlasnike.** Za Jovana kao vlasnika ništa se ne menja.
+  - Sve mutacije leadova, niša, landing strana i novosti sada traže urednika. Do sada je mogao svaki član, pa i `client_viewer`. Front ih hvata postojećim `try/catch` i ispisuje poruku omotača.
+  - Izvoz kontakata traži urednika.
+  - Ingest tokeni: neowner dobija poruku omotača („…samo vlasnik projekta.“) umesto golog `forbidden`. Šifra je ista.
+  - Napredak i zvono rade i posmatraču, ali samo nad sopstvenim redovima u projektu u kome je član.
+- **Pristup po tačnom članstvu.** Stari `requireMembership` poredio je samo sa PRVIM članstvom, pa je član dva projekta bio odbijen u drugom. Sada radi u oba (test).
+- **`novosti-dashboard`:** grana „projekat nije izabran“ (`workspaceId === null` posle `spreman`) ostala je radi sužavanja tipa. U praksi se ne dešava. Tekst nije menjan.
+- **Razvojni prikaz:** fiksture nisu menjane. Profil firme ima fiksturu samo za `lc_ux_test_002` (od ranije, `LEAD_PROFIL_ID`). `lc_ux_test_001` crta skelet, jer upiti nemaju odgovor.
+- **Skill `impeccable` nije pozvan:** korak ne menja izgled ni tekst ekrana, samo hookove poziva. Izuzetak je jedno sakriveno dugme za posmatrača.
+
+**Novi paketi:** nema
+
+**Testovi:**
+- `convex/izolacija-c06.test.ts`, 22 testa. „Odbijeno“ znači da član samo projekta A dobija `forbidden` nad B. Po modulu:
+  - **CRM, detalj, izvoz, dopuna:**
+    - 7 upita i 11 mutacija nad B su odbijeni; u B ne nastaje dodela ni događaj, a zabrana i temperatura ostaju iste;
+    - tuđa firma kroz A „nije pronađena“;
+    - posmatrač čita, ali ne menja i ne izvozi;
+    - dodela vlasniku koji je član samo B pada („nije član ovog projekta“), a članu oba projekta prolazi;
+    - član oba projekta radi u B.
+  - **Uvoz, prijem, zabrana:**
+    - 6 upita i 13 mutacija nad B su odbijeni; status uvoza, reda i prijema u B, kao i zabrana, ostaju isti;
+    - u A se vide samo uvozi A, a redovi tuđeg uvoza su prazni;
+    - odustajanje od tuđeg uvoza kroz A „nije pronađen“;
+    - posmatrač ne menja.
+  - **Filteri, rupe, ocenjivanje:**
+    - 11 upita i 7 mutacija nad B su odbijeni; preset i pravilo B ostaju;
+    - u A samo preseti i pravila A;
+    - tuđ preset kroz A je odbijen, a tuđa firma u oceni „nije pronađena“;
+    - posmatrač čita, ali ne menja.
+  - **Niše, landing strane, ocene sajta:**
+    - 4 upita i 8 mutacija nad B su odbijeni; niša, platforma i landing u B ostaju;
+    - u A samo niše A;
+    - tuđa niša kroz A je odbijena;
+    - posmatrač ne menja.
+  - **Ingest tokeni:**
+    - B je odbijen;
+    - urednik i posmatrač ne vide, ne prave i ne opozivaju tokene („samo vlasnik projekta“);
+    - vlasnik u A vidi samo token A;
+    - tuđ token kroz A se ne opoziva.
+  - **Novosti:**
+    - 6 mutacija nad B je odbijeno;
+    - tuđa objava kroz A „nije pronađena“ i ostaje ista;
+    - posmatrač ne piše, a urednik piše samo u A.
+  - **Napredak:**
+    - 2 upita i 3 mutacije nad B su odbijeni i ne nastaje red;
+    - posmatrač podešava svoj napredak;
+    - Jovan isključi napredak u A, a u B ostaje uključen.
+  - **Zvono:**
+    - upit i 3 mutacije nad B su odbijeni;
+    - **odlaganje u B pa sakrivanje istog ključa u A daju dva reda, i B ostaje odložen, a ne sakriven**. Sa starim indeksom `by_user_kljuc` ovaj test pada.
+    - „Vrati“ u A briše samo red A;
+    - posmatrač sklanja stavke u svom zvonu.
+- `convex/pristup.test.ts`: nije menjan. `createImport`, `addSuppression` i `listImportRows` su već slali `workspaceId`; tvrdnje prolaze.
+
+**Rezultat provere:**
+- Automatske provere su prošle:
+  - codegen ✓, typecheck ✓;
+  - lint ✓ (0 grešaka; broj nalaza u svakom izmenjenom fajlu isti kao u HEAD);
+  - `npx vitest run` ✓ (142/142);
+  - `verify-pristup` ✓ (0 bez provere), `regresije.mjs` ✓ (14/14), `npm run build` ✓.
+- Razvojni prikaz (Playwright, 1440×900 i 390×844):
+  - 15 adresa vraća 200, sa ispravnim naslovom i bez grešaka i upozorenja u konzoli: `/leadovi` (Danas) i jezičci `leads`, `map`, `gaps`, `overdue`, `meetings`, `scoring`, `niche`, zatim `/leadovi/uvoz`, profil `/leadovi/lc_ux_test_002`, `/novosti`, `/napredak` (i `?prazno=1`), `/settings`, `/` sa zvonom;
+  - jedini nalaz konzole su spoljne pločice mape (`ERR_NAME_NOT_RESOLVED`), od ranije;
+  - zvono crta zadatke, a „Odloži 1 dan“ prolazi kroz `useProjekatMutation` bez greške;
+  - snimci profila (1440), tabele (390) i zvona (1440) pokazuju da podaci stižu kroz nove hookove;
+  - dev server je ugašen, a privremeni fajlovi Playwright-a obrisani.
+
+**Za Jovana ujutru:**
+- Posle deploya (zajedno sa ostatkom runa) proveri da sve radi kao pre:
+  - Leadovi: Danas, tabela (filteri, preseti, izvoz), mapa, rupe i dopuna, zaostali, sastanci, profil firme (temperatura, faza, ishod, sastanak, dodela), režim poziva;
+  - uvoz iz tabele (pregled, odluke po redu, primena, odustajanje), niše, pravila ocenjivanja;
+  - novosti: nacrt, izmena, objava i povlačenje;
+  - Napredak: kartica igrača, ekran i podešavanja;
+  - zvono: odloži, sakrij, vrati;
+  - Podešavanja → ingest tokeni.
+- Convex deploy dodaje indeks `notificationState.by_user_workspace_kljuc` (mala tabela, bez čekanja).
+- Ako budeš imao urednika ili klijenta-posmatrača: posmatrač više ne menja leadove ni novosti i ne vidi dugme za izvoz kontakata. Napredak i zvono i dalje podešava sam.

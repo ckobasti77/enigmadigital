@@ -11,7 +11,7 @@ import {
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { api } from "@/convex/_generated/api";
@@ -77,10 +77,9 @@ const PANEL_SIRINA_PX = 380;
 const PANEL_RAZMAK_PX = 12;
 
 type LeadsMapProps =
-  | { mode: "all"; workspaceId: Id<"workspaces"> }
+  | { mode: "all" }
   | {
       mode: "single";
-      workspaceId: Id<"workspaces">;
       company: Doc<"leadCompanies">;
       /** Fit osa iz `scoreCompany` — visina jedinog heksagona. */
       fit: ScoredAxis | undefined;
@@ -90,7 +89,7 @@ export function LeadsMap(props: LeadsMapProps) {
   if (props.mode === "single") {
     return <LeadsMapSingle {...props} />;
   }
-  return <LeadsMapAll workspaceId={props.workspaceId} />;
+  return <LeadsMapAll />;
 }
 
 // ── Zajednički delovi ────────────────────────────────────────────────────────
@@ -193,10 +192,10 @@ function Legenda({ className }: { className?: string }) {
 
 // ── Puna mapa (jezičak „Mapa") ───────────────────────────────────────────────
 
-function LeadsMapAll({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
+function LeadsMapAll() {
   const router = useRouter();
   const { filters, args, nav, setNav, aktivnihGrupa, clearAll } = useLeadFilters();
-  const data = useQuery(api.leadFiltersStore.listLeadsForMap, { workspaceId, ...args });
+  const data = useProjekatQuery(api.leadFiltersStore.listLeadsForMap, args);
 
   const [stil, setStil] = useState<MapStyleState>({ faza: "loading" });
   const [retryKey, setRetryKey] = useState(0);
@@ -257,7 +256,7 @@ function LeadsMapAll({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <LeadFilterBar workspaceId={workspaceId} />
+      <LeadFilterBar />
 
       {/* Brojač + chip „bez koordinata" — uz traku filtera */}
       <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
@@ -417,7 +416,6 @@ function LeadsMapAll({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
               )}
               {izabrana && selectedId && (
                 <LeadsMapPanel
-                  workspaceId={workspaceId}
                   companyId={selectedId as Id<"leadCompanies">}
                   temperatura={izabrana.temperatura}
                   onClose={() => setNav({ firma: null })}

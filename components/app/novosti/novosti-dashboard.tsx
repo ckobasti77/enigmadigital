@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import { useProjekat } from "@/components/app/projekat-provider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
@@ -53,9 +53,7 @@ function saveLocalDrafts(workspaceId: string, drafts: PostItem[]): void {
 }
 
 export function NovostiDashboard() {
-  const { workspace, isLoading: isWorkspaceLoading } = useWorkspace();
-  const workspaceSlug = workspace?.slug;
-  const workspaceId = workspace?.id as Id<"workspaces"> | undefined;
+  const { spreman, slug, workspaceId } = useProjekat();
 
   const [activeView, setActiveView] = useState<"table" | "editor">("table");
   const [editingPost, setEditingPost] = useState<Partial<PostItem> | null>(null);
@@ -88,7 +86,7 @@ export function NovostiDashboard() {
   // Upit ka Convexu za objavljene postove
   const publishedData = useQuery(
     api.postsPublic.listPublished,
-    workspaceSlug ? { workspaceSlug, limit: 50 } : "skip",
+    slug ? { workspaceSlug: slug, limit: 50 } : "skip",
   );
 
   // Spajanje objavljenih postova sa Convex-a i lokalnih postova
@@ -107,7 +105,7 @@ export function NovostiDashboard() {
         map.set(p._id, {
           _id: p._id,
           _creationTime: p._creationTime,
-          workspaceId: workspaceId,
+          workspaceId: workspaceId ?? undefined,
           slug: p.slug,
           locale: p.locale,
           kind: p.kind as PostKind,
@@ -167,12 +165,12 @@ export function NovostiDashboard() {
   };
 
   // Učitavanje Workspace-a
-  if (isWorkspaceLoading) {
+  if (!spreman) {
     return <NovostiDashboardSkeleton />;
   }
 
   // Ako radni prostor nije pronađen
-  if (!workspace || !workspaceId) {
+  if (workspaceId === null) {
     return (
       <FeedbackNote
         tone="warning"

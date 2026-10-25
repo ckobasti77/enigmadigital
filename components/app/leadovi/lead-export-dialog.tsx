@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
 import {
   Download,
   FileSpreadsheet,
@@ -33,7 +32,6 @@ import type { LeadStage } from "@/convex/leadCrmStore";
 import { cn } from "@/lib/utils";
 
 type LeadExportDialogProps = {
-  workspaceId: Id<"workspaces">;
   initialStage?: string;
   trigger?: React.ReactNode;
 };
@@ -49,7 +47,6 @@ const ALL_STAGES: readonly LeadStage[] = [
 ];
 
 export function LeadExportDialog({
-  workspaceId,
   initialStage,
   trigger,
 }: LeadExportDialogProps) {
@@ -61,11 +58,10 @@ export function LeadExportDialog({
   const [isExporting, setIsExporting] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
 
-  const exportData = useQuery(
+  const exportData = useProjekatQuery(
     api.leadExportStore.exportLeads,
     isOpen
       ? {
-          workspaceId,
           stage: selectedStage || undefined,
           onlyWithPhone: onlyWithPhone ? true : undefined,
         }

@@ -1,6 +1,5 @@
-import { mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { normalizeNicheSlug } from "./lib/leadNormalize";
 import { ucitajPoslednjeOcene } from "./leadSiteAuditsStore";
 import { izvediBooking } from "./lib/siteScore";
@@ -38,17 +37,9 @@ const platformaValidator = v.union(
 // ─────────────────────────────────────────────────────────────────────────────
 // listNiches — spisak sa brojačima za tab „Niše".
 // ─────────────────────────────────────────────────────────────────────────────
-export const listNiches = query({
-  args: { workspaceId: v.id("workspaces") },
+export const listNiches = projekatQuery({
+  args: {},
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const niches = await ctx.db
       .query("niches")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
@@ -161,9 +152,8 @@ export const listNiches = query({
 // ─────────────────────────────────────────────────────────────────────────────
 // upsertNiche — ručno pravljenje ili preimenovanje niše.
 // ─────────────────────────────────────────────────────────────────────────────
-export const upsertNiche = mutation({
+export const upsertNiche = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     // Bez `nicheId` je novo; sa njim je izmena.
     nicheId: v.optional(v.id("niches")),
     naziv: v.string(),
@@ -178,14 +168,6 @@ export const upsertNiche = mutation({
   },
   returns: v.id("niches"),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const naziv = args.naziv.trim();
     if (!naziv) {
       throw new ConvexError({
@@ -201,7 +183,7 @@ export const upsertNiche = mutation({
       if (!existing || existing.workspaceId !== args.workspaceId) {
         throw new ConvexError({
           code: "not_found",
-          message: "Niša nije pronađena u ovom radnom prostoru.",
+          message: "Niša nije pronađena u ovom projektu.",
         });
       }
 
@@ -246,7 +228,7 @@ export const upsertNiche = mutation({
       ...(typeof args.trebaZakazivanje === "boolean"
         ? { trebaZakazivanje: args.trebaZakazivanje }
         : {}),
-      createdBy: membership.userId,
+      createdBy: ctx.projekat.userId,
       createdAt: now,
       updatedAt: now,
     });
@@ -256,27 +238,18 @@ export const upsertNiche = mutation({
 // ─────────────────────────────────────────────────────────────────────────────
 // updateNicheOpis — čim čovek dirne opis, autor postaje čovek.
 // ─────────────────────────────────────────────────────────────────────────────
-export const updateNicheOpis = mutation({
+export const updateNicheOpis = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     nicheId: v.id("niches"),
     opis: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const nisa = await ctx.db.get(args.nicheId);
     if (!nisa || nisa.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Niša nije pronađena u ovom radnom prostoru.",
+        message: "Niša nije pronađena u ovom projektu.",
       });
     }
 
@@ -291,7 +264,7 @@ export const updateNicheOpis = mutation({
       opis: opis || undefined,
       opisAutor: opis ? "covek" : undefined,
       opisAt: opis ? now : undefined,
-      opisAutorUserId: opis ? membership.userId : undefined,
+      opisAutorUserId: opis ? ctx.projekat.userId : undefined,
       opisModel: undefined,
       updatedAt: now,
     });
@@ -302,9 +275,8 @@ export const updateNicheOpis = mutation({
 // ─────────────────────────────────────────────────────────────────────────────
 // Platforme niše — CRUD.
 // ─────────────────────────────────────────────────────────────────────────────
-export const upsertNichePlatform = mutation({
+export const upsertNichePlatform = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     nicheId: v.id("niches"),
     platformId: v.optional(v.id("nichePlatforms")),
     platforma: platformaValidator,
@@ -314,19 +286,11 @@ export const upsertNichePlatform = mutation({
   },
   returns: v.id("nichePlatforms"),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const nisa = await ctx.db.get(args.nicheId);
     if (!nisa || nisa.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Niša nije pronađena u ovom radnom prostoru.",
+        message: "Niša nije pronađena u ovom projektu.",
       });
     }
 
@@ -377,21 +341,12 @@ export const upsertNichePlatform = mutation({
   },
 });
 
-export const deleteNichePlatform = mutation({
+export const deleteNichePlatform = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     platformId: v.id("nichePlatforms"),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const row = await ctx.db.get(args.platformId);
     if (row === null) return null; // već obrisana — idempotentno
     if (row.workspaceId !== args.workspaceId) {
@@ -406,21 +361,12 @@ export const deleteNichePlatform = mutation({
 // ─────────────────────────────────────────────────────────────────────────────
 // deleteNiche — samo prazna niša.
 // ─────────────────────────────────────────────────────────────────────────────
-export const deleteNiche = mutation({
+export const deleteNiche = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     nicheId: v.id("niches"),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const nisa = await ctx.db.get(args.nicheId);
     if (nisa === null) return null; // već obrisana — idempotentno
     if (nisa.workspaceId !== args.workspaceId) {

@@ -1,7 +1,6 @@
-import { mutation, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { generateLandingSlug, shortLinkOrigin } from "./lib/orLink";
 
 /**
@@ -34,9 +33,8 @@ const SLUG_ATTEMPTS = 5;
  * Generiše kriptografski siguran, nepogodljiv slug (min 10 karaktera),
  * upisuje praćeni link u `orTrackedLinks` i vezuje ga za `leadLandings`.
  */
-export const createLanding = mutation({
+export const createLanding = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
     destinationUrl: v.string(),
     label: v.optional(v.string()),
@@ -48,19 +46,11 @@ export const createLanding = mutation({
     shortUrl: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    const user = await requireMembership(ctx);
-    if (user.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
@@ -112,7 +102,7 @@ export const createLanding = mutation({
       companyId: args.companyId,
       trackedLinkId,
       label,
-      createdBy: user.userId,
+      createdBy: ctx.projekat.userId,
       createdAt: now,
       status: "napravljena",
     });
@@ -135,9 +125,8 @@ export const createLanding = mutation({
  * Postavlja `sentAt` i opcioni `sentVia` (kanal slanja: npr. "viber", "whatsapp", "telefon").
  * Ako je `sentAt` već postavljen, zahteva izričitu potvrdu kroz `overwrite: true`.
  */
-export const markLandingSent = mutation({
+export const markLandingSent = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     landingId: v.id("leadLandings"),
     sentAt: v.optional(v.number()),
     sentVia: v.optional(v.string()),
@@ -148,19 +137,11 @@ export const markLandingSent = mutation({
     sentAt: v.number(),
   }),
   handler: async (ctx, args) => {
-    const user = await requireMembership(ctx);
-    if (user.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const landing = await ctx.db.get(args.landingId);
     if (!landing || landing.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Landing stranica nije pronađena u ovom radnom prostoru.",
+        message: "Landing stranica nije pronađena u ovom projektu.",
       });
     }
 
@@ -192,28 +173,19 @@ export const markLandingSent = mutation({
 /**
  * Arhivira landing stranicu koja više nije u aktivnoj upotrebi.
  */
-export const archiveLanding = mutation({
+export const archiveLanding = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     landingId: v.id("leadLandings"),
   },
   returns: v.object({
     success: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const user = await requireMembership(ctx);
-    if (user.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const landing = await ctx.db.get(args.landingId);
     if (!landing || landing.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Landing stranica nije pronađena u ovom radnom prostoru.",
+        message: "Landing stranica nije pronađena u ovom projektu.",
       });
     }
 
@@ -228,9 +200,8 @@ export const archiveLanding = mutation({
 /**
  * Vraća listu svih kreiranih landing stranica za jednu firmu sa detaljima linka.
  */
-export const listLandingsForCompany = query({
+export const listLandingsForCompany = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
   },
   returns: v.array(
@@ -253,14 +224,6 @@ export const listLandingsForCompany = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const user = await requireMembership(ctx);
-    if (user.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const landings = await ctx.db
       .query("leadLandings")
       .withIndex("by_workspace_company", (q) =>
@@ -305,9 +268,8 @@ export const listLandingsForCompany = query({
  * Broj otvaranja se NIKADA ne čuva kao broj u bazi — računa se dinamički iz
  * pojedinačnih signala u `leadSignals` tabele.
  */
-export const landingStatus = query({
+export const landingStatus = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
   },
   returns: v.object({
@@ -340,19 +302,11 @@ export const landingStatus = query({
     ),
   }),
   handler: async (ctx, args) => {
-    const user = await requireMembership(ctx);
-    if (user.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 

@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { ArrowRight, History, LoaderCircle, Plus, Upload, XCircle } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import {
+  useProjekat,
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import type { Id } from "@/convex/_generated/dataModel";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -48,7 +51,7 @@ function porukaGreske(err: unknown): string {
 }
 
 export function ImportDashboard() {
-  const { workspace, isLoading } = useWorkspace();
+  const { workspaceId, spreman } = useProjekat();
   const [tab, setTab] = useState<Tab>("staging");
   // A5 §2 tačka 5: „Odustani od uvoza" i iz trake na stranici, ne samo iz
   // istorije — traka je mesto na kom se problem i vidi.
@@ -87,14 +90,10 @@ export function ImportDashboard() {
   );
 
   const now = useNow();
-  const workspaceId = workspace?.id as Id<"workspaces"> | undefined;
-  const imports = useQuery(
-    api.leadImportStore.listImports,
-    workspaceId ? { workspaceId } : "skip",
-  );
-  const abandonImportMutation = useMutation(api.leadImportStore.abandonImport);
+  const imports = useProjekatQuery(api.leadImportStore.listImports, {});
+  const abandonImportMutation = useProjekatMutation(api.leadImportStore.abandonImport);
 
-  if (isLoading || !workspace || !workspaceId) {
+  if (!spreman || workspaceId === null) {
     return <ImportDashboardSkeleton />;
   }
 
@@ -143,7 +142,7 @@ export function ImportDashboard() {
     setIsAbandoning(true);
     setAbandonError(null);
     try {
-      await abandonImportMutation({ workspaceId, importId: abandoningImportId });
+      await abandonImportMutation({ importId: abandoningImportId });
       if (activeImportId === abandoningImportId) setActiveImportId(null);
       setAbandoningImportId(null);
     } catch (err: unknown) {
@@ -169,7 +168,7 @@ export function ImportDashboard() {
     let gotovo = 0;
     try {
       for (const imp of stari) {
-        await abandonImportMutation({ workspaceId, importId: imp._id });
+        await abandonImportMutation({ importId: imp._id });
         if (activeImportId === imp._id) setActiveImportId(null);
         gotovo++;
       }
@@ -389,20 +388,17 @@ export function ImportDashboard() {
               // kad se otvori drugi uvoz — bez njega bi „Reši preostale" na
               // jednom uvozu ostavilo filter uključen na sledećem.
               key={`${activeImportId}:${prikaz}`}
-              workspaceId={workspaceId}
               importId={activeImportId}
               onBack={handleStartNewImport}
               pocetniPrikaz={prikaz}
             />
           ) : (
             <ImportFilePicker
-              workspaceId={workspaceId}
               onImportCreated={handleImportCreated}
             />
           )
         ) : (
           <ImportsHistory
-            workspaceId={workspaceId}
             onSelectImport={handleSelectHistoryImport}
           />
         )}

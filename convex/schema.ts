@@ -4426,8 +4426,8 @@ export default defineSchema({
   // `workspaceId`, `userId` i `kljuc`; čitanje red bez njih preskače umesto da
   // ga tumači.
   notificationState: defineTable({
-    // OPCIONO NAMERNO: vidi gore. Provera pripadnosti radnom prostoru poredi
-    // ovu vrednost sa `requireMembership().workspaceId`.
+    // OPCIONO NAMERNO: vidi gore. Čita se samo preko indeksa
+    // `by_user_workspace_kljuc` sa projektom koji je proverio omotač.
     workspaceId: v.optional(v.id("workspaces")),
     // OPCIONO NAMERNO: vidi gore.
     userId: v.optional(v.id("users")),
@@ -4448,7 +4448,10 @@ export default defineSchema({
   })
     .index("by_user_kljuc", ["userId", "kljuc"])
     .index("by_user", ["userId"])
-    .index("by_workspace", ["workspaceId"]),
+    .index("by_workspace", ["workspaceId"])
+    // Stanje je lično PO PROJEKTU: odlaganje u jednom projektu ne sme da
+    // prepiše isti ključ u drugom.
+    .index("by_user_workspace_kljuc", ["userId", "workspaceId", "kljuc"]),
 
   // ── Napredak (B4, ui-boost-plan.md §6) ─────────────────────────────────────
   //

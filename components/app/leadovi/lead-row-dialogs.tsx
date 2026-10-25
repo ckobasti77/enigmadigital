@@ -1,6 +1,5 @@
 "use client";
 
-import type { Id } from "@/convex/_generated/dataModel";
 import type { LeadStage } from "@/convex/leadCrmStore";
 import {
   AssignDialog,
@@ -28,12 +27,10 @@ export type LeadRowDialogState =
  * ovde da se ne kopira.
  */
 export function LeadRowDialogs({
-  workspaceId,
   dialog,
   onClose,
   onSaved,
 }: {
-  workspaceId: Id<"workspaces">;
   dialog: LeadRowDialogState | null;
   onClose: () => void;
   /** Sastanak ili ishod je upisan (ne javlja se kad se odustane). */
@@ -42,7 +39,6 @@ export function LeadRowDialogs({
   if (!dialog) return null;
 
   const base = {
-    workspaceId,
     companyId: dialog.item.assignment.companyId,
     companyName: dialog.item.company?.name ?? "Nepoznata firma",
     open: true,

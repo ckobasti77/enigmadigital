@@ -1,8 +1,12 @@
-import { mutation, query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import {
+  projekatMutation,
+  projekatQuery,
+  type Projekat,
+  type ProjekatMutationCtx,
+} from "./lib/projekat";
 import { ALL_PROVIDERS } from "./lib/providers";
 import { brojNerazresenih } from "./lib/importFlow";
 import {
@@ -96,7 +100,9 @@ async function ucitajStanja(
 ): Promise<StanjeZadatka[]> {
   const redovi = await ctx.db
     .query("notificationState")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .withIndex("by_user_workspace_kljuc", (q) =>
+      q.eq("userId", userId).eq("workspaceId", workspaceId),
+    )
     .collect();
 
   const out: StanjeZadatka[] = [];
@@ -587,9 +593,8 @@ export async function citajKanale(
  * jednu pretplatu, pa tri površine na ekranu koštaju koliko i jedna — pod
  * uslovom da im je `pomerajMin` isti, zato ga svi uzimaju iz istog hooka.
  */
-export const staMeCeka = query({
+export const staMeCeka = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     /**
      * Minuti koje treba dodati na UTC da bi se dobilo lokalno vreme
      * (`-new Date().getTimezoneOffset()`). Server je UTC, a „sastanak danas u
@@ -607,14 +612,6 @@ export const staMeCeka = query({
     now: v.number(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const now = Date.now();
     const pomerajMin = Number.isFinite(args.pomerajMin ?? 0)
       ? Math.trunc(args.pomerajMin ?? 0)
@@ -639,7 +636,7 @@ export const staMeCeka = query({
     };
 
     const svi = napraviZadatke(snimak);
-    const stanja = await ucitajStanja(ctx, membership.userId, args.workspaceId);
+    const stanja = await ucitajStanja(ctx, ctx.projekat.userId, args.workspaceId);
     const { zadaci, sklonjeni } = podeliPoStanju(svi, stanja, now);
 
     return {
@@ -655,55 +652,54 @@ export const staMeCeka = query({
 
 // ── mutacije: odloži / sakrij / vrati ────────────────────────────────────────
 
+/**
+ * Red stanja traži se po (korisnik, projekat, ključ): isti korisnik u dva
+ * projekta ima dva nezavisna reda za isti ključ.
+ */
 async function nadjiStanje(
   ctx: QueryCtx,
-  userId: Id<"users">,
+  projekat: Projekat,
   kljuc: string,
 ): Promise<Doc<"notificationState"> | null> {
   return await ctx.db
     .query("notificationState")
-    .withIndex("by_user_kljuc", (q) => q.eq("userId", userId).eq("kljuc", kljuc))
+    .withIndex("by_user_workspace_kljuc", (q) =>
+      q
+        .eq("userId", projekat.userId)
+        .eq("workspaceId", projekat.workspaceId)
+        .eq("kljuc", kljuc),
+    )
     .first();
 }
 
 const kljucArg = {
-  workspaceId: v.id("workspaces"),
   kljuc: v.string(),
 };
 
 /**
- * Provera koja se ponavlja u sve tri mutacije: pripadnost radnom prostoru i to
- * da ključ uopšte postoji u sistemu. Ključ koji nijedan proizvođač ne pravi bi
- * napravio red koji niko nikad neće pročitati.
+ * Provera koja se ponavlja u sve tri mutacije: da ključ uopšte postoji u
+ * sistemu. Ključ koji nijedan proizvođač ne pravi bi napravio red koji niko
+ * nikad neće pročitati. Pripadnost projektu proverava omotač.
  */
-async function pripremi(
-  ctx: QueryCtx,
-  args: { workspaceId: Id<"workspaces">; kljuc: string },
-) {
-  const membership = await requireMembership(ctx);
-  if (membership.workspaceId !== args.workspaceId) {
-    throw new ConvexError({
-      code: "forbidden",
-      message: "Nemate pristup ovom radnom prostoru.",
-    });
-  }
-  if (!jePoznatKljuc(args.kljuc)) {
+function pripremi(ctx: ProjekatMutationCtx, kljuc: string): Projekat {
+  if (!jePoznatKljuc(kljuc)) {
     throw new ConvexError({
       code: "bad_request",
       message: "Nepoznat zadatak.",
     });
   }
-  return membership;
+  return ctx.projekat;
 }
 
 /** „Odloži 1 dan" — stavka nestaje do sutra u isto vreme i onda se vrati sama. */
-export const odloziZadatak = mutation({
+export const odloziZadatak = projekatMutation({
+  uloga: "client_viewer",
   args: kljucArg,
   returns: v.object({ odlozenoDo: v.number() }),
   handler: async (ctx, args) => {
-    const membership = await pripremi(ctx, args);
+    const projekat = pripremi(ctx, args.kljuc);
     const odlozenoDo = Date.now() + ODLAGANJE_MS;
-    const postojece = await nadjiStanje(ctx, membership.userId, args.kljuc);
+    const postojece = await nadjiStanje(ctx, projekat, args.kljuc);
 
     if (postojece) {
       // Odlaganje poništava sakrivanje: to su dva različita odgovora na istu
@@ -717,7 +713,7 @@ export const odloziZadatak = mutation({
     } else {
       await ctx.db.insert("notificationState", {
         workspaceId: args.workspaceId,
-        userId: membership.userId,
+        userId: projekat.userId,
         kljuc: args.kljuc,
         odlozenoDo,
         updatedAt: Date.now(),
@@ -733,13 +729,14 @@ export const odloziZadatak = mutation({
  * `broj` je koliko je posla bilo u trenutku sakrivanja i zato je obavezan: bez
  * njega bi sakrivanje „39 firmi bez broja" ućutkalo i onu četrdesetu, zauvek.
  */
-export const sakrijZadatak = mutation({
+export const sakrijZadatak = projekatMutation({
+  uloga: "client_viewer",
   args: { ...kljucArg, broj: v.number() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const membership = await pripremi(ctx, args);
+    const projekat = pripremi(ctx, args.kljuc);
     const now = Date.now();
-    const postojece = await nadjiStanje(ctx, membership.userId, args.kljuc);
+    const postojece = await nadjiStanje(ctx, projekat, args.kljuc);
     const brojPriSakrivanju = Math.max(0, Math.trunc(args.broj));
 
     if (postojece) {
@@ -752,7 +749,7 @@ export const sakrijZadatak = mutation({
     } else {
       await ctx.db.insert("notificationState", {
         workspaceId: args.workspaceId,
-        userId: membership.userId,
+        userId: projekat.userId,
         kljuc: args.kljuc,
         sakrivenoAt: now,
         brojPriSakrivanju,
@@ -764,12 +761,13 @@ export const sakrijZadatak = mutation({
 });
 
 /** „Vrati" — bez ovoga je „Sakrij" ćorsokak, a plan zabranjuje ćorsokake. */
-export const vratiZadatak = mutation({
+export const vratiZadatak = projekatMutation({
+  uloga: "client_viewer",
   args: kljucArg,
   returns: v.null(),
   handler: async (ctx, args) => {
-    const membership = await pripremi(ctx, args);
-    const postojece = await nadjiStanje(ctx, membership.userId, args.kljuc);
+    const projekat = pripremi(ctx, args.kljuc);
+    const postojece = await nadjiStanje(ctx, projekat, args.kljuc);
     if (postojece) await ctx.db.delete(postojece._id);
     return null;
   },

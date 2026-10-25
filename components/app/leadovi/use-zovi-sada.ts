@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { LeadScore } from "@/convex/lib/leadScoring";
@@ -43,9 +43,8 @@ export type ZoviSada = {
 };
 
 /** `null` dok spisak nije stigao. */
-export function useZoviSada(workspaceId: Id<"workspaces">): ZoviSada | null {
-  const data = useQuery(api.leadFiltersStore.listLeadsFiltered, {
-    workspaceId,
+export function useZoviSada(): ZoviSada | null {
+  const data = useProjekatQuery(api.leadFiltersStore.listLeadsFiltered, {
     tel: 40,
     dodir: ["nikad"],
     strana: 1,
@@ -60,9 +59,9 @@ export function useZoviSada(workspaceId: Id<"workspaces">): ZoviSada | null {
         .filter((id): id is Id<"leadCompanies"> => Boolean(id)),
     [items],
   );
-  const scores = useQuery(
+  const scores = useProjekatQuery(
     api.leadScoringStore.scoreCompanies,
-    ids.length > 0 ? { workspaceId, companyIds: ids } : "skip",
+    ids.length > 0 ? { companyIds: ids } : "skip",
   ) as Record<string, LeadScore> | undefined;
 
   return useMemo(() => {
@@ -93,10 +92,8 @@ export function useZoviSada(workspaceId: Id<"workspaces">): ZoviSada | null {
 }
 
 /** Naziv niše firme, ili `null` — za red konteksta i boju monograma. */
-export function useNisaZa(
-  workspaceId: Id<"workspaces">,
-): (company: Doc<"leadCompanies"> | null) => string | null {
-  const niches = useQuery(api.nichesStore.listNiches, { workspaceId });
+export function useNisaZa(): (company: Doc<"leadCompanies"> | null) => string | null {
+  const niches = useProjekatQuery(api.nichesStore.listNiches);
   const poId = useMemo(() => {
     const m = new Map<string, string>();
     for (const n of niches ?? []) m.set(String(n._id), n.naziv);

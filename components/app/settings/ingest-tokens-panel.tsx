@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useMutation, useQuery } from "convex/react";
 import { Check, Copy, LoaderCircle, Plus } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -28,7 +27,11 @@ import {
 import { Field } from "@/components/app/form-kit";
 import { FeedbackNote } from "@/components/app/feedback";
 import { StatusPill } from "./status-pill";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import {
+  useProjekat,
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { formatDateTime } from "@/lib/format";
 
 /**
@@ -42,8 +45,8 @@ import { formatDateTime } from "@/lib/format";
  * opoziva i pravi novi. Baza nosi samo SHA-256 heš.
  *
  * Sekciju vidi samo vlasnik. Provera nije samo ovde: `createIngestToken`,
- * `listIngestTokens` i `revokeIngestToken` idu kroz `requireOwner`, pa poziv
- * mimo ekrana ne prolazi.
+ * `listIngestTokens` i `revokeIngestToken` idu kroz omotač sa ulogom
+ * vlasnika, pa poziv mimo ekrana ne prolazi.
  */
 
 function porukaGreske(error: unknown): string {
@@ -60,16 +63,15 @@ function porukaGreske(error: unknown): string {
 }
 
 export function IngestTokensPanel() {
-  const { workspace, role } = useWorkspace();
-  const workspaceId = workspace?.id as Id<"workspaces"> | undefined;
-  const jeVlasnik = role === "owner";
+  const { spreman, uloga } = useProjekat();
+  const jeVlasnik = uloga === "owner";
 
-  const tokens = useQuery(
+  const tokens = useProjekatQuery(
     api.ingestTokensStore.listIngestTokens,
-    workspaceId && jeVlasnik ? { workspaceId } : "skip",
+    jeVlasnik ? {} : "skip",
   );
-  const createToken = useMutation(api.ingestTokensStore.createIngestToken);
-  const revokeToken = useMutation(api.ingestTokensStore.revokeIngestToken);
+  const createToken = useProjekatMutation(api.ingestTokensStore.createIngestToken);
+  const revokeToken = useProjekatMutation(api.ingestTokensStore.revokeIngestToken);
 
   const [naziv, setNaziv] = useState("");
   const [radim, setRadim] = useState(false);
@@ -89,13 +91,13 @@ export function IngestTokensPanel() {
 
   async function napravi(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    if (!workspaceId || radim) return;
+    if (!spreman || radim) return;
     setGreska(null);
     setNovi(null);
     setKopirano(false);
     setRadim(true);
     try {
-      const rezultat = await createToken({ workspaceId, naziv: naziv.trim() });
+      const rezultat = await createToken({ naziv: naziv.trim() });
       setNovi(rezultat);
       setNaziv("");
     } catch (error) {
@@ -119,10 +121,10 @@ export function IngestTokensPanel() {
   }
 
   async function potvrdiOpoziv() {
-    if (!workspaceId || !zaOpoziv || opozivam) return;
+    if (!spreman || !zaOpoziv || opozivam) return;
     setOpozivam(true);
     try {
-      await revokeToken({ workspaceId, tokenId: zaOpoziv._id });
+      await revokeToken({ tokenId: zaOpoziv._id });
       setZaOpoziv(null);
     } catch (error) {
       console.error("Opoziv tokena nije uspeo");
@@ -161,14 +163,14 @@ export function IngestTokensPanel() {
                   setNaziv(e.target.value);
                   setGreska(null);
                 }}
-                disabled={radim || !workspaceId}
+                disabled={radim || !spreman}
                 className="h-10"
               />
             )}
           </Field>
           <Button
             type="submit"
-            disabled={radim || !workspaceId || naziv.trim().length === 0}
+            disabled={radim || !spreman || naziv.trim().length === 0}
             className="h-10 shrink-0"
           >
             {radim ? (

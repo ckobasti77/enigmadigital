@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { LeadScore, InvalidRule } from "@/convex/lib/leadScoring";
@@ -37,7 +36,7 @@ import { Chip } from "@/components/app/system/chip";
 import { ChipOverflow } from "@/components/app/system/chip-overflow";
 import { Monogram } from "@/components/app/system/monogram";
 import { SegmentedToggle } from "@/components/app/analytics/segmented-toggle";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import { useProjekat, useProjekatQuery } from "@/components/app/projekat-provider";
 import { useNow } from "@/components/app/use-now";
 import { Unfold } from "@/components/motion/unfold";
 import { useSetExitLatch } from "@/components/motion/exit-latch";
@@ -96,7 +95,6 @@ type SortDirection = "asc" | "desc";
 type Density = "compact" | "comfortable";
 
 type LeadsTableProps = {
-  workspaceId: Id<"workspaces">;
   onInvalidRulesFound?: (invalidRules: InvalidRule[]) => void;
 };
 
@@ -395,8 +393,8 @@ function ScoreCell({ score, size }: { score: LeadScore | undefined; size: "sm" |
 // Tabela
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps) {
-  const { user } = useWorkspace();
+export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
+  const { korisnik, uloga } = useProjekat();
   const router = useRouter();
   // Izvor istine za filtere je URL (GL2, plan §7.1) — ne `useState` ovde.
   const { filters, args, aktivnihGrupa, clearAll } = useLeadFilters();
@@ -430,8 +428,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
     }
   };
 
-  const activeData = useQuery(api.leadFiltersStore.listLeadsFiltered, {
-    workspaceId,
+  const activeData = useProjekatQuery(api.leadFiltersStore.listLeadsFiltered, {
     ...args,
     strana: page,
     poStrani: PAGE_SIZE,
@@ -439,7 +436,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
 
   // Niša po firmi za ćeliju „Firma" (naziv + grad + niša). Red nosi samo
   // `nicheId`; imena stižu iz šifarnika koji čita i jezičak „Niše".
-  const niches = useQuery(api.nichesStore.listNiches, { workspaceId });
+  const niches = useProjekatQuery(api.nichesStore.listNiches);
   const nisaPoId = useMemo(() => {
     const m = new Map<string, string>();
     for (const n of niches ?? []) m.set(String(n._id), n.naziv);
@@ -465,10 +462,10 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
       .filter((id): id is Id<"leadCompanies"> => Boolean(id));
   }, [currentPageItems]);
 
-  const scoresQuery = useQuery(
+  const scoresQuery = useProjekatQuery(
     api.leadScoringStore.scoreCompanies,
     currentPageCompanyIds.length > 0
-      ? { workspaceId, companyIds: currentPageCompanyIds }
+      ? { companyIds: currentPageCompanyIds }
       : "skip",
   );
   const scores = scoresQuery as Record<string, LeadScore> | undefined;
@@ -700,7 +697,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
   // Kompaktno = STVARNO jedan red: ~28 px sadržaja (čip 24 + line-height) +
   // 2×2 px = ~32 px. Izmereno Playwright-om pre A3: „kompaktno" je bilo 68 px.
   const cell = density === "compact" ? "px-2 py-0.5 align-middle leading-none" : "px-3 py-2.5 align-middle";
-  const selfUserId = user?.id;
+  const selfUserId = korisnik?.id;
 
   // ── Kolone koje se same sakrivaju (F10) ──
   // Kolona čija je vrednost ista u ≥ 90 % redova prikazanog preseka ne
@@ -766,7 +763,6 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
     const openDialog = (kind: RowDialogKind) => setDialog({ kind, item });
     const actions = (
       <LeadRowActions
-        workspaceId={workspaceId}
         item={item}
         now={now}
         selfUserId={selfUserId}
@@ -780,7 +776,6 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
     );
     const stateChip = company ? (
       <LeadStateChip
-        workspaceId={workspaceId}
         companyId={company._id}
         companyName={company.name}
         stage={assignment.stage}
@@ -899,7 +894,6 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
           <TableCell colSpan={columnCount} className="whitespace-normal p-0">
             <Unfold>
               <LeadCallStrip
-                workspaceId={workspaceId}
                 companyId={companyId}
                 phone={stripPhone}
                 onClose={() => setCallStrip(null)}
@@ -922,7 +916,6 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
           <TableCell colSpan={columnCount} className="whitespace-normal p-0 align-top">
             <Unfold open={isExpanded}>
               <LeadExpandedRow
-                workspaceId={workspaceId}
                 item={item}
                 now={now}
                 onCall={(phone) => setCallStrip({ assignmentId: assignment._id, phone })}
@@ -965,7 +958,6 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
           <CompanyCell item={item} nisa={nisa} size="md" />
           {company && (
             <LeadStateChip
-              workspaceId={workspaceId}
               companyId={company._id}
               companyName={company.name}
               stage={assignment.stage}
@@ -1016,7 +1008,6 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
               <ChevronDown className={cn("size-3.5 transition-transform duration-(--duration-base)", isExpanded && "rotate-180")} />
             </Button>
             <LeadRowActions
-              workspaceId={workspaceId}
               item={item}
               now={now}
               selfUserId={selfUserId}
@@ -1032,7 +1023,6 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
         {stripPhone && (
           <Unfold>
             <LeadCallStrip
-              workspaceId={workspaceId}
               companyId={companyId}
               phone={stripPhone}
               onClose={() => setCallStrip(null)}
@@ -1047,7 +1037,6 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
           <Unfold open={isExpanded}>
             <div className="rounded-lg border border-line-soft bg-surface-raised/40">
               <LeadExpandedRow
-                workspaceId={workspaceId}
                 item={item}
                 now={now}
                 stacked
@@ -1067,7 +1056,7 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
     <TooltipProvider delay={150}>
       <div className="flex flex-col gap-5" ref={listRef}>
         {/* Filteri (GL2, §7.1) — izvor istine je URL, ne stanje ove tabele */}
-        <LeadFilterBar workspaceId={workspaceId} />
+        <LeadFilterBar />
 
         {/* Straničenje, gustina i izvoz */}
         <div className="flex flex-wrap items-center gap-3">
@@ -1124,10 +1113,12 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
               ]}
               className="hidden md:inline-flex"
             />
-            <LeadExportDialog
-              workspaceId={workspaceId}
-              initialStage={filters.faza.length === 1 ? filters.faza[0] : undefined}
-            />
+            {/* Izvoz kontakata traži urednika; posmatraču upit ne bi prošao. */}
+            {uloga !== "client_viewer" && (
+              <LeadExportDialog
+                initialStage={filters.faza.length === 1 ? filters.faza[0] : undefined}
+              />
+            )}
           </div>
         </div>
 
@@ -1325,12 +1316,11 @@ export function LeadsTable({ workspaceId, onInvalidRulesFound }: LeadsTableProps
         )}
 
         {/* Dijalozi radnji iz reda — jedan primerak, vezan za izabrani red */}
-        <LeadRowDialogs workspaceId={workspaceId} dialog={dialog} onClose={() => setDialog(null)} />
+        <LeadRowDialogs dialog={dialog} onClose={() => setDialog(null)} />
 
         {/* „Dopuni" (primarno dugme reda bez broja) → postojeći dijalog rupe „bez telefona" */}
         {fillCompany && (
           <LeadGapFillDialog
-            workspaceId={workspaceId}
             company={fillCompany}
             gapType="bez_telefona"
             isOpen

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
   AlertTriangle,
@@ -16,6 +15,10 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import {
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -291,12 +294,10 @@ function SkillCells({ parsed }: { parsed: StagingRowDoc["parsed"] }) {
 }
 
 export function ImportReviewTable({
-  workspaceId,
   importId,
   onBack,
   pocetniPrikaz = "sve",
 }: {
-  workspaceId: Id<"workspaces">;
   importId: Id<"leadImports">;
   onBack?: () => void;
   /**
@@ -322,24 +323,22 @@ export function ImportReviewTable({
     skippedCompaniesCount: number;
   } | null>(null);
 
-  const importDoc = useQuery(api.leadImportStore.getImport, {
-    workspaceId,
+  const importDoc = useProjekatQuery(api.leadImportStore.getImport, {
     importId,
   });
 
-  const allRows = useQuery(api.leadImportStore.listImportRows, {
-    workspaceId,
+  const allRows = useProjekatQuery(api.leadImportStore.listImportRows, {
     importId,
   });
 
-  const setRowDecisionMutation = useMutation(api.leadImportStore.setRowDecision);
-  const setRowTemperaturaMutation = useMutation(api.leadImportStore.setRowTemperatura);
-  const setCompanyTemperaturaMutation = useMutation(api.leadCrmStore.setCompanyTemperatura);
-  const setRowObrisanMutation = useMutation(api.leadImportStore.setRowObrisan);
-  const revertImportMutation = useMutation(api.leadImportStore.revertImport);
-  const setImportHiddenColumnsMutation = useMutation(api.leadImportStore.setImportHiddenColumns);
-  const applyImportMutation = useMutation(api.leadImportStore.applyImport);
-  const applyRemainingRowsMutation = useMutation(api.leadImportStore.applyRemainingRows);
+  const setRowDecisionMutation = useProjekatMutation(api.leadImportStore.setRowDecision);
+  const setRowTemperaturaMutation = useProjekatMutation(api.leadImportStore.setRowTemperatura);
+  const setCompanyTemperaturaMutation = useProjekatMutation(api.leadCrmStore.setCompanyTemperatura);
+  const setRowObrisanMutation = useProjekatMutation(api.leadImportStore.setRowObrisan);
+  const revertImportMutation = useProjekatMutation(api.leadImportStore.revertImport);
+  const setImportHiddenColumnsMutation = useProjekatMutation(api.leadImportStore.setImportHiddenColumns);
+  const applyImportMutation = useProjekatMutation(api.leadImportStore.applyImport);
+  const applyRemainingRowsMutation = useProjekatMutation(api.leadImportStore.applyRemainingRows);
 
   const isReadOnly = importDoc?.status !== "u_pregledu";
   const isPrimenjen = importDoc?.status === "primenjen";
@@ -351,7 +350,6 @@ export function ImportReviewTable({
     try {
       setActionError(null);
       await setRowTemperaturaMutation({
-        workspaceId,
         rowId,
         temperatura,
       });
@@ -379,7 +377,6 @@ export function ImportReviewTable({
     try {
       setActionError(null);
       await setCompanyTemperaturaMutation({
-        workspaceId,
         companyId,
         temperatura,
       });
@@ -399,7 +396,6 @@ export function ImportReviewTable({
     try {
       setActionError(null);
       await setRowObrisanMutation({
-        workspaceId,
         rowId,
         obrisan: true,
       });
@@ -424,7 +420,6 @@ export function ImportReviewTable({
       const currentHidden = importDoc?.skriveneKolone ?? [];
       const updated = Array.from(new Set([...currentHidden, colName]));
       await setImportHiddenColumnsMutation({
-        workspaceId,
         importId,
         skriveneKolone: updated,
       });
@@ -447,7 +442,6 @@ export function ImportReviewTable({
       const hiddenCols = importDoc?.skriveneKolone ?? [];
       if (hiddenCols.length > 0) {
         await setImportHiddenColumnsMutation({
-          workspaceId,
           importId,
           skriveneKolone: [],
         });
@@ -457,7 +451,6 @@ export function ImportReviewTable({
         await Promise.all(
           deletedRows.map((r) =>
             setRowObrisanMutation({
-              workspaceId,
               rowId: r._id,
               obrisan: false,
             }),
@@ -483,7 +476,6 @@ export function ImportReviewTable({
     try {
       setActionError(null);
       await setRowDecisionMutation({
-        workspaceId,
         rowId,
         decision,
       });
@@ -507,7 +499,6 @@ export function ImportReviewTable({
     setApplyError(null);
     try {
       const res = await applyImportMutation({
-        workspaceId,
         importId,
       });
       setApplyResult(res);
@@ -533,7 +524,6 @@ export function ImportReviewTable({
     setApplyError(null);
     try {
       const res = await applyRemainingRowsMutation({
-        workspaceId,
         importId,
       });
       setApplyResult(res);

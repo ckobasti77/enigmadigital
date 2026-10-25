@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -32,7 +32,6 @@ type Phase = "ask" | "answered" | "missed";
  * „Zatvori” samo sklanja traku.
  */
 export function LeadCallStrip({
-  workspaceId,
   companyId,
   phone,
   onClose,
@@ -41,7 +40,6 @@ export function LeadCallStrip({
   onNextStep,
   className,
 }: {
-  workspaceId: Id<"workspaces">;
   companyId: Id<"leadCompanies">;
   phone: string;
   onClose: () => void;
@@ -50,8 +48,8 @@ export function LeadCallStrip({
   onNextStep: () => void;
   className?: string;
 }) {
-  const logTouch = useMutation(api.leadCrmStore.logTouch);
-  const recordOutcome = useMutation(api.leadCrmStore.recordOutcome);
+  const logTouch = useProjekatMutation(api.leadCrmStore.logTouch);
+  const recordOutcome = useProjekatMutation(api.leadCrmStore.recordOutcome);
   const [phase, setPhase] = useState<Phase>("ask");
   const [busy, setBusy] = useState<"answered" | "missed" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +59,6 @@ export function LeadCallStrip({
     setBusy("answered");
     try {
       await logTouch({
-        workspaceId,
         companyId,
         channel: "poziv",
         note: `Poziv na ${phone}`,
@@ -79,7 +76,6 @@ export function LeadCallStrip({
     setBusy("missed");
     try {
       await recordOutcome({
-        workspaceId,
         companyId,
         outcome: "nije_se_javio",
         note: `Poziv na ${phone}`,

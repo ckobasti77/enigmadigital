@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useMutation, useQuery } from "convex/react";
+import {
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type {
@@ -370,7 +373,7 @@ function brojUFioci(filters: LeadFilters): number {
   return n;
 }
 
-export function LeadFilterBar({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
+export function LeadFilterBar() {
   const {
     filters,
     args,
@@ -398,13 +401,10 @@ export function LeadFilterBar({ workspaceId }: { workspaceId: Id<"workspaces"> }
   } | null>(null);
   const [brisem, setBrisem] = useState(false);
 
-  const brojaci = useQuery(api.leadFiltersStore.countLeadsByFacet, {
-    workspaceId,
-    ...args,
-  });
-  const preseti = useQuery(api.leadFiltersStore.listPresets, { workspaceId });
-  const savePreset = useMutation(api.leadFiltersStore.savePreset);
-  const deletePreset = useMutation(api.leadFiltersStore.deletePreset);
+  const brojaci = useProjekatQuery(api.leadFiltersStore.countLeadsByFacet, args);
+  const preseti = useProjekatQuery(api.leadFiltersStore.listPresets);
+  const savePreset = useProjekatMutation(api.leadFiltersStore.savePreset);
+  const deletePreset = useProjekatMutation(api.leadFiltersStore.deletePreset);
 
   // ── Tekstualna pretraga: URL se ne prepisuje na svaki pritisak tastera ──
   const [tekst, setTekst] = useState(filters.q);
@@ -450,7 +450,7 @@ export function LeadFilterBar({ workspaceId }: { workspaceId: Id<"workspaces"> }
     const naziv = (imePreseta ?? "").trim();
     setPresetGreska(null);
     try {
-      await savePreset({ workspaceId, naziv, query: queryString });
+      await savePreset({ naziv, query: queryString });
       setImePreseta(null);
     } catch (err) {
       setPresetGreska(getErrorMessage(err));
@@ -462,7 +462,7 @@ export function LeadFilterBar({ workspaceId }: { workspaceId: Id<"workspaces"> }
     setBrisem(true);
     setPresetGreska(null);
     try {
-      await deletePreset({ workspaceId, presetId: zaBrisanje.id });
+      await deletePreset({ presetId: zaBrisanje.id });
       setZaBrisanje(null);
     } catch (err) {
       setPresetGreska(getErrorMessage(err));

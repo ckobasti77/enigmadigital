@@ -1,7 +1,6 @@
-import { mutation, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import {
   LEAD_SIGNAL_KINDS,
   isKnownLeadSignalKind,
@@ -210,25 +209,16 @@ export const DEFAULT_ICP_RULES: ReadonlyArray<{
 /**
  * Računa ocenu pojedinačne firme na osnovu njenih signala i važećih pravila radnog prostora.
  */
-export const scoreCompany = query({
+export const scoreCompany = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
   },
   handler: async (ctx, args): Promise<LeadScore> => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
@@ -262,20 +252,11 @@ export const scoreCompany = query({
  */
 export const SCORE_COMPANIES_LIMIT = 100;
 
-export const scoreCompanies = query({
+export const scoreCompanies = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     companyIds: v.array(v.id("leadCompanies")),
   },
   handler: async (ctx, args): Promise<Record<string, LeadScore>> => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     if (args.companyIds.length > SCORE_COMPANIES_LIMIT) {
       throw new ConvexError({
         code: "invalid",
@@ -315,20 +296,11 @@ export const scoreCompanies = query({
 /**
  * Prikazuje sva ICP pravila radnog prostora, uz opcioni filter po osi (fit / intent).
  */
-export const listIcpRules = query({
+export const listIcpRules = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     axis: v.optional(v.union(v.literal("fit"), v.literal("intent"))),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     if (args.axis) {
       return await ctx.db
         .query("leadIcpRules")
@@ -353,9 +325,8 @@ export const listIcpRules = query({
  * - Težinu manju ili jednaku 0
  * - Prazan naziv pravila
  */
-export const upsertIcpRule = mutation({
+export const upsertIcpRule = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     ruleId: v.optional(v.id("leadIcpRules")),
     name: v.string(),
     axis: v.union(v.literal("fit"), v.literal("intent")),
@@ -365,14 +336,6 @@ export const upsertIcpRule = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args): Promise<Id<"leadIcpRules">> => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const trimmedName = args.name.trim();
     if (!trimmedName) {
       throw new ConvexError({
@@ -402,7 +365,7 @@ export const upsertIcpRule = mutation({
       if (!existing || existing.workspaceId !== args.workspaceId) {
         throw new ConvexError({
         code: "not_found",
-        message: "Pravilo nije pronađeno u ovom radnom prostoru.",
+        message: "Pravilo nije pronađeno u ovom projektu.",
       });
       }
 
@@ -438,26 +401,17 @@ export const upsertIcpRule = mutation({
 /**
  * Uključuje ili isključuje aktivnost pojedinačnog ICP pravila.
  */
-export const setIcpRuleActive = mutation({
+export const setIcpRuleActive = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     ruleId: v.id("leadIcpRules"),
     isActive: v.boolean(),
   },
   handler: async (ctx, args): Promise<Id<"leadIcpRules">> => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const existing = await ctx.db.get(args.ruleId);
     if (!existing || existing.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Pravilo nije pronađeno u ovom radnom prostoru.",
+        message: "Pravilo nije pronađeno u ovom projektu.",
       });
     }
 
@@ -473,25 +427,16 @@ export const setIcpRuleActive = mutation({
 /**
  * Briše ICP pravilo iz radnog prostora.
  */
-export const deleteIcpRule = mutation({
+export const deleteIcpRule = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     ruleId: v.id("leadIcpRules"),
   },
   handler: async (ctx, args): Promise<Id<"leadIcpRules">> => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const existing = await ctx.db.get(args.ruleId);
     if (!existing || existing.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Pravilo nije pronađeno u ovom radnom prostoru.",
+        message: "Pravilo nije pronađeno u ovom projektu.",
       });
     }
 
@@ -504,10 +449,8 @@ export const deleteIcpRule = mutation({
  * Upisuje podrazumevani skup ICP pravila SAMO ako radni prostor nema nijedno pravilo.
  * Nikada ne prepisuje postojeća pravila (§0, LM6).
  */
-export const seedDefaultIcpRules = mutation({
-  args: {
-    workspaceId: v.id("workspaces"),
-  },
+export const seedDefaultIcpRules = projekatMutation({
+  args: {},
   handler: async (
     ctx,
     args,
@@ -516,14 +459,6 @@ export const seedDefaultIcpRules = mutation({
     count: number;
     razlog?: "vec_postoje_pravila";
   }> => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const existingRule = await ctx.db
       .query("leadIcpRules")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
@@ -567,8 +502,8 @@ export const seedDefaultIcpRules = mutation({
  * da ga ponudi — dugme koje se crta „za svaki slučaj" krši pravilo da se ne
  * crta kontrola koja nema šta da uradi.
  */
-export const missingDefaultIcpRules = query({
-  args: { workspaceId: v.id("workspaces") },
+export const missingDefaultIcpRules = projekatQuery({
+  args: {},
   returns: v.array(
     v.object({
       signalKind: v.string(),
@@ -578,14 +513,6 @@ export const missingDefaultIcpRules = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const existing = await ctx.db
       .query("leadIcpRules")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
@@ -614,21 +541,13 @@ export const missingDefaultIcpRules = query({
  * ostaje bez njega zauvek, jer `seedDefaultIcpRules` po dizajnu ne prepisuje
  * ništa kad pravila već postoje.
  */
-export const addMissingDefaultIcpRules = mutation({
-  args: { workspaceId: v.id("workspaces") },
+export const addMissingDefaultIcpRules = projekatMutation({
+  args: {},
   returns: v.object({
     added: v.number(),
     addedNames: v.array(v.string()),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const existing = await ctx.db
       .query("leadIcpRules")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))

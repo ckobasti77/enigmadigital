@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { api } from "@/convex/_generated/api";
@@ -14,7 +13,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { FeedbackNote } from "@/components/app/feedback";
 import { TemperatureChip } from "@/components/app/system/chip";
 import { Monogram } from "@/components/app/system/monogram";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import { useProjekat, useProjekatQuery } from "@/components/app/projekat-provider";
 import { useNow } from "@/components/app/use-now";
 import { DUR_REDUCED, DUR_UI, EASE_UI, MOTION_QUERIES } from "@/lib/motion";
 import { holdCssTransition, releaseCssTransition } from "@/components/motion/css-transition";
@@ -47,13 +46,11 @@ gsap.registerPlugin(useGSAP);
  */
 
 export function LeadsMapPanel({
-  workspaceId,
   companyId,
   temperatura,
   onClose,
   className,
 }: {
-  workspaceId: Id<"workspaces">;
   companyId: Id<"leadCompanies">;
   /** Temperatura izabrane firme — boja ivice i senke panela. */
   temperatura?: Temperatura;
@@ -61,9 +58,9 @@ export function LeadsMapPanel({
   className?: string;
 }) {
   const ref = useRef<HTMLElement>(null);
-  const { user } = useWorkspace();
+  const { korisnik } = useProjekat();
   const now = useNow();
-  const data = useQuery(api.leadFiltersStore.getLeadRow, { workspaceId, companyId });
+  const data = useProjekatQuery(api.leadFiltersStore.getLeadRow, { companyId });
 
   const [dialog, setDialog] = useState<LeadRowDialogState | null>(null);
   const [pozivBroj, setPozivBroj] = useState<string | null>(null);
@@ -185,10 +182,9 @@ export function LeadsMapPanel({
               Otvori profil
             </Link>
             <LeadRowActions
-              workspaceId={workspaceId}
               item={item}
               now={now}
-              selfUserId={user?.id}
+              selfUserId={korisnik?.id}
               onCall={setPozivBroj}
               onOpenDialog={openDialog}
               onOpenStageDialog={(stage) => setDialog({ kind: "stage", item, stage })}
@@ -214,7 +210,6 @@ export function LeadsMapPanel({
 
         {item && pozivBroj && (
           <LeadCallStrip
-            workspaceId={workspaceId}
             companyId={companyId}
             phone={pozivBroj}
             onClose={() => setPozivBroj(null)}
@@ -244,7 +239,6 @@ export function LeadsMapPanel({
             </p>
           ) : (
             <LeadExpandedRow
-              workspaceId={workspaceId}
               item={item}
               now={now}
               onCall={setPozivBroj}
@@ -255,7 +249,6 @@ export function LeadsMapPanel({
         </div>
 
         <LeadRowDialogs
-          workspaceId={workspaceId}
           dialog={dialog}
           onClose={() => setDialog(null)}
         />

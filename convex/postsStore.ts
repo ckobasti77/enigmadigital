@@ -1,8 +1,8 @@
-import { mutation, internalMutation } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation } from "./lib/projekat";
 import { slugify } from "./lib/slug";
 
 /**
@@ -46,9 +46,8 @@ export const postStatusValidator = v.union(
  * Kreira novi post sa statusom "draft".
  * Generiše i proverava jedinstvenost slug-a unutar radnog prostora.
  */
-export const create = mutation({
+export const create = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     kind: postKindValidator,
     category: postCategoryValidator,
     title: v.string(),
@@ -64,14 +63,6 @@ export const create = mutation({
     status: v.literal("draft"),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const trimmedTitle = args.title.trim();
     if (!trimmedTitle) {
       throw new ConvexError({
@@ -127,7 +118,7 @@ export const create = mutation({
 /**
  * Ažurira draft verziju posta i postavlja novo vreme izmene (`updatedAt`).
  */
-export const updateDraft = mutation({
+export const updateDraft = projekatMutation({
   args: {
     postId: v.id("posts"),
     title: v.optional(v.string()),
@@ -156,12 +147,11 @@ export const updateDraft = mutation({
     updatedAt: v.number(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
     const post = await ctx.db.get(args.postId);
-    if (!post || post.workspaceId !== membership.workspaceId) {
+    if (!post || post.workspaceId !== ctx.projekat.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Post nije pronađen u ovom radnom prostoru.",
+        message: "Post nije pronađen u ovom projektu.",
       });
     }
 
@@ -196,7 +186,7 @@ export const updateDraft = mutation({
         if (existing && existing._id !== post._id) {
           throw new ConvexError({
             code: "slug_conflict",
-            message: `Post sa slug-om "${trimmedSlug}" već postoji u ovom radnom prostoru.`,
+            message: `Post sa slug-om "${trimmedSlug}" već postoji u ovom projektu.`,
           });
         }
         updates.slug = trimmedSlug;
@@ -251,7 +241,7 @@ export const updateDraft = mutation({
 /**
  * Snima novu reviziju sadržaja posta u `postRevisions`.
  */
-export const saveRevision = mutation({
+export const saveRevision = projekatMutation({
   args: {
     postId: v.id("posts"),
     body: v.string(),
@@ -262,12 +252,11 @@ export const saveRevision = mutation({
     savedAt: v.number(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
     const post = await ctx.db.get(args.postId);
-    if (!post || post.workspaceId !== membership.workspaceId) {
+    if (!post || post.workspaceId !== ctx.projekat.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Post nije pronađen u ovom radnom prostoru.",
+        message: "Post nije pronađen u ovom projektu.",
       });
     }
 
@@ -289,7 +278,7 @@ export const saveRevision = mutation({
 /**
  * Arhivira post postavljanjem statusa na "archived".
  */
-export const archive = mutation({
+export const archive = projekatMutation({
   args: {
     postId: v.id("posts"),
   },
@@ -297,12 +286,11 @@ export const archive = mutation({
     success: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
     const post = await ctx.db.get(args.postId);
-    if (!post || post.workspaceId !== membership.workspaceId) {
+    if (!post || post.workspaceId !== ctx.projekat.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Post nije pronađen u ovom radnom prostoru.",
+        message: "Post nije pronađen u ovom projektu.",
       });
     }
 
@@ -332,7 +320,7 @@ export const archive = mutation({
  * Objavljuje post uz striktnu proveru kapija pre objave (§4).
  * Odbija objavu (baca ConvexError) ako bilo koja od 4 kapije nije ispunjena.
  */
-export const publish = mutation({
+export const publish = projekatMutation({
   args: {
     postId: v.id("posts"),
   },
@@ -342,12 +330,11 @@ export const publish = mutation({
     publishedAt: v.number(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
     const post = await ctx.db.get(args.postId);
-    if (!post || post.workspaceId !== membership.workspaceId) {
+    if (!post || post.workspaceId !== ctx.projekat.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Post nije pronađen u ovom radnom prostoru.",
+        message: "Post nije pronađen u ovom projektu.",
       });
     }
 
@@ -400,7 +387,7 @@ export const publish = mutation({
       // bio objavljen (ima `publishedAt`) a nema ova polja objavljen je pre
       // nego što se autor beležio — njemu se autor ne dopisuje naknadno.
       ...(post.firstPublishedAt === undefined && post.publishedAt === undefined
-        ? { publishedBy: membership.userId, firstPublishedAt: now }
+        ? { publishedBy: ctx.projekat.userId, firstPublishedAt: now }
         : {}),
     });
 
@@ -420,7 +407,7 @@ export const publish = mutation({
 /**
  * Vraća objavljeni ili zakazani post u status nacrta ("draft").
  */
-export const unpublish = mutation({
+export const unpublish = projekatMutation({
   args: {
     postId: v.id("posts"),
   },
@@ -429,12 +416,11 @@ export const unpublish = mutation({
     status: v.literal("draft"),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
     const post = await ctx.db.get(args.postId);
-    if (!post || post.workspaceId !== membership.workspaceId) {
+    if (!post || post.workspaceId !== ctx.projekat.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Post nije pronađen u ovom radnom prostoru.",
+        message: "Post nije pronađen u ovom projektu.",
       });
     }
 

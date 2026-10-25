@@ -15,9 +15,8 @@ import {
   Upload,
   Users,
 } from "lucide-react";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import { useProjekat } from "@/components/app/projekat-provider";
 import { brojPosla, useStaMeCeka } from "@/components/app/use-sta-me-ceka";
-import type { Id } from "@/convex/_generated/dataModel";
 import type { InvalidRule } from "@/convex/lib/leadScoring";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
 import { CountBadge } from "@/components/app/system/count-badge";
@@ -74,7 +73,7 @@ function jePodesavanja(raw: string | null): raw is PodesavanjaTab {
 }
 
 export function LeadsDashboard() {
-  const { workspace, isLoading } = useWorkspace();
+  const { workspaceId, spreman } = useProjekat();
   const { applyQuery, nav, setNav, aktivnihGrupa } = useLeadFilters();
   // Jezičak živi u URL-u (GL3): `?tab=map&firma=<id>` iz profila mora da
   // otvori mapu sa panelom, a kopiran link isti jezičak.
@@ -105,18 +104,15 @@ export function LeadsDashboard() {
   const overdueCount = brojPosla(staMeCeka, "leadovi.zaostali");
   const meetingsCount = brojPosla(staMeCeka, "leadovi.sastanci");
 
-  if (isLoading || !workspace) {
+  if (!spreman || workspaceId === null) {
     return <LeadsDashboardSkeleton />;
   }
-
-  const workspaceId = workspace.id as Id<"workspaces">;
 
   // Režim poziva (B6) je fokus prikaz PREKO jezičaka: jedna firma, jedno
   // primarno dugme, ništa drugo na ekranu. Izlaz vraća na „Danas".
   if (nav.rezim === "poziv") {
     return (
       <CallMode
-        workspaceId={workspaceId}
         onExit={() => setNav({ rezim: null, tab: null })}
       />
     );
@@ -251,7 +247,6 @@ export function LeadsDashboard() {
           <TabPanel id="leadovi-podesavanja-panel" className="flex flex-1 flex-col">
             {tab === "niche" && (
               <NichesPanel
-                workspaceId={workspaceId}
                 onShowCompanies={(slug) => {
                   // Filter i jezičak u JEDNOM upisu — dva `router.replace` zaredom
                   // bi drugi pregazio prvi (vidi `upisi` u hooku).
@@ -259,7 +254,7 @@ export function LeadsDashboard() {
                 }}
               />
             )}
-            {tab === "scoring" && <ScoringRulesPanel workspaceId={workspaceId} />}
+            {tab === "scoring" && <ScoringRulesPanel />}
           </TabPanel>
         </>
       ) : (
@@ -319,17 +314,16 @@ export function LeadsDashboard() {
 
           {/* Sadržaj aktivnog jezička */}
           <TabPanel id="leadovi-panel" className="flex flex-1 flex-col">
-            {tab === "danas" && <LeadsToday workspaceId={workspaceId} />}
+            {tab === "danas" && <LeadsToday />}
             {tab === "leads" && (
               <LeadsTable
-                workspaceId={workspaceId}
                 onInvalidRulesFound={setInvalidRules}
               />
             )}
-            {tab === "map" && <LeadsMap mode="all" workspaceId={workspaceId} />}
-            {tab === "gaps" && <GapsPanel workspaceId={workspaceId} />}
-            {tab === "overdue" && <OverduePanel workspaceId={workspaceId} />}
-            {tab === "meetings" && <MeetingsPanel workspaceId={workspaceId} />}
+            {tab === "map" && <LeadsMap mode="all" />}
+            {tab === "gaps" && <GapsPanel />}
+            {tab === "overdue" && <OverduePanel />}
+            {tab === "meetings" && <MeetingsPanel />}
           </TabPanel>
         </>
       )}

@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
-import type { Doc, Id } from "@/convex/_generated/dataModel";
+import type { Doc } from "@/convex/_generated/dataModel";
 import type { LeadScore } from "@/convex/lib/leadScoring";
 import { PRAVILA_XP } from "@/convex/lib/napredak";
 import {
@@ -88,32 +88,31 @@ const VRATI_SE_DANA = 3;
 /** XP koji nosi jedan poziv sa zabeleženim ishodom: dodir + ishod, iz pravila. */
 const XP_POZIV = PRAVILA_XP.dodir.xp + PRAVILA_XP.ishod.xp;
 
-export function LeadsToday({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
+export function LeadsToday() {
   const now = useNow();
   const { applyQuery, setNav } = useLeadFilters();
   const napredak = useNapredak();
   // Isključen Napredak ne prikazuje ništa od XP-a — ni čip na kartici.
   const saXp = napredak?.ukljucen === true;
 
-  const facet = useQuery(api.leadFiltersStore.countLeadsByFacet, { workspaceId });
-  const gaps = useQuery(api.leadGapsStore.listGaps, { workspaceId });
-  const zovi = useZoviSada(workspaceId);
-  const overdue = useQuery(api.leadCrmStore.listOverdue, { workspaceId, limit: KANDIDATA });
-  const meetingsData = useQuery(api.leadCrmStore.listMeetings, { workspaceId });
-  const bezBroja = useQuery(api.leadGapsStore.listCompaniesWithGap, {
-    workspaceId,
+  const facet = useProjekatQuery(api.leadFiltersStore.countLeadsByFacet);
+  const gaps = useProjekatQuery(api.leadGapsStore.listGaps);
+  const zovi = useZoviSada();
+  const overdue = useProjekatQuery(api.leadCrmStore.listOverdue, { limit: KANDIDATA });
+  const meetingsData = useProjekatQuery(api.leadCrmStore.listMeetings);
+  const bezBroja = useProjekatQuery(api.leadGapsStore.listCompaniesWithGap, {
     gapType: "bez_telefona",
     limit: KANDIDATA,
   });
-  const nisaZa = useNisaZa(workspaceId);
+  const nisaZa = useNisaZa();
 
   const bezBrojaIds = useMemo(
     () => (bezBroja?.companies ?? []).map((c) => c._id),
     [bezBroja],
   );
-  const dopuniScores = useQuery(
+  const dopuniScores = useProjekatQuery(
     api.leadScoringStore.scoreCompanies,
-    bezBrojaIds.length > 0 ? { workspaceId, companyIds: bezBrojaIds } : "skip",
+    bezBrojaIds.length > 0 ? { companyIds: bezBrojaIds } : "skip",
   ) as Record<string, LeadScore> | undefined;
 
   const [dialog, setDialog] = useState<LeadRowDialogState | null>(null);
@@ -388,7 +387,6 @@ export function LeadsToday({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
               {strip && (
                 <Unfold>
                   <LeadCallStrip
-                    workspaceId={workspaceId}
                     companyId={item.assignment.companyId}
                     phone={strip}
                     onClose={() => setCallStrip(null)}
@@ -556,10 +554,9 @@ export function LeadsToday({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
         })}
       </WorkSection>
 
-      <LeadRowDialogs workspaceId={workspaceId} dialog={dialog} onClose={() => setDialog(null)} />
+      <LeadRowDialogs dialog={dialog} onClose={() => setDialog(null)} />
       {fillCompany && (
         <LeadGapFillDialog
-          workspaceId={workspaceId}
           company={fillCompany}
           gapType="bez_telefona"
           isOpen

@@ -1,8 +1,7 @@
-import { mutation, query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { hydrateLeadRowExtras, LEAD_STAGE_VALIDATOR } from "./leadCrmStore";
 import { scoreLead, type LeadSignalInput } from "./lib/leadScoring";
 import { ucitajPoslednjeOcene, type SazetakOcene } from "./leadSiteAuditsStore";
@@ -612,32 +611,16 @@ function trazeOcene(args: FilterArgs): boolean {
   );
 }
 
-async function proveriPristup(
-  ctx: QueryCtx,
-  workspaceId: Id<"workspaces">,
-): Promise<void> {
-  const membership = await requireMembership(ctx);
-  if (membership.workspaceId !== workspaceId) {
-    throw new ConvexError({
-      code: "forbidden",
-      message: "Nemate pristup ovom radnom prostoru.",
-    });
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // listLeadsFiltered — jedna strana filtrirane liste.
 // ─────────────────────────────────────────────────────────────────────────────
-export const listLeadsFiltered = query({
+export const listLeadsFiltered = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     ...FILTER_ARGS,
     strana: v.optional(v.number()),
     poStrani: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await proveriPristup(ctx, args.workspaceId);
-
     const poStrani = Math.min(Math.max(args.poStrani ?? 25, 1), 100);
     const now = Date.now();
 
@@ -691,14 +674,11 @@ export const listLeadsFiltered = query({
 // ─────────────────────────────────────────────────────────────────────────────
 // countLeadsByFacet — brojevi za sve chipove odjednom.
 // ─────────────────────────────────────────────────────────────────────────────
-export const countLeadsByFacet = query({
+export const countLeadsByFacet = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     ...FILTER_ARGS,
   },
   handler: async (ctx, args) => {
-    await proveriPristup(ctx, args.workspaceId);
-
     const now = Date.now();
     const { redovi, prekoracen, identitetiOdseceni, nise, pregledano } =
       await ucitajOsnovu(ctx, args.workspaceId, true, true);
@@ -962,14 +942,11 @@ const SIGNAL_SCAN_CAP = 8000;
  * `bezKoordinata` je broj firmi u ISTOM preseku koje nemaju `lat`/`lng` —
  * mapa ih ne crta, ali ih ne prećutkuje.
  */
-export const listLeadsForMap = query({
+export const listLeadsForMap = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     ...FILTER_ARGS,
   },
   handler: async (ctx, args) => {
-    await proveriPristup(ctx, args.workspaceId);
-
     const now = Date.now();
     // Ocene se čitaju uvek: hover kartica na mapi nosi „Sajt: loš 31" (plan
     // §5.4), a to je jedan `get` po ocenjenoj firmi.
@@ -1090,19 +1067,16 @@ export const listLeadsForMap = query({
  * (`hydrateLeadRowExtras`, kao u `listLeadsFiltered`). Vraća `null` kad firma
  * nema dodelu: takva firma nije u tabeli, pa nije ni na mapi.
  */
-export const getLeadRow = query({
+export const getLeadRow = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
   },
   handler: async (ctx, args) => {
-    await proveriPristup(ctx, args.workspaceId);
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
@@ -1137,11 +1111,9 @@ export const getLeadRow = query({
 // ─────────────────────────────────────────────────────────────────────────────
 // Preseti — imenovani URL-ovi filtera (plan §O8). Deli ih ceo radni prostor.
 // ─────────────────────────────────────────────────────────────────────────────
-export const listPresets = query({
-  args: { workspaceId: v.id("workspaces") },
+export const listPresets = projekatQuery({
+  args: {},
   handler: async (ctx, args) => {
-    await proveriPristup(ctx, args.workspaceId);
-
     const presets = await ctx.db
       .query("leadFilterPresets")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
@@ -1158,9 +1130,8 @@ export const listPresets = query({
   },
 });
 
-export const savePreset = mutation({
+export const savePreset = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     naziv: v.string(),
     // Sirov `search` deo URL-a bez vodećeg „?". Preset je link, ne kopija
     // stanja (plan §O8): kad se filteri prošire, stari preset i dalje znači
@@ -1169,14 +1140,6 @@ export const savePreset = mutation({
   },
   returns: v.id("leadFilterPresets"),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const naziv = args.naziv.trim();
     if (!naziv) {
       throw new ConvexError({
@@ -1211,27 +1174,18 @@ export const savePreset = mutation({
       workspaceId: args.workspaceId,
       naziv,
       query,
-      createdBy: membership.userId,
+      createdBy: ctx.projekat.userId,
       createdAt: Date.now(),
     });
   },
 });
 
-export const deletePreset = mutation({
+export const deletePreset = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     presetId: v.id("leadFilterPresets"),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const preset = await ctx.db.get(args.presetId);
     if (preset === null) return null; // već obrisan — idempotentno
     if (preset.workspaceId !== args.workspaceId) {

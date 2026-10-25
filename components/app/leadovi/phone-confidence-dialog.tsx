@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
-import type { Doc, Id } from "@/convex/_generated/dataModel";
+import type { Doc } from "@/convex/_generated/dataModel";
 import {
   Dialog,
   DialogPopup,
@@ -31,19 +31,17 @@ import { cn } from "@/lib/utils";
  * pravilo 4 iz §0 zabranjuje da se nepoznato piše kao 50 %.
  */
 export function PhoneConfidenceDialog({
-  workspaceId,
   identity,
   personName,
   open,
   onOpenChange,
 }: {
-  workspaceId: Id<"workspaces">;
   identity: Doc<"leadIdentities">;
   personName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const setPhoneConfidence = useMutation(api.leadDetailStore.setPhoneConfidence);
+  const setPhoneConfidence = useProjekatMutation(api.leadDetailStore.setPhoneConfidence);
 
   const [rezim, setRezim] = useState<"broj" | "nije">(
     identity.nijeMoguceProceniti === true ? "nije" : "broj",
@@ -68,7 +66,6 @@ export function PhoneConfidenceDialog({
     setGreska(null);
     try {
       await setPhoneConfidence({
-        workspaceId,
         identityId: identity._id,
         verovatnoca: rezim === "broj" ? Math.round(broj) : undefined,
         nijeMoguceProceniti: rezim === "nije" ? true : undefined,

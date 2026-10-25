@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useMutation } from "convex/react";
 import { ArrowRight, Target, Trophy } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackLine, FeedbackNote } from "@/components/app/feedback";
@@ -20,7 +18,10 @@ import {
   LevelBadge,
   StreakFlame,
 } from "@/components/app/system/reward-badges";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import {
+  useProjekat,
+  useProjekatMutation,
+} from "@/components/app/projekat-provider";
 import type { ModuleKey } from "@/components/app/nav-items";
 import { formatNumber, formatShortDate, pluralSr } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -518,18 +519,17 @@ function Rekordi({ profil }: { profil: NapredakProfil | undefined }) {
 // ── isključeno ───────────────────────────────────────────────────────────────
 
 function Iskljuceno() {
-  const { workspace } = useWorkspace();
-  const workspaceId = workspace?.id as Id<"workspaces"> | undefined;
-  const podesi = useMutation(api.napredak.podesi);
+  const { spreman } = useProjekat();
+  const podesi = useProjekatMutation(api.napredak.podesi);
   const [ukljucuje, setUkljucuje] = useState(false);
   const [greska, setGreska] = useState(false);
 
   const ukljuci = async () => {
-    if (!workspaceId) return;
+    if (!spreman) return;
     setUkljucuje(true);
     setGreska(false);
     try {
-      await podesi({ workspaceId, ukljucen: true });
+      await podesi({ ukljucen: true });
     } catch {
       setGreska(true);
     } finally {
@@ -547,7 +547,7 @@ function Iskljuceno() {
           variant="primary"
           onClick={() => void ukljuci()}
           loading={ukljucuje}
-          disabled={!workspaceId}
+          disabled={!spreman}
         >
           Uključi Napredak
         </Button>

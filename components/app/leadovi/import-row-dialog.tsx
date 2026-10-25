@@ -25,8 +25,8 @@ import { FeedbackNote } from "@/components/app/feedback";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { FunctionReturnType } from "convex/server";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { leadSignalLabel } from "./lead-labels";
 
 /**
@@ -216,10 +216,12 @@ export function ImportRowDialog({
     "podaci",
   );
 
-  const setRowTemperaturaMutation = useMutation(
+  const setRowTemperaturaMutation = useProjekatMutation(
     api.leadImportStore.setRowTemperatura,
   );
-  const setRowObrisanMutation = useMutation(api.leadImportStore.setRowObrisan);
+  const setRowObrisanMutation = useProjekatMutation(
+    api.leadImportStore.setRowObrisan,
+  );
 
   if (!row) return null;
 
@@ -269,7 +271,6 @@ export function ImportRowDialog({
       onTemperaturaChange(nextTemp);
     } else {
       setRowTemperaturaMutation({
-        workspaceId: row.workspaceId,
         rowId: row._id,
         temperatura: nextTemp,
       }).catch(console.error);
@@ -282,7 +283,6 @@ export function ImportRowDialog({
       onDeleteRow();
     } else {
       setRowObrisanMutation({
-        workspaceId: row.workspaceId,
         rowId: row._id,
         obrisan: true,
       }).catch(console.error);

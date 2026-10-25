@@ -1,26 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Id, Doc } from "@/convex/_generated/dataModel";
+import type { Doc } from "@/convex/_generated/dataModel";
 import { AlertTriangle, CalendarClock, CalendarDays, CalendarRange } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
 import { Chip } from "@/components/app/system/chip";
 import { useNow } from "@/components/app/use-now";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import { useProjekat, useProjekatQuery } from "@/components/app/projekat-provider";
 import { LeadRowActions } from "./lead-row-actions";
 import { LeadRowDialogs, type LeadRowDialogState } from "./lead-row-dialogs";
 import { WorkCard, WorkSection } from "./work-card";
 import { rowEdge, type LeadRowItem } from "./lead-urgency";
 import { useLeadFilters } from "./use-lead-filters";
 import { formatClockTime, formatDayRelative, formatDateTime } from "@/lib/format";
-
-type MeetingsPanelProps = {
-  workspaceId: Id<"workspaces">;
-};
 
 /** Jedna stavka sastanka, kako je vraća `api.leadCrmStore.listMeetings`. */
 export type MeetingItem = {
@@ -102,11 +97,11 @@ function kaoRed(m: MeetingItem): LeadRowItem {
   };
 }
 
-export function MeetingsPanel({ workspaceId }: MeetingsPanelProps) {
+export function MeetingsPanel() {
   const now = useNow();
-  const { user } = useWorkspace();
+  const { korisnik } = useProjekat();
   const { applyQuery } = useLeadFilters();
-  const data = useQuery(api.leadCrmStore.listMeetings, { workspaceId });
+  const data = useProjekatQuery(api.leadCrmStore.listMeetings);
 
   const [dialog, setDialog] = useState<LeadRowDialogState | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -127,9 +122,8 @@ export function MeetingsPanel({ workspaceId }: MeetingsPanelProps) {
     groups.prosliBezIshoda.length;
 
   const zajednicko = {
-    workspaceId,
     now,
-    selfUserId: user?.id,
+    selfUserId: korisnik?.id,
     onOpenDialog: setDialog,
     onOpenStageDialog: setDialog,
     onError: setActionError,
@@ -218,7 +212,6 @@ export function MeetingsPanel({ workspaceId }: MeetingsPanelProps) {
       )}
 
       <LeadRowDialogs
-        workspaceId={workspaceId}
         dialog={dialog}
         onClose={() => setDialog(null)}
       />
@@ -232,7 +225,6 @@ function MeetingGroup({
   kriterijum,
   items,
   tone,
-  workspaceId,
   now,
   selfUserId,
   onOpenDialog,
@@ -244,7 +236,6 @@ function MeetingGroup({
   kriterijum: string;
   items: MeetingItem[];
   tone: "danger" | "warning" | "neutral";
-  workspaceId: Id<"workspaces">;
   now: number;
   selfUserId?: string;
   onOpenDialog: (dialog: LeadRowDialogState) => void;
@@ -295,7 +286,6 @@ function MeetingGroup({
             }
             primary={
               <LeadRowActions
-                workspaceId={workspaceId}
                 item={item}
                 now={now}
                 selfUserId={selfUserId}

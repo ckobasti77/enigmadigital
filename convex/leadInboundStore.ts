@@ -1,8 +1,8 @@
-import { mutation, query, internalMutation } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireMembership, requireMembershipIn } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import {
   normalizeCompanyName,
   normalizeDomain,
@@ -253,9 +253,8 @@ async function writeSignalsForInbound(
  * 3. Kreiraju se signali (leadSignals) sa datumom događaja (occurredAt).
  * 4. Inbound zapis se prebacuje u status "povezan".
  */
-export const linkInboundToCompany = mutation({
+export const linkInboundToCompany = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     inboundId: v.id("leadInbound"),
 
     // Izbor postojeće firme ili unos nove
@@ -282,10 +281,6 @@ export const linkInboundToCompany = mutation({
     sourceUrl: v.string(),
   },
   handler: async (ctx, args) => {
-    // Pozivalac mora biti član prosleđenog prostora (ranije se zapis poredio
-    // samo sa prostorom iz argumenta, pa je tuđ prostor prolazio).
-    const membership = await requireMembershipIn(ctx, args.workspaceId);
-
     const inbound = await ctx.db.get(args.inboundId);
     if (!inbound || inbound.workspaceId !== args.workspaceId) {
       throw new ConvexError({
@@ -353,7 +348,7 @@ export const linkInboundToCompany = mutation({
         firstSeenSource: `inbound_${inbound.platform}`,
         createdAt: now,
         updatedAt: now,
-        createdBy: membership.userId,
+        createdBy: ctx.projekat.userId,
       });
 
       // Provenance zapisi za novu firmu (§2.4)
@@ -554,16 +549,12 @@ export const linkInboundToCompany = mutation({
 /**
  * Odbacuje inbound lead uz obavezan razlog odbacivanja.
  */
-export const dismissInbound = mutation({
+export const dismissInbound = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     inboundId: v.id("leadInbound"),
     reason: v.string(),
   },
   handler: async (ctx, args) => {
-    // Pozivalac mora biti član prosleđenog prostora (isti razlog kao gore).
-    const membership = await requireMembershipIn(ctx, args.workspaceId);
-
     const reasonClean = args.reason.trim();
     if (!reasonClean) {
       throw new ConvexError({
@@ -586,7 +577,7 @@ export const dismissInbound = mutation({
       // se baci je samo trošak operateru, bez ijedne koristi kasnije.
       dismissReason: reasonClean,
       dismissedAt: Date.now(),
-      dismissedBy: membership.userId,
+      dismissedBy: ctx.projekat.userId,
     });
 
     return { success: true };
@@ -596,9 +587,8 @@ export const dismissInbound = mutation({
 /**
  * Lista inbound zapisa sa opcionim filterima po statusu i platformi.
  */
-export const listInbound = query({
+export const listInbound = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     status: v.optional(
       v.union(
         v.literal("nov"),
@@ -617,14 +607,6 @@ export const listInbound = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const maxLimit = Math.min(args.limit ?? 100, 500);
 
     let records;
@@ -655,20 +637,11 @@ export const listInbound = query({
 /**
  * Dohvata pojedinačni inbound zapis.
  */
-export const getInbound = query({
+export const getInbound = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     inboundId: v.id("leadInbound"),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const record = await ctx.db.get(args.inboundId);
     if (!record || record.workspaceId !== args.workspaceId) {
       return null;

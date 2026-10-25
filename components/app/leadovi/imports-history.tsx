@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import {
   AlertTriangle,
@@ -15,6 +14,10 @@ import {
   XCircle,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import {
+  useProjekatMutation,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import type { Id } from "@/convex/_generated/dataModel";
 import { trajanje } from "@/convex/lib/notifications";
 import { jeZastaoUPregledu } from "@/convex/lib/importFlow";
@@ -75,10 +78,8 @@ const STATUS_LABELS: Record<
 };
 
 export function ImportsHistory({
-  workspaceId,
   onSelectImport,
 }: {
-  workspaceId: Id<"workspaces">;
   onSelectImport: (
     importId: Id<"leadImports">,
     prikaz?: "nerazreseno",
@@ -96,9 +97,9 @@ export function ImportsHistory({
   const [otvoreno, setOtvoreno] = useState<Set<string>>(() => new Set());
 
   const now = useNow();
-  const imports = useQuery(api.leadImportStore.listImports, { workspaceId });
-  const revertImportMutation = useMutation(api.leadImportStore.revertImport);
-  const abandonImportMutation = useMutation(api.leadImportStore.abandonImport);
+  const imports = useProjekatQuery(api.leadImportStore.listImports, {});
+  const revertImportMutation = useProjekatMutation(api.leadImportStore.revertImport);
+  const abandonImportMutation = useProjekatMutation(api.leadImportStore.abandonImport);
 
   const greskaTekst = (err: unknown): string => {
     if (err instanceof ConvexError) {
@@ -117,7 +118,6 @@ export function ImportsHistory({
 
     try {
       const res = await revertImportMutation({
-        workspaceId,
         importId: revertingImportId,
       });
 
@@ -138,7 +138,6 @@ export function ImportsHistory({
 
     try {
       await abandonImportMutation({
-        workspaceId,
         importId: abandoningImportId,
       });
       setAbandoningImportId(null);

@@ -1,7 +1,6 @@
-import { query } from "./_generated/server";
-import { v, ConvexError } from "convex/values";
+import { v } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatQuery } from "./lib/projekat";
 
 /**
  * ============================================================================
@@ -40,20 +39,11 @@ export const MAX_GAPS_SAMPLE_CEILING = 1000;
 /**
  * Računa statistiku rupa u podacima o leadovima za dati radni prostor.
  */
-export const listGaps = query({
+export const listGaps = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     sampleLimit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const safeLimit = Math.min(
       Math.max(args.sampleLimit ?? MAX_GAPS_SAMPLE_DEFAULT, 1),
       MAX_GAPS_SAMPLE_CEILING,
@@ -192,21 +182,12 @@ export const listGaps = query({
  * Vraća listu firmi koje imaju konkretnu rupu u podacima,
  * kako bi tim mogao da preuzme zadatak popunjavanja (§9.2).
  */
-export const listCompaniesWithGap = query({
+export const listCompaniesWithGap = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     gapType: GAP_TYPE_VALIDATOR,
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const maxLimit = Math.min(Math.max(args.limit ?? 50, 1), 200);
 
     const COMPANY_SCAN = 500;

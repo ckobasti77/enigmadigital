@@ -1,8 +1,8 @@
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
-import { requireMembership, requireMembershipIn } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import {
   normalizeCompanyName,
   normalizeDomain,
@@ -887,9 +887,8 @@ async function createImportCore(
   return { importId, rowsCount: args.rows.length };
 }
 
-export const createImport = mutation({
+export const createImport = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     fileName: v.string(),
     sheetsChosen: v.array(v.string()),
     headerRowIndex: v.number(),
@@ -899,13 +898,10 @@ export const createImport = mutation({
     sourceSheet: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // createImportCore veruje prosleđenom prostoru: pozivalac mora biti njegov
-    // član (ranije se proveravala samo prijava, pa je uvoz mogao u tuđi prostor).
-    const membership = await requireMembershipIn(ctx, args.workspaceId);
-
+    // createImportCore veruje prosleđenom projektu: omotač je proverio članstvo.
     return await createImportCore(ctx, {
       workspaceId: args.workspaceId,
-      uploadedBy: membership.userId,
+      uploadedBy: ctx.projekat.userId,
       fileName: args.fileName,
       sheetsChosen: args.sheetsChosen,
       headerRowIndex: args.headerRowIndex,
@@ -991,9 +987,8 @@ export const createImportFromIngest = internalMutation({
  * Omogućava operateru da ručno izabere sudbinu pojedinačnog reda u staging-u
  * (`nova_firma`, `spoji`, `preskoci`, `nerazreseno`).
  */
-export const setRowDecision = mutation({
+export const setRowDecision = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     rowId: v.id("leadImportRows"),
     decision: v.union(
       v.literal("nova_firma"),
@@ -1003,14 +998,6 @@ export const setRowDecision = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const row = await ctx.db.get(args.rowId);
     if (!row || row.workspaceId !== args.workspaceId) {
       throw new ConvexError({
@@ -1031,7 +1018,7 @@ export const setRowDecision = mutation({
 
     await ctx.db.patch(args.rowId, {
       decision: args.decision,
-      ...autorResenja(row, { ...row, decision: args.decision }, membership.userId),
+      ...autorResenja(row, { ...row, decision: args.decision }, ctx.projekat.userId),
     });
     return { success: true };
   },
@@ -2226,20 +2213,11 @@ async function applyRows(
     };
 }
 
-export const applyImport = mutation({
+export const applyImport = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     importId: v.id("leadImports"),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const importDoc = await ctx.db.get(args.importId);
     if (!importDoc || importDoc.workspaceId !== args.workspaceId) {
       throw new ConvexError({
@@ -2267,8 +2245,8 @@ export const applyImport = mutation({
     const rezultat = await applyRows(ctx, {
       workspaceId: args.workspaceId,
       importDoc,
-      ownerUserId: importDoc.uploadedBy ?? membership.userId,
-      actorUserId: membership.userId,
+      ownerUserId: importDoc.uploadedBy ?? ctx.projekat.userId,
+      actorUserId: ctx.projekat.userId,
       now,
       samoNeprimenjeni: false,
     });
@@ -2277,7 +2255,7 @@ export const applyImport = mutation({
       status: "primenjen",
       appliedAt: now,
       // B4: ko je primenio — `uploadedBy` je ko je poslao fajl, što je druga radnja.
-      appliedBy: membership.userId,
+      appliedBy: ctx.projekat.userId,
     });
 
     return rezultat;
@@ -2291,20 +2269,11 @@ export const applyImport = mutation({
  * van nje. Status ostaje „primenjen"; `appliedAt` se NE pomera — prvi krug je
  * referenca za toleranciju u `revertImport`, a svaki red nosi svoj `primenjenAt`.
  */
-export const applyRemainingRows = mutation({
+export const applyRemainingRows = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     importId: v.id("leadImports"),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const importDoc = await ctx.db.get(args.importId);
     if (!importDoc || importDoc.workspaceId !== args.workspaceId) {
       throw new ConvexError({
@@ -2325,8 +2294,8 @@ export const applyRemainingRows = mutation({
     return await applyRows(ctx, {
       workspaceId: args.workspaceId,
       importDoc,
-      ownerUserId: importDoc.uploadedBy ?? membership.userId,
-      actorUserId: membership.userId,
+      ownerUserId: importDoc.uploadedBy ?? ctx.projekat.userId,
+      actorUserId: ctx.projekat.userId,
       now,
       samoNeprimenjeni: true,
     });
@@ -2348,20 +2317,11 @@ export const applyRemainingRows = mutation({
  * vidi bez nje: poništen uvoz ima `appliedAt`, uvoz od kog se odustalo nema
  * (interfejs po tome i piše različit natpis).
  */
-export const abandonImport = mutation({
+export const abandonImport = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     importId: v.id("leadImports"),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const importDoc = await ctx.db.get(args.importId);
     if (!importDoc || importDoc.workspaceId !== args.workspaceId) {
       throw new ConvexError({
@@ -2403,20 +2363,11 @@ export const abandonImport = mutation({
  * Ne dira firme koje su postojale pre uvoza, niti firme/polja koje je neko
  * izmenio nakon uvoza — takvi zapisi se preskaču i prijavljuju.
  */
-export const revertImport = mutation({
+export const revertImport = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     importId: v.id("leadImports"),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const importDoc = await ctx.db.get(args.importId);
     if (!importDoc || importDoc.workspaceId !== args.workspaceId) {
       throw new ConvexError({
@@ -2584,19 +2535,11 @@ export const revertImport = mutation({
 /**
  * Prikazuje detalje o jednom uvozu.
  */
-export const getImport = query({
+export const getImport = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     importId: v.id("leadImports"),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
     const doc = await ctx.db.get(args.importId);
     if (!doc || doc.workspaceId !== args.workspaceId) {
       return null;
@@ -2608,9 +2551,8 @@ export const getImport = query({
 /**
  * Lista sve redove jednog uvoza u staging-u, uz opcioni filter po odluci.
  */
-export const listImportRows = query({
+export const listImportRows = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     importId: v.id("leadImports"),
     decision: v.optional(
       v.union(
@@ -2622,14 +2564,6 @@ export const listImportRows = query({
     ),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     // Uvoz mora biti iz ovog prostora: indeks po odluci ne zna za prostor, pa
     // bi inače vratio redove tuđeg uvoza.
     const imp = await ctx.db.get(args.importId);
@@ -2686,21 +2620,11 @@ export const listImportRows = query({
 });
 
 /**
- * Lista sve uvoze u radnom prostoru.
+ * Lista sve uvoze u projektu.
  */
-export const listImports = query({
-  args: {
-    workspaceId: v.id("workspaces"),
-  },
+export const listImports = projekatQuery({
+  args: {},
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const imports = await ctx.db
       .query("leadImports")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
@@ -2734,9 +2658,8 @@ export const listImports = query({
 /**
  * Postavlja temperaturu pojedinačnog reda u staging-u (§1, §3, §6).
  */
-export const setRowTemperatura = mutation({
+export const setRowTemperatura = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     rowId: v.id("leadImportRows"),
     temperatura: v.union(
       v.literal("nova_firma"),
@@ -2746,18 +2669,6 @@ export const setRowTemperatura = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    // Poredi se sa radnim prostorom POZIVAOCA, ne sa onim iz argumenata.
-    // `requireMembership` vraća workspace samog korisnika i ne gleda nijedan
-    // argument; ako se `args.workspaceId` poredi sam sa sobom, provera je
-    // prazna — pozivalac prosto pošalje tuđi id i prođe.
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const row = await ctx.db.get(args.rowId);
     if (!row || row.workspaceId !== args.workspaceId) {
       throw new ConvexError({
@@ -2774,25 +2685,12 @@ export const setRowTemperatura = mutation({
 /**
  * Postavlja meko brisanje za pojedinačni red u staging-u (§1, §3, §6).
  */
-export const setRowObrisan = mutation({
+export const setRowObrisan = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     rowId: v.id("leadImportRows"),
     obrisan: v.boolean(),
   },
   handler: async (ctx, args) => {
-    // Poredi se sa radnim prostorom POZIVAOCA, ne sa onim iz argumenata.
-    // `requireMembership` vraća workspace samog korisnika i ne gleda nijedan
-    // argument; ako se `args.workspaceId` poredi sam sa sobom, provera je
-    // prazna — pozivalac prosto pošalje tuđi id i prođe.
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const row = await ctx.db.get(args.rowId);
     if (!row || row.workspaceId !== args.workspaceId) {
       throw new ConvexError({
@@ -2803,7 +2701,7 @@ export const setRowObrisan = mutation({
 
     await ctx.db.patch(args.rowId, {
       obrisan: args.obrisan,
-      ...autorResenja(row, { ...row, obrisan: args.obrisan }, membership.userId),
+      ...autorResenja(row, { ...row, obrisan: args.obrisan }, ctx.projekat.userId),
     });
     return { success: true };
   },
@@ -2812,25 +2710,12 @@ export const setRowObrisan = mutation({
 /**
  * Ažurira skrivene kolone za ceo uvoz (§3, §6).
  */
-export const setImportHiddenColumns = mutation({
+export const setImportHiddenColumns = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     importId: v.id("leadImports"),
     skriveneKolone: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    // Poredi se sa radnim prostorom POZIVAOCA, ne sa onim iz argumenata.
-    // `requireMembership` vraća workspace samog korisnika i ne gleda nijedan
-    // argument; ako se `args.workspaceId` poredi sam sa sobom, provera je
-    // prazna — pozivalac prosto pošalje tuđi id i prođe.
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const imp = await ctx.db.get(args.importId);
     if (!imp || imp.workspaceId !== args.workspaceId) {
       throw new ConvexError({

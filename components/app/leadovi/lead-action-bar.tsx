@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { LeadStage } from "@/convex/leadCrmStore";
@@ -33,7 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FeedbackNote } from "@/components/app/feedback";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import { useProjekat, useProjekatMutation } from "@/components/app/projekat-provider";
 import { Unfold } from "@/components/motion/unfold";
 import { LeadCallStrip } from "./lead-call-strip";
 import { StageMenuItems, useStagePick } from "./lead-row-actions";
@@ -154,7 +153,6 @@ function CallButton({
  * bez obrazloženja i „dodeli meni" se upisuju odmah.
  */
 export function LeadActionBar({
-  workspaceId,
   companyId,
   companyName,
   assignment,
@@ -162,7 +160,6 @@ export function LeadActionBar({
   emails,
   onAddPhone,
 }: {
-  workspaceId: Id<"workspaces">;
   companyId: Id<"leadCompanies">;
   companyName: string;
   assignment: Doc<"leadAssignments"> | null;
@@ -171,15 +168,14 @@ export function LeadActionBar({
   /** Otvara dopunu rupe „bez telefona"; bez nje se dugme „Dodaj broj" ne crta. */
   onAddPhone?: () => void;
 }) {
-  const { user } = useWorkspace();
-  const assignLead = useMutation(api.leadCrmStore.assignLead);
+  const { korisnik } = useProjekat();
+  const assignLead = useProjekatMutation(api.leadCrmStore.assignLead);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [calledPhone, setCalledPhone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const currentStage: LeadStage = assignment?.stage ?? "nov";
   const pickStage = useStagePick({
-    workspaceId,
     companyId,
     current: currentStage,
     onNeedsNote: (stage) => setDialog({ kind: "stage", stage }),
@@ -187,18 +183,17 @@ export function LeadActionBar({
   });
 
   const isMine =
-    user?.id !== undefined &&
+    korisnik?.id !== undefined &&
     assignment !== null &&
-    String(assignment.ownerUserId) === user.id;
+    String(assignment.ownerUserId) === korisnik.id;
 
   const assignSelf = async () => {
-    if (!user?.id) return;
+    if (!korisnik?.id) return;
     setError(null);
     try {
       await assignLead({
-        workspaceId,
         companyId,
-        ownerUserId: user.id as Id<"users">,
+        ownerUserId: korisnik.id,
       });
     } catch (err) {
       setError(getErrorMessage(err));
@@ -206,7 +201,6 @@ export function LeadActionBar({
   };
 
   const base = {
-    workspaceId,
     companyId,
     companyName,
     open: true,
@@ -305,7 +299,7 @@ export function LeadActionBar({
                     : "Vlasnik: član tima"
                   : "Bez vlasnika"}
               </DropdownMenuLabel>
-              {user?.id && !isMine && (
+              {korisnik?.id && !isMine && (
                 <DropdownMenuItem onClick={assignSelf}>
                   <UserCheck />
                   Dodeli meni
@@ -337,7 +331,6 @@ export function LeadActionBar({
       {calledPhone && (
         <Unfold>
           <LeadCallStrip
-            workspaceId={workspaceId}
             companyId={companyId}
             phone={calledPhone}
             onClose={() => setCalledPhone(null)}

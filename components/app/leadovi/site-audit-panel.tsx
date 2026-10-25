@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
@@ -10,6 +9,7 @@ import { Bot, ExternalLink, Globe, History, ImageOff, Monitor, Smartphone } from
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LinkChip } from "@/components/app/link-chip";
+import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { SiteStatusBadge } from "./site-status-badge";
 import { CLAUDE_OCENE, LIGHTHOUSE_KATEGORIJE, ponudaNatpis } from "./site-audit-labels";
 import { formatDateTime } from "@/lib/format";
@@ -116,15 +116,13 @@ function Naslov({ children, uz }: { children: React.ReactNode; uz?: React.ReactN
 }
 
 export function SiteAuditPanel({
-  workspaceId,
   companyId,
   company,
 }: {
-  workspaceId: Id<"workspaces">;
   companyId: Id<"leadCompanies">;
   company: Doc<"leadCompanies">;
 }) {
-  const data = useQuery(api.leadSiteAuditsStore.listSiteAudits, { workspaceId, companyId });
+  const data = useProjekatQuery(api.leadSiteAuditsStore.listSiteAudits, { companyId });
   const [izabranaId, setIzabranaId] = useState<Id<"leadSiteAudits"> | null>(null);
   const [strategija, setStrategija] = useState<"mobile" | "desktop">("mobile");
 

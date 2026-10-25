@@ -1,7 +1,6 @@
-import { mutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation } from "./lib/projekat";
 import { normalizeDomain, normalizePhoneRs } from "./lib/leadNormalize";
 import { isSuppressed } from "./leadSuppressionStore";
 import { GAP_TYPE_VALIDATOR } from "./leadGapsStore";
@@ -24,9 +23,8 @@ import { GAP_TYPE_VALIDATOR } from "./leadGapsStore";
  * ============================================================================
  */
 
-export const fillGap = mutation({
+export const fillGap = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
     gapType: GAP_TYPE_VALIDATOR,
     vrednost: v.string(),
@@ -49,19 +47,11 @@ export const fillGap = mutation({
     message: v.string(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
@@ -168,7 +158,7 @@ export const fillGap = mutation({
           sourceUrl: args.sourceUrl.trim(),
           createdAt: now,
           // B4: ručna dopuna ima autora; uvoz ovo polje ne upisuje.
-          createdBy: membership.userId,
+          createdBy: ctx.projekat.userId,
         });
 
         await ctx.db.insert("leadFieldProvenance", {
@@ -373,17 +363,19 @@ export const fillGap = mutation({
       }
 
       case "bez_vlasnika": {
-        const targetUserId = args.ownerUserId ?? membership.userId;
+        const targetUserId = args.ownerUserId ?? ctx.projekat.userId;
 
         const targetMember = await ctx.db
           .query("members")
-          .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+          .withIndex("by_user_workspace", (q) =>
+            q.eq("userId", targetUserId).eq("workspaceId", args.workspaceId),
+          )
           .first();
 
-        if (!targetMember || targetMember.workspaceId !== args.workspaceId) {
+        if (!targetMember) {
           throw new ConvexError({
             code: "invalid_user",
-            message: "Izabrani operater nije član ovog radnog prostora.",
+            message: "Izabrani operater nije član ovog projekta.",
           });
         }
 
@@ -420,7 +412,7 @@ export const fillGap = mutation({
             ? String(existingAssignment.ownerUserId)
             : undefined,
           toValue: String(targetUserId),
-          actorUserId: membership.userId,
+          actorUserId: ctx.projekat.userId,
           note: "Ručno popunjavanje rupe: lead dodeljen operateru.",
           occurredAt: now,
         });

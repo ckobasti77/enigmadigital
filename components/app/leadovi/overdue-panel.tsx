@@ -1,16 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
 import { Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
 import { Chip } from "@/components/app/system/chip";
 import { useNow } from "@/components/app/use-now";
-import { useWorkspace } from "@/components/app/workspace-provider";
+import { useProjekat, useProjekatQuery } from "@/components/app/projekat-provider";
 import { Unfold } from "@/components/motion/unfold";
 import { StageChip } from "./lead-chips";
 import { LeadCallStrip } from "./lead-call-strip";
@@ -20,10 +18,6 @@ import { WorkCard, WorkSection } from "./work-card";
 import { describeNextUp, rowEdge, type LeadRowItem } from "./lead-urgency";
 import { useLeadFilters } from "./use-lead-filters";
 import { formatDateTime } from "@/lib/format";
-
-type OverduePanelProps = {
-  workspaceId: Id<"workspaces">;
-};
 
 type OverdueItem = LeadRowItem & { delayMs: number };
 
@@ -76,12 +70,11 @@ function formatDelayTime(delayMs: number): string {
   return "kasni manje od minut";
 }
 
-export function OverduePanel({ workspaceId }: OverduePanelProps) {
+export function OverduePanel() {
   const now = useNow();
-  const { user } = useWorkspace();
+  const { korisnik } = useProjekat();
   const { applyQuery } = useLeadFilters();
-  const overdueData = useQuery(api.leadCrmStore.listOverdue, {
-    workspaceId,
+  const overdueData = useProjekatQuery(api.leadCrmStore.listOverdue, {
     limit: 100,
   });
 
@@ -190,10 +183,9 @@ export function OverduePanel({ workspaceId }: OverduePanelProps) {
               }
               primary={
                 <LeadRowActions
-                  workspaceId={workspaceId}
                   item={item}
                   now={now}
-                  selfUserId={user?.id}
+                  selfUserId={korisnik?.id}
                   onCall={(phone) =>
                     setCallStrip({
                       companyId: String(item.assignment.companyId),
@@ -210,7 +202,6 @@ export function OverduePanel({ workspaceId }: OverduePanelProps) {
               {strip && (
                 <Unfold>
                   <LeadCallStrip
-                    workspaceId={workspaceId}
                     companyId={item.assignment.companyId}
                     phone={strip}
                     onClose={() => setCallStrip(null)}
@@ -229,7 +220,6 @@ export function OverduePanel({ workspaceId }: OverduePanelProps) {
       </WorkSection>
 
       <LeadRowDialogs
-        workspaceId={workspaceId}
         dialog={dialog}
         onClose={() => setDialog(null)}
       />

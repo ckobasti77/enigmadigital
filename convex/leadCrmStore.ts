@@ -1,8 +1,7 @@
-import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
-import { requireMembership } from "./lib/auth";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { ucitajPoslednjeOcene } from "./leadSiteAuditsStore";
 
 /**
@@ -60,7 +59,7 @@ import { LEAD_OUTCOME_VALIDATOR } from "./lib/leadOutcomes";
  * Dodeljuje lead određenom članu tima (ili menja postojećeg vlasnika).
  *
  * Pravila:
- * - Dodeljeni korisnik (`ownerUserId`) MORA biti član istog radnog prostora.
+ * - Dodeljeni korisnik (`ownerUserId`) MORA biti član istog projekta.
  * - Ako lead već ima istog vlasnika, ne beleži se dupli događaj ({ changed: false }).
  * - Ako se vlasnik menja, stari vlasnik se čuva u `fromValue` tabele `leadStageEvents`.
  * - Ako `leadAssignments` red ne postoji, kreira se sa početnom fazom "nov".
@@ -70,7 +69,7 @@ import { LEAD_OUTCOME_VALIDATOR } from "./lib/leadOutcomes";
  * događaj „dodela".
  *
  * Postoji zato što su `logTouch` i `recordOutcome` sami kreirali dodelu sa
- * `ownerUserId: membership.userId` i nisu upisivali nikakav događaj. Ko god
+ * `ownerUserId: ctx.projekat.userId` i nisu upisivali nikakav događaj. Ko god
  * prvi zabeleži jedan poziv postao bi vlasnik leada, a u istoriji se to ne bi
  * videlo — što je tačno situacija zbog koje §9.1 postoji: dvoje ljudi zovu
  * isti salon jer nijedan ne zna da je onaj drugi već vlasnik.
@@ -113,9 +112,8 @@ async function createAssignmentWithEvent(
   return assignmentId;
 }
 
-export const assignLead = mutation({
+export const assignLead = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
     ownerUserId: v.id("users"),
     note: v.optional(v.string()),
@@ -126,40 +124,30 @@ export const assignLead = mutation({
     assignmentId: v.id("leadAssignments"),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
-    // Proveri da je novi vlasnik član istog radnog prostora.
+    // Proveri da je novi vlasnik član istog projekta.
     //
-    // `.first()` ovde nije bilo dovoljno: `members` je indeksiran samo po
-    // `userId`, pa bi za korisnika sa više članstava vratio proizvoljno jedno
-    // i legitimnog člana ovog prostora odbio kao stranca.
-    const targetMemberships = await ctx.db
+    // Indeks `by_user_workspace` (userId + workspaceId) daje članstvo upravo u
+    // ovom projektu; `by_user` bi za korisnika sa više članstava vratio
+    // proizvoljno jedno i legitimnog člana odbio kao stranca.
+    const targetMembership = await ctx.db
       .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", args.ownerUserId))
-      .collect();
+      .withIndex("by_user_workspace", (q) =>
+        q.eq("userId", args.ownerUserId).eq("workspaceId", args.workspaceId),
+      )
+      .first();
 
-    const isMemberHere = targetMemberships.some(
-      (m) => m.workspaceId === args.workspaceId,
-    );
-
-    if (!isMemberHere) {
+    if (targetMembership === null) {
       throw new ConvexError({
         code: "invalid_member",
-        message: "Dodeljeni korisnik nije član ovog radnog prostora.",
+        message: "Dodeljeni korisnik nije član ovog projekta.",
       });
     }
 
@@ -195,7 +183,7 @@ export const assignLead = mutation({
         kind: "dodela",
         fromValue: previousOwnerId,
         toValue: String(args.ownerUserId),
-        actorUserId: membership.userId,
+        actorUserId: ctx.projekat.userId,
         note,
         occurredAt: now,
       });
@@ -223,7 +211,7 @@ export const assignLead = mutation({
       kind: "dodela",
       fromValue: undefined,
       toValue: String(args.ownerUserId),
-      actorUserId: membership.userId,
+      actorUserId: ctx.projekat.userId,
       note,
       occurredAt: now,
     });
@@ -242,11 +230,10 @@ export const assignLead = mutation({
  * Pravila:
  * - Ako je nova faza ista kao trenutna, vraća { changed: false } i ne puni istoriju praznim hodom.
  * - Prelazak u "dobijen" ili "izgubljen" OBAVEZNO zahteva napomenu (obrazloženje).
- * - Upisuje se događaj u `leadStageEvents` sa autorom (`membership.userId`).
+ * - Upisuje se događaj u `leadStageEvents` sa autorom (`ctx.projekat.userId`).
  */
-export const setStage = mutation({
+export const setStage = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
     stage: LEAD_STAGE_VALIDATOR,
     note: v.optional(v.string()),
@@ -257,19 +244,11 @@ export const setStage = mutation({
     stage: LEAD_STAGE_VALIDATOR,
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
@@ -314,7 +293,7 @@ export const setStage = mutation({
         kind: "faza",
         fromValue: previousStage,
         toValue: args.stage,
-        actorUserId: membership.userId,
+        actorUserId: ctx.projekat.userId,
         note: cleanNote,
         occurredAt: now,
       });
@@ -330,7 +309,7 @@ export const setStage = mutation({
     await ctx.db.insert("leadAssignments", {
       workspaceId: args.workspaceId,
       companyId: args.companyId,
-      ownerUserId: membership.userId,
+      ownerUserId: ctx.projekat.userId,
       stage: args.stage,
       createdAt: now,
       updatedAt: now,
@@ -342,7 +321,7 @@ export const setStage = mutation({
       kind: "faza",
       fromValue: undefined,
       toValue: args.stage,
-      actorUserId: membership.userId,
+      actorUserId: ctx.projekat.userId,
       note: cleanNote,
       occurredAt: now,
     });
@@ -364,9 +343,8 @@ export const setStage = mutation({
  *   eksplicitno beleži da vreme nije uneto od strane čoveka.
  * - Upiši `leadStageEvents` kind "dodir".
  */
-export const logTouch = mutation({
+export const logTouch = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
     channel: v.string(), // npr. "poziv", "email", "instagram_dm", "sastanak", "ostalo"
     note: v.optional(v.string()),
@@ -378,19 +356,11 @@ export const logTouch = mutation({
     isAutoTime: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
@@ -426,7 +396,7 @@ export const logTouch = mutation({
       await createAssignmentWithEvent(ctx, {
         workspaceId: args.workspaceId,
         companyId: args.companyId,
-        actorUserId: membership.userId,
+        actorUserId: ctx.projekat.userId,
         now,
         razlog: "beleženje dodira",
         extra: { lastTouchAt: effectiveTouchedAt },
@@ -441,7 +411,7 @@ export const logTouch = mutation({
       // ranije nosio vreme prethodnog dodira, pa je istorija čitala
       // „1756000000000 → poziv", što nije prelaz nego dve nepovezane stvari.
       toValue: channelClean,
-      actorUserId: membership.userId,
+      actorUserId: ctx.projekat.userId,
       note: eventNote,
       timeConfirmed: !isAutoTime,
       occurredAt: effectiveTouchedAt,
@@ -463,9 +433,8 @@ export const logTouch = mutation({
  *   vraća `uProslosti: true` kako bi UI mogao jasno da ga prikaže.
  * - Upiši `leadStageEvents` kind "sledeci_korak".
  */
-export const setNextAction = mutation({
+export const setNextAction = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
     nextActionAt: v.number(),
     nextActionNote: v.optional(v.string()),
@@ -476,19 +445,11 @@ export const setNextAction = mutation({
     nextActionAt: v.number(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
@@ -513,7 +474,7 @@ export const setNextAction = mutation({
       await ctx.db.insert("leadAssignments", {
         workspaceId: args.workspaceId,
         companyId: args.companyId,
-        ownerUserId: membership.userId,
+        ownerUserId: ctx.projekat.userId,
         stage: "nov",
         nextActionAt: args.nextActionAt,
         nextActionNote: cleanNote,
@@ -528,7 +489,7 @@ export const setNextAction = mutation({
       kind: "sledeci_korak",
       fromValue: existing?.nextActionAt ? String(existing.nextActionAt) : undefined,
       toValue: String(args.nextActionAt),
-      actorUserId: membership.userId,
+      actorUserId: ctx.projekat.userId,
       note: cleanNote,
       occurredAt: now,
     });
@@ -549,9 +510,8 @@ export const setNextAction = mutation({
  * - Ako ishod predstavlja odbijanje, nudi `predlogZaSuppression: true`, ali NE vrši
  *   automatski upis u `leadSuppression` bez eksplicitne ljudske potvrde.
  */
-export const recordOutcome = mutation({
+export const recordOutcome = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
     outcome: LEAD_OUTCOME_VALIDATOR,
     outcomeAt: v.optional(v.number()),
@@ -567,19 +527,11 @@ export const recordOutcome = mutation({
     poklopljeniIzraz: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
@@ -610,7 +562,7 @@ export const recordOutcome = mutation({
       await createAssignmentWithEvent(ctx, {
         workspaceId: args.workspaceId,
         companyId: args.companyId,
-        actorUserId: membership.userId,
+        actorUserId: ctx.projekat.userId,
         now,
         razlog: "beleženje ishoda",
         extra: { outcome: cleanOutcome, outcomeAt: effectiveOutcomeAt },
@@ -623,7 +575,7 @@ export const recordOutcome = mutation({
       kind: "ishod",
       fromValue: existing?.outcome ?? undefined,
       toValue: cleanOutcome,
-      actorUserId: membership.userId,
+      actorUserId: ctx.projekat.userId,
       note: cleanNote,
       occurredAt: effectiveOutcomeAt,
     });
@@ -669,9 +621,8 @@ export const recordOutcome = mutation({
  * Eksplicitno dodavanje leada na listu zabrane kontakta (suppression / "ne diraj")
  * nakon što je čovek potvrdio predlog iz ishoda komunikacije.
  */
-export const addToSuppressionFromOutcome = mutation({
+export const addToSuppressionFromOutcome = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
     kind: v.optional(
       v.union(
@@ -688,19 +639,11 @@ export const addToSuppressionFromOutcome = mutation({
     suppressed: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
@@ -732,7 +675,7 @@ export const addToSuppressionFromOutcome = mutation({
         matchOn: "companyId",
         value: String(args.companyId),
         reason: suppressionReason,
-        addedBy: membership.userId,
+        addedBy: ctx.projekat.userId,
         addedAt: now,
       });
     }
@@ -757,7 +700,7 @@ export const addToSuppressionFromOutcome = mutation({
           matchOn: "pib",
           value: normPib,
           reason: suppressionReason,
-          addedBy: membership.userId,
+          addedBy: ctx.projekat.userId,
           addedAt: now,
         });
       }
@@ -783,9 +726,8 @@ export const addToSuppressionFromOutcome = mutation({
  * - `meetingSetAt` beleži KAD je sastanak dogovoren (za istoriju).
  * - Upisuje `leadStageEvents` kind "sastanak" — istorija mora znati da je dogovoren.
  */
-export const setMeeting = mutation({
+export const setMeeting = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
     meetingAt: v.number(),
     meetingNote: v.optional(v.string()),
@@ -796,19 +738,11 @@ export const setMeeting = mutation({
     meetingAt: v.number(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
@@ -836,7 +770,7 @@ export const setMeeting = mutation({
       const assignmentId = await createAssignmentWithEvent(ctx, {
         workspaceId: args.workspaceId,
         companyId: args.companyId,
-        actorUserId: membership.userId,
+        actorUserId: ctx.projekat.userId,
         now,
         razlog: "zakazivanje sastanka",
       });
@@ -853,7 +787,7 @@ export const setMeeting = mutation({
       companyId: args.companyId,
       kind: "sastanak",
       toValue: String(args.meetingAt),
-      actorUserId: membership.userId,
+      actorUserId: ctx.projekat.userId,
       note: cleanNote,
       occurredAt: now,
     });
@@ -872,9 +806,8 @@ export const setMeeting = mutation({
  * Otkazano ≠ nikad zakazano: briše se `meetingAt` (i `meetingNote`, koja opisuje
  * otkazan termin), ali se `meetingSetAt` ZADRŽAVA i upisuje se događaj u istoriju.
  */
-export const clearMeeting = mutation({
+export const clearMeeting = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
     note: v.optional(v.string()),
   },
@@ -883,19 +816,11 @@ export const clearMeeting = mutation({
     changed: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
@@ -928,7 +853,7 @@ export const clearMeeting = mutation({
       kind: "sastanak",
       fromValue: String(previousMeetingAt),
       // toValue izostaje: sastanka više nema.
-      actorUserId: membership.userId,
+      actorUserId: ctx.projekat.userId,
       note: cleanNote,
       occurredAt: now,
     });
@@ -950,20 +875,11 @@ export const clearMeeting = mutation({
  * `ishodZabelezen` je jedini izvedeni znak: sastanak je „bez ishoda" ako ishod
  * nije zabeležen u trenutku sastanka ili posle njega.
  */
-export const listMeetings = query({
+export const listMeetings = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const maxRows = Math.min(Math.max(args.limit ?? 200, 1), 500);
 
     const scanned = await ctx.db
@@ -1008,26 +924,17 @@ export const listMeetings = query({
 /**
  * Vraća trenutno CRM stanje za firmu i hronološku listu poslednjih događaja iz istorijata.
  */
-export const getLeadCrm = query({
+export const getLeadCrm = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 
@@ -1234,21 +1141,12 @@ export async function hydrateLeadRowExtras(
 /**
  * Lista leadova po vlasniku (koristi indeks "by_workspace_owner", nikad pun sken).
  */
-export const listByOwner = query({
+export const listByOwner = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     ownerUserId: v.id("users"),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const maxRows = Math.min(Math.max(args.limit ?? 50, 1), 200);
 
     // Jedan preko granice — puna lista i odsečena lista inače izgledaju
@@ -1299,21 +1197,12 @@ export const listByOwner = query({
 /**
  * Lista leadova po fazi u prodajnom toku (koristi indeks "by_workspace_stage", nikad pun sken).
  */
-export const listByStage = query({
+export const listByStage = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     stage: LEAD_STAGE_VALIDATOR,
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const maxRows = Math.min(Math.max(args.limit ?? 50, 1), 200);
 
     // Čitamo jedan više od granice, da bismo znali postoji li još redova.
@@ -1367,21 +1256,12 @@ export const listByStage = query({
  * - „Prošao" se računa PRI ČITANJU poređenjem sa `Date.now()`.
  * - Koristi indeks "by_workspace_next_action".
  */
-export const listOverdue = query({
+export const listOverdue = projekatQuery({
   args: {
-    workspaceId: v.id("workspaces"),
     ownerUserId: v.optional(v.id("users")),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
     const maxRows = Math.min(Math.max(args.limit ?? 50, 1), 200);
     const now = Date.now();
 
@@ -1451,9 +1331,8 @@ export const listOverdue = query({
  *
  * Povratak na "nova_firma" je dozvoljen i takođe beleži vreme odluke.
  */
-export const setCompanyTemperatura = mutation({
+export const setCompanyTemperatura = projekatMutation({
   args: {
-    workspaceId: v.id("workspaces"),
     companyId: v.id("leadCompanies"),
     temperatura: v.union(
       v.literal("nova_firma"),
@@ -1463,21 +1342,12 @@ export const setCompanyTemperatura = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    // Provera radnog prostora: requireMembership vraća prostor samog pozivaoca,
-    // pa poredimo sa args.workspaceId (NIKAKO args sa args).
-    const membership = await requireMembership(ctx);
-    if (membership.workspaceId !== args.workspaceId) {
-      throw new ConvexError({
-        code: "forbidden",
-        message: "Nemate pristup ovom radnom prostoru.",
-      });
-    }
-
+    // Članstvo u projektu je proveren u omotaču; ovde se proverava samo firma.
     const company = await ctx.db.get(args.companyId);
     if (!company || company.workspaceId !== args.workspaceId) {
       throw new ConvexError({
         code: "not_found",
-        message: "Firma nije pronađena u ovom radnom prostoru.",
+        message: "Firma nije pronađena u ovom projektu.",
       });
     }
 

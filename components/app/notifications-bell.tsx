@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useMutation } from "convex/react";
 import { Bell, Clock3, EyeOff, RotateCcw } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -19,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { MOBILE_TAB, MOBILE_TAB_BADGE, MOBILE_TAB_ICON } from "./mobile-tab";
 import { resolveModule } from "./nav-items";
 import { QuietBoundary } from "./quiet-boundary";
-import { useWorkspace } from "./workspace-provider";
+import { useProjekat, useProjekatMutation } from "./projekat-provider";
 import { useStaMeCeka, type StaMeCeka, type Zadatak } from "./use-sta-me-ceka";
 
 /**
@@ -157,8 +155,6 @@ function Panel({
   data: StaMeCeka;
   onNavigate: () => void;
 }) {
-  const { workspace } = useWorkspace();
-  const workspaceId = workspace?.id as Id<"workspaces"> | undefined;
   const [prikaziSklonjene, setPrikaziSklonjene] = useState(false);
 
   const grupe = HITNOST_RED.map((hitnost) => ({
@@ -194,7 +190,6 @@ function Panel({
                   <Stavka
                     key={zadatak.kljuc}
                     zadatak={zadatak}
-                    workspaceId={workspaceId}
                     onNavigate={onNavigate}
                   />
                 ))}
@@ -222,7 +217,6 @@ function Panel({
                   <Sklonjeno
                     key={zadatak.kljuc}
                     zadatak={zadatak}
-                    workspaceId={workspaceId}
                   />
                 ))}
               </ul>
@@ -257,15 +251,14 @@ function Prazno({ sklonjeno }: { sklonjeno: number }) {
 
 function Stavka({
   zadatak,
-  workspaceId,
   onNavigate,
 }: {
   zadatak: Zadatak;
-  workspaceId: Id<"workspaces"> | undefined;
   onNavigate: () => void;
 }) {
-  const odlozi = useMutation(api.notificationsStore.odloziZadatak);
-  const sakrij = useMutation(api.notificationsStore.sakrijZadatak);
+  const { spreman } = useProjekat();
+  const odlozi = useProjekatMutation(api.notificationsStore.odloziZadatak);
+  const sakrij = useProjekatMutation(api.notificationsStore.sakrijZadatak);
   const [radi, setRadi] = useState(false);
   // Optimističko stanje: stavka krene da se skuplja u istom kadru u kom je
   // dugme pritisnuto, ne posle povratka sa servera (A8 §1, odziv ≤ 100 ms).
@@ -274,7 +267,7 @@ function Stavka({
   const [greska, setGreska] = useState<string | null>(null);
 
   const pokreni = async (posao: () => Promise<unknown>) => {
-    if (!workspaceId || radi) return;
+    if (!spreman || radi) return;
     setRadi(true);
     setSklanjam(true);
     setGreska(null);
@@ -319,10 +312,10 @@ function Stavka({
           type="button"
           variant="ghost"
           size="xs"
-          disabled={radi || !workspaceId}
+          disabled={radi || !spreman}
           onClick={() =>
             void pokreni(() =>
-              odlozi({ workspaceId: workspaceId!, kljuc: zadatak.kljuc }),
+              odlozi({ kljuc: zadatak.kljuc }),
             )
           }
           className="text-text-muted"
@@ -334,11 +327,10 @@ function Stavka({
           type="button"
           variant="ghost"
           size="xs"
-          disabled={radi || !workspaceId}
+          disabled={radi || !spreman}
           onClick={() =>
             void pokreni(() =>
               sakrij({
-                workspaceId: workspaceId!,
                 kljuc: zadatak.kljuc,
                 broj: zadatak.broj,
               }),
@@ -364,12 +356,11 @@ function Stavka({
 
 function Sklonjeno({
   zadatak,
-  workspaceId,
 }: {
   zadatak: StaMeCeka["sklonjeni"][number];
-  workspaceId: Id<"workspaces"> | undefined;
 }) {
-  const vrati = useMutation(api.notificationsStore.vratiZadatak);
+  const { spreman } = useProjekat();
+  const vrati = useProjekatMutation(api.notificationsStore.vratiZadatak);
   const [radi, setRadi] = useState(false);
 
   return (
@@ -381,11 +372,11 @@ function Sklonjeno({
         type="button"
         variant="ghost"
         size="xs"
-        disabled={radi || !workspaceId}
+        disabled={radi || !spreman}
         onClick={() => {
-          if (!workspaceId) return;
+          if (!spreman) return;
           setRadi(true);
-          void vrati({ workspaceId, kljuc: zadatak.kljuc }).finally(() =>
+          void vrati({ kljuc: zadatak.kljuc }).finally(() =>
             setRadi(false),
           );
         }}
