@@ -1228,3 +1228,6 @@ Obrađene su sve 88 javnih funkcija grupe iz mape C02 §5.1: 82 sada idu kroz om
 - Generate-leads po projektu: u ScanMe → Podešavanja → Pristup napravi token za uvoz; za run ScanMe-a postavi ga u `ENIGMA_INGEST_TOKEN` (README, „Rad po projektu“). Ponovo pokreni `tools/generate-leads/install.ps1`, da instalirani skill dobije nov SKILL.md.
 - Mozak: upiši ga u Podešavanja projekta → Mozak, pa probaj `Invoke-RestMethod "<HTTP Actions URL>/projekti/mozak" -Headers @{ Authorization = "Bearer <token>" }` (primer je u README). Token jednog projekta vraća samo mozak tog projekta.
 - `kafici`, `hoteli`, `auto-saloni` i `izlagaci-na-sajmovima` nisu u `tools/generate-leads/lib/nise.mjs`: skill za njih pita za upite. Ako ih želiš kao stalne niše skilla, to je mala dopuna tog fajla.
+
+## C15 - Plan: hub i veze među projektima   (2026-10-25 08:47)
+**Plan korak.** Plan je upisan u `docs/projekti/planovi/C15.md`. Kod nije menjan.
