@@ -286,7 +286,7 @@ export function LeadsToday() {
         </div>
         {facet?.prekoracen && (
           <p className="text-meta text-text-muted">
-            Radni prostor ima više od {facet.granica} dodela, pa se brojevi preseka ne računaju.
+            Projekat ima više od {facet.granica} dodela, pa se brojevi preseka ne računaju.
           </p>
         )}
       </section>

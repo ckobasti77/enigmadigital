@@ -45,7 +45,7 @@ export function CekaTe({ zbir, className }: { zbir: Zbir; className?: string }) 
 
   return (
     <section
-      aria-labelledby={`${telo}-naslov`}
+      aria-label="Čeka te"
       className={cn("rounded-xl border border-line bg-card shadow-sm", className)}
     >
       {/* Telefon: jedan red koji otvara spisak. */}
@@ -68,7 +68,7 @@ export function CekaTe({ zbir, className }: { zbir: Zbir; className?: string }) 
 
       {/* Širi ekran: naslov kolone. */}
       <div className="hidden flex-col gap-0.5 border-b border-line px-4 py-3 lg:flex">
-        <h2 id={`${telo}-naslov`} className="text-copy font-bold text-foreground">
+        <h2 className="text-copy font-bold text-foreground">
           Čeka te
         </h2>
         <p className="text-ui text-text-secondary">
@@ -130,7 +130,8 @@ export function CekaTe({ zbir, className }: { zbir: Zbir; className?: string }) 
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="self-start"
+                className="touch-target self-start"
+                aria-expanded={sve}
                 onClick={() => setSve((s) => !s)}
               >
                 {sve ? "Prikaži manje" : `Prikaži sve (${formatNumber(zbir.stavke.length)})`}

@@ -455,7 +455,7 @@ function PraznoStanje({
     naslov =
       aktivnihGrupa > 0
         ? "Presek filtera je prazan"
-        : "U radnom prostoru još nema nijednog dodeljenog leada";
+        : "U projektu još nema nijednog dodeljenog leada";
     objasnjenje =
       aktivnihGrupa > 0
         ? "Nijedan lead ne odgovara ovim filterima, pa nema šta da se nacrta."
@@ -463,10 +463,10 @@ function PraznoStanje({
   } else if (saKoordinatamaUkupno === 0) {
     naslov = `Nijedna od ${ukupno} ${pluralSr(ukupno, "firme", "firme", "firmi")} nema koordinate`;
     objasnjenje =
-      "Nijedna firma u radnom prostoru još nema koordinate. Njih dodeljuje skill /generate-leads pri uvozu (Nominatim, iz adrese) — dok se skill ne pusti, mapa nema šta da nacrta.";
+      "Nijedna firma u projektu još nema koordinate. Njih dodeljuje skill /generate-leads pri uvozu (Nominatim, iz adrese) — dok se skill ne pusti, mapa nema šta da nacrta.";
   } else {
     naslov = `Nijedna od ${ukupno} ${pluralSr(ukupno, "firme", "firme", "firmi")} u preseku nema koordinate`;
-    objasnjenje = `U radnom prostoru ${saKoordinatamaUkupno} ${pluralSr(saKoordinatamaUkupno, "firma ima", "firme imaju", "firmi ima")} koordinate, ali nijedna nije u ovom preseku. Firme koje ih nemaju su uvezene pre skilla ili Nominatim nije našao njihovu adresu.`;
+    objasnjenje = `U projektu ${saKoordinatamaUkupno} ${pluralSr(saKoordinatamaUkupno, "firma ima", "firme imaju", "firmi ima")} koordinate, ali nijedna nije u ovom preseku. Firme koje ih nemaju su uvezene pre skilla ili Nominatim nije našao njihovu adresu.`;
   }
 
   return (

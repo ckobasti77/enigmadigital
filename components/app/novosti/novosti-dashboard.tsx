@@ -177,9 +177,9 @@ export function NovostiDashboard() {
     return (
       <FeedbackNote
         tone="warning"
-        title="Radni prostor nije izabran"
+        title="Projekat nije izabran"
       >
-        Molimo prijavite se ili izaberite aktivan radni prostor da biste upravljali objavama.
+        Molimo prijavite se ili izaberite projekat da biste upravljali objavama.
       </FeedbackNote>
     );
   }

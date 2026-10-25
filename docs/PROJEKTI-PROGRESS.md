@@ -1389,3 +1389,37 @@ Obrađene su sve 88 javnih funkcija grupe iz mape C02 §5.1: 82 sada idu kroz om
 - **Provera Pulsa:** posle podešavanja, za 15 minuta kontrolna tabla ScanMe-a pokazuje „Poslovanje“; bez endpointa na scanme.rs traka kaže zašto ne radi.
 - **Unakrsni leadovi:** u Enigmi otvori firmu čija je niša ciljna i u ScanMe-u (isti slug, npr. `restorani`): treba da vidiš „Odgovara projektu ScanMe“ i „Kopiraj u ScanMe“. Posle kopiranja firma u ScanMe-u ima čip „Kopija iz Enigma IT“.
 - **Odluka za tebe:** ponovni upit osobe čiji je raniji upit već postao firma ne pojavljuje se u „Upiti sa sajta“ (vezuje se za firmu tiho), a ranije zabranjen kontakt ostaje zabranjen i posle skidanja sa liste. To je postojeće pravilo čekaonice; reci ako želiš da upit sa sajta uvek stigne u listu.
+
+## C18 — Prolaz: prazna stanja, telefon, pristupačnost   (2026-10-25 11:40)
+**Fajlovi:**
+- hub: `components/app/hub/{svi-projekti,ceka-te,novi-projekat}.tsx`; `components/app/projekat-nedostupan.tsx`; `components/app/system/empty-state.tsx` (opcioni `heading`);
+- podešavanja i pristup: `components/app/settings/{projekat-panel,sajt-panel,mozak-panel,slika-brenda,invites-panel,ingest-tokens-panel}.tsx`, `components/app/tab-nav.tsx`, `components/app/analytics/segmented-toggle.tsx` (samo `touch-target`);
+- prijava: `app/login/login-client.tsx` (`touch-target` na sporednim dugmadima);
+- leadovi: `components/app/leadovi/upiti-sa-sajta.tsx` (dugmad dijaloga);
+- tekst „radni prostor“ → „projekat“ (samo prikaz): `instagram/post-detail/post-detail-container`, `leadovi/{import-review-table,imports-history,lead-export-dialog,lead-filter-bar,leads-map,leads-table,leads-today,niches-panel}`, `novosti/novosti-dashboard`, `settings/data-and-access`, `threads/threads-content-grid`;
+- snimci: `docs/projekti/snimci/C18-{hub-jedan-390,hub-jedan-1440,hub-tri-390,carobnjak-korak2-390,podesavanja-projekat-390,podesavanja-sajt-390,pristup-390,prijava-panel-390,nedostupan-390,poslovanje-scanme-390}.png`.
+
+**Šta je urađeno:**
+- **Prazna stanja:** hub bez projekata sada kaže šta dalje (vlasnik platforme: „Novi projekat“; ostali: pozivnicu šalje vlasnik projekta); hub sa jednim projektom ima jednu rečenicu o sledećem koraku; „Projekat nije dostupan“ u panelu savetuje odjavu ako je prijavljen pogrešan nalog; čarobnjak za ne-vlasnika objašnjava kome da se obrati. Poslovanje bez Pulsa, bez leadova i bez veza već imaju objašnjenje i dugme (proveren tekst, nije menjan).
+- **Telefon 390 × 844:** nijedna nova površina nema vodoravni skrol (izmereno `scrollWidth` na 13 ruta, ×2 prikaza). Dugmad novih ekrana (čarobnjak, podešavanja Projekat/Sajt/Mozak, Pristup, prijava, hub „Prikaži sve“) dobila `touch-target` (≥ 44 px na dodir); isto traka jezičaka i `SegmentedToggle`.
+- **Pristupačnost:** redosled Taba na hubu prati oko (projekti pa „Čeka te“; na telefonu „Čeka te“ ostaje na vrhu preko `order`); „Čeka te“ ima pravo ime sekcije i i na telefonu (naslov je bio skriven); „Prikaži sve“ ima `aria-expanded`; čarobnjak pomera fokus na novi korak (grupa sa nazivom „Korak 2 od 4: Izgled“); prazna stanja koja su ceo ekran imaju pravi naslov (`h1`/`h2`). Proveren Esc (zatvara detalje veza i vraća fokus), prsten fokusa na svakom elementu u prolazu Tabom, `node scripts/contrast-check.mjs --strogo` prolazi.
+- **Tekst:** 18 prikazanih rečenica sa „radni prostor“ zamenjeno sa „projekat“; u renderovanom tekstu novih površina nema „workspace“ ni internih oznaka (provera regexom na 13 ruta).
+
+**ODLUKE:**
+- **`touch-target` u zajedničkim komponentama** (`TabNav`, `SegmentedToggle`) važi svuda, ali samo na dodir (`pointer: coarse`); miš zadržava gustinu. Ostale ekrane (Leadovi tabela, analitika) nisam dirao: to nisu nove površine i traže poseban prolaz.
+- **Čip „Postoji u projektu X“** (veza u hubu) ostaje visok ~22 px: raste red naslova ako se napuni na 44 px, a stoji uz isti naslov; sam profil otvara i kartica. Ostavljeno.
+- **Redosled u DOM-u huba je projekti pa „Čeka te“** (mreža na telefonu vraća „Čeka te“ gore). Jedno od dva neslaganja redosleda čitanja i prikaza mora da ostane; izabrao sam ono koje se tiče tastature na računaru.
+- **„radni prostor“ u odgovorima za skill (`convex/http.ts`), zapisima i opisima u `purgeMap`** nije menjano: to nije prikaz korisniku, a `convex/` i logika su van obima. Isto `app/privacy` (pravna strana, pravilo runa).
+- **Prazan hub (0 projekata) nije snimljen**: razvojni prikaz uvek pravi tri projekta (`?prazno=1` prazni kanale, ne članstva). Tekst i dugme su u kodu, ali ih niko nije video na ekranu.
+- Skill `impeccable` pozvan pre UI koda (režim Operate, bez nove animacije i bez novog vizuelnog jezika).
+
+**Novi paketi:** nema
+
+**Testovi:** nijedan novi (samo prikaz i pristupačnost); postojeći čuvari (`linkovi-cuvar`, `objavljujes-kao-cuvar`) i dalje prolaze. Provere pregledača su privremene skripte u `.nocni-run/projekti/tmp/`.
+
+**Rezultat provere:** typecheck ✓, lint ✓ (0 grešaka), `npx vitest run` ✓ (852/852), `verify-pristup` ✓, `regresije.mjs` ✓ (14/14), `contrast-check --strogo` ✓. Dev server na 3105 je ugašen.
+
+**Za Jovana ujutru:**
+- Na telefonu otvori hub, čarobnjak „Novi projekat“, Podešavanja → Projekat / Sajt i oglasi / Pristup i prijavu na panel domenu: dugmad treba da su lako pogodna palcem, bez klizanja u stranu.
+- Tabom prođi hub: prvo spisak projekata, pa „Čeka te“.
+- Ako pokušaš da otvoriš tuđ projekat na panel domenu, poruka treba da te uputi na odjavu.

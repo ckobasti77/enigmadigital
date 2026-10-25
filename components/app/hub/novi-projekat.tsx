@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -60,6 +60,13 @@ import { UserMenu } from "../user-menu";
 
 type Korak = "osnovno" | "izgled" | "leadovi" | "kanali";
 
+const NAZIV_KORAKA: Record<Korak, string> = {
+  osnovno: "Osnovno",
+  izgled: "Izgled",
+  leadovi: "Leadovi",
+  kanali: "Kanali",
+};
+
 const KORACI: readonly Korak[] = [
   "osnovno",
   "izgled",
@@ -81,6 +88,15 @@ export function NoviProjekat() {
   const [korak, setKorak] = useState<Korak>("osnovno");
   const [slug, setSlug] = useState<string | null>(null);
   const redni = KORACI.indexOf(korak) + 1;
+  // Posle „Dalje“ stari sadržaj nestaje, pa fokus ide na novi korak i čitač
+  // ekrana ga najavi; pri prvom prikazu fokus ostaje na početku strane.
+  const karticaRef = useRef<HTMLDivElement>(null);
+  const prethodniKorak = useRef(korak);
+  useEffect(() => {
+    if (prethodniKorak.current === korak) return;
+    prethodniKorak.current = korak;
+    karticaRef.current?.focus();
+  }, [korak]);
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -114,17 +130,21 @@ export function NoviProjekat() {
           <EmptyState
             icon={TriangleAlert}
             size="lg"
+            heading="h1"
             title="Nove projekte pravi vlasnik platforme."
             action={
               <Button
                 variant="secondary"
                 nativeButton={false}
                 render={<Link href="/" />}
+                className="touch-target"
               >
                 Svi projekti
               </Button>
             }
-          />
+          >
+            Otvori neki od svojih projekata ili zatraži novi od vlasnika.
+          </EmptyState>
         ) : (
           <div className="w-full max-w-xl">
             <div className="flex flex-wrap items-end justify-between gap-3">
@@ -133,7 +153,13 @@ export function NoviProjekat() {
               </h1>
               <Koraci redni={redni} ukupno={KORACI.length} />
             </div>
-            <div className="mt-6 rounded-xl border border-line bg-card p-5 shadow-elev-1 sm:p-6">
+            <div
+              ref={karticaRef}
+              role="group"
+              tabIndex={-1}
+              aria-label={`Korak ${redni} od ${KORACI.length}: ${NAZIV_KORAKA[korak]}`}
+              className="mt-6 rounded-xl border border-line bg-card p-5 shadow-elev-1 outline-none sm:p-6"
+            >
               {korak === "osnovno" || slug === null ? (
                 <Osnovno
                   onNapravljen={(s) => {
@@ -245,7 +271,7 @@ function Osnovno({ onNapravljen }: { onNapravljen: (slug: string) => void }) {
             placeholder="Ime firme ili brenda"
             autoFocus
             maxLength={80}
-            className="h-10"
+            className="touch-target h-10"
           />
         )}
       </Field>
@@ -345,7 +371,7 @@ function Osnovno({ onNapravljen }: { onNapravljen: (slug: string) => void }) {
           variant="primary"
           disabled={!spremno}
           aria-busy={radim}
-          className="h-10 px-4"
+          className="touch-target h-10 px-4"
         >
           {radim ? (
             <LoaderCircle className="motion-safe:animate-spin" aria-hidden />
@@ -451,7 +477,7 @@ function IzgledForma({
           disabled={!pBoja.ok || radim}
           aria-busy={radim}
           onClick={() => void dalje()}
-          className="h-10 px-4"
+          className="touch-target h-10 px-4"
         >
           Dalje
           <ArrowRight aria-hidden />
@@ -461,7 +487,7 @@ function IzgledForma({
           variant="ghost"
           onClick={onDalje}
           disabled={radim}
-          className="h-10"
+          className="touch-target h-10"
         >
           Preskoči
         </Button>
@@ -524,7 +550,7 @@ function Leadovi({ onDalje }: { onDalje: () => void }) {
           disabled={radim}
           aria-busy={radim}
           onClick={() => void dalje()}
-          className="h-10 px-4"
+          className="touch-target h-10 px-4"
         >
           {sablon === "prazno" || stanje.imaPravila ? "Dalje" : `Primeni „${naziv}“`}
           <ArrowRight aria-hidden />
@@ -634,7 +660,7 @@ function Kanali({ slug }: { slug: string }) {
           variant="primary"
           nativeButton={false}
           render={<Link href={`/${slug}`} />}
-          className="h-10 px-4"
+          className="touch-target h-10 px-4"
         >
           Otvori projekat
           <ArrowRight aria-hidden />
@@ -643,7 +669,7 @@ function Kanali({ slug }: { slug: string }) {
           variant="secondary"
           nativeButton={false}
           render={<Link href={`/${slug}/settings?tab=integracije`} />}
-          className="h-10"
+          className="touch-target h-10"
         >
           Poveži kanale
         </Button>

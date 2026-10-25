@@ -159,6 +159,7 @@ function MozakForma({ mozak }: { mozak: Mozak }) {
           variant="primary"
           disabled={!ispravno || izmenjeno.length === 0 || cuvam}
           aria-busy={cuvam}
+          className="touch-target"
         >
           {cuvam && <LoaderCircle className="motion-safe:animate-spin" aria-hidden />}
           Sačuvaj

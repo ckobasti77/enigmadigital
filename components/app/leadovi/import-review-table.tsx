@@ -557,7 +557,7 @@ export function ImportReviewTable({
   if (importDoc === null) {
     return (
       <FeedbackNote tone="danger" title="Uvoz nije pronađen">
-        Izabrani uvoz više ne postoji ili nemate pristup ovom radnom prostoru.
+        Izabrani uvoz više ne postoji ili nemate pristup ovom projektu.
         {onBack && (
           <div className="mt-3">
             <Button variant="outline" size="sm" onClick={onBack}>

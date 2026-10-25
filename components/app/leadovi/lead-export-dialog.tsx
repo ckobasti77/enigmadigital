@@ -174,7 +174,7 @@ export function LeadExportDialog({
                   }
                   className="h-8 rounded-lg border border-line bg-surface-raised px-2 text-xs text-foreground outline-none focus:border-mod"
                 >
-                  <option value="">Sve faze (kompletan radni prostor)</option>
+                  <option value="">Sve faze (ceo projekat)</option>
                   {ALL_STAGES.map((stg) => (
                     <option key={stg} value={stg}>
                       {leadStageLabel(stg)}

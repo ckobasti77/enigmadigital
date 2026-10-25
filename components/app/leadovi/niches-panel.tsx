@@ -278,7 +278,7 @@ export function NichesPanel({
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-micro font-semibold text-text-muted">
-                {nise.length} niša u radnom prostoru
+                {nise.length} niša u projektu
               </span>
               {moze && novaNisa === null && (
                 <Button

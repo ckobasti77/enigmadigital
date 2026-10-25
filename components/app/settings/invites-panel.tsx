@@ -210,7 +210,7 @@ export function InvitesPanel() {
           <Button
             type="submit"
             disabled={radim || !spreman || email.trim().length === 0}
-            className="h-10 shrink-0"
+            className="touch-target h-10 shrink-0"
           >
             {radim ? (
               <>
@@ -328,7 +328,7 @@ export function InvitesPanel() {
                             size="sm"
                             disabled={povlacim === inv._id}
                             onClick={() => povuci(inv._id)}
-                            className="text-danger hover:text-danger"
+                            className="touch-target text-danger hover:text-danger"
                           >
                             {povlacim === inv._id ? (
                               <>
@@ -346,7 +346,7 @@ export function InvitesPanel() {
                             size="sm"
                             disabled={brisem === inv._id}
                             onClick={() => obrisi(inv._id)}
-                            className="text-text-muted hover:text-danger"
+                            className="touch-target text-text-muted hover:text-danger"
                             aria-label="Obriši pozivnicu iz istorije"
                           >
                             {brisem === inv._id ? (

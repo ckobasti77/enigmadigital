@@ -536,7 +536,7 @@ export function LoginClient({ brend }: { brend: BrendPrijave | null }) {
                     size="sm"
                     disabled={resendCooldown > 0 || zauzet}
                     onClick={() => traziKodZaReset()}
-                    className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                    className="touch-target w-full justify-center text-xs text-muted-foreground hover:text-foreground"
                   >
                     {resendCooldown > 0 ? (
                       <>
@@ -556,7 +556,7 @@ export function LoginClient({ brend }: { brend: BrendPrijave | null }) {
                     variant="ghost"
                     size="sm"
                     onClick={() => idiNa("lozinka")}
-                    className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                    className="touch-target w-full justify-center text-xs text-muted-foreground hover:text-foreground"
                   >
                     <ArrowLeft className="mr-1.5 size-3.5" />
                     Nazad na prijavu
@@ -608,7 +608,7 @@ export function LoginClient({ brend }: { brend: BrendPrijave | null }) {
                     size="sm"
                     disabled={resendCooldown > 0 || zauzet}
                     onClick={() => posaljiAdminKodPonovo()}
-                    className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                    className="touch-target w-full justify-center text-xs text-muted-foreground hover:text-foreground"
                   >
                     {resendCooldown > 0 ? (
                       <>
@@ -628,7 +628,7 @@ export function LoginClient({ brend }: { brend: BrendPrijave | null }) {
                     variant="ghost"
                     size="sm"
                     onClick={() => idiNa("lozinka")}
-                    className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                    className="touch-target w-full justify-center text-xs text-muted-foreground hover:text-foreground"
                   >
                     <ArrowLeft className="mr-1.5 size-3.5" />
                     Nazad na prijavu
@@ -721,7 +721,7 @@ export function LoginClient({ brend }: { brend: BrendPrijave | null }) {
                   variant="ghost"
                   size="sm"
                   onClick={() => idiNa("lozinka")}
-                  className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                  className="touch-target w-full justify-center text-xs text-muted-foreground hover:text-foreground"
                 >
                   <ArrowLeft className="mr-1.5 size-3.5" />
                   Nazad na prijavu
@@ -760,7 +760,7 @@ export function LoginClient({ brend }: { brend: BrendPrijave | null }) {
                   variant="ghost"
                   size="sm"
                   onClick={() => idiNa("lozinka")}
-                  className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                  className="touch-target w-full justify-center text-xs text-muted-foreground hover:text-foreground"
                 >
                   <ArrowLeft className="mr-1.5 size-3.5" />
                   Nazad na prijavu
@@ -806,7 +806,7 @@ export function LoginClient({ brend }: { brend: BrendPrijave | null }) {
                     variant="ghost"
                     size="sm"
                     onClick={() => idiNa("zaboravljena")}
-                    className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                    className="touch-target w-full justify-center text-xs text-muted-foreground hover:text-foreground"
                   >
                     Zaboravio sam lozinku
                   </Button>
@@ -817,7 +817,7 @@ export function LoginClient({ brend }: { brend: BrendPrijave | null }) {
                       variant="ghost"
                       size="sm"
                       onClick={() => idiNa("adminSetup")}
-                      className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                      className="touch-target w-full justify-center text-xs text-muted-foreground hover:text-foreground"
                     >
                       <ShieldPlus className="mr-1.5 size-3.5" />
                       Napravi admin nalog

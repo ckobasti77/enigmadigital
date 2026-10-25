@@ -579,7 +579,7 @@ export function LeadFilterBar() {
       count: broj(b?.cmsDrugo ?? 0),
       active: filters.cms.includes("drugo"),
       onToggle: () => toggle("cms", "drugo"),
-      title: "CMS koji nije među prvih osam u radnom prostoru.",
+      title: "CMS koji nije među prvih osam u projektu.",
     },
     {
       key: "bez_cms",
@@ -946,7 +946,7 @@ export function LeadFilterBar() {
           <div className="flex flex-col gap-4">
             {preko && (
               <FeedbackNote tone="warning" title="Previše leadova za brojače">
-                U radnom prostoru ima više od {preko.granica} dodela, pa se
+                U projektu ima više od {preko.granica} dodela, pa se
                 brojevi uz chipove ne računaju — odsečen brojač izgleda isto kao
                 tačan. Suzi filter (npr. po fazi ili gradu) pa će se brojevi
                 vratiti.
@@ -1015,7 +1015,7 @@ export function LeadFilterBar() {
 
             {b?.identitetiOdseceni && (
               <FeedbackNote tone="warning" title="Kontakti su odsečeni">
-                Radni prostor ima više kontakata nego što jedan upit sme da
+                Projekat ima više kontakata nego što jedan upit sme da
                 pročita, pa filteri „Platforme” i „Telefon” možda ne vide sve.
                 Ostali filteri su tačni.
               </FeedbackNote>

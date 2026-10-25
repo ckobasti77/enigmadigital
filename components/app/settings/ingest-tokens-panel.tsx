@@ -206,7 +206,7 @@ export function IngestTokensPanel() {
           <Button
             type="submit"
             disabled={radim || !spreman || naziv.trim().length === 0}
-            className="h-10 shrink-0"
+            className="touch-target h-10 shrink-0"
           >
             {radim ? (
               <>
@@ -295,7 +295,7 @@ export function IngestTokensPanel() {
                           onClick={() =>
                             setZaOpoziv({ _id: t._id, naziv: t.naziv })
                           }
-                          className="text-danger hover:text-danger"
+                          className="touch-target text-danger hover:text-danger"
                         >
                           Opozovi
                         </Button>

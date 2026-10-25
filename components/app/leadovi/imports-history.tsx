@@ -171,7 +171,7 @@ export function ImportsHistory({
   if (imports.length === 0) {
     return (
       <EmptyState icon={FileSpreadsheet}>
-        Još uvek nema zabeleženih uvoza u ovom radnom prostoru.
+        Još uvek nema zabeleženih uvoza u ovom projektu.
       </EmptyState>
     );
   }

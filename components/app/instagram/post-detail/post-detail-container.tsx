@@ -36,7 +36,7 @@ export function PostDetailContainer({ mediaId }: { mediaId: string }) {
               Objava nije pronađena
             </h2>
             <p className="max-w-md text-xs text-text-muted">
-              Objava sa identifikatorom <span className="font-mono">{mediaId}</span> nije pronađena u bazi podataka vašeg radnog prostora.
+              Objava sa identifikatorom <span className="font-mono">{mediaId}</span> nije pronađena u podacima ovog projekta.
             </p>
           </div>
           <Button

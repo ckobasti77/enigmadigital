@@ -131,7 +131,7 @@ export function ThreadsContentGrid({ media }: { media: ThreadsMediaItem[] }) {
   if (media.length === 0) {
     return (
       <EmptyState icon={MessageCircle}>
-        Nema zabeleženih Threads objava za ovaj radni prostor.
+        Nema zabeleženih Threads objava za ovaj projekat.
       </EmptyState>
     );
   }

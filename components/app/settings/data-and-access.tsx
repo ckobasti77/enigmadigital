@@ -132,7 +132,7 @@ export function DataAndAccess({ connected }: { connected: Provider[] }) {
           Prekid veze na kartici iznad opoziva pristup kod samog servisa, briše
           sačuvane kredencijale i briše sve podatke preuzete sa tog servisa.
           Nepovratno. Brisanje se odvija u pozadini i kartica pokazuje dokle je
-          stiglo. Prekid veze može da izvede samo vlasnik radnog prostora.
+          stiglo. Prekid veze može da izvede samo vlasnik projekta.
           Detaljno u{" "}
           <ProjekatLink
             href="/privacy"

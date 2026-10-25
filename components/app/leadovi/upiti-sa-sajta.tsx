@@ -274,6 +274,7 @@ export function UpitiSaSajta() {
                 type="button"
                 variant="outline"
                 size="sm"
+                className="touch-target"
                 onClick={() => setTraziNaziv(null)}
                 disabled={radi !== null}
               >
@@ -283,6 +284,7 @@ export function UpitiSaSajta() {
                 type="submit"
                 variant="secondary"
                 size="sm"
+                className="touch-target"
                 disabled={radi !== null || nazivFirme.trim().length === 0}
               >
                 {radi !== null ? "Pravim…" : "Napravi firmu"}

@@ -48,6 +48,7 @@ export function EmptyState({
   variant = "plain",
   steps,
   className,
+  heading,
 }: {
   icon: ComponentType<{ className?: string }>;
   title?: ReactNode;
@@ -59,7 +60,10 @@ export function EmptyState({
   /** Samo u `mission`: šta treba uraditi da ekran oživi. */
   steps?: EmptyStateStep[];
   className?: string;
+  /** Naslov kao pravi naslov strane (`h1`/`h2`), kad ekran nema drugi. */
+  heading?: "h1" | "h2";
 }) {
+  const Naslov = heading ?? "p";
   if (variant === "line") {
     return (
       <div
@@ -102,14 +106,14 @@ export function EmptyState({
       </div>
       {title ? (
         <>
-          <p
+          <Naslov
             className={cn(
               "mt-4 font-medium text-foreground",
               mission ? "text-title font-bold" : "text-copy",
             )}
           >
             {title}
-          </p>
+          </Naslov>
           {children && (
             <p className="mt-1 max-w-md text-ui leading-relaxed text-text-muted">
               {children}

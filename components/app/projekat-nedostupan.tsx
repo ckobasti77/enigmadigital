@@ -32,6 +32,7 @@ export function ProjekatNedostupan({ rezim }: { rezim: Rezim }) {
       <EmptyState
         icon={FolderX}
         size="lg"
+        heading="h1"
         title="Projekat nije dostupan"
         action={
           rezim === "hub" ? (
@@ -55,7 +56,9 @@ export function ProjekatNedostupan({ rezim }: { rezim: Rezim }) {
           )
         }
       >
-        Ne postoji ili nemaš pristup.
+        {rezim === "hub"
+          ? "Ne postoji ili nemaš pristup."
+          : "Ne postoji ili nemaš pristup. Ako si prijavljen pogrešnim nalogom, odjavi se i prijavi ponovo."}
       </EmptyState>
     </main>
   );

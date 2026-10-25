@@ -742,7 +742,7 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
   const emptyMessage =
     aktivnihGrupa > 0
       ? "Nijedan lead ne odgovara ovom preseku filtera."
-      : "U radnom prostoru još nema nijednog dodeljenog leada.";
+      : "U projektu još nema nijednog dodeljenog leada.";
 
   const rowProps = (assignmentId: string) => ({
     "data-lead-row": assignmentId,

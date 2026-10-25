@@ -48,7 +48,7 @@ export function SegmentedToggle<T extends string>({
             aria-pressed={selected}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              "touch-target inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
               selected
                 ? "bg-surface-raised text-foreground shadow-elev-1"
                 : "text-text-muted hover:text-foreground",

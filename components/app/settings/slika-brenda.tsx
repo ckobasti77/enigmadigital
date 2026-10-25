@@ -131,6 +131,7 @@ export function SlikaBrenda({
               type="button"
               variant="secondary"
               size="sm"
+              className="touch-target"
               disabled={radim !== null}
               aria-busy={radim === "slanje"}
               aria-describedby={opisId}
@@ -151,7 +152,7 @@ export function SlikaBrenda({
                 disabled={radim !== null}
                 aria-busy={radim === "uklanjanje"}
                 onClick={() => void ukloni()}
-                className="text-text-muted hover:text-foreground"
+                className="touch-target text-text-muted hover:text-foreground"
               >
                 <Trash2 aria-hidden />
                 Ukloni

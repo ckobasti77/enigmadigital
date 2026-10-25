@@ -281,6 +281,7 @@ function IntegracijeSajta({ podaci }: { podaci: Podaci }) {
             variant="primary"
             disabled={!ispravno || izmenjena.length === 0 || cuvam}
             aria-busy={cuvam}
+            className="touch-target"
           >
             {cuvam && <LoaderCircle className="motion-safe:animate-spin" aria-hidden />}
             Sačuvaj izmene
@@ -396,7 +397,7 @@ function TajnaPolje({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9"
+                className="touch-target h-9"
                 aria-label={`${stanje.izvor === "projekat" ? "Zameni" : "Postavi"}: ${label}`}
                 aria-describedby={field.id}
                 onClick={() => {
@@ -584,6 +585,7 @@ function BudzetskeGranice({ podaci }: { podaci: Podaci }) {
             variant="secondary"
             disabled={!provera.ok || !izmenjeno || cuvam}
             aria-busy={cuvam}
+            className="touch-target"
           >
             {cuvam && <LoaderCircle className="motion-safe:animate-spin" aria-hidden />}
             Sačuvaj granice

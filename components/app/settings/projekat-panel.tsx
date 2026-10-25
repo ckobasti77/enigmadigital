@@ -250,6 +250,7 @@ function Identitet({ vlasnik }: { vlasnik: boolean }) {
                 variant="primary"
                 disabled={!ispravno || !izmenjeno || cuvam}
                 aria-busy={cuvam}
+                className="touch-target"
               >
                 {cuvam && <LoaderCircle className="motion-safe:animate-spin" aria-hidden />}
                 Sačuvaj izmene
@@ -441,7 +442,7 @@ function Domeni() {
         <Button
           type="submit"
           variant="secondary"
-          className="mt-[1.375rem] h-9"
+          className="touch-target mt-[1.375rem] h-9"
           disabled={provera === null || !provera.ok || radim !== null || pun}
           aria-busy={radim === "dodaj"}
         >
@@ -558,7 +559,7 @@ function Sajtovi({ vlasnik }: { vlasnik: boolean }) {
           <Button
             type="submit"
             variant="secondary"
-            className="mt-[1.375rem] h-9"
+            className="touch-target mt-[1.375rem] h-9"
             disabled={provera === null || !provera.ok || vecPostoji || pun || radim}
             aria-busy={radim}
           >
@@ -613,6 +614,7 @@ function Moduli({ vlasnik }: { vlasnik: boolean }) {
             type="button"
             variant="ghost"
             size="sm"
+            className="touch-target"
             disabled={radim !== null}
             onClick={() => void upisi("sve", null)}
           >

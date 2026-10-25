@@ -80,10 +80,32 @@ export function SviProjekti() {
         {projekti === undefined ? (
           <SpisakSkeleton />
         ) : projekti.length === 0 ? (
-          <EmptyState icon={FolderOpen} size="lg" title="Nisi član nijednog projekta." />
+          <EmptyState
+            icon={FolderOpen}
+            size="lg"
+            heading="h2"
+            title="Nisi član nijednog projekta."
+            action={
+              praviProjekte ? (
+                <Button
+                  variant="primary"
+                  nativeButton={false}
+                  render={<Link href={NOVI_PROJEKAT_HREF} />}
+                  className="touch-target"
+                >
+                  <Plus aria-hidden />
+                  Novi projekat
+                </Button>
+              ) : undefined
+            }
+          >
+            {praviProjekte
+              ? "Napravi prvi projekat, pa poveži njegove kanale."
+              : "Pozivnicu šalje vlasnik projekta. Kad je prihvatiš, projekat se pojavi ovde."}
+          </EmptyState>
         ) : (
           <Suspense fallback={<SpisakSkeleton />}>
-            <Portfolio projekti={projekti} />
+            <Portfolio projekti={projekti} praviProjekte={praviProjekte} />
           </Suspense>
         )}
       </main>
@@ -100,7 +122,13 @@ function poRedosledu(a: Stavka, b: Stavka): number {
   return a.ime.localeCompare(b.ime, "sr-Latn");
 }
 
-function Portfolio({ projekti }: { projekti: readonly Stavka[] }) {
+function Portfolio({
+  projekti,
+  praviProjekte,
+}: {
+  projekti: readonly Stavka[];
+  praviProjekte: boolean;
+}) {
   const { range } = useDateRange();
   const sada = useSada();
 
@@ -144,12 +172,9 @@ function Portfolio({ projekti }: { projekti: readonly Stavka[] }) {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-        <CekaTe
-          zbir={zbir}
-          className="min-w-0 lg:sticky lg:top-[calc(var(--chrome-height)+1.5rem)] lg:order-2"
-        />
-
-        <section aria-label="Projekti" className="flex min-w-0 flex-col gap-4 lg:order-1">
+        {/* Redosled u kodu prati redosled na širokom ekranu (projekti pa „Čeka
+            te“), da Tab ide kako oko; na telefonu „Čeka te“ stoji na vrhu. */}
+        <section aria-label="Projekti" className="flex min-w-0 flex-col gap-4">
           <div className="overflow-hidden rounded-xl border border-line bg-card">
             <div
               aria-hidden
@@ -180,6 +205,14 @@ function Portfolio({ projekti }: { projekti: readonly Stavka[] }) {
             </ul>
           </div>
 
+          {ukupnoAktivnih === 1 && (
+            <p className="text-meta text-text-muted">
+              {praviProjekte
+                ? "Ovo je jedini projekat. Drugi dodaješ preko „Novi projekat“."
+                : "Ovo je jedini projekat u kome si član. Ostali se pojave kad te vlasnik pozove."}
+            </p>
+          )}
+
           {ostali.length > 0 && (
             <SpisakVeza
               naslov={`Prikazano ${formatNumber(MAKS_PROJEKATA_HUBA)} od ${formatNumber(ukupnoAktivnih)}. Ostali projekti:`}
@@ -194,6 +227,11 @@ function Portfolio({ projekti }: { projekti: readonly Stavka[] }) {
             />
           )}
         </section>
+
+        <CekaTe
+          zbir={zbir}
+          className="min-w-0 max-lg:order-first lg:sticky lg:top-[calc(var(--chrome-height)+1.5rem)]"
+        />
       </div>
     </>
   );
