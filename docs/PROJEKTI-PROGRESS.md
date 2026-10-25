@@ -1554,3 +1554,27 @@ Info:
 - **Pozivnice napravljene pre deploya** daju ulogu urednik (na `main`-u je svaki nov nalog bio owner). Postojeći korisnik pozvan u drugi projekat sada uvek klikne „Prihvati poziv“ posle prijave.
 - **Klijentski projekat pravi kao „klijent“:** owner bilo kog internog projekta je vlasnik platforme (P3), pa klijent pozvan kao vlasnik internog projekta dobija i pravo da pravi projekte i domene.
 - **Odluke za tebe:** dve BLOKADE iznad.
+
+## C20 — Završni izveštaj   (2026-10-25 12:47)
+**Fajlovi:**
+- nov: `docs/PROJEKTI-REPORT.md` (odeljci 0–10);
+- snimci: `docs/projekti/snimci/C20-svi-projekti-{1440,390}.png`, `C20-birac-1440.png`, `C20-podesavanja-projekat-1440.png`, `C20-sajt-i-oglasi-390.png`, `C20-carobnjak-390.png`, `C20-kontrolna-tabla-1440.png`, `C20-profil-unakrsno-1440.png`;
+- privremeno: `.nocni-run/projekti/tmp/c20/` (skripta snimaka i logovi provera).
+
+**Šta je urađeno:**
+Pročitani su pravila runa, plan i sve sekcije progress-a C01–C19, pa je napisan izveštaj za Jovana: ukratko, pregled grane, urađeno po oblasti sa snimcima, nedovršeno, BLOKADE, predlozi P1–P16 i 26 odluka runa koje traže stav, deploy tačnim redom, ručna provera po važnosti, brojevi, rezultat provera i zatečeni problemi. Sve provere su puštene ponovo i prošle su. Napravljeno je 8 završnih snimaka kroz razvojni prikaz (status 200, konzola čista, bez vodoravnog klizača); dev server je ugašen, port 3105 slobodan. Kod nije menjan.
+
+**ODLUKE:**
+- Trajanje: po napomeni iz nadzora, ceo run do kraja C19 je 15 h 10 min (lokalna razlika + 60 min), a C07 46 min. Promenu sata je prešao samo C07 (C06 je završen u 02:21 po letnjem, C07 u 02:07 po zimskom vremenu), pa su ostala trajanja iz `state.json` tačna.
+- Plan kaže da `OAUTH_CALLBACK_ORIGIN` ide u Convex i Vercel; kod je čita samo u Convex-u (E8, čuvar `lib/tajne-cuvar.test.ts`). Izveštaj zato traži Convex, a za Vercel piše da ne treba.
+- Odeljak 5: P1–P16 u celosti, a od ODLUKA iz progress-a samo one koje menjaju ponašanje ili traže Jovanov sud (R1–R26); tehničke su ostale u progress-u.
+- Snimak kontrolne table na 1440 × 900 ne dosiže sekciju „Poslovanje“ (ispod pregiba), pa je nazvan `C20-kontrolna-tabla-1440.png` umesto „poslovanje“; Poslovanje je već na snimcima C17.
+- Izvoz baze i postavljanje env-a su dati kao komande koje Jovan pokreće (`npx convex export --prod`, `npx convex env set … --prod`); run ih nije pokretao.
+
+**Novi paketi:** nema
+
+**Testovi:** nijedan nov ni menjan.
+
+**Rezultat provere:** codegen ✓, typecheck ✓, lint ✓ (0 grešaka, 1.210 starih upozorenja), `npx --no-install vitest run` ✓ (947/947, 52 fajla), `verify-pristup` ✓ (372 javne: omotačem 357, javno 15, bez omotača 0; front 32/32 sa spiska), `regresije.mjs` ✓ (14/14), `contrast-check --strogo` ✓, `npm run build` ✓ (145 tabela pokriveno).
+
+**Za Jovana ujutru:** `docs/PROJEKTI-REPORT.md`, odeljci 4 (BLOKADE), 6 (deploy) i 7 (ručna provera).
