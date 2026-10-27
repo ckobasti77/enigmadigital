@@ -1,0 +1,545 @@
+{
+  "meta": {
+    "name": "Enigma Command Center — ciljni dizajn DNK (Radni sto)",
+    "description": "Radni sto, ne izveštaj: miran tamni panel na kom svetli samo ono što traži Jovana. Fokus je posao, boja modula kaže gde si (samo na tri mesta), jedna boja radnje kaže šta da klikneš, a brojevi i statusi su tačni. Cilj za ULTRA runove; kod ga sustiže fazama.",
+    "source_references": [
+      "docs/ULTRA-PLAN.md §1 (odluke O1–O21) i §3 (ciljni dizajn DNK), predlozi P1–P3 i P7",
+      "docs/ultra/REVIZIJA.md → „Predlog nove arhitekture i ciljni dizajn DNK“",
+      "nocni-run/ux/dna-boost.json (prethodni profil, 11. 10. 2026.)",
+      "app/globals.css"
+    ],
+    "created_at": "2026-10-27",
+    "napomena": "Šema je preuzeta iz prethodnog profila. Vrednosti koje plan ne kaže preuzete su iz njega bez izmene: color.modules, color.module_derived (soft/line/glow), color.category, color.reward, color.semantic, color.surface, color.neutral, typography.type_scale (veličine, težine, prored), typography.font_families, spacing.base_unit, spacing.scale, spacing.section_rhythm, layout (sve osim dopune u alignment_tendency), shape.border_radius, shape.divider_style, elevation.levels, elevation.depth_cues, iconography (sve), motion.easing, motion.duration_scale, motion.exit_pattern, components.modal_style, design_style.aesthetic.genre i personality_traits, design_style.visual_language.complexity, whitespace_usage, visual_weight_distribution i texture_usage, design_style.imagery (sve), design_style.composition.balance_type, grouping_strategy i negative_space_role, design_style.interaction_feel.loading_style, design_style.brand_voice_in_ui.formality i cta_style, visual_effects.overview (osim effect_intensity), background_effects, 3d_elements, shader_effects, scroll_effects.parallax i scroll_morphing, cursor_effects, image_effects, glassmorphism_neumorphism, canvas_drawings, svg_animations. Sve ostalo je izmenjeno po §3 plana. Dodata su dva polja van prethodne šeme: color.semantic_usage i taste, plus brand_voice_in_ui.formats. Boja fokusa i izbora (okvir fokusa, uključen filter, aktivni jezičak, tekući korak) u boji radnje je izvođenje iz P1 i pravila „boja modula samo na tri mesta“, ne doslovan tekst plana."
+  },
+  "design_system": {
+    "color": {
+      "palette_type": "Tamna neutralna osnova (teget slate) + šest uloga boje: mesto (13 boja modula iste svetline i hrome u OKLCH, samo na aktivnoj stavci bočne trake, ikonici zaglavlja i auri), radnja (jedna boja primarne radnje u celoj aplikaciji), stanje, kategorija (validirana kategorijalna paleta), nagrada (zlatna, samo u trenutku nagrade) i identitet projekta. Boja bez jedne od tih uloga se ne dodaje.",
+      "primary": {
+        "hex": "#58c4ff",
+        "role": "RADNJA: brend cijan `--accent-400`, tamni tekst `#091120`, ista na svakom ekranu. Puna podloga primarnog dugmeta (jedno po pogledu), dugme-veza, uključen prekidač i okvir fokusa. `primary` više ne čita `--mod-strong`. Nije boja stanja ni nagrade."
+      },
+      "secondary": {
+        "hex": "#58c4ff",
+        "role": "MESTO: ink modula (`--mod`; ovde Kontrolna tabla). Kaže „gde si“, ne „šta da klikneš“. Samo na aktivnoj stavci bočne trake (puna `--mod-strong` pločica sa tamnom ikonicom), ikonici zaglavlja i auri (≤ 10 %). Nikad na naslovu, broju, natpisu pločice, grafikonu, dugmetu, prekidaču ni sjaju."
+      },
+      "accent": {
+        "hex": "#fac131",
+        "role": "NAGRADA (`--xp`): na radnim ekranima samo u trenutku nagrade (nov nivo, dostignuće, zbir XP-a na kraju ture); na strani Napredak XP, nivo i dostignuća. Nijedan modul, stanje ni kategorija je ne koristi."
+      },
+      "neutral": {
+        "scale": [
+          "#070d19",
+          "#0b1221",
+          "#0e1729",
+          "#131d31",
+          "#18253a",
+          "#7b8eb0",
+          "#f3f7ff"
+        ],
+        "usage": "Strana `#070d19`, kartica `#131d31`, iskačuće i podignuto `#18253a`. Tekst `#f3f7ff`, sekundarni `rgba(193,211,245,.75)`, prigušeni `rgba(152,174,214,.8)`. Razdelnici su plavičasti slate na 22–28 % alfe; granica kontrole 60 %."
+      },
+      "semantic": {
+        "success": "#34d399",
+        "warning": "#fbbf24",
+        "error": "#fb7185",
+        "info": "#5db2f7"
+      },
+      "surface": {
+        "background": "#070d19",
+        "card": "#131d31",
+        "elevated": "#18253a"
+      },
+      "contrast_strategy": "Mereno, ne procenjeno: tekst ≥ 4,5:1, kontrole i grafika ≥ 3:1 (scripts/contrast-check.mjs). Ink modula ≥ 6,68:1 na najsvetlijoj površini, tamni tekst na punoj boji modula ≥ 6,51:1, tekst čipa kategorije ≥ 6,95:1 na svojoj podlozi. Boja nikad nije jedini nosilac: uz nju ide ikonica, broj ili tekst. Na tekstu nema providnosti (`text-*/NN`, `opacity-*`); prigušen tekst na `-soft` podlogama, tekst obris dugmeta i temperatura na sopstvenoj podlozi se mere kao parovi.",
+      "modules": {
+        "tabla": {
+          "ink": "oklch(0.7812 0.1295 235.77)",
+          "ink_hex": "#58c4ff",
+          "strong": "oklch(0.754 0.139 232.7)",
+          "strong_hex": "#38bdf8"
+        },
+        "leadovi": {
+          "ink": "oklch(0.76 0.15 155)",
+          "ink_hex": "#52cd86",
+          "strong": "oklch(0.6997 0.1703 154.9)",
+          "strong_hex": "#11bc6d"
+        },
+        "novosti": {
+          "ink": "oklch(0.76 0.15 122)",
+          "ink_hex": "#a1c047",
+          "strong": "oklch(0.6992 0.1672 121.7)",
+          "strong_hex": "#8ead09"
+        },
+        "instagram": {
+          "ink": "oklch(0.76 0.15 355)",
+          "ink_hex": "#fa86b6",
+          "strong": "oklch(0.701 0.171 354.9)",
+          "strong_hex": "#ed6ba4"
+        },
+        "facebook": {
+          "ink": "oklch(0.76 0.121 258)",
+          "ink_hex": "#80b3fd",
+          "strong": "oklch(0.7 0.158 258)",
+          "strong_hex": "#5c9eff"
+        },
+        "youtube": {
+          "ink": "oklch(0.76 0.141 22)",
+          "ink_hex": "#fe8a88",
+          "strong": "oklch(0.7 0.17 22.1)",
+          "strong_hex": "#f66c6d"
+        },
+        "threads": {
+          "ink": "oklch(0.8 0.018 248)",
+          "ink_hex": "#b5bfc9",
+          "strong": "oklch(0.72 0.021 250.5)",
+          "strong_hex": "#9ba6b2"
+        },
+        "oglasi": {
+          "ink": "oklch(0.76 0.15 60)",
+          "ink_hex": "#f59740",
+          "strong": "oklch(0.7 0.164 59.94)",
+          "strong_hex": "#e68101"
+        },
+        "analitika": {
+          "ink": "oklch(0.76 0.15 305)",
+          "ink_hex": "#c797fd",
+          "strong": "oklch(0.699 0.17 304.9)",
+          "strong_hex": "#b77ff2"
+        },
+        "atribucija": {
+          "ink": "oklch(0.76 0.13 190)",
+          "ink_hex": "#0dcbc3",
+          "strong": "oklch(0.7008 0.1202 189.89)",
+          "strong_hex": "#08b6af"
+        },
+        "openreply": {
+          "ink": "oklch(0.76 0.125 282)",
+          "ink_hex": "#a5a7fe",
+          "strong": "oklch(0.7 0.16 281.9)",
+          "strong_hex": "#908ffe"
+        },
+        "pravila": {
+          "ink": "oklch(0.76 0.15 330)",
+          "ink_hex": "#e68cde",
+          "strong": "oklch(0.7 0.169 329.8)",
+          "strong_hex": "#d773d0"
+        },
+        "sistem": {
+          "ink": "oklch(0.8 0.018 248)",
+          "ink_hex": "#b5bfc9",
+          "strong": "oklch(0.72 0.021 250.5)",
+          "strong_hex": "#9ba6b2"
+        }
+      },
+      "module_derived": {
+        "soft": "color-mix(in oklab, var(--mod) 14%, var(--surface))",
+        "line": "color-mix(in oklch, var(--mod) 45%, transparent)",
+        "glow": "color-mix(in oklch, var(--mod) 35%, transparent)",
+        "mechanism": "`data-module` na koloni sadržaja i na <html>; izvedeni tokeni se deklarišu na `[data-module]`, ne na :root. Izvedeni tokeni se čitaju samo na tri mesta boje mesta; sjaj (`--mod-glow`) se više ne koristi na dugmadi ni fokus kartici."
+      },
+      "category": {
+        "series": {
+          "1": "#1c9dd6",
+          "2": "#d95926",
+          "3": "#199e70",
+          "4": "#c98500",
+          "5": "#d55181",
+          "6": "#9085e9"
+        },
+        "chip_ink": {
+          "1": "#6acafe",
+          "2": "#fea383",
+          "3": "#64d7a6",
+          "5": "#fe9cb9",
+          "6": "#b9b4fe"
+        },
+        "signal_map": {
+          "sajt": 2,
+          "reputacija": 6,
+          "zakazivanje": 3,
+          "mreze": 5,
+          "nova": 1,
+          "ostalo": "neutralno"
+        },
+        "note": "Slot 4 (amber) je samo serija grafikona; čipovi i monogrami ga ne koriste jer je preblizu zlatnoj."
+      },
+      "reward": {
+        "xp": "#fac131",
+        "xp_strong": "#f3a504",
+        "streak": "#ff772f",
+        "streak_hot": "#f84e3a",
+        "tier": {
+          "bronze": "#c48961",
+          "silver": "#bbc5d1",
+          "gold": "#f3c443",
+          "platinum": "#abdbde",
+          "diamond": "#60ccfc"
+        },
+        "rarity": {
+          "common": "#7b8eb0",
+          "rare": "#5db2f7",
+          "epic": "#c797fd",
+          "legendary": "#fac131"
+        }
+      },
+      "semantic_usage": "Crvena samo za grešku i kašnjenje; žuta za upozorenje; zlatna nije stanje. Interes leada nije boja ivice reda."
+    },
+    "typography": {
+      "type_scale": {
+        "display": {
+          "size": "clamp(2rem, 1.5rem + 2.5vw, 3.5rem)",
+          "weight": "700",
+          "line_height": "1.05",
+          "tracking": "-0.022em"
+        },
+        "heading_1": {
+          "size": "2.5rem (hero — jedini fokus broj ekrana, Aeonik `tabular-nums`, u boji teksta)",
+          "weight": "700",
+          "line_height": "1.05",
+          "tracking": "-0.022em"
+        },
+        "heading_2": {
+          "size": "1.75rem (metric, Aeonik `tabular-nums`)",
+          "weight": "700",
+          "line_height": "1.1",
+          "tracking": "-0.018em"
+        },
+        "heading_3": {
+          "size": "1.25rem (title)",
+          "weight": "700",
+          "line_height": "1.25",
+          "tracking": "-0.012em"
+        },
+        "body": {
+          "size": "0.9375rem (copy)",
+          "weight": "400",
+          "line_height": "1.5",
+          "tracking": "0em"
+        },
+        "body_small": {
+          "size": "0.8125rem (ui)",
+          "weight": "400",
+          "line_height": "1.45",
+          "tracking": "0.005em"
+        },
+        "caption": {
+          "size": "0.75rem (meta)",
+          "weight": "400",
+          "line_height": "1.35",
+          "tracking": "0.01em"
+        },
+        "overline": {
+          "size": "0.75rem",
+          "weight": "500 (crta se kao 400; Aeonik ima 300/400/700)",
+          "line_height": "1.35",
+          "tracking": "0.12em, verzal samo za natpise grupa, u prigušenoj boji teksta (ne modula)"
+        }
+      },
+      "font_families": {
+        "heading": "Aeonik, ui-sans-serif, system-ui, sans-serif",
+        "body": "Aeonik, ui-sans-serif, system-ui, sans-serif",
+        "mono": "ui-monospace, \"SF Mono\", Menlo, Consolas, monospace"
+      },
+      "font_style_notes": "Skala 12 / 13 / 15 / 20 / 28 + hero 40 samo za jedan fokus broj ekrana. Ništa ispod 12 px (ni ose grafikona, ni SVG tekst, ni bedž broja). Brojevi su Aeonik sa `tabular-nums` (fokus, pločice, tekst); mono samo za ID, kod i brojčane kolone tabela; reči, datumi u rečenici i natpisi nikad nisu mono. Verzal samo za natpise grupa. Tracking i leading idu suprotno od veličine. Podnaslov ekrana je jedan red, do 90 znakova; duže objašnjenje ide iza dugmeta „i“."
+    },
+    "spacing": {
+      "base_unit": "4px (0.25rem)",
+      "scale": [
+        "4px",
+        "6px",
+        "8px",
+        "12px",
+        "16px",
+        "20px",
+        "24px",
+        "32px",
+        "56px"
+      ],
+      "content_density": "Radni ekrani (VISUAL_DENSITY 7): gusto i mirno; liste i tabele sa redovima od 36 do 40 px, kartica samo za ono što se pomera (fokus, firma, objava). Dugme 28–32 px na desktopu, najmanje 44 px pod `pointer: coarse` (osobina primitiva).",
+      "section_rhythm": "Sekcije 24–32 px razmaka, grupe 12–16 px, unutar kartice 16–20 px. Sekundarne grupe deli razdelnik i razmak, ne kutija."
+    },
+    "layout": {
+      "grid_system": "CSS Grid. Mreže pločica 2–5 kolona; komandni centar je asimetrična bento mreža (prva misija 2fr, druge dve 1fr).",
+      "max_content_width": "80rem",
+      "columns": "12 (bento), sa padom na jednu kolonu ispod 768 px",
+      "gutter": "1.5rem",
+      "breakpoints": [
+        "640px",
+        "768px",
+        "1024px",
+        "1280px",
+        "referentno: 1536×695, 1440×900, 390×844"
+      ],
+      "alignment_tendency": "Levo poravnato; fokus ekrana i njegovo primarno dugme moraju da stanu iznad preloma na 1536×695. Jedan fokus po ekranu (na kanalu traka od tri imenovana broja); ostalo ispod preloma."
+    },
+    "shape": {
+      "border_radius": {
+        "small": "6px",
+        "medium": "8px",
+        "large": "14px",
+        "pill": "9999px"
+      },
+      "border_usage": "Ivica je uvek 1 px: `--line` na karticama, `--line-control` na kontrolama. Nema debele leve ivice (ni za interes/temperaturu) i nema kutije u kutiji. Boja modula nije na ivicama dugmadi, čipova ni kartica.",
+      "divider_style": "1 px, plavičasti slate na 22–28 % alfe; pod `prefers-contrast: more` postaje prava ivica."
+    },
+    "elevation": {
+      "shadow_style": "Četiri koraka (kontaktna + ambijentalna senka), tamna i tiha. Obojena senka postoji samo za nagrade (`shadow-reward`), uvek sa pomerajem, nikad oreol `0 0 Npx`. Sjaj nikad nije u boji modula; fokus kartica ima tihu senku.",
+      "levels": {
+        "low": "0 1px 2px rgba(0,0,0,.28), 0 2px 8px rgba(0,0,0,.2)",
+        "medium": "0 4px 10px rgba(0,0,0,.34), 0 12px 32px rgba(0,0,0,.3)",
+        "high": "0 8px 20px rgba(0,0,0,.42), 0 32px 72px rgba(0,0,0,.5)"
+      },
+      "depth_cues": "Površine se penju u svetlini (strana → kartica → podignuto); translucentni hrom (bočna traka, gornja traka) sa svetlom ivicom `rgba(255,255,255,.06)`; obojena senka `inset 0 1px 0 var(--material-edge), 0 10px 30px -14px var(--mod-glow)`."
+    },
+    "iconography": {
+      "style": "Linijske ikonice, zaobljeni krajevi, bez ispune; bez emodžija.",
+      "stroke_weight": "1.75 (globalno, `--icon-stroke`)",
+      "size_scale": [
+        "12px",
+        "14px",
+        "16px",
+        "20px",
+        "24px"
+      ],
+      "preferred_set": "lucide-react"
+    },
+    "motion": {
+      "easing": "UI: cubic-bezier(0.2, 0.8, 0.2, 1) (`--ease-ui`, bez prebačaja). Zamah gesta: cubic-bezier(0.34, 1.42, 0.64, 1). Nagrada: cubic-bezier(0.34, 1.56, 0.64, 1) (`--ease-reward`, jedini prebačaj van gesta).",
+      "duration_scale": {
+        "micro": "100 ms pritisak, 150 ms sitno",
+        "normal": "200 ms sve što se pojavi; 400 ms pomeraj merača",
+        "macro": "nagrada do 600 ms, čestice do 900 ms, nov nivo do 1,2 s"
+      },
+      "entrance_pattern": "Neprozirnost + 10 px pomeraja naviše, 200 ms; toast 250 ms. Radni ekrani ne animiraju sekcije pri učitavanju i ne otkrivaju ih pri skrolu.",
+      "exit_pattern": "Kraći od ulaza: toast 180 ms (neprozirnost + 8 px naniže); paneli i fioke se vraćaju od zatečene vrednosti (prekidivo).",
+      "philosophy": "„Corporate“ za ceo UI, „Playful“ samo za nagradu; proslava samo za nov nivo i dostignuće (MOTION_INTENSITY 3). Najviše 1–2 animirana elementa po prikazu. Samo transform i opacity, uz tri dokumentovana izuzetka (visina u Unfold, backdrop-filter u Materialize, stroke-dashoffset u ProgressRing). Tačnost pobeđuje pokret: prvi kadar je tačan, skriven tab ne animira, reduced-motion dobija vrednost odmah."
+    },
+    "components": {
+      "button_style": "Šest uloga, bez `default`: primary (puna boja radnje, tamni tekst, jedno po pogledu; Napredak ga nikad ne nosi), secondary (neutralna podloga, bez boje modula), outline, ghost (radnje u redu tabele), destructive (uvek uz potvrdu), link (u boji radnje). Svako dugme nosi ulogu i `data-variant`. Visina 28–32 px na desktopu, ≥ 44 px pod `pointer: coarse`; radijus 8–10 px; `loading` sa spinerom.",
+      "input_style": "Tamna podloga, granica `--line-control` (≥ 3:1), fokus u boji radnje: ivica + prsten 3 px na 50 % i čvrst okvir 2 px sa odmakom. Jedan meni za izbor (`components/ui/select.tsx`, nad `@base-ui/react`) umesto izvornih `<select>`, uvek sa natpisom ili `aria-label`.",
+      "card_style": "Kartica samo za ono što se pomera (fokus, firma, objava): `#131d31`, radijus 14 px, prsten `--line`, `elev-1`, tiha senka i na fokus kartici. KPI pločica u tri veličine: broj u boji teksta (Aeonik `tabular-nums`), srpski naziv mere sa akronimom u oblačiću, delta pilula po smeru iz rečnika mera, sparklinija iz kategorijalne palete.",
+      "navigation_pattern": "Zatečeno: fiksna bočna traka (15rem, ili šina ikonica od 4rem) sa grupama i podstavkama aktivnog modula; lepljiva gornja traka (3.5rem) sa mrvicom, kompaktnim periodom, ⌘K (na Windowsu „Ctrl K“), zvonom, tačkom statusa veza i menijem korisnika; na telefonu donja traka od pet ćelija. Boja modula samo na aktivnoj stavci. Cilj za kasniji run (U10): bočna traka samo moduli (bez podstavki), ista traka jezičaka ispod zaglavlja na svakom ekranu modula, svaki jezičak svoja adresa, mrvica „Modul / Jezičak“, radnje su dugmad a ne jezičci, firme u ⌘K, na telefonu Danas · Leadovi · Pozovi · Zajednica · Više.",
+      "modal_style": "Centriran dijalog na `#18253a`, radijus 14 px, `elev-3`, zatamnjenje sa blagim zamućenjem; bočna fioka za filtere. Portali nasleđuju boju modula sa <html>.",
+      "list_style": "Liste i tabele sa redovima od 36 do 40 px, zaglavlje 12 px prigušeno, brojevi desno i tabularni (brojčane kolone smeju mono). Bez obojene leve ivice reda. Radnje u redu su ghost ikonice.",
+      "component_notes": "Sistemske komponente su u components/app/system (PageHeader, FocusCard, KpiTile, StatTile, Chip, Monogram, EmptyState, ProgressRing, ProgressBar, SegmentedMeter, XpBar, LevelBadge, StreakFlame, AchievementBadge, MissionCard, RewardToast, CelebrationBurst, LevelUpBanner) i čitaju samo tokene. Status veze: jedna izvedena funkcija, tri vrednosti — Radi, Traži pažnju (uvek uz razlog i jednu radnju), Nije povezano; tačka u gornjoj traci zelena samo kad sve povezane veze rade, inače žuta sa brojem; traka upozorenja na vrhu pogođenog ekrana. Brojevi: nula samo kad je izmerena, inače „—“ i razlog; valuta onakva kakvu izvor javi, sve u evrima, bez preračuna i bez upisanog znaka €. Gamifikacija Tiha: na radnim ekranima samo nedeljni ciljevi i niz; XP, nivo i dostignuća na strani Napredak; bez XP čipova na radnim karticama i bez XP poruke posle svake radnje."
+    }
+  },
+  "design_style": {
+    "aesthetic": {
+      "mood": "Mirno i usredsređeno; tačno, bez buke.",
+      "visual_metaphor": "Radni sto, ne izveštaj: svetli samo ono što traži Jovana (prethodno: kontrolna soba u kojoj je svaka lampica bila upaljena).",
+      "era_influence": "Savremeni alati za rad (Linear, Raycast); gamifikacija je tiha (nedeljni ciljevi i niz), ne glavni sloj.",
+      "genre": "Radna aplikacija — analitika i CRM",
+      "personality_traits": [
+        "precizan",
+        "direktan",
+        "samouveren",
+        "ohrabruje bez detinjastog"
+      ],
+      "adjectives": [
+        "tamno",
+        "mirno",
+        "gusto",
+        "tačno",
+        "merljivo"
+      ]
+    },
+    "visual_language": {
+      "complexity": "Srednja: mnogo podataka, ali jedan fokus po ekranu.",
+      "ornamentation": "Skoro bez ukrasa. Gradijent i sjaj samo na četiri mesta: napredak, fokus kartica, nagrade i aurora na vrhu strane (≤ 10 % boje modula); nikad u boji modula osim aurore.",
+      "whitespace_usage": "Funkcionalan: razmak deli grupe umesto kutija; bez praznih zona radi efekta.",
+      "visual_weight_distribution": "Težište je gore levo: zaglavlje, fokus kartica i primarno dugme; sve ispod je tiše i sitnije.",
+      "focal_strategy": "Jedna fokus zona po ekranu i ona je posao (sledeća firma, prvi upit, red koji čeka), nikad nagrada; broj u boji teksta, jedno primarno dugme u boji radnje. Na kanalu traka od tri imenovana broja.",
+      "contrast_level": "Visok za tekst i brojke, bez providnosti na tekstu; nizak za razdelnike.",
+      "texture_usage": "Bez teksture; jedino zamućenje translucentnog hroma."
+    },
+    "composition": {
+      "hierarchy_method": "Veličina i težina (40 / 28 / 20 px na 700), zatim položaj; boja radnje samo na jednom primarnom dugmetu. Boja modula ne nosi hijerarhiju.",
+      "balance_type": "Blago asimetrična (DESIGN_VARIANCE 4): bento 2fr / 1fr / 1fr, zaglavlje levo a radnje desno.",
+      "flow_direction": "Odozgo nadole, sleva nadesno: gde sam → koji posao čeka → šta da kliknem; napredak je tih i sa strane.",
+      "grouping_strategy": "Blizina i razdelnici; kartica tek kad grupa treba da se izdigne.",
+      "negative_space_role": "Razdvaja grupe i daje fokusu mesto; nije sam sebi cilj."
+    },
+    "imagery": {
+      "photo_treatment": "Samo sadržaj korisnika (sličice objava), u zaobljenim okvirima, bez filtera.",
+      "illustration_style": "Nema ilustracija; ikonice i mali SVG oblici (heksagon nivoa, prsten, plamen).",
+      "graphic_elements": "Sparklinije, prstenovi, trake, segmentni merači, monogrami firmi, mapa leadova.",
+      "pattern_usage": "Bez šara.",
+      "image_shape": "Zaobljen pravougaonik 8–14 px; monogram je zaobljen kvadrat, dostignuće krug, nivo heksagon."
+    },
+    "interaction_feel": {
+      "feedback_style": "Odziv na pritisak u 100 ms (utiskivanje 0,97). Bez XP poruke posle svake radnje; zbir XP-a na kraju ture režima poziva.",
+      "hover_behavior": "Posvetljenje podloge i neutralna ivica (`--line-control`); klikabilna kartica se podigne 2 px. Hover nikad ne pomera raspored i ne dodaje boju modula.",
+      "transition_personality": "Miran i brz za UI; razigran samo za nov nivo i dostignuće.",
+      "loading_style": "Skeleton iste veličine kao sadržaj; spiner samo unutar dugmeta dok radnja traje.",
+      "microinteraction_density": "Niska (MOTION_INTENSITY 3): bez beskonačnih animacija, osim spinera; bez otkrivanja pri skrolu na radnim ekranima."
+    },
+    "brand_voice_in_ui": {
+      "tone": "Kratko, konkretno, na srpskom (latinica), u rečeničnom obliku; glagol na dugmetu kaže šta će se desiti. Mere imaju srpski naziv, a akronim stoji u oblačiću koji radi i na dodir („Cena po rezultatu“, oblačić „CPA“). Bez sirovih API naziva, imena env promenljivih i internih oznaka plana.",
+      "formality": "Neformalno „ti“, bez žargona i bez uzvičnika.",
+      "cta_style": "Glagol + objekat („Započni režim poziva“, „Poveži stranicu“), jedno primarno po pogledu.",
+      "empty_state_approach": "Prazno stanje ne slavi prazninu. Kad ekran nema podataka jer nešto nije urađeno, postaje „Misija za start“: jedna radnja i koraci do nje, bez XP-a uz korake. Nikad zid nula.",
+      "error_tone": "Šta se desilo i šta je sledeći korak, ljudskim rečima („Instagram je odjavljen pre 3 dana · Poveži ponovo“); tehnički kod samo u detaljima u Podešavanjima. Kad podatka nema, „—“ i razlog, nikad izmišljena nula.",
+      "formats": "Sve kroz `lib/format.ts`: datum „27. 10. 2026.“, kratko „27. okt“; vreme „17:41“; trajanje „42 s“, „1 min 1 s“; procenat „53,8 %“ (tvrdi razmak); hiljade tačkom („12.480“)."
+    }
+  },
+  "visual_effects": {
+    "overview": {
+      "effect_intensity": "vrlo nizak",
+      "performance_tier": "lagan — CSS i GSAP nad DOM-om i malim SVG-ovima",
+      "fallback_strategy": "prefers-reduced-motion: vrednost odmah, bez pomeraja i bez čestica; prefers-reduced-transparency: hrom postaje neproziran; prefers-contrast: aurora se gasi, ivice jačaju.",
+      "primary_technology": "CSS (color-mix, gradijenti, maske) + GSAP useGSAP unutar gsap.matchMedia()"
+    },
+    "background_effects": {
+      "type": "aurora (statičan radijalni gradijent)",
+      "description": "Svetlo modula na vrhu strane, iza zaglavlja: jedan radijalni gradijent koji se gasi ka dnu. Ne animira se.",
+      "technology": "CSS radial-gradient + color-mix, pseudo-element",
+      "params": {
+        "color_palette": [
+          "var(--mod) na 10 %",
+          "transparent"
+        ],
+        "speed": "0 (statično)",
+        "density": "jedan sloj, visina 16rem",
+        "opacity": "najviše 10 %",
+        "blend_mode": "normal"
+      }
+    },
+    "particle_systems": {
+      "enabled": true,
+      "type": "prasak čestica (proslava)",
+      "description": "Šaka tačkica koja se razleti iz sredine nagrađenog elementa i nestane. Samo za nov nivo i dostignuće, kad se nagrada desi dok je element na ekranu; nikad pri otvaranju strane.",
+      "technology": "DOM elementi + GSAP (transform i opacity)",
+      "params": {
+        "count": "14",
+        "shape": "krug",
+        "size_range": "4–6 px",
+        "movement_pattern": "radijalno, 28–64 px, sa blagim padom od 14 px",
+        "color_behavior": "zlatna i tamnija zlatna; gase se u providno",
+        "interaction": "nema; pointer-events: none",
+        "spawn_area": "sredina roditelja"
+      }
+    },
+    "3d_elements": {
+      "enabled": false,
+      "type": "nema u dizajn sistemu",
+      "description": "Sistem ne koristi 3D. Jedini 3D u aplikaciji je sloj mape leadova, koji je sadržaj tog ekrana, a ne deo vizuelnog jezika.",
+      "technology": "nije primenljivo (mapa: three.js + maplibre)",
+      "params": {
+        "renderer": "nije primenljivo",
+        "lighting": "nije primenljivo",
+        "camera": "nije primenljivo",
+        "materials": "nije primenljivo",
+        "geometry": "nije primenljivo",
+        "post_processing": "nije primenljivo",
+        "interaction_model": "nije primenljivo"
+      }
+    },
+    "shader_effects": {
+      "enabled": false,
+      "type": "nema",
+      "description": "Bez šejdera.",
+      "technology": "nije primenljivo",
+      "params": {
+        "uniforms": "nije primenljivo",
+        "vertex_manipulation": "nije primenljivo",
+        "fragment_output": "nije primenljivo",
+        "noise_type": "nije primenljivo",
+        "distortion": "nije primenljivo"
+      }
+    },
+    "scroll_effects": {
+      "parallax": {
+        "enabled": false,
+        "layers": 0,
+        "depth_range": "nije primenljivo",
+        "speed_curve": "nije primenljivo"
+      },
+      "scroll_triggered_animations": {
+        "enabled": false,
+        "trigger_points": "nije primenljivo na radnim ekranima",
+        "animation_type": "nema; radni ekrani se ne otkrivaju pri skrolu",
+        "scrub_behavior": "bez scrub-a"
+      },
+      "scroll_morphing": {
+        "enabled": false,
+        "description": "Nema."
+      }
+    },
+    "text_effects": {
+      "type": "kotrljanje brojeva",
+      "description": "Brojka pri prvom prikazu stoji na tačnoj vrednosti; odbrojava samo kad pozivalac zada `from`. Svež podatak prelazi od stare do nove vrednosti, zaokružen na preciznost cilja. U skrivenom tabu i pod reduced-motion upiše se tačan broj odmah.",
+      "technology": "GSAP nad React stanjem (CountUp)",
+      "params": {
+        "split_strategy": "bez deljenja teksta",
+        "animation_per_unit": "cela vrednost",
+        "stagger": "0",
+        "effect_style": "interpolacija broja, 200–500 ms"
+      }
+    },
+    "cursor_effects": {
+      "enabled": false,
+      "type": "nema",
+      "description": "Sistemski kursor; cursor-pointer na svemu klikabilnom.",
+      "params": {
+        "shape": "sistemski",
+        "size": "sistemski",
+        "blend_mode": "normal",
+        "trail": "nema",
+        "interaction_zone": "nije primenljivo"
+      }
+    },
+    "image_effects": {
+      "type": "nema",
+      "description": "Slike se prikazuju bez filtera i bez efekata na hover.",
+      "technology": "nije primenljivo",
+      "params": {
+        "filter_pipeline": "nema",
+        "hover_transform": "nema",
+        "reveal_animation": "nema",
+        "distortion_type": "nema"
+      }
+    },
+    "glassmorphism_neumorphism": {
+      "enabled": true,
+      "style": "translucentni hrom (bočna i gornja traka), tri debljine materijala",
+      "params": {
+        "blur_radius": "12 / 20 / 32 px",
+        "transparency": "60 / 72 / 86 % neprozirnosti",
+        "border_treatment": "svetla ivica rgba(255,255,255,.06) na strani ka sadržaju",
+        "shadow_type": "elev-1 / elev-2 / elev-3",
+        "light_source_angle": "odozgo"
+      }
+    },
+    "canvas_drawings": {
+      "enabled": false,
+      "type": "nema",
+      "description": "Dizajn sistem ne crta na canvasu; grafikoni su SVG (Recharts).",
+      "technology": "nije primenljivo",
+      "params": {
+        "draw_method": "nije primenljivo",
+        "animation_loop": "nije primenljivo",
+        "color_scheme": "nije primenljivo",
+        "responsiveness": "nije primenljivo",
+        "interaction": "nije primenljivo"
+      }
+    },
+    "svg_animations": {
+      "enabled": true,
+      "type": "luk prstena napretka i kvačica završene misije",
+      "description": "Luk se pomeri kad se vrednost promeni (400 ms, bez prebačaja); kvačica se iscrta kad misija pređe u završeno stanje (350 ms).",
+      "params": {
+        "animation_method": "GSAP nad stroke-dashoffset",
+        "path_morphing": "nema",
+        "stroke_animation": "iscrtavanje poteza (pathLength = 1)",
+        "filter_effects": "nema"
+      }
+    },
+    "composite_notes": "Nagrada (nov nivo, dostignuće) je jedino mesto gde se slojevi pokreta slažu — glavni (bedž poskoči), prateći (XP traka i broj) i ambijentalni (čestice). Sve ostalo je jedan miran prelaz. Pri otvaranju ekrana merači stoje; pomeraju se samo na promenu vrednosti."
+  },
+  "taste": {
+    "DESIGN_VARIANCE": 4,
+    "MOTION_INTENSITY": 3,
+    "VISUAL_DENSITY": 7,
+    "napomena": "Raznovrsnost rasporeda ostaje 4, pokret pada sa 4 na 3, gustina radnih ekrana raste sa 6 na 7. Tamna tema, Aeonik i lucide (stroke 1.75) ostaju."
+  }
+}
