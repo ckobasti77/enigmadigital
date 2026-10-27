@@ -119,3 +119,6 @@ Nijedan `next dev` ni drugi proces koji je korak sam pokrenuo nije upaljen.
    - „Postojeći klijent" ne nudi zabranu;
    - „Urađeno" ne donosi XP.
 4. Stare firme kojima je beleška ranije pomerila „poslednji kontakt" ostaju takve (vidi ODLUKE). Ako ih ima mnogo, to traži posebnu migraciju.
+
+## T03 - Plan: jedan status i pošteni brojevi   (2026-10-27 22:18)
+**Plan korak.** Plan je upisan u `docs/ultra/planovi/T03.md`. Kod nije menjan.
