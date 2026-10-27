@@ -48,6 +48,7 @@ import {
 } from "./fixtures-projekti";
 import { FIXTURES_VEZE, UPITI_SA_SAJTA_ZVONO } from "./fixtures-veze";
 import { FIXTURES_BROJEVI } from "./fixtures-brojevi";
+import { FIXTURES_NOVOSTI } from "./fixtures-novosti";
 import { redoviStatusa } from "./fixtures-status-veza";
 import { integracijeUKvaru } from "@/convex/lib/statusVeze";
 
@@ -1187,6 +1188,7 @@ Object.assign(
   FIXTURES_HUB,
   FIXTURES_VEZE,
   FIXTURES_BROJEVI,
+  FIXTURES_NOVOSTI,
 );
 
 // ── Prazan nalog (`?ux=1&prazno=1`) ──────────────────────────────────────────

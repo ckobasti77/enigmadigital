@@ -159,44 +159,51 @@ function FokusNapredak({
           </div>
         </div>
 
-        {/* Na telefonu prstenovi idu ISPOD misija: prvo šta da uradim. */}
-        <ul
-          aria-label="Ova nedelja"
-          className="order-last flex items-start justify-between gap-4 sm:justify-start sm:gap-6 lg:order-none"
-        >
-          {stanje.prstenovi.map((prsten) => (
-            <li
-              key={prsten.kljuc}
-              data-module={MODUL_PRSTENA[prsten.kljuc]}
-              className="flex flex-col items-center gap-2 sm:flex-row sm:gap-2.5"
-            >
-              <ProgressRing
-                value={prsten.vrednost}
-                max={prsten.cilj}
-                size={56}
-                stroke={6}
-                label={`${prsten.naziv} ove nedelje`}
+        {/* Na telefonu prstenovi idu ISPOD misija: prvo šta da uradim. Okvir
+            je drugačiji od misija (nedelja, ne dan), pa ga piše naslov. */}
+        <div className="order-last flex flex-col gap-2 lg:order-none">
+          <p id="prstenovi-okvir" className="text-meta text-text-muted">
+            Ova nedelja
+          </p>
+          <ul
+            aria-labelledby="prstenovi-okvir"
+            className="flex items-start justify-between gap-4 sm:justify-start sm:gap-6"
+          >
+            {stanje.prstenovi.map((prsten) => (
+              <li
+                key={prsten.kljuc}
+                data-module={MODUL_PRSTENA[prsten.kljuc]}
+                className="flex flex-col items-center gap-2 sm:flex-row sm:gap-2.5"
               >
-                <span className="text-copy font-bold text-foreground">
-                  {prsten.vrednost}
+                <ProgressRing
+                  value={prsten.vrednost}
+                  max={prsten.cilj}
+                  size={56}
+                  stroke={6}
+                  label={`${prsten.naziv} ove nedelje`}
+                >
+                  <span className="text-copy font-bold text-foreground">
+                    {prsten.vrednost}
+                  </span>
+                </ProgressRing>
+                <span className="text-center text-meta leading-tight sm:text-left">
+                  <span className="block font-medium text-foreground">
+                    {prsten.naziv}
+                  </span>
+                  <span className="font-mono whitespace-nowrap tabular-nums text-text-muted">
+                    od {prsten.cilj} · {prsten.procenat} %
+                  </span>
                 </span>
-              </ProgressRing>
-              <span className="text-center text-meta leading-tight sm:text-left">
-                <span className="block font-medium text-foreground">
-                  {prsten.naziv}
-                </span>
-                <span className="font-mono whitespace-nowrap tabular-nums text-text-muted">
-                  od {prsten.cilj} · {prsten.procenat} %
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
 
         <div className="flex min-w-0 flex-col gap-2.5 lg:col-span-2">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <p className="text-ui text-text-muted">
-              <span className="font-medium text-foreground">Misije dana</span>
+              <span className="font-medium text-foreground">Danas</span>
+              {" · misije"}
               {misije.length > 0 && (
                 <>
                   {" "}

@@ -317,6 +317,13 @@ function Header({ rail }: { rail: boolean }) {
               <DateRangePicker compact className="hidden md:flex" />
             </Suspense>
           )}
+          {/* Telefon: isti izbor kao jedno dugme („28 d ▾“), pa traka
+              ostaje u jednom redu; mrvica se skraćuje pre nego što se lomi. */}
+          {screen?.range && (
+            <Suspense fallback={<Skeleton className="h-8 w-16 md:hidden" />}>
+              <DateRangePicker variant="meni" className="md:hidden" />
+            </Suspense>
+          )}
           <CommandTrigger />
           {/* Zvono stoji na SVAKOM ekranu: ovde na širem, a na telefonu kao
               ćelija „Danas" u donjoj traci, pod palcem. */}
@@ -325,17 +332,6 @@ function Header({ rail }: { rail: boolean }) {
           <UserMenu />
         </div>
       </div>
-
-      {/* Na telefonu naslov i birač perioda ne staju u isti red, pa birač
-          dobija svoj — i dalje u ljusci, i dalje isti izbor. */}
-      {screen?.range && (
-        <div className={cn(ROW, "material-edge-t py-2 md:hidden")}>
-          <Suspense fallback={<Skeleton className="h-8 w-56" />}>
-            {/* Svoj red — ima mesta, pa razrešen opseg (imenilac) uvek stoji. */}
-            <DateRangePicker />
-          </Suspense>
-        </div>
-      )}
 
       {/* Druga ravan navigacije. Na širem ekranu je u bočnoj traci (podstavke
           aktivnog modula), pa ovde stoji na telefonu — i kada je traka

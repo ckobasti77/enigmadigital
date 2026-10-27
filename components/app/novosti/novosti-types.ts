@@ -75,7 +75,7 @@ export const POST_KINDS: ReadonlyArray<{
 }> = [
   {
     id: "note",
-    label: "Beleška (note)",
+    label: "Beleška",
     wordRange: "200–500 reči",
     minWords: 200,
     maxWords: 500,
@@ -83,7 +83,7 @@ export const POST_KINDS: ReadonlyArray<{
   },
   {
     id: "article",
-    label: "Tekst (article)",
+    label: "Članak",
     wordRange: "1.200–2.500 reči",
     minWords: 1200,
     maxWords: 2500,
@@ -242,6 +242,25 @@ export function evaluatePublishGates(post: Partial<PostItem>): PublishGateStatus
     dek,
     allPassed,
   };
+}
+
+/** Nazivi provera pre objave, redom kojim ih proverava `evaluatePublishGates`. */
+export const NAZIVI_PROVERA = {
+  ownProof: "Dokaz",
+  humanizer: "Prirodan ton",
+  coverAlt: "Opis slike",
+  dek: "Podnaslov",
+} as const;
+
+/**
+ * Šta fali do objave, za karticu nacrta: „dokaz, opis slike". Prazan spisak
+ * znači da su sve provere prošle.
+ */
+export function staFaliZaObjavu(post: Partial<PostItem>): string[] {
+  const kapije = evaluatePublishGates(post);
+  return (Object.keys(NAZIVI_PROVERA) as (keyof typeof NAZIVI_PROVERA)[])
+    .filter((k) => !kapije[k].passed)
+    .map((k) => NAZIVI_PROVERA[k].toLowerCase());
 }
 
 /**

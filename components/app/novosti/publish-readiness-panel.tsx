@@ -26,6 +26,7 @@ import { useMoze, useProjekatMutation } from "@/components/app/projekat-provider
 import {
   evaluatePublishGates,
   extractConvexErrorMessage,
+  NAZIVI_PROVERA,
   type PostItem,
   type PublishGateStatus,
 } from "./novosti-types";
@@ -127,7 +128,7 @@ export function PublishReadinessPanel({
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {/* Kapija 1 */}
         <GateItem
-          title="1. Vlasnički dokaz"
+          title={NAZIVI_PROVERA.ownProof}
           passed={gates.ownProof.passed}
           reason={gates.ownProof.reason}
           extraNote={gates.ownProof.note}
@@ -135,7 +136,7 @@ export function PublishReadinessPanel({
 
         {/* Kapija 2 */}
         <GateItem
-          title="2. Humanizer provera"
+          title={NAZIVI_PROVERA.humanizer}
           passed={gates.humanizer.passed}
           reason={
             gates.humanizer.passed && gates.humanizer.timestamp
@@ -160,14 +161,14 @@ export function PublishReadinessPanel({
 
         {/* Kapija 3 */}
         <GateItem
-          title="3. Naslovna slika i ALT opis"
+          title={NAZIVI_PROVERA.coverAlt}
           passed={gates.coverAlt.passed}
           reason={gates.coverAlt.reason}
         />
 
         {/* Kapija 4 */}
         <GateItem
-          title="4. Podnaslov / dek"
+          title={NAZIVI_PROVERA.dek}
           passed={gates.dek.passed}
           reason={gates.dek.reason}
         />

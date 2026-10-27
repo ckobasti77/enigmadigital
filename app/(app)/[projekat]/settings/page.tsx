@@ -140,8 +140,11 @@ function Podesavanja() {
   // Jezičak koji uloga ne vidi vodi na prvi koji vidi (posmatrač: Projekat).
   const tab = tabs.some((t) => t.id === izabran) ? izabran : tabs[0].id;
   const copy = COPY[tab];
+  // Jezičak menja samo svoj parametar: `?ux=1`, `prazno=1` i ostali ostaju.
   const setTab = (sledeci: Tab) => {
-    router.replace(`${ka("/settings")}?tab=${sledeci}`, { scroll: false });
+    const p = new URLSearchParams(params.toString());
+    p.set("tab", sledeci);
+    router.replace(`${ka("/settings")}?${p.toString()}`, { scroll: false });
   };
 
   return (

@@ -46,7 +46,8 @@ import {
   summarizeIg,
   summarizeOr,
 } from "@/lib/metrics";
-import { formatNumber, formatSignedPercent } from "@/lib/format";
+import { formatDateSpan, formatNumber, formatSignedPercent } from "@/lib/format";
+import type { DateRange } from "@/lib/date-range";
 
 export function OverviewDashboard() {
   const { range } = useDateRange();
@@ -161,110 +162,119 @@ export function OverviewDashboard() {
           automatizacija poslala i koliko leadova još čeka prvi poziv. Boja je
           ovde MESTO — `data-module` na omotaču daje pločici boju kanala.
           Radni ekran ne animira sekcije pri otvaranju, pa `Reveal` ovde nema. */}
-      <section
-        aria-label="Kanali"
-        className="grid grid-cols-2 gap-4 lg:grid-cols-4"
-      >
-        <div data-module="analitika">
-          {hasGa4 ? (
-            ga4Cur && ga4Prev && ga4Series ? (
-              <KpiTile
-                label="Sesije"
-                mera="sesije"
-                icon={LineChart}
-                href="/analytics"
-                value={ga4Cur.sessions}
-                format={formatNumber}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(ga4Cur.sessions, ga4Prev.sessions),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={ga4Series.map((d) => d.sessions)}
-              />
-            ) : (
-              <KpiTileSkeleton />
-            )
-          ) : (
-            <UnconnectedTile label="Sesije" providerName="GA4" />
-          )}
+      <section aria-labelledby="kanali-naslov" className="flex flex-col gap-3">
+        {/* Okvir u naslovu: tabla meša dan, nedelju i period, pa svaka
+            sekcija kaže svoj. Ovde je to period izabran u gornjoj traci. */}
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h2 id="kanali-naslov" className="text-copy font-semibold text-foreground">
+            Kanali
+          </h2>
+          <span className="text-meta tabular-nums text-text-muted">
+            {okvirPerioda(range)}
+          </span>
         </div>
-
-        <div data-module="instagram">
-          {hasInstagram ? (
-            igCur && igPrev && igSeries ? (
-              <KpiTile
-                label="Instagram doseg"
-                mera="doseg"
-                shortLabel="IG doseg"
-                icon={InstagramIcon}
-                href="/instagram"
-                value={igCur.reach}
-                format={formatNumber}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(igCur.reach, igPrev.reach),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={igSeries.map((d) => d.reach)}
-              />
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div data-module="analitika">
+            {hasGa4 ? (
+              ga4Cur && ga4Prev && ga4Series ? (
+                <KpiTile
+                  label="Sesije"
+                  mera="sesije"
+                  icon={LineChart}
+                  href="/analytics"
+                  value={ga4Cur.sessions}
+                  format={formatNumber}
+                  delta={{
+                    kind: "pct",
+                    value: deltaPct(ga4Cur.sessions, ga4Prev.sessions),
+                  }}
+                  formatDelta={formatSignedPercent}
+                  compareLabel={compareLabel}
+                  spark={ga4Series.map((d) => d.sessions)}
+                />
+              ) : (
+                <KpiTileSkeleton />
+              )
             ) : (
-              <KpiTileSkeleton />
-            )
-          ) : (
-            <UnconnectedTile label="Instagram doseg" providerName="Instagram" />
-          )}
-        </div>
+              <UnconnectedTile label="Sesije" providerName="GA4" />
+            )}
+          </div>
 
-        <div data-module="openreply">
-          {hasOpenReply ? (
-            orCur && orPrev && orSeries ? (
-              <KpiTile
+          <div data-module="instagram">
+            {hasInstagram ? (
+              igCur && igPrev && igSeries ? (
+                <KpiTile
+                  label="Instagram doseg"
+                  mera="doseg"
+                  shortLabel="IG doseg"
+                  icon={InstagramIcon}
+                  href="/instagram"
+                  value={igCur.reach}
+                  format={formatNumber}
+                  delta={{
+                    kind: "pct",
+                    value: deltaPct(igCur.reach, igPrev.reach),
+                  }}
+                  formatDelta={formatSignedPercent}
+                  compareLabel={compareLabel}
+                  spark={igSeries.map((d) => d.reach)}
+                />
+              ) : (
+                <KpiTileSkeleton />
+              )
+            ) : (
+              <UnconnectedTile label="Instagram doseg" providerName="Instagram" />
+            )}
+          </div>
+
+          <div data-module="openreply">
+            {hasOpenReply ? (
+              orCur && orPrev && orSeries ? (
+                <KpiTile
+                  label="Poslate DM poruke"
+                  mera="poslate_poruke"
+                  shortLabel="DM poruke"
+                  icon={MessageCircleReply}
+                  href="/openreply"
+                  value={orCur.dmsSent}
+                  format={formatNumber}
+                  delta={{
+                    kind: "pct",
+                    value: deltaPct(orCur.dmsSent, orPrev.dmsSent),
+                  }}
+                  formatDelta={formatSignedPercent}
+                  compareLabel={compareLabel}
+                  spark={orSeries.map((d) => d.dmsSent)}
+                />
+              ) : (
+                <KpiTileSkeleton />
+              )
+            ) : (
+              <UnconnectedTile
                 label="Poslate DM poruke"
-                mera="poslate_poruke"
-                shortLabel="DM poruke"
-                icon={MessageCircleReply}
-                href="/openreply"
-                value={orCur.dmsSent}
-                format={formatNumber}
-                delta={{
-                  kind: "pct",
-                  value: deltaPct(orCur.dmsSent, orPrev.dmsSent),
-                }}
-                formatDelta={formatSignedPercent}
-                compareLabel={compareLabel}
-                spark={orSeries.map((d) => d.dmsSent)}
+                providerName="OpenReply"
               />
-            ) : (
-              <KpiTileSkeleton />
-            )
-          ) : (
-            <UnconnectedTile
-              label="Poslate DM poruke"
-              providerName="OpenReply"
-            />
-          )}
-        </div>
+            )}
+          </div>
 
-        <div data-module="leadovi">
-          <TileBoundary
-            fallback={
-              <KpiTile
-                label="Leadovi bez poziva"
-                mera="leadovi_bez_poziva"
-                icon={Users}
-                href="/leadovi"
-                value={undefined}
-                format={formatNumber}
-                state="unavailable"
-                reason="Broj trenutno nije dostupan."
-              />
-            }
-          >
-            <LeadoviPlocica />
-          </TileBoundary>
+          <div data-module="leadovi">
+            <TileBoundary
+              fallback={
+                <KpiTile
+                  label="Leadovi bez poziva"
+                  mera="leadovi_bez_poziva"
+                  icon={Users}
+                  href="/leadovi"
+                  value={undefined}
+                  format={formatNumber}
+                  state="unavailable"
+                  reason="Broj trenutno nije dostupan."
+                />
+              }
+            >
+              <LeadoviPlocica />
+            </TileBoundary>
+          </div>
         </div>
       </section>
 
@@ -350,6 +360,13 @@ export function OverviewDashboard() {
   );
 }
 
+/** Okvir sekcije Kanali: „Poslednjih 7 dana“ ili prilagođen raspon. */
+function okvirPerioda(range: DateRange): string {
+  return range.preset === "custom"
+    ? formatDateSpan(range.from, range.to)
+    : `Poslednjih ${range.days} dana`;
+}
+
 const NIKAD_DODIRNUT = "leadovi.nikad_dodirnut";
 
 /**
@@ -378,7 +395,8 @@ function LeadoviPlocica() {
       format={(v) => `${zadatak?.odsecen ? "≥ " : ""}${formatNumber(v)}`}
       note={
         zadatak?.imenilac ??
-        (broj === 0 ? "svaki lead u tabeli je bar jednom zvan" : undefined)
+        // Jedina pločica Kanala koja ne zavisi od perioda: kaže da je stanje.
+        (broj === 0 ? "svaki lead u tabeli je bar jednom zvan" : "stanje sada")
       }
     />
   );

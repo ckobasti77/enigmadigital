@@ -19,6 +19,7 @@ import {
   jeIspravanSlug,
 } from "../convex/lib/projekatSlug";
 import { modulUkljucen } from "../convex/lib/moduli";
+import { periodUUpit, type RangeParams } from "./date-range";
 
 export { MODULI_PROJEKTA, modulUkljucen } from "../convex/lib/moduli";
 
@@ -88,14 +89,36 @@ function podeli(adresa: string): [string, string] {
  * Adresa linka za ekran u tekućem projektu. Ne dira: spoljne adrese, sidra,
  * globalne putanje i putanje huba. Idempotentna: adresa koja već nosi prefiks
  * ostaje ista.
+ *
+ * `period` (P4): zapamćen izbor perioda za ekran koji radi nad periodom.
+ * Dodaje se u upit samo kad adresa već ne nosi `range`, `from` ni `to`;
+ * postojeći upit i heš ostaju. Bez njega je ponašanje kao ranije.
  */
-export function putanjaEkrana(ekran: string, prefiks: string): string {
+export function putanjaEkrana(
+  ekran: string,
+  prefiks: string,
+  period?: RangeParams | null,
+): string {
   if (!ekran.startsWith("/") || ekran.startsWith("//")) return ekran;
-  if (prefiks === "") return ekran;
   const [putanja, ostatak] = podeli(ekran);
   if (jeGlobalnaPutanja(putanja) || jeHubPutanja(putanja)) return ekran;
-  if (putanja === prefiks || putanja.startsWith(`${prefiks}/`)) return ekran;
-  return (putanja === "/" ? prefiks : `${prefiks}${putanja}`) + ostatak;
+  const saPeriodom = period ? dodajPeriod(ostatak, period) : ostatak;
+  if (prefiks === "") return putanja + saPeriodom;
+  if (putanja === prefiks || putanja.startsWith(`${prefiks}/`)) return putanja + saPeriodom;
+  return (putanja === "/" ? prefiks : `${prefiks}${putanja}`) + saPeriodom;
+}
+
+/** „?x=1#y“ + period → „?x=1&range=7d#y“; upit sa periodom ostaje isti. */
+function dodajPeriod(ostatak: string, period: RangeParams): string {
+  const hes = ostatak.indexOf("#");
+  const upit = hes === -1 ? ostatak : ostatak.slice(0, hes);
+  const sidro = hes === -1 ? "" : ostatak.slice(hes);
+  const params = new URLSearchParams(upit);
+  if (params.has("range") || params.has("from") || params.has("to")) return ostatak;
+  const dodatak = periodUUpit(period);
+  if (dodatak === "") return ostatak;
+  const pre = upit.length > 1 ? `${upit}&` : "?";
+  return `${pre}${dodatak}${sidro}`;
 }
 
 const EKRAN: ReadonlySet<string> = new Set<string>(EKRANI);

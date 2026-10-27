@@ -52,8 +52,11 @@ export function PoslovanjeKartica() {
       className="flex flex-col gap-3 border-t border-line-soft pt-4"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        {/* Okvir u naslovu: snimak sa sajta, ne izabran period. Prozor svake
+            brojke (7 d, ovaj mesec) daje sajt u njenom nazivu. */}
         <h2 id="poslovanje-naslov" className="text-copy font-semibold text-foreground">
           Poslovanje
+          <span className="font-normal text-text-muted"> · stanje sada</span>
         </h2>
         {puls?.poslednji && (
           <span className="flex items-center gap-2 text-meta text-text-muted">

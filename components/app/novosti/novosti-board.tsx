@@ -4,6 +4,7 @@ import { useMemo, useState, type ComponentType } from "react";
 import {
   Archive,
   CalendarClock,
+  CircleCheck,
   FileText,
   Filter,
   Newspaper,
@@ -19,6 +20,7 @@ import {
   POST_CATEGORIES,
   getCategoryLabel,
   getKindLabel,
+  staFaliZaObjavu,
   type PostItem,
   type PostStatus,
 } from "./novosti-types";
@@ -133,7 +135,7 @@ export function NovostiBoard({
         title="Napiši prvi post"
         steps={[
           { label: "Napiši nacrt: beleška ili tekst" },
-          { label: "Prođi četiri kapije pre objave" },
+          { label: "Pre objave: dokaz, prirodan ton, opis slike, podnaslov" },
           { label: "Objavi post na sajtu" },
         ]}
       >
@@ -308,6 +310,9 @@ function PostCard({
           ? `objavljeno ${formatDateTime(post.publishedAt)}`
           : `izmenjeno ${formatDateTime(post.updatedAt)}`}
       </span>
+      {(post.status === "draft" || post.status === "scheduled") && (
+        <StaFali post={post} />
+      )}
     </>
   );
 
@@ -327,5 +332,26 @@ function PostCard({
     >
       {sadrzaj}
     </button>
+  );
+}
+
+/**
+ * Šta nacrt deli od objave, istim redom i istim rečima kao provera u
+ * uredniku: „Fali: dokaz, opis slike" ili „Spremno za objavu".
+ */
+function StaFali({ post }: { post: PostItem }) {
+  const fali = staFaliZaObjavu(post);
+  if (fali.length === 0) {
+    return (
+      <span className="flex items-center gap-1.5 pl-3.5 text-meta font-medium text-success">
+        <CircleCheck className="size-3.5 shrink-0" aria-hidden />
+        Spremno za objavu
+      </span>
+    );
+  }
+  return (
+    <span className="pl-3.5 text-meta text-text-secondary">
+      <span className="font-medium text-warning">Fali:</span> {fali.join(", ")}
+    </span>
   );
 }

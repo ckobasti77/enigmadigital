@@ -13,7 +13,8 @@ import {
  * strings — the same keys the sync writes — so ranges compare lexicographically.
  *
  * URL shape: `?range=7d|28d|90d` (default 28d, not written) or
- * `?from=YYYY-MM-DD&to=YYYY-MM-DD` for a custom span. Presets end today
+ * `?from=YYYY-MM-DD&to=YYYY-MM-DD` for a custom span. Without either, the
+ * period remembered for the project applies (see `kljucPerioda`). Presets end today
  * (local date, inclusive). The comparison period is the equal-length span
  * immediately before `from`.
  */
@@ -126,4 +127,118 @@ export function dateKeysBetween(from: string, to: string): string[] {
 export function shiftDateKey(key: string, days: number): string {
   const d = parseDateKey(key);
   return d ? toDateKey(addDays(d, days)) : key;
+}
+
+/*
+ * Period koji se pamti (P4). Izbor (bez razrešenih datuma) se čuva po
+ * projektu na ovom uređaju i nosi u linkovima ka ekranima koji rade nad
+ * periodom. Pamćenje je pogodnost, ne uslov: privatni prozor, pun disk ili
+ * zabranjen `localStorage` samo vraćaju podrazumevanih 28 d.
+ */
+
+/** Izbor perioda kako stoji u adresi: preset ili prilagođen raspon. */
+export type RangeParams = { range: RangePreset } | { from: string; to: string };
+
+/** Sopstveni događaj: isti prozor ne dobija `storage`, pa ga šaljemo sami. */
+export const PERIOD_EVENT = "enigma:period";
+
+/** Ključ u `localStorage`: po projektu, a hub (svi projekti) ima svoj. */
+export function kljucPerioda(workspaceId: string | null): string {
+  return `enigma:period:${workspaceId ?? "hub"}`;
+}
+
+/** Ispravan izbor iz upita adrese; `null` kad ga nema ili je neispravan. */
+export function periodIzUpita(params: URLSearchParams): RangeParams | null {
+  const range = params.get("range");
+  if (isPreset(range)) return { range };
+  const from = params.get("from");
+  const to = params.get("to");
+  if (from && to) {
+    const a = parseDateKey(from);
+    const b = parseDateKey(to);
+    if (a && b && a <= b) return { from, to };
+  }
+  return null;
+}
+
+/** Zapamćen tekst → izbor; bilo šta neispravno je `null`. */
+export function periodIzTeksta(sirovo: string | null): RangeParams | null {
+  if (!sirovo) return null;
+  let v: unknown;
+  try {
+    v = JSON.parse(sirovo);
+  } catch {
+    return null;
+  }
+  if (typeof v !== "object" || v === null) return null;
+  const o = v as Record<string, unknown>;
+  if (typeof o.range === "string") {
+    return periodIzUpita(new URLSearchParams({ range: o.range }));
+  }
+  if (typeof o.from === "string" && typeof o.to === "string") {
+    return periodIzUpita(new URLSearchParams({ from: o.from, to: o.to }));
+  }
+  return null;
+}
+
+export type Skladiste = Pick<Storage, "getItem" | "setItem">;
+
+function lokalnoSkladiste(): Skladiste | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Sirov zapamćen tekst (stabilan snimak za `useSyncExternalStore`). */
+export function procitajSirovPeriod(
+  kljuc: string,
+  skladiste: Skladiste | null = lokalnoSkladiste(),
+): string | null {
+  try {
+    return skladiste?.getItem(kljuc) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function procitajPeriod(
+  kljuc: string,
+  skladiste: Skladiste | null = lokalnoSkladiste(),
+): RangeParams | null {
+  return periodIzTeksta(procitajSirovPeriod(kljuc, skladiste));
+}
+
+/** Pamti izbor; `false` kad skladište odbije (i tada se ne baca greška). */
+export function zapamtiPeriod(
+  kljuc: string,
+  p: RangeParams,
+  skladiste: Skladiste | null = lokalnoSkladiste(),
+): boolean {
+  if (skladiste === null) return false;
+  const zapis = "range" in p ? { range: p.range } : { from: p.from, to: p.to };
+  try {
+    skladiste.setItem(kljuc, JSON.stringify(zapis));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Izbor kao upit adrese, bez „?“. Podrazumevanih 28 d se ne piše, kao ni u
+ * `applyRangeParams`, pa je rezultat tada prazan.
+ */
+export function periodUUpit(p: RangeParams): string {
+  if ("range" in p) {
+    return p.range === DEFAULT_PRESET ? "" : `range=${p.range}`;
+  }
+  return new URLSearchParams({ from: p.from, to: p.to }).toString();
+}
+
+/** Izbor → razrešen period; bez izbora važi podrazumevanih 28 d. */
+export function razresiPeriod(p: RangeParams | null, today: Date): DateRange {
+  if (p === null) return presetRange(DEFAULT_PRESET, today);
+  return parseRangeParams(new URLSearchParams(p), today);
 }

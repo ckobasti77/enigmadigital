@@ -17,7 +17,8 @@ export default function OverviewPage() {
             Gore su misije dana i nedeljni ciljevi, izvedeni iz onoga što je
             stvarno urađeno. Ispod je spisak iz zvona, pa GA4 sesije, Instagram
             doseg, OpenReply poruke i leadovi koji još nisu zvani. Period se
-            bira u gornjoj traci i važi na svim ekranima.
+            bira u gornjoj traci, pamti se za ovaj projekat i prenosi na
+            ekrane koji ga koriste.
           </>
         }
       />

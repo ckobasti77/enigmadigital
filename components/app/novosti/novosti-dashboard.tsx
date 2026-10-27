@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { useMoze, useProjekat } from "@/components/app/projekat-provider";
+import {
+  useMoze,
+  useProjekat,
+  useProjekatQuery,
+} from "@/components/app/projekat-provider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
@@ -20,37 +24,10 @@ import {
 import { Plus } from "lucide-react";
 
 const DESCRIPTION =
-  "Članci i beleške za sajt Enigma IT: nacrt, četiri kapije, pa objava.";
+  "Članci i beleške za sajt: nacrt, provera pre objave, pa objava.";
 
 const INFO =
-  "Post se objavljuje tek kad prođe četiri kapije: sopstveni dokaz, provera humanizera, ALT opis naslovne slike i podnaslov. Spisak nacrta se pamti na ovom uređaju; objavljeni postovi stižu iz baze.";
-
-const DRAFTS_STORAGE_KEY_PREFIX = "enigma:novosti:drafts:";
-
-function getStorageKey(workspaceId?: string): string {
-  return `${DRAFTS_STORAGE_KEY_PREFIX}${workspaceId ?? "default"}`;
-}
-
-function loadLocalDrafts(workspaceId?: string): PostItem[] {
-  if (typeof window === "undefined" || !workspaceId) return [];
-  try {
-    const raw = localStorage.getItem(getStorageKey(workspaceId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalDrafts(workspaceId: string, drafts: PostItem[]): void {
-  if (typeof window === "undefined" || !workspaceId) return;
-  try {
-    localStorage.setItem(getStorageKey(workspaceId), JSON.stringify(drafts));
-  } catch {
-    // Tiho ignoriši ako localStorage nije dostupan
-  }
-}
+  "Pre objave: dokaz, prirodan ton, opis slike, podnaslov. Nacrti se čuvaju u bazi i vide se na svakom uređaju.";
 
 export function NovostiDashboard() {
   const { spreman, slug, workspaceId } = useProjekat();
@@ -59,30 +36,19 @@ export function NovostiDashboard() {
 
   const [activeView, setActiveView] = useState<"table" | "editor">("table");
   const [editingPost, setEditingPost] = useState<Partial<PostItem> | null>(null);
+  // Objavljen post otvoren sa table: javni spisak ne nosi telo ni stanje
+  // provera, pa urednik čeka ceo post iz baze (inače bi čuvanje obrisalo tekst).
+  const [ceoZa, setCeoZa] = useState<Id<"posts"> | null>(null);
 
-  // Lokalno evidentirani postovi (nacrti i novokreirani)
-  const [localPosts, setLocalPosts] = useState<PostItem[]>([]);
-
-  // Učitaj lokalne nacrte kad se sazna workspaceId. Poredi se sa radnim
-  // prostorom za koji su nacrti već učitani, pa se čitanje desi jednom po
-  // prostoru i bez efekta.
-  const [draftsFor, setDraftsFor] = useState<Id<"workspaces"> | undefined>(
-    undefined,
+  // Nacrti (i zakazani i arhivirani) iz baze, pa ih ima na svakom uređaju.
+  // Posmatrač ih ne čita: upit traži urednika, a on vidi samo objavljeno.
+  const nacrti = useProjekatQuery(
+    api.postsStore.listaNacrta,
+    moze ? {} : "skip",
   );
-  if (workspaceId && draftsFor !== workspaceId) {
-    setDraftsFor(workspaceId);
-    setLocalPosts(loadLocalDrafts(workspaceId));
-  }
-
-  // Sinhronizacija i čuvanje lokalnih nacrta
-  const persistLocalPosts = useCallback(
-    (nextPosts: PostItem[]) => {
-      setLocalPosts(nextPosts);
-      if (workspaceId) {
-        saveLocalDrafts(workspaceId, nextPosts);
-      }
-    },
-    [workspaceId],
+  const ceoPost = useProjekatQuery(
+    api.postsStore.zaUredjivanje,
+    ceoZa ? { postId: ceoZa } : "skip",
   );
 
   // Upit ka Convexu za objavljene postove
@@ -91,19 +57,18 @@ export function NovostiDashboard() {
     slug ? { workspaceSlug: slug, limit: 50 } : "skip",
   );
 
-  // Spajanje objavljenih postova sa Convex-a i lokalnih postova
+  // Spajanje nacrta iz baze sa objavljenim postovima
   const allPosts = useMemo<PostItem[]>(() => {
     const map = new Map<string, PostItem>();
 
-    // 1. Dodaj lokalno sačuvane postove
-    for (const p of localPosts) {
+    // 1. Nacrti, zakazani i arhivirani (urednik)
+    for (const p of nacrti ?? []) {
       map.set(p._id, p);
     }
 
-    // 2. Dodaj / preklopi sa zvanično objavljenim sa Convex-a
+    // 2. Objavljeni iz javnog spiska
     if (publishedData?.posts) {
       for (const p of publishedData.posts) {
-        const existing = map.get(p._id);
         map.set(p._id, {
           _id: p._id,
           _creationTime: p._creationTime,
@@ -114,8 +79,8 @@ export function NovostiDashboard() {
           category: p.category as PostCategory,
           title: p.title,
           dek: p.dek,
-          body: existing?.body ?? "",
-          coverStorageId: existing?.coverStorageId,
+          // Javni spisak ne nosi telo; urednik ga čita iz `zaUredjivanje`.
+          body: "",
           coverAlt: p.coverAlt,
           authorName: p.authorName,
           authorRole: p.authorRole,
@@ -125,14 +90,9 @@ export function NovostiDashboard() {
           updatedAt: p.updatedAt,
           readingMinutes: p.readingMinutes,
           // Javni upit NE vraća interna polja (§7), pa se ona ovde ne znaju.
-          // Ranije je stajalo `ownProofChecked ?? true` i
-          // `humanizerPassedAt ?? p.publishedAt` — to je IZMIŠLJANJE vrednosti:
-          // post objavljen pre nego što je humanizer postojao prikazivao bi
-          // „humanizer prošla" sa datumom koji je laž. Nepoznato ostaje
-          // nepoznato; ekran to prikazuje kao „nije zabeleženo", ne kao prošlo.
-          ownProofChecked: existing?.ownProofChecked ?? false,
-          ownProofNote: existing?.ownProofNote,
-          humanizerPassedAt: existing?.humanizerPassedAt,
+          // Nepoznato ostaje nepoznato; ekran to prikazuje kao „nije
+          // zabeleženo", ne kao prošlo.
+          ownProofChecked: false,
         });
       }
     }
@@ -141,30 +101,31 @@ export function NovostiDashboard() {
     // Sortiraj po datumu izmene/objave unazad
     list.sort((a, b) => (b.publishedAt ?? b.updatedAt) - (a.publishedAt ?? a.updatedAt));
     return list;
-  }, [localPosts, publishedData, workspaceId]);
+  }, [nacrti, publishedData, workspaceId]);
 
   const handleCreateNew = () => {
     setEditingPost(null);
+    setCeoZa(null);
     setActiveView("editor");
   };
 
   const handleEditPost = (post: PostItem) => {
     if (!moze) return;
     setEditingPost(post);
+    setCeoZa(post.status === "published" ? post._id : null);
     setActiveView("editor");
   };
 
+  // Spisak osvežava Convex sam; ovde se samo pamti šta je urednik otvorio.
   const handleSavedPost = (savedPost: PostItem) => {
-    // Ažuriraj lokalnu listu
-    const updated = localPosts.filter((p) => p._id !== savedPost._id);
-    updated.unshift(savedPost);
-    persistLocalPosts(updated);
+    setCeoZa(null);
     setEditingPost(savedPost);
   };
 
   const handleBackToTable = () => {
     setActiveView("table");
     setEditingPost(null);
+    setCeoZa(null);
   };
 
   // Učitavanje Workspace-a
@@ -185,13 +146,28 @@ export function NovostiDashboard() {
   }
 
   if (activeView === "editor" && moze) {
+    if (ceoZa !== null && ceoPost === undefined) {
+      return <NovostiDashboardSkeleton />;
+    }
+    if (ceoZa !== null && ceoPost === null) {
+      return (
+        <div className="flex flex-1 flex-col gap-6">
+          <PageHeader variant="module" description={DESCRIPTION} />
+          <FeedbackNote tone="warning" title="Post više ne postoji u ovom projektu.">
+            <Button type="button" variant="link" onClick={handleBackToTable}>
+              Nazad na tablu
+            </Button>
+          </FeedbackNote>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-1 flex-col gap-6">
         {/* Uređivač ima svoje zaglavlje; ovde ostaje samo H1 za čitač ekrana. */}
         <PageHeader />
         <NovostiEditor
           key={editingPost?._id ?? "new-post"}
-          initialPost={editingPost}
+          initialPost={ceoZa !== null && ceoPost ? ceoPost : editingPost}
           workspaceId={workspaceId}
           onBack={handleBackToTable}
           onSaved={handleSavedPost}
@@ -218,7 +194,7 @@ export function NovostiDashboard() {
 
       <NovostiBoard
         posts={allPosts}
-        isLoading={publishedData === undefined}
+        isLoading={publishedData === undefined || (moze && nacrti === undefined)}
         onEditPost={moze ? handleEditPost : undefined}
       />
     </div>

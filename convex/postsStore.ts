@@ -2,7 +2,7 @@ import { internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
-import { projekatMutation } from "./lib/projekat";
+import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { SVRHE_NOVOSTI, uploadProjekta } from "./lib/projekatUploadi";
 import { slugify } from "./lib/slug";
 
@@ -16,7 +16,8 @@ import { slugify } from "./lib/slug";
  * 2. Status novokreiranog posta je uvek "draft".
  * 3. Tagovi se NE indeksiraju u bazi (§5.1) — pretraga po tagovima ide u memoriji.
  * 4. Nema polja `sourceRefs`.
- * 5. Nema javnih upita (NV2).
+ * 5. Nema javnih upita za sajt (oni su u `postsPublic`); ovde su samo upiti
+ *    za urednika (`listaNacrta`, `zaUredjivanje`, ULTRA1 T06).
  * 6. Nema publish mutacije (NV2 kapije).
  * 7. Zadržavanje revizija (§5.2): poslednjih 20 po postu ili sve mlađe od 180 dana.
  * ============================================================================
@@ -459,6 +460,102 @@ export const unpublish = projekatMutation({
       success: true,
       status: "draft" as const,
     };
+  },
+});
+
+/**
+ * Post za tablu i urednik (ULTRA1 T06): polja koja `PostItem` na frontu
+ * koristi. Interna polja o prvoj objavi (`publishedBy`, `firstPublishedAt`)
+ * ne izlaze, jer ih ekran ne koristi.
+ */
+const postZaUrednikaValidator = v.object({
+  _id: v.id("posts"),
+  _creationTime: v.number(),
+  workspaceId: v.id("workspaces"),
+  slug: v.string(),
+  locale: v.string(),
+  kind: postKindValidator,
+  category: postCategoryValidator,
+  title: v.string(),
+  dek: v.string(),
+  body: v.string(),
+  coverStorageId: v.optional(v.id("_storage")),
+  coverAlt: v.optional(v.string()),
+  authorName: v.string(),
+  authorRole: v.optional(v.string()),
+  tags: v.array(v.string()),
+  status: postStatusValidator,
+  publishedAt: v.optional(v.number()),
+  updatedAt: v.number(),
+  reviewedAt: v.optional(v.number()),
+  seoTitle: v.optional(v.string()),
+  seoDescription: v.optional(v.string()),
+  canonicalUrl: v.optional(v.string()),
+  ogImageStorageId: v.optional(v.id("_storage")),
+  readingMinutes: v.optional(v.number()),
+  ownProofChecked: v.boolean(),
+  ownProofNote: v.optional(v.string()),
+  humanizerPassedAt: v.optional(v.number()),
+  relatedSlugs: v.optional(v.array(v.string())),
+});
+
+type PostZaUrednika = Omit<Doc<"posts">, "publishedBy" | "firstPublishedAt">;
+
+function zaUrednika(post: Doc<"posts">): PostZaUrednika {
+  const polja: Partial<Doc<"posts">> & PostZaUrednika = { ...post };
+  delete polja.publishedBy;
+  delete polja.firstPublishedAt;
+  return polja;
+}
+
+/** Statusi koje tabla dobija odavde: sve što nije objavljeno. */
+const NEOBJAVLJENI = ["draft", "scheduled", "archived"] as const;
+const NACRTA_PO_STATUSU = 100;
+
+/**
+ * Nacrti projekta iz baze (ULTRA1 T06, plan T03 §7): nacrti, zakazani i
+ * arhivirani, do 100 po statusu, najnovija izmena prva. Objavljene daje
+ * `postsPublic.listPublished`. Ranije se ovaj spisak pamtio samo u pregledaču,
+ * pa nacrt nije postojao na drugom uređaju.
+ *
+ * Samo urednik i vlasnik: posmatrač vidi samo objavljeno, pa ekran za njega
+ * upit preskače.
+ */
+export const listaNacrta = projekatQuery({
+  uloga: "urednik",
+  args: {},
+  returns: v.array(postZaUrednikaValidator),
+  handler: async (ctx) => {
+    const delovi = await Promise.all(
+      NEOBJAVLJENI.map((status) =>
+        ctx.db
+          .query("posts")
+          .withIndex("by_workspace_status_published", (q) =>
+            q.eq("workspaceId", ctx.projekat.workspaceId).eq("status", status),
+          )
+          .take(NACRTA_PO_STATUSU),
+      ),
+    );
+    return delovi
+      .flat()
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .map(zaUrednika);
+  },
+});
+
+/**
+ * Ceo post za urednik, bez obzira na status. Javni spisak objavljenih ne nosi
+ * telo ni stanje provera, pa bi urednik bez ovoga otvorio objavljen post sa
+ * praznim tekstom i čuvanjem ga obrisao.
+ */
+export const zaUredjivanje = projekatQuery({
+  uloga: "urednik",
+  args: { postId: v.id("posts") },
+  returns: v.union(postZaUrednikaValidator, v.null()),
+  handler: async (ctx, args) => {
+    const post = await ctx.db.get(args.postId);
+    if (!post || post.workspaceId !== ctx.projekat.workspaceId) return null;
+    return zaUrednika(post);
   },
 });
 

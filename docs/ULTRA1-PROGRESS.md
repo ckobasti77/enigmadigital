@@ -334,3 +334,70 @@ Nijedan `next dev` ni drugi proces koji je korak sam pokrenuo nije upaljen.
    - urednik pravila piše valutu naloga uz prag;
    - istorija radnji piše stare promene budžeta bez znaka valute;
    - `?campaignId=` otvara detalj kampanje.
+
+## T06 — Period koji se pamti, adresa u jezičcima, nacrti Novosti   (2026-10-28 00:40)
+**Fajlovi:**
+- novi: `lib/date-range.test.ts`, `convex/novosti-t06.test.ts`, `app/dev-ux/fixtures-novosti.ts`, snimci `docs/ultra/snimci/T06-*.png` (6).
+- period i adresa: `lib/date-range.ts`, `lib/rutiranje.ts`, `lib/rutiranje.test.ts`, `components/app/date-range-picker.tsx`, `components/app/projekat-link.tsx`, `components/app/app-shell.tsx`, `app/(app)/[projekat]/settings/page.tsx`, `app/(app)/[projekat]/page.tsx`.
+- tabla: `components/app/overview/overview-dashboard.tsx`, `command-focus.tsx`, `poslovanje-kartica.tsx`.
+- Novosti: `convex/postsStore.ts`, `components/app/novosti/novosti-dashboard.tsx`, `novosti-board.tsx`, `novosti-types.ts`, `publish-readiness-panel.tsx` (samo natpisi kapija).
+- razvojni prikaz: `app/dev-ux/fixtures.ts` (jedan uvoz i jedan red registracije).
+
+**Šta je urađeno:**
+- **Period se pamti (P4).** `useDateRange` čita redom: adresu (`range` ili `from`/`to`), period zapamćen za projekat, pa 28 d. Izbor upisuje adresu kao ranije i pamti se pod `enigma:period:<workspaceId>` (hub: `enigma:period:hub`). Čitanje ide kroz `useSyncExternalStore` (događaji `storage` i `enigma:period`), a server i prvi crtež vide `null`, pa nema greške hidratacije. Svi pristupi `localStorage` su u `try/catch` (čiste funkcije u `lib/date-range.ts`: `kljucPerioda`, `periodIzUpita`, `periodIzTeksta`, `procitajPeriod`, `zapamtiPeriod`, `periodUUpit`, `razresiPeriod`).
+- **Period u linkovima.** `putanjaEkrana(ekran, prefiks, period?)` dodaje period u upit samo kad adresa nema `range`, `from` ni `to`; postojeći upit i heš ostaju, a bez trećeg argumenta ponašanje je isto. `ProjekatLink` prosleđuje zapamćen period samo za ekrane sa `range: true` (`resolveScreen`), pa bočna traka, donja traka, podekrani Analitike i pločice table nose `?range=7d` bez izmene navigacije.
+- **Okvir u naslovu.** Tabla: sekcija „Kanali" dobija naslov sa okvirom „Poslednjih N dana" (prilagođen period: raspon datuma); prstenovi dobijaju vidljiv natpis „Ova nedelja"; misije počinju sa „Danas · misije"; Poslovanje piše „· stanje sada"; pločica „Leadovi bez poziva" bez imenioca kaže „stanje sada". Info table kaže da se period pamti za projekat.
+- **Jezičci Podešavanja** menjaju samo `tab`; `?ux=1`, `prazno=1` i ostali parametri ostaju (snimak).
+- **Telefon.** Birač je jedno dugme („7 d ▾", prilagođen period kao „1.–15. okt") u glavnom redu gornje trake, između mrvice i ⌘K. Meni nosi 7/28/90 d (mete 44 px), razrešene datume i „Prilagođen period…" sa istim poljima kao desktop (izdvojena u `PrilagodjenPeriod`). Drugi red trake je obrisan; desktop (`compact`) je isti.
+- **Novosti.** Spisak nacrta daje `postsStore.listaNacrta` (`projekatQuery`, `uloga: "urednik"`, indeks `by_workspace_status_published`, `take(100)` po statusu, sort po `updatedAt`). Front ga zove sa `"skip"` kad `!useMoze("urednik")`. `loadLocalDrafts`/`saveLocalDrafts`/`persistLocalPosts` su obrisani, a ključ `enigma:novosti:drafts:*` se više ne čita ni ne piše (nije obrisan). Kartica nacrta i zakazanog posta piše „Fali: dokaz, prirodan ton" ili „Spremno za objavu" (`staFaliZaObjavu`, redom kapija). Reči su po §5.7: opis i info ekrana, korak praznog stanja, natpisi kapija „Dokaz / Prirodan ton / Opis slike / Podnaslov" (jedan izvor `NAZIVI_PROVERA`), vrste „Beleška" i „Članak".
+
+**ODLUKE:**
+- **Pamti se izbor, link nosi zapamćen period.** `ProjekatLink` stoji u ljusci, van Suspense granica stranice, pa ne čita `useSearchParams`; nosi zapamćen izbor, ne period iz tuđe deljene adrese. Otvoren deljen link sa `?range=90d` važi na tom ekranu, ali se ne pamti dok ga korisnik ne izabere.
+- **28 d se pamti, ali se ne piše u adresu ni u link** (`periodUUpit` vraća prazno), kao i dosadašnji `applyRangeParams`.
+- **Projekat koji se učitava nema ključ**, pa se dok `workspaceId` ne stigne ne čita ni ne piše period (nema mešanja sa hubom). Na tvrdom osvežavanju birač zato prvi kadar pokaže adresu ili 28 d. Za hub je iskorišćen postojeći `useProjekatOpciono`.
+- **⌘K** (`command-palette.tsx`, nije fajl T06) ne dodaje period u adresu, ali ciljni ekran svejedno čita zapamćen period, pa je izbor isti.
+- **Okvir Poslovanja.** Plan predlaže „Poslednjih 7 dana" za upite, „Ovaj mesec" za prihod i „Danas" umesto „za 24 h". Brojke i njihove nazive šalje sajt projekta (Puls), a prozor svake brojke je već u nazivu („Upiti (7 d)", „Prihod ovog meseca"); prepisivanje naziva bi izmislilo okvir za tuđe brojke. „za 24 h" je klizni prozor (`promena24h`), a „Danas" bi bio kalendarski dan, što nije tačno. Zato sekcija piše „Poslovanje · stanje sada", a „za 24 h" ostaje (mono za reči sređuje T10).
+- **Dugme „28 d ▾" je `outline`, ne `secondary`.** `secondary` danas nosi boju modula, a boja modula ne ide na dugmad (CLAUDE.md); T09 menja `secondary` u neutralno. Strelica je lucide `ChevronDown`, ne znak „▾". Dugme „Primeni" nije menjano (uloga dugmadi je T09).
+- **`listaNacrta` vraća i arhivirane postove**, ne samo nacrte i zakazane: arhiva je ranije stizala iz `localStorage`, pa bi kolona „Arhiva" bez toga lažno pisala „Arhiva je prazna". Objavljeni i dalje ne izlaze (test).
+- **Nov upit `postsStore.zaUredjivanje`** (urednik, ceo post u svom projektu, inače `null`). Bez njega bi otvaranje objavljenog posta dalo urednik sa praznim telom (javni spisak ne nosi telo), a čuvanje bi obrisalo tekst; ranije je telo stizalo iz lokalne kopije. Dashboard za objavljen post čeka ovaj upit, a uređivač nije menjan.
+- **„`localStorage` čuva samo nesačuvan unos".** Uređivač danas nema čuvanje nesačuvanog unosa, a T06 ne sme da menja uređivač; zato Novosti u `localStorage` ne čuvaju ništa. Čuvanje nesačuvanog unosa je posao za U13.
+- **Interna polja** `publishedBy`/`firstPublishedAt` ne izlaze iz upita za urednika (ekran ih ne koristi).
+- **`scripts/ux-snapshots.mjs`** i dalje upisuje stare lokalne nacrte za snimak `novosti`; to je sada mrtvo (ekran ih ne čita), a nacrte daje fikstura. Skripta nije menjana.
+- **Snimak „posle klika".** Linkovi u razvojnom prikazu gube `?ux=1` (zatečeno), pa klik vodi na prijavu. Snimak Instagrama je zato adresa iz linka (`/instagram?range=7d`, provereno u DOM-u) plus `&ux=1`; dodatno je `/analytics?ux=1` bez `range` pokazao 7 d iz zapamćenog izbora.
+- **Gornja traka na 390** je jedan red (56 px); na ekranima sa podekranima ispod nje ostaje traka jezičaka (navigacija, U10).
+- Prettier je na tabli prvo preformatirao tuđe redove; izmena je vraćena i ponovljena ručno, pa diff nosi samo T06.
+- Skill `impeccable` je pozvan pre UI koda. Radnici nisu korišćeni.
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- `lib/date-range.test.ts` (23): ključ po projektu i hubu; pamćenje i čitanje preseta, raspona i 28 d; projekti ne dele period; neispravan zapis (9 slučajeva: nije JSON, prazno, `null`, broj, nepoznat preset, obrnut raspon, neispravan datum, samo `from`, pogrešan tip); `localStorage` koji baca grešku (čitanje `null`, pamćenje `false`, bez izuzetka); bez skladišta; `periodIzUpita`, `periodUUpit`, `razresiPeriod`.
+- `lib/rutiranje.test.ts` (+14): period se dodaje u hubu i panelu, uz postojeći upit i pre heša; adresa koja već ima `range`/`from`/`to` ostaje ista; raspon kao `from`/`to`; 28 d se ne piše; bez perioda je isto kao ranije; globalne, spoljne putanje, sidra i hub se ne diraju; povratni put ekrana.
+- `convex/novosti-t06.test.ts` (5): `listaNacrta` vraća samo neobjavljene postove tog projekta, najnovije prve, sa telom; urednik čita, posmatrač dobija `forbidden`, neprijavljen `unauthorized`; tuđ projekat `forbidden`; interna polja ne izlaze; `zaUredjivanje` daje objavljen post sa telom, tuđ post kao `null`, posmatraču `forbidden`.
+
+**Rezultat provere:**
+- `npx convex codegen`: prošao (jedan prolaz je pao na `fetch failed`, ponovljen i prošao).
+- typecheck: prošao.
+- lint: 0 grešaka (1210 upozorenja, isto kao pre).
+- vitest: 60 fajlova / 1061 test prošlo (uključujući `linkovi-cuvar`, `zakucane-adrese`, `front-cuvar`, `mere-pokrivenost`).
+- pristup: prošao (izlaz 0).
+- regresije: 14/14 prošlo.
+- **Vizuelno** (Playwright, `?ux=1`, port 3117):
+  - `T06-tabla-7d-1536.png`: tabla posle izbora 7 d; `localStorage` ima `{"range":"7d"}`, linkovi bočne trake i pločica su `/instagram?range=7d`, `/analytics?range=7d`, naslov „Kanali · Poslednjih 7 dana", „Ova nedelja" iznad prstenova;
+  - `T06-instagram-posle-klika-7d-1536.png`: Instagram na 7 d („vs prethodnih 7 d");
+  - `T06-podesavanja-jezicak-ux-1536.png`: klik na „Projekat" daje `/settings?ux=1&tab=projekat`;
+  - `T06-novosti-1536.png`: nacrti iz fiksture uz prazan `localStorage`, „Fali: dokaz, prirodan ton", „Fali: opis slike", „Spremno za objavu", arhiva;
+  - `T06-gornja-traka-390.png` i `T06-birac-meni-390.png`: traka u jednom redu, dugme „7 d", otvoren meni; bez vodoravnog klizanja (390 px), bez grešaka u konzoli.
+- Dev server je ugašen (PID 29244; port 3117 slobodan, nijedan `next` proces ovog projekta ne radi). Pomoćni fajlovi Playwright-a su u `.nocni-run/ultra1/tmp/t06-playwright/`.
+
+**Prihvatanje:**
+- Period izabran na tabli važi na modulu posle klika: ispunjeno (test `putanjaEkrana` sa periodom, snimci table i Instagrama, provera linkova u DOM-u).
+- Klik na jezičak Podešavanja ne briše druge parametre: ispunjeno (snimak, adresa `?ux=1&tab=projekat`).
+- Nacrt Novosti se vidi u spisku i bez `localStorage`: ispunjeno (`convex/novosti-t06.test.ts`, snimak uz prazan `localStorage`).
+- Provere prolaze i sekcija T06 je ovde: ispunjeno.
+
+**Za Jovana ujutru:**
+1. Posle deploya na pravoj bazi: na tabli izaberi 7 d, pa klikni Instagram ili Analitiku u bočnoj traci; adresa nosi `?range=7d`, a birač pokazuje 7 d. Osveži stranu modula bez `range`: i dalje 7 d (pamti se po projektu na ovom uređaju).
+2. Novosti: nacrti koje si pisao na jednom uređaju vide se i na drugom. Otvori jedan objavljen post i proveri da uređivač ima ceo tekst pre nego što sačuvaš.
+3. Na telefonu: gornja traka je jedan red, a period se bira dugmetom „28 d ▾".
+4. Potvrdi odluke: „Poslovanje · stanje sada" umesto preimenovanja brojki sa sajta; arhiva u istom upitu kao nacrti; „Danas · misije" kao naslov misija.

@@ -52,6 +52,60 @@ describe("putanjaEkrana (izlaz: adresa linka)", () => {
   });
 });
 
+describe("putanjaEkrana sa periodom (P4)", () => {
+  const sedam = { range: "7d" } as const;
+  test.each([
+    ["/instagram", "/enigma-it", "/enigma-it/instagram?range=7d"],
+    ["/instagram", "", "/instagram?range=7d"],
+    ["/", "/enigma-it", "/enigma-it?range=7d"],
+    ["/", "", "/?range=7d"],
+    ["/analytics/sticanje?tab=x", "", "/analytics/sticanje?tab=x&range=7d"],
+    ["/ads?campaignId=1#detalj", "/scanme", "/scanme/ads?campaignId=1&range=7d#detalj"],
+    ["/ads#detalj", "", "/ads?range=7d#detalj"],
+    ["/enigma-it/instagram", "/enigma-it", "/enigma-it/instagram?range=7d"],
+  ])("%s u „%s“ → %s", (ekran, prefiks, ocekivano) => {
+    expect(putanjaEkrana(ekran, prefiks, sedam)).toBe(ocekivano);
+  });
+
+  test("adresa koja već nosi period ostaje ista", () => {
+    for (const ekran of ["/ads?range=90d", "/ads?from=2026-10-01&to=2026-10-15", "/ads?x=1&to=2026-10-15"]) {
+      expect(putanjaEkrana(ekran, "", sedam)).toBe(ekran);
+      expect(putanjaEkrana(ekran, "/scanme", sedam)).toBe(`/scanme${ekran}`);
+    }
+  });
+
+  test("prilagođen raspon ide kao from/to", () => {
+    expect(putanjaEkrana("/instagram", "", { from: "2026-10-01", to: "2026-10-15" })).toBe(
+      "/instagram?from=2026-10-01&to=2026-10-15",
+    );
+  });
+
+  test("podrazumevanih 28 d se ne piše, kao ni u adresi birača", () => {
+    expect(putanjaEkrana("/instagram", "/enigma-it", { range: "28d" })).toBe("/enigma-it/instagram");
+  });
+
+  test("bez perioda je ponašanje isto kao ranije", () => {
+    for (const [ekran, prefiks] of [["/leadovi?tab=overdue#red", "/scanme"], ["/", ""], ["/ads", "/x"]]) {
+      expect(putanjaEkrana(ekran, prefiks, null)).toBe(putanjaEkrana(ekran, prefiks));
+      expect(putanjaEkrana(ekran, prefiks, undefined)).toBe(putanjaEkrana(ekran, prefiks));
+    }
+  });
+
+  test("globalne, spoljne putanje, sidra i hub se ne diraju", () => {
+    for (const ekran of ["/login", "/privacy", "/r/abc", "/novi", "https://enigmait.rs/x", "//cdn.example.com/x", "#sadrzaj", "/logo.png"]) {
+      expect(putanjaEkrana(ekran, "/enigma-it", sedam)).toBe(ekran);
+      expect(putanjaEkrana(ekran, "", sedam)).toBe(ekran);
+    }
+  });
+
+  test("povratni put ekrana ostaje isti i sa periodom", () => {
+    const prefiks = prefiksProjekta("scanme", "hub");
+    const adresa = putanjaEkrana("/instagram", prefiks, sedam);
+    const [putanja] = adresa.split("?");
+    expect(ekranIzPutanje(putanja, prefiks)).toBe("/instagram");
+  });
+});
+
 describe("ekranIzPutanje (izlaz: navigacija)", () => {
   test.each([
     ["/enigma-it/leadovi/uvoz", "/enigma-it", "/leadovi/uvoz"],
