@@ -9,6 +9,7 @@ import {
 } from "./lib/projekat";
 import { ALL_PROVIDERS } from "./lib/providers";
 import { brojNerazresenih } from "./lib/importFlow";
+import { korakKasni, rokKoraka } from "./lib/leadKorak";
 import {
   ODLAGANJE_MS,
   bedzeviOd,
@@ -347,7 +348,8 @@ export async function citajLeadove(
   }> = [];
 
   for (const dodela of dodele) {
-    if (dodela.nextActionAt !== undefined && dodela.nextActionAt < now) {
+    // Isto pravilo kao jezičak Zaostali (`listOverdue`): zatvoren posao nema korak.
+    if (korakKasni(dodela, now)) {
       zaostaliKoraci++;
     }
     // „Nikad dodirnut" je isto pravilo koje koristi filter `?dodir=nikad`
@@ -428,11 +430,13 @@ export async function citajLeadove(
   }
 
   // Isto pravilo kao red „Zovi sada" na ekranu Danas pre Fit filtera
-  // (`listLeadsFiltered` sa `tel: 40, dodir: ["nikad"]`).
+  // (`listLeadsFiltered` sa `ZOVI_SADA_FILTER`): firma sa dogovorenim
+  // korakom čeka u „Vrati se na", ne u ovom redu.
   let zoviSada = 0;
   for (const dodela of dodele) {
     if (
       dodela.lastTouchAt === undefined &&
+      rokKoraka(dodela) === undefined &&
       saDobromProcenom.has(String(dodela.companyId))
     ) {
       zoviSada++;

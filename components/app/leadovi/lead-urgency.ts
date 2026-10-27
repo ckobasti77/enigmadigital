@@ -16,6 +16,7 @@ import {
   pluralSr,
 } from "@/lib/format";
 import { TEMPERATURE_EDGE_CLASS } from "@/lib/temperature";
+import { korakKasni, rokKoraka } from "@/convex/lib/leadKorak";
 
 export type LeadRowContact = { value: string; personName?: string };
 export type LeadRowPerson = {
@@ -59,8 +60,9 @@ type Assignment = Doc<"leadAssignments">;
 /** Posle ovoliko dana bez dodira kolona „Poslednji dodir” tiho crveni (§7). */
 export const UNTOUCHED_LIMIT_DAYS = 30;
 
+/** Isto pravilo kao `listOverdue`: zatvoren posao nema korak koji kasni. */
 export function isNextActionOverdue(a: Assignment, now: number): boolean {
-  return a.nextActionAt !== undefined && a.nextActionAt < now;
+  return korakKasni(a, now);
 }
 
 /** Sastanak danas ili sutra po LOKALNOM danu; termin ranije danas je i dalje „danas”. */
@@ -139,11 +141,12 @@ export function describeNextUp(a: Assignment | null, now: number): NextUp {
     return { text: "Izgubljen — lead je zatvoren.", tone: "muted" };
   }
 
-  if (a.nextActionAt !== undefined && a.nextActionAt < now) {
-    const days = localDayDiff(now, a.nextActionAt);
+  const rok = rokKoraka(a);
+  if (rok !== undefined && rok < now) {
+    const days = localDayDiff(now, rok);
     const koliko =
       days <= 0
-        ? `Rok istekao danas u ${formatClockTime(a.nextActionAt)}`
+        ? `Rok istekao danas u ${formatClockTime(rok)}`
         : `Zaostalo ${days} ${pluralSr(days, "dan", "dana", "dana")}`;
     return {
       text: a.nextActionNote
@@ -162,10 +165,7 @@ export function describeNextUp(a: Assignment | null, now: number): NextUp {
 
   const meeting =
     a.meetingAt !== undefined && a.meetingAt >= now ? a.meetingAt : undefined;
-  const step =
-    a.nextActionAt !== undefined && a.nextActionAt >= now
-      ? a.nextActionAt
-      : undefined;
+  const step = rok !== undefined && rok >= now ? rok : undefined;
 
   if (meeting !== undefined && (step === undefined || meeting <= step)) {
     const kad = dayAndClock(meeting, now);

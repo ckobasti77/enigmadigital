@@ -764,9 +764,22 @@ describe("kopirajUProjekat: šta se kopira, a šta ne", () => {
       humanConfirmed: true,
     });
 
-    // CRM stanje: ni dodela, ni događaj faze, ni signal u B.
-    expect(await redovi(s, "leadAssignments", s.wsB)).toHaveLength(0);
-    expect(await redovi(s, "leadStageEvents", s.wsB)).toHaveLength(0);
+    // CRM stanje iz A se ne prenosi (faza „u_radu", vlasnik ana, signal). Kopija
+    // je nova firma u B, pa dobija SVOJE zaduženje (ULTRA-PLAN §4, tačka 4):
+    // faza „nov", zadužen onaj ko je kopirao, i samo događaj „dodela".
+    const dodeleB = await redovi(s, "leadAssignments", s.wsB);
+    expect(dodeleB).toHaveLength(1);
+    expect(dodeleB[0]).toMatchObject({
+      companyId: kopija._id,
+      ownerUserId: s.jovan,
+      stage: "nov",
+    });
+    expect(dodeleB[0]!.lastTouchAt).toBeUndefined();
+    expect(dodeleB[0]!.nextActionAt).toBeUndefined();
+    expect(dodeleB[0]!.outcome).toBeUndefined();
+    const dogadjajiB = await redovi(s, "leadStageEvents", s.wsB);
+    expect(dogadjajiB).toHaveLength(1);
+    expect(dogadjajiB[0]).toMatchObject({ kind: "dodela", toValue: String(s.jovan) });
     expect(await redovi(s, "leadSignals", s.wsB)).toHaveLength(0);
 
     // Izvor u A je netaknut.

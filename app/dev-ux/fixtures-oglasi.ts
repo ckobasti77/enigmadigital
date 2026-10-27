@@ -1544,6 +1544,8 @@ const profilDogadjaji: Doc<"leadStageEvents">[] = [
   dogadjaj(6, now - 2 * DAY + 5 * 60_000, { kind: "sledeci_korak", toValue: String(SLEDECI_KORAK), note: "Zvati posle 10h" }),
   dogadjaj(5, now - 2 * DAY, { kind: "ishod", toValue: "zainteresovan", note: "Traži cenu za redizajn sajta." }),
   dogadjaj(4, now - 2 * DAY - 10 * 60_000, { kind: "dodir", toValue: "poziv", note: "Javila se vlasnica, razgovor oko 4 minuta.", timeConfirmed: true }),
+  // T02: korak označen kao urađen (bez novog roka) — istorija ga imenuje.
+  dogadjaj(7, now - 3 * DAY, { kind: "sledeci_korak", fromValue: String(now - 3 * DAY - 2 * 60 * 60_000), korakZatvoren: "uradjen", note: "Poslati cenovnik" }),
   dogadjaj(3, now - 4 * DAY, { kind: "ishod", toValue: "nije_se_javio" }),
   dogadjaj(2, now - 6 * DAY, { kind: "faza", fromValue: "nov", toValue: "u_radu" }),
   dogadjaj(1, now - 7 * DAY, { kind: "dodela", toValue: String(USER) }),

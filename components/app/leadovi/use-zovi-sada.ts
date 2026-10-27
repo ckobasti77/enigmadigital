@@ -5,6 +5,7 @@ import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { LeadScore } from "@/convex/lib/leadScoring";
+import { ZOVI_SADA_FILTER } from "@/convex/lib/leadKorak";
 import { axisPct } from "./lead-columns";
 import type { LeadRowItem } from "./lead-urgency";
 
@@ -14,7 +15,8 @@ import type { LeadRowItem } from "./lead-urgency";
  * ============================================================================
  *
  * Kriterijum (plan O1): ima telefon, procena „čiji je broj" ≥ 40 %, nikad
- * dodirnut, Fit ≥ prosek kandidata. Traka „Zovi sada" pokazuje prvih pet, a
+ * dodirnut, bez dogovorenog koraka (ULTRA-PLAN §4, tačka 8: firma sa korakom
+ * čeka u „Vrati se na", ne u oba reda), Fit ≥ prosek kandidata. Traka „Zovi sada" pokazuje prvih pet, a
  * Režim poziva prolazi kroz isti spisak redom — zato ga oba čitaju odavde, pa
  * ne mogu da se raziđu oko toga koja firma je sledeća.
  *
@@ -45,8 +47,7 @@ export type ZoviSada = {
 /** `null` dok spisak nije stigao. */
 export function useZoviSada(): ZoviSada | null {
   const data = useProjekatQuery(api.leadFiltersStore.listLeadsFiltered, {
-    tel: 40,
-    dodir: ["nikad"],
+    ...ZOVI_SADA_FILTER,
     strana: 1,
     poStrani: KANDIDATA,
   });

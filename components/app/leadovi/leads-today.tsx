@@ -49,6 +49,7 @@ import { axisPct, zastoSignals } from "./lead-columns";
 import { leadSignalLabel } from "./lead-labels";
 import { groupMeetings, type MeetingItem } from "./meetings-panel";
 import { WorkCard, WorkSection } from "./work-card";
+import { KorakUradjen } from "./korak-uradjen";
 import { UpitiSaSajta } from "./upiti-sa-sajta";
 import {
   isMeetingUnresolved,
@@ -76,7 +77,8 @@ import { KANDIDATA, useNisaZa, useZoviSada, type ZoviSada } from "./use-zovi-sad
  *
  * Sve se čita kroz POSTOJEĆE upite (O8): kandidati za „Zovi sada" su
  * `listLeadsFiltered` sa `tel ≥ 40` i `dodir = nikad` (`use-zovi-sada.ts`),
- * ocene kroz `scoreCompanies`, „Vrati se na" iz `listOverdue` + `listMeetings`,
+ * ocene kroz `scoreCompanies`, „Vrati se na" iz `listKoraciDanas` (koraci za
+ * danas i zakasneli, ULTRA-PLAN §4 tačka 7) + `listMeetings`,
  * „Dopuni pa zovi" iz `listCompaniesWithGap(bez_telefona)`. Granice tih upita
  * se prenose na ekran, ne prećutkuju.
  *
@@ -102,7 +104,17 @@ export function LeadsToday() {
   const facet = useProjekatQuery(api.leadFiltersStore.countLeadsByFacet);
   const gaps = useProjekatQuery(api.leadGapsStore.listGaps);
   const zovi = useZoviSada();
-  const overdue = useProjekatQuery(api.leadCrmStore.listOverdue, { limit: KANDIDATA });
+  // Kraj LOKALNOG dana: server radi u UTC-u, pa granicu „danas" šalje ekran.
+  // Vrednost je ista ceo dan, pa se pretplata ne menja sa svakim minutom.
+  const krajDana = useMemo(() => {
+    const d = new Date(now);
+    d.setHours(23, 59, 59, 999);
+    return d.getTime();
+  }, [now]);
+  const koraci = useProjekatQuery(api.leadCrmStore.listKoraciDanas, {
+    krajDana,
+    limit: KANDIDATA,
+  });
   const meetingsData = useProjekatQuery(api.leadCrmStore.listMeetings);
   const bezBroja = useProjekatQuery(api.leadGapsStore.listCompaniesWithGap, {
     gapType: "bez_telefona",
@@ -123,14 +135,15 @@ export function LeadsToday() {
   const [callStrip, setCallStrip] = useState<{ companyId: string; phone: string } | null>(null);
   const [fillCompany, setFillCompany] = useState<Doc<"leadCompanies"> | null>(null);
 
-  // ── Vrati se na: zaostali + sastanci (prošli bez ishoda, i u naredna 3 dana) ──
+  // ── Vrati se na: koraci (zakasneli i današnji) + sastanci (prošli bez ishoda,
+  //    i u naredna 3 dana) ──
   const vrati = useMemo(() => {
-    if (!overdue || !meetingsData) return null;
+    if (!koraci || !meetingsData) return null;
     const groups = groupMeetings(meetingsData.items as MeetingItem[], meetingsData.now);
     const uskoro = [...groups.danas, ...groups.sutra, ...groups.oveNedelje].filter(
       (m) => localDayDiff(m.meetingAt, now) <= VRATI_SE_DANA,
     );
-    type Stavka = { item: LeadRowItem; razlog: string; tone: "danger" | "warning" | "neutral"; kind: "sastanak_bez_ishoda" | "zaostao" | "sastanak" };
+    type Stavka = { item: LeadRowItem; razlog: string; tone: "danger" | "warning" | "neutral"; kind: "sastanak_bez_ishoda" | "korak" | "sastanak" };
     const stavke: Stavka[] = [];
     const videne = new Set<string>();
     const dodaj = (s: Stavka) => {
@@ -156,18 +169,24 @@ export function LeadsToday() {
         kind: "sastanak_bez_ishoda",
       });
     }
-    const zaostali = [...(overdue.items as (LeadRowItem & { delayMs: number })[])].sort(
-      (a, b) => b.delayMs - a.delayMs,
+    // Koraci po roku (upit ih vraća tim redom): zakasneli nose „kasni", a
+    // današnji se vide pre nego što zakasne.
+    const poRoku = [...(koraci.items as (LeadRowItem & { kasni: boolean })[])].sort(
+      (a, b) => (a.assignment.nextActionAt ?? 0) - (b.assignment.nextActionAt ?? 0),
     );
-    for (const z of zaostali) {
-      const dana = localDayDiff(now, z.assignment.nextActionAt ?? now);
+    for (const k of poRoku) {
+      const rok = k.assignment.nextActionAt ?? now;
+      const dana = localDayDiff(now, rok);
+      const kad = k.kasni
+        ? dana <= 0
+          ? `Kasni od ${formatClockTime(rok)}`
+          : `Kasni ${dana} ${pluralSr(dana, "dan", "dana", "dana")}`
+        : `${velikoPocetno(formatDayRelative(rok, now))} u ${formatClockTime(rok)}`;
       dodaj({
-        item: z,
-        razlog:
-          (dana <= 0 ? `Rok istekao danas u ${formatClockTime(z.assignment.nextActionAt ?? now)}` : `Kasni ${dana} ${pluralSr(dana, "dan", "dana", "dana")}`) +
-          (z.assignment.nextActionNote ? ` — „${z.assignment.nextActionNote}”` : ""),
-        tone: "danger",
-        kind: "zaostao",
+        item: k,
+        razlog: kad + (k.assignment.nextActionNote ? ` — „${k.assignment.nextActionNote}”` : ""),
+        tone: k.kasni ? "danger" : "neutral",
+        kind: "korak",
       });
     }
     for (const m of uskoro.sort((a, b) => a.meetingAt - b.meetingAt)) {
@@ -181,11 +200,11 @@ export function LeadsToday() {
     return {
       stavke: stavke.slice(0, MAX_KARTICA),
       ukupno: stavke.length,
-      zaostalih: overdue.count,
+      zaostalih: koraci.zakasnelih,
       sastanaka: groups.prosliBezIshoda.length + uskoro.length,
-      mozdaImaJos: overdue.mozdaImaJos || meetingsData.mozdaImaJos,
+      mozdaImaJos: koraci.mozdaImaJos || meetingsData.mozdaImaJos,
     };
-  }, [overdue, meetingsData, now]);
+  }, [koraci, meetingsData, now]);
 
   // ── Dopuni pa zovi: nema telefon, a Fit je visok ──
   const dopuni = useMemo(() => {
@@ -417,7 +436,7 @@ export function LeadsToday() {
       <WorkSection
         naslov="Vrati se na"
         icon={CalendarClock}
-        kriterijum={`ima zaostao korak · ima sastanak bez ishoda · ima sastanak u naredna ${VRATI_SE_DANA} dana`}
+        kriterijum={`korak za danas ili zakasneo · sastanak bez ishoda · sastanak u naredna ${VRATI_SE_DANA} dana`}
         ukupno={vrati?.ukupno}
         vidiSve={
           vrati && vrati.ukupno > 0
@@ -436,7 +455,7 @@ export function LeadsToday() {
         prazno={
           vrati && vrati.ukupno === 0 ? (
             <>
-              Nema zaostalih koraka ni sastanka u naredna {VRATI_SE_DANA} dana. Rok nastaje tek kad ga
+              Nema koraka za danas ni sastanka u naredna {VRATI_SE_DANA} dana. Rok nastaje tek kad ga
               upišeš iz reda („Sledeći korak…”){facetZna && facetZna.dodir.nikad > 0 ? (
                 <> — a {facetZna.dodir.nikad} {pluralSr(facetZna.dodir.nikad, "firma", "firme", "firmi")} još nema ni prvi dodir.</>
               ) : "."}
@@ -471,6 +490,11 @@ export function LeadsToday() {
                     <Activity data-icon="inline-start" aria-hidden />
                     Zabeleži ishod
                   </Button>
+                ) : kind === "korak" && moze ? (
+                  <KorakUradjen
+                    companyId={item.assignment.companyId}
+                    companyName={company?.name ?? "firma"}
+                  />
                 ) : (
                   <OtvoriProfil companyId={item.assignment.companyId} />
                 )
@@ -579,6 +603,11 @@ export function LeadsToday() {
 }
 
 /** Glavna radnja kartice za posmatrača: samo profil firme. */
+/** „danas" → „Danas": razlog na kartici počinje rečenicom. */
+function velikoPocetno(tekst: string): string {
+  return tekst.charAt(0).toLocaleUpperCase("sr-RS") + tekst.slice(1);
+}
+
 function OtvoriProfil({ companyId }: { companyId: string }) {
   return (
     <Button

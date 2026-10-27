@@ -4,6 +4,7 @@ import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { uploadProjekta } from "./lib/projekatUploadi";
+import { osigurajZaduzenje } from "./lib/leadZaduzenje";
 import {
   normalizeCompanyName,
   normalizeDomain,
@@ -1113,39 +1114,11 @@ async function ensureAssignment(
     now: number;
   },
 ): Promise<{ assignment: Doc<"leadAssignments">; created: boolean }> {
-  const existing = await ctx.db
-    .query("leadAssignments")
-    .withIndex("by_workspace_company", (q) =>
-      q.eq("workspaceId", args.workspaceId).eq("companyId", args.companyId),
-    )
-    .first();
-
-  if (existing) {
-    return { assignment: existing, created: false };
-  }
-
-  const assignmentId = await ctx.db.insert("leadAssignments", {
-    workspaceId: args.workspaceId,
-    companyId: args.companyId,
-    ownerUserId: args.ownerUserId,
-    stage: "nov",
-    createdAt: args.now,
-    updatedAt: args.now,
+  // Isti put kao upit, kopija i naknadna dodela (`lib/leadZaduzenje.ts`).
+  return await osigurajZaduzenje(ctx, {
+    ...args,
+    napomena: "Dodeljen pri uvozu tabele",
   });
-
-  await ctx.db.insert("leadStageEvents", {
-    workspaceId: args.workspaceId,
-    companyId: args.companyId,
-    kind: "dodela",
-    fromValue: undefined,
-    toValue: String(args.ownerUserId),
-    actorUserId: args.actorUserId,
-    note: "Dodeljen pri uvozu tabele",
-    occurredAt: args.now,
-  });
-
-  const assignment = (await ctx.db.get(assignmentId))!;
-  return { assignment, created: true };
 }
 
 /**

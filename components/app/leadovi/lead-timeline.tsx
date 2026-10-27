@@ -5,7 +5,9 @@ import type { Doc } from "@/convex/_generated/dataModel";
 import {
   Activity,
   Calendar,
+  CalendarCheck,
   CalendarClock,
+  CalendarX,
   Clock,
   ExternalLink,
   PhoneCall,
@@ -59,8 +61,6 @@ type LeadTimelineProps = {
   signalsTruncated: boolean;
 };
 
-type EventKind = Doc<"leadStageEvents">["kind"];
-
 /** Natpis, ikonica i boja kategorije po vrsti CRM događaja. `null` = neutralno. */
 const DOGADJAJ: Record<
   string,
@@ -74,8 +74,17 @@ const DOGADJAJ: Record<
   sastanak: { natpis: "Sastanak", ikona: CalendarClock, boja: 1 },
 };
 
-function opisDogadjaja(kind: EventKind) {
-  return DOGADJAJ[kind] ?? { natpis: String(kind), ikona: Clock, boja: null };
+/** Korak skinut bez novog roka (`toValue` izostaje): urađen ili posao zatvoren. */
+const KORAK_ZATVOREN = {
+  uradjen: { natpis: "Korak urađen", ikona: CalendarCheck, boja: 2 },
+  posao_zatvoren: { natpis: "Korak skinut: posao je zatvoren", ikona: CalendarX, boja: 2 },
+} as const;
+
+function opisDogadjaja(event: Doc<"leadStageEvents">) {
+  if (event.kind === "sledeci_korak" && event.toValue === undefined) {
+    return KORAK_ZATVOREN[event.korakZatvoren ?? "uradjen"];
+  }
+  return DOGADJAJ[event.kind] ?? { natpis: String(event.kind), ikona: Clock, boja: null };
 }
 
 const SEDAM_DANA_MS = 7 * 24 * 60 * 60 * 1000;
@@ -200,7 +209,7 @@ function Stavka({
 }
 
 function Dogadjaj({ event }: { event: Doc<"leadStageEvents"> }) {
-  const opis = opisDogadjaja(event.kind);
+  const opis = opisDogadjaja(event);
   // Pravilo 4: događaj čije vreme operater nije uneo to mora da kaže.
   const vremePotvrdjeno = event.timeConfirmed !== false;
 
@@ -251,6 +260,13 @@ function Dogadjaj({ event }: { event: Doc<"leadStageEvents"> }) {
         <p className="text-ui text-text-muted">
           Termin:{" "}
           <span className="font-medium text-foreground">{mozdaVreme(event.toValue)}</span>
+        </p>
+      )}
+
+      {event.kind === "sledeci_korak" && !event.toValue && event.fromValue && (
+        <p className="text-ui text-text-muted">
+          Bio je dogovoren za:{" "}
+          <span className="font-medium text-foreground">{mozdaVreme(event.fromValue)}</span>
         </p>
       )}
 

@@ -3844,6 +3844,15 @@ export default defineSchema({
      * svojoj napomeni.
      */
     timeConfirmed: v.optional(v.boolean()),
+    /**
+     * Samo uz `kind: "sledeci_korak"` bez `toValue` (korak skinut): da li ga
+     * je čovek označio kao urađen, ili je otpao jer je posao zatvoren
+     * (Dobijen, Izgubljen, Odložen). Bez ovog polja istorija ne bi znala
+     * razliku, a ona se ne sme čitati iz teksta napomene.
+     */
+    korakZatvoren: v.optional(
+      v.union(v.literal("uradjen"), v.literal("posao_zatvoren")),
+    ),
     occurredAt: v.number(),
   })
     .index("by_workspace_company", ["workspaceId", "companyId"])

@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { projekatMutation, projekatQuery, requireProjekat } from "./lib/projekat";
 import { imaUlogu } from "./lib/uloge";
 import { isSuppressed } from "./leadSuppressionStore";
+import { zaduziNovuFirmu } from "./lib/leadZaduzenje";
 
 /**
  * ============================================================================
@@ -318,6 +319,16 @@ export const kopirajUProjekat = projekatMutation({
       createdAt: now,
       updatedAt: now,
       kopijaIz: { workspaceId: A, companyId: firma._id, at: now, userId },
+    });
+    // CRM stanje iz A se ne prenosi, ali kopija je nova firma u B i bez
+    // zaduženja se tamo ne bi videla (ULTRA-PLAN §4, tačka 4): faza „nov",
+    // zadužen onaj ko je kopirao.
+    await zaduziNovuFirmu(ctx, {
+      workspaceId: B,
+      companyId: novaId,
+      kreator: userId,
+      now,
+      napomena: "Dodeljen pri kopiranju firme iz drugog projekta",
     });
 
     const noviId = new Map<string, string>([[String(firma._id), String(novaId)]]);

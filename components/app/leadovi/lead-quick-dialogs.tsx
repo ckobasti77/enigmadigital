@@ -665,6 +665,9 @@ function OutcomeDialogTelo({
   const [error, setError] = useState<string | null>(null);
   const [proposal, setProposal] = useState<{
     poklopljeniIzraz?: string;
+    /** `false` = predlog nosi sam ishod („Tražio da ga ne zovemo"), ne reči. */
+    poTekstu: boolean;
+    kind: "rekao_ne" | "trazio_da_ga_ne_zovemo";
   } | null>(null);
 
   const save = async () => {
@@ -683,7 +686,11 @@ function OutcomeDialogTelo({
       // Ishod je upisan i kad sledi predlog zabrane — predlog je zaseban korak.
       onSaved?.();
       if (res.predlogZaSuppression) {
-        setProposal({ poklopljeniIzraz: res.poklopljeniIzraz });
+        setProposal({
+          poklopljeniIzraz: res.poklopljeniIzraz,
+          poTekstu: res.predlogPoTekstu,
+          kind: res.razlog ?? "rekao_ne",
+        });
       } else {
         onOpenChange(false);
       }
@@ -700,7 +707,7 @@ function OutcomeDialogTelo({
     try {
       await addToSuppression({
         companyId,
-        kind: "rekao_ne",
+        kind: proposal?.kind ?? "rekao_ne",
         reason: `Dodato nakon ishoda „${code ? leadOutcomeLabel(code) : ""}”`,
       });
       onOpenChange(false);
@@ -723,7 +730,11 @@ function OutcomeDialogTelo({
             Predlog za zabranu kontakta
           </span>
         }
-        description="Ishod je sačuvan. U njemu je prepoznat izraz odbijanja, pa se predlaže da firma ide na listu „ne diraj”."
+        description={
+          proposal.poTekstu
+            ? "Ishod je sačuvan. U njemu je prepoznat izraz odbijanja, pa se predlaže da firma ide na listu „ne diraj”."
+            : "Ishod je sačuvan. Osoba je tražila da je ne zovemo; po zakonu o zaštiti podataka taj zahtev se poštuje, pa se predlaže da firma ide na listu „ne diraj”."
+        }
         error={error}
         footer={
           <>
@@ -746,18 +757,20 @@ function OutcomeDialogTelo({
           </>
         }
       >
-        <div className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs">
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-semibold text-text-muted">Poklopljeni izraz:</span>
-            <span className="rounded bg-warning/20 px-2 py-0.5 font-mono font-bold text-warning">
-              „{proposal.poklopljeniIzraz}”
-            </span>
+        {proposal.poTekstu && (
+          <div className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-text-muted">Poklopljeni izraz:</span>
+              <span className="rounded bg-warning/20 px-2 py-0.5 font-mono font-bold text-warning">
+                „{proposal.poklopljeniIzraz}”
+              </span>
+            </div>
+            <p className="leading-relaxed text-text-muted">
+              Predlog je nastao poklapanjem reči u ishodu, ne pouzdanom proverom
+              — zato ga potvrđuje čovek.
+            </p>
           </div>
-          <p className="leading-relaxed text-text-muted">
-            Predlog je nastao poklapanjem reči u ishodu, ne pouzdanom proverom
-            — zato ga potvrđuje čovek.
-          </p>
-        </div>
+        )}
         <p className="text-xs leading-relaxed text-foreground">
           Ako potvrdiš, <strong>{companyName}</strong> (i njen PIB, ako postoji)
           ide na listu zabrane. Provera se radi pri uvozu tabela: firma više

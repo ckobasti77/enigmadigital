@@ -51,6 +51,8 @@ import { LeadScoreCell } from "./lead-score-cell";
 import { LeadIdentitiesPanel } from "./lead-identities-panel";
 import { LeadTimeline } from "./lead-timeline";
 import { LeadActionBar } from "./lead-action-bar";
+import { KorakUradjen } from "./korak-uradjen";
+import { rokKoraka } from "@/convex/lib/leadKorak";
 import { LeadGapFillDialog } from "./lead-gap-fill-dialog";
 import { ProvenanceBadge } from "./provenance-badge";
 import { StageChip, TemperatureSelect } from "./lead-chips";
@@ -237,6 +239,8 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
   const prov = detail.provenanceByField;
 
   const overdue = assignment ? isNextActionOverdue(assignment, now) : false;
+  // Zatvoren posao nema korak ni kad je stari rok ostao u bazi (`lib/leadKorak`).
+  const rok = assignment ? rokKoraka(assignment) : undefined;
   const meetingSoon = assignment ? isMeetingSoon(assignment, now) : false;
   const meetingUnresolved = assignment ? isMeetingUnresolved(assignment, now) : false;
   const nextUp = describeNextUp(assignment, now);
@@ -351,10 +355,10 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
 
                     <span className="inline-flex items-center gap-1.5">
                       <Calendar className={cn("size-3.5 shrink-0", overdue && "text-danger")} />
-                      {assignment?.nextActionAt !== undefined ? (
+                      {rok !== undefined ? (
                         <span className={overdue ? "font-semibold text-danger" : "font-medium text-foreground"}>
-                          {formatDayRelative(assignment.nextActionAt, now)} u{" "}
-                          {formatClockTime(assignment.nextActionAt)}
+                          {formatDayRelative(rok, now)} u{" "}
+                          {formatClockTime(rok)}
                           {overdue && " · kasni"}
                         </span>
                       ) : (
@@ -430,15 +434,21 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
               NEXT_UP_TONE[nextUp.tone].box,
             )}
           >
-            <div className="flex items-start gap-2.5" role="status">
-              <NextUpIcon
-                className={cn("mt-0.5 size-5 shrink-0", NEXT_UP_TONE[nextUp.tone].ink)}
-                aria-hidden
-              />
-              <div className="min-w-0">
-                <p className="text-meta font-medium text-text-muted">Šta je sledeće</p>
-                <p className="text-copy font-medium text-foreground">{nextUp.text}</p>
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              <div className="flex min-w-0 items-start gap-2.5" role="status">
+                <NextUpIcon
+                  className={cn("mt-0.5 size-5 shrink-0", NEXT_UP_TONE[nextUp.tone].ink)}
+                  aria-hidden
+                />
+                <div className="min-w-0">
+                  <p className="text-meta font-medium text-text-muted">Šta je sledeće</p>
+                  <p className="text-copy font-medium text-foreground">{nextUp.text}</p>
+                </div>
               </div>
+              {/* „Urađeno" stoji uz korak, gde god se korak prikazuje (§4, tačka 6). */}
+              {rok !== undefined && (
+                <KorakUradjen companyId={companyId} companyName={company.name} />
+              )}
             </div>
             <LeadActionBar
               companyId={companyId}

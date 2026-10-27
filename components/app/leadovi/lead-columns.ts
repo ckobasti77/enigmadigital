@@ -14,6 +14,7 @@
  */
 import type { LeadScore } from "@/convex/lib/leadScoring";
 import { pojasKvaliteta, POJAS_NATPISI } from "@/convex/lib/siteScore";
+import { rokKoraka } from "@/convex/lib/leadKorak";
 import { formatClockTime, formatDayRelative, localDayDiff } from "@/lib/format";
 import { normalizeTemperatura, TEMPERATURE_LABEL } from "@/lib/temperature";
 import { leadSignalLabel, leadStageLabel } from "./lead-labels";
@@ -391,12 +392,14 @@ export function nextStep(item: LeadRowItem, now: number): NextStep {
   if (a.stage === "dobijen") return { text: "Dobijen", planned: true, tone: "muted" };
   if (a.stage === "izgubljen") return { text: "Izgubljen", planned: true, tone: "muted" };
 
-  if (a.nextActionAt !== undefined) {
-    const kad = `${formatDayRelative(a.nextActionAt, now)} ${formatClockTime(a.nextActionAt)}`;
+  // Zatvoren posao (i Odložen) nema korak ni kad je stari rok ostao u bazi.
+  const rok = rokKoraka(a);
+  if (rok !== undefined) {
+    const kad = `${formatDayRelative(rok, now)} ${formatClockTime(rok)}`;
     if (isNextActionOverdue(a, now)) {
-      const dana = localDayDiff(now, a.nextActionAt);
+      const dana = localDayDiff(now, rok);
       return {
-        text: dana <= 0 ? `Kasni od ${formatClockTime(a.nextActionAt)}` : `Kasni ${dana} d`,
+        text: dana <= 0 ? `Kasni od ${formatClockTime(rok)}` : `Kasni ${dana} d`,
         planned: true,
         tone: "danger",
         note: a.nextActionNote,

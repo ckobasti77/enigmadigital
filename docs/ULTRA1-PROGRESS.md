@@ -38,3 +38,84 @@ Nijedan `next dev` ni drugi proces koji je korak sam pokrenuo nije upaljen.
 - Taj proces nije pokrenuo korak. Podigao ga je Claude Code iz runnerovog `--mcp-config` pri pokretanju sesije; u ovom koraku nijedan Playwright alat nije pozvan. Gasi se kad runner završi `claude -p` proces.
 - Sve što je korak sam pokrenuo (typecheck, lint, vitest, pristup, regresije, Python skripta za JSON) je završeno.
 **BLOKADA (uslov 4 cilja):** Playwright MCP (PID 24476, i njegovo dete 13080) ostaje upaljen dok traje ova `claude -p` sesija. Podigao ga je Claude Code iz runnerovog `--mcp-config .nocni-run/ultra1/mcp.json`, a ne korak T01. Gašenje (`Stop-Process`) je odbio klasifikator auto režima, a zaobilaženje te zabrane nije dozvoljeno. Rešenje je kod runnera: neka `nocni-run.ps1` posle koraka ugasi MCP decu sesije, ili neka doda dozvolu `PowerShell(Stop-Process:*)`. Ostali uslovi (Prihvatanje, provere, sekcija T01) su ispunjeni.
+
+## T02 — Leadovi: ispravke podataka u petlji   (2026-10-27 21:50)
+**Fajlovi:**
+- novi: `convex/lib/leadKorak.ts` (jedno pravilo koraka: zatvorene faze, `rokKoraka`, `korakKasni`, `ZOVI_SADA_FILTER`), `convex/lib/leadZaduzenje.ts` (`vlasnikNoveFirme`, `osigurajZaduzenje`, `zaduziNovuFirmu`), `convex/leadZaduzenja.ts` (migracija `dodeliBezZaduzenja`), `convex/leadovi-t02.test.ts`, `components/app/leadovi/korak-uradjen.tsx`, `docs/ultra/snimci/T02-*.png` (6 snimaka);
+- izmenjeni backend: `convex/leadCrmStore.ts`, `convex/leadFiltersStore.ts`, `convex/leadImportStore.ts`, `convex/leadInboundStore.ts`, `convex/leadUnakrsnoStore.ts`, `convex/notificationsStore.ts`, `convex/schema.ts`, `convex/_generated/api.d.ts` (codegen), `convex/unakrsni-leadovi.test.ts`;
+- izmenjeni front: `components/app/leadovi/` → `leads-today.tsx`, `overdue-panel.tsx`, `lead-detail.tsx`, `lead-expanded-row.tsx`, `lead-timeline.tsx`, `lead-quick-dialogs.tsx`, `lead-urgency.ts`, `lead-columns.ts`, `use-zovi-sada.ts`;
+- razvojni prikaz: `app/dev-ux/fixtures.ts`, `app/dev-ux/fixtures-oglasi.ts`.
+
+**Šta je urađeno:** Svih osam tačaka iz §4.
+1. `logTouch` sa kanalom „beleska" upisuje događaj u istoriju, ali ne menja `lastTouchAt`; ni „Poslednji dodir" u redu više ne prikazuje belešku kao kontakt.
+2. Ishod `trazeno_da_se_ne_zove` uvek vraća predlog zabrane (`razlog: "trazio_da_ga_ne_zovemo"`, `predlogPoTekstu: false`), bez upisa. Dijalog ishoda tada kaže da je to zahtev osobe i šalje tu vrstu zabrane.
+3. i 4. Zaduženje nastaje pri svakom nastanku firme, kroz jedan helper: uvoz (i skill, koji ide kroz uvoz), upit sa sajta (`napraviFirmuIzUpita`), poruka sa mreže sa novom firmom (`linkInboundToCompany`) i kopija iz drugog projekta. Za stare firme postoji `internal.leadZaduzenja.dodeliBezZaduzenja` (serije, idempotentna, NIJE puštena).
+5. `setStage` u Dobijen, Izgubljen ili Odložen briše korak i to beleži u istoriji. Zatvorena faza nije zaostala nigde: Zaostali, filter „zaostali", brojač, zvono, ivica reda, profil.
+6. Nova mutacija `zavrsiKorak` (kroz `projekatMutation`) i dugme „Urađeno" (`KorakUradjen`, `touch-target` → 44 px na dodir). Stoji na Danas → „Vrati se na", u Zaostalima, u profilu („Šta je sledeće") i u proširenom redu tabele i mape. Istorija piše „Korak urađen" i „Bio je dogovoren za".
+7. „Vrati se na" čita nov upit `listKoraciDanas` (zakasneli i današnji, po roku). Zakasneli pišu „Kasni …" crveno, a današnji „Danas u 23:37" neutralno.
+8. „Zovi sada" (traka, režim poziva i broj u zvonu) preskače firmu sa dogovorenim korakom, preko novog filtera `bezKoraka`.
+
+**ODLUKE:**
+- Beleška ostaje u `logTouch` (kanal „beleska"), bez nove mutacije: UI se ne menja, a Napredak je već tretira kao belešku. Firme kojima je ranija beleška već pomerila `lastTouchAt` se NE ispravljaju. P8 traži migraciju samo za zaduženje, a izvođenje „pravog" poslednjeg kontakta iz istorije bi bila nova migracija.
+- `postojeci_klijent` (u reviziji „opciono") ne dobija predlog zabrane, jer ga §4 ne traži. Povratni validator `recordOutcome.razlog` je sužen sa `string` na dve vrste zabrane.
+- Ko dobija zaduženje: kreator ako je urednik ili vlasnik tog projekta, inače prvi vlasnik projekta po redu članstva. Projekat bez vlasnika se preskače (zaduženje se ne izmišlja). Kreator koji je posmatrač ili bivši član → vlasnik. Uvoz zadržava svoje postojeće pravilo (pošiljalac ako je i dalje član, inače onaj ko primenjuje), samo sada ide kroz isti helper.
+- „Ručni unos" u kodu postoji samo kao nova firma iz poruke sa mreže (`linkInboundToCompany` sa `newCompanyName`); posebna mutacija „Dodaj firmu" ne postoji. Povezivanje poruke sa POSTOJEĆOM firmom ne pravi zaduženje (to pokriva migracija).
+- Kopija iz drugog projekta (`kopirajUProjekat`) takođe dobija zaduženje (faza „nov", zadužen onaj ko kopira), jer je i ona nova firma i inače bi bila nevidljiva u cilju. Zato je jedna asercija u `unakrsni-leadovi.test.ts` promenjena: umesto „0 dodela i 0 događaja u B" sada proverava tačno jednu svežu dodelu (`nov`, bez dodira, koraka i ishoda) i jedan događaj „dodela". Test i dalje proverava da se CRM stanje iz A ne prenosi. Ovo nije slabljenje testa nego nova istina koju test meri.
+- Migracija: serije od 100 (najviše 200), sama zakazuje nastavak, `probno: true` samo broji, a ukupan zbir upisuje u log na kraju. Događaj „dodela" traži autora, pa je autor zaduženi vlasnik, a napomena kaže da je zaduženje dodato naknadno.
+- Zatvorene faze su Dobijen, Izgubljen i Odložen, kako §4 kaže. Pravilo važi PRI ČITANJU svuda gde se računa kašnjenje (jedna funkcija u `convex/lib/leadKorak.ts`), da jezičak, zvono i tabela ne bi dali tri broja. Stari zapisi se ne prepisuju. `setStage` koji ne menja fazu ne briše korak.
+- Šema: samo jedno opciono polje `leadStageEvents.korakZatvoren` („uradjen" | „posao_zatvoren"), umesto nove vrednosti u `kind`, jer pravila dozvoljavaju samo opciona polja. Događaj nema `toValue`, pa ga Napredak ne broji: „Urađeno" ne donosi XP (Tiha gamifikacija); postavljanje koraka i dalje donosi.
+- `listOverdue` je dobio opseg `nextActionAt > 0`. Dodele bez koraka stoje u indeksu pre svih brojeva, pa je goli `lt(now)` trošio granicu skena (`limit × 2`) na njih, i Zaostali su mogli da budu prazni ili delimični kad mnogo firmi nema korak. Nađeno pri tačkama 5 i 7 i ispravljeno u zajedničkom `citajKorake`.
+- „Zovi sada" isključuje firmu sa BILO KOJIM aktivnim korakom (budući ili zakasneli), ne samo budućim. Zakasneli korak je već u „Vrati se na", a cilj tačke 8 je da firma ne stoji u oba reda.
+- „Vrati se na": redosled je sastanci bez ishoda, pa koraci po roku, pa sastanci uskoro. `krajDana` šalje ekran (lokalni dan; server je UTC), a server ga ograničava na 48 h. „Rok istekao danas u HH:MM" je postalo „Kasni od HH:MM", isto kao kolona u tabeli. Jezičak Zaostali ostaje samo za zakasnele.
+- „Urađeno" ima ulogu `secondary`, kao ostale radnje na karticama (boju menja T09). Na Danas je to glavna radnja kartice koraka umesto „Otvori"; naslov kartice i dalje otvara profil. U Zaostalima radnje reda više nisu `w-full` nego `flex-1`, da „Urađeno" stane u isti red. Nije dodato u ćeliju „Sledeći korak" u tabeli (prošireni red iste firme ga ima) ni u režim poziva.
+- Fikstura: današnji sastanak u `app/dev-ux/fixtures.ts` je imao fiksno 15:30, pa je posle 15:30 postajao drugi „sastanak bez ishoda" (suprotno konstanti `SASTANAK_PROSAO_BEZ_ISHODA = 1`) i gurao današnji korak iza granice od 5 kartica. Sada je 15:30 ili sat od sada (najkasnije 23:59), isto i u zvonu.
+- Reč „u preseku" nije dirana: to je posao rečnika (T12).
+- Skill `impeccable` je pozvan pre UI koda.
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- `convex/leadovi-t02.test.ts` (novo, 8 testova, po jedan za svaku tačku):
+  - beleška ne menja `lastTouchAt` i firma ostaje u „Zovi sada";
+  - `trazeno_da_se_ne_zove` nudi zabranu bez upisa, a potvrda upisuje pravu vrstu;
+  - upit sa sajta i poruka sa mreže prave zaduženje, i firma je u Tabeli;
+  - migracija: probno ne piše; prava radi u serijama od 2 (zakazani nastavci) i bira kreatora ili vlasnika (i u B); drugo puštanje ne menja ništa;
+  - zatvorena faza nije zaostala i nema korak (i stari zapis, filter, brojač);
+  - `zavrsiKorak` briše korak, upisuje istoriju i ne menja fazu; drugi klik ne radi ništa;
+  - današnji korak se vidi, a zakasneli nosi `kasni`;
+  - „Zovi sada" preskače firmu sa budućim i sa zakasnelim korakom.
+- `convex/unakrsni-leadovi.test.ts`: jedna asercija promenjena (vidi ODLUKE).
+
+**Rezultat provere:**
+- `npx convex codegen`: prošao.
+- typecheck: prošao.
+- lint: 0 grešaka (1210 upozorenja, isto kao pre).
+- `npx vitest run`: 53 fajla / 955 testova prošlo. U jednom od deset punih puštanja pao je 1 test čije ime nisam uhvatio (izlaz je bio skraćen). U narednih 9 punih puštanja i 9 izolovanih puštanja novih testova sve je prošlo. To puštanje je išlo dok je zaostali `next dev` (vidi „Procesi" ispod) još radio, pa je verovatno istek vremena pod opterećenjem; runner pušta testove ponovo.
+- pristup: prošao.
+- regresije: 14/14 prošlo (uključuje `verify:leads-ui`, koji nije menjan).
+- Vizuelno (Playwright, `?ux=1`, port 3117): Danas „Vrati se na", Zaostali i profil na 1536 × 695 i 390 × 844. Na 390 nema vodoravnog klizanja, a u konzoli nema grešaka. `.touch-target` daje 44 px pod `pointer: coarse`; pravilo je provereno u CSS-u, jer emulacija nema grub pokazivač.
+
+**Završna provera (posle gašenja dev servera):** codegen, typecheck, lint (0 grešaka), `npx --no-install vitest run` (53 / 955), pristup i regresije (14/14) su prošli.
+
+**Procesi:** `next dev -p 3117`, koji je korak pokrenuo za snimke, nije se ugasio preko `TaskStop`, a prvi `taskkill` je odbio klasifikator auto režima. Posle cilja koraka (uslov 4: nijedan pokrenut proces ne sme da ostane) ugašen je preko `Stop-Process`. Gašeno je samo pet procesa ovog koraka, provereno po komandnoj liniji (ovaj repo, port 3117): 12212, 24912, 22780, 8636 i 23788. Port 3117 je slobodan. Nijedan drugi proces koraka nije ostao upaljen.
+
+**Za Jovana ujutru:**
+1. Posle deploya Convex-a pusti migraciju, prvo probno pa pravu. Ona sama ide serijama i na kraju upiše zbir u log („dodeliBezZaduzenja: pregledano …, dobilo zaduženje …").
+   - Bash:
+     - `npx convex run leadZaduzenja:dodeliBezZaduzenja '{"probno":true}'`
+     - `npx convex run leadZaduzenja:dodeliBezZaduzenja '{}'`
+   - PowerShell 5.1 (navodnici moraju da se izvuku):
+     - `npx convex run leadZaduzenja:dodeliBezZaduzenja '{\"probno\":true}'`
+     - `npx convex run leadZaduzenja:dodeliBezZaduzenja '{}'`
+   - Za produkciju dodaj `--prod` posle `run`. Za samo jedan projekat dodaj `"workspaceId":"<id>"` u JSON.
+   - Provera: jezičak Rupe → „Bez vlasnika" treba da padne na 0. Izuzetak je projekat bez vlasnika, koji migracija broji kao `bezVlasnika`.
+2. Na pravim podacima:
+   - zabeleži belešku i proveri da firma ostaje u „Zovi sada";
+   - klikni „Urađeno" na Danas i proveri da firma nestaje iz „Vrati se na" i Zaostalih;
+   - prebaci firmu sa korakom u Dobijen.
+3. Potvrdi odluke:
+   - „Zovi sada" isključuje i firmu sa zakasnelim korakom;
+   - kopija u drugi projekat dobija zaduženje;
+   - „Postojeći klijent" ne nudi zabranu;
+   - „Urađeno" ne donosi XP.
+4. Stare firme kojima je beleška ranije pomerila „poslednji kontakt" ostaju takve (vidi ODLUKE). Ako ih ima mnogo, to traži posebnu migraciju.

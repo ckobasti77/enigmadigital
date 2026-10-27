@@ -3,6 +3,7 @@ import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
 import { ucitajPoslednjeOcene } from "./leadSiteAuditsStore";
+import { jeZatvorenaFaza, korakKasni, rokKoraka } from "./lib/leadKorak";
 
 /**
  * ============================================================================
@@ -231,6 +232,8 @@ export const assignLead = projekatMutation({
  * - Ako je nova faza ista kao trenutna, vraća { changed: false } i ne puni istoriju praznim hodom.
  * - Prelazak u "dobijen" ili "izgubljen" OBAVEZNO zahteva napomenu (obrazloženje).
  * - Upisuje se događaj u `leadStageEvents` sa autorom (`ctx.projekat.userId`).
+ * - Prelazak u zatvorenu fazu (dobijen, izgubljen, odložen) briše sledeći
+ *   korak i to upisuje u istoriju (`korakZatvoren: "posao_zatvoren"`).
  */
 export const setStage = projekatMutation({
   args: {
@@ -281,9 +284,14 @@ export const setStage = projekatMutation({
       }
 
       const previousStage = existing.stage;
+      // Zatvoren posao (Dobijen, Izgubljen, Odložen) nema sledeći korak: bez
+      // brisanja bi firma zauvek stajala u Zaostalima (ULTRA-PLAN §4, tačka 5).
+      const skidaKorak =
+        jeZatvorenaFaza(args.stage) && existing.nextActionAt !== undefined;
 
       await ctx.db.patch(existing._id, {
         stage: args.stage,
+        ...(skidaKorak ? { nextActionAt: undefined, nextActionNote: undefined } : {}),
         updatedAt: now,
       });
 
@@ -297,6 +305,19 @@ export const setStage = projekatMutation({
         note: cleanNote,
         occurredAt: now,
       });
+
+      if (skidaKorak) {
+        await ctx.db.insert("leadStageEvents", {
+          workspaceId: args.workspaceId,
+          companyId: args.companyId,
+          kind: "sledeci_korak",
+          fromValue: String(existing.nextActionAt),
+          actorUserId: ctx.projekat.userId,
+          note: existing.nextActionNote,
+          korakZatvoren: "posao_zatvoren",
+          occurredAt: now,
+        });
+      }
 
       return {
         success: true,
@@ -334,11 +355,15 @@ export const setStage = projekatMutation({
   },
 });
 
+/** Kanal pod kojim se beleška vodi u istoriji (`kind: "dodir"`); nije kontakt. */
+export const KANAL_BELESKA = "beleska";
+
 /**
  * Beleži ostvareni kontakt (dodir) sa leadom.
  *
  * Pravila:
- * - Postavlja `lastTouchAt` na `touchedAt` koji unosi čovek.
+ * - Postavlja `lastTouchAt` na `touchedAt` koji unosi čovek — osim za kanal
+ *   „beleska": beleška se upisuje u istoriju, ali `lastTouchAt` ne menja.
  * - Ako `touchedAt` nije unet, koristi se `Date.now()`, ali se u događaju
  *   eksplicitno beleži da vreme nije uneto od strane čoveka.
  * - Upiši `leadStageEvents` kind "dodir".
@@ -386,20 +411,25 @@ export const logTouch = projekatMutation({
       .first();
 
     const now = Date.now();
+    // Beleška ostaje u istoriji, ali nije kontakt: ne pomera „poslednji
+    // kontakt" i ne izbacuje firmu iz reda poziva (ULTRA-PLAN §4, tačka 1).
+    const jeKontakt = channelClean !== KANAL_BELESKA;
 
     if (existing) {
-      await ctx.db.patch(existing._id, {
-        lastTouchAt: effectiveTouchedAt,
-        updatedAt: now,
-      });
+      if (jeKontakt) {
+        await ctx.db.patch(existing._id, {
+          lastTouchAt: effectiveTouchedAt,
+          updatedAt: now,
+        });
+      }
     } else {
       await createAssignmentWithEvent(ctx, {
         workspaceId: args.workspaceId,
         companyId: args.companyId,
         actorUserId: ctx.projekat.userId,
         now,
-        razlog: "beleženje dodira",
-        extra: { lastTouchAt: effectiveTouchedAt },
+        razlog: jeKontakt ? "beleženje dodira" : "beleška",
+        extra: jeKontakt ? { lastTouchAt: effectiveTouchedAt } : undefined,
       });
     }
 
@@ -503,6 +533,66 @@ export const setNextAction = projekatMutation({
 });
 
 /**
+ * „Urađeno" uz prikazan korak (ULTRA-PLAN §4, tačka 6): briše `nextActionAt` i
+ * napomenu koraka i upisuje u istoriju da je korak urađen. Posle toga firma
+ * izlazi iz „Vrati se na" i Zaostalih.
+ *
+ * - Faza se NE menja (pravilo 3 gore): urađen korak nije zatvoren posao.
+ * - Firma bez koraka vraća `{ changed: false }`, bez praznog događaja.
+ */
+export const zavrsiKorak = projekatMutation({
+  args: {
+    companyId: v.id("leadCompanies"),
+    note: v.optional(v.string()),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    changed: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const company = await ctx.db.get(args.companyId);
+    if (!company || company.workspaceId !== args.workspaceId) {
+      throw new ConvexError({
+        code: "not_found",
+        message: "Firma nije pronađena u ovom projektu.",
+      });
+    }
+
+    const existing = await ctx.db
+      .query("leadAssignments")
+      .withIndex("by_workspace_company", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("companyId", args.companyId),
+      )
+      .first();
+
+    if (!existing || existing.nextActionAt === undefined) {
+      return { success: true, changed: false };
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(existing._id, {
+      nextActionAt: undefined,
+      nextActionNote: undefined,
+      updatedAt: now,
+    });
+
+    await ctx.db.insert("leadStageEvents", {
+      workspaceId: args.workspaceId,
+      companyId: args.companyId,
+      kind: "sledeci_korak",
+      // Rok koji je bio dogovoren; `toValue` izostaje jer koraka više nema.
+      fromValue: String(existing.nextActionAt),
+      actorUserId: ctx.projekat.userId,
+      note: args.note?.trim() || existing.nextActionNote,
+      korakZatvoren: "uradjen",
+      occurredAt: now,
+    });
+
+    return { success: true, changed: true };
+  },
+});
+
+/**
  * Beleži konkretan ishod komunikacije (npr. "preskupo", "rekao_ne", "dogovoren_ugovor").
  *
  * Pravila:
@@ -520,7 +610,10 @@ export const recordOutcome = projekatMutation({
   returns: v.object({
     success: v.boolean(),
     predlogZaSuppression: v.boolean(),
-    razlog: v.optional(v.string()),
+    // Vrsta zabrane koju predlog nudi (`addToSuppressionFromOutcome.kind`).
+    razlog: v.optional(
+      v.union(v.literal("rekao_ne"), v.literal("trazio_da_ga_ne_zovemo")),
+    ),
     // Predlog je nastao poklapanjem reči u slobodnom tekstu, ne pouzdanom
     // klasifikacijom. Onaj ko prikazuje predlog mora to da kaže.
     predlogPoTekstu: v.boolean(),
@@ -580,6 +673,18 @@ export const recordOutcome = projekatMutation({
       occurredAt: effectiveOutcomeAt,
     });
 
+    // „Tražio da ga ne zovemo" je zahtev same osobe (ZZPL): predlog zabrane se
+    // nudi UVEK, ne po poklapanju reči. Upis i dalje traži potvrdu čoveka
+    // (`addToSuppressionFromOutcome`), ovde se ništa ne zabranjuje.
+    if (cleanOutcome === "trazeno_da_se_ne_zove") {
+      return {
+        success: true,
+        predlogZaSuppression: true,
+        razlog: "trazio_da_ga_ne_zovemo" as const,
+        predlogPoTekstu: false,
+      };
+    }
+
     // `outcome` je slobodan tekst, pa je ovo POGAĐANJE po rečima, ne činjenica.
     // „nije odbijen, zakazali smo" sadrži „odbij". Zato se vraća i tačan izraz
     // koji se poklopio: čovek koji potvrđuje mora da vidi na osnovu čega mu se
@@ -594,6 +699,9 @@ export const recordOutcome = projekatMutation({
       "ne zeli",
       "ne_zeli",
       "trazio_da_ga_ne_zovemo",
+      // Kod iz zatvorene liste (`lib/leadOutcomes.ts`); gore ima svoju granu,
+      // a ovde stoji da lista izraza ne bi opet tražila pogrešan kod.
+      "trazeno_da_se_ne_zove",
     ];
     const poklopljeniIzraz = ODBIJANJE_IZRAZI.find((izraz) =>
       lower.includes(izraz),
@@ -603,7 +711,7 @@ export const recordOutcome = projekatMutation({
       return {
         success: true,
         predlogZaSuppression: true,
-        razlog: "rekao_ne",
+        razlog: "rekao_ne" as const,
         predlogPoTekstu: true,
         poklopljeniIzraz,
       };
@@ -973,8 +1081,7 @@ export const getLeadCrm = projekatQuery({
     const eventsTruncated = rawEvents.length > events.length;
 
     const now = Date.now();
-    const isOverdue =
-      assignment?.nextActionAt !== undefined && assignment.nextActionAt < now;
+    const isOverdue = assignment ? korakKasni(assignment, now) : false;
 
     return {
       company,
@@ -1112,13 +1219,20 @@ export async function hydrateLeadRowExtras(
   // Poslednji dodir = poslednje zabeležen „dodir" (po redosledu upisa, što
   // prati način na koji `logTouch` dodaje red). `leadStageEvents` nema polje
   // `channel`; `logTouch` upisuje kanal u `toValue`, napomenu u `note`.
+  // Beleška je u istoriji kao „dodir", ali nije kontakt (isto pravilo kao
+  // `lastTouchAt` u `logTouch`), pa se ovde preskače.
   const lastTouch = await ctx.db
     .query("leadStageEvents")
     .withIndex("by_workspace_company", (q) =>
       q.eq("workspaceId", workspaceId).eq("companyId", companyId),
     )
     .order("desc")
-    .filter((q) => q.eq(q.field("kind"), "dodir"))
+    .filter((q) =>
+      q.and(
+        q.eq(q.field("kind"), "dodir"),
+        q.neq(q.field("toValue"), KANAL_BELESKA),
+      ),
+    )
     .first();
 
   const poslednjiDodir = lastTouch
@@ -1177,9 +1291,7 @@ export const listByOwner = projekatQuery({
           assignment,
           company,
           ...extras,
-          isOverdue:
-            assignment.nextActionAt !== undefined &&
-            assignment.nextActionAt < now,
+          isOverdue: korakKasni(assignment, now),
         };
       }),
     );
@@ -1232,9 +1344,7 @@ export const listByStage = projekatQuery({
           assignment,
           company,
           ...extras,
-          isOverdue:
-            assignment.nextActionAt !== undefined &&
-            assignment.nextActionAt < now,
+          isOverdue: korakKasni(assignment, now),
         };
       }),
     );
@@ -1250,11 +1360,80 @@ export const listByStage = projekatQuery({
 });
 
 /**
+ * Dodele čiji je korak dogovoren PRE `granica`, redom po roku (najstariji
+ * prvi) — zajedničko čitanje za Zaostale (`granica` = sada) i „Vrati se na"
+ * (`granica` = kraj današnjeg dana).
+ *
+ * - Opseg indeksa počinje od `nextActionAt > 0`: dodela bez koraka u indeksu
+ *   stoji PRE svih brojeva, pa bi je goli `lt` pročitao i potrošio granicu
+ *   skena na redove koji nemaju šta da kasne.
+ * - Zatvoren posao (Dobijen, Izgubljen, Odložen) nema korak ni kad je stari
+ *   rok ostao upisan (ULTRA-PLAN §4, tačka 5; `lib/leadKorak.ts`).
+ */
+async function citajKorake(
+  ctx: QueryCtx,
+  args: {
+    workspaceId: Id<"workspaces">;
+    granica: number;
+    ownerUserId?: Id<"users">;
+    maxRows: number;
+    now: number;
+  },
+) {
+  const scanned = await ctx.db
+    .query("leadAssignments")
+    .withIndex("by_workspace_next_action", (q) =>
+      q
+        .eq("workspaceId", args.workspaceId)
+        .gt("nextActionAt", 0)
+        .lt("nextActionAt", args.granica),
+    )
+    .take(args.maxRows * 2);
+
+  const filtered = scanned.filter(
+    (a) =>
+      rokKoraka(a) !== undefined &&
+      (args.ownerUserId === undefined || a.ownerUserId === args.ownerUserId),
+  );
+
+  const sliced = filtered.slice(0, args.maxRows);
+
+  // Filtriranje po vlasniku i fazi se radi POSLE čitanja, pa ako je pročitan
+  // ceo paket, koraci mogu da leže iza granice. Tiho odsecanje bi izgledalo
+  // kao „nema više".
+  const mozdaImaJos =
+    scanned.length === args.maxRows * 2 || filtered.length > sliced.length;
+
+  const items = await Promise.all(
+    sliced.map(async (assignment) => {
+      const company = await ctx.db.get(assignment.companyId);
+      const extras = await hydrateLeadRowExtras(
+        ctx,
+        args.workspaceId,
+        assignment.companyId,
+      );
+      return {
+        assignment,
+        company,
+        ...extras,
+        // Opseg čita samo dodele sa rokom, pa je razlika uvek stvarna
+        // vrednost; negativna znači da rok tek dolazi.
+        delayMs: args.now - assignment.nextActionAt!,
+        kasni: korakKasni(assignment, args.now),
+      };
+    }),
+  );
+
+  return { items, mozdaImaJos, pregledano: scanned.length };
+}
+
+/**
  * Lista leadova kojima je rok za sledeći korak istekao (prekoračen).
  *
  * Pravila:
  * - „Prošao" se računa PRI ČITANJU poređenjem sa `Date.now()`.
  * - Koristi indeks "by_workspace_next_action".
+ * - Zatvoren posao nije zaostao (`citajKorake`).
  */
 export const listOverdue = projekatQuery({
   args: {
@@ -1265,57 +1444,56 @@ export const listOverdue = projekatQuery({
     const maxRows = Math.min(Math.max(args.limit ?? 50, 1), 200);
     const now = Date.now();
 
-    const queryBuilder = ctx.db
-      .query("leadAssignments")
-      .withIndex("by_workspace_next_action", (q) =>
-        q.eq("workspaceId", args.workspaceId).lt("nextActionAt", now),
-      );
-
-    const scanned = await queryBuilder.take(maxRows * 2);
-
-    // `nextActionAt` je opciono polje. Lead kome sledeći korak NIJE ni
-    // postavljen nema šta da kasni — a bez ove provere bi ušao u listu
-    // zaostalih sa `delayMs: 0`, što se čita kao „kasni, ali tačno nimalo".
-    // Ne oslanjamo se na to kako opseg indeksa tretira nepostojeće polje:
-    // pitanje se rešava izričito.
-    const withPlan = scanned.filter((a) => a.nextActionAt !== undefined);
-
-    const filtered = args.ownerUserId
-      ? withPlan.filter((a) => a.ownerUserId === args.ownerUserId)
-      : withPlan;
-
-    const sliced = filtered.slice(0, maxRows);
-
-    // Filtriranje po vlasniku se radi POSLE čitanja, pa ako je pročitan ceo
-    // paket, zaostali leadovi tog vlasnika mogu da leže iza granice. Tiho
-    // odsecanje bi izgledalo kao „nema više zaostalih".
-    const mozdaImaJos =
-      scanned.length === maxRows * 2 || filtered.length > sliced.length;
-
-    const items = await Promise.all(
-      sliced.map(async (assignment) => {
-        const company = await ctx.db.get(assignment.companyId);
-        const extras = await hydrateLeadRowExtras(
-          ctx,
-          args.workspaceId,
-          assignment.companyId,
-        );
-        return {
-          assignment,
-          company,
-          ...extras,
-          // Nema grane sa nulom: u ovoj listi su samo leadovi sa planiranim
-          // korakom, pa je kašnjenje uvek stvarna vrednost.
-          delayMs: now - assignment.nextActionAt!,
-        };
-      }),
-    );
+    const { items, mozdaImaJos, pregledano } = await citajKorake(ctx, {
+      workspaceId: args.workspaceId,
+      granica: now,
+      ownerUserId: args.ownerUserId,
+      maxRows,
+      now,
+    });
 
     return {
       items,
       count: items.length,
       mozdaImaJos,
-      pregledano: scanned.length,
+      pregledano,
+      now,
+    };
+  },
+});
+
+/**
+ * Koraci za „Vrati se na" (ULTRA-PLAN §4, tačka 7): zakasneli I dogovoreni za
+ * danas, redom po roku. Korak se tako vidi pre nego što zakasni; `kasni` kaže
+ * koji je već prošao.
+ *
+ * `krajDana` šalje ekran: „danas" je lokalni pojam, a server radi u UTC-u
+ * (isto pravilo kao `listMeetings`). Granica se ne pušta dalje od 48 h, da
+ * upit ne postane „svi budući koraci".
+ */
+export const listKoraciDanas = projekatQuery({
+  args: {
+    krajDana: v.number(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const maxRows = Math.min(Math.max(args.limit ?? 50, 1), 200);
+    const now = Date.now();
+    const granica = Math.min(Math.max(args.krajDana, now), now + 48 * 60 * 60 * 1000);
+
+    const { items, mozdaImaJos, pregledano } = await citajKorake(ctx, {
+      workspaceId: args.workspaceId,
+      granica,
+      maxRows,
+      now,
+    });
+
+    return {
+      items,
+      count: items.length,
+      zakasnelih: items.filter((i) => i.kasni).length,
+      mozdaImaJos,
+      pregledano,
       now,
     };
   },

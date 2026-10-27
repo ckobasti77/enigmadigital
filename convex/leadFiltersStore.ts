@@ -11,6 +11,7 @@ import {
 } from "./lib/ciljnaNisa";
 import { ucitajPoslednjeOcene, type SazetakOcene } from "./leadSiteAuditsStore";
 import { PRAG_SPOR_SAJT } from "./lib/siteScore";
+import { korakKasni, rokKoraka } from "./lib/leadKorak";
 
 /**
  * ============================================================================
@@ -203,6 +204,9 @@ const FILTER_ARGS = {
   // procene" iz zvona vodi na nefiltriranu tabelu.
   bezProcene: v.optional(v.boolean()),
   dodir: v.optional(v.array(DODIR_VALIDATOR)),
+  // Red „Zovi sada" (ULTRA-PLAN §4, tačka 8): samo firme BEZ dogovorenog
+  // koraka. Firma sa korakom čeka u „Vrati se na", ne u oba reda.
+  bezKoraka: v.optional(v.boolean()),
   q: v.optional(v.string()),
   // GL10 (plan §5.2): iz poslednje ocene sajta.
   kvalitet: v.optional(v.array(KVALITET_VALIDATOR)),
@@ -223,6 +227,7 @@ type FilterArgs = {
   tel?: number;
   bezProcene?: boolean;
   dodir?: DodirFilter[];
+  bezKoraka?: boolean;
   q?: string;
   kvalitet?: KvalitetFilter[];
   cms?: string[];
@@ -242,6 +247,7 @@ type Grupa =
   | "tel"
   | "bezProcene"
   | "dodir"
+  | "bezKoraka"
   | "q"
   | "kvalitet"
   | "cms"
@@ -461,11 +467,7 @@ function napraviTestove(
       !args.faza || args.faza.length === 0
         ? true
         : args.faza.includes(red.assignment.stage),
-    zaostali: (red) =>
-      !args.zaostali
-        ? true
-        : red.assignment.nextActionAt !== undefined &&
-          red.assignment.nextActionAt < now,
+    zaostali: (red) => (!args.zaostali ? true : korakKasni(red.assignment, now)),
     temp: (red) =>
       !args.temp || args.temp.length === 0
         ? true
@@ -505,6 +507,8 @@ function napraviTestove(
       !args.dodir || args.dodir.length === 0
         ? true
         : args.dodir.some((d) => dodirPogodak(red.assignment, d, now)),
+    bezKoraka: (red) =>
+      !args.bezKoraka ? true : rokKoraka(red.assignment) === undefined,
     q: (red) => (qNorm === "" ? true : red.imeZaPretragu.includes(qNorm)),
     // ── GL10: iz poslednje ocene sajta ──
     // `neocenjen` = firma IMA sajt (imaSajt "da" ili sajtStatus "radi"), a
@@ -579,6 +583,7 @@ const SVE_GRUPE: readonly Grupa[] = [
   "tel",
   "bezProcene",
   "dodir",
+  "bezKoraka",
   "q",
   "kvalitet",
   "cms",
@@ -653,9 +658,7 @@ export const listLeadsFiltered = projekatQuery({
           assignment: red.assignment,
           company: red.company,
           ...extras,
-          isOverdue:
-            red.assignment.nextActionAt !== undefined &&
-            red.assignment.nextActionAt < now,
+          isOverdue: korakKasni(red.assignment, now),
         };
       }),
     );
@@ -715,10 +718,8 @@ export const countLeadsByFacet = projekatQuery({
 
     // ── zaostali ──
     const zaostaliSkup = uGrupi("zaostali");
-    const zaostali = zaostaliSkup.filter(
-      (red) =>
-        red.assignment.nextActionAt !== undefined &&
-        red.assignment.nextActionAt < now,
+    const zaostali = zaostaliSkup.filter((red) =>
+      korakKasni(red.assignment, now),
     ).length;
 
     // ── temperatura ──
@@ -1114,8 +1115,7 @@ export const getLeadRow = projekatQuery({
         assignment,
         company,
         ...extras,
-        isOverdue:
-          assignment.nextActionAt !== undefined && assignment.nextActionAt < now,
+        isOverdue: korakKasni(assignment, now),
       },
       now,
     };

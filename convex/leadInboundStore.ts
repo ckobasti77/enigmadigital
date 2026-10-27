@@ -16,6 +16,7 @@ import {
   mapInboundKindToSignal,
 } from "./lib/leadInboundDerive";
 import { isSuppressed } from "./leadSuppressionStore";
+import { zaduziNovuFirmu } from "./lib/leadZaduzenje";
 
 /**
  * ============================================================================
@@ -446,6 +447,16 @@ export const linkInboundToCompany = projekatMutation({
           observedAt: now,
         });
       }
+
+      // Nova firma odmah dobija zaduženje, istim putem kao uvoz — bez njega
+      // se ne vidi u Tabeli, na Mapi ni u redu poziva.
+      await zaduziNovuFirmu(ctx, {
+        workspaceId: args.workspaceId,
+        companyId,
+        kreator: ctx.projekat.userId,
+        now,
+        napomena: "Dodeljen pri pravljenju firme iz poruke sa mreže",
+      });
     } else {
       throw new ConvexError({
         code: "invalid",
@@ -716,6 +727,14 @@ export const napraviFirmuIzUpita = projekatMutation({
       confidence: "tacno",
       humanConfirmed: true,
       observedAt: now,
+    });
+
+    await zaduziNovuFirmu(ctx, {
+      workspaceId: args.workspaceId,
+      companyId,
+      kreator: ctx.projekat.userId,
+      now,
+      napomena: "Dodeljen pri pravljenju firme iz upita sa sajta",
     });
 
     let personId: Id<"leadPeople"> | undefined;

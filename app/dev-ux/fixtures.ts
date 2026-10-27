@@ -610,12 +610,19 @@ function danasU(sat: number, minut: number): number {
   return d.getTime();
 }
 
+/**
+ * Današnji sastanak je uvek JOŠ ispred (15:30, a kasnije u danu sat od sada):
+ * snimljen posle 15:30, fiksni termin je postajao drugi „sastanak bez ishoda",
+ * pa je ekran brojao dva, a zvono (`SASTANAK_PROSAO_BEZ_ISHODA`) jedan.
+ */
+const SASTANAK_DANAS_AT = Math.max(danasU(15, 30), Math.min(now + HOUR, danasU(23, 59)));
+
 const listMeetings: R<typeof api.leadCrmStore.listMeetings> = (() => {
   const izvori = [
     // prošao pre dva dana, ishod nije zabeležen → grupa upozorenja
     { lead: LEADOVI[2], meetingAt: now - 2 * DAY, note: "Poslati ponudu posle sastanka", ishod: false },
     // danas
-    { lead: LEADOVI[5], meetingAt: danasU(15, 30), note: undefined, ishod: false },
+    { lead: LEADOVI[5], meetingAt: SASTANAK_DANAS_AT, note: undefined, ishod: false },
     // sutra
     { lead: LEADOVI[8], meetingAt: danasU(11, 0) + DAY, note: "Prvi sastanak u salonu", ishod: false },
   ];
@@ -652,8 +659,43 @@ const listOverdue: R<typeof api.leadCrmStore.listOverdue> = (() => {
     },
     isOverdue: true,
     delayMs: kasni,
+    kasni: true,
   }));
   return { items, count: items.length, mozdaImaJos: false, pregledano: 12, now };
+})();
+
+/**
+ * „Vrati se na" (T02): isti zakasneli koraci kao `listOverdue` + jedan korak
+ * dogovoren za danas, koji još nije zakasneo — po roku, kao pravi upit.
+ */
+const listKoraciDanas: R<typeof api.leadCrmStore.listKoraciDanas> = (() => {
+  const krajDana = danasU(23, 59);
+  const danasKasnije = Math.min(now + 2 * HOUR, krajDana - 60_000);
+  const lead = LEADOVI[14];
+  const danas = {
+    ...lead,
+    assignment: {
+      ...lead.assignment,
+      stage: "u_radu" as const,
+      nextActionAt: danasKasnije,
+      nextActionNote: "Javiti cenu za redizajn",
+      lastTouchAt: now - 1 * DAY,
+    },
+    isOverdue: false,
+    delayMs: now - danasKasnije,
+    kasni: false,
+  };
+  const items = [...listOverdue.items, danas].sort(
+    (a, b) => (a.assignment.nextActionAt ?? 0) - (b.assignment.nextActionAt ?? 0),
+  );
+  return {
+    items,
+    count: items.length,
+    zakasnelih: listOverdue.items.length,
+    mozdaImaJos: false,
+    pregledano: 12,
+    now,
+  };
 })();
 
 /** Mapa (GL3): iste firme, samo one sa koordinatama — sve sintetičke ih imaju. */
@@ -877,7 +919,7 @@ const staMeCekaSnimak: Snimak = {
   // jezičku i zvono ne smeju da broje različito.
   zaostaliKoraci: ZAOSTALIH,
   zaostaliOdsecen: false,
-  sastanciDanas: [{ at: danasU(15, 30), firma: LEADOVI[5].company.name }].slice(
+  sastanciDanas: [{ at: SASTANAK_DANAS_AT, firma: LEADOVI[5].company.name }].slice(
     0,
     SASTANAKA_DANAS,
   ),
@@ -1084,6 +1126,7 @@ const FIXTURES: Record<string, Fixture> = {
   [getFunctionName(api.leadScoringStore.scoreCompanies)]: () => scoreCompanies,
   [getFunctionName(api.leadCrmStore.listMeetings)]: () => listMeetings,
   [getFunctionName(api.leadCrmStore.listOverdue)]: () => listOverdue,
+  [getFunctionName(api.leadCrmStore.listKoraciDanas)]: () => listKoraciDanas,
   [getFunctionName(api.leadGapsStore.listGaps)]: () => listGaps,
   [getFunctionName(api.leadFiltersStore.listLeadsForMap)]: () => listLeadsForMap,
   // B7: red izabrane firme za panel mape (`?tab=map&firma=<id>`) — isti red

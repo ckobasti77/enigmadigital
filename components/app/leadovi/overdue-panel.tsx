@@ -15,6 +15,7 @@ import { LeadCallStrip } from "./lead-call-strip";
 import { LeadRowActions } from "./lead-row-actions";
 import { LeadRowDialogs, type LeadRowDialogState } from "./lead-row-dialogs";
 import { WorkCard, WorkSection } from "./work-card";
+import { KorakUradjen } from "./korak-uradjen";
 import { describeNextUp, rowEdge, type LeadRowItem } from "./lead-urgency";
 import { useLeadFilters } from "./use-lead-filters";
 import { formatDateTime } from "@/lib/format";
@@ -195,7 +196,14 @@ export function OverduePanel() {
                   onOpenDialog={(kind) => setDialog({ kind, item })}
                   onOpenStageDialog={(stage) => setDialog({ kind: "stage", item, stage })}
                   onError={setActionError}
-                  className="w-full justify-between"
+                  className="min-w-0 flex-1 justify-between"
+                />
+              }
+              secondary={
+                <KorakUradjen
+                  companyId={item.assignment.companyId}
+                  companyName={item.company?.name ?? "firma"}
+                  onError={setActionError}
                 />
               }
             >

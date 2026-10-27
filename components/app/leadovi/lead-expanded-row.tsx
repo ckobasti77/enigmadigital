@@ -25,6 +25,8 @@ import {
   personRoleLabel,
 } from "./lead-labels";
 import { getErrorMessage } from "./lead-quick-dialogs";
+import { KorakUradjen } from "./korak-uradjen";
+import { rokKoraka } from "@/convex/lib/leadKorak";
 import type { RowDialogKind } from "./lead-row-actions";
 import {
   isMeetingUnresolved,
@@ -115,6 +117,8 @@ export function LeadExpandedRow({
   };
 
   const overdue = isNextActionOverdue(assignment, now);
+  // Zatvoren posao nema korak ni kad je stari rok ostao u bazi (`lib/leadKorak`).
+  const rok = rokKoraka(assignment);
   const meetingUnresolved = isMeetingUnresolved(assignment, now);
   const touch = item.poslednjiDodir;
   const untouchedTooLong = isUntouchedTooLong(assignment, now);
@@ -307,11 +311,11 @@ export function LeadExpandedRow({
             <Calendar className="size-3" aria-hidden />
             Sledeći korak
           </div>
-          {assignment.nextActionAt !== undefined ? (
+          {rok !== undefined ? (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className={cn("font-medium", overdue ? "text-danger" : "text-foreground")}>
-                {formatDayRelative(assignment.nextActionAt, now)} u{" "}
-                {formatClockTime(assignment.nextActionAt)}
+                {formatDayRelative(rok, now)} u{" "}
+                {formatClockTime(rok)}
               </span>
               {overdue && (
                 <span className="rounded bg-danger/10 px-1 py-px text-micro font-bold text-danger">
@@ -333,6 +337,13 @@ export function LeadExpandedRow({
                   Izmeni
                 </Button>
               )}
+              <KorakUradjen
+                companyId={companyId}
+                companyName={company?.name ?? "firma"}
+                variant="ghost"
+                size="xs"
+                className="text-text-muted hover:text-foreground"
+              />
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
