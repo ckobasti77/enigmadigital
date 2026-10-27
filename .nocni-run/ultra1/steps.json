@@ -1,0 +1,16 @@
+[
+  {"id": "T01", "title": "Odluke u PRODUCT.md, DESIGN.md i CLAUDE.md", "model": "claude-opus-5-5", "effort": "high", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 120, "gates": false},
+  {"id": "T02", "title": "Leadovi: ispravke podataka u petlji", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 210},
+  {"id": "T03", "title": "Plan: jedan status i pošteni brojevi", "model": "claude-opus-5-5", "effort": "high", "mode": "plan", "session": "nova", "resumeFrom": null, "timeoutMin": 100},
+  {"id": "T04", "title": "Jedan status veze svuda i uslovan baner", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "ista", "resumeFrom": "T03", "timeoutMin": 240},
+  {"id": "T05", "title": "Pošteni brojevi: „—“, smer, valuta, probni podaci", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 210},
+  {"id": "T06", "title": "Period koji se pamti, adresa u jezičcima, nacrti Novosti", "model": "claude-opus-5-5", "effort": "high", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 180},
+  {"id": "T07", "title": "Pravila: bez samoupisa, proba, Vrati kampanju", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 210},
+  {"id": "T08", "title": "Plan: temelj sistema", "model": "claude-opus-5-5", "effort": "max", "mode": "plan", "session": "nova", "resumeFrom": null, "timeoutMin": 120},
+  {"id": "T09", "title": "Boja radnje, uloge dugmeta, 44 px na dodir", "model": "claude-opus-5-5", "effort": "xhigh", "mode": "goal", "session": "ista", "resumeFrom": "T08", "timeoutMin": 240},
+  {"id": "T10", "title": "Tipografija, kontrast i mono", "model": "claude-opus-5-5", "effort": "high", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 210},
+  {"id": "T11", "title": "Jedan meni za izbor i jedan format", "model": "claude-sonnet-5-5", "effort": "high", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 150},
+  {"id": "T12", "title": "Rečnik i provera sirovih naziva", "model": "claude-opus-5-5", "effort": "high", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 180},
+  {"id": "T13", "title": "Revizija runa: regresije, istina, pravila repoa", "model": "claude-opus-5-5", "effort": "max", "mode": "goal", "session": "nova", "resumeFrom": null, "timeoutMin": 240},
+  {"id": "T14", "title": "Završni izveštaj i merenje", "model": "claude-opus-5-5", "effort": "high", "mode": "auto", "session": "nova", "resumeFrom": null, "timeoutMin": 150}
+]

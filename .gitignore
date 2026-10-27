@@ -80,3 +80,13 @@ nocni-run/ux/b*
 .nocni-run/projekti/STOP
 .nocni-run/projekti/baseline.txt
 .nocni-run/projekti/mcp.json
+
+# nocni run ultra1 (logovi i stanje runnera)
+.nocni-run/ultra1/logs/
+.nocni-run/ultra1/tmp/
+.nocni-run/ultra1/state.json
+.nocni-run/ultra1/state.json.tmp
+.nocni-run/ultra1/state.bad.json
+.nocni-run/ultra1/STOP
+.nocni-run/ultra1/baseline.txt
+.nocni-run/ultra1/mcp.json
