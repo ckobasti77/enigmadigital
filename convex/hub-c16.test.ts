@@ -233,7 +233,8 @@ describe("hubStore.pregledProjekta", () => {
     const s = await napraviSvet();
     const p = period();
     await veza(s, s.wsA, "ga4", { status: "error" });
-    await veza(s, s.wsA, "meta_ig", { expiresAt: p.sada + 9 * 24 * SAT, lastSyncAt: p.sada - SAT });
+    // P3 (ULTRA1): „ističe" je 7 dana ili manje (bilo 14), pa token na 5 dana.
+    await veza(s, s.wsA, "meta_ig", { expiresAt: p.sada + 5 * 24 * SAT, lastSyncAt: p.sada - SAT });
     await veza(s, s.wsA, "youtube", { status: "disconnecting" });
     await veza(s, s.wsA, "threads", { lastSyncAt: p.sada - SAT });
     const r = await kao(s, s.jovan).query(api.hubStore.pregledProjekta, { ...p, workspaceId: s.wsA });
@@ -244,7 +245,7 @@ describe("hubStore.pregledProjekta", () => {
     expect(poProvajderu.ga4.razlog).toBe("greska_veze");
     expect(poProvajderu.meta_ig.stanje).toBe("upozorenje");
     expect(poProvajderu.meta_ig.razlog).toBe("token_istice");
-    expect(poProvajderu.meta_ig.za).toBe(9);
+    expect(poProvajderu.meta_ig.za).toBe(5);
     expect(poProvajderu.threads.stanje).toBe("ok");
   });
 

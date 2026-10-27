@@ -9,8 +9,13 @@
  * ticked yet ("još ne znam"), which is also never "expiring".
  */
 
-/** Warn when this little time is left; matches the cards' pre-existing window. */
-export const TOKEN_EXPIRY_WARNING_MS = 14 * 24 * 60 * 60 * 1000;
+/**
+ * Warn when this little time is left. Seven days is the "traži pažnju" line of
+ * the single connection status (P3, `convex/lib/statusVeze.ts`); Meta tokens
+ * refresh themselves at ten days, so a token under seven means the automatic
+ * refresh has already failed for days.
+ */
+export const TOKEN_EXPIRY_WARNING_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * What the card says when a token has no clock expiry at all.

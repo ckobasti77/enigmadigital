@@ -162,6 +162,11 @@ export function formatShortDate(key: string): string {
   return shortDateFmt.format(keyToLocalDate(key));
 }
 
+/** Trenutak u ms → "15. avg" (npr. „podaci od 15. avg"). */
+export function formatShortDateAt(timestamp: number): string {
+  return shortDateFmt.format(new Date(timestamp));
+}
+
 /** "2026-08-15" → "sub, 15. avgust 2026." (tooltips). */
 export function formatLongDate(key: string): string {
   return longDateFmt.format(keyToLocalDate(key));

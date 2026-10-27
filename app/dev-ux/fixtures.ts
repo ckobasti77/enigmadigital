@@ -47,6 +47,8 @@ import {
   stanjeProjekataUx,
 } from "./fixtures-projekti";
 import { FIXTURES_VEZE, UPITI_SA_SAJTA_ZVONO } from "./fixtures-veze";
+import { redoviStatusa } from "./fixtures-status-veza";
+import { integracijeUKvaru } from "@/convex/lib/statusVeze";
 
 // ── Ljuska ───────────────────────────────────────────────────────────────────
 
@@ -67,12 +69,13 @@ const connections: R<typeof api.connections.list> = [
     _id: "conn_ig_test" as Id<"connections">,
     _creationTime: now - 60 * DAY,
     provider: "meta_ig",
-    status: "active",
+    // Jedan status veze (P3): pristup je istekao pre 3 dana.
+    status: "expired",
     externalId: "00000000000000000",
     externalIdAlt: null,
     accountHandle: "test.salon",
     lastSyncAt: now - 3 * DAY,
-    expiresAt: now + 40 * DAY,
+    expiresAt: now - 3 * DAY,
     authMode: null,
   },
   {
@@ -97,7 +100,8 @@ const connections: R<typeof api.connections.list> = [
     externalIdAlt: "Test Salon stranica",
     accountHandle: "Test Salon stranica",
     lastSyncAt: now - 3 * HOUR,
-    expiresAt: null,
+    // Jedan status veze (P3): pristup ističe za 5 dana.
+    expiresAt: now + 5 * DAY - HOUR,
     authMode: null,
   },
   {
@@ -108,7 +112,8 @@ const connections: R<typeof api.connections.list> = [
     externalId: "000000000000002",
     externalIdAlt: null,
     accountHandle: "test.salon",
-    lastSyncAt: now - 3 * HOUR,
+    // Jedan status veze (P3): poslednji prolaz je pao, uspeh pre 2 dana.
+    lastSyncAt: now - 2 * DAY,
     expiresAt: null,
     authMode: null,
   },
@@ -190,7 +195,19 @@ const syncHealth: R<typeof api.sync.health> = [
     note: null,
     itemsWritten: 31,
   },
+  {
+    provider: "threads",
+    status: "error",
+    startedAt: now - HOUR,
+    finishedAt: now - HOUR + 4_000,
+    error: "Threads je odbio zahtev (kod 500).",
+    note: null,
+    itemsWritten: 0,
+  },
 ];
+
+/** Jedan status veze (P3): izveden iz istih veza i prolaza kao ekrani iznad. */
+const statusRedovi = redoviStatusa(connections, syncHealth);
 
 const freshness: R<typeof api.sync.freshness> = now - 2 * HOUR;
 
@@ -889,7 +906,7 @@ const listImportRows: R<typeof api.leadImportStore.listImportRows> = [
 // Fixture se NE piše rukom: snimak stanja prolazi kroz PRAVE proizvođače
 // (`convex/lib/notifications.ts`), pa razvojni prikaz ne može da pokaže spisak
 // koji produkcija ne bi napravila. Brojevi su izmereni 9.9.2026 (§1.1), a
-// Instagram u grešci je isti onaj iz `syncHealth` iznad.
+// veze koje traže pažnju dolaze iz istog statusa kao tačka i Podešavanja (P3).
 const staMeCekaSnimak: Snimak = {
   now,
   pomerajMin: -new Date().getTimezoneOffset(),
@@ -907,14 +924,8 @@ const staMeCekaSnimak: Snimak = {
     { id: "imp_ux_9", fileName: "test-tabela-9.xlsx", broj: 1, odsecen: false },
   ],
   uvoziOdseceni: false,
-  integracijeUKvaru: [
-    {
-      provider: "meta_ig",
-      razlog: "greska",
-      posledniUspehAt: now - 3 * DAY,
-      primecenAt: now - 3 * DAY,
-    },
-  ],
+  // Iz istog statusa kao tačka, kanali i Podešavanja (P3).
+  integracijeUKvaru: integracijeUKvaru(statusRedovi, now),
   // A4: isti brojevi kao `listOverdue` / `listMeetings` iznad — bedž na
   // jezičku i zvono ne smeju da broje različito.
   zaostaliKoraci: ZAOSTALIH,
@@ -1102,6 +1113,13 @@ const FIXTURES: Record<string, Fixture> = {
   [getFunctionName(api.connections.list)]: () => connections,
   [getFunctionName(api.sync.health)]: () => syncHealth,
   [getFunctionName(api.sync.freshness)]: () => freshness,
+  [getFunctionName(api.statusVeza.lista)]: () => statusRedovi,
+  // Kartica Instagrama pita server da li je Meta aplikacija podešena; u
+  // razvojnom prikazu jeste (bez ovoga kartica laže „Čeka Meta app").
+  [getFunctionName(api.instagram.getOAuthConfig)]: () => ({
+    isConfigured: true,
+    appId: "000000000000000",
+  }),
   [getFunctionName(api.metaSyncStore.rateLimit)]: () => rateLimit,
   // Prethodni period je namerno prazan: to je izmereno stanje produkcije
   // (7/7 i 5/5 pločica bez poređenja), pa snimak „pre" pokazuje baš to.
@@ -1180,6 +1198,11 @@ const PRAZNO: Record<string, Fixture> = {
   [getFunctionName(api.connections.list)]: () =>
     connections.filter((c) => !KANALI_BEZ_VEZE.has(c.provider)),
   [getFunctionName(api.sync.health)]: () => [],
+  [getFunctionName(api.statusVeza.lista)]: () =>
+    redoviStatusa(
+      connections.filter((c) => !KANALI_BEZ_VEZE.has(c.provider)),
+      [],
+    ),
   [getFunctionName(api.postsPublic.listPublished)]: () => postsPrazno,
   [getFunctionName(api.igCommentsStore.filterCounts)]: () =>
     ({ all: 0, unanswered: 0, hidden: 0, deleted: 0, mentions: 0, cap: 100 }) satisfies R<

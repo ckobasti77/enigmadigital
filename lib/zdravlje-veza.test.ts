@@ -111,10 +111,16 @@ describe("zdravljeProjekta (tačka u biraču projekta)", () => {
     expect(zdravljeProjekta([{ ...zdrava, expiresAt: SADA + 2 * 24 * SAT }], SADA)).toBe("greska");
     expect(zdravljeProjekta([{ ...zdrava, expiresAt: SADA + 3 * 24 * SAT }], SADA)).toBe("upozorenje");
     expect(zdravljeProjekta([{ ...zdrava, expiresAt: SADA - SAT }], SADA)).toBe("greska");
-    expect(razlogZdravlja({ ...zdrava, expiresAt: SADA + 9 * 24 * SAT }, SADA)).toEqual({
+    // P3 (ULTRA1): „ističe" je 7 dana ili manje; do tada je bilo 14, pa je
+    // ovde stajalo 9 dana. Token na 9 dana sada radi.
+    expect(razlogZdravlja({ ...zdrava, expiresAt: SADA + 5 * 24 * SAT }, SADA)).toEqual({
       stanje: "upozorenje",
       razlog: "token_istice",
-      za: 9,
+      za: 5,
+    });
+    expect(razlogZdravlja({ ...zdrava, expiresAt: SADA + 9 * 24 * SAT }, SADA)).toEqual({
+      stanje: "ok",
+      razlog: null,
     });
     expect(razlogZdravlja({ ...zdrava, expiresAt: SADA - SAT }, SADA).razlog).toBe("token_istekao");
     expect(razlogZdravlja({ ...zdrava, status: "expired" }, SADA).razlog).toBe("token_istekao");
@@ -154,7 +160,7 @@ describe("zdravljeProjekta (tačka u biraču projekta)", () => {
 
   test("C16: najgora veza nosi razlog za liniju ispod imena projekta", () => {
     const ga4 = { ...zdrava, provider: "ga4" };
-    const ig = { ...zdrava, provider: "meta_ig", expiresAt: SADA + 9 * 24 * SAT };
+    const ig = { ...zdrava, provider: "meta_ig", expiresAt: SADA + 5 * 24 * SAT };
     const prekid = { ...zdrava, provider: "youtube", status: "disconnecting" as const };
     expect(najgoraVeza([], SADA)).toBeNull();
     expect(najgoraVeza([prekid], SADA)).toBeNull();

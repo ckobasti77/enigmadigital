@@ -122,3 +122,98 @@ Nijedan `next dev` ni drugi proces koji je korak sam pokrenuo nije upaljen.
 
 ## T03 - Plan: jedan status i pošteni brojevi   (2026-10-27 22:18)
 **Plan korak.** Plan je upisan u `docs/ultra/planovi/T03.md`. Kod nije menjan.
+
+## T04 — Jedan status veze svuda i uslovan baner   (2026-10-27 23:00)
+**Fajlovi:**
+- novi:
+  - logika i upit: `convex/lib/statusVeze.ts`, `convex/lib/serverPodesen.ts`, `convex/statusVeza.ts` (upit `statusVeza.lista`);
+  - front: `components/app/system/stanje-veze.tsx`, `lib/veze-ekrana.ts`;
+  - testovi i fiksture: `lib/status-veze.test.ts`, `convex/status-veza.test.ts`, `app/dev-ux/fixtures-status-veza.ts`;
+  - snimci `docs/ultra/snimci/T04-*.png` (8).
+- izmenjeni backend: `convex/lib/zdravljeVeza.ts`, `convex/lib/vezeProjekta.ts` (`citajUlazeStatusa`), `convex/lib/notifications.ts`, `convex/notificationsStore.ts`, `convex/instagramPublish.ts`, `convex/lib/igPublish.ts`, `convex/_generated/api.d.ts` (codegen).
+- izmenjeni front:
+  - `components/app/sync-status.tsx`;
+  - `components/app/system/page-header.tsx`, `components/app/system/channel-focus.tsx`;
+  - `components/app/settings/connections-settings.tsx`, `components/app/overview/sync-health-widget.tsx`, `components/app/instagram/publish-composer.tsx`;
+  - `lib/channel-readiness.ts`, `lib/token-expiry.ts`, `lib/format.ts` (`formatShortDateAt`).
+- testovi, provere i fiksture: `lib/zdravlje-veza.test.ts`, `convex/hub-c16.test.ts`, `scripts/notifications-check.ts`, `app/dev-ux/fixtures.ts`.
+
+**Šta je urađeno:**
+- Svaka veza ima tačno jedan status (Radi / Traži pažnju / Nije povezano). Daje ga čista funkcija `statusVeze` u `convex/lib/statusVeze.ts`, sagrađena na postojećem `razlogZdravlja` (hub i birač), pa svi ekrani po konstrukciji kažu isto.
+- Upit `statusVeza.lista` vraća samo činjenice; status se računa na ekranu sa satom koji otkucava (`useStatusVeza`). Zvono računa istom funkcijom na serveru (`integracijeUKvaru`).
+- Rečenice i radnje daje jedna funkcija (`porukaStatusa`), npr. „Instagram: pristup je istekao pre 3 dana · Poveži ponovo". Tehnički tekst greške ostaje samo u detaljima Podešavanja (stanje sinhronizacije).
+- **Potrošači:**
+  - tačka u gornjoj traci: zelena samo kad sve radi, inače žuta sa brojem; klik otvara „Veze" (zvono filtrirano na veze);
+  - traka u zaglavlju ekrana kanala (crta je `PageHeader`, po modulu iz `lib/veze-ekrana.ts`);
+  - „podaci od …" uz fokus broj (`ChannelFocus`);
+  - Spremnost bez segmenata „Povezan" i „Sinhronizuje";
+  - Podešavanja: fokus „N radi · M traži pažnju" sa „Reši: …", pilula i razlog na kartici, „Prekini vezu" u meniju „⋯" uz postojeću potvrdu;
+  - pregled veza na tabli i zvono.
+- Kompozer: žuti baner o dozvoli stoji samo kad Meta kaže da dozvola fali (`publishingLimit.nedostajeOpseg`). Pravilo je jedna čista funkcija, `prikaziBanerDozvole` u `convex/lib/igPublish.ts`, pokrivena testom.
+
+**ODLUKE:**
+- **Pragovi (P3).** Token: 7 dana, i u `TOKEN_ISTICE_MS` (hub i birač) i u `TOKEN_EXPIRY_WARNING_MS` (kartice). Podaci: prag je `pragoviStarosti` iz `zdravljeVeza`, dakle 24 h, osim za Threads, gde je 48 h, jer se redovno sinhronizuje jednom dnevno i bio bi žut svakog dana. Natpis „podaci od …" je ravnih 24 h za sve, jer je to činjenica, a ne kvar.
+- **Testovi hub-a.** `lib/zdravlje-veza.test.ts` i `convex/hub-c16.test.ts` su koristili token na 9 dana kao „ističe". Uz prag od 7 dana to je sada „radi", pa je ulaz 5 dana; dodata je i provera da 9 dana radi. Nova istina P3, ne slabljenje.
+- **`scripts/notifications-check.ts`.**
+  - Razlozi `greska` i `istekao_token` su postali `pao_prolaz` i `token_istekao` (jedan rečnik razloga).
+  - Radnja za istekao pristup je „Poveži ponovo" umesto „Obnovi pristup", iste reči kao na kanalu. Pravilo „obnova, ne sinhronizacija" se i dalje meri.
+  - Dodate su provere za „ističe za 5 dana" i stare podatke. Ostale tvrdnje (naslovi, bedževi, rute) prolaze bez izmene.
+- **Zvono i nove stavke.** Zvono sada javlja i token koji ističe za 7 dana ili manje, stare podatke i server bez podešavanja, jer tačka mora da se poklapa sa zvonom. Ključ ostaje `sinhronizacija.greska:<provider>`, pa odlaganja i sklanjanja važe. Hitnost: visoka za server bez podešavanja, token za ≤ 2 dana i kvar stariji od dana; inače srednja. Token koji tek ističe nema „kvar traje".
+- **„Server nije podešen".** Proverava se za Instagram, Facebook, Threads, YouTube i Google Business, istim čitačima okruženja kao kartice Podešavanja. Postojeće `setupInfo` funkcije nisu menjane, jer već koriste iste getere. Facebook povezan trajnim tokenom sistemskog korisnika se ne proverava (ne zavisi od Meta aplikacije).
+- **Spisak veza.** Status govori o 8 veza iz Podešavanja i o Google Business-u kad je povezan. `leads` (ulaz skilla) nije veza koju vlasnik održava. Veza u prekidu je „Nije povezano" uz razlog „brisanje u toku"; ne boji tačku.
+- **Traka i natpis bez izmene dashboard-a.** Traku stanja crta `PageHeader`, a „podaci od …" crta `ChannelFocus`, oba po modulu ekrana (`lib/veze-ekrana.ts`). Fajlovi ekrana kanala nisu dirani, jer su T05-ovi (plan T03 §8).
+- **Spremnost.** Merač ne pravi segmente `connected` i `sync`; njihovi ključevi ostaju u tipu, pa grane u ekranima kanala postaju mrtve. Briše ih šablon kanala (U11).
+- **Sidra.** Radnje vode na `/settings?tab=integracije#integracija-<provider>`, jer kartice već imaju ta sidra (plan je predlagao `#veza-`).
+- **Podešavanja.** Pilule „Čeka Meta app — … u env" više ne zamenjuju status. Tekst sa imenima env promenljivih je ostao u napomenama kartica, a njih menja T12. Stara upozorenja „Token ističe …" (Instagram, tvrdo 14 dana, i Facebook) zamenjuje razlog statusa ispod zaglavlja kartice. Kartica OpenReply-a pokazuje stanje motora samo kad veze nema.
+- **Zatečena greška.** „Token važi do 1. 11. (upravo sada)": `formatRelativeTime` budući rok čita kao „upravo sada". Kartice sada pišu „za 4 dana" i „Token je istekao … (pre 3 dana)" (`rokTokena`). `lib/format.ts` nije menjan osim dodatog `formatShortDateAt`; `formatRelativeTime` ostaje za T11.
+- **Kompozer.** Za isteklu vezu ne ponavlja rečenicu iz trake; kaže samo posledicu („Objava ne može da se pošalje dok Instagram ne bude ponovo povezan.").
+- **Boja radnje.** Linkovi radnji statusa su u `text-accent-400`, a ne u boji modula. Boju dugmadi menja T09.
+- **Kružni uvoz.** `statusVeze.ts` i `notifications.ts` se uvoze uzajamno. Oba koriste uvezeno samo unutar funkcija; to je zapisano u komentaru modula.
+- **Telefon.** Tačka u traci i dalje nije vidljiva na 390 (zatečeno `hidden sm:inline-flex`). Na telefonu stanje nose ćelija „Danas" (zvono, iste reči) i meni korisnika. Gornju traku telefona menja T06.
+- Skill `impeccable` je pozvan pre UI koda. Pitanje korisniku nije bilo moguće (noćni run), pa je odluka po planu T03.
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- `lib/status-veze.test.ts` (23 testa):
+  - radi, nije povezano, prekid veze, istekao token (status i datum, sa trajanjem i bez njega);
+  - ističe za 5 dana, granica od 7 dana, 8 dana radi;
+  - pao prolaz i pad posle svežijeg podatka;
+  - veza bez uspeha, zastoj, stari podaci (24 h; Threads 30/50 h), `lastDataAt`;
+  - server nije podešen (i ženski rod), greška veze, bez tehničkog koda;
+  - zbir i redosled, `google_business`, broj veza u rečenici;
+  - za svako od četiri stanja zvono piše istu rečenicu, radnju i adresu kao status;
+  - kompozer: zdrava veza sa dozvolom nema baner (i dok odgovor o kvoti ne stigne); baner stoji samo kad dozvola fali, a nije uz isteklu ili nepovezanu vezu.
+- `convex/status-veza.test.ts` (4 testa): izolacija projekta i uloga; poslednji uspeh, `lastDataAt`, veza u prekidu i sistemski korisnik; server bez Meta aplikacije; zvono (`staMeCeka`) i status nad istom bazom kažu isto, bez „OAuth 190".
+- Izmenjeni: `lib/zdravlje-veza.test.ts`, `convex/hub-c16.test.ts`, `scripts/notifications-check.ts` (vidi ODLUKE).
+
+**Rezultat provere:**
+- `npx convex codegen`: prošao.
+- typecheck: prošao.
+- lint: 0 grešaka (1210 upozorenja, isto kao pre).
+- vitest: 55 fajlova / 982 testa prošla.
+- pristup: prošao.
+- regresije: 14/14 prošlo.
+- Dodatno: `verify:meta-token` i `verify:ig-publish` prošli.
+- **Vizuelno** (Playwright, `?ux=1`, port 3117):
+  - snimljeni: tabla sa otvorenom tačkom (1536), Instagram sa isteklom vezom (1536 i 390), Podešavanja (1536 i 390), kartica Instagrama, meni „⋯" i dijalog potvrde (1536), zvono na telefonu (390);
+  - na 390 nema vodoravnog klizanja, a u konzoli nema grešaka;
+  - u kompozeru (`/instagram/objavi`) baner o dozvoli ne stoji.
+- Dev server je ugašen (PID 7592, 27360, 26400; port 3117 slobodan). Pomoćni fajlovi Playwright-a su premešteni u `.nocni-run/ultra1/tmp/t04-playwright/`.
+
+**Prihvatanje (provera stavku po stavku):**
+- „Za istu vezu tačka, kanal, Podešavanja i zvono kažu isto": ispunjeno. Pokriveno je testom `lib/status-veze.test.ts` („ista veza, iste reči"), Convex testom `convex/status-veza.test.ts` (zvono i status nad istom bazom) i fiksturama: `statusVeza.lista` i zvono se izvode iz istih `connections` i `syncHealth` (`app/dev-ux/fixtures-status-veza.ts`).
+- „Kad je veza u redu i ima dozvolu, baner kompozera se ne prikazuje": ispunjeno. Pokriveno je testom `prikaziBanerDozvole`; u razvojnom prikazu (`/instagram/objavi`) baner ne stoji.
+- „Provere prolaze; sekcija T04 je u progress-u": ispunjeno (vidi Rezultat provere).
+
+**Za Jovana ujutru:**
+1. Posle deploya na pravim podacima:
+   - tačka u gornjoj traci treba da bude zelena ako sve veze rade, a ako Instagram ili druga veza ne radi, žuta sa brojem;
+   - klik na tačku pokazuje iste rečenice kao zvono i traka na ekranu kanala.
+2. Ako prod nema `INSTAGRAM_APP_ID`/`SECRET` (ili Facebook/Threads/YouTube parove), te veze sada traže pažnju („… nije podešen na serveru").
+3. Potvrdi odluke:
+   - prag od 7 dana za token, i u hubu i biraču;
+   - Threads 48 h za stare podatke;
+   - zvono sada javlja i token koji ističe i stare podatke;
+   - „Poveži ponovo" umesto „Obnovi pristup".
+4. Baner o dozvoli u kompozeru se pojavljuje samo kad Meta odbije pitanje o kvoti zbog dozvole. Proveri na pravom nalogu da se ne pojavljuje kad je sve u redu.

@@ -854,6 +854,11 @@ async function createSingleContainer(
  * Never throws for a missing scope or an unreachable Meta — the screen has to
  * render either way, so the failure comes back as a sentence in `error` and
  * the composer shows it next to the count instead of instead of the screen.
+ *
+ * `nedostajeOpseg` is the one reliable signal that the token lacks the
+ * publishing permission (Meta refuses this exact question for such a token).
+ * The composer shows its "connect again" banner only on that signal (P3) —
+ * it used to show it always, including to a perfectly connected account.
  */
 export const publishingLimit = projekatAction({
   args: {},
@@ -862,6 +867,7 @@ export const publishingLimit = projekatAction({
     used: v.number(),
     total: v.number(),
     error: v.optional(v.string()),
+    nedostajeOpseg: v.optional(v.boolean()),
   }),
   handler: async (
     ctx,
@@ -870,6 +876,7 @@ export const publishingLimit = projekatAction({
     used: number;
     total: number;
     error?: string;
+    nedostajeOpseg?: boolean;
   }> => {
     const { workspaceId } = ctx.projekat;
 
@@ -908,6 +915,7 @@ export const publishingLimit = projekatAction({
           used: 0,
           total: PUBLISH_LIMIT_FALLBACK,
           error: publishFailureMessage(message),
+          ...(isMissingPublishScope(message) ? { nedostajeOpseg: true } : {}),
         };
       }
 

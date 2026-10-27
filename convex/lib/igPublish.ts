@@ -616,7 +616,23 @@ export const SCOPE_NOTICE_TITLE =
   "Za objavljivanje je potrebno ponovo povezati Instagram";
 
 export const SCOPE_NOTICE_BODY =
-  "Objavljivanje traži opseg instagram_business_content_publish, koji token dobijen pre ove verzije nema. Otvori Podešavanja i poveži Instagram ponovo — postojeći podaci i istorija ostaju netaknuti.";
+  "Instagram je povezan pre nego što je aplikacija dobila dozvolu za objavljivanje. Poveži ga ponovo u Podešavanjima; podaci i istorija ostaju.";
+
+/**
+ * Da li kompozer pokazuje baner o dozvoli (P3, ULTRA1 T04). Do T04 je stajao
+ * UVEK, i nad potpuno ispravnom vezom. Sada samo kad je Meta rekla da tokenu
+ * fali dozvola za objavljivanje (`publishingLimit.nedostajeOpseg`), a veza je
+ * inače povezana i nije istekla — istekla ili nepovezana veza ima svoju, jaču
+ * poruku, pa se dve ne slažu jedna na drugu.
+ */
+export function prikaziBanerDozvole(o: {
+  /** Odgovor `publishingLimit`; `null` dok ne stigne. */
+  nedostajeOpseg: boolean | undefined | null;
+  /** Veza ne postoji ili je istekla (kompozer tada piše svoju poruku). */
+  vezaNeRadi: boolean;
+}): boolean {
+  return o.nedostajeOpseg === true && !o.vezaNeRadi;
+}
 
 /**
  * Dve stvari koje ova aplikacija ne radi, i to ne zato što nisu urađene.

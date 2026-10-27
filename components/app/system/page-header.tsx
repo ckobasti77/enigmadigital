@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useEkranPutanja } from "../projekat-provider";
+import { StanjeVezeRed } from "./stanje-veze";
 
 /**
  * ============================================================================
@@ -111,6 +112,8 @@ export function PageHeader({
             {actions}
           </div>
         )}
+        {/* Jedan red stanja veze (P3): samo kad veza ovog ekrana traži pažnju. */}
+        <StanjeVezeRed className="basis-full" />
       </div>
     );
   }
@@ -141,6 +144,7 @@ export function PageHeader({
           )}
         </div>
       )}
+      <StanjeVezeRed />
     </>
   );
 }

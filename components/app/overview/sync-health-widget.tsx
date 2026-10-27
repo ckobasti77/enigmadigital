@@ -2,7 +2,7 @@
 
 import { ProjekatLink } from "@/components/app/projekat-link";
 import {
-  AlertCircle,
+  AlertTriangle,
   ArrowUpRight,
   CheckCircle2,
   Circle,
@@ -16,30 +16,37 @@ import { PROVIDER_LABELS } from "@/components/app/settings/status-pill";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Provider } from "@/convex/lib/providers";
+import {
+  OZNAKA_STATUSA,
+  porukaStatusa,
+  type VrednostStatusa,
+} from "@/convex/lib/statusVeze";
+import {
+  RadnjaVeze,
+  useStatusVeza,
+} from "@/components/app/system/stanje-veze";
 
 type HealthEntry = FunctionReturnType<typeof api.sync.health>[number];
 type ConnectionView = FunctionReturnType<typeof api.connections.list>[number];
 
 const MAIN_PROVIDERS: Provider[] = ["ga4", "openreply", "meta_ig"];
 
-type Stanje = "ok" | "running" | "error" | "stale" | "unconnected";
-
 const PRIKAZ: Record<
-  Stanje,
-  { tone: ChipTone; ikona: typeof Clock; natpis: string }
+  VrednostStatusa | "tece",
+  { tone: ChipTone; ikona: typeof Clock }
 > = {
-  ok: { tone: "success", ikona: CheckCircle2, natpis: "uspešno" },
-  running: { tone: "info", ikona: RefreshCw, natpis: "u toku" },
-  error: { tone: "danger", ikona: AlertCircle, natpis: "greška" },
-  stale: { tone: "warning", ikona: Clock, natpis: "zastalo" },
-  unconnected: { tone: "muted", ikona: Circle, natpis: "nije povezano" },
+  radi: { tone: "success", ikona: CheckCircle2 },
+  tece: { tone: "info", ikona: RefreshCw },
+  trazi_paznju: { tone: "warning", ikona: AlertTriangle },
+  nije_povezano: { tone: "muted", ikona: Circle },
 };
 
 /**
- * Zdravlje sinhronizacije kao red čipova (UI Boost §8). Da li su brojevi
- * iznad sveži je prateća informacija, ne sadržaj — zato čip po integraciji,
- * a ne kartica od tri reda. Stanje nose i boja i ikonica i reč; poruka
- * greške ostaje vidljiva ispod, jer je to jedino što kaže šta da se popravi.
+ * Stanje glavnih veza kao red čipova (UI Boost §8), po jednom statusu veze
+ * (P3): iste reči kao tačka u gornjoj traci, kanal, Podešavanja i zvono —
+ * „Radi", „Traži pažnju", „Nije povezano". Ispod čipova, za vezu koja traži
+ * pažnju, ide ljudska rečenica sa jednom radnjom; tehnički tekst greške
+ * ostaje samo u detaljima u Podešavanjima.
  */
 export function SyncHealthWidget({
   entries,
@@ -48,83 +55,66 @@ export function SyncHealthWidget({
   entries: HealthEntry[] | undefined;
   connections: ConnectionView[] | undefined;
 }) {
-  if (entries === undefined || connections === undefined) {
+  const veze = useStatusVeza();
+  if (entries === undefined || connections === undefined || veze === undefined) {
     return <SyncHealthWidgetSkeleton />;
   }
+  const { sada } = veze;
 
-  const healthByProvider = new Map<Provider, HealthEntry>();
-  entries.forEach((e) => healthByProvider.set(e.provider, e));
-  const connByProvider = new Map<Provider, ConnectionView>();
-  connections.forEach((c) => connByProvider.set(c.provider, c));
-
-  const redovi = MAIN_PROVIDERS.map((provider) => {
-    const conn = connByProvider.get(provider);
-    const health = healthByProvider.get(provider);
-    const delimicno = Boolean(health?.note?.startsWith("Delimično"));
-
-    let stanje: Stanje = "unconnected";
-    let natpis = PRIKAZ.unconnected.natpis;
-    if (conn && !health) {
-      stanje = "stale";
-      natpis = "čeka prvo pokretanje";
-    } else if (conn && health) {
-      stanje = health.status === "ok" && delimicno ? "stale" : health.status;
-      natpis = health.status === "ok" && delimicno ? "delimično" : PRIKAZ[stanje].natpis;
-    }
-
-    const kada = health?.startedAt ? formatRelativeTime(health.startedAt) : null;
-    const poruka = health?.error ?? (delimicno ? health?.note : undefined);
-    return { provider, stanje, natpis, kada, poruka };
+  const redovi = MAIN_PROVIDERS.flatMap((provider) => {
+    const status = veze.poProvajderu.get(provider);
+    if (status === undefined) return [];
+    const tece =
+      status.vrednost === "radi" &&
+      entries.some((e) => e.provider === provider && e.status === "running");
+    const kada =
+      status.vrednost === "nije_povezano" || status.podaciOd === null
+        ? null
+        : formatRelativeTime(status.podaciOd, sada);
+    return [{ status, prikaz: PRIKAZ[tece ? "tece" : status.vrednost], tece, kada }];
   });
 
-  const saPorukom = redovi.filter((r) => r.poruka);
+  const paznja = redovi.filter((r) => r.status.vrednost === "trazi_paznju");
 
   return (
     <section
-      aria-label="Stanje sinhronizacije"
+      aria-label="Stanje veza"
       className="flex flex-col gap-2 border-t border-line-soft pt-4"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h2 className="text-ui font-medium text-text-muted">Sinhronizacija</h2>
+        <h2 className="text-ui font-medium text-text-muted">Veze</h2>
         <ul className="flex flex-wrap items-center gap-2">
-          {redovi.map(({ provider, stanje, natpis, kada }) => {
-            const p = PRIKAZ[stanje];
-            return (
-              <li key={provider}>
-                <Chip tone={p.tone} icon={p.ikona} size="md">
-                  {PROVIDER_LABELS[provider]}
-                  <span className="font-normal text-text-muted">
-                    {" · "}
-                    {natpis}
-                    {kada ? ` · ${kada}` : ""}
-                  </span>
-                </Chip>
-              </li>
-            );
-          })}
+          {redovi.map(({ status, prikaz, tece, kada }) => (
+            <li key={status.provider}>
+              <Chip tone={prikaz.tone} icon={prikaz.ikona} size="md">
+                {PROVIDER_LABELS[status.provider]}
+                <span className="font-normal text-text-muted">
+                  {" · "}
+                  {tece ? "sinhronizacija teče" : OZNAKA_STATUSA[status.vrednost]}
+                  {kada ? ` · ${kada}` : ""}
+                </span>
+              </Chip>
+            </li>
+          ))}
         </ul>
         <ProjekatLink
-          href="/settings"
-          className="ml-auto inline-flex cursor-pointer items-center gap-1 text-meta font-medium text-mod underline-offset-2 hover:underline"
+          href="/settings?tab=integracije"
+          className="ml-auto inline-flex cursor-pointer items-center gap-1 text-meta font-medium text-accent-400 underline-offset-2 hover:underline"
         >
           Podešavanja
           <ArrowUpRight className="size-3.5" aria-hidden />
         </ProjekatLink>
       </div>
 
-      {saPorukom.length > 0 && (
+      {paznja.length > 0 && (
         <ul className="flex flex-col gap-1">
-          {saPorukom.map(({ provider, stanje, poruka }) => (
+          {paznja.map(({ status }) => (
             <li
-              key={provider}
-              className={
-                stanje === "error"
-                  ? "text-meta text-danger"
-                  : "text-meta text-warning"
-              }
+              key={status.provider}
+              className="flex flex-wrap items-center gap-x-2 text-meta text-text-secondary"
             >
-              <span className="font-medium">{PROVIDER_LABELS[provider]}:</span>{" "}
-              <span className="font-mono">{poruka}</span>
+              <span>{porukaStatusa(status, sada).recenica}</span>
+              <RadnjaVeze status={status} sada={sada} />
             </li>
           ))}
         </ul>

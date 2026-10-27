@@ -42,6 +42,7 @@ import {
   PUBLISH_KINDS,
   SCOPE_NOTICE_BODY,
   SCOPE_NOTICE_TITLE,
+  prikaziBanerDozvole,
   USER_TAGS_MAX,
   acceptsCaption,
   acceptsShareToFeed,
@@ -87,6 +88,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CountUp } from "@/components/motion/count-up";
 import { CharCount, Field, FormGroup, FormStack } from "@/components/app/form-kit";
 import { FeedbackNote } from "@/components/app/feedback";
+import { useStatusVeza } from "@/components/app/system/stanje-veze";
+import { adresaVeze } from "@/convex/lib/statusVeze";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import {
   ObjavljujesKao,
@@ -158,6 +161,8 @@ type PublishingLimit = {
   used: number;
   total: number;
   error?: string;
+  /** Meta je odbila pitanje o kvoti jer tokenu fali dozvola za objavljivanje. */
+  nedostajeOpseg?: boolean;
 };
 
 /** Objava je sva izmena: posmatrač projekta ne vidi pisanje objave. */
@@ -344,14 +349,25 @@ function PublishComposerForm() {
   const igConnection = (connections ?? []).find(
     (row) => row.provider === "meta_ig",
   );
+  // Jedan status veze (P3): razlog (npr. „Instagram: pristup je istekao pre
+  // 3 dana") već stoji u traci ispod zaglavlja, pa ovde ide samo posledica.
+  const veze = useStatusVeza();
+  const igStatus = veze?.poProvajderu.get("meta_ig");
   const connectionProblem =
     connections === undefined
       ? null
       : igConnection === undefined
         ? "Instagram još nije povezan."
-        : igConnection.status === "expired"
-          ? "Instagram token je istekao."
+        : igConnection.status === "expired" ||
+            igStatus?.razlog === "token_istekao"
+          ? "Objava ne može da se pošalje dok Instagram ne bude ponovo povezan."
           : null;
+  // Baner o dozvoli stoji samo kad dozvola stvarno fali (Meta je to rekla) i
+  // veza nije istekla — istekla veza ima svoju, jaču poruku ispod.
+  const nedostajeDozvola = prikaziBanerDozvole({
+    nedostajeOpseg: limit?.nedostajeOpseg,
+    vezaNeRadi: connectionProblem !== null,
+  });
 
   const busy = phase !== "idle";
   const ready =
@@ -600,20 +616,22 @@ function PublishComposerForm() {
     <div className="flex flex-1 flex-col gap-8">
       <div>
         <div className="flex flex-col gap-3">
-          <FeedbackNote
-            tone="warning"
-            title={SCOPE_NOTICE_TITLE}
-            action={
-              <ProjekatLink
-                href="/settings"
-                className="text-xs font-medium text-mod underline-offset-4 hover:underline"
-              >
-                Podešavanja
-              </ProjekatLink>
-            }
-          >
-            {SCOPE_NOTICE_BODY}
-          </FeedbackNote>
+          {nedostajeDozvola && (
+            <FeedbackNote
+              tone="warning"
+              title={SCOPE_NOTICE_TITLE}
+              action={
+                <ProjekatLink
+                  href={adresaVeze("meta_ig")}
+                  className="text-xs font-medium text-accent-400 underline-offset-4 hover:underline"
+                >
+                  Poveži ponovo
+                </ProjekatLink>
+              }
+            >
+              {SCOPE_NOTICE_BODY}
+            </FeedbackNote>
+          )}
 
           {connectionProblem !== null && (
             <FeedbackNote
@@ -621,15 +639,16 @@ function PublishComposerForm() {
               title={connectionProblem}
               action={
                 <ProjekatLink
-                  href="/settings"
-                  className="text-xs font-medium text-mod underline-offset-4 hover:underline"
+                  href={adresaVeze("meta_ig")}
+                  className="text-xs font-medium text-accent-400 underline-offset-4 hover:underline"
                 >
-                  Poveži
+                  {igConnection === undefined ? "Poveži" : "Poveži ponovo"}
                 </ProjekatLink>
               }
             >
-              Dok nalog nije povezan sa opsegom za objavljivanje, objava ne može
-              da se pošalje.
+              {igConnection === undefined
+                ? "Dok nalog nije povezan, objava ne može da se pošalje."
+                : "Podaci i istorija objava ostaju posle ponovnog povezivanja."}
             </FeedbackNote>
           )}
         </div>

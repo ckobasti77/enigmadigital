@@ -24,6 +24,9 @@
  * se primenjuje na kraju, u `podeliPoStanju`.
  */
 
+import type { Provider } from "./providers";
+import { porukaStatusa, type RazlogPaznje } from "./statusVeze";
+
 export type Hitnost = "visoka" | "srednja" | "niska";
 
 /** Redosled u panelu i u bloku „Danas": visoka pre srednje pre niske. */
@@ -73,6 +76,27 @@ const DAN = 24 * SAT;
 
 /** Koliko dugo posao sme da stoji pre nego što hitnost poraste (§2 N). */
 export const PRAG_HITNO_MS = DAN;
+
+/** Token koji ističe za ovoliko ili manje je hitan (dnevno osvežavanje je palo). */
+const TOKEN_HITNO_DANA = 2;
+
+/**
+ * Hitnost veze koja traži pažnju: server bez podešavanja i token na izmaku su
+ * hitni odmah; kvar sinhronizacije postaje hitan kad potraje dan (§2 N);
+ * stari podaci i token koji ističe za nekoliko dana čekaju.
+ */
+function hitnostVeze(v: IntegracijaUKvaru, kvarStar: number): Hitnost {
+  switch (v.razlog) {
+    case "server_nije_podesen":
+      return "visoka";
+    case "token_istice":
+      return (v.za ?? Infinity) <= TOKEN_HITNO_DANA ? "visoka" : "srednja";
+    case "stari_podaci":
+      return "srednja";
+    default:
+      return kvarStar >= PRAG_HITNO_MS ? "visoka" : "srednja";
+  }
+}
 
 /** Koliko traje „Odloži 1 dan". */
 export const ODLAGANJE_MS = DAN;
@@ -134,16 +158,22 @@ export type UvozSaNerazresenim = {
 };
 
 /**
- * Integracija koja ne radi. `posledniUspehAt` je poslednji put kada je nešto
- * STVARNO stiglo — `null` znači „nikad", što nije isto što i „davno" i ne sme
- * da se prikaže kao broj dana.
+ * Veza koja traži pažnju (jedan status veze, `statusVeze.ts`). `posledniUspehAt`
+ * je poslednji put kada je nešto STVARNO stiglo — `null` znači „nikad", što
+ * nije isto što i „davno" i ne sme da se prikaže kao broj dana.
  */
 export type IntegracijaUKvaru = {
-  provider: string;
-  razlog: "greska" | "istekao_token" | "zastao";
+  provider: Provider;
+  razlog: RazlogPaznje;
   posledniUspehAt: number | null;
   /** Kada je kvar primećen (kraj neuspele sinhronizacije ili njen početak). */
   primecenAt: number;
+  /** Dani do isteka tokena ili sati bez podataka (kao u statusu veze). */
+  za?: number;
+  /** Kada token ističe; `null` = ne zna se. */
+  istice?: number | null;
+  /** Kada su podaci poslednji put postali svežiji. */
+  podaciOd?: number | null;
 };
 
 export type SastanakStavka = {
@@ -320,30 +350,37 @@ export function napraviZadatke(s: Snimak): Zadatak[] {
     });
   }
 
-  // 3) Integracija koja se ne sinhronizuje ───────────────────────────────────
+  // 3) Veza koja traži pažnju ────────────────────────────────────────────────
   //
-  // Jedna stavka po integraciji, sa imenom i vremenom (§5). Zajednički crveni
-  // čip je ugašen upravo zato što je tvrdio „greška" na ekranu na kom je pisalo
-  // „GA4 · Aktivno · pre 2 h": ovde uvek piše KOJA integracija i OTKAD.
+  // Jedna stavka po vezi, sa imenom i vremenom (§5). Reči su iste kao u tački
+  // gornje trake, u zaglavlju kanala i u Podešavanjima: daje ih `porukaStatusa`
+  // (jedan status veze, P3), pa zvono ne može da kaže nešto drugo nego ekran.
   for (const integracija of s.integracijeUKvaru) {
-    const naziv =
-      INTEGRACIJA_NAZIV[integracija.provider] ?? integracija.provider;
-    const kvarStar = s.now - integracija.primecenAt;
-    const naslov =
-      integracija.razlog === "istekao_token"
-        ? `${naziv}: pristup je istekao`
-        : integracija.posledniUspehAt === null
-          ? `${naziv} nije nijednom sinhronizovan`
-          : `${naziv} ne sinhronizuje se ${trajanje(s.now - integracija.posledniUspehAt)}`;
+    const kvarStar = Math.max(0, s.now - integracija.primecenAt);
+    const poruka = porukaStatusa(
+      {
+        provider: integracija.provider,
+        vrednost: "trazi_paznju",
+        razlog: integracija.razlog,
+        ...(integracija.za !== undefined ? { za: integracija.za } : {}),
+        podaciOd: integracija.podaciOd ?? null,
+        istice: integracija.istice ?? null,
+        poslednjiUspeh: integracija.posledniUspehAt,
+      },
+      s.now,
+    );
     dodaj({
       kljuc: `sinhronizacija.greska:${integracija.provider}`,
-      naslov,
+      naslov: poruka.recenica,
       broj: 1,
-      hitnost: kvarStar >= PRAG_HITNO_MS ? "visoka" : "srednja",
-      veza: "/settings",
-      radnja:
-        integracija.razlog === "istekao_token" ? "Obnovi pristup" : "Sinhronizuj",
-      imenilac: `kvar traje ${trajanje(kvarStar)}`,
+      hitnost: hitnostVeze(integracija, kvarStar),
+      veza: poruka.radnja?.href ?? "/settings",
+      radnja: poruka.radnja?.oznaka ?? "Otvori",
+      // Token koji tek ističe nije kvar koji „traje"; tu je rok već u naslovu.
+      imenilac:
+        integracija.razlog === "token_istice"
+          ? null
+          : `kvar traje ${trajanje(kvarStar)}`,
       bedz: "/settings",
       odsecen: false,
     });

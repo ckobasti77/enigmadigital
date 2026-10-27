@@ -9,6 +9,7 @@ import { CountUp } from "@/components/motion/count-up";
 import { FocusCard } from "@/components/app/system/focus-card";
 import { DeltaPill } from "@/components/app/system/kpi-tile";
 import { SegmentedMeter } from "@/components/app/system/progress";
+import { PodaciOd } from "@/components/app/system/stanje-veze";
 import type {
   EngagementTier,
   Readiness,
@@ -25,6 +26,9 @@ import { cn } from "@/lib/utils";
  * levo najvažniji broj kanala u boji modula, desno merač koji kaže šta kanalu
  * još fali i nudi JEDAN sledeći korak. Primarno dugme ekrana je u zaglavlju
  * strane, pa je korak ovde prateća radnja (`secondary`).
+ *
+ * Zdravlje veze nije deo merača (P3): kaže ga red stanja u zaglavlju, a ispod
+ * broja stoji „podaci od …" kad je sinhronizacija starija od 24 h.
  */
 export function ChannelFocus({
   label,
@@ -125,6 +129,8 @@ export function ChannelFocus({
         )}
       </div>
       {footnote && <p className="text-ui text-text-muted">{footnote}</p>}
+      {/* Jedan status veze (P3): broj iznad je star kad sinhronizacija kasni. */}
+      <PodaciOd />
     </FocusCard>
   );
 }

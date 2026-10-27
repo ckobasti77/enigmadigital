@@ -121,7 +121,7 @@ const PROIZVODJACI: Array<{
       s.integracijeUKvaru = [
         {
           provider: "ga4",
-          razlog: "greska",
+          razlog: "pao_prolaz",
           posledniUspehAt: NOW - 3 * DAN,
           primecenAt: NOW - 3 * DAN,
         },
@@ -318,7 +318,7 @@ function main(): void {
   );
   const bezUspeha = prazanSnimak();
   bezUspeha.integracijeUKvaru = [
-    { provider: "youtube", razlog: "greska", posledniUspehAt: null, primecenAt: NOW - 2 * DAN },
+    { provider: "youtube", razlog: "pao_prolaz", posledniUspehAt: null, primecenAt: NOW - 2 * DAN },
   ];
   proveri(
     "integracija bez ijednog uspeha ne dobija izmišljen broj dana",
@@ -327,12 +327,43 @@ function main(): void {
   );
   const istekao = prazanSnimak();
   istekao.integracijeUKvaru = [
-    { provider: "meta_ig", razlog: "istekao_token", posledniUspehAt: NOW - DAN, primecenAt: NOW - DAN },
+    { provider: "meta_ig", razlog: "token_istekao", posledniUspehAt: NOW - DAN, primecenAt: NOW - DAN },
+  ];
+  // ULTRA1 (P3): reči zvona su reči jednog statusa veze, pa radnja za istekao
+  // pristup glasi kao na kanalu i u Podešavanjima: „Poveži ponovo" (bilo
+  // „Obnovi pristup"). Pravilo koje se meri ostaje: obnova, ne sinhronizacija.
+  proveri(
+    "istekao pristup traži ponovno povezivanje, ne sinhronizaciju",
+    napraviZadatke(istekao)[0].radnja === "Poveži ponovo",
+    napraviZadatke(istekao)[0].radnja,
+  );
+  const istice = prazanSnimak();
+  istice.integracijeUKvaru = [
+    { provider: "meta_fb", razlog: "token_istice", za: 5, posledniUspehAt: NOW - DAN, primecenAt: NOW },
+  ];
+  const zIstice = napraviZadatke(istice)[0];
+  proveri(
+    "token koji ističe za 5 dana: rok u naslovu, bez izmišljenog trajanja kvara",
+    zIstice?.naslov === "Facebook stranica: pristup ističe za 5 dana" &&
+      zIstice.radnja === "Poveži ponovo" &&
+      zIstice.imenilac === null &&
+      zIstice.hitnost === "srednja",
+    JSON.stringify(zIstice),
+  );
+  const stari = prazanSnimak();
+  stari.integracijeUKvaru = [
+    {
+      provider: "ga4",
+      razlog: "stari_podaci",
+      posledniUspehAt: NOW - 2 * DAN,
+      podaciOd: NOW - 2 * DAN,
+      primecenAt: NOW - 2 * DAN,
+    },
   ];
   proveri(
-    "istekao pristup traži obnovu, ne sinhronizaciju",
-    napraviZadatke(istekao)[0].radnja === "Obnovi pristup",
-    napraviZadatke(istekao)[0].radnja,
+    "podaci stari 2 dana: naslov meri starost podataka",
+    napraviZadatke(stari)[0]?.naslov === "GA4: nema novih podataka 2 dana",
+    napraviZadatke(stari)[0]?.naslov,
   );
 
   // 5 ─ odlaganje

@@ -5,10 +5,16 @@ import { formatRelativeTime, pluralSr } from "@/lib/format";
  * SPREMNOST KANALA — merač koji uči (UI Boost §6.8)
  * ============================================================================
  *
- * Četiri uslova, svaki ispunjen ili ne: povezan · sinhronizuje · objava u
- * poslednjih 7 dana · nema neodgovorenih komentara. Sve se izvodi iz podataka
- * koje ekran kanala već čita; ovde nema nijednog upita i nijednog praga koji
- * nije napisan ispod.
+ * Samo ciljevi kanala, svaki ispunjen ili ne: objava u poslednjih 7 dana ·
+ * nema neodgovorenih komentara. Sve se izvodi iz podataka koje ekran kanala
+ * već čita; ovde nema nijednog upita i nijednog praga koji nije napisan ispod.
+ *
+ * Zdravlje veze NIJE cilj (P3 iz `docs/ULTRA-PLAN.md`): do ULTRA1 su
+ * „Povezan" i „Sinhronizuje" bili segmenti ovog merača, pa su istekla veza i
+ * „nisi objavio 7 dana" izgledali isto — prazan segment. Vezu sada kaže jedan
+ * status veze (`convex/lib/statusVeze.ts`), u redu stanja zaglavlja i u
+ * „podaci od …" uz fokus broj. Ključevi `connected` i `sync` ostaju u tipu
+ * zbog postojećih ekrana kanala, ali ih merač više ne pravi.
  *
  * NEPOZNATO ≠ NEISPUNJENO. Kanal koji nema podatak o neodgovorenim komentarima
  * (YouTube, Threads) taj uslov nema u meraču — ne dobija ga kao „nije
@@ -17,7 +23,10 @@ import { formatRelativeTime, pluralSr } from "@/lib/format";
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
-/** Sinhronizacija starija od ovoga više ne znači „sinhronizuje". */
+/**
+ * Sinhronizacija starija od ovoga više ne znači „sinhronizuje" — isti prag
+ * kao „podaci od …" u jednom statusu veze (`PODACI_OD_PRAG_MS`).
+ */
 export const SYNC_FRESH_MS = 24 * HOUR;
 /** Prozor u kom objava znači „kanal je živ". */
 export const POST_WINDOW_MS = 7 * DAY;
@@ -48,9 +57,13 @@ export const POST_NOUN_VIDEO: PostNoun = {
 
 export type ReadinessInput = {
   connected: boolean;
-  /** Kraj poslednjeg uspešnog prolaza (ms); `null` = još nije bilo nijednog. */
+  /**
+   * Kraj poslednjeg uspešnog prolaza (ms). Od P3 ne utiče na merač (zdravlje
+   * veze kaže status veze); polje ostaje da ekrani kanala ne bi morali da se
+   * menjaju pre šablona kanala.
+   */
   lastSyncAt: number | null;
-  /** Poslednji prolaz je pao ili zastao. */
+  /** Poslednji prolaz je pao ili zastao (od P3 ne utiče na merač). */
   syncFailed?: boolean;
   /** Vreme najnovije objave koja još postoji (ms); `null` = nema nijedne. */
   lastPostAt: number | null;
@@ -77,8 +90,6 @@ export type Readiness = {
 export function channelReadiness(input: ReadinessInput): Readiness {
   const {
     connected,
-    lastSyncAt,
-    syncFailed = false,
     lastPostAt,
     postNoun = POST_NOUN_OBJAVA,
     unanswered,
@@ -86,34 +97,10 @@ export function channelReadiness(input: ReadinessInput): Readiness {
     now,
   } = input;
 
-  const syncFresh =
-    connected &&
-    !syncFailed &&
-    lastSyncAt !== null &&
-    now - lastSyncAt <= SYNC_FRESH_MS;
-
   const postFresh =
     connected && lastPostAt !== null && now - lastPostAt <= POST_WINDOW_MS;
 
   const segments: ReadinessSegment[] = [
-    {
-      key: "connected",
-      label: "Povezan",
-      done: connected,
-      hint: connected ? "Nalog je povezan." : "Nalog još nije povezan.",
-    },
-    {
-      key: "sync",
-      label: "Sinhronizuje",
-      done: syncFresh,
-      hint: !connected
-        ? "Sinhronizacija kreće posle povezivanja."
-        : lastSyncAt === null
-          ? "Još nije bilo uspešne sinhronizacije."
-          : syncFailed
-            ? `Poslednji prolaz nije uspeo; poslednji uspešan ${formatRelativeTime(lastSyncAt, now)}.`
-            : `Poslednja sinhronizacija ${formatRelativeTime(lastSyncAt, now)}.`,
-    },
     {
       key: "post",
       label: postNoun.label,

@@ -6,7 +6,8 @@
  *
  * Čista funkcija: ne čita bazu ni sat (vreme dolazi od pozivaoca). Donji
  * pragovi su isti kao na ekranima koji isto pitanje postavljaju po vezi:
- *   - token ističe za manje od 14 dana (`lib/token-expiry.ts`);
+ *   - token ističe za 7 dana ili manje (`lib/token-expiry.ts`; P3 iz
+ *     `docs/ULTRA-PLAN.md`, do ULTRA1 je bilo 14 dana);
  *   - podaci su stari kad posle 24 h nije stiglo ništa
  *     (`lib/channel-readiness.ts`);
  *   - prolaz koji „radi“ duže od 15 minuta je zaglavljen (`sync.ts`, zvono).
@@ -14,7 +15,10 @@
  * C16 (plan C15 §2.2) dodaje crveno i prag po učestalosti provajdera:
  *   - žuto kad od poslednje uspešne sinhronizacije prođe više od
  *     `max(24 h, 2 × razmak)`, crveno preko `max(72 h, 4 × razmak)`;
- *   - token: žuto ≤ 14 dana, crveno ≤ 2 dana.
+ *   - token: žuto ≤ 7 dana, crveno ≤ 2 dana.
+ *
+ * Ista funkcija je osnova jednog statusa veze (`statusVeze.ts`): tačka u
+ * gornjoj traci, zaglavlje kanala, Podešavanja i zvono čitaju isti razlog.
  * Razmak je iz `convex/crons.ts`; provajder bez redovnog prolaza (`leads`,
  * `google_business`) nema pravilo starosti.
  *
@@ -22,7 +26,7 @@
  *   greška       veza `error` ili `expired`; poslednji prolaz je pao, a posle
  *                njega nije stiglo ništa svežije (isto kao zvono); token
  *                ističe za ≤ 2 dana; podaci stariji od crvenog praga;
- *   upozorenje   token ističe za ≤ 14 dana, prolaz je zaglavljen, ili su
+ *   upozorenje   token ističe za ≤ 7 dana, prolaz je zaglavljen, ili su
  *                podaci stariji od žutog praga;
  *   ok           bar jedna veza, bez ičega od navedenog;
  *   bez_veza     nijedna veza (veza u prekidu se ne broji).
@@ -40,7 +44,7 @@ const DAN = 24 * SAT;
  * Isti pragovi kao na frontu, preslikani jer Convex ne uvozi `lib/` aplikacije
  * (`@/` putanje). `lib/zdravlje-veza.test.ts` proverava da su jednaki.
  */
-export const TOKEN_ISTICE_MS = 14 * DAN; // TOKEN_EXPIRY_WARNING_MS
+export const TOKEN_ISTICE_MS = 7 * DAN; // TOKEN_EXPIRY_WARNING_MS
 export const PODACI_STARI_MS = 24 * SAT; // SYNC_FRESH_MS
 export const ZAGLAVLJEN_MS = 15 * 60 * 1000; // ZASTAO_MS (sync.ts, zvono)
 
@@ -84,6 +88,11 @@ export type VezaZaZdravlje = {
   status: "active" | "error" | "expired" | "disconnecting";
   expiresAt?: number;
   lastSyncAt?: number;
+  /**
+   * Kad je podatak tog provajdera poslednji put stvarno upisan izvan redovnog
+   * prolaza (`metaSyncJobs.lastDataAt`). Hub ga ne šalje; status veze da.
+   */
+  poslednjiPodatak?: number;
   /** Poslednji prolaz sinhronizacije tog provajdera, ako postoji. */
   poslednjiProlaz: {
     status: "running" | "ok" | "error";
@@ -145,6 +154,7 @@ export function razlogZdravlja(veza: VezaZaZdravlje, sada: number): ZdravljeJedn
     const poslednjiPodatak = Math.max(
       veza.lastSyncAt ?? 0,
       prolaz.status === "ok" ? (prolaz.finishedAt ?? prolaz.startedAt) : 0,
+      veza.poslednjiPodatak ?? 0,
     );
     const starost = sada - poslednjiPodatak;
     const sati = Math.floor(starost / SAT);

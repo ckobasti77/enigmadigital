@@ -7,7 +7,8 @@ import {
   type Projekat,
   type ProjekatMutationCtx,
 } from "./lib/projekat";
-import { ALL_PROVIDERS } from "./lib/providers";
+import { citajUlazeStatusa } from "./lib/vezeProjekta";
+import { integracijeUKvaru } from "./lib/statusVeze";
 import { brojNerazresenih } from "./lib/importFlow";
 import { korakKasni, rokKoraka } from "./lib/leadKorak";
 import {
@@ -67,11 +68,6 @@ const CAP_TELEFONA = 1500;
 /** Isti prozor koji čita ekran moderacije (`igCommentsStore.filterCounts`). */
 const CAP_KOMENTARA = 250;
 const CAP_RAZGOVORA = 100;
-/** Koliko poslednjih prolaza po provajderu se gleda da bi se našao uspeh. */
-const CAP_PROLAZA = 40;
-
-/** „running" stariji od ovoga je zastao prolaz, ne prolaz koji traje (sync.ts). */
-const ZASTAO_MS = 15 * 60 * 1000;
 
 // ── izlazni oblik ────────────────────────────────────────────────────────────
 
@@ -204,97 +200,22 @@ export async function citajUvoze(
 // ── proizvođači: sinhronizacija ──────────────────────────────────────────────
 
 /**
- * Integracije koje stvarno ne rade — i samo one.
+ * Veze koje traže pažnju — i samo one, po jednom statusu veze (P3,
+ * `lib/statusVeze.ts`): ista funkcija daje tačku u gornjoj traci, red stanja u
+ * zaglavlju kanala i fokus Podešavanja, pa zvono ne može da kaže drugo.
  *
- * Ovo je odgovor na protivrečnost iz §1.3: crveni čip „Greška sinhronizacije"
- * stajao je na svakom ekranu, bez imena i bez vremena, dok je na istom ekranu
- * pisalo „GA4 · Aktivno · sinhronizacija pre 2 h". Čip je uzimao NAJGORI status
- * među svim provajderima, pa je jedan davno pokvaren kanal bojio ceo interfejs.
- *
- * Pravilo je sada izričito: neuspeo prolaz se prijavljuje samo ako posle njega
- * nije stiglo ništa svežije. Ako veza kaže `active` i `lastSyncAt` je noviji od
- * kraja neuspelog prolaza, kvar je prevaziđen i nema šta da se prijavi.
+ * Ovo je i dalje odgovor na protivrečnost iz §1.3 (crveni čip bez imena i
+ * vremena): neuspeo prolaz se prijavljuje samo ako posle njega nije stiglo
+ * ništa svežije, a nepovezana veza i veza u prekidu nisu kvar. Uz pad i
+ * istekao pristup sada se javljaju i token koji ističe za 7 dana, podaci
+ * stariji od praga i server bez podešavanja — sve što boji tačku žuto.
  */
 async function citajIntegracije(
   ctx: QueryCtx,
   workspaceId: Id<"workspaces">,
   now: number,
 ): Promise<IntegracijaUKvaru[]> {
-  const veze = await ctx.db
-    .query("connections")
-    .withIndex("by_workspace_provider", (q) => q.eq("workspaceId", workspaceId))
-    .collect();
-
-  const vezaPoProvajderu = new Map<string, Doc<"connections">>();
-  for (const veza of veze) vezaPoProvajderu.set(veza.provider, veza);
-
-  const out: IntegracijaUKvaru[] = [];
-
-  for (const provider of ALL_PROVIDERS) {
-    const veza = vezaPoProvajderu.get(provider);
-    // Nepovezana integracija nije kvar. „Poveži GA4" je posao za Podešavanja,
-    // ne obaveštenje da nešto ne radi — a prekid veze u toku (`disconnecting`)
-    // je stanje koje je operater sam pokrenuo.
-    if (!veza || veza.status === "disconnecting") continue;
-
-    // Jedno čitanje po provajderu služi obema odlukama: [0] je poslednji
-    // prolaz (da li nešto ne radi), a prvi „ok" u paketu je poslednji uspeh
-    // (koliko dugo ne radi).
-    const skorasnji = await ctx.db
-      .query("syncRuns")
-      .withIndex("by_workspace_provider", (q) =>
-        q.eq("workspaceId", workspaceId).eq("provider", provider),
-      )
-      .order("desc")
-      .take(CAP_PROLAZA);
-
-    const prolaz = skorasnji.length > 0 ? skorasnji[0] : null;
-
-    const zastao =
-      prolaz !== null &&
-      prolaz.status === "running" &&
-      prolaz.startedAt < now - ZASTAO_MS;
-    const neuspeo = prolaz !== null && prolaz.status === "error";
-
-    let razlog: IntegracijaUKvaru["razlog"] | null = null;
-    let primecenAt = now;
-
-    if (veza.status === "expired") {
-      razlog = "istekao_token";
-      primecenAt = veza.expiresAt ?? veza.lastSyncAt ?? veza._creationTime;
-    } else if (neuspeo || zastao) {
-      const kad = prolaz.finishedAt ?? prolaz.startedAt;
-      // Prolaz je pukao, ali je posle njega nešto ipak stiglo → kvar je prošao.
-      const svezijeOd = (veza.lastSyncAt ?? 0) > kad;
-      if (!svezijeOd) {
-        razlog = neuspeo ? "greska" : "zastao";
-        primecenAt = kad;
-      }
-    } else if (veza.status === "error" && prolaz === null) {
-      // Veza nosi grešku, a nijedan prolaz nije ni otvoren (npr. pad pri
-      // povezivanju). Prećutati to znači ostaviti integraciju koja nikad neće
-      // proraditi bez ijednog traga na ekranu.
-      razlog = "greska";
-      primecenAt = veza.lastSyncAt ?? veza._creationTime;
-    }
-
-    if (razlog === null) continue;
-
-    // Poslednji USPEH, ne poslednji pokušaj: rečenica „ne sinhronizuje se 3
-    // dana" mora da meri starost PODATAKA, a ne starost poslednjeg pada.
-    //
-    // Traži se u već pročitanom paketu, ne kroz `.filter().first()`: filter bez
-    // granice čita dok ne naiđe na uspeh, a integracija koja pada svakih šest
-    // sati mesecima nema uspeh ni posle hiljadu redova. Kada ga u paketu nema,
-    // pada se na `lastSyncAt` veze, pa na „nikad" — nikad na nulu.
-    const posledniOk = skorasnji.find((r) => r.status === "ok");
-    const posledniUspehAt =
-      posledniOk?.finishedAt ?? veza.lastSyncAt ?? null;
-
-    out.push({ provider, razlog, posledniUspehAt, primecenAt });
-  }
-
-  return out;
+  return integracijeUKvaru(await citajUlazeStatusa(ctx, workspaceId), now);
 }
 
 // ── proizvođači: leadovi ─────────────────────────────────────────────────────

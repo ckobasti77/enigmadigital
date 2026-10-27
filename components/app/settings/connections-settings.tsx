@@ -26,6 +26,7 @@ import {
   ExternalLink,
   Trash2,
   Copy,
+  Ellipsis,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Provider } from "@/convex/lib/providers";
@@ -68,6 +69,24 @@ import { FocusCard } from "@/components/app/system/focus-card";
 import { SegmentedMeter } from "@/components/app/system/progress";
 import type { ModuleKey } from "@/components/app/nav-items";
 import { SyncHealth } from "./sync-health";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  OZNAKA_STATUSA,
+  nazivVeze,
+  porukaStatusa,
+  type RazlogStatusa,
+} from "@/convex/lib/statusVeze";
+import {
+  podaciOdTekst,
+  useStatusVeza,
+} from "@/components/app/system/stanje-veze";
+import { useNow } from "@/components/app/use-now";
+import { trajanje } from "@/convex/lib/notifications";
 import { SyncSchedule } from "./sync-schedule";
 
 type ConnectionView = FunctionReturnType<typeof api.connections.list>[number];
@@ -89,13 +108,6 @@ const INTEGRATIONS: ReadonlyArray<{
 
 /** Meta sidra iz fokus kartice: staje ispod lepljive gornje trake. */
 const SIDRO = "scroll-mt-20";
-
-const STATUS_HINT: Record<ConnectionView["status"], string> = {
-  active: "Povezano i aktivno.",
-  error: "Veza prijavljuje grešku.",
-  expired: "Pristup je istekao.",
-  disconnecting: "Veza je prekinuta, brisanje podataka je u toku.",
-};
 
 /** Pull the friendly message out of a thrown ConvexError, else a fallback. */
 /**
@@ -160,24 +172,91 @@ function customerIdProblem(raw: string): string | null {
   return null;
 }
 
-function connectionPill(status: ConnectionView["status"] | undefined) {
-  switch (status) {
-    case "active":
-      return <StatusPill tone="success">Aktivno</StatusPill>;
-    case "error":
-      return <StatusPill tone="danger">Greška</StatusPill>;
-    case "expired":
-      return <StatusPill tone="warning">Isteklo</StatusPill>;
-    // Veza je prekinuta, ali red još stoji dok se preuzeti podaci brišu (P3).
-    case "disconnecting":
+/**
+ * „Token važi do 1. 11. 2026. (za 4 dana)" / „Token je istekao 24. 10. 2026.
+ * (pre 3 dana)". `formatRelativeTime` je za prošlost i budući rok čita kao
+ * „upravo sada", pa rok tokena ima svoju rečenicu.
+ */
+function rokTokena(expiresAt: number, sada: number | null): string {
+  const datum = new Date(expiresAt).toLocaleDateString("sr-RS");
+  if (sada === null) return `Token važi do ${datum}`;
+  return expiresAt > sada
+    ? `Token važi do ${datum} (za ${trajanje(expiresAt - sada)})`
+    : `Token je istekao ${datum} (pre ${trajanje(sada - expiresAt)})`;
+}
+
+/**
+ * Pilula kartice: jedan status veze (P3) — „Radi", „Traži pažnju", „Nije
+ * povezano" — isti koji kažu tačka u gornjoj traci, kanal i zvono. Veza u
+ * prekidu je „nije povezano" uz razlog, pa pilula kaže šta se dešava.
+ */
+function PilulaVeze({
+  provider,
+  kadNijePovezano,
+}: {
+  provider: Provider;
+  /** Šta pilula kaže kad veze nema (OpenReply: stanje motora). */
+  kadNijePovezano?: ReactNode;
+}) {
+  const veze = useStatusVeza();
+  const status = veze?.poProvajderu.get(provider);
+  if (veze === undefined) return <StatusPill tone="muted">Učitavanje…</StatusPill>;
+  if (status === undefined || status.vrednost === "nije_povezano") {
+    if (status?.razlog === "brisanje_u_toku") {
       return (
         <StatusPill tone="warning" pulse>
           Brisanje u toku
         </StatusPill>
       );
-    default:
-      return <StatusPill tone="muted">Nije povezano</StatusPill>;
+    }
+    return kadNijePovezano ?? <StatusPill tone="muted">{OZNAKA_STATUSA.nije_povezano}</StatusPill>;
   }
+  return status.vrednost === "radi" ? (
+    <StatusPill tone="success">{OZNAKA_STATUSA.radi}</StatusPill>
+  ) : (
+    <StatusPill tone="warning">{OZNAKA_STATUSA.trazi_paznju}</StatusPill>
+  );
+}
+
+/** Šta da se uradi na ovoj kartici, po razlogu statusa. */
+const SAVET_KARTICE: Partial<Record<RazlogStatusa, string>> = {
+  token_istekao:
+    "Poveži nalog ponovo na ovoj kartici; preuzeti podaci i istorija ostaju.",
+  token_istice:
+    "Obnovi pristup na ovoj kartici pre isteka, da sinhronizacija ne stane.",
+  greska_veze:
+    "Pokreni sinhronizaciju ispod. Tehnički opis greške je u stanju sinhronizacije na dnu strane.",
+  pao_prolaz:
+    "Pokreni sinhronizaciju ispod. Tehnički opis greške je u stanju sinhronizacije na dnu strane.",
+  zastao:
+    "Prolaz je zastao. Pokreni sinhronizaciju ponovo; detalji su u stanju sinhronizacije na dnu strane.",
+  stari_podaci:
+    "Posle poslednjeg podatka ništa novo nije stiglo. Pokreni sinhronizaciju ispod.",
+  server_nije_podesen:
+    "Server nema podešavanje bez kog ova veza ne radi. Uputstvo za programera je na ovoj kartici.",
+};
+
+/**
+ * Razlog uz pilulu: kad veza traži pažnju, kartica kaže zašto istom
+ * rečenicom kao zvono i kanal, i šta da se uradi baš ovde.
+ */
+function StanjeKartice({ provider }: { provider: Provider }) {
+  const veze = useStatusVeza();
+  const status = veze?.poProvajderu.get(provider);
+  if (veze === undefined || status === undefined || status.vrednost !== "trazi_paznju") {
+    return null;
+  }
+  const podaciOd = podaciOdTekst(status, veze.sada);
+  const savet = status.razlog ? SAVET_KARTICE[status.razlog] : undefined;
+  return (
+    <FeedbackNote
+      tone="warning"
+      className="mt-5"
+      title={`${porukaStatusa(status, veze.sada).recenica}${podaciOd ? ` · ${podaciOd}` : ""}`}
+    >
+      {savet}
+    </FeedbackNote>
+  );
 }
 
 // ── shared card shell ────────────────────────────────────────────────────────
@@ -194,6 +273,7 @@ function CardShell({
   subtitle,
   status,
   module,
+  provider,
   children,
 }: {
   icon: ComponentType<{ className?: string }>;
@@ -201,6 +281,8 @@ function CardShell({
   subtitle: string;
   status: ReactNode;
   module: ModuleKey;
+  /** Veza čiji razlog statusa stoji ispod zaglavlja kad traži pažnju. */
+  provider?: Provider;
   children: ReactNode;
 }) {
   return (
@@ -220,6 +302,7 @@ function CardShell({
         </div>
         {status}
       </div>
+      {provider && <StanjeKartice provider={provider} />}
       {children}
     </section>
   );
@@ -330,9 +413,10 @@ function SavedCredentials({
 }
 
 /**
- * Prekid veze: odvojen okvir, sopstveni naslov i potvrda koja kaže šta se
- * gubi a šta ostaje. Potvrda stoji ovde i skoro nigde drugde — kada bi je
- * tražila svaka radnja, prestala bi da se čita.
+ * Prekid veze: stavka u meniju „⋯" na dnu kartice (P3 — više nije stalno
+ * otvoren crveni blok u svakoj kartici) i potvrda koja kaže šta se gubi a šta
+ * ostaje. Potvrda stoji ovde i skoro nigde drugde — kada bi je tražila svaka
+ * radnja, prestala bi da se čita.
  */
 function DisconnectZone({
   provider,
@@ -370,35 +454,47 @@ function DisconnectZone({
 
   return (
     <>
-      <DangerZone
-        className="mt-6"
-        title="Prekini vezu"
-        description={
-          purging
-            ? "Brisanje preuzetih podataka je u toku. Detalji su iznad."
-            : (zoneDescription ??
-              // Do P3 je ovde pisalo da preuzeti podaci ostaju. Pisalo je
-              // tačno — brisao se samo YouTube — ali sada se briše sve, pa bi
-              // ista rečenica bila obećanje suprotno od onoga što kod radi.
-              "Pristup se opoziva, a kredencijali i svi podaci preuzeti sa ovog servisa se brišu. Nepovratno.")
-        }
-      >
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setAsking(true)}
-          disabled={busy || purging}
-          className="border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
-        >
-          {busy || purging ? (
-            <LoaderCircle className="animate-spin" />
-          ) : (
-            <Trash2 className="size-3.5" />
-          )}
-          Prekini vezu
-        </Button>
-      </DangerZone>
+      <div className="mt-2 flex items-center justify-end gap-2">
+        {busy || purging ? (
+          <span className="inline-flex items-center gap-1.5 text-meta text-text-muted">
+            <LoaderCircle className="size-3.5 animate-spin" aria-hidden />
+            {purging
+              ? "Brisanje preuzetih podataka je u toku. Detalji su iznad."
+              : "Prekidam vezu…"}
+          </span>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Još radnji za vezu sa ${label}`}
+                  className="touch-target text-text-muted hover:text-foreground"
+                />
+              }
+            >
+              <Ellipsis className="size-4" aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setAsking(true)}
+              >
+                <Trash2 aria-hidden />
+                Prekini vezu…
+              </DropdownMenuItem>
+              <p className="px-1.5 pb-1 pt-0.5 text-meta leading-relaxed text-text-muted">
+                {zoneDescription ??
+                  // Do P3 je ovde pisalo da preuzeti podaci ostaju. Pisalo je
+                  // tačno — brisao se samo YouTube — ali sada se briše sve, pa
+                  // bi ista rečenica bila obećanje suprotno od onoga što kod radi.
+                  "Pristup se opoziva, a kredencijali i svi podaci preuzeti sa ovog servisa se brišu. Nepovratno."}
+              </p>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
 
       <ConfirmDialog
         open={asking}
@@ -477,7 +573,8 @@ function Ga4Card({ connection }: { connection?: ConnectionView }) {
       title="Google Analytics 4"
       module="analitika"
       subtitle="Service account · read-only"
-      status={connectionPill(connection?.status)}
+      status={<PilulaVeze provider="ga4" />}
+      provider="ga4"
     >
       <UpozorenjeNaloga tekst={upozorenje} />
       {isConnected && !editing ? (
@@ -624,7 +721,9 @@ function OpenReplyCard() {
   if (status && !status.verifyTokenSet) missingVars.push("IG_WEBHOOK_VERIFY_TOKEN");
   if (status && !status.appSecretSet) missingVars.push("META_APP_SECRET");
 
-  const statusNode =
+  // Kad veza postoji, pilula je jedan status veze (P3); bez nje kaže stanje
+  // motora, kao i do sada.
+  const stanjeMotora =
     status === undefined ? (
       <StatusPill tone="muted">Učitavanje…</StatusPill>
     ) : status.enabled ? (
@@ -632,6 +731,9 @@ function OpenReplyCard() {
     ) : (
       <StatusPill tone="muted">Nije uključeno</StatusPill>
     );
+  const statusNode = (
+    <PilulaVeze provider="openreply" kadNijePovezano={stanjeMotora} />
+  );
 
   return (
     <CardShell
@@ -640,6 +742,7 @@ function OpenReplyCard() {
       module="openreply"
       subtitle="Komentar → DM automatizacija"
       status={statusNode}
+      provider="openreply"
     >
       {status === undefined ? (
         <div className="mt-5">
@@ -811,20 +914,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
   const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  // Sat je spoljni sistem, pa se čita pretplatom umesto pozivom u renderu:
-  // `Date.now()` u telu komponente je nečista funkcija i vraća drugu vrednost
-  // na svakom prolazu. Minut je dovoljno često za odbrojavanje do isteka
-  // tokena, a `null` do prve otkucaja znači „još ne znam" — a ne „ističe".
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => {
-    const tick = () => setNow(Date.now());
-    const first = window.setTimeout(tick, 0);
-    const interval = window.setInterval(tick, 60_000);
-    return () => {
-      window.clearTimeout(first);
-      window.clearInterval(interval);
-    };
-  }, []);
+  const sada = useNow();
 
   // Check env configuration on mount (once the project is known)
   useEffect(() => {
@@ -937,19 +1027,6 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
 
   const isConnected = connection !== undefined;
 
-  // Determine status pill
-  let statusNode: ReactNode;
-  if (mozeVlasnik && !configState.loaded) {
-    statusNode = <StatusPill tone="muted">Učitavanje…</StatusPill>;
-  } else if (mozeVlasnik && !configState.isConfigured) {
-    statusNode = (
-      <StatusPill tone="warning">
-        Čeka Meta app — dodaj INSTAGRAM_APP_ID/SECRET u env
-      </StatusPill>
-    );
-  } else {
-    statusNode = connectionPill(connection?.status);
-  }
 
   return (
     <CardShell
@@ -957,7 +1034,8 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
       title="Instagram"
       module="instagram"
       subtitle="Meta · organski insights"
-      status={statusNode}
+      status={<PilulaVeze provider="meta_ig" />}
+      provider="meta_ig"
     >
       {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
           Ne prikazuje ništa dok brisanja nema. */}
@@ -1002,9 +1080,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
               </div>
               {connection.expiresAt && (
                 <p className="text-micro text-text-muted">
-                  Token važi do{" "}
-                  {new Date(connection.expiresAt).toLocaleDateString("sr-RS")}{" "}
-                  ({formatRelativeTime(connection.expiresAt)})
+                  {rokTokena(connection.expiresAt, sada)}
                 </p>
               )}
             </div>
@@ -1020,20 +1096,8 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
             )}
           </div>
 
-          {/* Upozorenje pre nego što nastane problem: token koji ističe za
-              manje od dve nedelje se ne primeti sam od sebe — primeti se tek
-              kada sinhronizacija stane. */}
-          {connection.expiresAt != null &&
-            now !== null &&
-            connection.expiresAt - now < 14 * 24 * 60 * 60 * 1000 && (
-              <FeedbackNote
-                tone="warning"
-                className="mt-3"
-                title={`Token ističe ${formatRelativeTime(connection.expiresAt)}`}
-              >
-                Klikni „Ponovo poveži” pre isteka da sinhronizacija ne stane.
-              </FeedbackNote>
-            )}
+          {/* Token koji ističe za 7 dana ili manje javlja jedan status veze, u
+              razlogu ispod zaglavlja kartice (P3) — isti rok kao zvono. */}
         </div>
       )}
 
@@ -1508,18 +1572,6 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
 
   const isConnected = connection !== undefined;
 
-  let statusNode: ReactNode;
-  if (setup === undefined) {
-    statusNode = <StatusPill tone="muted">Učitavanje…</StatusPill>;
-  } else if (!setup.appConfigured) {
-    statusNode = (
-      <StatusPill tone="warning">
-        Čeka Meta app — dodaj FACEBOOK_APP_ID/SECRET u env
-      </StatusPill>
-    );
-  } else {
-    statusNode = connectionPill(connection?.status);
-  }
 
   const missingVars: string[] = [];
   if (setup && !setup.verifyTokenSet) missingVars.push("IG_WEBHOOK_VERIFY_TOKEN");
@@ -1531,7 +1583,8 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
       title="Facebook stranica"
       module="facebook"
       subtitle="Meta · objave, komentari i DM automatizacija"
-      status={statusNode}
+      status={<PilulaVeze provider="meta_fb" />}
+      provider="meta_fb"
     >
       {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
           Ne prikazuje ništa dok brisanja nema. */}
@@ -1564,11 +1617,7 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
                     );
                     return expiry.kind === "never"
                       ? expiry.neverText
-                      : `Token važi do ${new Date(
-                          connection.expiresAt as number,
-                        ).toLocaleDateString("sr-RS")} (${formatRelativeTime(
-                          connection.expiresAt as number,
-                        )})`;
+                      : rokTokena(connection.expiresAt as number, now);
                   })()}
                 </p>
               </div>
@@ -1620,18 +1669,8 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
             />
           )}
 
-          {/* Upozorenje pre nego što nastane problem — isto pravilo kao na
-              Instagram kartici. Ne prikazuje se za System User token (ne ističe). */}
-          {isConnected &&
-            describeTokenExpiry(connection.expiresAt, now).kind ===
-              "expiring" && (
-              <FeedbackNote
-                tone="warning"
-                title={`Pristup ističe ${formatRelativeTime(connection.expiresAt as number)}`}
-              >
-                Klikni „Osveži token” pre isteka da sinhronizacija ne stane.
-              </FeedbackNote>
-            )}
+          {/* Pristup koji ističe za 7 dana ili manje javlja jedan status veze,
+              u razlogu ispod zaglavlja kartice (P3). System User token ne ističe. */}
 
           {/* Connect / edit panel: for a fresh Page, or when the operator opens
               „Izmeni pristup” to switch an existing one (e.g. onto System User). */}
@@ -1901,15 +1940,6 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
     }
   }
 
-  // Determine status pill
-  let statusNode: ReactNode;
-  if (!isConnected) {
-    statusNode = (
-      <StatusPill tone="warning">Čeka System User token</StatusPill>
-    );
-  } else {
-    statusNode = connectionPill(connection?.status);
-  }
 
   return (
     <CardShell
@@ -1917,7 +1947,13 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
       title="Meta Ads"
       module="oglasi"
       subtitle="Marketing API · System User token"
-      status={statusNode}
+      status={
+        <PilulaVeze
+          provider="meta_ads"
+          kadNijePovezano={<StatusPill tone="warning">Čeka System User token</StatusPill>}
+        />
+      }
+      provider="meta_ads"
     >
       {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
           Ne prikazuje ništa dok brisanja nema. */}
@@ -2105,7 +2141,8 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
       title="Google Ads"
       module="oglasi"
       subtitle="Service account · Google Ads API (GAQL)"
-      status={connectionPill(connection?.status)}
+      status={<PilulaVeze provider="google_ads" />}
+      provider="google_ads"
     >
       {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
           Ne prikazuje ništa dok brisanja nema. */}
@@ -2370,18 +2407,6 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
     }
   }
 
-  let statusNode: ReactNode;
-  if (setup === undefined) {
-    statusNode = <StatusPill tone="muted">Učitavanje…</StatusPill>;
-  } else if (!setup.isConfigured) {
-    statusNode = (
-      <StatusPill tone="warning">
-        Čeka Google OAuth — dodaj YOUTUBE_CLIENT_ID/SECRET u env
-      </StatusPill>
-    );
-  } else {
-    statusNode = connectionPill(connection?.status);
-  }
 
   return (
     <CardShell
@@ -2389,7 +2414,8 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
       title="YouTube"
       module="youtube"
       subtitle="YouTube Data API i Analytics · OAuth (čitanje i upravljanje)"
-      status={statusNode}
+      status={<PilulaVeze provider="youtube" />}
+      provider="youtube"
     >
       {/* Šta se zaista dešava sa preuzetim podacima posle „Prekini vezu” (P3).
           Ne prikazuje ništa dok brisanja nema. */}
@@ -2847,18 +2873,6 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
     }
   }
 
-  let statusNode: ReactNode;
-  if (setup === undefined) {
-    statusNode = <StatusPill tone="muted">Učitavanje…</StatusPill>;
-  } else if (!setup.isConfigured) {
-    statusNode = (
-      <StatusPill tone="warning">
-        Čeka Threads OAuth — dodaj THREADS_APP_ID/SECRET u env
-      </StatusPill>
-    );
-  } else {
-    statusNode = connectionPill(connection?.status);
-  }
 
   return (
     <CardShell
@@ -2866,7 +2880,8 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
       title="Threads"
       module="threads"
       subtitle="Threads API · OAuth (statistika profila, uvidi i odgovori)"
-      status={statusNode}
+      status={<PilulaVeze provider="threads" />}
+      provider="threads"
     >
       {/* Šta se dešava sa preuzetim podacima posle „Prekini vezu”. Ne prikazuje ništa dok brisanja nema. */}
       <PurgeNotice provider="threads" />
@@ -3025,7 +3040,9 @@ export function ConnectionsSettings() {
   const mozeVlasnik = useMoze("owner");
   const mozeUrednik = useMoze("urednik");
 
-  if (connections === undefined) {
+  const veze = useStatusVeza();
+
+  if (connections === undefined || veze === undefined) {
     return <ConnectionsSettingsSkeleton />;
   }
 
@@ -3034,42 +3051,39 @@ export function ConnectionsSettings() {
     byProvider.set(connection.provider, connection),
   );
 
+  // Jedan status veze (P3): isti broj kao tačka u gornjoj traci i zvono.
+  const { zbir, sada } = veze;
   const segments = INTEGRATIONS.map(({ provider, label }) => {
-    const status = byProvider.get(provider)?.status;
+    const status = veze.poProvajderu.get(provider);
     return {
       label,
-      done: status === "active",
-      hint: status ? STATUS_HINT[status] : "Nije povezano.",
+      done: status?.vrednost === "radi",
+      hint:
+        status === undefined
+          ? `${label}: ${OZNAKA_STATUSA.nije_povezano.toLowerCase()}.`
+          : status.vrednost === "radi"
+            ? `${label}: radi.`
+            : `${porukaStatusa(status, sada).recenica}.`,
     };
   });
-  const activeCount = segments.filter((seg) => seg.done).length;
-  const attention = INTEGRATIONS.filter(({ provider }) => {
-    const status = byProvider.get(provider)?.status;
-    return status === "error" || status === "expired";
-  }).map(({ label }) => label);
-  // Veza može da bude „aktivna" dok joj poslednja sinhronizacija pada. Tada
-  // rečenica to kaže, da „sve je aktivno" ne prikrije grešku iz liste ispod.
-  const failedSync = INTEGRATIONS.filter(
-    ({ provider }) =>
-      byProvider.get(provider)?.status === "active" &&
-      health?.some((h) => h.provider === provider && h.status === "error"),
-  ).map(({ label }) => label);
+  const nazivZa = (provider: Provider) =>
+    INTEGRATIONS.find((i) => i.provider === provider)?.label ?? nazivVeze(provider);
 
-  // Jedno dugme fokusa: prva integracija koja traži pažnju, pa prva koja još
-  // nije povezana; kad su sve na mestu, vodi na stanje sinhronizacije. Sve tri
-  // mete su na ovoj strani, pa je dugme sidro, ne nova radnja.
-  const zaPopravku = INTEGRATIONS.find(({ provider }) => {
-    const status = byProvider.get(provider)?.status;
-    return status === "error" || status === "expired";
-  });
-  const zaPovezivanje = INTEGRATIONS.find(
-    ({ provider }) => !byProvider.has(provider),
-  );
-  const sledece = zaPopravku
-    ? { href: `#integracija-${zaPopravku.provider}`, label: `Reši: ${zaPopravku.label}` }
-    : zaPovezivanje
-      ? { href: `#integracija-${zaPovezivanje.provider}`, label: `Poveži ${zaPovezivanje.label}` }
+  // Jedno dugme fokusa: prva veza koja traži pažnju, pa prva koja još nije
+  // povezana; kad sve rade, vodi na stanje sinhronizacije. Sve tri mete su na
+  // ovoj strani, pa je dugme sidro, ne nova radnja.
+  const sledece = zbir.prvaPaznja
+    ? { href: `#integracija-${zbir.prvaPaznja}`, label: `Reši: ${nazivZa(zbir.prvaPaznja)}` }
+    : zbir.prvaNepovezana
+      ? { href: `#integracija-${zbir.prvaNepovezana}`, label: `Poveži ${nazivZa(zbir.prvaNepovezana)}` }
       : { href: "#stanje-sinhronizacije", label: "Stanje sinhronizacije" };
+
+  const zbirRecenica = [
+    zbir.traziPaznju > 0 ? `${zbir.traziPaznju} traži pažnju` : null,
+    zbir.nijePovezano > 0 ? `${zbir.nijePovezano} nije povezano` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="mt-6 flex flex-col gap-5">
@@ -3097,24 +3111,22 @@ export function ConnectionsSettings() {
           }
           aside={
             <SegmentedMeter
-              label="Povezano i aktivno"
+              label="Radi"
               segments={segments}
               className="w-full md:w-[28rem]"
             />
           }
         >
           <p className="font-mono text-hero font-bold leading-none tabular-nums text-mod">
-            {activeCount}
-            <span className="text-text-muted"> / {INTEGRATIONS.length}</span>
+            {zbir.radi}
+            <span className="font-sans text-title font-medium text-text-muted"> radi</span>
           </p>
-          <p className="text-ui text-text-muted">
-            {attention.length > 0
-              ? `Traže pažnju: ${attention.join(", ")}.`
-              : failedSync.length > 0
-                ? `Poslednja sinhronizacija nije uspela: ${failedSync.join(", ")}.`
-                : activeCount === INTEGRATIONS.length
-                  ? "Svi izvori su povezani i aktivni."
-                  : "Povezani izvori rade; ostali čekaju povezivanje."}
+          <p
+            className={
+              zbir.traziPaznju > 0 ? "text-ui text-warning" : "text-ui text-text-muted"
+            }
+          >
+            {zbirRecenica.length > 0 ? zbirRecenica : "Sve veze rade."}
           </p>
         </FocusCard>
       </div>
