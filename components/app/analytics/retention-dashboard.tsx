@@ -15,7 +15,7 @@ import { ProjekatLink } from "@/components/app/projekat-link";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/app/empty-state";
-import { formatNumber, formatPercent } from "@/lib/format";
+import { formatNumber, formatPercent, pluralSr } from "@/lib/format";
 import { StatTile } from "./kpi-tile";
 
 // Kategorijske boje fiksnim redom (chart-1..6), nikad u krug: prikazuje se
@@ -79,9 +79,10 @@ export function RetentionDashboard() {
       }
     }
 
+    // Bez nijedne izmerene nedelje prosek ne postoji (nije 0).
     return {
-      avgW1: countW1 > 0 ? sumW1 / countW1 : 0,
-      avgW4: countW4 > 0 ? sumW4 / countW4 : 0,
+      avgW1: countW1 > 0 ? sumW1 / countW1 : undefined,
+      avgW4: countW4 > 0 ? sumW4 / countW4 : undefined,
       totalTrackedUsers: totalUsers,
     };
   }, [cohorts]);
@@ -139,21 +140,29 @@ export function RetentionDashboard() {
           label="Prosečna retencija (1. nedelja)"
           value={avgW1}
           format={formatPercent}
-          note="nakon 7 dana"
+          note={
+            avgW1 === undefined
+              ? "Još nema kohorte sa izmerenom nedeljom."
+              : "nakon 7 dana"
+          }
           icon={Percent}
         />
         <StatTile
           label="Prosečna retencija (4. nedelja)"
           value={avgW4}
           format={formatPercent}
-          note="nakon 28 dana"
+          note={
+            avgW4 === undefined
+              ? "Još nema kohorte sa izmerenom nedeljom."
+              : "nakon 28 dana"
+          }
           icon={Percent}
         />
         <StatTile
           label="Ukupno novih korisnika"
           value={totalTrackedUsers}
           format={formatNumber}
-          note="u 12 kohorti"
+          note={`u ${formatNumber(cohorts.length)} ${pluralSr(cohorts.length, "kohorti", "kohorte", "kohorti")}`}
           icon={Users}
         />
       </div>

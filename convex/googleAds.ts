@@ -1036,8 +1036,7 @@ export const syncGoogleAds = internalAction({
             date,
             spend: spend !== undefined ? Number(spend.toFixed(2)) : undefined,
             impressions,
-            reach: impressions,
-            frequency: impressions !== undefined ? 1 : undefined,
+            // Doseg i frekvenciju Google ne meri po oglasu; ne izmišljaju se.
             clicks,
             ctr,
             cpc,

@@ -1014,16 +1014,21 @@ export const upsertGoogleAdsData = internalMutation({
         spend: row.spend,
         impressions: row.impressions,
         clicks: row.clicks,
-        video3s: 0,
-        thruplay: 0,
-        videoP25: 0,
-        videoP50: 0,
-        videoP75: 0,
-        videoP100: 0,
+        // Google ne meri doseg, frekvenciju ni video preglede po oglasu.
+        // Eksplicitno `undefined`: `patch` tako briše izmišljene vrednosti
+        // (reach = prikazi, frequency = 1, video = 0) koje su stari prolazi
+        // upisali.
+        reach: undefined,
+        frequency: undefined,
+        video3s: undefined,
+        thruplay: undefined,
+        videoP25: undefined,
+        videoP50: undefined,
+        videoP75: undefined,
+        videoP95: undefined,
+        videoP100: undefined,
         syncedAt: now,
         ...(row.hour !== undefined ? { hour: row.hour } : {}),
-        ...(row.reach !== undefined ? { reach: row.reach } : {}),
-        ...(row.frequency !== undefined ? { frequency: row.frequency } : {}),
         ...(row.ctr !== undefined ? { ctr: row.ctr } : {}),
         ...(row.cpc !== undefined ? { cpc: row.cpc } : {}),
         ...(row.cpm !== undefined ? { cpm: row.cpm } : {}),
@@ -2228,8 +2233,9 @@ export const getKeywordQualityReport = projekatQuery({
       clicks: k.clicks,
       cost: Number(k.cost.toFixed(2)),
       conversions: k.conversions,
-      ctr: k.impressions > 0 ? Number((k.clicks / k.impressions).toFixed(4)) : 0,
-      cpc: k.clicks > 0 ? Number((k.cost / k.clicks).toFixed(2)) : 0,
+      // Bez prikaza nema stope klikova, bez klikova nema cene klika (nije 0).
+      ctr: k.impressions > 0 ? Number((k.clicks / k.impressions).toFixed(4)) : undefined,
+      cpc: k.clicks > 0 ? Number((k.cost / k.clicks).toFixed(2)) : undefined,
     }));
 
     keywords.sort((a, b) => b.impressions - a.impressions);
@@ -2251,7 +2257,7 @@ export const getKeywordQualityReport = projekatQuery({
         overallCtr:
           totalImpressions > 0
             ? Number((totalClicks / totalImpressions).toFixed(4))
-            : 0,
+            : undefined,
       },
     };
   },
@@ -2777,18 +2783,11 @@ export const seedGoogleAdsData = internalMutation({
           breakdownHash: "none",
           spend: Number(spend.toFixed(2)),
           impressions,
-          reach: impressions,
-          frequency: 1,
+          // Doseg, frekvencija i video: Google ih ne meri, polja ostaju prazna.
           clicks,
           ctr: Number(ctr.toFixed(4)),
           cpc: Number(cpc.toFixed(2)),
           cpm: Number(cpm.toFixed(2)),
-          video3s: 0,
-          thruplay: 0,
-          videoP25: 0,
-          videoP50: 0,
-          videoP75: 0,
-          videoP100: 0,
           results,
           costPerResult: Number(costPerResult.toFixed(2)),
           conversionValue,
@@ -2837,18 +2836,11 @@ export const seedGoogleAdsData = internalMutation({
           breakdownHash: "none",
           spend: Number(spend.toFixed(2)),
           impressions,
-          reach: impressions,
-          frequency: 1,
+          // Doseg, frekvencija i video: Google ih ne meri, polja ostaju prazna.
           clicks,
           ctr: Number(ctr.toFixed(4)),
           cpc: Number(cpc.toFixed(2)),
           cpm: Number(cpm.toFixed(2)),
-          video3s: 0,
-          thruplay: 0,
-          videoP25: 0,
-          videoP50: 0,
-          videoP75: 0,
-          videoP100: 0,
           results,
           costPerResult: Number(costPerResult.toFixed(2)),
           conversionValue,

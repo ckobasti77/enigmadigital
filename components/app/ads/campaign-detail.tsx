@@ -10,6 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { AdDrilldownPanel } from "./ad-drilldown-panel";
 import { HookLabelEditor } from "./hook-label-editor";
+import { MeraIliCrtica, RAZLOG, razlogFrekvencije } from "./nepoznata-mera";
+import { ValutaUpozorenje } from "@/components/app/system/valuta-upozorenje";
 import {
   formatDecimal,
   formatNumber,
@@ -173,7 +175,11 @@ function KeywordQualitySection({
                   {formatNumber(kw.clicks)}
                 </TableCell>
                 <TableCell className="text-right font-mono tabular-nums text-mod">
-                  {formatPercent(kw.ctr)}
+                  <MeraIliCrtica
+                    value={kw.ctr}
+                    format={formatPercent}
+                    razlog={RAZLOG.bezPrikaza}
+                  />
                 </TableCell>
                 <TableCell className="text-right font-mono tabular-nums text-foreground">
                   {formatMetric(kw.cost, spendDef, currency)}
@@ -434,6 +440,8 @@ export function CampaignDetail({
         </div>
       </div>
 
+      <ValutaUpozorenje valuta={campaign.currency} />
+
       {/* Campaign Summary KPIs */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
         <div className="rounded-lg border border-line bg-surface/50 p-3">
@@ -468,7 +476,11 @@ export function CampaignDetail({
           <div className="rounded-lg border border-line bg-surface/50 p-3">
             <span className="text-xs text-text-muted">CTR</span>
             <p className="mt-1 font-mono text-xl font-bold tabular-nums text-mod">
-              {formatPercent(campaign.ctr)}
+              <MeraIliCrtica
+                value={campaign.ctr}
+                format={formatPercent}
+                razlog={RAZLOG.bezPrikaza}
+              />
             </p>
           </div>
         )}
@@ -493,7 +505,11 @@ export function CampaignDetail({
           <div className="rounded-lg border border-line bg-surface/50 p-3">
             <span className="text-xs text-text-muted">Frekvencija</span>
             <p className="mt-1 font-mono text-xl font-bold tabular-nums text-foreground">
-              {formatDecimal(campaign.frequency)}
+              <MeraIliCrtica
+                value={campaign.frequency}
+                format={formatDecimal}
+                razlog={razlogFrekvencije(campaign.provider, campaign.impressions)}
+              />
             </p>
           </div>
         )}
@@ -604,7 +620,14 @@ export function CampaignDetail({
                         </span>
                       )}
                       <span>
-                        CTR: <strong className="text-mod">{formatPercent(set.ctr)}</strong>
+                        CTR:{" "}
+                        <strong className="text-mod">
+                          <MeraIliCrtica
+                            value={set.ctr}
+                            format={formatPercent}
+                            razlog={RAZLOG.bezPrikaza}
+                          />
+                        </strong>
                       </span>
                     </div>
 
@@ -775,7 +798,11 @@ export function CampaignDetail({
                                 </TableCell>
 
                                 <TableCell className="text-right font-mono tabular-nums text-foreground">
-                                  {formatPercent(ad.ctr)}
+                                  <MeraIliCrtica
+                                    value={ad.ctr}
+                                    format={formatPercent}
+                                    razlog={RAZLOG.bezPrikaza}
+                                  />
                                 </TableCell>
 
                                 <TableCell className="text-right font-mono tabular-nums text-foreground">

@@ -150,7 +150,7 @@ function sajtIOglasi(slug: string): Pick<Procitaj, "jeOsnivacki" | "podesavanja"
         budzet: {
           minimum: { vrednost: 10, izvor: "projekat" },
           maksimum: { vrednost: 300, izvor: "projekat" },
-          valuta: { vrednost: "RSD", izvor: "projekat" },
+          valuta: { vrednost: "EUR", izvor: "projekat" },
           metaMaksDnevno: { vrednost: 100, izvor: "projekat" },
           googleMaksDnevno: NIJE,
         },

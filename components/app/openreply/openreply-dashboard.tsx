@@ -186,6 +186,7 @@ export function OpenReplyDashboard() {
             </div>
             <KpiTile
               label="Klikova po poruci"
+              mera="klikova_po_poruci"
               shortLabel="Po poruci"
               icon={MousePointerClick}
               value={cur.ctr}
@@ -200,6 +201,7 @@ export function OpenReplyDashboard() {
             />
             <KpiTile
               label="Aktivne kampanje"
+              mera="aktivne_automatizacije"
               shortLabel="Kampanje"
               icon={Megaphone}
               value={activeCampaigns}

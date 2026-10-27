@@ -1,6 +1,6 @@
 import { internalMutation, internalQuery } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { providerValidator } from "./lib/providers";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
 import {
@@ -1005,6 +1005,42 @@ export const listAdInsights = projekatQuery({
   },
 });
 
+/**
+ * Google ne meri doseg ni video preglede po oglasu. Stari Google redovi u bazi
+ * i dalje nose izmišljene vrednosti (`reach = prikazi`, `video3s = 0`) dok ih
+ * sledeći prolaz ne prepiše, pa se pri čitanju brišu — istorija se štiti bez
+ * migracije. Meta redovi prolaze netaknuti.
+ */
+function bezNemerenog(
+  row: Doc<"adInsights">,
+  provider: string | undefined,
+): Doc<"adInsights"> {
+  if (provider !== "google_ads") return row;
+  return {
+    ...row,
+    reach: undefined,
+    frequency: undefined,
+    video3s: undefined,
+    thruplay: undefined,
+    videoP25: undefined,
+    videoP50: undefined,
+    videoP75: undefined,
+    videoP95: undefined,
+    videoP100: undefined,
+  };
+}
+
+/** Zaokruži izmereno; nepoznato ostaje nepoznato (nikad 0 ni 1). */
+function zaokruzi(v: number | undefined, cifre: number): number | undefined {
+  return v === undefined ? undefined : Number(v.toFixed(cifre));
+}
+
+/** Cena 1.000 prikaza; bez prikaza je nema. */
+function cenaHiljadu(spend: number, impressions: number): number | undefined {
+  const r = deriveRate(spend, impressions);
+  return r === undefined ? undefined : r * 1000;
+}
+
 function generateDateKeys(from: string, to: string): string[] {
   const dates: string[] = [];
   const current = new Date(`${from}T00:00:00Z`);
@@ -1081,12 +1117,17 @@ export const getCampaignsReport = projekatQuery({
     let totalImpressions = 0;
     let totalClicks = 0;
     let totalReach: number | undefined;
+    // Frekvencija se računa samo nad prikazima kampanja koje imaju doseg —
+    // Google prikazi bez dosega bi je izmislili.
+    let totalImpressionsSaDosegom = 0;
     let totalResults: number | undefined;
     let totalConversionValue: number | undefined;
 
     const campaignRows = await Promise.all(
       campaigns.map(async (campaign) => {
         const adSets = adSetsByCampaign.get(campaign._id) ?? [];
+        const account = accountMap.get(campaign.accountId);
+        const provider = account?.provider ?? "meta_ads";
         const ads: (typeof allAds)[number][] = [];
         for (const set of adSets) {
           const setAds = adsByAdSet.get(set._id) ?? [];
@@ -1115,7 +1156,8 @@ export const getCampaignsReport = projekatQuery({
             )
             .collect();
 
-          for (const row of insights) {
+          for (const raw of insights) {
+            const row = bezNemerenog(raw, provider);
             // Aggregate daily totals only (breakdownHash === "none" and hour === undefined)
             if (row.breakdownHash === "none" && row.hour === undefined) {
               spend += row.spend;
@@ -1136,14 +1178,17 @@ export const getCampaignsReport = projekatQuery({
         totalSpend += spend;
         totalImpressions += impressions;
         totalClicks += clicks;
-        if (reach !== undefined) totalReach = (totalReach ?? 0) + reach;
+        if (reach !== undefined) {
+          totalReach = (totalReach ?? 0) + reach;
+          totalImpressionsSaDosegom += impressions;
+        }
         if (results !== undefined) totalResults = (totalResults ?? 0) + results;
         if (conversionValue !== undefined) totalConversionValue = (totalConversionValue ?? 0) + conversionValue;
 
-        const ctr = impressions > 0 ? clicks / impressions : 0;
-        const cpc = clicks > 0 ? spend / clicks : 0;
-        const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
-        const frequency = reach !== undefined && reach > 0 ? impressions / reach : 1;
+        const ctr = deriveRate(clicks, impressions);
+        const cpc = deriveRate(spend, clicks);
+        const cpm = cenaHiljadu(spend, impressions);
+        const frequency = deriveRate(impressions, reach);
         const costPerResult = deriveRate(spend, results);
         const roas = deriveRate(conversionValue, spend);
         const hasConversionValue = conversionValue !== undefined && conversionValue > 0;
@@ -1153,13 +1198,11 @@ export const getCampaignsReport = projekatQuery({
           spend: Number((dailySpendMap.get(date) ?? 0).toFixed(2)),
         }));
 
-        const account = accountMap.get(campaign.accountId);
-
         return {
           _id: campaign._id,
           externalId: campaign.externalId,
           name: campaign.name,
-          provider: account?.provider ?? "meta_ads",
+          provider,
           accountName: account?.name,
           currency: account?.currency,
           objective: campaign.objective,
@@ -1178,10 +1221,10 @@ export const getCampaignsReport = projekatQuery({
           costPerResult: costPerResult !== undefined ? Number(costPerResult.toFixed(2)) : undefined,
           roas: roas !== undefined ? Number(roas.toFixed(2)) : undefined,
           hasConversionValue,
-          ctr: Number(ctr.toFixed(4)),
-          cpc: Number(cpc.toFixed(2)),
-          cpm: Number(cpm.toFixed(2)),
-          frequency: Number(frequency.toFixed(2)),
+          ctr: zaokruzi(ctr, 4),
+          cpc: zaokruzi(cpc, 2),
+          cpm: zaokruzi(cpm, 2),
+          frequency: zaokruzi(frequency, 2),
           video3s,
           thruplay,
           dailySpend,
@@ -1191,10 +1234,10 @@ export const getCampaignsReport = projekatQuery({
       }),
     );
 
-    const overallCtr = totalImpressions > 0 ? totalClicks / totalImpressions : 0;
+    const overallCtr = deriveRate(totalClicks, totalImpressions);
     const overallCpa = deriveRate(totalSpend, totalResults);
     const overallRoas = deriveRate(totalConversionValue, totalSpend);
-    const overallFrequency = totalReach !== undefined && totalReach > 0 ? totalImpressions / totalReach : 1;
+    const overallFrequency = deriveRate(totalImpressionsSaDosegom, totalReach);
 
     // Resolve unified workspace currency if all accounts share same currency
     const uniqueCurrencies = Array.from(
@@ -1214,8 +1257,8 @@ export const getCampaignsReport = projekatQuery({
         overallCpa: overallCpa !== undefined ? Number(overallCpa.toFixed(2)) : undefined,
         overallRoas: overallRoas !== undefined ? Number(overallRoas.toFixed(2)) : undefined,
         hasConversionValue: totalConversionValue !== undefined && totalConversionValue > 0,
-        overallCtr: Number(overallCtr.toFixed(4)),
-        overallFrequency: Number(overallFrequency.toFixed(2)),
+        overallCtr: zaokruzi(overallCtr, 4),
+        overallFrequency: zaokruzi(overallFrequency, 2),
         campaignsCount: campaigns.length,
         currency: resolvedTotalsCurrency,
       },
@@ -1241,6 +1284,7 @@ export const getCampaignHierarchy = projekatQuery({
     }
 
     const account = await ctx.db.get(campaign.accountId);
+    const provider = account?.provider ?? "meta_ads";
 
     const dateKeys = generateDateKeys(from, to);
 
@@ -1302,7 +1346,8 @@ export const getCampaignHierarchy = projekatQuery({
             const dailySpendMap = new Map<string, number>();
             for (const d of dateKeys) dailySpendMap.set(d, 0);
 
-            for (const row of insights) {
+            for (const raw of insights) {
+              const row = bezNemerenog(raw, provider);
               if (row.breakdownHash === "none" && row.hour === undefined) {
                 adSpend += row.spend;
                 adImpressions += row.impressions;
@@ -1331,10 +1376,10 @@ export const getCampaignHierarchy = projekatQuery({
             if (adVideo3s !== undefined) setVideo3s = (setVideo3s ?? 0) + adVideo3s;
             if (adThruplay !== undefined) setThruplay = (setThruplay ?? 0) + adThruplay;
 
-            const adCtr = adImpressions > 0 ? adClicks / adImpressions : 0;
-            const adCpc = adClicks > 0 ? adSpend / adClicks : 0;
-            const adCpm = adImpressions > 0 ? (adSpend / adImpressions) * 1000 : 0;
-            const adFrequency = adReach !== undefined && adReach > 0 ? adImpressions / adReach : 1;
+            const adCtr = deriveRate(adClicks, adImpressions);
+            const adCpc = deriveRate(adSpend, adClicks);
+            const adCpm = cenaHiljadu(adSpend, adImpressions);
+            const adFrequency = deriveRate(adImpressions, adReach);
             const adCpa = deriveRate(adSpend, adResultsCount);
             const adRoas = deriveRate(adConversionValue, adSpend);
             const hookRate = deriveRate(adVideo3s, adImpressions);
@@ -1364,10 +1409,10 @@ export const getCampaignHierarchy = projekatQuery({
               costPerResult: adCpa !== undefined ? Number(adCpa.toFixed(2)) : undefined,
               roas: adRoas !== undefined ? Number(adRoas.toFixed(2)) : undefined,
               hasConversionValue: adConversionValue !== undefined && adConversionValue > 0,
-              ctr: Number(adCtr.toFixed(4)),
-              cpc: Number(adCpc.toFixed(2)),
-              cpm: Number(adCpm.toFixed(2)),
-              frequency: Number(adFrequency.toFixed(2)),
+              ctr: zaokruzi(adCtr, 4),
+              cpc: zaokruzi(adCpc, 2),
+              cpm: zaokruzi(adCpm, 2),
+              frequency: zaokruzi(adFrequency, 2),
               video3s: adVideo3s,
               thruplay: adThruplay,
               hookRate: hookRate !== undefined ? Number(hookRate.toFixed(4)) : undefined,
@@ -1389,10 +1434,10 @@ export const getCampaignHierarchy = projekatQuery({
         if (setVideo3s !== undefined) campVideo3s = (campVideo3s ?? 0) + setVideo3s;
         if (setThruplay !== undefined) campThruplay = (campThruplay ?? 0) + setThruplay;
 
-        const setCtr = setImpressions > 0 ? setClicks / setImpressions : 0;
+        const setCtr = deriveRate(setClicks, setImpressions);
         const setCpa = deriveRate(setSpend, setResults);
         const setRoas = deriveRate(setConversionValue, setSpend);
-        const setFrequency = setReach !== undefined && setReach > 0 ? setImpressions / setReach : 1;
+        const setFrequency = deriveRate(setImpressions, setReach);
 
         return {
           _id: set._id,
@@ -1412,24 +1457,24 @@ export const getCampaignHierarchy = projekatQuery({
           costPerResult: setCpa !== undefined ? Number(setCpa.toFixed(2)) : undefined,
           roas: setRoas !== undefined ? Number(setRoas.toFixed(2)) : undefined,
           hasConversionValue: setConversionValue !== undefined && setConversionValue > 0,
-          ctr: Number(setCtr.toFixed(4)),
-          frequency: Number(setFrequency.toFixed(2)),
+          ctr: zaokruzi(setCtr, 4),
+          frequency: zaokruzi(setFrequency, 2),
           ads: adResults,
         };
       }),
     );
 
-    const campCtr = campImpressions > 0 ? campClicks / campImpressions : 0;
+    const campCtr = deriveRate(campClicks, campImpressions);
     const campCpa = deriveRate(campSpend, campResults);
     const campRoas = deriveRate(campConversionValue, campSpend);
-    const campFrequency = campReach !== undefined && campReach > 0 ? campImpressions / campReach : 1;
+    const campFrequency = deriveRate(campImpressions, campReach);
 
     return {
       campaign: {
         _id: campaign._id,
         externalId: campaign.externalId,
         name: campaign.name,
-        provider: account?.provider ?? "meta_ads",
+        provider,
         accountName: account?.name,
         objective: campaign.objective,
         status: campaign.status,
@@ -1447,8 +1492,8 @@ export const getCampaignHierarchy = projekatQuery({
         costPerResult: campCpa !== undefined ? Number(campCpa.toFixed(2)) : undefined,
         roas: campRoas !== undefined ? Number(campRoas.toFixed(2)) : undefined,
         hasConversionValue: campConversionValue !== undefined && campConversionValue > 0,
-        ctr: Number(campCtr.toFixed(4)),
-        frequency: Number(campFrequency.toFixed(2)),
+        ctr: zaokruzi(campCtr, 4),
+        frequency: zaokruzi(campFrequency, 2),
         video3s: campVideo3s,
         thruplay: campThruplay,
         currency: account?.currency,
@@ -1476,16 +1521,19 @@ export const getAdDrilldown = projekatQuery({
     const adSet = await ctx.db.get(ad.adSetId);
     const campaign = adSet ? await ctx.db.get(adSet.campaignId) : null;
     const account = campaign ? await ctx.db.get(campaign.accountId) : null;
+    const provider = account?.provider ?? "meta_ads";
 
     const dateKeys = generateDateKeys(from, to);
 
     // Fetch all insights for this ad within [from, to]
-    const allInsights = await ctx.db
-      .query("adInsights")
-      .withIndex("by_ad_date", (q) =>
-        q.eq("adId", adId).gte("date", from).lte("date", to),
-      )
-      .collect();
+    const allInsights = (
+      await ctx.db
+        .query("adInsights")
+        .withIndex("by_ad_date", (q) =>
+          q.eq("adId", adId).gte("date", from).lte("date", to),
+        )
+        .collect()
+    ).map((row) => bezNemerenog(row, provider));
 
     // 1. Daily aggregate rows (breakdownHash === "none" && hour === undefined)
     const dailyMap = new Map<
@@ -1670,10 +1718,10 @@ export const getAdDrilldown = projekatQuery({
       }
     }
 
-    const ctr = impressions > 0 ? clicks / impressions : 0;
-    const cpc = clicks > 0 ? spend / clicks : 0;
-    const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
-    const frequency = reach !== undefined && reach > 0 ? impressions / reach : 1;
+    const ctr = deriveRate(clicks, impressions);
+    const cpc = deriveRate(spend, clicks);
+    const cpm = cenaHiljadu(spend, impressions);
+    const frequency = deriveRate(impressions, reach);
     const costPerResult = deriveRate(spend, results);
     const roas = deriveRate(conversionValue, spend);
     const hookRate = deriveRate(video3s, impressions);
@@ -1727,8 +1775,8 @@ export const getAdDrilldown = projekatQuery({
     });
 
     const placementList = Array.from(placementData.values()).map((p) => {
-      const pCtr = p.impressions > 0 ? p.clicks / p.impressions : 0;
-      const pCpc = p.clicks > 0 ? p.spend / p.clicks : 0;
+      const pCtr = deriveRate(p.clicks, p.impressions);
+      const pCpc = deriveRate(p.spend, p.clicks);
       const pCpa = deriveRate(p.spend, p.results);
       return {
         placement: p.placement,
@@ -1737,8 +1785,8 @@ export const getAdDrilldown = projekatQuery({
         impressions: p.impressions,
         clicks: p.clicks,
         results: p.results,
-        ctr: Number(pCtr.toFixed(4)),
-        cpc: Number(pCpc.toFixed(2)),
+        ctr: zaokruzi(pCtr, 4),
+        cpc: zaokruzi(pCpc, 2),
         cpa: pCpa !== undefined ? Number(pCpa.toFixed(2)) : undefined,
       };
     });
@@ -1799,12 +1847,12 @@ export const getAdDrilldown = projekatQuery({
         spend: Number(spend.toFixed(2)),
         impressions,
         reach,
-        frequency: Number(frequency.toFixed(2)),
+        frequency: zaokruzi(frequency, 2),
         clicks,
-        ctr: Number(ctr.toFixed(4)),
+        ctr: zaokruzi(ctr, 4),
         uniqueCtr: uniqueCtr ? Number(uniqueCtr.toFixed(4)) : undefined,
-        cpc: Number(cpc.toFixed(2)),
-        cpm: Number(cpm.toFixed(2)),
+        cpc: zaokruzi(cpc, 2),
+        cpm: zaokruzi(cpm, 2),
         cpp: cpp ? Number(cpp.toFixed(2)) : undefined,
         results,
         costPerResult: costPerResult !== undefined ? Number(costPerResult.toFixed(2)) : undefined,
@@ -1894,6 +1942,7 @@ export const getHookBattle = projekatQuery({
     }
 
     const account = await ctx.db.get(campaign.accountId);
+    const provider = account?.provider ?? "meta_ads";
 
     const dateKeys = generateDateKeys(from, to);
 
@@ -1940,13 +1989,15 @@ export const getHookBattle = projekatQuery({
         let videoP100: number | undefined;
 
         const dailySpendMap = new Map<string, number>();
-        const dailyHookMap = new Map<string, { video3s: number; impressions: number }>();
+        // `video3s` dana ostaje nepoznat dok ga nijedan red ne izmeri.
+        const dailyHookMap = new Map<string, { video3s?: number; impressions: number }>();
         for (const d of dateKeys) {
           dailySpendMap.set(d, 0);
-          dailyHookMap.set(d, { video3s: 0, impressions: 0 });
+          dailyHookMap.set(d, { video3s: undefined, impressions: 0 });
         }
 
-        for (const row of insights) {
+        for (const raw of insights) {
+          const row = bezNemerenog(raw, provider);
           if (row.breakdownHash === "none" && row.hour === undefined) {
             spend += row.spend;
             impressions += row.impressions;
@@ -1965,18 +2016,21 @@ export const getHookBattle = projekatQuery({
             const curSpend = dailySpendMap.get(row.date) ?? 0;
             dailySpendMap.set(row.date, curSpend + row.spend);
 
-            const curHook = dailyHookMap.get(row.date) ?? { video3s: 0, impressions: 0 };
+            const curHook = dailyHookMap.get(row.date) ?? { video3s: undefined, impressions: 0 };
             dailyHookMap.set(row.date, {
-              video3s: curHook.video3s + (row.video3s ?? 0),
+              video3s:
+                row.video3s !== undefined
+                  ? (curHook.video3s ?? 0) + row.video3s
+                  : curHook.video3s,
               impressions: curHook.impressions + row.impressions,
             });
           }
         }
 
-        const ctr = impressions > 0 ? clicks / impressions : 0;
-        const cpc = clicks > 0 ? spend / clicks : 0;
-        const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
-        const frequency = reach !== undefined && reach > 0 ? impressions / reach : 1;
+        const ctr = deriveRate(clicks, impressions);
+        const cpc = deriveRate(spend, clicks);
+        const cpm = cenaHiljadu(spend, impressions);
+        const frequency = deriveRate(impressions, reach);
         const costPerResult = deriveRate(spend, results);
         const roas = deriveRate(conversionValue, spend);
         const hookRate = deriveRate(video3s, impressions);
@@ -1989,7 +2043,7 @@ export const getHookBattle = projekatQuery({
         const p100Pct = video3s !== undefined && video3s > 0 && videoP100 !== undefined ? videoP100 / video3s : (impressions > 0 && videoP100 !== undefined ? videoP100 / impressions : 0);
 
         const dailySeries = dateKeys.map((date) => {
-          const hookData = dailyHookMap.get(date) ?? { video3s: 0, impressions: 0 };
+          const hookData = dailyHookMap.get(date) ?? { video3s: undefined, impressions: 0 };
           const dayHookRate = deriveRate(hookData.video3s, hookData.impressions);
           return {
             date,
@@ -2022,10 +2076,10 @@ export const getHookBattle = projekatQuery({
           costPerResult: costPerResult !== undefined ? Number(costPerResult.toFixed(2)) : undefined,
           roas: roas !== undefined ? Number(roas.toFixed(2)) : undefined,
           hasConversionValue: conversionValue !== undefined && conversionValue > 0,
-          ctr: Number(ctr.toFixed(4)),
-          cpc: Number(cpc.toFixed(2)),
-          cpm: Number(cpm.toFixed(2)),
-          frequency: Number(frequency.toFixed(2)),
+          ctr: zaokruzi(ctr, 4),
+          cpc: zaokruzi(cpc, 2),
+          cpm: zaokruzi(cpm, 2),
+          frequency: zaokruzi(frequency, 2),
           video3s,
           thruplay,
           hookRate: hookRate !== undefined ? Number(hookRate.toFixed(4)) : undefined,
@@ -2066,6 +2120,7 @@ export const getHookBattle = projekatQuery({
         accountId: campaign.accountId,
       },
       currency: account?.currency,
+      provider,
       from,
       to,
       isPinned,

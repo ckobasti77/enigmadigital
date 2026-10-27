@@ -29,6 +29,7 @@ import {
   AdActionDialog,
   type AdActionType,
 } from "./ad-action-dialog";
+import { MeraIliCrtica, RAZLOG, razlogFrekvencije } from "./nepoznata-mera";
 
 export type CampaignRow = {
   _id: Id<"adCampaigns">;
@@ -53,10 +54,12 @@ export type CampaignRow = {
   costPerResult?: number;
   roas?: number;
   hasConversionValue: boolean;
-  ctr: number;
-  cpc: number;
-  cpm: number;
-  frequency: number;
+  /** Bez prikaza nema stope klikova ni cene 1.000 prikaza; bez klikova nema CPC. */
+  ctr?: number;
+  cpc?: number;
+  cpm?: number;
+  /** Google je ne meri; Meta bez dosega je ne daje. */
+  frequency?: number;
   video3s?: number;
   thruplay?: number;
   dailySpend: Array<{ date: string; spend: number }>;
@@ -82,12 +85,12 @@ const DEFAULT_SORT: Sort = { key: "spend", dir: "desc" };
 function compare(a: CampaignRow, b: CampaignRow, { key, dir }: Sort): number {
   const av = a[key];
   const bv = b[key];
+  // Nepoznato nije nula: u oba smera ide na kraj, ne među najmanje.
+  const aPrazno = av === null || av === undefined;
+  const bPrazno = bv === null || bv === undefined;
+  if (aPrazno || bPrazno) return aPrazno === bPrazno ? 0 : aPrazno ? 1 : -1;
   let c = 0;
-  if (av === null || av === undefined) {
-    c = bv === null || bv === undefined ? 0 : -1;
-  } else if (bv === null || bv === undefined) {
-    c = 1;
-  } else if (typeof av === "number" && typeof bv === "number") {
+  if (typeof av === "number" && typeof bv === "number") {
     c = av - bv;
   } else {
     c = String(av ?? "").localeCompare(String(bv ?? ""), "sr-Latn");
@@ -502,12 +505,20 @@ export function CampaignsTable({
 
                       {/* CTR */}
                       <TableCell className="text-right font-mono tabular-nums text-foreground">
-                        {formatPercent(row.ctr)}
+                        <MeraIliCrtica
+                          value={row.ctr}
+                          format={formatPercent}
+                          razlog={RAZLOG.bezPrikaza}
+                        />
                       </TableCell>
 
                       {/* Frequency */}
                       <TableCell className="text-right font-mono tabular-nums text-foreground">
-                        {formatDecimal(row.frequency)}
+                        <MeraIliCrtica
+                          value={row.frequency}
+                          format={formatDecimal}
+                          razlog={razlogFrekvencije(row.provider, row.impressions)}
+                        />
                       </TableCell>
 
                       {/* Quick Action Buttons & Ad Sets count */}

@@ -34,6 +34,7 @@ import {
   type VersionBattleStats,
 } from "./battle-verdict";
 import { AdDrilldownPanel } from "./ad-drilldown-panel";
+import { MeraIliCrtica, RAZLOG, razlogFrekvencije } from "./nepoznata-mera";
 import {
   formatDecimal,
   formatNumber,
@@ -637,7 +638,11 @@ export function HookBattleView({
                       <div className="px-4 py-2.5 flex items-center justify-between">
                         <span className="text-text-muted">CTR (Klikovnost)</span>
                         <span className="font-mono font-medium text-foreground">
-                          {formatPercent(version.ctr)}
+                          <MeraIliCrtica
+                            value={version.ctr}
+                            format={formatPercent}
+                            razlog={RAZLOG.bezPrikaza}
+                          />
                         </span>
                       </div>
 
@@ -684,7 +689,13 @@ export function HookBattleView({
                         <div className="text-right font-mono text-foreground">
                           <span>{formatNumber(version.impressions)}</span>
                           <span className="text-text-muted ml-1 text-micro">
-                            ({formatDecimal(version.frequency)})
+                            (
+                            <MeraIliCrtica
+                              value={version.frequency}
+                              format={formatDecimal}
+                              razlog={razlogFrekvencije(data?.provider, version.impressions)}
+                            />
+                            )
                           </span>
                         </div>
                       </div>

@@ -433,6 +433,8 @@ export const changeBudget = projekatAction({
           newDailyBudget: args.newDailyBudget,
           previousDailyBudget: currentBudget,
           spendToday: target.spendToday,
+          // Istorija piše iznos u valuti naloga; bez ovoga ne zna koju.
+          currency: accountCurrency,
         }),
       },
     );

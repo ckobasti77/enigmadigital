@@ -163,6 +163,7 @@ export function AcquisitionDashboard() {
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
               <KpiTile
                 label="Novi korisnici"
+                mera="novi_korisnici"
                 value={channels.totals.firstNewUsers || curDailySum.activeUsers}
                 format={formatNumber}
                 delta={{
@@ -178,6 +179,7 @@ export function AcquisitionDashboard() {
               />
               <KpiTile
                 label="Ukupno korisnika"
+                mera="korisnici"
                 value={channels.totals.firstUsers || curDailySum.activeUsers}
                 format={formatNumber}
                 delta={{
@@ -193,6 +195,7 @@ export function AcquisitionDashboard() {
               />
               <KpiTile
                 label="Sesije"
+                mera="sesije"
                 value={channels.totals.sessions || curDailySum.sessions}
                 format={formatNumber}
                 delta={{
@@ -209,6 +212,7 @@ export function AcquisitionDashboard() {
               />
               <KpiTile
                 label="Angažovane sesije"
+                mera="angazovane_sesije"
                 value={curEngaged}
                 format={formatNumber}
                 delta={{
@@ -221,6 +225,7 @@ export function AcquisitionDashboard() {
               />
               <KpiTile
                 label="Ključni događaji"
+                mera="kljucni_dogadjaji"
                 value={channels.totals.sessionKeyEvents || curDailySum.keyEvents}
                 format={formatNumber}
                 delta={{

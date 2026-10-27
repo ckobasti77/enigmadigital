@@ -40,6 +40,7 @@ import {
 } from "./youtube-videos-grid";
 import { YtUploadButton } from "./yt-upload-dialog";
 import { POST_NOUN_VIDEO, channelReadiness } from "@/lib/channel-readiness";
+import { veceJeBolje } from "@/lib/mere";
 import { deltaPct, deltaPp, fillYtDays, summarizeYt } from "@/lib/metrics";
 import type { YtDailyPoint } from "@/lib/metrics";
 import {
@@ -210,6 +211,7 @@ export function YouTubeDashboard() {
             delta={deltaPct(cur.views, prev.views)}
             formatDelta={formatSignedPercent}
             compareLabel={compareLabel}
+            higherIsBetter={veceJeBolje("pregledi")}
             note="zbir za period"
             readiness={readiness}
             next={
@@ -229,6 +231,7 @@ export function YouTubeDashboard() {
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 [&>*:last-child]:col-span-2 lg:[&>*:last-child]:col-span-1">
             <KpiTile
               label="Vreme gledanja"
+              mera="vreme_gledanja"
               icon={Clock}
               value={cur.estimatedMinutesWatched}
               format={formatWatchTime}
@@ -245,6 +248,7 @@ export function YouTubeDashboard() {
             />
             <KpiTile
               label="Pratioci (neto)"
+              mera="pratioci_neto"
               icon={UserPlus}
               value={cur.netSubscribers}
               format={formatSignedNumber}
@@ -263,6 +267,7 @@ export function YouTubeDashboard() {
             />
             <KpiTile
               label="Prosečno odgledano"
+              mera="prosecno_odgledano"
               shortLabel="Odgledano"
               icon={Gauge}
               value={cur.averageViewPercentage}

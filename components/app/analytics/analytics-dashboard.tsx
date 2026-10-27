@@ -199,6 +199,7 @@ export function AnalyticsDashboard() {
                 <KpiTile
                   size="hero"
                   label="Sesije"
+                  mera="sesije"
                   icon={Activity}
                   value={cur.sessions}
                   format={formatNumber}
@@ -214,6 +215,7 @@ export function AnalyticsDashboard() {
               <KpiTile
                 size="compact"
                 label="Korisnici"
+                mera="korisnici"
                 value={cur.totalUsers}
                 format={formatNumber}
                 delta={{
@@ -225,6 +227,7 @@ export function AnalyticsDashboard() {
               <KpiTile
                 size="compact"
                 label="Novi korisnici"
+                mera="novi_korisnici"
                 value={cur.newUsers}
                 format={formatNumber}
                 delta={{
@@ -244,6 +247,7 @@ export function AnalyticsDashboard() {
             <KpiTile
               size="compact"
               label="Angažovane sesije"
+              mera="angazovane_sesije"
               value={cur.engagedSessions}
               format={formatNumber}
               delta={{
@@ -255,6 +259,7 @@ export function AnalyticsDashboard() {
             <KpiTile
               size="compact"
               label="Stopa angažovanja"
+              mera="stopa_angazovanja"
               value={cur.engagementRate}
               format={formatPercent}
               delta={{
@@ -266,6 +271,7 @@ export function AnalyticsDashboard() {
             <KpiTile
               size="compact"
               label="Pregledi stranica"
+              mera="pregledi_stranica"
               value={cur.screenPageViews}
               format={formatNumber}
               delta={{
@@ -277,6 +283,7 @@ export function AnalyticsDashboard() {
             <KpiTile
               size="compact"
               label="Vreme angažovanja po sesiji"
+              mera="vreme_angazovanja"
               shortLabel="Vreme po sesiji"
               value={cur.avgEngagementDurationPerSession}
               format={formatSeconds}
@@ -292,6 +299,7 @@ export function AnalyticsDashboard() {
             <KpiTile
               size="compact"
               label="Ključni događaji"
+              mera="kljucni_dogadjaji"
               value={cur.keyEvents}
               format={formatNumber}
               delta={{
@@ -303,6 +311,7 @@ export function AnalyticsDashboard() {
             <KpiTile
               size="compact"
               label="Klj. događaji po sesiji"
+              mera="dogadjaji_po_sesiji"
               shortLabel="Po sesiji"
               value={sessionRate.value}
               state={sessionRate.state === "value" ? "value" : "unavailable"}
@@ -321,6 +330,7 @@ export function AnalyticsDashboard() {
             <KpiTile
               size="compact"
               label="Klj. događaji po korisniku"
+              mera="dogadjaji_po_korisniku"
               shortLabel="Po korisniku"
               value={userRate.value}
               state={userRate.state === "value" ? "value" : "unavailable"}

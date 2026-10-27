@@ -69,7 +69,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { formatNumber, formatPercent, formatSignedPercent } from "@/lib/format";
+import {
+  formatCurrency,
+  formatNumber,
+  formatPercent,
+  formatSignedPercent,
+} from "@/lib/format";
 import {
   CATEGORY_LABEL,
   CATEGORY_SLOT,
@@ -136,13 +141,14 @@ function Plocice() {
   return (
     <Sekcija
       naslov="Pločice — hero, default, compact"
-      opis="Hero je fokus broj ekrana. Delta je pilula: strelica kaže smer, boja da li je to dobro (kod CPA je pad dobra vest). Linija premošćuje dane bez merenja isprekidano."
+      opis="Hero je fokus broj ekrana. Delta je pilula: strelica kaže smer, boja da li je to dobro; smer daje rečnik mera (kod cene je pad dobra vest). Linija premošćuje dane bez merenja isprekidano."
     >
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr_1fr]">
         <KpiTile
           size="hero"
           icon={Eye}
           label="Sesije"
+          mera="sesije"
           value={1240}
           format={formatNumber}
           delta={{ kind: "pct", value: 0.184 }}
@@ -153,6 +159,7 @@ function Plocice() {
         <KpiTile
           icon={Users}
           label="Korisnici"
+          mera="korisnici"
           value={873}
           format={formatNumber}
           delta={{ kind: "pct", value: -0.062 }}
@@ -164,24 +171,26 @@ function Plocice() {
         <KpiTile
           icon={Wallet}
           label="Cena po leadu"
-          value={386}
-          format={(v) => `${formatNumber(v)} RSD`}
+          mera="cena_po_rezultatu"
+          value={3.3}
+          format={(v) => formatCurrency(v, "EUR")}
           delta={{ kind: "pct", value: -0.127 }}
           formatDelta={formatSignedPercent}
           compareLabel="pad je dobar"
-          higherIsBetter={false}
           spark={[52, 49, 51, 46, 44, 45, 41, 39, 40, 37]}
         />
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiTile
           label="Stopa angažovanja"
+          mera="stopa_angazovanja"
           value={0.432}
           format={formatPercent}
           note="zbir za period"
         />
         <KpiTile
           label="Doseg priča"
+          mera="doseg"
           value={undefined}
           format={formatNumber}
           state="unavailable"
@@ -201,6 +210,7 @@ function Plocice() {
           size="compact"
           icon={Phone}
           label="Pozivi danas"
+          mera="pozivi"
           value={7}
           format={formatNumber}
           note="od 10"
@@ -208,6 +218,7 @@ function Plocice() {
         <KpiTile
           size="compact"
           label="Sastanci"
+          mera="sastanci"
           value={3}
           format={formatNumber}
           delta={{ kind: "pct", value: 0.5 }}
@@ -215,7 +226,8 @@ function Plocice() {
         />
         <KpiTile
           size="compact"
-          label="Bez promene"
+          label="Upiti (bez promene)"
+          mera="upiti"
           value={41}
           format={formatNumber}
           delta={{ kind: "pct", value: 0 }}

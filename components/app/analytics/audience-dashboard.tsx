@@ -148,6 +148,7 @@ export function AudienceDashboard() {
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <KpiTile
                 label="Ukupno korisnika"
+                mera="korisnici"
                 value={deviceData.totals.totalUsers || curDailySum.activeUsers}
                 format={formatNumber}
                 delta={{
@@ -163,6 +164,7 @@ export function AudienceDashboard() {
               />
               <KpiTile
                 label="Sesije"
+                mera="sesije"
                 value={deviceData.totals.sessions || curDailySum.sessions}
                 format={formatNumber}
                 delta={{
@@ -178,6 +180,7 @@ export function AudienceDashboard() {
               />
               <KpiTile
                 label="Angažovane sesije"
+                mera="angazovane_sesije"
                 value={deviceData.totals.engagedSessions}
                 format={formatNumber}
                 delta={{
@@ -197,6 +200,7 @@ export function AudienceDashboard() {
               />
               <KpiTile
                 label="Stopa angažovanja"
+                mera="stopa_angazovanja"
                 value={deviceData.totals.engagementRate}
                 format={formatPercent}
                 delta={{

@@ -217,3 +217,120 @@ Nijedan `next dev` ni drugi proces koji je korak sam pokrenuo nije upaljen.
    - zvono sada javlja i token koji ističe i stare podatke;
    - „Poveži ponovo" umesto „Obnovi pristup".
 4. Baner o dozvoli u kompozeru se pojavljuje samo kad Meta odbije pitanje o kvoti zbog dozvole. Proveri na pravom nalogu da se ne pojavljuje kad je sve u redu.
+
+## T05 — Pošteni brojevi: „—“, smer, valuta, probni podaci   (2026-10-27 23:50)
+**Fajlovi:**
+- novi:
+  - rečnik i valuta: `lib/mere.ts`, `lib/valuta.ts`;
+  - front: `components/app/system/valuta-upozorenje.tsx` (`ValutaUpozorenje`), `components/app/ads/nepoznata-mera.tsx` (`MeraIliCrtica` i razlozi za „—“ u Oglasima);
+  - testovi i fiksture: `lib/mere.test.ts`, `convex/brojevi-t05.test.ts`, `app/dev-ux/fixtures-brojevi.ts`;
+  - snimci `docs/ultra/snimci/T05-*.png` (6).
+- izmenjeni backend: `convex/metaAdsStore.ts`, `convex/googleAds.ts`, `convex/googleAdsStore.ts`, `convex/adActions.ts` (samo `params.currency`), `convex/lib/metaAdsWrite.ts` i `convex/lib/googleAdsWrite.ts` (samo rečenica o valuti).
+- izmenjeni front:
+  - sistem: `components/app/system/kpi-tile.tsx`;
+  - Oglasi: `ads-dashboard.tsx`, `campaigns-table.tsx`, `campaign-detail.tsx`, `ad-drilldown-panel.tsx`, `placement-breakdown.tsx`, `hook-battle-view.tsx`, `battle-verdict.ts`;
+  - Analitika: `ads-performance-dashboard.tsx`, `retention-dashboard.tsx`, `analytics-dashboard.tsx`, `acquisition-dashboard.tsx`, `audience-dashboard.tsx`, `content-dashboard.tsx`;
+  - kanali i ostalo: `instagram-dashboard.tsx`, `facebook-dashboard.tsx`, `youtube-dashboard.tsx`, `threads-dashboard.tsx` (samo smer fokusa), `threads-follows-chart.tsx`, `openreply-dashboard.tsx`, `overview/overview-dashboard.tsx` (samo `mera` na pločicama), `settings/action-audit-log.tsx`, `rules/rule-editor-dialog.tsx`, `lib/rule-sentence.ts`.
+- razvojni prikaz: `app/dev-ux/fixtures-oglasi.ts`, `fixtures-analitika.ts`, `fixtures-projekti.ts`, `fixtures.ts` (jedan uvoz i jedan red registracije), `app/dev-ux/sistem/vodic-komponente.tsx`.
+
+**Šta je urađeno:**
+- **Izmišljene vrednosti (§5.2).**
+  - Oglasi: stopa klikova, cena klika, cena 1.000 prikaza i frekvencija su `undefined` kad je imenilac 0, preko `deriveRate`. Ranije su bile 0 i 1. Važi u izveštaju kampanja, hijerarhiji, detalju oglasa, plasmanima, duelu kreativa i izveštaju ključnih reči.
+  - Google red pri čitanju gubi doseg, frekvenciju i video mere (`bezNemerenog`), pa stara istorija ne laže bez migracije. Google prolaz više ih ne upisuje; `patch` sa eksplicitnim `undefined` briše stare izmišljene vrednosti. Isto važi za seed.
+  - Na ekranu stoji „—“ sa razlogom u `title` i `sr-only`: „Bez prikazivanja u periodu“, „Bez klikova u periodu“, „Google ne meri frekvenciju“, „Meta nije poslala doseg za ovaj period“.
+  - Pločica „Prosečan CTR“ bez prikaza pokazuje „—“.
+  - Analitika → Oglasi više ne pada na `?? 0`: bez događaja nema cene po događaju, a dan bez događaja je praznina u liniji.
+  - Retencija: „u {N} kohorti“ iz podatka (fikstura ima 8, a ranije je tvrdo stajalo 12); prosek bez izmerene nedelje je „—“.
+  - Instagram: pregledi profila bez izmerenog dana su „—“ sa razlogom „Meta nije poslala preglede profila za ovaj period.“, bez nula u liniji.
+  - Threads: uklonjen drugi broj pratilaca („poslednji snimak“).
+- **Smer mera.** `lib/mere.ts` ima 56 mera sa nazivom, kratkim nazivom, akronimom, definicijom, formatom, smerom i izvorom. `KpiTile` dobija prop `mera` i smer čita iz rečnika; `DeltaPill` dobija `smer`, a `neutralno` daje prigušenu pilulu. Pločice sa `mera`:
+  - Oglasi (4);
+  - Analitika → Oglasi (5), Pregled (10), Sticanje (5), Posetioci (4), Sadržaj (4);
+  - Instagram (4), Facebook (3), YouTube (3), OpenReply (2);
+  - vodič sistema.
+
+  `ChannelFocus` nije menjan; Oglasi, Instagram, Facebook i YouTube mu daju `higherIsBetter={veceJeBolje(…)}`. Na Analitika → Oglasi rast potrošnje i cene po događaju je sada crven (snimak).
+- **Valuta.**
+  - `ValutaUpozorenje` („Nalog radi u RSD; aplikacija ne preračunava.“) stoji na Oglasima, Analitika → Oglasi i u detalju kampanje.
+  - Istorija radnji piše iznos u valuti iz `params.currency`, koju `changeBudget` sada upisuje; stari zapisi su bez znaka.
+  - Urednik pravila i rečenica pravila pišu valutu Meta naloga umesto „€“.
+  - Rečenica o granici budžeta je prevedena u ljudsku.
+- **Fiksture.** Oglasi i Analitika su u EUR, iznosi podeljeni sa ~117 (npr. dnevni budžet 3500 → 30, potrošnja za 28 d 1.457 €). Jedan Google Ads nalog preko GA4 ostaje u RSD da se vidi upozorenje. Kampanja bez potrošnje i Google kampanje u fiksturi daju iste „—“ kao pravi upiti. `fixtures-brojevi.ts` daje preglede profila samo za prethodni period.
+- **`?campaignId=`** (Convex `_id` ili ID kampanje na platformi) u `ads-dashboard.tsx` otvara detalj kampanje (za T07 i link iz mejla). Posle „Nazad“ se ne otvara ponovo.
+
+**ODLUKE:**
+- **Zadatak naspram plana T03 (rule-editor).** Zadatak T05 traži da se „€“ zameni i u `rule-editor-dialog.tsx`, a plan T03 to daje T07. Urađen je minimum: natpisi „CPA/Potrošnja/CPC“ dobijaju „({valuta})“ samo kad svi Meta nalozi dele jednu poznatu valutu, a valuta stoji i uz polje praga. Ostatak fajla (Switch, izvorni `<select>`, „Guard“) je T07-ov.
+- **`lib/rule-sentence.ts`.** Plan ga daje T07. Ovde je dobio samo opcioni parametar `valuta` (`formatCurrency`), jer bi „€15“ inače ostalo tvrdo upisano. `rules-list.tsx` (T07) još ne prosleđuje valutu, pa tamo iznos stoji kao broj bez znaka, što je pošteno. **`convex/rules.ts` `formatMetricUnit` (mejl) i dalje piše „€“.** Plan ga daje T07, jer traži kontekst naloga u evaluatoru.
+- **Treća poruka o valuti.** Postoji i u `convex/adActions.ts` (`currency_mismatch`, bez „po kursu“). Plan je ne pominje, pa nije menjana.
+- **Smer potrošnje je `manje`**, kao do sada na Oglasima i u Meta katalogu (plan §3.2*). Frekvencija je takođe `manje`.
+- **Nazivi pločica nisu menjani** („Prosečan CPA“ i sl.). Srpski naziv sa akronimom u oblačiću je posao rečnika (T12, O15). Rečnik ih već nosi (`naziv`, `akronim`).
+- **Threads fokus** dobija `higherIsBetter={veceJeBolje("pratioci")}`, kao i ostali kanali, iako danas nema poređenje (plan ga je naveo).
+- **Vodič sistema:** da i primeri u vodiču čitaju smer iz rečnika, `lib/mere.ts` je dobio dve mere Leadova van početnog spiska plana, „Pozivi" i „Sastanci" (obe `vise`). Primer ravne pilule je preimenovan iz „Bez promene" u „Upiti (bez promene)" i dobio je `mera="upiti"`. Sada nijedna `KpiTile` ni `ChannelFocus` u aplikaciji i vodiču nije bez smera iz rečnika.
+- **Pločice Kontrolne table.** Plan T03 daje `mera` na Kontrolnoj tabli koraku T06, jer je `overview-dashboard.tsx` njegov fajl. Prihvatanje T05 ipak traži smer za SVAKU meru, pa su ovde dodata samo četiri propa `mera` (Sesije, Instagram doseg, Poslate DM poruke, Leadovi bez poziva, uključujući rezervnu pločicu). Ništa drugo u fajlu nije menjano; T06 ih zatiče gotove. Pločice Leadova nemaju poređenje, pa se boja ne menja.
+- **Šire od spiska §5.2.** Uz tačke iz plana, isto pravilo je primenjeno na:
+  - detalj oglasa (r. 1673–1675) i duel kreativa (1976–1978), koji su imali iste izmišljene nule;
+  - izveštaj ključnih reči (`getKeywordQualityReport`: `ctr`, `cpc`, `overallCtr`);
+  - dnevni „hook rate“ u duelu za dan bez video merenja;
+  - ukupnu frekvenciju, koja se računa samo nad prikazima kampanja koje imaju doseg (Google prikazi bi je izmislili).
+  Matrica uzrast × pol (`ctr` 0 za ćeliju bez prikaza) nije dirana, jer je toplotna mapa van spiska.
+- **Sortiranje tabele kampanja.** Nepoznata vrednost ide na kraj u oba smera; ranije je pri rastućem redosledu bila na vrhu, kao najmanja.
+- **`getHookBattle` vraća i `provider`**, da razlog za „—“ frekvencije kaže Google ili Meta.
+- **Fikstura RSD naloga.** Plan kaže „r. 603“, ali taj red je `ga4Configuration`; ono što ekran čita je `adsPerformance.currencyCode` (r. 586). Radnik je stavio RSD na `adsPerformance`, izveštaje oglasa i `ga4Configuration` (konstanta `ADS_VALUTA`), a ostalo je EUR.
+- **Fikstura projekta.** `klijent-doo` dobija valutu EUR; iznosi (10–300) su već bili u evrima.
+- **Svesno van U2 (za U11 i U14), po planu:**
+  - dnevna popunjavanja nulama u `lib/metrics.ts` (`fillIgDays`, FB, YT, OpenReply `ctr`, `engagementRate`);
+  - `instagram-stories.tsx` (`?? 0`), `threads-search.tsx`, `realtime-dashboard.tsx:104`;
+  - zamene mera u `acquisition-dashboard.tsx` i `audience-dashboard.tsx`;
+  - `threadsStore.ts:1357`, `summarizeIg.followersCount = 0`.
+- **`verify:gads-*`** nisu menjani; svih devet prolazi bez izmene.
+- Skill `impeccable` je pozvan pre UI koda. Fiksture (oglasi, analitika, projekti) je po receptu uradio radnik (sonnet); diff je pregledan, a typecheck i testovi pušteni posle.
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- `lib/mere.test.ts` (30):
+  - trošak i svaka cena su `manje` i rast nije dobar (`dobraPromena(k, +0.2) === false`);
+  - neutralno i promena oko nule daju `null`;
+  - svaka mera ima naziv, kratko, definiciju i izvor, a akronim nije u nazivu;
+  - ROAS i frekvencija su broj;
+  - smer se slaže sa `META_METRIC_CATALOG` (13 ključeva) i `GOOGLE_ADS_METRIC_CATALOG` (11).
+- `lib/mere-pokrivenost.test.ts` (2), čuvar rečnika nad TypeScript AST-om:
+  - primer: pločica bez smera, sa `higherIsBetter={false}` i sa ključem van rečnika pada, a `mera` i `veceJeBolje(…)` prolaze;
+  - ceo `components/` i `app/`: svaka `KpiTile` i `ChannelFocus` (više od 40) čita smer iz `lib/mere.ts`, i nijedna ne pada.
+- `convex/brojevi-t05.test.ts` (5):
+  - kampanja sa 0 prikaza nema CTR, CPC, CPM ni frekvenciju (izveštaj, hijerarhija, detalj);
+  - Google red sa dosegom = prikazi, frekvencijom 1 i video nulama u bazi ih vraća prazne (izveštaj, hijerarhija, detalj, duel);
+  - Meta red sa dosegom daje pravu frekvenciju (2,5) i prave stope;
+  - ukupna frekvencija ne meša Google prikaze;
+  - Google prolaz ne upisuje doseg, frekvenciju ni video, a drugi prolaz briše stare izmišljene vrednosti.
+
+**Rezultat provere:**
+- `npx convex codegen`: prošao.
+- typecheck: prošao.
+- lint: 0 grešaka (1210 upozorenja, isto kao pre).
+- vitest (`npx --no-install vitest run`): 58 fajlova / 1019 testova prošlo.
+- pristup: prošao.
+- regresije: 14/14 prošlo.
+- Dodatno prošli: svih devet `verify:gads-*` (i `transport`, `assets`, `write`), `verify:brojevi`, `scripts/test-meta-ads-ma2.ts` i `verify:leads-ui`.
+- **Vizuelno** (Playwright, `?ux=1`, port 3117):
+  - `/ads` (1536 i 390): EUR, Google frekvencija i CTR kampanje bez potrošnje su „—“;
+  - `/analytics/oglasi` (1536 i 390): upozorenje RSD, a rast potrošnje i cene je crven;
+  - `/instagram` (1536 i 390): pregledi profila „—“ sa razlogom;
+  - `/analytics/retencija`: „u 8 kohorti“;
+  - `/ads?campaignId=120000000000001` otvara detalj kampanje;
+  - na 390 nema vodoravnog klizanja, a u konzoli nema grešaka.
+- **Dev server** je ugašen. `TaskStop` ga nije ugasio, pa je ugašen preko `Stop-Process`, samo procesi ovog koraka: 26668, 35328, 33100, 20216, 29712 i 16112. Port 3117 je slobodan. Pomoćni fajlovi Playwright-a su premešteni u `.nocni-run/ultra1/tmp/t05/playwright/`.
+
+**Prihvatanje:**
+- Nijedna izmišljena nula ili frekvencija sa spiska §5.2 se više ne prikazuje: ispunjeno. Oglasi i Google su pokriveni testom `convex/brojevi-t05.test.ts`, Instagram fiksturom `fixtures-brojevi.ts`, a retencija i Threads snimkom i kodom.
+- Smer svake mere na pločicama dolazi iz `lib/mere.ts`, a test pokriva trošak i cenu: ispunjeno. To važi i za Kontrolnu tablu i vodič sistema: sve `KpiTile` i `ChannelFocus` u kodu nose `mera` ili `veceJeBolje(…)`, što trajno meri test `lib/mere-pokrivenost.test.ts`.
+- Provere prolaze i sekcija T05 je ovde: ispunjeno.
+
+**Za Jovana ujutru:**
+1. Posle deploya: na `/ads` Google kampanje treba da imaju „—“ za frekvenciju (ranije 1,0), a kampanja bez prikaza „—“ za CTR. Stari Google redovi u bazi se čiste sami pri sledećoj sinhronizaciji; do tada ih štiti čitanje.
+2. Na Analitika → Oglasi rast potrošnje je sada crven. Potvrdi da je potrošnja „manje je bolje“ (kao do sada na Oglasima).
+3. Mejl pravila (`convex/rules.ts`) i lista pravila još pišu iznos sa „€“, odnosno bez valute; to sređuje T07.
+4. Potvrdi odluke:
+   - urednik pravila piše valutu naloga uz prag;
+   - istorija radnji piše stare promene budžeta bez znaka valute;
+   - `?campaignId=` otvara detalj kampanje.

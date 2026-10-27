@@ -32,6 +32,7 @@ import {
   FacebookContentGridSkeleton,
 } from "./facebook-content-grid";
 import { channelReadiness } from "@/lib/channel-readiness";
+import { veceJeBolje } from "@/lib/mere";
 import { deltaPct, fillFbDays, summarizeFb } from "@/lib/metrics";
 import {
   formatNumber,
@@ -211,6 +212,7 @@ export function FacebookDashboard() {
             delta={deltaPct(cur.fans, prev.fans)}
             formatDelta={formatSignedPercent}
             compareLabel={compareLabel}
+            higherIsBetter={veceJeBolje("pratioci")}
             note="trenutno stanje stranice"
             readiness={readiness}
             next={
@@ -230,6 +232,7 @@ export function FacebookDashboard() {
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 [&>*:last-child]:col-span-2 lg:[&>*:last-child]:col-span-1">
             <KpiTile
               label="Prikazi"
+              mera="prikazi"
               icon={Eye}
               value={cur.impressions}
               format={formatNumber}
@@ -243,6 +246,7 @@ export function FacebookDashboard() {
             />
             <KpiTile
               label="Angažovanja"
+              mera="angazovanja"
               icon={Heart}
               value={cur.engagements}
               format={formatNumber}
@@ -256,6 +260,7 @@ export function FacebookDashboard() {
             />
             <KpiTile
               label="Angažovanja po prikazu"
+              mera="angazovanja_po_prikazu"
               shortLabel="Po prikazu"
               icon={Percent}
               value={engagementRate}

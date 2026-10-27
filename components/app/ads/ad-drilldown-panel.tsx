@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AgeGenderHeatTable } from "./age-gender-heat-table";
 import { PlacementBreakdown } from "./placement-breakdown";
+import { MeraIliCrtica, RAZLOG, razlogFrekvencije } from "./nepoznata-mera";
 import { HourlyChart } from "./hourly-chart";
 import { AdPreviewDialog } from "./ad-preview-dialog";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
@@ -443,14 +444,25 @@ export function AdDrilldownPanel({
             <div className="rounded-lg border border-line bg-surface/50 p-3">
               <span className="text-xs text-text-muted">CTR (Svi klikovi)</span>
               <p className="mt-1 font-mono text-lg font-bold tabular-nums text-mod">
-                {formatPercent(coreMetrics.ctr)}
+                <MeraIliCrtica
+                  value={coreMetrics.ctr}
+                  format={formatPercent}
+                  razlog={RAZLOG.bezPrikaza}
+                />
               </p>
             </div>
 
             <div className="rounded-lg border border-line bg-surface/50 p-3">
               <span className="text-xs text-text-muted">Frekvencija</span>
               <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
-                {formatDecimal(coreMetrics.frequency)}
+                <MeraIliCrtica
+                  value={coreMetrics.frequency}
+                  format={formatDecimal}
+                  razlog={razlogFrekvencije(
+                    isGoogleAds ? "google_ads" : "meta_ads",
+                    coreMetrics.impressions,
+                  )}
+                />
               </p>
             </div>
 
@@ -479,7 +491,11 @@ export function AdDrilldownPanel({
               <div className="rounded-lg border border-line bg-surface/50 p-3">
                 <span className="text-xs text-text-muted">CPC</span>
                 <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
-                  {coreMetrics.cpc !== undefined ? formatMetric(coreMetrics.cpc, cpcDef, currency) : "—"}
+                  <MeraIliCrtica
+                    value={coreMetrics.cpc}
+                    format={(v) => formatMetric(v, cpcDef, currency)}
+                    razlog={RAZLOG.bezKlikova}
+                  />
                 </p>
               </div>
             )}
@@ -487,7 +503,11 @@ export function AdDrilldownPanel({
             <div className="rounded-lg border border-line bg-surface/50 p-3">
               <span className="text-xs text-text-muted">CPM</span>
               <p className="mt-1 font-mono text-lg font-bold tabular-nums text-foreground">
-                {coreMetrics.cpm !== undefined ? formatMetric(coreMetrics.cpm, cpmDef, currency) : "—"}
+                <MeraIliCrtica
+                  value={coreMetrics.cpm}
+                  format={(v) => formatMetric(v, cpmDef, currency)}
+                  razlog={RAZLOG.bezPrikaza}
+                />
               </p>
             </div>
           </div>

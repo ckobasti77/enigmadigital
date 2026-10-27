@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ProjekatLink } from "@/components/app/projekat-link";
 import { useMoze, useProjekatQuery } from "@/components/app/projekat-provider";
 import { api } from "@/convex/_generated/api";
@@ -15,6 +16,7 @@ import {
 import { EmptyState } from "@/components/app/system/empty-state";
 import { KpiTile, KpiTileSkeleton } from "@/components/app/system/kpi-tile";
 import { PageHeader } from "@/components/app/system/page-header";
+import { ValutaUpozorenje } from "@/components/app/system/valuta-upozorenje";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
@@ -45,6 +47,8 @@ import {
 
 import { formatMetric } from "@/convex/lib/metaAdsFormat";
 import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
+import { veceJeBolje } from "@/lib/mere";
+import { RAZLOG } from "./nepoznata-mera";
 
 const spendDef = resolveMetric("spend")!;
 const cpaDef = resolveMetric("costPerResult")!;
@@ -83,14 +87,21 @@ function AdsHeader({ canCreate }: { canCreate: boolean }) {
 
 /**
  * Oglasi. Fokus je Potrošnja, sa valutom; primarno dugme je „Nova kampanja" u
- * zaglavlju. Za potrošnju i CPA je pad dobra vest, pa im je pilula promene
- * obrnuto obojena (`higherIsBetter={false}`).
+ * zaglavlju. Smer promene daje rečnik mera (`lib/mere.ts`): za potrošnju i
+ * cenu po rezultatu je pad dobra vest, pa im je pilula obrnuto obojena.
+ *
+ * `?campaignId=` (Convex `_id` ili ID kampanje na platformi) otvara detalj
+ * kampanje — link iz istorije pravila i iz mejla vodi pravo na nju.
  */
 export function AdsDashboard() {
   const mozeVlasnik = useMoze("owner");
   const { range } = useDateRange();
   const connections = useProjekatQuery(api.connections.list);
   const [selectedCampaignId, setSelectedCampaignId] = useState<Id<"adCampaigns"> | null>(null);
+  const kampanjaIzAdrese = useSearchParams().get("campaignId");
+  // Posle „Nazad" adresa i dalje nosi parametar; zapamćen je kao zatvoren, pa
+  // detalj ne iskače ponovo.
+  const [zatvorenaIzAdrese, setZatvorenaIzAdrese] = useState<string | null>(null);
   const [selectedBattleAdSetId, setSelectedBattleAdSetId] = useState<Id<"adSets"> | null>(null);
 
   const report = useProjekatQuery(api.metaAdsStore.getCampaignsReport, {
@@ -113,6 +124,14 @@ export function AdsDashboard() {
     connections.some((c) => c.provider === "meta_ads" || c.provider === "google_ads");
 
   const loading = connections === undefined || report === undefined;
+
+  const kampanjaPoAdresi =
+    kampanjaIzAdrese && kampanjaIzAdrese !== zatvorenaIzAdrese
+      ? (report?.campaigns.find(
+          (c) => c._id === kampanjaIzAdrese || c.externalId === kampanjaIzAdrese,
+        )?._id ?? null)
+      : null;
+  const otvorenaKampanja = selectedCampaignId ?? kampanjaPoAdresi;
 
   // F11: iznos bez valute nije iznos. Upit vraća valutu samo kad svi nalozi
   // dele jednu; kad je nema, čita se sa kampanja. Više valuta se ne sabira u
@@ -210,12 +229,15 @@ export function AdsDashboard() {
           to={range.to}
           onBack={() => setSelectedBattleAdSetId(null)}
         />
-      ) : selectedCampaignId ? (
+      ) : otvorenaKampanja ? (
         <CampaignDetail
-          campaignId={selectedCampaignId}
+          campaignId={otvorenaKampanja}
           from={range.from}
           to={range.to}
-          onBack={() => setSelectedCampaignId(null)}
+          onBack={() => {
+            setSelectedCampaignId(null);
+            setZatvorenaIzAdrese(kampanjaIzAdrese);
+          }}
           onOpenBattle={(adSetId) => setSelectedBattleAdSetId(adSetId)}
         />
       ) : report.campaigns.length === 0 && report.totals.totalSpend === 0 ? (
@@ -249,6 +271,8 @@ export function AdsDashboard() {
         </>
       ) : (
         <>
+          {!mixedCurrencies && <ValutaUpozorenje valuta={currency} />}
+
           {/* Četiri mere koje odlučuju: koliko je otišlo, šta je stiglo, po
               kojoj ceni i sa kakvim povratom. Potrošnja je fokus ekrana. */}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-[2fr_1fr_1fr_1fr] [&>*:last-child]:col-span-2 lg:[&>*:last-child]:col-span-1">
@@ -265,7 +289,7 @@ export function AdsDashboard() {
                 }
                 formatDelta={formatSignedPercent}
                 compareLabel={compareLabel}
-                higherIsBetter={false}
+                higherIsBetter={veceJeBolje("potrosnja")}
                 reason={currencyNote}
                 footnote={
                   <>
@@ -283,6 +307,7 @@ export function AdsDashboard() {
             </div>
             <KpiTile
               label="Rezultati"
+              mera="rezultati"
               icon={Target}
               value={report.totals.totalResults}
               format={formatNumber}
@@ -315,7 +340,7 @@ export function AdsDashboard() {
               }}
               formatDelta={formatSignedPercent}
               compareLabel={compareLabel}
-              higherIsBetter={false}
+              mera="cena_po_rezultatu"
               note={currencyNote ?? "cena po konverziji"}
               state={
                 mixedCurrencies || report.totals.overallCpa === undefined
@@ -332,6 +357,7 @@ export function AdsDashboard() {
               <KpiTile
                 label="Prosečan ROAS"
                 shortLabel="ROAS"
+                mera="povracaj"
                 icon={BarChart3}
                 value={report.totals.overallRoas}
                 format={formatRoas}
@@ -350,19 +376,24 @@ export function AdsDashboard() {
               <KpiTile
                 label="Prosečan CTR"
                 shortLabel="CTR"
+                mera="stopa_klikova"
                 icon={BarChart3}
                 value={report.totals.overallCtr}
                 format={formatPercent}
                 delta={{
                   kind: "pp",
-                  value:
-                    prevTotals && prevTotals.totalImpressions > 0
-                      ? deltaPp(report.totals.overallCtr, prevTotals.overallCtr)
-                      : null,
+                  value: deltaPp(
+                    report.totals.overallCtr,
+                    prevTotals?.overallCtr,
+                  ),
                 }}
                 formatDelta={formatSignedPp}
                 compareLabel={compareLabel}
                 note="procenat klikova na oglas"
+                state={
+                  report.totals.overallCtr === undefined ? "unavailable" : "value"
+                }
+                reason={RAZLOG.bezPrikaza}
               />
             )}
           </div>

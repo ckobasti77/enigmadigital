@@ -23,7 +23,7 @@ function meta(reportKey: string, extra: Partial<Meta> = {}): Meta {
     reportKey,
     fetchedAt: now - 2 * HOUR,
     timeZone: TZ,
-    currencyCode: "RSD",
+    currencyCode: "EUR",
     ...extra,
   };
 }
@@ -507,6 +507,14 @@ const cohortRetention: R<typeof api.analytics.cohortRetention> = (() => {
 
 // ── Google Ads u GA4 ─────────────────────────────────────────────────────────
 
+/**
+ * Jedini nalog u dinarima: Google Ads nalog koji GA4 vidi radi u RSD, pa ekran
+ * Analitika → Oglasi nosi upozorenje da nalog radi u drugoj valuti (O16) i
+ * iznosi ostaju u dinarima bez znaka €. Svi ostali izveštaji i nalozi u
+ * razvojnom prikazu su u evrima. Zato su iznosi ispod pravi dinarski.
+ */
+const ADS_VALUTA = "RSD";
+
 // [kampanja, ključna reč?, trošak (RSD), klikovi, prikazi, sesije, angažovane, ključni događaji]
 const ADS_CAMPAIGNS = [
   ["Leto 2026 - Pretraga", undefined, 18400, 410, 11800, 380, 240, 19],
@@ -583,10 +591,12 @@ function adsPerformance(
     dailySeries,
     itemCount: level === "keyword" ? 41 : rows.length,
     thresholdedDays: 0,
-    currencyCode: "RSD",
+    currencyCode: ADS_VALUTA,
     availability: "available",
     adsLinkStatus: "available",
-    reportMeta: meta(level === "campaign" ? "ads_campaign" : "ads_keyword"),
+    reportMeta: meta(level === "campaign" ? "ads_campaign" : "ads_keyword", {
+      currencyCode: ADS_VALUTA,
+    }),
   };
 }
 
@@ -600,7 +610,9 @@ const ga4Configuration: R<typeof api.analytics.ga4Configuration> = {
   fetchedAt: now - 2 * HOUR,
   displayName: "Test Salon (probni property)",
   timeZone: TZ,
-  currencyCode: "RSD",
+  // Property je povezan sa dinarskim Google Ads nalogom (`ADS_VALUTA`), a GA4
+  // trošak oglasa izveštava u valuti propertija.
+  currencyCode: ADS_VALUTA,
   industryCategory: "BEAUTY_AND_FITNESS",
   serviceLevel: "GOOGLE_ANALYTICS_STANDARD",
   // ISO vreme, tačno kako ga vraća GA4 Admin API. Do B1 je ovde stajao samo
@@ -644,7 +656,7 @@ function reportMeta(
   args: Record<string, unknown>,
 ): R<typeof api.analytics.reportMeta> {
   const key = typeof args.reportKey === "string" ? args.reportKey : "daily";
-  return meta(key);
+  return meta(key, key.startsWith("ads_") ? { currencyCode: ADS_VALUTA } : {});
 }
 
 export const FIXTURES_ANALITIKA: Record<string, Fixture> = {

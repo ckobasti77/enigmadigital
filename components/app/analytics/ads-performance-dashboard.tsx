@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { useDateRange } from "@/components/app/date-range-picker";
 import { EmptyState } from "@/components/app/empty-state";
 import { ChartErrorBoundary } from "@/components/app/chart-states";
+import { ValutaUpozorenje } from "@/components/app/system/valuta-upozorenje";
 import { Card } from "@/components/ui/card";
 import { KpiTile, KpiTileSkeleton } from "./kpi-tile";
 import { AdsTimeseriesChart, AdsTimeseriesSkeleton } from "./ads-timeseries-chart";
@@ -82,13 +83,25 @@ export function AdsPerformanceDashboard() {
     () => (dailySeries ? dailySeries.map((d) => d.keyEvents) : []),
     [dailySeries],
   );
+  // Dan bez ključnog događaja nema cenu po događaju (praznina, ne nula).
   const sparkCpk = useMemo(
     () =>
       dailySeries
-        ? dailySeries.map((d) => (d.keyEvents > 0 ? d.cost / d.keyEvents : 0))
+        ? dailySeries.map((d) =>
+            d.keyEvents > 0 ? d.cost / d.keyEvents : undefined,
+          )
         : [],
     [dailySeries],
   );
+
+  // Pošteni brojevi: bez totala nema broja, bez događaja nema cene po događaju.
+  const bezPodataka = "Podaci o oglasima još nisu stigli.";
+  const razlogCene =
+    curTotals === undefined
+      ? bezPodataka
+      : curTotals.keyEvents === 0
+        ? "Nema ključnih događaja u periodu."
+        : "Deo dana je skriven zbog praga privatnosti, pa cena ne može da se izračuna.";
 
   return (
     <div className="flex flex-1 flex-col gap-8">
@@ -134,6 +147,8 @@ export function AdsPerformanceDashboard() {
         </Card>
       ) : (
         <>
+          <ValutaUpozorenje valuta={currencyCode} />
+
           {/* Top Explanation Banner */}
           <div>
             <div className="rounded-xl border border-line bg-surface-raised/40 p-4 text-xs leading-relaxed text-text-muted sm:text-sm">
@@ -148,75 +163,85 @@ export function AdsPerformanceDashboard() {
               {/* 1. Potrošnja */}
               <KpiTile
                 label="Potrošnja"
+                mera="potrosnja"
                 primary
-                value={curTotals?.cost ?? 0}
+                value={curTotals?.cost}
                 format={(v) => formatCurrency(v, currencyCode)}
                 delta={{
                   kind: "pct",
-                  value: deltaPct(curTotals?.cost ?? 0, prevTotals?.cost ?? 0),
+                  value: deltaPct(curTotals?.cost, prevTotals?.cost),
                 }}
                 formatDelta={formatSignedPercent}
                 compareLabel={compareLabel}
                 spark={sparkCost}
+                reason={bezPodataka}
               />
 
               {/* 2. Klikovi */}
               <KpiTile
                 label="Klikovi"
-                value={curTotals?.clicks ?? 0}
+                mera="klikovi"
+                value={curTotals?.clicks}
                 format={formatNumber}
                 delta={{
                   kind: "pct",
-                  value: deltaPct(curTotals?.clicks ?? 0, prevTotals?.clicks ?? 0),
+                  value: deltaPct(curTotals?.clicks, prevTotals?.clicks),
                 }}
                 formatDelta={formatSignedPercent}
                 compareLabel={compareLabel}
                 spark={sparkClicks}
+                reason={bezPodataka}
               />
 
               {/* 3. Sesije */}
               <KpiTile
                 label="Sesije"
-                value={curTotals?.sessions ?? 0}
+                mera="sesije"
+                value={curTotals?.sessions}
                 format={formatNumber}
                 delta={{
                   kind: "pct",
-                  value: deltaPct(curTotals?.sessions ?? 0, prevTotals?.sessions ?? 0),
+                  value: deltaPct(curTotals?.sessions, prevTotals?.sessions),
                 }}
                 formatDelta={formatSignedPercent}
                 compareLabel={compareLabel}
                 spark={sparkSessions}
+                reason={bezPodataka}
               />
 
               {/* 4. Ključni događaji */}
               <KpiTile
                 label="Ključni događaji"
-                value={curTotals?.keyEvents ?? 0}
+                mera="kljucni_dogadjaji"
+                value={curTotals?.keyEvents}
                 format={formatNumber}
                 delta={{
                   kind: "pct",
-                  value: deltaPct(curTotals?.keyEvents ?? 0, prevTotals?.keyEvents ?? 0),
+                  value: deltaPct(curTotals?.keyEvents, prevTotals?.keyEvents),
                 }}
                 formatDelta={formatSignedPercent}
                 compareLabel={compareLabel}
                 spark={sparkKeyEvents}
+                reason={bezPodataka}
               />
 
               {/* 5. Cena po ključnom događaju */}
               <KpiTile
                 label="Cena / klj. događaj"
-                value={curTotals?.costPerKeyEvent ?? 0}
-                format={(v) => (v > 0 ? formatCurrency(v, currencyCode) : "—")}
+                mera="cena_po_kljucnom_dogadjaju"
+                value={curTotals?.costPerKeyEvent}
+                format={(v) => formatCurrency(v, currencyCode)}
                 delta={{
                   kind: "pct",
                   value: deltaPct(
-                    curTotals?.costPerKeyEvent ?? 0,
-                    prevTotals?.costPerKeyEvent ?? 0,
+                    curTotals?.costPerKeyEvent,
+                    prevTotals?.costPerKeyEvent,
                   ),
                 }}
                 formatDelta={formatSignedPercent}
                 compareLabel={compareLabel}
                 spark={sparkCpk}
+                reason={razlogCene}
               />
             </div>
           </div>

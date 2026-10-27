@@ -142,6 +142,7 @@ export function ContentDashboard() {
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <KpiTile
                 label="Prikazi stranica"
+                mera="pregledi_stranica"
                 value={pagesData.totals.screenPageViews}
                 format={formatNumber}
                 delta={{
@@ -157,6 +158,7 @@ export function ContentDashboard() {
               />
               <KpiTile
                 label="Korisnici"
+                mera="korisnici"
                 value={pagesData.totals.totalUsers}
                 format={formatNumber}
                 delta={{
@@ -172,6 +174,7 @@ export function ContentDashboard() {
               />
               <KpiTile
                 label="Prosečno zadržavanje"
+                mera="prosecno_zadrzavanje"
                 value={pagesData.totals.avgEngagementDuration}
                 format={formatSeconds}
                 delta={{
@@ -184,6 +187,7 @@ export function ContentDashboard() {
               />
               <KpiTile
                 label="Ključni događaji"
+                mera="kljucni_dogadjaji"
                 value={pagesData.totals.keyEvents}
                 format={formatNumber}
                 delta={{

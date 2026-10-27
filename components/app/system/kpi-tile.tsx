@@ -7,6 +7,12 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CountUp } from "@/components/motion/count-up";
 import type { MetricState } from "@/convex/lib/igMetrics";
+import {
+  dobraPromenaPoSmeru,
+  mera as meraIzRecnika,
+  type KljucMere,
+  type SmerMere,
+} from "@/lib/mere";
 import { cn } from "@/lib/utils";
 
 /**
@@ -35,7 +41,8 @@ import { cn } from "@/lib/utils";
  *   - tri veličine: `hero` (fokus broj ekrana, 40 px, u boji modula),
  *     `default` (28 px) i `compact` (20 px, bez linije);
  *   - delta je PILULA: strelica kaže smer, boja kaže da li je to dobro.
- *     `higherIsBetter={false}` za CPA i potrošnju, gde je pad dobra vest;
+ *     Smer daje rečnik mera (`mera="potrosnja"` → pad je dobra vest; vidi
+ *     `lib/mere.ts`); `higherIsBetter` ostaje samo za pozive bez `mera`;
  *   - sparklinija je u boji modula i premošćuje rupe (vidi `Sparkline`);
  *   - sa `href` cela pločica vodi na detalj.
  *
@@ -79,6 +86,7 @@ export function KpiTile({
   size = "default",
   icon,
   higherIsBetter = true,
+  mera,
   href,
   shortLabel,
 }: {
@@ -102,12 +110,19 @@ export function KpiTile({
   size?: KpiSize;
   /** Ikonica mere, u pločici boje modula. */
   icon?: TileIcon;
-  /** Da li je rast dobra vest. `false` za CPA, potrošnju, stopu odbijanja. */
+  /** Da li je rast dobra vest. Ignoriše se kad je data `mera`. */
   higherIsBetter?: boolean;
+  /** Ključ iz rečnika mera; kad je dat, smer promene dolazi odatle. */
+  mera?: KljucMere;
   /** Detalj mere — cela pločica postaje link. */
   href?: string;
 }) {
   const compact = size === "compact";
+  const smer: SmerMere = mera
+    ? meraIzRecnika(mera).smer
+    : higherIsBetter
+      ? "vise"
+      : "manje";
 
   if (state !== "value" || value === undefined) {
     return (
@@ -161,7 +176,7 @@ export function KpiTile({
   );
 
   const pill = hasComparison ? (
-    <DeltaPill value={d} format={formatDelta} higherIsBetter={higherIsBetter} />
+    <DeltaPill value={d} format={formatDelta} smer={smer} />
   ) : null;
 
   if (compact) {
@@ -285,16 +300,22 @@ export function DeltaPill({
   value,
   format,
   higherIsBetter = true,
+  smer,
   className,
 }: {
   value: number;
   format: (v: number) => string;
   higherIsBetter?: boolean;
+  /** Smer iz rečnika mera; `neutralno` daje prigušenu pilulu. Ima prednost. */
+  smer?: SmerMere;
   className?: string;
 }) {
   const flat = Math.abs(value) < 1e-9;
   const up = value > 0;
-  const good = flat ? null : up === higherIsBetter;
+  const good = dobraPromenaPoSmeru(
+    smer ?? (higherIsBetter ? "vise" : "manje"),
+    value,
+  );
   const Icon = flat ? Minus : up ? ArrowUpRight : ArrowDownRight;
   return (
     <span

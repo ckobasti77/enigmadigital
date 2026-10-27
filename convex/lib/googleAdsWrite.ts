@@ -336,7 +336,7 @@ export function evaluateGoogleAdsBudgetGate(
     return {
       ok: false,
       code: "currency_mismatch",
-      message: `Granica budžeta je zadata u ${limitCurrency}, a nalog radi u ${accountCurrency}. Podesi granicu u valuti naloga; konverzija po kursu se ne radi.`,
+      message: `Granica budžeta je u ${limitCurrency}, a nalog radi u ${accountCurrency}. Aplikacija ne preračunava valute, pa granicu treba upisati u valuti naloga.`,
     };
   }
   if (input.maxDailyBudget === null) {

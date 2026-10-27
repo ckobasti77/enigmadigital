@@ -34,10 +34,17 @@ import {
  * 0000`). Nijedan URL slike nije spolja: sličice i snimci izostaju (`undefined`
  * / `null`), a ekran crta svoje prazno stanje za sliku.
  *
- * Oba oglasna naloga (Meta i Google) vode se u RSD, pa i zbirna valuta na
- * kontrolnoj tabli postoji. Kampanja „Nova, još bez potrošnje" je namerno sa
- * nula potrošnje: ona je slučaj „0,00 bez valute" (F11) — valuta mora da stoji
- * i uz nulu.
+ * Oba oglasna naloga (Meta i Google) vode se u evrima (odluka O16), pa i zbirna
+ * valuta na kontrolnoj tabli postoji. Iznosi su zato u rasponu evra (dnevni
+ * budžet desetak evra, 28 dana potrošnje u stotinama). Kampanja „Nova, još bez
+ * potrošnje" je namerno sa nula potrošnje: ona je slučaj „0,00 bez valute"
+ * (F11) — valuta mora da stoji i uz nulu.
+ *
+ * Fixture ne izmišlja brojeve: izvedene mere (`ctr`, `cpc`, `cpm`,
+ * `frequency`) su `undefined` kad je imenilac nula (bez prikaza nema CTR-a ni
+ * cene hiljadu prikaza, bez klikova nema cene klika, bez dosega nema
+ * frekvencije), a Google kampanje nemaju doseg, frekvenciju ni video mere jer
+ * ih Google ne meri — isto kao pravi upiti.
  *
  * `FIXTURES_OGLASI` ne dira `connections.list` (već ima aktivne `meta_ads` i
  * `google_ads`), niti `analytics.ga4Configuration`, `facebookStore.setupInfo`
@@ -95,7 +102,11 @@ type CampSpec = {
   /** Rezultata po kliku. */
   cvr: number;
   valuePerResult?: number;
-  frequency: number;
+  /**
+   * Prikaza po osobi. Nema je za Google (ne meri doseg) i za kampanju bez
+   * potrošnje: tada nema ni dosega ni frekvencije.
+   */
+  frequency?: number;
   /** Udeo perioda u kome je kampanja trošila (pauzirana staje ranije). */
   activeShare: number;
   sets: SetSpec[];
@@ -108,13 +119,13 @@ const SPECS: CampSpec[] = [
     account: "meta",
     objective: "OUTCOME_SALES",
     status: "ACTIVE",
-    dailyBudget: 3500,
+    dailyBudget: 30,
     priority: "hot",
-    spendPerDay: 3100,
-    cpm: 620,
+    spendPerDay: 26.5,
+    cpm: 5.3,
     ctr: 0.021,
     cvr: 0.045,
-    valuePerResult: 4200,
+    valuePerResult: 36,
     frequency: 1.8,
     activeShare: 1,
     sets: [
@@ -123,10 +134,10 @@ const SPECS: CampSpec[] = [
         name: "Test set — Žene 25–44, Beograd",
         status: "ACTIVE",
         targeting: "Žene 25–44, Beograd +25 km, interesovanje: nega kose",
-        dailyBudget: 2000,
+        dailyBudget: 17,
         ads: [
           { key: "a1", name: "Test oglas — Pre i posle", status: "ACTIVE", hookLabel: "Hook A", primaryText: "Test tekst: pogledaj promenu za 40 minuta.", headline: "Zakaži termin", weight: 5, video: true },
-          { key: "a2", name: "Test oglas — Cena", status: "ACTIVE", hookLabel: "Hook B", primaryText: "Test tekst: šišanje i feniranje od 2.500 RSD.", headline: "Pogledaj cenovnik", weight: 3, video: true },
+          { key: "a2", name: "Test oglas — Cena", status: "ACTIVE", hookLabel: "Hook B", primaryText: "Test tekst: šišanje i feniranje od 22 EUR.", headline: "Pogledaj cenovnik", weight: 3, video: true },
           { key: "a3", name: "Test oglas — Pitanje", status: "PAUSED", hookLabel: "Hook C", primaryText: "Test tekst: kad si poslednji put bila kod frizera?", headline: "Zakaži termin", weight: 2, video: true },
         ],
       },
@@ -135,7 +146,7 @@ const SPECS: CampSpec[] = [
         name: "Test set — Lookalike 1%",
         status: "ACTIVE",
         targeting: "Lookalike 1% (kupci), Srbija",
-        dailyBudget: 1500,
+        dailyBudget: 13,
         ads: [
           { key: "a1", name: "Test oglas — Statična slika", status: "ACTIVE", primaryText: "Test tekst: nova sezona, nove boje.", headline: "Saznaj više", weight: 3, video: false },
         ],
@@ -148,10 +159,10 @@ const SPECS: CampSpec[] = [
     account: "meta",
     objective: "OUTCOME_ENGAGEMENT",
     status: "ACTIVE",
-    dailyBudget: 1200,
+    dailyBudget: 10,
     priority: "hot",
-    spendPerDay: 1050,
-    cpm: 380,
+    spendPerDay: 9,
+    cpm: 3.25,
     ctr: 0.034,
     cvr: 0.09,
     frequency: 2.3,
@@ -162,7 +173,7 @@ const SPECS: CampSpec[] = [
         name: "Test set — Poruke, 18–35",
         status: "ACTIVE",
         targeting: "Svi polovi 18–35, Srbija",
-        dailyBudget: 1200,
+        dailyBudget: 10,
         ads: [
           { key: "a1", name: "Test oglas — Pošalji poruku", status: "ACTIVE", primaryText: "Test tekst: pošalji nam poruku za slobodan termin.", headline: "Pošalji poruku", weight: 3, video: false },
           { key: "a2", name: "Test oglas — Reel iz salona", status: "ACTIVE", primaryText: "Test tekst: pogledaj kako radimo.", headline: "Pošalji poruku", weight: 2, video: true },
@@ -176,13 +187,13 @@ const SPECS: CampSpec[] = [
     account: "meta",
     objective: "OUTCOME_TRAFFIC",
     status: "PAUSED",
-    dailyBudget: 800,
+    dailyBudget: 7,
     priority: "cold",
-    spendPerDay: 760,
-    cpm: 450,
+    spendPerDay: 6.5,
+    cpm: 3.85,
     ctr: 0.016,
     cvr: 0.022,
-    valuePerResult: 3600,
+    valuePerResult: 31,
     frequency: 1.4,
     activeShare: 0.4,
     sets: [
@@ -191,7 +202,7 @@ const SPECS: CampSpec[] = [
         name: "Test set — Retargeting posetioca",
         status: "PAUSED",
         targeting: "Posetioci sajta, 30 dana",
-        dailyBudget: 800,
+        dailyBudget: 7,
         ads: [
           { key: "a1", name: "Test oglas — Jesenji popust", status: "PAUSED", primaryText: "Test tekst: jesenji popust na farbanje.", headline: "Iskoristi popust", weight: 1, video: false },
         ],
@@ -204,13 +215,12 @@ const SPECS: CampSpec[] = [
     account: "meta",
     objective: "OUTCOME_LEADS",
     status: "ACTIVE",
-    dailyBudget: 1000,
+    dailyBudget: 9,
     priority: "cold",
     spendPerDay: 0,
     cpm: 0,
     ctr: 0,
     cvr: 0,
-    frequency: 1,
     activeShare: 1,
     sets: [
       {
@@ -218,7 +228,7 @@ const SPECS: CampSpec[] = [
         name: "Test set — Nov, u fazi učenja",
         status: "ACTIVE",
         targeting: "Žene 30–55, Beograd",
-        dailyBudget: 1000,
+        dailyBudget: 9,
         ads: [
           { key: "a1", name: "Test oglas — Prijava za savet", status: "ACTIVE", primaryText: "Test tekst: besplatan savet o nezi kose.", headline: "Prijavi se", weight: 1, video: false },
         ],
@@ -231,22 +241,21 @@ const SPECS: CampSpec[] = [
     account: "google",
     objective: "SEARCH",
     status: "ACTIVE",
-    dailyBudget: 1500,
+    dailyBudget: 13,
     searchImpressionShare: 0.62,
     priority: "hot",
-    spendPerDay: 1300,
-    cpm: 2800,
+    spendPerDay: 11,
+    cpm: 24,
     ctr: 0.062,
     cvr: 0.08,
-    valuePerResult: 3800,
-    frequency: 1,
+    valuePerResult: 32,
     activeShare: 1,
     sets: [
       {
         key: "s1",
         name: "Test grupa — Brend",
         status: "ENABLED",
-        dailyBudget: 900,
+        dailyBudget: 8,
         ads: [
           { key: "a1", name: "Test tekstualni oglas — Brend", status: "ENABLED", headline: "Test Salon | Zakaži termin", primaryText: "Test opis: frizerski salon u Beogradu.", weight: 3, video: false },
         ],
@@ -255,7 +264,7 @@ const SPECS: CampSpec[] = [
         key: "s2",
         name: "Test grupa — Usluge",
         status: "ENABLED",
-        dailyBudget: 600,
+        dailyBudget: 5,
         ads: [
           { key: "a1", name: "Test tekstualni oglas — Usluge", status: "ENABLED", headline: "Šišanje i farbanje | Beograd", primaryText: "Test opis: cenovnik i slobodni termini.", weight: 2, video: false },
         ],
@@ -268,14 +277,13 @@ const SPECS: CampSpec[] = [
     account: "google",
     objective: "PERFORMANCE_MAX",
     status: "PAUSED",
-    dailyBudget: 700,
+    dailyBudget: 6,
     priority: "cold",
-    spendPerDay: 620,
-    cpm: 1900,
+    spendPerDay: 5.3,
+    cpm: 16.2,
     ctr: 0.028,
     cvr: 0.035,
-    valuePerResult: 3500,
-    frequency: 1,
+    valuePerResult: 30,
     activeShare: 0.5,
     sets: [
       {
@@ -321,7 +329,7 @@ const ACCOUNT_META: RAccount = {
   provider: "meta_ads",
   externalId: "act_000000000",
   name: "Test Salon — Meta nalog",
-  currency: "RSD",
+  currency: "EUR",
   syncedAt: SYNCED,
 };
 
@@ -332,7 +340,7 @@ const ACCOUNT_GOOGLE: RAccount = {
   provider: "google_ads",
   externalId: "000-000-0000",
   name: "Test Salon — Google nalog",
-  currency: "RSD",
+  currency: "EUR",
   syncedAt: SYNCED,
 };
 
@@ -486,7 +494,7 @@ function adAgg(ad: RAd, dates: string[]): Agg {
     const results = Math.round(clicks * camp.cvr * (0.7 + rnd() * 0.6));
     const v3 = ad.spec.video && !google ? Math.round(impressions * 0.31 * (0.9 + rnd() * 0.2)) : 0;
     const tp = Math.round(v3 * 0.42 * (0.9 + rnd() * 0.2));
-    reach += google ? 0 : Math.round(impressions / camp.frequency);
+    reach += google || !camp.frequency ? 0 : Math.round(impressions / camp.frequency);
     video3s += v3;
     thruplay += tp;
     value += results * (camp.valuePerResult ?? 0);
@@ -508,7 +516,8 @@ function adAgg(ad: RAd, dates: string[]): Agg {
     spend: r2(total.spend),
     impressions: total.impressions,
     clicks: total.clicks,
-    reach: zero || google ? undefined : reach,
+    // Doseg postoji samo kad ga platforma meri (Meta) i kad je bilo potrošnje.
+    reach: zero || google || !camp.frequency ? undefined : reach,
     results: zero ? undefined : total.results,
     conversionValue: zero || camp.valuePerResult === undefined ? undefined : r2(value),
     video3s: hasVideo ? video3s : undefined,
@@ -527,21 +536,31 @@ function adAgg(ad: RAd, dates: string[]): Agg {
 const setAgg = (set: RSet, dates: string[]) => sumAgg(set.ads.map((a) => adAgg(a, dates)), dates);
 const campAgg = (camp: RCamp, dates: string[]) => sumAgg(camp.sets.map((s) => setAgg(s, dates)), dates);
 
-/** Izvedene mere istim redosledom i zaokruživanjem kao pravi upiti. */
+/** Zaokruži izmereno; nepoznato ostaje nepoznato (kao `zaokruzi` u upitima). */
+const o2 = (n: number | undefined) => (n === undefined ? undefined : r2(n));
+const o4 = (n: number | undefined) => (n === undefined ? undefined : r4(n));
+
+/**
+ * Izvedene mere istim redosledom i zaokruživanjem kao pravi upiti. Kad je
+ * imenilac nula, mera je `undefined` — nikad izmišljena nula ni jedinica:
+ * bez prikaza nema CTR-a ni cene hiljadu prikaza, bez klikova nema cene klika,
+ * bez dosega nema frekvencije.
+ */
 function derived(a: Agg) {
-  const ctr = a.impressions > 0 ? a.clicks / a.impressions : 0;
-  const cpc = a.clicks > 0 ? a.spend / a.clicks : 0;
-  const cpm = a.impressions > 0 ? (a.spend / a.impressions) * 1000 : 0;
-  const frequency = a.reach !== undefined && a.reach > 0 ? a.impressions / a.reach : 1;
+  const ctr = deriveRate(a.clicks, a.impressions);
+  const cpc = deriveRate(a.spend, a.clicks);
+  const cpmRaw = deriveRate(a.spend, a.impressions);
+  const cpm = cpmRaw === undefined ? undefined : cpmRaw * 1000;
+  const frequency = deriveRate(a.impressions, a.reach);
   const cpa = deriveRate(a.spend, a.results);
   const roas = deriveRate(a.conversionValue, a.spend);
   const hookRate = deriveRate(a.video3s, a.impressions);
   const holdRate = deriveRate(a.thruplay, a.video3s);
   return {
-    ctr: r4(ctr),
-    cpc: r2(cpc),
-    cpm: r2(cpm),
-    frequency: r2(frequency),
+    ctr: o4(ctr),
+    cpc: o2(cpc),
+    cpm: o2(cpm),
+    frequency: o2(frequency),
     costPerResult: cpa !== undefined ? r2(cpa) : undefined,
     roas: roas !== undefined ? r2(roas) : undefined,
     hookRate: hookRate !== undefined ? r4(hookRate) : undefined,
@@ -602,8 +621,13 @@ function campaignsReport(args: Record<string, unknown>): R<typeof api.metaAdsSto
       adsCount: camp.sets.reduce((n, s) => n + s.ads.length, 0),
     };
   });
-  const all = sumAgg(CAMPS.map((c) => campAgg(c, dates)), dates);
+  const perCamp = CAMPS.map((c) => campAgg(c, dates));
+  const all = sumAgg(perCamp, dates);
   const d = derived(all);
+  // Frekvencija se računa samo nad prikazima kampanja koje imaju doseg — Google
+  // prikazi bez dosega bi je izmislili (isto kao u pravom upitu).
+  const prikaziSaDosegom = perCamp.reduce((n, a) => (a.reach !== undefined ? n + a.impressions : n), 0);
+  const overallFrequency = o2(deriveRate(prikaziSaDosegom, all.reach));
   return {
     campaigns: rows,
     totals: {
@@ -616,9 +640,9 @@ function campaignsReport(args: Record<string, unknown>): R<typeof api.metaAdsSto
       overallRoas: d.roas,
       hasConversionValue: d.hasConversionValue,
       overallCtr: d.ctr,
-      overallFrequency: d.frequency,
+      overallFrequency,
       campaignsCount: CAMPS.length,
-      currency: "RSD",
+      currency: "EUR",
     },
   };
 }
@@ -789,6 +813,7 @@ function adDrilldown(args: Record<string, unknown>): R<typeof api.metaAdsStore.g
     : PLACEMENTS.map((p) => {
         const c = cell(p.share);
         const cpa = deriveRate(c.spend, c.results);
+        // Bez prikaza nema CTR-a, bez klikova nema cene klika (kao u upitu).
         return {
           placement: p.placement,
           platform: p.platform,
@@ -796,8 +821,8 @@ function adDrilldown(args: Record<string, unknown>): R<typeof api.metaAdsStore.g
           impressions: c.impressions,
           clicks: c.clicks,
           results: c.results,
-          ctr: r4(c.ctr),
-          cpc: c.clicks > 0 ? r2(c.spend / c.clicks) : 0,
+          ctr: o4(deriveRate(c.clicks, c.impressions)),
+          cpc: o2(deriveRate(c.spend, c.clicks)),
           cpa: cpa !== undefined ? r2(cpa) : undefined,
         };
       });
@@ -836,7 +861,8 @@ function adDrilldown(args: Record<string, unknown>): R<typeof api.metaAdsStore.g
       frequency: d.frequency,
       clicks: a.clicks,
       ctr: d.ctr,
-      uniqueCtr: a.spend > 0 ? r4(d.ctr * 0.82) : undefined,
+      // Jedinstveni CTR i CTR odlaznih klikova su Meta mere; Google ih ne daje.
+      uniqueCtr: a.spend > 0 && !google && d.ctr !== undefined ? r4(d.ctr * 0.82) : undefined,
       cpc: d.cpc,
       cpm: d.cpm,
       cpp: a.reach !== undefined && a.reach > 0 ? r2((a.spend / a.reach) * 1000) : undefined,
@@ -845,7 +871,7 @@ function adDrilldown(args: Record<string, unknown>): R<typeof api.metaAdsStore.g
       conversionValue: d.conversionValue,
       roas: d.roas,
       hasConversionValue: d.hasConversionValue,
-      outboundCtr: a.spend > 0 && !google ? r4(d.ctr * 0.7) : undefined,
+      outboundCtr: a.spend > 0 && !google && d.ctr !== undefined ? r4(d.ctr * 0.7) : undefined,
     },
     videoFunnel: {
       impressions: a.impressions,
@@ -922,6 +948,7 @@ function hookBattle(args: Record<string, unknown>): R<typeof api.metaAdsStore.ge
       accountId: camp.account._id,
     },
     currency: camp.account.currency,
+    provider: camp.account.provider,
     from,
     to,
     isPinned: set.id === BATTLE_SET.id,
@@ -974,7 +1001,8 @@ function hookBattle(args: Record<string, unknown>): R<typeof api.metaAdsStore.ge
           p100Pct: pct(a.videoP100, a.video3s),
         },
         dailySeries: a.days.map((day) => {
-          const hr = deriveRate(day.video3s, day.impressions);
+          // Dan bez izmerenih video pregleda (Google, oglas bez videa) nema hook rate.
+          const hr = a.video3s === undefined ? undefined : deriveRate(day.video3s, day.impressions);
           return {
             date: day.date,
             spend: r2(day.spend),
@@ -1236,7 +1264,7 @@ const listActions: R<typeof api.adActionsStore.listActions> = [
     targetName: CAMPS[0].spec.name,
     action: "budget_change",
     status: "success",
-    params: '{"dailyBudget":3500,"previousDailyBudget":3000}',
+    params: '{"dailyBudget":30,"previousDailyBudget":26}',
     executedAt: now - 3 * HOUR,
     apiResponse: '{"success":true}',
     error: null,
@@ -1309,6 +1337,8 @@ const actionStats: R<typeof api.adActionsStore.getActionStats> = {
 
 // ── Google: kvalitet ključnih reči ───────────────────────────────────────────
 
+// Izveštaj ključnih reči: bez prikaza nema `ctr`/`overallCtr`, bez klikova
+// nema `cpc` — kao u upitu, nikad 0.
 function keywordQuality(args: Record<string, unknown>): R<typeof api.googleAdsStore.getKeywordQualityReport> {
   const camp = campById(args.campaignId);
   if (!camp || camp.spec.account !== "google" || camp.spec.spendPerDay === 0) {
@@ -1321,7 +1351,7 @@ function keywordQuality(args: Record<string, unknown>): R<typeof api.googleAdsSt
         totalCost: 0,
         totalConversions: 0,
         averageQualityScore: null,
-        overallCtr: 0,
+        overallCtr: undefined,
       },
     };
   }
@@ -1356,8 +1386,8 @@ function keywordQuality(args: Record<string, unknown>): R<typeof api.googleAdsSt
       clicks,
       cost,
       conversions: Math.round((a.results ?? 0) * k.share),
-      ctr: impressions > 0 ? r4(clicks / impressions) : 0,
-      cpc: clicks > 0 ? r2(cost / clicks) : 0,
+      ctr: impressions > 0 ? r4(clicks / impressions) : undefined,
+      cpc: clicks > 0 ? r2(cost / clicks) : undefined,
     };
   });
   const totalImpressions = keywords.reduce((n, k) => n + k.impressions, 0);
@@ -1371,7 +1401,7 @@ function keywordQuality(args: Record<string, unknown>): R<typeof api.googleAdsSt
       totalCost: r2(keywords.reduce((n, k) => n + k.cost, 0)),
       totalConversions: keywords.reduce((n, k) => n + k.conversions, 0),
       averageQualityScore: r2(rows.reduce((n, k) => n + k.qs, 0) / rows.length) as number | null,
-      overallCtr: totalImpressions > 0 ? r4(totalClicks / totalImpressions) : 0,
+      overallCtr: totalImpressions > 0 ? r4(totalClicks / totalImpressions) : undefined,
     },
   };
 }
@@ -1807,8 +1837,9 @@ const prazanReport: R<typeof api.metaAdsStore.getCampaignsReport> = {
     overallCpa: undefined,
     overallRoas: undefined,
     hasConversionValue: false,
-    overallCtr: 0,
-    overallFrequency: 1,
+    // Nema prikaza ni dosega: CTR i frekvencija su nepoznati, ne nula ni jedinica.
+    overallCtr: undefined,
+    overallFrequency: undefined,
     campaignsCount: 0,
     currency: undefined,
   },
@@ -1858,7 +1889,7 @@ export const PRAZNO_OGLASI: Record<string, Fixture> = {
       totalCost: 0,
       totalConversions: 0,
       averageQualityScore: null,
-      overallCtr: 0,
+      overallCtr: undefined,
     },
   }),
   [getFunctionName(api.metaSyncStore.jobStatus)]: () => [],

@@ -26,6 +26,7 @@ import {
 import { StatusPill } from "./status-pill";
 import { EmptyState } from "@/components/app/system/empty-state";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/format";
 import {
   Activity,
   AlertCircle,
@@ -123,10 +124,17 @@ function parseParamsSummary(paramsStr: string | null): string {
   try {
     const parsed = JSON.parse(paramsStr);
     if (parsed.newDailyBudget !== undefined) {
+      // Iznos u valuti naloga koju je radnja zapisala. Stari zapisi je nemaju,
+      // pa im iznos stoji bez znaka valute — ne pretpostavlja se evro.
+      const valuta =
+        typeof parsed.currency === "string" && parsed.currency.trim()
+          ? parsed.currency.trim()
+          : undefined;
+      const iznos = (v: number) => formatCurrency(v, valuta);
       const prev = parsed.previousDailyBudget
-        ? ` (bilo ${parsed.previousDailyBudget} €)`
+        ? ` (bilo ${iznos(parsed.previousDailyBudget)})`
         : "";
-      return `Novi budžet: ${parsed.newDailyBudget} € / dan${prev}`;
+      return `Novi budžet: ${iznos(parsed.newDailyBudget)} / dan${prev}`;
     }
     if (parsed.desiredStatus) {
       return `Status: ${parsed.desiredStatus}`;

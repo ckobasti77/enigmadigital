@@ -38,6 +38,7 @@ import {
   InstagramContentGridSkeleton,
 } from "./instagram-content-grid";
 import { channelReadiness } from "@/lib/channel-readiness";
+import { veceJeBolje } from "@/lib/mere";
 import {
   deltaPct,
   fillIgDays,
@@ -59,6 +60,19 @@ const DESCRIPTION =
  * objava" u zaglavlju. Nepovezan ili prazan nalog dobija Misiju za start
  * umesto reda nula.
  */
+/** Zbir izmerenih dana; `undefined` dok upit ne stigne ili kad nijedan dan nije izmeren. */
+function zbirIzmerenih(
+  redovi: ReadonlyArray<{ state: string; value?: number | null }> | undefined,
+): number | undefined {
+  if (!redovi) return undefined;
+  const izmereni = redovi.filter(
+    (r): r is { state: string; value: number } =>
+      r.state === "value" && typeof r.value === "number",
+  );
+  if (izmereni.length === 0) return undefined;
+  return izmereni.reduce((sum, r) => sum + r.value, 0);
+}
+
 export function InstagramDashboard() {
   const { range } = useDateRange();
   const mozeUrediti = useMoze("urednik");
@@ -110,23 +124,21 @@ export function InstagramDashboard() {
     ),
   );
 
-  const curProfileViews = useMemo(() => {
-    if (!profileViewsCurrent) return 0;
-    return profileViewsCurrent
-      .filter((r) => r.state === "value" && typeof r.value === "number")
-      .reduce((sum, r) => sum + (r.value ?? 0), 0);
-  }, [profileViewsCurrent]);
+  // Zbir pregleda profila samo iz izmerenih dana. Kad nijedan dan perioda nema
+  // izmerenu vrednost, zbira nema (nije 0) — pločica tada nosi „—" i razlog.
+  const curProfileViews = useMemo(
+    () => zbirIzmerenih(profileViewsCurrent),
+    [profileViewsCurrent],
+  );
 
-  const prevProfileViews = useMemo(() => {
-    if (!profileViewsPrevious) return 0;
-    return profileViewsPrevious
-      .filter((r) => r.state === "value" && typeof r.value === "number")
-      .reduce((sum, r) => sum + (r.value ?? 0), 0);
-  }, [profileViewsPrevious]);
+  const prevProfileViews = useMemo(
+    () => zbirIzmerenih(profileViewsPrevious),
+    [profileViewsPrevious],
+  );
 
   // Tri stanja za pločicu pregleda profila: nula i „nema podatka" ne smeju da
-  // izgledaju isto. Prebacujemo na potisnuto/nedostupno samo kad Meta to
-  // izričito javi — prazan skup ostaje 0, da se ništa ne regresira.
+  // izgledaju isto. Potisnuto i nedostupno nose razlog koji je Meta javila;
+  // period bez ijednog reda je takođe nedostupan, sa svojim razlogom.
   const profileViewsState = useMemo<{
     state: "value" | "suppressed" | "unavailable";
     reason?: string;
@@ -143,7 +155,10 @@ export function InstagramDashboard() {
     if (supp) return { state: "suppressed", reason: supp.reason };
     const unav = profileViewsCurrent.find((r) => r.state === "unavailable");
     if (unav) return { state: "unavailable", reason: unav.reason };
-    return { state: "value" };
+    return {
+      state: "unavailable",
+      reason: "Meta nije poslala preglede profila za ovaj period.",
+    };
   }, [profileViewsCurrent]);
 
   const profileViewsSpark = useMemo(() => {
@@ -156,7 +171,8 @@ export function InstagramDashboard() {
         }
       }
     }
-    return series.map((d) => byDate.get(d.date) ?? 0);
+    // Dan bez merenja ostaje praznina u liniji, ne nula.
+    return series.map((d) => byDate.get(d.date));
   }, [series, profileViewsCurrent]);
 
   const igConnected =
@@ -280,6 +296,7 @@ export function InstagramDashboard() {
             delta={deltaPct(cur.followersCount, prev.followersCount)}
             formatDelta={formatSignedPercent}
             compareLabel={compareLabel}
+            higherIsBetter={veceJeBolje("pratioci")}
             note="trenutno stanje naloga"
             readiness={readiness}
             next={
@@ -308,6 +325,7 @@ export function InstagramDashboard() {
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <KpiTile
               label="Doseg"
+              mera="doseg"
               icon={Radio}
               value={cur.reach}
               format={formatNumber}
@@ -322,6 +340,7 @@ export function InstagramDashboard() {
             <KpiTile
               label="Pregledi profila"
               shortLabel="Profil"
+              mera="pregledi_profila"
               icon={Eye}
               value={curProfileViews}
               format={formatNumber}
@@ -338,6 +357,7 @@ export function InstagramDashboard() {
             <KpiTile
               label="Ukupno interakcija"
               shortLabel="Interakcije"
+              mera="interakcije"
               icon={Heart}
               value={cur.totalInteractions}
               format={formatNumber}
@@ -352,6 +372,7 @@ export function InstagramDashboard() {
             <KpiTile
               label="Angažovani nalozi"
               shortLabel="Angažovani"
+              mera="angazovani_nalozi"
               icon={UserCheck}
               value={cur.accountsEngaged}
               format={formatNumber}

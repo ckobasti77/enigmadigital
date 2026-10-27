@@ -5,6 +5,7 @@ import { formatNumber, formatPercent } from "@/lib/format";
 import { formatMetric } from "@/convex/lib/metaAdsFormat";
 import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
 import { Smartphone, Sparkles, Video, Globe, LayoutGrid } from "lucide-react";
+import { MeraIliCrtica, RAZLOG } from "./nepoznata-mera";
 
 const spendDef = resolveMetric("spend")!;
 const cpaDef = resolveMetric("costPerResult")!;
@@ -17,8 +18,8 @@ export type PlacementRow = {
   impressions: number;
   clicks: number;
   results: number;
-  ctr: number;
-  cpc: number;
+  ctr?: number;
+  cpc?: number;
   cpa?: number;
 };
 
@@ -119,10 +120,18 @@ export function PlacementBreakdown({
                       {formatNumber(row.clicks)}
                     </TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-foreground">
-                      {formatPercent(row.ctr)}
+                      <MeraIliCrtica
+                        value={row.ctr}
+                        format={formatPercent}
+                        razlog={RAZLOG.bezPrikaza}
+                      />
                     </TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-text-muted">
-                      {row.cpc !== undefined ? formatMetric(row.cpc, cpcDef, currencyCode) : "—"}
+                      <MeraIliCrtica
+                        value={row.cpc}
+                        format={(v) => formatMetric(v, cpcDef, currencyCode)}
+                        razlog={RAZLOG.bezKlikova}
+                      />
                     </TableCell>
                     <TableCell className="pr-4 text-right font-mono tabular-nums text-foreground">
                       {row.results > 0 ? (

@@ -26,6 +26,7 @@ import { FeedbackNote } from "@/components/app/feedback";
 import {
   useMoze,
   useProjekatMutation,
+  useProjekatQuery,
 } from "@/components/app/projekat-provider";
 import {
   Loader2,
@@ -91,11 +92,26 @@ function RuleEditorForm({
 }) {
   const isEditing = !!ruleToEdit;
 
+  // Pravila rade nad Meta oglasima; prag je u valuti tog naloga. Valuta se
+  // piše samo kad je jedna i poznata — nikad se ne pretpostavlja evro.
+  const nalozi = useProjekatQuery(api.metaAdsStore.listAccounts);
+  const valuteMeta = [
+    ...new Set(
+      (nalozi ?? [])
+        .filter((n) => n.provider === "meta_ads")
+        .map((n) => n.currency?.trim())
+        .filter((c): c is string => Boolean(c)),
+    ),
+  ];
+  const valuta = valuteMeta.length === 1 ? valuteMeta[0] : undefined;
+  const uValuti = valuta ? ` (${valuta})` : "";
+
   const [name, setName] = useState(ruleToEdit?.name ?? "");
   const [scope, setScope] = useState<RuleScope>(ruleToEdit?.scope ?? "campaign");
   const [metric, setMetric] = useState<RuleMetric>(
     ruleToEdit?.condition.metric ?? "cpa",
   );
+  const pragJeIznos = metric === "cpa" || metric === "spend" || metric === "cpc";
   const [operator, setOperator] = useState<RuleOperator>(
     ruleToEdit?.condition.operator ?? "gt",
   );
@@ -134,7 +150,7 @@ function RuleEditorForm({
     },
     action,
     cooldownHours: Number.isFinite(cooldownHours) ? cooldownHours : 24,
-  });
+  }, valuta);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -225,7 +241,7 @@ function RuleEditorForm({
                 Naziv pravila
               </Label>
               <Input
-                placeholder="npr. CPA Guard (maksimalno €15 po konverziji)"
+                placeholder="npr. CPA Guard (najviše 15 po konverziji)"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="bg-surface border-line"
@@ -284,10 +300,10 @@ function RuleEditorForm({
                     className="w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs text-foreground focus:outline-hidden focus:border-mod font-medium"
                     disabled={submitting}
                   >
-                    <option value="cpa">CPA (€)</option>
-                    <option value="spend">Potrošnja (€)</option>
+                    <option value="cpa">CPA{uValuti}</option>
+                    <option value="spend">Potrošnja{uValuti}</option>
                     <option value="ctr">CTR (%)</option>
-                    <option value="cpc">CPC (€)</option>
+                    <option value="cpc">CPC{uValuti}</option>
                     <option value="roas">ROAS (x)</option>
                   </select>
                 </div>
@@ -313,15 +329,20 @@ function RuleEditorForm({
                   <Label className="text-micro text-text-muted block mb-1">
                     Prag vrednosti
                   </Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    min={0}
-                    value={value}
-                    onChange={(e) => setValue(parseFloat(e.target.value) || 0)}
-                    className="bg-surface border-line text-xs font-mono h-8"
-                    disabled={submitting}
-                  />
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      step="any"
+                      min={0}
+                      value={value}
+                      onChange={(e) => setValue(parseFloat(e.target.value) || 0)}
+                      className="bg-surface border-line text-xs font-mono h-8"
+                      disabled={submitting}
+                    />
+                    {pragJeIznos && valuta && (
+                      <span className="text-xs text-text-muted">{valuta}</span>
+                    )}
+                  </div>
                 </div>
               </div>
 

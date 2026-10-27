@@ -1,3 +1,5 @@
+import { formatCurrency } from "./format";
+
 export type RuleMetric = "cpa" | "spend" | "ctr" | "cpc" | "roas";
 export type RuleOperator = "gt" | "gte" | "lt" | "lte";
 export type RuleScope = "account" | "campaign" | "adset";
@@ -46,9 +48,17 @@ export function formatOperatorSymbol(op: RuleOperator): string {
   }
 }
 
-export function formatThresholdValue(metric: RuleMetric, val: number): string {
+/**
+ * Prag u jedinici mere. Iznos nosi valutu naloga kad je poznata; bez nje
+ * stoji kao broj bez znaka — evro se ne pretpostavlja (O16).
+ */
+export function formatThresholdValue(
+  metric: RuleMetric,
+  val: number,
+  valuta?: string,
+): string {
   if (metric === "cpa" || metric === "spend" || metric === "cpc") {
-    return `€${val}`;
+    return formatCurrency(val, valuta);
   }
   if (metric === "ctr") {
     return `${val}%`;
@@ -77,14 +87,15 @@ export function formatDaysText(days: number): string {
 
 /**
  * Returns plain-language Serbian summary of the rule:
- * e.g. "Ako CPA > €15 tokom 3 dana uz ≥1000 impresija → pauziraj i javi mi"
+ * e.g. "Ako CPA > 15,00 € tokom 3 dana uz ≥1000 impresija → pauziraj i javi mi"
  */
-export function formatRuleSentence(rule: RuleLike): string {
+export function formatRuleSentence(rule: RuleLike, valuta?: string): string {
   const metric = formatMetricName(rule.condition.metric);
   const op = formatOperatorSymbol(rule.condition.operator);
   const threshold = formatThresholdValue(
     rule.condition.metric,
     rule.condition.value,
+    valuta,
   );
   const days = formatDaysText(rule.condition.windowDays);
   const minImp = rule.condition.minImpressions;

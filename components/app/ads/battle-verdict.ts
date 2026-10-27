@@ -30,7 +30,8 @@ export interface VersionBattleStats {
   roas?: number;
   hookRate?: number;
   holdRate?: number;
-  ctr: number;
+  /** Bez prikaza nema stope klikova (nije 0). */
+  ctr?: number;
 }
 
 export type BattleEvaluation =
@@ -239,7 +240,9 @@ export function evaluateHookBattle(
   }
 
   // Branch 4: Fallback to CTR for non-video / static ads with 0 conversions
-  const eligibleWithCtr = eligible.filter((v) => v.ctr !== undefined);
+  const eligibleWithCtr = eligible.filter(
+    (v): v is VersionBattleStats & { ctr: number } => v.ctr !== undefined,
+  );
   if (eligibleWithCtr.length > 0) {
     const sortedByCtr = [...eligibleWithCtr].sort((a, b) => b.ctr - a.ctr);
     const leader = sortedByCtr[0];

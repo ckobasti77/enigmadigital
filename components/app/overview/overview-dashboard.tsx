@@ -170,6 +170,7 @@ export function OverviewDashboard() {
             ga4Cur && ga4Prev && ga4Series ? (
               <KpiTile
                 label="Sesije"
+                mera="sesije"
                 icon={LineChart}
                 href="/analytics"
                 value={ga4Cur.sessions}
@@ -195,6 +196,7 @@ export function OverviewDashboard() {
             igCur && igPrev && igSeries ? (
               <KpiTile
                 label="Instagram doseg"
+                mera="doseg"
                 shortLabel="IG doseg"
                 icon={InstagramIcon}
                 href="/instagram"
@@ -221,6 +223,7 @@ export function OverviewDashboard() {
             orCur && orPrev && orSeries ? (
               <KpiTile
                 label="Poslate DM poruke"
+                mera="poslate_poruke"
                 shortLabel="DM poruke"
                 icon={MessageCircleReply}
                 href="/openreply"
@@ -250,6 +253,7 @@ export function OverviewDashboard() {
             fallback={
               <KpiTile
                 label="Leadovi bez poziva"
+                mera="leadovi_bez_poziva"
                 icon={Users}
                 href="/leadovi"
                 value={undefined}
@@ -366,6 +370,7 @@ function LeadoviPlocica() {
   return (
     <KpiTile
       label="Leadovi bez poziva"
+      mera="leadovi_bez_poziva"
       shortLabel="Bez poziva"
       icon={Users}
       href="/leadovi"

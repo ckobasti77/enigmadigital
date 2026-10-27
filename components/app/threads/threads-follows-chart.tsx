@@ -75,6 +75,8 @@ export function ThreadsFollowsChart({
   return (
     <ChartErrorBoundary>
       <Card className="gap-0 py-0 shadow-card ring-line">
+        {/* Broj pratilaca stoji samo u fokusu ekrana; grafikon nosi istoriju,
+            ne drugi broj koji može da se razlikuje od fokusa. */}
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 pt-5">
           <div className="flex items-center gap-2">
             <div className="flex size-7 items-center justify-center rounded-lg bg-mod-soft text-mod">
@@ -88,12 +90,6 @@ export function ThreadsFollowsChart({
                 Periodični snimci stanja naloga (nedeljni i dnevni)
               </p>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-sm font-bold tabular-nums text-foreground">
-              {formatNumber(values[values.length - 1])}
-            </span>
-            <span className="text-xs text-text-muted">poslednji snimak</span>
           </div>
         </div>
 

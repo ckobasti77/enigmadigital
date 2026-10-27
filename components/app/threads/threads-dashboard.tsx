@@ -45,6 +45,7 @@ import { useNow } from "@/components/app/use-now";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { channelReadiness } from "@/lib/channel-readiness";
+import { veceJeBolje } from "@/lib/mere";
 import { formatNumber } from "@/lib/format";
 import { ThreadsFollowsChart } from "./threads-follows-chart";
 import {
@@ -259,6 +260,7 @@ export function ThreadsDashboard() {
                     : "trenutno stanje naloga"
                 }
                 reason="Broj pratilaca još nije stigao sa naloga."
+                higherIsBetter={veceJeBolje("pratioci")}
                 readiness={readiness}
                 next={
                   readiness?.next === "connected" ||
