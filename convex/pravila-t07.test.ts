@@ -381,12 +381,13 @@ describe("probaPravila", () => {
         targetType: "campaign",
         status: "ACTIVE",
         vrednost: 64.3,
+        izmereno: true,
         prag: 50,
         uPauzi: false,
         cekaJosSati: null,
       },
     ]);
-    expect(proba.najblizi).toEqual({ naziv: "Skupa", vrednost: 64.3, procenatPraga: 129, preko: true });
+    expect(proba.najblizi).toEqual({ naziv: "Skupa", vrednost: 64.3, izmereno: true, procenatPraga: 129, preko: true });
     expect(mreza).not.toHaveBeenCalled();
   });
 
@@ -400,7 +401,7 @@ describe("probaPravila", () => {
       condition: { ...USLOV_CPA, value: 1000 },
     });
     expect(visok.pogodjeni).toEqual([]);
-    expect(visok.najblizi).toEqual({ naziv: "Skupa", vrednost: 64.3, procenatPraga: 6, preko: false });
+    expect(visok.najblizi).toEqual({ naziv: "Skupa", vrednost: 64.3, izmereno: true, procenatPraga: 6, preko: false });
 
     const bezMinimuma = await ana.query(api.rulesStore.probaPravila, {
       workspaceId: s.wsA,
@@ -421,6 +422,43 @@ describe("probaPravila", () => {
     });
     expect(manje.pogodjeni.map((p) => p.naziv)).toEqual(["Jeftina"]);
     expect(manje.najblizi).toMatchObject({ naziv: "Jeftina", procenatPraga: null, preko: true });
+  });
+
+  test("neizmerena mera nije predstavljena kao izmerena (T13)", async () => {
+    const { s, meta } = await svetSaKampanjama();
+    const ana = kao(s, s.ana);
+    // Troši, a nema ni rezultata ni klikova: evaluator i dalje računa cenu po
+    // rezultatu kao celu potrošnju (pravilo okida), ali to nije izmerena mera.
+    await kampanja(s, meta, "Bez rezultata", [
+      { dana: 0, spend: 80, impressions: 2000, results: 0 },
+    ]);
+
+    const cpa = await ana.query(api.rulesStore.probaPravila, {
+      workspaceId: s.wsA,
+      scope: "campaign",
+      condition: USLOV_CPA,
+    });
+    const bez = cpa.pogodjeni.find((p) => p.naziv === "Bez rezultata");
+    expect(bez).toMatchObject({ vrednost: 80, izmereno: false, prag: 50 });
+    expect(cpa.pogodjeni.find((p) => p.naziv === "Skupa")).toMatchObject({ izmereno: true });
+    // Najbliži pragu je baš ta kampanja (80 > 64,3), ali bez lažnog procenta.
+    expect(cpa.najblizi).toEqual({
+      naziv: "Bez rezultata",
+      vrednost: 80,
+      izmereno: false,
+      procenatPraga: null,
+      preko: true,
+    });
+
+    const cpc = await ana.query(api.rulesStore.probaPravila, {
+      workspaceId: s.wsA,
+      scope: "campaign",
+      condition: { ...USLOV_CPA, metric: "cpc", operator: "lt", value: 0.1 },
+    });
+    expect(cpc.pogodjeni.find((p) => p.naziv === "Bez rezultata")).toMatchObject({
+      vrednost: 0,
+      izmereno: false,
+    });
   });
 
   test("postojeće pravilo zna mirovanje; tuđe pravilo ništa ne otkriva", async () => {

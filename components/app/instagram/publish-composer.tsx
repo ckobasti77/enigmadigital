@@ -623,7 +623,7 @@ function PublishComposerForm() {
               action={
                 <ProjekatLink
                   href={adresaVeze("meta_ig")}
-                  className="text-xs font-medium text-accent-400 underline-offset-4 hover:underline"
+                  className="text-xs font-medium text-radnja underline-offset-4 hover:underline"
                 >
                   Poveži ponovo
                 </ProjekatLink>
@@ -640,7 +640,7 @@ function PublishComposerForm() {
               action={
                 <ProjekatLink
                   href={adresaVeze("meta_ig")}
-                  className="text-xs font-medium text-accent-400 underline-offset-4 hover:underline"
+                  className="text-xs font-medium text-radnja underline-offset-4 hover:underline"
                 >
                   {igConnection === undefined ? "Poveži" : "Poveži ponovo"}
                 </ProjekatLink>

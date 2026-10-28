@@ -19,8 +19,11 @@
  *                  kvar i ne boji tačku.
  *
  * Čista funkcija: ne čita bazu ni sat. Pravila starosti i tokena su ona iz
- * `zdravljeVeza.ts` (hub i birač projekta), pa obe strane po konstrukciji daju
- * isti odgovor. Ulaz pravi `citajUlazeStatusa` (`vezeProjekta.ts`).
+ * `zdravljeVeza.ts`, koja koriste i hub i birač projekta. Hub i birač ipak
+ * čitaju `citajVezeProjekta`, bez `serverPodesen` i `poslednjiPodatak`, pa se
+ * za server bez podešavanja ili podatak iz ciljanog prolaza mogu razići od
+ * ovog statusa (višeprojektni sloj, van obima ULTRA1; T13). Ulaz pravi
+ * `citajUlazeStatusa` (`vezeProjekta.ts`).
  *
  * Napomena o uvozu: ovaj modul uzima nazive i `trajanje` iz `notifications.ts`,
  * a `notifications.ts` uzima `porukaStatusa` odavde. Oba modula koriste uvezeno

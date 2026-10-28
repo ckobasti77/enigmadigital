@@ -1,3 +1,4 @@
+import { formatPercentValue } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -78,7 +79,7 @@ export function PhoneConfidenceRing({
           strokeDasharray={`${(RING_C * deo).toFixed(2)} ${RING_C.toFixed(2)}`}
         />
       </svg>
-      <span className="text-ui font-medium tabular-nums">{verovatnoca} %</span>
+      <span className="text-ui font-medium tabular-nums">{formatPercentValue(verovatnoca)}</span>
     </span>
   );
 }
@@ -119,7 +120,7 @@ export function PhoneConfidence({
         className={cn("text-micro font-semibold tabular-nums", TEKST[ton], className)}
         title={obrazlozenje}
       >
-        {verovatnoca} %
+        {formatPercentValue(verovatnoca)}
       </span>
     );
   }
@@ -140,7 +141,7 @@ export function PhoneConfidence({
         <span
           className={cn("text-xs font-semibold tabular-nums", TEKST[ton])}
         >
-          {verovatnoca} %
+          {formatPercentValue(verovatnoca)}
         </span>
         {izvor === "covek" && (
           <span className="rounded border border-line bg-surface-raised px-1.5 py-px text-micro text-text-muted">

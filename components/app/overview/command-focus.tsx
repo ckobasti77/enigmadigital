@@ -30,7 +30,7 @@ import { QuietBoundary } from "@/components/app/quiet-boundary";
 import { useStaMeCeka } from "@/components/app/use-sta-me-ceka";
 import { useProjekat } from "@/components/app/projekat-provider";
 import { belgradeInputsFor } from "@/lib/belgrade-time";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatPercentValue } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { StaMeCeka } from "./today-block";
 
@@ -191,7 +191,7 @@ function FokusNapredak({
                     {prsten.naziv}
                   </span>
                   <span className="whitespace-nowrap tabular-nums text-text-muted">
-                    od {prsten.cilj} · {prsten.procenat} %
+                    od {prsten.cilj} · {formatPercentValue(prsten.procenat)}
                   </span>
                 </span>
               </li>

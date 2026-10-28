@@ -105,7 +105,7 @@ export function LeadScoreCell({
     ? `${axisTitle}: nema aktivnih pravila`
     : isUnmeasured
       ? `${axisTitle}: nema signala, nije izmereno`
-      : `${axisTitle}: ${score.points} / ${score.maxPoints} bodova (${percentage} %)`;
+      : `${axisTitle}: ${score.points} / ${score.maxPoints} bodova (${percentage === undefined ? "—" : formatPercent(percentage / 100)})`;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

@@ -112,7 +112,8 @@ describe("R9: poruke grešaka na serveru", () => {
 });
 
 describe("ceo kod", () => {
-  test("nijedan sirov naziv u components/, app/ ni u porukama servera", () => {
+  // Poruke servera proverava samo R9 (imena env-a i „OAuthException"), ne R1–R8.
+  test("nijedan sirov naziv u components/ i app/; poruke servera bez env imena (R9)", () => {
     const env = new Set<string>(DODATNA_ENV_IMENA);
     for (const f of fajloviKoda(["convex", "lib"])) {
       for (const t of envCitanja(f, procitaj(f))) env.add(t.tekst);

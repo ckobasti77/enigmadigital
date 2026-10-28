@@ -25,18 +25,30 @@ function formatBroja(decimale: number, znak: boolean): Intl.NumberFormat {
   return fmt;
 }
 
+/**
+ * „-0" i „-0,0" su nula: minus stoji samo uz broj koji posle zaokruživanja
+ * nije nula (smanjenje budžeta od 0,3 % je „0 %", ne „-0 %").
+ */
+function bezNegativneNule(tekst: string): string {
+  return /^[-−]0(?:,0+)?$/.test(tekst) ? tekst.slice(1) : tekst;
+}
+
 /** Udeo 0..1 → „53,8 %“ (tvrdi razmak pre znaka). `znak`: „+12,0 %“. */
 export function procenat(
   udeo: number,
   decimale = 1,
   znak = false,
 ): string {
-  return `${formatBroja(decimale, znak).format(udeo * 100)}${NBSP}%`;
+  // `udeo * 100` u pokretnom zarezu kvari polovine (0,0045 × 100 =
+  // 0,44999…, pa „0,4 %" umesto „0,5 %"); 15 značajnih cifara vraća broj
+  // koji bi dao i `Intl` stil „percent".
+  const vrednost = Number((udeo * 100).toPrecision(15));
+  return `${bezNegativneNule(formatBroja(decimale, znak).format(vrednost))}${NBSP}%`;
 }
 
 /** Procenat koji je već u rasponu 0..100 → „2,45 %“. */
 export function procenatSirov(vrednost: number, decimale = 2): string {
-  return `${formatBroja(decimale, false).format(vrednost)}${NBSP}%`;
+  return `${bezNegativneNule(formatBroja(decimale, false).format(vrednost))}${NBSP}%`;
 }
 
 /**

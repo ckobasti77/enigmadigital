@@ -445,7 +445,7 @@ function AutomationCard({
         <div className="mt-3 text-xs leading-relaxed text-text-muted">
           {isDraft ? (
             <p className="rounded-md bg-mod-soft px-2.5 py-1.5 border border-mod-line text-text-secondary">
-              ℹ️ <strong>Režim probe:</strong> Pravilo se ocenjuje i upisuje u log, ali se ništa ne šalje na Threads.
+              <strong>Režim probe:</strong> Pravilo se ocenjuje i upisuje u dnevnik, ali se ništa ne šalje na Threads.
             </p>
           ) : (
             <p className="rounded-md bg-success/5 px-2.5 py-1.5 border border-success/20 text-text-secondary">
@@ -519,7 +519,7 @@ function AutomationCard({
                 onClick={onRequestDraft}
                 className="h-7 text-xs font-medium text-text-muted hover:text-foreground"
               >
-                Vrati u skicu
+                Vrati u probu
               </Button>
             )}
           </div>

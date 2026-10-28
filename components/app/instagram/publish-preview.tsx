@@ -119,7 +119,7 @@ export function PublishPreview({
                   <div
                     key={`${tag.username}-${idx}`}
                     style={{ left: `${leftPct}%`, top: `${topPct}%` }}
-                    className="pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-white/20 bg-bg-950/85 px-2 py-0.5 text-micro font-medium text-foreground shadow-md backdrop-blur-sm"
+                    className="pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-line-control bg-bg-950/85 px-2 py-0.5 text-micro font-medium text-foreground shadow-md backdrop-blur-sm"
                   >
                     <span className="size-1.5 rounded-full bg-mod-strong" />
                     <span>@{tag.username.replace(/^@/, "")}</span>

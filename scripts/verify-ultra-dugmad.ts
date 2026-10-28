@@ -36,6 +36,12 @@ const fajlovi = fajloviKoda(["components", "app"]).filter((f) => {
   return /\.tsx?$/.test(r) && !r.startsWith("app/api/") && r !== "components/ui/button.tsx";
 });
 
+// Pod (T13): prazan ili pogrešan skup fajlova ne sme da prođe kao „čisto".
+if (fajlovi.length < 300) {
+  console.log(`verify:ultra-dugmad: pregledano samo ${fajlovi.length} fajlova (očekivano bar 300)`);
+  process.exit(1);
+}
+
 let bojaModula = 0;
 for (const f of fajlovi) {
   const r = rel(f);

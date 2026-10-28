@@ -28,6 +28,14 @@ const c = "text-[0.8rem] text-[12px] text-meta";
     expect(pravila(proveriTipografiju("components/app/x.tsx", tekst))).toEqual(["T1", "T1"]);
   });
 
+  test("T1/M1: varijanta u zagradama ne zaobilazi proveru (T13)", () => {
+    const tekst = `const a = "[&_svg]:text-[10px]";
+const b = "has-[>svg]:text-[11px] aria-[x]:text-[0.7rem]";
+const c = "data-[x]:font-mono data-[x]:text-hero";
+const d = "[&_svg]:text-[12px]";`;
+    expect(pravila(proveriTipografiju("components/app/v.tsx", tekst))).toEqual(["M1", "T1", "T1", "T1"]);
+  });
+
   test("T2: fontSize ispod 12 pada (objekat, JSX, inline CSS); 12 prolazi", () => {
     const tekst = `const t = <XAxis tick={{ fill: "x", fontSize: 11 }} />;
 const u = <YAxis tick={{ fontSize: 12 }} />;

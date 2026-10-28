@@ -233,6 +233,8 @@ function PrilagodjenPeriod({
           Prošli mesec
         </Button>
       </div>
+      {/* Bez `inputMode="numeric"`: tastatura brojeva na iPhone-u nema tačku,
+          a datum se piše „27. 10. 2026.". */}
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
           <Label htmlFor="range-from" className="text-xs text-text-muted">
@@ -241,7 +243,6 @@ function PrilagodjenPeriod({
           <Input
             id="range-from"
             type="text"
-            inputMode="numeric"
             autoComplete="off"
             placeholder="27. 10. 2026."
             value={draftFrom}
@@ -264,7 +265,6 @@ function PrilagodjenPeriod({
           <Input
             id="range-to"
             type="text"
-            inputMode="numeric"
             autoComplete="off"
             placeholder="27. 10. 2026."
             value={draftTo}

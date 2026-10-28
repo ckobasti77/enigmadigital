@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
 import {
   blizinaPragu,
+  meraIzmerena,
   medijana,
   PREDLOG_PROZOR_DANA,
   pravilaPauzira,
@@ -372,12 +373,16 @@ export const probaPravila = projekatQuery({
     const pravilo = args.ruleId ? await ctx.db.get(args.ruleId) : null;
     const svoje = pravilo !== null && pravilo.workspaceId === workspaceId ? pravilo : null;
 
+    // `izmereno: false` = imenioca nema (bez rezultata, klikova, prikaza ili
+    // potrošnje): `vrednost` je ona kojom evaluator i tada računa, ali ekran
+    // je ne predstavlja kao izmerenu meru.
     const pogodjeni: Array<{
       naziv: string;
       targetId: string;
       targetType: "account" | "campaign" | "adset";
       status: string;
       vrednost: number;
+      izmereno: boolean;
       prag: number;
       uPauzi: boolean;
       cekaJosSati: number | null;
@@ -385,6 +390,7 @@ export const probaPravila = projekatQuery({
     let najblizi: {
       naziv: string;
       vrednost: number;
+      izmereno: boolean;
       procenatPraga: number | null;
       preko: boolean;
     } | null = null;
@@ -397,6 +403,7 @@ export const probaPravila = projekatQuery({
         continue;
       }
       const vrednost = vrednostMere(cond.metric, c);
+      const izmereno = meraIzmerena(cond.metric, c);
       const ispunjen = uslovIspunjen(cond.operator, vrednost, cond.value);
       const blizina = blizinaPragu(cond.operator, vrednost, cond.value);
       if (blizina !== null && blizina > najblizaBlizina) {
@@ -404,8 +411,10 @@ export const probaPravila = projekatQuery({
         najblizi = {
           naziv: c.targetName,
           vrednost: Number(vrednost.toFixed(2)),
+          izmereno,
+          // Procenat praga ima smisla samo za izmerenu meru.
           procenatPraga:
-            cond.operator === "gt" || cond.operator === "gte"
+            izmereno && (cond.operator === "gt" || cond.operator === "gte")
               ? Math.round(blizina * 100)
               : null,
           preko: ispunjen,
@@ -422,6 +431,7 @@ export const probaPravila = projekatQuery({
         targetType: c.targetType,
         status: c.status,
         vrednost: Number(vrednost.toFixed(2)),
+        izmereno,
         prag: cond.value,
         uPauzi: okidanje !== null,
         cekaJosSati:

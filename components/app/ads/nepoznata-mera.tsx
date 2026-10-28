@@ -20,13 +20,6 @@ export function razlogFrekvencije(provider?: string, impressions?: number): stri
   return "Meta nije poslala doseg za ovaj period";
 }
 
-/** Razlog za doseg: Google ga ne meri, Meta ga nije poslala. */
-export function razlogDosega(provider?: string): string {
-  return jeGoogle(provider)
-    ? "Google ne meri doseg"
-    : "Meta nije poslala doseg za ovaj period";
-}
-
 /**
  * Vrednost ili crtica. `razlog` ide u `title` (miš) i u `sr-only` (čitač),
  * pa crtica nikad ne stoji bez objašnjenja.

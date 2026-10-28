@@ -7,6 +7,8 @@
  * tačno ono što bi evaluator uradio.
  */
 
+import { procenatSirov } from "./formatJezgro";
+
 export type MeraPravila = "cpa" | "spend" | "ctr" | "cpc" | "roas";
 export type OperatorPravila = "gt" | "gte" | "lt" | "lte";
 
@@ -39,6 +41,36 @@ export function vrednostMere(metric: MeraPravila, cilj: ZbirCilja): number {
       return cilj.spend > 0 ? cilj.conversionValue / cilj.spend : 0;
   }
 }
+
+/**
+ * Da li je mera stvarno izmerena: cena po rezultatu traži rezultat, stopa
+ * klikova prikaz, cena po kliku klik, a povraćaj potrošnju. Evaluator i bez
+ * toga računa vrednost (`vrednostMere`), ali ekran je tada ne sme predstaviti
+ * kao izmerenu („Cena po rezultatu 40 €" za kampanju bez ijednog rezultata).
+ */
+export function meraIzmerena(metric: MeraPravila, cilj: ZbirCilja): boolean {
+  switch (metric) {
+    case "cpa":
+      return cilj.results > 0;
+    case "spend":
+      return true;
+    case "ctr":
+      return cilj.impressions > 0;
+    case "cpc":
+      return cilj.clicks > 0;
+    case "roas":
+      return cilj.spend > 0;
+  }
+}
+
+/** Zašto mera nije izmerena, za rečenicu uz vrednost koju evaluator koristi. */
+export const RAZLOG_NEIZMERENE: Record<MeraPravila, string> = {
+  cpa: "bez rezultata",
+  spend: "",
+  ctr: "bez prikaza",
+  cpc: "bez klikova",
+  roas: "bez potrošnje",
+};
 
 export function uslovIspunjen(
   op: OperatorPravila,
@@ -111,7 +143,8 @@ export function formatVrednostPravila(
   valuta?: string | null,
 ): string {
   if (!Number.isFinite(vrednost)) return "—";
-  if (metric === "ctr") return `${decimalFmt.format(vrednost)} %`;
+  // Procenat sa tvrdim razmakom, kao svuda u aplikaciji (P7).
+  if (metric === "ctr") return procenatSirov(vrednost);
   if (metric === "roas") return `${decimalFmt.format(vrednost)}×`;
   const kod = valuta?.trim().toUpperCase();
   if (!kod) return decimalFmt.format(vrednost);

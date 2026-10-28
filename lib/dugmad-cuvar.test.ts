@@ -91,6 +91,26 @@ const c = "bg-success text-text-inverse";`;
     expect(proveriGlobals(bezRadnje)).toHaveLength(2);
   });
 
+  test("D7: svaki blok modula i projekta se čita, ne samo prvi (T13)", () => {
+    const koren = `:root {\n  --radnja: var(--accent-400);\n  --primary: var(--radnja);\n}\n`;
+    const kasnije = `${koren}[data-module] {\n  --mod-soft: x;\n}
+/* [data-module] { --primary: u komentaru se ne broji } */
+[data-module="oglasi"] { --mod: var(--mod-oglasi); --primary: var(--mod-strong); }
+@media (pointer: coarse) {
+  [data-module] { --ring: var(--mod); }
+}
+[data-projekat] {\n  --focus-ring-strong: var(--projekat);\n}`;
+    const nalazi = proveriGlobals(kasnije);
+    expect(nalazi.map((x) => x.poruka)).toEqual([
+      '[data-module="oglasi"] prepisuje --primary',
+      "[data-module] prepisuje --ring",
+      "[data-projekat] prepisuje --focus-ring-strong",
+    ]);
+    // Broj reda pokazuje na selektor, ne na komentar iznad.
+    expect(nalazi[0].linija).toBe(9);
+    expect(proveriGlobals(`${koren}[data-module="tabla"] { --mod: x; }`)).toHaveLength(0);
+  });
+
   test("D6: boja modula se broji u stringovima, ne u komentarima", () => {
     const tekst = `// text-mod u komentaru
 const a = "border-mod-line bg-mod-soft text-mod hover:text-mod";

@@ -89,6 +89,26 @@ export const CILJ_KAMPANJE = {
   DEMAND_GEN: "Potražnja",
   LOCAL: "Lokalno",
   SMART: "Pametna kampanja",
+  // Google tipovi kanala koje sinhronizacija pušta (`GOOGLE_ADS_ALLOWED_CHANNEL_TYPES`).
+  DISCOVERY: "Potražnja",
+  HOTEL: "Hoteli",
+  MULTI_CHANNEL: "Više kanala",
+  LOCAL_SERVICES: "Lokalne usluge",
+  TRAVEL: "Putovanja",
+  // Stari Meta ciljevi (kampanje napravljene pre ciljeva „OUTCOME_“).
+  LINK_CLICKS: "Saobraćaj",
+  CONVERSIONS: "Prodaja",
+  PRODUCT_CATALOG_SALES: "Prodaja",
+  POST_ENGAGEMENT: "Angažovanje",
+  PAGE_LIKES: "Angažovanje",
+  EVENT_RESPONSES: "Angažovanje",
+  MESSAGES: "Poruke",
+  LEAD_GENERATION: "Upiti",
+  REACH: "Prepoznatljivost",
+  BRAND_AWARENESS: "Prepoznatljivost",
+  VIDEO_VIEWS: "Pregledi videa",
+  APP_INSTALLS: "Aplikacija",
+  STORE_VISITS: "Posete prodavnici",
 } as const satisfies Recnik;
 
 /** Nivo u hijerarhiji oglasa (dnevnik radnji, pravila). */
@@ -204,6 +224,20 @@ export const POZIV_NA_RADNJU = {
   ORDER_NOW: "Naruči",
   WATCH_MORE: "Pogledaj još",
   NO_BUTTON: "Bez dugmeta",
+  BUY_NOW: "Kupi sada",
+  BUY_TICKETS: "Kupi karte",
+  GET_DIRECTIONS: "Uputstvo za dolazak",
+  INSTALL_MOBILE_APP: "Instaliraj aplikaciju",
+  USE_APP: "Otvori aplikaciju",
+  OPEN_LINK: "Otvori link",
+  LISTEN_NOW: "Slušaj",
+  SEE_MENU: "Pogledaj meni",
+  DONATE_NOW: "Doniraj",
+  REQUEST_TIME: "Zakaži termin",
+  GET_SHOWTIMES: "Pogledaj termine",
+  INQUIRE_NOW: "Pošalji upit",
+  SAVE: "Sačuvaj",
+  PLAY_GAME: "Igraj",
 } as const satisfies Recnik;
 
 /** Plasman oglasa (Meta `publisher_platform` × `platform_position`). */
@@ -239,6 +273,17 @@ export const IZVOR_SIGNALA = {
   rucno: "Ručno",
   import: "Uvoz",
   uvoz: "Uvoz",
+  // Izvori koje server stvarno upisuje (`leadImportStore`, `leadInboundStore`,
+  // ocena firme iz uvoza); bez njih bi istorija pisala „Drugi izvor".
+  "generate-leads": "Skill /generate-leads",
+  inbound_instagram: "Poruka sa Instagrama",
+  inbound_facebook: "Poruka sa Facebook-a",
+  inbound_threads: "Poruka sa Threads-a",
+  inbound_website: "Upit sa sajta",
+  google: "Google ocene",
+  sredime: "SrediMe",
+  yandex: "Yandex",
+  "011info": "Imenik 011info",
 } as const satisfies Recnik;
 
 /** UI pojmovi; komentar je zatečen izraz koji je zamenjen. */
@@ -276,8 +321,9 @@ export function naziv(
   rezerva = "Ostalo",
 ): string {
   if (!vrednost) return rezerva;
-  const tacno = mapa[vrednost];
-  if (tacno !== undefined) return tacno;
+  // Samo sopstveni ključevi: „constructor" ili „toString" iz podatka (npr.
+  // ime događaja koje korisnik upiše) ne sme da vrati funkciju iz prototipa.
+  if (Object.hasOwn(mapa, vrednost)) return mapa[vrednost];
   const v = vrednost.toUpperCase();
   for (const k of Object.keys(mapa)) {
     if (k.toUpperCase() === v) return mapa[k];

@@ -22,6 +22,7 @@ import {
   formatMetricName,
   formatOperatorSymbol,
   formatThresholdValue,
+  formatVrednostCilja,
   type RuleConditionLike,
   type RuleScope,
 } from "@/lib/rule-sentence";
@@ -229,9 +230,12 @@ function TeloProbe({
                 {p.naziv}
               </span>
               <span className="text-meta text-text-muted">
-                {mera}{" "}
-                <span className="tabular-nums text-foreground">{iznos(p.vrednost)}</span> {op}{" "}
-                prag <span className="tabular-nums">{iznos(p.prag)}</span>
+                {mera}
+                {p.izmereno ? " " : ": "}
+                <span className="tabular-nums text-foreground">
+                  {formatVrednostCilja(condition.metric, p.vrednost, p.izmereno, valuta)}
+                </span>{" "}
+                {op} prag <span className="tabular-nums">{iznos(p.prag)}</span>
                 {p.uPauzi && p.cekaJosSati !== null && (
                   <> · već okinuto, čeka još {p.cekaJosSati} h</>
                 )}

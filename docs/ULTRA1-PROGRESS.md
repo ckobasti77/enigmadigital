@@ -730,3 +730,162 @@ Nijedan `next dev` ni drugi proces koji je korak sam pokrenuo nije upaljen.
 2. Podešavanja → Integracije: GA4 kartica treba da ima „14 meseci", „Jednom po događaju" i „Lepota i fitnes", bez sirovih vrednosti u zagradi. Kad neka veza nema podešen server, probaj „Kopiraj uputstvo za programera" i nalepi tekst negde da proveriš sadržaj.
 3. Potvrdi odluke: nazivi kanala „Meta Ads"/„Google Ads" i u hubu, kraći nazivi ciljeva kampanje („Upiti"), „Vruće" umesto „Vrelo", „System User" ostaje u rečenicama, `testTimeout` od 30 s za čuvare koda.
 4. Ako neki ekran i dalje pokaže sirovu vrednost koja stiže kao podatak (statički se ne vidi), dodaj je u odgovarajuću mapu u `lib/recnik.ts`.
+
+## T13 — Revizija runa: regresije, istina, pravila repoa   (2026-10-28 05:45)
+**Fajlovi:**
+- backend: `convex/rulesStore.ts` (`probaPravila`: `izmereno`), `convex/lib/pravilaProcena.ts` (`meraIzmerena`, `RAZLOG_NEIZMERENE`, procenat sa tvrdim razmakom), `convex/lib/formatJezgro.ts` (polovine i „-0"), `convex/lib/serverPodesen.ts` (OpenReply), `convex/lib/statusVeze.ts` i `convex/statusVeza.ts` (samo komentari koji su tvrdili netačno);
+- front: `components/ui/select.tsx`, `components/app/date-range-picker.tsx`, `system/{channel-focus,naziv-mere,stanje-veze}.tsx`, `sync-status.tsx`, `overview/{sync-health-widget,command-focus}.tsx`, `settings/connections-settings.tsx`, `rules/{rule-proba-dialog,rules-list}.tsx`, `leadovi/{lead-chips,lead-columns,lead-score-cell,leads-today,phone-confidence,import-dashboard,import-file-picker,import-review-table,import-row-dialog}.tsx`, `ads/{nepoznata-mera,new-hook-version-dialog,create-lookalike-audience-dialog,audiences-table}.tsx`, `instagram/{instagram-stories,publish-composer,publish-preview,inbox/inbox-settings-drawer}.tsx`, `threads/{threads-automations,threads-composer}.tsx`, `napredak/napredak-screen.tsx`;
+- rečnik i pravila: `lib/recnik.ts`, `lib/rule-sentence.ts`;
+- čuvari i provere: `lib/{dugmad,tipografija,kontrast}-cuvar.ts`, `scripts/verify-ultra-{dugmad,format,kontrast,recnik,tipografija}.ts`;
+- testovi: `convex/pravila-t07.test.ts`, `convex/status-veza.test.ts`, `lib/{format,pravila-procena,recnik,recnik-cuvar,dugmad-cuvar,kontrast-cuvar,tipografija-cuvar}.test.ts`;
+- razvojni prikaz: `app/dev-ux/fixtures-pravila.ts`, `app/dev-ux/fixtures-status-veza.ts`;
+- snimci: `docs/ultra/snimci/T13-podesavanja-integracije-1536.png`, `T13-profil-temperatura-1536.png`, `T13-proba-bez-rezultata-1536.png`.
+
+**Šta je urađeno:**
+- Pregledan je ceo diff runa (`ef9646b..HEAD`, 433 fajla). Backend (šema, migracija, Leadovi, status veze, zvono, Oglasi, Novosti, Pravila) sam sam pročitao red po red. Šest `sonnet` radnika je paralelno pregledalo pravila dizajna, provere i testove, istinu, prelazak na `Select`, formate i rečnik. Svaki njihov nalaz sam proverio u kodu, a gde je trebalo i u razvojnom prikazu ili skriptom nad HEAD verzijom.
+- **Regresije: nijedna kritična.**
+  - Prijava, auth i OAuth povratak: nema izmena u `app/login`, `app/pozivnica`, `app/api`, `proxy.ts` ni `convex/auth*`. OAuth akcije su promenile samo tekst `message`, a kodovi su isti; testovi `oauth-povratak` prolaze.
+  - Izolacija: sve nove javne funkcije idu kroz omotače, i `verify:pristup` prolazi.
+  - Zvono: `notifications-check` prolazi. U razvojnom prikazu tačka, zvono, traka kanala i Podešavanja pišu iste rečenice.
+  - Leadovi: red poziva čita isti `ZOVI_SADA_FILTER` na ekranu i u zvonu, a uvoz ide kroz `osigurajZaduzenje` istim ponašanjem. `verify:leads-ui` i `verify:uvoz` prolaze.
+  - Oglasi: svih šest `verify:gads-*` iz regresija prolaze.
+  - Napredak: `verify:napredak` prolazi; „dodela" i „Urađeno" ne donose XP.
+- **Istina, provereno u razvojnom prikazu:**
+  - Status veze: tačka „3 veze traže pažnju" = zvono = traka na Instagramu = fokus Podešavanja.
+  - „—" sa razlogom na Oglasima: „Google ne meri frekvenciju", „Bez prikazivanja u periodu".
+  - Smer na Analitika → Oglasi: potrošnja +22 % crveno, klikovi zeleno.
+  - Valuta: RSD nalog sa upozorenjem i bez „€".
+  - Period: 7 d se pamti po projektu, nose ga linkovi, a važi i na `/ads`.
+  - Pravila: bez samoupisa (testovi) i sa probom.
+- **Podaci:**
+  - Šema je dobila samo opciono `leadStageEvents.korakZatvoren`, bez novih indeksa.
+  - Migracija `leadZaduzenja.dodeliBezZaduzenja` postoji, interna je i niko je ne zove.
+  - Svi logovi runa (`.nocni-run/ultra1/logs/*.jsonl`) su pregledani skriptom: nijedan `convex run/deploy/dev/env`, `git commit/push/reset…` ni `vercel` nije izvršen.
+  - Testovi ne zovu spoljni API; jedini `fetch` je u `pravila-t07` i zamenjen je funkcijom koja baca grešku.
+- **Ukupno 48 nalaza, nijedan kritičan** (spisak ispod):
+  - popravljena su 33 (11 srednjih: 1–11; 22 niska: 16–37);
+  - četiri srednja (12–15) i pet niskih (38–42) dobili su BLOKADU ili ostaju zatečeni van obima, uz razlog;
+  - šest je informativnih (43–48).
+
+**Nalazi** (ozbiljnost · fajl · nalaz · ishod):
+
+| # | Ozb. | Fajl | Nalaz | Ishod |
+|---|---|---|---|---|
+| 1 | srednje | `settings/connections-settings.tsx` (`rokTokena`) | Na istoj kartici razlog piše „pristup ističe za 5 dana", a red ispod „Token važi do … (za 4 dana)" (zaokruživanje naviše naspram naniže). | Popravljeno: dani se broje kao u statusu (započet dan se računa). Snimak `T13-podesavanja-integracije-1536.png`. |
+| 2 | srednje | `leadovi/lead-timeline.tsx`, `lib/recnik.ts` | Posle T12 izvor signala u istoriji firme piše „Drugi izvor" za skoro sve stvarne izvore („generate-leads", `inbound_*`, ocene), pa se poreklo gubi. | Popravljeno: `IZVOR_SIGNALA` je dobio ključeve koje server stvarno upisuje. |
+| 3 | srednje | `leadovi/lead-chips.tsx` | Okidač temperature (`w-full`) u redu činjenica profila zauzimao je ceo red (621 px) i lomio ga. | Popravljeno `w-auto` (75 px, isti red). Snimak `T13-profil-temperatura-1536.png`. |
+| 4 | srednje | `ui/select.tsx` | Base UI javlja i ponovni izbor iste stavke: temperatura je tada upisivala „promenu" (`temperaturaPromenjenaAt`), a izbor metrike je vraćao podelu na „Ukupno". | Popravljeno: `onValueChange` se zove samo kad se vrednost menja. |
+| 5 | srednje | `date-range-picker.tsx` | Sa `inputMode="numeric"` iPhone nudi tastaturu bez tačke, a datum se piše „27. 10. 2026.", pa prilagođen period nije mogao da se ukuca. | Popravljeno: polja bez `inputMode` (vidi ODLUKE). |
+| 6 | srednje | `rulesStore.probaPravila`, `pravilaProcena`, `rule-sentence`, `rule-proba-dialog`, `rules-list` | Proba i kartica pravila su prikazivale meru koja nije izmerena: „Cena po rezultatu 40,00 €" za kampanju bez rezultata, „0,00 € · 0 % praga" za cenu po kliku bez klikova. | Popravljeno: polje `izmereno`, tekst „Cena po rezultatu: bez rezultata, potrošeno 31,20 €" i bez procenta praga. Evaluator nije menjan. Test, fikstura i snimak `T13-proba-bez-rezultata-1536.png`. |
+| 7 | srednje | `convex/lib/serverPodesen.ts` | OpenReply je imao status „Radi" (zelena tačka), a njegova kartica je pisala da webhook nije podešen. | Popravljeno: isti uslov kao `orEngine.status`. Test u `status-veza.test.ts`. |
+| 8 | srednje | `ads/new-hook-version-dialog.tsx` | Stalna zelena tvrdnja „Izmene oglasa su uključene i beleže se", iako ništa ne čita stanje servera. | Popravljeno: „Svaka izmena se beleži u istoriji radnji.", bez zelene tačke. |
+| 9 | srednje | `lib/dugmad-cuvar.ts`, `lib/tipografija-cuvar.ts` | Plafoni su bili iznad stvarnog broja (679 naspram 654; 269 naspram 254), pa je 25, odnosno 15 prekršaja moglo da prođe. | Popravljeno: 654 i 254. |
+| 10 | srednje | `lib/dugmad-cuvar.ts` (D7) | D7 je čitao samo prvi blok `[data-module] {`, pa je `[data-module="oglasi"] { --primary: … }` prolazio. | Popravljeno: čita se svaki blok modula i projekta, i unutar `@media`. Test. |
+| 11 | srednje (latentno) | `tipografija-cuvar` (T1/M1), `kontrast-cuvar` (K2/K4) | Varijanta u zagradama (`[&_svg]:text-[10px]`, `[&_svg]:text-white`) je zaobilazila proveru. Dokaz: HEAD čuvar je nad primerom vratio `[]`. | Popravljeno u regex-u. Testovi. |
+| 12 | srednje | `rulesStore.ciljeviPravila` | Proba se drži po kartici, a predlog praga gleda 28 d. Oba čitaju sve `adInsights` redove (i podele i sate) kroz `.collect()`, pa kod mnogo oglasa mogu da pređu granicu čitanja Convex-a. | **BLOKADA**: treba merenje nad pravim podacima, a isto čitanje deli evaluator koji pauzira kampanje. Noću i bez baze se ne menja. |
+| 13 | srednje | `vezeProjekta.citajVezeProjekta` → hub i birač | Hub i birač ne znaju za `serverPodesen` ni `poslednjiPodatak`, pa mogu da kažu „Veze rade" dok tačka kaže „1 veza traži pažnju". | **BLOKADA**: višeprojektni sloj je van obima (plan §2). Netačan komentar u `statusVeze.ts` je ispravljen. |
+| 14 | srednje | `notificationsStore.staMeCeka` | Zvono čita sat u upitu. Prelaz praga zbog samog vremena (token 7 d, podaci 24 h) vidi tek pri sledećem upisu, a tačka odmah. | **BLOKADA**: popravka traži nov argument `sada` za sve potrošače zvona, a to je zaštićena oblast van plana. Komentar u `statusVeza.ts` je ispravljen. Kašnjenje praktično ograničavaju upisi sinhronizacije. |
+| 15 | srednje | `threadsStore.ts:1050` → `threads-dashboard.tsx` | Threads sa isteklim tokenom prazni ceo ekran („Poveži Threads nalog") umesto da pokaže podatke i traku. | **BLOKADA**: zatečeno, u kodu koji run nije menjao. Rešava šablon kanala (U11). |
+| 16 | nisko | `convex/lib/formatJezgro.ts` | `procenat` je množenjem u pokretnom zarezu kvario polovine (9/2000 → „0,4 %" umesto „0,5 %"), a dijalog budžeta je pisao „-0 %". | Popravljeno. Testovi u `format.test.ts`. |
+| 17 | nisko | `convex/lib/pravilaProcena.ts` | Stopa klikova u pravilima i mejlu je bila bez tvrdog razmaka (P7). | Popravljeno (`procenatSirov`). Test. |
+| 18 | nisko | `connections-settings.tsx` (fokus) | „3 traži pažnju", „2 radi", „2 nije povezano": glagol se ne slaže sa brojem. | Popravljeno (`pluralSr`). |
+| 19 | nisko | `lead-columns`, `phone-confidence`, `leads-today`, `import-dashboard`, `napredak-screen`, `command-focus`, `lead-score-cell` | 13 procenata je pisano ručno, sa običnim razmakom i mimo `lib/format.ts`. F5 ih ne vidi. | Popravljeno: `formatPercentValue` / `formatPercent`. |
+| 20 | nisko | `instagram/instagram-stories.tsx` | U poslednjem minutu odbrojavanje priče piše „ističe za 0 s". | Popravljeno: najmanje „1 min". |
+| 21 | nisko | `ads/create-lookalike-audience-dialog.tsx` | Izbor ima `required` bez `name`, pa bi poruka pregledača stajala u uglu ekrana. | Popravljeno: `name`. |
+| 22 | nisko | `import-row-dialog.tsx`, `inbox-settings-drawer.tsx` | Pristupačno ime izbora ne sadrži vidljivi natpis (WCAG 2.5.3). | Popravljeno. |
+| 23 | nisko | `import-dashboard.tsx`, `import-file-picker.tsx` | Dva primarna dugmeta su stajala istovremeno („Nastavi pregled" i „Pošalji na pregled"). | Popravljeno: dok zaostali pregled nosi primarno, slanje je sporedno. |
+| 24 | nisko | `threads/threads-automations.tsx` | U redu koji je run menjao ostali su emodži „ℹ️" i „upisuje u log"; dugme je i dalje „Vrati u skicu", iako se režim zove „Režim probe". | Popravljeno. |
+| 25 | nisko | `instagram/publish-preview.tsx` | `border-white/20` (sirova paleta) u redu koji je run menjao. | Popravljeno: `border-line-control`. |
+| 26 | nisko | `system/naziv-mere.tsx` | Na dodir je meta bila oko 43 px, manje od 44. | Popravljeno: oko 47 px. |
+| 27 | nisko | `connections-settings.tsx` ×2, `ads/audiences-table.tsx` | Natpis („ID kanala:", „ID:") je stajao u mono, a mono je samo za vrednost (P2). | Popravljeno. |
+| 28 | nisko | `threads/threads-composer.tsx` | Brojač piše „još N znakova", a broji UTF-8 bajtove (č, ć, š, ž, đ su po 2). | Popravljeno: „mesta", sa objašnjenjem. |
+| 29 | nisko | `lib/recnik.ts` | Ciljevi kampanja i pozivi na radnju bez ključa (DISCOVERY, HOTEL, MULTI_CHANNEL, stari Meta ciljevi; BUY_NOW, GET_DIRECTIONS…) padali su na „Kampanja" / „Ostalo". | Popravljeno. |
+| 30 | nisko | `lib/recnik.ts` (`naziv`) | „constructor" ili „toString" iz podatka vraćali su funkciju iz prototipa. | Popravljeno (`Object.hasOwn`). Test. |
+| 31 | nisko | `import-review-table.tsx`, `import-row-dialog.tsx` | „vrelo" i „Cold → Warm → Hot" stoje pored „Vruće". | Popravljeno. |
+| 32 | nisko | `publish-composer` ×2, `sync-health-widget`, `sync-status`, `stanje-veze` | Linkovi radnje koriste `text-accent-400` umesto tokena radnje. | Popravljeno: `text-radnja`. |
+| 33 | nisko | `system/channel-focus.tsx` | Smer pilule ne čita `mera`, a čuvar `mere-pokrivenost` `mera` prihvata kao izvor smera. | Popravljeno: smer dolazi iz rečnika. Danas bez vizuelne promene. |
+| 34 | nisko | `ads/nepoznata-mera.tsx`, `lib/rule-sentence.ts` | Mrtav kod iz runa: `razlogDosega` i `metricAcronym`. | Obrisano. |
+| 35 | nisko | `scripts/verify-ultra-*.ts` | Nijedna provera nema pod: prazan skup fajlova prolazi, a preimenovan token tiho izbacuje parove kontrasta. | Popravljeno: najmanje 300 fajlova (rečnik i 150 fajlova servera), kontrast najmanje 262 para; izuzetak kontrasta bez razloga obara proveru. |
+| 36 | nisko | `lib/kontrast-cuvar.test.ts` | Test je bio tautološki: proveravao je `Array.every` nad lokalnim nizom. | Popravljeno: zove `izuzeciBezRazloga` iz čuvara. |
+| 37 | nisko | `lib/recnik-cuvar.test.ts` | Naslov tvrdi „ni u porukama servera", a server proverava samo R9. | Popravljeno: naslov i komentar. |
+| 38 | nisko | oko 25 mesta (detalj kampanje, mreže objava, uvoz, niše, Threads…) | Boja modula je ostala na brojevima i čipovima u redovima koje je run menjao (broj nije porastao). | **BLOKADA** (obim): mapa iz plana T08 §2.3 ih ne obuhvata. Plafon od 654 sprečava rast; čiste ih faze U11–U16. |
+| 39 | nisko | `convex/lib/notifications.ts` | Ključ sklanjanja ne zavisi od razloga: sklonjeno „ističe za 6 dana" ostaje sklonjeno i kad token istekne. | Zatečena odluka T04 (ključ je isti da bi odlaganja važila). Za Jovana. |
+| 40 | nisko | `convex/rules.ts` `manualEvaluateRules({ ruleId })` | Ručna provera jednog isključenog pravila koje pauzira ide bez probe. Moguće je samo kroz API i samo za vlasnika; ekran `ruleId` ne šalje, a test C07 to ponašanje očekuje. | Zatečeno, van obima. Za Jovana. |
+| 41 | nisko | `metaAdsStore`, `adActionsStore`, `threadsAutomations` | Poruke „Ad Set nije pronađen." i „Cooldown ne može biti negativan." stižu na ekran kroz grešku. | Zatečeno (kod koji run nije menjao); R9 ih ne pokriva. Za kasniji run. |
+| 42 | nisko | `yt-automations-dashboard.tsx`, kartice Podešavanja („Instagram nalog povezan") | Ekran računa svoje zdravlje veze, mimo statusa veze. | Zatečeno, za U11/U15. |
+| 43 | info | `logs/T06_main_1.jsonl` | T06 je pustio `git stash list` (samo čitanje; `git stash` je zabranjen). | Bez posledica. |
+| 44 | info | migracija `dodeliBezZaduzenja` | Svaka dodela piše događaj „dodela". Napredak ga ne broji, ali on troši granicu od 600 događaja dnevno. | Bez izmene. Za Jovana (vidi dole). |
+| 45 | info | `convex/postsStore.ts` | `postZaUrednikaValidator` je ručno prepisan spisak polja. Danas tačno odgovara šemi (provereno), ali novo polje u šemi bi srušilo upit. | Bez izmene. |
+| 46 | info | ⌘K | Posle prevoda ne nalazi ekrane po engleskim imenima („inbox", „stories", „dm"). | Predlog: polje ključnih reči (U10). |
+| 47 | info | `leadovi/provenance-badge.tsx` | Sirov izvor „google_maps (potvrđeno)" na profilu. | Kod koji run nije menjao; ide u rečnik (U8). |
+| 48 | info | razno | Zabeleženo bez izmene: <br>• `formatDate` sa ISO stringom daje „NaN" (danas nema takvog poziva); <br>• postoje dve funkcije `trajanje` i dve `formatSeconds` sa različitim jedinicama; <br>• `ChartTooltipContent` je mrtav kod sa `toLocaleString`; <br>• slepe tačke F4, D5 i D6; <br>• `testTimeout` 30 s; <br>• „67,0 %" je odluka T11; <br>• „Meta oglasi" u čarobnjaku novog projekta i „Lid" u čarobnjaku kampanje; <br>• ROAS je uvek zelen i `battle-verdict` piše „1,0×"; <br>• sirovi kodovi u mejlu pravila (sve zatečeno). | Zabeleženo. |
+
+**ODLUKE:**
+- **Obim popravki.** Popravljeno je ono što je run uveo ili ostavio nedovršeno u svom zadatku (npr. P7 „svi procenti kroz `lib/format.ts`", rečnik T12). Zatečen kod koji run nije menjao nije diran, osim:
+  - u istom fajlu i istoj nameni, radi doslednosti sa promenom runa: „Vrati u skicu" → „Vrati u probu" uz „Režim probe"; „vrelo" → „vruće";
+  - procenata sa običnim razmakom u fajlovima koje je run menjao: to je prihvatanje T11.
+- **Rok tokena** se broji kao u statusu: započet dan se računa, `Math.ceil`. Ispod 24 h kartica i dalje piše sate (`trajanje`).
+- **Proba** dobija `izmereno`, a evaluator se ne menja: cena po rezultatu bez rezultata i dalje je cela potrošnja (pravilo okida). Menja se samo prikaz, da se ne predstavlja kao izmerena mera.
+- **OpenReply bez webhook-a** je sada „Traži pažnju: … nije podešen na serveru", isto kao njegova kartica. Na produkciji bez tih promenljivih tačka postaje žuta, što je istina.
+- **Polje datuma bez `inputMode`.** To odstupa od teksta plana T08 §7.3 (`inputMode="numeric"`), jer tastatura brojeva na iPhone-u nema tačku.
+- **Izmene provera i testova.** Nijedna nije slabljenje:
+  - plafoni su spušteni (654 i 254);
+  - D7 čita sve blokove;
+  - regex hvata varijante u zagradama;
+  - dodat je pod od 300 fajlova (150 servera) i 262 para;
+  - `pravila-t07`: očekivani objekti su dobili novo polje `izmereno: true`, plus nov test;
+  - `pravila-procena`: očekivani procenat ima tvrdi razmak;
+  - tautološki test kontrasta sada zove funkciju čuvara;
+  - naslov testa rečnika kaže tačno šta proverava;
+  - pomoćni tip u `status-veza.test.ts` je proširen za `openreply`.
+- **Brojevi na pločicama.** „Kampanje" i „automatizacije" u OpenReply-u, kao i decimala u „67,0 %", ostaju po odlukama T05 i T11.
+- **Radnici:** šest `sonnet` radnika samo je čitalo; njihove pomoćne skripte su u `.nocni-run/ultra1/tmp/t13/{a,b,c,d,e,f}/`. Sve popravke sam uradio ja. Line endings sam proverio skriptom (`crlf.cjs`): `lib/format.test.ts` je posle Edit-a imao CRLF i vraćen je na LF.
+- Skill `impeccable` nije ponovo pozivan: korak je revizija, a UI izmene su sitne popravke po postojećim pravilima `CLAUDE.md`.
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- `convex/pravila-t07.test.ts` (+1):
+  - neizmerena mera (kampanja bez rezultata i bez klikova) ima `izmereno: false` i nema procenat praga;
+  - evaluator i dalje vidi cenu po rezultatu kao potrošnju.
+- `convex/status-veza.test.ts` (+1): OpenReply bez webhook-a traži pažnju, a sa podešenim okruženjem ne.
+- `lib/format.test.ts` (+1): polovine kao u `Intl` stilu „percent" (0,45 % → „0,5 %") i nula bez minusa.
+- `lib/pravila-procena.test.ts` (+1): `meraIzmerena` i `formatVrednostCilja`.
+- `lib/recnik.test.ts`: ključ iz prototipa daje rezervu.
+- `lib/dugmad-cuvar.test.ts` (+1): D7 nad svakim blokom, i u `@media`; komentar se ne broji.
+- `lib/tipografija-cuvar.test.ts` (+1) i `lib/kontrast-cuvar.test.ts` (+1, jedan prepisan): varijante u zagradama; izuzeci bez razloga kroz funkciju čuvara.
+
+**Rezultat provere:** `npx convex codegen` prošao (izlaz 0, `_generated` bez izmena). typecheck prošao. lint 0 grešaka (1209 upozorenja, isto kao posle T12). vitest 69 fajlova / 1168 testova (bilo 1161). pristup prošao. regresije 19/19 (uključuje svih pet `verify:ultra-*` sa novim podovima i plafonima). Vizuelno (Playwright MCP, `next dev -p 3117`, `?ux=1`): status veze, „—“ sa razlogom, smer, valuta, period, proba sa neizmerenom merom, profil i Podešavanja na 1536 × 695; Podešavanja na 390 × 844 bez vodoravnog klizanja; u konzoli nema grešaka (osim jedne prolazne tokom HMR-a dok je izmena bila na pola).
+
+**BLOKADA:**
+- Nalaz 12: čitanje uvida u probi i predlogu praga traži merenje nad pravim podacima. Zajedničko čitanje sa evaluatorom koji pauzira kampanje se noću ne menja.
+- Nalaz 13: hub i birač su van obima (plan §2).
+- Nalaz 14: sat zvona menja argumente zaštićenog upita zvona i sve njegove potrošače.
+- Nalaz 15: Threads ekran, u kodu koji run nije menjao (U11).
+- Nalaz 38: boja modula van mape T08 (U11–U16).
+
+**Za Jovana ujutru:**
+1. Na pravim podacima otvori Pravila i „Dodaj iz šablona". Ako se pojavi greška o previše pročitanih dokumenata, to je nalaz 12.
+2. Ako OpenReply sada traži pažnju („nije podešen na serveru"), na produkciji fale `IG_WEBHOOK_VERIFY_TOKEN` i `META_APP_SECRET` (ili `INSTAGRAM_APP_SECRET`); kartica OpenReply-a to već piše.
+3. Na iPhone-u otvori birač perioda → Prilagođeno i ukucaj „1.10.2026": sada se otvara puna tastatura.
+4. Profil firme: temperatura stoji u redu činjenica, a ponovni izbor iste temperature ne upisuje promenu.
+5. Odluči o nalazima 13 (hub i birač), 14 (sat zvona), 39 (sklanjanje po razlogu) i 40 (ručna provera isključenog pravila).
+6. Migracija zaduženja (T02) piše po jedan događaj „dodela" za svaku firmu. Ako firmi bez zaduženja ima više od oko 600, Napredak vlasnika za taj dan će pisati da je odsečen; drugih posledica nema.
+7. Potvrdi odluke:
+   - dani do isteka tokena se broje naviše;
+   - Threads brojač piše „mesta";
+   - OpenReply se proverava na serveru;
+   - polje datuma je bez `inputMode`.
+
+**Procesi:** `next dev -p 3117` koji je korak pokrenuo ugašen je preko `Stop-Process` (PID 7288, 35896 i 35720), jer ga `TaskStop` nije ugasio. Port 3117 je slobodan i nijedan `next` proces ovog repoa ne radi. Pomoćni fajlovi Playwright-a su premešteni u `.nocni-run/ultra1/tmp/t13/playwright/`. Playwright MCP nije diran, po napomeni nadzora.
+
+**Prihvatanje T13 (stavku po stavku, ponovna provera 2026-10-28 06:00):**
+- *Postoji lista nalaza sa ishodom, i nijedan kritičan nalaz nije ostao otvoren bez BLOKADE:* ispunjeno. Tabela „Nalazi" (48 redova) za svaki nalaz daje ozbiljnost, fajl i ishod. Kritičnih nalaza nema. Svaki srednji nalaz je popravljen (1–11) ili ima BLOKADU sa razlogom (12–15).
+- *Provere prolaze; sekcija T13 je u `docs/ULTRA1-PROGRESS.md`:* ispunjeno. Ponovno puštanje posle poslednje izmene koda:
+  - `npx convex codegen`: izlaz 0;
+  - typecheck: izlaz 0;
+  - lint: 0 grešaka (1209 upozorenja);
+  - `npx --no-install vitest run`: 69 fajlova / 1168 testova;
+  - `verify-pristup`: izlaz 0;
+  - `regresije.mjs`: 19/19, od toga pet `verify:ultra-*`.
+- *Nijedan pokrenut proces nije ostao upaljen:* port 3117 je slobodan, a nijedan `next` proces ovog repoa ne radi. Pozadinske provere su završene.

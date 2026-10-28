@@ -47,8 +47,11 @@ const SELECTION_REASON_TEXT: Record<
 
 export function ImportFilePicker({
   onImportCreated,
+  primarno = true,
 }: {
   onImportCreated: (importId: Id<"leadImports">) => void;
+  /** Jedno primarno po pogledu: kad zaostali pregled nosi primarno, slanje je sporedno. */
+  primarno?: boolean;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [fileBuffer, setFileBuffer] = useState<ArrayBuffer | null>(null);
@@ -398,7 +401,7 @@ export function ImportFilePicker({
               type="button"
               onClick={handleSendToStaging}
               disabled={isCreating || isTooLarge}
-              variant="primary"
+              variant={primarno ? "primary" : "secondary"}
             >
               {isCreating ? (
                 <>

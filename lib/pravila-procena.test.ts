@@ -4,13 +4,15 @@ import { describe, expect, test } from "vitest";
 import {
   blizinaPragu,
   formatVrednostPravila,
+  meraIzmerena,
   medijana,
   uslovIspunjen,
   vrednostMere,
   zaokruziPrag,
   type ZbirCilja,
 } from "../convex/lib/pravilaProcena";
-import { formatRuleSentence } from "./rule-sentence";
+import { NBSP } from "../convex/lib/formatJezgro";
+import { formatRuleSentence, formatVrednostCilja } from "./rule-sentence";
 
 /**
  * Jedna logika procene pravila (ULTRA1 T07): evaluator, proba i predlog praga
@@ -96,7 +98,8 @@ describe("valuta (O16)", () => {
     expect(formatVrednostPravila("spend", 1820, "RSD")).not.toContain("€");
     expect(formatVrednostPravila("cpc", 0.25, null)).toBe("0,25");
     expect(formatVrednostPravila("cpc", 0.25, undefined)).not.toContain("€");
-    expect(formatVrednostPravila("ctr", 2.5, "EUR")).toBe("2,50 %");
+    // Tvrdi razmak pre „%" (P7), isti kao `lib/format.ts`.
+    expect(formatVrednostPravila("ctr", 2.5, "EUR")).toBe(`2,50${NBSP}%`);
     expect(formatVrednostPravila("roas", 3, "EUR")).toBe("3,00×");
   });
 
@@ -113,6 +116,21 @@ describe("valuta (O16)", () => {
     expect(bezValute).toContain("> 15,00 tokom");
     expect(bezValute).not.toContain("€");
     expect(formatRuleSentence(pravilo, "EUR", "prag")).toContain("> prag tokom");
+  });
+
+  test("neizmerena mera kaže zašto, a ne izgleda kao izmerena (T13)", () => {
+    const bezRezultata: ZbirCilja = { spend: 40, impressions: 2000, clicks: 0, results: 0, conversionValue: 0 };
+    expect(meraIzmerena("cpa", bezRezultata)).toBe(false);
+    expect(meraIzmerena("cpc", bezRezultata)).toBe(false);
+    expect(meraIzmerena("ctr", bezRezultata)).toBe(true);
+    expect(meraIzmerena("spend", bezRezultata)).toBe(true);
+    expect(meraIzmerena("roas", bezRezultata)).toBe(true);
+    expect(meraIzmerena("roas", { ...bezRezultata, spend: 0 })).toBe(false);
+    expect(meraIzmerena("ctr", { ...bezRezultata, impressions: 0 })).toBe(false);
+
+    expect(formatVrednostCilja("cpa", 40, false, "EUR")).toMatch(/^bez rezultata, potrošeno 40,00\s€$/);
+    expect(formatVrednostCilja("cpc", 0, false, "EUR")).toMatch(/^bez klikova \(računa se kao 0,00\s€\)$/);
+    expect(formatVrednostCilja("cpa", 12.5, true, "EUR")).toMatch(/^12,50\s€$/);
   });
 });
 

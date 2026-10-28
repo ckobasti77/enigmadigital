@@ -345,7 +345,7 @@ function InboxSettingsDrawerForm({
                     </label>
                     <Select
                       id={`ice-breaker-automation-${idx}`}
-                      label={`Automatizacija za početno pitanje ${idx + 1}`}
+                      label={`Pokreće automatizaciju (početno pitanje ${idx + 1})`}
                       value={ib.automationId || null}
                       onValueChange={(value) => {
                         const updated = [...iceBreakers];

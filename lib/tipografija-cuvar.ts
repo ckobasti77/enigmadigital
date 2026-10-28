@@ -34,7 +34,7 @@ export const NAJMANJE_PX = 12;
  * fikstura). Upisan u T10 posle prelaska na P2: ostaju brojčane kolone
  * tabela, ID/kod/token/URL/telefon i `<code>`/`<kbd>`. Broj sme samo da pada.
  */
-export const PLAFON_MONO = 269;
+export const PLAFON_MONO = 254; // T13: stvaran broj posle T11–T12 (bilo 269)
 
 /** Mono je dozvoljen u sistemu samo ovde (brojčana kolona `DataTable`). */
 export const MONO_U_SISTEMU: readonly Izuzetak[] = [
@@ -54,9 +54,9 @@ export const VAN_BROJA_MONO = [
   "app/pozivnica/",
 ] as const;
 
-const VELIKE = /(?:^|\s)(?:[\w-]+:)*text-(?:hero|metric|title|display|2xl|3xl|xl|lg)(?=\s|$)/;
-const MONO = /(?:^|\s)(?:[\w-]+:)*font-mono(?=\s|$)/g;
-const ARBITRARNA = /(?:^|[\s"'`])(?:[\w-]+:)*text-\[(\d*\.?\d+)(px|rem|em)\]/g;
+const VELIKE = /(?:^|\s)(?:[\w-]*(?:\[[^\]\s]*\])?:)*text-(?:hero|metric|title|display|2xl|3xl|xl|lg)(?=\s|$)/;
+const MONO = /(?:^|\s)(?:[\w-]*(?:\[[^\]\s]*\])?:)*font-mono(?=\s|$)/g;
+const ARBITRARNA = /(?:^|[\s"'`])(?:[\w-]*(?:\[[^\]\s]*\])?:)*text-\[(\d*\.?\d+)(px|rem|em)\]/g;
 
 function izvor(putanja: string, tekst: string): ts.SourceFile {
   return ts.createSourceFile(

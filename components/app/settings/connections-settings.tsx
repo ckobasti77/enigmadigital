@@ -41,7 +41,7 @@ import { SamoZa } from "@/components/app/samo-za";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDate, formatRelativeTime } from "@/lib/format";
+import { formatDate, formatRelativeTime, pluralSr } from "@/lib/format";
 import { describeTokenExpiry } from "@/lib/token-expiry";
 import {
   GOOGLE_PERMISSIONS_URL,
@@ -177,6 +177,8 @@ function customerIdProblem(raw: string): string | null {
   return null;
 }
 
+const DAN_MS = 24 * 60 * 60 * 1000;
+
 /**
  * „Token važi do 1. 11. 2026. (za 4 dana)" / „Token je istekao 24. 10. 2026.
  * (pre 3 dana)". `formatRelativeTime` je za prošlost i budući rok čita kao
@@ -185,9 +187,16 @@ function customerIdProblem(raw: string): string | null {
 function rokTokena(expiresAt: number, sada: number | null): string {
   const datum = formatDate(expiresAt);
   if (sada === null) return `Token važi do ${datum}`;
-  return expiresAt > sada
-    ? `Token važi do ${datum} (za ${trajanje(expiresAt - sada)})`
-    : `Token je istekao ${datum} (pre ${trajanje(sada - expiresAt)})`;
+  if (expiresAt <= sada) {
+    return `Token je istekao ${datum} (pre ${trajanje(sada - expiresAt)})`;
+  }
+  // Dani do isteka se broje kao u statusu veze („pristup ističe za 5 dana",
+  // `razlogZdravlja`): započet dan se računa, pa kartica i razlog iznad nje
+  // ne kažu 4 i 5 za isti token.
+  const ostalo = expiresAt - sada;
+  if (ostalo < DAN_MS) return `Token važi do ${datum} (za ${trajanje(ostalo)})`;
+  const dana = Math.ceil(ostalo / DAN_MS);
+  return `Token važi do ${datum} (za ${dana} ${pluralSr(dana, "dan", "dana", "dana")})`;
 }
 
 /**
@@ -2444,8 +2453,8 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                     </span>
                   </div>
                   {connection.accountHandle && connection.externalId && (
-                    <p className="font-mono text-meta text-text-muted">
-                      ID kanala: {connection.externalId}
+                    <p className="text-meta text-text-muted">
+                      ID kanala: <span className="font-mono">{connection.externalId}</span>
                     </p>
                   )}
                 </div>
@@ -2914,8 +2923,8 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
                     </span>
                   </div>
                   {connection.accountHandle && connection.externalId && (
-                    <p className="font-mono text-meta text-text-muted">
-                      ID naloga: {connection.externalId}
+                    <p className="text-meta text-text-muted">
+                      ID naloga: <span className="font-mono">{connection.externalId}</span>
                     </p>
                   )}
                 </div>
@@ -3079,9 +3088,14 @@ export function ConnectionsSettings() {
       ? { href: `#integracija-${zbir.prvaNepovezana}`, label: `Poveži ${nazivZa(zbir.prvaNepovezana)}` }
       : { href: "#stanje-sinhronizacije", label: "Stanje sinhronizacije" };
 
+  // Glagol se slaže sa brojem veza („1 traži", „3 traže", „5 traži").
   const zbirRecenica = [
-    zbir.traziPaznju > 0 ? `${zbir.traziPaznju} traži pažnju` : null,
-    zbir.nijePovezano > 0 ? `${zbir.nijePovezano} nije povezano` : null,
+    zbir.traziPaznju > 0
+      ? `${zbir.traziPaznju} ${pluralSr(zbir.traziPaznju, "traži", "traže", "traži")} pažnju`
+      : null,
+    zbir.nijePovezano > 0
+      ? `${zbir.nijePovezano} ${pluralSr(zbir.nijePovezano, "nije povezana", "nisu povezane", "nije povezano")}`
+      : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -3125,7 +3139,10 @@ export function ConnectionsSettings() {
         >
           <p className="text-hero font-bold leading-none tabular-nums text-foreground">
             {zbir.radi}
-            <span className="font-sans text-title font-medium text-text-muted"> radi</span>
+            <span className="font-sans text-title font-medium text-text-muted">
+              {" "}
+              {pluralSr(zbir.radi, "radi", "rade", "radi")}
+            </span>
           </p>
           <p
             className={

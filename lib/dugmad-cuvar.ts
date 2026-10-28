@@ -65,7 +65,7 @@ export const IZUZECI_PUNE_PODLOGE: readonly Izuzetak[] = [
  * (izabrana stanja, ikonice i trake na ekranima) čiste faze U10–U16. Broj sme
  * samo da pada; kad padne, spusti plafon.
  */
-export const PLAFON_BOJE_MODULA = 679;
+export const PLAFON_BOJE_MODULA = 654; // T13: stvaran broj posle T11–T12 (bilo 679)
 
 const BOJA_MODULA =
   /(?:^|[^\w-])(?:[a-z-]+:)*(?:text|bg|border|ring|fill|stroke|shadow|outline|from|to|via|decoration|accent)-mod(?:-strong|-soft|-line|-glow)?(?![\w-])|var\(--mod(?:-strong|-soft|-line|-glow)?\)/g;
@@ -222,15 +222,34 @@ export function blokCss(css: string, selektor: string): string | null {
   return css.slice(start, kraj);
 }
 
+/**
+ * Najdublji CSS blokovi čiji selektor odgovara `selektor` (npr. svaki
+ * `[data-module="ads"]`, i unutar `@media`). Komentari se ne čitaju, a redovi
+ * ostaju na mestu, pa je broj reda tačan.
+ */
+function blokoviSa(
+  css: string,
+  selektor: RegExp,
+): { selektor: string; telo: string; red: number }[] {
+  const bez = css.replace(/\/\*[\s\S]*?\*\//g, (k) => k.replace(/[^\n]/g, " "));
+  const out: { selektor: string; telo: string; red: number }[] = [];
+  for (const m of bez.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
+    if (!selektor.test(m[1])) continue;
+    const pocetak = (m.index ?? 0) + (m[1].length - m[1].trimStart().length);
+    out.push({ selektor: m[1].trim(), telo: m[2], red: bez.slice(0, pocetak).split("\n").length });
+  }
+  return out;
+}
+
 /** D7 nad `app/globals.css`. */
 export function proveriGlobals(css: string, putanja = "app/globals.css"): NalazDugmadi[] {
   const nalazi: NalazDugmadi[] = [];
-  const red = (deo: string) => css.slice(0, Math.max(0, css.indexOf(deo))).split("\n").length;
-  const modul = blokCss(css, "[data-module]");
-  if (modul) {
+  // Svaki blok modula ili projekta (ne samo prvi `[data-module] {`): boja
+  // mesta i identiteta nikad ne ulazi u shadcn sloj radnje.
+  for (const blok of blokoviSa(css, /\[data-(?:module|projekat)\b/)) {
     for (const ime of ["--primary", "--ring", "--focus-ring-strong"]) {
-      if (new RegExp(`${ime}\\s*:`).test(modul)) {
-        nalazi.push({ putanja, linija: red("[data-module] {"), pravilo: "D7", poruka: `[data-module] prepisuje ${ime}` });
+      if (new RegExp(`${ime}\\s*:`).test(blok.telo)) {
+        nalazi.push({ putanja, linija: blok.red, pravilo: "D7", poruka: `${blok.selektor} prepisuje ${ime}` });
       }
     }
   }

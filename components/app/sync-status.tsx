@@ -225,7 +225,7 @@ function PanelVeza({
         <ProjekatLink
           href="/settings?tab=integracije"
           onClick={onNavigate}
-          className="touch-target inline-flex items-center text-meta font-medium text-accent-400 underline-offset-4 hover:underline"
+          className="touch-target inline-flex items-center text-meta font-medium text-radnja underline-offset-4 hover:underline"
         >
           Sve veze u Podešavanjima
         </ProjekatLink>

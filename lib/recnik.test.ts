@@ -66,6 +66,9 @@ describe("vrednosti rečnika", () => {
     expect(naziv(VRSTA_FB_OBJAVE, "nesto_novo", "Objava")).toBe("Objava");
     expect(naziv(GA4.delatnost, undefined, "—")).toBe("—");
     expect(naziv(GA4.delatnost, "", "—")).toBe("—");
+    // Ključ iz prototipa nije u rečniku (T13).
+    expect(naziv(DOGADJAJ_KONVERZIJE, "constructor", "Drugo")).toBe("Drugo");
+    expect(naziv(DOGADJAJ_KONVERZIJE, "toString", "Drugo")).toBe("Drugo");
   });
 
   test("poređenje ne zavisi od veličine slova (FB šalje mala slova)", () => {

@@ -29,7 +29,8 @@ import { STORY_BELOW_THRESHOLD_REASON } from "@/convex/lib/igMediaMetrics";
 function formatRemainingTime(expiresAt: number, now: number): string {
   const diffMs = expiresAt - now;
   if (diffMs <= 0) return "Istekla";
-  const totalMinutes = Math.floor(diffMs / (60 * 1000));
+  // Poslednji minut je „1 min", ne „0 s" (koje se čita kao već istekla).
+  const totalMinutes = Math.max(1, Math.floor(diffMs / (60 * 1000)));
   return `ističe za ${formatDuration(totalMinutes * 60)}`;
 }
 

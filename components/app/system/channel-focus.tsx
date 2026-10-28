@@ -1,7 +1,7 @@
 "use client";
 
 import { NazivMere } from "@/components/app/system/naziv-mere";
-import type { KljucMere } from "@/lib/mere";
+import { mera as meraIzRecnika, type KljucMere } from "@/lib/mere";
 import type { ReactNode } from "react";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Activity, Minus, TrendingDown, TrendingUp } from "lucide-react";
@@ -124,6 +124,8 @@ export function ChannelFocus({
               value={delta}
               format={formatDelta}
               higherIsBetter={higherIsBetter}
+              // Kao `KpiTile`: kad je mera data, smer dolazi iz rečnika mera.
+              smer={mera ? meraIzRecnika(mera).smer : undefined}
             />
             {compareLabel && (
               <span className="text-text-muted">{compareLabel}</span>

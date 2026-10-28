@@ -23,7 +23,7 @@ import { ProgressBar } from "@/components/app/system/progress";
 import { useNow } from "@/components/app/use-now";
 import { jeZastaoUPregledu } from "@/convex/lib/importFlow";
 import { trajanje } from "@/convex/lib/notifications";
-import { formatNumber, pluralSr } from "@/lib/format";
+import { formatNumber, formatPercentValue, pluralSr } from "@/lib/format";
 import {
   Dialog,
   DialogPopup,
@@ -309,7 +309,7 @@ function ImportDashboardTelo() {
                   Čistoća uvoza
                 </h2>
                 <span className="text-title font-bold tabular-nums text-foreground">
-                  {cistoca} %
+                  {formatPercentValue(cistoca)}
                 </span>
               </div>
               <ProgressBar
@@ -414,6 +414,8 @@ function ImportDashboardTelo() {
           ) : (
             <ImportFilePicker
               onImportCreated={handleImportCreated}
+              // „Nastavi pregled" zaostalog uvoza je tada primarno dugme pogleda.
+              primarno={zastali.length === 0}
             />
           )
         ) : (

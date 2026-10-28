@@ -238,8 +238,8 @@ export function AudiencesTable({ audiences }: AudiencesTableProps) {
                             {aud.description}
                           </span>
                         )}
-                        <span className="font-mono text-meta text-text-muted">
-                          ID: {aud.audienceId}
+                        <span className="text-meta text-text-muted">
+                          ID: <span className="font-mono">{aud.audienceId}</span>
                         </span>
                       </div>
                     </TableCell>

@@ -25,8 +25,11 @@ const redValidator = v.object({
 /**
  * Činjenice iz kojih se izvodi jedan status svake veze projekta (P3). Upit ne
  * čita sat: status, „podaci od …" i rokovi se računaju na ekranu, istom
- * funkcijom (`statusVeze`) kojom zvono računa na serveru, pa se broj u tački i
- * rečenica u zvonu ne razilaze ni kad vreme prođe bez promene u bazi.
+ * funkcijom (`statusVeze`) kojom zvono računa na serveru, pa tačka i zvono
+ * kažu isto za iste činjenice. Zvono (`staMeCeka`) ipak čita sat u upitu, pa
+ * prelaz praga zbog samog protoka vremena (token ističe za 7 dana, podaci
+ * stariji od 24 h) vidi tek pri sledećem upisu u tabele koje čita (npr.
+ * sledeći prolaz sinhronizacije). T13: nalaz zabeležen, popravka van obima.
  *
  * Vidi ga svaki član projekta: tačka stanja stoji u ljusci svakog ekrana.
  */

@@ -4,7 +4,13 @@
  */
 import { describe, expect, test } from "vitest";
 
-import { IZUZECI_OPACITY, procitajKontrast, proveriKontrast, uOpsegu } from "./kontrast-cuvar";
+import {
+  IZUZECI_OPACITY,
+  izuzeciBezRazloga,
+  procitajKontrast,
+  proveriKontrast,
+  uOpsegu,
+} from "./kontrast-cuvar";
 import { fajloviKoda, procitaj, rel } from "./izvorni-kod.pomoc";
 
 const pravila = (n: { pravilo: string }[]) => n.map((x) => x.pravilo).sort();
@@ -42,8 +48,19 @@ export const A = () => (
   });
 
   test("izuzetak bez razloga obara proveru razloga", () => {
-    const bezRazloga = [...IZUZECI_OPACITY, { fajl: "components/app/z.tsx", sadrzi: "opacity-", razlog: "" }];
-    expect(bezRazloga.every((i) => i.razlog.trim().length > 10)).toBe(false);
+    // T13: ranije je ovde proveravan `Array.every` nad lokalnim nizom; sada
+    // ista funkcija koju zove `verify:ultra-kontrast`.
+    const los = { fajl: "components/app/z.tsx", sadrzi: "opacity-", razlog: " " };
+    expect(izuzeciBezRazloga([...IZUZECI_OPACITY, los])).toEqual([los]);
+    expect(izuzeciBezRazloga()).toEqual([]);
+  });
+
+  test("K2/K4: varijanta u zagradama ne zaobilazi proveru (T13)", () => {
+    const tekst = `const a = "[&_svg]:text-white";
+const b = "[&>*]:text-text-muted/50";
+const c = "has-[>svg]:text-foreground/80";
+const d = "[&_svg]:text-foreground";`;
+    expect(pravila(proveriKontrast("components/app/v.tsx", tekst))).toEqual(["K2", "K2", "K4"]);
   });
 
   test("K4: sirova paleta na tekstu pada", () => {

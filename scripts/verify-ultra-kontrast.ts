@@ -14,7 +14,13 @@ import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { join } from "node:path";
 
-import { procitajKontrast, proveriKontrast, uOpsegu, type NalazKontrasta } from "../lib/kontrast-cuvar";
+import {
+  izuzeciBezRazloga,
+  procitajKontrast,
+  proveriKontrast,
+  uOpsegu,
+  type NalazKontrasta,
+} from "../lib/kontrast-cuvar";
 import { KOREN, fajloviKoda, procitaj, rel } from "../lib/izvorni-kod.pomoc";
 
 const nalazi: NalazKontrasta[] = [];
@@ -33,7 +39,16 @@ if (k1.status !== 0 || !zbir || zbir.pada > 0) {
 }
 
 const fajlovi = fajloviKoda(["components", "app"]).filter((f) => uOpsegu(rel(f)));
+
+// Pod (T13): prazan ili pogrešan skup fajlova ne sme da prođe kao „čisto".
+if (fajlovi.length < 300 || (zbir !== null && zbir.ukupno < 262)) {
+  console.log(`verify:ultra-kontrast: pregledano samo ${fajlovi.length} fajlova i ${zbir?.ukupno ?? 0} parova tokena (očekivano bar 300 i 262)`);
+  process.exit(1);
+}
 for (const f of fajlovi) nalazi.push(...proveriKontrast(rel(f), procitaj(f)));
+for (const i of izuzeciBezRazloga()) {
+  nalazi.push({ putanja: "lib/kontrast-cuvar.ts", linija: 1, pravilo: "K3", poruka: `izuzetak bez razloga: ${i.fajl}` });
+}
 
 console.log(
   `Kontrast tokena: ${zbir ? `pada ${zbir.pada} od ${zbir.ukupno}` : "nepoznato"}. Pregledano fajlova: ${fajlovi.length}.`,

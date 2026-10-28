@@ -82,6 +82,18 @@ describe("P7: procenat i hiljade", () => {
     expect(formatPercentValue(2.456, 1)).toBe(`2,5${NBSP}%`);
   });
 
+  test("polovina se zaokružuje kao Intl „percent“, a nula nema minus (T13)", () => {
+    // 9 klikova na 2.000 prikaza je 0,45 %: 0,0045 × 100 u pokretnom zarezu
+    // je 0,44999…, pa bi bez ispravke pisalo „0,4 %“.
+    expect(formatPercent(9 / 2000)).toBe(`0,5${NBSP}%`);
+    expect(formatPercent(37 / 2000)).toBe(`1,9${NBSP}%`);
+    expect(formatPercent(29 / 400)).toBe(`7,3${NBSP}%`);
+    // Smanjenje budžeta od 0,3 % zaokruženo na ceo broj je -0.
+    expect(formatPercentValue(Math.round(-0.3))).toBe(`0${NBSP}%`);
+    expect(formatPercent(-0.0004)).toBe(`0,0${NBSP}%`);
+    expect(formatPercent(-0.123)).toBe(`-12,3${NBSP}%`);
+  });
+
   test("procenat sa znakom i promena u procentnim poenima", () => {
     expect(formatSignedPercent(0.12)).toBe(`+12,0${NBSP}%`);
     expect(formatSignedPercent(0)).toBe(`0,0${NBSP}%`);

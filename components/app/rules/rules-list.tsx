@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/app/system/empty-state";
 import {
   formatRuleSentence,
   formatThresholdValue,
+  formatVrednostCilja,
   istiCilj,
 } from "@/lib/rule-sentence";
 import { formatDateTime } from "@/lib/format";
@@ -381,7 +382,9 @@ function VrednostPremaPragu({ rule, valuta }: { rule: Doc<"rules">; valuta?: str
     <p className="text-ui text-text-muted">
       {n.preko ? "Sada ispunjava uslov: " : "Sada najbliža pragu: "}
       <span className="text-foreground">{n.naziv}</span>{" "}
-      <span className="tabular-nums text-foreground">{iznos(n.vrednost)}</span>
+      <span className="tabular-nums text-foreground">
+        {formatVrednostCilja(cond.metric, n.vrednost, n.izmereno, valuta ?? proba.valuta)}
+      </span>
       {n.procenatPraga !== null ? (
         <>
           {" "}

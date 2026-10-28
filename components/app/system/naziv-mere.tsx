@@ -75,8 +75,9 @@ export function NazivMere({
           "relative inline cursor-help rounded-sm text-left underline decoration-text-muted decoration-dotted underline-offset-4 outline-none",
           "focus-visible:ring-2 focus-visible:ring-ring",
           // Na dodir: veća meta bez promene visine reda (pravilo 44 px iz
-          // globals.css ovde ne važi, jer je ovo tekst u redu).
-          "pointer-coarse:min-h-0 pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-3 pointer-coarse:after:content-['']",
+          // globals.css ovde ne važi, jer je ovo tekst u redu). Red teksta
+          // je ~19 px, pa 2 × 14 px proširenja daje 47 px (≥ 44).
+          "pointer-coarse:min-h-0 pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-3.5 pointer-coarse:after:content-['']",
           className,
         )}
       >

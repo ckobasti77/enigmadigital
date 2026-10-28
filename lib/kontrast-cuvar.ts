@@ -69,10 +69,10 @@ export const IZUZECI_OPACITY: readonly Izuzetak[] = [
 ];
 
 const PROVIDNOST_TEKSTA =
-  /(?:^|[\s"'`])(?:[\w-]+(?:\[[^\]\s]*\])?:)*text-([a-z][a-z0-9-]*)\/(\d+|\[[^\]\s]+\])(?=[\s"'`]|$)/g;
+  /(?:^|[\s"'`])(?:[\w-]*(?:\[[^\]\s]*\])?:)*text-([a-z][a-z0-9-]*)\/(\d+|\[[^\]\s]+\])(?=[\s"'`]|$)/g;
 const GOLA_OPACITY = /(?:^|\s)opacity-([1-9]\d?)(?=\s|$)/;
 const SIROVA_PALETA =
-  /(?:^|[\s"'`])(?:[\w-]+(?:\[[^\]\s]*\])?:)*text-(white|black|(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3})(?:\/\d+)?(?=[\s"'`]|$)/;
+  /(?:^|[\s"'`])(?:[\w-]*(?:\[[^\]\s]*\])?:)*text-(white|black|(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3})(?:\/\d+)?(?=[\s"'`]|$)/;
 const DOZVOLJENA_OPACITY = /(?:^|\s)(?:cursor-not-allowed|pointer-events-none|animate-ping)(?=\s|$)|absolute inset-0/;
 
 function izvor(putanja: string, tekst: string): ts.SourceFile {
@@ -163,6 +163,13 @@ export function proveriKontrast(
 }
 
 /** K1: čita zbir iz izlaza `contrast-check` („Pada: N od M"). */
+/** Izuzeci K3 bez obrazloženja (kraćeg od 10 znakova); provera ih obara. */
+export function izuzeciBezRazloga(
+  izuzeci: readonly Izuzetak[] = IZUZECI_OPACITY,
+): Izuzetak[] {
+  return izuzeci.filter((i) => i.razlog.trim().length < 10);
+}
+
 export function procitajKontrast(izlaz: string): { pada: number; ukupno: number } | null {
   const m = /Pada: (\d+) od (\d+)/.exec(izlaz);
   return m ? { pada: Number(m[1]), ukupno: Number(m[2]) } : null;

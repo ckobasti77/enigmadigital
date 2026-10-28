@@ -564,7 +564,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
           {/* 2. Tekst objave sa UTF-8 bajt brojačem (§4.2) */}
           <FormGroup
             title="Tekst objave"
-            description="Tekst objave na Threads-u (do 500 znakova; emoji zauzimaju više mesta)"
+            description="Tekst objave na Threads-u, do 500 mesta (č, ć, š, ž, đ i emoji zauzimaju po dva ili više)."
           >
             <Field
               label="Sadržaj teksta"
@@ -580,11 +580,11 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
                   )}
                 >
                   {isTextOverLimit
-                    ? `${Math.abs(textBytesLeft)} ${pluralSr(Math.abs(textBytesLeft), "znak", "znaka", "znakova")} preko ograničenja`
-                    : `još ${textBytesLeft} ${pluralSr(textBytesLeft, "znak", "znaka", "znakova")}`}
+                    ? `${Math.abs(textBytesLeft)} ${pluralSr(Math.abs(textBytesLeft), "mesto", "mesta", "mesta")} preko ograničenja`
+                    : `još ${textBytesLeft} ${pluralSr(textBytesLeft, "mesto", "mesta", "mesta")}`}
                 </span>
               }
-              error={isTextOverLimit ? "Tekst objave premašuje ograničenje od 500 znakova (emoji zauzimaju više mesta)." : null}
+              error={isTextOverLimit ? "Tekst objave premašuje ograničenje od 500 mesta (č, ć, š, ž, đ i emoji zauzimaju po dva ili više)." : null}
             >
               {(props) => (
                 <Textarea

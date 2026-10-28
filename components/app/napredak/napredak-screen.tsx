@@ -20,7 +20,7 @@ import {
 } from "@/components/app/system/reward-badges";
 import { useProjekat } from "@/components/app/projekat-provider";
 import type { ModuleKey } from "@/components/app/nav-items";
-import { formatDate, formatNumber, formatShortDate, pluralSr } from "@/lib/format";
+import { formatDate, formatNumber, formatPercentValue, formatShortDate, pluralSr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ActivityMap } from "./activity-map";
 import { GranicaNapretka } from "./napredak-izvor";
@@ -193,7 +193,7 @@ function Fokus({ stanje }: { stanje: NapredakUkljucen }) {
                     {prsten.naziv}
                   </span>
                   <span className="tabular-nums text-text-muted">
-                    {prsten.procenat} %
+                    {formatPercentValue(prsten.procenat)}
                   </span>
                 </span>
               </li>

@@ -1,4 +1,4 @@
-import { formatVrednostPravila } from "../convex/lib/pravilaProcena";
+import { formatVrednostPravila, RAZLOG_NEIZMERENE } from "../convex/lib/pravilaProcena";
 import { mera, type KljucMere } from "./mere";
 
 export type RuleMetric = "cpa" | "spend" | "ctr" | "cpc" | "roas";
@@ -39,10 +39,6 @@ export function formatMetricName(metric: RuleMetric): string {
   return metric === "roas" ? m.kratko : m.naziv;
 }
 
-export function metricAcronym(metric: RuleMetric): string | undefined {
-  return mera(KLJUC_MERE[metric]).akronim;
-}
-
 /** Da li je prag mere iznos u valuti naloga. */
 export function pragJeIznos(metric: RuleMetric): boolean {
   return metric === "cpa" || metric === "spend" || metric === "cpc";
@@ -71,6 +67,23 @@ export function formatThresholdValue(
   valuta?: string | null,
 ): string {
   return formatVrednostPravila(metric, val, valuta);
+}
+
+/**
+ * Vrednost cilja u probi i na kartici. Neizmerena mera (bez rezultata,
+ * klikova, prikaza ili potrošnje) ne izgleda kao izmerena: kaže zašto i čime
+ * evaluator tada računa („bez rezultata, potrošeno 40,00 €").
+ */
+export function formatVrednostCilja(
+  metric: RuleMetric,
+  val: number,
+  izmereno: boolean,
+  valuta?: string | null,
+): string {
+  const iznos = formatVrednostPravila(metric, val, valuta);
+  if (izmereno) return iznos;
+  if (metric === "cpa") return `bez rezultata, potrošeno ${iznos}`;
+  return `${RAZLOG_NEIZMERENE[metric]} (računa se kao ${iznos})`;
 }
 
 export function formatActionText(action: RuleAction): string {

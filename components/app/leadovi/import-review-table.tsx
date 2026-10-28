@@ -1002,7 +1002,7 @@ export function ImportReviewTable({
             <>
               <span>·</span>
               <span className="text-temp-hot-ink font-medium">
-                {countHot} vrelo
+                {countHot} vruće
               </span>
             </>
           )}

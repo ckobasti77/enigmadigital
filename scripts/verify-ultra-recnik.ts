@@ -32,6 +32,12 @@ envImena.delete("NODE_ENV");
 
 const ekrani = fajloviKoda(["components", "app"]).filter((f) => uOpsegu(rel(f)));
 const server = fajloviKoda(["convex"]);
+// Pod (T13): prazan ili pogrešan skup fajlova ne sme da prođe kao „čisto".
+if (ekrani.length < 300 || server.length < 150) {
+  console.log(`verify:ultra-recnik: pregledano samo ${ekrani.length} fajlova ekrana i ${server.length} fajlova servera (očekivano bar 300 i 150)`);
+  process.exit(1);
+}
+
 const nalazi: NalazRecnika[] = [];
 for (const f of ekrani) nalazi.push(...proveriRecnik(rel(f), procitaj(f), envImena));
 for (const f of server) nalazi.push(...proveriServer(rel(f), procitaj(f), envImena));

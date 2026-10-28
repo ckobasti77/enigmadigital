@@ -21,7 +21,7 @@ afterEach(() => {
 async function veza(
   s: Svet,
   ws: Id<"workspaces">,
-  provider: "ga4" | "meta_ig" | "meta_fb" | "threads" | "youtube",
+  provider: "ga4" | "meta_ig" | "meta_fb" | "threads" | "youtube" | "openreply",
   polja: {
     status?: "active" | "error" | "expired" | "disconnecting";
     expiresAt?: number;
@@ -45,7 +45,7 @@ async function veza(
 async function prolaz(
   s: Svet,
   ws: Id<"workspaces">,
-  provider: "ga4" | "meta_ig" | "meta_fb" | "threads" | "youtube",
+  provider: "ga4" | "meta_ig" | "meta_fb" | "threads" | "youtube" | "openreply",
   status: "ok" | "error" | "running",
   kraj: number,
 ): Promise<void> {
@@ -128,6 +128,23 @@ describe("statusVeza.lista", () => {
     expect(redovi[0].serverPodesen).toBe(false);
     const [ig] = statusiIzRedova(redovi, Date.now()).filter((st) => st.provider === "meta_ig");
     expect(ig.razlog).toBe("server_nije_podesen");
+  });
+
+  test("OpenReply bez webhook-a na serveru traži pažnju, kao i njegova kartica (T13)", async () => {
+    const s = await napraviSvet();
+    vi.stubEnv("IG_WEBHOOK_VERIFY_TOKEN", "");
+    vi.stubEnv("META_APP_SECRET", "");
+    vi.stubEnv("INSTAGRAM_APP_SECRET", "");
+    await veza(s, s.wsA, "openreply", { lastSyncAt: Date.now() - SAT });
+    const bez = await kao(s, s.ana).query(api.statusVeza.lista, { workspaceId: s.wsA });
+    expect(bez[0].serverPodesen).toBe(false);
+    const [or] = statusiIzRedova(bez, Date.now()).filter((st) => st.provider === "openreply");
+    expect(or.razlog).toBe("server_nije_podesen");
+
+    vi.stubEnv("IG_WEBHOOK_VERIFY_TOKEN", "token");
+    vi.stubEnv("META_APP_SECRET", "tajna");
+    const sa = await kao(s, s.ana).query(api.statusVeza.lista, { workspaceId: s.wsA });
+    expect(sa[0].serverPodesen).toBe(true);
   });
 });
 

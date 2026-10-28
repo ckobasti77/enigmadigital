@@ -38,6 +38,7 @@ import {
   formatClockTime,
   formatDayRelative,
   formatNumber,
+  formatPercentValue,
   localDayDiff,
   pluralSr,
 } from "@/lib/format";
@@ -319,7 +320,7 @@ export function LeadsToday() {
         icon={PhoneCall}
         kriterijum={
           zovi?.prosek !== null && zovi?.prosek !== undefined
-            ? `ima telefon · procena ≥ 40 % · nikad dodirnut · Fit ≥ prosek (${zovi.prosek} %)`
+            ? `ima telefon · procena ≥ ${formatPercentValue(40)} · nikad dodirnut · Fit ≥ prosek (${formatPercentValue(zovi.prosek)})`
             : "ima telefon · procena ≥ 40 % · nikad dodirnut"
         }
         ukupno={zovi?.ukupno}
@@ -521,7 +522,7 @@ export function LeadsToday() {
       <WorkSection
         naslov="Dopuni pa zovi"
         icon={PhoneOff}
-        kriterijum={`nema telefon · Fit ≥ ${STRENGTH_HIGH_PCT} %`}
+        kriterijum={`nema telefon · Fit ≥ ${formatPercentValue(STRENGTH_HIGH_PCT)}`}
         ukupno={dopuni?.ukupno}
         najmanje={dopuni?.odseceno}
         vidiSve={
@@ -542,7 +543,7 @@ export function LeadsToday() {
             ) : (
               <>
                 {dopuni.pregledano} {pluralSr(dopuni.pregledano, "firma nema", "firme nemaju", "firmi nema")} broj, ali nijedna sa
-                Fit-om ≥ {STRENGTH_HIGH_PCT} %. Dopuna se isplati kad je profil kupca jak — ostale su u Rupama u podacima.
+                Fit-om ≥ {formatPercentValue(STRENGTH_HIGH_PCT)}. Dopuna se isplati kad je profil kupca jak — ostale su u Rupama u podacima.
               </>
             )
           ) : undefined
@@ -807,7 +808,7 @@ function KvalitetBazeMerac({
           Kvalitet baze
         </h2>
         <span className="text-title font-bold tabular-nums text-foreground">
-          {kvalitet ? `${kvalitet.pct} %` : "—"}
+          {kvalitet ? formatPercentValue(kvalitet.pct) : "—"}
         </span>
       </div>
 
@@ -822,7 +823,7 @@ function KvalitetBazeMerac({
             {kvalitet.delovi.map((deo) => (
               <li key={deo.kljuc} title={`${deo.ima} od ${deo.od}`}>
                 {deo.naziv}{" "}
-                <span className="tabular-nums text-foreground">{deo.pct} %</span>
+                <span className="tabular-nums text-foreground">{formatPercentValue(deo.pct)}</span>
               </li>
             ))}
           </ul>
@@ -830,7 +831,7 @@ function KvalitetBazeMerac({
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-0.5">
               <p className="min-w-0 text-ui text-foreground">
                 <span className="font-bold tabular-nums text-foreground">
-                  +{sledece.dobitak} %
+                  +{formatPercentValue(sledece.dobitak)}
                 </span>{" "}
                 {DOPUNA[sledece.deo.kljuc].tekst(sledece.deo.fali)}
               </p>

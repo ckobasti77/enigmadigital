@@ -233,7 +233,9 @@ function Select<V extends string>({
       items={items}
       value={value}
       onValueChange={(v) => {
-        if (v !== null) onValueChange(v as V)
+        // Base UI javlja i ponovni izbor iste stavke; izvorni `<select>` tada
+        // ne javlja ništa, pa ni ovde nema promene (npr. upis iste temperature).
+        if (v !== null && v !== value) onValueChange(v as V)
       }}
       name={name}
       required={required}

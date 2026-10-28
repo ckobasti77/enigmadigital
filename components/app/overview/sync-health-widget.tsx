@@ -99,7 +99,7 @@ export function SyncHealthWidget({
         </ul>
         <ProjekatLink
           href="/settings?tab=integracije"
-          className="ml-auto inline-flex cursor-pointer items-center gap-1 text-meta font-medium text-accent-400 underline-offset-2 hover:underline"
+          className="ml-auto inline-flex cursor-pointer items-center gap-1 text-meta font-medium text-radnja underline-offset-2 hover:underline"
         >
           Podešavanja
           <ArrowUpRight className="size-3.5" aria-hidden />

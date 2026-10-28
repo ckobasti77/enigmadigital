@@ -15,7 +15,7 @@
 import type { LeadScore } from "@/convex/lib/leadScoring";
 import { pojasKvaliteta, POJAS_NATPISI } from "@/convex/lib/siteScore";
 import { rokKoraka } from "@/convex/lib/leadKorak";
-import { formatClockTime, formatDayRelative, localDayDiff } from "@/lib/format";
+import { formatClockTime, formatDayRelative, formatPercentValue, localDayDiff } from "@/lib/format";
 import { normalizeTemperatura, TEMPERATURE_LABEL } from "@/lib/temperature";
 import { leadSignalLabel, leadStageLabel } from "./lead-labels";
 import {
@@ -305,7 +305,7 @@ function phoneText(item: LeadRowItem): string {
     case "nije_moguce":
       return "nije moguće proceniti";
     case "procena":
-      return `${p.verovatnoca} %`;
+      return formatPercentValue(p.verovatnoca);
   }
 }
 

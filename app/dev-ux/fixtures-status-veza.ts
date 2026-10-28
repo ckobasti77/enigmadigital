@@ -16,7 +16,7 @@ import type { R } from "./fixtures-util";
  */
 
 /** Provajderi za koje server proverava podešavanje; u razvojnom prikazu je sve podešeno. */
-const SA_PODESAVANJEM = new Set(["meta_ig", "meta_fb", "threads", "youtube", "google_business"]);
+const SA_PODESAVANJEM = new Set(["meta_ig", "meta_fb", "threads", "youtube", "google_business", "openreply"]);
 
 export function redoviStatusa(
   veze: R<typeof api.connections.list>,

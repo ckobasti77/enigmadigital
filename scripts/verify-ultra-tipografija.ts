@@ -29,6 +29,12 @@ nalazi.push(...proveriCss("app/globals.css", procitaj(join(KOREN, "app/globals.c
 
 const fajlovi = fajloviKoda(["components", "app"]).filter((f) => !rel(f).startsWith("app/api/"));
 
+// Pod (T13): prazan ili pogrešan skup fajlova ne sme da prođe kao „čisto".
+if (fajlovi.length < 300) {
+  console.log(`verify:ultra-tipografija: pregledano samo ${fajlovi.length} fajlova (očekivano bar 300)`);
+  process.exit(1);
+}
+
 let mono = 0;
 for (const f of fajlovi) {
   const r = rel(f);

@@ -217,6 +217,9 @@ function CreateLookalikeAudienceDialogInner({
               }}
               disabled={submitting}
               required
+              // Sa imenom skriveno polje stoji uz okidač, pa poruka pregledača
+              // o obaveznom polju pokazuje na izbor, a ne na ugao ekrana.
+              name="seedAudienceId"
               placeholder="-- Izaberite izvornu publiku --"
               options={seedOptions.map((opt) => ({
                 value: opt.audienceId,

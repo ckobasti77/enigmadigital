@@ -94,7 +94,9 @@ export function TemperatureSelect({
       triggerClassName={(v) =>
         cn("font-semibold", TEMPERATURE_CHIP_CLASS[v ?? temp])
       }
-      className={className}
+      // Čip u redu činjenica, ne polje: širina po sadržaju (okidač je inače
+      // `w-full` i u redu koji se prelama zauzme ceo red).
+      className={cn("w-auto", className)}
     />
   );
 }

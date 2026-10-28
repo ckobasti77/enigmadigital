@@ -29,10 +29,15 @@ function probaZa(args: Record<string, unknown>): Proba {
     return {
       ...osnova,
       pogodjeni: [
-        { ...JESENJA, targetType: "campaign", status: "PAUSED", vrednost: 10.8, prag, uPauzi: false, cekaJosSati: null },
-        { ...PROLECNA, targetType: "campaign", status: "ACTIVE", vrednost: 5.64, prag, uPauzi: false, cekaJosSati: null },
+        { ...JESENJA, targetType: "campaign", status: "PAUSED", vrednost: 10.8, izmereno: true, prag, uPauzi: false, cekaJosSati: null },
+        { ...PROLECNA, targetType: "campaign", status: "ACTIVE", vrednost: 5.64, izmereno: true, prag, uPauzi: false, cekaJosSati: null },
+        // Bez ijednog rezultata: evaluator poredi celu potrošnju sa pragom, a
+        // ekran to piše kao „bez rezultata, potrošeno …" (T13).
+        ...(31.2 > prag
+          ? [{ ...PORUKE, targetType: "campaign" as const, status: "ACTIVE", vrednost: 31.2, izmereno: false, prag, uPauzi: false, cekaJosSati: null }]
+          : []),
       ],
-      najblizi: { naziv: JESENJA.naziv, vrednost: 10.8, procenatPraga: prag > 0 ? Math.round((10.8 / prag) * 100) : null, preko: 10.8 > prag },
+      najblizi: { naziv: JESENJA.naziv, vrednost: 10.8, izmereno: true, procenatPraga: prag > 0 ? Math.round((10.8 / prag) * 100) : null, preko: 10.8 > prag },
       ispodMinPrikaza: 1,
     };
   }
@@ -41,11 +46,11 @@ function probaZa(args: Record<string, unknown>): Proba {
       ...osnova,
       pogodjeni: (
         [
-          { ...PROLECNA, targetType: "campaign", status: "ACTIVE", vrednost: 0.25, prag, uPauzi: false, cekaJosSati: null },
-          { ...JESENJA, targetType: "campaign", status: "PAUSED", vrednost: 0.24, prag, uPauzi: false, cekaJosSati: null },
+          { ...PROLECNA, targetType: "campaign", status: "ACTIVE", vrednost: 0.25, izmereno: true, prag, uPauzi: false, cekaJosSati: null },
+          { ...JESENJA, targetType: "campaign", status: "PAUSED", vrednost: 0.24, izmereno: true, prag, uPauzi: false, cekaJosSati: null },
         ] satisfies Proba["pogodjeni"]
       ).filter((p) => p.vrednost > prag),
-      najblizi: { naziv: PROLECNA.naziv, vrednost: 0.25, procenatPraga: prag > 0 ? Math.round((0.25 / prag) * 100) : null, preko: 0.25 > prag },
+      najblizi: { naziv: PROLECNA.naziv, vrednost: 0.25, izmereno: true, procenatPraga: prag > 0 ? Math.round((0.25 / prag) * 100) : null, preko: 0.25 > prag },
       ispodMinPrikaza: 1,
     };
   }
@@ -54,7 +59,7 @@ function probaZa(args: Record<string, unknown>): Proba {
       ...osnova,
       ciljeva: 1,
       pogodjeni: [],
-      najblizi: { naziv: "Test Salon — Meta nalog", vrednost: 42.5, procenatPraga: prag > 0 ? Math.round((42.5 / prag) * 100) : null, preko: false },
+      najblizi: { naziv: "Test Salon — Meta nalog", vrednost: 42.5, izmereno: true, procenatPraga: prag > 0 ? Math.round((42.5 / prag) * 100) : null, preko: false },
       ispodMinPrikaza: 0,
     };
   }
@@ -62,7 +67,7 @@ function probaZa(args: Record<string, unknown>): Proba {
   return {
     ...osnova,
     pogodjeni: [],
-    najblizi: { naziv: PORUKE.naziv, vrednost: 1.06, procenatPraga: null, preko: false },
+    najblizi: { naziv: PORUKE.naziv, vrednost: 1.06, izmereno: true, procenatPraga: null, preko: false },
     ispodMinPrikaza: 0,
   };
 }

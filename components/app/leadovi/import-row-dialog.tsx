@@ -467,7 +467,7 @@ export function ImportRowDialog({
                   title={
                     readOnly
                       ? undefined
-                      : "Klikni za promenu temperature (Nova firma → Cold → Warm → Hot)"
+                      : "Klikni za promenu temperature (Nova firma → Hladno → Toplo → Vruće)"
                   }
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors shrink-0",
@@ -913,7 +913,7 @@ export function ImportRowDialog({
                     </label>
                     <Select
                       id="red-odluka"
-                      label="Odluka za red"
+                      label="Promeni odluku"
                       size="sm"
                       value={decision}
                       onValueChange={onDecisionChange}

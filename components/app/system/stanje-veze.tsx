@@ -96,7 +96,7 @@ export function RadnjaVeze({
       href={radnja.href}
       onClick={onNavigate}
       className={cn(
-        "touch-target inline-flex shrink-0 items-center rounded-sm font-medium text-accent-400 underline-offset-4 hover:underline",
+        "touch-target inline-flex shrink-0 items-center rounded-sm font-medium text-radnja underline-offset-4 hover:underline",
         className,
       )}
     >

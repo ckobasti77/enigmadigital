@@ -258,10 +258,12 @@ function NewHookVersionDialogForm({
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5 text-micro text-text-muted">
-              <span className="size-1.5 rounded-full bg-success" />
-              <span>Izmene oglasa su uključene i beleže se</span>
-            </div>
+            {/* Da li su izmene oglasa uključene na serveru ovde se ne zna, pa
+                se to i ne tvrdi (bez zelene tačke); server sam odbije izmenu
+                kad su isključene. Istorija radnji beleži svaku izmenu. */}
+            <p className="text-micro text-text-muted">
+              Svaka izmena se beleži u istoriji radnji.
+            </p>
           </div>
         </div>
 
