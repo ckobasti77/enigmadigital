@@ -8,7 +8,7 @@ export default function YouTubeAutomationsPage() {
       <PageHeader
         variant="module"
         description="Ključne reči u komentarima pokreću javan odgovor sa kanala ili moderaciju."
-        info="Jezičak „Log komentara“ pokazuje svaki obrađen komentar."
+        info="Jezičak „Dnevnik komentara“ pokazuje svaki obrađen komentar."
       />
 
       <div className="flex flex-1 flex-col gap-8">

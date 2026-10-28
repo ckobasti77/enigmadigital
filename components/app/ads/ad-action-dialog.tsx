@@ -28,6 +28,7 @@ import { formatMetric } from "@/convex/lib/metaAdsFormat";
 import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
 import { formatPercentValue } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { POJAM, STATUS_KAMPANJE, naziv } from "@/lib/recnik";
 
 const spendDef = resolveMetric("spend")!;
 
@@ -66,7 +67,7 @@ export interface AdActionDialogProps {
 
 const TARGET_TYPE_LABELS: Record<AdTargetType, string> = {
   campaign: "Kampanja",
-  adset: "Ad Set",
+  adset: POJAM.grupaOglasa,
   ad: "Oglas",
 };
 
@@ -354,13 +355,13 @@ function AdActionDialogInner({
   const getDialogTitle = () => {
     switch (actionType) {
       case "pause":
-        return `Pauziraj ${TARGET_TYPE_LABELS[targetType]}`;
+        return `Pauziraj: ${TARGET_TYPE_LABELS[targetType].toLowerCase()}`;
       case "resume":
-        return `Aktiviraj ${TARGET_TYPE_LABELS[targetType]}`;
+        return `Aktiviraj: ${TARGET_TYPE_LABELS[targetType].toLowerCase()}`;
       case "budget_change":
-        return `Promeni dnevni budžet (${TARGET_TYPE_LABELS[targetType]})`;
+        return `Promeni dnevni budžet (${TARGET_TYPE_LABELS[targetType].toLowerCase()})`;
       case "duplicate":
-        return "Dupliraj oglas (Nova Hook iteracija)";
+        return "Dupliraj oglas (nova verzija)";
     }
   };
 
@@ -384,7 +385,7 @@ function AdActionDialogInner({
         {/* Target Meta Context Banner */}
         <div className="rounded-lg border border-line bg-surface/60 p-3 text-xs space-y-1.5 font-sans">
           <div className="flex items-center justify-between">
-            <span className="text-text-muted">Meta Naziv:</span>
+            <span className="text-text-muted">Naziv u Meti:</span>
             <span className="font-semibold text-foreground truncate max-w-[220px]" title={effectiveName}>
               {effectiveName}
             </span>
@@ -399,7 +400,7 @@ function AdActionDialogInner({
                   effectiveStatus === "ACTIVE" ? "bg-success" : "bg-text-muted",
                 )}
               />
-              {effectiveStatus}
+              {naziv(STATUS_KAMPANJE, effectiveStatus)}
             </span>
           </div>
 
@@ -428,15 +429,15 @@ function AdActionDialogInner({
           <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3 text-xs leading-relaxed text-foreground">
             {actionType === "pause" ? (
               <p>
-                Ova akcija će odmah <strong>pauzirati</strong> prikazivanje ovog{" "}
-                {TARGET_TYPE_LABELS[targetType].toLowerCase()} na Meta platformi.
+                Ova akcija će odmah <strong>pauzirati</strong> prikazivanje na Meta platformi (
+                {TARGET_TYPE_LABELS[targetType].toLowerCase()}).
                 Današnja potrošnja do ovog trenutka iznosi{" "}
                 <strong className="text-warning">{formatMetric(effectiveSpendToday, spendDef, accountCurrency)}</strong>.
               </p>
             ) : (
               <p>
-                Ova akcija će <strong>aktivirati</strong> prikazivanje ovog{" "}
-                {TARGET_TYPE_LABELS[targetType].toLowerCase()} na Meta platformi.
+                Ova akcija će <strong>aktivirati</strong> prikazivanje na Meta platformi (
+                {TARGET_TYPE_LABELS[targetType].toLowerCase()}).
               </p>
             )}
           </div>
@@ -528,7 +529,7 @@ function AdActionDialogInner({
                 value={duplicateName}
                 onChange={(e) => setDuplicateName(e.target.value)}
                 className="text-xs"
-                placeholder="Kreativa Hook V2 (Kopija)"
+                placeholder="Kreativa V2 (kopija)"
                 disabled={loading}
               />
             </div>
@@ -536,8 +537,8 @@ function AdActionDialogInner({
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3 flex items-start gap-2 text-xs text-text-muted">
               <Info className="size-4 text-mod shrink-0 mt-0.5" />
               <p>
-                Duplirani oglas se automatski kreira u statusu{" "}
-                <strong className="text-foreground">PAUSED (Pauzirano)</strong>{" "}
+                Duplirani oglas se automatski pravi kao{" "}
+                <strong className="text-foreground">pauziran</strong>{" "}
                 kako bi se sprečila neželjena potrošnja pre finalnog pregleda.
               </p>
             </div>

@@ -35,6 +35,7 @@ import {
   type EngagementScale,
 } from "@/lib/channel-readiness";
 import { formatDate, formatNumber, pluralSr } from "@/lib/format";
+import { naziv, VRSTA_FB_OBJAVE } from "@/lib/recnik";
 import { useImageStatus } from "@/lib/use-image-status";
 import { cn } from "@/lib/utils";
 import { FbPostCommentsPanel } from "./fb-post-comments-panel";
@@ -54,24 +55,11 @@ function formatPostDate(timestamp: number): string {
 }
 
 /**
- * Meta's `status_type` in a word a person recognises.
- *
- * The raw values are things like `added_photos` and `shared_story`, which are
- * accurate and unreadable. Anything not in the list keeps its own name rather
- * than being flattened into "Objava" — a type we have not met before is
- * information, not noise.
+ * Meta's `status_type` in a word a person recognises (`VRSTA_FB_OBJAVE`).
+ * A type we have not met before shows as "Objava", never as the raw value.
  */
-const STATUS_LABELS: Record<string, string> = {
-  added_photos: "Slika",
-  added_video: "Video",
-  mobile_status_update: "Status",
-  shared_story: "Deljeno",
-  created_note: "Beleška",
-  published_story: "Objava",
-};
-
 function TypeBadge({ statusType }: { statusType: string }) {
-  const label = STATUS_LABELS[statusType] ?? statusType;
+  const label = naziv(VRSTA_FB_OBJAVE, statusType, "Objava");
   const Icon =
     statusType === "added_video"
       ? Film

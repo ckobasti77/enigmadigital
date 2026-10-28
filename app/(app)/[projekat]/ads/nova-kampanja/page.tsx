@@ -6,8 +6,8 @@ export default function NewCampaignPage() {
     <div className="flex w-full flex-1 flex-col gap-6">
       <PageHeader
         variant="module"
-        description="Kampanja, ad set i oglas u tri koraka; sve se kreira pauzirano."
-        info="Sve prolazi kroz validate_only proveru i kreira se pauzirano — pokretanje je zaseban potez."
+        description="Kampanja, grupa oglasa i oglas u tri koraka; sve se kreira pauzirano."
+        info="Sve prolazi kroz probnu proveru kod Mete i kreira se pauzirano — pokretanje je zaseban potez."
       />
 
       <div className="flex flex-1 flex-col">

@@ -40,7 +40,7 @@ export const MEDIA_TYPE_LABELS: Record<ThreadsPublishMediaType, string> = {
   TEXT: "Tekst",
   IMAGE: "Slika",
   VIDEO: "Video",
-  CAROUSEL: "Carousel",
+  CAROUSEL: "Album",
 };
 
 export const STATUS_LABELS: Record<ThreadsPublishStatus, string> = {

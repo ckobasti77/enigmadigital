@@ -21,6 +21,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { formatDateTime, formatNumber } from "@/lib/format";
+import { DOGADJAJ_KONVERZIJE, POJAM, naziv } from "@/lib/recnik";
 
 export function CapiSection() {
   // Ručno slanje događaja ka Meti sme samo vlasnik; ostali vide samo stanje.
@@ -49,14 +50,14 @@ export function CapiSection() {
       } else if (res.success) {
         setFeedback({
           tone: "success",
-          message: `Uspešno poslato ${res.sent} CAPI događaja.${res.rejected > 0 ? ` Odbijeno: ${res.rejected}.` : ""}`,
+          message: `Uspešno poslato događaja Meti: ${res.sent}.${res.rejected > 0 ? ` Odbijeno: ${res.rejected}.` : ""}`,
         });
       } else {
         if (res.reason === "missing_credentials") {
           setFeedback({
             tone: "warning",
             message:
-              "CAPI nije podešen. Podesi Meta piksel i CAPI token u Podešavanjima → Sajt i oglasi.",
+              "Slanje konverzija Meti nije podešeno. Podesi Meta piksel i pristupni token u Podešavanjima → Sajt i oglasi.",
           });
         } else {
           setFeedback({
@@ -67,7 +68,7 @@ export function CapiSection() {
       }
     } catch (err: unknown) {
       const msg =
-        err instanceof Error ? err.message : "Greška pri pokretanju CAPI slanja.";
+        err instanceof Error ? err.message : "Greška pri pokretanju slanja konverzija Meti.";
       setFeedback({ tone: "danger", message: msg });
     } finally {
       setDispatching(false);
@@ -88,7 +89,7 @@ export function CapiSection() {
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <CardTitle className="text-base font-semibold text-foreground">
-              Meta Conversions API (CAPI)
+              {POJAM.slanjeKonverzija}
             </CardTitle>
             {stats !== undefined && (
               <span
@@ -113,7 +114,7 @@ export function CapiSection() {
             )}
           </div>
           <CardDescription className="text-xs text-text-muted">
-            Server-side praćenje konverzija i preusmeravanja (/r/ linkovi i OpenReply) sa nultim curenjem PII-a.
+            Praćenje konverzija i preusmeravanja sa servera (/r/ linkovi i OpenReply) bez curenja ličnih podataka.
           </CardDescription>
         </div>
 
@@ -156,14 +157,14 @@ export function CapiSection() {
         {stats !== undefined && !isConfigured && (
           <FeedbackNote
             tone="warning"
-            title="Conversions API nije u potpunosti podešen"
+            title="Slanje konverzija Meti nije u potpunosti podešeno"
           >
             <p className="mt-0.5 text-xs text-text-muted">
               Događaji se bezbedno heširaju i čuvaju u bazi u statusu <strong>„na čekanju”</strong>.
-              Da bi se automatski slali ka Meta serveru, podesi{" "}
+              Da bi se automatski slali Meti, podesi{" "}
               <span className="font-semibold text-foreground">
                 {nedostaje
-                  .map((n) => (n === "piksel" ? "Meta piksel" : "CAPI token"))
+                  .map((n) => (n === "piksel" ? "Meta piksel" : "pristupni token"))
                   .join(" i ")}
               </span>{" "}
               u Podešavanjima → Sajt i oglasi.
@@ -253,7 +254,7 @@ export function CapiSection() {
                         {formatDateTime(item.eventTime * 1000)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 font-medium text-foreground">
-                        {item.eventName}
+                        {naziv(DOGADJAJ_KONVERZIJE, item.eventName)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-text-muted">
                         {item.sourceKind === "link_redirect"

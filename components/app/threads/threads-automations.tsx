@@ -62,6 +62,7 @@ import {
 } from "@/components/app/projekat-provider";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
 import { formatNumber, formatRelativeTime } from "@/lib/format";
+import { naziv, type Recnik } from "@/lib/recnik";
 import { cn } from "@/lib/utils";
 
 type AutomationDoc = FunctionReturnType<
@@ -76,6 +77,24 @@ type TriggerType = "reply_to_our_post" | "mention" | "keyword";
 type MatchType = "exact" | "contains";
 type ActionType = "public_reply" | "hide" | "ignore" | "approve_pending";
 
+/** Razlog iz dnevnika (stiže kao šifra ili kao rečenica sa servera); nepoznat razlog izlazi kao „Ostalo". */
+const RAZLOG_DNEVNIKA = {
+  "Simulirano u draft režimu (akcija nije poslata)": "Simulirano u probi, ništa nije poslato",
+  cooldown_active: "Ista osoba je već dobila odgovor u zadatom razmaku",
+  thread_limit_reached: "Dostignut najveći broj odgovora u ovoj niti",
+  daily_limit_reached: "Dostignut dnevni limit",
+  already_processed: "Već obrađeno",
+  connection_missing: "Threads nalog nije povezan",
+  token_decrypt_failed: "Veza sa Threads-om traži ponovno povezivanje",
+  quota_check_failed: "Nije moguće proveriti dnevnu kvotu",
+  quota_unreadable: "Nije moguće pročitati dnevnu kvotu",
+  quota_exhausted: "Dnevna kvota za odgovore je potrošena",
+  empty_reply_text: "Tekst odgovora je prazan",
+  job_creation_failed: "Slanje odgovora nije moglo da se zakaže",
+  api_returned_false: "Threads nije prihvatio radnju",
+  api_error: "Greška pri komunikaciji sa Threads-om",
+} as const satisfies Recnik;
+
 const LOG_STATUS_CONFIG: Record<
   string,
   { label: string; tone: string; description: string }
@@ -86,9 +105,9 @@ const LOG_STATUS_CONFIG: Record<
     description: "Poslat je stvarni javni odgovor na Threads",
   },
   draft_simulated: {
-    label: "Simulirano u skici",
+    label: "Simulirano u probi",
     tone: "border-mod-line bg-mod-soft text-mod font-semibold",
-    description: "Zabeleženo u logu bez slanja na Threads",
+    description: "Zabeleženo u dnevniku bez slanja na Threads",
   },
   rejected_limit: {
     label: "Odbijeno: dnevni limit",
@@ -96,7 +115,7 @@ const LOG_STATUS_CONFIG: Record<
     description: "Dostignut maksimalni dnevni broj odgovora za ovo pravilo",
   },
   rejected_cooldown: {
-    label: "Odbijeno: cooldown",
+    label: "Odbijeno: pauza za istu osobu",
     tone: "border-warning/40 bg-warning/10 text-warning font-semibold",
     description: "Korisnik je već primio odgovor unutar definisanog intervala",
   },
@@ -108,7 +127,7 @@ const LOG_STATUS_CONFIG: Record<
   failed: {
     label: "Neuspešno",
     tone: "border-danger/40 bg-danger/10 text-danger font-semibold",
-    description: "Greška pri izvršenju API poziva",
+    description: "Greška pri slanju na Threads",
   },
   skipped_no_match: {
     label: "Nema poklapanja",
@@ -224,11 +243,11 @@ export function ThreadsAutomations() {
           direktne poruke (DM). Automatizacije odgovaraju isključivo{" "}
           <strong className="text-foreground">javnim komentarom</strong> sa praćenim linkom.
           Zbog zaštite naloga od neželjene pošte (spam), sva pravila se podrazumevano kreiraju u{" "}
-          <code className="text-mod font-mono">draft</code> režimu simulacije.
+          režimu probe (simulacije).
         </div>
       </Card>
 
-      {/* ── Tabovi (Pravila / Log izvršenja) ─────────────────────────────── */}
+      {/* ── Tabovi (Pravila / Dnevnik) ─────────────────────────────── */}
       <TabNav
         tabs={[
           {
@@ -241,7 +260,7 @@ export function ThreadsAutomations() {
           },
           {
             id: "log",
-            label: logs === undefined ? "Log izvršenja" : `Log izvršenja (${logs.length})`,
+            label: logs === undefined ? "Dnevnik" : `Dnevnik (${logs.length})`,
             icon: Inbox,
           },
         ]}
@@ -318,9 +337,9 @@ export function ThreadsAutomations() {
       <ConfirmDialog
         open={pendingGoLive !== null}
         onOpenChange={(open) => !open && setPendingGoLive(null)}
-        title="Prebaci pravilo u UŽIVO (Live) režim"
-        description="Prelazak na režim 'Uživo' znači da će ovo pravilo automatski i javno objavljivati odgovore na Threads-u u ime vašeg povezanog naloga čim se prepoznaju zadate ključne reči. Da li ste sigurni?"
-        confirmLabel="Aktiviraj Uživo"
+        title="Prebaci pravilo u režim uživo"
+        description="Prelazak na režim uživo znači da će ovo pravilo automatski i javno objavljivati odgovore na Threads-u u ime vašeg povezanog naloga čim se prepoznaju zadate ključne reči. Da li ste sigurni?"
+        confirmLabel="Uključi uživo"
         busyLabel="Aktiviranje..."
         busy={busy}
         onConfirm={handleGoLiveConfirm}
@@ -377,7 +396,7 @@ function AutomationCard({
             {isDraft ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-mod-line bg-mod-soft px-2.5 py-0.5 text-micro font-semibold text-mod">
                 <FileText className="size-3" />
-                <span>Skica (simulacija)</span>
+                <span>Proba (simulacija)</span>
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 rounded-full border border-success/40 bg-success/10 px-2.5 py-0.5 text-micro font-semibold text-success">
@@ -426,7 +445,7 @@ function AutomationCard({
         <div className="mt-3 text-xs leading-relaxed text-text-muted">
           {isDraft ? (
             <p className="rounded-md bg-mod-soft px-2.5 py-1.5 border border-mod-line text-text-secondary">
-              ℹ️ <strong>Režim skice:</strong> Pravilo se ocenjuje i upisuje u log, ali se ništa ne šalje na Threads.
+              ℹ️ <strong>Režim probe:</strong> Pravilo se ocenjuje i upisuje u log, ali se ništa ne šalje na Threads.
             </p>
           ) : (
             <p className="rounded-md bg-success/5 px-2.5 py-1.5 border border-success/20 text-text-secondary">
@@ -473,11 +492,11 @@ function AutomationCard({
             <strong className="text-foreground">{formatNumber(item.dailyLimit)}</strong>
           </span>
           <span title="Pauza pre ponovnog odgovora istom autoru">
-            Cooldown:{" "}
+            Pauza za istu osobu:{" "}
             <strong className="text-foreground">{item.cooldownMinutesPerAuthor} min</strong>
           </span>
           <span title="Maksimalan broj odgovora u istoj niti">
-            Max po niti:{" "}
+            Najviše u jednoj niti:{" "}
             <strong className="text-foreground">{item.maxRepliesPerThread}</strong>
           </span>
         </div>
@@ -491,7 +510,7 @@ function AutomationCard({
                 onClick={onRequestLive}
                 className="h-7 text-xs font-semibold text-success border-success/30 hover:bg-success/10"
               >
-                Prebaci u Uživo
+                Prebaci uživo
               </Button>
             ) : (
               <Button
@@ -500,7 +519,7 @@ function AutomationCard({
                 onClick={onRequestDraft}
                 className="h-7 text-xs font-medium text-text-muted hover:text-foreground"
               >
-                Vrati u Skicu
+                Vrati u skicu
               </Button>
             )}
           </div>
@@ -536,17 +555,17 @@ function AutomationLogsTable({ logs }: { logs?: LogDoc[] }) {
           <TableHeader className="bg-surface-raised/40">
             <TableRow className="border-b border-line text-xs">
               <TableHead className="py-2.5 font-medium">Vreme</TableHead>
-              <TableHead className="py-2.5 font-medium">Korisnik / Odgovor</TableHead>
+              <TableHead className="py-2.5 font-medium">Korisnik / odgovor</TableHead>
               <TableHead className="py-2.5 font-medium">Ključna reč</TableHead>
               <TableHead className="py-2.5 font-medium">Status ishoda</TableHead>
-              <TableHead className="py-2.5 font-medium">Detalj / Greška</TableHead>
+              <TableHead className="py-2.5 font-medium">Detalj / greška</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="divide-y divide-line/40 text-xs">
             {logs.map((log) => {
               const statusCfg =
                 LOG_STATUS_CONFIG[log.status] ?? {
-                  label: log.status,
+                  label: "Ostalo",
                   tone: "border-line bg-surface text-text-muted",
                   description: "",
                 };
@@ -592,7 +611,7 @@ function AutomationLogsTable({ logs }: { logs?: LogDoc[] }) {
                     {log.errorMessage ? (
                       <span className="text-danger text-micro">{log.errorMessage}</span>
                     ) : log.reason ? (
-                      <span className="text-micro">{log.reason}</span>
+                      <span className="text-micro">{naziv(RAZLOG_DNEVNIKA, log.reason)}</span>
                     ) : (
                       "—"
                     )}
@@ -746,7 +765,7 @@ function AutomationEditorDialog({
     }
 
     if (isNaN(cd) || cd < 0) {
-      setErrorMsg("Cooldown mora biti 0 ili pozitivan broj.");
+      setErrorMsg("Pauza za istu osobu mora biti 0 ili pozitivan broj.");
       return;
     }
     if (isNaN(mThread) || mThread <= 0) {
@@ -821,7 +840,7 @@ function AutomationEditorDialog({
             {existing ? "Izmena pravila automatizacije" : "Novo pravilo automatizacije"}
           </DialogTitle>
           <DialogDescription>
-            Pravilo se kreira u bezbednom <code className="text-mod font-mono">draft</code> režimu za testiranje.
+            Pravilo se kreira u bezbednom režimu probe, za testiranje.
           </DialogDescription>
         </DialogHeader>
 
@@ -858,8 +877,8 @@ function AutomationEditorDialog({
                     onValueChange={(v) => setTrigger(v)}
                     options={[
                       { value: "reply_to_our_post", label: "Odgovor na našu objavu" },
-                      { value: "mention", label: "Spominjanje naloga (@mention)" },
-                      { value: "keyword", label: "Ključna reč u javnom sadržaju (keyword search)" },
+                      { value: "mention", label: "Spominjanje naloga" },
+                      { value: "keyword", label: "Ključna reč u javnom sadržaju" },
                     ]}
                   />
                 </div>
@@ -914,8 +933,8 @@ function AutomationEditorDialog({
                     value={matchType}
                     onValueChange={(v) => setMatchType(v)}
                     options={[
-                      { value: "contains", label: "Sadrži reč (contains)" },
-                      { value: "exact", label: "Tačno poklapanje (exact)" },
+                      { value: "contains", label: "Sadrži reč" },
+                      { value: "exact", label: "Tačno poklapanje" },
                     ]}
                   />
                 </div>
@@ -944,7 +963,7 @@ function AutomationEditorDialog({
 
                 <div className="flex items-center justify-between rounded-lg border border-line-soft bg-surface-raised/40 p-2.5">
                   <Label htmlFor="anyKw" className="text-xs text-foreground">
-                    Bilo koja reč (OR)
+                    Bilo koja reč
                   </Label>
                   <Switch
                     id="anyKw"
@@ -972,7 +991,7 @@ function AutomationEditorDialog({
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field
-                    label="Praćeni link za sajt (linkUrl)"
+                    label="Praćeni link za sajt"
                     hint="Biće automatski konvertovan u /r/ link"
                   >
                     {(props) => (
@@ -986,7 +1005,7 @@ function AutomationEditorDialog({
                     )}
                   </Field>
 
-                  <Field label="Topic tag (opciono)">
+                  <Field label="Tema (opciono)">
                     {(props) => (
                       <Input
                         {...props}
@@ -1002,7 +1021,7 @@ function AutomationEditorDialog({
 
             {/* Zaštitni limiti (§9) */}
             <FormGroup
-              title="Sigurnosni limiti i cooldown"
+              title="Sigurnosna ograničenja i pauza"
               description="Sprečavaju spam sankcije i prekomerno odgovaranje istim korisnicima"
             >
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -1023,7 +1042,7 @@ function AutomationEditorDialog({
                 </Field>
 
                 <Field
-                  label="Cooldown (minuti) *"
+                  label="Pauza za istu osobu (minuti) *"
                   hint="Pauza za istog autora"
                   required
                 >
@@ -1039,7 +1058,7 @@ function AutomationEditorDialog({
                 </Field>
 
                 <Field
-                  label="Max po niti *"
+                  label="Najviše u jednoj niti *"
                   hint="Limit po jednoj temi"
                   required
                 >

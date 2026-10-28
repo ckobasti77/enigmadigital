@@ -218,7 +218,7 @@ const EXTRA_SCREENS: ExtraScreen[] = [
   {
     href: "/openreply/automatizacije",
     module: "openreply",
-    title: "Automatizacije i DM log",
+    title: "Automatizacije i dnevnik poruka",
     range: false,
   },
   // YouTube automatizacije više nije top-level stavka nego podekran YouTube-a
@@ -252,13 +252,13 @@ const EXTRA_SCREENS: ExtraScreen[] = [
   {
     href: "/instagram/stories",
     module: "instagram",
-    title: "Priče (Stories)",
+    title: "Priče",
     range: false,
   },
   {
     href: "/instagram/inbox",
     module: "instagram",
-    title: "Poruke (Inbox)",
+    title: "Poruke",
     range: false,
   },
   {
@@ -517,7 +517,7 @@ export const channelTabs: Record<string, readonly ChannelTab[]> = {
     { href: "/instagram", label: "Pregled" },
     { href: "/instagram/publika", label: "Publika" },
     { href: "/instagram/stories", label: "Priče" },
-    { href: "/instagram/inbox", label: "Inbox" },
+    { href: "/instagram/inbox", label: "Poruke" },
     { href: "/instagram/komentari", label: "Komentari" },
     { href: "/instagram/objavi", label: "Nova objava" },
   ],

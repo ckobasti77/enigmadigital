@@ -751,7 +751,7 @@ function ImmediateSection({
           </p>
         ) : (
           <p className="text-xs text-text-muted">
-            Košta 50 jedinica kvote. Video ostaje i tamo gde je sada — plejlista
+            Troši deo dnevne kvote. Video ostaje i tamo gde je sada — plejlista
             ga ne premešta.
           </p>
         )}

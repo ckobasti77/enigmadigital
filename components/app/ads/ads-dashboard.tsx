@@ -55,10 +55,10 @@ const cpaDef = resolveMetric("costPerResult")!;
 const formatRoas = (v: number) => `${formatRatio(v)}x`;
 
 const DESCRIPTION =
-  "Potrošnja, rezultati i cena po rezultatu kroz kampanje, ad setove i oglase.";
+  "Potrošnja, rezultati i cena po rezultatu kroz kampanje, grupe oglasa i oglase.";
 
 const INFO =
-  "Klik na kampanju otvara hijerarhiju ad setova i oglasa, analizu video kreativa (Hook i Hold rate) i demografsku raspodelu. Poređenje je sa prethodnim periodom iste dužine.";
+  "Klik na kampanju otvara hijerarhiju grupa oglasa i oglasa, analizu video kreativa (zadržavanje prve 3 s i gledanje do kraja) i demografsku raspodelu. Poređenje je sa prethodnim periodom iste dužine.";
 
 function AdsHeader({ canCreate }: { canCreate: boolean }) {
   // Novu kampanju pravi samo vlasnik; ostali vide zaglavlje bez dugmeta.
@@ -177,7 +177,7 @@ export function AdsDashboard() {
           <div className="flex items-center gap-1.5 overflow-x-auto py-1">
             <span className="mr-1 inline-flex items-center gap-1 text-meta font-medium text-text-muted">
               <Pin className="size-3 fill-mod text-mod" aria-hidden />
-              <span>Pinovano:</span>
+              <span>Zakačeno:</span>
             </span>
             {pinnedBattles.map((b) => (
               <Chip
@@ -280,6 +280,7 @@ export function AdsDashboard() {
               <ChannelFocus
                 className="h-full"
                 label="Potrošnja"
+                mera="potrosnja"
                 value={mixedCurrencies ? undefined : report.totals.totalSpend}
                 format={(v: number) => formatMetric(v, spendDef, currency)}
                 delta={
@@ -327,8 +328,8 @@ export function AdsDashboard() {
               reason="Nijedna kampanja nema zabeležen rezultat u periodu."
             />
             <KpiTile
-              label="Prosečan CPA"
-              shortLabel="CPA"
+              label="Cena po rezultatu"
+              shortLabel="Cena po rez."
               icon={TrendingUp}
               value={mixedCurrencies ? undefined : report.totals.overallCpa}
               format={(v: number) => formatMetric(v, cpaDef, currency)}
@@ -355,8 +356,8 @@ export function AdsDashboard() {
             />
             {report.totals.hasConversionValue ? (
               <KpiTile
-                label="Prosečan ROAS"
-                shortLabel="ROAS"
+                label="Povraćaj na oglase"
+                shortLabel="Povraćaj"
                 mera="povracaj"
                 icon={BarChart3}
                 value={report.totals.overallRoas}
@@ -374,8 +375,8 @@ export function AdsDashboard() {
               />
             ) : (
               <KpiTile
-                label="Prosečan CTR"
-                shortLabel="CTR"
+                label="Stopa klikova"
+                shortLabel="Stopa klikova"
                 mera="stopa_klikova"
                 icon={BarChart3}
                 value={report.totals.overallCtr}

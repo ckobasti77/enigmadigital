@@ -37,6 +37,7 @@ import {
 } from "@/lib/channel-readiness";
 import { formatDate, formatNumber, pluralSr } from "@/lib/format";
 import { igMediaSrc } from "@/lib/ig-media";
+import { naziv, VRSTA_OBJAVE } from "@/lib/recnik";
 import { cn } from "@/lib/utils";
 import { CarouselSwiper } from "./carousel-swiper";
 import { PostCommentsPanel } from "./post-comments-panel";
@@ -72,7 +73,7 @@ function TypeBadge({ type }: { type: string }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-md bg-bg-950/80 px-2 py-0.5 text-micro font-semibold text-text-primary backdrop-blur-md">
       <Icon className="size-3 text-mod" aria-hidden />
-      {kind}
+      {naziv(VRSTA_OBJAVE, kind, "Objava")}
     </span>
   );
 }

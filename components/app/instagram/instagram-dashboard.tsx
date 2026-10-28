@@ -291,6 +291,7 @@ export function InstagramDashboard() {
         <>
           <ChannelFocus
             label="Pratioci"
+            mera="pratioci"
             value={cur.followersCount}
             format={formatNumber}
             delta={deltaPct(cur.followersCount, prev.followersCount)}

@@ -126,7 +126,7 @@ export function PostDetailView({ media, breakdowns }: PostDetailViewProps) {
             />
 
             <PostMetricCard
-              label="Doseg (Reach)"
+              label="Doseg"
               value={media.reach}
               state={getState("reach")}
               reason={getReason("reach")}
@@ -147,7 +147,7 @@ export function PostDetailView({ media, breakdowns }: PostDetailViewProps) {
 
             {isReels && (
               <PostMetricCard
-                label="Crosspost pregledi"
+                label="Pregledi sa povezanih profila"
                 value={media.crosspostedViews}
                 state={getState("crossposted_views")}
                 reason={getReason("crossposted_views")}

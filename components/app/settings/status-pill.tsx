@@ -1,20 +1,11 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { NAZIV_KANALA } from "@/lib/recnik";
 import type { Provider } from "@/convex/lib/providers";
 
 /** Display names for each integration, shared across the Settings surface. */
-export const PROVIDER_LABELS: Record<Provider, string> = {
-  ga4: "Google Analytics 4",
-  meta_ig: "Instagram",
-  meta_fb: "Facebook stranica",
-  meta_ads: "Meta Ads",
-  google_ads: "Google Ads",
-  youtube: "YouTube",
-  openreply: "OpenReply",
-  threads: "Threads",
-  leads: "Lead mašina",
-  google_business: "Google Business",
-};
+/** Nazivi kanala iz jednog izvora (`lib/recnik.ts`); deli ih i server. */
+export const PROVIDER_LABELS = NAZIV_KANALA as Readonly<Record<Provider, string>>;
 
 type Tone = "success" | "warning" | "danger" | "muted" | "accent";
 

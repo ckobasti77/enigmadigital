@@ -47,6 +47,7 @@ import {
 import { getUtf8ByteLength } from "@/convex/lib/orMessage";
 import { BUTTON_TITLE_MAX } from "@/convex/lib/orButtons";
 import { formatRelativeTime } from "@/lib/format";
+import { naziv, type Recnik } from "@/lib/recnik";
 import { cn } from "@/lib/utils";
 
 interface ChatViewProps {
@@ -54,6 +55,24 @@ interface ChatViewProps {
   onBack?: () => void;
   onOpenSettings: () => void;
 }
+
+/** Vrsta priloga u poruci, za prikaz. */
+const VRSTA_PRILOGA = {
+  image: "slika",
+  video: "video",
+  audio: "zvuk",
+  file: "fajl",
+  like_heart: "srce",
+} as const satisfies Recnik;
+
+/** Status poslate poruke, za oblačić. */
+const STATUS_PORUKE = {
+  sending: "Šalje se",
+  sent: "Poslato",
+  delivered: "Isporučeno",
+  seen: "Viđeno",
+  failed: "Nije poslato",
+} as const satisfies Recnik;
 
 const COMMON_EMOJIS = ["❤️", "👍", "🔥", "😂", "😮", "👏", "🙌", "😍"];
 
@@ -337,7 +356,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
               variant="ghost"
               size="icon"
               onClick={onOpenSettings}
-              title="Podešavanja inboxa (Ledolomci, meni profila, brzi odgovori)"
+              title="Podešavanja poruka (početna pitanja, meni profila, brzi odgovori)"
               className="size-8 text-muted-foreground hover:text-foreground"
             >
               <SlidersHorizontal className="size-4" />
@@ -482,7 +501,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                   <span>{formatRelativeTime(msg.sentAt)}</span>
                   {msg.editedAt && <span>(izmenjeno)</span>}
                   {isOurs && (
-                    <span title={msg.status}>
+                    <span title={naziv(STATUS_PORUKE, msg.status, "Poslato")}>
                       {msg.status === "seen" ? (
                         <CheckCheck className="size-3 text-info" />
                       ) : (
@@ -639,7 +658,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                   <div className="flex items-center gap-2">
                     <Paperclip className="size-3.5" />
                     <span>
-                      Prilog: <strong>{activeAttachment.type}</strong>
+                      Prilog: <strong>{naziv(VRSTA_PRILOGA, activeAttachment.type, "prilog")}</strong>
                       {activeAttachment.url && ` (${activeAttachment.url})`}
                     </span>
                   </div>
@@ -774,7 +793,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                   {t === "video" && <Play className="size-4 mb-1" />}
                   {t === "audio" && <FileText className="size-4 mb-1" />}
                   {t === "file" && <FileText className="size-4 mb-1" />}
-                  <span>{t === "file" ? "PDF" : t}</span>
+                  <span>{t === "file" ? "PDF" : naziv(VRSTA_PRILOGA, t, "prilog")}</span>
                 </button>
               ))}
             </div>

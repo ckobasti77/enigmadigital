@@ -185,13 +185,13 @@ export function InstagramDemographics() {
                       {/* 5.2 & 5.3 Države i Gradovi (Horizontalni rang) */}
                       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                         <DemographicsRankingList
-                          title="Top Države"
+                          title="Države"
                           subtitle="Geografska raspodela"
                           data={summary.countries}
                           isCountry={true}
                         />
                         <DemographicsRankingList
-                          title="Top Gradovi"
+                          title="Gradovi"
                           subtitle="Geografska raspodela"
                           data={summary.cities}
                           isCountry={false}

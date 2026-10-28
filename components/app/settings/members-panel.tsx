@@ -411,10 +411,10 @@ export function MembersPanel() {
           )}
 
           {meta?.inAllowlist && (
-            <FeedbackNote tone="warning" title="Adresa je na ALLOWED_EMAILS listi">
-              Uklanjanje je neće trajno zaustaviti: dok je adresa u toj listi, sme
-              ponovo da napravi nalog. Ukloni je iz ALLOWED_EMAILS da bi pristup
-              stvarno prestao.
+            <FeedbackNote tone="warning" title="Adresa je na listi dozvoljenih adresa">
+              Uklanjanje je neće trajno zaustaviti: dok je adresa na listi
+              dozvoljenih adresa na serveru, sme ponovo da napravi nalog. Neka je
+              programer ukloni sa te liste da bi pristup stvarno prestao.
             </FeedbackNote>
           )}
 

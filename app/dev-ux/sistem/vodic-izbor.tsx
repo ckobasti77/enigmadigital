@@ -14,9 +14,9 @@ const PERIODI = [
 
 const TEMPERATURE = [
   { value: "nova_firma", label: "Nova firma" },
-  { value: "cold", label: "Cold" },
-  { value: "warm", label: "Warm" },
-  { value: "hot", label: "Hot", disabled: false },
+  { value: "cold", label: "Hladno" },
+  { value: "warm", label: "Toplo" },
+  { value: "hot", label: "Vruće", disabled: false },
 ];
 
 const KANALI = [

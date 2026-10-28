@@ -64,7 +64,6 @@ export function QuotaWidget() {
     unitsRemaining,
     softLimit,
     repliesLeft,
-    deoProjekta,
     ukupno,
     projekata,
     obnovaU,
@@ -92,28 +91,17 @@ export function QuotaWidget() {
         <p className="flex items-center gap-2 text-sm text-foreground">
           <Gauge className={cn("size-4 shrink-0", ICON_TONES[tone])} aria-hidden />
           <span>
-            Potrošeno{" "}
+            Danas još oko{" "}
             <CountUp
-              value={unitsUsed}
+              value={repliesLeft}
               format={formatNumber}
               className="font-medium tabular-nums text-foreground"
             />{" "}
-            od{" "}
-            <span className="tabular-nums">
-              {formatNumber(shared ? deoProjekta : softLimit)}
-            </span>{" "}
-            jedinica danas
+            {pluralReplies(repliesLeft)}
             {shared && (
               <span className="text-text-muted">
                 {" "}
-                (deo ovog projekta) · svi projekti:{" "}
-                <span className="tabular-nums">
-                  {formatNumber(ukupno)}
-                </span>{" "}
-                od{" "}
-                <span className="tabular-nums">
-                  {formatNumber(softLimit)}
-                </span>
+                (dnevnu kvotu dele svi projekti)
               </span>
             )}
           </span>
@@ -127,15 +115,7 @@ export function QuotaWidget() {
                 ? `Deo dnevne YouTube kvote za ovaj projekat je potrošen. Odgovori se nastavljaju u ${resumesAt}.`
                 : `Kvota je potrošena. Odgovori se nastavljaju u ${resumesAt}.`}
           </FeedbackLine>
-        ) : tone === "normal" ? (
-          <p className="text-xs text-text-muted">
-            još oko{" "}
-            <span className="tabular-nums text-foreground">
-              {formatNumber(repliesLeft)}
-            </span>{" "}
-            {pluralReplies(repliesLeft)}
-          </p>
-        ) : (
+        ) : tone === "normal" ? null : (
           // Upozorenje stiže PRE nego što nastane problem: dok još ima
           // odgovora, ali ih je ostalo toliko malo da se dan neće izgurati.
           <FeedbackLine tone={tone === "danger" ? "danger" : "warning"}>

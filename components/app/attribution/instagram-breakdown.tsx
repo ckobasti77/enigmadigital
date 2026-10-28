@@ -52,7 +52,7 @@ export function InstagramBreakdown({
     },
     {
       id: "story",
-      name: "Instagram Story linkovi",
+      name: "Instagram linkovi iz priča",
       medium: "story",
       icon: Sparkles,
       sessions: totals.story.sessions,
@@ -78,11 +78,11 @@ export function InstagramBreakdown({
         <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-5 pb-3">
           <div>
             <p className="text-sm font-medium text-foreground">
-              Instagram atribucija po kanalima (UTM Medium)
+              Instagram atribucija po kanalima (po oznaci izvora)
             </p>
             <p className="mt-0.5 text-xs text-text-muted">
               Poređenje performansi OpenReply automatizacije sa organskim Bio i
-              Story linkovima.
+              linkovima iz priča.
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs tabular-nums text-text-muted">
@@ -137,8 +137,11 @@ export function InstagramBreakdown({
                           >
                             {ch.name}
                           </p>
-                          <p className="font-mono text-micro text-text-muted">
-                            utm_medium={ch.medium}
+                          <p className="text-micro text-text-muted">
+                            Oznaka izvora:{" "}
+                            <code className="font-mono">
+                              utm_medium={ch.medium}
+                            </code>
                           </p>
                         </div>
                       </div>

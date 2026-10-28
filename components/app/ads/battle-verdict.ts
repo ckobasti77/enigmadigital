@@ -83,18 +83,18 @@ export function evaluateHookBattle(
 
   // Branch 1: Insufficient statistical data across all versions
   if (eligible.length === 0) {
-    const razlog = `Nijedna verzija nije prešla statistički prag od ${formatNumber(thresholdImpressions)} impresija i ${thresholdClicks} klikova.`;
+    const razlog = `Nijedna verzija nije prešla statistički prag od ${formatNumber(thresholdImpressions)} prikaza i ${thresholdClicks} klikova.`;
     return {
       kind: "nedovoljno",
       leaderId: null,
       leader: null,
       runnerUp: null,
-      criterion: `Nedovoljno podataka — nijedna verzija nije prešla prag (${formatNumber(thresholdImpressions)} imp / ${thresholdClicks} klikova)`,
+      criterion: `Nedovoljno podataka — nijedna verzija nije prešla prag (${formatNumber(thresholdImpressions)} prikaza / ${thresholdClicks} klikova)`,
       criterionType: "INSUFFICIENT_DATA",
       verdict:
         "Uzorak je još uvek mali za donošenje pouzdanog zaključka. Sačekajte najmanje " +
         formatNumber(thresholdImpressions) +
-        " impresija i " +
+        " prikaza i " +
         thresholdClicks +
         " klikova po verziji pre gašenja ili preraspodele budžeta.",
       razlog,
@@ -129,11 +129,11 @@ export function evaluateHookBattle(
         leaderId: null,
         leader: null,
         runnerUp: null,
-        criterion: "CPA (Cena po rezultatu)",
+        criterion: "Cena po rezultatu",
         criterionType: "INSUFFICIENT_DATA",
         verdict:
-          "Nije moguće doneti odluku po CPA kriterijumu jer jedna od vodećih verzija nema definisan podatak o ceni po konverziji.",
-        razlog: "Nedostaje podatak o costPerResult na jednoj od verzija.",
+          "Nije moguće doneti odluku po ceni po rezultatu jer jedna od vodećih verzija nema definisan podatak o ceni po konverziji.",
+        razlog: "Nedostaje cena po rezultatu na jednoj od verzija.",
         eligibleCount: eligible.length,
         totalCount: versions.length,
         reliableMap,
@@ -161,11 +161,11 @@ export function evaluateHookBattle(
 
     let verdict = "";
     if (leaderHook !== undefined && runnerUpHook !== undefined && leaderHook > runnerUpHook) {
-      verdict = `${leader.displayName}: ${hookMultiplier}× veći hook rate u odnosu na ${runnerUp.displayName}, CPA ${formatPercent(cpaDiffPct / 100)} niži (${leaderCpaFmt} vs ${runnerUpCpaFmt}).`;
+      verdict = `${leader.displayName}: ${hookMultiplier}× veće zadržavanje prve 3 s u odnosu na ${runnerUp.displayName}, cena po rezultatu ${formatPercent(cpaDiffPct / 100)} niža (${leaderCpaFmt} naspram ${runnerUpCpaFmt}).`;
     } else {
       const runnerUpHookText =
         runnerUpHook !== undefined ? formatPercent(runnerUpHook) : "nedovoljno podataka";
-      verdict = `${leader.displayName}: Najbolji CPA sa ${leaderCpaFmt} (${formatPercent(cpaDiffPct / 100)} niže od ${runnerUp.displayName}). Iako ${runnerUp.displayName} ima veći Hook Rate (${runnerUpHookText}), ${leader.displayName} ostvaruje jeftinije konverzije.`;
+      verdict = `${leader.displayName}: najbolja cena po rezultatu sa ${leaderCpaFmt} (${formatPercent(cpaDiffPct / 100)} niže od ${runnerUp.displayName}). Iako ${runnerUp.displayName} ima veće zadržavanje prve 3 s (${runnerUpHookText}), ${leader.displayName} ostvaruje jeftinije konverzije.`;
     }
 
     // Recommendation for severe underperformers
@@ -180,7 +180,7 @@ export function evaluateHookBattle(
     );
 
     if (severeLosers.length > 0) {
-      recommendation = `Preporuka: Razmislite o pauziranju verzije ${severeLosers[0].displayName} radi uštede budžeta.`;
+      recommendation = `Preporuka: razmislite o pauziranju verzije ${severeLosers[0].displayName} radi uštede budžeta.`;
     }
 
     return {
@@ -189,7 +189,7 @@ export function evaluateHookBattle(
       leader,
       runnerUp,
       criterion:
-        "Najbolji CPA (jer ≥ 2 verzije sa stabilnim uzorkom imaju konverzije)",
+        "Najbolja cena po rezultatu (jer ≥ 2 verzije sa stabilnim uzorkom imaju konverzije)",
       criterionType: "CPA",
       verdict,
       recommendation,
@@ -219,9 +219,9 @@ export function evaluateHookBattle(
     let verdict = "";
     const leaderHookText = leaderHook !== undefined ? formatPercent(leaderHook) : "—";
     if (runnerUp && runnerUpHook !== undefined) {
-      verdict = `${leader.displayName}: Vodeći hook sa Hook Rate-om od ${leaderHookText} (${hookMultiplier}× iznad ${runnerUp.displayName}). Privlači najviše pažnje u prve 3 sekunde.`;
+      verdict = `${leader.displayName}: vodeća verzija sa zadržavanjem prve 3 s od ${leaderHookText} (${hookMultiplier}× iznad ${runnerUp.displayName}). Privlači najviše pažnje u prve 3 sekunde.`;
     } else {
-      verdict = `${leader.displayName}: Jedina verzija sa pouzdanim uzorkom (Hook Rate: ${leaderHookText}). Ostale verzije još uvek prikupljaju podatke.`;
+      verdict = `${leader.displayName}: jedina verzija sa pouzdanim uzorkom (zadržavanje prve 3 s: ${leaderHookText}). Ostale verzije još uvek prikupljaju podatke.`;
     }
 
     return {
@@ -230,7 +230,7 @@ export function evaluateHookBattle(
       leader,
       runnerUp,
       criterion:
-        "Najveći Hook Rate (manje od 2 verzije sa stabilnim uzorkom imaju konverzije)",
+        "Najveće zadržavanje prve 3 s (manje od 2 verzije sa stabilnim uzorkom imaju konverzije)",
       criterionType: "HOOK_RATE",
       verdict,
       eligibleCount: eligible.length,
@@ -252,9 +252,9 @@ export function evaluateHookBattle(
     if (runnerUp && runnerUp.ctr !== undefined) {
       const ctrMultiplier =
         runnerUp.ctr > 0 ? formatDecimal(leader.ctr / runnerUp.ctr) : formatDecimal(1);
-      verdict = `${leader.displayName}: Vodeći CTR sa ${leaderCtrText} (${ctrMultiplier}× iznad ${runnerUp.displayName}).`;
+      verdict = `${leader.displayName}: vodeća stopa klikova sa ${leaderCtrText} (${ctrMultiplier}× iznad ${runnerUp.displayName}).`;
     } else {
-      verdict = `${leader.displayName}: Najveći CTR (${leaderCtrText}).`;
+      verdict = `${leader.displayName}: najveća stopa klikova (${leaderCtrText}).`;
     }
 
     return {
@@ -262,7 +262,7 @@ export function evaluateHookBattle(
       leaderId: leader._id,
       leader,
       runnerUp,
-      criterion: "Najveći CTR (statični oglasi / bez video zadržavanja)",
+      criterion: "Najveća stopa klikova (statični oglasi / bez video zadržavanja)",
       criterionType: "HOOK_RATE",
       verdict,
       eligibleCount: eligible.length,
@@ -278,7 +278,7 @@ export function evaluateHookBattle(
     runnerUp: null,
     criterion: "Nedovoljno podataka",
     criterionType: "INSUFFICIENT_DATA",
-    verdict: "Nijedna verzija nema podatke o video pregledima ili CTR-u.",
+    verdict: "Nijedna verzija nema podatke o video pregledima ni o stopi klikova.",
     razlog: "Nedostaju metrike za statističko poređenje verzija.",
     eligibleCount: eligible.length,
     totalCount: versions.length,

@@ -84,7 +84,7 @@ export function AgeGenderHeatTable({
                 : "text-text-muted hover:text-foreground",
             )}
           >
-            Impresije
+            Prikazi
           </button>
           <button
             type="button"
@@ -96,7 +96,7 @@ export function AgeGenderHeatTable({
                 : "text-text-muted hover:text-foreground",
             )}
           >
-            CTR
+            Stopa klikova
           </button>
           <button
             type="button"

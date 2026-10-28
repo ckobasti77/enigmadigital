@@ -24,6 +24,7 @@ import { Arrive, ArrivalScope } from "@/components/motion/arrive";
 import { EmptyState } from "@/components/app/empty-state";
 import { formatDate, formatNumber, pluralSr } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { naziv, VRSTA_OBJAVE } from "@/lib/recnik";
 import { EngagementBadge } from "@/components/app/system/channel-focus";
 import {
   engagementRate,
@@ -59,7 +60,7 @@ function formatPostDate(timestamp: string | null): string {
 function TypeBadge({ type }: { type: string }) {
   return (
     <span className="inline-flex items-center rounded-md bg-bg-950/85 px-2 py-0.5 text-micro font-semibold text-text-primary backdrop-blur-md">
-      {type}
+      {naziv(VRSTA_OBJAVE, type)}
     </span>
   );
 }

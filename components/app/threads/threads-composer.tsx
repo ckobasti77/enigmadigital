@@ -72,7 +72,7 @@ import {
   ObjavljujesKao,
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
-import { NBSP, formatDecimal, formatNumber } from "@/lib/format";
+import { NBSP, formatDecimal, formatNumber, pluralSr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type PickedFile = {
@@ -528,7 +528,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
           {/* 1. Izbor tipa objave */}
           <FormGroup
             title="Tip objave"
-            description="Izaberi format koji odgovara sadržaju (tekst, slika, video ili carousel)"
+            description="Izaberi format koji odgovara sadržaju (tekst, slika, video ili album)"
           >
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {(["TEXT", "IMAGE", "VIDEO", "CAROUSEL"] as const).map((type) => {
@@ -564,7 +564,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
           {/* 2. Tekst objave sa UTF-8 bajt brojačem (§4.2) */}
           <FormGroup
             title="Tekst objave"
-            description="Tekst objave na Threads-u (do 500 UTF-8 bajtova; emoji zauzimaju više bajtova)"
+            description="Tekst objave na Threads-u (do 500 znakova; emoji zauzimaju više mesta)"
           >
             <Field
               label="Sadržaj teksta"
@@ -580,11 +580,11 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
                   )}
                 >
                   {isTextOverLimit
-                    ? `${Math.abs(textBytesLeft)} bajtova preko limita`
-                    : `${textBytesLeft} / ${TEXT_MAX_BYTES} bajtova preostalo`}
+                    ? `${Math.abs(textBytesLeft)} ${pluralSr(Math.abs(textBytesLeft), "znak", "znaka", "znakova")} preko ograničenja`
+                    : `još ${textBytesLeft} ${pluralSr(textBytesLeft, "znak", "znaka", "znakova")}`}
                 </span>
               }
-              error={isTextOverLimit ? "Tekst objave premašuje maksimalnih 500 UTF-8 bajtova." : null}
+              error={isTextOverLimit ? "Tekst objave premašuje ograničenje od 500 znakova (emoji zauzimaju više mesta)." : null}
             >
               {(props) => (
                 <Textarea
@@ -603,7 +603,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
               <div className="mt-3 flex items-center justify-between rounded-lg border border-line-soft bg-surface-raised/40 p-3">
                 <div className="flex flex-col">
                   <Label htmlFor="autoPublishText" className="text-xs font-semibold text-foreground">
-                    Automatsko objavljivanje (auto_publish_text)
+                    Brzo objavljivanje
                   </Label>
                   <span className="text-micro text-text-muted">
                     Preskače kreiranje posebnog kontejnera za brže slanje čistog teksta
@@ -626,7 +626,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
                   ? "Slika (maks 8 MB, JPEG/PNG)"
                   : mediaType === "VIDEO"
                     ? "Video (maks 1 GB, MP4/MOV)"
-                    : `Carousel slajdovi (${files.length}/${CAROUSEL_MAX_ITEMS}, min ${CAROUSEL_MIN_ITEMS})`
+                    : `Slajdovi albuma (${files.length}/${CAROUSEL_MAX_ITEMS}, min ${CAROUSEL_MIN_ITEMS})`
               }
               description="Mediji se proveravaju u pregledaču pre uploada"
             >
@@ -701,7 +701,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
                       ? "Izaberi sliku sa računara"
                       : mediaType === "VIDEO"
                         ? "Izaberi video sa računara"
-                        : "Dodaj slike ili video snimke u carousel"}
+                        : "Dodaj slike ili video snimke u album"}
                   </span>
                 </button>
               )}
@@ -709,7 +709,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
               {/* Alt tekst za medije (§4.2) */}
               <div className="mt-4">
                 <Field
-                  label="Alt tekst za osobe sa oštećenim vidom (alt_text)"
+                  label="Opis slike za osobe sa oštećenim vidom"
                   hint="Opis sadržaja slike ili videa (do 1000 karaktera)"
                   error={altText.length > ALT_TEXT_MAX_CHARS ? "Alt tekst premašuje 1000 karaktera." : null}
                 >
@@ -728,7 +728,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
               <div className="mt-3 flex items-center justify-between rounded-lg border border-line-soft bg-surface-raised/40 p-3">
                 <div className="flex flex-col">
                   <Label htmlFor="isSpoilerMedia" className="text-xs font-semibold text-foreground">
-                    Označi medij kao spoiler (is_spoiler_media)
+                    Označi medij kao spoiler
                   </Label>
                   <span className="text-micro text-text-muted">
                     Zamućuje medij dok korisnik ne dodirne objavu
@@ -746,11 +746,11 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
           {/* 4. Opcije samo za TEXT: Link prilog i Anketa */}
           {mediaType === "TEXT" && (
             <FormGroup
-              title="Prilozi teksta (Link / Anketa)"
+              title="Prilozi teksta (link i anketa)"
               description="Dozvoljeno isključivo uz čisto tekstualne objave"
             >
               <Field
-                label="Prilog linka (link_attachment)"
+                label="Prilog sa linkom"
                 hint="Odredišni URL koji se prikazuje kao kartica sa pregledom"
               >
                 {(props) => (
@@ -770,7 +770,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
                   <div className="flex items-center gap-2">
                     <Radio className="size-4 text-mod" aria-hidden="true" />
                     <Label htmlFor="hasPollToggle" className="text-xs font-semibold text-foreground">
-                      Dodaj anketu (poll_attachment)
+                      Dodaj anketu
                     </Label>
                   </div>
                   <Switch
@@ -835,13 +835,13 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
           {/* 5. Napredna podešavanja objave (§4.2) */}
           <FormGroup
             title="Podešavanja vidljivosti i interakcije"
-            description="Kontrola ko sme da odgovara, tag teme, citiranje i geo-gating"
+            description="Kontrola ko sme da odgovara, tema, citiranje i ograničenje po državama"
           >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {/* Reply control */}
               <div className="space-y-1.5">
                 <Label htmlFor="replyControlSelect" className="text-xs font-medium text-text-muted">
-                  Ko sme da odgovara (reply_control)
+                  Ko sme da odgovara
                 </Label>
                 <Select<ReplyControl>
                   id="replyControlSelect"
@@ -849,7 +849,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
                   value={replyControl}
                   onValueChange={(v) => setReplyControl(v)}
                   options={[
-                    { value: "everyone", label: "Svi (everyone)" },
+                    { value: "everyone", label: "Svi" },
                     { value: "accounts_you_follow", label: "Nalozi koje pratiš" },
                     { value: "mentioned_only", label: "Samo spomenuti nalozi" },
                     { value: "parent_post_author_only", label: "Samo autor roditeljske objave" },
@@ -860,7 +860,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
 
               {/* Topic tag */}
               <Field
-                label="Tema (topic_tag)"
+                label="Tema"
                 hint="1–50 karaktera, bez tačke (.) i znaka (&)"
               >
                 {(props) => (
@@ -876,22 +876,22 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
 
               {/* Quote post id */}
               <Field
-                label="Citiraj objavu (quote_post_id)"
-                hint="ID objave na Threads-u koju citiraš"
+                label="Citiraj objavu"
+                hint="Oznaka objave na Threads-u koju citiraš"
               >
                 {(props) => (
                   <Input
                     {...props}
                     value={quotePostId}
                     onChange={(e) => setQuotePostId(e.target.value)}
-                    placeholder="Threads Media ID"
+                    placeholder="Oznaka objave na Threads-u"
                   />
                 )}
               </Field>
 
               {/* Geo gating */}
               <Field
-                label="Ograniči po državama (allowlisted_country_codes)"
+                label="Ograniči po državama"
                 hint="ISO kodovi razdvojeni zarezom, npr. RS, BA, ME"
               >
                 {(props) => (
@@ -905,15 +905,15 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
               </Field>
             </div>
 
-            {/* Prekidači za Ghost post, Odobravanje odgovora, Cross-share */}
+            {/* Prekidači za objavu koja nestaje, odobravanje odgovora i deljenje u priču */}
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="flex items-center justify-between rounded-lg border border-line-soft bg-surface-raised/40 p-3">
                 <div className="flex flex-col pr-2">
                   <Label htmlFor="ghostPost" className="text-xs font-semibold text-foreground">
-                    Ghost objava
+                    Nestaje posle 24 h
                   </Label>
                   <span className="text-micro text-text-muted">
-                    Samoarhivira se nakon 24h
+                    Objava se sama sklanja posle 24 sata
                   </span>
                 </div>
                 <Switch
@@ -942,10 +942,10 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
               <div className="flex items-center justify-between rounded-lg border border-line-soft bg-surface-raised/40 p-3">
                 <div className="flex flex-col pr-2">
                   <Label htmlFor="crossIg" className="text-xs font-semibold text-foreground">
-                    IG Story deljenje
+                    Instagram priča
                   </Label>
                   <span className="text-micro text-text-muted">
-                    Cross-share na Instagram Story
+                    Podeli i u Instagram priču
                   </span>
                 </div>
                 <Switch
@@ -960,10 +960,10 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
               <div className="mt-2 flex items-center justify-between rounded-lg border border-line-soft bg-surface-raised/40 p-3">
                 <div className="flex flex-col">
                   <Label htmlFor="crossDarkMode" className="text-xs font-semibold text-foreground">
-                    Tamna tema za Story stiker (crossreshare_to_ig_dark_mode)
+                    Tamna tema za stiker u priči
                   </Label>
                   <span className="text-micro text-text-muted">
-                    Prikazuje Threads karticu u tamnom režimu na Story-ju
+                    Prikazuje Threads karticu u tamnom režimu u priči
                   </span>
                 </div>
                 <Switch

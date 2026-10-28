@@ -95,9 +95,9 @@ type TemperaturaType = "nova_firma" | "cold" | "warm" | "hot";
 
 const TEMPERATURA_OPCIJE: SelectOption<TemperaturaType>[] = [
   { value: "nova_firma", label: "Nova firma" },
-  { value: "cold", label: "Cold" },
-  { value: "warm", label: "Warm" },
-  { value: "hot", label: "Hot" },
+  { value: "cold", label: "Hladno" },
+  { value: "warm", label: "Toplo" },
+  { value: "hot", label: "Vruće" },
 ];
 
 /** Boja okidača po temperaturi (ista kao ranije na izvornom izboru). */
@@ -197,7 +197,7 @@ const TEMP_CONFIG: Record<
     badgeClass: "border-line-soft text-text-muted bg-surface",
   },
   cold: {
-    label: "Cold",
+    label: "Hladno",
     rowBg: "var(--temp-cold-row)",
     hoverBg: "var(--temp-cold-row-hover)",
     borderColor: "var(--temp-cold)",
@@ -205,7 +205,7 @@ const TEMP_CONFIG: Record<
     badgeClass: "border-[var(--temp-cold)]/40 text-temp-cold-ink bg-[var(--temp-cold-bg)]",
   },
   warm: {
-    label: "Warm",
+    label: "Toplo",
     rowBg: "var(--temp-warm-row)",
     hoverBg: "var(--temp-warm-row-hover)",
     borderColor: "var(--temp-warm)",
@@ -213,7 +213,7 @@ const TEMP_CONFIG: Record<
     badgeClass: "border-[var(--temp-warm)]/40 text-temp-warm-ink bg-[var(--temp-warm-bg)]",
   },
   hot: {
-    label: "Hot",
+    label: "Vruće",
     rowBg: "var(--temp-hot-row)",
     hoverBg: "var(--temp-hot-row-hover)",
     borderColor: "var(--temp-hot)",
@@ -1542,15 +1542,15 @@ export function ImportReviewTable({
               <div className="pt-2 border-t border-line-soft space-y-1 text-xs">
                 <div className="text-micro font-medium text-text-muted mb-1">Raspodela temperature:</div>
                 <div className="flex justify-between text-micro">
-                  <span className="text-temp-hot-ink font-medium">Hot (Vrelo):</span>
+                  <span className="text-temp-hot-ink font-medium">Vruće:</span>
                   <span className="font-semibold text-foreground">{countHot}</span>
                 </div>
                 <div className="flex justify-between text-micro">
-                  <span className="text-temp-warm-ink font-medium">Warm (Toplo):</span>
+                  <span className="text-temp-warm-ink font-medium">Toplo:</span>
                   <span className="font-semibold text-foreground">{countWarm}</span>
                 </div>
                 <div className="flex justify-between text-micro">
-                  <span className="text-temp-cold-ink font-medium">Cold (Hladno):</span>
+                  <span className="text-temp-cold-ink font-medium">Hladno:</span>
                   <span className="font-semibold text-foreground">{countCold}</span>
                 </div>
                 <div className="flex justify-between text-micro">

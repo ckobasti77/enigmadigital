@@ -209,7 +209,7 @@ export function PublishPreview({
         ) : (
           <p className="inline-flex items-center gap-1.5 text-xs text-text-muted">
             <Clock className="size-3.5" aria-hidden />
-            Story nestaje posle 24 h i nema opis.
+            Priča nestaje posle 24 h i nema opis.
           </p>
         )}
       </div>

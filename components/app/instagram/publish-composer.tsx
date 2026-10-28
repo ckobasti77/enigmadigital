@@ -694,7 +694,7 @@ function PublishComposerForm() {
                 title="Fajl"
                 description={
                   kind === "CAROUSEL"
-                    ? "Redosled na listi je redosled u carousel-u — prevuci ili koristi strelice."
+                    ? "Redosled na listi je redosled u albumu — prevuci ili koristi strelice."
                     : undefined
                 }
               >
@@ -921,7 +921,7 @@ function PublishComposerForm() {
                     {/* 1. Označavanje naloga */}
                     <div className="space-y-2">
                       <Label className="text-xs font-medium text-foreground">
-                        Označavanje naloga (@user_tags)
+                        Označavanje naloga
                       </Label>
                       <p className="text-xs text-text-muted">
                         {kind === "IMAGE"
@@ -1025,7 +1025,7 @@ function PublishComposerForm() {
                         htmlFor="ig-location-id"
                         className="text-xs font-medium text-foreground"
                       >
-                        Lokacija (Facebook Page ID)
+                        Lokacija (ID Facebook stranice)
                       </Label>
                       <Input
                         id="ig-location-id"
@@ -1040,7 +1040,7 @@ function PublishComposerForm() {
                         Instagram traži <strong>ID Facebook stranice</strong>{" "}
                         fizičke lokacije (mesta, lokala ili biznisa), a ne
                         slobodan tekst. ID možete pronaći u URL adresi stranice ili
-                        u odeljku „O stranici“ (Page ID).
+                        u odeljku „O stranici“.
                       </p>
                     </div>
 
@@ -1111,7 +1111,7 @@ function PublishComposerForm() {
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <p className="text-xs font-semibold text-foreground">
-                              Probni Reel (Trial Reel)
+                              Probni Reel
                             </p>
                             <p className="text-xs leading-relaxed text-text-muted">
                               Probni Reel se prvo prikazuje samo publici koja vas
@@ -1129,7 +1129,7 @@ function PublishComposerForm() {
                         {trialEnabled && (
                           <div className="space-y-1.5 border-t border-line-soft pt-2">
                             <Label className="text-xs text-text-muted">
-                              Strategija diplomiranja (Graduation Strategy)
+                              Strategija diplomiranja
                             </Label>
                             <ToggleGroup
                               value={[trialGraduationStrategy]}
@@ -1150,7 +1150,7 @@ function PublishComposerForm() {
                                 disabled={busy}
                                 className="flex-1 rounded-md! px-3 text-xs text-text-secondary aria-pressed:text-mod data-pressed:text-mod"
                               >
-                                Ručno (MANUAL)
+                                Ručno
                               </ToggleGroupItem>
                               <ToggleGroupItem
                                 value="SS_PERFORMANCE"
@@ -1158,7 +1158,7 @@ function PublishComposerForm() {
                                 disabled={busy}
                                 className="flex-1 rounded-md! px-3 text-xs text-text-secondary aria-pressed:text-mod data-pressed:text-mod"
                               >
-                                Po uspehu (SS_PERFORMANCE)
+                                Po uspehu
                               </ToggleGroupItem>
                             </ToggleGroup>
                             <p className="text-micro text-text-muted">

@@ -100,7 +100,7 @@ export function TargetingSearchDialog({
       <DialogPopup className="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden p-6 gap-4 bg-surface border-line">
         <DialogHeader className="flex flex-col gap-1 pb-2 border-b border-line">
           <DialogTitle className="text-base font-bold text-foreground">
-            Istraživanje ciljanja (Targeting Search)
+            Istraživanje ciljanja
           </DialogTitle>
           <DialogDescription className="text-xs text-text-muted">
             Pregled dostupnih Meta interesovanja, lokacija i procenjenih veličina publike (samo za čitanje).

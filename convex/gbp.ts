@@ -54,7 +54,7 @@ export const gbpAuthorizeUrl = projekatAction({
       throw new ConvexError({
         code: "invalid",
         message:
-          "Čeka Google Business OAuth konfiguraciju — dodaj GOOGLE_BUSINESS_CLIENT_ID i GOOGLE_BUSINESS_CLIENT_SECRET u Convex env promenljive.",
+          "Povezivanje sa Google Business-om još nije podešeno na serveru.",
       });
     }
 
@@ -132,7 +132,7 @@ export const completeOAuthFromCallback = action({
       throw new ConvexError({
         code: "invalid",
         message:
-          "Čeka Google Business OAuth konfiguraciju — dodaj GOOGLE_BUSINESS_CLIENT_ID i GOOGLE_BUSINESS_CLIENT_SECRET u Convex env promenljive.",
+          "Povezivanje sa Google Business-om još nije podešeno na serveru.",
       });
     }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePrecica } from "@/components/app/use-precica";
 import {
   Suspense,
   useCallback,
@@ -389,19 +390,20 @@ function Breadcrumb({ screen }: { screen: ReturnType<typeof resolveScreen> }) {
   );
 }
 
-/** Otvara komandnu paletu klikom — parnjak globalnom ⌘K prečicom. */
+/** Otvara komandnu paletu klikom — parnjak globalnoj prečici (Ctrl K / Cmd K). */
 function CommandTrigger() {
+  const precica = usePrecica("K");
   return (
     <button
       type="button"
       onClick={() => window.dispatchEvent(new CustomEvent(COMMAND_EVENT))}
       aria-label="Komandna paleta"
-      title="Komandna paleta (⌘K)"
+      title={`Komandna paleta (${precica})`}
       className="hover-lift inline-flex size-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-transparent text-text-muted transition-colors hover:text-foreground md:h-8 md:w-auto md:border-line md:px-2.5"
     >
       <Search className="size-5 md:size-4" />
       <kbd className="hidden font-sans text-micro font-medium lg:inline">
-        ⌘K
+        {precica}
       </kbd>
     </button>
   );

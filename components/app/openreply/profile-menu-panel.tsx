@@ -297,7 +297,7 @@ function ProfileMenuForm({
         <section className="space-y-3 rounded-xl border border-line bg-surface/50 p-3.5">
           <SectionHead
             icon={MessageCircleQuestion}
-            title="Ledolomci"
+            title="Početna pitanja"
             count={`${iceBreakers.length}/${ICE_BREAKERS_MAX}`}
           />
           <p className="text-xs text-text-muted">
@@ -582,7 +582,7 @@ function PublishState({
   if (!igConnected) {
     return (
       <StatusStrip tone="danger">
-        Instagram nalog nije povezan, pa ledolomci i meni ne mogu da se objave.{" "}
+        Instagram nalog nije povezan, pa početna pitanja i meni ne mogu da se objave.{" "}
         <ProjekatLink
           href="/settings"
           className="text-mod underline-offset-4 hover:underline"
@@ -627,7 +627,7 @@ function PublishState({
       <span className="text-foreground">
         {formatRelativeTime(config.publishedAt)}
       </span>
-      . Ledolomci i meni se vide samo u aplikaciji na telefonu, ne i na
+      . Početna pitanja i meni se vide samo u aplikaciji na telefonu, ne i na
       Instagramu za računar.
     </StatusStrip>
   );

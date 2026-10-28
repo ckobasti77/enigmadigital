@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { usePrecica } from "@/components/app/use-precica";
 import { FeedbackLine } from "@/components/app/feedback";
 import { LinkChip, type LinkChipVrsta } from "@/components/app/link-chip";
 import { PhoneConfidence } from "./phone-confidence";
@@ -61,6 +62,11 @@ function Section({
       {children}
     </section>
   );
+}
+
+/** „Ctrl Enter" na Windowsu, „⌘ Enter" na Macu (prečica čuva belešku). */
+function PrecicaBeleske() {
+  return <span className="text-micro text-text-muted">{usePrecica("Enter")}</span>;
 }
 
 function Empty({ children }: { children: ReactNode }) {
@@ -442,7 +448,7 @@ export function LeadExpandedRow({
               >
                 {saving ? "Upisujem…" : "Sačuvaj belešku"}
               </Button>
-              <span className="text-micro text-text-muted">Ctrl+Enter</span>
+              <PrecicaBeleske />
               {noteState && (
                 <FeedbackLine tone={noteState.tone}>{noteState.text}</FeedbackLine>
               )}

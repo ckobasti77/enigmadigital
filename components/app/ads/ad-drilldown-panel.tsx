@@ -12,6 +12,7 @@ import { MeraIliCrtica, RAZLOG, razlogFrekvencije } from "./nepoznata-mera";
 import { HourlyChart } from "./hourly-chart";
 import { AdPreviewDialog } from "./ad-preview-dialog";
 import { TabNav, TabPanel } from "@/components/app/tab-nav";
+import { NazivMere } from "@/components/app/system/naziv-mere";
 import { formatDecimal, formatNumber, formatPercent, formatRatio } from "@/lib/format";
 import { deriveRate } from "@/convex/lib/metaAdsCatalog";
 import { cn } from "@/lib/utils";
@@ -253,7 +254,7 @@ export function AdDrilldownPanel({
 
           {searchImpressionShare !== undefined && (
             <span className="inline-flex items-center rounded-full border border-mod-line bg-mod-soft px-2.5 py-0.5 text-xs font-semibold text-mod">
-              Impression Share: {formatPercent(searchImpressionShare)}
+              Udeo u pretrazi: {formatPercent(searchImpressionShare)}
             </span>
           )}
 
@@ -293,7 +294,7 @@ export function AdDrilldownPanel({
             <div className="border-b border-line-soft px-5 py-3">
               <div className="flex items-center justify-between">
                 <p className="text-micro font-medium heading-caps text-text-muted">
-                  Video Funnel &amp; Zadržavanje pažnje
+                  Gledanje videa i zadržavanje pažnje
                 </p>
                 <span className="text-micro text-text-muted">Metrike video kreative</span>
               </div>
@@ -301,7 +302,7 @@ export function AdDrilldownPanel({
 
             <div className="grid grid-cols-2 divide-x divide-line-soft border-b border-line-soft bg-surface-raised/40">
               <div className="p-4 text-center sm:text-left">
-                <span className="text-xs text-text-muted">Hook Rate (3s / Impresije)</span>
+                <span className="text-xs text-text-muted"><NazivMere mera="zadrzavanje_3s" /></span>
                 {(() => {
                   const hookRate = deriveRate(videoFunnel.video3s, videoFunnel.impressions);
                   return (
@@ -322,7 +323,7 @@ export function AdDrilldownPanel({
               </div>
 
               <div className="p-4 text-center sm:text-left">
-                <span className="text-xs text-text-muted">Hold Rate (ThruPlay / 3s)</span>
+                <span className="text-xs text-text-muted"><NazivMere mera="gledanje_do_kraja" /></span>
                 {(() => {
                   const holdRate = deriveRate(videoFunnel.thruplay, videoFunnel.video3s);
                   return (
@@ -435,14 +436,14 @@ export function AdDrilldownPanel({
             </div>
 
             <div className="rounded-lg border border-line bg-surface/50 p-3">
-              <span className="text-xs text-text-muted">Impresije</span>
+              <span className="text-xs text-text-muted"><NazivMere mera="prikazi" /></span>
               <p className="mt-1 text-lg font-bold tabular-nums text-foreground">
                 {formatNumber(coreMetrics.impressions)}
               </p>
             </div>
 
             <div className="rounded-lg border border-line bg-surface/50 p-3">
-              <span className="text-xs text-text-muted">CTR (Svi klikovi)</span>
+              <span className="text-xs text-text-muted"><NazivMere mera="stopa_klikova" /></span>
               <p className="mt-1 text-lg font-bold tabular-nums text-mod">
                 <MeraIliCrtica
                   value={coreMetrics.ctr}
@@ -467,14 +468,14 @@ export function AdDrilldownPanel({
             </div>
 
             <div className="rounded-lg border border-line bg-surface/50 p-3">
-              <span className="text-xs text-text-muted">Rezultati (Konverzije)</span>
+              <span className="text-xs text-text-muted">Rezultati (konverzije)</span>
               <p className="mt-1 text-lg font-bold tabular-nums text-foreground">
                 {coreMetrics.results !== undefined ? formatNumber(coreMetrics.results) : "—"}
               </p>
             </div>
 
             <div className="rounded-lg border border-line bg-surface/50 p-3">
-              <span className="text-xs text-text-muted">CPA (Cena / rez.)</span>
+              <span className="text-xs text-text-muted"><NazivMere mera="cena_po_rezultatu" /></span>
               <p className="mt-1 text-lg font-bold tabular-nums text-foreground">
                 {coreMetrics.costPerResult !== undefined ? formatMetric(coreMetrics.costPerResult, cpaDef, currency) : "—"}
               </p>
@@ -482,14 +483,14 @@ export function AdDrilldownPanel({
 
             {coreMetrics.hasConversionValue ? (
               <div className="rounded-lg border border-line bg-surface/50 p-3">
-                <span className="text-xs text-text-muted">ROAS</span>
+                <span className="text-xs text-text-muted"><NazivMere mera="povracaj" /></span>
                 <p className="mt-1 text-lg font-bold tabular-nums text-success">
                   {coreMetrics.roas !== undefined ? `${formatRatio(coreMetrics.roas)}x` : "—"}
                 </p>
               </div>
             ) : (
               <div className="rounded-lg border border-line bg-surface/50 p-3">
-                <span className="text-xs text-text-muted">CPC</span>
+                <span className="text-xs text-text-muted"><NazivMere mera="cena_po_kliku" /></span>
                 <p className="mt-1 text-lg font-bold tabular-nums text-foreground">
                   <MeraIliCrtica
                     value={coreMetrics.cpc}
@@ -501,7 +502,7 @@ export function AdDrilldownPanel({
             )}
 
             <div className="rounded-lg border border-line bg-surface/50 p-3">
-              <span className="text-xs text-text-muted">CPM</span>
+              <span className="text-xs text-text-muted"><NazivMere mera="cena_1000_prikaza" /></span>
               <p className="mt-1 text-lg font-bold tabular-nums text-foreground">
                 <MeraIliCrtica
                   value={coreMetrics.cpm}

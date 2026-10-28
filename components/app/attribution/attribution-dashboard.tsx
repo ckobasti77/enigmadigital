@@ -124,8 +124,9 @@ export function AttributionDashboard() {
                     </p>
                   </>
                 )}
-                <p className="font-mono text-meta text-text-muted">
-                  utm_medium=openreply-dm
+                <p className="text-meta text-text-muted">
+                  Oznaka izvora:{" "}
+                  <code className="font-mono">utm_medium=openreply-dm</code>
                 </p>
               </div>
             }
@@ -226,7 +227,7 @@ export function AttributionDashboard() {
                     <span>ukupnih konverzija sa IG</span>
                   </div>
                   <div className="mt-auto mb-3 text-micro text-text-muted">
-                    Bio: {formatNumber(report.totals.bio.sessions)} · Story:{" "}
+                    Bio: {formatNumber(report.totals.bio.sessions)} · Priča:{" "}
                     {formatNumber(report.totals.story.sessions)}
                   </div>
                 </div>

@@ -83,7 +83,7 @@ export function PostReelsPerformance({
         />
 
         <PostMetricCard
-          label="Crosspost pregledi"
+          label="Pregledi sa povezanih profila"
           value={crosspostedViews}
           unit="number"
           state={crosspostedViewsState}

@@ -30,6 +30,8 @@ import {
   type AdActionType,
 } from "./ad-action-dialog";
 import { MeraIliCrtica, RAZLOG, razlogFrekvencije } from "./nepoznata-mera";
+import { InfoMere } from "@/components/app/system/naziv-mere";
+import { CILJ_KAMPANJE, STATUS_KAMPANJE, naziv } from "@/lib/recnik";
 
 export type CampaignRow = {
   _id: Id<"adCampaigns">;
@@ -96,36 +98,6 @@ function compare(a: CampaignRow, b: CampaignRow, { key, dir }: Sort): number {
     c = String(av ?? "").localeCompare(String(bv ?? ""), "sr-Latn");
   }
   return dir === "asc" ? c : -c;
-}
-
-function formatObjective(objective?: string): string {
-  if (!objective) return "Kampanja";
-  switch (objective) {
-    case "OUTCOME_LEADS":
-    case "LEADS":
-      return "Leads";
-    case "OUTCOME_SALES":
-    case "SALES":
-      return "Sales";
-    case "OUTCOME_TRAFFIC":
-    case "TRAFFIC":
-      return "Traffic";
-    case "OUTCOME_AWARENESS":
-    case "AWARENESS":
-      return "Awareness";
-    case "OUTCOME_ENGAGEMENT":
-    case "ENGAGEMENT":
-      return "Engagement";
-    case "OUTCOME_APP_PROMOTION":
-    case "APP_PROMOTION":
-      return "App Promo";
-    case "SEARCH":
-      return "Search";
-    case "PERFORMANCE_MAX":
-      return "PMax";
-    default:
-      return objective.replace("OUTCOME_", "").toLowerCase();
-  }
 }
 
 function formatFreshness(syncedAt?: number, syncPriority?: "hot" | "cold"): string {
@@ -354,25 +326,32 @@ export function CampaignsTable({
                 </TableHead>
 
                 <TableHead className="text-right text-text-muted min-w-28">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("costPerResult")}
-                    className="group ml-auto flex items-center gap-1.5 font-medium hover:text-foreground transition-colors"
-                  >
-                    <span>CPA / ROAS</span>
-                    {renderSortIcon("costPerResult")}
-                  </button>
+                  <div className="ml-auto flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("costPerResult")}
+                      className="group flex items-center gap-1.5 font-medium hover:text-foreground transition-colors"
+                    >
+                      <span>Cena po rezultatu / povraćaj</span>
+                      {renderSortIcon("costPerResult")}
+                    </button>
+                    <InfoMere mera="cena_po_rezultatu" />
+                    <InfoMere mera="povracaj" />
+                  </div>
                 </TableHead>
 
                 <TableHead className="text-right text-text-muted min-w-20">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("ctr")}
-                    className="group ml-auto flex items-center gap-1.5 font-medium hover:text-foreground transition-colors"
-                  >
-                    <span>CTR</span>
-                    {renderSortIcon("ctr")}
-                  </button>
+                  <div className="ml-auto flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("ctr")}
+                      className="group flex items-center gap-1.5 font-medium hover:text-foreground transition-colors"
+                    >
+                      <span>Stopa klikova</span>
+                      {renderSortIcon("ctr")}
+                    </button>
+                    <InfoMere mera="stopa_klikova" />
+                  </div>
                 </TableHead>
 
                 <TableHead className="text-right text-text-muted min-w-20">
@@ -387,7 +366,7 @@ export function CampaignsTable({
                 </TableHead>
 
                 <TableHead className="pr-5 text-right text-text-muted min-w-32">
-                  <span>Akcije & Ad setovi</span>
+                  <span>Radnje · Grupe oglasa</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -419,7 +398,8 @@ export function CampaignsTable({
                               "mt-1 size-2 rounded-full shrink-0",
                               row.status === "ACTIVE" ? "bg-success" : "bg-text-muted",
                             )}
-                            aria-label={`Status: ${row.status}`}
+                            role="img"
+                            aria-label={`Status: ${naziv(STATUS_KAMPANJE, row.status, "nepoznat").toLowerCase()}`}
                           />
 
                           <div className="min-w-0">
@@ -453,7 +433,7 @@ export function CampaignsTable({
                             <div className="mt-1 flex flex-wrap items-center gap-2 text-micro text-text-muted">
                               <span className="inline-flex items-center gap-1 rounded bg-surface px-1.5 py-0.5 text-text-secondary">
                                 <Target className="size-2.5 text-mod" />
-                                {formatObjective(row.objective)}
+                                {naziv(CILJ_KAMPANJE, row.objective, "Kampanja")}
                               </span>
                               <span className="inline-flex items-center gap-1 tabular-nums">
                                 <Clock className="size-2.5" />
@@ -574,7 +554,7 @@ export function CampaignsTable({
                             </div>
                           ) : jeGoogle ? (
                             <span className="text-micro text-text-muted px-1">
-                              read-only
+                              Samo pregled
                             </span>
                           ) : null}
 
@@ -587,7 +567,7 @@ export function CampaignsTable({
                             )}
                           >
                             <span className="tabular-nums text-micro">
-                              {row.adSetsCount} {row.adSetsCount === 1 ? (row.provider === "google_ads" ? "grupa" : "set") : (row.provider === "google_ads" ? "grupa" : "setova")}
+                              {row.adSetsCount} {row.adSetsCount % 10 >= 2 && row.adSetsCount % 10 <= 4 && (row.adSetsCount % 100 < 12 || row.adSetsCount % 100 > 14) ? "grupe" : "grupa"}
                             </span>
                             <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
                           </div>

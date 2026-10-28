@@ -116,7 +116,7 @@ export function HourlyChart({
                         color="var(--color-chart-1)"
                       />
                       <TooltipRow
-                        label="Impresije"
+                        label="Prikazi"
                         value={formatNumber(p.impressions)}
                       />
                       <TooltipRow

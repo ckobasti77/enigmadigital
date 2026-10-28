@@ -123,7 +123,7 @@ export function RetentionDashboard() {
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div className="flex flex-col gap-1 text-xs">
             <p className="font-semibold text-foreground">
-              Privatnost i pragovi (Thresholding)
+              Privatnost i pragovi
             </p>
             <p className="text-text-secondary">
               Google je primenio pragove privatnosti na {data.thresholdedCount}{" "}
@@ -175,7 +175,7 @@ export function RetentionDashboard() {
               <div className="flex items-center gap-2">
                 <LineChartIcon className="h-4 w-4 text-text-muted" />
                 <h3 className="text-sm font-semibold text-foreground">
-                  Krive zadržavanja korisnika (Retencija)
+                  Krive zadržavanja korisnika
                 </h3>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -298,7 +298,7 @@ export function RetentionDashboard() {
         <Card className="flex flex-col overflow-hidden shadow-card ring-line">
           <div className="flex flex-col gap-1 border-b border-line px-6 py-4">
             <h3 className="text-sm font-semibold text-foreground">
-              Kohortna matrica (Nedeljni pregled)
+              Kohortna matrica (nedeljni pregled)
             </h3>
             <p className="text-xs text-muted-foreground">
               Red je kohorta po nedelji prve sesije; ćelija je procenat i broj povratnih korisnika.
@@ -310,7 +310,7 @@ export function RetentionDashboard() {
               <thead>
                 <tr className="border-b border-line bg-muted/40 text-meta text-muted-foreground">
                   <th className="py-3 pl-6 pr-3 font-semibold uppercase tracking-wider">
-                    Kohorta (Početak)
+                    Kohorta (početak)
                   </th>
                   <th className="py-3 px-3 text-right font-semibold uppercase tracking-wider">
                     Korisnici

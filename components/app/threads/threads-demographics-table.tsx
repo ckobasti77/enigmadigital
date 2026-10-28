@@ -241,7 +241,7 @@ export function ThreadsDemographicsTable({
             Tabelarni prikaz
           </p>
           <h2 className="mt-1 text-base font-semibold text-foreground">
-            Top Države ({countryRows.length})
+            Države ({countryRows.length})
           </h2>
 
           <div className="mt-4 max-h-80 overflow-y-auto">
@@ -286,7 +286,7 @@ export function ThreadsDemographicsTable({
             Tabelarni prikaz
           </p>
           <h2 className="mt-1 text-base font-semibold text-foreground">
-            Top Gradovi ({cityRows.length})
+            Gradovi ({cityRows.length})
           </h2>
 
           <div className="mt-4 max-h-80 overflow-y-auto">

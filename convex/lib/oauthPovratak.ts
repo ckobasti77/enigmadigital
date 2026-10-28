@@ -29,7 +29,7 @@ export type OAuthProvider = keyof typeof SEGMENT;
 
 export const OAUTH_NIJE_PODESEN = {
   code: "oauth_nije_podesen",
-  message: "Povezivanje nije podešeno: na serveru nedostaje OAUTH_CALLBACK_ORIGIN.",
+  message: "Povezivanje još nije podešeno na serveru: nedostaje adresa za povratak.",
 } as const;
 
 export const POVRATAK_ODBIJEN = {
@@ -58,7 +58,7 @@ export function oauthCallbackOrigin():
   try {
     url = new URL(raw);
   } catch {
-    return { ok: false, poruka: "OAUTH_CALLBACK_ORIGIN nije ispravna adresa." };
+    return { ok: false, poruka: "Adresa za povratak posle povezivanja na serveru nije ispravna." };
   }
   const host = url.hostname.toLowerCase();
   const protokolOk =
@@ -73,7 +73,7 @@ export function oauthCallbackOrigin():
   ) {
     return {
       ok: false,
-      poruka: "OAUTH_CALLBACK_ORIGIN mora biti samo https://<domen>, bez putanje.",
+      poruka: "Adresa za povratak posle povezivanja na serveru mora biti samo https://<domen>, bez putanje.",
     };
   }
   return { ok: true, origin: url.origin, host };

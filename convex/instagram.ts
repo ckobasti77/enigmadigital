@@ -303,7 +303,7 @@ export const getOAuthUrl = projekatAction({
     if (!clientId) {
       throw new ConvexError({
         code: "invalid",
-        message: "Čeka Meta app — dodaj INSTAGRAM_APP_ID/SECRET u env",
+        message: "Povezivanje Instagrama još nije podešeno na serveru.",
       });
     }
 
@@ -370,7 +370,7 @@ async function exchangeCodeAndConnect(
     if (!appId || !appSecret) {
       throw new ConvexError({
         code: "invalid",
-        message: "Čeka Meta app — dodaj INSTAGRAM_APP_ID/SECRET u env",
+        message: "Povezivanje Instagrama još nije podešeno na serveru.",
       });
     }
 

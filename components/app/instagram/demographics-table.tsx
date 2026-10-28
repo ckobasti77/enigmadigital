@@ -187,7 +187,7 @@ export function DemographicsTableView({
             Tabelarni prikaz
           </p>
           <h2 className="mt-1 text-lg font-semibold text-foreground">
-            Top Države ({countryRows.length})
+            Države ({countryRows.length})
           </h2>
 
           <div className="mt-4 max-h-96 overflow-y-auto">
@@ -224,7 +224,7 @@ export function DemographicsTableView({
             Tabelarni prikaz
           </p>
           <h2 className="mt-1 text-lg font-semibold text-foreground">
-            Top Gradovi ({cityRows.length})
+            Gradovi ({cityRows.length})
           </h2>
 
           <div className="mt-4 max-h-96 overflow-y-auto">

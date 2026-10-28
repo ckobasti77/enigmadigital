@@ -113,16 +113,16 @@ export function EvidenceMeter({
                     ? "Kopija čeka aktivaciju"
                     : isReliable
                       ? "Statistički pouzdan uzorak"
-                      : "Mali uzorak — Rano za zaključak"}
+                      : "Mali uzorak — rano za zaključak"}
                 </PopoverTitle>
               </div>
               <PopoverDescription className="mt-2 text-xs leading-relaxed text-text-muted">
                 {isPending ? (
                   <>
-                    Ova verzija oglasa je kreirana u pauziranom stanju (PAUSED).
+                    Ova verzija oglasa je napravljena pauzirana.
                     Nakon što je aktivirate u Meta Ads Manageru ili komandnom
-                    centru, ovde će se automatski prikazivati prikupljene
-                    impresije, Hook Rate i konverzije.
+                    centru, ovde će se automatski prikazivati prikupljeni
+                    prikazi, zadržavanje prve 3 s i konverzije.
                   </>
                 ) : isReliable ? (
                   <>
@@ -130,7 +130,7 @@ export function EvidenceMeter({
                     <strong className="text-foreground">
                       {formatNumber(thresholdImpressions)}
                     </strong>{" "}
-                    impresija i{" "}
+                    prikaza i{" "}
                     <strong className="text-foreground">
                       {thresholdClicks}
                     </strong>{" "}
@@ -148,7 +148,7 @@ export function EvidenceMeter({
 
             <div className="mt-3 space-y-2 rounded-md border border-line-soft bg-surface/50 p-2.5 text-xs tabular-nums">
               <div className="flex items-center justify-between">
-                <span className="text-text-muted">Impresije:</span>
+                <span className="text-text-muted">Prikazi:</span>
                 <span
                   className={cn(
                     "font-semibold",
@@ -177,7 +177,7 @@ export function EvidenceMeter({
 
             {!isReliable && (
               <p className="mt-2.5 text-micro leading-normal text-text-muted italic border-t border-line-soft pt-2">
-                Pravilo poštenja: Verzije ispod praga se ne krunišu kao lideri
+                Pravilo poštenja: verzije ispod praga se ne krunišu kao lideri
                 kako se ne bi donosile lažne preuranjene odluke.
               </p>
             )}
@@ -205,7 +205,7 @@ export function EvidenceMeter({
             />
           </div>
           <span className="text-micro tabular-nums text-text-muted shrink-0 w-12 text-right">
-            {formatNumber(impressions)} imp
+            {formatNumber(impressions)} prik.
           </span>
         </div>
 

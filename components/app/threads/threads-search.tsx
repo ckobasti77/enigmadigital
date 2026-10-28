@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { formatNumber, formatRelativeTime } from "@/lib/format";
+import { naziv, VRSTA_OBJAVE } from "@/lib/recnik";
 import type {
   LookupProfileResult,
   SearchKeywordResult,
@@ -298,8 +299,8 @@ function ThreadsSearchForm() {
                       value={searchType}
                       onValueChange={(v) => setSearchType(v)}
                       options={[
-                        { value: "RECENT", label: "Najnovije (RECENT)" },
-                        { value: "TOP", label: "Najpopularnije (TOP)" },
+                        { value: "RECENT", label: "Najnovije" },
+                        { value: "TOP", label: "Najpopularnije" },
                       ]}
                     />
                   </div>
@@ -314,8 +315,8 @@ function ThreadsSearchForm() {
                       value={searchMode}
                       onValueChange={(v) => setSearchMode(v)}
                       options={[
-                        { value: "KEYWORD", label: "Ključna reč (KEYWORD)" },
-                        { value: "TAG", label: "Topic Tag (TAG)" },
+                        { value: "KEYWORD", label: "Ključna reč" },
+                        { value: "TAG", label: "Tema" },
                       ]}
                     />
                   </div>
@@ -331,17 +332,17 @@ function ThreadsSearchForm() {
                       onValueChange={(v) => setMediaTypeFilter(v === "all" ? "" : v)}
                       options={[
                         { value: "all", label: "Svi tipovi medija" },
-                        { value: "TEXT", label: "Tekstualne objave (TEXT)" },
-                        { value: "IMAGE", label: "Slike (IMAGE)" },
-                        { value: "VIDEO", label: "Video zapisi (VIDEO)" },
-                        { value: "CAROUSEL_ALBUM", label: "Karoseli (CAROUSEL)" },
+                        { value: "TEXT", label: "Tekstualne objave" },
+                        { value: "IMAGE", label: "Slike" },
+                        { value: "VIDEO", label: "Video zapisi" },
+                        { value: "CAROUSEL_ALBUM", label: "Albumi" },
                       ]}
                     />
                   </div>
 
                   <div>
                     <label className="mb-1 block text-micro uppercase tracking-wider text-text-muted">
-                      Autor (@username)
+                      Autor (@nalog)
                     </label>
                     <Input
                       type="text"
@@ -386,7 +387,7 @@ function ThreadsSearchForm() {
                           <div className="flex items-center justify-between text-xs">
                             <div className="flex items-center gap-1.5 font-medium text-foreground">
                               <AtSign className="size-3.5 text-mod" />
-                              <span>{item.username ?? "threads_user"}</span>
+                              <span>{item.username ?? "Nepoznat nalog"}</span>
                             </div>
                             {item.timestamp && (
                               <span className="text-micro text-text-muted">
@@ -419,7 +420,7 @@ function ThreadsSearchForm() {
                             ) : (
                               <FileText className="size-3" />
                             )}
-                            {item.mediaType ?? "TEXT"}
+                            {naziv(VRSTA_OBJAVE, item.mediaType ?? "TEXT")}
                           </span>
 
                           {item.permalink && (

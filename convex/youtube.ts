@@ -498,7 +498,7 @@ export const youtubeAuthorizeUrl = projekatAction({
       throw new ConvexError({
         code: "invalid",
         message:
-          "Čeka Google OAuth konfiguraciju — dodaj YOUTUBE_CLIENT_ID i YOUTUBE_CLIENT_SECRET u Convex env promenljive.",
+          "Povezivanje YouTube-a još nije podešeno na serveru.",
       });
     }
 
@@ -582,7 +582,7 @@ export const completeOAuthFromCallback = action({
       throw new ConvexError({
         code: "invalid",
         message:
-          "Čeka Google OAuth konfiguraciju — dodaj YOUTUBE_CLIENT_ID i YOUTUBE_CLIENT_SECRET u Convex env promenljive.",
+          "Povezivanje YouTube-a još nije podešeno na serveru.",
       });
     }
 

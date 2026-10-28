@@ -38,11 +38,11 @@ export function PostDetailHeader({
   const isStory = upperType.includes("STORY");
 
   const typeLabel = isStory
-    ? "Story"
+    ? "Priča"
     : isReels
       ? "Reels"
       : isCarousel
-        ? `Karusel (${slides?.length || 0})`
+        ? `Album (${slides?.length || 0})`
         : "Feed objava";
 
   const TypeIcon = isStory

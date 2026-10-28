@@ -59,8 +59,8 @@ export const PUBLISH_KINDS: PublishKind[] = [
 export const KIND_LABELS: Record<PublishKind, string> = {
   IMAGE: "Slika",
   REEL: "Reel",
-  STORY: "Story",
-  CAROUSEL: "Carousel",
+  STORY: "Priča",
+  CAROUSEL: "Album",
 };
 
 export const STATUS_LABELS: Record<PublishStatus, string> = {

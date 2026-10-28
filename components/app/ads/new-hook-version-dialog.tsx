@@ -122,7 +122,7 @@ function NewHookVersionDialogForm({
     }
     const letters = ["A", "B", "C", "D", "E", "F"];
     const nextLetter = letters[Math.min(existingCount, letters.length - 1)];
-    return `Hook ${nextLetter}`;
+    return `Verzija ${nextLetter}`;
   }, [effectiveHookLabel, existingCount]);
 
   // Form states initialized purely on mount
@@ -153,7 +153,7 @@ function NewHookVersionDialogForm({
     const trimmedHeadline = headline.trim();
 
     if (!trimmedHookLabel) {
-      setErrorMessage("Unesite oznaku hook-a (npr. Hook D — Socijalni dokaz).");
+      setErrorMessage("Unesite oznaku verzije (npr. Verzija D — Socijalni dokaz).");
       return;
     }
     if (!trimmedAdName) {
@@ -161,13 +161,13 @@ function NewHookVersionDialogForm({
       return;
     }
     if (!trimmedPrimaryText) {
-      setErrorMessage("Primarni tekst (hook tekst) ne sme biti prazan.");
+      setErrorMessage("Primarni tekst ne sme biti prazan.");
       return;
     }
 
     if (isLimitReached) {
       setErrorMessage(
-        `Dostignut je maksimalan broj kopija po Ad Setu (${maxCopies}). Nije moguće kreirati dodatne verzije.`,
+        `Dostignut je maksimalan broj kopija u grupi oglasa (${maxCopies}). Nije moguće napraviti dodatne verzije.`,
       );
       return;
     }
@@ -193,7 +193,7 @@ function NewHookVersionDialogForm({
       }
     } catch (err: unknown) {
       console.error("Greška pri kreiranju nove hook verzije:", err);
-      let userMsg = "Došlo je do greške pri kreiranju nove verzije oglasa.";
+      let userMsg = "Došlo je do greške pri pravljenju nove verzije oglasa.";
 
       if (err instanceof ConvexError) {
         const data = err.data as { code?: string; message?: string };
@@ -223,17 +223,17 @@ function NewHookVersionDialogForm({
                   Kreativna iteracija · Nova verzija
                 </p>
                 <DialogTitle className="text-lg font-bold text-foreground">
-                  Kreiraj novu verziju hook-a
+                  Napravi novu verziju oglasa
                 </DialogTitle>
               </div>
             </div>
             <DialogDescription className="text-xs text-text-muted mt-2">
               Duplira oglas{" "}
               <strong className="text-foreground">{effectiveAdName}</strong> u
-              istom Ad Setu ({liveDetails?.adSetName || "Ad Set"}) sa novim
+              istoj grupi oglasa ({liveDetails?.adSetName || "grupa oglasa"}) sa novim
               tekstom, u bezbednom stanju{" "}
               <span className="text-warning font-semibold">
-                PAUSED (čeka aktivaciju)
+                pauzirano (čeka aktivaciju)
               </span>
               .
             </DialogDescription>
@@ -243,7 +243,7 @@ function NewHookVersionDialogForm({
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface/80 px-3.5 py-2.5 text-xs">
             <div className="flex items-center gap-2">
               <Layers className="size-4 text-text-muted" />
-              <span className="text-text-muted">Kapacitet Ad Seta:</span>
+              <span className="text-text-muted">Kapacitet grupe oglasa:</span>
               <span
                 className={cn(
                   "tabular-nums font-semibold",
@@ -260,7 +260,7 @@ function NewHookVersionDialogForm({
 
             <div className="flex items-center gap-1.5 text-micro text-text-muted">
               <span className="size-1.5 rounded-full bg-success" />
-              <span>ADS_WRITE_ENABLED & Audit aktivan</span>
+              <span>Izmene oglasa su uključene i beleže se</span>
             </div>
           </div>
         </div>
@@ -272,7 +272,7 @@ function NewHookVersionDialogForm({
             <div className="flex items-center gap-2 text-mod font-semibold">
               <Info className="size-4 shrink-0" />
               <span>
-                Mogućnosti izmene kreative (Marketing API vs Ads Manager)
+                Šta se menja ovde, a šta u Meta Ads Manageru
               </span>
             </div>
 
@@ -280,28 +280,28 @@ function NewHookVersionDialogForm({
               <div className="rounded-md border border-line-soft bg-surface/60 p-3 space-y-1.5">
                 <p className="font-semibold text-foreground flex items-center gap-1.5">
                   <CheckCircle2 className="size-3.5 text-success shrink-0" />
-                  <span>Dozvoljeno menjati ovde (API):</span>
+                  <span>Dozvoljeno menjati ovde:</span>
                 </p>
                 <ul className="list-disc list-inside space-y-1 text-micro text-text-muted pl-1">
                   <li>
                     <strong className="text-foreground">
                       Primarni tekst
                     </strong>{" "}
-                    — promena hook uvoda ili kuke
+                    — promena uvoda ili kuke
                   </li>
                   <li>
                     <strong className="text-foreground">Naslov</strong> —
-                    istaknuti tekst pored CTA dugmeta
+                    istaknuti tekst pored dugmeta poziva na radnju
                   </li>
                   <li>
                     <strong className="text-foreground">
-                      Oznaka hook-a
+                      Oznaka verzije
                     </strong>{" "}
-                    — za poređenje u Hook Battle
+                    — za poređenje kreativa
                   </li>
                   <li>
                     <strong className="text-foreground">
-                      PAUSED status
+                      Pauzirano stanje
                     </strong>{" "}
                     — oglas je bezbedno pauziran
                   </li>
@@ -315,9 +315,9 @@ function NewHookVersionDialogForm({
                 </p>
                 <ul className="list-disc list-inside space-y-1 text-micro text-text-muted pl-1">
                   <li>Zamena video ili slikovnog fajla (novi video render)</li>
-                  <li>Promena poziva na akciju (CTA: Saznaj više, Kupite)</li>
-                  <li>Odredišni URL link sajta i UTM parametri</li>
-                  <li>Carousel i Advantage+ višestruki rasporedi</li>
+                  <li>Promena poziva na radnju (Saznaj više, Kupi sada)</li>
+                  <li>Odredišni link sajta i parametri praćenja</li>
+                  <li>Album i Advantage+ višestruki rasporedi</li>
                 </ul>
               </div>
             </div>
@@ -328,7 +328,7 @@ function NewHookVersionDialogForm({
             {/* Hook Label */}
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs text-text-muted font-medium">
-                Oznaka verzije hook-a <span className="text-danger">*</span>
+                Oznaka verzije <span className="text-danger">*</span>
               </Label>
               <Input
                 value={hookLabel}
@@ -336,12 +336,12 @@ function NewHookVersionDialogForm({
                   setHookLabel(e.target.value);
                   setErrorMessage(null);
                 }}
-                placeholder="npr. Hook D — Socijalni dokaz"
+                placeholder="npr. Verzija D — Socijalni dokaz"
                 disabled={loading || isLimitReached}
                 className="h-9 text-xs"
               />
               <p className="text-micro text-text-muted">
-                Prikazuje se na vrhu kolone u Hook Battle pregledu.
+                Prikazuje se na vrhu kolone u poređenju kreativa.
               </p>
             </div>
 
@@ -370,7 +370,7 @@ function NewHookVersionDialogForm({
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <Label className="text-xs text-text-muted font-medium">
-                Primarni tekst (Hook / Body Copy){" "}
+                Primarni tekst{" "}
                 <span className="text-danger">*</span>
               </Label>
               <span className="text-micro tabular-nums text-text-muted">
@@ -389,15 +389,15 @@ function NewHookVersionDialogForm({
               className="text-xs leading-relaxed resize-y min-h-[96px]"
             />
             <p className="text-micro text-text-muted">
-              Tekst koji se prikazuje iznad videa/slike na Instagram i Facebook
-              feed-u.
+              Tekst koji se prikazuje iznad videa ili slike u glavnom toku na
+              Instagramu i Facebooku.
             </p>
           </div>
 
           {/* Headline (Naslov) */}
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs text-text-muted font-medium">
-              Naslov oglasa (Headline)
+              Naslov oglasa
             </Label>
             <Input
               value={headline}
@@ -410,7 +410,7 @@ function NewHookVersionDialogForm({
               className="h-9 text-xs"
             />
             <p className="text-micro text-text-muted">
-              Kratak naslov pored dugmeta za poziv na akciju (CTA).
+              Kratak naslov pored dugmeta za poziv na radnju.
             </p>
           </div>
 
@@ -427,9 +427,9 @@ function NewHookVersionDialogForm({
             <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
               <ShieldAlert className="size-4 shrink-0 mt-0.5" />
               <div className="flex-1 leading-relaxed">
-                Dostignut je limit od {maxCopies} verzija oglasa po Ad Setu
-                (MAX_HOOK_COPIES). Pauzirajte ili arhivirajte nepotrebne
-                verzije pre dodavanja novih.
+                Dostignut je limit od {maxCopies} verzija oglasa u grupi oglasa.
+                Pauzirajte ili arhivirajte nepotrebne verzije pre dodavanja
+                novih.
               </div>
             </div>
           )}
@@ -468,12 +468,12 @@ function NewHookVersionDialogForm({
             {loading ? (
               <>
                 <Loader2 className="size-3.5 animate-spin" />
-                <span>Kreira se kopija...</span>
+                <span>Pravi se kopija...</span>
               </>
             ) : (
               <>
                 <Copy className="size-3.5" />
-                <span>{potvrda("Kreiraj PAUSED verziju")}</span>
+                <span>{potvrda("Napravi pauziranu verziju")}</span>
               </>
             )}
           </Button>

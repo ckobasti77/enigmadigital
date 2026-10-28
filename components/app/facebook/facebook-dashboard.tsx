@@ -207,6 +207,7 @@ export function FacebookDashboard() {
         <>
           <ChannelFocus
             label="Pratioci stranice"
+            mera="pratioci"
             value={cur.fans}
             format={formatNumber}
             delta={deltaPct(cur.fans, prev.fans)}

@@ -35,6 +35,8 @@ import {
 } from "./battle-verdict";
 import { AdDrilldownPanel } from "./ad-drilldown-panel";
 import { MeraIliCrtica, RAZLOG, razlogFrekvencije } from "./nepoznata-mera";
+import { NazivMere } from "@/components/app/system/naziv-mere";
+import { STATUS_KAMPANJE, naziv } from "@/lib/recnik";
 import {
   formatDecimal,
   formatNumber,
@@ -186,7 +188,7 @@ export function HookBattleView({
   if (data === null) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center py-24 text-center">
-        <p className="text-sm text-text-muted">Ad Set nije pronađen.</p>
+        <p className="text-sm text-text-muted">Grupa oglasa nije pronađena.</p>
         <Button variant="outline" size="sm" onClick={onBack} className="mt-4">
           <ArrowLeft className="size-4" />
           <span>Nazad</span>
@@ -243,7 +245,7 @@ export function HookBattleView({
                 <div className="mt-3 space-y-3">
                   <div className="flex flex-col gap-1">
                     <Label className="text-xs text-text-muted">
-                      Min. impresija
+                      Najmanje prikaza
                     </Label>
                     <Input
                       type="number"
@@ -301,12 +303,12 @@ export function HookBattleView({
                 {isPinned ? (
                   <>
                     <Pin className="size-3 fill-current" />
-                    <span>Pinovano</span>
+                    <span>Zakačeno</span>
                   </>
                 ) : (
                   <>
                     <PinOff className="size-3" />
-                    <span>Pinuj bitku</span>
+                    <span>Zakači poređenje</span>
                   </>
                 )}
               </Button>
@@ -322,7 +324,7 @@ export function HookBattleView({
               </span>
               <div>
                 <p className="heading-caps text-micro font-medium text-text-muted">
-                  Hook Battle · Poređenje kreativa
+                  Poređenje verzija · kreative
                 </p>
                 <h1 className="text-xl sm:text-2xl font-bold text-foreground">
                   {adSet.name}
@@ -437,7 +439,7 @@ export function HookBattleView({
       {/* Empty State */}
       {versions.length === 0 ? (
         <div className="rounded-lg border border-dashed border-line p-12 text-center text-sm text-text-muted">
-          Nema pronađenih verzija oglasa unutar ovog Ad Seta.
+          Nema pronađenih verzija oglasa unutar ove grupe oglasa.
         </div>
       ) : (
         /* Side-by-Side Hook Battle Columns */
@@ -495,7 +497,7 @@ export function HookBattleView({
                               {isLeader && (
                                 <div className="bg-foreground text-text-inverse text-micro font-bold py-1 px-3 flex items-center justify-center gap-1.5 heading-caps">
                                   <Crown className="size-3.5 fill-current" />
-                                  <span>Vodeći hook</span>
+                                  <span>Vodeća verzija</span>
                                 </div>
                               )}
 
@@ -530,7 +532,7 @@ export function HookBattleView({
                           />
                           <span>
                             {version.status === "ACTIVE"
-                              ? "ACTIVE"
+                              ? naziv(STATUS_KAMPANJE, version.status)
                               : "Čeka aktivaciju"}
                           </span>
                         </div>
@@ -563,7 +565,7 @@ export function HookBattleView({
                       {/* 1. HERO METRIC: HOOK RATE */}
                       <div className="p-4 bg-surface/30 flex flex-col gap-1">
                         <span className="heading-caps text-micro font-semibold text-text-muted">
-                          Hook Rate (3s / Impresije)
+                          <NazivMere mera="zadrzavanje_3s" />
                         </span>
                         <div className="flex items-baseline justify-between">
                           <span
@@ -610,7 +612,7 @@ export function HookBattleView({
 
                       {/* 4. Hold Rate */}
                       <div className="px-4 py-2.5 flex items-center justify-between">
-                        <span className="text-text-muted">Hold Rate (ThruPlay / 3s)</span>
+                        <span className="text-text-muted"><NazivMere mera="gledanje_do_kraja" /></span>
                         <span
                           className={cn(
                             "tabular-nums font-medium",
@@ -632,7 +634,7 @@ export function HookBattleView({
 
                       {/* 5. CTR */}
                       <div className="px-4 py-2.5 flex items-center justify-between">
-                        <span className="text-text-muted">CTR (Klikovnost)</span>
+                        <span className="text-text-muted"><NazivMere mera="stopa_klikova" /></span>
                         <span className="tabular-nums font-medium text-foreground">
                           <MeraIliCrtica
                             value={version.ctr}
@@ -645,7 +647,13 @@ export function HookBattleView({
                       {/* 6. CPA / ROAS */}
                       <div className="px-4 py-2.5 flex items-center justify-between">
                         <span className="text-text-muted">
-                          {version.hasConversionValue ? "CPA / ROAS" : "CPA (Cena / rez.)"}
+                          <NazivMere mera="cena_po_rezultatu" />
+                          {version.hasConversionValue && (
+                            <>
+                              {" / "}
+                              <NazivMere mera="povracaj" kratko />
+                            </>
+                          )}
                         </span>
                         <div className="text-right tabular-nums">
                           <span
@@ -681,7 +689,7 @@ export function HookBattleView({
 
                       {/* 8. Impresije & Frekvencija */}
                       <div className="px-4 py-2.5 flex items-center justify-between">
-                        <span className="text-text-muted">Impresije (Frekvencija)</span>
+                        <span className="text-text-muted"><NazivMere mera="prikazi" /> (frekvencija)</span>
                         <div className="text-right tabular-nums text-foreground">
                           <span>{formatNumber(version.impressions)}</span>
                           <span className="text-text-muted ml-1 text-micro">
@@ -747,7 +755,7 @@ export function HookBattleView({
                                   thumbnailUrl: version.thumbnailUrl,
                                 })
                               }
-                              title="Kreiraj novu verziju hook-a sa izmenjenim tekstom"
+                              title="Napravi novu verziju oglasa sa izmenjenim tekstom"
                               className="h-6 text-micro px-2 text-radnja font-medium gap-1"
                             >
                               <Sparkles className="size-3" />

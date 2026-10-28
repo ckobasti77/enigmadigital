@@ -73,7 +73,7 @@ export function YtAutomationsDashboard() {
                 : `Automatizacije (${automations.length})`,
             icon: MessageSquareReply,
           },
-          { id: "log", label: "Log komentara", icon: Inbox },
+          { id: "log", label: "Dnevnik komentara", icon: Inbox },
         ]}
         active={tab}
         onChange={setTab}

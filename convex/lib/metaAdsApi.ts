@@ -511,7 +511,7 @@ export function formatAudienceSubtype(subtype?: string): string {
     case "CUSTOM":
       return "Korisnička lista";
     case "LOOKALIKE":
-      return "Slična publika (Lookalike)";
+      return "Slična publika";
     case "WEBSITE":
       return "Veb-sajt posetioci";
     case "ENGAGEMENT":
@@ -519,7 +519,7 @@ export function formatAudienceSubtype(subtype?: string): string {
     case "APP":
       return "Korisnici aplikacije";
     case "OFFLINE_CONVERSION":
-      return "Ofajn konverzije";
+      return "Oflajn konverzije";
     case "VIDEO":
       return "Video pregledi";
     case "LEAD_GEN":

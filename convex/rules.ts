@@ -138,7 +138,7 @@ function buildRuleAlertHtml(opts: {
     actionColor = "#f59e0b";
   } else if (opts.actionTaken === "notify_only_write_disabled") {
     actionText =
-      "Pauziranje je preskočeno (ADS_WRITE_ENABLED je isključen u podešavanjima sistema). Poslato je samo obaveštenje.";
+      "Pauziranje je preskočeno jer su izmene oglasa isključene na serveru. Poslato je samo obaveštenje.";
     actionColor = "#94aad2";
   }
 
@@ -452,7 +452,7 @@ async function runRuleEvaluations(
           actionTaken = "notify_only_write_disabled";
           writeDisabledFallbacksCount++;
           detailsMessage =
-            "Pauziranje nije izvršeno: ADS_WRITE_ENABLED nije postavljen na 'true' (kill switch aktivan). Poslata je samo notifikacija.";
+            "Pauziranje nije izvršeno jer su izmene oglasa isključene na serveru. Poslato je samo obaveštenje.";
         }
       } else {
         actionTaken = "notify";

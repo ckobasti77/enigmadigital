@@ -164,7 +164,7 @@ function InboxSettingsDrawerForm({
         if (!ib.automationId) {
           setFeedback({
             tone: "warning",
-            title: "Izaberite automatizaciju za svako pitanje ledolomca.",
+            title: "Izaberite automatizaciju za svako početno pitanje.",
           });
           setIsSaving(false);
           return;
@@ -236,10 +236,10 @@ function InboxSettingsDrawerForm({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-semibold">
             <Sparkles className="size-5 text-accent" />
-            Podešavanja Instagram Inbox-a
+            Podešavanja poruka na Instagramu
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
-            Upravljajte ledolomcima (Ice Breakers), menijem profila i brzim odgovorima.
+            Upravljajte početnim pitanjima, menijem profila i brzim odgovorima.
           </DialogDescription>
         </DialogHeader>
 
@@ -256,7 +256,7 @@ function InboxSettingsDrawerForm({
             )}
           >
             <HelpCircle className="size-4" />
-            Ledolomci ({iceBreakers.length}/{ICE_BREAKERS_MAX})
+            Početna pitanja ({iceBreakers.length}/{ICE_BREAKERS_MAX})
           </button>
           <button
             type="button"
@@ -296,7 +296,7 @@ function InboxSettingsDrawerForm({
             <div className="flex items-start gap-3 rounded-lg border border-warning-line bg-warning-soft p-3 text-xs leading-relaxed text-warning dark:text-warning">
               <Info className="size-4 shrink-0 mt-0.5" />
               <div>
-                <strong>Važna napomena za Ledolomce:</strong> Prikazuju se isključivo na
+                <strong>Važna napomena za početna pitanja:</strong> Prikazuju se isključivo na
                 mobilnoj Instagram aplikaciji kada korisnik prvi put započne prepisku sa vašim
                 nalogom. <em>Ne prikazuju se na desktop pretraživačima.</em>
               </div>
@@ -370,7 +370,7 @@ function InboxSettingsDrawerForm({
                   className="w-full flex items-center justify-center gap-2 border-dashed py-3"
                 >
                   <Plus className="size-4" />
-                  Dodaj ledolomac ({iceBreakers.length}/{ICE_BREAKERS_MAX})
+                  Dodaj početno pitanje ({iceBreakers.length}/{ICE_BREAKERS_MAX})
                 </Button>
               )}
             </div>

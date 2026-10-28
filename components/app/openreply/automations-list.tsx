@@ -114,7 +114,7 @@ export function AutomationsList({
         description={
           pendingDelete === null
             ? null
-            : `„${pendingDelete.name}” se briše i prestaje da odgovara na komentare i poruke. DM log i istorija klikova ostaju sačuvani, a poruke koje su već poslate ostaju u inboxu primalaca.`
+            : `„${pendingDelete.name}” se briše i prestaje da odgovara na komentare i poruke. Dnevnik poruka i istorija klikova ostaju sačuvani, a poruke koje su već poslate ostaju kod primalaca.`
         }
         confirmLabel="Obriši automatizaciju"
         busyLabel="Brišem…"

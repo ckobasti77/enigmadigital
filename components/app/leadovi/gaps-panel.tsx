@@ -110,7 +110,7 @@ export function GapsPanel() {
       {gaps.moguceLazneRupe && (
         <FeedbackNote
           tone="warning"
-          title="Upozorenje: Moguće lažne rupe zbog limita u relacijama"
+          title="Upozorenje: moguće lažne rupe zbog limita u relacijama"
         >
           Neki redovi mogu biti prikazani kao rupe jer povezana tabela
           (kontakt osobe, identifikatori ili dodela) nije pročitana do kraja

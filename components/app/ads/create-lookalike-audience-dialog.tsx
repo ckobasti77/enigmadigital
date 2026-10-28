@@ -101,18 +101,18 @@ function CreateLookalikeAudienceDialogInner({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError("Naziv Lookalike publike je obavezan.");
+      setError("Naziv slične publike je obavezan.");
       return;
     }
 
     if (!seedAudienceId) {
-      setError("Morate izabrati izvornu (seed) publiku.");
+      setError("Morate izabrati izvornu publiku.");
       return;
     }
 
     if (!selectedSeed?.isEligible) {
       setError(
-        "Izabrana seed publika nema potvrđenu procenu od najmanje 100 korisnika iz iste zemlje. Meta zahteva najmanje 100 korisnika pre kreiranja Lookalike publike.",
+        "Izabrana izvorna publika nema potvrđenu procenu od najmanje 100 korisnika iz iste zemlje. Meta zahteva najmanje 100 korisnika pre pravljenja slične publike.",
       );
       return;
     }
@@ -160,7 +160,7 @@ function CreateLookalikeAudienceDialogInner({
       const msg =
         err instanceof Error
           ? err.message
-          : "Došlo je do greške pri kreiranju Lookalike publike.";
+          : "Došlo je do greške pri pravljenju slične publike.";
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -174,7 +174,7 @@ function CreateLookalikeAudienceDialogInner({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="size-5 text-mod" />
-            Nova Lookalike (slična) publika
+            Nova slična publika
           </DialogTitle>
           <DialogDescription>
             Kreirajte publiku korisnika sličnih vašim postojećim kupcima ili posetiocima.
@@ -189,7 +189,7 @@ function CreateLookalikeAudienceDialogInner({
           )}
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="lookalike-name">Naziv Lookalike publike *</Label>
+            <Label htmlFor="lookalike-name">Naziv slične publike *</Label>
             <Input
               id="lookalike-name"
               placeholder="npr. Slični kupcima 1% - Srbija"
@@ -202,7 +202,7 @@ function CreateLookalikeAudienceDialogInner({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="seed-audience-select">
-              Izvorna (Seed) publika * (zahteva ≥ 100 korisnika)
+              Izvorna publika * (zahteva najmanje 100 korisnika)
             </Label>
             <Select
               id="seed-audience-select"
@@ -212,7 +212,7 @@ function CreateLookalikeAudienceDialogInner({
                 setSeedAudienceId(v);
                 const s = seedOptions.find((opt) => opt.audienceId === v);
                 if (s && !name) {
-                  setName(`Lookalike (${s.name}) - ${country}`);
+                  setName(`Slična publika (${s.name}) - ${country}`);
                 }
               }}
               disabled={submitting}
@@ -227,7 +227,7 @@ function CreateLookalikeAudienceDialogInner({
             {selectedSeed && !selectedSeed.isEligible && (
               <p className="flex items-center gap-1 text-meta text-danger">
                 <AlertCircle className="size-3" />
-                Ova publika ima manje od 100 korisnika ili nepoznatu procenu i ne može poslužiti kao seed.
+                Ova publika ima manje od 100 korisnika ili nepoznatu procenu i ne može poslužiti kao izvor.
               </p>
             )}
           </div>
@@ -279,7 +279,7 @@ function CreateLookalikeAudienceDialogInner({
             <div className="flex flex-col gap-1.5 rounded-lg border border-line bg-surface-sunken p-3">
               <div className="flex items-center justify-between">
                 <Label htmlFor="lookalike-ratio" className="text-xs">
-                  Veličina publike (Odnos / Ratio)
+                  Veličina publike
                 </Label>
                 <span className="tabular-nums text-sm font-semibold text-mod">
                   {formatPercent(ratioPct / 100)} (odnos {formatRatio(ratioPct / 100)})
@@ -315,7 +315,7 @@ function CreateLookalikeAudienceDialogInner({
                       : "border-line bg-surface-raised text-text-muted"
                   }`}
                 >
-                  <p className="font-medium text-foreground">Sličnost (similarity)</p>
+                  <p className="font-medium text-foreground">Sličnost</p>
                   <p className="text-meta text-text-muted mt-0.5">Maksimalna sličnost sa izvornom publikom</p>
                 </button>
                 <button
@@ -327,7 +327,7 @@ function CreateLookalikeAudienceDialogInner({
                       : "border-line bg-surface-raised text-text-muted"
                   }`}
                 >
-                  <p className="font-medium text-foreground">Doseg (reach)</p>
+                  <p className="font-medium text-foreground">Doseg</p>
                   <p className="text-meta text-text-muted mt-0.5">Veći obuhvat korisnika</p>
                 </button>
               </div>
@@ -367,10 +367,10 @@ function CreateLookalikeAudienceDialogInner({
               {submitting ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  Kreiranje...
+                  Pravim...
                 </>
               ) : (
-                potvrda("Kreiraj Lookalike")
+                potvrda("Napravi sličnu publiku")
               )}
             </Button>
           </DialogFooter>

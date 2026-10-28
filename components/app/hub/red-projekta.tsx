@@ -440,11 +440,8 @@ function RedVeze({ veza, sada }: { veza: Veza; sada: number }) {
           </>
         )}
       </p>
-      {veza.greska && (
-        <p className="pl-4 text-meta text-text-muted" title={veza.greska}>
-          <span className="line-clamp-2">{veza.greska}</span>
-        </p>
-      )}
+      {/* Sirova greška (npr. „OAuthException 190") ide samo u detalje
+          Podešavanja; ovde je dovoljna ljudska rečenica iz `tekstVeze`. */}
     </li>
   );
 }

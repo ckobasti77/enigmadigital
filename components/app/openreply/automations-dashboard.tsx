@@ -66,10 +66,10 @@ export function AutomationsDashboard() {
           },
           {
             id: "profile",
-            label: "Ledolomci i meni",
+            label: "Početna pitanja i meni",
             icon: MessageCircleQuestion,
           },
-          { id: "log", label: "DM log", icon: Inbox },
+          { id: "log", label: "Dnevnik poruka", icon: Inbox },
         ]}
         active={tab}
         onChange={setTab}
@@ -154,14 +154,8 @@ function EngineStatusStrip({
   if (!engine.verifyTokenSet || !engine.appSecretSet) {
     return (
       <FeedbackNote tone="warning" title="Webhook nije do kraja podešen">
-        Motor je uključen, ali nedostaje{" "}
-        {[
-          !engine.verifyTokenSet ? "IG_WEBHOOK_VERIFY_TOKEN" : null,
-          !engine.appSecretSet ? "META_APP_SECRET" : null,
-        ]
-          .filter(Boolean)
-          .join(" i ")}
-        . <SettingsLink>Otvori podešavanja</SettingsLink>.
+        Motor je uključen, ali webhook nije do kraja podešen na serveru.{" "}
+        <SettingsLink>Otvori podešavanja</SettingsLink>.
       </FeedbackNote>
     );
   }

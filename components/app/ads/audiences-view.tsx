@@ -77,7 +77,7 @@ export function AudiencesView() {
         setFeedback({
           tone: "success",
           message:
-            "Custom Audience Uslovi korišćenja (ToS) su uspešno prihvaćeni i verifikovani!",
+            "Uslovi korišćenja za prilagođene publike su prihvaćeni i potvrđeni!",
         });
       } else if (res.status === "not_accepted") {
         setFeedback({
@@ -95,7 +95,7 @@ export function AudiencesView() {
       const msg =
         err instanceof Error
           ? err.message
-          : "Provera ToS statusa nije uspela.";
+          : "Provera uslova korišćenja nije uspela.";
       setFeedback({ tone: "danger", message: msg });
     } finally {
       setCheckingTos(false);
@@ -169,7 +169,7 @@ export function AudiencesView() {
               disabled={!tosAccepted}
               title={
                 !tosAccepted
-                  ? "Morate prihvatiti Meta ToS pre kreiranja publika"
+                  ? "Morate prihvatiti uslove korišćenja Mete pre pravljenja publika"
                   : undefined
               }
               className="text-xs"
@@ -187,13 +187,13 @@ export function AudiencesView() {
               disabled={!tosAccepted}
               title={
                 !tosAccepted
-                  ? "Morate prihvatiti Meta ToS pre kreiranja publika"
+                  ? "Morate prihvatiti uslove korišćenja Mete pre pravljenja publika"
                   : undefined
               }
               className="text-xs"
             >
               <Sparkles className="mr-1.5 size-3.5" />
-              Nova Lookalike publika
+              Nova slična publika
             </Button>
           )}
         </div>
@@ -219,7 +219,7 @@ export function AudiencesView() {
       {tosStatus === "unknown" && (
         <FeedbackNote
           tone="warning"
-          title="Status Custom Audience Uslova korišćenja (ToS) nije potvrđen"
+          title="Nije potvrđeno da su prihvaćeni uslovi korišćenja za prilagođene publike"
           action={
             mozeUrednik ? (
               <Button
@@ -247,7 +247,7 @@ export function AudiencesView() {
           <p className="mt-1">
             Ne mogu da proverim da li su uslovi korišćenja prihvaćeni za nalog{" "}
             <strong className="font-mono text-foreground">
-              {adAccountExternalId ? `act_${adAccountExternalId}` : "ad nalog"}
+              {adAccountExternalId ? `act_${adAccountExternalId}` : "oglasni nalog"}
             </strong>.
             {tosData?.lastError ? ` Razlog: ${tosData.lastError}.` : ""}{" "}
             Pokušajte ponovo za koji trenutak klikom na dugme „Proveri ponovo”.
@@ -258,7 +258,7 @@ export function AudiencesView() {
       {tosStatus === "not_accepted" && (
         <FeedbackNote
           tone="warning"
-          title="Meta Custom Audience Uslovi korišćenja (ToS) nisu prihvaćeni"
+          title="Uslovi korišćenja Mete za prilagođene publike nisu prihvaćeni"
           action={
             mozeUrednik ? (
               <Button
@@ -285,10 +285,10 @@ export function AudiencesView() {
         >
           <div className="flex flex-col gap-2 mt-1">
             <p>
-              Sistemski korisnik (API token) po pravilima platforme Meta Marketing API ne može sam da potpiše Uslove korišćenja.
-              Da biste mogli da kreirate nove prilagođene ili Lookalike publike, vlasnik ili administrator Meta Business Suite naloga mora jednokratno da prihvati Custom Audience ToS za oglasni nalog{" "}
+              Pristupni token po pravilima Mete ne može sam da potpiše uslove korišćenja.
+              Da biste mogli da napravite nove prilagođene ili slične publike, vlasnik ili administrator Meta Business Suite naloga mora jednokratno da prihvati uslove korišćenja za prilagođene publike za oglasni nalog{" "}
               <strong className="font-mono text-foreground">
-                {adAccountExternalId ? `act_${adAccountExternalId}` : "vaš ad nalog"}
+                {adAccountExternalId ? `act_${adAccountExternalId}` : "vaš oglasni nalog"}
               </strong>.
             </p>
             <div className="rounded-md border border-warning/20 bg-warning/5 p-2 text-xs">
@@ -307,10 +307,10 @@ export function AudiencesView() {
                   sa administratorskim nalogom.
                 </li>
                 <li>
-                  Idite na <strong>Podešavanja poslovanja (Business Settings)</strong> &gt; <strong>Nalozi za oglašavanje (Ad Accounts)</strong> i izaberite nalog.
+                  Idite na <strong>Podešavanja poslovanja</strong> &gt; <strong>Nalozi za oglašavanje</strong> i izaberite nalog.
                 </li>
                 <li>
-                  Otvorite <strong>Meta Ads Manager &gt; Publike (Audiences)</strong> i prihvatite Custom Audience ToS dijalog.
+                  Otvorite <strong>Meta Ads Manager &gt; Publike</strong> i prihvatite uslove korišćenja za prilagođene publike.
                 </li>
                 <li>
                   Nakon potvrde, kliknite na dugme <strong>„Proveri ponovo”</strong> desno.
@@ -357,7 +357,7 @@ export function AudiencesView() {
               <Sparkles className="size-5" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-medium text-text-muted">Lookalike publike</span>
+              <span className="text-xs font-medium text-text-muted">Slične publike</span>
               <span className="tabular-nums text-2xl font-bold text-foreground">
                 {lookalikeCount}
               </span>
@@ -407,7 +407,7 @@ export function AudiencesView() {
         onSuccess={() => {
           setFeedback({
             tone: "success",
-            message: "Lookalike publika je uspešno kreirana!",
+            message: "Slična publika je uspešno napravljena!",
           });
         }}
       />

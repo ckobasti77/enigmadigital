@@ -667,3 +667,66 @@ Nijedan `next dev` ni drugi proces koji je korak sam pokrenuo nije upaljen.
 - *U `app/` i `components/` nema izvornog `<select>` (grep), a svaki izbor ima ime:* ispunjeno. `grep "<select"` daje samo komentar u `lead-state-chip.tsx`; F1/F2 prolaze; u pregledu uvoza 0 okidača bez `aria-label`.
 - *Datumi, trajanja i procenti idu kroz `lib/format.ts` (test):* ispunjeno. F3–F5 prolaze nad celim kodom; `lib/format.test.ts` pokriva P7.
 - *Provere prolaze; sekcija T11 je u progress-u:* ispunjeno.
+
+## T12 — Rečnik i provera sirovih naziva   (2026-10-28 04:40)
+**Fajlovi:**
+- novi: `lib/recnik.ts`, `lib/recnik.test.ts`, `lib/recnik-cuvar.ts` (R1–R9), `lib/recnik-cuvar.test.ts`, `scripts/verify-ultra-recnik.ts`, `components/app/system/naziv-mere.tsx` (`NazivMere`, `InfoMere`), `components/app/use-precica.ts`, `components/app/settings/uputstvo-programera.tsx`, `app/dev-ux/sistem/vodic-recnik.tsx`, snimci `docs/ultra/snimci/T12-*.png` (7).
+- sistem i ljuska: `system/kpi-tile.tsx`, `system/channel-focus.tsx` (prop `mera`), `app-shell.tsx` (Ctrl K), `leadovi/lead-expanded-row.tsx` (Ctrl Enter), `hub/red-projekta.tsx`, `settings/status-pill.tsx`, `lib/hub-zbir.ts` (nazivi kanala iz jednog izvora), `lib/temperature.ts`.
+- podešavanja: `settings/connections-settings.tsx`, `ga4-configuration.tsx`, `members-panel.tsx`, `ingest-tokens-panel.tsx`, `action-audit-log.tsx`.
+- server (samo `message`, kodovi isti): `convex/adActions.ts`, `facebook.ts`, `gbp.ts`, `instagram.ts`, `rules.ts`, `threads.ts`, `youtube.ts`, `lib/oauthPovratak.ts`; mape natpisa `convex/lib/igPublish.ts`, `threadsPublish.ts`, `metaAdsApi.ts`.
+- ekrani (zamene §9.3/§9.5 plana T08): `ads/*` (21 fajl), `threads/*` (8), `instagram/*` (uklj. `inbox/`, `post-detail/`; 16), `facebook/*` (3), `youtube/*` (9), `openreply/*` (5), `attribution/*` (3), `leadovi/*` (7), `novosti/novosti-editor.tsx`, `overview/performance-highlights.tsx`, `analytics/retention-dashboard.tsx`, `rules/rule-editor-dialog.tsx`, `nav-items.ts`, tri strane pod `app/(app)/[projekat]/`.
+- ostalo: `package.json` (`verify:ultra-recnik`), `vitest.config.mts` (`testTimeout`), `scripts/test-meta-audiences.ts` (jedna očekivana vrednost), `app/dev-ux/sistem/vodic.tsx` (1 uvoz + 1 red), `vodic-izbor.tsx` (natpisi temperature).
+
+**Šta je urađeno:**
+- **`lib/recnik.ts`**: mape `VRSTA_OBJAVE`, `VRSTA_FB_OBJAVE`, `STATUS_KAMPANJE`, `CILJ_KAMPANJE` (jedna umesto tri), `NIVO_OGLASA`, `GA4.*` (čuvanje, brojanje, opseg, nivo usluge, vrsta toka, 26 delatnosti), `DOGADJAJ_KONVERZIJE`, `POZIV_NA_RADNJU`, `PLASMAN`, `IZVOR_SIGNALA`, `POJAM`, `NAZIV_KANALA`. `naziv(mapa, v, rezerva)` poredi i bez obzira na veličinu slova i nepoznatu vrednost nikad ne vraća sirovu; `oznakaPrecice()` daje „Ctrl K" ili „⌘K". Nazivi mera ostaju u `lib/mere.ts` (T05).
+- **`NazivMere` / `InfoMere`**: srpski naziv iz `lib/mere.ts`, akronim i definicija u `Popover`-u (hover posle 300 ms; dodir i Enter otvaraju; Esc zatvara). Okidač je tekst sa tačkastom podvlakom, ne menja visinu reda, a na dodir ima nevidljivo proširenje mete. U linku i dugmetu stoji sestrinski `InfoMere`, pa nema ugnežđene interakcije. `KpiTile` i `ChannelFocus` imaju prop `mera`; koriste ga pločice i fokus kartice Oglasa, Instagrama, Facebook-a, Threads-a i YouTube-a, a zaglavlja tabela Oglasa imaju `InfoMere` pored dugmeta za sortiranje.
+- **Zamene**: vrste objava, statusi i ciljevi kampanja, GA4 vrednosti (bez sirove u zagradi, rezerva „Nepoznato"), plasmani, događaji konverzije, izvor signala, prilozi u porukama i dnevnik automatizacija; žargon (grupa oglasa, slična publika, zadržavanje prve 3 s, gledanje do kraja, prikazi, pauza za istu osobu, početna pitanja, dnevnik, sličica, zakači…); kvota YouTube-a bez „jedinica"; „(Dodatak A.2)" obrisan; Title Case i veliko slovo posle dvotačke po §9.5.
+- **Env imena**: Podešavanja pišu ljudsku rečenicu („Webhook za Instagram još nije podešen na serveru.") i dugme `secondary` „Kopiraj uputstvo za programera"; imena env promenljivih su samo u tekstu koji se kopira. Poruke grešaka sa servera više ne nose imena env-a (kodovi grešaka su isti). Sirova greška veze („OAuthException 190") ostaje samo u bloku „Stanje sinhronizacije" u Podešavanjima; hub više ne crta `veza.greska`, nego rečenicu iz `tekstVeze`.
+- **`verify:ultra-recnik`**: R1–R8 nad vidljivim tekstom (AST: JSX tekst, atributi teksta, `label:`/`title:`/`message:`…, `toast`/`setError`/`setGreska`) u `components/` i `app/` (bez `app/api`, fikstura i pravnih strana), R9 nad porukama grešaka u `convex/`. Prolazi nad 375 fajlova ekrana i 207 fajlova servera (49 env imena). Namerno ubačen fajl sa „Status: ACTIVE", „TEXT_POST", „Hook Rate" i „⌘K" daje 4 nalaza i izlaz 1 (`.nocni-run/ultra1/tmp/t12-proba-pada.txt`); fajl je posle obrisan.
+- **Vodič** `/sistem`: sekcija „Rečnik i mere" (`NazivMere` za CPA, ROAS, CTR i CPM; `InfoMere` uz zaglavlje koje sortira; primeri mapa i nepoznate vrednosti; oznaka prečice).
+- **Radnici**: 4 `sonnet` radnika po disjunktnim folderima (ads ×2, threads, IG/FB/YT/leadovi), po receptu `.nocni-run/ultra1/tmp/t12-recept.md`. Diff sam pregledao: vrednosti `value`, `case` i payload su netaknuti, a obrisane su samo lokalne mape natpisa koje je zamenio rečnik. Typecheck je prošao posle svakog radnika.
+
+**ODLUKE:**
+- **`vitest.config.mts`: `testTimeout: 30_000` za projekat `node`.** Ceo `npx vitest run` je povremeno padao na „Test timed out in 5000ms" u čuvarima koji čitaju ceo kod (`pozivnica-token`, `tipografija-cuvar`, `zakucane-adrese`), i to i BEZ novog testa (2 od 2 pokretanja sa `--exclude lib/recnik-cuvar.test.ts`). Nijedan assertion nije menjan; posle izmene su 3 od 3 pokretanja prošla (1161/1161).
+- **Izuzeci čuvara (sa razlogom):** `ENIGMA_LEAD_TOKEN`/`ENIGMA_INGEST_TOKEN` u `ingest-tokens-panel.tsx` (korisnik ih upisuje na svom računaru); `act_1234567890` u `connections-settings.tsx` (primer oblika ID-ja koji se upisuje); `GOOGLE_ADS_DEVELOPER_TOKEN` u `convex/lib/googleAdsShared.ts` (greška sinhronizacije ide u detalje Podešavanja, a `scripts/verify-gads-assets.ts` proverava baš to ime).
+- **Atributi koje čuvar vidi** prošireni su u odnosu na plan za `eyebrow`, `reason`, `note` i svojstvo `description:`, jer i taj tekst ide na ekran.
+- **Nazivi kanala iz jednog izvora** (`INTEGRACIJA_NAZIV`): hub sada piše „Meta Ads"/„Google Ads" umesto „Meta oglasi"/„Google oglasi", a Podešavanja „GA4" umesto „Google Analytics 4" (plan T08 §10.6, odluka 18).
+- **Ciljevi kampanje** imaju jedan, kraći skup naziva („Upiti", „Saobraćaj", „Prepoznatljivost"). Detalj kampanje je ranije pisao duže nazive („Generisanje lidova", „Saobraćaj na sajtu"), a čarobnjak „Lidovi" i „Svesnost".
+- **Temperatura**: „Hladno / Toplo / Vruće" u `lib/temperature.ts` i u izborima uvoza. Legenda pregleda uvoza je „Vruće:" (plan je pisao „Vrelo:"), da se ista reč ne piše na dva načina.
+- **Oznaka prečice** je „Ctrl K" na serveru i pri hidrataciji (Jovanov Windows), a na Macu „⌘K" posle hidratacije. „Ctrl+Enter" uz belešku je sada „Ctrl Enter" ili „⌘ Enter".
+- **`scripts/test-meta-audiences.ts`**: očekivana vrednost `formatAudienceSubtype("LOOKALIKE")` je „Slična publika" (bila je „Slična publika (Lookalike)"). To je legitimna promena natpisa po planu §9.3, a skripta prolazi.
+- **Token sistemskog korisnika**: preveden je natpis polja („Token sistemskog korisnika"). „System User" u rečenicama i podnaslovima Facebook kartice ostaje kao Metin naziv iz Business Settings-a, jer ga Jovan tamo traži pod tim imenom.
+- **Odluke radnika** (sve proverene u diff-u):
+  - brojač Threads objave i dalje broji bajtove, pa je „još N znakova" preostali broj bajtova;
+  - YouTube dijalozi bez podatka o preostaloj kvoti pišu „Troši deo dnevne kvote"; „Danas još oko N izmena" ima samo panel titlova, a vidžet kvote „Danas još oko N automatskih odgovora";
+  - dnevnik radnji oglasa ispisuje ljudske redove, a tehničke i nepoznate ključeve ne ispisuje;
+  - „Hook Battle" je postao „poređenje kreativa";
+  - naziv grupe oglasa koji čarobnjak šalje Meti (`… — Ad set`) je payload i nije menjan.
+- **Line endings**: radnici su 17 fajlova ostavili sa CRLF u radnoj kopiji (repo je `eol=lf`); vraćeni su na LF.
+- Playwright MCP nije korišćen; snimci su rađeni skriptom nad paketom `playwright` (kao T09–T11), na 390 sa `isMobile` i `hasTouch`.
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- `lib/recnik.test.ts` (9): nijedna vrednost nije SCREAMING_SNAKE, snake_case ni žargon; `naziv()` nikad ne vraća ključ; rezerva za nepoznato i prazno; poređenje bez obzira na veličinu slova; primeri iz plana; `CILJ_KAMPANJE` pokriva sve ključeve tri zatečene mape; imena proizvoda ostaju; `oznakaPrecice` za Windows, Linux, Mac i bez platforme.
+- `lib/recnik-cuvar.test.ts` (15): R1–R8 padaju na svom primeru (i kroz `?:`, `&&` i šablon); komentar, `className`, ključ, `value`, `case` i poređenje ne padaju; snake_case u `<code>` i URL/adresa ne padaju, a env ime u `<code>` pada; izuzetak važi samo u svom fajlu; izuzetak bez razloga obara proveru; R9 (env ime i „OAuthException" u `ConvexError` / `throw new Error`; komentar se ne broji); ceo kod je bez nalaza.
+
+**Rezultat provere:**
+- `npx convex codegen`: prošao (izlaz 0, `_generated` bez izmena).
+- typecheck: prošao. lint: 0 grešaka (1209 upozorenja, isto kao posle T11).
+- vitest: 69 fajlova / 1161 test prošlo.
+- pristup: prošao. regresije: 19/19 (uključuje `verify:ultra-recnik` i ostale `verify:ultra-*`).
+- `scripts/test-meta-audiences.ts`: prošao.
+- **Vizuelno** (`next dev -p 3117`, `?ux=1`, `.nocni-run/ultra1/tmp/t12-snimci.mjs`, rezultat u `t12-merenje.json`):
+  - 1536: `T12-threads-1536.png`, `T12-facebook-komentari-1536.png`, `T12-oglasi-1536.png`, `T12-podesavanja-ga4-1536.png`, `T12-sistem-recnik-1536.png`; 390 (dodir): `T12-oglasi-390.png`, `T12-oblacic-mere-390.png`.
+  - Tekst stranice (i `title`, `aria-label`, `placeholder`) pretražen je za 41 primer iz §6.8 i §9.3 (TEXT_POST, ADDED_PHOTOS, FOURTEEN_MONTHS, ONCE_PER_EVENT, BEAUTY_AND_FITNESS, „Status: ACTIVE", imena env-a, „Dodatak A.2", „⌘K", Ad set, Hook Rate, Cooldown, Ledolomci, „jedinic"…). Rezultat: 0 pogodaka na Threads-u, FB komentarima i Oglasima (1536 i 390). Na Podešavanjima je jedini pogodak „Token je istekao (OAuthException 190)" u bloku „Stanje sinhronizacije", gde je tehnički kod dozvoljen (CLAUDE.md, P3).
+  - Oblačić mere se otvara hoverom na 1536 i dodirom na 390 („CPA · Prosečan trošak po ostvarenom rezultatu: …"); okidač na 390 ostaje visok 19 px, pa se red ne menja. Prečica u gornjoj traci je „Ctrl K".
+- Dev server je ugašen (task zaustavljen, zaostali `next` PID 7400 ugašen); port 3117 je slobodan.
+
+**BLOKADA:** nema.
+
+**Za Jovana ujutru:**
+1. Na telefonu otvori Oglase i tapni „Cena po rezultatu" na pločici: oblačić sa „CPA" i definicijom treba da se otvori dodirom i zatvori tapom van njega.
+2. Podešavanja → Integracije: GA4 kartica treba da ima „14 meseci", „Jednom po događaju" i „Lepota i fitnes", bez sirovih vrednosti u zagradi. Kad neka veza nema podešen server, probaj „Kopiraj uputstvo za programera" i nalepi tekst negde da proveriš sadržaj.
+3. Potvrdi odluke: nazivi kanala „Meta Ads"/„Google Ads" i u hubu, kraći nazivi ciljeva kampanje („Upiti"), „Vruće" umesto „Vrelo", „System User" ostaje u rečenicama, `testTimeout` od 30 s za čuvare koda.
+4. Ako neki ekran i dalje pokaže sirovu vrednost koja stiže kao podatak (statički se ne vidi), dodaj je u odgovarajuću mapu u `lib/recnik.ts`.

@@ -82,7 +82,7 @@ export const threadsAuthorizeUrl = projekatAction({
       throw new ConvexError({
         code: "invalid",
         message:
-          "Čeka Threads OAuth konfiguraciju — dodaj THREADS_APP_ID i THREADS_APP_SECRET u Convex env promenljive.",
+          "Povezivanje Threads-a još nije podešeno na serveru.",
       });
     }
 
@@ -166,7 +166,7 @@ export const completeOAuthFromCallback = action({
       throw new ConvexError({
         code: "invalid",
         message:
-          "Čeka Threads OAuth konfiguraciju — dodaj THREADS_APP_ID i THREADS_APP_SECRET u Convex env promenljive.",
+          "Povezivanje Threads-a još nije podešeno na serveru.",
       });
     }
 

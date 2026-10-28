@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FeedbackNote } from "@/components/app/feedback";
 import { TargetingSearchDialog } from "./targeting-search-dialog";
 import { cn } from "@/lib/utils";
+import { CILJ_KAMPANJE, POJAM, VRSTA_FB_OBJAVE, naziv } from "@/lib/recnik";
 import {
   Target,
   Users,
@@ -42,15 +43,15 @@ import {
 // ── Katalozi (usklađeni sa convex/lib/metaAdsWrite.ts) ──────────────────────
 
 const OBJECTIVES = [
-  { value: "OUTCOME_TRAFFIC", label: "Saobraćaj" },
-  { value: "OUTCOME_ENGAGEMENT", label: "Angažovanje" },
-  { value: "OUTCOME_AWARENESS", label: "Svesnost" },
-  { value: "OUTCOME_LEADS", label: "Lidovi" },
-  { value: "OUTCOME_SALES", label: "Prodaja" },
+  { value: "OUTCOME_TRAFFIC", label: CILJ_KAMPANJE.OUTCOME_TRAFFIC },
+  { value: "OUTCOME_ENGAGEMENT", label: CILJ_KAMPANJE.OUTCOME_ENGAGEMENT },
+  { value: "OUTCOME_AWARENESS", label: CILJ_KAMPANJE.OUTCOME_AWARENESS },
+  { value: "OUTCOME_LEADS", label: CILJ_KAMPANJE.OUTCOME_LEADS },
+  { value: "OUTCOME_SALES", label: CILJ_KAMPANJE.OUTCOME_SALES },
 ] as const;
 
 const BILLING_EVENTS = [
-  { value: "IMPRESSIONS", label: "Impresije" },
+  { value: "IMPRESSIONS", label: "Prikazi" },
   { value: "LINK_CLICKS", label: "Klikovi na link" },
   { value: "THRUPLAY", label: "ThruPlay (video)" },
   { value: "POST_ENGAGEMENT", label: "Angažovanje objave" },
@@ -58,7 +59,7 @@ const BILLING_EVENTS = [
 
 const OPT_GOAL_LABELS: Record<string, string> = {
   REACH: "Doseg",
-  IMPRESSIONS: "Impresije",
+  IMPRESSIONS: "Prikazi",
   LINK_CLICKS: "Klikovi na link",
   LANDING_PAGE_VIEWS: "Pregledi odredišne strane",
   POST_ENGAGEMENT: "Angažovanje objave",
@@ -578,7 +579,7 @@ function NewCampaignWizardInner() {
 
             <SectionCard
               title="Budžet"
-              desc="Dnevni budžet ide na ad set. Gornju granicu postavljaš u Podešavanjima → Sajt i oglasi i proverava se pri kreiranju."
+              desc="Dnevni budžet ide na grupu oglasa. Gornju granicu postavljaš u Podešavanjima → Sajt i oglasi i proverava se pri kreiranju."
             >
               <Field label={`Dnevni budžet${currency ? ` (${currency})` : ""}`} htmlFor="budget">
                 <div className="relative max-w-[220px]">
@@ -600,7 +601,7 @@ function NewCampaignWizardInner() {
               </Field>
 
               <Field
-                label="Posebne kategorije oglasa (special_ad_categories)"
+                label="Posebne kategorije oglasa"
                 hint="Obavezno za stanovanje, zapošljavanje, kredite i politiku. Ako se ne odnosi ni na jednu, ostavi prazno."
               >
                 <div className="flex flex-wrap gap-2">
@@ -629,7 +630,7 @@ function NewCampaignWizardInner() {
           <div className="flex flex-col gap-5">
             <SectionCard
               title="Publika"
-              desc="Ad set mora imati bar geografske lokacije. Interesovanja možeš da istražiš i dodaš kasnije iz kataloga."
+              desc="Grupa oglasa mora imati bar geografske lokacije. Interesovanja možeš da istražiš i dodaš kasnije iz kataloga."
             >
               <Field label="Države (ISO kodovi, npr. RS, ME, BA)" htmlFor="countries">
                 <Input
@@ -695,7 +696,7 @@ function NewCampaignWizardInner() {
               title="Plasman i optimizacija"
               desc="Naplata i optimizacija moraju biti kompatibilne. Konverzioni ciljevi traže piksel ili stranicu."
             >
-              <Field label="Događaj naplate (billing_event)">
+              <Field label="Događaj naplate">
                 <div className="flex flex-wrap gap-2">
                   {BILLING_EVENTS.map((b) => (
                     <Chip
@@ -715,7 +716,7 @@ function NewCampaignWizardInner() {
                 </div>
               </Field>
 
-              <Field label="Cilj optimizacije (optimization_goal)" htmlFor="optgoal">
+              <Field label="Cilj optimizacije" htmlFor="optgoal">
                 <Select
                   id="optgoal"
                   label="Cilj optimizacije"
@@ -732,7 +733,7 @@ function NewCampaignWizardInner() {
                 <div className="flex flex-col gap-4 rounded-lg border border-line-soft bg-surface-raised/40 p-4">
                   <div className="flex items-center gap-1.5 text-xs text-text-muted">
                     <Info className="size-3.5 text-mod" />
-                    Konverziona optimizacija: izaberi piksel i događaj (promoted_object).
+                    Konverziona optimizacija: izaberi piksel i događaj koji se prati.
                   </div>
                   <Field label="Piksel" htmlFor="pixel">
                     <div className="flex items-center gap-2">
@@ -765,7 +766,7 @@ function NewCampaignWizardInner() {
                       {pixelsError}
                     </FeedbackNote>
                   )}
-                  <Field label="Događaj konverzije (custom_event_type)" htmlFor="cevent">
+                  <Field label="Događaj konverzije" htmlFor="cevent">
                     <Select
                       id="cevent"
                       label="Događaj konverzije"
@@ -787,8 +788,8 @@ function NewCampaignWizardInner() {
                   }
                 >
                   {hasFbPage
-                    ? `Stranica „${context?.fbPageName ?? context?.fbPageId}" ide u promoted_object.`
-                    : "Za instant lidove poveži Facebook stranicu (meta_fb) u Podešavanjima."}
+                    ? `Stranica „${context?.fbPageName ?? context?.fbPageId}" se koristi za ove oglase.`
+                    : "Za instant lidove poveži Facebook stranicu u Podešavanjima."}
                 </FeedbackNote>
               )}
             </SectionCard>
@@ -829,7 +830,11 @@ function NewCampaignWizardInner() {
                       placeholder="— izaberi objavu —"
                       options={(pagePosts ?? []).map((p) => ({
                         value: p.objectStoryId,
-                        label: (p.message || p.statusType || p.objectStoryId).slice(0, 80),
+                        label: (
+                          p.message ||
+                          (p.statusType ? naziv(VRSTA_FB_OBJAVE, p.statusType, "Objava") : "") ||
+                          p.objectStoryId
+                        ).slice(0, 80),
                       }))}
                     />
                   </Field>
@@ -867,10 +872,10 @@ function NewCampaignWizardInner() {
                           onChange={(e) => setHeadline(e.target.value)}
                         />
                       </Field>
-                      <Field label="Dugme (CTA)" htmlFor="cta">
+                      <Field label="Dugme poziva na radnju" htmlFor="cta">
                         <Select
                           id="cta"
-                          label="Dugme (CTA)"
+                          label="Dugme poziva na radnju"
                           value={ctaType || null}
                           onValueChange={(v) => setCtaType(v)}
                           options={CTA_TYPES.map((c) => ({ value: c.value, label: c.label }))}
@@ -880,7 +885,7 @@ function NewCampaignWizardInner() {
                     <Field
                       label="URL slike (opciono)"
                       htmlFor="picture"
-                      hint="Javno dostupna slika; Meta je preuzima. Bez upload-a."
+                      hint="Javno dostupna slika; Meta je preuzima. Bez otpremanja."
                     >
                       <Input
                         id="picture"
@@ -892,7 +897,7 @@ function NewCampaignWizardInner() {
                   </div>
                 ) : (
                   <FeedbackNote tone="danger" title="Nedostaje Facebook stranica">
-                    Za link-oglas poveži Facebook stranicu (meta_fb) u Podešavanjima.
+                    Za link-oglas poveži Facebook stranicu u Podešavanjima.
                   </FeedbackNote>
                 ))}
             </SectionCard>
@@ -977,7 +982,7 @@ function NewCampaignWizardInner() {
             {submitting ? (
               <>
                 <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                Kreiram na Meta API...
+                Pravim kampanju na Meti...
               </>
             ) : (
               <>
@@ -1089,7 +1094,7 @@ function SummaryPanel({
 
       <div className="mt-4 flex flex-col gap-2 rounded-lg border border-line bg-surface p-3.5">
         <div className="mb-0.5 text-xs font-medium text-text-muted">
-          Provera (validate_only)
+          Probna provera kod Mete
         </div>
         {validating && !plan ? (
           <div className="flex items-center gap-2 text-xs text-text-muted">
@@ -1100,10 +1105,10 @@ function SummaryPanel({
           <>
             <CheckRow
               ok={plan.campaign.codeOk && plan.campaign.metaValidateOk !== false}
-              label="Kampanja — Meta validate_only"
+              label="Kampanja — probna provera kod Mete"
               error={plan.campaign.error}
             />
-            <CheckRow ok={plan.adSet.codeOk} label="Ad set — provera koda" error={plan.adSet.error} />
+            <CheckRow ok={plan.adSet.codeOk} label="Grupa oglasa — provera koda" error={plan.adSet.error} />
             <CheckRow ok={plan.ad.codeOk} label="Oglas — provera koda" error={plan.ad.error} />
             <CheckRow
               ok={plan.gate.ok}
@@ -1111,8 +1116,8 @@ function SummaryPanel({
               error={plan.gate.ok ? undefined : plan.gate.message}
             />
             <p className="mt-1 text-micro leading-relaxed text-text-muted">
-              Ad set i oglas Meta dodatno proverava pri samom kreiranju (validate_only im traži
-              pravi roditeljski ID). Sve se kreira pauzirano.
+              Grupu oglasa i oglas Meta dodatno proverava pri samom pravljenju (za probnu proveru
+              traži pravu kampanju). Sve se pravi pauzirano.
             </p>
           </>
         ) : (
@@ -1145,13 +1150,13 @@ function ResultPanel({
       >
         {partial
           ? "Deo objekata je napravljen, a jedan korak nije prošao. Ništa ne troši budžet jer je sve pauzirano. Ispod je šta postoji; možeš da dovršiš ili obrišeš u Ads Manageru, ili da pokušaš ponovo."
-          : "Kampanja, ad set i oglas su napravljeni sa statusom PAUSED. Pokreni ih kada budeš spreman/na iz pregleda kampanja."}
+          : "Kampanja, grupa oglasa i oglas su napravljeni kao pauzirani. Pokreni ih kada budeš spreman/na iz pregleda kampanja."}
       </FeedbackNote>
 
       <div className="rounded-xl border border-line bg-card p-5">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
           <Pause className="size-4 text-warning" />
-          Napravljeno (PAUZIRANO)
+          Napravljeno (pauzirano)
         </h2>
         <ul className="flex flex-col gap-2 text-xs">
           <CreatedRow
@@ -1160,7 +1165,7 @@ function ResultPanel({
             id={result.campaign?.externalId ?? result.created?.campaignId}
           />
           <CreatedRow
-            label="Ad set"
+            label={POJAM.grupaOglasa}
             name={result.adSet?.name}
             id={result.adSet?.externalId ?? result.created?.adSetId}
           />

@@ -17,9 +17,9 @@ export type Temperatura = (typeof TEMPERATURE)[number];
 
 export const TEMPERATURE_LABEL: Record<Temperatura, string> = {
   nova_firma: "Nova firma",
-  cold: "Cold",
-  warm: "Warm",
-  hot: "Hot",
+  cold: "Hladno",
+  warm: "Toplo",
+  hot: "Vruće",
 };
 
 /** CSS promenljiva koja nosi boju — jedino mesto koje mapa čita. */

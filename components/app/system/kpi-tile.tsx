@@ -6,6 +6,7 @@ import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CountUp } from "@/components/motion/count-up";
+import { InfoMere, NazivMere } from "@/components/app/system/naziv-mere";
 import type { MetricState } from "@/convex/lib/igMetrics";
 import {
   dobraPromenaPoSmeru,
@@ -125,9 +126,9 @@ export function KpiTile({
 
   if (state !== "value" || value === undefined) {
     return (
-      <TileShell href={href} label={label}>
+      <TileShell href={href} label={label} mera={mera}>
         <div className={cn("flex flex-col px-5 pt-4", HEIGHT[size])}>
-          <TileLabel label={label} shortLabel={shortLabel} icon={icon} />
+          <TileLabel label={label} shortLabel={shortLabel} icon={icon} mera={href ? undefined : mera} />
           <span
             className={cn(
               "mt-2 block font-bold leading-none text-text-muted tabular-nums",
@@ -175,9 +176,9 @@ export function KpiTile({
 
   if (compact) {
     return (
-      <TileShell href={href} label={label}>
+      <TileShell href={href} label={label} mera={mera}>
         <div className={cn("flex flex-col justify-between px-4 py-3", HEIGHT.compact)}>
-          <TileLabel label={label} shortLabel={shortLabel} icon={icon} />
+          <TileLabel label={label} shortLabel={shortLabel} icon={icon} mera={href ? undefined : mera} />
           <div className="flex items-baseline justify-between gap-2">
             {number}
             {pill ??
@@ -191,9 +192,9 @@ export function KpiTile({
   }
 
   return (
-    <TileShell href={href} label={label}>
+    <TileShell href={href} label={label} mera={mera}>
       <div className={cn("flex flex-col px-5 pt-4 pb-4", HEIGHT[size])}>
-        <TileLabel label={label} shortLabel={shortLabel} icon={icon} />
+        <TileLabel label={label} shortLabel={shortLabel} icon={icon} mera={href ? undefined : mera} />
         <div className="mt-2">{number}</div>
         {pill ? (
           <div className="mt-2 flex items-center gap-1.5 text-ui">
@@ -219,10 +220,13 @@ export function KpiTile({
 function TileShell({
   href,
   label,
+  mera,
   children,
 }: {
   href?: string;
   label: string;
+  /** Uz `href` objašnjenje mere stoji pored linka, ne u njemu (bez ugnežđene interakcije). */
+  mera?: KljucMere;
   children: ReactNode;
 }) {
   if (!href) {
@@ -232,7 +236,7 @@ function TileShell({
       </Card>
     );
   }
-  return (
+  const link = (
     <ProjekatLink
       href={href}
       aria-label={`${label} — otvori detalj`}
@@ -253,17 +257,30 @@ function TileShell({
       />
     </ProjekatLink>
   );
+  if (!mera) return link;
+  return (
+    <div className="relative">
+      {link}
+      <InfoMere mera={mera} className="absolute top-3 right-9" />
+    </div>
+  );
 }
 
 function TileLabel({
   label,
   shortLabel,
   icon: Icon,
+  mera,
 }: {
   label: string;
   shortLabel?: string;
   icon?: TileIcon;
+  /** Natpis postaje okidač oblačića sa akronimom i definicijom mere. */
+  mera?: KljucMere;
 }) {
+  // `truncate` na natpisu seče sve ispod reda, pa podvlaka ide bliže tekstu.
+  const tekst = (t: string) =>
+    mera ? <NazivMere mera={mera} tekst={t} className="underline-offset-2" /> : t;
   return (
     <div className="flex items-center gap-2">
       {Icon && (
@@ -274,11 +291,11 @@ function TileLabel({
       <p className="heading-caps truncate text-meta font-medium text-text-muted">
         {shortLabel ? (
           <>
-            <span className="sm:hidden">{shortLabel}</span>
-            <span className="hidden sm:inline">{label}</span>
+            <span className="sm:hidden">{tekst(shortLabel)}</span>
+            <span className="hidden sm:inline">{tekst(label)}</span>
           </>
         ) : (
-          label
+          tekst(label)
         )}
       </p>
     </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { NazivMere } from "@/components/app/system/naziv-mere";
+import type { KljucMere } from "@/lib/mere";
 import type { ReactNode } from "react";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { Activity, Minus, TrendingDown, TrendingUp } from "lucide-react";
@@ -32,6 +34,7 @@ import { cn } from "@/lib/utils";
  */
 export function ChannelFocus({
   label,
+  mera,
   value,
   format,
   delta,
@@ -48,6 +51,8 @@ export function ChannelFocus({
 }: {
   /** Šta broj meri („Pratioci", „Potrošnja"). */
   label: string;
+  /** Ključ iz rečnika mera: natpis postaje okidač oblačića sa akronimom i definicijom. */
+  mera?: KljucMere;
   /** `undefined` = podatka nema; tada stoji crtica i `reason`. */
   value: number | undefined;
   format: (v: number) => string;
@@ -80,7 +85,7 @@ export function ChannelFocus({
 
   return (
     <FocusCard
-      eyebrow={label}
+      eyebrow={mera ? <NazivMere mera={mera} tekst={label} /> : label}
       className={className}
       aside={
         readiness ? (

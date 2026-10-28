@@ -149,7 +149,7 @@ export function AudiencesTable({ audiences }: AudiencesTableProps) {
             )}
           >
             <Sparkles className="size-3.5" />
-            Lookalike (
+            Slična publika (
             {audiences.filter((a) => a.subtype === "LOOKALIKE").length})
           </button>
           <button
@@ -207,7 +207,7 @@ export function AudiencesTable({ audiences }: AudiencesTableProps) {
                   className="h-32 text-center text-sm text-text-muted"
                 >
                   {audiences.length === 0
-                    ? "Nema sinhronizovanih publika za ovaj Meta Ad nalog."
+                    ? "Nema sinhronizovanih publika za ovaj Meta oglasni nalog."
                     : "Nijedna publika ne odgovara unetom filteru pretrage."}
                 </TableCell>
               </TableRow>

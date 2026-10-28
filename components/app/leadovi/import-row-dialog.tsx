@@ -129,21 +129,21 @@ const TEMP_CONFIG: Record<
     borderClass: "border-l-line",
   },
   cold: {
-    label: "Cold",
+    label: "Hladno",
     chipClass:
       "border-[var(--temp-cold)]/40 text-temp-cold-ink bg-[var(--temp-cold-bg)] hover:bg-[var(--temp-cold)]/20",
     dotClass: "bg-[var(--temp-cold)]",
     borderClass: "border-l-[var(--temp-cold)]",
   },
   warm: {
-    label: "Warm",
+    label: "Toplo",
     chipClass:
       "border-[var(--temp-warm)]/40 text-temp-warm-ink bg-[var(--temp-warm-bg)] hover:bg-[var(--temp-warm)]/20",
     dotClass: "bg-[var(--temp-warm)]",
     borderClass: "border-l-[var(--temp-warm)]",
   },
   hot: {
-    label: "Hot",
+    label: "Vruće",
     chipClass:
       "border-[var(--temp-hot)]/40 text-temp-hot-ink bg-[var(--temp-hot-bg)] hover:bg-[var(--temp-hot)]/20",
     dotClass: "bg-[var(--temp-hot)]",

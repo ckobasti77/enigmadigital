@@ -620,7 +620,7 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
                 </CardTitle>
                 <CardDescription className="text-xs text-text-muted">
                   Gde ova firma postoji na internetu. Google Maps link se pravi iz
-                  sačuvanog `placeId` — jedinog Places podatka koji smemo da čuvamo.
+                  sačuvane oznake mesta — jedinog Places podatka koji smemo da čuvamo.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-4">
@@ -929,7 +929,7 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
                         {l.trackedLinkMissing && (
                           <div className="flex items-center gap-2 rounded border border-warning/30 bg-warning/10 p-2 text-micro text-warning">
                             <AlertTriangle className="size-3.5 shrink-0" />
-                            <span>Praćeni link nije pronađen u sistemu (trackedLinkMissing).</span>
+                            <span>Praćeni link nije pronađen u sistemu.</span>
                           </div>
                         )}
 

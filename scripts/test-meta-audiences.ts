@@ -240,7 +240,7 @@ async function runTests() {
 
   // Subtype formatting
   assert.equal(formatAudienceSubtype("CUSTOM"), "Korisnička lista");
-  assert.equal(formatAudienceSubtype("LOOKALIKE"), "Slična publika (Lookalike)");
+  assert.equal(formatAudienceSubtype("LOOKALIKE"), "Slična publika");
   assert.equal(formatAudienceSubtype("WEBSITE"), "Veb-sajt posetioci");
 
   // Delivery status formatting

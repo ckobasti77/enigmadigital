@@ -19,6 +19,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusPill } from "@/components/app/settings/status-pill";
 import { formatRatio, formatNumber, formatShortDate } from "@/lib/format";
+import { naziv, VRSTA_OBJAVE } from "@/lib/recnik";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 
@@ -234,7 +235,7 @@ export function PerformanceHighlights({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="rounded-full border border-line-soft bg-surface-raised px-2 py-0.5 text-micro font-medium text-text-secondary uppercase">
-                        {topPost.mediaType.replace("_", " ")}
+                        {naziv(VRSTA_OBJAVE, topPost.mediaType, "Objava")}
                       </span>
                       <span className="text-micro text-text-muted">
                         {formatShortDate(
@@ -248,7 +249,7 @@ export function PerformanceHighlights({
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="heading-caps text-micro font-medium text-text-muted">
-                      Doseg (Reach)
+                      Doseg
                     </p>
                     <p className="text-2xl font-bold tabular-nums text-foreground">
                       {formatNumber(topPost.reach)}

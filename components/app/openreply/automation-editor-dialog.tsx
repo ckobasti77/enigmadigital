@@ -998,7 +998,7 @@ function AutomationEditorForm({
 
               <p className="text-xs text-text-muted">
                 Naknadna poruka ide bez dugmadi. Ako je prozor od 24 sata do
-                tada istekao, poruka se ne šalje i u DM logu stoji „Van
+                tada istekao, poruka se ne šalje i u dnevniku poruka stoji „Van
                 prozora”.
               </p>
             </div>

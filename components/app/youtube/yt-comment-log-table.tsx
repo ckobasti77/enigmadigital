@@ -155,7 +155,7 @@ export function YtCommentLogTable() {
         <Card className="gap-0 py-0 shadow-card ring-line">
           <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-5 pb-3">
             <p className="text-sm font-medium text-foreground">
-              Log komentara
+              Dnevnik komentara
             </p>
             <p className="text-xs tabular-nums text-text-muted">
               {formatNumber(logs.length)} od poslednjih {LOG_LIMIT} zapisa
@@ -348,7 +348,7 @@ function DeleteCommentDialog({
           <DialogTitle>Obrisati komentar sa YouTube-a?</DialogTitle>
           <DialogDescription>
             Ovo je trajno. Za razliku od moderacije, obrisan komentar se ne može
-            vratiti ni iz YouTube Studija. Košta 50 jedinica dnevne kvote.
+            vratiti ni iz YouTube Studija. Troši deo dnevne kvote.
           </DialogDescription>
         </DialogHeader>
 

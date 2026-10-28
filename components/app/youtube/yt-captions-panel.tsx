@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/table";
 import { PillToggle } from "./yt-automation-editor-dialog";
 import type { VideoItem } from "./youtube-videos-grid";
-import { formatDate, formatNumber } from "@/lib/format";
+import { formatDate, formatNumber, pluralSr } from "@/lib/format";
 import { vremeUBeogradu } from "@/convex/lib/globalneKvote";
 import { DUR_UI, EASE_UI } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -339,8 +339,8 @@ function YtCaptionsContent({
                 Postojeći titlovi
               </h3>
               <p className="mt-0.5 text-xs text-text-muted">
-                Spisak se čita sa YouTube-a i košta {QUOTA_COST.captionsList}{" "}
-                jedinica po učitavanju.
+                Spisak se čita sa YouTube-a i svako učitavanje troši deo dnevne
+                kvote.
               </p>
             </div>
             <Button
@@ -355,7 +355,7 @@ function YtCaptionsContent({
                 className={cn("size-3", listing && "animate-spin")}
                 aria-hidden
               />
-              <span>Osveži ({QUOTA_COST.captionsList})</span>
+              <span>Osveži</span>
             </Button>
           </div>
 
@@ -439,7 +439,7 @@ function YtCaptionsContent({
                   </>
                 ) : (
                   potvrda(
-                    `Zameni za ${formatNumber(QUOTA_COST.captionsUpdate)} jedinica`,
+                    "Zameni titl",
                   )
                 )}
               </Button>
@@ -456,10 +456,8 @@ function YtCaptionsContent({
                 {pending.track.name.length > 0 && ` · ${pending.track.name}`}?
               </h3>
               <p className="mt-1 text-xs leading-relaxed text-foreground">
-                Gledaoci ga odmah prestaju viđati. Brisanje košta{" "}
-                {QUOTA_COST.captionsDelete} jedinica, a vraćanje istog titla
-                nazad košta {formatNumber(QUOTA_COST.captionsInsert)} — osam
-                puta više. Zadrži fajl.
+                Gledaoci ga odmah prestaju viđati. Brisanje troši deo dnevne kvote, a vraćanje istog titla
+                nazad troši osam puta više. Zadrži fajl.
               </p>
             </div>
 
@@ -626,7 +624,7 @@ function YtCaptionsContent({
                   </>
                 ) : (
                   potvrda(
-                    `Pošalji titl za ${formatNumber(QUOTA_COST.captionsInsert)} jedinica`,
+                    "Pošalji titl",
                   )
                 )}
               </Button>
@@ -864,6 +862,11 @@ function affordable(quota: MediaQuota, cost: number): boolean {
   return quota === undefined || quota.unitsRemaining >= cost;
 }
 
+/** „1 izmena", „2 izmene", „5 izmena" — broj stoji u rečenici ispred. */
+function izmena(count: number): string {
+  return pluralSr(count, "izmena", "izmene", "izmena");
+}
+
 /**
  * What this click costs and what is left after it.
  *
@@ -890,6 +893,9 @@ function CostPanel({
 
   const fits = quota.unitsRemaining >= cost;
   const after = Math.max(0, quota.unitsRemaining - cost);
+  // Preostala kvota izražena u ovakvim izmenama (cena radnje je jedinica mere).
+  const left = cost > 0 ? Math.floor(quota.unitsRemaining / cost) : 0;
+  const leftAfter = cost > 0 ? Math.floor(after / cost) : 0;
 
   return (
     <div
@@ -901,15 +907,14 @@ function CostPanel({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-xs text-foreground">
-          {label}:{" "}
-          <span className="font-semibold tabular-nums text-mod">
-            {formatNumber(cost)}
-          </span>{" "}
-          jedinica
+          {label}: troši deo dnevne kvote
         </p>
-        <p className="text-xs tabular-nums text-text-muted">
-          danas potrošeno {formatNumber(quota.unitsUsed)} od{" "}
-          {formatNumber(quota.mediaLimit)}
+        <p className="text-xs text-text-muted">
+          Danas još oko{" "}
+          <span className="tabular-nums text-foreground">
+            {formatNumber(left)}
+          </span>{" "}
+          {izmena(left)}
         </p>
       </div>
 
@@ -922,30 +927,23 @@ function CostPanel({
 
       {fits ? (
         <p className="mt-2 text-xs text-text-muted">
-          Posle ovoga ostaje{" "}
+          Posle ovoga danas ostaje još oko{" "}
           <span className="tabular-nums text-foreground">
-            {formatNumber(after)}
+            {formatNumber(leftAfter)}
           </span>{" "}
-          jedinica za izmene danas.
+          {izmena(leftAfter)}.
           {retryWarning && (
             <>
               {" "}
-              Ako prvi pokušaj ne prođe, rezervni put košta još{" "}
-              <span className="tabular-nums">
-                {formatNumber(cost)}
-              </span>
-              .
+              Ako prvi pokušaj ne prođe, rezervni put troši još jednu takvu
+              izmenu.
             </>
           )}
         </p>
       ) : (
         <p className="mt-2 text-xs leading-relaxed text-danger">
-          Ostalo je samo {formatNumber(quota.unitsRemaining)} jedinica za
-          izmene, a ovo traži {formatNumber(cost)}
-          {quota.projekata > 1
-            ? ` (deo ovog projekta: ${formatNumber(quota.deoProjekta)})`
-            : ""}
-          . Ostatak dnevnog budžeta je rezervisan za automatske odgovore na
+          Za ovu izmenu danas nema dovoljno kvote
+          {quota.projekata > 1 ? " (kvotu dele svi projekti)" : ""}. Ostatak dnevnog budžeta je rezervisan za automatske odgovore na
           komentare i ne troši se ovde. Kvota se obnavlja u{" "}
           {vremeUBeogradu(quota.obnovaU)}.
         </p>

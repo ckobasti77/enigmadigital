@@ -49,6 +49,7 @@ import {
   POST_KINDS,
   checkHumanizerRules,
   extractConvexErrorMessage,
+  getStatusLabel,
   type HumanizerCheckResult,
   type PostCategory,
   type PostItem,
@@ -512,7 +513,7 @@ function NovostiEditorTelo({
                   : "bg-warning/15 text-warning",
             )}
           >
-            {status}
+            {getStatusLabel(status)}
           </span>
         </div>
 
@@ -581,7 +582,7 @@ function NovostiEditorTelo({
         {/* Grupa 1: Osnovni podaci i kategorizacija (§2, §3) */}
         <FormGroup
           title="Osnovno"
-          description="Naslov, slug, podnaslov i raspodela po jednoj od 6 obaveznih tema."
+          description="Naslov, adresa posta, podnaslov i raspodela po jednoj od 6 obaveznih tema."
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
@@ -601,7 +602,7 @@ function NovostiEditorTelo({
             </Field>
 
             <Field
-              label="Slug (putanja)"
+              label="Adresa posta (putanja)"
               required
               hint="Generiše se automatski iz naslova ili ga unesite ručno."
             >
@@ -661,7 +662,7 @@ function NovostiEditorTelo({
 
           {/* Podnaslov (Dek) — Kapija 4 */}
           <Field
-            label="Podnaslov / Dek"
+            label="Podnaslov"
             required
             action={<CharCount value={dek.length} max={250} />}
             hint="1–2 rečenice: ide u vrh posta, na karticu u listi i u SEO meta opis. Ne sme biti prazan."
@@ -793,7 +794,7 @@ function NovostiEditorTelo({
         {/* Grupa 4: Naslovna slika i ALT opis (§4.3, §11) */}
         <FormGroup
           title="Slika"
-          description="Otpremanje u Convex storage. Kada slika postoji, coverAlt je OBAVEZAN."
+          description="Otpremanje slike. Kada slika postoji, opis slike je obavezan."
         >
           <input
             ref={fileInputRef}
@@ -831,11 +832,11 @@ function NovostiEditorTelo({
 
                 {/* coverAlt — OBAVEZNO kad slika postoji (§4.3) */}
                 <Field
-                  label="Opis slike (coverAlt) — OBAVEZNO"
+                  label="Opis slike"
                   required
                   error={
                     !coverAlt.trim()
-                      ? "ALT opis ne sme ostati prazan kada slika postoji."
+                      ? "Opis slike ne sme ostati prazan kada slika postoji."
                       : null
                   }
                   hint="Pristupačnost i SEO opis slike za pretraživače i čitače ekrana."
@@ -939,7 +940,7 @@ function NovostiEditorTelo({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
-              label="SEO Naslov (opciono)"
+              label="SEO naslov (opciono)"
               hint="Ako je prazno, koristi se naslov posta."
             >
               {({ id }) => (
@@ -968,8 +969,8 @@ function NovostiEditorTelo({
           </div>
 
           <Field
-            label="SEO Opis (opciono)"
-            hint="Ako je prazno, koristi se podnaslov (dek)."
+            label="SEO opis (opciono)"
+            hint="Ako je prazno, koristi se podnaslov."
           >
             {({ id }) => (
               <Textarea

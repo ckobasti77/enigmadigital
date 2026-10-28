@@ -64,6 +64,11 @@ import {
   usePurgeRun,
 } from "./purge-state";
 import { WebhookSignatureNote } from "./webhook-health";
+import {
+  UPUTSTVO,
+  UputstvoProgramera,
+  uputstvoZaWebhook,
+} from "@/components/app/settings/uputstvo-programera";
 import { StatusPill } from "./status-pill";
 import { FocusCard } from "@/components/app/system/focus-card";
 import { SegmentedMeter } from "@/components/app/system/progress";
@@ -572,7 +577,7 @@ function Ga4Card({ connection }: { connection?: ConnectionView }) {
       icon={LineChart}
       title="Google Analytics 4"
       module="analitika"
-      subtitle="Service account · read-only"
+      subtitle="Servisni nalog · samo pregled"
       status={<PilulaVeze provider="ga4" />}
       provider="ga4"
     >
@@ -616,7 +621,7 @@ function Ga4Card({ connection }: { connection?: ConnectionView }) {
                     {...field}
                     rows={6}
                     spellCheck={false}
-                    placeholder='{ "type": "service_account", "project_id": "…", … }'
+                    placeholder="Nalepi ceo JSON ključ servisnog naloga"
                     value={json}
                     onChange={(event) => setJson(event.target.value)}
                     disabled={saving}
@@ -767,7 +772,7 @@ function OpenReplyCard() {
               <div className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-raised/40 px-4 py-3">
                 <div className="min-w-0 flex-1">
                   <span className="block truncate font-mono text-xs text-foreground select-all">
-                    {status.webhookUrl ?? "CONVEX_SITE_URL nije podešen"}
+                    {status.webhookUrl ?? "Adresa webhook-a još nije podešena na serveru"}
                   </span>
                 </div>
                 {status.webhookUrl && mozeVlasnik && (
@@ -870,17 +875,12 @@ function OpenReplyCard() {
             <FeedbackNote
               tone="warning"
               className="mt-4"
-              title="Nedostaje Convex environment promenljiva"
+              title="Webhook za Instagram još nije podešen na serveru."
             >
-              {missingVars.map((varName, i) => (
-                <span key={varName}>
-                  {i > 0 && " i "}
-                  <code className="font-mono font-medium text-mod">
-                    {varName}
-                  </code>
-                </span>
-              ))}
-              . Bez nje webhook odbija dolazne pozive.
+              <span className="flex flex-col gap-2">
+                <span>Dok se ne podesi, poruke i komentari ne stižu u panel.</span>
+                <UputstvoProgramera uputstvo={uputstvoZaWebhook("Instagram", missingVars)} />
+              </span>
             </FeedbackNote>
           )}
 
@@ -1050,10 +1050,10 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
           className="mt-5"
           title="Čeka se konfiguracija Meta aplikacije"
         >
-          Za povezivanje Instagram Business naloga unesi{" "}
-          <code className="font-mono text-mod">INSTAGRAM_APP_ID</code> i{" "}
-          <code className="font-mono text-mod">INSTAGRAM_APP_SECRET</code>{" "}
-          u Convex environment varijable.
+          <span className="flex flex-col gap-2">
+            <span>Povezivanje Instagram naloga još nije podešeno na serveru.</span>
+            <UputstvoProgramera uputstvo={UPUTSTVO.instagramApp} />
+          </span>
         </FeedbackNote>
       )}
 
@@ -1217,11 +1217,8 @@ function FacebookSetupSteps({ webhookUrl }: { webhookUrl: string | null }) {
         <li className="flex gap-2">
           <span className="tabular-nums text-text-secondary">3.</span>
           <span>
-            Verify token je isti{" "}
-            <code className="font-mono text-mod">
-              IG_WEBHOOK_VERIFY_TOKEN
-            </code>{" "}
-            koji već koristi Instagram webhook. Ne pravi novi.
+            Verify token je isti koji već koristi Instagram webhook. Ne pravi
+            novi.
           </span>
         </li>
 
@@ -1229,18 +1226,16 @@ function FacebookSetupSteps({ webhookUrl }: { webhookUrl: string | null }) {
           <span className="tabular-nums text-text-secondary">4.</span>
           <span>
             U <span className="text-foreground">Settings → Basic</span> uzmi App
-            ID i App Secret i upiši ih u Convex kao{" "}
-            <code className="font-mono text-mod">FACEBOOK_APP_ID</code> i{" "}
-            <code className="font-mono text-mod">FACEBOOK_APP_SECRET</code>
-            . App Secret je isti kao za Instagram; App ID nije — Instagram Login
-            ima svoj.
+            ID i App Secret i daj ih programeru da ih upiše na server (dugme
+            ispod kopira uputstvo). App Secret je isti kao za Instagram; App ID
+            nije — Instagram Login ima svoj.
           </span>
         </li>
       </ol>
 
       <div className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface px-3 py-2">
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground select-all">
-          {webhookUrl ?? "CONVEX_SITE_URL nije podešen"}
+          {webhookUrl ?? "Adresa webhook-a još nije podešena na serveru"}
         </span>
         {webhookUrl && (
           <Button
@@ -1713,15 +1708,13 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
                       tone="warning"
                       title="Čeka se konfiguracija Meta aplikacije"
                     >
-                      Bez{" "}
-                      <code className="font-mono text-mod">
-                        FACEBOOK_APP_ID
-                      </code>{" "}
-                      i{" "}
-                      <code className="font-mono text-mod">
-                        FACEBOOK_APP_SECRET
-                      </code>{" "}
-                      dugme ispod nema čime da pokrene prijavu.
+                      <span className="flex flex-col gap-2">
+                        <span>
+                          Meta aplikacija još nije podešena na serveru, pa dugme
+                          ispod nema čime da pokrene prijavu.
+                        </span>
+                        <UputstvoProgramera uputstvo={UPUTSTVO.facebookApp} />
+                      </span>
                     </FeedbackNote>
                   )}
 
@@ -1785,7 +1778,7 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
                       </Field>
                     </FormGroup>
                     <FormGroup title="Pristup">
-                      <Field label="System User Access Token" required>
+                      <Field label="Token sistemskog korisnika" required>
                         {(field) => (
                           <Textarea
                             {...field}
@@ -1849,17 +1842,12 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
           {missingVars.length > 0 && (
             <FeedbackNote
               tone="warning"
-              title="Nedostaje Convex environment promenljiva"
+              title="Webhook za Facebook još nije podešen na serveru."
             >
-              {missingVars.map((varName, i) => (
-                <span key={varName}>
-                  {i > 0 && " i "}
-                  <code className="font-mono font-medium text-mod">
-                    {varName}
-                  </code>
-                </span>
-              ))}
-              . Bez nje webhook odbija dolazne pozive.
+              <span className="flex flex-col gap-2">
+                <span>Dok se ne podesi, poruke i komentari ne stižu u panel.</span>
+                <UputstvoProgramera uputstvo={uputstvoZaWebhook("Facebook", missingVars)} />
+              </span>
             </FeedbackNote>
           )}
 
@@ -1996,7 +1984,7 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
             </FormGroup>
 
             <FormGroup title="Pristup">
-              <Field label="System User Access Token" required>
+              <Field label="Token sistemskog korisnika" required>
                 {(field) => (
                   <Textarea
                     {...field}
@@ -2220,7 +2208,7 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
                   <Textarea
                     {...field}
                     rows={6}
-                    placeholder='{"type": "service_account", "project_id": "...", ...}'
+                    placeholder="Nalepi ceo JSON ključ servisnog naloga"
                     value={json}
                     onChange={(event) => setJson(event.target.value)}
                     disabled={saving}
@@ -2505,7 +2493,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                     }}
                     className="flex w-full items-center justify-between text-left text-xs font-medium text-text-muted hover:text-foreground transition-colors"
                   >
-                    <span>Napredno: Ručno podešavanje kredencijala</span>
+                    <span>Napredno: ručno podešavanje kredencijala</span>
                     <span className="text-meta font-normal text-text-subtle">
                       {showAdvanced || editing ? "Sakrij" : "Prikaži"}
                     </span>
@@ -2666,7 +2654,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                   onClick={() => setShowAdvanced((prev) => !prev)}
                   className="flex w-full items-center justify-between text-left text-xs font-medium text-text-muted hover:text-foreground transition-colors"
                 >
-                  <span>Napredno: Ručni unos OAuth kredencijala</span>
+                  <span>Napredno: ručni unos OAuth kredencijala</span>
                   <span className="text-meta font-normal text-text-subtle">
                     {showAdvanced ? "Sakrij" : "Prikaži"}
                   </span>
@@ -3102,8 +3090,13 @@ export function ConnectionsSettings() {
     <div className="mt-6 flex flex-col gap-5">
       {oauthNijePodesen && (
         <FeedbackNote tone="warning" title="Povezivanje kanala nije podešeno na serveru.">
-          Instagram, Facebook, Threads i YouTube se ne mogu povezati dok se u Convex
-          okruženju ne postavi OAUTH_CALLBACK_ORIGIN. Postojeće veze i dalje rade.
+          <span className="flex flex-col gap-2">
+            <span>
+              Instagram, Facebook, Threads i YouTube se ne mogu povezati dok se na
+              serveru ne podesi adresa za povratak. Postojeće veze i dalje rade.
+            </span>
+            <UputstvoProgramera uputstvo={UPUTSTVO.oauthPovratak} />
+          </span>
         </FeedbackNote>
       )}
       {/* Fokus: koliko je izvora povezano, i koji traže pažnju. */}

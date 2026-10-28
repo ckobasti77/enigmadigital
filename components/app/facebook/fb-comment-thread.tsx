@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { FeedbackLine } from "@/components/app/feedback";
 import { formatNumber, formatRelativeTime } from "@/lib/format";
+import { naziv, VRSTA_FB_OBJAVE } from "@/lib/recnik";
 import { useOptimisticToggle } from "@/lib/use-optimistic-toggle";
 import { cn } from "@/lib/utils";
 
@@ -584,7 +585,7 @@ export function FbCommentThread({
             {showPost && (
               <span className="inline-flex max-w-full items-center gap-1 rounded bg-surface-raised px-1.5 py-0.5 text-micro text-text-muted">
                 <span className="font-semibold uppercase tracking-wider">
-                  {thread.post?.statusType ?? "OBJAVA"}
+                  {naziv(VRSTA_FB_OBJAVE, thread.post?.statusType, "Objava")}
                 </span>
                 <span className="truncate">
                   {thread.post?.message?.trim()

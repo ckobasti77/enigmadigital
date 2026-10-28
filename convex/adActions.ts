@@ -106,7 +106,7 @@ export function assertWriteEnabled(): void {
   if (enabled !== "true") {
     throw new ConvexError({
       code: "write_disabled",
-      message: "Pisanje je isključeno (ADS_WRITE_ENABLED)",
+      message: "Izmene oglasa su isključene na serveru.",
     });
   }
 }
@@ -708,7 +708,7 @@ export const createHookVersion = projekatAction({
     if (existingCount >= maxCopies) {
       throw new ConvexError({
         code: "max_copies_exceeded",
-        message: `Dostignut je maksimalan broj kopija po Ad Setu (${maxCopies}, definisano preko MAX_HOOK_COPIES).`,
+        message: `Grupa oglasa već ima najviše dozvoljenih verzija (${maxCopies}).`,
       });
     }
 

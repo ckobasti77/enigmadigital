@@ -28,12 +28,13 @@ import {
   Sparkles,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/format";
+import { POZIV_NA_RADNJU, naziv } from "@/lib/recnik";
 
 const AD_FORMAT_OPTIONS = [
-  { value: "DESKTOP_FEED_STANDARD", label: "Desktop Feed", icon: Monitor },
-  { value: "MOBILE_FEED_STANDARD", label: "Mobile Feed", icon: Smartphone },
-  { value: "INSTAGRAM_STANDARD", label: "Instagram Feed", icon: Camera },
-  { value: "INSTAGRAM_STORY", label: "Instagram Story", icon: Layers },
+  { value: "DESKTOP_FEED_STANDARD", label: "Glavni tok na računaru", icon: Monitor },
+  { value: "MOBILE_FEED_STANDARD", label: "Glavni tok na telefonu", icon: Smartphone },
+  { value: "INSTAGRAM_STANDARD", label: "Instagram glavni tok", icon: Camera },
+  { value: "INSTAGRAM_STORY", label: "Instagram priča", icon: Layers },
 ];
 
 interface AdPreviewDialogProps {
@@ -239,7 +240,7 @@ export function AdPreviewDialog({
               srcDoc={previewResult.previewHtml}
               sandbox="allow-scripts"
               className="w-full h-[520px] rounded border-0"
-              title={`Meta Preview - ${adName}`}
+              title={`Pregled oglasa na Meti: ${adName}`}
             />
           </div>
         )}
@@ -265,8 +266,10 @@ export function AdPreviewDialog({
             )}
             {creative.callToActionType && (
               <div>
-                <span className="text-text-muted">Poziv na akciju (CTA): </span>
-                <span className="font-mono text-foreground font-semibold">{creative.callToActionType}</span>
+                <span className="text-text-muted">Poziv na radnju: </span>
+                <span className="text-foreground font-semibold">
+                  {naziv(POZIV_NA_RADNJU, creative.callToActionType)}
+                </span>
               </div>
             )}
             {creative.linkUrl && (

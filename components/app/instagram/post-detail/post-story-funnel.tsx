@@ -93,7 +93,7 @@ export function PostStoryFunnel({ breakdowns, className }: PostStoryFunnelProps)
     <div className={cn("flex flex-col gap-4", className)}>
       <div className="flex flex-col gap-1">
         <span className="heading-caps text-micro font-semibold text-text-muted">
-          Story analitika
+          Analitika priče
         </span>
         <h2 className="text-xl font-bold tracking-tight text-foreground">
           Levak navigacije kroz priču

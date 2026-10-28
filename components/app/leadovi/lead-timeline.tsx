@@ -21,6 +21,7 @@ import { Chip } from "@/components/app/system/chip";
 import { signalSlot, type CategorySlot } from "@/lib/signal-colors";
 import { leadOutcomeLabel, leadSignalLabel, leadStageLabel } from "./lead-labels";
 import { formatDateTime, formatRelativeTime } from "@/lib/format";
+import { IZVOR_SIGNALA, naziv } from "@/lib/recnik";
 import { cn } from "@/lib/utils";
 
 /**
@@ -304,7 +305,7 @@ function Signal({ signal }: { signal: Doc<"leadSignals"> }) {
           {/* Pravilo 4: izvor je obavezan — signal bez izvora nije činjenica. */}
           {imaIzvor ? (
             <Chip size="sm" tone="muted" title="Izvor iz kog je ovaj signal opažen">
-              {signal.source}
+              {naziv(IZVOR_SIGNALA, signal.source, "Drugi izvor")}
             </Chip>
           ) : (
             <Chip size="sm" tone="warning">

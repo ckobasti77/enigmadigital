@@ -322,7 +322,7 @@ function DeleteConfirmDialog({
           <DialogDescription>
             {automation === null
               ? null
-              : `„${automation.name}” se briše i više neće odgovarati na komentare. Log komentara ostaje sačuvan, a odgovori koji su već objavljeni ostaju na YouTube-u.`}
+              : `„${automation.name}” se briše i više neće odgovarati na komentare. Dnevnik komentara ostaje sačuvan, a odgovori koji su već objavljeni ostaju na YouTube-u.`}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

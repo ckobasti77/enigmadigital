@@ -323,7 +323,7 @@ function YtThumbnailForm({
 
       <DialogFooter className="items-center gap-2 border-t border-line pt-3 sm:justify-between">
         <span className="text-xs tabular-nums text-text-muted">
-          50 jedinica kvote
+          Troši deo dnevne kvote
         </span>
         <div className="flex items-center gap-2">
           <Button

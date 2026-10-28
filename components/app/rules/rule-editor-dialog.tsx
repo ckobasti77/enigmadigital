@@ -24,7 +24,6 @@ import {
   formatMetricName,
   formatRuleSentence,
   istiCilj,
-  metricAcronym,
   pragJeIznos,
   type RuleAction,
   type RuleConditionLike,
@@ -34,6 +33,8 @@ import {
 } from "@/lib/rule-sentence";
 import { FeedbackNote } from "@/components/app/feedback";
 import { ValutaUpozorenje } from "@/components/app/system/valuta-upozorenje";
+import { InfoMere } from "@/components/app/system/naziv-mere";
+import type { KljucMere } from "@/lib/mere";
 import { useMoze, useProjekatMutation } from "@/components/app/projekat-provider";
 import { RuleProbaDialog } from "./rule-proba-dialog";
 import { useValutaPravila } from "./use-valuta-pravila";
@@ -52,6 +53,15 @@ export interface RuleEditorDialogProps {
   } | null;
   onSaved?: () => void;
 }
+
+/** Mera pravila → ključ u rečniku mera (oblačić sa akronimom i definicijom). */
+const KLJUC_MERE: Record<RuleMetric, KljucMere> = {
+  cpa: "cena_po_rezultatu",
+  spend: "potrosnja",
+  ctr: "stopa_klikova",
+  cpc: "cena_po_kliku",
+  roas: "povracaj",
+};
 
 const NIVOI: { id: RuleScope; label: string }[] = [
   { id: "campaign", label: "Kampanje" },
@@ -322,7 +332,10 @@ function RuleEditorForm({
           <legend className="sr-only">Uslov</legend>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor={ids.mera}>Mera</Label>
+              <div className="flex items-center gap-1">
+                <Label htmlFor={ids.mera}>Mera</Label>
+                <InfoMere mera={KLJUC_MERE[metric]} />
+              </div>
               <Select<RuleMetric>
                 id={ids.mera}
                 label="Mera"
@@ -333,9 +346,6 @@ function RuleEditorForm({
                   value: m,
                   label: formatMetricName(m),
                 }))}
-                renderOption={(o) => (
-                  <span title={metricAcronym(o.value)}>{o.label}</span>
-                )}
               />
             </div>
 

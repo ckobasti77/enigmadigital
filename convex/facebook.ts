@@ -356,7 +356,7 @@ export const getOAuthUrl = projekatAction({
     const redirectUri = redirectUriZa("meta_fb");
     const clientId = getFacebookAppId();
     if (!clientId) {
-      invalid("Čeka Meta app — dodaj FACEBOOK_APP_ID/SECRET u env");
+      invalid("Povezivanje Facebook stranice još nije podešeno na serveru.");
     }
 
     const { workspaceId, userId } = ctx.projekat;
@@ -416,7 +416,7 @@ async function exchangeCodeAndConnect(
   const clientId = getFacebookAppId();
   const clientSecret = getFacebookAppSecret();
   if (!clientId || !clientSecret) {
-    invalid("Čeka Meta app — dodaj FACEBOOK_APP_ID/SECRET u env");
+    invalid("Povezivanje Facebook stranice još nije podešeno na serveru.");
   }
 
   // Five calls to graph.facebook.com before this returns, and every one of

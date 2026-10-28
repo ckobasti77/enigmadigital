@@ -252,6 +252,7 @@ export function ThreadsDashboard() {
             <div className="flex flex-col gap-6">
               <ChannelFocus
                 label="Pratioci"
+                mera="pratioci"
                 value={overview.followersCount ?? undefined}
                 format={formatNumber}
                 note={

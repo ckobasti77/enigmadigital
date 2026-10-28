@@ -8,6 +8,8 @@
  * Bez React-a i bez Convex-a, da se proveravaju u `node` testu.
  */
 
+import { NAZIV_KANALA } from "./recnik";
+
 export type Hitnost = "visoka" | "srednja" | "niska";
 
 const RANG: Record<Hitnost, number> = { visoka: 0, srednja: 1, niska: 2 };
@@ -102,18 +104,8 @@ export const RAZLOG_BROJKE: Record<RazlogBrojke, string> = {
   modul_iskljucen: "Modul je isključen u ovom projektu",
 };
 
-export const NAZIV_VEZE: Record<string, string> = {
-  ga4: "GA4",
-  meta_ig: "Instagram",
-  meta_fb: "Facebook stranica",
-  meta_ads: "Meta oglasi",
-  google_ads: "Google oglasi",
-  youtube: "YouTube",
-  openreply: "OpenReply",
-  threads: "Threads",
-  leads: "Lead mašina",
-  google_business: "Google Business",
-};
+/** Nazivi kanala iz jednog izvora (`lib/recnik.ts` → `INTEGRACIJA_NAZIV`). */
+export const NAZIV_VEZE: Readonly<Record<string, string>> = NAZIV_KANALA;
 
 export type RazlogVeze =
   | "token_istekao"

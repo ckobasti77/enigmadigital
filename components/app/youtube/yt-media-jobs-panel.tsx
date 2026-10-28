@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatNumber, formatRelativeTime } from "@/lib/format";
+import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -43,7 +43,7 @@ type MediaJob = FunctionReturnType<typeof api.ytMedia.recentJobs>[number];
 const KIND_LABELS: Record<MediaJob["kind"], string> = {
   upload: "Slanje videa",
   metadata: "Izmena videa",
-  thumbnail: "Thumbnail",
+  thumbnail: "Sličica",
   caption: "Titl",
   playlist: "Plejlista",
   comment_delete: "Brisanje komentara",
@@ -119,7 +119,7 @@ export function YtMediaJobsPanel() {
                   Status
                 </TableHead>
                 <TableHead className="h-9 text-right text-xs font-medium text-text-muted">
-                  Jedinice
+                  Dnevna kvota
                 </TableHead>
                 <TableHead className="h-9 pr-3 text-right text-xs font-medium text-text-muted">
                   Kada
@@ -172,11 +172,11 @@ function JobRow({ job }: { job: MediaJob }) {
             {STATUS_LABELS[job.status]}
           </span>
         </TableCell>
-        <TableCell className="py-2 text-right font-mono text-xs tabular-nums text-text-muted">
+        <TableCell className="py-2 text-right text-xs text-text-muted">
           {/* An upload spends none: videos.insert is metered on its own
-              counter, not in units. A dash is the truth, 0 would read as a
-              free operation. */}
-          {job.kind === "upload" ? "—" : formatNumber(job.unitsSpent)}
+              counter, not in units. A dash is the truth, "nothing" would
+              read as a free operation. */}
+          {job.kind === "upload" || job.unitsSpent <= 0 ? "—" : "Potrošeno"}
         </TableCell>
         <TableCell className="py-2 pr-3 text-right text-xs whitespace-nowrap text-text-muted">
           {formatRelativeTime(job.finishedAt ?? job.createdAt)}

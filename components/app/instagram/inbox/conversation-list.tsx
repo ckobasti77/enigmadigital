@@ -75,7 +75,7 @@ export function ConversationList({
                 variant="ghost"
                 size="icon"
                 onClick={onOpenSettings}
-                title="Podešavanja ledolomaca i menija"
+                title="Podešavanja početnih pitanja i menija"
                 className="size-8 text-muted-foreground hover:text-foreground"
               >
                 <SlidersHorizontal className="size-4" />
@@ -131,7 +131,7 @@ export function ConversationList({
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            Prozor ističe
+            Rok za odgovor ističe
           </button>
         </div>
       </div>
@@ -158,7 +158,7 @@ export function ConversationList({
               {filter === "unread"
                 ? "Sve poruke su pročitane."
                 : filter === "expiring"
-                  ? "Nema razgovora kojima uskoro ističe 24h prozor."
+                  ? "Nema razgovora kojima uskoro ističe rok za odgovor."
                   : "Poruke koje stignu na Instagram nalog pojaviće se ovde."}
             </p>
           </div>

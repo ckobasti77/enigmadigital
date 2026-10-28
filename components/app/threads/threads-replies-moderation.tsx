@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { naziv, VRSTA_OBJAVE } from "@/lib/recnik";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -198,7 +199,7 @@ export function ThreadsRepliesModeration() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* ── Izbor objave (Dodatak A.2: odgovori su po objavi) ──────────────── */}
+      {/* ── Izbor objave (odgovori su po objavi) ──────────────── */}
       <Card className="p-5 shadow-card ring-line">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
@@ -207,7 +208,7 @@ export function ThreadsRepliesModeration() {
             </div>
             <div>
               <h3 className="text-sm font-semibold text-foreground">
-                Moderacija odgovora po objavi (Dodatak A.2)
+                Moderacija odgovora po objavi
               </h3>
               <p className="text-xs text-text-muted">
                 Threads API zahteva izbor konkretne objave za pregled odgovora i odobrenja
@@ -228,7 +229,7 @@ export function ThreadsRepliesModeration() {
                 onValueChange={(v) => setSelectedPostId(v)}
                 options={mediaList.map((m) => ({
                   value: m.mediaId,
-                  label: m.text ? `${m.text.slice(0, 45)}...` : `Objava ${m.mediaType}`,
+                  label: m.text ? `${m.text.slice(0, 45)}...` : "Objava bez teksta",
                 }))}
               />
             )}
@@ -240,7 +241,7 @@ export function ThreadsRepliesModeration() {
           <div className="mt-4 rounded-lg border border-line-soft bg-surface-raised/40 p-3 text-xs">
             <div className="flex items-center justify-between text-text-muted mb-1">
               <span className="text-micro uppercase">
-                Tip: {selectedMediaItem.mediaType}
+                Tip: {naziv(VRSTA_OBJAVE, selectedMediaItem.mediaType).toLowerCase()}
               </span>
               {selectedMediaItem.permalink && (
                 <a

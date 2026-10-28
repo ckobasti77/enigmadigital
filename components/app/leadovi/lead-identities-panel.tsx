@@ -228,7 +228,7 @@ export function LeadIdentitiesPanel({
                       <div className="flex items-start gap-1.5 text-warning">
                         <ShieldAlert className="size-4 shrink-0 mt-0.5" />
                         <div className="flex flex-col">
-                          <span className="font-bold">ZZPL Upozorenje</span>
+                          <span className="font-bold">ZZPL upozorenje</span>
                           <span className="text-micro leading-tight">
                             Podatak bez zabeleženog pravnog osnova ili izvora. Po ZZPL-u nema osnova za obradu.
                           </span>

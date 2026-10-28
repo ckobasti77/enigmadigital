@@ -121,8 +121,8 @@ export function FunnelTable({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Spaja OpenReply kampanje sa GA4 sesijama preko utm_campaign
-                  sluga i utm_medium=openreply-dm parametra.
+                  Spaja OpenReply kampanje sa GA4 sesijama preko oznake kampanje
+                  i oznake izvora „openreply-dm”.
                 </TooltipContent>
               </Tooltip>
             </div>

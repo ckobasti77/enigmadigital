@@ -240,7 +240,7 @@ export function ThreadsAttributionSection({
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="size-4 text-warning" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-foreground">
-              Nespojeni URL-ovi — Vidljiva rupa u atribuciji
+              Nespojeni URL-ovi: vidljiva rupa u atribuciji
             </h3>
           </div>
           <p className="text-xs text-text-muted leading-relaxed mb-4">

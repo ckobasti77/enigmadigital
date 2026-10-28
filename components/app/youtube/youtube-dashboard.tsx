@@ -206,6 +206,7 @@ export function YouTubeDashboard() {
         <>
           <ChannelFocus
             label="Pregledi"
+            mera="pregledi"
             value={cur.views}
             format={formatNumber}
             delta={deltaPct(cur.views, prev.views)}

@@ -12,6 +12,8 @@ import { AdDrilldownPanel } from "./ad-drilldown-panel";
 import { HookLabelEditor } from "./hook-label-editor";
 import { MeraIliCrtica, RAZLOG, razlogFrekvencije } from "./nepoznata-mera";
 import { ValutaUpozorenje } from "@/components/app/system/valuta-upozorenje";
+import { InfoMere, NazivMere } from "@/components/app/system/naziv-mere";
+import { CILJ_KAMPANJE, STATUS_KAMPANJE, naziv } from "@/lib/recnik";
 import {
   formatDecimal,
   formatNumber,
@@ -99,7 +101,7 @@ function KeywordQualitySection({
         <div className="flex items-center gap-2">
           <Target className="size-4 text-text-muted" />
           <h3 className="text-sm font-bold text-foreground">
-            Google Ads — Ocena kvaliteta ključnih reči (Quality Score)
+            Google Ads — ocena kvaliteta ključnih reči
           </h3>
           <span className="rounded-full bg-surface px-2 py-0.5 text-micro font-medium text-text-muted">
             {report.totals.totalKeywords} {report.totals.totalKeywords === 1 ? "reč" : "reči"}
@@ -107,7 +109,7 @@ function KeywordQualitySection({
         </div>
         {report.totals.averageQualityScore && (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-text-muted">Prosečan Quality Score:</span>
+            <span className="text-xs text-text-muted">Prosečna ocena kvaliteta:</span>
             <span className="inline-flex items-center rounded-full border border-chart-2/40 bg-chart-2/10 px-2 py-0.5 text-xs font-bold tabular-nums text-foreground">
               {report.totals.averageQualityScore} / 10
             </span>
@@ -121,13 +123,13 @@ function KeywordQualitySection({
             <TableRow className="border-line-soft bg-surface/20 hover:bg-transparent">
               <TableHead className="pl-5 min-w-56 text-text-muted">Ključna reč</TableHead>
               <TableHead className="text-center text-text-muted">Tip podudaranja</TableHead>
-              <TableHead className="text-center text-text-muted">Quality Score</TableHead>
-              <TableHead className="text-center text-text-muted">Očekivani CTR</TableHead>
+              <TableHead className="text-center text-text-muted">Ocena kvaliteta<InfoMere mera="ocena_kvaliteta" /></TableHead>
+              <TableHead className="text-center text-text-muted">Očekivana stopa klikova<InfoMere mera="stopa_klikova" /></TableHead>
               <TableHead className="text-center text-text-muted">Relevantnost oglasa</TableHead>
               <TableHead className="text-center text-text-muted">Iskustvo na stranici</TableHead>
-              <TableHead className="text-right text-text-muted">Impresije</TableHead>
+              <TableHead className="text-right text-text-muted">Prikazi</TableHead>
               <TableHead className="text-right text-text-muted">Klikovi</TableHead>
-              <TableHead className="text-right text-text-muted">CTR</TableHead>
+              <TableHead className="text-right text-text-muted">Stopa klikova<InfoMere mera="stopa_klikova" /></TableHead>
               <TableHead className="text-right text-text-muted">Potrošnja</TableHead>
               <TableHead className="pr-5 text-right text-text-muted">Konverzije</TableHead>
             </TableRow>
@@ -194,36 +196,6 @@ function KeywordQualitySection({
       </div>
     </Card>
   );
-}
-
-function formatObjective(objective?: string): string {
-  if (!objective) return "Kampanja";
-  switch (objective) {
-    case "OUTCOME_LEADS":
-    case "LEADS":
-      return "Generisanje lidova";
-    case "OUTCOME_SALES":
-    case "SALES":
-      return "Prodaja";
-    case "OUTCOME_TRAFFIC":
-    case "TRAFFIC":
-      return "Saobraćaj na sajtu";
-    case "OUTCOME_AWARENESS":
-    case "AWARENESS":
-      return "Prepoznatljivost brenda";
-    case "OUTCOME_ENGAGEMENT":
-    case "ENGAGEMENT":
-      return "Angažovanje";
-    case "OUTCOME_APP_PROMOTION":
-    case "APP_PROMOTION":
-      return "Promocija aplikacije";
-    case "SEARCH":
-      return "Search mreža";
-    case "PERFORMANCE_MAX":
-      return "Performance Max";
-    default:
-      return objective.replace("OUTCOME_", "").toLowerCase();
-  }
 }
 
 function formatFreshness(syncedAt?: number, syncPriority?: "hot" | "cold"): string {
@@ -323,7 +295,8 @@ export function CampaignDetail({
                   "size-2.5 rounded-full shrink-0",
                   campaign.status === "ACTIVE" ? "bg-success" : "bg-text-muted",
                 )}
-                aria-label={`Status: ${campaign.status}`}
+                role="img"
+                aria-label={`Status: ${naziv(STATUS_KAMPANJE, campaign.status, "nepoznat").toLowerCase()}`}
               />
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
                 {campaign.name}
@@ -344,7 +317,7 @@ export function CampaignDetail({
 
               <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2 py-0.5 font-medium text-foreground">
                 <Target className="size-3 text-mod" />
-                {formatObjective(campaign.objective)}
+                {naziv(CILJ_KAMPANJE, campaign.objective, "Kampanja")}
               </span>
 
               {campaign.syncPriority === "hot" ? (
@@ -428,7 +401,7 @@ export function CampaignDetail({
               </div>
             ) : isGoogleAds ? (
               <div className="flex items-center gap-1.5 rounded-lg border border-line-soft bg-surface-raised/40 px-3 py-2 text-xs text-text-muted">
-                <span>Google Ads (Samo za čitanje)</span>
+                <span>Google Ads (samo pregled)</span>
               </div>
             ) : null}
           </div>
@@ -454,7 +427,7 @@ export function CampaignDetail({
         </div>
 
         <div className="rounded-lg border border-line bg-surface/50 p-3">
-          <span className="text-xs text-text-muted">CPA (Cena / rez.)</span>
+          <span className="text-xs text-text-muted"><NazivMere mera="cena_po_rezultatu" /></span>
           <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
             {formatMetric(campaign.costPerResult, cpaDef, campaign.currency)}
           </p>
@@ -462,14 +435,14 @@ export function CampaignDetail({
 
         {campaign.hasConversionValue ? (
           <div className="rounded-lg border border-line bg-surface/50 p-3">
-            <span className="text-xs text-text-muted">ROAS</span>
+            <span className="text-xs text-text-muted"><NazivMere mera="povracaj" /></span>
             <p className="mt-1 text-xl font-bold tabular-nums text-success">
               {campaign.roas !== undefined ? `${formatRatio(campaign.roas)}x` : "—"}
             </p>
           </div>
         ) : (
           <div className="rounded-lg border border-line bg-surface/50 p-3">
-            <span className="text-xs text-text-muted">CTR</span>
+            <span className="text-xs text-text-muted"><NazivMere mera="stopa_klikova" /></span>
             <p className="mt-1 text-xl font-bold tabular-nums text-mod">
               <MeraIliCrtica
                 value={campaign.ctr}
@@ -481,7 +454,7 @@ export function CampaignDetail({
         )}
 
         <div className="rounded-lg border border-line bg-surface/50 p-3">
-          <span className="text-xs text-text-muted">Impresije</span>
+          <span className="text-xs text-text-muted"><NazivMere mera="prikazi" /></span>
           <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
             {formatNumber(campaign.impressions)}
           </p>
@@ -489,7 +462,7 @@ export function CampaignDetail({
 
         {isGoogleAds ? (
           <div className="rounded-lg border border-line bg-surface/50 p-3">
-            <span className="text-xs text-text-muted">Search Impr. Share</span>
+            <span className="text-xs text-text-muted"><NazivMere mera="udeo_u_pretrazi" kratko /></span>
             <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
               {(campaign as { searchImpressionShare?: number }).searchImpressionShare !== undefined
                 ? formatPercent((campaign as { searchImpressionShare?: number }).searchImpressionShare!)
@@ -526,7 +499,7 @@ export function CampaignDetail({
           <div className="flex items-center gap-2">
             <Layers className="size-4 text-mod" />
             <h2 className="text-base font-bold text-foreground">
-              {isGoogleAds ? `Grupe oglasa i Oglasi (${adSets.length})` : `Ad Setovi i Oglasi (${adSets.length})`}
+              {`Grupe oglasa i oglasi (${adSets.length})`}
             </h2>
           </div>
           <span className="text-xs text-text-muted">
@@ -538,7 +511,7 @@ export function CampaignDetail({
 
         {adSets.length === 0 ? (
           <div className="rounded-lg border border-line-soft bg-surface/30 p-8 text-center text-sm text-text-muted">
-            {isGoogleAds ? "Nema pronađenih grupa oglasa za ovu kampanju." : "Nema pronađenih Ad Setova za ovu kampanju."}
+            Nema pronađenih grupa oglasa za ovu kampanju.
           </div>
         ) : (
           adSets.map((set) => {
@@ -607,15 +580,15 @@ export function CampaignDetail({
                         Rezultati: <strong className="text-foreground">{set.results !== undefined ? formatNumber(set.results) : "—"}</strong>
                       </span>
                       <span>
-                        CPA: <strong className="text-foreground">{formatMetric(set.costPerResult, cpaDef, campaign.currency)}</strong>
+                        <span onClick={(e) => e.stopPropagation()}><NazivMere mera="cena_po_rezultatu" kratko /></span>: <strong className="text-foreground">{formatMetric(set.costPerResult, cpaDef, campaign.currency)}</strong>
                       </span>
                       {set.hasConversionValue && set.roas !== undefined && (
                         <span>
-                          ROAS: <strong className="text-success">{formatRatio(set.roas)}x</strong>
+                          <span onClick={(e) => e.stopPropagation()}><NazivMere mera="povracaj" kratko /></span>: <strong className="text-success">{formatRatio(set.roas)}x</strong>
                         </span>
                       )}
                       <span>
-                        CTR:{" "}
+                        <span onClick={(e) => e.stopPropagation()}><NazivMere mera="stopa_klikova" kratko /></span>:{" "}
                         <strong className="text-mod">
                           <MeraIliCrtica
                             value={set.ctr}
@@ -646,8 +619,8 @@ export function CampaignDetail({
                           }
                           title={
                             set.status === "ACTIVE"
-                              ? "Pauziraj Ad Set"
-                              : "Aktiviraj Ad Set"
+                              ? "Pauziraj grupu oglasa"
+                              : "Aktiviraj grupu oglasa"
                           }
                           className={cn(
                             "flex size-7 items-center justify-center rounded border transition-colors",
@@ -675,7 +648,7 @@ export function CampaignDetail({
                               actionType: "budget_change",
                             })
                           }
-                          title="Promeni budžet Ad Seta"
+                          title="Promeni budžet grupe oglasa"
                           className="flex size-7 items-center justify-center rounded border border-line-soft bg-surface text-text-muted hover:border-mod-line hover:bg-mod-soft hover:text-mod transition-colors"
                         >
                           <TrendingUp className="size-3.5" />
@@ -693,10 +666,10 @@ export function CampaignDetail({
                           onOpenBattle(set._id);
                         }}
                         className="h-7 gap-1.5 text-radnja font-medium ml-1"
-                        title="Otvori Hook Battle za ovaj Ad Set"
+                        title="Otvori poređenje verzija za ovu grupu oglasa"
                       >
                         <Swords className="size-3.5" />
-                        <span>Uporedi hooks ({set.ads.length})</span>
+                        <span>Uporedi verzije ({set.ads.length})</span>
                       </Button>
                     )}
                   </div>
@@ -710,14 +683,24 @@ export function CampaignDetail({
                         <TableRow className="border-line-soft bg-surface/20 hover:bg-transparent">
                           <TableHead className="pl-5 min-w-56 text-text-muted">Oglas / Kreativa</TableHead>
                           <TableHead className="text-right text-text-muted">Potrošnja</TableHead>
-                          <TableHead className="text-right text-text-muted">Impresije</TableHead>
-                          <TableHead className="text-right text-text-muted">CTR</TableHead>
+                          <TableHead className="text-right text-text-muted">Prikazi</TableHead>
+                          <TableHead className="text-right text-text-muted">Stopa klikova<InfoMere mera="stopa_klikova" /></TableHead>
                           <TableHead className="text-right text-text-muted">Rezultati</TableHead>
                           <TableHead className="text-right text-text-muted">
-                            {set.hasConversionValue ? "CPA / ROAS" : "CPA"}
+                            {set.hasConversionValue ? "Cena po rezultatu / povraćaj" : "Cena po rezultatu"}
+                            <InfoMere mera="cena_po_rezultatu" />
+                            {set.hasConversionValue && <InfoMere mera="povracaj" />}
                           </TableHead>
                           <TableHead className="text-right text-text-muted">
-                            {isGoogleAds ? "Status" : "Hook / Hold"}
+                            {isGoogleAds ? (
+                              "Status"
+                            ) : (
+                              <>
+                                Prve 3 s / do kraja
+                                <InfoMere mera="zadrzavanje_3s" />
+                                <InfoMere mera="gledanje_do_kraja" />
+                              </>
+                            )}
                           </TableHead>
                           <TableHead className="pr-5 text-right text-text-muted min-w-28">Akcije</TableHead>
                         </TableRow>
@@ -894,7 +877,7 @@ export function CampaignDetail({
                                               actionType: "duplicate",
                                             })
                                           }
-                                          title="Dupliraj oglas (kreira se PAUSED)"
+                                          title="Dupliraj oglas (kreira se pauziran)"
                                           className="flex size-6 items-center justify-center rounded border border-line-soft bg-surface text-text-muted hover:border-line hover:text-foreground transition-colors"
                                         >
                                           <Copy className="size-3" />

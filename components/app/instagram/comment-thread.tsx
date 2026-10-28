@@ -31,6 +31,7 @@ import {
   useProjekatAction,
 } from "@/components/app/projekat-provider";
 import { formatNumber, formatRelativeTime } from "@/lib/format";
+import { naziv, VRSTA_OBJAVE } from "@/lib/recnik";
 import { useOptimisticToggle } from "@/lib/use-optimistic-toggle";
 import { cn } from "@/lib/utils";
 
@@ -542,7 +543,7 @@ export function CommentThread({
             {showPost && (
               <span className="inline-flex max-w-full items-center gap-1 rounded bg-surface-raised px-1.5 py-0.5 text-micro text-text-muted">
                 <span className="font-semibold uppercase tracking-wider">
-                  {thread.media?.mediaType ?? "OBJAVA"}
+                  {naziv(VRSTA_OBJAVE, thread.media?.mediaType, "Objava")}
                 </span>
                 <span className="truncate">
                   {thread.media?.caption?.trim()

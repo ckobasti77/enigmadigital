@@ -27,6 +27,7 @@ import { StatusPill } from "./status-pill";
 import { EmptyState } from "@/components/app/system/empty-state";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDateTime } from "@/lib/format";
+import { CILJ_KAMPANJE, NIVO_OGLASA, STATUS_KAMPANJE, naziv } from "@/lib/recnik";
 import {
   Activity,
   AlertCircle,
@@ -46,16 +47,7 @@ type TargetFilter = "all" | "campaign" | "adset" | "ad";
 type StatusFilter = "all" | "success" | "error" | "pending" | "blocked";
 
 function formatTargetType(type: string): string {
-  switch (type) {
-    case "campaign":
-      return "Kampanja";
-    case "adset":
-      return "Ad Set";
-    case "ad":
-      return "Oglas";
-    default:
-      return type;
-  }
+  return naziv(NIVO_OGLASA, type, "Objekat");
 }
 
 function ActionIcon({ action }: { action: string }) {
@@ -103,39 +95,83 @@ function formatActionTitle(action: string): string {
       return "Promena budžeta";
     case "duplicate":
       return "Dupliranje oglasa";
+    case "create_campaign":
+      return "Pravljenje kampanje";
+    case "create_adset":
+      return "Pravljenje grupe oglasa";
+    case "create_ad":
+      return "Pravljenje oglasa";
     default:
-      return action;
+      return "Radnja";
   }
 }
 
-function parseParamsSummary(paramsStr: string | null): string {
-  if (!paramsStr) return "—";
+const statusTekst = (v: unknown) =>
+  naziv(STATUS_KAMPANJE, typeof v === "string" ? v : undefined, "nepoznat").toLowerCase();
+
+/** Skraćuje dugačak tekst iz zapisa na jedan red. */
+const skratiTekst = (v: string) => (v.length > 80 ? `${v.slice(0, 77)}…` : v);
+
+/**
+ * Ljudski redovi umesto sirovih ključeva. Poznat ključ dobija srpski natpis,
+ * tehnički ključevi (ID-jevi, API nazivi) se ne ispisuju, a nepoznat ključ
+ * nikad ne izlazi sirov.
+ */
+function parseParamsSummary(paramsStr: string | null): string[] {
+  if (!paramsStr) return [];
   try {
-    const parsed = JSON.parse(paramsStr);
-    if (parsed.newDailyBudget !== undefined) {
-      // Iznos u valuti naloga koju je radnja zapisala. Stari zapisi je nemaju,
-      // pa im iznos stoji bez znaka valute — ne pretpostavlja se evro.
-      const valuta =
-        typeof parsed.currency === "string" && parsed.currency.trim()
-          ? parsed.currency.trim()
-          : undefined;
-      const iznos = (v: number) => formatCurrency(v, valuta);
+    const parsed = JSON.parse(paramsStr) as Record<string, unknown>;
+    // Iznos u valuti naloga koju je radnja zapisala. Stari zapisi je nemaju,
+    // pa im iznos stoji bez znaka valute — ne pretpostavlja se evro.
+    const valuta =
+      typeof parsed.currency === "string" && parsed.currency.trim()
+        ? parsed.currency.trim()
+        : undefined;
+    const iznos = (v: number) => formatCurrency(v, valuta);
+    const redovi: string[] = [];
+
+    if (typeof parsed.newDailyBudget === "number") {
       const prev = parsed.previousDailyBudget
-        ? ` (bilo ${iznos(parsed.previousDailyBudget)})`
+        ? ` (bilo ${iznos(parsed.previousDailyBudget as number)})`
         : "";
-      return `Novi budžet: ${iznos(parsed.newDailyBudget)} / dan${prev}`;
+      redovi.push(`Novi budžet: ${iznos(parsed.newDailyBudget)} / dan${prev}`);
     }
-    if (parsed.desiredStatus) {
-      return `Status: ${parsed.desiredStatus}`;
+    if (typeof parsed.desiredStatus === "string") {
+      const bilo =
+        typeof parsed.previousStatus === "string"
+          ? ` (bilo ${statusTekst(parsed.previousStatus)})`
+          : "";
+      redovi.push(`Status: ${statusTekst(parsed.desiredStatus)}${bilo}`);
     }
-    if (parsed.newName) {
-      return `Naziv: ${parsed.newName} (PAUSED)`;
+    if (typeof parsed.newName === "string") {
+      redovi.push(`Naziv: ${parsed.newName}`);
+    } else if (typeof parsed.name === "string") {
+      redovi.push(`Naziv: ${parsed.name}`);
     }
-    return Object.entries(parsed)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join(", ");
+    if (typeof parsed.objective === "string") {
+      redovi.push(`Cilj: ${naziv(CILJ_KAMPANJE, parsed.objective, "kampanja").toLowerCase()}`);
+    }
+    if (typeof parsed.channelType === "string") {
+      redovi.push(`Vrsta: ${naziv(CILJ_KAMPANJE, parsed.channelType, "kampanja").toLowerCase()}`);
+    }
+    if (typeof parsed.dailyBudget === "number" && parsed.newDailyBudget === undefined) {
+      redovi.push(`Dnevni budžet: ${iznos(parsed.dailyBudget)}`);
+    }
+    if (typeof parsed.hookLabel === "string" && parsed.hookLabel) {
+      redovi.push(`Oznaka verzije: ${parsed.hookLabel}`);
+    }
+    if (typeof parsed.headline === "string" && parsed.headline) {
+      redovi.push(`Naslov: ${skratiTekst(parsed.headline)}`);
+    }
+    if (typeof parsed.primaryText === "string" && parsed.primaryText) {
+      redovi.push(`Tekst: ${skratiTekst(parsed.primaryText)}`);
+    }
+    if (typeof parsed.createdStatus === "string") {
+      redovi.push(`Nastaje kao: ${statusTekst(parsed.createdStatus)}`);
+    }
+    return redovi;
   } catch {
-    return paramsStr;
+    return [];
   }
 }
 
@@ -252,7 +288,7 @@ export function ActionAuditLog() {
                   : "text-text-muted hover:text-foreground",
               )}
             >
-              Ad Setovi
+              Grupe oglasa
             </button>
             <button
               type="button"
@@ -374,7 +410,7 @@ export function ActionAuditLog() {
                   <TableHead className="text-xs">Meta / Objekat</TableHead>
                   <TableHead className="text-xs">Parametri</TableHead>
                   <TableHead className="w-28 text-center text-xs">Status</TableHead>
-                  <TableHead className="w-24 text-right text-xs">API Odgovor</TableHead>
+                  <TableHead className="w-24 text-right text-xs">Odgovor Mete</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -430,7 +466,11 @@ export function ActionAuditLog() {
 
                     {/* Params */}
                     <TableCell className="text-xs text-text-secondary text-micro">
-                      {parseParamsSummary(row.params)}
+                      {(() => {
+                        const redovi = parseParamsSummary(row.params);
+                        if (redovi.length === 0) return "—";
+                        return redovi.map((red) => <div key={red}>{red}</div>);
+                      })()}
                     </TableCell>
 
                     {/* Status Pill */}
@@ -485,9 +525,9 @@ export function ActionAuditLog() {
         <DialogPopup className="sm:max-w-lg">
           <DialogClose />
           <DialogHeader>
-            <DialogTitle>Odgovor Meta Marketing API-ja</DialogTitle>
+            <DialogTitle>Odgovor Mete</DialogTitle>
             <DialogDescription>
-              Sirovi odgovor Graph API servera ili detalji greške
+              Sirov odgovor Mete ili detalji greške
             </DialogDescription>
           </DialogHeader>
 

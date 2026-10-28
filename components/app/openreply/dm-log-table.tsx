@@ -92,13 +92,13 @@ export function DmLogTable() {
       ) : logs.length === 0 ? (
         <EmptyState icon={Inbox}>
           {status === "all"
-            ? "Još nijedan komentar nije prošao kroz automatizacije. Zapisi se pojavljuju čim Instagram pošalje prvi webhook."
+            ? "Još nijedan komentar nije prošao kroz automatizacije. Zapisi se pojavljuju čim Instagram javi prvi komentar."
             : "Nema zapisa sa ovim statusom."}
         </EmptyState>
       ) : (
         <Card className="gap-0 py-0 shadow-card ring-line">
           <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-5 pb-3">
-            <p className="text-sm font-medium text-foreground">DM log</p>
+            <p className="text-sm font-medium text-foreground">Dnevnik poruka</p>
             <p className="text-xs tabular-nums text-text-muted">
               {formatNumber(logs.length)} od poslednjih {LOG_LIMIT} zapisa
             </p>

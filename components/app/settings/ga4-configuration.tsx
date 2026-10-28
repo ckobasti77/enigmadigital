@@ -1,5 +1,6 @@
 "use client";
 
+import { GA4, naziv } from "@/lib/recnik";
 import { useState } from "react";
 import {
   useProjekatAction,
@@ -36,85 +37,38 @@ function formatAdminDate(value?: string): string {
   return key ? formatDate(key) : "—";
 }
 
-// ── Enum translations (Serbian with original in parentheses) ─────────────────
+// ── Prevod GA4 vrednosti ─────────────────────────────────────────────────────
 
-function translateServiceLevel(level?: string): { label: string; raw?: string } {
+// GA4 Admin API vrednosti idu na ekran samo kroz rečnik (`lib/recnik.ts`):
+// sirova vrednost (FOURTEEN_MONTHS, ONCE_PER_EVENT…) se ne prikazuje, a
+// nepoznata dobija „Nepoznato", nikad sopstveni ključ.
+function translateServiceLevel(level?: string): string {
   // Nepoznato nije „Standardni": bez podatka iz Admin API-ja stoji crtica (F12).
-  if (!level) return { label: "—" };
-  switch (level) {
-    case "STANDARD":
-    case "GOOGLE_ANALYTICS_STANDARD":
-      return { label: "Standardni", raw: level };
-    case "GOOGLE_ANALYTICS_360":
-    case "360":
-      return { label: "Google Analytics 360", raw: level };
-    default:
-      return { label: level, raw: level };
-  }
+  if (!level) return "—";
+  return naziv(GA4.nivoUsluge, level, "Nepoznato");
 }
 
-function translateRetention(retention?: string): {
-  label: string;
-  raw?: string;
-  isShort: boolean;
-} {
-  if (!retention) {
-    return { label: "Nepoznato", raw: undefined, isShort: false };
-  }
-  switch (retention) {
-    case "TWO_MONTHS":
-      return { label: "2 meseca", raw: "TWO_MONTHS", isShort: true };
-    case "FOURTEEN_MONTHS":
-      return { label: "14 meseci", raw: "FOURTEEN_MONTHS", isShort: false };
-    case "TWENTY_SIX_MONTHS":
-      return { label: "26 meseci", raw: "TWENTY_SIX_MONTHS", isShort: false };
-    case "THIRTY_EIGHT_MONTHS":
-      return { label: "38 meseci", raw: "THIRTY_EIGHT_MONTHS", isShort: false };
-    case "FIFTY_MONTHS":
-      return { label: "50 meseci", raw: "FIFTY_MONTHS", isShort: false };
-    default:
-      return { label: retention, raw: retention, isShort: false };
-  }
+function translateRetention(retention?: string): { label: string; isShort: boolean } {
+  if (!retention) return { label: "Nepoznato", isShort: false };
+  return {
+    label: naziv(GA4.cuvanjePodataka, retention, "Nepoznato"),
+    isShort: retention === "TWO_MONTHS",
+  };
 }
 
-function translateCountingMethod(method?: string): { label: string; raw?: string } {
-  if (!method) return { label: "Standardno", raw: undefined };
-  switch (method) {
-    case "ONCE_PER_EVENT":
-      return { label: "Jednom po događaju", raw: "ONCE_PER_EVENT" };
-    case "ONCE_PER_SESSION":
-      return { label: "Jednom po sesiji", raw: "ONCE_PER_SESSION" };
-    default:
-      return { label: method, raw: method };
-  }
+function translateCountingMethod(method?: string): string {
+  if (!method) return "Standardno";
+  return naziv(GA4.nacinBrojanja, method, "Nepoznato");
 }
 
-function translateStreamType(type?: string): { label: string; raw?: string } {
-  if (!type) return { label: "Veb", raw: "WEB_DATA_STREAM" };
-  switch (type) {
-    case "WEB_DATA_STREAM":
-      return { label: "Veb sajt", raw: "WEB_DATA_STREAM" };
-    case "ANDROID_APP_DATA_STREAM":
-      return { label: "Android aplikacija", raw: "ANDROID_APP_DATA_STREAM" };
-    case "IOS_APP_DATA_STREAM":
-      return { label: "iOS aplikacija", raw: "IOS_APP_DATA_STREAM" };
-    default:
-      return { label: type, raw: type };
-  }
+function translateStreamType(type?: string): string {
+  if (!type) return "Veb";
+  return naziv(GA4.vrstaToka, type, "Nepoznato");
 }
 
 function translateScope(scope?: string): string {
   if (!scope) return "—";
-  switch (scope) {
-    case "EVENT":
-      return "Događaj (EVENT)";
-    case "USER":
-      return "Korisnik (USER)";
-    case "ITEM":
-      return "Stavka (ITEM)";
-    default:
-      return scope;
-  }
+  return naziv(GA4.opseg, scope, "Nepoznato");
 }
 
 function formatCustomerId(id?: string): string {
@@ -308,19 +262,16 @@ export function Ga4Configuration() {
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
               <span className="text-meta text-text-muted block">Nivo usluge</span>
               <span className="text-xs font-medium text-foreground">
-                {serviceLevel.label}{" "}
-                {serviceLevel.raw && (
-                  <span className="font-mono text-meta text-text-muted">
-                    ({serviceLevel.raw})
-                  </span>
-                )}
+                {serviceLevel}
               </span>
             </div>
 
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
               <span className="text-meta text-text-muted block">Industrija</span>
               <span className="text-xs font-medium text-foreground">
-                {config.industryCategory || "—"}
+                {config.industryCategory
+                  ? naziv(GA4.delatnost, config.industryCategory, "Nepoznato")
+                  : "—"}
               </span>
             </div>
 
@@ -340,7 +291,7 @@ export function Ga4Configuration() {
           <div className="flex items-center gap-2">
             <Clock className="size-4 text-text-muted" />
             <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-              Čuvanje podataka (Data Retention)
+              Čuvanje podataka
             </h3>
           </div>
 
@@ -351,12 +302,7 @@ export function Ga4Configuration() {
                   Period zadržavanja podataka o događajima i korisnicima:
                 </span>
                 <span className="text-sm font-semibold text-foreground tabular-nums">
-                  {retention.label}{" "}
-                  {retention.raw && (
-                    <span className="text-xs font-normal text-text-muted">
-                      ({retention.raw})
-                    </span>
-                  )}
+                  {retention.label}
                 </span>
               </div>
 
@@ -366,9 +312,9 @@ export function Ga4Configuration() {
                 </span>
                 <span className="text-xs font-medium text-foreground">
                   {config.resetUserDataOnNewActivity === true
-                    ? "Uključeno (Da)"
+                    ? "Uključeno"
                     : config.resetUserDataOnNewActivity === false
-                      ? "Isključeno (Ne)"
+                      ? "Isključeno"
                       : "—"}
                 </span>
               </div>
@@ -426,12 +372,7 @@ export function Ga4Configuration() {
                           {ke.eventName}
                         </td>
                         <td className="py-2.5 px-3 text-foreground font-sans">
-                          {counting.label}{" "}
-                          {counting.raw && (
-                            <span className="text-meta text-text-muted font-mono">
-                              ({counting.raw})
-                            </span>
-                          )}
+                          {counting}
                         </td>
                         <td className="py-2.5 px-3 text-text-muted font-sans">
                           {ke.custom ? "Prilagođeni" : "Standardni"}
@@ -449,13 +390,13 @@ export function Ga4Configuration() {
         </div>
       </div>
 
-      {/* d) Tokovi podataka (Data Streams) */}
+      {/* d) Tokovi podataka */}
       <div>
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Radio className="size-4 text-text-muted" />
             <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-              Tokovi podataka (Data Streams)
+              Tokovi podataka
             </h3>
           </div>
 
@@ -470,7 +411,7 @@ export function Ga4Configuration() {
                   <tr>
                     <th className="py-2.5 px-3 text-left font-medium">Naziv toka</th>
                     <th className="py-2.5 px-3 text-left font-medium">Tip</th>
-                    <th className="py-2.5 px-3 text-left font-medium">Measurement ID</th>
+                    <th className="py-2.5 px-3 text-left font-medium">ID merenja</th>
                     <th className="py-2.5 px-3 text-left font-medium">Adresa veb sajta</th>
                   </tr>
                 </thead>
@@ -483,7 +424,7 @@ export function Ga4Configuration() {
                           {ds.displayName}
                         </td>
                         <td className="py-2.5 px-3 text-text-muted font-sans">
-                          {streamType.label}
+                          {streamType}
                         </td>
                         <td className="py-2.5 px-3 font-semibold text-foreground font-mono">
                           {ds.measurementId || "—"}
@@ -513,14 +454,14 @@ export function Ga4Configuration() {
 
           {!config.googleAdsLinks || config.googleAdsLinks.length === 0 ? (
             <div className="rounded-lg border border-line-soft bg-surface-raised/30 p-4 text-xs text-text-muted">
-              Google Ads nije povezan sa ovom propertijom. Povezivanje se vrši u GA4 administraciji pod sekcijom <em>Veze proizvoda (Product Links)</em>.
+              Google Ads nije povezan sa ovom propertijom. Povezivanje se vrši u GA4 administraciji pod sekcijom <em>Veze proizvoda</em>.
             </div>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-line-soft">
               <table className="w-full text-xs">
                 <thead className="bg-surface-raised/60 border-b border-line-soft text-text-muted text-meta">
                   <tr>
-                    <th className="py-2.5 px-3 text-left font-medium">Customer ID</th>
+                    <th className="py-2.5 px-3 text-left font-medium">ID klijenta</th>
                     <th className="py-2.5 px-3 text-left font-medium">Personalizacija oglasa</th>
                     <th className="py-2.5 px-3 text-right font-medium">Datum povezivanja</th>
                   </tr>
@@ -532,7 +473,7 @@ export function Ga4Configuration() {
                         {formatCustomerId(gal.customerId)}
                       </td>
                       <td className="py-2.5 px-3 text-foreground font-sans">
-                        {gal.adsPersonalizationEnabled ? "Omogućena (Da)" : "Onemogućena (Ne)"}
+                        {gal.adsPersonalizationEnabled ? "Omogućena" : "Onemogućena"}
                       </td>
                       <td className="py-2.5 px-3 text-right text-text-muted font-sans">
                         {formatAdminDate(gal.createTime)}

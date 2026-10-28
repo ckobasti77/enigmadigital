@@ -38,6 +38,7 @@
     "verify:ultra-dugmad": "node --import ./scripts/ts-hooks.mjs scripts/verify-ultra-dugmad.ts",
     "verify:ultra-format": "node --import ./scripts/ts-hooks.mjs scripts/verify-ultra-format.ts",
     "verify:ultra-kontrast": "node --import ./scripts/ts-hooks.mjs scripts/verify-ultra-kontrast.ts",
+    "verify:ultra-recnik": "node --import ./scripts/ts-hooks.mjs scripts/verify-ultra-recnik.ts",
     "verify:ultra-tipografija": "node --import ./scripts/ts-hooks.mjs scripts/verify-ultra-tipografija.ts",
     "deploy:convex": "npm run verify:purge && npx convex deploy"
   },

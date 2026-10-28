@@ -6,7 +6,7 @@ export default function InstagramPublishPage() {
     <div className="flex w-full flex-1 flex-col gap-6">
       <PageHeader
         variant="module"
-        description="Slika, Reel, Story ili carousel — objavi odmah ili zakaži za kasnije."
+        description="Slika, Reel, priča ili album — objavi odmah ili zakaži za kasnije."
         info="Instagram sam preuzima fajl sa privremene adrese, pa objava prolazi kroz nekoliko koraka i svaki od njih se vidi ovde."
       />
 

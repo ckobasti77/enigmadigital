@@ -20,6 +20,10 @@ export default defineConfig({
           name: "node",
           include: ["lib/**/*.test.ts"],
           environment: "node",
+          // Čuvari koda (`*-cuvar.test.ts`, zakucane adrese, pozivnice) čitaju
+          // stotine fajlova kroz TypeScript AST; uz paralelne fajlove
+          // podrazumevanih 5 s povremeno ne stigne (ULTRA1 T12).
+          testTimeout: 30_000,
         },
       },
     ],

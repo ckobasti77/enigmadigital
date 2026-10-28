@@ -109,7 +109,7 @@ export function InboxView() {
                     className="text-xs font-medium"
                   >
                     <Sparkles className="size-3.5 mr-1.5 text-accent" />
-                    Ledolomci i meni
+                    Početna pitanja i meni
                   </Button>
                   <Button
                     variant="outline"

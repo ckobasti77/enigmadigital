@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Grupa, Sekcija } from "./delovi";
 import { installForcedStates } from "./force-states";
 import { VodicIzbor } from "./vodic-izbor";
+import { VodicRecnik } from "./vodic-recnik";
 import { VodicKomponente } from "./vodic-komponente";
 
 /**
@@ -313,6 +314,7 @@ export function SistemVodic() {
       </Sekcija>
 
       <VodicIzbor />
+      <VodicRecnik />
 
       <VodicKomponente />
     </main>

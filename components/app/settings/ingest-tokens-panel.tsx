@@ -367,7 +367,7 @@ export function IngestTokensPanel() {
                   U env promenljivu{" "}
                   <span className="font-mono text-foreground">ENIGMA_LEAD_TOKEN</span>{" "}
                   na serveru sajta, odakle forma šalje upit na{" "}
-                  <span className="font-mono text-foreground">POST /projekti/lead</span>.
+                  <code className="font-mono text-foreground">POST /projekti/lead</code>.
                   Token ume samo da prijavi lead, i to sa sajtova ovog projekta.
                 </p>
                 <p className="mt-2">

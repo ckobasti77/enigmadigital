@@ -6,6 +6,15 @@ import { formatMetric } from "@/convex/lib/metaAdsFormat";
 import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
 import { Smartphone, Sparkles, Video, Globe, LayoutGrid } from "lucide-react";
 import { MeraIliCrtica, RAZLOG } from "./nepoznata-mera";
+import { PLASMAN, naziv, type Recnik } from "@/lib/recnik";
+
+/** Platforme koje nisu Instagram, Facebook ni Audience Network (imena se ne prevode). */
+const PLATFORMA_REZERVA = {
+  messenger: "Messenger",
+  threads: "Threads",
+  whatsapp: "WhatsApp",
+  unknown: "Ostalo",
+} as const satisfies Recnik;
 
 const spendDef = resolveMetric("spend")!;
 const cpaDef = resolveMetric("costPerResult")!;
@@ -29,25 +38,28 @@ function formatPlacementName(platform: string, placement: string): { name: strin
 
   if (p.includes("instagram") || p === "ig") {
     if (pl.includes("reel")) return { name: "Instagram Reels", icon: Video };
-    if (pl.includes("story") || pl.includes("stories")) return { name: "Instagram Stories", icon: Sparkles };
-    if (pl.includes("feed")) return { name: "Instagram Feed", icon: LayoutGrid };
-    if (pl.includes("explore")) return { name: "Instagram Explore", icon: Globe };
-    return { name: `Instagram · ${placement}`, icon: Smartphone };
+    if (pl.includes("story") || pl.includes("stories")) return { name: "Instagram priče", icon: Sparkles };
+    if (pl.includes("feed")) return { name: "Instagram glavni tok", icon: LayoutGrid };
+    if (pl.includes("explore")) return { name: "Instagram istraži", icon: Globe };
+    return { name: `Instagram · ${naziv(PLASMAN, placement, "Ostalo")}`, icon: Smartphone };
   }
 
   if (p.includes("facebook") || p === "fb") {
-    if (pl.includes("feed")) return { name: "Facebook Feed", icon: LayoutGrid };
+    if (pl.includes("feed")) return { name: "Facebook glavni tok", icon: LayoutGrid };
     if (pl.includes("reel")) return { name: "Facebook Reels", icon: Video };
-    if (pl.includes("story") || pl.includes("stories")) return { name: "Facebook Stories", icon: Sparkles };
-    if (pl.includes("video")) return { name: "Facebook Video Feeds", icon: Video };
-    return { name: `Facebook · ${placement}`, icon: Smartphone };
+    if (pl.includes("story") || pl.includes("stories")) return { name: "Facebook priče", icon: Sparkles };
+    if (pl.includes("video")) return { name: "Facebook video tok", icon: Video };
+    return { name: `Facebook · ${naziv(PLASMAN, placement, "Ostalo")}`, icon: Smartphone };
   }
 
   if (p.includes("audience")) {
     return { name: "Audience Network", icon: Globe };
   }
 
-  return { name: `${platform} / ${placement}`, icon: Smartphone };
+  return {
+    name: `${naziv(PLATFORMA_REZERVA, platform, "Ostalo")} · ${naziv(PLASMAN, placement, "Ostalo")}`,
+    icon: Smartphone,
+  };
 }
 
 export function PlacementBreakdown({
@@ -72,7 +84,7 @@ export function PlacementBreakdown({
               <TableHead className="pl-4 min-w-44 text-text-muted">Pozicija / Platforma</TableHead>
               <TableHead className="text-right text-text-muted">Potrošnja</TableHead>
               <TableHead className="text-right text-text-muted">Udeo</TableHead>
-              <TableHead className="text-right text-text-muted">Impresije</TableHead>
+              <TableHead className="text-right text-text-muted">Prikazi</TableHead>
               <TableHead className="text-right text-text-muted">Klikovi</TableHead>
               <TableHead className="text-right text-text-muted">CTR</TableHead>
               <TableHead className="text-right text-text-muted">CPC</TableHead>
