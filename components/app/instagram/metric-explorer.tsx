@@ -9,6 +9,7 @@ import {
   TimelineChartSkeleton,
 } from "@/components/app/timeline-chart";
 import { Card } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
 import { ChartEmpty } from "@/components/app/chart-states";
 import { formatNumber } from "@/lib/format";
 import { BreakdownChart, type BreakdownSeries } from "./breakdown-chart";
@@ -275,20 +276,19 @@ export function MetricExplorer({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <label className="flex items-center gap-2 text-sm">
-          <span className="text-text-muted">Metrika</span>
-          <select
+        <div className="flex items-center gap-2 text-sm">
+          <label htmlFor="ig-explorer-metric" className="text-text-muted">
+            Metrika
+          </label>
+          <Select
+            id="ig-explorer-metric"
+            label="Metrika"
+            className="w-56"
             value={metricKey}
-            onChange={(e) => onMetric(e.target.value)}
-            className="h-9 rounded-lg border border-line bg-surface-raised px-3 text-sm font-medium text-foreground outline-none transition-colors focus-visible:border-line-strong"
-          >
-            {METRICS.map((m) => (
-              <option key={m.key} value={m.key}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </label>
+            onValueChange={onMetric}
+            options={METRICS.map((m) => ({ value: m.key, label: m.label }))}
+          />
+        </div>
 
         {!isDiverging && metric.breakdowns.length > 0 && (
           <TabNav

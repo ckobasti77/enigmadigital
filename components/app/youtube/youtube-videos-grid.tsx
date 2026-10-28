@@ -21,7 +21,13 @@ import { api } from "@/convex/_generated/api";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { formatNumber, formatPercent, formatWatchTime } from "@/lib/format";
+import {
+  formatDate,
+  formatDuration as formatDurationSeconds,
+  formatNumber,
+  formatPercent,
+  formatWatchTime,
+} from "@/lib/format";
 import { YtVideoEditDialog } from "./yt-video-edit-dialog";
 import { YtCaptionsPanel } from "./yt-captions-panel";
 import { SamoZa } from "@/components/app/samo-za";
@@ -53,14 +59,10 @@ function watchUrl(videoId: string): string {
 
 function formatPublishedAt(timestamp: number): string {
   if (!timestamp) return "—";
-  return new Date(timestamp).toLocaleDateString("sr-Latn-RS", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDate(timestamp);
 }
 
-/** ISO 8601 duration from the Data API ("PT1H2M33S") → "1:02:33". */
+/** ISO 8601 duration from the Data API ("PT1H2M33S") → „1 h 2 min". */
 function formatDuration(duration: string | undefined): string | null {
   if (!duration) return null;
   const match = /^P(?:\d+D)?T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(duration);
@@ -68,10 +70,7 @@ function formatDuration(duration: string | undefined): string | null {
   const [hours, minutes, seconds] = [match[1], match[2], match[3]].map((part) =>
     part ? Number(part) : 0,
   );
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return hours > 0
-    ? `${hours}:${pad(minutes)}:${pad(seconds)}`
-    : `${minutes}:${pad(seconds)}`;
+  return formatDurationSeconds(hours * 3600 + minutes * 60 + seconds);
 }
 
 /** `averageViewPercentage` is 0..100 in the store; `formatPercent` wants 0..1. */

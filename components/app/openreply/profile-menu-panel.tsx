@@ -37,6 +37,7 @@ import {
 import { formatRelativeTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SegmentedControl } from "./automation-editor-dialog";
@@ -330,6 +331,7 @@ function ProfileMenuForm({
                   className="h-8 border-line bg-surface-raised text-xs"
                 />
                 <AutomationSelect
+                  label={`Automatizacija za „${iceBreaker.question || `pitanje ${index + 1}`}“`}
                   value={iceBreaker.automationId}
                   onChange={(automationId) =>
                     setIceBreakers((prev) =>
@@ -435,6 +437,7 @@ function ProfileMenuForm({
                   />
                 ) : (
                   <AutomationSelect
+                    label={`Automatizacija za „${item.title || `stavka ${index + 1}`}“`}
                     value={item.automationId}
                     onChange={(automationId) =>
                       setMenuItems((prev) =>
@@ -717,11 +720,13 @@ function EntryRow({
 }
 
 function AutomationSelect({
+  label,
   value,
   onChange,
   automations,
   disabled,
 }: {
+  label: string;
   value: string;
   onChange: (value: string) => void;
   automations: AutomationView[];
@@ -733,22 +738,22 @@ function AutomationSelect({
     value.length > 0 && !automations.some((a) => a._id === value);
 
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
+    <Select
+      label={label}
+      value={value || null}
+      onValueChange={onChange}
       disabled={disabled}
-      aria-label="Automatizacija koja se pokreće"
-      className="w-full rounded-md border border-line bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-foreground focus:border-mod focus:outline-hidden"
-    >
-      {value.length === 0 && <option value="">Izaberi automatizaciju…</option>}
-      {missing && <option value={value}>Obrisana automatizacija</option>}
-      {automations.map((automation) => (
-        <option key={automation._id} value={automation._id}>
-          {automation.name}
-          {automation.isActive ? "" : " (pauzirana)"}
-        </option>
-      ))}
-    </select>
+      placeholder="Izaberi automatizaciju…"
+      options={[
+        ...(missing
+          ? [{ value, label: "Obrisana automatizacija" }]
+          : []),
+        ...automations.map((automation) => ({
+          value: automation._id as string,
+          label: `${automation.name}${automation.isActive ? "" : " (pauzirana)"}`,
+        })),
+      ]}
+    />
   );
 }
 

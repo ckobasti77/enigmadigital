@@ -1,5 +1,6 @@
 import type { Doc } from "@/convex/_generated/dataModel";
 import { pojasKvaliteta, POJAS_NATPISI } from "@/convex/lib/siteScore";
+import { formatDateTime, formatShortDateAt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -42,13 +43,6 @@ const OBJASNJENJA: Record<SajtStatus, string> = {
   nepoznato: "Provera sajta nije uspela; stanje nije utvrđeno.",
 };
 
-function kratakDatum(ts: number): string {
-  return new Date(ts).toLocaleDateString("sr-RS", {
-    day: "numeric",
-    month: "numeric",
-  });
-}
-
 /**
  * Pojas kvaliteta sajta (GL10, plan §5.2) — boja iz temperaturne palete, isto
  * pravilo kao stanje sajta: loš sajt je prodajni signal, ne greška. Broj ide
@@ -90,7 +84,7 @@ export function SiteStatusBadge({
   const delovi = [OBJASNJENJA[status]];
   if (https === false) delovi.push("Sajt je bez HTTPS-a.");
   if (proverenAt !== undefined) {
-    delovi.push(`Provereno ${new Date(proverenAt).toLocaleString("sr-RS")}.`);
+    delovi.push(`Provereno ${formatDateTime(proverenAt)}.`);
   }
   if (napomena?.trim()) delovi.push(napomena.trim());
   if (pojas !== null && typeof kvalitet === "number") {
@@ -120,7 +114,7 @@ export function SiteStatusBadge({
       )}
       {proverenAt !== undefined && size === "md" && (
         <span className="font-normal text-text-muted">
-          · {kratakDatum(proverenAt)}
+          · {formatShortDateAt(proverenAt)}
         </span>
       )}
     </span>

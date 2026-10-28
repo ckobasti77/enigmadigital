@@ -614,3 +614,56 @@ Nijedan `next dev` ni drugi proces koji je korak sam pokrenuo nije upaljen.
 - *Provere prolaze; sekcija T10 je u `docs/ULTRA1-PROGRESS.md`:* ispunjeno. `npx convex codegen` nije potreban (`convex/` nije menjan). typecheck prošao; lint 0 grešaka; `npx --no-install vitest run` 65/65 fajlova, 1111/1111 testova; `verify-pristup` prošao; `regresije.mjs` 17/17 (uključuje `verify:ultra-tipografija` i `verify:ultra-kontrast`).
 - **BLOKADA:** nema.
 - **Procesi:** port 3117 slobodan; nijedan `next`/`playwright` proces ovog repoa ne radi.
+
+## T11 — Jedan meni za izbor i jedan format   (2026-10-28 04:10)
+**Fajlovi:**
+- novi: `components/ui/select.tsx`, `convex/lib/formatJezgro.ts`, `lib/format.test.ts`, `lib/format-cuvar.ts`, `lib/format-cuvar.test.ts`, `scripts/verify-ultra-format.ts`, `app/dev-ux/sistem/vodic-izbor.tsx`, snimci `docs/ultra/snimci/T11-*.png` (15).
+- format i period: `lib/format.ts`, `lib/date-range.ts` (+ test), `lib/belgrade-time.ts`, `convex/lib/ga4Format.ts`, `convex/lib/metaAdsFormat.ts`, `convex/_generated/api.d.ts` (+2 reda, codegen), `components/app/date-range-picker.tsx`, `package.json` (`verify:ultra-format`), `lib/tipografija-cuvar.ts` (samo plafon 271 → 269), `app/dev-ux/sistem/vodic.tsx` (1 uvoz + 1 red).
+- izbor (`<select>` → `Select`): 35 izvornih u 28 fajlova (`ads/new-campaign-wizard`, `create-lookalike-audience-dialog`, `threads/{search,automations,replies-moderation,composer}`, `leadovi/{lead-gap-fill-dialog,import-review-table,lead-chips,lead-export-dialog,scoring-rules-panel,niches-panel,import-row-dialog}`, `youtube/{yt-video-edit-dialog,yt-upload-dialog,yt-captions-panel}`, `instagram/{inbox/inbox-settings-drawer,instagram-demographics,metric-explorer}`, `openreply/profile-menu-panel`, `novosti/{novosti-editor,novosti-board}`) plus `rules/rule-editor-dialog` (meni mere).
+- rasuto formatiranje u ~31 fajlova pod `components/app/` (+ `app/dev-ux/sistem/vodic-napredak.tsx`): `capi-section`, `analytics-dashboard`, mreže objava (FB/IG/Threads/YouTube), `imports-history`, `site-status-badge`, `napredak-screen`, `dm-log-table`, `battle-verdict`, `placement-breakdown`, `site-audit-panel`, `lead-score-cell`, `evidence-meter`, `overdue-panel`, `instagram-stories`, `rule-*`, `rules-list`, `settings/{connections-settings,moderation-audit-log,purge-state,sajt-panel,action-audit-log,ga4-configuration}`, `yt-captions-panel`, `yt-comment-log-table`, `ad-action-dialog`, `retention-dashboard`, `publish-composer`, `yt-upload-dialog`.
+
+**Šta je urađeno:**
+- **`Select`** je nad `@base-ui/react/select`: okidač kao polje (32 / 28 px, 44 px pod `pointer: coarse`), popup kao `popover` (prelaz, ne keyframe), stavka `min-h-8` / 44 px, istaknuta `bg-surface-control`, izabrana sa `Check`. `label` je obavezan i uvek ide u `aria-label` okidača; tastatura (strelice, Home/End, kucanje, Enter/razmak, Esc) je iz Base UI-ja. Podržava grupe, `placeholder`, `renderOption`, `triggerClassName`, `invalid`, `required`, `name`. Primer sa svim stanjima je u vodiču `/sistem` (sekcija „Izbor i formati“).
+- **Prelazak.** U `app/` i `components/` nema izvornog `<select>`; pregled uvoza ima 50 imenovanih okidača (bilo 50 neimenovanih po axe-u), svaki sa imenom firme u natpisu („Temperatura u uvozu: …“). Zatečeno stanje je bilo 35 izvornih `<select>` + 1 meni mere u pravilima (plan je brojao 36, prompt 39); svi su pokriveni.
+- **Prilagođen period.** Dva tekstualna polja „Od“/„Do“ (`27. 10. 2026.`, bez mono), čitanje preko `datumIzTeksta` na `blur` i pre „Primeni“ (prima „27. 10. 2026.“, „27.10.2026“, „27.10.“, „27/10/2026“, „2026-10-27“), greška „Upiši datum kao 27. 10. 2026.“, prečice „Ovaj mesec“ i „Prošli mesec“ (popunjavaju polja, ne primenjuju sami).
+- **`lib/format.ts` (P7).** Datum „27. 10. 2026.“ (`formatDate`), kratko „27. okt“ (fiksni nazivi meseci), vreme „17:41“, trajanje „1 min 1 s“ / „1 h 2 min“ (NBSP), procenat „53,8 %“ (NBSP), `formatPercentValue` za već-procentne vrednosti, `formatDateSpan` („1.–15. okt“, „28. sep – 15. okt“, preko godine sa godinama), `formatMonthShort`, `formatDuration`; `formatDurationMs`/`formatSeconds` su ista funkcija. Server i front dele `convex/lib/formatJezgro.ts` (`procenat`, `trajanje`, `NBSP`); `ga4Format` i `metaAdsFormat` ga koriste.
+- **`verify:ultra-format`** (F1–F5, `lib/format-cuvar.ts`) i test sa primerom koji pada i koji prolazi za svako pravilo.
+
+**ODLUKE:**
+- **`api.d.ts` za `lib/formatJezgro`:** prvi `npx convex codegen` je pao na mreži (`getaddrinfo ENOTFOUND`), pa sam dopisao dva reda ručno; kasniji codegen je prošao (izlaz 0) i ostavio `api.d.ts` sa istim dvama redovima.
+- **Brojke:** zatečeno je 35 izvornih `<select>` (plan T08: 36, prompt: 39); lokalni `SELECT_CLASS` obrisan u oba dijaloga.
+- **`label` = vidljivi natpis** gde ga ima (npr. „Tip signala“, „Metrika“, „Meta Ads nalog“, „Tip rangiranja“), umesto imena iz plana, da se `aria-label` poklapa sa onim što se vidi (WCAG 2.5.3). Vidljivi `<label>` koji nisu bili povezani dobili su `htmlFor` + `id` (lead-gap-fill, lead-export, import-row, threads-search, inbox-settings-drawer, yt-video-edit).
+- **Prazna opcija:** „bez izbora“ je postao `placeholder`; prava „Sve …“ opcija ostala je opcija (`"all"` ili `""`). Izuzetak: kategorija u izmeni YouTube videa zadržava opciju „Ostaje kakva jeste“ (vrednost `""`), da se izbor može poništiti kao pre.
+- **Meni mere u Pravilima** je prešao na `Select` (bio `DropdownMenu` + radio); akronim mere ostaje u `title` stavke.
+- **`Intl.DisplayNames`** (nazivi država u demografiji) je izuzet iz F3: to nije format broja ni datuma.
+- **`formatDayRelative`** i dalje daje „danas/sutra/juče“, a inače „pet, 12. sep“ (dan u nedelji + kratak datum) umesto „pet, 12.09.“ (plan ga je naveo kao „isto“, ali stari oblik krši P7).
+- **YouTube dužina videa** je sada „1 h 2 min“ umesto „1:02:33“ (plan §8.1: jedan format). Menjaju se i drugi prikazi: sekunde više ne stoje u dnevniku radnji (`action-audit-log`), godina je dodata gde je nije bilo (`rules-list`, `dm-log-table`, `yt-comment-log-table`), a datumi u `napredak-screen` nisu više fiksno u zoni Beograda nego u zoni čitaoca (za Jovana ista).
+- **`formatPercent` ima uvek jednu decimalu** („53,0 %“, ne „53%“) na mestima gde je ranije pisao ceo broj (`lead-score-cell`, `evidence-meter`, presude oglasa); `formatPercentValue` (0 decimala) je dodat za vrednosti već u procentima (promena budžeta, ose retencije, koordinate oznake).
+- **Izuzetak F4:** koordinate u `title` ćelije pregleda uvoza (`lat.toFixed(5)`) ostaju, po planu §8.3.
+- **F3 pokriva `components/app/**`, `app/(app)/**`, `app/dev-ux/**`** kao u planu; ostali `components/` (npr. `ui/chart.tsx`) nisu u opsegu F3.
+- **`lib/belgrade-time.ts`** uvozi `./format` (relativno, jer `lib` testovi nemaju alias `@/`), pa `formatBelgradeShort` daje „20. avg 18:30“.
+- **`PLAFON_MONO` spušten na 269** (`verify:ultra-tipografija` je to tražio posle uklonjenih polja datuma); pooštravanje, ne slabljenje.
+- **Radnici:** 5 `sonnet` radnika (3 za `<select>` po grupama, 2 za format po grupama); diff pregledan uzorkom (`import-review-table`, `lead-chips`, `yt-video-edit-dialog`), typecheck posle svakog. Playwright MCP nije korišćen; snimci su skriptom nad paketom `playwright` (kao u T09/T10).
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- `lib/format.test.ts` (16): svi primeri P7 doslovno, NBSP u procentu i jedinicama, granice trajanja 0/59/60/61/3.600/3.725 s, raspon u istom mesecu / preko meseca / preko godine, `formatRelativeTime` posle 7 dana, `formatBelgradeShort`.
+- `lib/date-range.test.ts` (+5): `datumIzTeksta` (svi oblici, nepostojeći datum, prestupna godina), `ovajMesec`, `prosliMesec` (preko godine, februar prestupne), `kljucDanaUZoni`.
+- `lib/format-cuvar.test.ts` (8): F1–F5 (primer koji pada i koji prolazi, komentar se ne broji), izuzetak sa razlogom, i nad celim kodom nema nalaza.
+
+**Rezultat provere:** typecheck prošao; lint 0 grešaka (1209 upozorenja); vitest 67 fajlova / 1137 testova; pristup prošao; regresije 18/18 (uključuje `verify:ultra-format`); `npx convex codegen` prošao (izlaz 0, `api.d.ts` +2 reda za `formatJezgro`).
+- **Vizuelno** (`next dev -p 3117`, `?ux=1`, `.nocni-run/ultra1/tmp/t11-snimci.mjs` i `t11-period.mjs`): pregled uvoza 50 okidača, 0 bez imena, visina 28 px na 1536 i 44 px na 390 (dodir); Pravila → novo pravilo: okidač „Mera“ 32 px / 44 px, strelica + Enter menjaju izbor; birač perioda: „Prošli mesec“ popunjava „1. 9. 2026.“ – „30. 9. 2026.“, „31.2.2026“ daje grešku i onemogućava „Primeni“, „1.10.“ i „15/10/2026“ se normalizuju na „1. 10. 2026.“ i „15. 10. 2026.“. Snimci: `T11-uvoz-pregled-*`, `T11-uvoz-izbor-otvoren-*`, `T11-pravila-novo-*`, `T11-pravila-mera-otvoreno-*`, `T11-period-*` (1536 i 390), `T11-sistem-izbor-1536`.
+- Dev server je ugašen; port 3117 slobodan.
+
+**BLOKADA:** nema.
+
+**Za Jovana ujutru:**
+1. Otvori pregled uvoza i Pravila → Novo pravilo: izbori se otvaraju mišem, strelicama i Enter-om, a na telefonu su visoki 44 px.
+2. Otvori birač perioda → Prilagođeno: kucaj „1.10.“ i „15.10.2026“, probaj „Ovaj mesec“ i „Prošli mesec“.
+3. Potvrdi odluke: dužina YouTube videa kao „1 h 2 min“, procenat sa jednom decimalom i tvrdim razmakom („53,0 %“), godina u dnevnicima, kategorija videa sa opcijom „Ostaje kakva jeste“.
+
+**Prihvatanje T11 (stavku po stavku):**
+- *U `app/` i `components/` nema izvornog `<select>` (grep), a svaki izbor ima ime:* ispunjeno. `grep "<select"` daje samo komentar u `lead-state-chip.tsx`; F1/F2 prolaze; u pregledu uvoza 0 okidača bez `aria-label`.
+- *Datumi, trajanja i procenti idu kroz `lib/format.ts` (test):* ispunjeno. F3–F5 prolaze nad celim kodom; `lib/format.test.ts` pokriva P7.
+- *Provere prolaze; sekcija T11 je u progress-u:* ispunjeno.

@@ -110,7 +110,7 @@ export function PlacementBreakdown({
                             style={{ width: `${Math.min(100, Math.max(0, share))}%` }}
                           />
                         </div>
-                        <span>{share.toFixed(1)}%</span>
+                        <span>{formatPercent(share / 100)}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-mono tabular-nums text-foreground">

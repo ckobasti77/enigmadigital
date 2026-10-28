@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { FeedbackNote } from "@/components/app/feedback";
 import { Button } from "@/components/ui/button";
+import { Select, type SelectOption } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
@@ -35,6 +36,13 @@ import { leadSignalLabel } from "./lead-labels";
 export type StagingRowDoc = FunctionReturnType<
   typeof api.leadImportStore.listImportRows
 >[number];
+
+const ODLUKA_OPCIJE: SelectOption<StagingRowDoc["decision"]>[] = [
+  { value: "nova_firma", label: "Nova firma" },
+  { value: "spoji", label: "Dopuna postojeće firme" },
+  { value: "preskoci", label: "Preskoči" },
+  { value: "nerazreseno", label: "Nerazrešeno" },
+];
 
 const DECISION_LABELS: Record<
   "nova_firma" | "spoji" | "preskoci" | "nerazreseno",
@@ -897,19 +905,21 @@ export function ImportRowDialog({
                     uvozu samo za redove koji još nisu ušli u bazu. */}
                 {canEditDecision && onDecisionChange && (
                   <div className="mt-2.5 flex items-center gap-2 pt-2.5 border-t border-line-soft">
-                    <label className="text-micro text-text-muted">Promeni odluku:</label>
-                    <select
-                      value={decision}
-                      onChange={(e) =>
-                        onDecisionChange(e.target.value as StagingRowDoc["decision"])
-                      }
-                      className="rounded-md border border-line-soft bg-surface-raised px-2 py-1 text-xs font-medium text-foreground outline-none cursor-pointer"
+                    <label
+                      htmlFor="red-odluka"
+                      className="text-micro text-text-muted"
                     >
-                      <option value="nova_firma">Nova firma</option>
-                      <option value="spoji">Dopuna postojeće firme</option>
-                      <option value="preskoci">Preskoči</option>
-                      <option value="nerazreseno">Nerazrešeno</option>
-                    </select>
+                      Promeni odluku:
+                    </label>
+                    <Select
+                      id="red-odluka"
+                      label="Odluka za red"
+                      size="sm"
+                      value={decision}
+                      onValueChange={onDecisionChange}
+                      options={ODLUKA_OPCIJE}
+                      className="w-60"
+                    />
                   </div>
                 )}
               </div>

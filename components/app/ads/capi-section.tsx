@@ -20,7 +20,7 @@ import {
   ShieldAlert,
   RotateCcw,
 } from "lucide-react";
-import { formatNumber } from "@/lib/format";
+import { formatDateTime, formatNumber } from "@/lib/format";
 
 export function CapiSection() {
   // Ručno slanje događaja ka Meti sme samo vlasnik; ostali vide samo stanje.
@@ -250,13 +250,7 @@ export function CapiSection() {
                   {recentRejected.map((item) => (
                     <tr key={item._id} className="hover:bg-surface-raised/50">
                       <td className="whitespace-nowrap px-3 py-2 text-text-muted">
-                        {new Date(item.eventTime * 1000).toLocaleString("sr-Latn-RS", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {formatDateTime(item.eventTime * 1000)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 font-medium text-foreground">
                         {item.eventName}

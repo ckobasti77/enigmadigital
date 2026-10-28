@@ -18,6 +18,7 @@ import {
   GOOGLE_PERMISSIONS_URL,
   META_BUSINESS_APPS_URL,
 } from "@/lib/policy-links";
+import { formatDateTime } from "@/lib/format";
 
 /**
  * Šta se zaista dešava sa podacima posle „Prekini vezu” (P3).
@@ -53,16 +54,6 @@ export function useIsWorkspaceOwner(): boolean | undefined {
   const vlasnik = useMoze("owner");
   if (!spreman) return undefined;
   return vlasnik;
-}
-
-function formatDateTime(value: number): string {
-  return new Date(value).toLocaleString("sr-RS", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function rowsLabel(count: number): string {

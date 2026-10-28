@@ -1,4 +1,5 @@
 import type { MetaMetricDef } from "./metaAdsCatalog";
+import { procenat, procenatSirov } from "./formatJezgro";
 
 /**
  * ============================================================================
@@ -15,15 +16,6 @@ export const LOCALE = "sr-Latn-RS";
 
 const integerFmt = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 });
 const decimalFmt = new Intl.NumberFormat(LOCALE, {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-const ratePercentFmt = new Intl.NumberFormat(LOCALE, {
-  style: "percent",
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-});
-const metaPercentFmt = new Intl.NumberFormat(LOCALE, {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
@@ -49,10 +41,10 @@ export function formatMetric(
     case "percent":
       if (def.source === "meta") {
         // Meta returns percentage as 0-100 (e.g. 2.45 for 2.45%), do NOT multiply by 100
-        return `${metaPercentFmt.format(value)} %`;
+        return procenatSirov(value);
       }
       // Derived percentage (e.g. hookRate, holdRate = 0.25 for 25%)
-      return ratePercentFmt.format(value);
+      return procenat(value);
 
     case "currency":
       if (!currencyCode || !currencyCode.trim()) {

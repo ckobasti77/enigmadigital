@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { PlatformBadge } from "@/components/app/openreply/platform-badge";
 import { StatusPill } from "./status-pill";
+import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -96,14 +97,6 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "done", label: "Izvršeno" },
   { value: "failed", label: "Odbijeno" },
 ];
-
-const timestampFmt = new Intl.DateTimeFormat("sr-Latn-RS", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 export function ModerationAuditLog() {
   const [platform, setPlatform] = useState<PlatformFilter>("all");
@@ -197,7 +190,7 @@ export function ModerationAuditLog() {
                         className="border-line-soft hover:bg-surface-raised/40"
                       >
                         <TableCell className="py-3 pl-5 align-top text-xs whitespace-nowrap tabular-nums text-text-muted">
-                          {timestampFmt.format(new Date(row.createdAt))}
+                          {formatDateTime(row.createdAt)}
                         </TableCell>
 
                         <TableCell className="py-3 align-top">

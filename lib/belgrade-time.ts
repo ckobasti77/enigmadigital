@@ -15,6 +15,8 @@
  * conversion is arithmetic on what it reports rather than a table we maintain.
  */
 
+import { MESECI_KRATKO } from "./format";
+
 export const SCHEDULE_TIME_ZONE = "Europe/Belgrade";
 export const SCHEDULE_TIME_ZONE_LABEL = "po beogradskom vremenu";
 
@@ -35,14 +37,6 @@ const readableFormatter = new Intl.DateTimeFormat("sr-Latn-RS", {
   weekday: "short",
   day: "numeric",
   month: "long",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-const shortFormatter = new Intl.DateTimeFormat("sr-Latn-RS", {
-  timeZone: SCHEDULE_TIME_ZONE,
-  day: "2-digit",
-  month: "2-digit",
   hour: "2-digit",
   minute: "2-digit",
 });
@@ -140,7 +134,9 @@ export function formatBelgrade(instant: number): string {
   return readableFormatter.format(new Date(instant));
 }
 
-/** "20.08. 18:30" — for a table cell, where the long form does not fit. */
+/** „20. avg 18:30“ — for a table cell, where the long form does not fit. */
 export function formatBelgradeShort(instant: number): string {
-  return shortFormatter.format(new Date(instant));
+  const wall = wallClockAt(instant);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${wall.day}. ${MESECI_KRATKO[wall.month - 1]} ${pad(wall.hour)}:${pad(wall.minute)}`;
 }

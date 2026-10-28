@@ -18,6 +18,7 @@ import {
   computeSessionKeyEventRate,
   computeUserKeyEventRate,
 } from "@/convex/lib/ga4Catalog";
+import { kljucDanaUZoni } from "@/lib/date-range";
 import { deltaPct, deltaPp, fillDays, summarize } from "@/lib/metrics";
 import {
   formatNumber,
@@ -89,9 +90,7 @@ export function AnalyticsDashboard() {
   // Dan poslednjeg očitavanja u zoni propertija: do njega je dan bez reda
   // „nije bilo saobraćaja" (0), posle njega „još nije očitano" (rupa) — F4.
   const syncedThrough = reportMeta
-    ? new Intl.DateTimeFormat("sv-SE", {
-        timeZone: reportMeta.timeZone ?? "UTC",
-      }).format(new Date(reportMeta.fetchedAt))
+    ? kljucDanaUZoni(reportMeta.fetchedAt, reportMeta.timeZone ?? "UTC")
     : undefined;
 
   // Series is derived together with the range it was fetched for, so a stale

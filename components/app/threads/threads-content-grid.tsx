@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { CountUp } from "@/components/motion/count-up";
 import { Arrive, ArrivalScope } from "@/components/motion/arrive";
 import { EmptyState } from "@/components/app/empty-state";
-import { formatNumber, pluralSr } from "@/lib/format";
+import { formatDate, formatNumber, pluralSr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { EngagementBadge } from "@/components/app/system/channel-focus";
 import {
@@ -48,11 +48,7 @@ function formatPostDate(timestamp: string | null): string {
   if (!timestamp) return "—";
   const d = new Date(timestamp);
   if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("sr-Latn-RS", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDate(d.getTime());
 }
 
 /**

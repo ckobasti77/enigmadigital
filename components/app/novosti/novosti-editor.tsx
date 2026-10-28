@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { FeedbackNote } from "@/components/app/feedback";
 import { useMoze, useProjekatMutation } from "@/components/app/projekat-provider";
 import {
@@ -625,18 +626,16 @@ function NovostiEditorTelo({
               hint={`${currentKindConfig.wordRange} — ${currentKindConfig.description}`}
             >
               {({ id }) => (
-                <select
+                <Select<PostKind>
                   id={id}
+                  label="Vrsta posta"
                   value={kind}
-                  onChange={(e) => setKind(e.target.value as PostKind)}
-                  className="h-8 w-full rounded-lg border border-input bg-surface px-2.5 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  {POST_KINDS.map((k) => (
-                    <option key={k.id} value={k.id}>
-                      {k.label} ({k.wordRange})
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={setKind}
+                  options={POST_KINDS.map((k) => ({
+                    value: k.id,
+                    label: `${k.label} (${k.wordRange})`,
+                  }))}
+                />
               )}
             </Field>
 
@@ -646,18 +645,16 @@ function NovostiEditorTelo({
               hint="Nijedna tema ne sme da nosi više od trećine objava u mesecu."
             >
               {({ id }) => (
-                <select
+                <Select<PostCategory>
                   id={id}
+                  label="Kategorija teme"
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as PostCategory)}
-                  className="h-8 w-full rounded-lg border border-input bg-surface px-2.5 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  {POST_CATEGORIES.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={setCategory}
+                  options={POST_CATEGORIES.map((c) => ({
+                    value: c.id,
+                    label: c.label,
+                  }))}
+                />
               )}
             </Field>
           </div>

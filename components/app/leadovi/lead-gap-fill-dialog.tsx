@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, type SelectOption } from "@/components/ui/select";
 import { FeedbackNote } from "@/components/app/feedback";
 import { leadGapLabel } from "./lead-labels";
 import { useProjekat, useProjekatMutation } from "@/components/app/projekat-provider";
@@ -61,6 +62,15 @@ const LAWFUL_BASIS_OPTIONS = [
   },
 ];
 
+type UlogaOsobe = "vlasnik" | "direktor" | "menadzer" | "nepoznato";
+
+const ROLE_OPTIONS: SelectOption<UlogaOsobe>[] = [
+  { value: "vlasnik", label: "Vlasnik" },
+  { value: "direktor", label: "Direktor" },
+  { value: "menadzer", label: "Menadžer" },
+  { value: "nepoznato", label: "Nepoznato" },
+];
+
 /** Dopuna je izmena podataka, pa je posmatrač ne dobija (`…Telo` je sama forma). */
 export function LeadGapFillDialog(props: LeadGapFillDialogProps) {
   return (
@@ -83,9 +93,7 @@ function LeadGapFillDialogTelo({
   // Form states
   const [vrednost, setVrednost] = useState("");
   const [personName, setPersonName] = useState("");
-  const [role, setRole] = useState<
-    "vlasnik" | "direktor" | "menadzer" | "nepoznato"
-  >("vlasnik");
+  const [role, setRole] = useState<UlogaOsobe>("vlasnik");
   const [lawfulBasis, setLawfulBasis] = useState("legitimni_interes");
   const [sourceUrl, setSourceUrl] = useState("");
   const [confidence, setConfidence] = useState<"tacno" | "priblizno" | null>(
@@ -225,27 +233,19 @@ function LeadGapFillDialogTelo({
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-foreground">
+                    <label
+                      htmlFor="gap-uloga-osobe-telefon"
+                      className="text-xs font-semibold text-foreground"
+                    >
                       Uloga osobe
                     </label>
-                    <select
+                    <Select
+                      id="gap-uloga-osobe-telefon"
+                      label="Uloga osobe"
                       value={role}
-                      onChange={(e) =>
-                        setRole(
-                          e.target.value as
-                            | "vlasnik"
-                            | "direktor"
-                            | "menadzer"
-                            | "nepoznato",
-                        )
-                      }
-                      className="h-8 rounded-lg border border-line bg-surface px-2.5 text-xs text-foreground outline-none focus:border-mod"
-                    >
-                      <option value="vlasnik">Vlasnik</option>
-                      <option value="direktor">Direktor</option>
-                      <option value="menadzer">Menadžer</option>
-                      <option value="nepoznato">Nepoznato</option>
-                    </select>
+                      onValueChange={setRole}
+                      options={ROLE_OPTIONS}
+                    />
                   </div>
                 </div>
               </>
@@ -268,27 +268,19 @@ function LeadGapFillDialogTelo({
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-foreground">
+                    <label
+                      htmlFor="gap-uloga-osobe-kontakt"
+                      className="text-xs font-semibold text-foreground"
+                    >
                       Uloga osobe
                     </label>
-                    <select
+                    <Select
+                      id="gap-uloga-osobe-kontakt"
+                      label="Uloga osobe"
                       value={role}
-                      onChange={(e) =>
-                        setRole(
-                          e.target.value as
-                            | "vlasnik"
-                            | "direktor"
-                            | "menadzer"
-                            | "nepoznato",
-                        )
-                      }
-                      className="h-8 rounded-lg border border-line bg-surface px-2.5 text-xs text-foreground outline-none focus:border-mod"
-                    >
-                      <option value="vlasnik">Vlasnik</option>
-                      <option value="direktor">Direktor</option>
-                      <option value="menadzer">Menadžer</option>
-                      <option value="nepoznato">Nepoznato</option>
-                    </select>
+                      onValueChange={setRole}
+                      options={ROLE_OPTIONS}
+                    />
                   </div>
                 </div>
               </>
@@ -353,20 +345,19 @@ function LeadGapFillDialogTelo({
                 {(gapType === "bez_telefona" ||
                   gapType === "bez_kontakt_osobe") && (
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-micro font-medium text-text-muted">
+                    <label
+                      htmlFor="gap-pravni-osnov"
+                      className="text-micro font-medium text-text-muted"
+                    >
                       Pravni osnov obrade (ZZPL / GDPR):
                     </label>
-                    <select
-                      value={lawfulBasis}
-                      onChange={(e) => setLawfulBasis(e.target.value)}
-                      className="h-8 rounded-lg border border-line bg-surface-raised px-2 text-xs text-foreground outline-none focus:border-mod"
-                    >
-                      {LAWFUL_BASIS_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
+                    <Select
+                      id="gap-pravni-osnov"
+                      label="Pravni osnov obrade"
+                      value={lawfulBasis || null}
+                      onValueChange={setLawfulBasis}
+                      options={LAWFUL_BASIS_OPTIONS}
+                    />
                   </div>
                 )}
 

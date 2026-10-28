@@ -10,6 +10,7 @@ import { useMoze, useProjekatQuery } from "@/components/app/projekat-provider";
 import { Chip } from "@/components/app/system/chip";
 import { EmptyState } from "@/components/app/system/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDateTime, formatRatio } from "@/lib/format";
 import { formatMetricName, formatThresholdValue } from "@/lib/rule-sentence";
 import { cn } from "@/lib/utils";
 import { useValutaPravila } from "./use-valuta-pravila";
@@ -33,11 +34,6 @@ const TARGET_LABEL: Record<string, string> = {
   adset: "Grupa oglasa",
   account: "Nalog",
 };
-
-const decimalFmt = new Intl.NumberFormat("sr-Latn-RS", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
 
 /** Cilj koji se vraća kroz „Vrati kampanju" (postojeća radnja pokretanja). */
 type Vracanje = {
@@ -85,13 +81,7 @@ export function RuleFiringsTable({ ruleId }: RuleFiringsTableProps) {
     <>
       <ol className="relative flex flex-col">
         {firings.map((f, i) => {
-          const when = new Date(f.firedAt).toLocaleString("sr-RS", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
+          const when = formatDateTime(f.firedAt);
           const pauza =
             f.actionTaken === "pause_and_notify" || f.actionTaken === "pause";
           const pauzaPala = pauza && Boolean(f.details);
@@ -151,7 +141,7 @@ export function RuleFiringsTable({ ruleId }: RuleFiringsTableProps) {
                     <span className="font-semibold tabular-nums text-foreground">
                       {f.metric !== null
                         ? formatThresholdValue(f.metric, f.metricValue, valuta)
-                        : decimalFmt.format(f.metricValue)}
+                        : formatRatio(f.metricValue)}
                     </span>
                     {f.metric !== null && f.pragSada !== null && (
                       <>

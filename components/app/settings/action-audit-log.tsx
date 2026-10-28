@@ -26,7 +26,7 @@ import {
 import { StatusPill } from "./status-pill";
 import { EmptyState } from "@/components/app/system/empty-state";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDateTime } from "@/lib/format";
 import {
   Activity,
   AlertCircle,
@@ -44,17 +44,6 @@ import {
 
 type TargetFilter = "all" | "campaign" | "adset" | "ad";
 type StatusFilter = "all" | "success" | "error" | "pending" | "blocked";
-
-function formatActionDate(ms: number): string {
-  const date = new Date(ms);
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
-}
 
 function formatTargetType(type: string): string {
   switch (type) {
@@ -396,7 +385,7 @@ export function ActionAuditLog() {
                   >
                     {/* Timestamp */}
                     <TableCell className="text-xs text-text-muted tabular-nums whitespace-nowrap">
-                      {formatActionDate(row.executedAt)}
+                      {formatDateTime(row.executedAt)}
                     </TableCell>
 
                     {/* User */}

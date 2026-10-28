@@ -35,7 +35,7 @@ import {
   engagementScale,
   type EngagementScale,
 } from "@/lib/channel-readiness";
-import { formatNumber, pluralSr } from "@/lib/format";
+import { formatDate, formatNumber, pluralSr } from "@/lib/format";
 import { igMediaSrc } from "@/lib/ig-media";
 import { cn } from "@/lib/utils";
 import { CarouselSwiper } from "./carousel-swiper";
@@ -62,11 +62,7 @@ const DEFAULT_SORT: SortState = { key: "publishedAt", dir: "desc" };
 
 function formatPostDate(timestamp: number): string {
   if (!timestamp) return "—";
-  return new Date(timestamp).toLocaleDateString("sr-Latn-RS", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDate(timestamp);
 }
 
 function TypeBadge({ type }: { type: string }) {

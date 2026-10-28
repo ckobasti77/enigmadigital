@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { Grupa, Sekcija } from "./delovi";
 import { installForcedStates } from "./force-states";
+import { VodicIzbor } from "./vodic-izbor";
 import { VodicKomponente } from "./vodic-komponente";
 
 /**
@@ -310,6 +311,8 @@ export function SistemVodic() {
           </div>
         </Grupa>
       </Sekcija>
+
+      <VodicIzbor />
 
       <VodicKomponente />
     </main>

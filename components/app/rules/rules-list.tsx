@@ -24,6 +24,7 @@ import {
   formatThresholdValue,
   istiCilj,
 } from "@/lib/rule-sentence";
+import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { RuleProbaDialog, poslednjihDana } from "./rule-proba-dialog";
 import {
@@ -216,12 +217,7 @@ function KarticaPravila({
   );
 
   const lastFired = rule.lastFiredAt
-    ? new Date(rule.lastFiredAt).toLocaleString("sr-RS", {
-        day: "2-digit",
-        month: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+    ? formatDateTime(rule.lastFiredAt)
     : null;
 
   const Shield = rule.enabled ? ShieldCheck : ShieldOff;

@@ -64,6 +64,7 @@ import type * as lib_cronLock from "../lib/cronLock.js";
 import type * as lib_crypto from "../lib/crypto.js";
 import type * as lib_facebookApi from "../lib/facebookApi.js";
 import type * as lib_facebookContent from "../lib/facebookContent.js";
+import type * as lib_formatJezgro from "../lib/formatJezgro.js";
 import type * as lib_ga4Admin from "../lib/ga4Admin.js";
 import type * as lib_ga4Api from "../lib/ga4Api.js";
 import type * as lib_ga4Catalog from "../lib/ga4Catalog.js";
@@ -276,6 +277,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto": typeof lib_crypto;
   "lib/facebookApi": typeof lib_facebookApi;
   "lib/facebookContent": typeof lib_facebookContent;
+  "lib/formatJezgro": typeof lib_formatJezgro;
   "lib/ga4Admin": typeof lib_ga4Admin;
   "lib/ga4Api": typeof lib_ga4Api;
   "lib/ga4Catalog": typeof lib_ga4Catalog;

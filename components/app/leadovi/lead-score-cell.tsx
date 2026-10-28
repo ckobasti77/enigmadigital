@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Info } from "lucide-react";
 import type { ScoredAxis, ScoredContribution } from "@/convex/lib/leadScoring";
 import { leadSignalLabel } from "./lead-labels";
-import { formatRelativeTime } from "@/lib/format";
+import { formatPercent, formatRelativeTime } from "@/lib/format";
 import {
   STRENGTH_BAR_CLASS,
   STRENGTH_CHIP_CLASS,
@@ -206,7 +206,7 @@ export function LeadScoreCell({
                   ? "bez pravila"
                   : isUnmeasured
                     ? "bez signala"
-                    : `${percentage}%`}
+                    : percentage === undefined ? "—" : formatPercent(percentage / 100)}
               </span>
             </button>
           ) : (
@@ -243,7 +243,7 @@ export function LeadScoreCell({
                     {score.points} <span className="text-text-muted font-normal text-micro">/ {score.maxPoints}</span>
                   </span>
                   <span className="text-micro font-semibold tabular-nums">
-                    {percentage}%
+                    {percentage === undefined ? null : formatPercent(percentage / 100)}
                   </span>
                 </div>
                 <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-raised/80">
@@ -277,7 +277,7 @@ export function LeadScoreCell({
                 ? "Nema pravila za ovu osu"
                 : isUnmeasured
                   ? "Nije izmereno"
-                  : `${score.points} / ${score.maxPoints} bodova (${percentage}%)`}
+                  : `${score.points} / ${score.maxPoints} bodova (${percentage === undefined ? "—" : formatPercent(percentage / 100)})`}
             </span>
           </div>
           <PopoverDescription className="text-xs text-text-muted mt-1">
@@ -328,7 +328,7 @@ export function LeadScoreCell({
                       <span>Težina pravila: <strong>{c.weight}</strong></span>
                       {!isFit && (
                         <span>
-                          Faktor starosti: <strong>{recencyPct}%</strong> ({c.recencyFactor})
+                          Faktor starosti: <strong>{formatPercent(recencyPct / 100)}</strong> ({c.recencyFactor})
                         </span>
                       )}
                       <span>

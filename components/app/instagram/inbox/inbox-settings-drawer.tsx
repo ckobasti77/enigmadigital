@@ -26,6 +26,7 @@ import {
 } from "@/components/app/projekat-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import {
   Dialog,
   DialogPopup,
@@ -336,25 +337,27 @@ function InboxSettingsDrawerForm({
 
                   {/* Automation selector */}
                   <div className="pt-1">
-                    <label className="text-meta font-medium text-muted-foreground block mb-1">
+                    <label
+                      htmlFor={`ice-breaker-automation-${idx}`}
+                      className="text-meta font-medium text-muted-foreground block mb-1"
+                    >
                       Pokreće automatizaciju:
                     </label>
-                    <select
-                      value={ib.automationId}
-                      onChange={(e) => {
+                    <Select
+                      id={`ice-breaker-automation-${idx}`}
+                      label={`Automatizacija za početno pitanje ${idx + 1}`}
+                      value={ib.automationId || null}
+                      onValueChange={(value) => {
                         const updated = [...iceBreakers];
-                        updated[idx].automationId = e.target.value;
+                        updated[idx].automationId = value;
                         setIceBreakers(updated);
                       }}
-                      className="w-full text-xs rounded-md border border-line bg-surface px-2.5 py-1.5 text-foreground"
-                    >
-                      <option value="">-- Izaberi automatizaciju --</option>
-                      {automations?.map((a) => (
-                        <option key={a._id} value={a._id}>
-                          {a.name} ({a.trigger})
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Izaberi automatizaciju"
+                      options={(automations ?? []).map((a) => ({
+                        value: a._id as string,
+                        label: `${a.name} (${a.trigger})`,
+                      }))}
+                    />
                   </div>
                 </Card>
               ))}

@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeedbackNote } from "@/components/app/feedback";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
-import { pluralSr } from "@/lib/format";
+import { formatNumber, pluralSr } from "@/lib/format";
 import {
   formatMetricName,
   formatOperatorSymbol,
@@ -31,8 +31,6 @@ export type ProbaPravila = FunctionReturnType<typeof api.rulesStore.probaPravila
 
 /** Najviše redova u spisku; ostatak je „i još N". */
 const NAJVISE_REDOVA = 8;
-
-const brojFmt = new Intl.NumberFormat("sr-Latn-RS", { maximumFractionDigits: 0 });
 
 /** Imenica cilja u akuzativu („pauziralo bi 2 kampanje"). */
 export function ciljAkuzativ(n: number, scope: RuleScope): string {
@@ -264,7 +262,7 @@ function TeloProbe({
       {proba.ispodMinPrikaza > 0 && (
         <p className="text-meta text-text-muted">
           {proba.ispodMinPrikaza} {ciljNominativ(proba.ispodMinPrikaza, scope)} ispod{" "}
-          {brojFmt.format(condition.minImpressions)} prikaza{" "}
+          {formatNumber(condition.minImpressions)} prikaza{" "}
           {pluralSr(proba.ispodMinPrikaza, "se ne procenjuje", "se ne procenjuju", "se ne procenjuje")}.
         </p>
       )}

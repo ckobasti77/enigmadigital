@@ -8,6 +8,7 @@ import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { EmptyState } from "@/components/app/empty-state";
 import { RateLimitBanner } from "@/components/app/rate-limit-banner";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { TabNav } from "@/components/app/tab-nav";
 import {
   PopulationPyramidChart,
@@ -88,20 +89,18 @@ export function InstagramDemographics() {
                 >
                   Period:
                 </label>
-                <select
+                <Select<DemographicTimeframe>
                   id="demographics-timeframe-select"
+                  label="Period"
+                  size="sm"
+                  className="w-44"
                   value={timeframe}
-                  onChange={(e) =>
-                    setTimeframe(e.target.value as DemographicTimeframe)
-                  }
-                  className="h-8 rounded-xs border border-line bg-surface px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-mod cursor-pointer"
-                >
-                  {DEMOGRAPHIC_TIMEFRAMES.map((tf) => (
-                    <option key={tf} value={tf}>
-                      {DEMOGRAPHIC_TIMEFRAME_LABELS[tf]}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={setTimeframe}
+                  options={DEMOGRAPHIC_TIMEFRAMES.map((tf) => ({
+                    value: tf,
+                    label: DEMOGRAPHIC_TIMEFRAME_LABELS[tf],
+                  }))}
+                />
               </div>
 
               {/* View mode toggle button */}

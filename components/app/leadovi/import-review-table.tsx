@@ -21,6 +21,7 @@ import {
 } from "@/components/app/projekat-provider";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Select, type SelectOption } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -91,6 +92,27 @@ type ApplyResult = {
 };
 
 type TemperaturaType = "nova_firma" | "cold" | "warm" | "hot";
+
+const TEMPERATURA_OPCIJE: SelectOption<TemperaturaType>[] = [
+  { value: "nova_firma", label: "Nova firma" },
+  { value: "cold", label: "Cold" },
+  { value: "warm", label: "Warm" },
+  { value: "hot", label: "Hot" },
+];
+
+/** Boja okidača po temperaturi (ista kao ranije na izvornom izboru). */
+function temperaturaOkidac(vrednost: TemperaturaType | null): string {
+  switch (vrednost) {
+    case "hot":
+      return "border-[var(--temp-hot)]/40 bg-[var(--temp-hot-bg)] text-foreground font-semibold";
+    case "warm":
+      return "border-[var(--temp-warm)]/40 bg-[var(--temp-warm-bg)] text-foreground font-semibold";
+    case "cold":
+      return "border-[var(--temp-cold)]/40 bg-[var(--temp-cold-bg)] text-foreground font-semibold";
+    default:
+      return "border-line-soft bg-surface-raised text-text-secondary";
+  }
+}
 
 /**
  * Kolone koje puni SAMO `/generate-leads` skill (GL1, plan §4.4).
@@ -1359,52 +1381,30 @@ export function ImportReviewTable({
                         }
                       >
                         {!isReadOnly ? (
-                          <select
-                            value={row.temperatura || "nova_firma"}
-                            onChange={(e) =>
-                              handleTemperaturaChange(
-                                row._id,
-                                e.target.value as TemperaturaType,
-                              )
+                          <Select
+                            label={`Temperatura u uvozu: ${row.parsed.nazivFirme || `red ${row.sourceRowIndex}`}`}
+                            size="sm"
+                            value={(row.temperatura as TemperaturaType) || "nova_firma"}
+                            onValueChange={(v) =>
+                              handleTemperaturaChange(row._id, v)
                             }
-                            className={cn(
-                              "w-full rounded-md border px-2 py-1 text-xs font-medium outline-none transition-colors cursor-pointer",
-                              row.temperatura === "hot" && "border-[var(--temp-hot)]/40 bg-[var(--temp-hot-bg)] text-foreground font-semibold",
-                              row.temperatura === "warm" && "border-[var(--temp-warm)]/40 bg-[var(--temp-warm-bg)] text-foreground font-semibold",
-                              row.temperatura === "cold" && "border-[var(--temp-cold)]/40 bg-[var(--temp-cold-bg)] text-foreground font-semibold",
-                              (!row.temperatura || row.temperatura === "nova_firma") && "border-line-soft bg-surface-raised text-text-secondary",
-                            )}
-                          >
-                            <option value="nova_firma">Nova firma</option>
-                            <option value="cold">Cold</option>
-                            <option value="warm">Warm</option>
-                            <option value="hot">Hot</option>
-                          </select>
+                            options={TEMPERATURA_OPCIJE}
+                            triggerClassName={temperaturaOkidac}
+                          />
                         ) : isPrimenjen && row.firmaId ? (
                           // Primenjen uvoz: menja se ŽIVA temperatura FIRME, ne
                           // staging red. Vrednost se čita iz firmaTemperatura,
                           // NIKAKO iz row.temperatura (stara odluka nije trenutna).
-                          <select
-                            value={row.firmaTemperatura || "nova_firma"}
-                            onChange={(e) =>
-                              handleCompanyTemperaturaChange(
-                                row.firmaId!,
-                                e.target.value as TemperaturaType,
-                              )
+                          <Select
+                            label={`Temperatura firme: ${row.parsed.nazivFirme || `red ${row.sourceRowIndex}`}`}
+                            size="sm"
+                            value={(row.firmaTemperatura as TemperaturaType) || "nova_firma"}
+                            onValueChange={(v) =>
+                              handleCompanyTemperaturaChange(row.firmaId!, v)
                             }
-                            className={cn(
-                              "w-full rounded-md border px-2 py-1 text-xs font-medium outline-none transition-colors cursor-pointer",
-                              row.firmaTemperatura === "hot" && "border-[var(--temp-hot)]/40 bg-[var(--temp-hot-bg)] text-foreground font-semibold",
-                              row.firmaTemperatura === "warm" && "border-[var(--temp-warm)]/40 bg-[var(--temp-warm-bg)] text-foreground font-semibold",
-                              row.firmaTemperatura === "cold" && "border-[var(--temp-cold)]/40 bg-[var(--temp-cold-bg)] text-foreground font-semibold",
-                              (!row.firmaTemperatura || row.firmaTemperatura === "nova_firma") && "border-line-soft bg-surface-raised text-text-secondary",
-                            )}
-                          >
-                            <option value="nova_firma">Nova firma</option>
-                            <option value="cold">Cold</option>
-                            <option value="warm">Warm</option>
-                            <option value="hot">Hot</option>
-                          </select>
+                            options={TEMPERATURA_OPCIJE}
+                            triggerClassName={temperaturaOkidac}
+                          />
                         ) : isPrimenjen ? (
                           // Red bez žive firme: ne crta se kontrola koja ne može
                           // da radi. Obrisano ≠ nepoznato — poseban tekst.

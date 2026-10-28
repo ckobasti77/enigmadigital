@@ -23,8 +23,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { FeedbackNote } from "@/components/app/feedback";
 import { formatAudienceSize } from "@/convex/lib/metaAdsApi";
+import { formatPercent, formatRatio } from "@/lib/format";
 import { Loader2, Sparkles, AlertCircle } from "lucide-react";
 
 interface AudienceOption {
@@ -202,31 +204,26 @@ function CreateLookalikeAudienceDialogInner({
             <Label htmlFor="seed-audience-select">
               Izvorna (Seed) publika * (zahteva ≥ 100 korisnika)
             </Label>
-            <select
+            <Select
               id="seed-audience-select"
-              value={seedAudienceId}
-              onChange={(e) => {
-                setSeedAudienceId(e.target.value);
-                const s = seedOptions.find((opt) => opt.audienceId === e.target.value);
+              label="Izvorna publika"
+              value={seedAudienceId || null}
+              onValueChange={(v) => {
+                setSeedAudienceId(v);
+                const s = seedOptions.find((opt) => opt.audienceId === v);
                 if (s && !name) {
                   setName(`Lookalike (${s.name}) - ${country}`);
                 }
               }}
               disabled={submitting}
-              className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               required
-            >
-              <option value="">-- Izaberite izvornu publiku --</option>
-              {seedOptions.map((opt) => (
-                <option
-                  key={opt.audienceId}
-                  value={opt.audienceId}
-                  disabled={!opt.isEligible}
-                >
-                  {opt.name} ({opt.sizeLabel}) {!opt.isEligible ? "— [Ispod praga od 100]" : ""}
-                </option>
-              ))}
-            </select>
+              placeholder="-- Izaberite izvornu publiku --"
+              options={seedOptions.map((opt) => ({
+                value: opt.audienceId,
+                label: `${opt.name} (${opt.sizeLabel}) ${!opt.isEligible ? "— [Ispod praga od 100]" : ""}`,
+                disabled: !opt.isEligible,
+              }))}
+            />
             {selectedSeed && !selectedSeed.isEligible && (
               <p className="flex items-center gap-1 text-meta text-danger">
                 <AlertCircle className="size-3" />
@@ -285,7 +282,7 @@ function CreateLookalikeAudienceDialogInner({
                   Veličina publike (Odnos / Ratio)
                 </Label>
                 <span className="tabular-nums text-sm font-semibold text-mod">
-                  {ratioPct}% (odnos { (ratioPct / 100).toFixed(2) })
+                  {formatPercent(ratioPct / 100)} (odnos {formatRatio(ratioPct / 100)})
                 </span>
               </div>
               <input

@@ -41,7 +41,7 @@ import { SamoZa } from "@/components/app/samo-za";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { formatRelativeTime } from "@/lib/format";
+import { formatDate, formatRelativeTime } from "@/lib/format";
 import { describeTokenExpiry } from "@/lib/token-expiry";
 import {
   GOOGLE_PERMISSIONS_URL,
@@ -178,7 +178,7 @@ function customerIdProblem(raw: string): string | null {
  * „upravo sada", pa rok tokena ima svoju rečenicu.
  */
 function rokTokena(expiresAt: number, sada: number | null): string {
-  const datum = new Date(expiresAt).toLocaleDateString("sr-RS");
+  const datum = formatDate(expiresAt);
   if (sada === null) return `Token važi do ${datum}`;
   return expiresAt > sada
     ? `Token važi do ${datum} (za ${trajanje(expiresAt - sada)})`

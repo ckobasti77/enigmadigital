@@ -49,8 +49,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatPercentValue } from "@/lib/format";
 import { vremeUBeogradu } from "@/convex/lib/globalneKvote";
 import { DUR_UI, EASE_UI } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -516,19 +517,17 @@ function YtUploadForm({
             >
               Kategorija
             </Label>
-            <select
+            <Select
               id="yt-upload-category"
+              label="Kategorija"
               value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
+              onValueChange={setCategoryId}
               disabled={uploading}
-              className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-mod focus:outline-hidden"
-            >
-              {VIDEO_CATEGORIES.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.label}
-                </option>
-              ))}
-            </select>
+              options={VIDEO_CATEGORIES.map((category) => ({
+                value: category.id,
+                label: category.label,
+              }))}
+            />
             <p className="mt-1 text-xs text-text-muted">
               Može se promeniti kasnije kroz „Izmeni”.
             </p>
@@ -793,7 +792,7 @@ function UploadProgressPanel({
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-xs text-foreground">{PHASE_LABELS[phase]}</p>
         <p className="text-xs font-semibold tabular-nums text-mod">
-          {percent}%
+          {formatPercentValue(percent)}
         </p>
       </div>
 

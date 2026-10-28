@@ -18,7 +18,7 @@ import { WorkCard, WorkSection } from "./work-card";
 import { KorakUradjen } from "./korak-uradjen";
 import { describeNextUp, rowEdge, type LeadRowItem } from "./lead-urgency";
 import { useLeadFilters } from "./use-lead-filters";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatDuration, pluralSr } from "@/lib/format";
 
 type OverdueItem = LeadRowItem & { delayMs: number };
 
@@ -47,27 +47,14 @@ function formatDelayTime(delayMs: number): string {
   const days = Math.floor(totalHours / 24);
   const remainingHours = totalHours % 24;
 
+  const dani = `${days} ${pluralSr(days, "dan", "dana", "dana")}`;
   if (days > 0) {
-    const dayLabel = days === 1 ? "dan" : "dana";
-    if (remainingHours > 0) {
-      const hourLabel =
-        remainingHours === 1 ? "sat" : remainingHours < 5 ? "sata" : "sati";
-      return `kasni ${days} ${dayLabel} i ${remainingHours} ${hourLabel}`;
-    }
-    return `kasni ${days} ${dayLabel}`;
+    return remainingHours > 0
+      ? `kasni ${dani} i ${formatDuration(remainingHours * 3600)}`
+      : `kasni ${dani}`;
   }
 
-  if (totalHours > 0) {
-    const hourLabel =
-      totalHours === 1 ? "sat" : totalHours < 5 ? "sata" : "sati";
-    const remMin = totalMinutes % 60;
-    if (remMin > 0) {
-      return `kasni ${totalHours} ${hourLabel} i ${remMin} min`;
-    }
-    return `kasni ${totalHours} ${hourLabel}`;
-  }
-
-  if (totalMinutes > 0) return `kasni ${totalMinutes} min`;
+  if (totalMinutes > 0) return `kasni ${formatDuration(totalMinutes * 60)}`;
   return "kasni manje od minut";
 }
 

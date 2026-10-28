@@ -43,6 +43,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { IMPORT_STATUS_LABELS, statusUvozaLabel } from "./lead-labels";
 
@@ -255,10 +256,7 @@ export function ImportsHistory({
                 className: "border-line text-text-muted bg-surface",
               };
 
-              const formattedDate = new Date(imp.uploadedAt).toLocaleString("sr-Latn-RS", {
-                dateStyle: "medium",
-                timeStyle: "short",
-              });
+              const formattedDate = formatDateTime(imp.uploadedAt);
 
               const zastao = jeZastaoUPregledu(imp, now);
               const imaUpozorenja = imp.warnings.length > 0;

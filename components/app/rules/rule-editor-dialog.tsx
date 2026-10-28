@@ -14,15 +14,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -43,7 +37,6 @@ import { ValutaUpozorenje } from "@/components/app/system/valuta-upozorenje";
 import { useMoze, useProjekatMutation } from "@/components/app/projekat-provider";
 import { RuleProbaDialog } from "./rule-proba-dialog";
 import { useValutaPravila } from "./use-valuta-pravila";
-import { ChevronsUpDown } from "lucide-react";
 
 export interface RuleEditorDialogProps {
   open: boolean;
@@ -280,7 +273,6 @@ function RuleEditorForm({
     Number.isFinite(value) ? undefined : "prag",
   );
 
-  const akronim = metricAcronym(metric);
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -330,35 +322,21 @@ function RuleEditorForm({
           <legend className="sr-only">Uslov</legend>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
             <div className="flex flex-col gap-1.5">
-              <Label id={ids.mera}>Mera</Label>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="outline"
-                      aria-labelledby={ids.mera}
-                      className="w-full justify-between font-normal"
-                      disabled={submitting}
-                    >
-                      <span title={akronim}>{formatMetricName(metric)}</span>
-                      <ChevronsUpDown className="size-3.5 text-text-muted" aria-hidden />
-                    </Button>
-                  }
-                />
-                <DropdownMenuContent className="w-(--anchor-width)">
-                  <DropdownMenuRadioGroup
-                    value={metric}
-                    onValueChange={(v) => setMetric(v as RuleMetric)}
-                  >
-                    {MERE_PRAVILA.map((m) => (
-                      <DropdownMenuRadioItem key={m} value={m} title={metricAcronym(m)}>
-                        {formatMetricName(m)}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Label htmlFor={ids.mera}>Mera</Label>
+              <Select<RuleMetric>
+                id={ids.mera}
+                label="Mera"
+                value={metric}
+                onValueChange={setMetric}
+                disabled={submitting}
+                options={MERE_PRAVILA.map((m) => ({
+                  value: m,
+                  label: formatMetricName(m),
+                }))}
+                renderOption={(o) => (
+                  <span title={metricAcronym(o.value)}>{o.label}</span>
+                )}
+              />
             </div>
 
             <div className="flex flex-col gap-1.5">

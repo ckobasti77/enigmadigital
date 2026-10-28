@@ -19,7 +19,7 @@ import { MissionCard } from "@/components/app/system/mission-card";
 import { PlayerCard } from "@/components/app/system/player-card";
 import { AchievementBadge } from "@/components/app/system/reward-badges";
 import { Button } from "@/components/ui/button";
-import { formatNumber } from "@/lib/format";
+import { formatDate, formatNumber } from "@/lib/format";
 import { NAPREDAK_ULAZ, stanjeZaOdgovor } from "../fixtures-napredak";
 import { Grupa, Sekcija } from "./delovi";
 
@@ -33,13 +33,6 @@ import { Grupa, Sekcija } from "./delovi";
  * pravilo stvarno radi: četvrti poziv ne pomera završenu misiju, a treći
  * odgovor na komentar zatvara dan i donosi bonus.
  */
-const datum = new Intl.DateTimeFormat("sr-Latn-RS", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  timeZone: "Europe/Belgrade",
-});
-
 export function VodicNapredak() {
   const [dodati, setDodati] = useState<Dogadjaj[]>([]);
   const [nivo, setNivo] = useState(0);
@@ -158,7 +151,7 @@ export function VodicNapredak() {
                   unlockedAt={
                     d.otkljucanoAt === null
                       ? undefined
-                      : datum.format(d.otkljucanoAt)
+                      : formatDate(d.otkljucanoAt)
                   }
                 />
               </li>

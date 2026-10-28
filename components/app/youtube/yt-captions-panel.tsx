@@ -35,6 +35,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -46,7 +47,7 @@ import {
 } from "@/components/ui/table";
 import { PillToggle } from "./yt-automation-editor-dialog";
 import type { VideoItem } from "./youtube-videos-grid";
-import { formatNumber } from "@/lib/format";
+import { formatDate, formatNumber } from "@/lib/format";
 import { vremeUBeogradu } from "@/convex/lib/globalneKvote";
 import { DUR_UI, EASE_UI } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -112,11 +113,7 @@ function convexMessage(err: unknown, fallback: string): string {
 
 function formatTrackDate(timestamp: number | null): string {
   if (timestamp === null) return "—";
-  return new Date(timestamp).toLocaleDateString("sr-Latn-RS", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDate(timestamp);
 }
 
 export function YtCaptionsPanel({
@@ -530,19 +527,17 @@ function YtCaptionsContent({
                 >
                   Jezik
                 </Label>
-                <select
+                <Select
                   id="yt-caption-language"
+                  label="Jezik titla"
                   value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
+                  onValueChange={setLanguage}
                   disabled={submitting}
-                  className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-mod focus:outline-hidden"
-                >
-                  {CAPTION_LANGUAGES.map((option) => (
-                    <option key={option.code} value={option.code}>
-                      {option.label} ({option.code})
-                    </option>
-                  ))}
-                </select>
+                  options={CAPTION_LANGUAGES.map((option) => ({
+                    value: option.code,
+                    label: `${option.label} (${option.code})`,
+                  }))}
+                />
                 <p className="mt-1 text-xs text-text-muted">
                   Pogrešan jezik YouTube prihvata bez greške — titl se pojavi
                   tamo gde ga niko ne traži.

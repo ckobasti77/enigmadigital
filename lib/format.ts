@@ -1,3 +1,7 @@
+import { NBSP, procenat, procenatSirov, trajanje } from "../convex/lib/formatJezgro";
+
+export { NBSP };
+
 /** Short Serbian relative time for "last sync" / run timestamps. */
 export function formatRelativeTime(timestamp: number, now = Date.now()): string {
   const diff = now - timestamp;
@@ -15,11 +19,7 @@ export function formatRelativeTime(timestamp: number, now = Date.now()): string 
   const days = Math.floor(hours / 24);
   if (days < 7) return `pre ${days} d`;
 
-  return new Date(timestamp).toLocaleDateString("sr-RS", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  return formatDate(timestamp);
 }
 
 /**
@@ -55,17 +55,6 @@ const ratioFmt = new Intl.NumberFormat(LOCALE, {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
-const percentFmt = new Intl.NumberFormat(LOCALE, {
-  style: "percent",
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-});
-const signedPercentFmt = new Intl.NumberFormat(LOCALE, {
-  style: "percent",
-  signDisplay: "exceptZero",
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-});
 const signedIntegerFmt = new Intl.NumberFormat(LOCALE, {
   signDisplay: "exceptZero",
   maximumFractionDigits: 0,
@@ -98,19 +87,24 @@ export function formatCompact(value: number): string {
   return integerFmt.format(value);
 }
 
-/** 0..1 → "43,2%". */
+/** 0..1 → „43,2 %“ (tvrdi razmak pre znaka). */
 export function formatPercent(rate: number): string {
-  return percentFmt.format(rate);
+  return procenat(rate);
 }
 
-/** Relative delta 0.12 → "+12,0%". */
+/** Vrednost koja je već u procentima (0..100) → „45 %“; `decimale` po potrebi. */
+export function formatPercentValue(value: number, decimale = 0): string {
+  return procenatSirov(value, decimale);
+}
+
+/** Relative delta 0.12 → „+12,0 %“. */
 export function formatSignedPercent(delta: number): string {
-  return signedPercentFmt.format(delta);
+  return procenat(delta, 1, true);
 }
 
-/** Percentage-point delta 1.34 → "+1,3 pp". */
+/** Percentage-point delta 1.34 → „+1,3 pp“. */
 export function formatSignedPp(delta: number): string {
-  return `${signedDecimalFmt.format(delta)} pp`;
+  return `${signedDecimalFmt.format(delta)}${NBSP}pp`;
 }
 
 /** Currency formatting with dynamic ISO currency code (e.g. "RSD", "EUR", "USD"). If currencyCode is absent, formats bare number. */
@@ -127,24 +121,32 @@ export function formatCurrency(value: number, currencyCode?: string): string {
 
 // ── dates ("YYYY-MM-DD" keys) ────────────────────────────────────────────────
 
-const shortDateFmt = new Intl.DateTimeFormat(LOCALE, {
-  day: "numeric",
-  month: "short",
-});
 const longDateFmt = new Intl.DateTimeFormat(LOCALE, {
   weekday: "short",
   day: "numeric",
   month: "long",
   year: "numeric",
 });
-const dayMonthFmt = new Intl.DateTimeFormat(LOCALE, {
-  day: "2-digit",
-  month: "2-digit",
-});
 const clockFmt = new Intl.DateTimeFormat(LOCALE, {
   hour: "2-digit",
   minute: "2-digit",
 });
+
+/** Kratki nazivi meseca — fiksni, da izlaz ne zavisi od ICU podataka. */
+export const MESECI_KRATKO = [
+  "jan",
+  "feb",
+  "mar",
+  "apr",
+  "maj",
+  "jun",
+  "jul",
+  "avg",
+  "sep",
+  "okt",
+  "nov",
+  "dec",
+] as const;
 
 /** A moment as a wall clock reading in the reader's own time zone — "14:35". */
 export function formatClockTime(timestamp: number): string {
@@ -157,14 +159,34 @@ function keyToLocalDate(key: string): Date {
   return new Date(y, m - 1, d);
 }
 
-/** "2026-08-15" → "15. avg" (axis ticks). */
-export function formatShortDate(key: string): string {
-  return shortDateFmt.format(keyToLocalDate(key));
+function toDate(value: number | string): Date {
+  return typeof value === "string" ? keyToLocalDate(value) : new Date(value);
 }
 
-/** Trenutak u ms → "15. avg" (npr. „podaci od 15. avg"). */
+/**
+ * Datum celim brojevima: „27. 10. 2026.“. Prima ključ „YYYY-MM-DD“ ili
+ * trenutak u ms (čitaočeva vremenska zona).
+ */
+export function formatDate(value: number | string): string {
+  const d = toDate(value);
+  return `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}.`;
+}
+
+/** "2026-08-15" → „15. avg“ (osa grafikona). */
+export function formatShortDate(key: string): string {
+  const d = keyToLocalDate(key);
+  return `${d.getDate()}. ${MESECI_KRATKO[d.getMonth()]}`;
+}
+
+/** Trenutak u ms → „15. avg“ (npr. „podaci od 15. avg“). */
 export function formatShortDateAt(timestamp: number): string {
-  return shortDateFmt.format(new Date(timestamp));
+  const d = new Date(timestamp);
+  return `${d.getDate()}. ${MESECI_KRATKO[d.getMonth()]}`;
+}
+
+/** Trenutak u ms → „okt“. */
+export function formatMonthShort(timestamp: number): string {
+  return MESECI_KRATKO[new Date(timestamp).getMonth()];
 }
 
 /** "2026-08-15" → "sub, 15. avgust 2026." (tooltips). */
@@ -172,22 +194,28 @@ export function formatLongDate(key: string): string {
   return longDateFmt.format(keyToLocalDate(key));
 }
 
-const dateTimeFmt = new Intl.DateTimeFormat(LOCALE, {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-/** Timestamp in ms → "15.08.2026. 14:35" */
+/** Timestamp in ms → „27. 10. 2026. 14:35“. */
 export function formatDateTime(timestamp: number): string {
-  return dateTimeFmt.format(new Date(timestamp));
+  return `${formatDate(timestamp)} ${formatClockTime(timestamp)}`;
 }
 
-/** "2026-08-01" … "2026-08-15" → "01.08 – 15.08." */
+/**
+ * Raspon dana: „1.–15. okt“ (isti mesec), „28. sep – 15. okt“ (isti
+ * godina), „28. dec 2025. – 3. jan 2026.“ (preko godine).
+ */
 export function formatDateSpan(from: string, to: string): string {
-  return `${dayMonthFmt.format(keyToLocalDate(from))} – ${dayMonthFmt.format(keyToLocalDate(to))}`;
+  const a = keyToLocalDate(from);
+  const b = keyToLocalDate(to);
+  const ma = MESECI_KRATKO[a.getMonth()];
+  const mb = MESECI_KRATKO[b.getMonth()];
+  if (a.getFullYear() !== b.getFullYear()) {
+    return `${a.getDate()}. ${ma} ${a.getFullYear()}. – ${b.getDate()}. ${mb} ${b.getFullYear()}.`;
+  }
+  if (a.getMonth() !== b.getMonth()) {
+    return `${a.getDate()}. ${ma} – ${b.getDate()}. ${mb}`;
+  }
+  if (a.getDate() === b.getDate()) return `${a.getDate()}. ${ma}`;
+  return `${a.getDate()}.–${b.getDate()}. ${ma}`;
 }
 
 /**
@@ -195,49 +223,26 @@ export function formatDateSpan(from: string, to: string): string {
  * `estimatedMinutesWatched`; hours are the unit people actually read.
  */
 export function formatWatchTime(minutes: number): string {
-  if (minutes < 60) return `${integerFmt.format(Math.round(minutes))} min`;
+  if (minutes < 60) return `${integerFmt.format(Math.round(minutes))}${NBSP}min`;
   const hours = minutes / 60;
   return hours < 100
-    ? `${decimalFmt.format(hours)} h`
-    : `${integerFmt.format(Math.round(hours))} h`;
+    ? `${decimalFmt.format(hours)}${NBSP}h`
+    : `${integerFmt.format(Math.round(hours))}${NBSP}h`;
 }
 
-/**
- * Format milliseconds into human readable Serbian duration, e.g. "1m 24s", "45s", "2h 15m 10s".
- */
+/** Trajanje u sekundama: „42 s“, „1 min 1 s“, „1 h 2 min“, „0 s“. */
+export function formatDuration(seconds: number): string {
+  return trajanje(seconds);
+}
+
+/** Trajanje u milisekundama — isti format kao `formatDuration`. */
 export function formatDurationMs(ms: number): string {
-  if (!ms || ms <= 0) return "0s";
-  const totalSeconds = Math.round(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${seconds}s`;
-  }
-  if (minutes > 0) {
-    return `${minutes}m ${seconds}s`;
-  }
-  return `${seconds}s`;
+  return trajanje(ms / 1000);
 }
 
-/**
- * Format duration in seconds into human readable Serbian duration, e.g. "2m 14s", "45s".
- */
+/** Trajanje u sekundama — isti format kao `formatDuration`. */
 export function formatSeconds(sec: number): string {
-  if (!sec || sec <= 0) return "0s";
-  const totalSeconds = Math.round(sec);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${seconds}s`;
-  }
-  if (minutes > 0) {
-    return `${minutes}m ${seconds}s`;
-  }
-  return `${seconds}s`;
+  return trajanje(sec);
 }
 
 /** Whole number with an explicit sign — "+1.234" / "−12" / "0". */
@@ -301,17 +306,13 @@ export function formatDaysAgo(timestamp: number, now = Date.now()): string {
   return `pre ${days} ${pluralSr(days, "dan", "dana", "dana")}`;
 }
 
-const weekdayDateFmt = new Intl.DateTimeFormat(LOCALE, {
-  weekday: "short",
-  day: "2-digit",
-  month: "2-digit",
-});
+const DANI_KRATKO = ["ned", "pon", "uto", "sre", "čet", "pet", "sub"] as const;
 
-/** „danas” / „sutra” / „juče” / „pet, 12.09.” — dan u odnosu na sada. */
+/** „danas” / „sutra” / „juče” / „pet, 12. sep” — dan u odnosu na sada. */
 export function formatDayRelative(timestamp: number, now = Date.now()): string {
   const days = localDayDiff(timestamp, now);
   if (days === 0) return "danas";
   if (days === 1) return "sutra";
   if (days === -1) return "juče";
-  return weekdayDateFmt.format(new Date(timestamp));
+  return `${DANI_KRATKO[new Date(timestamp).getDay()]}, ${formatShortDateAt(timestamp)}`;
 }

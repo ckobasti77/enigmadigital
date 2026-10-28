@@ -1,11 +1,15 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  datumIzTeksta,
+  kljucDanaUZoni,
   kljucPerioda,
+  ovajMesec,
   periodIzTeksta,
   periodIzUpita,
   periodUUpit,
   procitajPeriod,
+  prosliMesec,
   razresiPeriod,
   zapamtiPeriod,
   type Skladiste,
@@ -147,5 +151,55 @@ describe("adresa i razrešavanje", () => {
       preset: "custom",
       days: 15,
     });
+  });
+});
+
+describe("prilagođen period: tekst i prečice", () => {
+  const danas = new Date(2026, 9, 27);
+
+  test("datumIzTeksta čita sve dozvoljene oblike", () => {
+    expect(datumIzTeksta("27. 10. 2026.", danas)).toBe("2026-10-27");
+    expect(datumIzTeksta("27.10.2026", danas)).toBe("2026-10-27");
+    expect(datumIzTeksta("27.10.", danas)).toBe("2026-10-27");
+    expect(datumIzTeksta("5.3.", danas)).toBe("2026-03-05");
+    expect(datumIzTeksta("27/10/2026", danas)).toBe("2026-10-27");
+    expect(datumIzTeksta("2026-10-27", danas)).toBe("2026-10-27");
+    expect(datumIzTeksta("  27. 10. 2026.  ", danas)).toBe("2026-10-27");
+  });
+
+  test("datumIzTeksta odbija nepostojeće i besmislene datume", () => {
+    expect(datumIzTeksta("31. 2. 2026.", danas)).toBeNull();
+    expect(datumIzTeksta("29.2.2026", danas)).toBeNull();
+    expect(datumIzTeksta("29.2.2028", danas)).toBe("2028-02-29");
+    expect(datumIzTeksta("32.1.2026", danas)).toBeNull();
+    expect(datumIzTeksta("2026-13-01", danas)).toBeNull();
+    expect(datumIzTeksta("", danas)).toBeNull();
+    expect(datumIzTeksta("juče", danas)).toBeNull();
+  });
+
+  test("ovajMesec ide od 1. do danas", () => {
+    expect(ovajMesec(danas)).toEqual({ from: "2026-10-01", to: "2026-10-27" });
+    expect(ovajMesec(new Date(2026, 9, 1))).toEqual({
+      from: "2026-10-01",
+      to: "2026-10-01",
+    });
+  });
+
+  test("prosliMesec je ceo prethodni mesec, i preko godine", () => {
+    expect(prosliMesec(danas)).toEqual({ from: "2026-09-01", to: "2026-09-30" });
+    expect(prosliMesec(new Date(2026, 0, 15))).toEqual({
+      from: "2025-12-01",
+      to: "2025-12-31",
+    });
+    expect(prosliMesec(new Date(2028, 2, 10))).toEqual({
+      from: "2028-02-01",
+      to: "2028-02-29",
+    });
+  });
+
+  test("kljucDanaUZoni daje dan u zoni, ne u UTC", () => {
+    const kasnoUVece = Date.UTC(2026, 9, 27, 23, 30);
+    expect(kljucDanaUZoni(kasnoUVece, "UTC")).toBe("2026-10-27");
+    expect(kljucDanaUZoni(kasnoUVece, "Europe/Belgrade")).toBe("2026-10-28");
   });
 });

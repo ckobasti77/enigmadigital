@@ -23,17 +23,17 @@ import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatLongDate, formatRelativeTime } from "@/lib/format";
+import { formatDate, formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
- * GA4 Admin API šalje ISO vreme ("2025-03-01T09:00:00Z"), a `formatLongDate`
+ * GA4 Admin API šalje ISO vreme ("2025-03-01T09:00:00Z"), a `formatDate`
  * čita ključ "YYYY-MM-DD" i na ISO nisku baca RangeError — ceo panel je pucao
  * čim Admin API vrati datum (F12). Uzima se samo datumski deo.
  */
 function formatAdminDate(value?: string): string {
   const key = value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
-  return key ? formatLongDate(key) : "—";
+  return key ? formatDate(key) : "—";
 }
 
 // ── Enum translations (Serbian with original in parentheses) ─────────────────

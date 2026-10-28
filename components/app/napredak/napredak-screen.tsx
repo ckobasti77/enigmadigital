@@ -20,7 +20,7 @@ import {
 } from "@/components/app/system/reward-badges";
 import { useProjekat } from "@/components/app/projekat-provider";
 import type { ModuleKey } from "@/components/app/nav-items";
-import { formatNumber, formatShortDate, pluralSr } from "@/lib/format";
+import { formatDate, formatNumber, formatShortDate, pluralSr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ActivityMap } from "./activity-map";
 import { GranicaNapretka } from "./napredak-izvor";
@@ -57,13 +57,6 @@ import { XpBroj } from "./xp-broj";
  * modula. Ništa se ne animira pri otvaranju; merači i XP broj se pomere tek
  * kad se vrednost promeni dok je ekran otvoren.
  */
-
-const datumOtkljucavanja = new Intl.DateTimeFormat("sr-Latn-RS", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  timeZone: "Europe/Belgrade",
-});
 
 /** Boja prstena je boja modula iz kog posao dolazi (§6.6). */
 const MODUL_PRSTENA: Record<string, ModuleKey> = {
@@ -424,7 +417,7 @@ function Dostignuca({ profil }: { profil: NapredakProfil | undefined }) {
                 unlockedAt={
                   d.otkljucanoAt === null
                     ? undefined
-                    : datumOtkljucavanja.format(d.otkljucanoAt)
+                    : formatDate(d.otkljucanoAt)
                 }
               />
             </li>

@@ -95,7 +95,7 @@ import {
   ObjavljujesKao,
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatPercentValue } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PublishDropzone, type PickedItem } from "./publish-dropzone";
 import { PublishPreview } from "./publish-preview";
@@ -1001,8 +1001,8 @@ function PublishComposerForm() {
                               {typeof tag.x === "number" &&
                                 typeof tag.y === "number" && (
                                   <span className="tabular-nums text-micro text-text-muted">
-                                    ({Math.round(tag.x * 100)}%,{" "}
-                                    {Math.round(tag.y * 100)}%)
+                                    ({formatPercentValue(tag.x * 100)},{" "}
+                                    {formatPercentValue(tag.y * 100)})
                                   </span>
                                 )}
                               <button

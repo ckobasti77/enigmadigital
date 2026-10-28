@@ -31,6 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   PillToggle,
@@ -429,22 +430,26 @@ function YtVideoEditForm({
 
         {/* Kategorija */}
         <div>
-          <Label className="mb-1.5 block text-xs font-medium text-text-muted">
+          <Label
+            htmlFor="yt-edit-category"
+            className="mb-1.5 block text-xs font-medium text-text-muted"
+          >
             Kategorija
           </Label>
-          <select
+          <Select
+            id="yt-edit-category"
+            label="Kategorija"
             value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
+            onValueChange={setCategoryId}
             disabled={submitting}
-            className="w-full rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-mod focus:outline-hidden"
-          >
-            <option value="">Ostaje kakva jeste</option>
-            {VIDEO_CATEGORIES.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.label}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: "Ostaje kakva jeste" },
+              ...VIDEO_CATEGORIES.map((category) => ({
+                value: category.id,
+                label: category.label,
+              })),
+            ]}
+          />
         </div>
 
         {/* Privatnost */}
@@ -679,7 +684,10 @@ function ImmediateSection({
       {/* Plejliste */}
       <div className="space-y-1.5 border-t border-line pt-3">
         <div className="flex items-center justify-between gap-2">
-          <Label className="text-xs font-medium text-text-muted">
+          <Label
+            htmlFor="yt-edit-playlist"
+            className="text-xs font-medium text-text-muted"
+          >
             Dodaj u plejlistu
           </Label>
           <button
@@ -697,28 +705,28 @@ function ImmediateSection({
         </div>
 
         <div className="flex items-center gap-2">
-          <select
-            value={playlistId}
-            onChange={(e) => {
-              setPlaylistId(e.target.value);
+          <Select
+            id="yt-edit-playlist"
+            label="Dodaj u plejlistu"
+            value={playlistId || null}
+            onValueChange={(value) => {
+              setPlaylistId(value);
               setNotice(null);
             }}
             disabled={busy || playlists.length === 0}
-            className="min-w-0 flex-1 rounded-md border border-line bg-surface px-2.5 py-2 text-xs font-medium text-foreground focus:border-mod focus:outline-hidden disabled:opacity-50"
-          >
-            <option value="">
-              {playlists.length === 0
+            className="min-w-0 flex-1"
+            placeholder={
+              playlists.length === 0
                 ? refreshing
                   ? "Učitavam plejliste…"
                   : "Nema učitanih plejlista"
-                : "Izaberi plejlistu"}
-            </option>
-            {playlists.map((playlist) => (
-              <option key={playlist.playlistId} value={playlist.playlistId}>
-                {playlist.title} ({playlist.itemCount})
-              </option>
-            ))}
-          </select>
+                : "Izaberi plejlistu"
+            }
+            options={playlists.map((playlist) => ({
+              value: playlist.playlistId,
+              label: `${playlist.title} (${playlist.itemCount})`,
+            }))}
+          />
           <Button
             type="button"
             variant="outline"

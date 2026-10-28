@@ -17,6 +17,7 @@ import { api } from "@/convex/_generated/api";
 import { ConvexError } from "convex/values";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FeedbackNote } from "@/components/app/feedback";
@@ -126,9 +127,6 @@ const STEPS = [
   { n: 2, label: "Publika i plasman", icon: Users },
   { n: 3, label: "Kreativ i pregled", icon: ImageIcon },
 ] as const;
-
-const SELECT_CLASS =
-  "h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 
 // ── Sitni gradivni elementi ─────────────────────────────────────────────────
 
@@ -542,18 +540,16 @@ function NewCampaignWizardInner() {
               desc="Kampanja se pravi u izabranom nalogu; cilj određuje kako Meta isporučuje oglas."
             >
               <Field label="Meta Ads nalog" htmlFor="acc">
-                <select
+                <Select
                   id="acc"
-                  className={SELECT_CLASS}
-                  value={resolvedAccountId}
-                  onChange={(e) => setAccountExternalId(e.target.value)}
-                >
-                  {metaAccounts.map((a) => (
-                    <option key={a._id} value={a.externalId}>
-                      {a.name} ({a.currency || "?"})
-                    </option>
-                  ))}
-                </select>
+                  label="Meta Ads nalog"
+                  value={resolvedAccountId || null}
+                  onValueChange={(v) => setAccountExternalId(v)}
+                  options={metaAccounts.map((a) => ({
+                    value: a.externalId,
+                    label: `${a.name} (${a.currency || "?"})`,
+                  }))}
+                />
               </Field>
 
               <Field label="Naziv kampanje" htmlFor="cname">
@@ -720,18 +716,16 @@ function NewCampaignWizardInner() {
               </Field>
 
               <Field label="Cilj optimizacije (optimization_goal)" htmlFor="optgoal">
-                <select
+                <Select
                   id="optgoal"
-                  className={SELECT_CLASS}
-                  value={optimizationGoal}
-                  onChange={(e) => handleGoalChange(e.target.value)}
-                >
-                  {allowedGoals.map((g) => (
-                    <option key={g} value={g}>
-                      {OPT_GOAL_LABELS[g] ?? g}
-                    </option>
-                  ))}
-                </select>
+                  label="Cilj optimizacije"
+                  value={optimizationGoal || null}
+                  onValueChange={(v) => handleGoalChange(v)}
+                  options={allowedGoals.map((g) => ({
+                    value: g,
+                    label: OPT_GOAL_LABELS[g] ?? g,
+                  }))}
+                />
               </Field>
 
               {isConversionPixel && (
@@ -742,20 +736,15 @@ function NewCampaignWizardInner() {
                   </div>
                   <Field label="Piksel" htmlFor="pixel">
                     <div className="flex items-center gap-2">
-                      <select
+                      <Select
                         id="pixel"
-                        className={SELECT_CLASS}
-                        value={pixelId}
-                        onChange={(e) => setPixelId(e.target.value)}
+                        label="Piksel"
+                        value={pixelId || null}
+                        onValueChange={(v) => setPixelId(v)}
                         disabled={pixelsLoading}
-                      >
-                        <option value="">— izaberi piksel —</option>
-                        {pixels.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="— izaberi piksel —"
+                        options={pixels.map((p) => ({ value: p.id, label: p.name }))}
+                      />
                       <Button
                         type="button"
                         variant="outline"
@@ -777,18 +766,13 @@ function NewCampaignWizardInner() {
                     </FeedbackNote>
                   )}
                   <Field label="Događaj konverzije (custom_event_type)" htmlFor="cevent">
-                    <select
+                    <Select
                       id="cevent"
-                      className={SELECT_CLASS}
-                      value={customEventType}
-                      onChange={(e) => setCustomEventType(e.target.value)}
-                    >
-                      {CUSTOM_EVENTS.map((c) => (
-                        <option key={c.value} value={c.value}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
+                      label="Događaj konverzije"
+                      value={customEventType || null}
+                      onValueChange={(v) => setCustomEventType(v)}
+                      options={CUSTOM_EVENTS.map((c) => ({ value: c.value, label: c.label }))}
+                    />
                   </Field>
                 </div>
               )}
@@ -837,19 +821,17 @@ function NewCampaignWizardInner() {
               {creativeKind === "existing_post" &&
                 (hasPosts ? (
                   <Field label="Objava za promociju" htmlFor="post">
-                    <select
+                    <Select
                       id="post"
-                      className={SELECT_CLASS}
-                      value={objectStoryId}
-                      onChange={(e) => setObjectStoryId(e.target.value)}
-                    >
-                      <option value="">— izaberi objavu —</option>
-                      {(pagePosts ?? []).map((p) => (
-                        <option key={p.objectStoryId} value={p.objectStoryId}>
-                          {(p.message || p.statusType || p.objectStoryId).slice(0, 80)}
-                        </option>
-                      ))}
-                    </select>
+                      label="Objava za promociju"
+                      value={objectStoryId || null}
+                      onValueChange={(v) => setObjectStoryId(v)}
+                      placeholder="— izaberi objavu —"
+                      options={(pagePosts ?? []).map((p) => ({
+                        value: p.objectStoryId,
+                        label: (p.message || p.statusType || p.objectStoryId).slice(0, 80),
+                      }))}
+                    />
                   </Field>
                 ) : (
                   <FeedbackNote tone="warning" title="Nema sinhronizovanih objava stranice">
@@ -886,18 +868,13 @@ function NewCampaignWizardInner() {
                         />
                       </Field>
                       <Field label="Dugme (CTA)" htmlFor="cta">
-                        <select
+                        <Select
                           id="cta"
-                          className={SELECT_CLASS}
-                          value={ctaType}
-                          onChange={(e) => setCtaType(e.target.value)}
-                        >
-                          {CTA_TYPES.map((c) => (
-                            <option key={c.value} value={c.value}>
-                              {c.label}
-                            </option>
-                          ))}
-                        </select>
+                          label="Dugme (CTA)"
+                          value={ctaType || null}
+                          onValueChange={(v) => setCtaType(v)}
+                          options={CTA_TYPES.map((c) => ({ value: c.value, label: c.label }))}
+                        />
                       </Field>
                     </div>
                     <Field

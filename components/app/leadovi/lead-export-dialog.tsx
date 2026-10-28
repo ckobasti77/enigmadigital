@@ -25,6 +25,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Select, type SelectOption } from "@/components/ui/select";
 import { FeedbackNote } from "@/components/app/feedback";
 import { buildLeadCsv } from "@/convex/lib/leadExport";
 import { LEAD_STAGE_LABELS, leadStageLabel } from "./lead-labels";
@@ -44,6 +45,11 @@ const ALL_STAGES: readonly LeadStage[] = [
   "dobijen",
   "izgubljen",
   "odlozen",
+];
+
+const FAZE_IZVOZA: SelectOption[] = [
+  { value: "", label: "Sve faze (ceo projekat)" },
+  ...ALL_STAGES.map((stg) => ({ value: stg as string, label: leadStageLabel(stg) })),
 ];
 
 export function LeadExportDialog({
@@ -162,25 +168,19 @@ export function LeadExportDialog({
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {/* Filter po fazi */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-micro font-medium text-text-muted">
+                <label
+                  htmlFor="izvoz-faza"
+                  className="text-micro font-medium text-text-muted"
+                >
                   Faza u prodajnom toku:
                 </label>
-                <select
+                <Select
+                  id="izvoz-faza"
+                  label="Faza u prodajnom toku"
                   value={selectedStage ?? ""}
-                  onChange={(e) =>
-                    setSelectedStage(
-                      e.target.value ? e.target.value : undefined,
-                    )
-                  }
-                  className="h-8 rounded-lg border border-line bg-surface-raised px-2 text-xs text-foreground outline-none focus:border-mod"
-                >
-                  <option value="">Sve faze (ceo projekat)</option>
-                  {ALL_STAGES.map((stg) => (
-                    <option key={stg} value={stg}>
-                      {leadStageLabel(stg)}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(v) => setSelectedStage(v ? v : undefined)}
+                  options={FAZE_IZVOZA}
+                />
               </div>
 
               {/* Filter: samo sa telefonom */}

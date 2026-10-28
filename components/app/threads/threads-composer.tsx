@@ -57,6 +57,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FormGroup, FormStack } from "@/components/app/form-kit";
@@ -71,7 +72,7 @@ import {
   ObjavljujesKao,
   usePotvrdaProjekta,
 } from "@/components/app/objavljujes-kao";
-import { formatNumber } from "@/lib/format";
+import { NBSP, formatDecimal, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type PickedFile = {
@@ -680,7 +681,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
                         ) : (
                           <FileVideo className="size-3" />
                         )}
-                        <span>{(item.file.size / (1024 * 1024)).toFixed(1)} MB</span>
+                        <span>{`${formatDecimal(item.file.size / (1024 * 1024))}${NBSP}MB`}</span>
                       </div>
                     </div>
                   ))}
@@ -842,18 +843,19 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
                 <Label htmlFor="replyControlSelect" className="text-xs font-medium text-text-muted">
                   Ko sme da odgovara (reply_control)
                 </Label>
-                <select
+                <Select<ReplyControl>
                   id="replyControlSelect"
+                  label="Ko sme da odgovara"
                   value={replyControl}
-                  onChange={(e) => setReplyControl(e.target.value as ReplyControl)}
-                  className="flex h-9 w-full rounded-md border border-line bg-surface px-3 py-1 text-xs text-foreground shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <option value="everyone">Svi (everyone)</option>
-                  <option value="accounts_you_follow">Nalozi koje pratiš</option>
-                  <option value="mentioned_only">Samo spomenuti nalozi</option>
-                  <option value="parent_post_author_only">Samo autor roditeljske objave</option>
-                  <option value="followers_only">Samo pratioci</option>
-                </select>
+                  onValueChange={(v) => setReplyControl(v)}
+                  options={[
+                    { value: "everyone", label: "Svi (everyone)" },
+                    { value: "accounts_you_follow", label: "Nalozi koje pratiš" },
+                    { value: "mentioned_only", label: "Samo spomenuti nalozi" },
+                    { value: "parent_post_author_only", label: "Samo autor roditeljske objave" },
+                    { value: "followers_only", label: "Samo pratioci" },
+                  ]}
+                />
               </div>
 
               {/* Topic tag */}

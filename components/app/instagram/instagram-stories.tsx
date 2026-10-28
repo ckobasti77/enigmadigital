@@ -19,7 +19,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PostImage } from "@/components/app/instagram/post-media";
 import { PostStoryFunnel } from "@/components/app/instagram/post-detail/post-story-funnel";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatDateTime, formatDuration, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { STORY_BELOW_THRESHOLD_REASON } from "@/convex/lib/igMediaMetrics";
 
@@ -30,12 +30,7 @@ function formatRemainingTime(expiresAt: number, now: number): string {
   const diffMs = expiresAt - now;
   if (diffMs <= 0) return "Istekla";
   const totalMinutes = Math.floor(diffMs / (60 * 1000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours > 0) {
-    return `ističe za ${hours}h ${minutes}min`;
-  }
-  return `ističe za ${minutes}min`;
+  return `ističe za ${formatDuration(totalMinutes * 60)}`;
 }
 
 /**

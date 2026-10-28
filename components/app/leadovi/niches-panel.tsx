@@ -17,6 +17,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, type SelectOption } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -85,6 +86,11 @@ const PLATFORME: readonly Platforma[] = [
   "companywall",
   "drugo",
 ];
+
+const PLATFORMA_OPCIJE: SelectOption<Platforma>[] = PLATFORME.map((p) => ({
+  value: p,
+  label: PLATFORMA_NATPISI[p],
+}));
 
 type NicheRow = FunctionReturnType<typeof api.nichesStore.listNiches>[number];
 
@@ -744,23 +750,16 @@ function NichePanel({
                 <label className="sr-only" htmlFor={`platforma-${nisa._id}`}>
                   Platforma
                 </label>
-                <select
+                <Select
                   id={`platforma-${nisa._id}`}
+                  label="Platforma"
                   value={novaPlatforma.platforma}
-                  onChange={(e) =>
-                    setNovaPlatforma({
-                      ...novaPlatforma,
-                      platforma: e.target.value as Platforma,
-                    })
+                  onValueChange={(platforma) =>
+                    setNovaPlatforma({ ...novaPlatforma, platforma })
                   }
-                  className="h-8 cursor-pointer rounded-md border border-line bg-surface-raised px-2 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  {PLATFORME.map((p) => (
-                    <option key={p} value={p} className="bg-surface">
-                      {PLATFORMA_NATPISI[p]}
-                    </option>
-                  ))}
-                </select>
+                  options={PLATFORMA_OPCIJE}
+                  className="w-44"
+                />
                 <Input
                   value={novaPlatforma.url}
                   onChange={(e) =>

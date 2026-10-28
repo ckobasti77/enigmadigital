@@ -32,6 +32,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -849,38 +850,34 @@ function AutomationEditorDialog({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="triggerSelect" className="text-xs font-medium text-text-muted">Okidač</Label>
-                  <select
+                  <Select<TriggerType>
                     id="triggerSelect"
-                    aria-label="Okidač"
+                    label="Okidač"
                     value={trigger}
                     disabled={Boolean(existing)}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                      setTrigger(e.target.value as TriggerType)
-                    }
-                    className="flex h-9 w-full rounded-md border border-line bg-surface px-3 py-1 text-xs text-foreground shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="reply_to_our_post">Odgovor na našu objavu</option>
-                    <option value="mention">Spominjanje naloga (@mention)</option>
-                    <option value="keyword">Ključna reč u javnom sadržaju (keyword search)</option>
-                  </select>
+                    onValueChange={(v) => setTrigger(v)}
+                    options={[
+                      { value: "reply_to_our_post", label: "Odgovor na našu objavu" },
+                      { value: "mention", label: "Spominjanje naloga (@mention)" },
+                      { value: "keyword", label: "Ključna reč u javnom sadržaju (keyword search)" },
+                    ]}
+                  />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="actionTypeSelect" className="text-xs font-medium text-text-muted">Akcija</Label>
-                  <select
+                  <Select<ActionType>
                     id="actionTypeSelect"
-                    aria-label="Akcija"
+                    label="Akcija"
                     value={actionType}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                      setActionType(e.target.value as ActionType)
-                    }
-                    className="flex h-9 w-full rounded-md border border-line bg-surface px-3 py-1 text-xs text-foreground shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="public_reply">Javni odgovor sa porukom</option>
-                    <option value="hide">Sakrij odgovor</option>
-                    <option value="ignore">Ignoriši</option>
-                    <option value="approve_pending">Odobri odgovor na čekanju</option>
-                  </select>
+                    onValueChange={(v) => setActionType(v)}
+                    options={[
+                      { value: "public_reply", label: "Javni odgovor sa porukom" },
+                      { value: "hide", label: "Sakrij odgovor" },
+                      { value: "ignore", label: "Ignoriši" },
+                      { value: "approve_pending", label: "Odobri odgovor na čekanju" },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -911,18 +908,16 @@ function AutomationEditorDialog({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="matchTypeSelect" className="text-xs font-medium text-text-muted">Tip poklapanja</Label>
-                  <select
+                  <Select<MatchType>
                     id="matchTypeSelect"
-                    aria-label="Tip poklapanja"
+                    label="Tip poklapanja"
                     value={matchType}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                      setMatchType(e.target.value as MatchType)
-                    }
-                    className="flex h-9 w-full rounded-md border border-line bg-surface px-3 py-1 text-xs text-foreground shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="contains">Sadrži reč (contains)</option>
-                    <option value="exact">Tačno poklapanje (exact)</option>
-                  </select>
+                    onValueChange={(v) => setMatchType(v)}
+                    options={[
+                      { value: "contains", label: "Sadrži reč (contains)" },
+                      { value: "exact", label: "Tačno poklapanje (exact)" },
+                    ]}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between rounded-lg border border-line-soft bg-surface-raised/40 p-2.5">

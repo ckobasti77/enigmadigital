@@ -34,6 +34,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { formatNumber, formatRelativeTime } from "@/lib/format";
 import type {
   LookupProfileResult,
@@ -288,52 +289,54 @@ function ThreadsSearchForm() {
                 {/* Filteri */}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                   <div>
-                    <label className="mb-1 block text-micro uppercase tracking-wider text-text-muted">
+                    <label htmlFor="threads-search-type" className="mb-1 block text-micro uppercase tracking-wider text-text-muted">
                       Tip rangiranja
                     </label>
-                    <select
+                    <Select
+                      id="threads-search-type"
+                      label="Tip rangiranja"
                       value={searchType}
-                      onChange={(e) =>
-                        setSearchType(e.target.value as "RECENT" | "TOP")
-                      }
-                      className="w-full rounded-md border border-line bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-mod"
-                    >
-                      <option value="RECENT">Najnovije (RECENT)</option>
-                      <option value="TOP">Najpopularnije (TOP)</option>
-                    </select>
+                      onValueChange={(v) => setSearchType(v)}
+                      options={[
+                        { value: "RECENT", label: "Najnovije (RECENT)" },
+                        { value: "TOP", label: "Najpopularnije (TOP)" },
+                      ]}
+                    />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-micro uppercase tracking-wider text-text-muted">
+                    <label htmlFor="threads-search-mode" className="mb-1 block text-micro uppercase tracking-wider text-text-muted">
                       Režim pretrage
                     </label>
-                    <select
+                    <Select
+                      id="threads-search-mode"
+                      label="Režim pretrage"
                       value={searchMode}
-                      onChange={(e) =>
-                        setSearchMode(e.target.value as "KEYWORD" | "TAG")
-                      }
-                      className="w-full rounded-md border border-line bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-mod"
-                    >
-                      <option value="KEYWORD">Ključna reč (KEYWORD)</option>
-                      <option value="TAG">Topic Tag (TAG)</option>
-                    </select>
+                      onValueChange={(v) => setSearchMode(v)}
+                      options={[
+                        { value: "KEYWORD", label: "Ključna reč (KEYWORD)" },
+                        { value: "TAG", label: "Topic Tag (TAG)" },
+                      ]}
+                    />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-micro uppercase tracking-wider text-text-muted">
+                    <label htmlFor="threads-search-media" className="mb-1 block text-micro uppercase tracking-wider text-text-muted">
                       Tip medija
                     </label>
-                    <select
-                      value={mediaTypeFilter}
-                      onChange={(e) => setMediaTypeFilter(e.target.value)}
-                      className="w-full rounded-md border border-line bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-mod"
-                    >
-                      <option value="">Svi tipovi medija</option>
-                      <option value="TEXT">Tekstualne objave (TEXT)</option>
-                      <option value="IMAGE">Slike (IMAGE)</option>
-                      <option value="VIDEO">Video zapisi (VIDEO)</option>
-                      <option value="CAROUSEL_ALBUM">Karoseli (CAROUSEL)</option>
-                    </select>
+                    <Select
+                      id="threads-search-media"
+                      label="Tip medija"
+                      value={mediaTypeFilter || "all"}
+                      onValueChange={(v) => setMediaTypeFilter(v === "all" ? "" : v)}
+                      options={[
+                        { value: "all", label: "Svi tipovi medija" },
+                        { value: "TEXT", label: "Tekstualne objave (TEXT)" },
+                        { value: "IMAGE", label: "Slike (IMAGE)" },
+                        { value: "VIDEO", label: "Video zapisi (VIDEO)" },
+                        { value: "CAROUSEL_ALBUM", label: "Karoseli (CAROUSEL)" },
+                      ]}
+                    />
                   </div>
 
                   <div>

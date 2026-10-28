@@ -1,4 +1,5 @@
 import type { Ga4MetricDef, ResolvedMetric } from "./ga4Catalog";
+import { procenat, trajanje } from "./formatJezgro";
 
 /**
  * ============================================================================
@@ -17,34 +18,6 @@ const decimalFmt = new Intl.NumberFormat(LOCALE, {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
-const ratePercentFmt = new Intl.NumberFormat(LOCALE, {
-  style: "percent",
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-});
-
-/**
- * Format duration in seconds to Serbian representation:
- *   - Under 1 min: "45 s"
- *   - Under 1 hr: "2 min 14 s" or "5 min"
- *   - 1 hr and over: "1 h 03 min" or "2 h"
- */
-function formatSecondsDuration(totalSeconds: number): string {
-  const sec = Math.max(0, Math.round(totalSeconds));
-  if (sec < 60) return `${sec} s`;
-
-  if (sec < 3600) {
-    const min = Math.floor(sec / 60);
-    const remSec = sec % 60;
-    return remSec > 0 ? `${min} min ${remSec} s` : `${min} min`;
-  }
-
-  const hours = Math.floor(sec / 3600);
-  const minutes = Math.floor((sec % 3600) / 60);
-  return minutes > 0
-    ? `${hours} h ${String(minutes).padStart(2, "0")} min`
-    : `${hours} h`;
-}
 
 /**
  * Formats a metric value according to its definition in Ga4MetricDef / ResolvedMetric.
@@ -62,19 +35,19 @@ export function formatMetric(
 
   switch (def.unit) {
     case "percent":
-      return ratePercentFmt.format(value);
+      return procenat(value);
 
     case "duration":
       if (def.type === "TYPE_MILLISECONDS") {
-        return formatSecondsDuration(value / 1000);
+        return trajanje(value / 1000);
       }
       if (def.type === "TYPE_MINUTES") {
-        return formatSecondsDuration(value * 60);
+        return trajanje(value * 60);
       }
       if (def.type === "TYPE_HOURS") {
-        return formatSecondsDuration(value * 3600);
+        return trajanje(value * 3600);
       }
-      return formatSecondsDuration(value);
+      return trajanje(value);
 
     case "currency":
       if (!currencyCode) {

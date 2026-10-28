@@ -19,12 +19,15 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   applyRangeParams,
+  datumIzTeksta,
   kljucPerioda,
+  ovajMesec,
   parseDateKey,
   periodIzTeksta,
   periodIzUpita,
   PERIOD_EVENT,
   procitajSirovPeriod,
+  prosliMesec,
   RANGE_PRESETS,
   razresiPeriod,
   toDateKey,
@@ -33,7 +36,7 @@ import {
   type RangeParams,
   type RangePreset,
 } from "@/lib/date-range";
-import { formatDateSpan } from "@/lib/format";
+import { formatDate, formatDateSpan } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useProjekatOpciono } from "./projekat-provider";
 
@@ -158,23 +161,10 @@ export function DateRangePicker({
   return <TrakaBirac className={className} compact={compact} />;
 }
 
-const mesecKratko = new Intl.DateTimeFormat("sr-Latn-RS", { month: "short" });
-
-/** Kratak raspon za dugme: „1.–15. okt“, a preko meseca „28. sep – 5. okt“. */
-function kratakRaspon(from: string, to: string): string {
-  const a = parseDateKey(from);
-  const b = parseDateKey(to);
-  if (!a || !b) return "";
-  const ma = mesecKratko.format(a);
-  const mb = mesecKratko.format(b);
-  return ma === mb && a.getFullYear() === b.getFullYear()
-    ? `${a.getDate()}.–${b.getDate()}. ${mb}`
-    : `${a.getDate()}. ${ma} – ${b.getDate()}. ${mb}`;
-}
-
 /**
  * Polja „Od/Do“ za prilagođen period, ista u oba oblika birača. Montira se
- * pri otvaranju, pa polja kreću od tekućeg perioda.
+ * pri otvaranju, pa polja kreću od tekućeg perioda. Datum se kuca kao
+ * „27. 10. 2026.“ (pregledačev `type="date"` piše format jezika pregledača).
  */
 function PrilagodjenPeriod({
   range,
@@ -183,23 +173,66 @@ function PrilagodjenPeriod({
   range: DateRange;
   onApply: (from: string, to: string) => void;
 }) {
-  const [draftFrom, setDraftFrom] = useState(range.from);
-  const [draftTo, setDraftTo] = useState(range.to);
+  const [draftFrom, setDraftFrom] = useState(formatDate(range.from));
+  const [draftTo, setDraftTo] = useState(formatDate(range.to));
+  const [diran, setDiran] = useState({ from: false, to: false });
 
-  const draftValid =
-    parseDateKey(draftFrom) !== null &&
-    parseDateKey(draftTo) !== null &&
-    draftFrom <= draftTo;
+  const fromKey = datumIzTeksta(draftFrom, new Date());
+  const toKey = datumIzTeksta(draftTo, new Date());
+  const draftValid = fromKey !== null && toKey !== null && fromKey <= toKey;
+
+  const popuni = (p: { from: string; to: string }) => {
+    setDraftFrom(formatDate(p.from));
+    setDraftTo(formatDate(p.to));
+    setDiran({ from: false, to: false });
+  };
+
+  const greska = (key: string | null, tekst: string, jeDiran: boolean) =>
+    jeDiran && tekst.trim() !== "" && key === null
+      ? "Upiši datum kao 27. 10. 2026."
+      : null;
+  const greskaOd = greska(fromKey, draftFrom, diran.from);
+  const greskaDo = greska(toKey, draftTo, diran.to);
+  const redosled =
+    fromKey !== null && toKey !== null && fromKey > toKey
+      ? "„Od“ mora biti pre „Do“."
+      : null;
+
+  const poNapustanju = (polje: "from" | "to") => {
+    const key = polje === "from" ? fromKey : toKey;
+    if (key !== null) {
+      (polje === "from" ? setDraftFrom : setDraftTo)(formatDate(key));
+    }
+    setDiran((d) => ({ ...d, [polje]: true }));
+  };
 
   return (
     <form
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!draftValid) return;
-        onApply(draftFrom, draftTo);
+        if (!draftValid || fromKey === null || toKey === null) return;
+        onApply(fromKey, toKey);
       }}
     >
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => popuni(ovajMesec(new Date()))}
+        >
+          Ovaj mesec
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => popuni(prosliMesec(new Date()))}
+        >
+          Prošli mesec
+        </Button>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
           <Label htmlFor="range-from" className="text-xs text-text-muted">
@@ -207,12 +240,22 @@ function PrilagodjenPeriod({
           </Label>
           <Input
             id="range-from"
-            type="date"
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="27. 10. 2026."
             value={draftFrom}
-            max={draftTo}
             onChange={(e) => setDraftFrom(e.target.value)}
-            className="font-mono text-xs tabular-nums"
+            onBlur={() => poNapustanju("from")}
+            aria-invalid={greskaOd ? true : undefined}
+            aria-describedby={greskaOd ? "range-from-greska" : undefined}
+            className="text-xs tabular-nums"
           />
+          {greskaOd && (
+            <p id="range-from-greska" className="text-xs text-danger">
+              {greskaOd}
+            </p>
+          )}
         </div>
         <div className="flex flex-col gap-1">
           <Label htmlFor="range-to" className="text-xs text-text-muted">
@@ -220,14 +263,25 @@ function PrilagodjenPeriod({
           </Label>
           <Input
             id="range-to"
-            type="date"
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="27. 10. 2026."
             value={draftTo}
-            min={draftFrom}
             onChange={(e) => setDraftTo(e.target.value)}
-            className="font-mono text-xs tabular-nums"
+            onBlur={() => poNapustanju("to")}
+            aria-invalid={greskaDo ? true : undefined}
+            aria-describedby={greskaDo ? "range-to-greska" : undefined}
+            className="text-xs tabular-nums"
           />
+          {greskaDo && (
+            <p id="range-to-greska" className="text-xs text-danger">
+              {greskaDo}
+            </p>
+          )}
         </div>
       </div>
+      {redosled && <p className="text-xs text-danger">{redosled}</p>}
       <p className="text-xs leading-relaxed text-text-muted">
         Istorija seže 90 dana unazad od prve sinhronizacije.
       </p>
@@ -347,7 +401,7 @@ function MeniBirac({ className }: { className?: string }) {
 
   const natpis =
     range.preset === "custom"
-      ? kratakRaspon(range.from, range.to)
+      ? formatDateSpan(range.from, range.to)
       : PRESET_SHORT[range.preset];
   const pun =
     range.preset === "custom"

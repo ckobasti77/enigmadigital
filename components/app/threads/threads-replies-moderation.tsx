@@ -20,7 +20,7 @@ import {
 import { api } from "@/convex/_generated/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
@@ -222,20 +222,15 @@ export function ThreadsRepliesModeration() {
             ) : mediaList.length === 0 ? (
               <span className="text-xs text-text-muted">Nema dostupnih objava</span>
             ) : (
-              <select
-                aria-label="Izaberi objavu za moderaciju"
-                value={effectivePostId}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                  setSelectedPostId(e.target.value)
-                }
-                className="flex h-9 w-full rounded-md border border-line bg-surface px-3 py-1 text-xs text-foreground shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                {mediaList.map((m) => (
-                  <option key={m.mediaId} value={m.mediaId}>
-                    {m.text ? `${m.text.slice(0, 45)}...` : `Objava ${m.mediaType}`}
-                  </option>
-                ))}
-              </select>
+              <Select
+                label="Objava za moderaciju"
+                value={effectivePostId || null}
+                onValueChange={(v) => setSelectedPostId(v)}
+                options={mediaList.map((m) => ({
+                  value: m.mediaId,
+                  label: m.text ? `${m.text.slice(0, 45)}...` : `Objava ${m.mediaType}`,
+                }))}
+              />
             )}
           </div>
         </div>

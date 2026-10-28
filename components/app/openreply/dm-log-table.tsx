@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/app/empty-state";
 import { StatusPill } from "@/components/app/settings/status-pill";
-import { formatNumber } from "@/lib/format";
+import { formatDateTime, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PlatformBadge } from "./platform-badge";
 
@@ -58,13 +58,6 @@ const FILTERS: { value: DmLogStatus | "all"; label: string }[] = [
   { value: "skipped_no_match", label: STATUS_LABELS.skipped_no_match },
   { value: "skipped_window", label: STATUS_LABELS.skipped_window },
 ];
-
-const timestampFmt = new Intl.DateTimeFormat("sr-Latn-RS", {
-  day: "2-digit",
-  month: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 export function DmLogTable() {
   const [status, setStatus] = useState<DmLogStatus | "all">("all");
@@ -142,7 +135,7 @@ export function DmLogTable() {
                     className="border-line-soft hover:bg-surface-raised/40"
                   >
                     <TableCell className="py-3 pl-5 align-top text-xs whitespace-nowrap tabular-nums text-text-muted">
-                      {timestampFmt.format(new Date(log.createdAt))}
+                      {formatDateTime(log.createdAt)}
                     </TableCell>
 
                     <TableCell className="max-w-72 py-3 align-top">
@@ -177,7 +170,7 @@ export function DmLogTable() {
                       {log.commentDeletedAt !== null && (
                         <p className="text-micro text-text-muted">
                           Komentar obrisan{" "}
-                          {timestampFmt.format(new Date(log.commentDeletedAt))}
+                          {formatDateTime(log.commentDeletedAt)}
                         </p>
                       )}
                     </TableCell>

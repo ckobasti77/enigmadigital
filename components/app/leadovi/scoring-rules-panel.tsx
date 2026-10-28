@@ -27,6 +27,7 @@ import { IzborSablona } from "./izbor-sablona";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, type SelectOption } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,6 +41,10 @@ import {
 } from "@/components/ui/dialog";
 import { FeedbackNote, type FeedbackTone } from "@/components/app/feedback";
 import { cn } from "@/lib/utils";
+
+const SIGNAL_OPCIJE: SelectOption<LeadSignalKind>[] = LEAD_SIGNAL_KINDS.map(
+  (kind) => ({ value: kind, label: leadSignalLabel(kind) }),
+);
 
 /**
  * Ekran „Ocenjivanje" — podešavanje ICP pravila po kojima se računaju Fit i
@@ -777,19 +782,14 @@ function RuleFormDialog({
               <Label htmlFor="rule-signal" className="mb-1.5 block text-xs font-medium text-text-muted">
                 Tip signala
               </Label>
-              <select
+              <Select
                 id="rule-signal"
+                label="Tip signala"
                 value={signalKind}
-                onChange={(e) => setSignalKind(e.target.value as LeadSignalKind)}
+                onValueChange={setSignalKind}
                 disabled={submitting}
-                className="h-8 w-full rounded-lg border border-line bg-surface px-2.5 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
-              >
-                {LEAD_SIGNAL_KINDS.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {leadSignalLabel(kind)}
-                  </option>
-                ))}
-              </select>
+                options={SIGNAL_OPCIJE}
+              />
             </div>
 
             <div>

@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatMetric } from "@/convex/lib/metaAdsFormat";
 import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
+import { formatPercentValue } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const spendDef = resolveMetric("spend")!;
@@ -492,7 +493,7 @@ function AdActionDialogInner({
                     )}
                   >
                     {budgetGuardrails.percentChange > 0 ? "+" : ""}
-                    {budgetGuardrails.percentChange}%
+                    {formatPercentValue(budgetGuardrails.percentChange)}
                   </span>
                 </div>
 

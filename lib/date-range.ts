@@ -2,10 +2,13 @@ import {
   addDays,
   differenceInCalendarDays,
   eachDayOfInterval,
+  endOfMonth,
   format,
   isValid,
   parseISO,
+  startOfMonth,
   subDays,
+  subMonths,
 } from "date-fns";
 
 /**
@@ -241,4 +244,53 @@ export function periodUUpit(p: RangeParams): string {
 export function razresiPeriod(p: RangeParams | null, today: Date): DateRange {
   if (p === null) return presetRange(DEFAULT_PRESET, today);
   return parseRangeParams(new URLSearchParams(p), today);
+}
+
+/*
+ * Prilagođen period: tekst koji čovek kuca, prečice za mesece i dan u zoni.
+ */
+
+const TEKST_DATUMA =
+  /^(\d{1,2})\s*[./]\s*(\d{1,2})(?:\s*[./]\s*(\d{4}))?\s*[./]?$/;
+
+/**
+ * Tekst → ključ „YYYY-MM-DD“; `null` kad nije stvaran datum. Prima „27. 10.
+ * 2026.“, „27.10.2026“, „27.10.“ (tekuća godina), „27/10/2026“ i
+ * „2026-10-27“.
+ */
+export function datumIzTeksta(tekst: string, danas: Date): string | null {
+  const t = tekst.trim();
+  if (DATE_KEY.test(t)) return parseDateKey(t) ? t : null;
+  const m = TEKST_DATUMA.exec(t);
+  if (!m) return null;
+  const dan = Number(m[1]);
+  const mesec = Number(m[2]);
+  const godina = m[3] ? Number(m[3]) : danas.getFullYear();
+  const d = new Date(godina, mesec - 1, dan);
+  if (
+    d.getFullYear() !== godina ||
+    d.getMonth() !== mesec - 1 ||
+    d.getDate() !== dan
+  ) {
+    return null;
+  }
+  return toDateKey(d);
+}
+
+/** Od 1. u mesecu do danas. */
+export function ovajMesec(danas: Date): { from: string; to: string } {
+  return { from: toDateKey(startOfMonth(danas)), to: toDateKey(danas) };
+}
+
+/** Od 1. do poslednjeg dana prethodnog meseca. */
+export function prosliMesec(danas: Date): { from: string; to: string } {
+  const prosli = subMonths(startOfMonth(danas), 1);
+  return { from: toDateKey(prosli), to: toDateKey(endOfMonth(prosli)) };
+}
+
+/** Kalendarski dan trenutka u datoj vremenskoj zoni, kao „YYYY-MM-DD“. */
+export function kljucDanaUZoni(ms: number, zona: string): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: zona }).format(
+    new Date(ms),
+  );
 }

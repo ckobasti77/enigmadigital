@@ -26,6 +26,7 @@ import {
   type KljucTajne,
   type Provera,
 } from "@/convex/lib/podesavanjaPravila";
+import { formatShortDateAt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -295,8 +296,6 @@ function IntegracijeSajta({ podaci }: { podaci: Podaci }) {
 
 // ── Tajna (samo upis i brisanje) ────────────────────────────────────────────
 
-const DATUM = new Intl.DateTimeFormat("sr-Latn-RS", { day: "numeric", month: "numeric" });
-
 function TajnaPolje({
   kljuc,
   label,
@@ -372,7 +371,7 @@ function TajnaPolje({
                         <span className="text-text-muted">
                           {" · "}
                           <span className="tabular-nums">
-                            {DATUM.format(stanje.updatedAt)}
+                            {formatShortDateAt(stanje.updatedAt)}
                           </span>
                         </span>
                       )}

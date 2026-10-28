@@ -34,7 +34,7 @@ export const NAJMANJE_PX = 12;
  * fikstura). Upisan u T10 posle prelaska na P2: ostaju brojčane kolone
  * tabela, ID/kod/token/URL/telefon i `<code>`/`<kbd>`. Broj sme samo da pada.
  */
-export const PLAFON_MONO = 271;
+export const PLAFON_MONO = 269;
 
 /** Mono je dozvoljen u sistemu samo ovde (brojčana kolona `DataTable`). */
 export const MONO_U_SISTEMU: readonly Izuzetak[] = [

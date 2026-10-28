@@ -15,7 +15,7 @@ import { ProjekatLink } from "@/components/app/projekat-link";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/app/empty-state";
-import { formatNumber, formatPercent, pluralSr } from "@/lib/format";
+import { formatNumber, formatPercent, formatPercentValue, pluralSr } from "@/lib/format";
 import { StatTile } from "./kpi-tile";
 
 // Kategorijske boje fiksnim redom (chart-1..6), nikad u krug: prikazuje se
@@ -277,7 +277,7 @@ export function RetentionDashboard() {
                     className="absolute left-0 -translate-y-full text-meta tabular-nums text-text-muted"
                     style={{ top: `${((200 - (pct / 100) * 190 - 2) / 200) * 100}%` }}
                   >
-                    {pct}%
+                    {formatPercentValue(pct)}
                   </span>
                 ))}
               </div>

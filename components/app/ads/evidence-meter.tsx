@@ -8,7 +8,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AlertCircle, CheckCircle2, Clock, HelpCircle, ShieldAlert } from "lucide-react";
 import {
@@ -157,7 +157,7 @@ export function EvidenceMeter({
                       : "text-warning",
                   )}
                 >
-                  {formatNumber(impressions)} / {formatNumber(thresholdImpressions)} ({Math.round(impPct)}%)
+                  {formatNumber(impressions)} / {formatNumber(thresholdImpressions)} ({formatPercent(Math.round(impPct) / 100)})
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -170,7 +170,7 @@ export function EvidenceMeter({
                       : "text-warning",
                   )}
                 >
-                  {formatNumber(clicks)} / {formatNumber(thresholdClicks)} ({Math.round(clickPct)}%)
+                  {formatNumber(clicks)} / {formatNumber(thresholdClicks)} ({formatPercent(Math.round(clickPct) / 100)})
                 </span>
               </div>
             </div>
@@ -186,7 +186,7 @@ export function EvidenceMeter({
 
         {showDetails && (
           <span className="text-micro tabular-nums text-text-muted">
-            {sampleProgressPct}% praga
+            {formatPercent(sampleProgressPct / 100)} praga
           </span>
         )}
       </div>

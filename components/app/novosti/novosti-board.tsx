@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/app/system/empty-state";
 import { useMoze } from "@/components/app/projekat-provider";
@@ -161,19 +162,17 @@ export function NovostiBoard({
           />
         </div>
 
-        <select
+        <Select
+          label="Filter po kategoriji"
+          size="sm"
+          className="w-52"
           value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className="h-8 cursor-pointer rounded-lg border border-input bg-surface px-2.5 text-ui text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          aria-label="Filter po kategoriji"
-        >
-          <option value="all">Sve kategorije</option>
-          {POST_CATEGORIES.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+          onValueChange={setSelectedCategory}
+          options={[
+            { value: "all", label: "Sve kategorije" },
+            ...POST_CATEGORIES.map((c) => ({ value: c.id as string, label: c.label })),
+          ]}
+        />
       </div>
 
       {!isLoading && filtering && filteredPosts.length === 0 ? (

@@ -1,4 +1,4 @@
-import { formatNumber, formatPercent } from "@/lib/format";
+import { formatDecimal, formatNumber, formatPercent } from "@/lib/format";
 import { formatMetric } from "@/convex/lib/metaAdsFormat";
 import { resolveMetric } from "@/convex/lib/metaAdsCatalog";
 
@@ -156,16 +156,16 @@ export function evaluateHookBattle(
 
     const hookMultiplier =
       leaderHook !== undefined && runnerUpHook !== undefined && runnerUpHook > 0
-        ? (leaderHook / runnerUpHook).toFixed(1)
-        : "1.0";
+        ? formatDecimal(leaderHook / runnerUpHook)
+        : formatDecimal(1);
 
     let verdict = "";
     if (leaderHook !== undefined && runnerUpHook !== undefined && leaderHook > runnerUpHook) {
-      verdict = `${leader.displayName}: ${hookMultiplier}× veći hook rate u odnosu na ${runnerUp.displayName}, CPA ${cpaDiffPct}% niži (${leaderCpaFmt} vs ${runnerUpCpaFmt}).`;
+      verdict = `${leader.displayName}: ${hookMultiplier}× veći hook rate u odnosu na ${runnerUp.displayName}, CPA ${formatPercent(cpaDiffPct / 100)} niži (${leaderCpaFmt} vs ${runnerUpCpaFmt}).`;
     } else {
       const runnerUpHookText =
         runnerUpHook !== undefined ? formatPercent(runnerUpHook) : "nedovoljno podataka";
-      verdict = `${leader.displayName}: Najbolji CPA sa ${leaderCpaFmt} (${cpaDiffPct}% niže od ${runnerUp.displayName}). Iako ${runnerUp.displayName} ima veći Hook Rate (${runnerUpHookText}), ${leader.displayName} ostvaruje jeftinije konverzije.`;
+      verdict = `${leader.displayName}: Najbolji CPA sa ${leaderCpaFmt} (${formatPercent(cpaDiffPct / 100)} niže od ${runnerUp.displayName}). Iako ${runnerUp.displayName} ima veći Hook Rate (${runnerUpHookText}), ${leader.displayName} ostvaruje jeftinije konverzije.`;
     }
 
     // Recommendation for severe underperformers
@@ -213,8 +213,8 @@ export function evaluateHookBattle(
 
     const hookMultiplier =
       leaderHook !== undefined && runnerUpHook !== undefined && runnerUpHook > 0
-        ? (leaderHook / runnerUpHook).toFixed(1)
-        : "1.0";
+        ? formatDecimal(leaderHook / runnerUpHook)
+        : formatDecimal(1);
 
     let verdict = "";
     const leaderHookText = leaderHook !== undefined ? formatPercent(leaderHook) : "—";
@@ -251,7 +251,7 @@ export function evaluateHookBattle(
     let verdict = "";
     if (runnerUp && runnerUp.ctr !== undefined) {
       const ctrMultiplier =
-        runnerUp.ctr > 0 ? (leader.ctr / runnerUp.ctr).toFixed(1) : "1.0";
+        runnerUp.ctr > 0 ? formatDecimal(leader.ctr / runnerUp.ctr) : formatDecimal(1);
       verdict = `${leader.displayName}: Vodeći CTR sa ${leaderCtrText} (${ctrMultiplier}× iznad ${runnerUp.displayName}).`;
     } else {
       verdict = `${leader.displayName}: Najveći CTR (${leaderCtrText}).`;

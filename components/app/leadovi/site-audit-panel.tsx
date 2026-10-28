@@ -12,7 +12,7 @@ import { LinkChip } from "@/components/app/link-chip";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { SiteStatusBadge } from "./site-status-badge";
 import { CLAUDE_OCENE, LIGHTHOUSE_KATEGORIJE, ponudaNatpis } from "./site-audit-labels";
-import { formatDateTime } from "@/lib/format";
+import { NBSP, formatDateTime, formatDecimal, formatRatio } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -77,7 +77,7 @@ function cwvNatpis(kljuc: keyof typeof PRAGOVI, v: number): string {
 
 function ms(v: number | undefined): string {
   if (v === undefined) return "—";
-  return v >= 1000 ? `${(v / 1000).toFixed(1)} s` : `${Math.round(v)} ms`;
+  return v >= 1000 ? `${formatDecimal(v / 1000)}${NBSP}s` : `${Math.round(v)} ms`;
 }
 
 function Crtica() {
@@ -341,7 +341,7 @@ export function SiteAuditPanel({
                 {(
                   [
                     { kljuc: "lcpMs", natpis: "LCP", v: lh.lcpMs, tekst: ms(lh.lcpMs) },
-                    { kljuc: "cls", natpis: "CLS", v: lh.cls, tekst: lh.cls === undefined ? "—" : lh.cls.toFixed(2) },
+                    { kljuc: "cls", natpis: "CLS", v: lh.cls, tekst: lh.cls === undefined ? "—" : formatRatio(lh.cls) },
                     {
                       kljuc: lh.inpMs !== undefined ? "inpMs" : "tbtMs",
                       natpis: lh.inpMs !== undefined ? "INP" : "TBT",
@@ -392,7 +392,7 @@ export function SiteAuditPanel({
                     <>
                       {" · prosek "}
                       <span className="tabular-nums text-foreground">
-                        {audit.claudeProsek.toFixed(1)}
+                        {formatDecimal(audit.claudeProsek)}
                       </span>
                       /5
                     </>

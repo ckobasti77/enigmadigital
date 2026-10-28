@@ -7,6 +7,7 @@ import {
   TEMPERATURE_LABEL,
   type Temperatura,
 } from "@/lib/temperature";
+import { Select, type SelectOption } from "@/components/ui/select";
 import { leadStageLabel } from "./lead-labels";
 import { cn } from "@/lib/utils";
 
@@ -83,25 +84,24 @@ export function TemperatureSelect({
 }) {
   const temp: Temperatura = value ?? "nova_firma";
   return (
-    <select
-      aria-label={ariaLabel}
+    <Select
+      label={ariaLabel}
+      size="sm"
       value={temp}
       disabled={disabled}
-      onChange={(e) => onChange(e.target.value as Temperatura)}
-      className={cn(
-        "h-7 cursor-pointer rounded-md border px-2 text-xs font-semibold outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
-        TEMPERATURE_CHIP_CLASS[temp],
-        className,
-      )}
-    >
-      {TEMPERATURE.map((t) => (
-        <option key={t} value={t} className="bg-surface text-foreground">
-          {TEMPERATURE_LABEL[t]}
-        </option>
-      ))}
-    </select>
+      onValueChange={onChange}
+      options={TEMPERATURA_OPCIJE}
+      triggerClassName={(v) =>
+        cn("font-semibold", TEMPERATURE_CHIP_CLASS[v ?? temp])
+      }
+      className={className}
+    />
   );
 }
+
+const TEMPERATURA_OPCIJE: SelectOption<Temperatura>[] = TEMPERATURE.map(
+  (t) => ({ value: t, label: TEMPERATURE_LABEL[t] }),
+);
 
 /*
  * `ContactLink` je obrisan u GL2. Zamenio ga je `components/app/link-chip.tsx`
