@@ -105,7 +105,7 @@ function MentionReplyComposer({
       />
       <ObjavljujesKao kanal="instagram" radnja="Odgovaraš" />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-mono text-micro tabular-nums text-text-muted">
+        <span className="text-micro tabular-nums text-text-muted">
           {text.trim().length} / {REPLY_MAX}
         </span>
         <div className="ml-auto flex items-center gap-1.5">
@@ -197,7 +197,7 @@ export function MentionCard({ mention }: { mention: MentionData }) {
               )}
             </div>
 
-            <span className="font-mono text-micro tabular-nums text-text-muted">
+            <span className="text-micro tabular-nums text-text-muted">
               {mention.timestamp > 0
                 ? formatRelativeTime(mention.timestamp)
                 : "—"}
@@ -251,7 +251,7 @@ export function MentionCard({ mention }: { mention: MentionData }) {
                       Mi
                     </span>
                   </span>
-                  <span className="font-mono text-micro tabular-nums text-text-muted">
+                  <span className="text-micro tabular-nums text-text-muted">
                     {mention.repliedAt ? formatRelativeTime(mention.repliedAt) : "—"}
                   </span>
                 </div>

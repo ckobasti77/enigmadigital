@@ -66,7 +66,7 @@ export function PostMetricCard({
             </span>
             {isEstimate && (
               <span
-                className="rounded-xs border border-line bg-surface-raised px-1.5 py-0.2 text-[10px] font-medium text-text-muted"
+                className="rounded-xs border border-line bg-surface-raised px-1.5 py-0.2 text-meta font-medium text-text-muted"
                 title="Procenjena vrednost"
               >
                 Procena
@@ -74,7 +74,7 @@ export function PostMetricCard({
             )}
             {isOrganicOnly && (
               <span
-                className="rounded-xs border border-line bg-surface-raised px-1.5 py-0.2 text-[10px] font-medium text-text-muted"
+                className="rounded-xs border border-line bg-surface-raised px-1.5 py-0.2 text-meta font-medium text-text-muted"
                 title="Samo organski podaci — interakcije sa oglasa se ne broje"
               >
                 Samo organski
@@ -92,12 +92,12 @@ export function PostMetricCard({
 
       <div className="mt-3 flex flex-col gap-1">
         {isAvailable ? (
-          <div className="font-mono text-2xl font-bold tracking-tight text-foreground">
+          <div className="tabular-nums text-2xl font-bold tracking-tight text-foreground">
             {formattedValue}
           </div>
         ) : (
           <div className="flex flex-col gap-1">
-            <div className="font-mono text-2xl font-semibold text-text-muted">
+            <div className="tabular-nums text-2xl font-semibold text-text-muted">
               —
             </div>
             {(isSuppressed || isUnavailable) && (

@@ -112,7 +112,7 @@ export function PostStoryFunnel({ breakdowns, className }: PostStoryFunnelProps)
             </h3>
           </div>
           {hasData && (
-            <span className="font-mono text-xs text-text-muted">
+            <span className="tabular-nums text-xs text-text-muted">
               Ukupno zabeleženih radnji: {formatNumber(items.reduce((s, i) => s + i.value, 0))}
             </span>
           )}
@@ -212,7 +212,7 @@ export function PostStoryFunnel({ breakdowns, className }: PostStoryFunnelProps)
                       <IconComponent className="size-4 text-text-muted" aria-hidden="true" />
                     </div>
 
-                    <div className="flex items-baseline justify-between gap-2 font-mono pt-1">
+                    <div className="flex items-baseline justify-between gap-2 tabular-nums pt-1">
                       <span className="text-2xl font-bold text-foreground">
                         {formatNumber(item.value)}
                       </span>
@@ -221,7 +221,7 @@ export function PostStoryFunnel({ breakdowns, className }: PostStoryFunnelProps)
                       </span>
                     </div>
 
-                    <p className="text-[11px] text-text-muted leading-relaxed">
+                    <p className="text-meta text-text-muted leading-relaxed">
                       {item.description}
                     </p>
                   </div>

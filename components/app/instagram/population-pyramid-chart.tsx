@@ -173,10 +173,10 @@ export function PopulationPyramidChart({
                     : "Nepoznato"}
                 , {hovered.age} god:
               </span>
-              <span className="font-mono text-foreground font-medium">
+              <span className="tabular-nums text-foreground font-medium">
                 {formatNumber(hovered.value)}
               </span>
-              <span className="font-mono text-text-muted">
+              <span className="tabular-nums text-text-muted">
                 ({formatPercent(hovered.pct)})
               </span>
             </span>
@@ -199,7 +199,7 @@ export function PopulationPyramidChart({
               >
                 {/* Left Side: Žene (F) extending from center to left */}
                 <div className="flex items-center justify-end gap-2">
-                  <span className="font-mono text-[11px] tabular-nums text-text-muted">
+                  <span className="text-meta tabular-nums text-text-muted">
                     {row.F > 0 ? formatPercent(fPct) : ""}
                   </span>
                   <div className="relative h-6.5 w-full max-w-[180px] sm:max-w-none flex justify-end">
@@ -228,7 +228,7 @@ export function PopulationPyramidChart({
                 </div>
 
                 {/* Center: Age Group Label */}
-                <div className="flex items-center justify-center rounded-xs bg-surface-raised py-1 text-center font-mono text-xs font-medium text-text-primary">
+                <div className="flex items-center justify-center rounded-xs bg-surface-raised py-1 text-center tabular-nums text-xs font-medium text-text-primary">
                   {row.age}
                 </div>
 
@@ -257,7 +257,7 @@ export function PopulationPyramidChart({
                       }}
                     />
                   </div>
-                  <span className="font-mono text-[11px] tabular-nums text-text-muted">
+                  <span className="text-meta tabular-nums text-text-muted">
                     {row.M > 0 ? formatPercent(mPct) : ""}
                   </span>
                 </div>

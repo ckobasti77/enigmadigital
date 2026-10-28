@@ -364,7 +364,6 @@ function AutomationCard({
     <Card
       className={cn(
         "flex flex-col justify-between p-5 shadow-card ring-line transition-colors",
-        !item.isActive && "opacity-60",
       )}
     >
       <div>
@@ -443,7 +442,7 @@ function AutomationCard({
               {item.keywords.map((kw: string, i: number) => (
                 <span
                   key={i}
-                  className="rounded bg-surface-raised border border-line px-1.5 py-0.5 font-mono text-micro text-foreground"
+                  className="rounded bg-surface-raised border border-line px-1.5 py-0.5 text-micro text-foreground"
                 >
                   {kw}
                 </span>
@@ -453,7 +452,7 @@ function AutomationCard({
 
           <div>
             <span className="text-text-muted font-medium">Odgovor:</span>
-            <p className="mt-1 line-clamp-2 text-foreground/90 font-mono text-micro">
+            <p className="mt-1 line-clamp-2 text-foreground text-micro">
               {item.replyText || "—"}
             </p>
             {item.linkUrl && (
@@ -467,7 +466,7 @@ function AutomationCard({
 
       {/* ── Vidljivi brojevi limita (§4) ─────────────────────────────────── */}
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line-soft pt-3">
-        <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-text-muted">
+        <div className="flex flex-wrap items-center gap-4 text-xs tabular-nums text-text-muted">
           <span title="Maksimalno izvršenja u 24h">
             Dnevni limit:{" "}
             <strong className="text-foreground">{formatNumber(item.dailyLimit)}</strong>
@@ -554,7 +553,7 @@ function AutomationLogsTable({ logs }: { logs?: LogDoc[] }) {
               return (
                 <TableRow key={log._id} className="hover:bg-surface-raised/50">
                   {/* Vreme */}
-                  <TableCell className="py-2.5 text-text-muted whitespace-nowrap font-mono text-micro">
+                  <TableCell className="py-2.5 text-text-muted whitespace-nowrap text-micro">
                     {formatRelativeTime(log.createdAt)}
                   </TableCell>
 
@@ -564,7 +563,7 @@ function AutomationLogsTable({ logs }: { logs?: LogDoc[] }) {
                   </TableCell>
 
                   {/* Ključna reč */}
-                  <TableCell className="py-2.5 font-mono text-foreground">
+                  <TableCell className="py-2.5 text-foreground">
                     {log.matchedKeyword ? (
                       <span className="rounded bg-surface-raised border border-line px-1.5 py-0.5 text-micro">
                         {log.matchedKeyword}
@@ -590,9 +589,9 @@ function AutomationLogsTable({ logs }: { logs?: LogDoc[] }) {
                   {/* Detalj / Greška */}
                   <TableCell className="py-2.5 max-w-xs truncate text-text-muted">
                     {log.errorMessage ? (
-                      <span className="text-danger font-mono text-micro">{log.errorMessage}</span>
+                      <span className="text-danger text-micro">{log.errorMessage}</span>
                     ) : log.reason ? (
-                      <span className="font-mono text-micro">{log.reason}</span>
+                      <span className="text-micro">{log.reason}</span>
                     ) : (
                       "—"
                     )}

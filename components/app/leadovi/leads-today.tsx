@@ -368,7 +368,7 @@ export function LeadsToday() {
                   {z.shown.map((k) => (
                     <SignalCip key={k} kind={k} />
                   ))}
-                  {z.rest > 0 && <span className="font-mono text-meta tabular-nums text-text-muted">+{z.rest}</span>}
+                  {z.rest > 0 && <span className="text-meta tabular-nums text-text-muted">+{z.rest}</span>}
                   {z.shown.length === 0 && <span className="text-meta text-text-muted">bez signala</span>}
                 </>
               }
@@ -391,7 +391,7 @@ export function LeadsToday() {
                       <Chip
                         tone="xp"
                         size="sm"
-                        className="font-mono tabular-nums"
+                        className="tabular-nums"
                         title={`Poziv (+${PRAVILA_XP.dodir.xp} XP) i zabeležen ishod (+${PRAVILA_XP.ishod.xp} XP)`}
                       >
                         +{XP_POZIV} XP
@@ -666,7 +666,7 @@ function DanasFokus({ zovi }: { zovi: ZoviSada | null }) {
               </Button>
             )}
             <span className="text-meta text-text-muted">
-              <span className="font-mono tabular-nums text-foreground">{uRedu}</span>{" "}
+              <span className="tabular-nums text-foreground">{uRedu}</span>{" "}
               {pluralSr(uRedu, "firma", "firme", "firmi")} u redu{moze && ", jedna po jedna"}
             </span>
           </div>
@@ -714,7 +714,7 @@ function DanasFokus({ zovi }: { zovi: ZoviSada | null }) {
                 {nedelja && (
                   <>
                     {" · nedelja "}
-                    <span className="font-mono whitespace-nowrap tabular-nums text-foreground">
+                    <span className="whitespace-nowrap tabular-nums text-foreground">
                       {nedelja.vrednost} / {nedelja.cilj}
                     </span>
                   </>
@@ -736,7 +736,7 @@ function DanasFokus({ zovi }: { zovi: ZoviSada | null }) {
           {napredak && (
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
               {napredak.xp.danas > 0 && (
-                <Chip tone="xp" size="sm" className="font-mono tabular-nums">
+                <Chip tone="xp" size="sm" className="tabular-nums">
                   +{formatNumber(napredak.xp.danas)} XP danas
                 </Chip>
               )}
@@ -806,7 +806,7 @@ function KvalitetBazeMerac({
         <h2 className="heading-caps text-meta font-medium text-text-muted">
           Kvalitet baze
         </h2>
-        <span className="font-mono text-title font-bold tabular-nums text-foreground">
+        <span className="text-title font-bold tabular-nums text-foreground">
           {kvalitet ? `${kvalitet.pct} %` : "—"}
         </span>
       </div>
@@ -822,7 +822,7 @@ function KvalitetBazeMerac({
             {kvalitet.delovi.map((deo) => (
               <li key={deo.kljuc} title={`${deo.ima} od ${deo.od}`}>
                 {deo.naziv}{" "}
-                <span className="font-mono tabular-nums text-foreground">{deo.pct} %</span>
+                <span className="tabular-nums text-foreground">{deo.pct} %</span>
               </li>
             ))}
           </ul>
@@ -885,7 +885,7 @@ function BrojCip({
       title={hint}
       className="touch-target inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-line bg-surface-raised px-2.5 text-ui transition-colors hover:border-mod-line focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
     >
-      <span className="font-mono font-bold tabular-nums text-foreground">
+      <span className="font-bold tabular-nums text-foreground">
         {value === undefined ? (
           "—"
         ) : (

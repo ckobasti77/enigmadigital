@@ -728,7 +728,7 @@ function PublishComposerForm() {
                       <span className="flex items-center gap-2">
                         <span
                           className={cn(
-                            "font-mono text-micro tabular-nums",
+                            "text-micro tabular-nums",
                             mentions > MENTION_MAX
                               ? "text-danger"
                               : mentions >= MENTION_MAX - 3
@@ -740,7 +740,7 @@ function PublishComposerForm() {
                         </span>
                         <span
                           className={cn(
-                            "font-mono text-micro tabular-nums",
+                            "text-micro tabular-nums",
                             hashtags > HASHTAG_MAX
                               ? "text-danger"
                               : hashtags >= HASHTAG_MAX - 5
@@ -848,7 +848,7 @@ function PublishComposerForm() {
                           onChange={(event) =>
                             setScheduleDate(event.target.value)
                           }
-                          className="font-mono text-xs tabular-nums"
+                          className="text-xs tabular-nums"
                         />
                       </div>
                       <div className="flex flex-col gap-1">
@@ -866,7 +866,7 @@ function PublishComposerForm() {
                           onChange={(event) =>
                             setScheduleTime(event.target.value)
                           }
-                          className="font-mono text-xs tabular-nums"
+                          className="text-xs tabular-nums"
                         />
                       </div>
                     </div>
@@ -877,7 +877,7 @@ function PublishComposerForm() {
                       scheduledFor !== null && (
                         <p className="text-xs text-text-muted">
                           Odlazi{" "}
-                          <span className="font-mono tabular-nums text-foreground">
+                          <span className="tabular-nums text-foreground">
                             {formatBelgrade(scheduledFor)}
                           </span>{" "}
                           {SCHEDULE_TIME_ZONE_LABEL}.
@@ -900,7 +900,7 @@ function PublishComposerForm() {
                       Dodatno
                     </span>
                     {extraCount > 0 && (
-                      <span className="rounded-full bg-mod-soft px-2 py-0.5 font-mono text-micro text-mod">
+                      <span className="rounded-full bg-mod-soft px-2 py-0.5 tabular-nums text-micro text-mod">
                         {extraCount}
                       </span>
                     )}
@@ -1000,7 +1000,7 @@ function PublishComposerForm() {
                               <span>@{tag.username}</span>
                               {typeof tag.x === "number" &&
                                 typeof tag.y === "number" && (
-                                  <span className="font-mono text-micro text-text-muted">
+                                  <span className="tabular-nums text-micro text-text-muted">
                                     ({Math.round(tag.x * 100)}%,{" "}
                                     {Math.round(tag.y * 100)}%)
                                   </span>
@@ -1356,7 +1356,7 @@ function PublishSummary({
       <span className="block">
         <strong className="text-foreground">{KIND_LABELS[kind]}</strong> ·{" "}
         {pluralFiles(items.length)} ·{" "}
-        <span className="font-mono tabular-nums">
+        <span className="tabular-nums">
           {formatBytes(totalBytes)}
         </span>
       </span>
@@ -1366,11 +1366,11 @@ function PublishSummary({
       </span>
 
       {acceptsCaption(kind) && (
-        <span className="block rounded-md border border-line-soft bg-surface/60 px-2.5 py-1.5 text-xs leading-relaxed text-foreground/90">
+        <span className="block rounded-md border border-line-soft bg-surface/60 px-2.5 py-1.5 text-xs leading-relaxed text-foreground">
           {trimmed.length > 0 ? (
             <>
               {trimmed.length > 220 ? `${trimmed.slice(0, 220)}…` : trimmed}
-              <span className="mt-1 block font-mono text-micro text-text-muted">
+              <span className="mt-1 block tabular-nums text-micro text-text-muted">
                 {trimmed.length} znakova · {hashtags} hashtagova
               </span>
             </>
@@ -1406,7 +1406,7 @@ function PublishSummary({
       {altText && (
         <span className="block text-xs text-text-muted">
           Alt tekst:{" "}
-          <span className="italic text-foreground/90">
+          <span className="italic text-foreground">
             {altText.length > 80 ? `${altText.slice(0, 80)}…` : altText}
           </span>
         </span>
@@ -1434,7 +1434,7 @@ function PublishSummary({
         ) : (
           <>
             Odlazi{" "}
-            <span className="font-mono tabular-nums text-foreground">
+            <span className="tabular-nums text-foreground">
               {formatBelgrade(scheduledFor)}
             </span>{" "}
             {SCHEDULE_TIME_ZONE_LABEL}. Do tada se može otkazati.
@@ -1509,10 +1509,10 @@ function QuotaLine({ limit }: { limit: PublishingLimit | null }) {
             <CountUp
               value={limit.used}
               format={formatNumber}
-              className="font-mono font-medium text-foreground"
+              className="tabular-nums font-medium text-foreground"
             />{" "}
             od{" "}
-            <span className="font-mono tabular-nums">
+            <span className="tabular-nums">
               {formatNumber(limit.total)}
             </span>{" "}
             objava u poslednja 24 h
@@ -1520,7 +1520,7 @@ function QuotaLine({ limit }: { limit: PublishingLimit | null }) {
         </p>
         <p className="text-xs text-text-muted">
           ostalo je još{" "}
-          <span className="font-mono tabular-nums text-foreground">
+          <span className="tabular-nums text-foreground">
             {formatNumber(left)}
           </span>
         </p>
@@ -1572,7 +1572,7 @@ function UploadProgress({
             ? "Predajem objavu Instagramu…"
             : "Fajlovi se šalju…"}
         </p>
-        <p className="font-mono text-micro tabular-nums text-text-muted">
+        <p className="text-micro tabular-nums text-text-muted">
           {formatBytes(sentBytes)} / {formatBytes(totalBytes)}
         </p>
       </div>

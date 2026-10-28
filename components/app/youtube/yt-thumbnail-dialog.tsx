@@ -249,7 +249,7 @@ function YtThumbnailForm({
               }
               className="size-full object-contain"
             />
-            <span className="absolute left-2 top-2 rounded bg-bg-950/80 px-1.5 py-0.5 font-mono text-micro text-text-muted backdrop-blur-md">
+            <span className="absolute left-2 top-2 rounded bg-bg-950/80 px-1.5 py-0.5 text-micro tabular-nums text-text-muted backdrop-blur-md">
               16:9
             </span>
           </>
@@ -259,7 +259,7 @@ function YtThumbnailForm({
             <p className="text-xs text-text-muted">
               Prevuci sliku ovde ili je izaberi sa računara
             </p>
-            <p className="font-mono text-micro tabular-nums text-text-muted/70">
+            <p className="text-micro tabular-nums text-text-muted">
               JPG ili PNG · {THUMBNAIL_RECOMMENDED_WIDTH}×
               {THUMBNAIL_RECOMMENDED_HEIGHT} · do 2 MB
             </p>
@@ -277,7 +277,7 @@ function YtThumbnailForm({
                 <p className="truncate font-mono text-xs text-foreground">
                   {file.name}
                 </p>
-                <p className="mt-0.5 font-mono text-xs tabular-nums">
+                <p className="mt-0.5 text-xs tabular-nums">
                   <span className={tooBig ? "text-danger" : "text-text-muted"}>
                     {formatThumbnailSize(file.size)}
                   </span>
@@ -322,7 +322,7 @@ function YtThumbnailForm({
       <ObjavljujesKao kanal="youtube" radnja="Menjaš" />
 
       <DialogFooter className="items-center gap-2 border-t border-line pt-3 sm:justify-between">
-        <span className="font-mono text-xs tabular-nums text-text-muted">
+        <span className="text-xs tabular-nums text-text-muted">
           50 jedinica kvote
         </span>
         <div className="flex items-center gap-2">

@@ -214,7 +214,7 @@ export function CharCount({ value, max }: { value: number; max: number }) {
   return (
     <span
       className={cn(
-        "font-mono text-micro tabular-nums",
+        "text-micro tabular-nums",
         over ? "text-danger" : near ? "text-warning" : "text-text-muted",
       )}
     >

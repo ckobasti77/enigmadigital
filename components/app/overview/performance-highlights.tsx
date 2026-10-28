@@ -132,7 +132,7 @@ export function PerformanceHighlights({
                         <StatusPill tone="muted">Neaktivna</StatusPill>
                       )}
                     </div>
-                    <p className="mt-1 font-mono text-xs text-text-muted">
+                    <p className="mt-1 text-xs text-text-muted">
                       Ključna reč: <span className="text-foreground">#{topCampaign.keyword}</span>
                     </p>
                   </div>
@@ -149,13 +149,13 @@ export function PerformanceHighlights({
                 <div className="grid grid-cols-3 gap-2 rounded-lg border border-line-soft bg-surface-raised/40 p-3 text-xs">
                   <div>
                     <span className="text-micro text-text-muted">Poslato DM</span>
-                    <p className="mt-0.5 font-mono font-medium tabular-nums text-foreground">
+                    <p className="mt-0.5 font-medium tabular-nums text-foreground">
                       {formatNumber(topCampaign.dmsSent)}
                     </p>
                   </div>
                   <div>
                     <span className="text-micro text-text-muted">Klikovi (po poruci)</span>
-                    <p className="mt-0.5 font-mono font-medium tabular-nums text-foreground">
+                    <p className="mt-0.5 font-medium tabular-nums text-foreground">
                       {formatNumber(topCampaign.linkClicks)}{" "}
                       <span className="text-text-muted text-micro">
                         ({formatRatio(topCampaign.ctr)})
@@ -164,7 +164,7 @@ export function PerformanceHighlights({
                   </div>
                   <div>
                     <span className="text-micro text-text-muted">GA4 sesije</span>
-                    <p className="mt-0.5 font-mono font-medium tabular-nums text-foreground">
+                    <p className="mt-0.5 font-medium tabular-nums text-foreground">
                       {formatNumber(topCampaign.ga4Sessions)}
                     </p>
                   </div>
@@ -250,7 +250,7 @@ export function PerformanceHighlights({
                     <p className="heading-caps text-micro font-medium text-text-muted">
                       Doseg (Reach)
                     </p>
-                    <p className="font-mono text-2xl font-bold tabular-nums text-foreground">
+                    <p className="text-2xl font-bold tabular-nums text-foreground">
                       {formatNumber(topPost.reach)}
                     </p>
                   </div>
@@ -258,26 +258,26 @@ export function PerformanceHighlights({
 
                 <div className="grid grid-cols-4 gap-2 rounded-lg border border-line-soft bg-surface-raised/40 p-3 text-xs">
                   <div className="flex items-center gap-1.5 text-text-muted">
-                    <Heart className="size-3.5 text-danger/80" />
-                    <span className="font-mono tabular-nums text-foreground">
+                    <Heart className="size-3.5 text-danger" />
+                    <span className="tabular-nums text-foreground">
                       {formatNumber(topPost.likes)}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 text-text-muted">
                     <MessageCircle className="size-3.5 text-text-muted" />
-                    <span className="font-mono tabular-nums text-foreground">
+                    <span className="tabular-nums text-foreground">
                       {formatNumber(topPost.comments)}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 text-text-muted">
                     <Share2 className="size-3.5 text-text-muted" />
-                    <span className="font-mono tabular-nums text-foreground">
+                    <span className="tabular-nums text-foreground">
                       {formatNumber(topPost.shares)}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 text-text-muted">
-                    <Bookmark className="size-3.5 text-warning/80" />
-                    <span className="font-mono tabular-nums text-foreground">
+                    <Bookmark className="size-3.5 text-warning" />
+                    <span className="tabular-nums text-foreground">
                       {formatNumber(topPost.saves)}
                     </span>
                   </div>

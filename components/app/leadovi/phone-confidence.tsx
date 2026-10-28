@@ -78,7 +78,7 @@ export function PhoneConfidenceRing({
           strokeDasharray={`${(RING_C * deo).toFixed(2)} ${RING_C.toFixed(2)}`}
         />
       </svg>
-      <span className="font-mono text-ui font-medium tabular-nums">{verovatnoca} %</span>
+      <span className="text-ui font-medium tabular-nums">{verovatnoca} %</span>
     </span>
   );
 }
@@ -116,7 +116,7 @@ export function PhoneConfidence({
   if (compact) {
     return (
       <span
-        className={cn("font-mono text-micro font-semibold tabular-nums", TEKST[ton], className)}
+        className={cn("text-micro font-semibold tabular-nums", TEKST[ton], className)}
         title={obrazlozenje}
       >
         {verovatnoca} %
@@ -138,7 +138,7 @@ export function PhoneConfidence({
           />
         </div>
         <span
-          className={cn("font-mono text-xs font-semibold tabular-nums", TEKST[ton])}
+          className={cn("text-xs font-semibold tabular-nums", TEKST[ton])}
         >
           {verovatnoca} %
         </span>

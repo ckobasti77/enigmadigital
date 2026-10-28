@@ -239,7 +239,7 @@ function ImportDashboardTelo() {
                       </span>
                       <span className="text-meta text-text-muted">
                         stoji {trajanje(Math.max(0, now - imp.uploadedAt))} ·{" "}
-                        <span className="font-mono tabular-nums">{imp.rowsParsed}</span>{" "}
+                        <span className="tabular-nums">{imp.rowsParsed}</span>{" "}
                         {pluralSr(imp.rowsParsed, "red", "reda", "redova")}
                       </span>
                     </span>
@@ -308,7 +308,7 @@ function ImportDashboardTelo() {
                 <h2 className="heading-caps text-meta font-medium text-text-muted">
                   Čistoća uvoza
                 </h2>
-                <span className="font-mono text-title font-bold tabular-nums text-foreground">
+                <span className="text-title font-bold tabular-nums text-foreground">
                   {cistoca} %
                 </span>
               </div>
@@ -320,11 +320,11 @@ function ImportDashboardTelo() {
                 label="Čistoća uvoza"
               />
               <p className="text-meta text-text-muted">
-                <span className="font-mono tabular-nums text-foreground">
+                <span className="tabular-nums text-foreground">
                   {formatNumber(ukupnoRedova - nereseno)}
                 </span>{" "}
                 od{" "}
-                <span className="font-mono tabular-nums text-foreground">
+                <span className="tabular-nums text-foreground">
                   {formatNumber(ukupnoRedova)}
                 </span>{" "}
                 učitanih redova nema otvorenu odluku
@@ -332,7 +332,7 @@ function ImportDashboardTelo() {
               {nereseno > 0 ? (
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-0.5">
                   <p className="min-w-0 text-ui text-foreground">
-                    <span className="font-mono font-bold tabular-nums">{nereseno}</span>{" "}
+                    <span className="font-bold tabular-nums">{nereseno}</span>{" "}
                     {pluralSr(nereseno, "red čeka", "reda čekaju", "redova čeka")} odluku u{" "}
                     {saNeresenim.length}{" "}
                     {pluralSr(saNeresenim.length, "uvozu", "uvoza", "uvoza")}

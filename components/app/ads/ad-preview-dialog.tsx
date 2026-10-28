@@ -143,7 +143,7 @@ export function AdPreviewDialog({
             <DialogDescription className="text-xs text-text-muted flex items-center gap-2">
               <span>Interaktivni Meta oglasni pregled</span>
               {previewResult?.previewFetchedAt && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-mono text-text-muted/80">
+                <span className="inline-flex items-center gap-1 text-meta text-text-muted">
                   <Clock className="size-3" />
                   {formatRelativeTime(previewResult.previewFetchedAt)}
                 </span>

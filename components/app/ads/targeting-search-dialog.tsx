@@ -206,12 +206,12 @@ export function TargetingSearchDialog({
             </table>
           ) : searched ? (
             <div className="flex flex-col items-center justify-center h-[300px] gap-2 text-text-muted">
-              <Info className="size-5 text-text-muted/60" />
+              <Info className="size-5 text-text-muted" />
               <span className="text-xs">Nema pronađenih rezultata za uneti pojam.</span>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-[300px] gap-2 text-text-muted">
-              <Search className="size-5 text-text-muted/60" />
+              <Search className="size-5 text-text-muted" />
               <span className="text-xs">Unesite pojam iznad kako biste pretražili Meta bazu ciljanja.</span>
             </div>
           )}

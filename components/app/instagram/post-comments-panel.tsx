@@ -56,7 +56,7 @@ export function PostCommentsPanel({
     return (
       <div className="mt-3 flex items-center gap-1.5 border-t border-line-soft pt-3 text-xs text-text-muted">
         <MessageCircle className="size-3.5" aria-hidden />
-        <span className="font-mono tabular-nums">
+        <span className="tabular-nums">
           {formatNumber(commentCount)}
         </span>
         <span>komentara na obrisanoj objavi</span>
@@ -76,7 +76,7 @@ export function PostCommentsPanel({
           className="-ml-2 gap-1.5 text-text-muted hover:text-foreground"
         >
           <MessageCircle data-icon="inline-start" />
-          <span className="font-mono tabular-nums">
+          <span className="tabular-nums">
             {formatNumber(commentCount)}
           </span>
           <span>{open ? "Sakrij komentare" : "Komentari"}</span>

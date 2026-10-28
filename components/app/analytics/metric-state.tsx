@@ -76,7 +76,7 @@ export function MetricValue({
 }) {
   if (isKnown(value, state)) {
     return (
-      <span className={cn("font-mono tabular-nums", className)}>
+      <span className={cn("tabular-nums", className)}>
         {format(value)}
       </span>
     );
@@ -87,7 +87,7 @@ export function MetricValue({
       : unknownReason(state, reason);
   return (
     <span
-      className={cn("font-mono tabular-nums text-text-muted", className)}
+      className={cn("tabular-nums text-text-muted", className)}
       title={derived}
     >
       {UNKNOWN}

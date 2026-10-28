@@ -199,7 +199,7 @@ function Fokus({ stanje }: { stanje: NapredakUkljucen }) {
                   <span className="block font-medium text-foreground">
                     {prsten.naziv}
                   </span>
-                  <span className="font-mono tabular-nums text-text-muted">
+                  <span className="tabular-nums text-text-muted">
                     {prsten.procenat} %
                   </span>
                 </span>
@@ -224,7 +224,7 @@ function Fokus({ stanje }: { stanje: NapredakUkljucen }) {
           </h2>
           <p className="text-ui text-text-muted">
             Nivo {nivo.broj} · još{" "}
-            <span className="font-mono tabular-nums text-foreground">
+            <span className="tabular-nums text-foreground">
               {formatNumber(nivo.zaSledeci)} XP
             </span>{" "}
             do nivoa {nivo.broj + 1}
@@ -243,13 +243,13 @@ function Fokus({ stanje }: { stanje: NapredakUkljucen }) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <p className="flex flex-wrap items-baseline gap-x-2 font-mono">
+        <p className="flex flex-wrap items-baseline gap-x-2">
           <XpBroj value={xp.ukupno} className="text-hero text-xp" />
           <span className="text-copy text-text-muted tabular-nums">
             / {formatNumber(nivo.xpDo)} XP
           </span>
           {xp.danas > 0 && (
-            <Chip tone="xp" size="sm" className="ml-auto font-mono tabular-nums">
+            <Chip tone="xp" size="sm" className="ml-auto tabular-nums">
               +{formatNumber(xp.danas)} XP danas
             </Chip>
           )}
@@ -300,7 +300,7 @@ function MisijeDana({ stanje }: { stanje: NapredakUkljucen }) {
         <h2 className="text-copy font-bold text-foreground">Misije dana</h2>
         {misije.length > 0 && (
           <p className="text-ui text-text-muted">
-            <span className="font-mono tabular-nums text-foreground">
+            <span className="tabular-nums text-foreground">
               {zavrsenih} / {misije.length}
             </span>{" "}
             {bonus.osvojen ? (
@@ -310,7 +310,7 @@ function MisijeDana({ stanje }: { stanje: NapredakUkljucen }) {
             ) : bonus.moguc ? (
               <>
                 · još {bonus.preostaloMisija} do bonusa od{" "}
-                <span className="font-mono tabular-nums text-xp">
+                <span className="tabular-nums text-xp">
                   +{bonus.xp} XP
                 </span>
               </>
@@ -400,7 +400,7 @@ function Dostignuca({ profil }: { profil: NapredakProfil | undefined }) {
     <section className="flex min-w-0 flex-col gap-4">
       <div className="flex items-baseline justify-between gap-4">
         <h2 className="text-copy font-bold text-foreground">Dostignuća</h2>
-        <p className="font-mono text-ui tabular-nums text-text-muted">
+        <p className="text-ui tabular-nums text-text-muted">
           <span className="text-foreground">{profil.otkljucano}</span> /{" "}
           {profil.ukupno}
         </p>
@@ -486,7 +486,7 @@ function Rekordi({ profil }: { profil: NapredakProfil | undefined }) {
                 {/* Nula ovde znači „još nijednom", ne izmeren rekord. */}
                 {rekord.vrednost > 0 ? (
                   <>
-                    <span className="font-mono text-copy font-bold tabular-nums text-foreground">
+                    <span className="text-copy font-bold tabular-nums text-foreground">
                       {formatNumber(rekord.vrednost)}
                       {rekord.kljuc === "xp_dan" ? " XP" : ""}
                     </span>

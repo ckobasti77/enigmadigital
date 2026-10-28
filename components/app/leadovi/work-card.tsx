@@ -106,7 +106,7 @@ export function WorkSection({
           />
           {naslov}
           {ukupno !== undefined && (
-            <span className="font-mono text-ui font-medium tabular-nums text-text-muted">
+            <span className="text-ui font-medium tabular-nums text-text-muted">
               {najmanje ? "≥ " : ""}
               {ukupno}
             </span>

@@ -173,7 +173,7 @@ export function RetentionDashboard() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <LineChartIcon className="h-4 w-4 text-primary" />
+                <LineChartIcon className="h-4 w-4 text-text-muted" />
                 <h3 className="text-sm font-semibold text-foreground">
                   Krive zadržavanja korisnika (Retencija)
                 </h3>
@@ -188,7 +188,7 @@ export function RetentionDashboard() {
               {activeCohorts.map((c, idx) => {
                 const color = CHART_COLORS[idx % CHART_COLORS.length];
                 return (
-                  <div key={c.cohortName} className="flex items-center gap-1.5 text-xs font-mono">
+                  <div key={c.cohortName} className="flex items-center gap-1.5 text-xs">
                     <span
                       className="h-2.5 w-2.5 rounded-full"
                       style={{ backgroundColor: color }}
@@ -202,81 +202,89 @@ export function RetentionDashboard() {
 
           {/* SVG Multi-Line Chart */}
           <div className="relative flex h-64 w-full flex-col justify-end pt-4">
-            <svg className="h-full w-full overflow-visible" viewBox="0 0 500 200" preserveAspectRatio="none">
-              {/* Horizontal Grid lines at 0%, 25%, 50%, 75%, 100% */}
-              {[0, 25, 50, 75, 100].map((pct) => {
-                const y = 200 - (pct / 100) * 190;
-                return (
-                  <g key={pct}>
-                    <line
-                      x1="0"
-                      y1={y}
-                      x2="500"
-                      y2={y}
-                      stroke="currentColor"
-                      className="text-line/40"
-                      strokeDasharray="4 4"
-                      strokeWidth="1"
-                    />
-                    <text
-                      x="0"
-                      y={y - 4}
-                      className="fill-muted-foreground text-[9px] font-mono"
-                    >
-                      {pct}%
-                    </text>
-                  </g>
-                );
-              })}
+            <div className="relative h-full w-full">
+              <svg className="h-full w-full overflow-visible" viewBox="0 0 500 200" preserveAspectRatio="none">
+                {/* Horizontal Grid lines at 0%, 25%, 50%, 75%, 100% */}
+                {[0, 25, 50, 75, 100].map((pct) => {
+                  const y = 200 - (pct / 100) * 190;
+                  return (
+                    <g key={pct}>
+                      <line
+                        x1="0"
+                        y1={y}
+                        x2="500"
+                        y2={y}
+                        stroke="currentColor"
+                        className="text-line/40"
+                        strokeDasharray="4 4"
+                        strokeWidth="1"
+                      />
+                    </g>
+                  );
+                })}
 
-              {/* Render lines for active cohorts */}
-              {activeCohorts.map((c, idx) => {
-                const color = CHART_COLORS[idx % CHART_COLORS.length];
-                const points = c.points.filter((p) => p.retention !== undefined);
-                if (points.length === 0) return null;
+                {/* Render lines for active cohorts */}
+                {activeCohorts.map((c, idx) => {
+                  const color = CHART_COLORS[idx % CHART_COLORS.length];
+                  const points = c.points.filter((p) => p.retention !== undefined);
+                  if (points.length === 0) return null;
 
-                const pathCoords = points.map((p) => {
-                  const x = (p.nth / 11) * 500;
-                  const retPct = Math.min(1, Math.max(0, p.retention ?? 0));
-                  const y = 200 - retPct * 190;
-                  return `${x},${y}`;
-                });
+                  const pathCoords = points.map((p) => {
+                    const x = (p.nth / 11) * 500;
+                    const retPct = Math.min(1, Math.max(0, p.retention ?? 0));
+                    const y = 200 - retPct * 190;
+                    return `${x},${y}`;
+                  });
 
-                const pathData = `M ${pathCoords.join(" L ")}`;
+                  const pathData = `M ${pathCoords.join(" L ")}`;
 
-                return (
-                  <g key={c.cohortName}>
-                    <path
-                      d={pathData}
-                      fill="none"
-                      stroke={color}
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="transition-all duration-300 hover:stroke-[3.5]"
-                    />
-                    {points.map((p) => {
-                      const cx = (p.nth / 11) * 500;
-                      const cy = 200 - Math.min(1, Math.max(0, p.retention ?? 0)) * 190;
-                      return (
-                        <circle
-                          key={p.nth}
-                          cx={cx}
-                          cy={cy}
-                          r="3.5"
-                          fill={color}
-                          stroke="var(--background)"
-                          strokeWidth="1.5"
-                        />
-                      );
-                    })}
-                  </g>
-                );
-              })}
-            </svg>
+                  return (
+                    <g key={c.cohortName}>
+                      <path
+                        d={pathData}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="transition-all duration-300 hover:stroke-[3.5]"
+                      />
+                      {points.map((p) => {
+                        const cx = (p.nth / 11) * 500;
+                        const cy = 200 - Math.min(1, Math.max(0, p.retention ?? 0)) * 190;
+                        return (
+                          <circle
+                            key={p.nth}
+                            cx={cx}
+                            cy={cy}
+                            r="3.5"
+                            fill={color}
+                            stroke="var(--background)"
+                            strokeWidth="1.5"
+                          />
+                        );
+                      })}
+                    </g>
+                  );
+                })}
+              </svg>
+              {/* Oznake procenata kao HTML sloj: SVG je `preserveAspectRatio="none"`,
+                  pa bi se njegov tekst na telefonu sabio ispod 12 px. */}
+              <div aria-hidden className="pointer-events-none absolute inset-0">
+                {[0, 25, 50, 75, 100].map((pct) => (
+                  <span
+                    key={pct}
+                    className="absolute left-0 -translate-y-full text-meta tabular-nums text-text-muted"
+                    style={{ top: `${((200 - (pct / 100) * 190 - 2) / 200) * 100}%` }}
+                  >
+                    {pct}%
+                  </span>
+                ))}
+              </div>
+            </div>
 
             {/* X-axis week indicators */}
-            <div className="flex justify-between border-t border-line/60 pt-2 font-mono text-[10px] text-muted-foreground">
+            <div className="flex justify-between border-t border-line/60 pt-2 text-meta text-muted-foreground">
               {weeks.map((w) => (
                 <span key={w}>Ned {w}</span>
               ))}
@@ -298,9 +306,9 @@ export function RetentionDashboard() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left font-mono text-xs">
+            <table className="w-full border-collapse text-left text-xs">
               <thead>
-                <tr className="border-b border-line bg-muted/40 text-[11px] text-muted-foreground">
+                <tr className="border-b border-line bg-muted/40 text-meta text-muted-foreground">
                   <th className="py-3 pl-6 pr-3 font-semibold uppercase tracking-wider">
                     Kohorta (Početak)
                   </th>
@@ -332,7 +340,7 @@ export function RetentionDashboard() {
                       </td>
 
                       {/* Total Users in cohort */}
-                      <td className="py-2.5 px-3 text-right font-semibold text-foreground whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right font-mono font-semibold tabular-nums text-foreground whitespace-nowrap">
                         {formatNumber(cohort.totalUsers ?? 0)}
                       </td>
 
@@ -344,7 +352,7 @@ export function RetentionDashboard() {
                           return (
                             <td
                               key={w}
-                              className="py-2.5 px-2 text-center text-muted-foreground/30 font-normal"
+                              className="py-2.5 px-2 text-center text-text-muted font-normal"
                             >
                               —
                             </td>
@@ -356,7 +364,7 @@ export function RetentionDashboard() {
                           return (
                             <td
                               key={w}
-                              className="py-2.5 px-2 text-center font-semibold text-foreground"
+                              className="py-2.5 px-2 text-center font-mono font-semibold tabular-nums text-foreground"
                               style={{ backgroundColor: cohortFill(70) }}
                             >
                               100%
@@ -384,7 +392,7 @@ export function RetentionDashboard() {
                         return (
                           <td
                             key={w}
-                            className="py-2.5 px-2 text-center font-medium tabular-nums transition-colors"
+                            className="py-2.5 px-2 text-center font-mono font-medium tabular-nums transition-colors"
                             style={{ backgroundColor: cohortFill(alphaPct) }}
                             title={`Nedelja ${w}: ${formatPercent(ret)} (${point.activeUsers ?? 0} korisnika)`}
                           >
@@ -406,7 +414,7 @@ export function RetentionDashboard() {
 
       {/* Cohort Methodology Info Footer */}
       <Card className="flex items-start gap-3 border-line/70 bg-muted/20 p-4 text-muted-foreground">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" />
         <div className="flex flex-col gap-1 text-xs leading-relaxed">
           <p className="font-medium text-foreground">
             Metodologija kohortne analize i retencije

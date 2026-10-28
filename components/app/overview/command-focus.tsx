@@ -152,7 +152,7 @@ function FokusNapredak({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <StreakFlame days={niz.dani} state={stanjeNiza(niz, sada)} />
             {xp.danas > 0 && (
-              <Chip tone="xp" size="sm" className="font-mono tabular-nums">
+              <Chip tone="xp" size="sm" className="tabular-nums">
                 +{formatNumber(xp.danas)} XP danas
               </Chip>
             )}
@@ -190,7 +190,7 @@ function FokusNapredak({
                   <span className="block font-medium text-foreground">
                     {prsten.naziv}
                   </span>
-                  <span className="font-mono whitespace-nowrap tabular-nums text-text-muted">
+                  <span className="whitespace-nowrap tabular-nums text-text-muted">
                     od {prsten.cilj} · {prsten.procenat} %
                   </span>
                 </span>
@@ -207,7 +207,7 @@ function FokusNapredak({
               {misije.length > 0 && (
                 <>
                   {" "}
-                  <span className="font-mono tabular-nums text-foreground">
+                  <span className="tabular-nums text-foreground">
                     {zavrsenih} / {misije.length}
                   </span>
                   {bonus.osvojen ? (
@@ -219,7 +219,7 @@ function FokusNapredak({
                     <>
                       {" "}
                       · još {bonus.preostaloMisija} do bonusa{" "}
-                      <span className="font-mono tabular-nums text-xp">
+                      <span className="tabular-nums text-xp">
                         +{bonus.xp} XP
                       </span>
                     </>

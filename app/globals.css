@@ -48,10 +48,12 @@
 
   /* Text. `text-muted` je 9.9.2026 izmeren na 3.3–3.6:1 (ispod AA) na sve
      tri površine, a nosi 1.766 klasa — natpise, imenioce, objašnjenja.
-     Podignut na 4.9:1 na najsvetlijoj površini; i dalje je najtiši ton. */
+     Podignut na 0.86 (ULTRA T10): ≥ 4.65:1 i na svakoj `-soft` podlozi
+     (stanja, xp, radnja, moduli, kategorije), 5.46:1 na surface-raised;
+     i dalje je najtiši ton. */
   --text-primary: #f3f7ff;
   --text-secondary: rgba(193, 211, 245, 0.75);
-  --text-muted: rgba(152, 174, 214, 0.8);
+  --text-muted: rgba(152, 174, 214, 0.86);
   --text-inverse: #091120;
   --text-on-light: #0b1221;
   --text-on-light-secondary: rgba(11, 18, 33, 0.72);
@@ -200,6 +202,13 @@
   --temp-cold-bg: rgba(28, 157, 214, 0.10);
   --temp-warm-bg: rgba(201, 133, 0,  0.10);
   --temp-hot-bg:  rgba(240, 96,  79,  0.10);
+  /* Tekst temperature (ULTRA T10): ista nijansa na L 0.76, kao `--chart-N-ink`
+     za kategorije. Na sopstvenoj `-bg` podlozi ≥ 5.8:1 (pre 4.0–4.85:1).
+     Tačka, ivica reda i pin i dalje čitaju `--temp-*`. */
+  --temp-nova-ink: oklch(0.76 0.056 262);
+  --temp-cold-ink: oklch(0.76 0.132 234.7);
+  --temp-warm-ink: oklch(0.76 0.143 73.2);
+  --temp-hot-ink:  oklch(0.76 0.16 29.4);
 
   /* ── Jačina ocene: Fit / Intent (A1 §2, plan O5) ──────────────────────────
      Skala od neutralnog ka akcentu, „više = jače". Slab pojas je prigušen
@@ -478,7 +487,7 @@
    Stok Tailwind koraci i stariji nazivi (h1/h2/body/small/micro) su
    PRESLIKANI na iste vrednosti, pa 2.300 postojećih klasa sedne na skalu
    bez ijedne izmene u komponentama: sm→13, base→15, lg/xl→20, 2xl/3xl→28,
-   micro→12. Ništa u aplikaciji više nije 11, 14, 16, 18, 24 ni 30 px.
+   micro→12. Ništa nije ispod 12 px; meri `verify:ultra-tipografija`.
    --------------------------------------------------------------------------- */
 @theme {
   /* Imenovani koraci */
@@ -668,6 +677,10 @@
   --color-temp-cold-bg: var(--temp-cold-bg);
   --color-temp-warm-bg: var(--temp-warm-bg);
   --color-temp-hot-bg: var(--temp-hot-bg);
+  --color-temp-nova-ink: var(--temp-nova-ink);
+  --color-temp-cold-ink: var(--temp-cold-ink);
+  --color-temp-warm-ink: var(--temp-warm-ink);
+  --color-temp-hot-ink: var(--temp-hot-ink);
   --color-strength-low: var(--strength-low);
   --color-strength-mid: var(--strength-mid);
   --color-strength-high: var(--strength-high);

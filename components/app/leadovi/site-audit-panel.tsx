@@ -258,7 +258,7 @@ export function SiteAuditPanel({
               <span className={cn("text-sm font-semibold", POJAS_INK[audit.pojas])}>
                 {POJAS_NATPISI[audit.pojas]}
               </span>
-              <span className={cn("font-mono text-2xl font-bold tabular-nums", POJAS_INK[audit.pojas])}>
+              <span className={cn("text-2xl font-bold tabular-nums", POJAS_INK[audit.pojas])}>
                 {audit.kvalitet}
               </span>
               <span className="text-micro text-text-muted">/ 100</span>
@@ -327,11 +327,11 @@ export function SiteAuditPanel({
                     <div key={kljuc} className="flex flex-col gap-0.5">
                       <span className="text-micro text-text-muted">{natpis}</span>
                       {typeof v === "number" ? (
-                        <span className={cn("font-mono text-xl font-semibold tabular-nums", lighthouseInk(v))}>
+                        <span className={cn("text-xl font-semibold tabular-nums", lighthouseInk(v))}>
                           {v}
                         </span>
                       ) : (
-                        <span className="font-mono text-xl text-text-muted">—</span>
+                        <span className="text-xl text-text-muted">—</span>
                       )}
                     </div>
                   );
@@ -356,7 +356,7 @@ export function SiteAuditPanel({
                       <Crtica />
                     ) : (
                       <>
-                        <span className={cn("font-mono font-semibold tabular-nums", cwvInk(kljuc, v))}>
+                        <span className={cn("font-semibold tabular-nums", cwvInk(kljuc, v))}>
                           {tekst}
                         </span>
                         <span className="text-text-muted">· {cwvNatpis(kljuc, v)}</span>
@@ -391,7 +391,7 @@ export function SiteAuditPanel({
                   {audit.claudeProsek !== null && (
                     <>
                       {" · prosek "}
-                      <span className="font-mono tabular-nums text-foreground">
+                      <span className="tabular-nums text-foreground">
                         {audit.claudeProsek.toFixed(1)}
                       </span>
                       /5
@@ -419,7 +419,7 @@ export function SiteAuditPanel({
                         <span className="text-foreground">{natpis}</span>
                         <span className="inline-flex items-center gap-1.5">
                           <Traka ocena={o.ocena} />
-                          <span className="w-4 font-mono text-micro tabular-nums text-text-muted">{o.ocena}</span>
+                          <span className="w-4 text-micro tabular-nums text-text-muted">{o.ocena}</span>
                         </span>
                       </div>
                       <p className="min-w-0 flex-1 text-text-muted">
@@ -603,7 +603,7 @@ export function SiteAuditPanel({
                     >
                       <span>{formatDateTime(a.auditedAt)}</span>
                       {a.kvalitet !== null && a.pojas ? (
-                        <span className={cn("font-mono font-semibold tabular-nums", POJAS_INK[a.pojas])}>
+                        <span className={cn("font-semibold tabular-nums", POJAS_INK[a.pojas])}>
                           {POJAS_NATPISI[a.pojas]} {a.kvalitet}
                         </span>
                       ) : (

@@ -100,7 +100,7 @@ export function FollowsDivergingChart({
             interval="preserveStartEnd"
             minTickGap={44}
             tickFormatter={formatShortDate}
-            tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+            tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
             tickMargin={8}
           />
           <YAxis
@@ -109,7 +109,7 @@ export function FollowsDivergingChart({
             tickLine={false}
             domain={[hasOutflow ? -ceiling : 0, ceiling]}
             tickFormatter={format}
-            tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+            tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
           />
           <ReferenceLine y={0} stroke="var(--color-line-strong)" strokeWidth={1} />
           <ChartTooltip
@@ -166,7 +166,7 @@ function FollowsTooltip({
           />
           {outflow ? "Neto odliv" : "Neto priliv"}
         </span>
-        <span className="font-mono font-medium tabular-nums text-foreground">
+        <span className="font-medium tabular-nums text-foreground">
           {format(Math.abs(row.v))}
         </span>
       </div>

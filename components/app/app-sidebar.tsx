@@ -61,7 +61,6 @@ import { ProjekatBirac } from "./projekat-birac";
  */
 
 /** Bedž preko gornjeg desnog ugla pločice, u šini. */
-const RAIL_BADGE = "absolute left-[26px] top-0 h-4 min-w-4 px-1 text-[10px]";
 
 export function AppSidebar({
   rail,
@@ -243,7 +242,7 @@ function NavRow({
       <NavBadge
         href={item.href}
         label={item.label}
-        className={rail ? RAIL_BADGE : undefined}
+        ugao={rail ? "sina" : undefined}
       />
     </>
   );
@@ -366,7 +365,7 @@ function SidebarFooter({
           <NavBadge
             href={item.href}
             label={item.label}
-            className="absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[10px]"
+            ugao="zupcanik"
           />
         </Tip>
       </span>

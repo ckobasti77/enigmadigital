@@ -188,7 +188,7 @@ export function ActionAuditLog() {
             <span className="text-xs text-text-muted">Ukupno komandi</span>
             <Activity className="size-4 text-text-muted" />
           </div>
-          <span className="font-mono text-2xl font-bold text-foreground mt-2 block">
+          <span className="text-2xl tabular-nums font-bold text-foreground mt-2 block">
             {stats ? stats.total : <Skeleton className="h-7 w-12" />}
           </span>
         </Card>
@@ -198,7 +198,7 @@ export function ActionAuditLog() {
             <span className="text-xs text-text-muted">Uspešno izvršeno</span>
             <CheckCircle2 className="size-4 text-success" />
           </div>
-          <span className="font-mono text-2xl font-bold text-success mt-2 block">
+          <span className="text-2xl tabular-nums font-bold text-success mt-2 block">
             {stats ? stats.success : <Skeleton className="h-7 w-12" />}
           </span>
         </Card>
@@ -208,7 +208,7 @@ export function ActionAuditLog() {
             <span className="text-xs text-text-muted">Greške / Odbijeno</span>
             <AlertCircle className="size-4 text-danger" />
           </div>
-          <span className="font-mono text-2xl font-bold text-danger mt-2 block">
+          <span className="text-2xl tabular-nums font-bold text-danger mt-2 block">
             {stats ? stats.error : <Skeleton className="h-7 w-12" />}
           </span>
         </Card>
@@ -218,7 +218,7 @@ export function ActionAuditLog() {
             <span className="text-xs text-text-muted">Na čekanju</span>
             <Clock className="size-4 text-warning" />
           </div>
-          <span className="font-mono text-2xl font-bold text-warning mt-2 block">
+          <span className="text-2xl tabular-nums font-bold text-warning mt-2 block">
             {stats ? stats.pending : <Skeleton className="h-7 w-12" />}
           </span>
         </Card>
@@ -395,7 +395,7 @@ export function ActionAuditLog() {
                     className="border-line hover:bg-surface/50 transition-colors"
                   >
                     {/* Timestamp */}
-                    <TableCell className="font-mono text-xs text-text-muted tabular-nums whitespace-nowrap">
+                    <TableCell className="text-xs text-text-muted tabular-nums whitespace-nowrap">
                       {formatActionDate(row.executedAt)}
                     </TableCell>
 
@@ -440,7 +440,7 @@ export function ActionAuditLog() {
                     </TableCell>
 
                     {/* Params */}
-                    <TableCell className="text-xs text-text-secondary font-mono text-micro">
+                    <TableCell className="text-xs text-text-secondary text-micro">
                       {parseParamsSummary(row.params)}
                     </TableCell>
 

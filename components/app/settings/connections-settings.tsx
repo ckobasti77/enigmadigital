@@ -1181,7 +1181,7 @@ function FacebookSetupSteps({ webhookUrl }: { webhookUrl: string | null }) {
 
       <ol className="space-y-2.5 text-xs leading-relaxed text-text-muted">
         <li className="flex gap-2">
-          <span className="font-mono text-text-secondary">1.</span>
+          <span className="tabular-nums text-text-secondary">1.</span>
           <span>
             Dodaj proizvod <span className="text-foreground">Facebook Login for Business</span> i
             u <span className="text-foreground">Permissions</span> odobri:{" "}
@@ -1202,7 +1202,7 @@ function FacebookSetupSteps({ webhookUrl }: { webhookUrl: string | null }) {
         </li>
 
         <li className="flex gap-2">
-          <span className="font-mono text-text-secondary">2.</span>
+          <span className="tabular-nums text-text-secondary">2.</span>
           <span>
             U <span className="text-foreground">Webhooks</span> dodaj objekat{" "}
             <span className="text-foreground">Page</span> i pretplati polja{" "}
@@ -1215,7 +1215,7 @@ function FacebookSetupSteps({ webhookUrl }: { webhookUrl: string | null }) {
         </li>
 
         <li className="flex gap-2">
-          <span className="font-mono text-text-secondary">3.</span>
+          <span className="tabular-nums text-text-secondary">3.</span>
           <span>
             Verify token je isti{" "}
             <code className="font-mono text-mod">
@@ -1226,7 +1226,7 @@ function FacebookSetupSteps({ webhookUrl }: { webhookUrl: string | null }) {
         </li>
 
         <li className="flex gap-2">
-          <span className="font-mono text-text-secondary">4.</span>
+          <span className="tabular-nums text-text-secondary">4.</span>
           <span>
             U <span className="text-foreground">Settings → Basic</span> uzmi App
             ID i App Secret i upiši ih u Convex kao{" "}
@@ -2456,7 +2456,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                     </span>
                   </div>
                   {connection.accountHandle && connection.externalId && (
-                    <p className="font-mono text-[11px] text-text-muted">
+                    <p className="font-mono text-meta text-text-muted">
                       ID kanala: {connection.externalId}
                     </p>
                   )}
@@ -2506,7 +2506,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                     className="flex w-full items-center justify-between text-left text-xs font-medium text-text-muted hover:text-foreground transition-colors"
                   >
                     <span>Napredno: Ručno podešavanje kredencijala</span>
-                    <span className="text-[11px] font-normal text-text-subtle">
+                    <span className="text-meta font-normal text-text-subtle">
                       {showAdvanced || editing ? "Sakrij" : "Prikaži"}
                     </span>
                   </button>
@@ -2667,7 +2667,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                   className="flex w-full items-center justify-between text-left text-xs font-medium text-text-muted hover:text-foreground transition-colors"
                 >
                   <span>Napredno: Ručni unos OAuth kredencijala</span>
-                  <span className="text-[11px] font-normal text-text-subtle">
+                  <span className="text-meta font-normal text-text-subtle">
                     {showAdvanced ? "Sakrij" : "Prikaži"}
                   </span>
                 </button>
@@ -2926,7 +2926,7 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
                     </span>
                   </div>
                   {connection.accountHandle && connection.externalId && (
-                    <p className="font-mono text-[11px] text-text-muted">
+                    <p className="font-mono text-meta text-text-muted">
                       ID naloga: {connection.externalId}
                     </p>
                   )}

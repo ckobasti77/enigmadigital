@@ -36,7 +36,7 @@ export function UnconnectedTile({
           {label}
         </p>
       </div>
-      <span className="mt-2 block font-mono text-metric font-bold leading-none text-text-muted">
+      <span className="mt-2 block text-metric font-bold leading-none text-text-muted">
         —
       </span>
       <p className="mt-2 text-ui text-text-muted">{providerName} nije povezan</p>

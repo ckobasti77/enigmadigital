@@ -146,7 +146,6 @@ function AutomationCard({
     <Card
       className={cn(
         "gap-0 py-0 shadow-card ring-line transition-opacity",
-        !automation.isActive && "opacity-75",
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5">
@@ -236,7 +235,7 @@ function AutomationCard({
                 onClick={onDelete}
                 disabled={busy}
                 aria-label={`Obriši automatizaciju ${automation.name}`}
-                className="border-danger/25 text-danger/80 hover:bg-danger/10 hover:text-danger"
+                className="border-danger/25 text-danger hover:bg-danger/10 hover:text-danger"
               >
                 <Trash2 className="size-3" />
               </Button>
@@ -249,7 +248,7 @@ function AutomationCard({
         {automation.keywords.map((keyword) => (
           <span
             key={keyword}
-            className="rounded-md border border-line-soft bg-surface-raised px-2 py-0.5 font-mono text-xs text-foreground"
+            className="rounded-md border border-line-soft bg-surface-raised px-2 py-0.5 text-xs text-foreground"
           >
             {keyword}
           </span>
@@ -311,7 +310,7 @@ function Metric({
       </p>
       <p
         className={cn(
-          "mt-0.5 font-mono text-lg tabular-nums",
+          "mt-0.5 text-lg tabular-nums",
           tone === "accent"
             ? "text-mod"
             : tone === "danger"

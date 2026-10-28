@@ -18,6 +18,10 @@
  * (`--mod-soft`, `--mod-line`, `--cat-soft`) se čitaju iz samih `[data-module]`
  * i `[data-cat]` pravila, pa formula stoji na jednom mestu — u CSS-u.
  *
+ * T10 (ULTRA): boja radnje (tekst, granica, izabrano), neutralna kontrola,
+ * tekst obrisa, prigušen tekst na svakoj `-soft` podlozi i tekst temperature
+ * (`--temp-*-ink`) na sopstvenoj podlozi.
+ *
  * Izlaz je tabela sa odnosom i ocenom: AA (4.5:1 za tekst, 3:1 za granice
  * i krupan tekst). Red sa ocenom „info" je ukras (razdelnik, ivica kartice):
  * meri se radi evidencije i ne ulazi u pad. „Izgleda dobro" nije merenje;
@@ -300,13 +304,15 @@ for (const kljuc of MODULI) {
     push(`mod-${kljuc} (ink: tekst, ikonica, fokus)`, naziv, solid("mod", bg, env), bg, 4.5);
   }
   const strong = resolve("var(--mod-strong)", env);
-  push(`text-inverse (tekst na primarnom dugmetu)`, `mod-${kljuc}-strong`, INVERSE, strong, 4.5);
+  push(`text-inverse (tamna ikonica na aktivnoj pločici modula)`, `mod-${kljuc}-strong`, INVERSE, strong, 4.5);
   for (const [naziv, bg] of podloge) {
-    push(`mod-${kljuc}-strong (--primary kao tekst)`, naziv, strong, bg, 4.5);
+    push(`mod-${kljuc}-strong (boja mesta kao tekst)`, naziv, strong, bg, 4.5);
   }
   if (env.has("mod-soft")) {
     const soft = resolve("var(--mod-soft)", env);
-    push(`mod-${kljuc} (tekst sekundarnog dugmeta i čipa)`, `mod-${kljuc}-soft`, solid("mod", soft, env), soft, 4.5);
+    push(`mod-${kljuc} (ikonica zaglavlja na podlozi modula)`, `mod-${kljuc}-soft`, solid("mod", soft, env), soft, 4.5);
+    // T10: prigušen tekst na podlozi modula (§5.5 t. 3).
+    push(`text-muted (prigušen tekst na mod-soft)`, `mod-${kljuc}-soft`, solid("text-muted", soft), soft, 4.5);
   }
   if (env.has("mod-line")) {
     push(`mod-${kljuc}-line (ivica)`, "surface (kartica)", over(resolve("var(--mod-line)", env), SURFACE), SURFACE, 3, true);
@@ -318,7 +324,9 @@ for (const kljuc of MODULI) {
 for (const stanje of ["success", "warning", "danger", "info"]) {
   if (!raw.has(`${stanje}-soft`)) continue;
   const soft = resolve(`var(--${stanje}-soft)`);
-  push(`${stanje} (tekst pilule)`, `${stanje}-soft`, solid(stanje, soft), soft, 4.5);
+  push(`${stanje} (tekst pilule${stanje === "danger" ? "; tekst opasnog dugmeta" : ""})`, `${stanje}-soft`, solid(stanje, soft), soft, 4.5);
+  // T10: prigušen tekst na mekoj podlozi stanja (§5.5 t. 3).
+  push("text-muted (prigušen tekst na -soft)", `${stanje}-soft`, solid("text-muted", soft), soft, 4.5);
 }
 
 // ── B2: kategorije (§3.6) ────────────────────────────────────────────────────
@@ -332,6 +340,7 @@ for (const slot of [1, 2, 3, 5, 6]) {
   for (const [ime, vrednost] of CAT_PRAVILO) env.set(ime, vrednost);
   const soft = resolve("var(--cat-soft)", env);
   push(`chart-${slot}-ink (tekst čipa kategorije)`, `chart-${slot} 18 %`, solid("cat-ink", soft, env), soft, 4.5);
+  push("text-muted (prigušen tekst na cat-soft)", `chart-${slot} 18 %`, solid("text-muted", soft), soft, 4.5);
 }
 
 // ── B2: napredak i nagrada (§3.7) ────────────────────────────────────────────
@@ -343,6 +352,7 @@ if (raw.has("xp")) {
   push("text-inverse (tekst na XP bedžu)", "xp", INVERSE, XP, 4.5);
   const xpSoft = resolve("var(--xp-soft)");
   push("xp (tekst toasta i čipa)", "xp-soft", solid("xp", xpSoft), xpSoft, 4.5);
+  push("text-muted (prigušen tekst na -soft)", "xp-soft", solid("text-muted", xpSoft), xpSoft, 4.5);
   for (const ime of ["streak", "streak-hot"]) {
     for (const [naziv, bg] of podloge) push(`${ime} (ikonica)`, naziv, solid(ime, bg), bg, 3);
   }
@@ -354,6 +364,48 @@ if (raw.has("xp")) {
   }
   for (const retkost of ["common", "rare", "epic", "legendary"]) {
     push(`rarity-${retkost} (prsten dostignuća)`, "surface (kartica)", solid(`rarity-${retkost}`, SURFACE), SURFACE, 3);
+  }
+}
+
+// ── T10: radnja, kontrola, temperatura (ULTRA plan T08 §5.5) ─────────────────
+
+if (raw.has("radnja")) {
+  const RADNJA = resolve("var(--radnja)");
+  const RADNJA_HOVER = resolve("var(--radnja-hover)");
+  const RADNJA_SOFT = resolve("var(--radnja-soft)");
+  push("radnja-tekst (tekst primarnog dugmeta)", "radnja", solid("radnja-tekst", RADNJA), RADNJA, 4.5);
+  push("radnja-tekst (tekst primarnog dugmeta, hover)", "radnja-hover", solid("radnja-tekst", RADNJA_HOVER), RADNJA_HOVER, 4.5);
+  for (const [naziv, bg] of [...podloge, ["material preko bg-950", MATERIAL]]) {
+    push("radnja (tekst veze)", naziv, solid("radnja", bg), bg, 4.5);
+  }
+  for (const [naziv, bg] of podloge) {
+    push("radnja (granica: fokus, Switch)", naziv, solid("radnja", bg), bg, 3);
+  }
+  push("text-primary (tekst izabranog)", "radnja-soft", solid("text-primary", RADNJA_SOFT), RADNJA_SOFT, 4.5);
+  push("radnja (tekst izabranog)", "radnja-soft", solid("radnja", RADNJA_SOFT), RADNJA_SOFT, 4.5);
+  push("text-muted (prigušen tekst na -soft)", "radnja-soft", solid("text-muted", RADNJA_SOFT), RADNJA_SOFT, 4.5);
+}
+
+if (raw.has("surface-control")) {
+  const KONTROLA = resolve("var(--surface-control)");
+  const KONTROLA_HOVER = resolve("var(--surface-control-hover)");
+  for (const ime of ["text-primary", "text-secondary", "text-muted"]) {
+    push(`${ime} (tekst sporednog dugmeta)`, "surface-control", solid(ime, KONTROLA), KONTROLA, 4.5);
+  }
+  push("text-primary (tekst sporednog dugmeta, hover)", "surface-control-hover", solid("text-primary", KONTROLA_HOVER), KONTROLA_HOVER, 4.5);
+}
+
+// Obris je providan i nosi `text-foreground` (T09), pa se meri na tri površine.
+for (const [naziv, bg] of podloge) {
+  push("text-primary (tekst obrisa)", naziv, solid("text-primary", bg), bg, 4.5);
+}
+
+// Tekst temperature na sopstvenoj podlozi (bedž u uvozu), preko dve površine.
+for (const t of ["nova", "cold", "warm", "hot"]) {
+  if (!raw.has(`temp-${t}-ink`)) continue;
+  for (const [naziv, povrsina] of [["surface", SURFACE], ["surface-raised", RAISED]]) {
+    const bg = over(resolve(`var(--temp-${t}-bg)`), povrsina);
+    push(`temp-${t}-ink (tekst temperature)`, `temp-${t}-bg preko ${naziv}`, solid(`temp-${t}-ink`, bg), bg, 4.5);
   }
 }
 

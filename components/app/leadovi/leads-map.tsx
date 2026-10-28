@@ -266,7 +266,7 @@ function LeadsMapAll() {
         ) : (
           <>
             <span>
-              <strong className="font-mono tabular-nums text-foreground">
+              <strong className="tabular-nums text-foreground">
                 {tacke.length}
               </strong>{" "}
               {pluralSr(tacke.length, "firma", "firme", "firmi")} na mapi
@@ -278,7 +278,7 @@ function LeadsMapAll() {
                 className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 font-medium text-text-muted transition-colors hover:border-line-strong hover:text-foreground"
               >
                 bez koordinata:{" "}
-                <span className="font-mono tabular-nums">{data.bezKoordinata}</span>
+                <span className="tabular-nums">{data.bezKoordinata}</span>
                 <Table2 className="size-3" aria-hidden />
                 prikaži u tabeli
               </ProjekatLink>
@@ -317,7 +317,7 @@ function LeadsMapAll() {
                   <Plane className="size-3.5" aria-hidden />
                   Preleti hot firme
                   {hotIds.length > 0 && (
-                    <span className="font-mono tabular-nums opacity-80">
+                    <span className="tabular-nums">
                       ({hotIds.length})
                     </span>
                   )}
@@ -564,7 +564,7 @@ function HoverKartica({
 
         <span className="rounded-md border border-line bg-surface-raised px-1.5 py-px text-micro">
           <span className="text-text-muted">Fit </span>
-          <span className="font-mono font-semibold tabular-nums text-foreground">
+          <span className="font-semibold tabular-nums text-foreground">
             {fitTekst(point)}
           </span>
         </span>
@@ -577,7 +577,7 @@ function HoverKartica({
             <span className="font-semibold text-foreground">
               {POJAS_NATPISI[pojasKvaliteta(point.sajtKvalitet)]}
             </span>{" "}
-            <span className="font-mono tabular-nums text-foreground">
+            <span className="tabular-nums text-foreground">
               {point.sajtKvalitet}
             </span>
           </span>
@@ -669,7 +669,7 @@ function LeadsMapSingle({ company, fit }: Extract<LeadsMapProps, { mode: "single
         <span className="absolute bottom-2 right-2 z-[5] rounded-md border border-line bg-surface/90 px-2 py-0.5 text-micro text-text-muted backdrop-blur-sm">
           {company.koordinateIzvor === "rucno" ? "koordinate: ručno" : "koordinate: Nominatim"}
           {" · fit "}
-          <span className="font-mono tabular-nums text-foreground">{fitTekst(tacke[0])}</span>
+          <span className="tabular-nums text-foreground">{fitTekst(tacke[0])}</span>
         </span>
       )}
     </div>

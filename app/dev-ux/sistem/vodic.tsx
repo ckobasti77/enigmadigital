@@ -200,20 +200,47 @@ export function SistemVodic() {
               ] as const
             ).map(([klasa, ime, primer]) => (
               <div key={klasa} className="flex items-baseline gap-4 py-2">
-                <span className="w-24 shrink-0 font-mono text-meta text-text-muted">
+                <span className="w-24 shrink-0 text-meta text-text-muted">
                   {ime}
                 </span>
                 <span
                   className={cn(
                     klasa,
                     "min-w-0 truncate text-foreground",
-                    klasa === "text-hero" && "font-mono text-mod",
+                    klasa === "text-hero" && "tabular-nums",
                   )}
                 >
                   {primer}
                 </span>
               </div>
             ))}
+            <div className="flex flex-col gap-2 py-3">
+              <p className="text-ui text-text-secondary">
+                Mono samo za ID, kod i brojčane kolone tabele; reči, datumi i fokus brojevi su
+                Aeonik. Ništa nije ispod 12 px.
+              </p>
+              <table className="w-full max-w-md text-ui">
+                <thead>
+                  <tr className="border-b border-line-soft text-left text-meta text-text-muted">
+                    <th className="py-1.5 font-medium">ID kampanje</th>
+                    <th className="py-1.5 font-medium">Naziv</th>
+                    <th className="py-1.5 text-right font-medium">Klikovi</th>
+                  </tr>
+                </thead>
+                <tbody className="text-foreground">
+                  <tr className="border-b border-line-soft">
+                    <td className="py-1.5 font-mono text-text-secondary">2384 1190</td>
+                    <td className="py-1.5">Prolećna akcija</td>
+                    <td className="py-1.5 text-right font-mono tabular-nums">1.240</td>
+                  </tr>
+                  <tr>
+                    <td className="py-1.5 font-mono text-text-secondary">2384 1207</td>
+                    <td className="py-1.5">Frizeri Beograd</td>
+                    <td className="py-1.5 text-right font-mono tabular-nums">86</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
           <VrednostiTokena
             imena={[
@@ -327,7 +354,7 @@ function Uzorak({
       )}
       {ink && (
         <span
-          className="shrink-0 font-mono text-meta font-medium"
+          className="shrink-0 text-meta font-medium"
           style={{ color: `var(--${ink})` }}
         >
           ink

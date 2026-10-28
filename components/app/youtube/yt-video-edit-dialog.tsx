@@ -389,7 +389,7 @@ function YtVideoEditForm({
                 {tags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-raised px-2 py-0.5 font-mono text-xs text-foreground"
+                    className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-raised px-2 py-0.5 text-xs text-foreground"
                   >
                     {tag}
                     <button
@@ -768,7 +768,7 @@ function CharCount({ value, max }: { value: number; max: number }) {
   return (
     <span
       className={cn(
-        "font-mono text-xs tabular-nums",
+        "text-xs tabular-nums",
         value > max ? "text-danger" : "text-text-muted",
       )}
     >

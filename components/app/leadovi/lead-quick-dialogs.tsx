@@ -596,7 +596,6 @@ function StageDialogTelo({
                 selected
                   ? "border-mod bg-mod-soft text-mod"
                   : "border-line bg-surface-raised text-text-muted hover:text-foreground",
-                st === currentStage && !selected && "opacity-60",
               )}
             >
               {leadStageLabel(st)}
@@ -761,7 +760,7 @@ function OutcomeDialogTelo({
           <div className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs">
             <div className="flex items-center justify-between gap-2">
               <span className="font-semibold text-text-muted">Poklopljeni izraz:</span>
-              <span className="rounded bg-warning/20 px-2 py-0.5 font-mono font-bold text-warning">
+              <span className="rounded bg-warning/20 px-2 py-0.5 font-bold text-warning">
                 „{proposal.poklopljeniIzraz}”
               </span>
             </div>

@@ -11,10 +11,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CountBadge } from "@/components/app/system/count-badge";
+import { BedzNaUglu } from "@/components/app/system/count-badge";
 import { Unfold } from "@/components/motion/unfold";
 import { cn } from "@/lib/utils";
-import { MOBILE_TAB, MOBILE_TAB_BADGE, MOBILE_TAB_ICON } from "./mobile-tab";
+import { MOBILE_TAB, MOBILE_TAB_ICON } from "./mobile-tab";
 import { resolveModule } from "./nav-items";
 import { QuietBoundary } from "./quiet-boundary";
 import { useProjekat, useProjekatMutation } from "./projekat-provider";
@@ -88,14 +88,10 @@ function Zvono({ className, variant }: { className?: string; variant: Oblik }) {
       : "Šta me čeka: nema ničega";
   // Bez posla — bez bedža. Nikad „0" (A1 §3).
   const bedz = (
-    <CountBadge
+    <BedzNaUglu
       count={ukupno}
       tone={data.zadaci.some((z) => z.hitnost === "visoka") ? "danger" : "warning"}
-      className={
-        variant === "tab"
-          ? MOBILE_TAB_BADGE
-          : "absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-[10px]"
-      }
+      ugao={variant === "tab" ? "tab" : "ikonica"}
     />
   );
 

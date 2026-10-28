@@ -271,7 +271,7 @@ export function LeadExportDialog({
                     <Columns3 className="size-3.5 text-mod" />
                     <span>Kanonske kolone (tačno 19 kolona)</span>
                   </div>
-                  <span className="text-micro font-mono text-text-muted">
+                  <span className="text-micro text-text-muted">
                     UTF-8 sa BOM
                   </span>
                 </div>

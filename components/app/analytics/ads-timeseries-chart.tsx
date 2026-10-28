@@ -88,11 +88,11 @@ export function AdsTimeseriesChart({
   // Generate 4-5 ticks on X axis
   const xTicks = useMemo(() => {
     if (n <= 1) return [];
+    // Ravnomerno, sa prvim i poslednjim danom: oznake od 12 px se na telefonu
+    // ne smeju sudariti (korak + nasilno dodat kraj je davao par na kraju ose).
     const count = Math.min(6, n);
-    const step = Math.floor((n - 1) / (count - 1));
     const indices = new Set<number>();
-    for (let i = 0; i < n; i += step) indices.add(i);
-    indices.add(n - 1);
+    for (let k = 0; k < count; k++) indices.add(Math.round((k * (n - 1)) / (count - 1)));
     return Array.from(indices).sort((a, b) => a - b);
   }, [n]);
 
@@ -137,7 +137,7 @@ export function AdsTimeseriesChart({
 
         {/* Dynamic Hover Tooltip Banner */}
         {activePoint ? (
-          <div className="flex flex-wrap items-center gap-4 rounded-lg bg-surface-raised px-3 py-1.5 font-mono text-xs shadow-xs">
+          <div className="flex flex-wrap items-center gap-4 rounded-lg bg-surface-raised px-3 py-1.5 text-xs tabular-nums shadow-xs">
             <span className="font-semibold text-foreground">{formatLongDate(activePoint.date)}:</span>
             <span className="flex items-center gap-1.5 text-foreground">
               <span className="h-2.5 w-2.5 rounded-full bg-[var(--chart-1)]" />
@@ -152,7 +152,7 @@ export function AdsTimeseriesChart({
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-4 text-xs font-mono">
+          <div className="flex items-center gap-4 text-xs">
             <div className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-[var(--chart-1)]" />
               <span className="text-foreground">
@@ -170,9 +170,9 @@ export function AdsTimeseriesChart({
       <div className="flex flex-col gap-2">
         {/* Top Chart: Cost */}
         <div className="relative flex flex-col">
-          <div className="flex items-center justify-between px-1 text-[11px] font-medium text-text-muted">
+          <div className="flex items-center justify-between px-1 text-meta font-medium text-text-muted">
             <span>Potrošnja{currencyCode ? ` (${currencyCode})` : ""}</span>
-            <span className="font-mono">{formatCurrency(maxCost, currencyCode)}</span>
+            <span className="tabular-nums">{formatCurrency(maxCost, currencyCode)}</span>
           </div>
           <div className="relative h-28 w-full">
             <svg
@@ -197,14 +197,6 @@ export function AdsTimeseriesChart({
                       strokeDasharray="3 3"
                       strokeWidth="1"
                     />
-                    <text
-                      x={PAD_L - 6}
-                      y={y + 3}
-                      textAnchor="end"
-                      className="fill-text-muted text-[10px] font-mono"
-                    >
-                      {formatNumber(Math.round(maxCost * ratio))}
-                    </text>
                   </g>
                 );
               })}
@@ -228,7 +220,7 @@ export function AdsTimeseriesChart({
                   x2={hoverX}
                   y2={PAD_T + PLOT_H}
                   stroke="currentColor"
-                  className="text-foreground/60"
+                  className="text-text-secondary"
                   strokeDasharray="2 2"
                   strokeWidth="1.5"
                 />
@@ -246,14 +238,15 @@ export function AdsTimeseriesChart({
                 />
               )}
             </svg>
+            <OznakeY max={maxCost} />
           </div>
         </div>
 
         {/* Bottom Chart: Key Events */}
         <div className="relative flex flex-col">
-          <div className="flex items-center justify-between px-1 text-[11px] font-medium text-text-muted">
+          <div className="flex items-center justify-between px-1 text-meta font-medium text-text-muted">
             <span>Ključni događaji</span>
-            <span className="font-mono">{formatNumber(maxKeyEvents)}</span>
+            <span className="tabular-nums">{formatNumber(maxKeyEvents)}</span>
           </div>
           <div className="relative h-28 w-full">
             <svg
@@ -278,14 +271,6 @@ export function AdsTimeseriesChart({
                       strokeDasharray="3 3"
                       strokeWidth="1"
                     />
-                    <text
-                      x={PAD_L - 6}
-                      y={y + 3}
-                      textAnchor="end"
-                      className="fill-text-muted text-[10px] font-mono"
-                    >
-                      {formatNumber(Math.round(maxKeyEvents * ratio))}
-                    </text>
                   </g>
                 );
               })}
@@ -309,7 +294,7 @@ export function AdsTimeseriesChart({
                   x2={hoverX}
                   y2={PAD_T + PLOT_H}
                   stroke="currentColor"
-                  className="text-foreground/60"
+                  className="text-text-secondary"
                   strokeDasharray="2 2"
                   strokeWidth="1.5"
                 />
@@ -326,28 +311,54 @@ export function AdsTimeseriesChart({
                   strokeWidth="2"
                 />
               )}
-
-              {/* Shared X axis dates */}
+            </svg>
+            <OznakeY max={maxKeyEvents} />
+            <div aria-hidden className="pointer-events-none absolute inset-0">
               {xTicks.map((idx) => {
                 const c = eventCoords[idx];
                 if (!c) return null;
                 return (
-                  <text
+                  <span
                     key={idx}
-                    x={c.x}
-                    y={PAD_T + PLOT_H + 16}
-                    textAnchor="middle"
-                    className="fill-text-muted text-[10px] font-mono"
+                    className="absolute -translate-x-1/2 whitespace-nowrap text-meta tabular-nums text-text-muted"
+                    style={{
+                      left: `${(c.x / CHART_W) * 100}%`,
+                      top: `${((PAD_T + PLOT_H + 5) / CHART_H) * 100}%`,
+                    }}
                   >
                     {formatShortDate(points[idx].date)}
-                  </text>
+                  </span>
                 );
               })}
-            </svg>
+            </div>
           </div>
         </div>
       </div>
     </Card>
+  );
+}
+
+/**
+ * Oznake ose Y kao HTML sloj preko grafikona. SVG je
+ * `preserveAspectRatio="none"`, pa bi se njegov tekst na telefonu sabio ispod
+ * 12 px i razvukao; pozicija je procenat viewBox-a.
+ */
+function OznakeY({ max }: { max: number }) {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      {[0, 0.5, 1].map((ratio) => (
+        <span
+          key={ratio}
+          className="absolute -translate-y-1/2 whitespace-nowrap text-meta tabular-nums text-text-muted"
+          style={{
+            top: `${((PAD_T + PLOT_H * (1 - ratio)) / CHART_H) * 100}%`,
+            right: `${(1 - (PAD_L - 6) / CHART_W) * 100}%`,
+          }}
+        >
+          {formatNumber(Math.round(max * ratio))}
+        </span>
+      ))}
+    </div>
   );
 }
 

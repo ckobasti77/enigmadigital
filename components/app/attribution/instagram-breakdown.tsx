@@ -85,7 +85,7 @@ export function InstagramBreakdown({
               Story linkovima.
             </p>
           </div>
-          <div className="flex items-center gap-2 font-mono text-xs tabular-nums text-text-muted">
+          <div className="flex items-center gap-2 text-xs tabular-nums text-text-muted">
             <span>
               Ukupno sa IG: {formatNumber(totalSessions)} sesija ·{" "}
               {formatNumber(totalKeyEvents)} konverzija
@@ -234,7 +234,7 @@ export function InstagramBreakdown({
                 {unmatchedGa4.map((u) => (
                   <li
                     key={u.sessionCampaign}
-                    className="flex items-center gap-1.5 rounded bg-surface-raised px-2 py-1 font-mono text-micro text-text-primary"
+                    className="flex items-center gap-1.5 rounded bg-surface-raised px-2 py-1 text-micro tabular-nums text-text-primary"
                   >
                     <span className="text-warning">&quot;{u.sessionCampaign}&quot;</span>
                     <span className="text-text-muted">·</span>

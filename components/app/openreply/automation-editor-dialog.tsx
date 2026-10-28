@@ -433,7 +433,7 @@ function AutomationEditorForm({
             <span className="text-xs font-semibold text-foreground">
               Okidač
             </span>
-            <span className="font-mono text-xs text-text-muted">
+            <span className="tabular-nums text-xs text-text-muted">
               {keywords.length}/{KEYWORDS_MAX} ključnih reči
             </span>
           </div>
@@ -491,7 +491,7 @@ function AutomationEditorForm({
               {keywords.map((keyword) => (
                 <span
                   key={keyword}
-                  className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-raised px-2 py-0.5 font-mono text-xs text-foreground"
+                  className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-raised px-2 py-0.5 text-xs text-foreground"
                 >
                   {keyword}
                   <button
@@ -653,7 +653,7 @@ function AutomationEditorForm({
               <span>Dugmad u poruci</span>
             </span>
             {tapMode !== "none" && (
-              <span className="font-mono text-xs tabular-nums text-text-muted">
+              <span className="text-xs tabular-nums text-text-muted">
                 {tapMode === "buttons"
                   ? `${buttons.length}/${BUTTONS_MAX}`
                   : `${quickReplies.length}/${QUICK_REPLIES_MAX}`}
@@ -970,7 +970,7 @@ function AutomationEditorForm({
                       value={followUpDelay}
                       onChange={(e) => setFollowUpDelay(e.target.value)}
                       disabled={submitting}
-                      className="w-28 border-line bg-surface font-mono text-xs tabular-nums"
+                      className="w-28 border-line bg-surface text-xs tabular-nums"
                     />
                   )}
                 </Field>

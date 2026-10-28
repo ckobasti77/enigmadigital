@@ -9,16 +9,16 @@ import { cn } from "@/lib/utils";
  * komponenta ne crta ništa; pozivalac ne mora da proverava.
  *
  * Boja nosi hitnost: `neutral` je broj, `warning` je posao koji čeka,
- * `danger` je posao koji kasni, `accent` je „novo". Tekst je u boji na blagoj
- * podlozi (AA), nikad beo na punoj crvenoj — to pada ispod 3:1.
+ * `danger` je posao koji kasni. Tekst je u boji na izmerenoj blagoj podlozi
+ * (AA), nikad beo na punoj crvenoj — to pada ispod 3:1. Broj je Aeonik, 12 px
+ * (P2: mono samo za ID i brojčane kolone).
  */
-export type CountBadgeTone = "neutral" | "accent" | "warning" | "danger";
+export type CountBadgeTone = "neutral" | "warning" | "danger";
 
 const TONE: Record<CountBadgeTone, string> = {
   neutral: "bg-surface-raised text-foreground ring-1 ring-line",
-  accent: "bg-mod-soft text-mod",
-  warning: "bg-warning/15 text-warning",
-  danger: "bg-danger/15 text-danger",
+  warning: "bg-warning-soft text-warning",
+  danger: "bg-danger-soft text-danger",
 };
 
 export function CountBadge({
@@ -43,12 +43,46 @@ export function CountBadge({
       aria-label={label}
       title={label}
       className={cn(
-        "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 font-mono text-meta font-semibold leading-none tabular-nums",
+        "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-meta font-semibold leading-none tabular-nums",
         TONE[tone],
         className,
       )}
     >
       {text}
     </span>
+  );
+}
+
+export type UgaoBedza = "sina" | "ikonica" | "zupcanik" | "tab";
+
+const UGAO: Record<UgaoBedza, string> = {
+  sina: "left-[26px] top-0", // ikonica u uskoj šini bočne trake
+  ikonica: "-right-1.5 -top-1.5", // list „Više", zvono
+  zupcanik: "-right-1 -top-1", // Podešavanja u bočnoj traci
+  tab: "right-0 -top-1", // pilula ćelije donje trake
+};
+
+/**
+ * Bedž broja preko ugla ikonice — 12 px, visina 18 px, jedan za celu
+ * aplikaciju (pre je bilo pet kopija od 10 px).
+ */
+export function BedzNaUglu({
+  count,
+  tone,
+  label,
+  ugao,
+}: {
+  count: number | null | undefined;
+  tone?: CountBadgeTone;
+  label?: string;
+  ugao: UgaoBedza;
+}) {
+  return (
+    <CountBadge
+      count={count}
+      tone={tone}
+      label={label}
+      className={cn("absolute h-4.5 min-w-4.5 px-1", UGAO[ugao])}
+    />
   );
 }

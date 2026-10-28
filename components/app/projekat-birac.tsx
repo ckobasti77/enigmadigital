@@ -595,7 +595,7 @@ function BrojCeka({ stanje }: { stanje: Stanje | null | undefined }) {
   return (
     <span
       title={opis}
-      className="w-6 shrink-0 text-right font-mono text-meta tabular-nums text-text-muted"
+      className="w-6 shrink-0 text-right text-meta tabular-nums text-text-muted"
     >
       <span aria-hidden>{broj ?? "—"}</span>
       <span className="sr-only">{opis}</span>

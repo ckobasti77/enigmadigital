@@ -164,7 +164,7 @@ function PhoneConfidenceDialogTelo({
                 value={vrednost}
                 onChange={(e) => setVrednost(e.target.value)}
                 aria-invalid={vrednost.trim() !== "" && !brojIspravan}
-                className="h-8 w-24 font-mono text-xs tabular-nums"
+                className="h-8 w-24 text-xs tabular-nums"
               />
               {vrednost.trim() !== "" && !brojIspravan && (
                 <p className="text-xs text-danger">

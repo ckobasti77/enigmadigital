@@ -318,7 +318,7 @@ function DataCell<Row>({
           value={v as number | null | undefined}
           state={col.state?.(row)}
           format={col.format}
-          className={muted ? "text-text-muted" : undefined}
+          className={cn("font-mono", muted && "text-text-muted")}
         />
       );
     })()
@@ -339,7 +339,7 @@ function DataCell<Row>({
     >
       {main}
       {col.sub && (
-        <div className="text-[10px] leading-tight text-text-muted">
+        <div className="text-meta leading-tight text-text-muted">
           {col.sub(row)}
         </div>
       )}

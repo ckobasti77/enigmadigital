@@ -178,7 +178,7 @@ function Identitet({ vlasnik }: { vlasnik: boolean }) {
                 action={
                   <span
                     className={cn(
-                      "font-mono text-micro tabular-nums",
+                      "text-micro tabular-nums",
                       duzinaKratkog > KRATKO_IME_MAX ? "text-danger" : "text-text-muted",
                     )}
                   >

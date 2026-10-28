@@ -354,7 +354,7 @@ export function ImportFilePicker({
               <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-line-soft bg-surface-raised p-2 space-y-1">
                 {parseResult.skipped.map((sk, idx) => (
                   <div key={idx} className="flex items-center justify-between text-micro text-text-muted">
-                    <span className="font-mono text-text-secondary">Red {sk.rowIndex}:</span>
+                    <span className="tabular-nums text-text-secondary">Red {sk.rowIndex}:</span>
                     <span>{sk.razlog}</span>
                   </div>
                 ))}

@@ -279,7 +279,7 @@ function YtAutomationEditorForm({
             <span className="text-xs font-semibold text-foreground">
               Okidač
             </span>
-            <span className="font-mono text-xs text-text-muted">
+            <span className="text-xs tabular-nums text-text-muted">
               {keywords.length}/{KEYWORDS_MAX} ključnih reči
             </span>
           </div>
@@ -292,7 +292,7 @@ function YtAutomationEditorForm({
               {keywords.map((keyword) => (
                 <span
                   key={keyword}
-                  className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-raised px-2 py-0.5 font-mono text-xs text-foreground"
+                  className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-raised px-2 py-0.5 text-xs text-foreground"
                 >
                   {keyword}
                   <button
@@ -446,7 +446,6 @@ function YtAutomationEditorForm({
         <div
           className={cn(
             "space-y-2.5 rounded-xl border border-line bg-surface/50 p-3.5",
-            deleteEnabled && "opacity-60",
           )}
         >
           <div className="flex items-center justify-between gap-2">

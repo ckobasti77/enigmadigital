@@ -244,7 +244,7 @@ export function ThreadsRepliesModeration() {
         {selectedMediaItem && (
           <div className="mt-4 rounded-lg border border-line-soft bg-surface-raised/40 p-3 text-xs">
             <div className="flex items-center justify-between text-text-muted mb-1">
-              <span className="font-mono text-micro uppercase">
+              <span className="text-micro uppercase">
                 Tip: {selectedMediaItem.mediaType}
               </span>
               {selectedMediaItem.permalink && (
@@ -259,7 +259,7 @@ export function ThreadsRepliesModeration() {
                 </a>
               )}
             </div>
-            <p className="line-clamp-2 text-foreground/90 font-medium leading-relaxed">
+            <p className="line-clamp-2 text-foreground font-medium leading-relaxed">
               {selectedMediaItem.text || <span className="italic text-text-muted">Bez teksta</span>}
             </p>
           </div>
@@ -359,13 +359,13 @@ export function ThreadsRepliesModeration() {
                           {reply.username ? `@${reply.username}` : "Korisnik"}
                         </span>
                         {reply.isReplyOwnedByMe && (
-                          <span className="rounded bg-mod-soft px-1.5 py-0.2 font-mono text-micro text-mod">
+                          <span className="rounded bg-mod-soft px-1.5 py-0.2 text-micro text-mod">
                             Naš odgovor
                           </span>
                         )}
                         <span
                           className={cn(
-                            "inline-flex items-center rounded-full border px-2 py-0.2 font-mono text-micro font-semibold",
+                            "inline-flex items-center rounded-full border px-2 py-0.2 text-micro font-semibold",
                             hideConfig.tone,
                           )}
                         >
@@ -389,7 +389,7 @@ export function ThreadsRepliesModeration() {
                         )}
                       </div>
 
-                      <p className="text-xs leading-relaxed text-foreground/90 mt-1">
+                      <p className="text-xs leading-relaxed text-foreground mt-1">
                         {reply.text || <span className="italic text-text-muted">Bez teksta</span>}
                       </p>
 

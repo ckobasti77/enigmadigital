@@ -552,3 +552,65 @@ Nijedan `next dev` ni drugi proces koji je korak sam pokrenuo nije upaljen.
 - *Provere prolaze; sekcija T09 je u progress-u:* ispunjeno (typecheck, lint 0 grešaka, vitest 1096/1096, pristup, regresije 15/15).
 - **Snimci** su rađeni skriptom nad paketom `playwright`, jer se Playwright MCP u tom trenutku nije povezao; pravila runa dozvoljavaju skriptu umesto MCP-a.
 - **Procesi:** dev server za dopunsku proveru (PID 31420, 20488, 32424) je ugašen; nijedan `next` proces ovog repoa ne radi, port 3117 je slobodan.
+
+## T10 — Tipografija, kontrast i mono   (2026-10-28 03:35)
+**Fajlovi:**
+- novi: `lib/tipografija-cuvar.ts` (T1–T4, M1–M3), `lib/tipografija-cuvar.test.ts`, `lib/kontrast-cuvar.ts` (K1–K4), `lib/kontrast-cuvar.test.ts`, `scripts/verify-ultra-tipografija.ts`, `scripts/verify-ultra-kontrast.ts`, snimci `docs/ultra/snimci/T10-*.png` (8).
+- tokeni i provere: `app/globals.css` (`--text-muted` 0,86, `--temp-*-ink` + `@theme inline`, komentar skale), `scripts/contrast-check.mjs` (novi parovi), `package.json` (`verify:ultra-tipografija`, `verify:ultra-kontrast`), `lib/dugmad-cuvar.ts` (samo plafon 683 → 679).
+- jedan bedž: `components/app/system/count-badge.tsx` (`BedzNaUglu`, tonovi `-soft`, bez `accent` i mono), `nav-badge.tsx` (prop `ugao`), `app-sidebar.tsx`, `mobile-nav.tsx`, `mobile-tab.ts` (obrisan `MOBILE_TAB_BADGE`), `notifications-bell.tsx`.
+- `components/motion/count-up.tsx` (rezervisana širina), `components/ui/chart.tsx` (vrednost u oblačiću bez mono).
+- SVG oznake u HTML sloj: `analytics/ads-timeseries-chart.tsx`, `analytics/retention-dashboard.tsx`.
+- 12 px: 24 fajla iz §4.1 plana T08; ose: `ads/hourly-chart`, `analytics/device-chart`, `instagram/breakdown-chart`, `instagram/follows-chart`, `threads/threads-follows-chart`, `timeline-chart`.
+- providnost, `opacity`, sirova paleta i temperatura: ~35 fajlova pod `components/app/` (spisak §5.2–5.3 plana), plus `analytics/realtime-dashboard.tsx` i `retention-dashboard.tsx` (ikonice i trake iz §10.2).
+- mono: ~140 fajlova pod `components/app/{ads,leadovi,settings,overview,hub,novosti,napredak,instagram,facebook,openreply,threads,youtube,analytics,attribution}` i koren `components/app/`.
+- vodič: `app/dev-ux/sistem/vodic.tsx` („Tipografija i pokret": hero bez mono i bez boje modula, mala tabela „mono samo za ID i brojčane kolone"), `vodic-komponente.tsx` (primer `BedzNaUglu` na zvonu, XP čip bez mono), `vodic-napredak.tsx` (XP broj bez mono).
+
+**Šta je urađeno:**
+- **Nijedan tekst ispod 12 px.** Svih 88 klasa `text-[9|10|11px]` je nestalo: 79 je postalo `text-meta`, 5 kopija bedža je zamenila jedna komponenta `BedzNaUglu` (12 px, visina 18 px, Aeonik), a 4 SVG oznake su izašle iz izobličenog SVG-a (`preserveAspectRatio="none"`) u HTML sloj sa pozicijom u procentu viewBox-a. Svih 14 osa Recharts grafikona je na `fontSize: 12`. U pregledaču je najmanji tekst 12 px na svim merenim ekranima, a SVG tekst ose (mereno kao `fontSize × getScreenCTM`) je 12 px i na 1536 i na 390.
+- **Kontrast.** `--text-muted` je 0,86 (prigušen tekst ≥ 4,65:1 na svakoj `-soft` podlozi), a tekst temperature u uvozu čita nove `--temp-*-ink` (≥ 5,8:1 na sopstvenoj podlozi). Na tekstu više nema `text-*/NN` (56 mesta), gole `opacity-*` (23 mesta, po receptu §5.3) ni sirove palete (`text-white`, `bg-black/60` → `text-foreground`, `bg-surface-overlay`). `contrast-check` meri 262 para (bilo 212), 0 pada.
+- **Mono po P2.** `font-mono` u `components/` i `app/` je pao sa 749 na 271 (bez pravnih strana i prijave). Ostaje na brojčanim kolonama tabela, ID/kodu/tokenu/URL-u/UTM-u/telefonu/e-mailu i `<code>`/`<kbd>`. KpiTile, FocusCard i svi fokus brojevi su Aeonik sa `tabular-nums`. `CountUp` rezerviše širinu konačne vrednosti (Aeonik nema `tnum`), pa se pilula pored broja ne pomera dok broj raste; `{format(display)}` je ostao (verify:pokret, verify:brojevi prolaze).
+- **Provere.** `verify:ultra-tipografija` (T1 klase, T2 `fontSize`/`font-size` i u CSS-u, T3 tekst u izobličenom SVG-u, T4 koraci skale, M1 mono uz fokus veličinu, M2 mono u sistemu, M3 plafon 271) i `verify:ultra-kontrast` (K1 `contrast-check --strogo`, K2 providnost, K3 gola `opacity`, K4 sirova paleta). Obe prolaze i `regresije` ih uključuje same.
+- **Radnici.** Mono je prešlo šest `sonnet` radnika po direktorijumima, po receptu `.nocni-run/ultra1/tmp/t10-mono-recept.md`. Diff sam proverio skriptom: van `font-mono`/`tabular-nums` radnici su promenili samo dva mesta (vidi ODLUKE); sve ostalo su moje zamene iz plana. Typecheck posle radnika: prošao.
+
+**ODLUKE:**
+- **Plafon mono je 271, ne ≤ 260** (procena plana). To je stvarni broj posle prelaska; višak su vodič (`app/dev-ux`, 10 — imena tokena su kod) i ID-jevi u podešavanjima (polja za token, JSON, webhook).
+- **Kolona datuma u tabeli nije brojčana** (P2: datumi su reči), pa je izgubila mono; trajanje i iznosi u tabeli ostaju mono.
+- **E-mail adresa, naziv fajla, kod jezika, vremenska zona (`Europe/Belgrade`), valuta (`EUR`), slug i heks boje** računaju se kao ID/kod (mono ostaje). Markdown polje u uredniku Novosti je ostalo mono (sirovi tekst). Sirov CTA tip u pregledu oglasa (`LEARN_MORE`) ostaje mono dok ga T12 ne prevede.
+- **Dve izmene radnika van čistog brisanja:** `analytics/rank-table.tsx` prosleđuje `font-mono` u `MetricValue` samo u ćelijama tabele (komponenta više nije mono, jer je koriste i čipovi); `leadovi/leads-dashboard.tsx` je mono skinuo sa roditelja i umotao samo kod signala u `<span className="font-mono">`.
+- **Recept §5.3 za neaktivne stavke:** `opacity` je obrisan, a naslov NIJE prebačen u `text-text-secondary` — stanje nose prekidač i čip „Isključeno". Obrisan komentar dobija `text-text-muted` na omotaču (dete sa sopstvenom bojom je zadržava); oznaka „Obrisano" ostaje. Prigušen blok moderacije u YouTube uredniku i prigušene metrike Puls kartice kad sinhronizacija zastane izgubili su `opacity` bez zamene (poruka o grešci je već iznad).
+- **Brojevi u filter-čipu Leadova i u dugmetu „Pozovi (N)"** nasleđuju boju natpisa (umesto `text-text-muted` iz recepta), jer na izabranom čipu i primarnom dugmetu prigušen ton ne bi imao kontrast.
+- **Osa X u grafikonu potrošnje** sada bira tačke ravnomerno (sa prvim i poslednjim danom). Stari korak + nasilno dodat kraj davao je dva datuma jedan preko drugog na 390, što se sa 12 px videlo. Ostalo je isto.
+- **M1/M2 ne važe za `app/login` i `app/pozivnica`** (tok prijave se ne dira; polje koda za prijavu je kod). Isto važi za M3, po planu.
+- **K2 ne broji par veličina/prored** (`text-sm/6`) ni potez (`text-line/40`, `chart-*`). K3 prepoznaje lucide ikonicu po uvozu iz `lucide-react`.
+- **`PLAFON_BOJE_MODULA` spušten na 679** (verify:ultra-dugmad je to tražio, jer je ton `accent` bedža obrisan). To je pooštravanje, ne slabljenje.
+- `date-range-picker.tsx` nije diran (mono polja menja T11). `text-[0.8rem]` u primitivima je T09 već obrisao.
+- Snimci su rađeni skriptom nad paketom `playwright` (kao u T09); Playwright MCP nije korišćen.
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- `lib/tipografija-cuvar.test.ts` (8): T1 (`text-[11px]`, `text-[0.7rem]` padaju; `text-[0.8rem]`, `text-meta` prolaze; komentar se ne broji), T2 (Recharts `tick`, JSX `fontSize`, inline CSS), T3 (`<text>` u izobličenom SVG-u), T4 i CSS (korak skale, pod-svojstva i komentar), M1/M2 (fokus broj, sistem, izuzetak tabele sa razlogom), M3 (brojanje i tok prijave), pa nad celim kodom: nijedan nalaz i mono ≤ plafon.
+- `lib/kontrast-cuvar.test.ts` (7): K2 (`text-text-muted/60` pada, `text-line/40` i `text-sm/6` prolaze), K3 (`opacity-60` na `<span>` pada; `disabled:`, `cursor-not-allowed`, lucide, `animate-ping`, `absolute inset-0` prolaze; izuzetak samo u svom fajlu i sa razlogom), K4, K1 (čitanje „Pada: N od M"), pa nad celim kodom.
+
+**Rezultat provere:**
+- typecheck: prošao. lint: 0 grešaka (1210 upozorenja, isto kao pre).
+- vitest: 65 fajlova / 1111 testova prošlo.
+- pristup: prošao. regresije: 17/17 (uključuje `verify:ultra-tipografija`, `verify:ultra-kontrast`, `verify:ultra-dugmad`, `verify:leads-ui`, `verify:uvoz`, `verify:pokret`, `verify:brojevi`).
+- `node scripts/contrast-check.mjs --strogo`: 0 od 262.
+- **Vizuelno** (`next dev -p 3117`, `?ux=1`, skripta `.nocni-run/ultra1/tmp/t10-snimci.mjs`, merenje `t10-merenje.json`):
+  - 1536: `T10-uvoz-pregled-1536.png`, `T10-uvoz-pregled-tabela-1536.png`, `T10-retencija-1536.png`, `T10-podesavanja-1536.png`, `T10-leadovi-tabela-1536.png`, `T10-sistem-tipografija-1536.png`, `T10-sistem-bedz-1536.png`; 390 (dodir): `T10-analitika-oglasi-390.png`.
+  - Najmanji HTML tekst je 12 px na pregledu uvoza, Retenciji, Podešavanjima, tabeli i Danas Leadova, vodiču, Analitici (Uživo, Oglasi), Oglasima, Instagramu i tabli; na 390 isto (Oglasi, Retencija, uvoz). Tekst sa providnošću: 0 na svim merenim ekranima.
+  - SVG tekst je 12 px na tabli, Oglasima, Instagramu, Analitici, Posetiocima i Threads-u, na 1536 i 390.
+- Dev server je ugašen (PID 20308, 3092, 24072, 30256; port 3117 slobodan).
+
+**Za Jovana ujutru:**
+1. Otvori Analitiku → Oglasi na telefonu: oznake osa su 12 px i ne preklapaju se; Retencija ima procente kao čitljiv tekst levo od krivih.
+2. Prođi tablu, Instagram i Leadove: fokus brojevi i pločice su sada Aeonik (uže cifre), a kolone tabela i ID-jevi ostaju mono. Ako neki broj „pleše" pri osvežavanju van `CountUp`-a, javi.
+3. Potvrdi odluke: `--text-muted` 0,86 (prigušen tekst je malo svetliji), datumi u tabelama bez mono, e-mail/vremenska zona/valuta kao kod (mono), neaktivne automatizacije bez prigušenja (stanje nosi prekidač).
+
+**Prihvatanje T10 (provera stavku po stavku, dopuna 03:45):**
+- *`verify:ultra-tipografija` ne nalazi veličinu ispod 12 px ni u `app/` i `components/`, ni u osama grafikona:* ispunjeno. Izlaz: „Pregledano fajlova: 372 (+ app/globals.css). font-mono: 271 (plafon 271). verify:ultra-tipografija: prolazi (T1–T4, M1–M3)." T1 pokriva klase `text-[N]`, T2 `fontSize` (i Recharts `tick` ose, svih 14 je na 12), T3 tekst u izobličenom SVG-u, T4 korake skale. U pregledaču je SVG tekst osa 12 px na 1536 i 390 (tabla, Oglasi, Instagram, Analitika, Posetioci, Threads).
+- *`contrast-check` prolazi i sa novim parovima:* ispunjeno. `node scripts/contrast-check.mjs --strogo` izlazi sa 0: „Pada: 0 od 262" (pre T10: 212 parova). Novi parovi: radnja (tekst, granica, izabrano), neutralna kontrola, tekst obrisa, `text-muted` na svakoj `-soft` podlozi (stanja, xp, radnja, 13 modula, 5 kategorija; najmanje 4,65:1) i `temp-*-ink` na sopstvenoj podlozi (najmanje 5,8:1).
+- *Provere prolaze; sekcija T10 je u `docs/ULTRA1-PROGRESS.md`:* ispunjeno. `npx convex codegen` nije potreban (`convex/` nije menjan). typecheck prošao; lint 0 grešaka; `npx --no-install vitest run` 65/65 fajlova, 1111/1111 testova; `verify-pristup` prošao; `regresije.mjs` 17/17 (uključuje `verify:ultra-tipografija` i `verify:ultra-kontrast`).
+- **BLOKADA:** nema.
+- **Procesi:** port 3117 slobodan; nijedan `next`/`playwright` proces ovog repoa ne radi.

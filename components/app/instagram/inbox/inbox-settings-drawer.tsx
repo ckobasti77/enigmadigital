@@ -336,7 +336,7 @@ function InboxSettingsDrawerForm({
 
                   {/* Automation selector */}
                   <div className="pt-1">
-                    <label className="text-[11px] font-medium text-muted-foreground block mb-1">
+                    <label className="text-meta font-medium text-muted-foreground block mb-1">
                       Pokreće automatizaciju:
                     </label>
                     <select
@@ -521,12 +521,12 @@ function InboxSettingsDrawerForm({
               {/* Live Preview of Truncation */}
               {newQuickReply.length > 0 && (
                 <div className="flex items-center gap-2 pt-1">
-                  <span className="text-[11px] text-muted-foreground">Prikaz na IG:</span>
+                  <span className="text-meta text-muted-foreground">Prikaz na IG:</span>
                   <span className="inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
                     {newQuickReply.slice(0, BUTTON_TITLE_MAX)}
                     {newQuickReply.length > BUTTON_TITLE_MAX && "…"}
                   </span>
-                  <span className="text-[11px] text-muted-foreground ml-auto">
+                  <span className="text-meta text-muted-foreground ml-auto">
                     {newQuickReply.length} / {BUTTON_TITLE_MAX} znakova
                   </span>
                 </div>

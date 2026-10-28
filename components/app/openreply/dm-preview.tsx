@@ -140,7 +140,7 @@ export function DmPreview({
       )}
 
       {!compact && (
-        <p className="font-mono text-xs tabular-nums text-text-muted">
+        <p className="text-xs tabular-nums text-text-muted">
           {body.length} karaktera
         </p>
       )}

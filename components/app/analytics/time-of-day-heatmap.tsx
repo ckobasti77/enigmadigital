@@ -44,7 +44,7 @@ export function TimeOfDayHeatmap({ data }: { data: TimeData }) {
       title="Aktivnost po satima i danima"
       description="Toplotna mapa raspodele poseta (7 dana × 24 sata) u lokalnoj zoni propertija."
       legend={
-        <div className="flex items-center gap-2 text-[11px] text-text-muted">
+        <div className="flex items-center gap-2 text-meta text-text-muted">
           <span>Manje</span>
           <div className="flex h-3 w-24 overflow-hidden rounded border border-line-soft">
             {[8, 26, 48, 70, 95].map((a) => (
@@ -71,7 +71,7 @@ export function TimeOfDayHeatmap({ data }: { data: TimeData }) {
       <div className="flex flex-col gap-4">
         <div className="overflow-x-auto pb-1">
           <div className="min-w-[640px] space-y-1.5">
-            <div className="flex items-center gap-1.5 pl-10 text-[10px] font-mono text-text-muted">
+            <div className="flex items-center gap-1.5 pl-10 text-meta text-text-muted">
               {HOURS.map((h) => (
                 <div key={h} className="flex-1 text-center">
                   {h % 3 === 0 ? `${h.toString().padStart(2, "0")}h` : ""}
@@ -148,7 +148,7 @@ export function TimeOfDayHeatmap({ data }: { data: TimeData }) {
                 {hovered.hour.toString().padStart(2, "0")}:59:
               </span>
               {hovered.hasData ? (
-                <span className="font-mono text-text-secondary">
+                <span className="tabular-nums text-text-secondary">
                   {formatNumber(hovered.sessions)} sesija (
                   {formatNumber(hovered.totalUsers)} korisnika)
                 </span>

@@ -650,7 +650,7 @@ function Kanali({ slug }: { slug: string }) {
         </ul>
       )}
       <p className="text-meta text-text-muted">
-        <span className="font-mono tabular-nums">
+        <span className="tabular-nums">
           {veze === undefined ? "—" : `${povezano} od ${kanali.length}`}
         </span>{" "}
         povezano

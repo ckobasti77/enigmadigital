@@ -59,7 +59,7 @@ export function ImportFlowSteps({
         >
           <span
             className={cn(
-              "mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full border font-mono text-meta font-semibold tabular-nums sm:mt-0",
+              "mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full border text-meta font-semibold tabular-nums sm:mt-0",
               MARKER[korak.stanje],
             )}
             aria-hidden

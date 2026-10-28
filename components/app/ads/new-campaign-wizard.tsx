@@ -587,7 +587,7 @@ function NewCampaignWizardInner() {
               <Field label={`Dnevni budžet${currency ? ` (${currency})` : ""}`} htmlFor="budget">
                 <div className="relative max-w-[220px]">
                   {currency && (
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-xs text-text-muted">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">
                       {currency}
                     </span>
                   )}
@@ -598,7 +598,7 @@ function NewCampaignWizardInner() {
                     step="0.01"
                     value={dailyBudget}
                     onChange={(e) => setDailyBudget(e.target.value)}
-                    className={cn("font-mono", currency ? "pl-12" : "pl-3")}
+                    className={cn("tabular-nums", currency ? "pl-12" : "pl-3")}
                   />
                 </div>
               </Field>
@@ -653,7 +653,7 @@ function NewCampaignWizardInner() {
                     max="65"
                     value={ageMin}
                     onChange={(e) => setAgeMin(e.target.value)}
-                    className="font-mono"
+                    className="tabular-nums"
                   />
                 </Field>
                 <Field label="Uzrast do" htmlFor="agemax">
@@ -664,7 +664,7 @@ function NewCampaignWizardInner() {
                     max="65"
                     value={ageMax}
                     onChange={(e) => setAgeMax(e.target.value)}
-                    className="font-mono"
+                    className="tabular-nums"
                   />
                 </Field>
               </div>

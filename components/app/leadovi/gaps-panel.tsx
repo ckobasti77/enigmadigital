@@ -158,7 +158,7 @@ export function GapsPanel() {
                 />
                 {card.label}
               </span>
-              <span className="font-mono text-metric font-bold leading-none tabular-nums text-foreground">
+              <span className="text-metric font-bold leading-none tabular-nums text-foreground">
                 {count}
                 <span className="ml-1.5 font-sans text-meta font-normal text-text-muted">
                   od {gaps.ukupnoFirmi} {gaps.nepotpuno ? "pregledanih" : "u bazi"}

@@ -123,7 +123,7 @@ export function ThreadsFollowsChart({
               interval="preserveStartEnd"
               minTickGap={36}
               tickFormatter={formatShortDate}
-              tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+              tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
               tickMargin={8}
             />
             <YAxis
@@ -132,7 +132,7 @@ export function ThreadsFollowsChart({
               tickLine={false}
               domain={[domainMin, domainMax]}
               tickFormatter={formatCompact}
-              tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+              tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
             />
             <ChartTooltip
               cursor={{ stroke: "var(--color-line-strong)", strokeDasharray: "3 3" }}
@@ -183,7 +183,7 @@ function FollowersTooltip({
       <p className="text-text-muted">{formatLongDate(row.date)}</p>
       <div className="mt-1.5 flex items-center justify-between gap-4">
         <span className="text-muted-foreground">Broj pratilaca</span>
-        <span className="font-mono font-bold tabular-nums text-foreground">
+        <span className="font-bold tabular-nums text-foreground">
           {formatNumber(row.followers)}
         </span>
       </div>

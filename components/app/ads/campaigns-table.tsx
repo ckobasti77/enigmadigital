@@ -244,7 +244,7 @@ export function CampaignsTable({
 
   const renderSortIcon = (key: SortKey) => {
     if (sort.key !== key) {
-      return <ArrowUpDown className="size-3 text-text-muted/60 opacity-0 group-hover:opacity-100" />;
+      return <ArrowUpDown className="size-3 text-text-muted opacity-0 group-hover:opacity-100" />;
     }
     return sort.dir === "asc" ? (
       <ArrowUp className="size-3 text-mod" />
@@ -270,7 +270,7 @@ export function CampaignsTable({
               )}
             >
               <span>Sve platforme</span>
-              <span className="font-mono text-micro text-text-muted">
+              <span className="tabular-nums text-micro text-text-muted">
                 ({campaigns.length})
               </span>
             </button>
@@ -287,7 +287,7 @@ export function CampaignsTable({
             >
               <span className="size-1.5 rounded-full bg-chart-1" />
               <span>Meta Ads</span>
-              <span className="font-mono text-micro text-text-muted">
+              <span className="tabular-nums text-micro text-text-muted">
                 ({metaCount})
               </span>
             </button>
@@ -304,7 +304,7 @@ export function CampaignsTable({
             >
               <span className="size-1.5 rounded-full bg-chart-2" />
               <span>Google Ads</span>
-              <span className="font-mono text-micro text-text-muted">
+              <span className="tabular-nums text-micro text-text-muted">
                 ({googleCount})
               </span>
             </button>
@@ -455,12 +455,12 @@ export function CampaignsTable({
                                 <Target className="size-2.5 text-mod" />
                                 {formatObjective(row.objective)}
                               </span>
-                              <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+                              <span className="inline-flex items-center gap-1 tabular-nums">
                                 <Clock className="size-2.5" />
                                 {formatFreshness(row.syncedAt, row.syncPriority)}
                               </span>
                               {row.searchImpressionShare !== undefined && (
-                                <span className="inline-flex items-center gap-1 text-micro font-mono text-mod bg-mod-soft border border-mod-line px-1.5 py-0.5 rounded">
+                                <span className="inline-flex items-center gap-1 text-micro tabular-nums text-mod bg-mod-soft border border-mod-line px-1.5 py-0.5 rounded">
                                   IS: {formatPercent(row.searchImpressionShare)}
                                 </span>
                               )}
@@ -527,7 +527,7 @@ export function CampaignsTable({
                           {/* Row Actions (Stop propagation to prevent row click) */}
                           {!jeGoogle && mozeVlasnik ? (
                             <div
-                              className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity"
+                              className="flex items-center gap-1"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <button
@@ -573,7 +573,7 @@ export function CampaignsTable({
                               </button>
                             </div>
                           ) : jeGoogle ? (
-                            <span className="text-micro text-text-muted/60 font-mono px-1">
+                            <span className="text-micro text-text-muted px-1">
                               read-only
                             </span>
                           ) : null}
@@ -586,7 +586,7 @@ export function CampaignsTable({
                                 "pl-1 border-l border-line-soft/60",
                             )}
                           >
-                            <span className="font-mono tabular-nums text-micro">
+                            <span className="tabular-nums text-micro">
                               {row.adSetsCount} {row.adSetsCount === 1 ? (row.provider === "google_ads" ? "grupa" : "set") : (row.provider === "google_ads" ? "grupa" : "setova")}
                             </span>
                             <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />

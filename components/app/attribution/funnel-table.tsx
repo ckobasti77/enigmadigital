@@ -130,7 +130,7 @@ export function FunnelTable({
               DM poruke → Link klikovi → GA4 sesije → Web konverzije
             </p>
           </div>
-          <p className="font-mono text-xs tabular-nums text-text-muted">
+          <p className="text-xs tabular-nums text-text-muted">
             {formatNumber(rows.length)}{" "}
             {rows.length === 1
               ? "kampanja"
@@ -247,7 +247,7 @@ export function FunnelTable({
                           <span className="font-mono tabular-nums text-foreground">
                             {formatNumber(row.linkClicks)}
                           </span>
-                          <span className="font-mono text-micro tabular-nums text-mod">
+                          <span className="text-micro tabular-nums text-mod">
                             {formatRatio(row.ctr)} po poruci
                           </span>
                         </div>
@@ -351,7 +351,7 @@ export function FunnelTable({
                             >
                               {formatNumber(row.ga4KeyEvents)}
                             </span>
-                            <span className="font-mono text-micro tabular-nums text-text-muted">
+                            <span className="text-micro tabular-nums text-text-muted">
                               {row.sessionToConvRate !== null
                                 ? `${formatPercent(row.sessionToConvRate)} CR`
                                 : "—"}

@@ -299,7 +299,7 @@ function GateItem({
         </div>
         <p className="mt-1 leading-relaxed text-text-muted">{reason}</p>
         {extraNote && (
-          <p className="mt-1.5 rounded bg-surface px-2 py-1 font-mono text-micro text-text-secondary">
+          <p className="mt-1.5 rounded bg-surface px-2 py-1 text-micro text-text-secondary">
             Dokaz: „{extraNote}”
           </p>
         )}

@@ -140,7 +140,7 @@ export function AgeGenderHeatTable({
 
                 return (
                   <TableRow key={row.age} className="border-line-soft/60 hover:bg-surface-raised/30">
-                    <TableCell className="pl-4 font-mono font-medium text-foreground">
+                    <TableCell className="pl-4 tabular-nums font-medium text-foreground">
                       {row.age}
                     </TableCell>
                     <TableCell

@@ -187,7 +187,7 @@ export function AdsDashboard() {
                 className="shrink-0"
               >
                 {b.adSetName}{" "}
-                <span className="font-mono text-text-muted">
+                <span className="tabular-nums text-text-muted">
                   ({b.adsCount} v)
                 </span>
               </Chip>

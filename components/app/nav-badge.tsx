@@ -1,6 +1,10 @@
 "use client";
 
-import { CountBadge } from "@/components/app/system/count-badge";
+import {
+  BedzNaUglu,
+  CountBadge,
+  type UgaoBedza,
+} from "@/components/app/system/count-badge";
 import { QuietBoundary } from "./quiet-boundary";
 import { useStaMeCeka } from "./use-sta-me-ceka";
 
@@ -22,16 +26,16 @@ import { useStaMeCeka } from "./use-sta-me-ceka";
 export function NavBadge({
   href,
   label,
-  className,
+  ugao,
 }: {
   href: string;
   label: string;
-  /** Položaj kada bedž leži preko ikonice (šina, donja traka, list „Više"). */
-  className?: string;
+  /** Ugao ikonice kada bedž leži preko nje (šina, donja traka, list „Više"). */
+  ugao?: UgaoBedza;
 }) {
   return (
     <QuietBoundary>
-      <Bedz href={href} label={label} className={className} />
+      <Bedz href={href} label={label} ugao={ugao} />
     </QuietBoundary>
   );
 }
@@ -39,11 +43,11 @@ export function NavBadge({
 function Bedz({
   href,
   label,
-  className,
+  ugao,
 }: {
   href: string;
   label: string;
-  className?: string;
+  ugao?: UgaoBedza;
 }) {
   const data = useStaMeCeka();
   const broj = data?.bedzevi[href];
@@ -53,12 +57,11 @@ function Bedz({
     (z) => z.bedz === href && z.hitnost === "visoka",
   );
 
-  return (
-    <CountBadge
-      count={broj}
-      tone={hitno ? "danger" : "warning"}
-      label={`${label}: ${broj} ${broj === 1 ? "stvar čeka" : "stvari čeka"}`}
-      className={className}
-    />
+  const tone = hitno ? "danger" : "warning";
+  const opis = `${label}: ${broj} ${broj === 1 ? "stvar čeka" : "stvari čeka"}`;
+  return ugao ? (
+    <BedzNaUglu count={broj} tone={tone} label={opis} ugao={ugao} />
+  ) : (
+    <CountBadge count={broj} tone={tone} label={opis} />
   );
 }

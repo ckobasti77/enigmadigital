@@ -152,7 +152,7 @@ export function ConversationList({
           </div>
         ) : conversations.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground space-y-2">
-            <MessageCircle className="size-8 mx-auto text-muted-foreground/50" />
+            <MessageCircle className="size-8 mx-auto text-text-muted" />
             <p className="text-sm font-medium">Nema pronađenih razgovora</p>
             <p className="text-xs">
               {filter === "unread"
@@ -205,11 +205,11 @@ export function ConversationList({
                     <div className="flex items-center justify-between gap-1.5">
                       <span className={cn(
                         "text-xs truncate font-semibold",
-                        hasUnread ? "text-foreground font-bold" : "text-foreground/90",
+                        hasUnread ? "text-foreground font-bold" : "text-foreground",
                       )}>
                         {conv.name || (conv.username ? `@${conv.username}` : `Korisnik #${conv.igsid.slice(-4)}`)}
                       </span>
-                      <span className="text-[10px] text-muted-foreground shrink-0">
+                      <span className="text-meta text-muted-foreground shrink-0">
                         {formatRelativeTime(conv.lastMessageAt)}
                       </span>
                     </div>
@@ -226,7 +226,7 @@ export function ConversationList({
                     <div className="flex items-center gap-1.5 pt-0.5">
                       {/* Unread count */}
                       {hasUnread && (
-                        <span className="inline-flex items-center rounded-full bg-accent text-accent-foreground px-1.5 py-0.2 text-[10px] font-bold">
+                        <span className="inline-flex items-center rounded-full bg-accent text-accent-foreground px-1.5 py-0.2 text-meta font-bold">
                           {conv.unreadCount}
                         </span>
                       )}
@@ -235,7 +235,7 @@ export function ConversationList({
                       {conv.isWindowOpen ? (
                         <span
                           className={cn(
-                            "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                            "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-meta font-medium",
                             isExpiringSoon
                               ? "bg-warning-soft text-warning dark:text-warning border border-warning-line animate-pulse"
                               : "bg-surface-sunken text-muted-foreground border border-line",
@@ -247,7 +247,7 @@ export function ConversationList({
                         </span>
                       ) : (
                         <span
-                          className="inline-flex items-center gap-1 rounded-md bg-destructive/10 text-destructive border border-destructive/20 px-1.5 py-0.5 text-[10px] font-medium"
+                          className="inline-flex items-center gap-1 rounded-md bg-destructive/10 text-destructive border border-destructive/20 px-1.5 py-0.5 text-meta font-medium"
                           title="Prozor za odgovor od 24h je istekao."
                         >
                           <XCircle className="size-2.5" />

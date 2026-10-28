@@ -106,7 +106,7 @@ export function DmLogTable() {
         <Card className="gap-0 py-0 shadow-card ring-line">
           <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-5 pb-3">
             <p className="text-sm font-medium text-foreground">DM log</p>
-            <p className="font-mono text-xs tabular-nums text-text-muted">
+            <p className="text-xs tabular-nums text-text-muted">
               {formatNumber(logs.length)} od poslednjih {LOG_LIMIT} zapisa
             </p>
           </div>
@@ -141,7 +141,7 @@ export function DmLogTable() {
                     key={log._id}
                     className="border-line-soft hover:bg-surface-raised/40"
                   >
-                    <TableCell className="py-3 pl-5 align-top font-mono text-xs whitespace-nowrap tabular-nums text-text-muted">
+                    <TableCell className="py-3 pl-5 align-top text-xs whitespace-nowrap tabular-nums text-text-muted">
                       {timestampFmt.format(new Date(log.createdAt))}
                     </TableCell>
 
@@ -195,7 +195,7 @@ export function DmLogTable() {
                       </p>
                     </TableCell>
 
-                    <TableCell className="hidden py-3 align-top font-mono text-xs text-muted-foreground lg:table-cell">
+                    <TableCell className="hidden py-3 align-top text-xs text-muted-foreground lg:table-cell">
                       {log.matchedKeyword ?? "—"}
                     </TableCell>
 
@@ -205,12 +205,12 @@ export function DmLogTable() {
                           {STATUS_LABELS[log.status]}
                         </StatusPill>
                         {log.status === "pending" && log.attempts > 0 && (
-                          <span className="font-mono text-xs tabular-nums text-text-muted">
+                          <span className="text-xs tabular-nums text-text-muted">
                             {log.attempts}. pokušaj
                           </span>
                         )}
                         {log.errorMessage && log.status !== "pending" && (
-                          <span className="block max-w-48 text-right text-xs whitespace-normal text-danger/80">
+                          <span className="block max-w-48 text-right text-xs whitespace-normal text-danger">
                             {log.errorMessage}
                           </span>
                         )}

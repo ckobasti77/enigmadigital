@@ -131,7 +131,7 @@ export function LeadTimeline({
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="text-copy font-bold text-foreground">
           Istorija{" "}
-          <span className="font-mono text-ui font-medium tabular-nums text-text-muted">
+          <span className="text-ui font-medium tabular-nums text-text-muted">
             {timelineItems.length}
           </span>
         </h2>
@@ -325,7 +325,7 @@ function Signal({ signal }: { signal: Doc<"leadSignals"> }) {
           {imaOdnos && (
             <>
               Odnos:{" "}
-              <span className="font-mono font-medium tabular-nums text-foreground">
+              <span className="font-medium tabular-nums text-foreground">
                 {signal.numerator} od {signal.denominator}
               </span>
             </>

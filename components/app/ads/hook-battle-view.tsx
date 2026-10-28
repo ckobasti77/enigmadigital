@@ -253,7 +253,7 @@ export function HookBattleView({
                       onChange={(e) =>
                         setThresholdImp(Math.max(10, Number(e.target.value)))
                       }
-                      className="h-8 text-xs font-mono"
+                      className="h-8 text-xs tabular-nums"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
@@ -268,7 +268,7 @@ export function HookBattleView({
                       onChange={(e) =>
                         setThresholdClicks(Math.max(5, Number(e.target.value)))
                       }
-                      className="h-8 text-xs font-mono"
+                      className="h-8 text-xs tabular-nums"
                     />
                   </div>
                   <div className="flex justify-between pt-1">
@@ -331,12 +331,12 @@ export function HookBattleView({
             </div>
             {adSet.targetingSummary && (
               <p className="mt-1 text-xs text-text-muted">
-                Publika: <span className="text-foreground/80">{adSet.targetingSummary}</span>
+                Publika: <span className="text-foreground">{adSet.targetingSummary}</span>
               </p>
             )}
           </div>
 
-          <div className="flex items-center gap-3 text-xs font-mono text-text-muted">
+          <div className="flex items-center gap-3 text-xs tabular-nums text-text-muted">
             <span className="inline-flex items-center gap-1 rounded bg-surface-raised px-2.5 py-1 border border-line">
               <Layers className="size-3 text-mod" />
               <span>{versions.length} verzije kreativa</span>
@@ -514,7 +514,7 @@ export function HookBattleView({
                           />
                         ) : (
                           <div className="flex flex-col items-center gap-1 text-text-muted">
-                            <Play className="size-6 text-text-muted/60" />
+                            <Play className="size-6 text-text-muted" />
                             <span className="text-micro">Video kreativa</span>
                           </div>
                         )}
@@ -536,7 +536,7 @@ export function HookBattleView({
                         </div>
 
                         {!isLeader && (
-                          <div className="absolute top-2 right-2 rounded bg-bg-950/80 px-1.5 py-0.5 text-micro font-mono text-text-muted border border-material-edge">
+                          <div className="absolute top-2 right-2 rounded bg-bg-950/80 px-1.5 py-0.5 text-micro tabular-nums text-text-muted border border-material-edge">
                             #{rankNumber}
                           </div>
                         )}
@@ -568,7 +568,7 @@ export function HookBattleView({
                         <div className="flex items-baseline justify-between">
                           <span
                             className={cn(
-                              "font-mono text-3xl font-bold",
+                              "tabular-nums text-3xl font-bold",
                               version.hookRate !== undefined
                                 ? "text-mod"
                                 : "text-text-muted",
@@ -583,7 +583,7 @@ export function HookBattleView({
                               ? formatPercent(version.hookRate)
                               : "—"}
                           </span>
-                          <span className="font-mono text-xs text-text-muted">
+                          <span className="tabular-nums text-xs text-text-muted">
                             {version.video3s !== undefined ? formatNumber(version.video3s) : "—"} / {formatNumber(version.impressions)}
                           </span>
                         </div>
@@ -613,7 +613,7 @@ export function HookBattleView({
                         <span className="text-text-muted">Hold Rate (ThruPlay / 3s)</span>
                         <span
                           className={cn(
-                            "font-mono font-medium",
+                            "tabular-nums font-medium",
                             version.holdRate !== undefined
                               ? "text-foreground"
                               : "text-text-muted",
@@ -633,7 +633,7 @@ export function HookBattleView({
                       {/* 5. CTR */}
                       <div className="px-4 py-2.5 flex items-center justify-between">
                         <span className="text-text-muted">CTR (Klikovnost)</span>
-                        <span className="font-mono font-medium text-foreground">
+                        <span className="tabular-nums font-medium text-foreground">
                           <MeraIliCrtica
                             value={version.ctr}
                             format={formatPercent}
@@ -647,7 +647,7 @@ export function HookBattleView({
                         <span className="text-text-muted">
                           {version.hasConversionValue ? "CPA / ROAS" : "CPA (Cena / rez.)"}
                         </span>
-                        <div className="text-right font-mono">
+                        <div className="text-right tabular-nums">
                           <span
                             className={cn(
                               "font-bold",
@@ -669,7 +669,7 @@ export function HookBattleView({
                       {/* 7. Potrošnja & Rezultati */}
                       <div className="px-4 py-2.5 flex items-center justify-between">
                         <span className="text-text-muted">Potrošnja (Rezultati)</span>
-                        <div className="text-right font-mono">
+                        <div className="text-right tabular-nums">
                           <span className="font-medium text-foreground">
                             {formatMetric(version.spend, spendDef, accountCurrency)}
                           </span>
@@ -682,7 +682,7 @@ export function HookBattleView({
                       {/* 8. Impresije & Frekvencija */}
                       <div className="px-4 py-2.5 flex items-center justify-between">
                         <span className="text-text-muted">Impresije (Frekvencija)</span>
-                        <div className="text-right font-mono text-foreground">
+                        <div className="text-right tabular-nums text-foreground">
                           <span>{formatNumber(version.impressions)}</span>
                           <span className="text-text-muted ml-1 text-micro">
                             (
@@ -779,7 +779,7 @@ export function HookBattleView({
                 {noDataVersions.length > 0 && (
                   <div className="flex flex-col gap-3 pt-4 border-t border-line-soft">
                     <div className="flex items-center justify-between text-xs text-text-muted">
-                      <span className="font-semibold text-warning/90 flex items-center gap-1.5">
+                      <span className="font-semibold text-warning flex items-center gap-1.5">
                         <span>Bez podataka ({noDataVersions.length})</span>
                       </span>
                       <span className="text-micro text-text-muted">
@@ -789,7 +789,7 @@ export function HookBattleView({
 
                     <div className="overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
                       <div
-                        className="grid gap-4 min-w-[700px] sm:min-w-0 opacity-80"
+                        className="grid gap-4 min-w-[700px] sm:min-w-0"
                         style={{
                           gridTemplateColumns: `repeat(${Math.max(noDataVersions.length, 1)}, minmax(240px, 1fr))`,
                         }}
@@ -812,7 +812,7 @@ export function HookBattleView({
                                   />
                                 ) : (
                                   <div className="flex flex-col items-center gap-1 text-text-muted">
-                                    <Play className="size-6 text-text-muted/60" />
+                                    <Play className="size-6 text-text-muted" />
                                     <span className="text-micro">Video kreativa</span>
                                   </div>
                                 )}

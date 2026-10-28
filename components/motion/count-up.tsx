@@ -95,9 +95,17 @@ export function CountUp({
     return () => document.removeEventListener("visibilitychange", settle);
   }, []);
 
+  // Aeonik nema tabelarne cifre (`tnum`), pa `tabular-nums` ne drži širinu:
+  // nevidljiva konačna vrednost u istoj ćeliji rezerviše mesto, i ništa pored
+  // broja se ne pomera dok broj raste.
   return (
     <span ref={ref} className={cn("tabular-nums", className)}>
-      {format(display)}
+      <span className="inline-grid">
+        <span aria-hidden className="invisible col-start-1 row-start-1">
+          {format(value)}
+        </span>
+        <span className="col-start-1 row-start-1">{format(display)}</span>
+      </span>
     </span>
   );
 }

@@ -143,7 +143,7 @@ function DeletedNotice({ at }: { at: number }) {
       <span className="text-micro font-semibold text-danger">
         Obrisano sa Instagrama
       </span>
-      <span className="ml-auto shrink-0 font-mono text-micro tabular-nums text-text-muted">
+      <span className="ml-auto shrink-0 text-micro tabular-nums text-text-muted">
         {formatPostDate(at)}
       </span>
     </div>
@@ -259,7 +259,7 @@ export function InstagramContentGrid({ media }: { media: MediaItem[] }) {
               <CountUp
                 value={deletedCount}
                 format={formatNumber}
-                className="font-mono text-text-muted"
+                className="tabular-nums text-text-muted"
               />
             </Toggle>
           )}
@@ -297,7 +297,7 @@ export function InstagramContentGrid({ media }: { media: MediaItem[] }) {
               <h2 className="text-base font-semibold text-foreground">
                 Sve objave
               </h2>
-              <p className="font-mono text-xs tabular-nums text-text-muted">
+              <p className="text-xs tabular-nums text-text-muted">
                 Prikazano {formatNumber(sortedMedia.length)}{" "}
                 {pluralSr(sortedMedia.length, "objava", "objave", "objava")}
               </p>
@@ -439,7 +439,7 @@ function TopContentCard({
           <DeletedNotice at={item.deletedAt ?? 0} />
         ) : (
           <div className="absolute bottom-2 left-3">
-            <span className="text-micro font-mono text-text-muted bg-bg-950/70 backdrop-blur-xs px-2 py-0.5 rounded">
+            <span className="text-micro text-text-muted bg-bg-950/70 backdrop-blur-xs px-2 py-0.5 rounded">
               {formatPostDate(item.publishedAt)}
             </span>
           </div>
@@ -449,7 +449,7 @@ function TopContentCard({
       {/* Card Content */}
       <div className="flex flex-1 flex-col p-4">
         {/* Caption */}
-        <p className="line-clamp-2 text-xs leading-relaxed text-foreground/90">
+        <p className="line-clamp-2 text-xs leading-relaxed text-foreground">
           {item.caption ? (
             item.caption
           ) : (
@@ -462,7 +462,7 @@ function TopContentCard({
           <span className="text-xs font-medium text-text-muted">
             Ukupan doseg
           </span>
-          <span className="font-mono text-lg font-bold tabular-nums text-mod">
+          <span className="text-lg font-bold tabular-nums text-mod">
             {formatNumber(item.reach)}
           </span>
         </div>
@@ -473,7 +473,7 @@ function TopContentCard({
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <Heart className="size-3 text-text-muted" /> Lajkovi
             </span>
-            <p className="font-mono text-xs font-semibold tabular-nums text-foreground mt-0.5">
+            <p className="text-xs font-semibold tabular-nums text-foreground mt-0.5">
               {formatNumber(item.likes)}
             </p>
           </div>
@@ -481,7 +481,7 @@ function TopContentCard({
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <Bookmark className="size-3 text-text-muted" /> Sačuvano
             </span>
-            <p className="font-mono text-xs font-semibold tabular-nums text-foreground mt-0.5">
+            <p className="text-xs font-semibold tabular-nums text-foreground mt-0.5">
               {formatNumber(item.saves)}
             </p>
           </div>
@@ -489,7 +489,7 @@ function TopContentCard({
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <MessageCircle className="size-3 text-text-muted" /> Komentari
             </span>
-            <p className="font-mono text-xs font-semibold tabular-nums text-foreground mt-0.5">
+            <p className="text-xs font-semibold tabular-nums text-foreground mt-0.5">
               {formatNumber(item.comments)}
             </p>
           </div>
@@ -497,7 +497,7 @@ function TopContentCard({
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <Share2 className="size-3 text-text-muted" /> Deljenja
             </span>
-            <p className="font-mono text-xs font-semibold tabular-nums text-foreground mt-0.5">
+            <p className="text-xs font-semibold tabular-nums text-foreground mt-0.5">
               {formatNumber(item.shares)}
             </p>
           </div>
@@ -573,7 +573,7 @@ function PostCard({
         </div>
 
         <div className="absolute top-2.5 right-2.5">
-          <span className="rounded bg-bg-950/80 px-2 py-0.5 font-mono text-micro text-text-muted backdrop-blur-md">
+          <span className="rounded bg-bg-950/80 px-2 py-0.5 text-micro text-text-muted backdrop-blur-md">
             {formatPostDate(item.publishedAt)}
           </span>
         </div>
@@ -585,7 +585,7 @@ function PostCard({
       <div className="flex flex-1 flex-col p-4">
         <ProjekatLink
           href={`/instagram/objave/${item.mediaId}`}
-          className="line-clamp-2 min-h-8 text-xs leading-relaxed text-foreground/90 transition-colors hover:text-mod"
+          className="line-clamp-2 min-h-8 text-xs leading-relaxed text-foreground transition-colors hover:text-mod"
         >
           {item.caption ? (
             item.caption
@@ -601,7 +601,7 @@ function PostCard({
               <Eye className="size-3 text-mod" />
               <span>Doseg</span>
             </div>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {formatNumber(item.reach)}
             </p>
           </div>
@@ -611,7 +611,7 @@ function PostCard({
               <Bookmark className="size-3 text-text-muted" />
               <span>Sačuvano</span>
             </div>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {formatNumber(item.saves)}
             </p>
           </div>
@@ -621,7 +621,7 @@ function PostCard({
               <Heart className="size-3 text-text-muted" />
               <span>Lajkovi</span>
             </div>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {formatNumber(item.likes)}
             </p>
           </div>
@@ -630,11 +630,11 @@ function PostCard({
         {/* Secondary Stats & Link */}
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-line-soft pt-3 text-xs">
           <div className="flex items-center gap-3 text-text-muted">
-            <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+            <span className="inline-flex items-center gap-1 tabular-nums">
               <MessageCircle className="size-3.5" />
               {formatNumber(item.comments)}
             </span>
-            <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+            <span className="inline-flex items-center gap-1 tabular-nums">
               <Share2 className="size-3.5" />
               {formatNumber(item.shares)}
             </span>

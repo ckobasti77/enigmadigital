@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  Bell,
   CalendarCheck,
   CalendarPlus,
   Eye,
@@ -20,6 +21,7 @@ import {
 import { CelebrationBurst } from "@/components/app/system/celebration-burst";
 import { Chip } from "@/components/app/system/chip";
 import { ChipOverflow } from "@/components/app/system/chip-overflow";
+import { BedzNaUglu, CountBadge } from "@/components/app/system/count-badge";
 import { EmptyState } from "@/components/app/system/empty-state";
 import { FocusCard } from "@/components/app/system/focus-card";
 import {
@@ -287,9 +289,24 @@ function CipoviIMonogrami() {
             <Chip tone="warning">Ističe za 3 dana</Chip>
             <Chip tone="danger">Istekao prozor</Chip>
             <Chip tone="info">Sinhronizuje</Chip>
-            <Chip tone="xp" className="font-mono tabular-nums">
+            <Chip tone="xp" className="tabular-nums">
               +25 XP
             </Chip>
+          </div>
+        </Grupa>
+        <Grupa naslov="Bedž broja — 12 px, jedan za celu aplikaciju">
+          <div className="flex flex-wrap items-center gap-6">
+            <span className="relative inline-flex size-9 items-center justify-center rounded-lg border border-line-soft">
+              <Bell className="size-4.5 text-text-secondary" aria-hidden />
+              <BedzNaUglu count={3} tone="warning" label="Šta me čeka: 3 stavke" ugao="ikonica" />
+            </span>
+            <span className="relative inline-flex size-9 items-center justify-center rounded-lg border border-line-soft">
+              <Bell className="size-4.5 text-text-secondary" aria-hidden />
+              <BedzNaUglu count={120} tone="danger" label="Šta me čeka: 120 stavki" ugao="ikonica" />
+            </span>
+            <span className="inline-flex items-center gap-2 text-ui text-foreground">
+              Sastanci danas <CountBadge count={2} />
+            </span>
           </div>
         </Grupa>
       </div>
@@ -642,7 +659,7 @@ function Prsten({
       </ProgressRing>
       <div>
         <p className="text-ui font-medium text-foreground">{natpis}</p>
-        <p className="font-mono text-meta text-text-muted tabular-nums">
+        <p className="text-meta text-text-muted tabular-nums">
           {vrednost} / {cilj}
         </p>
       </div>

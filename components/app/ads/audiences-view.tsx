@@ -330,7 +330,7 @@ export function AudiencesView() {
             </div>
             <div className="flex flex-col">
               <span className="text-xs font-medium text-text-muted">Ukupno publika</span>
-              <span className="font-mono text-2xl font-bold text-foreground">
+              <span className="tabular-nums text-2xl font-bold text-foreground">
                 {audiences.length}
               </span>
             </div>
@@ -344,7 +344,7 @@ export function AudiencesView() {
             </div>
             <div className="flex flex-col">
               <span className="text-xs font-medium text-text-muted">Korisničke liste</span>
-              <span className="font-mono text-2xl font-bold text-foreground">
+              <span className="tabular-nums text-2xl font-bold text-foreground">
                 {customCount}
               </span>
             </div>
@@ -358,7 +358,7 @@ export function AudiencesView() {
             </div>
             <div className="flex flex-col">
               <span className="text-xs font-medium text-text-muted">Lookalike publike</span>
-              <span className="font-mono text-2xl font-bold text-foreground">
+              <span className="tabular-nums text-2xl font-bold text-foreground">
                 {lookalikeCount}
               </span>
             </div>
@@ -372,7 +372,7 @@ export function AudiencesView() {
             </div>
             <div className="flex flex-col">
               <span className="text-xs font-medium text-text-muted">Veb-sajt / Angažovanje</span>
-              <span className="font-mono text-2xl font-bold text-foreground">
+              <span className="tabular-nums text-2xl font-bold text-foreground">
                 {webCount}
               </span>
             </div>

@@ -98,7 +98,7 @@ const POJAS_INK = {
 function Brojac({ label, value }: { label: string; value: number }) {
   return (
     <span className="inline-flex items-baseline gap-1 text-micro text-text-muted">
-      <strong className="font-mono tabular-nums text-foreground">{value}</strong>
+      <strong className="tabular-nums text-foreground">{value}</strong>
       {label}
     </span>
   );
@@ -321,7 +321,7 @@ export function NichesPanel({
                     <span className="truncate text-sm font-semibold text-foreground">
                       {n.naziv}
                     </span>
-                    <span className="shrink-0 font-mono text-xs tabular-nums text-mod">
+                    <span className="shrink-0 text-xs tabular-nums text-mod">
                       {n.brojaci.firmi}
                     </span>
                   </div>
@@ -344,7 +344,7 @@ export function NichesPanel({
                         "ocenjen bez broja"
                       ) : (
                         <>
-                          <strong className={cn("font-mono tabular-nums", POJAS_INK[pojasKvaliteta(n.sajt.prosecanKvalitet)])}>
+                          <strong className={cn("tabular-nums", POJAS_INK[pojasKvaliteta(n.sajt.prosecanKvalitet)])}>
                             {POJAS_NATPISI[pojasKvaliteta(n.sajt.prosecanKvalitet)]} {n.sajt.prosecanKvalitet}
                           </strong>{" "}
                           prosek
@@ -839,7 +839,7 @@ function NichePanel({
                     <span className="inline-flex items-baseline gap-1.5">
                       <span
                         className={cn(
-                          "font-mono text-xl font-semibold tabular-nums",
+                          "text-xl font-semibold tabular-nums",
                           POJAS_INK[pojasKvaliteta(nisa.sajt.prosecanKvalitet)],
                         )}
                       >
@@ -859,7 +859,7 @@ function NichePanel({
                       niša ga ne traži
                     </span>
                   ) : (
-                    <span className="font-mono text-xl font-semibold tabular-nums text-foreground">
+                    <span className="text-xl font-semibold tabular-nums text-foreground">
                       {nisa.sajt.bezZakazivanja}
                     </span>
                   )}
@@ -880,7 +880,7 @@ function NichePanel({
                           style={{ width: `${najviseCms > 0 ? (c.broj / najviseCms) * 100 : 0}%` }}
                         />
                       </span>
-                      <span className="text-right font-mono tabular-nums text-text-muted">{c.broj}</span>
+                      <span className="text-right tabular-nums text-text-muted">{c.broj}</span>
                     </li>
                   ))}
                 </ul>

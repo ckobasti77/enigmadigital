@@ -108,7 +108,7 @@ export function VodicNapredak() {
               <PlayerCard initials="TO" title="Enigma IT (probni)" progress={kartica} rail />
             </div>
           </div>
-          <p className="font-mono">
+          <p>
             <XpBroj value={stanje.xp.ukupno} className="text-hero text-xp" />
             <span className="text-copy text-text-muted">
               {" "}

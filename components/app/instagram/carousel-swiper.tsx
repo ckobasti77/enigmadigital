@@ -534,7 +534,7 @@ export function CarouselSwiper({
         <div className="flex flex-1 justify-end">
           <span
             aria-live="polite"
-            className="rounded bg-bg-950/80 px-2 py-0.5 font-mono text-micro tabular-nums text-text-primary backdrop-blur-md"
+            className="rounded bg-bg-950/80 px-2 py-0.5 text-micro tabular-nums text-text-primary backdrop-blur-md"
           >
             {index + 1} / {count}
           </span>

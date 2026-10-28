@@ -204,9 +204,9 @@ export function LeadsDashboard() {
               {invalidRules.map((rule, idx) => (
                 <div
                   key={`${rule.ruleName}-${rule.signalKind}-${idx}`}
-                  className="rounded border border-warning/30 bg-warning/5 p-2 font-mono text-micro text-foreground"
+                  className="rounded border border-warning/30 bg-warning/5 p-2 text-micro text-foreground"
                 >
-                  <strong>{rule.ruleName}</strong> (signal: {rule.signalKind}) —{" "}
+                  <strong>{rule.ruleName}</strong> (signal: <span className="font-mono">{rule.signalKind}</span>) —{" "}
                   {rule.razlog === "nepoznat_signal"
                     ? "vrsta signala ne postoji u sistemu"
                     : "težina pravila je manja ili jednaka nuli"}

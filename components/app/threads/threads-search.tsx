@@ -165,7 +165,7 @@ function ThreadsSearchForm() {
               <Search className="size-4 text-mod" aria-hidden="true" />
               <div>
                 <span className="text-text-muted">Keyword 24h (naši pozivi): </span>
-                <span className="font-mono font-medium text-foreground">
+                <span className="font-medium tabular-nums text-foreground">
                   {quotaInfo
                     ? `${formatNumber(quotaInfo.keywordSearch.used)} / ${formatNumber(quotaInfo.keywordSearch.total)}`
                     : "Učitavanje..."}
@@ -177,7 +177,7 @@ function ThreadsSearchForm() {
               <Users className="size-4 text-mod" aria-hidden="true" />
               <div>
                 <span className="text-text-muted">Profile 24h kvota: </span>
-                <span className="font-mono font-medium text-foreground">
+                <span className="font-medium tabular-nums text-foreground">
                   {quotaInfo
                     ? `${formatNumber(quotaInfo.profileLookup.used)} / ${formatNumber(quotaInfo.profileLookup.total)}`
                     : "Učitavanje..."}
@@ -363,7 +363,7 @@ function ThreadsSearchForm() {
                     <span>
                       Pronađeno <strong>{keywordResult.items.length}</strong> objava
                     </span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-mod-soft px-2 py-0.5 font-mono text-micro text-mod">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-mod-soft px-2 py-0.5 text-micro text-mod">
                       {keywordResult.scope === "full"
                         ? "Doseg: ceo Threads"
                         : "Doseg: samo tvoje objave"}
@@ -449,7 +449,7 @@ function ThreadsSearchForm() {
                     </h3>
                     <p className="mt-1 max-w-md text-xs text-text-muted">
                       Nijedna objava ne odgovara unetom upitu{" "}
-                      <span className="font-mono text-foreground">
+                      <span className="text-foreground">
                         „{keywordQuery}“
                       </span>
                       .
@@ -593,7 +593,7 @@ function ThreadsSearchForm() {
                           <Users className="size-3.5 text-mod" />
                           Pratioci
                         </span>
-                        <span className="font-mono text-lg font-bold text-foreground">
+                        <span className="text-lg font-bold tabular-nums text-foreground">
                           {formatNumber(profileResult.profile.followerCount ?? 0)}
                         </span>
                       </div>
@@ -603,7 +603,7 @@ function ThreadsSearchForm() {
                           <Eye className="size-3.5 text-mod" />
                           Prikazi (views)
                         </span>
-                        <span className="font-mono text-lg font-bold text-foreground">
+                        <span className="text-lg font-bold tabular-nums text-foreground">
                           {formatNumber(profileResult.profile.viewsCount ?? 0)}
                         </span>
                       </div>
@@ -613,7 +613,7 @@ function ThreadsSearchForm() {
                           <Heart className="size-3.5 text-mod" />
                           Lajkovi
                         </span>
-                        <span className="font-mono text-lg font-bold text-foreground">
+                        <span className="text-lg font-bold tabular-nums text-foreground">
                           {formatNumber(profileResult.profile.likesCount ?? 0)}
                         </span>
                       </div>
@@ -623,7 +623,7 @@ function ThreadsSearchForm() {
                           <Quote className="size-3.5 text-mod" />
                           Citati
                         </span>
-                        <span className="font-mono text-lg font-bold text-foreground">
+                        <span className="text-lg font-bold tabular-nums text-foreground">
                           {formatNumber(profileResult.profile.quotesCount ?? 0)}
                         </span>
                       </div>
@@ -633,7 +633,7 @@ function ThreadsSearchForm() {
                           <Repeat2 className="size-3.5 text-mod" />
                           Repostovi
                         </span>
-                        <span className="font-mono text-lg font-bold text-foreground">
+                        <span className="text-lg font-bold tabular-nums text-foreground">
                           {formatNumber(profileResult.profile.repostsCount ?? 0)}
                         </span>
                       </div>

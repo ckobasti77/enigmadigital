@@ -105,7 +105,7 @@ function MetaAdsQuota() {
         <span className="heading-caps text-micro font-medium text-text-muted">
           Kvota Meta oglasa
         </span>
-        <span className="font-mono text-sm tabular-nums text-foreground">
+        <span className="text-sm tabular-nums text-foreground">
           {pct} %
         </span>
       </div>
@@ -187,7 +187,7 @@ function GoogleAdsKvota() {
         <span className="heading-caps text-micro font-medium text-text-muted">
           Kvota Google oglasa
         </span>
-        <span className="font-mono text-sm tabular-nums text-foreground">
+        <span className="text-sm tabular-nums text-foreground">
           {formatNumber(kvota.projekat)} od {formatNumber(deljeno ? kvota.deoProjekta : kvota.zajednickiLimit)}
         </span>
       </div>
@@ -211,7 +211,7 @@ function GoogleAdsKvota() {
         {deljeno ? (
           <>
             {" (deo ovog projekta) · svi projekti: "}
-            <span className="font-mono tabular-nums">
+            <span className="tabular-nums">
               {formatNumber(kvota.ukupno)} od {formatNumber(kvota.zajednickiLimit)}
             </span>
           </>
@@ -268,7 +268,7 @@ export function SyncHealth({ entries }: { entries: HealthEntry[] | undefined }) 
                   </div>
                   <div className="flex items-center gap-3 text-xs text-text-muted">
                     {entry.status === "ok" && (
-                      <span className="font-mono tabular-nums">
+                      <span className="tabular-nums">
                         {entry.itemsWritten} zapisa
                       </span>
                     )}
@@ -276,12 +276,12 @@ export function SyncHealth({ entries }: { entries: HealthEntry[] | undefined }) 
                   </div>
                 </div>
                 {entry.note && (
-                  <p className="font-mono text-xs leading-relaxed text-text-muted">
+                  <p className="text-xs leading-relaxed text-text-muted">
                     {entry.note}
                   </p>
                 )}
                 {entry.error && (
-                  <p className="font-mono text-xs leading-relaxed text-danger">
+                  <p className="text-xs leading-relaxed text-danger">
                     {entry.error}
                   </p>
                 )}

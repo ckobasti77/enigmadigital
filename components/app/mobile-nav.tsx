@@ -11,7 +11,7 @@ import {
   navItems,
   resolveModule,
 } from "./nav-items";
-import { MOBILE_TAB, MOBILE_TAB_BADGE, MOBILE_TAB_ICON } from "./mobile-tab";
+import { MOBILE_TAB, MOBILE_TAB_ICON } from "./mobile-tab";
 import { ModuleTile } from "./module-tile";
 import { NavBadge } from "./nav-badge";
 import { NotificationsBell } from "./notifications-bell";
@@ -84,7 +84,7 @@ export function MobileNav() {
                 <NavBadge
                   href={item.href}
                   label={item.label}
-                  className={MOBILE_TAB_BADGE}
+                  ugao="tab"
                 />
               </span>
               <span className="max-w-full truncate px-1">
@@ -209,7 +209,7 @@ function MoreSheet({
                       <NavBadge
                         href={item.href}
                         label={item.label}
-                        className="absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-[10px]"
+                        ugao="ikonica"
                       />
                     </span>
                     <span className="max-w-full truncate">{item.label}</span>

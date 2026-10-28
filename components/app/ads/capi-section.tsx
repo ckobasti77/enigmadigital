@@ -92,7 +92,7 @@ export function CapiSection() {
             </CardTitle>
             {stats !== undefined && (
               <span
-                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-meta font-medium ${
                   isConfigured
                     ? "bg-success-soft text-success border border-success-line"
                     : "bg-warning/10 text-warning border border-warning/20"
@@ -180,7 +180,7 @@ export function CapiSection() {
               <Send className="size-4 text-success" />
             </div>
             <div className="mt-2 flex items-baseline gap-1">
-              <span className="font-mono text-2xl font-bold text-foreground">
+              <span className="tabular-nums text-2xl font-bold text-foreground">
                 {sentCount !== undefined ? formatNumber(sentCount) : "—"}
               </span>
             </div>
@@ -193,7 +193,7 @@ export function CapiSection() {
               <Clock className="size-4 text-mod" />
             </div>
             <div className="mt-2 flex items-baseline gap-1">
-              <span className="font-mono text-2xl font-bold text-foreground">
+              <span className="tabular-nums text-2xl font-bold text-foreground">
                 {pendingCount !== undefined ? formatNumber(pendingCount) : "—"}
               </span>
             </div>
@@ -206,7 +206,7 @@ export function CapiSection() {
               <RotateCcw className="size-4 text-warning" />
             </div>
             <div className="mt-2 flex items-baseline gap-1">
-              <span className="font-mono text-2xl font-bold text-foreground">
+              <span className="tabular-nums text-2xl font-bold text-foreground">
                 {retryingCount !== undefined ? formatNumber(retryingCount) : "—"}
               </span>
             </div>
@@ -219,7 +219,7 @@ export function CapiSection() {
               <ShieldAlert className="size-4 text-danger" />
             </div>
             <div className="mt-2 flex items-baseline gap-1">
-              <span className="font-mono text-2xl font-bold text-foreground">
+              <span className="tabular-nums text-2xl font-bold text-foreground">
                 {rejectedCount !== undefined ? formatNumber(rejectedCount) : "—"}
               </span>
             </div>
@@ -249,7 +249,7 @@ export function CapiSection() {
                 <tbody className="divide-y divide-line">
                   {recentRejected.map((item) => (
                     <tr key={item._id} className="hover:bg-surface-raised/50">
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-text-muted">
+                      <td className="whitespace-nowrap px-3 py-2 text-text-muted">
                         {new Date(item.eventTime * 1000).toLocaleString("sr-Latn-RS", {
                           day: "2-digit",
                           month: "2-digit",
@@ -279,7 +279,7 @@ export function CapiSection() {
             </div>
           ) : (
             <div className="flex items-center gap-2 rounded-md border border-dashed border-line p-3 text-xs text-text-muted">
-              <Info className="size-4 text-text-muted/60" />
+              <Info className="size-4 text-text-muted" />
               <span>
                 Nema odbijenih događaja. Svi zabeleženi događaji su uspešno procesirani.
               </span>

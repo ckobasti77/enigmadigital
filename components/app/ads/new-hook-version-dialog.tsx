@@ -232,7 +232,7 @@ function NewHookVersionDialogForm({
               <strong className="text-foreground">{effectiveAdName}</strong> u
               istom Ad Setu ({liveDetails?.adSetName || "Ad Set"}) sa novim
               tekstom, u bezbednom stanju{" "}
-              <span className="font-mono text-warning font-semibold">
+              <span className="text-warning font-semibold">
                 PAUSED (čeka aktivaciju)
               </span>
               .
@@ -246,7 +246,7 @@ function NewHookVersionDialogForm({
               <span className="text-text-muted">Kapacitet Ad Seta:</span>
               <span
                 className={cn(
-                  "font-mono font-semibold",
+                  "tabular-nums font-semibold",
                   isLimitReached
                     ? "text-danger"
                     : existingCount >= maxCopies - 1
@@ -284,23 +284,23 @@ function NewHookVersionDialogForm({
                 </p>
                 <ul className="list-disc list-inside space-y-1 text-micro text-text-muted pl-1">
                   <li>
-                    <strong className="text-foreground/90">
+                    <strong className="text-foreground">
                       Primarni tekst
                     </strong>{" "}
                     — promena hook uvoda ili kuke
                   </li>
                   <li>
-                    <strong className="text-foreground/90">Naslov</strong> —
+                    <strong className="text-foreground">Naslov</strong> —
                     istaknuti tekst pored CTA dugmeta
                   </li>
                   <li>
-                    <strong className="text-foreground/90">
+                    <strong className="text-foreground">
                       Oznaka hook-a
                     </strong>{" "}
                     — za poređenje u Hook Battle
                   </li>
                   <li>
-                    <strong className="text-foreground/90">
+                    <strong className="text-foreground">
                       PAUSED status
                     </strong>{" "}
                     — oglas je bezbedno pauziran
@@ -358,7 +358,7 @@ function NewHookVersionDialogForm({
                 }}
                 placeholder="Naziv novog oglasa"
                 disabled={loading || isLimitReached}
-                className="h-9 text-xs font-mono"
+                className="h-9 text-xs"
               />
               <p className="text-micro text-text-muted">
                 Prepoznatljivo ime u Meta Ads Manageru.
@@ -373,7 +373,7 @@ function NewHookVersionDialogForm({
                 Primarni tekst (Hook / Body Copy){" "}
                 <span className="text-danger">*</span>
               </Label>
-              <span className="text-micro font-mono text-text-muted">
+              <span className="text-micro tabular-nums text-text-muted">
                 {primaryText.length} karaktera
               </span>
             </div>

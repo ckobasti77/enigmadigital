@@ -238,7 +238,7 @@ export function AudiencesTable({ audiences }: AudiencesTableProps) {
                             {aud.description}
                           </span>
                         )}
-                        <span className="font-mono text-[10px] text-text-muted/80">
+                        <span className="font-mono text-meta text-text-muted">
                           ID: {aud.audienceId}
                         </span>
                       </div>
@@ -284,9 +284,9 @@ export function AudiencesTable({ audiences }: AudiencesTableProps) {
                       ) : (
                         <Tooltip>
                           <TooltipTrigger>
-                            <span className="inline-flex items-center gap-1 font-mono text-sm text-text-muted cursor-help">
+                            <span className="inline-flex items-center gap-1 text-sm text-text-muted cursor-help">
                               —
-                              <HelpCircle className="size-3 text-text-muted/60" />
+                              <HelpCircle className="size-3 text-text-muted" />
                             </span>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -333,8 +333,8 @@ export function AudiencesTable({ audiences }: AudiencesTableProps) {
                     {/* Poslednja izmena */}
                     <TableCell className="py-3.5 text-xs text-text-muted">
                       {aud.timeContentUpdated ? (
-                        <div className="flex items-center gap-1 font-mono text-xs">
-                          <Calendar className="size-3 text-text-muted/70" />
+                        <div className="flex items-center gap-1 text-xs">
+                          <Calendar className="size-3 text-text-muted" />
                           {formatDateTime(aud.timeContentUpdated)}
                         </div>
                       ) : (
@@ -346,7 +346,7 @@ export function AudiencesTable({ audiences }: AudiencesTableProps) {
                     <TableCell className="py-3.5 text-xs text-text-muted">
                       {aud.retentionDays ? (
                         <div className="flex items-center gap-1">
-                          <Clock className="size-3 text-text-muted/70" />
+                          <Clock className="size-3 text-text-muted" />
                           <span>{aud.retentionDays} dana</span>
                         </div>
                       ) : (

@@ -168,7 +168,7 @@ function EngineStatusStrip({
 
   return (
     <FeedbackNote tone="success" title="Motor je uključen i sluša komentare">
-      <span className="font-mono tabular-nums">{activeCount}</span>{" "}
+      <span className="tabular-nums">{activeCount}</span>{" "}
       {activeCount === 1 ? "aktivna automatizacija" : "aktivnih automatizacija"}.
     </FeedbackNote>
   );

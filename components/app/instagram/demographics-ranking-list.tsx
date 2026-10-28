@@ -108,7 +108,7 @@ export function DemographicsRankingList({
           </p>
           <h2 className="mt-1 text-lg font-semibold text-foreground">{title}</h2>
         </div>
-        <span className="font-mono text-xs font-medium text-text-muted">
+        <span className="tabular-nums text-xs font-medium text-text-muted">
           Ukupno: {formatNumber(total)}
         </span>
       </div>
@@ -130,7 +130,7 @@ export function DemographicsRankingList({
             >
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-5 shrink-0 font-mono text-text-muted">
+                  <span className="w-5 shrink-0 tabular-nums text-text-muted">
                     {item.name === "Ostalo" ? "—" : `${item.rank}.`}
                   </span>
                   <span
@@ -142,7 +142,7 @@ export function DemographicsRankingList({
                     {item.name}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 shrink-0 font-mono">
+                <div className="flex items-center gap-2 shrink-0 tabular-nums">
                   <span className="text-foreground font-semibold">
                     {formatNumber(item.value)}
                   </span>

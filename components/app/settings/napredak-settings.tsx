@@ -213,7 +213,7 @@ function Forma({ podesavanja }: { podesavanja: Podesavanja }) {
                         [cilj.kljuc]: event.target.value,
                       }));
                     }}
-                    className="font-mono tabular-nums"
+                    className="tabular-nums"
                   />
                 )}
               </Field>

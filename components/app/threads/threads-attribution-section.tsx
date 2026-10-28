@@ -99,7 +99,7 @@ export function ThreadsAttributionSection({
             <span className="text-micro font-medium uppercase tracking-wider text-text-muted">
               Threads klikovi (u aplikaciji)
             </span>
-            <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-foreground">
+            <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">
               {totalThreadsClicks !== null ? formatNumber(totalThreadsClicks) : "—"}
             </p>
             <p className="mt-1 text-micro text-text-muted">
@@ -111,7 +111,7 @@ export function ThreadsAttributionSection({
             <span className="text-micro font-medium uppercase tracking-wider text-text-muted">
               Dolasci na sajt (verifikovano)
             </span>
-            <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-foreground">
+            <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">
               {totalSiteClicks !== null ? formatNumber(totalSiteClicks) : "—"}
             </p>
             <p className="mt-1 text-micro text-text-muted">
@@ -138,7 +138,7 @@ export function ThreadsAttributionSection({
             <span className="text-micro font-medium uppercase tracking-wider text-text-muted">
               Nespojeni URL-ovi (rupa)
             </span>
-            <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-warning">
+            <p className="mt-2 text-2xl font-bold tabular-nums text-warning">
               {unmatchedSummary
                 ? formatNumber(unmatchedSummary.unmatchedCount)
                 : "—"}
@@ -264,7 +264,7 @@ export function ThreadsAttributionSection({
                     <td className="py-2 font-mono text-foreground max-w-md truncate">
                       {u.rawUrl}
                     </td>
-                    <td className="py-2 font-mono text-text-muted">{u.date}</td>
+                    <td className="py-2 text-text-muted">{u.date}</td>
                     <td className="py-2 text-right font-mono font-semibold tabular-nums text-foreground">
                       {u.threadsClicks !== undefined ? formatNumber(u.threadsClicks) : "—"}
                     </td>

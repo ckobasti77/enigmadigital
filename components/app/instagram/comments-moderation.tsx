@@ -318,7 +318,7 @@ function FilterBar({
                     ? `${formatNumber(value)}+`
                     : formatNumber(value)
                 }
-                className="font-mono text-micro text-text-muted"
+                className="tabular-nums text-micro text-text-muted"
               />
             )}
           </ToggleGroupItem>

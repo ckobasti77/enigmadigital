@@ -62,7 +62,7 @@ function formatPostDate(timestamp: string | null): string {
  */
 function TypeBadge({ type }: { type: string }) {
   return (
-    <span className="inline-flex items-center rounded-md bg-bg-950/85 px-2 py-0.5 font-mono text-micro font-semibold text-text-primary backdrop-blur-md">
+    <span className="inline-flex items-center rounded-md bg-bg-950/85 px-2 py-0.5 text-micro font-semibold text-text-primary backdrop-blur-md">
       {type}
     </span>
   );
@@ -176,7 +176,7 @@ export function ThreadsContentGrid({ media }: { media: ThreadsMediaItem[] }) {
               <h2 className="text-base font-semibold text-foreground">
                 Sve objave
               </h2>
-              <p className="font-mono text-xs tabular-nums text-text-muted">
+              <p className="text-xs tabular-nums text-text-muted">
                 Prikazano {formatNumber(sortedMedia.length)}{" "}
                 {pluralSr(sortedMedia.length, "objava", "objave", "objava")}
               </p>
@@ -298,7 +298,7 @@ function TopThreadsPostCard({
           >
             #{rank} Top prikazi
           </span>
-          <span className="font-mono text-micro text-text-muted">
+          <span className="text-micro text-text-muted">
             {formatPostDate(item.timestamp)}
           </span>
         </div>
@@ -312,7 +312,7 @@ function TopThreadsPostCard({
         </div>
 
         {/* Post Text */}
-        <p className="mt-4 line-clamp-3 text-xs leading-relaxed text-foreground/90 min-h-12">
+        <p className="mt-4 line-clamp-3 text-xs leading-relaxed text-foreground min-h-12">
           {item.text ? (
             item.text
           ) : (
@@ -326,11 +326,11 @@ function TopThreadsPostCard({
             Ukupno prikaza (views)
           </span>
           {views !== null && views !== undefined ? (
-            <span className="font-mono text-lg font-bold tabular-nums text-mod">
+            <span className="text-lg font-bold tabular-nums text-mod">
               {formatNumber(views)}
             </span>
           ) : (
-            <span className="font-mono text-base font-medium text-text-muted">
+            <span className="text-base font-medium text-text-muted">
               —
             </span>
           )}
@@ -342,7 +342,7 @@ function TopThreadsPostCard({
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <Heart className="size-3 text-text-muted" /> Lajk
             </span>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {likes !== null && likes !== undefined ? formatNumber(likes) : "—"}
             </p>
           </div>
@@ -350,7 +350,7 @@ function TopThreadsPostCard({
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <MessageCircle className="size-3 text-mod" /> Odg
             </span>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {replies !== null && replies !== undefined ? formatNumber(replies) : "—"}
             </p>
           </div>
@@ -358,7 +358,7 @@ function TopThreadsPostCard({
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <Repeat2 className="size-3 text-text-muted" /> Repost
             </span>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {reposts !== null && reposts !== undefined ? formatNumber(reposts) : "—"}
             </p>
           </div>
@@ -366,7 +366,7 @@ function TopThreadsPostCard({
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <Quote className="size-3 text-text-muted" /> Citat
             </span>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {quotes !== null && quotes !== undefined ? formatNumber(quotes) : "—"}
             </p>
           </div>
@@ -374,7 +374,7 @@ function TopThreadsPostCard({
             <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
               <Share2 className="size-3 text-text-secondary" /> Delj
             </span>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {shares !== null && shares !== undefined ? formatNumber(shares) : "—"}
             </p>
           </div>
@@ -430,13 +430,13 @@ function ThreadsPostCard({
               median={scale.median}
             />
           </span>
-          <span className="font-mono text-micro text-text-muted">
+          <span className="text-micro text-text-muted">
             {formatPostDate(item.timestamp)}
           </span>
         </div>
 
         {/* Text */}
-        <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-foreground/90 min-h-12">
+        <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-foreground min-h-12">
           {item.text ? (
             item.text
           ) : (
@@ -451,7 +451,7 @@ function ThreadsPostCard({
               <Eye className="size-3 text-mod" />
               <span>Prikazi</span>
             </div>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {views !== null && views !== undefined ? formatNumber(views) : "—"}
             </p>
           </div>
@@ -461,7 +461,7 @@ function ThreadsPostCard({
               <Heart className="size-3 text-text-muted" />
               <span>Lajkovi</span>
             </div>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {likes !== null && likes !== undefined ? formatNumber(likes) : "—"}
             </p>
           </div>
@@ -471,7 +471,7 @@ function ThreadsPostCard({
               <MessageCircle className="size-3 text-text-muted" />
               <span>Odgovori</span>
             </div>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {replies !== null && replies !== undefined ? formatNumber(replies) : "—"}
             </p>
           </div>
@@ -482,21 +482,21 @@ function ThreadsPostCard({
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-line-soft pt-3 text-xs">
         <div className="flex items-center gap-3 text-text-muted">
           <span
-            className="inline-flex items-center gap-1 font-mono tabular-nums"
+            className="inline-flex items-center gap-1 tabular-nums"
             title="Repostovi"
           >
             <Repeat2 className="size-3 text-text-muted" />
             {reposts !== null && reposts !== undefined ? formatNumber(reposts) : "—"}
           </span>
           <span
-            className="inline-flex items-center gap-1 font-mono tabular-nums"
+            className="inline-flex items-center gap-1 tabular-nums"
             title="Citati"
           >
             <Quote className="size-3 text-text-muted" />
             {quotes !== null && quotes !== undefined ? formatNumber(quotes) : "—"}
           </span>
           <span
-            className="inline-flex items-center gap-1 font-mono tabular-nums"
+            className="inline-flex items-center gap-1 tabular-nums"
             title="Deljenja"
           >
             <Share2 className="size-3 text-text-secondary" />

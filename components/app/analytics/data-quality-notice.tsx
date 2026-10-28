@@ -78,7 +78,7 @@ export function DataQualityNotice({ meta }: { meta?: ReportMeta }) {
           </span>
         </div>
         {meta.timeZone && (
-          <div className="flex items-center gap-1.5 font-mono">
+          <div className="flex items-center gap-1.5">
             <Globe className="size-3 text-text-muted" aria-hidden />
             <span>Vremenska zona propertija: {meta.timeZone}</span>
           </div>

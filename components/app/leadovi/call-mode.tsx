@@ -419,7 +419,7 @@ function CallModeTelo({
               size="sm"
               className="flex-1"
             />
-            <span className="shrink-0 font-mono text-ui font-bold tabular-nums text-foreground">
+            <span className="shrink-0 text-ui font-bold tabular-nums text-foreground">
               {Math.min(index, ukupno)} / {ukupno}
             </span>
           </div>
@@ -671,7 +671,7 @@ function Firma({
       <div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex min-w-0 flex-col gap-1">
           <p className="text-meta font-medium text-text-muted">Telefon</p>
-          <p className="font-mono text-metric font-bold tabular-nums text-foreground">
+          <p className="text-metric font-bold tabular-nums text-foreground">
             {telefon ?? "—"}
           </p>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui text-text-muted">
@@ -783,23 +783,23 @@ function Sesija({
         </h3>
         <div className="flex flex-wrap items-center gap-2">
           <Chip tone="neutral" icon={PhoneCall}>
-            <span className="font-mono tabular-nums">{saIshodom}</span>{" "}
+            <span className="tabular-nums">{saIshodom}</span>{" "}
             {pluralSr(saIshodom, "poziv", "poziva", "poziva")}
           </Chip>
           {sastanaka > 0 && (
             <Chip tone="success" icon={CalendarPlus}>
-              <span className="font-mono tabular-nums">{sastanaka}</span>{" "}
+              <span className="tabular-nums">{sastanaka}</span>{" "}
               {pluralSr(sastanaka, "sastanak", "sastanka", "sastanaka")}
             </Chip>
           )}
           {kombo >= 2 && (
             <Chip tone="neutral" icon={Zap} className="[&_svg]:text-streak">
-              <span className="font-mono font-bold tabular-nums text-streak">{kombo}</span>{" "}
+              <span className="font-bold tabular-nums text-streak">{kombo}</span>{" "}
               zaredom
             </Chip>
           )}
           {xpSesije !== null && xpSesije > 0 && (
-            <Chip tone="xp" className="font-mono tabular-nums">
+            <Chip tone="xp" className="tabular-nums">
               +{formatNumber(xpSesije)} XP
             </Chip>
           )}
@@ -966,12 +966,12 @@ function Kraj({
       }
     >
       <p className="text-copy text-foreground">
-        <span className="font-mono font-bold tabular-nums">{saIshodom}</span>{" "}
+        <span className="font-bold tabular-nums">{saIshodom}</span>{" "}
         {pluralSr(saIshodom, "poziv", "poziva", "poziva")} sa zabeleženim ishodom
         {sastanaka > 0 && (
           <>
             {", od toga "}
-            <span className="font-mono font-bold tabular-nums">{sastanaka}</span>{" "}
+            <span className="font-bold tabular-nums">{sastanaka}</span>{" "}
             {pluralSr(sastanaka, "sastanak", "sastanka", "sastanaka")}
           </>
         )}
@@ -985,7 +985,7 @@ function Kraj({
       </p>
       <div className="flex flex-wrap items-center gap-2">
         {xpSesije !== null && xpSesije > 0 && (
-          <Chip tone="xp" className="font-mono tabular-nums">
+          <Chip tone="xp" className="tabular-nums">
             +{formatNumber(xpSesije)} XP u ovoj sesiji
           </Chip>
         )}

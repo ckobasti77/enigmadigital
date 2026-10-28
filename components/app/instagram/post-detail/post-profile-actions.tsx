@@ -145,7 +145,7 @@ export function PostProfileActions({
             </h3>
           </div>
           {hasActivityData && (
-            <span className="font-mono text-xs text-text-muted">
+            <span className="tabular-nums text-xs text-text-muted">
               Ukupno: {formatNumber(items.reduce((s, i) => s + i.value, 0))} radnji
             </span>
           )}
@@ -206,11 +206,11 @@ export function PostProfileActions({
                       </span>
                     </div>
 
-                    <div className="flex shrink-0 items-baseline gap-1.5 font-mono">
+                    <div className="flex shrink-0 items-baseline gap-1.5 tabular-nums">
                       <span className="text-xs font-bold text-foreground">
                         {formatNumber(item.value)}
                       </span>
-                      <span className="text-[11px] text-text-muted">
+                      <span className="text-meta text-text-muted">
                         ({formatPercent(pct)})
                       </span>
                     </div>

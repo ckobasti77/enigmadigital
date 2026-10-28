@@ -125,7 +125,7 @@ function Meta({
   likeCount?: number;
 }) {
   return (
-    <span className="flex shrink-0 items-center gap-2.5 font-mono text-micro tabular-nums text-text-muted">
+    <span className="flex shrink-0 items-center gap-2.5 text-micro tabular-nums text-text-muted">
       {likeCount !== undefined && likeCount > 0 && (
         // Read-only. Instagram has no endpoint for liking a comment at any
         // permission level, so this is a number and never a button.
@@ -144,7 +144,7 @@ function DeletedTag({ at }: { at: number }) {
     <span className="inline-flex items-center gap-1 rounded bg-danger/10 px-1.5 py-0.5 text-micro font-semibold text-danger">
       <Trash2 className="size-3" aria-hidden />
       Obrisano
-      <span className="font-mono font-normal opacity-80">
+      <span className="font-normal">
         {formatRelativeTime(at)}
       </span>
     </span>
@@ -220,7 +220,7 @@ function ReplyComposer({
       />
       <ObjavljujesKao kanal="instagram" radnja="Odgovaraš" />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-mono text-micro tabular-nums text-text-muted">
+        <span className="text-micro tabular-nums text-text-muted">
           {text.trim().length} / {REPLY_MAX}
         </span>
         <div className="ml-auto flex items-center gap-1.5">
@@ -423,7 +423,7 @@ function ReplyRow({
     <div
       className={cn(
         "flex gap-2.5 border-l border-line-soft pl-3 transition-opacity duration-(--duration-base)",
-        deleted && "opacity-55",
+        deleted && "text-text-muted",
       )}
     >
       <CornerDownRight
@@ -503,7 +503,7 @@ export function CommentThread({
       className={cn(
         "border-l-2 py-3 pl-3.5 transition-opacity duration-(--duration-base)",
         railClass(thread),
-        deleted && "opacity-55",
+        deleted && "text-text-muted",
       )}
     >
       <div className="flex gap-3">

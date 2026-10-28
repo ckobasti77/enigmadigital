@@ -164,7 +164,7 @@ function Portfolio({
     <>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <p className="text-ui text-text-secondary">
-          <span className="font-mono tabular-nums text-foreground">{formatNumber(ukupnoAktivnih)}</span>{" "}
+          <span className="tabular-nums text-foreground">{formatNumber(ukupnoAktivnih)}</span>{" "}
           {pluralSr(ukupnoAktivnih, "projekat", "projekta", "projekata")}
           {/* Period piše birač pored; ovde bi bio ponovljen. */}
         </p>

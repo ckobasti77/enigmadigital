@@ -104,7 +104,6 @@ export function PoslovanjeKartica() {
             <dl
               className={cn(
                 "grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4",
-                (puls.greska !== null || puls.zastao) && "opacity-60",
               )}
             >
               {puls.poslednji.metrike.slice(0, MAX_METRIKA).map((m) => (
@@ -113,10 +112,10 @@ export function PoslovanjeKartica() {
                     {m.naziv}
                   </dt>
                   <dd className="mt-1 flex flex-wrap items-baseline gap-x-2">
-                    <span className="font-mono text-copy font-bold tabular-nums text-foreground">
+                    <span className="text-copy font-bold tabular-nums text-foreground">
                       {formatNumber(m.vrednost)}
                     </span>
-                    <span className="font-mono text-meta tabular-nums text-text-muted">
+                    <span className="text-meta tabular-nums text-text-muted">
                       {m.promena24h === null ? "— za 24 h" : `${formatSignedNumber(m.promena24h)} za 24 h`}
                     </span>
                   </dd>

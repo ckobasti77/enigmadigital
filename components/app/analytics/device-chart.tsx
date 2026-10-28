@@ -85,14 +85,14 @@ export function DeviceChart({ data }: { data: DeviceData }) {
                 minTickGap={44}
                 tickLine={false}
                 axisLine={false}
-                tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+                tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
                 tickMargin={8}
               />
               <YAxis
                 width={44}
                 tickLine={false}
                 axisLine={false}
-                tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+                tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
                 tickFormatter={formatCompact}
               />
               <Tooltip
@@ -117,7 +117,7 @@ export function DeviceChart({ data }: { data: DeviceData }) {
                               />
                               {s.label}
                             </dt>
-                            <dd className="font-mono font-medium tabular-nums text-foreground">
+                            <dd className="font-medium tabular-nums text-foreground">
                               {formatNumber(
                                 Number((d as Record<string, unknown>)[s.key] ?? 0),
                               )}
@@ -193,12 +193,12 @@ function DeviceStat({
       <div className="flex min-w-0 flex-col">
         <span className="text-xs text-text-muted">{label}</span>
         <div className="flex items-baseline gap-1.5">
-          <span className="font-mono text-base font-semibold text-foreground">
+          <span className="text-base tabular-nums font-semibold text-foreground">
             {fmtSessions(sessions)}
           </span>
           <span className="text-xs text-text-muted">({formatPercent(share)})</span>
         </div>
-        <span className="text-[11px] text-text-muted">stopa {fmtRate(rate)}</span>
+        <span className="text-meta text-text-muted">stopa {fmtRate(rate)}</span>
       </div>
     </div>
   );

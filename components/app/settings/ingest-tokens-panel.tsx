@@ -263,7 +263,7 @@ export function IngestTokensPanel() {
               <TableBody>
                 {tokens.map((t) => (
                   <TableRow key={t._id}>
-                    <TableCell className="font-mono text-xs">{t.naziv}</TableCell>
+                    <TableCell className="text-xs">{t.naziv}</TableCell>
                     <TableCell className="text-xs text-text-muted">
                       {NAZIV_NAMENE[t.namena]}
                     </TableCell>
@@ -384,7 +384,7 @@ export function IngestTokensPanel() {
                   </span>{" "}
                   na mašini sa koje pokrećeš skill. PowerShell:
                 </p>
-                <code className="mt-2 block rounded bg-surface-raised px-2.5 py-2 font-mono text-[11px] text-text-secondary">
+                <code className="mt-2 block rounded bg-surface-raised px-2.5 py-2 font-mono text-meta text-text-secondary">
                   [Environment]::SetEnvironmentVariable(&quot;ENIGMA_INGEST_TOKEN&quot;,
                   &quot;&lt;token&gt;&quot;, &quot;User&quot;)
                 </code>

@@ -57,7 +57,7 @@ function StoryCountdown({ expiresAt }: { expiresAt: number }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 font-mono text-xs",
+        "inline-flex items-center gap-1 tabular-nums text-xs",
         isUrgent ? "font-semibold text-warning-400" : "text-text-muted",
       )}
       title="Odbrojavanje do isteka priče na Instagramu"
@@ -210,10 +210,10 @@ export function InstagramStories() {
 
                     {/* Top overlay: Countdown & badge */}
                     <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 bg-gradient-to-b from-black/80 via-black/40 to-transparent p-3">
-                      <span className="rounded-xs bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-xs">
+                      <span className="rounded-xs bg-surface-overlay px-2 py-0.5 text-meta font-medium text-foreground backdrop-blur-xs">
                         {story.mediaType === "VIDEO" ? "Video" : "Slika"}
                       </span>
-                      <div className="rounded-xs bg-black/60 px-2 py-0.5 backdrop-blur-xs">
+                      <div className="rounded-xs bg-surface-overlay px-2 py-0.5 backdrop-blur-xs">
                         <StoryCountdown expiresAt={story.expiresAt} />
                       </div>
                     </div>
@@ -225,7 +225,7 @@ export function InstagramStories() {
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute bottom-2 right-2 flex size-7 items-center justify-center rounded-full bg-black/60 text-white/80 opacity-0 transition-opacity hover:text-white group-hover:opacity-100 backdrop-blur-xs"
+                        className="absolute bottom-2 right-2 flex size-7 items-center justify-center rounded-full bg-surface-overlay text-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 backdrop-blur-xs"
                         title="Otvori na Instagramu"
                       >
                         <ExternalLink className="size-3.5" aria-hidden="true" />
@@ -236,32 +236,32 @@ export function InstagramStories() {
                   {/* Metrics summary */}
                   <div className="flex flex-col gap-2.5 p-4">
                     {isBelowThreshold ? (
-                      <div className="flex items-start gap-2 rounded-md bg-surface-raised/80 p-2.5 text-[11px] text-text-secondary leading-relaxed">
+                      <div className="flex items-start gap-2 rounded-md bg-surface-raised/80 p-2.5 text-meta text-text-secondary leading-relaxed">
                         <Info className="size-3.5 shrink-0 text-mod mt-0.5" aria-hidden="true" />
                         <span>{suppressedReason}</span>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-2 border-t border-line/40 pt-2 font-mono text-xs">
+                      <div className="grid grid-cols-2 gap-2 border-t border-line/40 pt-2 text-xs">
                         <div className="flex flex-col">
-                          <span className="text-[10px] uppercase tracking-wider text-text-muted font-sans">
+                          <span className="text-meta uppercase tracking-wider text-text-muted font-sans">
                             Pregledi
                           </span>
-                          <span className="text-base font-bold text-foreground">
+                          <span className="text-base font-bold tabular-nums text-foreground">
                             {formatNumber(story.stats?.views ?? 0)}
                           </span>
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-[10px] uppercase tracking-wider text-text-muted font-sans">
+                          <span className="text-meta uppercase tracking-wider text-text-muted font-sans">
                             Doseg
                           </span>
-                          <span className="text-base font-bold text-foreground">
+                          <span className="text-base font-bold tabular-nums text-foreground">
                             {formatNumber(story.stats?.reach ?? 0)}
                           </span>
                         </div>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between text-[11px] text-text-muted pt-1">
+                    <div className="flex items-center justify-between text-meta text-text-muted pt-1">
                       <span>Objavljeno: {formatDateTime(story.timestamp)}</span>
                     </div>
                   </div>
@@ -325,7 +325,7 @@ export function InstagramStories() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 opacity-85">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {archivedStories.map((story) => {
               const isSelected = activeStoryId === story.storyId;
               const viewsState = story.stats?.metricStates?.views?.state;
@@ -352,10 +352,10 @@ export function InstagramStories() {
                     />
 
                     <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 bg-gradient-to-b from-black/80 via-black/40 to-transparent p-3">
-                      <span className="rounded-xs bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white/80 backdrop-blur-xs">
+                      <span className="rounded-xs bg-surface-overlay px-2 py-0.5 text-meta font-medium text-foreground backdrop-blur-xs">
                         Arhivirana
                       </span>
-                      <span className="font-mono text-[10px] text-text-muted">
+                      <span className="text-meta text-text-muted">
                         {story.archivedAt ? "Istekla" : "Arhivirano"}
                       </span>
                     </div>
@@ -363,31 +363,31 @@ export function InstagramStories() {
 
                   <div className="flex flex-col gap-2 p-4">
                     {isBelowThreshold ? (
-                      <p className="text-[11px] text-text-muted">
+                      <p className="text-meta text-text-muted">
                         {STORY_BELOW_THRESHOLD_REASON}
                       </p>
                     ) : (
-                      <div className="grid grid-cols-2 gap-2 border-t border-line/40 pt-2 font-mono text-xs">
+                      <div className="grid grid-cols-2 gap-2 border-t border-line/40 pt-2 text-xs">
                         <div className="flex flex-col">
-                          <span className="text-[10px] uppercase tracking-wider text-text-muted font-sans">
+                          <span className="text-meta uppercase tracking-wider text-text-muted font-sans">
                             Pregledi
                           </span>
-                          <span className="text-base font-bold text-foreground">
+                          <span className="text-base font-bold tabular-nums text-foreground">
                             {formatNumber(story.stats?.views ?? 0)}
                           </span>
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-[10px] uppercase tracking-wider text-text-muted font-sans">
+                          <span className="text-meta uppercase tracking-wider text-text-muted font-sans">
                             Doseg
                           </span>
-                          <span className="text-base font-bold text-foreground">
+                          <span className="text-base font-bold tabular-nums text-foreground">
                             {formatNumber(story.stats?.reach ?? 0)}
                           </span>
                         </div>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between text-[11px] text-text-muted pt-1">
+                    <div className="flex items-center justify-between text-meta text-text-muted pt-1">
                       <span>Objavljeno: {formatDateTime(story.timestamp)}</span>
                     </div>
                   </div>

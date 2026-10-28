@@ -257,7 +257,7 @@ function JobRow({
           <span className="block text-xs font-medium text-foreground">
             {KIND_LABELS[job.kind]}
             {job.itemCount > 1 && (
-              <span className="ml-1.5 font-mono text-micro text-text-muted">
+              <span className="ml-1.5 tabular-nums text-micro text-text-muted">
                 ×{job.itemCount}
               </span>
             )}
@@ -277,7 +277,7 @@ function JobRow({
             {statusLabel(job)}
           </span>
           {job.attempts > 1 && job.status !== "published" && (
-            <span className="ml-1.5 font-mono text-micro tabular-nums text-text-muted">
+            <span className="ml-1.5 text-micro tabular-nums text-text-muted">
               {job.attempts}. pokušaj
             </span>
           )}
@@ -287,7 +287,7 @@ function JobRow({
           {job.status === "published" && job.publishedAt !== undefined ? (
             formatRelativeTime(job.publishedAt)
           ) : job.status === "queued" && job.scheduledFor !== undefined ? (
-            <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+            <span className="inline-flex items-center gap-1 tabular-nums">
               <CalendarClock className="size-3" aria-hidden />
               {formatBelgradeShort(job.scheduledFor)}
             </span>

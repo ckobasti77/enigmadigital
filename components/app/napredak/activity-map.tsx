@@ -97,7 +97,7 @@ export function ActivityMap({
       </div>
 
       <p className="text-ui text-foreground" aria-live="polite">
-        <span className="font-mono font-bold tabular-nums">
+        <span className="font-bold tabular-nums">
           {formatNumber(prikazan.xp)} XP
         </span>
         <span className="text-text-muted"> · {formatLongDate(prikazan.dan)}</span>
@@ -115,13 +115,13 @@ export function ActivityMap({
         </span>
         <span>
           Najjači dan:{" "}
-          <span className="font-mono tabular-nums text-foreground">
+          <span className="tabular-nums text-foreground">
             {maks > 0 ? `${formatNumber(maks)} XP` : "—"}
           </span>
         </span>
         <span>
           Aktivnih dana:{" "}
-          <span className="font-mono tabular-nums text-foreground">
+          <span className="tabular-nums text-foreground">
             {aktivnih}
           </span>{" "}
           od {dani.length}

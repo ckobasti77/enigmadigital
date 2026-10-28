@@ -493,7 +493,7 @@ function SecondaryStats({
           ) : item.loading ? (
             <Skeleton className="mt-2 h-6 w-24" />
           ) : item.value === undefined ? (
-            <span className="mt-1.5 block font-mono text-title font-bold text-text-muted">
+            <span className="mt-1.5 block text-title font-bold text-text-muted">
               —
             </span>
           ) : (
@@ -501,7 +501,7 @@ function SecondaryStats({
               <CountUp
                 value={item.value}
                 format={formatNumber}
-                className="font-mono text-title font-bold text-foreground"
+                className="text-title tabular-nums font-bold text-foreground"
               />
               {item.delta !== null && item.delta !== undefined && (
                 <>

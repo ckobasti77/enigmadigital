@@ -168,7 +168,7 @@ export function AttributionDashboard() {
                     className="mt-2 block text-2xl font-bold leading-none text-foreground sm:text-3xl"
                   />
                   <div className="mt-2 flex items-baseline gap-1.5 text-xs text-text-muted">
-                    <span className="font-mono tabular-nums text-foreground">
+                    <span className="tabular-nums text-foreground">
                       {formatPercent(report.totals.openreplyShareOfIgSessions)}
                     </span>
                     <span>od ukupnog IG saobraćaja</span>
@@ -194,13 +194,13 @@ export function AttributionDashboard() {
                     className="mt-2 block text-2xl font-bold leading-none text-foreground sm:text-3xl"
                   />
                   <div className="mt-2 flex items-baseline gap-1.5 text-xs text-text-muted">
-                    <span className="font-mono tabular-nums text-success">
+                    <span className="tabular-nums text-success">
                       {formatPercent(report.totals.openreply.conversionRate)}
                     </span>
                     <span>stopa sesija → konverzija</span>
                   </div>
                   <div className="mt-auto mb-3 text-micro text-text-muted">
-                    <span className="font-mono tabular-nums text-foreground">
+                    <span className="tabular-nums text-foreground">
                       {formatPercent(report.totals.openreplyShareOfIgKeyEvents)}
                     </span>{" "}
                     svih IG konverzija
@@ -220,7 +220,7 @@ export function AttributionDashboard() {
                     className="mt-2 block text-2xl font-bold leading-none text-foreground sm:text-3xl"
                   />
                   <div className="mt-2 flex items-baseline gap-1.5 text-xs text-text-muted">
-                    <span className="font-mono tabular-nums text-mod">
+                    <span className="tabular-nums text-mod">
                       {formatNumber(report.totals.totalInstagram.keyEvents)}
                     </span>
                     <span>ukupnih konverzija sa IG</span>

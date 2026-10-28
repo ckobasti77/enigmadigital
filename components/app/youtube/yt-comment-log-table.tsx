@@ -164,7 +164,7 @@ export function YtCommentLogTable() {
             <p className="text-sm font-medium text-foreground">
               Log komentara
             </p>
-            <p className="font-mono text-xs tabular-nums text-text-muted">
+            <p className="text-xs tabular-nums text-text-muted">
               {formatNumber(logs.length)} od poslednjih {LOG_LIMIT} zapisa
             </p>
           </div>
@@ -204,7 +204,7 @@ export function YtCommentLogTable() {
                       key={log._id}
                       className="border-line-soft hover:bg-surface-raised/40"
                     >
-                      <TableCell className="py-3 pl-5 align-top font-mono text-xs whitespace-nowrap tabular-nums text-text-muted">
+                      <TableCell className="py-3 pl-5 align-top text-xs whitespace-nowrap tabular-nums text-text-muted">
                         {timestampFmt.format(new Date(log.createdAt))}
                       </TableCell>
 
@@ -252,7 +252,7 @@ export function YtCommentLogTable() {
                         </p>
                       </TableCell>
 
-                      <TableCell className="hidden py-3 align-top font-mono text-xs text-muted-foreground lg:table-cell">
+                      <TableCell className="hidden py-3 align-top text-xs text-muted-foreground lg:table-cell">
                         {log.matchedKeyword ?? "—"}
                       </TableCell>
 
@@ -262,12 +262,12 @@ export function YtCommentLogTable() {
                             {STATUS_LABELS[log.status]}
                           </StatusPill>
                           {log.status === "pending" && log.attempts > 0 && (
-                            <span className="font-mono text-xs tabular-nums text-text-muted">
+                            <span className="text-xs tabular-nums text-text-muted">
                               {log.attempts}. pokušaj
                             </span>
                           )}
                           {log.errorMessage && log.status !== "pending" && (
-                            <span className="block max-w-48 text-right text-xs whitespace-normal text-danger/80">
+                            <span className="block max-w-48 text-right text-xs whitespace-normal text-danger">
                               {log.errorMessage}
                             </span>
                           )}
@@ -277,7 +277,7 @@ export function YtCommentLogTable() {
                       {mozeUrediti && (
                         <TableCell className="py-3 pr-5 text-right align-top">
                           {isDeleted ? (
-                            <span className="font-mono text-xs text-text-muted">
+                            <span className="text-xs text-text-muted">
                               Obrisan
                             </span>
                           ) : (

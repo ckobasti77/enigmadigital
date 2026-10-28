@@ -99,7 +99,7 @@ export function RetentionStrip({
         {showLabels && (
           <div className="flex items-center justify-between text-micro text-text-muted font-medium">
             <span>Video zadržavanje</span>
-            <span className="font-mono tabular-nums text-foreground/80">
+            <span className="tabular-nums text-foreground">
               3s:{" "}
               {retention.video3s !== undefined && impressions > 0
                 ? formatPercent(retention.video3s / impressions)
@@ -136,11 +136,11 @@ export function RetentionStrip({
                       className="w-full h-full rounded-xs border border-dashed border-line-soft bg-surface-raised/80 bg-[repeating-linear-gradient(45deg,var(--color-line-soft),var(--color-line-soft)_4px,transparent_4px,transparent_8px)]"
                     />
                   )}
-                  <span className="mt-0.5 text-micro font-mono tabular-nums text-text-muted group-hover/bar:text-foreground">
+                  <span className="mt-0.5 text-micro tabular-nums text-text-muted group-hover/bar:text-foreground">
                     {cp.label}
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="text-micro font-mono">
+                <TooltipContent side="top" className="text-micro">
                   <p className="font-semibold text-foreground">
                     Zadržavanje do {cp.label} dužine
                   </p>
@@ -160,7 +160,7 @@ export function RetentionStrip({
         </div>
 
         {/* Numeric Milestone Summary */}
-        <div className="grid grid-cols-4 gap-1 text-center font-mono tabular-nums text-micro">
+        <div className="grid grid-cols-4 gap-1 text-center tabular-nums text-micro">
           {checkpoints.map((cp) => (
             <span key={cp.label} className={cn("truncate", cp.textColor)}>
               {cp.pct !== undefined ? formatPercent(cp.pct) : "—"}

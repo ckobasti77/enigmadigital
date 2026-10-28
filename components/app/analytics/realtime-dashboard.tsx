@@ -132,7 +132,7 @@ export function RealtimeDashboard() {
             </span>
           </div>
 
-          <span className="inline-flex items-center rounded-md border border-line px-2.5 py-0.5 font-mono text-xs text-muted-foreground">
+          <span className="inline-flex items-center rounded-md border border-line px-2.5 py-0.5 text-xs text-muted-foreground">
             {secondsAgo !== null
               ? `Ažurirano pre ${secondsAgo}s`
               : "Učitavanje..."}
@@ -178,7 +178,7 @@ export function RealtimeDashboard() {
                 Korisnici u poslednjih 30 minuta
               </p>
               <div className="flex items-baseline gap-3">
-                <span className="font-mono text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+                <span className="text-4xl tabular-nums font-bold tracking-tight text-foreground sm:text-5xl">
                   {formatNumber(activeUsers)}
                 </span>
                 <span className="text-xs text-muted-foreground">
@@ -188,7 +188,7 @@ export function RealtimeDashboard() {
             </div>
 
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Activity className="h-4 w-4 text-primary" />
+              <Activity className="h-4 w-4 text-text-muted" />
               <span>Pregled po minutima (29 min pre → sada)</span>
             </div>
           </div>
@@ -209,7 +209,7 @@ export function RealtimeDashboard() {
                     className="group relative flex flex-1 flex-col items-center justify-end h-full"
                   >
                     {/* Tooltip on hover */}
-                    <div className="pointer-events-none absolute -top-8 z-10 hidden rounded bg-popover px-2 py-1 font-mono text-[10px] text-popover-foreground shadow-md group-hover:block whitespace-nowrap">
+                    <div className="pointer-events-none absolute -top-8 z-10 hidden rounded bg-popover px-2 py-1 text-meta tabular-nums text-popover-foreground shadow-md group-hover:block whitespace-nowrap">
                       {m.minutesAgo === 0
                         ? "Ovaj minut"
                         : `Pre ${m.minutesAgo} min`}
@@ -220,9 +220,9 @@ export function RealtimeDashboard() {
                       className={cn(
                         "w-full rounded-t transition-all duration-300",
                         isNow
-                          ? "bg-primary"
+                          ? "bg-chart-1"
                           : m.activeUsers > 0
-                            ? "bg-primary/70 group-hover:bg-primary"
+                            ? "bg-chart-1/70 group-hover:bg-chart-1"
                             : "bg-muted/40",
                       )}
                       style={{
@@ -235,10 +235,10 @@ export function RealtimeDashboard() {
             </div>
 
             {/* X-axis labels */}
-            <div className="flex justify-between border-t border-line/60 pt-1 font-mono text-[10px] text-muted-foreground">
+            <div className="flex justify-between border-t border-line/60 pt-1 text-meta text-muted-foreground">
               <span>pre 29 min</span>
               <span>pre 15 min</span>
-              <span className="font-semibold text-primary">Sada</span>
+              <span className="font-semibold text-foreground">Sada</span>
             </div>
           </div>
         </Card>
@@ -251,12 +251,12 @@ export function RealtimeDashboard() {
           <Card className="flex flex-col gap-4 p-5 shadow-card ring-line h-full">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Monitor className="h-4 w-4 text-primary" />
+                <Monitor className="h-4 w-4 text-text-muted" />
                 <h3 className="text-sm font-semibold text-foreground">
                   Top ekrani / stranice
                 </h3>
               </div>
-              <span className="font-mono text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 Prikazi
               </span>
             </div>
@@ -274,7 +274,7 @@ export function RealtimeDashboard() {
                       : 0;
                   return (
                     <div key={`${item.key}-${idx}`} className="flex flex-col gap-1">
-                      <div className="flex items-center justify-between text-xs font-mono">
+                      <div className="flex items-center justify-between text-xs">
                         <span
                           className="truncate max-w-[200px] text-foreground"
                           title={item.key}
@@ -304,12 +304,12 @@ export function RealtimeDashboard() {
           <Card className="flex flex-col gap-4 p-5 shadow-card ring-line h-full">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4 text-primary" />
+                <Globe className="h-4 w-4 text-text-muted" />
                 <h3 className="text-sm font-semibold text-foreground">
                   Lokacije posetilaca
                 </h3>
               </div>
-              <span className="font-mono text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 Korisnici
               </span>
             </div>
@@ -327,7 +327,7 @@ export function RealtimeDashboard() {
                       : 0;
                   return (
                     <div key={`${item.key}-${idx}`} className="flex flex-col gap-1">
-                      <div className="flex items-center justify-between text-xs font-mono">
+                      <div className="flex items-center justify-between text-xs">
                         <span
                           className="truncate max-w-[200px] text-foreground"
                           title={item.key}
@@ -357,12 +357,12 @@ export function RealtimeDashboard() {
           <Card className="flex flex-col gap-4 p-5 shadow-card ring-line h-full">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Smartphone className="h-4 w-4 text-primary" />
+                <Smartphone className="h-4 w-4 text-text-muted" />
                 <h3 className="text-sm font-semibold text-foreground">
                   Kategorije uređaja
                 </h3>
               </div>
-              <span className="font-mono text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 Korisnici
               </span>
             </div>
@@ -388,7 +388,7 @@ export function RealtimeDashboard() {
 
                   return (
                     <div key={`${item.key}-${idx}`} className="flex flex-col gap-1">
-                      <div className="flex items-center justify-between text-xs font-mono">
+                      <div className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-1.5">
                           <DeviceIcon className="h-3.5 w-3.5 text-muted-foreground" />
                           <span className="capitalize text-foreground">
@@ -396,7 +396,7 @@ export function RealtimeDashboard() {
                           </span>
                         </div>
                         <div className="flex items-center gap-2 tabular-nums">
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-meta text-muted-foreground">
                             {formatPercent(share / 100)}
                           </span>
                           <span className="font-semibold text-foreground">
@@ -421,7 +421,7 @@ export function RealtimeDashboard() {
 
       {/* Methodology & Latency Disclaimer Notice */}
       <Card className="flex items-start gap-3 border-line/70 bg-muted/20 p-4 text-muted-foreground">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" />
         <div className="flex flex-col gap-1 text-xs leading-relaxed">
           <p className="font-medium text-foreground">
             Napomena o podacima uživo i kašnjenju obrade

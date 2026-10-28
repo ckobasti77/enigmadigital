@@ -195,7 +195,7 @@ function Chip({
         className="inline-flex cursor-not-allowed items-center gap-1 rounded-lg border border-line-soft px-2.5 py-1 text-meta text-text-muted opacity-60"
       >
         <span>{label}</span>
-        <span className="font-mono tabular-nums">(0)</span>
+        <span className="tabular-nums">(0)</span>
       </span>
     );
   }
@@ -218,7 +218,7 @@ function Chip({
     >
       <span>{label}</span>
       {count !== undefined && (
-        <span className="font-mono tabular-nums opacity-80">({count})</span>
+        <span className="tabular-nums">({count})</span>
       )}
     </button>
   );
@@ -687,7 +687,7 @@ export function LeadFilterBar() {
           <SlidersHorizontal className="size-3.5" aria-hidden />
           Više filtera
           {uFioci > 0 && (
-            <span className="rounded bg-mod-soft px-1.5 font-mono text-meta font-bold tabular-nums text-mod">
+            <span className="rounded bg-mod-soft px-1.5 text-meta font-bold tabular-nums text-mod">
               {uFioci}
             </span>
           )}
@@ -695,7 +695,7 @@ export function LeadFilterBar() {
 
         {b && (
           <span className="text-ui text-text-muted">
-            <strong className="font-mono tabular-nums text-foreground">
+            <strong className="tabular-nums text-foreground">
               {b.ukupno}
             </strong>{" "}
             u preseku
@@ -838,7 +838,7 @@ export function LeadFilterBar() {
                     title={`Firma kod koje sajt nikad nije proveravan ne ulazi ni u jedan chip — „nismo gledali" nije isto što i „nema sajt".`}
                   >
                     neprovereno:{" "}
-                    <strong className="font-mono tabular-nums">
+                    <strong className="tabular-nums">
                       {b.sajtNeprovereno}
                     </strong>
                   </span>
@@ -866,7 +866,7 @@ export function LeadFilterBar() {
                 b && b.bezNise > 0 ? (
                   <span className="text-meta text-text-muted">
                     bez niše:{" "}
-                    <strong className="font-mono tabular-nums">{b.bezNise}</strong>
+                    <strong className="tabular-nums">{b.bezNise}</strong>
                   </span>
                 ) : undefined
               }
@@ -991,7 +991,7 @@ export function LeadFilterBar() {
                   {b && b.bezGrada > 0 && (
                     <span className="text-meta text-text-muted">
                       bez grada:{" "}
-                      <strong className="font-mono tabular-nums">{b.bezGrada}</strong>
+                      <strong className="tabular-nums">{b.bezGrada}</strong>
                     </span>
                   )}
                 </>

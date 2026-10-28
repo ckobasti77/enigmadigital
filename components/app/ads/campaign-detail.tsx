@@ -108,7 +108,7 @@ function KeywordQualitySection({
         {report.totals.averageQualityScore && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted">Prosečan Quality Score:</span>
-            <span className="inline-flex items-center rounded-full border border-chart-2/40 bg-chart-2/10 px-2 py-0.5 text-xs font-bold font-mono text-foreground">
+            <span className="inline-flex items-center rounded-full border border-chart-2/40 bg-chart-2/10 px-2 py-0.5 text-xs font-bold tabular-nums text-foreground">
               {report.totals.averageQualityScore} / 10
             </span>
           </div>
@@ -138,14 +138,14 @@ function KeywordQualitySection({
                 <TableCell className="pl-5 font-medium text-foreground">
                   {kw.keywordText}
                 </TableCell>
-                <TableCell className="text-center font-mono text-micro text-text-muted">
+                <TableCell className="text-center text-micro text-text-muted">
                   {kw.matchType}
                 </TableCell>
                 <TableCell className="text-center">
                   {kw.qualityScore ? (
                     <span
                       className={cn(
-                        "inline-flex items-center justify-center size-6 rounded-full font-mono text-xs font-bold",
+                        "inline-flex items-center justify-center size-6 rounded-full tabular-nums text-xs font-bold",
                         kw.qualityScore >= 7
                           ? "bg-success/15 text-success border border-success/30"
                           : kw.qualityScore >= 5
@@ -358,7 +358,7 @@ export function CampaignDetail({
                 </span>
               )}
 
-              <span className="inline-flex items-center gap-1 text-text-muted font-mono tabular-nums">
+              <span className="inline-flex items-center gap-1 text-text-muted tabular-nums">
                 <Clock className="size-3" />
                 {formatFreshness(campaign.syncedAt, campaign.syncPriority)}
               </span>
@@ -369,7 +369,7 @@ export function CampaignDetail({
             {campaign.dailyBudget && (
               <div className="flex flex-col items-end rounded-lg border border-line bg-surface/40 px-3 py-2">
                 <span className="text-micro text-text-muted">Dnevni budžet</span>
-                <span className="font-mono text-sm font-semibold text-foreground">
+                <span className="tabular-nums text-sm font-semibold text-foreground">
                   {formatMetric(campaign.dailyBudget, spendDef, campaign.currency)} / dan
                 </span>
               </div>
@@ -441,21 +441,21 @@ export function CampaignDetail({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
         <div className="rounded-lg border border-line bg-surface/50 p-3">
           <span className="text-xs text-text-muted">Potrošnja</span>
-          <p className="mt-1 font-mono text-xl font-bold tabular-nums text-foreground">
+          <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
             {formatMetric(campaign.spend, spendDef, campaign.currency)}
           </p>
         </div>
 
         <div className="rounded-lg border border-line bg-surface/50 p-3">
           <span className="text-xs text-text-muted">Rezultati</span>
-          <p className="mt-1 font-mono text-xl font-bold tabular-nums text-foreground">
+          <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
             {campaign.results !== undefined ? formatNumber(campaign.results) : "—"}
           </p>
         </div>
 
         <div className="rounded-lg border border-line bg-surface/50 p-3">
           <span className="text-xs text-text-muted">CPA (Cena / rez.)</span>
-          <p className="mt-1 font-mono text-xl font-bold tabular-nums text-foreground">
+          <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
             {formatMetric(campaign.costPerResult, cpaDef, campaign.currency)}
           </p>
         </div>
@@ -463,14 +463,14 @@ export function CampaignDetail({
         {campaign.hasConversionValue ? (
           <div className="rounded-lg border border-line bg-surface/50 p-3">
             <span className="text-xs text-text-muted">ROAS</span>
-            <p className="mt-1 font-mono text-xl font-bold tabular-nums text-success">
+            <p className="mt-1 text-xl font-bold tabular-nums text-success">
               {campaign.roas !== undefined ? `${formatRatio(campaign.roas)}x` : "—"}
             </p>
           </div>
         ) : (
           <div className="rounded-lg border border-line bg-surface/50 p-3">
             <span className="text-xs text-text-muted">CTR</span>
-            <p className="mt-1 font-mono text-xl font-bold tabular-nums text-mod">
+            <p className="mt-1 text-xl font-bold tabular-nums text-mod">
               <MeraIliCrtica
                 value={campaign.ctr}
                 format={formatPercent}
@@ -482,7 +482,7 @@ export function CampaignDetail({
 
         <div className="rounded-lg border border-line bg-surface/50 p-3">
           <span className="text-xs text-text-muted">Impresije</span>
-          <p className="mt-1 font-mono text-xl font-bold tabular-nums text-foreground">
+          <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
             {formatNumber(campaign.impressions)}
           </p>
         </div>
@@ -490,7 +490,7 @@ export function CampaignDetail({
         {isGoogleAds ? (
           <div className="rounded-lg border border-line bg-surface/50 p-3">
             <span className="text-xs text-text-muted">Search Impr. Share</span>
-            <p className="mt-1 font-mono text-xl font-bold tabular-nums text-foreground">
+            <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
               {(campaign as { searchImpressionShare?: number }).searchImpressionShare !== undefined
                 ? formatPercent((campaign as { searchImpressionShare?: number }).searchImpressionShare!)
                 : "—"}
@@ -499,7 +499,7 @@ export function CampaignDetail({
         ) : (
           <div className="rounded-lg border border-line bg-surface/50 p-3">
             <span className="text-xs text-text-muted">Frekvencija</span>
-            <p className="mt-1 font-mono text-xl font-bold tabular-nums text-foreground">
+            <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
               <MeraIliCrtica
                 value={campaign.frequency}
                 format={formatDecimal}
@@ -599,7 +599,7 @@ export function CampaignDetail({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex flex-wrap items-center gap-4 text-xs font-mono tabular-nums text-text-muted">
+                    <div className="flex flex-wrap items-center gap-4 text-xs tabular-nums text-text-muted">
                       <span>
                         Potrošnja: <strong className="text-foreground">{formatMetric(set.spend, spendDef, campaign.currency)}</strong>
                       </span>

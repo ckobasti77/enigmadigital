@@ -96,10 +96,10 @@ export function QuotaWidget() {
             <CountUp
               value={unitsUsed}
               format={formatNumber}
-              className="font-mono font-medium text-foreground"
+              className="font-medium tabular-nums text-foreground"
             />{" "}
             od{" "}
-            <span className="font-mono tabular-nums">
+            <span className="tabular-nums">
               {formatNumber(shared ? deoProjekta : softLimit)}
             </span>{" "}
             jedinica danas
@@ -107,11 +107,11 @@ export function QuotaWidget() {
               <span className="text-text-muted">
                 {" "}
                 (deo ovog projekta) · svi projekti:{" "}
-                <span className="font-mono tabular-nums">
+                <span className="tabular-nums">
                   {formatNumber(ukupno)}
                 </span>{" "}
                 od{" "}
-                <span className="font-mono tabular-nums">
+                <span className="tabular-nums">
                   {formatNumber(softLimit)}
                 </span>
               </span>
@@ -130,7 +130,7 @@ export function QuotaWidget() {
         ) : tone === "normal" ? (
           <p className="text-xs text-text-muted">
             još oko{" "}
-            <span className="font-mono tabular-nums text-foreground">
+            <span className="tabular-nums text-foreground">
               {formatNumber(repliesLeft)}
             </span>{" "}
             {pluralReplies(repliesLeft)}

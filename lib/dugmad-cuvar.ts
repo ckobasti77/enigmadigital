@@ -65,7 +65,7 @@ export const IZUZECI_PUNE_PODLOGE: readonly Izuzetak[] = [
  * (izabrana stanja, ikonice i trake na ekranima) čiste faze U10–U16. Broj sme
  * samo da pada; kad padne, spusti plafon.
  */
-export const PLAFON_BOJE_MODULA = 683;
+export const PLAFON_BOJE_MODULA = 679;
 
 const BOJA_MODULA =
   /(?:^|[^\w-])(?:[a-z-]+:)*(?:text|bg|border|ring|fill|stroke|shadow|outline|from|to|via|decoration|accent)-mod(?:-strong|-soft|-line|-glow)?(?![\w-])|var\(--mod(?:-strong|-soft|-line|-glow)?\)/g;

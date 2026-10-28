@@ -201,7 +201,7 @@ function CreateCustomAudienceDialogInner({
               disabled={submitting}
               className="font-mono text-xs"
             />
-            <p className="text-[11px] text-text-muted">
+            <p className="text-meta text-text-muted">
               Možete uneti email adrese, brojeve telefona (npr. 064... automatski postaje 38164...) ili CSV redove.
             </p>
           </div>

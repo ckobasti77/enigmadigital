@@ -165,7 +165,7 @@ function MetaUsageLine() {
       <Gauge className="size-3.5 shrink-0" aria-hidden />
       <span>
         Metina kvota:{" "}
-        <span className="font-mono tabular-nums">
+        <span className="tabular-nums">
           {Math.round(status.peak)} %
         </span>{" "}
         potrošeno.
@@ -178,7 +178,7 @@ function MetaUsageLine() {
             : "Meta je odbila pozive i čekamo."}
       </span>
       {status.retryAt !== null && (
-        <span className="font-mono tabular-nums">
+        <span className="tabular-nums">
           {status.state === "backoff" ? "Nastavak u " : "Najkasnije do "}
           {formatClockTime(status.retryAt)}
         </span>
@@ -225,7 +225,7 @@ function PlanLine({ row, status }: { row: PlanRow; status?: JobRow }) {
         <span className="text-sm text-foreground">{row.label}</span>
         <span className="flex shrink-0 items-baseline gap-3 text-xs">
           <span className="text-text-muted">{row.cadence}</span>
-          <span className="w-24 text-right font-mono tabular-nums text-muted-foreground">
+          <span className="w-24 text-right tabular-nums text-muted-foreground">
             {status?.lastOkAt == null
               ? "—"
               : formatRelativeTime(status.lastOkAt)}

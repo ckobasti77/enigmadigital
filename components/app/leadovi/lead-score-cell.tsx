@@ -143,7 +143,7 @@ export function LeadScoreCell({
                 <span className="text-meta font-medium text-foreground">
                   {isFit ? "Fit" : "Intent"}
                 </span>
-                <span className="font-mono text-meta tabular-nums text-text-muted">
+                <span className="text-meta tabular-nums text-text-muted">
                   {nemaPravila
                     ? "bez pravila"
                     : isUnmeasured
@@ -164,7 +164,7 @@ export function LeadScoreCell({
             >
               <span className="flex items-baseline justify-between gap-2 leading-none">
                 <span className="text-meta text-text-muted">{isFit ? "Fit" : "Intent"}</span>
-                <span className={cn("font-mono text-ui font-medium tabular-nums", textClass)}>
+                <span className={cn("text-ui font-medium tabular-nums", textClass)}>
                   {kratko}
                 </span>
               </span>
@@ -186,7 +186,7 @@ export function LeadScoreCell({
               )}
             >
               <span className="text-meta text-text-muted">{isFit ? "F" : "I"}</span>
-              <span className={cn("font-mono text-ui font-medium tabular-nums", textClass)}>{kratko}</span>
+              <span className={cn("text-ui font-medium tabular-nums", textClass)}>{kratko}</span>
             </button>
           ) : variant === "compact" ? (
             <button
@@ -201,7 +201,7 @@ export function LeadScoreCell({
               <span className="text-micro font-semibold uppercase tracking-wider text-text-muted">
                 {isFit ? "Fit" : "Intent"}
               </span>
-              <span className="font-mono font-semibold tabular-nums">
+              <span className="font-semibold tabular-nums">
                 {nemaPravila
                   ? "bez pravila"
                   : isUnmeasured
@@ -242,7 +242,7 @@ export function LeadScoreCell({
                   <span className="text-xs font-bold text-foreground">
                     {score.points} <span className="text-text-muted font-normal text-micro">/ {score.maxPoints}</span>
                   </span>
-                  <span className="font-mono text-micro font-semibold tabular-nums">
+                  <span className="text-micro font-semibold tabular-nums">
                     {percentage}%
                   </span>
                 </div>

@@ -232,7 +232,7 @@ function BoardColumn({
         <h2 className="heading-caps min-w-0 flex-1 truncate text-meta font-medium">
           {column.label}
         </h2>
-        <span className="font-mono text-ui font-bold tabular-nums">
+        <span className="text-ui font-bold tabular-nums">
           {isLoading ? "—" : formatNumber(posts.length)}
         </span>
       </header>
@@ -305,7 +305,7 @@ function PostCard({
         </span>
         <span className="truncate">{getCategoryLabel(post.category)}</span>
       </span>
-      <span className="pl-3.5 font-mono text-meta tabular-nums text-text-muted">
+      <span className="pl-3.5 text-meta tabular-nums text-text-muted">
         {post.publishedAt
           ? `objavljeno ${formatDateTime(post.publishedAt)}`
           : `izmenjeno ${formatDateTime(post.updatedAt)}`}

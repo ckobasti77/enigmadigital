@@ -89,13 +89,13 @@ export function HourlyChart({
               tickLine={false}
               interval="preserveStartEnd"
               minTickGap={32}
-              tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+              tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
               tickMargin={6}
             />
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+              tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
               tickFormatter={(v: number) => formatMetric(v, spendDef, currencyCode)}
               ticks={spendTicks}
               interval={0}
@@ -176,7 +176,7 @@ function TooltipRow({
         )}
         {label}
       </span>
-      <span className="font-mono font-medium tabular-nums text-foreground">
+      <span className="font-medium tabular-nums text-foreground">
         {value}
       </span>
     </div>

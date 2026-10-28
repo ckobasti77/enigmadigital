@@ -171,7 +171,7 @@ export function YouTubeVideosGrid({ videos }: { videos: VideoItem[] }) {
             <h2 className="text-base font-semibold text-foreground">
               Svi videi
             </h2>
-            <p className="font-mono text-xs tabular-nums text-text-muted">
+            <p className="text-xs tabular-nums text-text-muted">
               Prikazano {formatNumber(sortedVideos.length)}{" "}
               {sortedVideos.length === 1
                 ? "video"
@@ -297,7 +297,7 @@ function Thumbnail({
       )}
 
       {duration && (
-        <span className="absolute bottom-2 right-2 rounded bg-bg-950/80 px-1.5 py-0.5 font-mono text-micro tabular-nums text-text-primary backdrop-blur-md">
+        <span className="absolute bottom-2 right-2 rounded bg-bg-950/80 px-1.5 py-0.5 text-micro tabular-nums text-text-primary backdrop-blur-md">
           {duration}
         </span>
       )}
@@ -356,14 +356,14 @@ function TopVideoCard({
         </div>
 
         <div className="absolute left-3 bottom-2">
-          <span className="rounded bg-bg-950/70 px-2 py-0.5 font-mono text-micro text-text-muted backdrop-blur-xs">
+          <span className="rounded bg-bg-950/70 px-2 py-0.5 text-micro text-text-muted backdrop-blur-xs">
             {formatPublishedAt(item.publishedAt)}
           </span>
         </div>
       </div>
 
       <div className="flex flex-1 flex-col p-4">
-        <p className="line-clamp-2 text-xs font-medium leading-relaxed text-foreground/90">
+        <p className="line-clamp-2 text-xs font-medium leading-relaxed text-foreground">
           {item.title}
         </p>
 
@@ -371,7 +371,7 @@ function TopVideoCard({
           <span className="text-xs font-medium text-text-muted">
             Ukupno pregleda
           </span>
-          <span className="font-mono text-lg font-bold tabular-nums text-mod">
+          <span className="text-lg font-bold tabular-nums text-mod">
             {formatNumber(item.views)}
           </span>
         </div>
@@ -431,7 +431,7 @@ function MiniStat({
       <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
         {icon} {label}
       </span>
-      <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+      <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
         {value}
       </p>
     </div>
@@ -463,14 +463,14 @@ function VideoCard({
           />
         </div>
         <div className="absolute right-2.5 top-2.5">
-          <span className="rounded bg-bg-950/80 px-2 py-0.5 font-mono text-micro text-text-muted backdrop-blur-md">
+          <span className="rounded bg-bg-950/80 px-2 py-0.5 text-micro text-text-muted backdrop-blur-md">
             {formatPublishedAt(item.publishedAt)}
           </span>
         </div>
       </div>
 
       <div className="flex flex-1 flex-col p-4">
-        <p className="line-clamp-2 min-h-8 text-xs font-medium leading-relaxed text-foreground/90">
+        <p className="line-clamp-2 min-h-8 text-xs font-medium leading-relaxed text-foreground">
           {item.title}
         </p>
 
@@ -494,11 +494,11 @@ function VideoCard({
 
         <div className="mt-3 flex items-center justify-between border-t border-line-soft pt-3 text-xs">
           <div className="flex items-center gap-3 text-text-muted">
-            <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+            <span className="inline-flex items-center gap-1 tabular-nums">
               <Heart className="size-3.5" />
               {formatNumber(item.likes)}
             </span>
-            <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+            <span className="inline-flex items-center gap-1 tabular-nums">
               <MessageCircle className="size-3.5" />
               {formatNumber(item.comments)}
             </span>

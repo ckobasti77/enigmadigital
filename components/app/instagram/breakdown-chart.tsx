@@ -108,7 +108,7 @@ export function BreakdownChart({
             interval="preserveStartEnd"
             minTickGap={44}
             tickFormatter={formatShortDate}
-            tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+            tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
             tickMargin={8}
           />
           <YAxis
@@ -119,7 +119,7 @@ export function BreakdownChart({
             interval={0}
             domain={[0, ceiling]}
             tickFormatter={format}
-            tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+            tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
           />
           <ChartTooltip
             cursor={{ stroke: "var(--color-line-strong)", strokeWidth: 1 }}
@@ -264,7 +264,7 @@ function BreakdownTooltip({
               />
               {s.label}
             </dt>
-            <dd className="font-mono font-medium tabular-nums text-foreground">
+            <dd className="font-medium tabular-nums text-foreground">
               {format(value)}
             </dd>
           </div>

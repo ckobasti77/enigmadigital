@@ -477,7 +477,7 @@ function YtUploadForm({
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-raised px-2 py-0.5 font-mono text-xs text-foreground"
+                  className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-raised px-2 py-0.5 text-xs text-foreground"
                 >
                   {tag}
                   <button
@@ -545,7 +545,7 @@ function YtUploadForm({
       <ObjavljujesKao kanal="youtube" radnja="Otpremaš" />
 
       <DialogFooter className="items-center gap-2 border-t border-line pt-3 sm:justify-between">
-        <span className="font-mono text-xs tabular-nums text-text-muted">
+        <span className="text-xs tabular-nums text-text-muted">
           {status === undefined
             ? " "
             : dailyLimitReached
@@ -647,7 +647,7 @@ function FileDropZone({
             <p className="min-w-0 max-w-full truncate font-mono text-xs text-foreground">
               {file.name}
             </p>
-            <p className="font-mono text-xs tabular-nums text-text-muted">
+            <p className="text-xs tabular-nums text-text-muted">
               {formatFileSize(file.size)}
               {file.type.length > 0 && ` · ${file.type}`}
             </p>
@@ -752,7 +752,7 @@ function ShapeVerdict({ probe, probing }: { probe: Probe; probing: boolean }) {
         <p className="mt-1 text-xs leading-relaxed text-text-muted">
           {copy[shape].body}
         </p>
-        <p className="mt-1.5 font-mono text-micro tabular-nums text-text-muted">
+        <p className="mt-1.5 text-micro tabular-nums text-text-muted">
           {probe.width}×{probe.height} ·{" "}
           {formatDurationSeconds(probe.durationSeconds)}
         </p>
@@ -792,7 +792,7 @@ function UploadProgressPanel({
     <div className="rounded-xl border border-mod-line bg-card px-3.5 py-3" role="status">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-xs text-foreground">{PHASE_LABELS[phase]}</p>
-        <p className="font-mono text-xs font-semibold tabular-nums text-mod">
+        <p className="text-xs font-semibold tabular-nums text-mod">
           {percent}%
         </p>
       </div>
@@ -800,7 +800,7 @@ function UploadProgressPanel({
       <ProgressRail ratio={progress.ratio} />
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <p className="font-mono text-micro tabular-nums text-text-muted">
+        <p className="text-micro tabular-nums text-text-muted">
           {formatFileSize(progress.uploadedBytes)} od{" "}
           {formatFileSize(progress.totalBytes)}
         </p>
@@ -955,7 +955,7 @@ function CharCount({ value, max }: { value: number; max: number }) {
   return (
     <span
       className={cn(
-        "font-mono text-xs tabular-nums",
+        "text-xs tabular-nums",
         value > max ? "text-danger" : "text-text-muted",
       )}
     >

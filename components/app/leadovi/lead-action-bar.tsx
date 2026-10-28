@@ -118,7 +118,7 @@ function CallButton({
       >
         <Phone data-icon="inline-start" aria-hidden />
         Pozovi
-        <span className="font-mono text-meta tabular-nums opacity-80">{count}</span>
+        <span className="text-meta tabular-nums">{count}</span>
         <ChevronDown data-icon="inline-end" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">

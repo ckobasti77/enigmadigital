@@ -299,7 +299,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                 </a>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground truncate">
+            <p className="text-meta text-muted-foreground truncate">
               {conversation.username
                 ? `@${conversation.username}`
                 : `IGSID: ${conversation.igsid}`}
@@ -351,7 +351,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
         {/* Older messages notice */}
         {messagesData?.hasOlderMessages && (
           <div className="mx-auto max-w-md rounded-lg border border-line bg-surface/80 px-3 py-2 text-center text-xs text-muted-foreground shadow-xs">
-            <Info className="inline size-3.5 mr-1 text-muted-foreground/70" />
+            <Info className="inline size-3.5 mr-1 text-text-muted" />
             Instagram Graph API isporučuje do 20 najnovijih poruka. Starije poruke
             nisu dostupne preko API-ja.
           </div>
@@ -438,7 +438,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                           href={att.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-2 rounded-lg bg-surface/40 p-2 text-xs font-mono underline"
+                          className="flex items-center gap-2 rounded-lg bg-surface/40 p-2 text-xs underline"
                         >
                           <FileText className="size-4" />
                           <span>{att.title || "Dokument (PDF)"}</span>
@@ -475,7 +475,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                 {/* Timestamp & Status */}
                 <div
                   className={cn(
-                    "flex items-center justify-end gap-1 text-[10px] mt-1 opacity-75",
+                    "flex items-center justify-end gap-1 text-meta mt-1",
                     isOurs ? "text-accent-foreground" : "text-muted-foreground",
                   )}
                 >
@@ -584,7 +584,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
               <button
                 type="button"
                 onClick={() => setErrorMessage(null)}
-                className="text-destructive/80 hover:text-destructive"
+                className="text-danger hover:text-destructive"
               >
                 <X className="size-3.5" />
               </button>
@@ -608,7 +608,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
               {/* Quick replies preview tray */}
               {attachedQuickReplies.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-lg bg-surface-sunken border border-line">
-                  <span className="text-[11px] text-muted-foreground font-medium mr-1">
+                  <span className="text-meta text-muted-foreground font-medium mr-1">
                     Brzi odgovori:
                   </span>
                   {attachedQuickReplies.map((label, idx) => (
@@ -671,7 +671,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                   />
 
                   {/* Live Byte Counter */}
-                  <div className="absolute right-2 bottom-2 text-[11px] font-mono">
+                  <div className="absolute right-2 bottom-2 text-meta tabular-nums">
                     <span
                       className={cn(
                         byteLength > 1000
@@ -790,7 +790,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                 placeholder="https://domen.rs/fajl.jpg"
                 className="text-xs font-mono"
               />
-              <span className="text-[11px] text-muted-foreground block">
+              <span className="text-meta text-muted-foreground block">
                 Instagram Graph API preuzima fajl sa javno dostupnog HTTPS URL-a.
               </span>
             </div>

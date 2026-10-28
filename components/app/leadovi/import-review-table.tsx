@@ -180,7 +180,7 @@ const TEMP_CONFIG: Record<
     hoverBg: "var(--temp-cold-row-hover)",
     borderColor: "var(--temp-cold)",
     ringColor: "color-mix(in srgb, var(--temp-cold) 22%, transparent)",
-    badgeClass: "border-[var(--temp-cold)]/40 text-[var(--temp-cold)] bg-[var(--temp-cold-bg)]",
+    badgeClass: "border-[var(--temp-cold)]/40 text-temp-cold-ink bg-[var(--temp-cold-bg)]",
   },
   warm: {
     label: "Warm",
@@ -188,7 +188,7 @@ const TEMP_CONFIG: Record<
     hoverBg: "var(--temp-warm-row-hover)",
     borderColor: "var(--temp-warm)",
     ringColor: "color-mix(in srgb, var(--temp-warm) 22%, transparent)",
-    badgeClass: "border-[var(--temp-warm)]/40 text-[var(--temp-warm)] bg-[var(--temp-warm-bg)]",
+    badgeClass: "border-[var(--temp-warm)]/40 text-temp-warm-ink bg-[var(--temp-warm-bg)]",
   },
   hot: {
     label: "Hot",
@@ -196,7 +196,7 @@ const TEMP_CONFIG: Record<
     hoverBg: "var(--temp-hot-row-hover)",
     borderColor: "var(--temp-hot)",
     ringColor: "color-mix(in srgb, var(--temp-hot) 22%, transparent)",
-    badgeClass: "border-[var(--temp-hot)]/40 text-[var(--temp-hot)] bg-[var(--temp-hot-bg)]",
+    badgeClass: "border-[var(--temp-hot)]/40 text-temp-hot-ink bg-[var(--temp-hot-bg)]",
   },
 };
 
@@ -204,7 +204,7 @@ const TEMP_CONFIG: Record<
 function SkillCells({ parsed }: { parsed: StagingRowDoc["parsed"] }) {
   const cellClass =
     "min-w-[110px] max-w-[220px] py-2 px-3 text-xs shadow-[inset_0_1px_0_0_var(--row-ring),inset_0_-1px_0_0_var(--row-ring)]";
-  const prazno = <span className="text-text-muted/60 select-none">—</span>;
+  const prazno = <span className="text-text-muted select-none">—</span>;
 
   const sajt = opisSajta(parsed);
   const osobe = parsed.osobe ?? [];
@@ -215,7 +215,7 @@ function SkillCells({ parsed }: { parsed: StagingRowDoc["parsed"] }) {
       {/* Niša */}
       <TableCell className={cn(cellClass, "text-foreground")}>
         {parsed.nisa ? (
-          <span className="truncate block font-mono text-[11px]" title={parsed.nisa}>
+          <span className="truncate block text-meta" title={parsed.nisa}>
             {parsed.nisa}
           </span>
         ) : (
@@ -232,7 +232,7 @@ function SkillCells({ parsed }: { parsed: StagingRowDoc["parsed"] }) {
           {sajt.tekst}
         </span>
         {parsed.sajtHttps === false && (
-          <span className="mt-0.5 block text-[11px] text-mod">bez HTTPS</span>
+          <span className="mt-0.5 block text-meta text-mod">bez HTTPS</span>
         )}
       </TableCell>
 
@@ -265,11 +265,11 @@ function SkillCells({ parsed }: { parsed: StagingRowDoc["parsed"] }) {
                 <span key={`${osoba.ime}-${i}`} className="truncate block">
                   {osoba.ime}
                   {osoba.verovatnoca !== undefined ? (
-                    <span className="ml-1 font-mono text-[11px] tabular-nums text-mod">
+                    <span className="ml-1 text-meta tabular-nums text-mod">
                       {Math.round(osoba.verovatnoca)} %
                     </span>
                   ) : osoba.nijeMoguceProceniti ? (
-                    <span className="ml-1 text-[11px] text-text-muted">
+                    <span className="ml-1 text-meta text-text-muted">
                       bez procene
                     </span>
                   ) : null}
@@ -979,7 +979,7 @@ export function ImportReviewTable({
           {countHot > 0 && (
             <>
               <span>·</span>
-              <span className="text-[var(--temp-hot)] font-medium">
+              <span className="text-temp-hot-ink font-medium">
                 {countHot} vrelo
               </span>
             </>
@@ -987,7 +987,7 @@ export function ImportReviewTable({
           {countWarm > 0 && (
             <>
               <span>·</span>
-              <span className="text-[var(--temp-warm)] font-medium">
+              <span className="text-temp-warm-ink font-medium">
                 {countWarm} toplo
               </span>
             </>
@@ -995,7 +995,7 @@ export function ImportReviewTable({
           {countCold > 0 && (
             <>
               <span>·</span>
-              <span className="text-[var(--temp-cold)] font-medium">
+              <span className="text-temp-cold-ink font-medium">
                 {countCold} hladno
               </span>
             </>
@@ -1130,7 +1130,7 @@ export function ImportReviewTable({
                 <TableRow className="border-b border-line bg-surface-raised hover:bg-surface-raised">
                   {/* Sticky: Redni broj — samo kad ga fajl sam nema */}
                   {!fajlImaRedniBroj && (
-                  <TableHead className="sticky left-0 z-30 w-12 min-w-[48px] max-w-[48px] text-center font-mono text-micro text-text-muted bg-surface-raised border-b border-line shadow-[8px_0_12px_-6px_rgba(0,0,0,0.55),1px_0_0_0_var(--line)]">
+                  <TableHead className="sticky left-0 z-30 w-12 min-w-[48px] max-w-[48px] text-center text-micro text-text-muted bg-surface-raised border-b border-line shadow-[8px_0_12px_-6px_rgba(0,0,0,0.55),1px_0_0_0_var(--line)]">
                     #
                   </TableHead>
                   )}
@@ -1281,14 +1281,14 @@ export function ImportReviewTable({
                                 {cleanVal}
                               </span>
                             ) : (
-                              <span className="text-text-muted/60 select-none">—</span>
+                              <span className="text-text-muted select-none">—</span>
                             )}
 
                             {/* Tihe oznake na prvoj koloni sa podacima */}
                             {isFirstDataCol && (
                               <div className="flex flex-col gap-0.5 mt-1">
                                 {row.matchedCompanyId && (
-                                  <div className="flex items-center gap-1 text-[11px] text-mod font-medium">
+                                  <div className="flex items-center gap-1 text-meta text-mod font-medium">
                                     <Building2 className="size-3 shrink-0" />
                                     <span className="truncate">već postoji u bazi</span>
                                     <ProjekatLink
@@ -1302,7 +1302,7 @@ export function ImportReviewTable({
                                   </div>
                                 )}
                                 {row.decision === "nerazreseno" && (
-                                  <div className="flex items-center gap-1 text-[11px] text-warning/90 font-medium">
+                                  <div className="flex items-center gap-1 text-meta text-warning font-medium">
                                     <AlertTriangle className="size-3 shrink-0 text-warning" />
                                     <span>nerazrešeno</span>
                                   </div>
@@ -1311,21 +1311,21 @@ export function ImportReviewTable({
                                     „preskočeno"; bez oznake bi izgledao kao
                                     običan red koji čeka primenu. */}
                                 {row.obrisan === true && (
-                                  <div className="flex items-center gap-1 text-[11px] text-text-muted font-medium">
+                                  <div className="flex items-center gap-1 text-meta text-text-muted font-medium">
                                     <X className="size-3 shrink-0" />
                                     <span>sklonjen iz uvoza</span>
                                   </div>
                                 )}
                                 {/* GL8 „obogati": šta red donosi i da li ima sukob. */}
                                 {jeObogati && brojNovih(row.parsed) > 0 && (
-                                  <div className="flex items-center gap-1 text-[11px] text-success font-medium">
+                                  <div className="flex items-center gap-1 text-meta text-success font-medium">
                                     <span className="inline-flex rounded border border-success/40 bg-success/10 px-1 py-px">
                                       +{brojNovih(row.parsed)} polja
                                     </span>
                                   </div>
                                 )}
                                 {jeObogati && row.conflicts.length > 0 && (
-                                  <div className="flex items-center gap-1 text-[11px] text-warning font-medium">
+                                  <div className="flex items-center gap-1 text-meta text-warning font-medium">
                                     <span className="inline-flex rounded border border-warning/40 bg-warning/10 px-1 py-px">
                                       {row.conflicts.length} {row.conflicts.length === 1 ? "sukob" : "sukoba"}
                                     </span>
@@ -1542,15 +1542,15 @@ export function ImportReviewTable({
               <div className="pt-2 border-t border-line-soft space-y-1 text-xs">
                 <div className="text-micro font-medium text-text-muted mb-1">Raspodela temperature:</div>
                 <div className="flex justify-between text-micro">
-                  <span className="text-[var(--temp-hot)] font-medium">Hot (Vrelo):</span>
+                  <span className="text-temp-hot-ink font-medium">Hot (Vrelo):</span>
                   <span className="font-semibold text-foreground">{countHot}</span>
                 </div>
                 <div className="flex justify-between text-micro">
-                  <span className="text-[var(--temp-warm)] font-medium">Warm (Toplo):</span>
+                  <span className="text-temp-warm-ink font-medium">Warm (Toplo):</span>
                   <span className="font-semibold text-foreground">{countWarm}</span>
                 </div>
                 <div className="flex justify-between text-micro">
-                  <span className="text-[var(--temp-cold)] font-medium">Cold (Hladno):</span>
+                  <span className="text-temp-cold-ink font-medium">Cold (Hladno):</span>
                   <span className="font-semibold text-foreground">{countCold}</span>
                 </div>
                 <div className="flex justify-between text-micro">

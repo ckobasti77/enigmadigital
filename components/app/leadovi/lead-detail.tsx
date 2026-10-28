@@ -113,7 +113,7 @@ const GAP_HINT: Record<GapType, string> = {
 
 function TabBadge({ count }: { count: number }) {
   return (
-    <span className="ml-0.5 inline-flex min-w-4 items-center justify-center rounded-full border border-line bg-surface-raised px-1.5 py-px font-mono text-micro tabular-nums text-text-muted">
+    <span className="ml-0.5 inline-flex min-w-4 items-center justify-center rounded-full border border-line bg-surface-raised px-1.5 py-px text-micro tabular-nums text-text-muted">
       {count}
     </span>
   );

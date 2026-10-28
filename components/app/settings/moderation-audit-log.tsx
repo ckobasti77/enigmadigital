@@ -144,7 +144,7 @@ export function ModerationAuditLog() {
           <ModerationAuditLogSkeleton />
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <ShieldCheck className="mb-3 size-10 text-text-muted/40" />
+            <ShieldCheck className="mb-3 size-10 text-text-muted" />
             <p className="text-sm font-medium text-foreground">
               {rows.length === 0
                 ? "Još nijedna radnja moderacije"
@@ -162,7 +162,7 @@ export function ModerationAuditLog() {
               <p className="text-sm font-medium text-foreground">
                 Moderacija komentara
               </p>
-              <p className="font-mono text-xs tabular-nums text-text-muted">
+              <p className="text-xs tabular-nums text-text-muted">
                 {filtered.length} od poslednjih {LOG_LIMIT} radnji
               </p>
             </div>
@@ -196,7 +196,7 @@ export function ModerationAuditLog() {
                         key={row.id}
                         className="border-line-soft hover:bg-surface-raised/40"
                       >
-                        <TableCell className="py-3 pl-5 align-top font-mono text-xs whitespace-nowrap tabular-nums text-text-muted">
+                        <TableCell className="py-3 pl-5 align-top text-xs whitespace-nowrap tabular-nums text-text-muted">
                           {timestampFmt.format(new Date(row.createdAt))}
                         </TableCell>
 
@@ -256,7 +256,7 @@ export function ModerationAuditLog() {
                               {row.status === "done" ? "Izvršeno" : "Odbijeno"}
                             </StatusPill>
                             {row.errorMessage && (
-                              <span className="block max-w-56 text-right text-xs whitespace-normal text-danger/80">
+                              <span className="block max-w-56 text-right text-xs whitespace-normal text-danger">
                                 {row.errorMessage}
                               </span>
                             )}

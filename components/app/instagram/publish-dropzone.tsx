@@ -110,7 +110,7 @@ export function PublishDropzone({
             ? `Dodato je najviše fajlova (${max}).`
             : "Prevuci fajl ovde ili ga izaberi sa računara"}
         </p>
-        <p className="font-mono text-micro tabular-nums text-text-muted/70">
+        <p className="text-micro tabular-nums text-text-muted">
           {describeAccepted(kind)}
         </p>
 
@@ -243,13 +243,13 @@ function PickedRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-medium text-foreground">
           {reorderable && (
-            <span className="mr-1.5 font-mono text-micro text-text-muted">
+            <span className="mr-1.5 tabular-nums text-micro text-text-muted">
               {index + 1}.
             </span>
           )}
           {item.file.name}
         </p>
-        <p className="font-mono text-micro tabular-nums text-text-muted">
+        <p className="text-micro tabular-nums text-text-muted">
           {describeItem(item)}
         </p>
         {problem !== null && (

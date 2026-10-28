@@ -570,7 +570,7 @@ export function CommandPalette() {
                           </span>
                         )}
                         {entry.xp !== undefined && (
-                          <span className="shrink-0 font-mono text-micro font-medium text-xp tabular-nums">
+                          <span className="shrink-0 text-micro font-medium text-xp tabular-nums">
                             +{entry.xp} XP
                           </span>
                         )}

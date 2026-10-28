@@ -62,15 +62,15 @@ export function IzborSablona({
               </span>
               {ose.fit + ose.intent > 0 && (
                 <span className="mt-1.5 block text-meta text-text-muted">
-                  <span className="font-mono tabular-nums text-foreground">
+                  <span className="tabular-nums text-foreground">
                     {ose.fit}
                   </span>{" "}
                   Fit ·{" "}
-                  <span className="font-mono tabular-nums text-foreground">
+                  <span className="tabular-nums text-foreground">
                     {ose.intent}
                   </span>{" "}
                   Intent pravila ·{" "}
-                  <span className="font-mono tabular-nums text-foreground">
+                  <span className="tabular-nums text-foreground">
                     {nise}
                   </span>{" "}
                   {pluralSr(nise, "niša", "niše", "niša")}

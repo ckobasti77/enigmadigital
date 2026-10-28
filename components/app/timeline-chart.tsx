@@ -194,7 +194,7 @@ export function TimelineChart({
             interval="preserveStartEnd"
             minTickGap={44}
             tickFormatter={formatShortDate}
-            tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+            tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
             tickMargin={8}
           />
           <YAxis
@@ -205,7 +205,7 @@ export function TimelineChart({
             interval={0}
             domain={[areaFloor, areaCeiling]}
             tickFormatter={area.format}
-            tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+            tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
           />
           <ChartTooltip
             cursor={{ stroke: "var(--color-line-strong)", strokeWidth: 1 }}
@@ -283,7 +283,7 @@ export function TimelineChart({
                 interval="preserveStartEnd"
                 minTickGap={44}
                 tickFormatter={formatShortDate}
-                tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+                tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
                 tickMargin={8}
               />
               <YAxis
@@ -295,7 +295,7 @@ export function TimelineChart({
                 domain={[0, barsCeiling]}
                 allowDecimals={false}
                 tickFormatter={bars.format}
-                tick={{ fill: "var(--color-text-muted)", fontSize: 11 }}
+                tick={{ fill: "var(--color-text-muted)", fontSize: 12 }}
               />
               {/* Očitavanje za oba panela stoji u gornjem; ovde ostaje samo
                   isticanje trake preko koje je pokazivač. */}
@@ -422,10 +422,10 @@ function TimelineTooltip({
               {e.label}
             </dt>
             <dd className="flex items-baseline gap-2">
-              <span className="font-mono font-medium tabular-nums text-foreground">
+              <span className="font-medium tabular-nums text-foreground">
                 {e.text}
               </span>
-              <span className="w-14 text-right font-mono tabular-nums text-text-muted">
+              <span className="w-14 text-right tabular-nums text-text-muted">
                 {e.change === null ? "—" : formatSignedPercent(e.change)}
               </span>
             </dd>
@@ -582,7 +582,7 @@ function AreaMarkLabel({
         x={textX}
         y={textY}
         textAnchor={anchor}
-        className="font-mono text-micro tabular-nums"
+        className="text-micro tabular-nums"
         fill={
           kind === "peak"
             ? "var(--color-text-primary)"
@@ -615,7 +615,7 @@ function renderBarLabel(
       x={x + width / 2}
       y={Math.max(LABEL_RISE, y - 5)}
       textAnchor="middle"
-      className="font-mono text-micro tabular-nums"
+      className="text-micro tabular-nums"
       fill="var(--color-text-primary)"
     >
       {format(value)}

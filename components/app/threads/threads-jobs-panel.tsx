@@ -53,7 +53,7 @@ const STATUS_TONES: Record<ThreadsPublishStatus, string> = {
   publishing: "border-mod-line bg-mod-soft text-mod animate-pulse",
   published: "border-success/30 bg-success/10 text-success",
   failed: "border-danger/30 bg-danger/10 text-danger",
-  canceled: "border-line bg-surface text-text-muted line-through opacity-70",
+  canceled: "border-line bg-surface text-text-muted line-through",
 };
 
 export function ThreadsJobsPanel() {
@@ -160,7 +160,7 @@ export function ThreadsJobsPanel() {
                   <TableRow key={job._id} className="hover:bg-surface-raised/50">
                     {/* Tip */}
                     <TableCell className="py-3 font-medium">
-                      <span className="inline-flex items-center gap-1 rounded bg-bg-950/80 px-2 py-0.5 font-mono text-micro text-text-primary">
+                      <span className="inline-flex items-center gap-1 rounded bg-bg-950/80 px-2 py-0.5 text-micro text-text-primary">
                         {MEDIA_TYPE_LABELS[job.mediaType]}
                       </span>
                     </TableCell>
@@ -168,11 +168,11 @@ export function ThreadsJobsPanel() {
                     {/* Sadržaj */}
                     <TableCell className="py-3 max-w-xs">
                       <div className="flex flex-col">
-                        <p className="line-clamp-2 text-foreground/90 leading-relaxed font-sans">
+                        <p className="line-clamp-2 text-foreground leading-relaxed font-sans">
                           {job.text || <span className="italic text-text-muted">Bez teksta</span>}
                         </p>
                         {job.itemCount > 0 && (
-                          <span className="mt-1 font-mono text-micro text-text-muted">
+                          <span className="mt-1 text-micro tabular-nums text-text-muted">
                             {job.itemCount} {job.itemCount === 1 ? "fajl" : "fajlova"}
                           </span>
                         )}

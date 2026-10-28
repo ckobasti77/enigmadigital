@@ -214,7 +214,7 @@ export function Ga4Configuration() {
             <h2 className="text-base font-semibold text-foreground">
               Google Analytics - konfiguracija propertije
             </h2>
-            <span className="rounded-md bg-surface-raised px-2 py-0.5 font-mono text-[11px] text-text-muted border border-line-soft">
+            <span className="rounded-md bg-surface-raised px-2 py-0.5 font-mono text-meta text-text-muted border border-line-soft">
               ID: {config.propertyId}
             </span>
           </div>
@@ -279,38 +279,38 @@ export function Ga4Configuration() {
           )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
-              <span className="text-[11px] text-text-muted block">Naziv propertije</span>
-              <span className="text-xs font-medium text-foreground font-mono">
+              <span className="text-meta text-text-muted block">Naziv propertije</span>
+              <span className="text-xs font-medium text-foreground">
                 {config.displayName || "—"}
               </span>
             </div>
 
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
-              <span className="text-[11px] text-text-muted block">Vremenska zona</span>
+              <span className="text-meta text-text-muted block">Vremenska zona</span>
               <span className="text-xs font-medium text-foreground font-mono">
                 {config.timeZone || reportMeta?.timeZone || "—"}
               </span>
               {!config.timeZone && reportMeta?.timeZone && (
-                <span className="block text-[11px] text-text-muted">iz GA4 izveštaja</span>
+                <span className="block text-meta text-text-muted">iz GA4 izveštaja</span>
               )}
             </div>
 
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
-              <span className="text-[11px] text-text-muted block">Valuta izveštaja</span>
+              <span className="text-meta text-text-muted block">Valuta izveštaja</span>
               <span className="text-xs font-medium text-foreground font-mono">
                 {config.currencyCode || reportMeta?.currencyCode || "—"}
               </span>
               {!config.currencyCode && reportMeta?.currencyCode && (
-                <span className="block text-[11px] text-text-muted">iz GA4 izveštaja</span>
+                <span className="block text-meta text-text-muted">iz GA4 izveštaja</span>
               )}
             </div>
 
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
-              <span className="text-[11px] text-text-muted block">Nivo usluge</span>
+              <span className="text-meta text-text-muted block">Nivo usluge</span>
               <span className="text-xs font-medium text-foreground">
                 {serviceLevel.label}{" "}
                 {serviceLevel.raw && (
-                  <span className="font-mono text-[10px] text-text-muted">
+                  <span className="font-mono text-meta text-text-muted">
                     ({serviceLevel.raw})
                   </span>
                 )}
@@ -318,14 +318,14 @@ export function Ga4Configuration() {
             </div>
 
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
-              <span className="text-[11px] text-text-muted block">Industrija</span>
-              <span className="text-xs font-medium text-foreground font-mono">
+              <span className="text-meta text-text-muted block">Industrija</span>
+              <span className="text-xs font-medium text-foreground">
                 {config.industryCategory || "—"}
               </span>
             </div>
 
             <div className="rounded-lg border border-line-soft bg-surface-raised/40 p-3">
-              <span className="text-[11px] text-text-muted block">Datum kreiranja</span>
+              <span className="text-meta text-text-muted block">Datum kreiranja</span>
               <span className="text-xs font-medium text-foreground">
                 {formatAdminDate(config.createTime)}
               </span>
@@ -350,7 +350,7 @@ export function Ga4Configuration() {
                 <span className="text-xs text-text-muted block">
                   Period zadržavanja podataka o događajima i korisnicima:
                 </span>
-                <span className="text-sm font-semibold text-foreground font-mono">
+                <span className="text-sm font-semibold text-foreground tabular-nums">
                   {retention.label}{" "}
                   {retention.raw && (
                     <span className="text-xs font-normal text-text-muted">
@@ -409,7 +409,7 @@ export function Ga4Configuration() {
           ) : (
             <div className="overflow-x-auto rounded-lg border border-line-soft">
               <table className="w-full text-xs">
-                <thead className="bg-surface-raised/60 border-b border-line-soft text-text-muted text-[11px]">
+                <thead className="bg-surface-raised/60 border-b border-line-soft text-text-muted text-meta">
                   <tr>
                     <th className="py-2.5 px-3 text-left font-medium">Naziv događaja</th>
                     <th className="py-2.5 px-3 text-left font-medium">Način brojanja</th>
@@ -417,18 +417,18 @@ export function Ga4Configuration() {
                     <th className="py-2.5 px-3 text-right font-medium">Datum kreiranja</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line-soft font-mono">
+                <tbody className="divide-y divide-line-soft">
                   {config.keyEvents.map((ke) => {
                     const counting = translateCountingMethod(ke.countingMethod);
                     return (
                       <tr key={ke.eventName} className="hover:bg-surface-raised/30">
-                        <td className="py-2.5 px-3 font-semibold text-foreground">
+                        <td className="py-2.5 px-3 font-semibold text-foreground font-mono">
                           {ke.eventName}
                         </td>
                         <td className="py-2.5 px-3 text-foreground font-sans">
                           {counting.label}{" "}
                           {counting.raw && (
-                            <span className="text-[10px] text-text-muted font-mono">
+                            <span className="text-meta text-text-muted font-mono">
                               ({counting.raw})
                             </span>
                           )}
@@ -466,7 +466,7 @@ export function Ga4Configuration() {
           ) : (
             <div className="overflow-x-auto rounded-lg border border-line-soft">
               <table className="w-full text-xs">
-                <thead className="bg-surface-raised/60 border-b border-line-soft text-text-muted text-[11px]">
+                <thead className="bg-surface-raised/60 border-b border-line-soft text-text-muted text-meta">
                   <tr>
                     <th className="py-2.5 px-3 text-left font-medium">Naziv toka</th>
                     <th className="py-2.5 px-3 text-left font-medium">Tip</th>
@@ -474,7 +474,7 @@ export function Ga4Configuration() {
                     <th className="py-2.5 px-3 text-left font-medium">Adresa veb sajta</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line-soft font-mono">
+                <tbody className="divide-y divide-line-soft">
                   {config.dataStreams.map((ds, i) => {
                     const streamType = translateStreamType(ds.type);
                     return (
@@ -485,10 +485,10 @@ export function Ga4Configuration() {
                         <td className="py-2.5 px-3 text-text-muted font-sans">
                           {streamType.label}
                         </td>
-                        <td className="py-2.5 px-3 font-semibold text-foreground">
+                        <td className="py-2.5 px-3 font-semibold text-foreground font-mono">
                           {ds.measurementId || "—"}
                         </td>
-                        <td className="py-2.5 px-3 text-text-muted">
+                        <td className="py-2.5 px-3 text-text-muted font-mono">
                           {ds.defaultUri || "—"}
                         </td>
                       </tr>
@@ -518,17 +518,17 @@ export function Ga4Configuration() {
           ) : (
             <div className="overflow-x-auto rounded-lg border border-line-soft">
               <table className="w-full text-xs">
-                <thead className="bg-surface-raised/60 border-b border-line-soft text-text-muted text-[11px]">
+                <thead className="bg-surface-raised/60 border-b border-line-soft text-text-muted text-meta">
                   <tr>
                     <th className="py-2.5 px-3 text-left font-medium">Customer ID</th>
                     <th className="py-2.5 px-3 text-left font-medium">Personalizacija oglasa</th>
                     <th className="py-2.5 px-3 text-right font-medium">Datum povezivanja</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line-soft font-mono">
+                <tbody className="divide-y divide-line-soft">
                   {config.googleAdsLinks.map((gal) => (
                     <tr key={gal.customerId} className="hover:bg-surface-raised/30">
-                      <td className="py-2.5 px-3 font-semibold text-foreground">
+                      <td className="py-2.5 px-3 font-semibold text-foreground font-mono">
                         {formatCustomerId(gal.customerId)}
                       </td>
                       <td className="py-2.5 px-3 text-foreground font-sans">
@@ -569,7 +569,7 @@ export function Ga4Configuration() {
               {config.customDimensions && config.customDimensions.length > 0 && (
                 <div className="overflow-x-auto rounded-lg border border-line-soft">
                   <table className="w-full text-xs">
-                    <thead className="bg-surface-raised/60 border-b border-line-soft text-text-muted text-[11px]">
+                    <thead className="bg-surface-raised/60 border-b border-line-soft text-text-muted text-meta">
                       <tr>
                         <th className="py-2.5 px-3 text-left font-medium">Naziv parametra</th>
                         <th className="py-2.5 px-3 text-left font-medium">Prikazno ime</th>
@@ -577,10 +577,10 @@ export function Ga4Configuration() {
                         <th className="py-2.5 px-3 text-left font-medium">Opis</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-line-soft font-mono">
+                    <tbody className="divide-y divide-line-soft">
                       {config.customDimensions.map((cd) => (
                         <tr key={cd.parameterName} className="hover:bg-surface-raised/30">
-                          <td className="py-2.5 px-3 font-semibold text-foreground">
+                          <td className="py-2.5 px-3 font-semibold text-foreground font-mono">
                             {cd.parameterName}
                           </td>
                           <td className="py-2.5 px-3 text-foreground font-sans">
@@ -602,7 +602,7 @@ export function Ga4Configuration() {
               {config.customMetrics && config.customMetrics.length > 0 && (
                 <div className="overflow-x-auto rounded-lg border border-line-soft">
                   <table className="w-full text-xs">
-                    <thead className="bg-surface-raised/60 border-b border-line-soft text-text-muted text-[11px]">
+                    <thead className="bg-surface-raised/60 border-b border-line-soft text-text-muted text-meta">
                       <tr>
                         <th className="py-2.5 px-3 text-left font-medium">Naziv parametra</th>
                         <th className="py-2.5 px-3 text-left font-medium">Prikazno ime</th>
@@ -610,10 +610,10 @@ export function Ga4Configuration() {
                         <th className="py-2.5 px-3 text-left font-medium">Opis</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-line-soft font-mono">
+                    <tbody className="divide-y divide-line-soft">
                       {config.customMetrics.map((cm) => (
                         <tr key={cm.parameterName} className="hover:bg-surface-raised/30">
-                          <td className="py-2.5 px-3 font-semibold text-foreground">
+                          <td className="py-2.5 px-3 font-semibold text-foreground font-mono">
                             {cm.parameterName}
                           </td>
                           <td className="py-2.5 px-3 text-foreground font-sans">

@@ -391,7 +391,7 @@ function AdActionDialogInner({
 
           <div className="flex items-center justify-between text-text-muted">
             <span>Trenutni status:</span>
-            <span className="inline-flex items-center gap-1.5 font-mono text-foreground">
+            <span className="inline-flex items-center gap-1.5 text-foreground">
               <span
                 className={cn(
                   "size-1.5 rounded-full",
@@ -405,7 +405,7 @@ function AdActionDialogInner({
           {effectiveDailyBudget !== undefined && (
             <div className="flex items-center justify-between text-text-muted">
               <span>Trenutni dnevni budžet:</span>
-              <span className="font-mono text-foreground font-medium">
+              <span className="tabular-nums text-foreground font-medium">
                 {formatMetric(effectiveDailyBudget, spendDef, accountCurrency)} / dan
               </span>
             </div>
@@ -416,7 +416,7 @@ function AdActionDialogInner({
               <Flame className="size-3 text-warning" />
               <span>Potrošnja danas:</span>
             </span>
-            <span className="font-mono font-bold text-warning tabular-nums">
+            <span className="font-bold text-warning tabular-nums">
               {formatMetric(effectiveSpendToday, spendDef, accountCurrency)}
             </span>
           </div>
@@ -450,7 +450,7 @@ function AdActionDialogInner({
               </Label>
               <div className="relative">
                 {accountCurrency && (
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-mono text-xs">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-xs">
                     {accountCurrency}
                   </span>
                 )}
@@ -461,7 +461,7 @@ function AdActionDialogInner({
                   min="1"
                   value={newBudgetStr}
                   onChange={(e) => setNewBudgetStr(e.target.value)}
-                  className={cn("font-mono text-sm", accountCurrency ? "pl-14" : "pl-3")}
+                  className={cn("tabular-nums text-sm", accountCurrency ? "pl-14" : "pl-3")}
                   placeholder="20.00"
                   required
                   disabled={loading}
@@ -479,7 +479,7 @@ function AdActionDialogInner({
                     : "border-danger/30 bg-danger/5 text-danger",
                 )}
               >
-                <div className="flex items-center justify-between font-mono">
+                <div className="flex items-center justify-between tabular-nums">
                   <span className="text-text-muted">Procentualna promena:</span>
                   <span
                     className={cn(
@@ -498,7 +498,7 @@ function AdActionDialogInner({
 
                 <div className="flex items-center justify-between text-micro text-text-muted">
                   <span>Dozvoljeni raspon (±50%):</span>
-                  <span className="font-mono">
+                  <span className="tabular-nums">
                     {formatMetric(budgetGuardrails.minAllowed, spendDef, accountCurrency)} – {formatMetric(budgetGuardrails.maxAllowed, spendDef, accountCurrency)}
                   </span>
                 </div>

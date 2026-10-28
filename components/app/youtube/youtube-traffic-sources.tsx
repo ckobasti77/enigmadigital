@@ -112,7 +112,7 @@ export function YouTubeTrafficSources({
     <Card className="gap-0 py-0 shadow-card ring-line">
       <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-5 pb-3">
         <p className="text-sm font-medium text-foreground">Izvori pregleda</p>
-        <p className="font-mono text-xs tabular-nums text-text-muted">
+        <p className="text-xs tabular-nums text-text-muted">
           {rows.length} {rows.length === 1 ? "izvor" : "izvora"} ·{" "}
           {formatNumber(totalViews)} pregleda
         </p>

@@ -215,7 +215,7 @@ function ZastoCell({
       ))}
       {ostatak.length > 0 && (
         <span
-          className="font-mono text-meta tabular-nums text-text-muted"
+          className="text-meta tabular-nums text-text-muted"
           title={`još ${ostatak.length}: ${ostatak.map(leadSignalLabel).join(", ")}`}
         >
           +{ostatak.length}
@@ -1071,10 +1071,10 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
           {!isLoading && totalItems > 0 && (
             <div className="text-ui text-text-muted">
               Prikazano{" "}
-              <strong className="font-mono tabular-nums text-foreground">
+              <strong className="tabular-nums text-foreground">
                 {startItemIndex}–{endItemIndex}
               </strong>{" "}
-              od <strong className="font-mono tabular-nums text-foreground">{totalItems}</strong>{" "}
+              od <strong className="tabular-nums text-foreground">{totalItems}</strong>{" "}
               {odsecenoNaGranici ? "pregledanih" : "u preseku"}
             </div>
           )}
@@ -1203,7 +1203,7 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
                     <TableHead style={sirina("fitIntent")} className={headCls}>
                       <span className="inline-flex items-center gap-1">
                         <SortButton compact label="Fit" sortKey="fit" activeKey={sortKey} direction={sortDir} onSort={handleSort} />
-                        <span className="opacity-50">/</span>
+                        <span className="text-text-muted">/</span>
                         <SortButton compact label="Intent" sortKey="intent" activeKey={sortKey} direction={sortDir} onSort={handleSort} />
                       </span>
                     </TableHead>
@@ -1221,7 +1221,7 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
                     <TableHead style={sirina("sledeciKorak")} className={cn(headCls, "whitespace-normal")}>
                       <span className="inline-flex flex-wrap items-center gap-x-1.5">
                         <SortButton compact label={LEAD_COLUMN_LABEL.sledeciKorak} sortKey="nextAction" activeKey={sortKey} direction={sortDir} onSort={handleSort} />
-                        <span className="opacity-50">·</span>
+                        <span className="text-text-muted">·</span>
                         <SortButton compact label="dodir" sortKey="lastTouch" activeKey={sortKey} direction={sortDir} onSort={handleSort} title="Sortiraj po poslednjem dodiru" />
                       </span>
                     </TableHead>
@@ -1299,8 +1299,8 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
         {!isLoading && totalPages > 1 && (
           <div className="flex items-center justify-between border-t border-line pt-3">
             <div className="text-ui text-text-muted">
-              Strana <strong className="font-mono tabular-nums">{validPage}</strong> od{" "}
-              <strong className="font-mono tabular-nums">{totalPages}</strong> (po 25 leadova)
+              Strana <strong className="tabular-nums">{validPage}</strong> od{" "}
+              <strong className="tabular-nums">{totalPages}</strong> (po 25 leadova)
             </div>
             <div className="flex items-center gap-2">
               <Button

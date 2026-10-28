@@ -65,7 +65,7 @@ export function AdsTable({
         value: (r) => (r.keyword ? `${r.campaign} / ${r.keyword}` : r.campaign),
         cellClassName: "max-w-[12rem] sm:max-w-[20rem]",
         cell: (r) => (
-          <span className="block truncate font-mono text-xs">
+          <span className="block truncate text-xs">
             <span className="font-semibold text-foreground">{r.campaign}</span>
             {r.keyword && (
               <span className="text-text-muted"> / {r.keyword}</span>

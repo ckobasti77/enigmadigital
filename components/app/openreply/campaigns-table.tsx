@@ -83,7 +83,7 @@ export function CampaignsTable({
     <Card className="gap-0 py-0 shadow-card ring-line">
       <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-5 pb-3">
         <p className="text-sm font-medium text-foreground">Kampanje</p>
-        <p className="font-mono text-xs tabular-nums text-text-muted">
+        <p className="text-xs tabular-nums text-text-muted">
           {rows.length} {rows.length === 1 ? "kampanja" : "kampanja"} ·{" "}
           {formatNumber(totalDms)} poslatih DM-ova
         </p>
@@ -178,7 +178,7 @@ export function CampaignsTable({
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="hidden max-w-44 truncate py-3 font-mono text-xs text-muted-foreground sm:table-cell">
+                    <TableCell className="hidden max-w-44 truncate py-3 text-xs text-muted-foreground sm:table-cell">
                       {row.keyword || "—"}
                     </TableCell>
                     <TableCell className="hidden py-3 md:table-cell">

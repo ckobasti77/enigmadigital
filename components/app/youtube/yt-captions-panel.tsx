@@ -559,7 +559,7 @@ function YtCaptionsContent({
                   </Label>
                   <span
                     className={cn(
-                      "font-mono text-xs tabular-nums",
+                      "text-xs tabular-nums",
                       name.length > CAPTION_NAME_MAX
                         ? "text-danger"
                         : "text-text-muted",
@@ -718,7 +718,7 @@ function CaptionTable({
                 <TableCell className="py-2">
                   <StatusPill track={track} automatic={automatic} />
                 </TableCell>
-                <TableCell className="py-2 font-mono text-xs whitespace-nowrap tabular-nums text-text-muted">
+                <TableCell className="py-2 text-xs whitespace-nowrap tabular-nums text-text-muted">
                   {formatTrackDate(track.lastUpdated)}
                 </TableCell>
                 <TableCell className="py-2 pr-3 text-right">
@@ -907,12 +907,12 @@ function CostPanel({
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-xs text-foreground">
           {label}:{" "}
-          <span className="font-mono font-semibold tabular-nums text-mod">
+          <span className="font-semibold tabular-nums text-mod">
             {formatNumber(cost)}
           </span>{" "}
           jedinica
         </p>
-        <p className="font-mono text-xs tabular-nums text-text-muted">
+        <p className="text-xs tabular-nums text-text-muted">
           danas potrošeno {formatNumber(quota.unitsUsed)} od{" "}
           {formatNumber(quota.mediaLimit)}
         </p>
@@ -928,7 +928,7 @@ function CostPanel({
       {fits ? (
         <p className="mt-2 text-xs text-text-muted">
           Posle ovoga ostaje{" "}
-          <span className="font-mono tabular-nums text-foreground">
+          <span className="tabular-nums text-foreground">
             {formatNumber(after)}
           </span>{" "}
           jedinica za izmene danas.
@@ -936,7 +936,7 @@ function CostPanel({
             <>
               {" "}
               Ako prvi pokušaj ne prođe, rezervni put košta još{" "}
-              <span className="font-mono tabular-nums">
+              <span className="tabular-nums">
                 {formatNumber(cost)}
               </span>
               .

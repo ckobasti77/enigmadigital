@@ -284,12 +284,12 @@ function Celija({ naziv, children }: { naziv: string; children: ReactNode }) {
 }
 
 function Pod({ children }: { children: ReactNode }) {
-  return <span className="truncate font-mono text-meta tabular-nums text-text-muted">{children}</span>;
+  return <span className="truncate text-meta tabular-nums text-text-muted">{children}</span>;
 }
 
 function Nepoznato({ tekst }: { tekst: string }) {
   return (
-    <span className="font-mono text-copy tabular-nums text-text-muted" title={tekst}>
+    <span className="text-copy tabular-nums text-text-muted" title={tekst}>
       <span aria-hidden>—</span>
       <span className="sr-only">nepoznato: {tekst}</span>
     </span>
@@ -310,7 +310,7 @@ function Broj({
   }
   return (
     <span
-      className="font-mono text-copy tabular-nums text-foreground"
+      className="text-copy tabular-nums text-foreground"
       title={naslov || (brojka.vise ? "najmanje toliko" : undefined)}
     >
       {format(brojka.vrednost)}
@@ -350,7 +350,7 @@ function CekaCelija({
       ) : (
         <span
           className={cn(
-            "font-mono text-copy tabular-nums",
+            "text-copy tabular-nums",
             staMeCeka.ukupno > 0 ? "text-foreground" : "text-text-muted",
           )}
           title={staMeCeka.nepotpuno ? "najmanje toliko" : undefined}
@@ -432,7 +432,7 @@ function RedVeze({ veza, sada }: { veza: Veza; sada: number }) {
         {veza.kvota && (
           <>
             {" · "}
-            <span className="whitespace-nowrap font-mono tabular-nums">
+            <span className="whitespace-nowrap tabular-nums">
               {veza.kvota.vrsta === "procenat"
                 ? `kvota aplikacije ${formatNumber(veza.kvota.potroseno)} %`
                 : `kvota ${formatNumber(veza.kvota.potroseno)} / ${formatNumber(veza.kvota.granica)}`}

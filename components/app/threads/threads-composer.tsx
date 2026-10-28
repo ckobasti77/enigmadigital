@@ -507,7 +507,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
           {loadingQuota ? (
             <span className="text-text-muted">Učitavanje kvote...</span>
           ) : quota?.total !== undefined && quota?.used !== undefined ? (
-            <div className="flex items-center gap-1.5 font-mono">
+            <div className="flex items-center gap-1.5 tabular-nums">
               <span className="font-semibold text-foreground">
                 {formatNumber(quota.used)} / {formatNumber(quota.total)}
               </span>
@@ -570,7 +570,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
               action={
                 <span
                   className={cn(
-                    "font-mono text-micro tabular-nums",
+                    "text-micro tabular-nums",
                     isTextOverLimit
                       ? "font-bold text-danger"
                       : textBytesLeft <= 50
@@ -674,7 +674,7 @@ function ThreadsComposerForm({ onJobCreated }: { onJobCreated?: () => void }) {
                         <X className="size-3.5" aria-hidden="true" />
                       </button>
 
-                      <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded bg-bg-950/80 px-1.5 py-0.5 text-micro font-mono text-text-muted">
+                      <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded bg-bg-950/80 px-1.5 py-0.5 text-micro tabular-nums text-text-muted">
                         {item.kind === "image" ? (
                           <FileImage className="size-3" />
                         ) : (

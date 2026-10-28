@@ -123,21 +123,21 @@ const TEMP_CONFIG: Record<
   cold: {
     label: "Cold",
     chipClass:
-      "border-[var(--temp-cold)]/40 text-[var(--temp-cold)] bg-[var(--temp-cold-bg)] hover:bg-[var(--temp-cold)]/20",
+      "border-[var(--temp-cold)]/40 text-temp-cold-ink bg-[var(--temp-cold-bg)] hover:bg-[var(--temp-cold)]/20",
     dotClass: "bg-[var(--temp-cold)]",
     borderClass: "border-l-[var(--temp-cold)]",
   },
   warm: {
     label: "Warm",
     chipClass:
-      "border-[var(--temp-warm)]/40 text-[var(--temp-warm)] bg-[var(--temp-warm-bg)] hover:bg-[var(--temp-warm)]/20",
+      "border-[var(--temp-warm)]/40 text-temp-warm-ink bg-[var(--temp-warm-bg)] hover:bg-[var(--temp-warm)]/20",
     dotClass: "bg-[var(--temp-warm)]",
     borderClass: "border-l-[var(--temp-warm)]",
   },
   hot: {
     label: "Hot",
     chipClass:
-      "border-[var(--temp-hot)]/40 text-[var(--temp-hot)] bg-[var(--temp-hot-bg)] hover:bg-[var(--temp-hot)]/20",
+      "border-[var(--temp-hot)]/40 text-temp-hot-ink bg-[var(--temp-hot-bg)] hover:bg-[var(--temp-hot)]/20",
     dotClass: "bg-[var(--temp-hot)]",
     borderClass: "border-l-[var(--temp-hot)]",
   },
@@ -372,7 +372,7 @@ export function ImportRowDialog({
         <span className="inline-flex items-center gap-1.5">
           {parsed.grad}
           {isGradDerived && (
-            <span className="rounded bg-mod-soft px-1.5 py-0.5 text-[10px] font-medium text-mod">
+            <span className="rounded bg-mod-soft px-1.5 py-0.5 text-meta font-medium text-mod">
               izvedeno
             </span>
           )}

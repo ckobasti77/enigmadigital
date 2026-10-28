@@ -106,7 +106,7 @@ export function PostDetailHeader({
                 </span>
 
                 {/* Date & Time */}
-                <span className="text-xs font-mono text-text-muted">
+                <span className="text-xs text-text-muted">
                   Objavljeno: {dateLabel} u {timeLabel}
                 </span>
 

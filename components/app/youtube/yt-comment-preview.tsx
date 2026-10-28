@@ -91,7 +91,7 @@ export function YtCommentPreview({
                 <ThumbsUp className="size-3" aria-hidden />0
               </span>
               <span>Odgovori</span>
-              <span className="font-mono tabular-nums">
+              <span className="tabular-nums">
                 {text.length} karaktera
               </span>
             </p>

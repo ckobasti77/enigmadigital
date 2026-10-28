@@ -150,7 +150,7 @@ function DeletedNotice({ at }: { at: number }) {
       <span className="text-micro font-semibold text-danger">
         Obrisano sa Facebook-a
       </span>
-      <span className="ml-auto shrink-0 font-mono text-micro tabular-nums text-text-muted">
+      <span className="ml-auto shrink-0 text-micro tabular-nums text-text-muted">
         {formatPostDate(at)}
       </span>
     </div>
@@ -261,7 +261,7 @@ export function FacebookContentGrid({ posts }: { posts: FbPostItem[] }) {
               <CountUp
                 value={deletedCount}
                 format={formatNumber}
-                className="font-mono text-text-muted"
+                className="tabular-nums text-text-muted"
               />
             </Toggle>
           )}
@@ -298,7 +298,7 @@ export function FacebookContentGrid({ posts }: { posts: FbPostItem[] }) {
               <h2 className="text-base font-semibold text-foreground">
                 Sve objave
               </h2>
-              <p className="font-mono text-xs tabular-nums text-text-muted">
+              <p className="text-xs tabular-nums text-text-muted">
                 Prikazano {formatNumber(sorted.length)}{" "}
                 {pluralSr(sorted.length, "objava", "objave", "objava")}
               </p>
@@ -377,7 +377,7 @@ function SortButton({
 
 function PostCaption({ message }: { message: string }) {
   return (
-    <p className="line-clamp-2 min-h-8 text-xs leading-relaxed text-foreground/90">
+    <p className="line-clamp-2 min-h-8 text-xs leading-relaxed text-foreground">
       {message ? (
         message
       ) : (
@@ -450,7 +450,7 @@ function TopPostCard({
           <DeletedNotice at={post.deletedAt ?? 0} />
         ) : (
           <div className="absolute bottom-2 left-3">
-            <span className="rounded bg-bg-950/70 px-2 py-0.5 font-mono text-micro text-text-muted backdrop-blur-xs">
+            <span className="rounded bg-bg-950/70 px-2 py-0.5 text-micro text-text-muted backdrop-blur-xs">
               {formatPostDate(post.publishedAt)}
             </span>
           </div>
@@ -464,7 +464,7 @@ function TopPostCard({
           <span className="text-xs font-medium text-text-muted">
             Ukupno prikaza
           </span>
-          <span className="font-mono text-lg font-bold tabular-nums text-mod">
+          <span className="text-lg font-bold tabular-nums text-mod">
             {post.impressions === undefined
               ? "—"
               : formatNumber(post.impressions)}
@@ -518,7 +518,7 @@ function Stat({
       <span className="flex items-center justify-center gap-1 text-micro text-text-muted">
         <Icon className="size-3" aria-hidden /> {label}
       </span>
-      <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+      <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
         {value === undefined ? "—" : formatNumber(value)}
       </p>
     </div>
@@ -566,7 +566,7 @@ function PostCard({
         </div>
 
         <div className="absolute top-2.5 right-2.5">
-          <span className="rounded bg-bg-950/80 px-2 py-0.5 font-mono text-micro text-text-muted backdrop-blur-md">
+          <span className="rounded bg-bg-950/80 px-2 py-0.5 text-micro text-text-muted backdrop-blur-md">
             {formatPostDate(post.publishedAt)}
           </span>
         </div>
@@ -583,7 +583,7 @@ function PostCard({
               <Eye className="size-3 text-mod" />
               <span>Prikazi</span>
             </div>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {post.impressions === undefined
                 ? "—"
                 : formatNumber(post.impressions)}
@@ -595,7 +595,7 @@ function PostCard({
               <Eye className="size-3 text-text-muted" />
               <span>Doseg</span>
             </div>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {post.reach === undefined ? "—" : formatNumber(post.reach)}
             </p>
           </div>
@@ -605,7 +605,7 @@ function PostCard({
               <ThumbsUp className="size-3 text-text-muted" />
               <span>Lajkovi</span>
             </div>
-            <p className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+            <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
               {formatNumber(post.likes)}
             </p>
           </div>
@@ -613,11 +613,11 @@ function PostCard({
 
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-line-soft pt-3 text-xs">
           <div className="flex items-center gap-3 text-text-muted">
-            <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+            <span className="inline-flex items-center gap-1 tabular-nums">
               <MessageCircle className="size-3.5" />
               {formatNumber(post.comments)}
             </span>
-            <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+            <span className="inline-flex items-center gap-1 tabular-nums">
               <Share2 className="size-3.5" />
               {formatNumber(post.shares)}
             </span>

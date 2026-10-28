@@ -371,7 +371,7 @@ function TajnaPolje({
                       {stanje.updatedAt !== null && (
                         <span className="text-text-muted">
                           {" · "}
-                          <span className="font-mono tabular-nums">
+                          <span className="tabular-nums">
                             {DATUM.format(stanje.updatedAt)}
                           </span>
                         </span>
@@ -551,7 +551,7 @@ function BudzetskeGranice({ podaci }: { podaci: Podaci }) {
           inputMode={g === "valuta" ? "text" : "decimal"}
           autoComplete="off"
           maxLength={g === "valuta" ? 3 : 12}
-          className={cn("h-9", g === "valuta" ? "uppercase" : "font-mono tabular-nums placeholder:font-sans")}
+          className={cn("h-9", g === "valuta" ? "uppercase" : "tabular-nums placeholder:font-sans")}
         />
       )}
     </Field>

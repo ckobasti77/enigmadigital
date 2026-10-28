@@ -487,7 +487,7 @@ function AxisColumn({
           </div>
         </div>
         <div className="shrink-0 text-right">
-          <div className="font-mono text-lg font-semibold tabular-nums text-foreground">
+          <div className="text-lg font-semibold tabular-nums text-foreground">
             {activeSum}
           </div>
           <div className="text-micro text-text-muted">
@@ -550,7 +550,6 @@ function RuleRow({
     <li
       className={cn(
         "rounded-lg border border-line bg-surface px-3.5 py-3 transition-colors",
-        !rule.isActive && "opacity-60",
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -576,7 +575,7 @@ function RuleRow({
 
         <div className="flex shrink-0 items-center gap-3">
           <div className="text-right">
-            <div className="font-mono text-sm font-semibold tabular-nums text-foreground">
+            <div className="text-sm font-semibold tabular-nums text-foreground">
               {rule.weight}
             </div>
             <div className="text-micro text-text-muted">težina</div>
@@ -768,7 +767,7 @@ function RuleFormDialog({
                   step={1}
                   value={weight}
                   onChange={(e) => setWeight(e.target.value)}
-                  className="font-mono tabular-nums"
+                  className="tabular-nums"
                   disabled={submitting}
                 />
               </div>

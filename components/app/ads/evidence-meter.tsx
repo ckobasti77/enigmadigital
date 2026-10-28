@@ -146,7 +146,7 @@ export function EvidenceMeter({
               </PopoverDescription>
             </PopoverHeader>
 
-            <div className="mt-3 space-y-2 rounded-md border border-line-soft bg-surface/50 p-2.5 text-xs font-mono tabular-nums">
+            <div className="mt-3 space-y-2 rounded-md border border-line-soft bg-surface/50 p-2.5 text-xs tabular-nums">
               <div className="flex items-center justify-between">
                 <span className="text-text-muted">Impresije:</span>
                 <span
@@ -185,7 +185,7 @@ export function EvidenceMeter({
         </Popover>
 
         {showDetails && (
-          <span className="text-micro font-mono tabular-nums text-text-muted">
+          <span className="text-micro tabular-nums text-text-muted">
             {sampleProgressPct}% praga
           </span>
         )}
@@ -204,7 +204,7 @@ export function EvidenceMeter({
               style={{ width: `${impPct}%` }}
             />
           </div>
-          <span className="text-micro font-mono tabular-nums text-text-muted shrink-0 w-12 text-right">
+          <span className="text-micro tabular-nums text-text-muted shrink-0 w-12 text-right">
             {formatNumber(impressions)} imp
           </span>
         </div>
@@ -220,7 +220,7 @@ export function EvidenceMeter({
               style={{ width: `${clickPct}%` }}
             />
           </div>
-          <span className="text-micro font-mono tabular-nums text-text-muted shrink-0 w-12 text-right">
+          <span className="text-micro tabular-nums text-text-muted shrink-0 w-12 text-right">
             {clicks} klik
           </span>
         </div>

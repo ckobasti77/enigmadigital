@@ -679,7 +679,7 @@ function SectionHead({
         <Icon className="size-3.5 text-mod" aria-hidden />
         <span>{title}</span>
       </span>
-      <span className="font-mono text-xs tabular-nums text-text-muted">
+      <span className="text-xs tabular-nums text-text-muted">
         {count}
       </span>
     </div>

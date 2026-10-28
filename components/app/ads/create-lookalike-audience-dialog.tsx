@@ -228,7 +228,7 @@ function CreateLookalikeAudienceDialogInner({
               ))}
             </select>
             {selectedSeed && !selectedSeed.isEligible && (
-              <p className="flex items-center gap-1 text-[11px] text-danger">
+              <p className="flex items-center gap-1 text-meta text-danger">
                 <AlertCircle className="size-3" />
                 Ova publika ima manje od 100 korisnika ili nepoznatu procenu i ne može poslužiti kao seed.
               </p>
@@ -284,7 +284,7 @@ function CreateLookalikeAudienceDialogInner({
                 <Label htmlFor="lookalike-ratio" className="text-xs">
                   Veličina publike (Odnos / Ratio)
                 </Label>
-                <span className="font-mono text-sm font-semibold text-mod">
+                <span className="tabular-nums text-sm font-semibold text-mod">
                   {ratioPct}% (odnos { (ratioPct / 100).toFixed(2) })
                 </span>
               </div>
@@ -299,7 +299,7 @@ function CreateLookalikeAudienceDialogInner({
                 disabled={submitting}
                 className="h-2 w-full cursor-pointer accent-mod"
               />
-              <div className="flex justify-between text-[10px] text-text-muted">
+              <div className="flex justify-between text-meta text-text-muted">
                 <span>1% (Najsličniji)</span>
                 <span>10% (Uravnoteženo)</span>
                 <span>20% (Širok doseg)</span>
@@ -319,7 +319,7 @@ function CreateLookalikeAudienceDialogInner({
                   }`}
                 >
                   <p className="font-medium text-foreground">Sličnost (similarity)</p>
-                  <p className="text-[10px] text-text-muted mt-0.5">Maksimalna sličnost sa izvornom publikom</p>
+                  <p className="text-meta text-text-muted mt-0.5">Maksimalna sličnost sa izvornom publikom</p>
                 </button>
                 <button
                   type="button"
@@ -331,7 +331,7 @@ function CreateLookalikeAudienceDialogInner({
                   }`}
                 >
                   <p className="font-medium text-foreground">Doseg (reach)</p>
-                  <p className="text-[10px] text-text-muted mt-0.5">Veći obuhvat korisnika</p>
+                  <p className="text-meta text-text-muted mt-0.5">Veći obuhvat korisnika</p>
                 </button>
               </div>
             </div>
