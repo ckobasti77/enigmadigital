@@ -124,6 +124,7 @@ import type * as lib_orProfile from "../lib/orProfile.js";
 import type * as lib_podesavanja from "../lib/podesavanja.js";
 import type * as lib_podesavanjaAkcija from "../lib/podesavanjaAkcija.js";
 import type * as lib_podesavanjaPravila from "../lib/podesavanjaPravila.js";
+import type * as lib_pravilaProcena from "../lib/pravilaProcena.js";
 import type * as lib_projekat from "../lib/projekat.js";
 import type * as lib_projekatPolja from "../lib/projekatPolja.js";
 import type * as lib_projekatSlug from "../lib/projekatSlug.js";
@@ -335,6 +336,7 @@ declare const fullApi: ApiFromModules<{
   "lib/podesavanja": typeof lib_podesavanja;
   "lib/podesavanjaAkcija": typeof lib_podesavanjaAkcija;
   "lib/podesavanjaPravila": typeof lib_podesavanjaPravila;
+  "lib/pravilaProcena": typeof lib_pravilaProcena;
   "lib/projekat": typeof lib_projekat;
   "lib/projekatPolja": typeof lib_projekatPolja;
   "lib/projekatSlug": typeof lib_projekatSlug;

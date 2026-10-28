@@ -1,7 +1,18 @@
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
+import {
+  blizinaPragu,
+  medijana,
+  PREDLOG_PROZOR_DANA,
+  pravilaPauzira,
+  SABLONI_PRAVILA,
+  uslovIspunjen,
+  vrednostMere,
+  zaokruziPrag,
+  type ZbirCilja,
+} from "./lib/pravilaProcena";
 
 export const metricValidator = v.union(
   v.literal("cpa"),
@@ -38,36 +49,193 @@ export const ruleConditionValidator = v.object({
   minImpressions: v.number(),
 });
 
-export const TEMPLATE_RULES = [
-  {
-    name: "CPA Guard (zaštita od skupih konverzija)",
-    scope: "campaign" as const,
-    condition: {
-      metric: "cpa" as const,
-      operator: "gt" as const,
-      value: 15,
-      windowDays: 3,
-      minImpressions: 1000,
-    },
-    action: "pause_and_notify" as const,
-    cooldownHours: 24,
-    enabled: false,
-  },
-  {
-    name: "Spend Spike Guard (skok potrošnje)",
-    scope: "campaign" as const,
-    condition: {
-      metric: "spend" as const,
-      operator: "gt" as const,
-      value: 100,
-      windowDays: 1,
-      minImpressions: 500,
-    },
-    action: "notify" as const,
-    cooldownHours: 12,
-    enabled: false,
-  },
-];
+export const sablonValidator = v.union(
+  v.literal("skupa_konverzija"),
+  v.literal("skok_potrosnje"),
+);
+
+const DAN_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Pravilo koje pauzira uključuje se tek posle probe (P5). Ista poruka za
+ * prekidač, novo pravilo i izmenu; front je prepoznaje po kodu.
+ */
+const PROBA_POTREBNA = {
+  code: "proba_potrebna",
+  message: "Pre uključivanja pogledaj probu.",
+} as const;
+
+// ── Ciljevi pravila: samo Meta oglasi ────────────────────────────────────────
+
+type CiljPravila = ZbirCilja & {
+  targetId: string; // externalId
+  targetName: string;
+  targetType: "account" | "campaign" | "adset";
+  status: string;
+  /** Potrošnja po danu (`YYYY-MM-DD`), za predlog praga skoka potrošnje. */
+  potrosnjaPoDanu: Map<string, number>;
+};
+
+function noviCilj(
+  targetId: string,
+  targetName: string,
+  targetType: CiljPravila["targetType"],
+  status: string,
+): CiljPravila {
+  return {
+    targetId,
+    targetName,
+    targetType,
+    status,
+    spend: 0,
+    impressions: 0,
+    clicks: 0,
+    results: 0,
+    conversionValue: 0,
+    potrosnjaPoDanu: new Map(),
+  };
+}
+
+/** Prozor pravila u UTC danima, isto kao evaluator do sada: danas i N − 1 dana pre. */
+function prozorPravila(windowDays: number, now: number): { od: string; do: string } {
+  const dana = Math.max(1, windowDays);
+  return {
+    od: new Date(now - (dana - 1) * DAN_MS).toISOString().slice(0, 10),
+    do: new Date(now).toISOString().slice(0, 10),
+  };
+}
+
+/**
+ * Ciljevi pravila za prozor: kampanje, grupe oglasa ili nalozi, sa zbirom
+ * dnevnih redova (`breakdownHash: "none"`, bez sata). Uzima SAMO Meta naloge:
+ * pravilo pauzira preko `graph.facebook.com`, pa Google kampanja tu nema šta
+ * da traži (ranije je njen ID odlazio na Metu i padao).
+ *
+ * Valuta je valuta Meta naloga kad je jedna i poznata; više valuta znači da
+ * zbir i prag ne mogu da se uporede bez preračuna, koji aplikacija ne radi.
+ */
+export async function ciljeviPravila(
+  ctx: QueryCtx,
+  workspaceId: Id<"workspaces">,
+  scope: "account" | "campaign" | "adset",
+  windowDays: number,
+  now: number,
+): Promise<{
+  ciljevi: CiljPravila[];
+  valuta: string | null;
+  viseValuta: boolean;
+  od: string;
+  do: string;
+}> {
+  const { od, do: doDatuma } = prozorPravila(windowDays, now);
+  const nalozi = await ctx.db
+    .query("adAccounts")
+    .withIndex("by_workspace_provider", (q) =>
+      q.eq("workspaceId", workspaceId).eq("provider", "meta_ads"),
+    )
+    .collect();
+
+  const valute = new Set(
+    nalozi
+      .map((n) => n.currency?.trim().toUpperCase())
+      .filter((c): c is string => Boolean(c)),
+  );
+
+  const ciljevi: CiljPravila[] = [];
+  for (const nalog of nalozi) {
+    const zbirNaloga = noviCilj(nalog.externalId, nalog.name, "account", "ACTIVE");
+    const kampanje = await ctx.db
+      .query("adCampaigns")
+      .withIndex("by_workspace_account", (q) =>
+        q.eq("workspaceId", workspaceId).eq("accountId", nalog._id),
+      )
+      .collect();
+
+    for (const kampanja of kampanje) {
+      const zbirKampanje = noviCilj(
+        kampanja.externalId,
+        kampanja.name,
+        "campaign",
+        kampanja.status,
+      );
+      const grupe = await ctx.db
+        .query("adSets")
+        .withIndex("by_workspace_campaign", (q) =>
+          q.eq("workspaceId", workspaceId).eq("campaignId", kampanja._id),
+        )
+        .collect();
+
+      for (const grupa of grupe) {
+        const zbirGrupe = noviCilj(grupa.externalId, grupa.name, "adset", grupa.status);
+        const oglasi = await ctx.db
+          .query("ads")
+          .withIndex("by_workspace_adset", (q) =>
+            q.eq("workspaceId", workspaceId).eq("adSetId", grupa._id),
+          )
+          .collect();
+
+        for (const oglas of oglasi) {
+          const uvidi = await ctx.db
+            .query("adInsights")
+            .withIndex("by_ad_date", (q) =>
+              q.eq("adId", oglas._id).gte("date", od).lte("date", doDatuma),
+            )
+            .collect();
+          for (const ins of uvidi) {
+            if (ins.breakdownHash !== "none" || ins.hour !== undefined) continue;
+            for (const zbir of [zbirGrupe, zbirKampanje, zbirNaloga]) {
+              zbir.spend += ins.spend;
+              zbir.impressions += ins.impressions;
+              zbir.clicks += ins.clicks;
+              if (ins.results !== undefined) zbir.results += ins.results;
+              if (ins.conversionValue !== undefined) zbir.conversionValue += ins.conversionValue;
+              zbir.potrosnjaPoDanu.set(
+                ins.date,
+                (zbir.potrosnjaPoDanu.get(ins.date) ?? 0) + ins.spend,
+              );
+            }
+          }
+        }
+        if (scope === "adset") ciljevi.push(zbirGrupe);
+      }
+      if (scope === "campaign") ciljevi.push(zbirKampanje);
+    }
+    if (scope === "account") ciljevi.push(zbirNaloga);
+  }
+
+  for (const c of ciljevi) {
+    c.spend = Number(c.spend.toFixed(2));
+    c.conversionValue = Number(c.conversionValue.toFixed(2));
+  }
+
+  return {
+    ciljevi,
+    valuta: valute.size === 1 ? [...valute][0] : null,
+    viseValuta: valute.size > 1,
+    od,
+    do: doDatuma,
+  };
+}
+
+/** Poslednje okidanje pravila za cilj u periodu mirovanja, ili `null`. */
+async function okidanjeUMirovanju(
+  ctx: QueryCtx,
+  ruleId: Id<"rules">,
+  targetId: string,
+  cooldownHours: number,
+  now: number,
+): Promise<Doc<"ruleFirings"> | null> {
+  return await ctx.db
+    .query("ruleFirings")
+    .withIndex("by_ruleId_and_targetId_and_firedAt", (q) =>
+      q
+        .eq("ruleId", ruleId)
+        .eq("targetId", targetId)
+        .gt("firedAt", now - cooldownHours * 3600 * 1000),
+    )
+    .order("desc")
+    .first();
+}
 
 // ── Public Queries & Mutations ───────────────────────────────────────────────
 
@@ -89,35 +257,220 @@ export const listRules = projekatQuery({
 });
 
 /**
- * Ensures template rules exist for the project if it has none yet.
+ * Jedno pravilo iz šablona, sa pragom koji je čovek video i potvrdio (P5).
+ * Šabloni se ne upisuju sami: nema javne funkcije koja upisuje pravilo bez
+ * praga. Pravilo nastaje isključeno; pauza se uključuje tek posle probe.
  */
-export const ensureTemplateRules = projekatMutation({
-  args: {},
-  handler: async (ctx) => {
+export const dodajIzSablona = projekatMutation({
+  uloga: "owner",
+  args: {
+    sablon: sablonValidator,
+    prag: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const { workspaceId, userId } = ctx.projekat;
+    if (!Number.isFinite(args.prag) || args.prag <= 0) {
+      throw new ConvexError({
+        code: "invalid_argument",
+        message: "Prag mora biti broj veći od nule.",
+      });
+    }
+    const s = SABLONI_PRAVILA[args.sablon];
+    return await ctx.db.insert("rules", {
+      workspaceId,
+      name: s.naziv,
+      scope: s.scope,
+      condition: { ...s.condition, value: args.prag },
+      action: s.action,
+      cooldownHours: s.cooldownHours,
+      enabled: false,
+      createdBy: userId,
+    });
+  },
+});
+
+/**
+ * Predlog praga za šablon iz podataka Meta naloga za poslednjih 28 dana (P5):
+ * dvostruka medijana, zaokružena naviše na dve značajne cifre.
+ *   - skupa konverzija: medijana cene po rezultatu po kampanji (samo kampanje
+ *     sa rezultatima);
+ *   - skok potrošnje: medijana dnevne potrošnje kampanje (dani sa potrošnjom).
+ * Bez podataka ili sa više valuta nema predloga: polje ostaje prazno.
+ */
+export const predlogPraga = projekatQuery({
+  args: { sablon: sablonValidator },
+  handler: async (ctx, args) => {
     const { workspaceId } = ctx.projekat;
+    const { ciljevi, valuta, viseValuta } = await ciljeviPravila(
+      ctx,
+      workspaceId,
+      "campaign",
+      PREDLOG_PROZOR_DANA,
+      Date.now(),
+    );
+    if (viseValuta) {
+      return { prag: null, valuta: null, osnova: null, razlog: "vise_valuta" as const };
+    }
 
-    const existing = await ctx.db
-      .query("rules")
-      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
-      .collect();
-
-    if (existing.length === 0) {
-      for (const tpl of TEMPLATE_RULES) {
-        await ctx.db.insert("rules", {
-          workspaceId,
-          name: tpl.name,
-          scope: tpl.scope,
-          condition: tpl.condition,
-          action: tpl.action,
-          cooldownHours: tpl.cooldownHours,
-          enabled: false,
-        });
+    const vrednosti: number[] = [];
+    let kampanja = 0;
+    for (const c of ciljevi) {
+      if (args.sablon === "skupa_konverzija") {
+        if (c.results <= 0) continue;
+        vrednosti.push(c.spend / c.results);
+        kampanja++;
+      } else {
+        const dani = [...c.potrosnjaPoDanu.values()].filter((x) => x > 0);
+        if (dani.length === 0) continue;
+        vrednosti.push(...dani);
+        kampanja++;
       }
     }
 
-    return true;
+    const m = medijana(vrednosti);
+    const prag = m === null ? null : zaokruziPrag(2 * m);
+    if (m === null || prag === null) {
+      return { prag: null, valuta, osnova: null, razlog: "nema_podataka" as const };
+    }
+    return {
+      prag,
+      valuta,
+      osnova: { kampanja, medijana: Number(m.toFixed(2)) },
+      razlog: null,
+    };
   },
 });
+
+/**
+ * Proba pravila pre uključivanja (P5): šta bi pravilo SADA uradilo nad
+ * podacima iz baze. Upit čita samo bazu i ne može da zove Metu. Radi i pre
+ * čuvanja (uslov iz urednika) i za postojeće pravilo (`ruleId`: tada zna i
+ * koje su kampanje u periodu mirovanja).
+ *
+ * Odluka ista kao u evaluatoru: najmanje prikaza, pa vrednost mere, pa uslov.
+ */
+export const probaPravila = projekatQuery({
+  args: {
+    scope: scopeValidator,
+    condition: ruleConditionValidator,
+    ruleId: v.optional(v.id("rules")),
+  },
+  handler: async (ctx, args) => {
+    const { workspaceId } = ctx.projekat;
+    const now = Date.now();
+    const cond = args.condition;
+    const prozorDana = Math.max(1, cond.windowDays);
+    const { ciljevi, valuta } = await ciljeviPravila(
+      ctx,
+      workspaceId,
+      args.scope,
+      prozorDana,
+      now,
+    );
+
+    // Tuđe pravilo ne otkriva svoje mirovanje: kao da `ruleId` nije dat.
+    const pravilo = args.ruleId ? await ctx.db.get(args.ruleId) : null;
+    const svoje = pravilo !== null && pravilo.workspaceId === workspaceId ? pravilo : null;
+
+    const pogodjeni: Array<{
+      naziv: string;
+      targetId: string;
+      targetType: "account" | "campaign" | "adset";
+      status: string;
+      vrednost: number;
+      prag: number;
+      uPauzi: boolean;
+      cekaJosSati: number | null;
+    }> = [];
+    let najblizi: {
+      naziv: string;
+      vrednost: number;
+      procenatPraga: number | null;
+      preko: boolean;
+    } | null = null;
+    let najblizaBlizina = -Infinity;
+    let ispodMinPrikaza = 0;
+
+    for (const c of ciljevi) {
+      if (c.impressions < cond.minImpressions) {
+        ispodMinPrikaza++;
+        continue;
+      }
+      const vrednost = vrednostMere(cond.metric, c);
+      const ispunjen = uslovIspunjen(cond.operator, vrednost, cond.value);
+      const blizina = blizinaPragu(cond.operator, vrednost, cond.value);
+      if (blizina !== null && blizina > najblizaBlizina) {
+        najblizaBlizina = blizina;
+        najblizi = {
+          naziv: c.targetName,
+          vrednost: Number(vrednost.toFixed(2)),
+          procenatPraga:
+            cond.operator === "gt" || cond.operator === "gte"
+              ? Math.round(blizina * 100)
+              : null,
+          preko: ispunjen,
+        };
+      }
+      if (!ispunjen) continue;
+
+      const okidanje = svoje
+        ? await okidanjeUMirovanju(ctx, svoje._id, c.targetId, svoje.cooldownHours, now)
+        : null;
+      pogodjeni.push({
+        naziv: c.targetName,
+        targetId: c.targetId,
+        targetType: c.targetType,
+        status: c.status,
+        vrednost: Number(vrednost.toFixed(2)),
+        prag: cond.value,
+        uPauzi: okidanje !== null,
+        cekaJosSati:
+          okidanje !== null && svoje !== null
+            ? Math.max(
+                1,
+                Math.ceil(
+                  (okidanje.firedAt + svoje.cooldownHours * 3600 * 1000 - now) / 3_600_000,
+                ),
+              )
+            : null,
+      });
+    }
+
+    // Najdalje preko praga prvo.
+    pogodjeni.sort(
+      (a, b) =>
+        (blizinaPragu(cond.operator, b.vrednost, cond.value) ?? 0) -
+        (blizinaPragu(cond.operator, a.vrednost, cond.value) ?? 0),
+    );
+
+    return {
+      valuta,
+      pisanjeUkljuceno: process.env.ADS_WRITE_ENABLED === "true",
+      pogodjeni,
+      najblizi,
+      ispodMinPrikaza,
+      ciljeva: ciljevi.length,
+      prozorDana,
+    };
+  },
+});
+
+/** Da li se uslov ili nivo pravila menja (izmena aktivnog pravila koje pauzira). */
+function uslovSeMenja(
+  postojece: Doc<"rules">,
+  scope: Doc<"rules">["scope"],
+  condition: Doc<"rules">["condition"],
+): boolean {
+  const a = postojece.condition;
+  return (
+    postojece.scope !== scope ||
+    a.metric !== condition.metric ||
+    a.operator !== condition.operator ||
+    a.value !== condition.value ||
+    a.windowDays !== condition.windowDays ||
+    a.minImpressions !== condition.minImpressions
+  );
+}
 
 /**
  * Get a single rule by ID.
@@ -148,6 +501,8 @@ export const createRule = projekatMutation({
     action: actionValidator,
     cooldownHours: v.number(),
     enabled: v.boolean(),
+    /** Korisnik je video probu za ovaj uslov (obavezno kad se uključuje pauza). */
+    probaPotvrdjena: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Omotač je proverio da je pozivalac vlasnik baš ovog projekta; u red se
@@ -189,6 +544,10 @@ export const createRule = projekatMutation({
       });
     }
 
+    if (args.enabled && pravilaPauzira(args.action) && args.probaPotvrdjena !== true) {
+      throw new ConvexError(PROBA_POTREBNA);
+    }
+
     const ruleId = await ctx.db.insert("rules", {
       workspaceId,
       name: args.name.trim(),
@@ -217,6 +576,8 @@ export const updateRule = projekatMutation({
     action: actionValidator,
     cooldownHours: v.number(),
     enabled: v.boolean(),
+    /** Korisnik je video probu za ovaj uslov (obavezno kad se uključuje pauza). */
+    probaPotvrdjena: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { workspaceId } = ctx.projekat;
@@ -261,6 +622,22 @@ export const updateRule = projekatMutation({
         code: "invalid_argument",
         message: "Period mirovanja (cooldown) mora biti između 1h i 720h.",
       });
+    }
+
+    // Proba se traži kad pauza tek počinje da važi: pravilo se uključuje,
+    // počinje da pauzira ili pauzira po novom uslovu. Promena naziva ili
+    // mirovanja aktivnog pravila je ne traži.
+    const pauzaPocinje =
+      !existing.enabled ||
+      !pravilaPauzira(existing.action) ||
+      uslovSeMenja(existing, args.scope, args.condition);
+    if (
+      args.enabled &&
+      pravilaPauzira(args.action) &&
+      pauzaPocinje &&
+      args.probaPotvrdjena !== true
+    ) {
+      throw new ConvexError(PROBA_POTREBNA);
     }
 
     await ctx.db.patch(args.ruleId, {
@@ -317,6 +694,8 @@ export const toggleRule = projekatMutation({
   args: {
     ruleId: v.id("rules"),
     enabled: v.boolean(),
+    /** Korisnik je video probu (obavezno kad se uključuje pravilo koje pauzira). */
+    probaPotvrdjena: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { workspaceId } = ctx.projekat;
@@ -326,6 +705,15 @@ export const toggleRule = projekatMutation({
         code: "not_found",
         message: "Pravilo nije pronađeno.",
       });
+    }
+
+    if (
+      args.enabled &&
+      !existing.enabled &&
+      pravilaPauzira(existing.action) &&
+      args.probaPotvrdjena !== true
+    ) {
+      throw new ConvexError(PROBA_POTREBNA);
     }
 
     await ctx.db.patch(args.ruleId, { enabled: args.enabled });
@@ -397,20 +785,26 @@ export const listRuleFirings = projekatQuery({
         .take(limit);
     }
 
-    // Enrich with rule name
+    // Ime pravila i mera kojom meri (za iznos u istoriji). Prag uz okidanje
+    // se ne pamti, pa istorija pokazuje današnji prag kao „prag sada".
     const ruleIds = Array.from(new Set(firings.map((f) => f.ruleId)));
-    const rulesMap = new Map<Id<"rules">, string>();
+    const rulesMap = new Map<Id<"rules">, Doc<"rules">>();
     for (const rId of ruleIds) {
       const rule = await ctx.db.get(rId);
       if (rule) {
-        rulesMap.set(rId, rule.name);
+        rulesMap.set(rId, rule);
       }
     }
 
-    return firings.map((f) => ({
-      ...f,
-      ruleName: rulesMap.get(f.ruleId) ?? "Obrisano pravilo",
-    }));
+    return firings.map((f) => {
+      const rule = rulesMap.get(f.ruleId);
+      return {
+        ...f,
+        ruleName: rule?.name ?? "Obrisano pravilo",
+        metric: rule?.condition.metric ?? null,
+        pragSada: rule?.condition.value ?? null,
+      };
+    });
   },
 });
 
@@ -455,6 +849,8 @@ export interface EvaluationRuleContext {
     externalId?: string;
   } | null;
   allowedEmails: string[];
+  /** Valuta Meta naloga kad je jedna i poznata (iznos u mejlu), inače `null`. */
+  valuta: string | null;
 }
 
 /**
@@ -489,8 +885,6 @@ export const getEvaluationContext = internalQuery({
     specificWorkspaceId: v.optional(v.id("workspaces")),
   },
   handler: async (ctx, args): Promise<EvaluationRuleContext[]> => {
-    const toDate = new Date(args.now).toISOString().slice(0, 10);
-
     let rules: Array<{
       _id: Id<"rules">;
       workspaceId: Id<"workspaces">;
@@ -547,8 +941,6 @@ export const getEvaluationContext = internalQuery({
 
     for (const rule of rules) {
       const windowDays = Math.max(1, rule.condition.windowDays);
-      const fromTimestamp = args.now - (windowDays - 1) * 24 * 60 * 60 * 1000;
-      const fromDate = new Date(fromTimestamp).toISOString().slice(0, 10);
 
       // Fetch connection for credentials if needed
       const conn = await ctx.db
@@ -572,266 +964,44 @@ export const getEvaluationContext = internalQuery({
         }
       }
 
-      // Collect target objects
+      // Ciljevi su samo Meta kampanje, grupe oglasa ili nalozi (isti pomoćnik
+      // kao proba, pa proba i evaluator vide isto).
+      const { ciljevi, valuta, od, do: doDatuma } = await ciljeviPravila(
+        ctx,
+        rule.workspaceId,
+        rule.scope,
+        windowDays,
+        args.now,
+      );
+
       const targets: EvaluationTargetMetric[] = [];
-
-      if (rule.scope === "campaign") {
-        const campaigns = await ctx.db
-          .query("adCampaigns")
-          .withIndex("by_workspace_priority", (q) =>
-            q.eq("workspaceId", rule.workspaceId),
-          )
-          .collect();
-
-        for (const campaign of campaigns) {
-          // Find all ad sets and ads
-          const adSets = await ctx.db
-            .query("adSets")
-            .withIndex("by_workspace_campaign", (q) =>
-              q.eq("workspaceId", rule.workspaceId).eq("campaignId", campaign._id),
-            )
-            .collect();
-
-          let spend = 0;
-          let impressions = 0;
-          let clicks = 0;
-          let convResults = 0;
-          let conversionValue = 0;
-
-          for (const set of adSets) {
-            const ads = await ctx.db
-              .query("ads")
-              .withIndex("by_workspace_adset", (q) =>
-                q.eq("workspaceId", rule.workspaceId).eq("adSetId", set._id),
-              )
-              .collect();
-
-            for (const ad of ads) {
-              const insights = await ctx.db
-                .query("adInsights")
-                .withIndex("by_ad_date", (q) =>
-                  q
-                    .eq("adId", ad._id)
-                    .gte("date", fromDate)
-                    .lte("date", toDate),
-                )
-                .collect();
-
-              for (const ins of insights) {
-                if (ins.breakdownHash === "none" && ins.hour === undefined) {
-                  spend += ins.spend;
-                  impressions += ins.impressions;
-                  clicks += ins.clicks;
-                  if (ins.results !== undefined) convResults += ins.results;
-                  if (ins.conversionValue !== undefined) conversionValue += ins.conversionValue;
-                }
-              }
-            }
-          }
-
-          // Check cooldown for this rule + target
-          const cooldownThreshold = args.now - rule.cooldownHours * 3600 * 1000;
-          const recentFiring = await ctx.db
-            .query("ruleFirings")
-            .withIndex("by_ruleId_and_targetId_and_firedAt", (q) =>
-              q
-                .eq("ruleId", rule._id)
-                .eq("targetId", campaign.externalId)
-                .gt("firedAt", cooldownThreshold),
-            )
-            .first();
-
-          targets.push({
-            targetId: campaign.externalId,
-            targetName: campaign.name,
-            targetType: "campaign",
-            status: campaign.status,
-            spend: Number(spend.toFixed(2)),
-            impressions,
-            clicks,
-            results: convResults,
-            conversionValue: Number(conversionValue.toFixed(2)),
-            isCoolingDown: recentFiring !== null,
-            lastFiredAt: recentFiring?.firedAt,
-          });
-        }
-      } else if (rule.scope === "adset") {
-        const campaigns = await ctx.db
-          .query("adCampaigns")
-          .withIndex("by_workspace_priority", (q) =>
-            q.eq("workspaceId", rule.workspaceId),
-          )
-          .collect();
-
-        const adSets: Array<{
-          _id: Id<"adSets">;
-          workspaceId: Id<"workspaces">;
-          campaignId: Id<"adCampaigns">;
-          externalId: string;
-          name: string;
-          status: string;
-        }> = [];
-
-        for (const camp of campaigns) {
-          const sets = await ctx.db
-            .query("adSets")
-            .withIndex("by_workspace_campaign", (q) =>
-              q.eq("workspaceId", rule.workspaceId).eq("campaignId", camp._id),
-            )
-            .collect();
-          adSets.push(...sets);
-        }
-
-        for (const adSet of adSets) {
-          const ads = await ctx.db
-            .query("ads")
-            .withIndex("by_workspace_adset", (q) =>
-              q.eq("workspaceId", rule.workspaceId).eq("adSetId", adSet._id),
-            )
-            .collect();
-
-          let spend = 0;
-          let impressions = 0;
-          let clicks = 0;
-          let convResults = 0;
-          let conversionValue = 0;
-
-          for (const ad of ads) {
-            const insights = await ctx.db
-              .query("adInsights")
-              .withIndex("by_ad_date", (q) =>
-                q
-                  .eq("adId", ad._id)
-                  .gte("date", fromDate)
-                  .lte("date", toDate),
-              )
-              .collect();
-
-              for (const ins of insights) {
-                if (ins.breakdownHash === "none" && ins.hour === undefined) {
-                  spend += ins.spend;
-                  impressions += ins.impressions;
-                  clicks += ins.clicks;
-                  if (ins.results !== undefined) convResults += ins.results;
-                  if (ins.conversionValue !== undefined) conversionValue += ins.conversionValue;
-                }
-              }
-          }
-
-          const cooldownThreshold = args.now - rule.cooldownHours * 3600 * 1000;
-          const recentFiring = await ctx.db
-            .query("ruleFirings")
-            .withIndex("by_ruleId_and_targetId_and_firedAt", (q) =>
-              q
-                .eq("ruleId", rule._id)
-                .eq("targetId", adSet.externalId)
-                .gt("firedAt", cooldownThreshold),
-            )
-            .first();
-
-          targets.push({
-            targetId: adSet.externalId,
-            targetName: adSet.name,
-            targetType: "adset",
-            status: adSet.status,
-            spend: Number(spend.toFixed(2)),
-            impressions,
-            clicks,
-            results: convResults,
-            conversionValue: Number(conversionValue.toFixed(2)),
-            isCoolingDown: recentFiring !== null,
-            lastFiredAt: recentFiring?.firedAt,
-          });
-        }
-      } else if (rule.scope === "account") {
-        const accounts = await ctx.db
-          .query("adAccounts")
-          .withIndex("by_workspace", (q) => q.eq("workspaceId", rule.workspaceId))
-          .collect();
-
-        for (const account of accounts) {
-          const campaigns = await ctx.db
-            .query("adCampaigns")
-            .withIndex("by_account", (q) => q.eq("accountId", account._id))
-            .collect();
-
-          let spend = 0;
-          let impressions = 0;
-          let clicks = 0;
-          let convResults = 0;
-          let conversionValue = 0;
-
-          for (const camp of campaigns) {
-            const adSets = await ctx.db
-              .query("adSets")
-              .withIndex("by_workspace_campaign", (q) =>
-                q.eq("workspaceId", rule.workspaceId).eq("campaignId", camp._id),
-              )
-              .collect();
-
-            for (const set of adSets) {
-              const ads = await ctx.db
-                .query("ads")
-                .withIndex("by_workspace_adset", (q) =>
-                  q.eq("workspaceId", rule.workspaceId).eq("adSetId", set._id),
-                )
-                .collect();
-
-              for (const ad of ads) {
-                const insights = await ctx.db
-                  .query("adInsights")
-                  .withIndex("by_ad_date", (q) =>
-                    q
-                      .eq("adId", ad._id)
-                      .gte("date", fromDate)
-                      .lte("date", toDate),
-                  )
-                  .collect();
-
-                for (const ins of insights) {
-                  if (ins.breakdownHash === "none" && ins.hour === undefined) {
-                    spend += ins.spend;
-                    impressions += ins.impressions;
-                    clicks += ins.clicks;
-                    if (ins.results !== undefined) convResults += ins.results;
-                    if (ins.conversionValue !== undefined) conversionValue += ins.conversionValue;
-                  }
-                }
-              }
-            }
-          }
-
-          const cooldownThreshold = args.now - rule.cooldownHours * 3600 * 1000;
-          const recentFiring = await ctx.db
-            .query("ruleFirings")
-            .withIndex("by_ruleId_and_targetId_and_firedAt", (q) =>
-              q
-                .eq("ruleId", rule._id)
-                .eq("targetId", account.externalId)
-                .gt("firedAt", cooldownThreshold),
-            )
-            .first();
-
-          targets.push({
-            targetId: account.externalId,
-            targetName: account.name,
-            targetType: "account",
-            status: "ACTIVE",
-            spend: Number(spend.toFixed(2)),
-            impressions,
-            clicks,
-            results: convResults,
-            conversionValue: Number(conversionValue.toFixed(2)),
-            isCoolingDown: recentFiring !== null,
-            lastFiredAt: recentFiring?.firedAt,
-          });
-        }
+      for (const cilj of ciljevi) {
+        const recentFiring = await okidanjeUMirovanju(
+          ctx,
+          rule._id,
+          cilj.targetId,
+          rule.cooldownHours,
+          args.now,
+        );
+        targets.push({
+          targetId: cilj.targetId,
+          targetName: cilj.targetName,
+          targetType: cilj.targetType,
+          status: cilj.status,
+          spend: cilj.spend,
+          impressions: cilj.impressions,
+          clicks: cilj.clicks,
+          results: cilj.results,
+          conversionValue: cilj.conversionValue,
+          isCoolingDown: recentFiring !== null,
+          lastFiredAt: recentFiring?.firedAt,
+        });
       }
 
       results.push({
         rule,
-        from: fromDate,
-        to: toDate,
+        from: od,
+        to: doDatuma,
         targets,
         connection: conn
           ? {
@@ -840,6 +1010,7 @@ export const getEvaluationContext = internalQuery({
             }
           : null,
         allowedEmails: memberEmails,
+        valuta,
       });
     }
 

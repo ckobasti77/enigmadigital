@@ -123,7 +123,10 @@ describe("neprijavljen poziv pada", () => {
     const t = s.t;
 
     await odbijeno(t.query(api.rulesStore.listRules, { workspaceId: s.wsA }), "unauthorized");
-    await odbijeno(t.mutation(api.rulesStore.ensureTemplateRules, { workspaceId: s.wsA }), "unauthorized");
+    await odbijeno(
+      t.mutation(api.rulesStore.dodajIzSablona, { workspaceId: s.wsA, sablon: "skupa_konverzija", prag: 13 }),
+      "unauthorized",
+    );
     await odbijeno(t.action(api.rules.manualEvaluateRules, { workspaceId: s.wsA }), "unauthorized");
     await odbijeno(t.action(api.rules.manualEvaluateRules, { workspaceId: s.wsA }), "unauthorized");
     for (const fn of GADS_CITANJA) {
@@ -180,7 +183,10 @@ describe("član projekta A ne može ništa nad projektom B", () => {
     const ana = kao(s, s.ana);
 
     await odbijeno(ana.query(api.rulesStore.listRules, { workspaceId: s.wsB }), "forbidden");
-    await odbijeno(ana.mutation(api.rulesStore.ensureTemplateRules, { workspaceId: s.wsB }), "forbidden");
+    await odbijeno(
+      ana.mutation(api.rulesStore.dodajIzSablona, { workspaceId: s.wsB, sablon: "skupa_konverzija", prag: 13 }),
+      "forbidden",
+    );
     await odbijeno(ana.action(api.rules.manualEvaluateRules, { workspaceId: s.wsB }), "forbidden");
 
     // Istorija i ručno pokretanje tuđeg pravila preko ID-a ne rade ništa.
@@ -195,12 +201,16 @@ describe("član projekta A ne može ništa nad projektom B", () => {
 
     // Sopstveni prostor radi kao ranije (sa i bez prosleđenog ID-a).
     expect(await ana.query(api.rulesStore.listRules, { workspaceId: s.wsA })).toEqual([]);
-    await ana.mutation(api.rulesStore.ensureTemplateRules, { workspaceId: s.wsA });
+    await ana.mutation(api.rulesStore.dodajIzSablona, {
+      workspaceId: s.wsA,
+      sablon: "skupa_konverzija",
+      prag: 13,
+    });
     const mojaPravila = await ana.query(api.rulesStore.listRules, { workspaceId: s.wsA });
     expect(mojaPravila.length).toBeGreaterThan(0);
     expect(mojaPravila.every((r) => r.workspaceId === s.wsA)).toBe(true);
     const moje = await ana.action(api.rules.manualEvaluateRules, { workspaceId: s.wsA });
-    expect(moje.evaluatedRulesCount).toBe(0); // šabloni su isključeni
+    expect(moje.evaluatedRulesCount).toBe(0); // pravilo iz šablona nastaje isključeno
 
     // B-ova pravila su netaknuta.
     const praviliB = await s.t.run(async (ctx) =>

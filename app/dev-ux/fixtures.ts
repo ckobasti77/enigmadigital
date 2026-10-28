@@ -49,6 +49,7 @@ import {
 import { FIXTURES_VEZE, UPITI_SA_SAJTA_ZVONO } from "./fixtures-veze";
 import { FIXTURES_BROJEVI } from "./fixtures-brojevi";
 import { FIXTURES_NOVOSTI } from "./fixtures-novosti";
+import { FIXTURES_PRAVILA, PRAZNO_PRAVILA } from "./fixtures-pravila";
 import { redoviStatusa } from "./fixtures-status-veza";
 import { integracijeUKvaru } from "@/convex/lib/statusVeze";
 
@@ -994,23 +995,28 @@ function staMeCekaZa(args: Record<string, unknown>): R<typeof api.notificationsS
   );
 }
 
-// ── Pravila (A6: /rules) ─────────────────────────────────────────────────────
+// ── Pravila (A6: /rules; ULTRA1 T07) ─────────────────────────────────────────
+// Iznosi su u EUR, kao Meta nalog u `fixtures-oglasi.ts`. Uključeno pravilo
+// koje pauzira, pravilo koje samo javlja i isključeno pravilo koje pauzira
+// (njegov prekidač otvara probu). Okidanje sa uspelom pauzom nosi „Vrati
+// kampanju"; proba i predlog praga su u `fixtures-pravila.ts`.
 
 const RULE_CPA_ID = "rule_ux_cpa" as Id<"rules">;
 const RULE_SPEND_ID = "rule_ux_spend" as Id<"rules">;
+const RULE_CPC_ID = "rule_ux_cpc" as Id<"rules">;
 
 const listRules: R<typeof api.rulesStore.listRules> = [
   {
     _id: RULE_CPA_ID,
     _creationTime: now - 30 * DAY,
     workspaceId: WS,
-    name: "Zaustavi kad CPA pređe cilj",
+    name: "Zaustavi kad cena po rezultatu pređe cilj",
     enabled: true,
     scope: "campaign",
     condition: {
       metric: "cpa",
       operator: "gt",
-      value: 1500,
+      value: 5,
       windowDays: 3,
       minImpressions: 1000,
     },
@@ -1028,11 +1034,29 @@ const listRules: R<typeof api.rulesStore.listRules> = [
     condition: {
       metric: "spend",
       operator: "gt",
-      value: 5000,
+      value: 45,
       windowDays: 1,
       minImpressions: 0,
     },
     action: "notify",
+    cooldownHours: 24,
+    lastFiredAt: now - 6 * DAY,
+  },
+  {
+    _id: RULE_CPC_ID,
+    _creationTime: now - 3 * DAY,
+    workspaceId: WS,
+    name: "Pauziraj skupe klikove",
+    enabled: false,
+    scope: "campaign",
+    condition: {
+      metric: "cpc",
+      operator: "gt",
+      value: 0.2,
+      windowDays: 7,
+      minImpressions: 2000,
+    },
+    action: "pause",
     cooldownHours: 24,
   },
 ];
@@ -1044,12 +1068,30 @@ const listRuleFirings: R<typeof api.rulesStore.listRuleFirings> = [
     workspaceId: WS,
     ruleId: RULE_CPA_ID,
     ruleName: listRules[0].name,
-    targetId: "120000000000001",
-    targetName: "Kampanja — Prolećna akcija",
+    metric: "cpa",
+    pragSada: listRules[0].condition.value,
+    targetId: "120000000000003",
+    targetName: "Test kampanja — Jesenja ponuda (pauzirana)",
     targetType: "campaign",
     firedAt: now - 2 * DAY,
-    metricValue: 1820,
+    metricValue: 10.8,
     actionTaken: "pause_and_notify",
+    notified: true,
+  },
+  {
+    _id: "rulefiring_ux_2" as Id<"ruleFirings">,
+    _creationTime: now - 6 * DAY,
+    workspaceId: WS,
+    ruleId: RULE_SPEND_ID,
+    ruleName: listRules[1].name,
+    metric: "spend",
+    pragSada: listRules[1].condition.value,
+    targetId: "act_000000000",
+    targetName: "Test Salon — Meta nalog",
+    targetType: "account",
+    firedAt: now - 6 * DAY,
+    metricValue: 48.2,
+    actionTaken: "notify",
     notified: true,
   },
 ];
@@ -1189,6 +1231,7 @@ Object.assign(
   FIXTURES_VEZE,
   FIXTURES_BROJEVI,
   FIXTURES_NOVOSTI,
+  FIXTURES_PRAVILA,
 );
 
 // ── Prazan nalog (`?ux=1&prazno=1`) ──────────────────────────────────────────
@@ -1217,6 +1260,7 @@ const PRAZNO: Record<string, Fixture> = {
   ...PRAZNO_OGLASI,
   ...PRAZNO_NAPREDAK,
   ...PRAZNO_PROJEKTI,
+  ...PRAZNO_PRAVILA,
   // Prazan nalog je stanje kanala, ne nalog bez projekata: birač ostaje pun.
   [getFunctionName(api.projekti.stanjeProjekata)]: () =>
     stanjeProjekataUx(staMeCeka.ukupno),

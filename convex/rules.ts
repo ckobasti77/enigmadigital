@@ -18,6 +18,11 @@ import { sanitizeSyncError } from "./lib/runSync";
 import { CRON_LOCKS, withCronLock } from "./lib/cronLock";
 import type { EvaluationRuleContext } from "./rulesStore";
 import { razloziPosiljaoca } from "./lib/podesavanja";
+import {
+  formatVrednostPravila,
+  uslovIspunjen,
+  vrednostMere,
+} from "./lib/pravilaProcena";
 
 // ── Email Notification Helpers ───────────────────────────────────────────────
 
@@ -53,20 +58,16 @@ function bezHtml(tekst: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/**
+ * Iznos u valuti Meta naloga (O16). Kad valuta nije poznata (ili nalozi rade u
+ * više valuta), iznos ide bez znaka: evro se ne pretpostavlja.
+ */
 function formatMetricUnit(
   metric: "cpa" | "spend" | "ctr" | "cpc" | "roas",
   val: number,
+  valuta: string | null,
 ): string {
-  if (metric === "cpa" || metric === "spend" || metric === "cpc") {
-    return `${val.toFixed(2)} €`;
-  }
-  if (metric === "ctr") {
-    return `${val.toFixed(2)}%`;
-  }
-  if (metric === "roas") {
-    return `${val.toFixed(2)}x`;
-  }
-  return String(val);
+  return formatVrednostPravila(metric, val, valuta);
 }
 
 function getOperatorSymbol(op: "gt" | "gte" | "lt" | "lte"): string {
@@ -120,13 +121,14 @@ function buildRuleAlertHtml(opts: {
   impressions: number;
   actionTaken: "notify" | "pause" | "pause_and_notify" | "notify_only_write_disabled";
   deepLinkUrl: string | null;
+  valuta: string | null;
 }): string {
   const ruleName = bezHtml(opts.ruleName);
   const targetName = bezHtml(opts.targetName);
   const opSymbol = getOperatorSymbol(opts.operator);
   const metricLabel = getMetricLabel(opts.metric);
-  const observedFormatted = formatMetricUnit(opts.metric, opts.observedValue);
-  const thresholdFormatted = formatMetricUnit(opts.metric, opts.threshold);
+  const observedFormatted = formatMetricUnit(opts.metric, opts.observedValue, opts.valuta);
+  const thresholdFormatted = formatMetricUnit(opts.metric, opts.threshold, opts.valuta);
   const scopeLabel = getScopeLabel(opts.scope);
 
   let actionText = "Poslato je email obaveštenje.";
@@ -211,6 +213,7 @@ async function sendRuleNotificationEmail(opts: {
   from: string;
   appBaseUrl: string | null;
   osnivacki: boolean;
+  valuta: string | null;
 }): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey || apiKey.trim().length === 0) {
@@ -264,12 +267,13 @@ async function sendRuleNotificationEmail(opts: {
     impressions: opts.impressions,
     actionTaken: opts.actionTaken,
     deepLinkUrl,
+    valuta: opts.valuta,
   });
 
   const text = `Upozorenje pravila: ${opts.ruleName}\n\n` +
     `Objekat: ${opts.targetName} (${opts.scope})\n` +
-    `Izmerena metrika: ${opts.metric.toUpperCase()} = ${formatMetricUnit(opts.metric, opts.observedValue)}\n` +
-    `Prag pravila: ${getOperatorSymbol(opts.operator)} ${formatMetricUnit(opts.metric, opts.threshold)} (${opts.windowDays} dana, ${opts.impressions} impresija)\n` +
+    `Izmerena metrika: ${opts.metric.toUpperCase()} = ${formatMetricUnit(opts.metric, opts.observedValue, opts.valuta)}\n` +
+    `Prag pravila: ${getOperatorSymbol(opts.operator)} ${formatMetricUnit(opts.metric, opts.threshold, opts.valuta)} (${opts.windowDays} dana, ${opts.impressions} impresija)\n` +
     `Akcija: ${opts.actionTaken}` +
     (deepLinkUrl === null ? "" : `\n\nPregledaj detalje: ${deepLinkUrl}`);
 
@@ -347,7 +351,7 @@ async function runRuleEvaluations(
   let writeDisabledFallbacksCount = 0;
 
   for (const item of contexts) {
-    const { rule, targets, connection, allowedEmails } = item;
+    const { rule, targets, connection, allowedEmails, valuta } = item;
     const cond = rule.condition;
 
     for (const target of targets) {
@@ -359,47 +363,9 @@ async function runRuleEvaluations(
         continue;
       }
 
-      // 2. Compute Metric Value
-      let metricValue = 0;
-      if (cond.metric === "cpa") {
-        if (target.results > 0) {
-          metricValue = target.spend / target.results;
-        } else if (target.spend > 0) {
-          // If spend > 0 with 0 conversions, effective CPA is high
-          metricValue = target.spend;
-        } else {
-          metricValue = 0;
-        }
-      } else if (cond.metric === "spend") {
-        metricValue = target.spend;
-      } else if (cond.metric === "ctr") {
-        metricValue =
-          target.impressions > 0
-            ? (target.clicks / target.impressions) * 100
-            : 0;
-      } else if (cond.metric === "cpc") {
-        metricValue = target.clicks > 0 ? target.spend / target.clicks : 0;
-      } else if (cond.metric === "roas") {
-        metricValue =
-          target.spend > 0 ? target.conversionValue / target.spend : 0;
-      }
-
-      // 3. Condition Evaluation
-      let conditionMet = false;
-      switch (cond.operator) {
-        case "gt":
-          conditionMet = metricValue > cond.value;
-          break;
-        case "gte":
-          conditionMet = metricValue >= cond.value;
-          break;
-        case "lt":
-          conditionMet = metricValue < cond.value;
-          break;
-        case "lte":
-          conditionMet = metricValue <= cond.value;
-          break;
-      }
+      // 2. Vrednost mere i 3. uslov: ista logika kao proba pre uključivanja.
+      const metricValue = vrednostMere(cond.metric, target);
+      const conditionMet = uslovIspunjen(cond.operator, metricValue, cond.value);
 
       if (!conditionMet) {
         continue;
@@ -515,6 +481,7 @@ async function runRuleEvaluations(
           actionTaken,
           allowedEmails,
           ...posiljalac,
+          valuta,
         });
 
         if (notified) {

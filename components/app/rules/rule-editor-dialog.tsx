@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
+import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { pravilaPauzira } from "@/convex/lib/pravilaProcena";
 import {
   Dialog,
   DialogPopup,
@@ -12,29 +14,36 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
+  MERE_PRAVILA,
+  formatMetricName,
   formatRuleSentence,
+  istiCilj,
+  metricAcronym,
+  pragJeIznos,
   type RuleAction,
+  type RuleConditionLike,
   type RuleMetric,
   type RuleOperator,
   type RuleScope,
 } from "@/lib/rule-sentence";
-import { cn } from "@/lib/utils";
 import { FeedbackNote } from "@/components/app/feedback";
-import {
-  useMoze,
-  useProjekatMutation,
-  useProjekatQuery,
-} from "@/components/app/projekat-provider";
-import {
-  Loader2,
-  Shield,
-  Clock,
-  Eye,
-  Sliders,
-} from "lucide-react";
+import { ValutaUpozorenje } from "@/components/app/system/valuta-upozorenje";
+import { useMoze, useProjekatMutation } from "@/components/app/projekat-provider";
+import { RuleProbaDialog } from "./rule-proba-dialog";
+import { useValutaPravila } from "./use-valuta-pravila";
+import { ChevronsUpDown } from "lucide-react";
 
 export interface RuleEditorDialogProps {
   open: boolean;
@@ -43,18 +52,47 @@ export interface RuleEditorDialogProps {
     _id: Id<"rules">;
     name: string;
     scope: RuleScope;
-    condition: {
-      metric: RuleMetric;
-      operator: RuleOperator;
-      value: number;
-      windowDays: number;
-      minImpressions: number;
-    };
+    condition: RuleConditionLike;
     action: RuleAction;
     cooldownHours: number;
     enabled: boolean;
   } | null;
   onSaved?: () => void;
+}
+
+const NIVOI: { id: RuleScope; label: string }[] = [
+  { id: "campaign", label: "Kampanje" },
+  { id: "adset", label: "Grupe oglasa" },
+  { id: "account", label: "Ceo nalog" },
+];
+
+const OPERATORI: { id: RuleOperator; znak: string; label: string }[] = [
+  { id: "gt", znak: ">", label: "Veće od" },
+  { id: "gte", znak: "≥", label: "Veće ili jednako" },
+  { id: "lt", znak: "<", label: "Manje od" },
+  { id: "lte", znak: "≤", label: "Manje ili jednako" },
+];
+
+const AKCIJE: { id: RuleAction; label: string }[] = [
+  { id: "pause_and_notify", label: "Pauziraj i javi" },
+  { id: "pause", label: "Samo pauziraj" },
+  { id: "notify", label: "Samo javi" },
+];
+
+/** Segmentirana kontrola: uvučen žleb, izabrani segment podignut. */
+const ZLEB = "w-full rounded-lg bg-bg-900 p-0.5";
+const SEGMENT =
+  "touch-target flex-1 cursor-pointer rounded-md! text-text-muted hover:bg-transparent hover:text-foreground aria-pressed:bg-surface-raised aria-pressed:text-foreground aria-pressed:shadow-elev-1";
+
+/** Ključ uslova za koji je proba potvrđena; izmena uslova traži novu probu. */
+function kljucProbe(scope: RuleScope, c: RuleConditionLike): string {
+  return JSON.stringify([scope, c.metric, c.operator, c.value, c.windowDays, c.minImpressions]);
+}
+
+/** Broj iz polja: zarez ili tačka; prazno ili neispravno je `NaN`. */
+function broj(tekst: string): number {
+  const t = tekst.trim().replace(/\s/g, "").replace(",", ".");
+  return t === "" ? Number.NaN : Number(t);
 }
 
 export function RuleEditorDialog({
@@ -91,46 +129,63 @@ function RuleEditorForm({
   onSaved?: () => void;
 }) {
   const isEditing = !!ruleToEdit;
+  const ids = {
+    naziv: useId(),
+    nivo: useId(),
+    mera: useId(),
+    operator: useId(),
+    prag: useId(),
+    prozor: useId(),
+    prikazi: useId(),
+    akcija: useId(),
+    pauza: useId(),
+    ukljuceno: useId(),
+  };
 
   // Pravila rade nad Meta oglasima; prag je u valuti tog naloga. Valuta se
   // piše samo kad je jedna i poznata — nikad se ne pretpostavlja evro.
-  const nalozi = useProjekatQuery(api.metaAdsStore.listAccounts);
-  const valuteMeta = [
-    ...new Set(
-      (nalozi ?? [])
-        .filter((n) => n.provider === "meta_ads")
-        .map((n) => n.currency?.trim())
-        .filter((c): c is string => Boolean(c)),
-    ),
-  ];
-  const valuta = valuteMeta.length === 1 ? valuteMeta[0] : undefined;
-  const uValuti = valuta ? ` (${valuta})` : "";
+  const { valuta, drugaValuta } = useValutaPravila();
 
   const [name, setName] = useState(ruleToEdit?.name ?? "");
   const [scope, setScope] = useState<RuleScope>(ruleToEdit?.scope ?? "campaign");
-  const [metric, setMetric] = useState<RuleMetric>(
-    ruleToEdit?.condition.metric ?? "cpa",
-  );
-  const pragJeIznos = metric === "cpa" || metric === "spend" || metric === "cpc";
+  const [metric, setMetric] = useState<RuleMetric>(ruleToEdit?.condition.metric ?? "cpa");
   const [operator, setOperator] = useState<RuleOperator>(
     ruleToEdit?.condition.operator ?? "gt",
   );
-  const [value, setValue] = useState<number>(ruleToEdit?.condition.value ?? 15);
-  const [windowDays, setWindowDays] = useState<number>(
-    ruleToEdit?.condition.windowDays ?? 3,
+  // Prag nema podrazumevanu vrednost: prag koji niko nije izabrao ne sme da radi.
+  const [pragTekst, setPragTekst] = useState(
+    ruleToEdit ? String(ruleToEdit.condition.value).replace(".", ",") : "",
   );
-  const [minImpressions, setMinImpressions] = useState<number>(
-    ruleToEdit?.condition.minImpressions ?? 1000,
+  const [prozorTekst, setProzorTekst] = useState(String(ruleToEdit?.condition.windowDays ?? 3));
+  const [prikaziTekst, setPrikaziTekst] = useState(
+    String(ruleToEdit?.condition.minImpressions ?? 1000),
   );
-  const [action, setAction] = useState<RuleAction>(
-    ruleToEdit?.action ?? "pause_and_notify",
+  const [action, setAction] = useState<RuleAction>(ruleToEdit?.action ?? "pause_and_notify");
+  const [pauzaTekst, setPauzaTekst] = useState(String(ruleToEdit?.cooldownHours ?? 24));
+  // Novo pravilo počinje isključeno.
+  const [enabled, setEnabled] = useState<boolean>(ruleToEdit?.enabled ?? false);
+
+  const value = broj(pragTekst);
+  const windowDays = broj(prozorTekst);
+  const minImpressions = broj(prikaziTekst);
+  const cooldownHours = broj(pauzaTekst);
+  const condition: RuleConditionLike = {
+    metric,
+    operator,
+    value,
+    windowDays,
+    minImpressions,
+  };
+
+  // Aktivno pravilo koje već pauzira je prošlo probu za svoj sačuvan uslov.
+  const [probaZa, setProbaZa] = useState<string | null>(
+    ruleToEdit && ruleToEdit.enabled && pravilaPauzira(ruleToEdit.action)
+      ? kljucProbe(ruleToEdit.scope, ruleToEdit.condition)
+      : null,
   );
-  const [cooldownHours, setCooldownHours] = useState<number>(
-    ruleToEdit?.cooldownHours ?? 24,
-  );
-  const [enabled, setEnabled] = useState<boolean>(
-    ruleToEdit?.enabled ?? true,
-  );
+  const [probaOtvorena, setProbaOtvorena] = useState<"ukljuci" | "sacuvaj" | null>(null);
+  const probaPotvrdjena = probaZa === kljucProbe(scope, condition);
+  const trebaProba = enabled && pravilaPauzira(action) && !probaPotvrdjena;
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -138,383 +193,335 @@ function RuleEditorForm({
   const createRuleMutation = useProjekatMutation(api.rulesStore.createRule);
   const updateRuleMutation = useProjekatMutation(api.rulesStore.updateRule);
 
-  // Live plain-language preview
-  const livePreview = formatRuleSentence({
-    scope,
-    condition: {
-      metric,
-      operator,
-      value: Number.isFinite(value) ? value : 0,
-      windowDays: Number.isFinite(windowDays) ? windowDays : 1,
-      minImpressions: Number.isFinite(minImpressions) ? minImpressions : 0,
-    },
-    action,
-    cooldownHours: Number.isFinite(cooldownHours) ? cooldownHours : 24,
-  }, valuta);
+  const greskaUnosa = (): string | null => {
+    if (!name.trim()) return "Upiši naziv pravila.";
+    if (!Number.isFinite(value) || value < 0) return "Prag je broj, npr. 25 ili 12,5.";
+    if (!Number.isInteger(windowDays) || windowDays < 1 || windowDays > 90)
+      return "Prozor je od 1 do 90 dana.";
+    if (!Number.isInteger(minImpressions) || minImpressions < 0)
+      return "Najmanje prikaza je ceo broj, 0 ili više.";
+    if (!Number.isInteger(cooldownHours) || cooldownHours < 1 || cooldownHours > 720)
+      return "Pauza je od 1 do 720 h.";
+    return null;
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) {
-      setErrorMsg("Unesite naziv pravila.");
-      return;
-    }
-    if (value < 0 || isNaN(value)) {
-      setErrorMsg("Vrednost praga mora biti validan nenegativan broj.");
-      return;
-    }
-
+  const sacuvaj = async (saProbom: boolean) => {
     setSubmitting(true);
     setErrorMsg(null);
-
+    const telo = {
+      name: name.trim(),
+      scope,
+      condition,
+      action,
+      cooldownHours,
+      enabled,
+      probaPotvrdjena: saProbom || undefined,
+    };
     try {
       if (isEditing && ruleToEdit) {
-        await updateRuleMutation({
-          ruleId: ruleToEdit._id,
-          name: name.trim(),
-          scope,
-          condition: {
-            metric,
-            operator,
-            value: Number(value),
-            windowDays: Number(windowDays),
-            minImpressions: Number(minImpressions),
-          },
-          action,
-          cooldownHours: Number(cooldownHours),
-          enabled,
-        });
+        await updateRuleMutation({ ruleId: ruleToEdit._id, ...telo });
       } else {
-        await createRuleMutation({
-          name: name.trim(),
-          scope,
-          condition: {
-            metric,
-            operator,
-            value: Number(value),
-            windowDays: Number(windowDays),
-            minImpressions: Number(minImpressions),
-          },
-          action,
-          cooldownHours: Number(cooldownHours),
-          enabled,
-        });
+        await createRuleMutation(telo);
       }
-
       onClose();
-      if (onSaved) onSaved();
+      onSaved?.();
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Greška pri čuvanju pravila.";
-      setErrorMsg(msg);
+      const podaci = err instanceof ConvexError ? (err.data as { message?: string }) : null;
+      setErrorMsg(
+        podaci?.message ?? (err instanceof Error ? err.message : "Pravilo nije sačuvano."),
+      );
+      throw err;
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const greska = greskaUnosa();
+    if (greska) {
+      setErrorMsg(greska);
+      return;
+    }
+    // Pauza po uslovu za koji proba nije viđena: prvo proba, pa čuvanje.
+    if (trebaProba) {
+      setProbaOtvorena("sacuvaj");
+      return;
+    }
+    await sacuvaj(probaPotvrdjena && enabled && pravilaPauzira(action)).catch(() => {});
+  };
+
+  const handleUkljuceno = (sledece: boolean) => {
+    if (sledece && pravilaPauzira(action) && !probaPotvrdjena) {
+      const greska = greskaUnosa();
+      if (greska) {
+        setErrorMsg(greska);
+        return;
+      }
+      setProbaOtvorena("ukljuci");
+      return;
+    }
+    setEnabled(sledece);
+  };
+
+  const livePreview = formatRuleSentence(
+    {
+      scope,
+      condition: {
+        ...condition,
+        value: Number.isFinite(value) ? value : 0,
+        windowDays: Number.isFinite(windowDays) ? windowDays : 1,
+        minImpressions: Number.isFinite(minImpressions) ? minImpressions : 0,
+      },
+      action,
+      cooldownHours: Number.isFinite(cooldownHours) ? cooldownHours : undefined,
+    },
+    valuta,
+    Number.isFinite(value) ? undefined : "prag",
+  );
+
+  const akronim = metricAcronym(metric);
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <DialogHeader>
-        <div className="flex items-center gap-2">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-mod-soft border border-mod-line text-mod">
-                <Sliders className="size-4" />
-              </div>
-              <div>
-                <DialogTitle>
-                  {isEditing ? "Izmeni pravilo" : "Novo automatizovano pravilo"}
-                </DialogTitle>
-                <DialogDescription>
-                  Definiši uslove nad ad metrikama i automatske akcije za zaštitu budžeta.
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
+        <DialogTitle>{isEditing ? "Izmeni pravilo" : "Novo pravilo"}</DialogTitle>
+        <DialogDescription>
+          Pravilo prati Meta kampanje i javlja ili pauzira kad pređu prag.
+        </DialogDescription>
+      </DialogHeader>
 
-          {errorMsg && (
-            <FeedbackNote tone="danger" title={errorMsg} />
-          )}
+      <ValutaUpozorenje valuta={drugaValuta} />
 
-          {/* Form Fields */}
-          <div className="space-y-3.5 max-h-[60vh] overflow-y-auto pr-1">
-            {/* Rule Name */}
-            <div>
-              <Label className="text-xs text-text-muted font-medium mb-1.5 block">
-                Naziv pravila
-              </Label>
-              <Input
-                placeholder="npr. CPA Guard (najviše 15 po konverziji)"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="bg-surface border-line"
-                disabled={submitting}
-              />
-            </div>
+      {errorMsg && <FeedbackNote tone="danger" title={errorMsg} />}
 
-            {/* Scope Selection */}
-            <div>
-              <Label className="text-xs text-text-muted font-medium mb-1.5 block">
-                Nivo primene (Scope)
-              </Label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: "campaign", label: "Kampanje" },
-                  { id: "adset", label: "Ad Setovi" },
-                  { id: "account", label: "Ceo nalog" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setScope(item.id as RuleScope)}
-                    className={cn(
-                      "flex items-center justify-center py-2 px-3 rounded-lg border text-xs font-medium transition-all",
-                      scope === item.id
-                        ? "border-mod bg-mod-soft text-mod font-semibold"
-                        : "border-line bg-surface text-text-muted hover:text-foreground hover:bg-surface-raised",
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+      <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={ids.naziv}>Naziv</Label>
+          <Input
+            id={ids.naziv}
+            placeholder="npr. Skupa konverzija"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={submitting}
+          />
+        </div>
 
-            {/* Condition: Metric, Operator, Threshold */}
-            <div className="rounded-xl border border-line bg-surface/50 p-3.5 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                  <Shield className="size-3.5 text-mod" />
-                  <span>Uslov za aktiviranje</span>
-                </span>
-                <span className="text-micro font-mono text-text-muted">
-                  adInsights prozor
-                </span>
-              </div>
+        <div className="flex flex-col gap-1.5">
+          <Label id={ids.nivo}>Nivo</Label>
+          <ToggleGroup
+            value={[scope]}
+            onValueChange={(v) => {
+              if (v[0]) setScope(v[0] as RuleScope);
+            }}
+            spacing={0}
+            aria-labelledby={ids.nivo}
+            className={ZLEB}
+          >
+            {NIVOI.map((n) => (
+              <ToggleGroupItem key={n.id} value={n.id} size="sm" className={SEGMENT}>
+                {n.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
-                <div>
-                  <Label className="text-micro text-text-muted block mb-1">
-                    Metrika
-                  </Label>
-                  <select
+        <fieldset className="flex flex-col gap-3 border-t border-line-soft pt-4">
+          <legend className="sr-only">Uslov</legend>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="flex flex-col gap-1.5">
+              <Label id={ids.mera}>Mera</Label>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      aria-labelledby={ids.mera}
+                      className="w-full justify-between font-normal"
+                      disabled={submitting}
+                    >
+                      <span title={akronim}>{formatMetricName(metric)}</span>
+                      <ChevronsUpDown className="size-3.5 text-text-muted" aria-hidden />
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent className="w-(--anchor-width)">
+                  <DropdownMenuRadioGroup
                     value={metric}
-                    onChange={(e) => setMetric(e.target.value as RuleMetric)}
-                    className="w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs text-foreground focus:outline-hidden focus:border-mod font-medium"
-                    disabled={submitting}
+                    onValueChange={(v) => setMetric(v as RuleMetric)}
                   >
-                    <option value="cpa">CPA{uValuti}</option>
-                    <option value="spend">Potrošnja{uValuti}</option>
-                    <option value="ctr">CTR (%)</option>
-                    <option value="cpc">CPC{uValuti}</option>
-                    <option value="roas">ROAS (x)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <Label className="text-micro text-text-muted block mb-1">
-                    Operator
-                  </Label>
-                  <select
-                    value={operator}
-                    onChange={(e) => setOperator(e.target.value as RuleOperator)}
-                    className="w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs text-foreground focus:outline-hidden focus:border-mod font-medium"
-                    disabled={submitting}
-                  >
-                    <option value="gt">Veće od (&gt;)</option>
-                    <option value="gte">Veće ili jednako (≥)</option>
-                    <option value="lt">Manje od (&lt;)</option>
-                    <option value="lte">Manje ili jednako (≤)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <Label className="text-micro text-text-muted block mb-1">
-                    Prag vrednosti
-                  </Label>
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      step="any"
-                      min={0}
-                      value={value}
-                      onChange={(e) => setValue(parseFloat(e.target.value) || 0)}
-                      className="bg-surface border-line text-xs font-mono h-8"
-                      disabled={submitting}
-                    />
-                    {pragJeIznos && valuta && (
-                      <span className="text-xs text-text-muted">{valuta}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Lookback Window & Noise Filter (Min Impressions) */}
-              <div className="grid grid-cols-2 gap-2.5 pt-1 border-t border-line/60">
-                <div>
-                  <Label className="text-micro text-text-muted block mb-1">
-                    Vremenski prozor
-                  </Label>
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={90}
-                      value={windowDays}
-                      onChange={(e) =>
-                        setWindowDays(parseInt(e.target.value, 10) || 1)
-                      }
-                      className="bg-surface border-line text-xs font-mono h-8 w-20"
-                      disabled={submitting}
-                    />
-                    <span className="text-xs text-text-muted">dana</span>
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-micro text-text-muted block mb-1">
-                    Min. impresija (šum)
-                  </Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={100}
-                    value={minImpressions}
-                    onChange={(e) =>
-                      setMinImpressions(parseInt(e.target.value, 10) || 0)
-                    }
-                    className="bg-surface border-line text-xs font-mono h-8"
-                    disabled={submitting}
-                  />
-                </div>
-              </div>
+                    {MERE_PRAVILA.map((m) => (
+                      <DropdownMenuRadioItem key={m} value={m} title={metricAcronym(m)}>
+                        {formatMetricName(m)}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
-            {/* Action Selection */}
-            <div>
-              <Label className="text-xs text-text-muted font-medium mb-1.5 block">
-                Akcija pri ispunjenju uslova
-              </Label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  {
-                    id: "pause_and_notify",
-                    label: "Pauziraj i javi",
-                    sub: "Pauza + Email",
-                  },
-                  {
-                    id: "pause",
-                    label: "Samo pauziraj",
-                    sub: "Automatska pauza",
-                  },
-                  {
-                    id: "notify",
-                    label: "Samo javi",
-                    sub: "Email alert",
-                  },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setAction(item.id as RuleAction)}
-                    className={cn(
-                      "flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-all",
-                      action === item.id
-                        ? "border-mod bg-mod-soft text-mod"
-                        : "border-line bg-surface text-text-muted hover:text-foreground hover:bg-surface-raised",
-                    )}
+            <div className="flex flex-col gap-1.5">
+              <Label id={ids.operator}>Uslov</Label>
+              <ToggleGroup
+                value={[operator]}
+                onValueChange={(v) => {
+                  if (v[0]) setOperator(v[0] as RuleOperator);
+                }}
+                spacing={0}
+                aria-labelledby={ids.operator}
+                className={`${ZLEB} sm:w-auto`}
+              >
+                {OPERATORI.map((o) => (
+                  <ToggleGroupItem
+                    key={o.id}
+                    value={o.id}
+                    size="sm"
+                    aria-label={o.label}
+                    title={o.label}
+                    className={`${SEGMENT} min-w-9 tabular-nums`}
                   >
-                    <span className="text-xs font-semibold">{item.label}</span>
-                    <span className="text-micro text-text-muted mt-0.5">
-                      {item.sub}
-                    </span>
-                  </button>
+                    {o.znak}
+                  </ToggleGroupItem>
                 ))}
-              </div>
-            </div>
-
-            {/* Cooldown & Enabled toggle */}
-            <div className="grid grid-cols-2 gap-3 items-center pt-1">
-              <div>
-                <Label className="text-xs text-text-muted font-medium mb-1 flex items-center gap-1">
-                  <Clock className="size-3 text-text-muted" />
-                  <span>Period mirovanja</span>
-                </Label>
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={720}
-                    value={cooldownHours}
-                    onChange={(e) =>
-                      setCooldownHours(parseInt(e.target.value, 10) || 1)
-                    }
-                    className="bg-surface border-line text-xs font-mono h-8 w-24"
-                    disabled={submitting}
-                  />
-                  <span className="text-xs text-text-muted">sati</span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setEnabled(!enabled)}
-                  className={cn(
-                    "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
-                    enabled
-                      ? "border-success/40 bg-success/10 text-success"
-                      : "border-line bg-surface text-text-muted",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "size-2 rounded-full",
-                      enabled ? "bg-success" : "bg-text-muted/40",
-                    )}
-                  />
-                  <span>{enabled ? "Pravilo je aktivno" : "Pravilo je pauzirano"}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Plain-Language Preview Sentence */}
-            <div className="rounded-xl border border-mod-line bg-mod-soft p-3.5 mt-2">
-              <div className="flex items-center gap-1.5 text-micro font-semibold text-mod heading-caps mb-1.5">
-                <Eye className="size-3.5" />
-                <span>Pregled pravila prirodnim jezikom</span>
-              </div>
-              <p className="text-xs sm:text-sm font-medium text-foreground leading-relaxed">
-                „{livePreview}”
-              </p>
+              </ToggleGroup>
             </div>
           </div>
 
-          <DialogFooter className="gap-2 pt-2 border-t border-line">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onClose}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={ids.prag}>
+                Prag{pragJeIznos(metric) && valuta ? ` (${valuta})` : metric === "ctr" ? " (%)" : ""}
+              </Label>
+              <Input
+                id={ids.prag}
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="npr. 25"
+                value={pragTekst}
+                onChange={(e) => setPragTekst(e.target.value)}
+                className="tabular-nums"
+                disabled={submitting}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={ids.prozor}>Prozor (dana)</Label>
+              <Input
+                id={ids.prozor}
+                inputMode="numeric"
+                value={prozorTekst}
+                onChange={(e) => setProzorTekst(e.target.value)}
+                className="tabular-nums"
+                disabled={submitting}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={ids.prikazi}>Najmanje prikaza</Label>
+              <Input
+                id={ids.prikazi}
+                inputMode="numeric"
+                value={prikaziTekst}
+                onChange={(e) => setPrikaziTekst(e.target.value)}
+                className="tabular-nums"
+                disabled={submitting}
+              />
+            </div>
+          </div>
+        </fieldset>
+
+        <div className="flex flex-col gap-1.5 border-t border-line-soft pt-4">
+          <Label id={ids.akcija}>Kad pređe prag</Label>
+          <ToggleGroup
+            value={[action]}
+            onValueChange={(v) => {
+              if (v[0]) setAction(v[0] as RuleAction);
+            }}
+            spacing={0}
+            aria-labelledby={ids.akcija}
+            className={ZLEB}
+          >
+            {AKCIJE.map((a) => (
+              <ToggleGroupItem key={a.id} value={a.id} size="sm" className={SEGMENT}>
+                {a.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={ids.pauza}>Pauza za {istiCilj(scope)} (h)</Label>
+            <Input
+              id={ids.pauza}
+              inputMode="numeric"
+              value={pauzaTekst}
+              onChange={(e) => setPauzaTekst(e.target.value)}
+              className="w-28 tabular-nums"
               disabled={submitting}
-            >
-              Otkaži
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              className="font-semibold"
+            />
+          </div>
+
+          <label
+            htmlFor={ids.ukljuceno}
+            className="flex min-h-8 cursor-pointer items-center gap-2 text-ui"
+          >
+            <Switch
+              id={ids.ukljuceno}
+              checked={enabled}
+              onCheckedChange={handleUkljuceno}
               disabled={submitting}
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                  <span>Čuvanje...</span>
-                </>
-              ) : isEditing ? (
-                "Sačuvaj izmene"
-              ) : (
-                "Kreiraj pravilo"
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
+              className="cursor-pointer"
+            />
+            <span className={enabled ? "text-foreground" : "text-text-muted"}>Uključeno</span>
+          </label>
+        </div>
+
+        {trebaProba && (
+          <p className="text-meta text-text-muted">
+            Uslov se promenio; pre čuvanja vidiš probu za novi uslov.
+          </p>
+        )}
+
+        <div className="flex flex-col gap-1 rounded-lg border border-line bg-surface px-3.5 py-3">
+          <span className="text-meta text-text-muted">Pravilo rečima</span>
+          <p className="text-ui text-foreground">„{livePreview}”</p>
+        </div>
+      </div>
+
+      <DialogFooter className="border-t border-line pt-3">
+        <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
+          Odustani
+        </Button>
+        <Button type="submit" variant="primary" loading={submitting}>
+          {submitting ? "Čuvam…" : isEditing ? "Sačuvaj izmene" : "Dodaj pravilo"}
+        </Button>
+      </DialogFooter>
+
+      {probaOtvorena !== null && (
+        <RuleProbaDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setProbaOtvorena(null);
+          }}
+          naziv={name.trim() || undefined}
+          scope={scope}
+          condition={condition}
+          ruleId={ruleToEdit?._id}
+          valuta={valuta}
+          onPotvrdi={async () => {
+            const kljuc = kljucProbe(scope, condition);
+            if (probaOtvorena === "ukljuci") {
+              // Prekidač u uredniku: proba je viđena, pravilo se uključuje
+              // pri čuvanju.
+              setProbaZa(kljuc);
+              setEnabled(true);
+              return;
+            }
+            setProbaZa(kljuc);
+            await sacuvaj(true);
+          }}
+        />
+      )}
+    </form>
   );
 }

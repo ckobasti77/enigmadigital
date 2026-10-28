@@ -401,3 +401,88 @@ Nijedan `next dev` ni drugi proces koji je korak sam pokrenuo nije upaljen.
 2. Novosti: nacrti koje si pisao na jednom uređaju vide se i na drugom. Otvori jedan objavljen post i proveri da uređivač ima ceo tekst pre nego što sačuvaš.
 3. Na telefonu: gornja traka je jedan red, a period se bira dugmetom „28 d ▾".
 4. Potvrdi odluke: „Poslovanje · stanje sada" umesto preimenovanja brojki sa sajta; arhiva u istom upitu kao nacrti; „Danas · misije" kao naslov misija.
+
+## T07 — Pravila: bez samoupisa, proba, Vrati kampanju   (2026-10-28 01:30)
+**Fajlovi:**
+- novi:
+  - logika: `convex/lib/pravilaProcena.ts` (vrednost mere, uslov, blizina praga, medijana, zaokruživanje praga, šabloni, format iznosa);
+  - front: `components/app/rules/rule-sablon-dialog.tsx`, `rule-proba-dialog.tsx`, `use-valuta-pravila.ts`;
+  - testovi i fiksture: `convex/pravila-t07.test.ts`, `lib/pravila-procena.test.ts`, `app/dev-ux/fixtures-pravila.ts`;
+  - snimci `docs/ultra/snimci/T07-*.png` (10).
+- izmenjeni backend: `convex/rulesStore.ts`, `convex/rules.ts` (samo valuta u mejlu i zajednička logika), `convex/_generated/api.d.ts` (codegen).
+- izmenjeni front: `components/app/rules/rules-dashboard.tsx`, `rules-list.tsx`, `rule-editor-dialog.tsx`, `rule-firings-table.tsx`, `lib/rule-sentence.ts`.
+- izmenjeni testovi: `convex/pristup.test.ts`, `convex/izolacija-c07-pravila.test.ts`.
+- razvojni prikaz: `app/dev-ux/fixtures.ts` (blokovi `listRules`/`listRuleFirings`, uvoz i dva reda registracije).
+
+**Šta je urađeno:**
+- **Bez samoupisa.** `ensureTemplateRules` i `TEMPLATE_RULES` su obrisani, a sa njima i `useEffect` koji je pri prvoj poseti upisivao šablone sa pragom 15 i 100, kao i dugme „Učitaj šablone". Nova mutacija `dodajIzSablona` (vlasnik, `{ sablon, prag }`) upisuje jedno isključeno pravilo i odbija prag ≤ 0 ili `NaN`. Upit `predlogPraga` daje dvostruku medijanu za poslednjih 28 dana, zaokruženu naviše na dve značajne cifre: cenu po rezultatu po kampanji sa rezultatima, odnosno dnevnu potrošnju kampanje. Bez podataka vraća `nema_podataka`, a sa više valuta `vise_valuta`. Dijalog „Dodaj iz šablona" ima dva koraka: izbor šablona, pa polje „Prag (EUR)" popunjeno predlogom i rečenica o osnovi. Bez predloga je polje prazno i obavezno, a „Dodaj pravilo" je onemogućeno.
+- **Proba pre uključivanja.** Upit `probaPravila` (`{ scope, condition, ruleId? }`) čita samo bazu. Vraća pogođene ciljeve (naziv, vrednost, prag, mirovanje), najbliži cilj u odnosu na prag, broj ciljeva ispod najmanje prikaza, prozor i to da li je pauziranje uključeno na serveru. Server ne pušta pauzu bez probe: `toggleRule`, `createRule` i `updateRule` bacaju `proba_potrebna` kad bi pravilo koje pauzira počelo da važi bez `probaPotvrdjena: true`. Pravilo koje samo javlja, gašenje i promena naziva ili mirovanja aktivnog pravila probu ne traže. Dijalog „Proba pre uključivanja" piše „Sada bi pauziralo: N kampanje", zatim redove „naziv · Cena po kliku 0,25 € > prag 0,20 €" i napomene („već okinuto, čeka još N h", „već nije aktivna na Meti"). Ako je pauziranje isključeno na serveru, kaže da bi pravilo samo poslalo mejl. Uključuje tek na „Uključi pravilo".
+- **Jedna logika.** Evaluator i proba dele `ciljeviPravila` (u `rulesStore.ts`) i `vrednostMere`/`uslovIspunjen`. Ciljevi su **samo Meta nalozi** (`provider === "meta_ads"`), pa Google kampanja više ne ide na `graph.facebook.com`. Kontekst procene nosi `valuta`, a mejl piše iznos u valuti Meta naloga; kad valuta nije poznata, piše ga bez znaka. „€" više nije upisan u kod.
+- **Kartica** ispod rečenice piše vrednost prema pragu iz iste probe: „Sada najbliža pragu: … 42,50 € · 94 % praga", „Sada ispunjava uslov: … · i još 1" ili „— nema podataka za poslednja 3 dana". Zaglavlje liste nosi tih natpis „Čuva samo Meta oglase · Proverava se na 30 min" (umesto čipa) i `ValutaUpozorenje` kad Meta nalog ne radi u evrima. Rečenica pravila (`lib/rule-sentence.ts`) koristi nazive iz `lib/mere.ts` i valutu naloga, koju `rules-list.tsx` sada prosleđuje.
+- **Istorija.** Uz uspelu pauzu kampanje ili grupe oglasa vlasnik vidi „Vrati kampanju" (odnosno „Vrati grupu oglasa"). Dugme otvara postojeći `AdActionDialog` sa `actionType="resume"`, koji zove `adActions.pauseResume` sa istim zaštitama: `ADS_WRITE_ENABLED`, `recordPendingAction`, brojač Meta poziva i potvrda „Potvrdi aktivaciju". „Otvori" vodi na `/ads?campaignId=…` (za grupu i nalog na `/ads`). Iznos piše „Cena po rezultatu 10,80 € · prag sada 5,00 €". Neuspela pauza nosi „Pauziranje nije uspelo", a ne „Pauzirano".
+- **Urednik.** Nivo, uslov (`>` `≥` `<` `≤`, sa `aria-label`) i radnja su `ToggleGroup`, mera je `DropdownMenu` + `DropdownMenuRadioGroup`, a „Uključeno" je shadcn `Switch`. Novo pravilo počinje isključeno i bez praga. Prekidač za pravilo koje pauzira otvara probu. Ako se uslov promeni posle probe, „Sačuvaj" prvo traži novu probu. Rečnik: „Novo pravilo", „Nivo", „Grupe oglasa", „Najmanje prikaza", „Pauza za istu kampanju (h)", „Mejl"; „Čuvari" → „Pravila", podnaslov „Pravila za Meta oglase: …".
+
+**ODLUKE:**
+- **`dodajIzSablona` traži vlasnika**, po planu T03 §6.2. Ranije je šablone smeo da upiše i urednik (`ensureTemplateRules` je bio podrazumevani `urednik`). Test „urednik učitava šablone" u `izolacija-c07-pravila.test.ts` je zato postao „urednik ne dodaje iz šablona…". Proverava da urednik dobija `forbidden` i da čitanje spiska ništa ne upisuje. Kao što plan traži, proverava i da dva poziva vlasnika prave dva isključena pravila. Ostale provere izolacije u tom fajlu i u `pristup.test.ts` su iste, samo prelaze na `dodajIzSablona`. Nijedna tvrdnja nije uklonjena; konstanta `TREBA_UREDNIK` je obrisana jer je ostala bez upotrebe.
+- **Pravilo iz šablona dobija `createdBy`.** Šablon više nije samoupis, nego radnja vlasnika sa pragom koji je izabrao, pa autor postoji. Posledica je da takvo pravilo sada broji kao događaj u Napretku (ranije „šabloni → 0 XP", jer ih niko nije pravio). `verify:napredak` prolazi (145).
+- **Proba se traži samo kad pauza počinje da važi**: pravilo se uključuje, počinje da pauzira ili pauzira po novom uslovu (nivo, mera, operator, prag, prozor, najmanje prikaza). Promena naziva ili mirovanja aktivnog pravila je ne traži. To je najuži tumač „pauza ne može da se uključi bez probe" koji ne tera probu na svaku izmenu.
+- **Proba i predlog čitaju `Date.now()` u upitu**, kao `notificationsStore.staMeCeka`. Prozor je u UTC danima, kao u evaluatoru do sada. Rezultat može da zakasni oko ponoći dok ga nova sinhronizacija ne osveži; argument sa vremenom bi menjao pretplatu na svakom crtežu.
+- **Proba ne filtrira pauzirane kampanje**, jer ni evaluator to ne radi (evaluator se menja samo za valutu i zajedničku logiku). Kampanja koja već nije aktivna ostaje na spisku sa „već nije aktivna na Meti".
+- **„Prag sada" u istoriji.** Okidanje ne pamti prag u trenutku okidanja, a šema se u U2 ne menja (T03). Istorija zato piše današnji prag pravila kao „prag sada", a ne „> prag" iz plana, da ne bi tvrdila nešto što nije zapisano. `listRuleFirings` vraća i `metric` i `pragSada`.
+- **„Vrati kampanju" je `outline`, a ne `secondary`**, isto kao odluka T06. `secondary` danas nosi boju modula, a boja modula ne ide na dugmad; T09 menja `secondary`. „Otvori" je `ghost`.
+- **Primarno dugme je jedno po pogledu.** „Dodaj iz šablona" je `primary` u zaglavlju kad pravila postoje. U praznom stanju ga nosi prazno stanje, pa ga zaglavlje ne ponavlja. „Novo pravilo" i „Pokreni proveru sad" su `outline`. Na telefonu je „Pokreni proveru sad" samo ikonica (tekst je `sr-only`), jer tri dugmeta inače prelivaju 390 px: blok radnji u `PageHeader` je `shrink-0`.
+- **Natpis „Čuva samo Meta oglase"** stoji jednom, u redu čipova table (vidi se i u praznom stanju i iznad istorije), a ne u zaglavlju liste kartica.
+- **Kartica i proba dele upit** (isti argumenti `{ scope, condition, ruleId }`), pa je to jedna pretplata po pravilu.
+- **Valuta na frontu** dolazi iz `metaAdsStore.listAccounts` (`use-valuta-pravila.ts`): piše se samo kad je jedna i poznata. Za upozorenje se uzima Meta valuta koja nije EUR.
+- **Sitnice u fajlovima koje ovaj korak prepisuje:** datum u istoriji i na kartici više nije `font-mono` (datum u rečenici nije mono). `title` sa `ADS_WRITE_ENABLED` i `RESEND_API_KEY` je zamenjen ljudskom rečenicom. Ikonica kartice u boji modula nije dirana (U3).
+- **`AdActionDialog`** (fajl Oglasa) nije menjan. Snimak `T07-vrati-kampanju-1536.png` pokazuje njegove zatečene natpise („Aktiviraj Kampanja", `PAUSED`, zeleno dugme); to je za U3.
+- Skill `impeccable` je pozvan pre UI koda. Radnici nisu korišćeni.
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- `convex/pravila-t07.test.ts` (14):
+  - prva poseta (vlasnik, urednik, posmatrač) ne upisuje nijedno pravilo;
+  - `rulesStore` ne izvozi `ensureTemplateRules`/`TEMPLATE_RULES`; prag 0, −5 i `NaN` daju `invalid_argument`;
+  - `dodajIzSablona` pravi isključeno pravilo sa pragom, šablonom i autorom;
+  - prekidač, novo pravilo i izmena bez probe daju `proba_potrebna`, a sa probom prolaze; preimenovanje aktivnog pravila prolazi, a nov prag ne;
+  - `probaPravila` nad fiksturama `adInsights` daje tačno pogođene Meta kampanje. Google kampanju, red stariji od prozora i red sa podelom ne broji, a poštuje najmanje prikaza, „manje od", mirovanje sopstvenog pravila (22 h) i tuđe pravilo. `fetch` nije pozvan (zamenjen funkcijom koja baca grešku);
+  - `predlogPraga`: 64,30 → 130 i 321,5 → 650; bez podataka `nema_podataka`, sa USD nalogom `vise_valuta`;
+  - kontekst evaluatora ima samo Meta ciljeve i valutu EUR.
+- `lib/pravila-procena.test.ts` (11):
+  - `vrednostMere`, `uslovIspunjen`, `blizinaPragu`, `medijana`, `zaokruziPrag` (uključujući 1,1, 0,7 i 1.300);
+  - iznos sa valutom naloga, bez znaka i nikad sa pretpostavljenim €;
+  - rečenica pravila;
+  - čuvar izvora: nijedan fajl u `components/app/rules` ne zove `ensureTemplateRules`, `dodajIzSablona` zove samo dijalog šablona (uz prag), a tabla nema `useEffect` ni mutaciju.
+- Izmenjeni: `convex/pristup.test.ts` i `convex/izolacija-c07-pravila.test.ts` (vidi ODLUKE).
+
+**Rezultat provere:**
+- `npx convex codegen`: prošao.
+- typecheck: prošao.
+- lint: 0 grešaka (1210 upozorenja, isto kao pre).
+- vitest: 62 fajla / 1086 testova prošlo.
+- pristup: prošao (izlaz 0).
+- regresije: 14/14 prošlo. Dodatno `verify:napredak` (145) prošao.
+- **Vizuelno** (Playwright, `?ux=1`, port 3117):
+  - `T07-prazna-pravila-1536/390`: prazno stanje sa „Dodaj iz šablona" iznad preloma na 1536;
+  - `T07-pravila-kartice-1536`: tri kartice sa vrednošću prema pragu;
+  - `T07-proba-1536/390`: proba na prekidaču isključenog pravila koje pauzira;
+  - `T07-istorija-1536/390`: „Vrati kampanju" i „Otvori";
+  - `T07-vrati-kampanju-1536`: potvrda kroz postojeći dijalog;
+  - `T07-sablon-prag-1536`: predlog 13 EUR;
+  - `T07-urednik-1536`: urednik sa Switch, meni i segmentima.
+  - Prekidač u uredniku otvara probu nad dijalogom, a posle „Uključi pravilo" je uključen. Prvi snimak na 390 je pokazao prelivanje (455 px) zbog tri dugmeta u zaglavlju; popravljeno je, i sada je 390 px. U konzoli nema grešaka ni upozorenja.
+- Dev server je ugašen (PID 14840, 33124, 29044, 21248; port 3117 slobodan). Pomoćni fajlovi Playwright-a su premešteni u `.nocni-run/ultra1/tmp/t07/playwright/`.
+
+**Prihvatanje:**
+- Prva poseta Pravilima ne upisuje nijedno pravilo: ispunjeno. To pokrivaju test `prva poseta Pravilima ne upisuje nijedno pravilo`, test izolacije (urednik) i čuvar izvora u `lib/pravila-procena.test.ts`.
+- Pauza ne može da se uključi bez probe i potvrde: ispunjeno. Server odbija bez `probaPotvrdjena` (testovi), a front šalje potvrdu samo iz dijaloga probe.
+- Provere prolaze; sekcija T07 je ovde: ispunjeno.
+
+**Za Jovana ujutru:**
+1. Posle deploya otvori Pravila. Ništa se ne upisuje samo, a postojeća pravila (i stari šabloni sa pragom 15/100, ako ih ima u bazi) ostaju kakva jesu. Proveri prag starih šablona: oni su bili upisani bez tvog izbora.
+2. „Dodaj iz šablona" → „Skupa konverzija": predlog praga treba da odgovara tvojim kampanjama (dvostruka medijana cene po rezultatu za 28 dana).
+3. Uključi pravilo koje pauzira: proba treba da pokaže stvarne kampanje. Ako piše „Pauziranje je sada isključeno na serveru", `ADS_WRITE_ENABLED` na produkciji nije `true`.
+4. „Pokreni proveru sad" i dalje radi prave pauze bez probe (zatečeno, plan §9). Proba štiti uključivanje, a ne ručnu proveru.
+5. Evaluator više ne procenjuje Google kampanje. One su ranije padale na Meta API-ju, pa ishod treba da bude isti, samo bez lažnih grešaka.
+6. Potvrdi odluke: pravilo iz šablona donosi događaj u Napretku, istorija piše „prag sada", proba se ne traži za preimenovanje aktivnog pravila, a urednik više ne dodaje šablone.

@@ -1,9 +1,10 @@
 /// <reference types="vite/client" />
 /**
  * Izolacija C07, pravila oglasa: član projekta A ne čita i ne menja pravila
- * projekta B, posmatrač samo čita, urednik sme da učita šablone, a pravljenje,
- * izmena, brisanje, uključivanje i ručno pokretanje traže vlasnika (D11:
- * pauza je pisanje na Meta nalogu). ID pravila iz tuđeg projekta se ne otkriva.
+ * projekta B, posmatrač samo čita, a pravljenje (i iz šablona), izmena,
+ * brisanje, uključivanje i ručno pokretanje traže vlasnika (D11: pauza je
+ * pisanje na Meta nalogu; ULTRA1 T07: šablon nosi prag koji bira vlasnik).
+ * ID pravila iz tuđeg projekta se ne otkriva.
  */
 import { describe, expect, test } from "vitest";
 
@@ -18,7 +19,6 @@ import {
 } from "./projekatTest.pomoc";
 
 const NEMA_PRISTUP = /Nemaš pristup ovom projektu/;
-const TREBA_UREDNIK = /urednik ili vlasnik/;
 const TREBA_VLASNIK = /samo vlasnik projekta/;
 
 const USLOV = { metric: "cpa", operator: "gt", value: 5, windowDays: 3, minImpressions: 0 } as const;
@@ -79,7 +79,12 @@ describe("pravila oglasa", () => {
     for (const poziv of upiti) await odbijeno(poziv(), "forbidden", NEMA_PRISTUP);
 
     const izmene = [
-      () => ana.mutation(api.rulesStore.ensureTemplateRules, { workspaceId: s.wsB }),
+      () =>
+        ana.mutation(api.rulesStore.dodajIzSablona, {
+          workspaceId: s.wsB,
+          sablon: "skupa_konverzija",
+          prag: 13,
+        }),
       () => ana.mutation(api.rulesStore.createRule, { workspaceId: s.wsB, ...TELO_PRAVILA }),
       () =>
         ana.mutation(api.rulesStore.updateRule, {
@@ -178,7 +183,7 @@ describe("pravila oglasa", () => {
     expect(svoje.evaluatedRulesCount).toBe(1);
   });
 
-  test("posmatrač čita, ali ne učitava šablone ni piše", async () => {
+  test("posmatrač čita, ali ne dodaje iz šablona ni piše", async () => {
     const { s, a, okidanjeA } = await svetSaPravilima();
     const viewer = kao(s, s.viewer);
 
@@ -189,9 +194,13 @@ describe("pravila oglasa", () => {
     expect(istorija.map((f) => f._id)).toEqual([okidanjeA]);
 
     await odbijeno(
-      viewer.mutation(api.rulesStore.ensureTemplateRules, { workspaceId: s.wsA }),
+      viewer.mutation(api.rulesStore.dodajIzSablona, {
+        workspaceId: s.wsA,
+        sablon: "skupa_konverzija",
+        prag: 13,
+      }),
       "forbidden",
-      TREBA_UREDNIK,
+      TREBA_VLASNIK,
     );
     await odbijeno(
       viewer.mutation(api.rulesStore.createRule, { workspaceId: s.wsA, ...TELO_PRAVILA }),
@@ -224,15 +233,38 @@ describe("pravila oglasa", () => {
     expect(redovi[0]).toMatchObject({ _id: a, name: "Pravilo A", enabled: false });
   });
 
-  test("urednik učitava šablone, ali ne pravi, ne menja i ne pokreće pravila", async () => {
+  test("urednik ne dodaje iz šablona, ne pravi, ne menja i ne pokreće pravila", async () => {
     const s = await napraviSvet();
     const pravilo = await napraviPravilo(s, s.wsB, "Pravilo B");
     const urednica = kao(s, s.urednica);
+    const ana = kao(s, s.ana);
 
-    // A nema pravila: šabloni se upisuju u A, jednom, i ne diraju B.
+    // A nema pravila, a čitanje spiska ništa ne upisuje (nema samoupisa).
+    expect(await urednica.query(api.rulesStore.listRules, { workspaceId: s.wsA })).toEqual([]);
     expect(await pravila(s, s.wsA)).toHaveLength(0);
-    await urednica.mutation(api.rulesStore.ensureTemplateRules, { workspaceId: s.wsA });
-    await urednica.mutation(api.rulesStore.ensureTemplateRules, { workspaceId: s.wsA });
+    await odbijeno(
+      urednica.mutation(api.rulesStore.dodajIzSablona, {
+        workspaceId: s.wsA,
+        sablon: "skupa_konverzija",
+        prag: 13,
+      }),
+      "forbidden",
+      TREBA_VLASNIK,
+    );
+    expect(await pravila(s, s.wsA)).toHaveLength(0);
+
+    // Vlasnik dodaje iz šablona: svaki poziv je jedno isključeno pravilo u A,
+    // B ostaje netaknut.
+    await ana.mutation(api.rulesStore.dodajIzSablona, {
+      workspaceId: s.wsA,
+      sablon: "skupa_konverzija",
+      prag: 13,
+    });
+    await ana.mutation(api.rulesStore.dodajIzSablona, {
+      workspaceId: s.wsA,
+      sablon: "skok_potrosnje",
+      prag: 40,
+    });
     const sablonski = await pravila(s, s.wsA);
     expect(sablonski).toHaveLength(2);
     expect(sablonski.every((r) => !r.enabled)).toBe(true);
