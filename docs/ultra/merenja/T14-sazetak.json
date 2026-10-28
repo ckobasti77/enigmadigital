@@ -1,0 +1,95 @@
+{
+  "oznaka": "T14",
+  "vreme": "2026-10-28T04:54:13.092Z",
+  "polazno": {
+    "1536x695": {
+      "ekrana": 60,
+      "tekstCvorova": 10345,
+      "tekstIspod12": 548,
+      "primarnoBezAtf": 19
+    },
+    "390x844": {
+      "ekrana": 56,
+      "meta": 1946,
+      "metaIspod44": 1095
+    }
+  },
+  "posle": {
+    "1536x695": {
+      "ekrana": 60,
+      "greske": [],
+      "tekstCvorova": 10474,
+      "tekstIspod12": 0,
+      "ekranaSaTekstomIspod12": 0,
+      "najviseSitnogTeksta": [],
+      "meta": 3012,
+      "metaIspodPraga": 421,
+      "udeoMetaIspodPraga": 14,
+      "najviseMalihMeta": [
+        "leadovi-tabela 50/216",
+        "leadovi-tabela-kolone 50/216",
+        "analitika-sadrzaj 19/49",
+        "uvoz-pregled 18/233",
+        "threads 15/50",
+        "analitika 14/54",
+        "oglasi 14/59",
+        "kontrolna-tabla-prazno 14/46"
+      ],
+      "defaultDugmadIznadPreloma": 0,
+      "primarnaIznadPreloma": 41,
+      "ekranaBezPrimarnogIznadPreloma": 17,
+      "ekranaSaViseOdJednogPrimarnogIznadPreloma": [],
+      "najduzeStrane": [
+        "uvoz-pregled 8.95",
+        "podesavanja 6.73",
+        "threads 5.63",
+        "youtube 4.95",
+        "uvoz-nereseno 4.85"
+      ],
+      "medijanaBojaTeksta": 11,
+      "medijanaBojaPozadine": 16,
+      "vodoravniPreliv": [],
+      "najvisaGornjaTraka": 96,
+      "greskeKonzole": 2
+    },
+    "390x844": {
+      "ekrana": 56,
+      "greske": [],
+      "tekstCvorova": 8182,
+      "tekstIspod12": 0,
+      "ekranaSaTekstomIspod12": 0,
+      "najviseSitnogTeksta": [],
+      "meta": 1964,
+      "metaIspodPraga": 301,
+      "udeoMetaIspodPraga": 15.3,
+      "najviseMalihMeta": [
+        "leadovi-tabela 101/236",
+        "uvoz-pregled 50/220",
+        "facebook 14/46",
+        "threads 14/35",
+        "youtube 13/52",
+        "oglasi 12/44",
+        "ljuska-danas 12/101",
+        "leadovi-mapa-panel 12/57"
+      ],
+      "defaultDugmadIznadPreloma": 0,
+      "primarnaIznadPreloma": 37,
+      "ekranaBezPrimarnogIznadPreloma": 17,
+      "ekranaSaViseOdJednogPrimarnogIznadPreloma": [],
+      "najduzeStrane": [
+        "podesavanja 10.58",
+        "uvoz-pregled 9.08",
+        "threads 8.94",
+        "leadovi-tabela 8.81",
+        "youtube 7.85"
+      ],
+      "medijanaBojaTeksta": 8,
+      "medijanaBojaPozadine": 13,
+      "vodoravniPreliv": [
+        "instagram-komentari"
+      ],
+      "najvisaGornjaTraka": 101,
+      "greskeKonzole": 1
+    }
+  }
+}

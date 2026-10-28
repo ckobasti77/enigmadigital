@@ -889,3 +889,22 @@ Nijedan `next dev` ni drugi proces koji je korak sam pokrenuo nije upaljen.
   - `verify-pristup`: izlaz 0;
   - `regresije.mjs`: 19/19, od toga pet `verify:ultra-*`.
 - *Nijedan pokrenut proces nije ostao upaljen:* port 3117 je slobodan, a nijedan `next` proces ovog repoa ne radi. Pozadinske provere su završene.
+
+## T14 — Završni izveštaj i merenje   (2026-10-28 06:20)
+**Fajlovi:** novi `docs/ULTRA1-REPORT.md`, `docs/ultra/merenja/T14.jsonl`, `T14-sazetak.json`, `T14-sazetak.md`; dopuna ovog fajla. Kod nije menjan. Logovi provera su u `.nocni-run/ultra1/tmp/t14-*.log`.
+**Šta je urađeno:**
+- Merenje nad razvojnim prikazom (`next dev -p 3117`, `merenje.cjs --oznaka T14`): 116 od 116 merenja, bez neuspeha. Tekst ispod 12 px: 548 → 0 (1536) i 469 → 0 (390). Male dodirne mete na 390: 1.095 od 1.946 (56,3 %) → 301 od 1.964 (15,3 %). `data-variant="default"`: 0. Ekrani bez primarnog iznad preloma: 19 → 17. Najviša gornja traka na telefonu: 192 → 101 px.
+- `docs/ULTRA1-REPORT.md` ima odeljke 0–10: ukratko, pregled grane, urađeno po fazama, neurađeno, šest BLOKADA, P1–P8 i 24 odluke za potvrdu, redosled deploya sa migracijom zaduženja, ručne provere po važnosti, merenje sa kriterijumima §9, rezultat provera i zatečeno.
+- Kriterijumi §9 posle U3: tekst 0 i `default` 0 su postignuti, a primarno dugme više nije u boji modula. Dodirne mete (15,3 % naspram cilja ispod 10 %) nisu postignute. Kontrast axe-om nije meren.
+**ODLUKE:**
+- `npx convex codegen` nije pušten, jer T14 ne menja `convex/`.
+- Pored obaveznih provera pustio sam i `npm run build`, da izveštaj ima i taj rezultat.
+- Male mete na 1536 (prag 24 px) su porasle sa 347 na 421, a uz izuzetak razmaka iz WCAG 2.5.8 sa 5 na 10. Glavni uzrok su okidači oblačića mere iz T12. To nije kriterijum §9, pa sam ga samo zapisao u izveštaj (odeljak 8), bez popravke.
+- Boju primarnog dugmeta merenje ne beleži. Kriterijum „nigde u boji modula“ se oslanja na merenje iz T09 i na čuvar D7.
+- Playwright MCP nije korišćen; merenje ide kroz paket `playwright`.
+**Novi paketi:** nema.
+**Testovi:** nisu pisani ni menjani.
+**Rezultat provere:** typecheck prošao; lint 0 grešaka (1.209 upozorenja); vitest 69 fajlova / 1.168 testova; pristup prošao; regresije 19/19; `npm run build` prošao.
+**Procesi:** dev server (PID 21404, 34672, 30408, 22192) je ugašen preko `Stop-Process`, jer se ne gasi sam; port 3117 je slobodan i nijedan `next` proces ovog repoa ne radi.
+**BLOKADA:** nema nove. Šest postojećih je zbirno u `docs/ULTRA1-REPORT.md` §4.
+**Za Jovana ujutru:** pročitaj `docs/ULTRA1-REPORT.md`, prvo odeljke 0, 5, 6 i 7. Za kontrast pusti merenje sa `AXE_PATH` (axe 4.14).
