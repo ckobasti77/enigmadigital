@@ -630,6 +630,7 @@ function Ga4Card({ connection }: { connection?: ConnectionView }) {
 
             <div className="flex items-center gap-3">
               <Button
+                variant="secondary"
                 type="submit"
                 size="sm"
                 disabled={saving || !canSaveGa4}
@@ -832,6 +833,7 @@ function OpenReplyCard() {
               </div>
               {mozeVlasnik && (
                 <Button
+                  variant="secondary"
                   type="button"
                   size="sm"
                   onClick={handleEnable}
@@ -1111,6 +1113,7 @@ function InstagramCard({ connection }: { connection?: ConnectionView }) {
           </p>
           {mozeVlasnik && (
             <Button
+              variant="secondary"
               size="sm"
               onClick={handleStartConnect}
               disabled={connecting || oauthNijePodesen}
@@ -1724,6 +1727,7 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
 
                   <div className="flex items-center gap-3">
                     <Button
+                      variant="secondary"
                       size="sm"
                       onClick={handleStartConnect}
                       disabled={connecting || !setup.appConfigured || oauthNijePodesen}
@@ -1799,6 +1803,7 @@ function FacebookCard({ connection }: { connection?: ConnectionView }) {
 
                     <div className="flex items-center gap-3">
                       <Button
+                        variant="secondary"
                         type="submit"
                         size="sm"
                         disabled={
@@ -2011,6 +2016,7 @@ function MetaAdsCard({ connection }: { connection?: ConnectionView }) {
 
             <div className="flex items-center gap-3">
               <Button
+                variant="secondary"
                 type="submit"
                 size="sm"
                 disabled={
@@ -2229,6 +2235,7 @@ function GoogleAdsCard({ connection }: { connection?: ConnectionView }) {
 
             <div className="flex items-center gap-3">
               <Button
+                variant="secondary"
                 type="submit"
                 size="sm"
                 disabled={saving || !canSave}
@@ -2466,6 +2473,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                   </FeedbackNote>
                   {mozeVlasnik && (
                     <Button
+                      variant="secondary"
                       type="button"
                       size="sm"
                       onClick={handleStartConnect}
@@ -2583,6 +2591,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
 
                             <div className="flex items-center gap-3">
                               <Button
+                                variant="secondary"
                                 type="submit"
                                 size="sm"
                                 disabled={saving || channelProblem !== null}
@@ -2631,6 +2640,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
                   </p>
                 </div>
                 <Button
+                  variant="secondary"
                   type="button"
                   size="sm"
                   onClick={handleStartConnect}
@@ -2734,6 +2744,7 @@ function YouTubeCard({ connection }: { connection?: ConnectionView }) {
 
                         <div className="flex items-center gap-3">
                           <Button
+                            variant="secondary"
                             type="submit"
                             size="sm"
                             disabled={saving || channelProblem !== null}
@@ -2936,6 +2947,7 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
                   </FeedbackNote>
                   {mozeVlasnik && (
                     <Button
+                      variant="secondary"
                       type="button"
                       size="sm"
                       onClick={handleStartConnect}
@@ -2968,6 +2980,7 @@ function ThreadsCard({ connection }: { connection?: ConnectionView }) {
                 </p>
               </div>
               <Button
+                variant="secondary"
                 type="button"
                 size="sm"
                 onClick={handleStartConnect}
@@ -3117,7 +3130,7 @@ export function ConnectionsSettings() {
             />
           }
         >
-          <p className="font-mono text-hero font-bold leading-none tabular-nums text-mod">
+          <p className="text-hero font-bold leading-none tabular-nums text-foreground">
             {zbir.radi}
             <span className="font-sans text-title font-medium text-text-muted"> radi</span>
           </p>

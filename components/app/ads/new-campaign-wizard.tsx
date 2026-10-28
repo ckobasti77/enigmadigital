@@ -215,8 +215,8 @@ function Stepper({ current }: { current: number }) {
               <span
                 className={cn(
                   "flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors",
-                  done && "border-mod-line bg-mod-soft text-mod",
-                  active && "border-mod bg-mod-strong text-primary-foreground",
+                  done && "border-line-control bg-surface-raised text-foreground",
+                  active && "border-radnja bg-radnja-soft text-foreground",
                   !done && !active && "border-line bg-surface-raised text-text-muted",
                 )}
               >

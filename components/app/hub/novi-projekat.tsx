@@ -351,7 +351,7 @@ function Osnovno({ onNapravljen }: { onNapravljen: (slug: string) => void }) {
                 value={v}
                 checked={vrsta === v}
                 onChange={() => setVrsta(v)}
-                className="mt-0.5 size-4 accent-[var(--mod-strong)]"
+                className="mt-0.5 size-4 accent-[var(--radnja)]"
               />
               <span className="min-w-0">
                 <span className="block text-ui font-medium text-foreground">

@@ -265,7 +265,7 @@ export function LeadPrimaryButton({
     title: appearance === "card" ? undefined : label,
     "aria-label": appearance === "card" ? undefined : label,
     "data-primary-action": kind,
-    className: cn(appearance === "icon" && "text-mod hover:text-mod", className),
+    className: cn(appearance === "icon" && "text-text-secondary hover:text-foreground", className),
   };
   const body = (
     <>

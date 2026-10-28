@@ -423,6 +423,7 @@ function YtCaptionsContent({
                 Otkaži
               </Button>
               <Button
+                variant="primary"
                 type="button"
                 size="sm"
                 onClick={() => void handleReplace(pending.track)}
@@ -482,13 +483,13 @@ function YtCaptionsContent({
                 Otkaži
               </Button>
               <Button
+                variant="destructive"
                 type="button"
                 size="sm"
                 onClick={() => void handleDelete(pending.track)}
                 disabled={
                   submitting || !affordable(quota, QUOTA_COST.captionsDelete)
                 }
-                className="bg-danger font-semibold text-text-inverse hover:bg-danger/90"
               >
                 {submitting ? (
                   <>
@@ -610,6 +611,7 @@ function YtCaptionsContent({
 
             <div className="flex justify-end">
               <Button
+                variant="primary"
                 type="button"
                 size="sm"
                 onClick={() => void handleUpload()}

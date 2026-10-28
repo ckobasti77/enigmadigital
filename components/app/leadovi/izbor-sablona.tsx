@@ -51,7 +51,7 @@ export function IzborSablona({
               value={s.kljuc}
               checked={izabran}
               onChange={() => onChange(s.kljuc)}
-              className="mt-0.5 size-4 accent-[var(--mod-strong)]"
+              className="mt-0.5 size-4 accent-[var(--radnja)]"
             />
             <span className="min-w-0">
               <span className="block text-ui font-medium text-foreground">

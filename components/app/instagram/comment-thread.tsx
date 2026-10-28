@@ -234,6 +234,7 @@ function ReplyComposer({
             Otkaži
           </Button>
           <Button
+            variant="secondary"
             type="button"
             size="sm"
             className="font-semibold"

@@ -357,6 +357,7 @@ function CreateLookalikeAudienceDialogInner({
               Otkaži
             </Button>
             <Button
+              variant="primary"
               type="submit"
               disabled={
                 submitting ||

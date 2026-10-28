@@ -98,7 +98,7 @@ export function EmptyState({
         className={cn(
           "flex size-12 items-center justify-center rounded-full border",
           mission
-            ? "border-mod-line bg-mod-soft text-mod ring-4 ring-mod-soft"
+            ? "border-line bg-surface-raised text-text-secondary ring-4 ring-surface-raised"
             : "border-line-soft text-text-muted",
         )}
       >
@@ -131,9 +131,9 @@ export function EmptyState({
             <li key={step.label} className="flex items-center gap-3 py-2">
               <span
                 className={cn(
-                  "flex size-5 shrink-0 items-center justify-center rounded-full border font-mono text-meta leading-none",
+                  "flex size-5 shrink-0 items-center justify-center rounded-full border text-meta leading-none tabular-nums",
                   step.done
-                    ? "border-mod-line bg-mod-soft text-mod"
+                    ? "border-radnja-line bg-radnja-soft text-foreground"
                     : "border-line text-text-muted",
                 )}
               >
@@ -149,7 +149,7 @@ export function EmptyState({
                 {step.done && <span className="sr-only"> — urađeno</span>}
               </span>
               {step.xp !== undefined && (
-                <span className="shrink-0 font-mono text-meta font-medium text-xp tabular-nums">
+                <span className="shrink-0 text-meta font-medium text-xp tabular-nums">
                   +{step.xp} XP
                 </span>
               )}

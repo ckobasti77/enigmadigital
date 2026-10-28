@@ -435,6 +435,7 @@ export function LeadExpandedRow({
             />
             <div className="flex flex-wrap items-center gap-2">
               <Button
+                variant="secondary"
                 size="xs"
                 disabled={saving || !note.trim()}
                 onClick={saveNote}

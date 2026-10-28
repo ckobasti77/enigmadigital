@@ -624,6 +624,7 @@ function YtAutomationEditorForm({
             Otkaži
           </Button>
           <Button
+            variant="primary"
             type="submit"
             size="sm"
             disabled={

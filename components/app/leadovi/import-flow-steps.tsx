@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 
 const MARKER: Record<StanjeKoraka, string> = {
   gotov: "border-success/40 bg-success/10 text-success",
-  tekuci: "border-mod-line bg-mod-soft text-mod",
+  tekuci: "border-radnja-line bg-radnja-soft text-foreground",
   stao: "border-warning/50 bg-warning/10 text-warning",
   ceka: "border-line-soft bg-surface-raised text-text-muted",
 };

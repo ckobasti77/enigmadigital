@@ -794,7 +794,7 @@ export function ImportReviewTable({
         <ProgressBar
           value={stanje.odluceno}
           max={stanje.zaOdluku}
-          tone={stanje.nerazreseno === 0 ? "success" : "module"}
+          tone={stanje.nerazreseno === 0 ? "success" : "neutral"}
           size="sm"
           label="Čistoća uvoza"
           showValue
@@ -935,7 +935,7 @@ export function ImportReviewTable({
             </Chip>
             {stanje.cekaPrimenu > 0 && (
               <Chip
-                tone="accent"
+                tone="neutral"
                 count={stanje.cekaPrimenu}
                 active={prikaz === "ceka"}
                 onClick={() => setPrikaz((p) => (p === "ceka" ? "sve" : "ceka"))}
@@ -1080,7 +1080,7 @@ export function ImportReviewTable({
               variant="ghost"
               size="sm"
               onClick={handleRestoreAll}
-              className="h-7 text-xs text-mod hover:text-mod hover:bg-mod-soft"
+              className="h-7 text-xs text-radnja"
             >
               <RotateCcw className="size-3 mr-1" />
               Vrati sve

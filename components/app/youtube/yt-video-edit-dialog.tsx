@@ -265,11 +265,11 @@ function YtVideoEditForm({
             Otkaži
           </Button>
           <Button
+            variant="destructive"
             type="button"
             size="sm"
             onClick={handleDelete}
             disabled={submitting}
-            className="bg-danger font-semibold text-text-inverse hover:bg-danger/90"
           >
             {submitting ? (
               <>
@@ -512,6 +512,7 @@ function YtVideoEditForm({
             Otkaži
           </Button>
           <Button
+            variant="primary"
             type="submit"
             size="sm"
             disabled={submitting || !hasChanges}

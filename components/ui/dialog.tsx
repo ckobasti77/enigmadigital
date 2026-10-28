@@ -125,7 +125,7 @@ function DialogClose({
     <DialogPrimitive.Close
       data-slot="dialog-close"
       className={cn(
-        "absolute right-4 top-4 rounded-sm text-text-muted opacity-70 transition-opacity hover:opacity-100 hover:text-foreground disabled:pointer-events-none",
+        "absolute right-4 top-4 inline-flex items-center justify-center rounded-sm text-text-muted transition-colors hover:text-foreground disabled:pointer-events-none pointer-coarse:min-h-11 pointer-coarse:min-w-11",
         className,
       )}
       {...props}

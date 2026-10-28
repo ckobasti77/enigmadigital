@@ -354,7 +354,7 @@ function CompanyCell({
             {naziv}
           </ProjekatLink>
           {company?.origin === "inbound" && (
-            <Chip size="sm" tone="module">
+            <Chip size="sm" tone="neutral">
               Inbound
             </Chip>
           )}

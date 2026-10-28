@@ -326,7 +326,7 @@ function MeetingDialogTelo({
           >
             Odustani
           </Button>
-          <Button size="sm" disabled={busy} onClick={save}>
+          <Button variant="primary" size="sm" disabled={busy} onClick={save}>
             {busy ? "Čuvanje…" : current ? "Sačuvaj izmenu" : "Zakaži"}
           </Button>
         </>
@@ -465,7 +465,7 @@ function NextActionDialogTelo({
           >
             Odustani
           </Button>
-          <Button size="sm" disabled={busy} onClick={save}>
+          <Button variant="primary" size="sm" disabled={busy} onClick={save}>
             {busy ? "Čuvanje…" : "Sačuvaj korak"}
           </Button>
         </>
@@ -575,7 +575,7 @@ function StageDialogTelo({
           >
             Odustani
           </Button>
-          <Button size="sm" disabled={busy || stage === currentStage} onClick={save}>
+          <Button variant="primary" size="sm" disabled={busy || stage === currentStage} onClick={save}>
             {busy ? "Čuvanje…" : "Sačuvaj fazu"}
           </Button>
         </>
@@ -798,7 +798,7 @@ function OutcomeDialogTelo({
           >
             Odustani
           </Button>
-          <Button size="sm" disabled={busy || !code} onClick={save}>
+          <Button variant="primary" size="sm" disabled={busy || !code} onClick={save}>
             {busy ? "Čuvanje…" : "Sačuvaj ishod"}
           </Button>
         </>
@@ -918,6 +918,7 @@ function AssignDialogTelo({
             Odustani
           </Button>
           <Button
+            variant="primary"
             size="sm"
             disabled={busy || !userId.trim()}
             onClick={() => assign(userId)}
@@ -1048,7 +1049,7 @@ function TouchDialogTelo({
           >
             Odustani
           </Button>
-          <Button size="sm" disabled={busy} onClick={save}>
+          <Button variant="primary" size="sm" disabled={busy} onClick={save}>
             {busy ? "Čuvanje…" : "Zabeleži dodir"}
           </Button>
         </>

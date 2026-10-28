@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
  * ============================================================================
  *
  * Jedna fokus kartica za Instagram, Facebook, YouTube, Threads i Oglase:
- * levo najvažniji broj kanala u boji modula, desno merač koji kaže šta kanalu
+ * levo najvažniji broj kanala (boja teksta, Aeonik), desno merač koji kaže šta kanalu
  * još fali i nudi JEDAN sledeći korak. Primarno dugme ekrana je u zaglavlju
  * strane, pa je korak ovde prateća radnja (`secondary`).
  *
@@ -100,7 +100,7 @@ export function ChannelFocus({
     >
       <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
         {value === undefined ? (
-          <span className="block font-mono text-hero font-bold leading-none text-text-muted tabular-nums">
+          <span className="block text-hero font-bold leading-none text-text-muted tabular-nums">
             —
           </span>
         ) : (
@@ -108,7 +108,7 @@ export function ChannelFocus({
             value={value}
             from={0}
             format={format}
-            className="block font-mono text-hero font-bold leading-none text-mod"
+            className="block text-hero font-bold leading-none text-foreground"
           />
         )}
         {value === undefined ? (
@@ -213,7 +213,7 @@ export function EngagementBadge({
     <span
       title={explain}
       className={cn(
-        "inline-flex h-5 shrink-0 items-center gap-1 rounded-md border px-1.5 font-mono text-meta font-medium leading-none tabular-nums",
+        "inline-flex h-5 shrink-0 items-center gap-1 rounded-md border px-1.5 text-meta font-medium leading-none tabular-nums",
         tier ? TIER_CLASS[tier] : TIER_CLASS.mid,
         className,
       )}

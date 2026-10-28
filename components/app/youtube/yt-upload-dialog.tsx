@@ -563,6 +563,7 @@ function YtUploadForm({
             Otkaži
           </Button>
           <Button
+            variant="primary"
             type="button"
             size="sm"
             onClick={() => void handleSend()}

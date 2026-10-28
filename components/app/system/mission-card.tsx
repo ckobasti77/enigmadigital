@@ -114,7 +114,7 @@ export function MissionCard({
             className={cn(
               "relative flex shrink-0 items-center justify-center rounded-lg",
               featured ? "size-10" : "size-8",
-              done ? "bg-xp-soft text-xp" : "bg-mod-soft text-mod",
+              done ? "bg-xp-soft text-xp" : "bg-surface-raised text-text-secondary",
             )}
           >
             {done ? (
@@ -154,7 +154,7 @@ export function MissionCard({
               <p className="mt-0.5 text-meta font-medium text-xp">Završeno</p>
             )}
           </div>
-          <Chip tone="xp" size="sm" className="font-mono tabular-nums">
+          <Chip tone="xp" size="sm" className="tabular-nums">
             +{xp} XP
           </Chip>
         </div>
@@ -162,7 +162,7 @@ export function MissionCard({
         <div className="flex flex-col gap-1.5">
           <div className="flex items-baseline justify-between gap-3 text-meta">
             <span className="text-text-muted">Urađeno</span>
-            <span className="font-mono tabular-nums text-foreground">
+            <span className="tabular-nums text-foreground">
               {done ? max : value}
               <span className="text-text-muted"> / {max}</span>
             </span>
@@ -170,7 +170,7 @@ export function MissionCard({
           <ProgressBar
             value={done ? max : value}
             max={max}
-            tone={done ? "xp" : "module"}
+            tone={done ? "xp" : "neutral"}
             size={featured ? "md" : "sm"}
             label={title}
           />

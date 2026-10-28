@@ -1,0 +1,63 @@
+{
+  "oznaka": "T09-dodir",
+  "vreme": "2026-10-28T01:59:23.479Z",
+  "polazno": {
+    "1536x695": {
+      "ekrana": 60,
+      "tekstCvorova": 10345,
+      "tekstIspod12": 548,
+      "primarnoBezAtf": 19
+    },
+    "390x844": {
+      "ekrana": 56,
+      "meta": 1946,
+      "metaIspod44": 1095
+    }
+  },
+  "posle": {
+    "390x844": {
+      "ekrana": 8,
+      "greske": [],
+      "tekstCvorova": 2549,
+      "tekstIspod12": 137,
+      "ekranaSaTekstomIspod12": 8,
+      "najviseSitnogTeksta": [
+        "uvoz-pregled 58",
+        "podesavanja 38",
+        "youtube 13",
+        "kontrolna-tabla 11",
+        "instagram 11",
+        "leadovi 2",
+        "leadovi-tabela 2",
+        "facebook-komentari 2"
+      ],
+      "meta": 701,
+      "metaIspodPraga": 172,
+      "udeoMetaIspodPraga": 24.5,
+      "najviseMalihMeta": [
+        "leadovi-tabela 101/236",
+        "uvoz-pregled 50/220",
+        "youtube 9/48",
+        "kontrolna-tabla 8/35",
+        "facebook-komentari 3/35",
+        "podesavanja 1/44"
+      ],
+      "defaultDugmadIznadPreloma": 0,
+      "primarnaIznadPreloma": 6,
+      "ekranaBezPrimarnogIznadPreloma": 2,
+      "ekranaSaViseOdJednogPrimarnogIznadPreloma": [],
+      "najduzeStrane": [
+        "podesavanja 10.57",
+        "uvoz-pregled 9.08",
+        "leadovi-tabela 8.84",
+        "youtube 7.85",
+        "kontrolna-tabla 4.4"
+      ],
+      "medijanaBojaTeksta": 11,
+      "medijanaBojaPozadine": 21.5,
+      "vodoravniPreliv": [],
+      "najvisaGornjaTraka": 101,
+      "greskeKonzole": 0
+    }
+  }
+}

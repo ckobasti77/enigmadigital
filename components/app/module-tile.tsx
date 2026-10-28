@@ -6,9 +6,9 @@ import type { NavIcon } from "./nav-items";
  * telefonu i komandnoj paleti (UI Boost §7).
  *
  * Boju ne prima: čita `--mod*` sa najbližeg `data-module`, pa je pozivalac
- * postavlja atributom na red, a ne klasom na pločicu. Mirna pločica je tinta
- * modula sa ikonicom u njegovoj boji; aktivna je puna, sa tamnom ikonicom —
- * razlika je u obliku, ne samo u nijansi.
+ * postavlja atributom na red, a ne klasom na pločicu. Boja modula stoji samo
+ * na AKTIVNOJ pločici (puna, sa tamnom ikonicom); mirna pločica je neutralna
+ * (ULTRA P1: boja mesta samo na aktivnoj stavci, ikonici zaglavlja i auri).
  */
 const SIZE = {
   sm: { box: "size-[26px] rounded-md", icon: "size-4" },
@@ -33,7 +33,7 @@ export function ModuleTile({
       className={cn(
         "flex shrink-0 items-center justify-center transition-colors",
         s.box,
-        active ? "bg-mod-strong text-text-inverse" : "bg-mod-soft text-mod",
+        active ? "bg-mod-strong text-text-inverse" : "bg-surface-raised text-text-secondary",
         className,
       )}
     >

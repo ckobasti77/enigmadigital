@@ -208,6 +208,7 @@ export function InvitesPanel() {
             )}
           </Field>
           <Button
+            variant="primary"
             type="submit"
             disabled={radim || !spreman || email.trim().length === 0}
             className="touch-target h-10 shrink-0"

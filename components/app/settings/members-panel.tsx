@@ -435,11 +435,11 @@ export function MembersPanel() {
               Otkaži
             </Button>
             <Button
+              variant="destructive"
               type="button"
               size="sm"
               onClick={potvrdi}
               disabled={uklanjam || (meta !== null && meta.leadCount > 0 && !primalac)}
-              className="bg-danger font-semibold text-text-inverse hover:bg-danger/90"
             >
               {uklanjam ? (
                 <>

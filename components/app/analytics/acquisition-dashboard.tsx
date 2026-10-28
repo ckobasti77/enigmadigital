@@ -208,7 +208,6 @@ export function AcquisitionDashboard() {
                 formatDelta={formatSignedPercent}
                 compareLabel={compareLabel}
                 spark={sparkSessions}
-                primary
               />
               <KpiTile
                 label="Angažovane sesije"

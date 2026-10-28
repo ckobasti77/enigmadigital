@@ -804,6 +804,7 @@ export function ChatView({ igsid, onBack, onOpenSettings }: ChatViewProps) {
                 Otkaži
               </Button>
               <Button
+                variant="primary"
                 size="sm"
                 disabled={!attachmentUrl.trim()}
                 onClick={() => {

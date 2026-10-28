@@ -62,7 +62,7 @@ export function FunnelSteps({
               </span>
               <span className="flex items-center gap-2 sm:order-last">
                 {step.aside}
-                <span className="font-mono text-copy font-bold tabular-nums text-foreground">
+                <span className="text-copy font-bold tabular-nums text-foreground">
                   {step.value === undefined ? "—" : format(step.value)}
                 </span>
               </span>
@@ -72,7 +72,7 @@ export function FunnelSteps({
               >
                 {share > 0 && (
                   <span
-                    className="block h-full rounded-md bg-mod-strong"
+                    className="block h-full rounded-md bg-chart-1"
                     style={{ width: `${Math.max(2, share * 100)}%` }}
                   />
                 )}
@@ -102,8 +102,8 @@ function Transition({ from, to }: { from: FunnelStep; to: FunnelStep }) {
   }
   return (
     <p className="flex items-center gap-1.5 py-1.5 text-meta text-text-muted sm:pl-[9.75rem]">
-      <ArrowDown className="size-3 text-mod" aria-hidden />
-      <span className="font-mono tabular-nums">{text}</span>
+      <ArrowDown className="size-3 text-text-muted" aria-hidden />
+      <span className="tabular-nums">{text}</span>
     </p>
   );
 }

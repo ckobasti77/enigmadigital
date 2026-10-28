@@ -961,7 +961,7 @@ function PublishComposerForm() {
                               className={cn(
                                 "text-xs",
                                 (isPlacingTag || pendingCoords) &&
-                                  "border-mod text-mod",
+                                  "border-radnja text-radnja",
                               )}
                             >
                               <Crosshair className="size-3.5" />

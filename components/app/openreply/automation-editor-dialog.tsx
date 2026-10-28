@@ -1112,6 +1112,7 @@ function AutomationEditorForm({
             Otkaži
           </Button>
           <Button
+            variant="primary"
             type="submit"
             size="sm"
             disabled={submitting || hasFormatProblem || missing.length > 0}

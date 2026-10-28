@@ -246,7 +246,7 @@ function SortButton({
       className={cn(
         "h-7 gap-1 px-2.5 text-xs font-medium transition-colors",
         active
-          ? "bg-surface-raised text-mod font-semibold shadow-xs"
+          ? "bg-surface-raised text-foreground font-semibold shadow-xs"
           : "text-text-muted hover:text-foreground",
       )}
     >
@@ -292,7 +292,7 @@ function TopThreadsPostCard({
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold shadow-xs",
               rank === 1
-                ? "bg-mod-strong text-text-inverse"
+                ? "bg-foreground text-text-inverse"
                 : "border border-line-strong bg-surface-raised text-foreground",
             )}
           >

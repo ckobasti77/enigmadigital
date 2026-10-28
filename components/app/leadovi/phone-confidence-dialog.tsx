@@ -211,6 +211,7 @@ function PhoneConfidenceDialogTelo({
             Otkaži
           </Button>
           <Button
+            variant="primary"
             type="button"
             size="sm"
             disabled={!moze || cuvam}

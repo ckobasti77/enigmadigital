@@ -29,8 +29,8 @@ const TONE: Record<
 > = {
   progress: {
     icon: LoaderCircle,
-    ring: "border-mod-line bg-mod-soft",
-    ink: "text-mod",
+    ring: "border-info-line bg-info-soft",
+    ink: "text-info",
     spin: true,
   },
   success: {

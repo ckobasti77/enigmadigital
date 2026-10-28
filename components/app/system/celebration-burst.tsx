@@ -27,18 +27,16 @@ gsap.registerPlugin(useGSAP);
  * Roditelj mora biti pozicioniran (`relative`); čestice kreću iz njegove
  * sredine i smeju da izađu preko ivice.
  */
-const COLORS = ["bg-xp", "bg-xp-strong", "bg-mod"] as const;
+// Samo boje nagrade: proslava nikad nije u boji modula (ULTRA P1).
+const COLORS = ["bg-xp", "bg-xp-strong", "bg-tier-gold"] as const;
 
 export function CelebrationBurst({
   trigger,
-  tone = "xp",
   count = 14,
   className,
 }: {
   /** Promena vrednosti pali prasak (npr. brojač završenih misija). */
   trigger: number;
-  /** `xp` — zlatno sa tragom boje modula; `module` — samo boja modula. */
-  tone?: "xp" | "module";
   count?: number;
   className?: string;
 }) {
@@ -91,7 +89,7 @@ export function CelebrationBurst({
           key={i}
           className={cn(
             "absolute -top-0.5 -left-0.5 size-1 rounded-full opacity-0",
-            tone === "module" ? "bg-mod" : COLORS[i % COLORS.length],
+            COLORS[i % COLORS.length],
             i % 4 === 0 && "size-1.5",
           )}
         />

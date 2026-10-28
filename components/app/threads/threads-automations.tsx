@@ -250,6 +250,7 @@ export function ThreadsAutomations() {
         trailing={
           tab === "rules" && mozeUrediti ? (
             <Button
+              variant="secondary"
               type="button"
               size="sm"
               onClick={() => {
@@ -1071,7 +1072,7 @@ function AutomationEditorDialog({
             >
               Otkaži
             </Button>
-            <Button type="submit" disabled={busy} className="font-semibold">
+            <Button variant="primary" type="submit" disabled={busy} className="font-semibold">
               {busy ? "Čuvanje..." : existing ? "Sačuvaj izmene" : "Kreiraj pravilo"}
             </Button>
           </DialogFooter>

@@ -219,7 +219,7 @@ function NewHookVersionDialogForm({
                 <Sparkles className="size-4" />
               </span>
               <div>
-                <p className="heading-caps text-micro font-semibold text-mod">
+                <p className="heading-caps text-micro font-semibold text-text-muted">
                   Kreativna iteracija · Nova verzija
                 </p>
                 <DialogTitle className="text-lg font-bold text-foreground">
@@ -459,10 +459,11 @@ function NewHookVersionDialogForm({
           />
 
           <Button
+            variant="primary"
             type="submit"
             size="sm"
             disabled={loading || isLimitReached}
-            className="text-xs bg-primary text-primary-foreground hover:bg-primary/80 font-semibold gap-1.5 shadow-sm"
+            className="gap-1.5 text-xs"
           >
             {loading ? (
               <>

@@ -49,7 +49,7 @@ export function XpBar({
       {!compact && (
         <div className="flex items-baseline justify-between gap-3 text-meta">
           <span className="truncate text-text-muted">{label}</span>
-          <span className="shrink-0 font-mono tabular-nums text-xp">
+          <span className="shrink-0 tabular-nums text-xp">
             {/* Pri otvaranju broj stoji; kotrlja se tek kad XP stvarno
                 poraste. */}
             <CountUp value={xp} format={formatNumber} />
@@ -140,7 +140,7 @@ export function LevelBadge({
       </svg>
       <span
         className={cn(
-          "relative font-mono font-bold leading-none text-text-inverse tabular-nums",
+          "relative font-bold leading-none text-text-inverse tabular-nums",
           s.text,
         )}
       >
@@ -175,7 +175,7 @@ export function StreakFlame({
     <span
       title={text}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 font-mono font-bold leading-none tabular-nums",
+        "inline-flex shrink-0 items-center gap-1 font-bold leading-none tabular-nums",
         size === "sm" ? "text-ui" : "text-copy",
         idle ? "text-text-muted" : "text-foreground",
         className,

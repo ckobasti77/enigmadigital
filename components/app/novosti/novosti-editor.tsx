@@ -691,7 +691,7 @@ function NovostiEditorTelo({
               variant="outline"
               size="xs"
               onClick={handleRunHumanizer}
-              className="gap-1 text-xs text-mod hover:bg-mod-soft"
+              className="gap-1 text-xs text-radnja"
             >
               <Sparkles className="size-3" />
               <span>Proveri humanizer</span>

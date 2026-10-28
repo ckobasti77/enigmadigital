@@ -506,11 +506,11 @@ export function ImportsHistory({
               Odustani
             </Button>
             <Button
+              variant="destructive"
               type="button"
               size="sm"
               onClick={handleRevertConfirm}
               disabled={isReverting}
-              className="bg-danger text-text-inverse font-semibold hover:bg-danger/90"
             >
               {isReverting ? (
                 <>
@@ -568,11 +568,11 @@ export function ImportsHistory({
               Ne, vrati me
             </Button>
             <Button
+              variant="primary"
               type="button"
               size="sm"
               onClick={handleAbandonConfirm}
               disabled={isAbandoning}
-              className="bg-danger text-text-inverse font-semibold hover:bg-danger/90"
             >
               {isAbandoning ? (
                 <>

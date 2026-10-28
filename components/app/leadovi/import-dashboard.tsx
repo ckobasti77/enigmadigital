@@ -315,7 +315,7 @@ function ImportDashboardTelo() {
               <ProgressBar
                 value={ukupnoRedova - nereseno}
                 max={ukupnoRedova}
-                tone={nereseno === 0 ? "success" : "module"}
+                tone={nereseno === 0 ? "success" : "neutral"}
                 size="sm"
                 label="Čistoća uvoza"
               />

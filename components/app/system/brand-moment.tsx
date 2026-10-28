@@ -54,7 +54,7 @@ export function BrandMoment({
       ) : (
         <div className="text-center">
           <p className="text-display text-foreground">Enigma</p>
-          <p className="heading-caps mt-2 text-meta font-medium text-mod">
+          <p className="heading-caps mt-2 text-meta font-medium text-text-muted">
             Command Center
           </p>
         </div>

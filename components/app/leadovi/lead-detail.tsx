@@ -303,7 +303,7 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
                     fieldName="Naziv firme"
                     compact
                   />
-                  <Chip size="sm" tone={company.origin === "inbound" ? "module" : "muted"}>
+                  <Chip size="sm" tone={company.origin === "inbound" ? "neutral" : "muted"}>
                     {company.origin === "inbound" ? "Inbound" : "Uvoz"}
                   </Chip>
                   <UnakrsneOznake companyId={companyId} kopijaIz={company.kopijaIz} />

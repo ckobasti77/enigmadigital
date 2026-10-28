@@ -91,7 +91,7 @@ export function PageHeader({
                   <Popover>
                     <PopoverTrigger
                       aria-label="Više o ovom ekranu"
-                      className="touch-target inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-text-muted transition-colors hover:text-mod"
+                      className="touch-target inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-text-muted transition-colors hover:text-foreground"
                     >
                       <Info className="size-3.5" aria-hidden />
                     </PopoverTrigger>

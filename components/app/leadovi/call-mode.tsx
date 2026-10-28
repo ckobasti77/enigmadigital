@@ -782,7 +782,7 @@ function Sesija({
           Ova sesija
         </h3>
         <div className="flex flex-wrap items-center gap-2">
-          <Chip tone="module" icon={PhoneCall}>
+          <Chip tone="neutral" icon={PhoneCall}>
             <span className="font-mono tabular-nums">{saIshodom}</span>{" "}
             {pluralSr(saIshodom, "poziv", "poziva", "poziva")}
           </Chip>

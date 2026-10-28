@@ -266,6 +266,7 @@ function ThreadsSearchForm() {
                   </div>
 
                   <Button
+                    variant="secondary"
                     type="submit"
                     disabled={!keywordQuery.trim() || isSearchingKeyword}
                     className="min-w-[120px]"
@@ -523,6 +524,7 @@ function ThreadsSearchForm() {
                 </div>
 
                 <Button
+                  variant="secondary"
                   type="submit"
                   disabled={!profileUsername.trim() || isLookingUpProfile}
                   className="min-w-[140px]"

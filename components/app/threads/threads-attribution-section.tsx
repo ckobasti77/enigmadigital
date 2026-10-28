@@ -123,7 +123,7 @@ export function ThreadsAttributionSection({
             <span className="text-micro font-medium uppercase tracking-wider text-text-muted">
               Stopa uspešnog dolaska
             </span>
-            <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-mod">
+            <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">
               {overallLandingRate !== null ? formatPercent(overallLandingRate) : "—"}
             </p>
             <p className="mt-1 text-micro text-text-muted">

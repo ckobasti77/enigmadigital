@@ -150,7 +150,7 @@ export function PublishReadinessPanel({
                 variant="ghost"
                 size="xs"
                 onClick={onRunHumanizer}
-                className="mt-1.5 h-6 text-xs text-mod hover:bg-mod-soft"
+                className="mt-1.5 h-6 text-xs text-radnja"
               >
                 <Sparkles className="size-3" />
                 <span>Pokreni proveru sad</span>

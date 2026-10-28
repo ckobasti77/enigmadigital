@@ -271,12 +271,14 @@ function CipoviIMonogrami() {
             ))}
           </div>
         </Grupa>
-        <Grupa naslov="Stanje, mesto i nagrada">
+        <Grupa naslov="Stanje, izbor i nagrada">
           <div className="flex flex-wrap gap-1.5">
             <Chip tone="neutral">Neutralno</Chip>
             <Chip tone="muted">Prigušeno</Chip>
-            <Chip tone="module">Modul</Chip>
-            <Chip tone="module" active onClick={() => {}} count={12}>
+            <Chip tone="neutral" onClick={() => {}} count={4}>
+              Filter
+            </Chip>
+            <Chip tone="neutral" active onClick={() => {}} count={12}>
               Uključen filter
             </Chip>
             <Chip tone="success" icon={ShieldCheck}>
@@ -329,7 +331,7 @@ function ZaglavljeIFokus() {
   return (
     <Sekcija
       naslov="Zaglavlje strane i fokus kartica"
-      opis="Zaglavlje nosi ikonicu modula, naslov, jedan red podnaslova i jedno primarno dugme. Fokus kartica je jedina koja sme ivicu u gradijentu i obojenu senku."
+      opis="Zaglavlje nosi ikonicu modula (jedno od tri mesta boje mesta), naslov, jedan red podnaslova i prateće radnje. Fokus kartica ima ivicu od 1 px, tihu senku i jedno primarno dugme u boji radnje — jedno po pogledu."
     >
       <div className="rounded-xl border border-line-soft p-5">
         <PageHeader
@@ -339,14 +341,9 @@ function ZaglavljeIFokus() {
           description="178 firmi čeka prvi poziv · 6 sastanaka ove nedelje"
           info="U „Zovi sada“ ulaze firme koje imaju telefon, procenu broja od najmanje 40 % i nikad nisu dodirnute."
           actions={
-            <>
-              <Button variant="secondary">
-                <Upload /> Uvoz leadova
-              </Button>
-              <Button variant="primary">
-                <PhoneCall /> Započni režim poziva
-              </Button>
-            </>
+            <Button variant="outline">
+              <Upload /> Uvoz leadova
+            </Button>
           }
         />
       </div>
@@ -462,7 +459,7 @@ function NapredakUAkciji() {
       opis="Pri otvaranju se ništa ne pomera. Merači se pomere kad se vrednost promeni, a završena misija je jedino mesto gde pokret prebaci."
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="primary" onClick={dodajPoziv} disabled={gotovo}>
+        <Button variant="secondary" onClick={dodajPoziv} disabled={gotovo}>
           <Plus /> Zabeleži poziv
         </Button>
         <Button variant="outline" onClick={vrati}>
@@ -486,7 +483,7 @@ function NapredakUAkciji() {
           xp={60}
           done={gotovo}
           action={
-            <Button variant="primary" onClick={dodajPoziv}>
+            <Button variant="secondary" onClick={dodajPoziv}>
               <PhoneCall /> Započni režim poziva
             </Button>
           }
@@ -726,20 +723,20 @@ function ProbaPortala() {
   return (
     <Sekcija
       naslov="Proba portala"
-      opis="Dijalog, iskačući panel i oblačić se crtaju van sadržaja strane. Boju modula dobijaju sa korenskog elementa — promeni modul gore i otvori ponovo."
+      opis="Dijalog, iskačući panel i oblačić se crtaju van sadržaja strane, a tokene dobijaju sa korenskog elementa. Promeni modul gore i otvori ponovo: primarno dugme i okvir fokusa ostaju u boji radnje."
     >
       <div className="flex flex-wrap items-center gap-2">
         <Dialog>
-          <DialogTrigger render={<Button variant="primary" />}>Otvori dijalog</DialogTrigger>
+          <DialogTrigger render={<Button variant="secondary" />}>Otvori dijalog</DialogTrigger>
           <DialogPopup>
             <DialogHeader>
               <DialogTitle>Zakaži sastanak</DialogTitle>
               <DialogDescription>
-                Primarno dugme, okvir fokusa i tinta ispod su u boji aktivnog modula.
+                Dijalog je svoj pogled: jedno primarno dugme, u boji radnje na svakom
+                modulu.
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-wrap gap-1.5">
-              <Chip tone="module">Modul</Chip>
               <Chip tone="info">Podsetnik dan ranije</Chip>
             </div>
             <DialogFooter>
@@ -755,9 +752,9 @@ function ProbaPortala() {
           <PopoverTrigger render={<Button variant="secondary" />}>Iskačući panel</PopoverTrigger>
           <PopoverContent align="start">
             <p className="text-ui text-muted-foreground">
-              Isti tokeni i ovde: <span className="font-medium text-mod">boja modula</span>.
+              Isti tokeni i ovde: <span className="font-medium text-radnja">boja radnje</span>.
             </p>
-            <Button variant="primary" size="sm">
+            <Button variant="secondary" size="sm">
               Potvrdi
             </Button>
           </PopoverContent>

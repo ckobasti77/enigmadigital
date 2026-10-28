@@ -27,7 +27,7 @@ gsap.registerPlugin(useGSAP);
  * Boja nikad nije jedini nosilac: uz prsten i traku uvek stoji broj.
  */
 export type ProgressTone =
-  | "module"
+  | "neutral"
   | "xp"
   | "success"
   | "warning"
@@ -35,7 +35,9 @@ export type ProgressTone =
   | "info";
 
 const TONE: Record<ProgressTone, string> = {
-  module: "[--from:var(--mod)] [--to:var(--mod-strong)]",
+  // Napredak bez boje mesta (ULTRA P1): tih, neutralan prelaz; zlatna je
+  // samo nagrada, stanja su samo stanja.
+  neutral: "[--from:var(--text-secondary)] [--to:var(--text-primary)]",
   xp: "[--from:var(--xp)] [--to:var(--xp-strong)]",
   success: "[--from:var(--success)] [--to:var(--success)]",
   warning: "[--from:var(--warning)] [--to:var(--warning)]",
@@ -107,7 +109,7 @@ export function ProgressRing({
   max = 100,
   size = 56,
   stroke = 6,
-  tone = "module",
+  tone = "neutral",
   label,
   children,
   className,
@@ -191,7 +193,7 @@ export function ProgressRing({
         />
       </svg>
       {children !== undefined && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center font-mono leading-none tabular-nums">
+        <div className="absolute inset-0 flex flex-col items-center justify-center leading-none tabular-nums">
           {children}
         </div>
       )}
@@ -211,7 +213,7 @@ export function ProgressBar({
   value,
   max = 100,
   goal,
-  tone = "module",
+  tone = "neutral",
   size = "md",
   label,
   showValue = false,
@@ -243,7 +245,7 @@ export function ProgressBar({
       {showValue && (
         <div className="flex items-baseline justify-between gap-3 text-meta">
           <span className="truncate text-text-muted">{label}</span>
-          <span className="shrink-0 font-mono tabular-nums text-foreground">
+          <span className="shrink-0 tabular-nums text-foreground">
             {format(value)}
             <span className="text-text-muted"> / {format(goal ?? max)}</span>
           </span>
@@ -289,7 +291,7 @@ export function ProgressBar({
  */
 export function SegmentedMeter({
   segments,
-  tone = "module",
+  tone = "neutral",
   label,
   className,
 }: {
@@ -306,7 +308,7 @@ export function SegmentedMeter({
         <span className="heading-caps truncate font-medium text-text-muted">
           {label}
         </span>
-        <span className="shrink-0 font-mono tabular-nums text-foreground">
+        <span className="shrink-0 tabular-nums text-foreground">
           {done}
           <span className="text-text-muted"> / {segments.length}</span>
         </span>

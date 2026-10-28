@@ -6,7 +6,10 @@ import {
   moduleNavItem,
   type ModuleKey,
 } from "@/components/app/nav-items";
-import { Button } from "@/components/ui/button";
+import { ModuleTile } from "@/components/app/module-tile";
+import { Button, type UlogaDugmeta } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { Grupa, Sekcija } from "./delovi";
 import { installForcedStates } from "./force-states";
@@ -17,14 +20,16 @@ import { VodicKomponente } from "./vodic-komponente";
  * ŽIVI VODIČ SISTEMA — `/sistem?ux=1` (UI Boost §5.12, samo dev)
  * ============================================================================
  *
- * Jedna strana na kojoj se vidi ceo sistem: tokeni, trinaest modula, dugmad u
- * svim stanjima, pločice, čipovi, prazna stanja i primitivi napretka u akciji.
+ * Jedna strana na kojoj se vidi ceo sistem: tokeni, trinaest modula (mesto),
+ * jedna boja radnje i šest uloga dugmeta, pločice, čipovi, prazna stanja i
+ * primitivi napretka u akciji.
  * Snima se u svakoj fazi (`scripts/ux-snapshots.mjs`, ekran `sistem`), pa je
  * ovo i regresioni test izgleda.
  *
  * Stoji VAN ljuske aplikacije: birač modula ovde radi ono što u aplikaciji
- * radi ruta — postavlja `data-module` na sadržaj i na `<html>` — pa se na
- * probi portala vidi da boja stiže i do dijaloga.
+ * radi ruta — postavlja `data-module` na sadržaj i na `<html>`. Promena modula
+ * menja samo mesto (pločicu, ikonicu zaglavlja, auroru); dugmad, prekidači i
+ * fokus ostaju u boji radnje (ULTRA P1).
  */
 
 const MODUL_NAZIV = (kljuc: ModuleKey) => moduleNavItem(kljuc)?.label ?? kljuc;
@@ -50,11 +55,11 @@ export function SistemVodic() {
     >
       <header className="aurora flex flex-col gap-4">
         <div>
-          <p className="heading-caps text-meta font-medium text-mod">Dizajn sistem 2.0</p>
+          <p className="heading-caps text-meta font-medium text-text-muted">Dizajn sistem 2.0</p>
           <h1 className="mt-1 text-metric font-bold text-foreground">Živi vodič</h1>
           <p className="mt-1 max-w-2xl text-ui text-text-muted">
-            Boja kaže gde si, jedan fokus i jedno primarno dugme po pogledu, a napredak
-            se vidi. Izaberi modul — cela strana, i svaki dijalog, pređe u njegovu boju.
+            Boja modula kaže gde si, a jedna boja radnje kaže šta da klikneš. Izaberi
+            modul: menja se samo mesto, a dugmad i prekidači ostaju isti.
           </p>
         </div>
         <div
@@ -76,8 +81,8 @@ export function SistemVodic() {
                 className={cn(
                   "touch-target inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 text-ui font-medium transition-colors",
                   izabran
-                    ? "border-mod bg-mod-soft text-mod"
-                    : "border-line text-text-muted hover:border-mod-line hover:text-mod",
+                    ? "border-radnja bg-radnja-soft text-foreground"
+                    : "border-line text-text-muted hover:border-line-control hover:text-foreground",
                 )}
               >
                 {Ikona && <Ikona className="size-4 text-mod" aria-hidden />}
@@ -90,7 +95,7 @@ export function SistemVodic() {
 
       <Sekcija
         naslov="Moduli — mesto"
-        opis="Trinaest boja iste svetline i hrome. Ink je za ikonice, tekst i linije; strong je puna podloga sa tamnim tekstom; soft, line i glow se izvode."
+        opis="Trinaest boja iste svetline i hrome, samo na tri mesta: aktivna stavka bočne trake (strong, tamna ikonica), ikonica zaglavlja (ink na soft) i aurora. Nikad na dugmetu, broju, natpisu ni grafikonu."
       >
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {MODULE_KEYS.map((kljuc) => {
@@ -108,11 +113,14 @@ export function SistemVodic() {
                   <p className="truncate text-ui font-medium text-foreground">
                     {MODUL_NAZIV(kljuc)}
                   </p>
-                  <p className="truncate font-mono text-meta text-mod">--mod-{kljuc}</p>
+                  <p className="truncate font-mono text-meta text-text-muted">--mod-{kljuc}</p>
                 </div>
-                <span className="flex h-8 shrink-0 items-center rounded-md bg-mod-strong px-2 font-mono text-meta font-bold text-text-inverse">
-                  strong
-                </span>
+                {Ikona && (
+                  <span className="flex shrink-0 items-center gap-1.5 text-meta text-text-muted">
+                    <ModuleTile icon={Ikona} active />
+                    aktivna
+                  </span>
+                )}
               </div>
             );
           })}
@@ -225,14 +233,55 @@ export function SistemVodic() {
       </Sekcija>
 
       <Sekcija
-        naslov="Dugmad — 13 modula × 7 varijanti × 5 stanja"
-        opis="Primarno je jedno po pogledu. Sekundarno prati, okvir je za alate i filtere, dugme bez podloge za radnje u redu. Hover i fokus su isti stilovi koje pregledač crta, samo prisilno uključeni."
+        naslov="Radnja i uloge dugmeta — 6 uloga × 5 stanja"
+        opis="Jedna boja radnje u celoj aplikaciji, ista na svakom modulu. Primarno je jedno po pogledu; sporedno prati, obris je za alate i filtere, tiho dugme za radnje u redu, opasno uvek uz potvrdu. Podrazumevane uloge nema. Hover i fokus su isti stilovi koje pregledač crta, samo prisilno uključeni."
       >
-        <div className="grid gap-4 xl:grid-cols-2">
-          {MODULE_KEYS.map((kljuc) => (
-            <MrezaDugmadi key={kljuc} modul={kljuc} />
-          ))}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+          <MrezaDugmadi />
+          <div className="flex flex-col gap-6">
+            <Grupa naslov="Boja radnje">
+              {["radnja", "radnja-hover", "radnja-soft", "surface-control"].map((t) => (
+                <Uzorak key={t} token={t} />
+              ))}
+            </Grupa>
+            <Grupa naslov="Prekidač i polje za potvrdu">
+              <div className="flex flex-wrap items-center gap-4">
+                <Switch aria-label="Primer: isključeno" />
+                <Switch aria-label="Primer: uključeno" defaultChecked />
+                <Switch aria-label="Primer: onemogućeno" disabled defaultChecked />
+                <Checkbox aria-label="Primer: nije čekirano" />
+                <Checkbox aria-label="Primer: čekirano" defaultChecked />
+              </div>
+              <p className="text-meta text-text-muted">
+                Uključeno je u boji radnje na svakom modulu. Na dodir su dugmad,
+                jezičci, prekidači i polja visoki najmanje 44 px; na mišu ostaju iste
+                veličine.
+              </p>
+            </Grupa>
+          </div>
         </div>
+        <Grupa naslov="Jedan pogled, jedno primarno">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-card px-5 py-4">
+            <div className="min-w-0">
+              <p className="text-copy font-bold text-foreground">Salon Lepota</p>
+              <p className="text-ui text-text-muted">Sledeći korak: poziv danas u 14:00</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="ghost" size="sm">
+                Preskoči
+              </Button>
+              <Button variant="outline" size="sm">
+                Zakaži
+              </Button>
+              <Button variant="secondary" size="sm">
+                Zabeleži ishod
+              </Button>
+              <Button variant="primary" size="sm">
+                Pozovi
+              </Button>
+            </div>
+          </div>
+        </Grupa>
       </Sekcija>
 
       <VodicKomponente />
@@ -319,15 +368,14 @@ function VrednostiTokena({ imena }: { imena: string[] }) {
   );
 }
 
-const VARIJANTE = [
+const ULOGE: ReadonlyArray<readonly [UlogaDugmeta, string]> = [
   ["primary", "Pozovi"],
   ["secondary", "Zabeleži"],
-  ["default", "Sačuvaj"],
   ["outline", "Filter"],
   ["ghost", "Više"],
   ["destructive", "Obriši"],
   ["link", "Detalj"],
-] as const;
+];
 
 const STANJA = [
   ["mirno", {}],
@@ -337,18 +385,10 @@ const STANJA = [
   ["učitava", { loading: true }],
 ] as const;
 
-function MrezaDugmadi({ modul }: { modul: ModuleKey }) {
+/** Šest uloga × pet stanja — jednom, jer uloga ne zavisi od modula. */
+function MrezaDugmadi() {
   return (
-    <div
-      data-module={modul}
-      className="overflow-x-auto rounded-lg border border-line-soft bg-card p-3"
-    >
-      <p className="mb-2 flex items-center gap-2 text-ui font-medium text-foreground">
-        <span className="size-2 rounded-full bg-mod" aria-hidden />
-        {MODUL_NAZIV(modul)}
-      </p>
-      {/* Redovi su varijante, kolone stanja: sedam širokih kolona ne staje u
-          pola strane, pet staje. */}
+    <div className="overflow-x-auto rounded-lg border border-line-soft bg-card p-3">
       <table className="w-full border-separate border-spacing-x-1.5 border-spacing-y-1.5">
         <thead>
           <tr>
@@ -365,17 +405,17 @@ function MrezaDugmadi({ modul }: { modul: ModuleKey }) {
           </tr>
         </thead>
         <tbody>
-          {VARIJANTE.map(([varijanta, natpis]) => (
-            <tr key={varijanta}>
+          {ULOGE.map(([uloga, natpis]) => (
+            <tr key={uloga}>
               <th
                 scope="row"
                 className="pr-2 text-left font-mono text-meta font-normal whitespace-nowrap text-text-muted"
               >
-                {varijanta}
+                {uloga}
               </th>
               {STANJA.map(([stanje, props]) => (
                 <td key={stanje}>
-                  <Button variant={varijanta} size="sm" {...props}>
+                  <Button variant={uloga} size="sm" {...props}>
                     {natpis}
                   </Button>
                 </td>

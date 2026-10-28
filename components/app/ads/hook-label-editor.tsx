@@ -108,7 +108,7 @@ export function HookLabelEditor({
           variant="ghost"
           onClick={handleSave}
           disabled={isSaving}
-          className="size-6 text-mod hover:bg-mod-soft hover:text-mod"
+          className="size-6 text-radnja"
           title="Sačuvaj (Enter)"
         >
           <Check className="size-3.5" />

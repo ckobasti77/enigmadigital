@@ -38,12 +38,14 @@ import { cn } from "@/lib/utils";
  * i razlog — nula i „nema podatka" nikad ne izgledaju isto.
  *
  * v2 (UI Boost §5.3):
- *   - tri veličine: `hero` (fokus broj ekrana, 40 px, u boji modula),
- *     `default` (28 px) i `compact` (20 px, bez linije);
+ *   - tri veličine: `hero` (fokus broj ekrana, 40 px), `default` (28 px) i
+ *     `compact` (20 px, bez linije); broj je uvek u boji teksta, Aeonik sa
+ *     `tabular-nums` — nikad u boji modula ni mono (ULTRA P1, P2);
  *   - delta je PILULA: strelica kaže smer, boja kaže da li je to dobro.
  *     Smer daje rečnik mera (`mera="potrosnja"` → pad je dobra vest; vidi
  *     `lib/mere.ts`); `higherIsBetter` ostaje samo za pozive bez `mera`;
- *   - sparklinija je u boji modula i premošćuje rupe (vidi `Sparkline`);
+ *   - sparklinija je u boji serije iz palete (`chart-1`) i premošćuje rupe
+ *     (vidi `Sparkline`);
  *   - sa `href` cela pločica vodi na detalj.
  *
  * Postojeći pozivi rade bez izmene: svaki novi prop ima podrazumevanu
@@ -80,7 +82,6 @@ export function KpiTile({
   compareLabel,
   note,
   spark = [],
-  primary = false,
   state = "value",
   reason,
   size = "default",
@@ -103,12 +104,10 @@ export function KpiTile({
   /** Jedna linija kad poređenja nema („od 3 ukupno"). Opciono. */
   note?: string;
   spark?: (number | undefined)[];
-  /** Broj u boji modula. `hero` ga nosi uvek. */
-  primary?: boolean;
   state?: MetricState;
   reason?: string;
   size?: KpiSize;
-  /** Ikonica mere, u pločici boje modula. */
+  /** Ikonica mere, u neutralnoj pločici. */
   icon?: TileIcon;
   /** Da li je rast dobra vest. Ignoriše se kad je data `mera`. */
   higherIsBetter?: boolean;
@@ -131,7 +130,7 @@ export function KpiTile({
           <TileLabel label={label} shortLabel={shortLabel} icon={icon} />
           <span
             className={cn(
-              "mt-2 block font-mono font-bold leading-none text-text-muted tabular-nums",
+              "mt-2 block font-bold leading-none text-text-muted tabular-nums",
               VALUE[size],
             )}
           >
@@ -159,7 +158,6 @@ export function KpiTile({
   const hasComparison =
     d !== null && d !== undefined && Number.isFinite(d) && formatDelta !== undefined;
   const hasSpark = !compact && spark.some((v) => v !== undefined && v !== null);
-  const accent = primary || size === "hero";
 
   const number = (
     <CountUp
@@ -167,11 +165,7 @@ export function KpiTile({
       // Pri otvaranju odbrojava samo fokus broj ekrana (`hero`).
       from={size === "hero" ? 0 : undefined}
       format={format}
-      className={cn(
-        "block font-mono font-bold leading-none",
-        VALUE[size],
-        accent ? "text-mod" : "text-foreground",
-      )}
+      className={cn("block font-bold leading-none text-foreground", VALUE[size])}
     />
   );
 
@@ -211,7 +205,7 @@ export function KpiTile({
         ) : note ? (
           <p className="mt-2 text-ui text-text-muted">{note}</p>
         ) : null}
-        {hasSpark && <Sparkline values={spark} className="mt-auto text-mod" />}
+        {hasSpark && <Sparkline values={spark} className="mt-auto text-chart-1" />}
       </div>
     </TileShell>
   );
@@ -219,8 +213,8 @@ export function KpiTile({
 
 /**
  * Omotač pločice. Sa `href` je cela pločica jedan link: podigne se na hover,
- * dobije ivicu u boji modula i strelicu — tri znaka da vodi negde, a nijedan
- * ne pomera raspored.
+ * dobije jaču ivicu i strelicu — tri znaka da vodi negde, a nijedan ne pomera
+ * raspored.
  */
 function TileShell({
   href,
@@ -247,7 +241,7 @@ function TileShell({
       <Card
         className={cn(
           CARD,
-          "transition-shadow duration-(--duration-base) group-hover/tile:ring-mod-line group-focus-visible/tile:ring-mod-line",
+          "transition-shadow duration-(--duration-base) group-hover/tile:ring-line-control group-focus-visible/tile:ring-line-control",
         )}
         size="sm"
       >
@@ -255,7 +249,7 @@ function TileShell({
       </Card>
       <ArrowUpRight
         aria-hidden
-        className="absolute top-3 right-3 size-4 text-mod opacity-0 transition-opacity duration-(--duration-fast) group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100"
+        className="absolute top-3 right-3 size-4 text-text-secondary opacity-0 transition-opacity duration-(--duration-fast) group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100"
       />
     </ProjekatLink>
   );
@@ -273,7 +267,7 @@ function TileLabel({
   return (
     <div className="flex items-center gap-2">
       {Icon && (
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-mod-soft text-mod">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-surface-raised text-text-secondary">
           <Icon className="size-3.5" aria-hidden />
         </span>
       )}
@@ -320,7 +314,7 @@ export function DeltaPill({
   return (
     <span
       className={cn(
-        "inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full px-1.5 font-mono text-meta font-medium leading-none tabular-nums",
+        "inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full px-1.5 text-meta font-medium leading-none tabular-nums",
         good === null && "bg-surface-raised text-text-muted",
         good === true && "bg-success-soft text-success",
         good === false && "bg-danger-soft text-danger",
@@ -369,7 +363,7 @@ export function StatTile({
           </p>
           <span
             className={cn(
-              "flex size-6 shrink-0 items-center justify-center rounded-md bg-mod-soft text-mod",
+              "flex size-6 shrink-0 items-center justify-center rounded-md bg-surface-raised text-text-secondary",
               // Strelica linka stoji u istom uglu; ikonica joj ustupa mesto.
               href && "transition-opacity group-hover/tile:opacity-0 group-focus-visible/tile:opacity-0",
             )}
@@ -381,7 +375,7 @@ export function StatTile({
           {value !== undefined && constant ? (
             <span
               className={cn(
-                "block font-mono text-metric font-bold leading-none tabular-nums",
+                "block text-metric font-bold leading-none tabular-nums",
                 valueClassName ?? "text-foreground",
               )}
             >
@@ -392,12 +386,12 @@ export function StatTile({
               value={value}
               format={format}
               className={cn(
-                "block font-mono text-metric font-bold leading-none",
+                "block text-metric font-bold leading-none",
                 valueClassName ?? "text-foreground",
               )}
             />
           ) : (
-            <span className="block font-mono text-metric font-bold leading-none text-text-muted tabular-nums">
+            <span className="block text-metric font-bold leading-none text-text-muted tabular-nums">
               —
             </span>
           )}

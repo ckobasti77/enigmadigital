@@ -313,7 +313,7 @@ export function LeadExportDialog({
 
           <Button
             type="button"
-            variant="default"
+            variant="primary"
             size="sm"
             disabled={
               !exportData || exportData.rows.length === 0 || isExporting

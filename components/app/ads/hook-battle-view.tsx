@@ -291,16 +291,12 @@ export function HookBattleView({
             {/* Pin Button */}
             {mozeUrednik && (
               <Button
-                variant={isPinned ? "default" : "outline"}
+                variant={isPinned ? "secondary" : "outline"}
                 size="xs"
+                aria-pressed={isPinned}
                 onClick={() => handleTogglePin(isPinned)}
                 disabled={isPinning}
-                className={cn(
-                  "h-7 text-xs transition-colors",
-                  isPinned
-                    ? "bg-primary text-primary-foreground hover:bg-primary/80 font-semibold"
-                    : "border-line-soft bg-surface text-text-muted hover:text-foreground",
-                )}
+                className="h-7 text-xs transition-colors"
               >
                 {isPinned ? (
                   <>
@@ -325,7 +321,7 @@ export function HookBattleView({
                 <Swords className="size-4" />
               </span>
               <div>
-                <p className="heading-caps text-micro font-medium text-mod">
+                <p className="heading-caps text-micro font-medium text-text-muted">
                   Hook Battle · Poređenje kreativa
                 </p>
                 <h1 className="text-xl sm:text-2xl font-bold text-foreground">
@@ -358,7 +354,7 @@ export function HookBattleView({
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft/60 pb-3">
             <div className="flex items-center gap-2">
               <Sparkles className="size-4 text-mod" />
-              <span className="text-micro font-bold heading-caps text-mod">
+              <span className="text-micro font-bold heading-caps text-text-muted">
                 Presuda analize
               </span>
             </div>
@@ -428,7 +424,7 @@ export function HookBattleView({
                     actionType: "budget_change",
                   })
                 }
-                className="h-8 gap-1.5 text-xs border-mod-line bg-mod-soft text-mod hover:bg-mod-soft hover:text-mod font-medium"
+                className="h-8 gap-1.5 text-xs text-radnja font-medium"
               >
                 <TrendingUp className="size-3.5" />
                 <span>Podigni budžet lidera ({adSet.name})</span>
@@ -497,7 +493,7 @@ export function HookBattleView({
                             >
                               {/* Leader Top Ribbon */}
                               {isLeader && (
-                                <div className="bg-mod-strong text-text-inverse text-micro font-bold py-1 px-3 flex items-center justify-center gap-1.5 heading-caps">
+                                <div className="bg-foreground text-text-inverse text-micro font-bold py-1 px-3 flex items-center justify-center gap-1.5 heading-caps">
                                   <Crown className="size-3.5 fill-current" />
                                   <span>Vodeći hook</span>
                                 </div>
@@ -752,7 +748,7 @@ export function HookBattleView({
                                 })
                               }
                               title="Kreiraj novu verziju hook-a sa izmenjenim tekstom"
-                              className="h-6 text-micro px-2 border-mod-line bg-mod-soft text-mod hover:bg-mod-soft hover:text-mod font-medium gap-1"
+                              className="h-6 text-micro px-2 text-radnja font-medium gap-1"
                             >
                               <Sparkles className="size-3" />
                               <span>Nova verzija</span>
@@ -765,7 +761,7 @@ export function HookBattleView({
                           variant="ghost"
                           size="xs"
                           onClick={() => setSelectedAdId(version._id)}
-                          className="ml-auto h-6 text-micro px-2 text-text-muted hover:text-mod hover:bg-surface-raised gap-1"
+                          className="ml-auto h-6 text-micro px-2 text-text-muted hover:text-foreground hover:bg-surface-raised gap-1"
                         >
                           <span>Detalji</span>
                           <ChevronRightSquare className="size-3" />

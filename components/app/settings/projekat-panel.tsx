@@ -232,7 +232,7 @@ function Identitet({ vlasnik }: { vlasnik: boolean }) {
                       checked={vrsta === v}
                       disabled={!menjaVrstu}
                       onChange={() => setVrsta(v)}
-                      className="size-4 accent-[var(--mod-strong)]"
+                      className="size-4 accent-[var(--radnja)]"
                     />
                     {v === "interni" ? "Interni" : "Klijent"}
                   </label>

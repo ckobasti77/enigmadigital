@@ -60,7 +60,7 @@ export function PerformanceHighlights({
     <section className="rounded-xl border bg-card p-6 shadow-card">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex size-7 items-center justify-center rounded-lg border border-line-soft bg-surface-raised/50 text-mod">
+          <div className="flex size-7 items-center justify-center rounded-lg border border-line-soft bg-surface-raised/50 text-text-secondary">
             <Flame className="size-4" />
           </div>
           <div>
@@ -78,7 +78,7 @@ export function PerformanceHighlights({
           <div>
             <div className="flex items-center justify-between gap-2 border-b border-line-soft pb-3">
               <div className="flex items-center gap-2">
-                <div className="flex size-6 items-center justify-center rounded-md border border-line-soft bg-surface-raised text-mod">
+                <div className="flex size-6 items-center justify-center rounded-md border border-line-soft bg-surface-raised text-text-secondary">
                   <Target className="size-3.5" />
                 </div>
                 <span className="heading-caps text-micro font-medium text-text-muted">
@@ -87,7 +87,7 @@ export function PerformanceHighlights({
               </div>
               <ProjekatLink
                 href="/atribucija"
-                className="group flex items-center gap-1 text-xs text-text-muted transition-colors hover:text-mod"
+                className="group flex items-center gap-1 text-xs text-text-muted transition-colors hover:text-foreground"
               >
                 <span>Levak</span>
                 <ArrowUpRight className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -106,7 +106,7 @@ export function PerformanceHighlights({
                 </p>
                 <ProjekatLink
                   href="/settings"
-                  className="mt-3 text-xs text-mod underline-offset-4 hover:underline"
+                  className="mt-3 text-xs text-radnja underline-offset-4 hover:underline"
                 >
                   Poveži integracije u Podešavanjima →
                 </ProjekatLink>
@@ -140,7 +140,7 @@ export function PerformanceHighlights({
                     <p className="heading-caps text-micro font-medium text-text-muted">
                       Konverzije
                     </p>
-                    <p className="font-mono text-2xl font-bold tabular-nums text-mod">
+                    <p className="text-2xl font-bold tabular-nums text-foreground">
                       {formatNumber(topCampaign.ga4KeyEvents)}
                     </p>
                   </div>
@@ -175,12 +175,12 @@ export function PerformanceHighlights({
 
           <div className="mt-4 flex items-center justify-between border-t border-line-soft/60 pt-3 text-micro text-text-muted">
             <span className="flex items-center gap-1.5">
-              <MessageCircleReply className="size-3 text-mod" />
+              <MessageCircleReply className="size-3 text-text-muted" />
               <span>Automatizacija: OpenReply + GA4 UTM</span>
             </span>
             <ProjekatLink
               href="/atribucija"
-              className="text-text-secondary hover:text-mod transition-colors"
+              className="text-text-secondary hover:text-foreground transition-colors"
             >
               Kompletan levak →
             </ProjekatLink>
@@ -192,7 +192,7 @@ export function PerformanceHighlights({
           <div>
             <div className="flex items-center justify-between gap-2 border-b border-line-soft pb-3">
               <div className="flex items-center gap-2">
-                <div className="flex size-6 items-center justify-center rounded-md border border-line-soft bg-surface-raised text-mod">
+                <div className="flex size-6 items-center justify-center rounded-md border border-line-soft bg-surface-raised text-text-secondary">
                   <Camera className="size-3.5" />
                 </div>
                 <span className="heading-caps text-micro font-medium text-text-muted">
@@ -201,7 +201,7 @@ export function PerformanceHighlights({
               </div>
               <ProjekatLink
                 href="/instagram"
-                className="group flex items-center gap-1 text-xs text-text-muted transition-colors hover:text-mod"
+                className="group flex items-center gap-1 text-xs text-text-muted transition-colors hover:text-foreground"
               >
                 <span>Instagram</span>
                 <ArrowUpRight className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -216,7 +216,7 @@ export function PerformanceHighlights({
                 </p>
                 <ProjekatLink
                   href="/settings"
-                  className="mt-3 text-xs text-mod underline-offset-4 hover:underline"
+                  className="mt-3 text-xs text-radnja underline-offset-4 hover:underline"
                 >
                   Poveži Instagram u Podešavanjima →
                 </ProjekatLink>
@@ -270,7 +270,7 @@ export function PerformanceHighlights({
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 text-text-muted">
-                    <Share2 className="size-3.5 text-mod" />
+                    <Share2 className="size-3.5 text-text-muted" />
                     <span className="font-mono tabular-nums text-foreground">
                       {formatNumber(topPost.shares)}
                     </span>
@@ -288,7 +288,7 @@ export function PerformanceHighlights({
 
           <div className="mt-4 flex items-center justify-between border-t border-line-soft/60 pt-3 text-micro text-text-muted">
             <span className="flex items-center gap-1.5">
-              <Eye className="size-3 text-mod" />
+              <Eye className="size-3 text-text-muted" />
               <span>Organski uvid sa Instagrama</span>
             </span>
             {topPost?.permalink ? (
@@ -296,7 +296,7 @@ export function PerformanceHighlights({
                 href={topPost.permalink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-text-secondary hover:text-mod transition-colors"
+                className="flex items-center gap-1 text-text-secondary hover:text-foreground transition-colors"
               >
                 <span>Pogledaj na Instagramu</span>
                 <ExternalLink className="size-3" />
@@ -304,7 +304,7 @@ export function PerformanceHighlights({
             ) : (
               <ProjekatLink
                 href="/instagram"
-                className="text-text-secondary hover:text-mod transition-colors"
+                className="text-text-secondary hover:text-foreground transition-colors"
               >
                 Sve objave →
               </ProjekatLink>

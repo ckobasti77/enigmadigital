@@ -790,7 +790,7 @@ export function LeadFilterBar() {
               aria-label="Ime preseta"
               className="h-7 w-40 text-ui"
             />
-            <Button size="xs" type="submit" disabled={!imePreseta.trim()}>
+            <Button variant="secondary" size="xs" type="submit" disabled={!imePreseta.trim()}>
               Sačuvaj
             </Button>
             <Button
@@ -926,7 +926,7 @@ export function LeadFilterBar() {
                   Očisti sve
                 </Button>
               )}
-              <Button size="sm" onClick={() => setFioka(false)}>
+              <Button variant="primary" size="sm" onClick={() => setFioka(false)}>
                 Gotovo
               </Button>
             </div>

@@ -100,7 +100,7 @@ export function WorkSection({
                 ? "text-danger"
                 : tone === "warning"
                   ? "text-warning"
-                  : "text-mod",
+                  : "text-text-secondary",
             )}
             aria-hidden
           />
@@ -116,7 +116,7 @@ export function WorkSection({
           <Popover>
             <PopoverTrigger
               aria-label={`Ko ulazi u „${naslov}”`}
-              className="touch-target inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-text-muted transition-colors hover:text-mod"
+              className="touch-target inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-text-muted transition-colors hover:text-foreground"
             >
               <Info className="size-3.5" aria-hidden />
             </PopoverTrigger>
@@ -129,7 +129,7 @@ export function WorkSection({
                   <li key={uslov} className="flex gap-2">
                     <span
                       aria-hidden
-                      className="mt-2 size-1 shrink-0 rounded-full bg-mod"
+                      className="mt-2 size-1 shrink-0 rounded-full bg-text-muted"
                     />
                     {uslov}
                   </li>
@@ -152,7 +152,7 @@ export function WorkSection({
             <button
               type="button"
               onClick={vidiSve.onClick}
-              className="inline-flex cursor-pointer items-center gap-1 text-meta font-medium text-mod underline-offset-2 hover:underline"
+              className="inline-flex cursor-pointer items-center gap-1 text-meta font-medium text-radnja underline-offset-2 hover:underline"
             >
               {vidiSve.label}
               <ArrowRight className="size-3.5" aria-hidden />
@@ -237,7 +237,7 @@ export function WorkCard({
           {href ? (
             <ProjekatLink
               href={href}
-              className="block truncate text-copy font-bold text-foreground underline-offset-2 transition-colors hover:text-mod hover:underline"
+              className="block truncate text-copy font-bold text-foreground underline-offset-2 transition-colors hover:underline pointer-coarse:leading-11"
             >
               {name}
             </ProjekatLink>

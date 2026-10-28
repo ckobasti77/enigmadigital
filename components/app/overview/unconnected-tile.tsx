@@ -24,12 +24,12 @@ export function UnconnectedTile({
       href="/settings"
       aria-label={`${label}: ${providerName} nije povezan — otvori Podešavanja`}
       className={cn(
-        "group/tile hover-lift flex h-40 cursor-pointer flex-col rounded-xl border border-dashed border-line bg-card/40 px-5 pt-4 pb-4 transition-colors hover:border-mod-line",
+        "group/tile hover-lift flex h-40 cursor-pointer flex-col rounded-xl border border-dashed border-line bg-card/40 px-5 pt-4 pb-4 transition-colors hover:border-line-control",
         className,
       )}
     >
       <div className="flex items-center gap-2">
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-mod-soft text-mod">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-surface-raised text-text-secondary">
           <Unplug className="size-3.5" aria-hidden />
         </span>
         <p className="heading-caps truncate text-meta font-medium text-text-muted">
@@ -40,7 +40,7 @@ export function UnconnectedTile({
         —
       </span>
       <p className="mt-2 text-ui text-text-muted">{providerName} nije povezan</p>
-      <span className="mt-auto inline-flex items-center gap-1 text-ui font-medium text-mod">
+      <span className="mt-auto inline-flex items-center gap-1 text-ui font-medium text-radnja">
         Poveži u Podešavanjima
         <ArrowUpRight className="size-3.5" aria-hidden />
       </span>

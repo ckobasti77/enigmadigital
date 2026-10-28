@@ -829,7 +829,7 @@ function KvalitetBazeMerac({
           {sledece ? (
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-0.5">
               <p className="min-w-0 text-ui text-foreground">
-                <span className="font-mono font-bold tabular-nums text-mod">
+                <span className="font-bold tabular-nums text-foreground">
                   +{sledece.dobitak} %
                 </span>{" "}
                 {DOPUNA[sledece.deo.kljuc].tekst(sledece.deo.fali)}

@@ -16,8 +16,8 @@ import { useScrollEdges } from "@/lib/use-scroll-edges";
  * izbor prati fokus, svi paneli već učitani u istoj strani). Ovde svaki
  * jezičak vodi na svoju RUTU, pa bi „izbor prati fokus" značilo navigaciju na
  * svaku strelicu — pogrešno. Zato lista linkova: Tab ulazi kao svuda, aktivan
- * nosi `aria-current="page"`, a izgled je isti kao kod `TabNav` (cijan
- * podvlaka aktivnog) da ekran ostane jedan.
+ * nosi `aria-current="page"`, a izgled je isti kao kod `TabNav` (podvlaka
+ * aktivnog u boji radnje) da ekran ostane jedan.
  *
  * Podvlaka je `inset box-shadow`, ne donja ivica sa `-mb-px`: traka kliza po
  * horizontali na telefonu (`.tab-scroll`), a negativna margina bi umela da
@@ -71,9 +71,9 @@ export function SectionNav({
         data-tab-href={tab.href}
         aria-current={selected ? "page" : undefined}
         className={cn(
-          "shrink-0 whitespace-nowrap px-3.5 py-2.5 text-sm font-medium transition-colors max-md:inline-flex max-md:min-h-11 max-md:items-center",
+          "shrink-0 whitespace-nowrap px-3.5 py-2.5 text-sm font-medium transition-colors max-md:inline-flex max-md:min-h-11 max-md:items-center pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center",
           selected
-            ? "text-foreground shadow-[inset_0_-2px_0_0_var(--mod)]"
+            ? "text-foreground shadow-[inset_0_-2px_0_0_var(--radnja)]"
             : "text-text-muted hover:text-foreground hover:shadow-[inset_0_-2px_0_0_var(--color-line-soft)]",
         )}
       >
@@ -104,7 +104,7 @@ export function SectionNav({
                   />
                 )}
                 {group.name && (
-                  <span className="heading-caps shrink-0 whitespace-nowrap px-1 text-micro text-text-muted/80">
+                  <span className="heading-caps shrink-0 whitespace-nowrap px-1 text-micro text-text-muted">
                     {group.name}
                   </span>
                 )}

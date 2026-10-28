@@ -195,6 +195,7 @@ export function ScoringRulesPanel() {
               onNotice={setNotice}
             />
             <Button
+              variant="primary"
               size="sm"
               className="gap-1.5"
               onClick={() => setForm({ mode: "new" })}
@@ -820,7 +821,7 @@ function RuleFormDialog({
             >
               Otkaži
             </Button>
-            <Button type="submit" size="sm" className="font-semibold" disabled={submitting}>
+            <Button variant="primary" type="submit" size="sm" className="font-semibold" disabled={submitting}>
               {submitting ? (
                 <>
                   <Loader2 className="mr-1.5 size-3.5 animate-spin" />

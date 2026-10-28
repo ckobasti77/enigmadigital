@@ -566,20 +566,13 @@ function AdActionDialogInner({
           </DialogClose>
 
           <Button
+            variant="primary"
             type="submit"
             size="sm"
             disabled={
               loading ||
               (actionType === "budget_change" && !budgetGuardrails?.valid)
             }
-            className={cn(
-              "font-medium",
-              actionType === "pause"
-                ? "bg-danger text-text-inverse hover:bg-danger/90"
-                : actionType === "resume"
-                  ? "bg-success text-text-inverse hover:bg-success/90"
-                  : "bg-primary text-primary-foreground hover:bg-primary/80",
-            )}
           >
             {loading ? (
               <>

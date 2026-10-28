@@ -381,7 +381,7 @@ export function CampaignDetail({
                 <Button
                   type="button"
                   size="sm"
-                  variant={campaign.status === "ACTIVE" ? "outline" : "default"}
+                  variant={campaign.status === "ACTIVE" ? "outline" : "secondary"}
                   onClick={() =>
                     setActionDialogState({
                       targetType: "campaign",
@@ -391,12 +391,7 @@ export function CampaignDetail({
                       actionType: campaign.status === "ACTIVE" ? "pause" : "resume",
                     })
                   }
-                  className={cn(
-                    "h-9 gap-1.5 text-xs font-medium",
-                    campaign.status === "ACTIVE"
-                      ? "border-line-soft text-text-muted hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
-                      : "bg-success text-text-inverse hover:bg-success/90",
-                  )}
+                  className="h-9 gap-1.5 text-xs font-medium"
                 >
                   {campaign.status === "ACTIVE" ? (
                     <>
@@ -425,7 +420,7 @@ export function CampaignDetail({
                       actionType: "budget_change",
                     })
                   }
-                  className="h-9 gap-1.5 text-xs font-medium border-line-soft hover:border-mod-line hover:bg-mod-soft hover:text-mod"
+                  className="h-9 gap-1.5 text-xs font-medium border-line-soft hover:text-foreground"
                 >
                   <TrendingUp className="size-3.5" />
                   <span>Promeni budžet</span>
@@ -697,7 +692,7 @@ export function CampaignDetail({
                           e.stopPropagation();
                           onOpenBattle(set._id);
                         }}
-                        className="h-7 gap-1.5 border-mod-line bg-mod-soft text-mod hover:bg-mod-soft hover:text-mod font-medium ml-1"
+                        className="h-7 gap-1.5 text-radnja font-medium ml-1"
                         title="Otvori Hook Battle za ovaj Ad Set"
                       >
                         <Swords className="size-3.5" />

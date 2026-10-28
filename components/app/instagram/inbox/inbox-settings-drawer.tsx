@@ -379,6 +379,7 @@ function InboxSettingsDrawerForm({
                 className="mr-auto"
               />
               <Button
+                variant="primary"
                 onClick={handleSaveAndPublishProfile}
                 disabled={isSaving}
                 className="font-medium"
@@ -472,6 +473,7 @@ function InboxSettingsDrawerForm({
                 className="mr-auto"
               />
               <Button
+                variant="primary"
                 onClick={handleSaveAndPublishProfile}
                 disabled={isSaving}
                 className="font-medium"
@@ -507,6 +509,7 @@ function InboxSettingsDrawerForm({
                   className="text-sm"
                 />
                 <Button
+                  variant="secondary"
                   onClick={handleAddQuickReply}
                   disabled={!newQuickReply.trim() || savedQuickReplies.length >= QUICK_REPLIES_MAX}
                 >

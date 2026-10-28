@@ -143,6 +143,7 @@ export function TargetingSearchDialog({
               />
             </div>
             <Button
+              variant="primary"
               type="submit"
               size="sm"
               disabled={loading || !query.trim()}

@@ -258,7 +258,7 @@ export function NichesPanel({
             </div>
             {moze &&
               (novaNisa === null ? (
-                <Button size="sm" onClick={() => setNovaNisa("")} className="gap-1.5">
+                <Button variant="primary" size="sm" onClick={() => setNovaNisa("")} className="gap-1.5">
                   <Plus className="size-3.5" />
                   Nova niša
                 </Button>
@@ -429,7 +429,7 @@ function NovaNisaForma({
         Ključ (slug) se izvodi iz naziva i po njemu skill prepoznaje istu nišu.
       </p>
       <div className="flex items-center gap-2">
-        <Button size="xs" type="submit" disabled={!value.trim()}>
+        <Button variant="primary" size="xs" type="submit" disabled={!value.trim()}>
           Napravi nišu
         </Button>
         <Button size="xs" type="button" variant="ghost" onClick={onCancel}>
@@ -656,7 +656,7 @@ function NichePanel({
                 je pisao Claude.
               </p>
               <div className="flex items-center gap-2">
-                <Button size="xs" disabled={cuvam} onClick={() => void sacuvajOpis()}>
+                <Button variant="secondary" size="xs" disabled={cuvam} onClick={() => void sacuvajOpis()}>
                   {cuvam ? "Čuvam…" : "Sačuvaj opis"}
                 </Button>
                 <Button
@@ -781,7 +781,7 @@ function NichePanel({
                 className="h-8 text-xs"
               />
               <div className="flex items-center gap-2">
-                <Button size="xs" type="submit" disabled={cuvam}>
+                <Button variant="secondary" size="xs" type="submit" disabled={cuvam}>
                   {cuvam ? "Dodajem…" : "Dodaj"}
                 </Button>
                 <Button
@@ -928,7 +928,7 @@ function NichePanel({
                 className="h-8 text-xs"
               />
               <div className="flex items-center gap-2">
-                <Button size="xs" type="submit" disabled={cuvam}>
+                <Button variant="secondary" size="xs" type="submit" disabled={cuvam}>
                   {cuvam ? "Čuvam…" : "Sačuvaj"}
                 </Button>
                 <Button

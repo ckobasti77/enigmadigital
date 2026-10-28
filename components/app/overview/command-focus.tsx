@@ -229,7 +229,7 @@ function FokusNapredak({
             </p>
             <ProjekatLink
               href={NAPREDAK_HREF}
-              className="inline-flex cursor-pointer items-center gap-1 text-meta font-medium text-mod underline-offset-2 hover:underline"
+              className="inline-flex cursor-pointer items-center gap-1 text-meta font-medium text-radnja underline-offset-2 hover:underline"
             >
               Napredak
               <ArrowRight className="size-3.5" aria-hidden />

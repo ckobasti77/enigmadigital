@@ -231,6 +231,7 @@ function ReplyComposer({
             Otkaži
           </Button>
           <Button
+            variant="secondary"
             type="button"
             size="sm"
             className="font-semibold"
@@ -375,7 +376,7 @@ function CommentActions({
           onClick={() => void toggleLiked()}
           className={cn(
             "text-text-muted hover:text-foreground",
-            likedFlag.value && "text-mod hover:text-mod",
+            likedFlag.value && "text-radnja",
           )}
         >
           <ThumbsUp data-icon="inline-start" />

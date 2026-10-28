@@ -204,6 +204,7 @@ export function IngestTokensPanel() {
             )}
           </Field>
           <Button
+            variant="secondary"
             type="submit"
             disabled={radim || !spreman || naziv.trim().length === 0}
             className="touch-target h-10 shrink-0"
@@ -397,6 +398,7 @@ export function IngestTokensPanel() {
 
           <DialogFooter>
             <Button
+              variant="primary"
               type="button"
               size="sm"
               onClick={() => {
@@ -437,11 +439,11 @@ export function IngestTokensPanel() {
               Otkaži
             </Button>
             <Button
+              variant="destructive"
               type="button"
               size="sm"
               disabled={opozivam}
               onClick={potvrdiOpoziv}
-              className="bg-danger text-text-inverse hover:bg-danger/90"
             >
               {opozivam ? (
                 <>

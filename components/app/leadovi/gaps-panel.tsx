@@ -202,7 +202,7 @@ export function GapsPanel() {
                 .join(", ")}
               zasto={
                 <>
-                  <Chip size="sm" tone={company.origin === "inbound" ? "accent" : "muted"}>
+                  <Chip size="sm" tone={company.origin === "inbound" ? "neutral" : "muted"}>
                     {company.origin === "inbound" ? "Inbound" : "Uvoz"}
                     {company.firstSeenSource ? ` · ${company.firstSeenSource}` : ""}
                   </Chip>

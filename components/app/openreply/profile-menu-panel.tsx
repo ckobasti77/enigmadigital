@@ -480,6 +480,7 @@ function ProfileMenuForm({
               className="w-full"
             />
             <Button
+              variant="secondary"
               type="button"
               size="sm"
               onClick={handlePublish}

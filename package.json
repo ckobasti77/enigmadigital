@@ -35,6 +35,7 @@
     "verify:gads-assets": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-assets.ts",
     "verify:gads-write": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-write.ts",
     "verify:gads-sync-report": "node --import ./scripts/ts-hooks.mjs scripts/verify-gads-sync-report.ts",
+    "verify:ultra-dugmad": "node --import ./scripts/ts-hooks.mjs scripts/verify-ultra-dugmad.ts",
     "deploy:convex": "npm run verify:purge && npx convex deploy"
   },
   "dependencies": {

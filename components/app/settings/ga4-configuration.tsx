@@ -177,6 +177,7 @@ export function Ga4Configuration() {
           pregledali parametre zadržavanja, ključne događaje i povezane servise.
         </p>
         <Button
+          variant="secondary"
           onClick={handleRefresh}
           disabled={refreshing}
           className="mt-4"

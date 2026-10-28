@@ -92,7 +92,7 @@ export function PostStoryFunnel({ breakdowns, className }: PostStoryFunnelProps)
   return (
     <div className={cn("flex flex-col gap-4", className)}>
       <div className="flex flex-col gap-1">
-        <span className="heading-caps text-micro font-semibold text-mod">
+        <span className="heading-caps text-micro font-semibold text-text-muted">
           Story analitika
         </span>
         <h2 className="text-xl font-bold tracking-tight text-foreground">

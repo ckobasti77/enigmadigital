@@ -336,6 +336,7 @@ function YtThumbnailForm({
             Otkaži
           </Button>
           <Button
+            variant="primary"
             type="button"
             size="sm"
             onClick={handleSubmit}

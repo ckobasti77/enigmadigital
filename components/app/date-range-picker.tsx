@@ -231,7 +231,7 @@ function PrilagodjenPeriod({
       <p className="text-xs leading-relaxed text-text-muted">
         Istorija seže 90 dana unazad od prve sinhronizacije.
       </p>
-      <Button type="submit" size="sm" disabled={!draftValid}>
+      <Button variant="secondary" type="submit" size="sm" disabled={!draftValid}>
         Primeni
       </Button>
     </form>
@@ -277,7 +277,7 @@ function TrakaBirac({
               size="sm"
               aria-label={compact ? PRESET_LABEL[preset] : undefined}
               className={cn(
-                "cursor-pointer rounded-md! text-text-secondary aria-pressed:text-mod data-pressed:text-mod",
+                "cursor-pointer rounded-md! text-text-secondary aria-pressed:text-foreground data-pressed:text-foreground",
                 // Svoj red birač ima samo na telefonu, pa su tamo mete 44 px.
                 compact ? "px-2" : "h-11 px-3",
               )}
@@ -298,7 +298,7 @@ function TrakaBirac({
                 className={cn(
                   "rounded-md text-text-secondary",
                   !compact && "h-11 px-3",
-                  range.preset === "custom" && "bg-muted text-mod",
+                  range.preset === "custom" && "bg-muted text-radnja",
                 )}
               />
             }

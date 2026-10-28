@@ -448,7 +448,7 @@ function LeadGapFillDialogTelo({
 
             <Button
               type="submit"
-              variant="default"
+              variant="primary"
               size="sm"
               disabled={isSubmitting}
               className="gap-2 font-semibold"

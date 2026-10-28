@@ -381,11 +381,11 @@ function DeleteCommentDialog({
             Otkaži
           </Button>
           <Button
+            variant="destructive"
             type="button"
             size="sm"
             onClick={onConfirm}
             disabled={busy}
-            className="bg-danger font-semibold text-text-inverse hover:bg-danger/90"
           >
             {busy ? (
               <>

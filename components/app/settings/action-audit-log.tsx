@@ -471,7 +471,7 @@ export function ActionAuditLog() {
                               row.apiResponse || JSON.stringify({ error: row.error }, null, 2),
                             )
                           }
-                          className="h-7 text-xs text-text-muted hover:text-mod gap-1"
+                          className="h-7 text-xs text-text-muted hover:text-foreground gap-1"
                         >
                           <Code2 className="size-3.5" />
                           <span>Detalji</span>

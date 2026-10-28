@@ -237,6 +237,7 @@ function CreateCustomAudienceDialogInner({
               Otkaži
             </Button>
             <Button
+              variant="primary"
               type="submit"
               disabled={submitting || !name.trim() || tosStatus !== "accepted"}
             >

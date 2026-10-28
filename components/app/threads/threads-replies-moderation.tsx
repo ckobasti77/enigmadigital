@@ -539,6 +539,7 @@ export function ThreadsRepliesModeration() {
               Otkaži
             </Button>
             <Button
+              variant="secondary"
               type="button"
               size="sm"
               disabled={busy || !replyText.trim()}

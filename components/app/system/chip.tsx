@@ -16,35 +16,32 @@ import { cn } from "@/lib/utils";
  * Izmereno pre A1: 60+ različitih recepata klasa za isti mali okvir sa
  * tekstom. Ovde je jedan: `rounded-md`, ivica od jednog piksela, blaga
  * podloga, `text-meta` (12 px) ili `text-ui` (13 px), `font-medium`. Ton nosi
- * značenje, ne ukras, i uvek je jedna od četiri uloge boje (UI Boost §3.1):
+ * značenje, ne ukras (DESIGN.md „Chips"):
  *
- *   mesto       `module` (i zatečeni `accent`) — boja modula
+ *   neutralno   `neutral` / `muted`
  *   stanje      `success` / `warning` / `danger` / `info`
  *   kategorija  `category` (slot 1, 2, 3, 5, 6) — vidi `lib/signal-colors.ts`
  *   nagrada     `xp` — zlatna, samo uz stvarno zarađen XP
  *
- * Sa `onClick` čip postaje dugme (`aria-pressed` = `active`), inače `span`.
- * Broj uz natpis (`count`) je tabularan i prigušen, da se čita kao imenilac
- * a ne kao deo natpisa.
+ * Boje modula nema (ULTRA P1): modul kaže „gde si", ne „šta je ovo".
+ *
+ * Sa `onClick` čip postaje dugme (`aria-pressed` = `active`), inače `span`;
+ * uključen filter je u boji radnje, a na dodir je dugme visoko ≥ 44 px.
+ * Broj uz natpis (`count`) je prigušen, da se čita kao imenilac a ne kao deo
+ * natpisa.
  */
 export type ChipTone =
   | "neutral"
   | "muted"
-  | "accent"
-  | "module"
   | "success"
   | "warning"
   | "danger"
   | "info"
   | "xp";
 
-const MODULE_TONE = "border-mod-line bg-mod-soft text-mod";
-
 const TONE: Record<ChipTone, string> = {
   neutral: "border-line bg-surface-raised text-foreground",
   muted: "border-line-soft bg-surface-raised/60 text-text-muted",
-  accent: MODULE_TONE,
-  module: MODULE_TONE,
   success: "border-success-line bg-success-soft text-success",
   warning: "border-warning-line bg-warning-soft text-warning",
   danger: "border-danger-line bg-danger-soft text-danger",
@@ -91,8 +88,8 @@ export function Chip({
     "inline-flex shrink-0 items-center whitespace-nowrap rounded-md border font-medium leading-none transition-colors",
     SIZE[size],
     category ? CATEGORY_TONE : TONE[tone],
-    active && "border-mod ring-1 ring-mod-line",
-    onClick && "cursor-pointer hover:border-line-strong",
+    active && "border-radnja bg-radnja-soft ring-1 ring-radnja-line",
+    onClick && "cursor-pointer hover:border-line-strong pointer-coarse:min-h-11",
     className,
   );
   const body = (
@@ -100,7 +97,7 @@ export function Chip({
       {Icon && <Icon className={cn("shrink-0", size === "sm" ? "size-3" : "size-3.5")} />}
       <span className="truncate">{children}</span>
       {count !== undefined && (
-        <span className="font-mono tabular-nums text-text-muted">{count}</span>
+        <span className="tabular-nums text-text-muted">{count}</span>
       )}
     </>
   );

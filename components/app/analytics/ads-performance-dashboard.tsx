@@ -164,7 +164,6 @@ export function AdsPerformanceDashboard() {
               <KpiTile
                 label="Potrošnja"
                 mera="potrosnja"
-                primary
                 value={curTotals?.cost}
                 format={(v) => formatCurrency(v, currencyCode)}
                 delta={{

@@ -79,14 +79,10 @@ export function ConfirmDialog({
           </Button>
           <Button
             type="button"
+            variant={tone === "danger" ? "destructive" : "primary"}
             size="sm"
             onClick={onConfirm}
             disabled={busy}
-            className={
-              tone === "danger"
-                ? "bg-danger font-semibold text-text-inverse hover:bg-danger/90"
-                : "font-semibold"
-            }
           >
             {busy ? (
               <>

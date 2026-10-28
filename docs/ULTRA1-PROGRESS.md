@@ -489,3 +489,66 @@ Nijedan `next dev` ni drugi proces koji je korak sam pokrenuo nije upaljen.
 
 ## T08 - Plan: temelj sistema   (2026-10-28 02:35)
 **Plan korak.** Plan je upisan u `docs/ultra/planovi/T08.md`. Kod nije menjan.
+
+## T09 — Boja radnje, uloge dugmeta, 44 px na dodir   (2026-10-28 03:10)
+**Fajlovi:**
+- novi: `lib/dugmad-cuvar.ts` (pravila D1–D7), `lib/dugmad-cuvar.test.ts`, `scripts/verify-ultra-dugmad.ts`, snimci `docs/ultra/snimci/T09-*.png` (8), merenje `docs/ultra/merenja/T09-dodir*.{jsonl,json,md}`.
+- tokeni i provera: `app/globals.css`, `package.json` (`verify:ultra-dugmad`).
+- primitivi: `components/ui/button.tsx`, `switch.tsx`, `checkbox.tsx`, `toggle.tsx`, `toggle-group.tsx`, `input.tsx`, `textarea.tsx`, `dropdown-menu.tsx`, `dialog.tsx`.
+- sistem: `components/app/system/` → `focus-card.tsx`, `kpi-tile.tsx`, `channel-focus.tsx`, `chip.tsx`, `empty-state.tsx`, `page-header.tsx`, `progress.tsx`, `mission-card.tsx`, `funnel-steps.tsx`, `celebration-burst.tsx`, `brand-moment.tsx`, `reward-badges.tsx`, `reward-toast.tsx`.
+- ljuska i deljeno: `components/app/feedback.tsx`, `tab-nav.tsx`, `section-nav.tsx`, `module-tile.tsx`, `confirm-dialog.tsx`, `date-range-picker.tsx`.
+- upotrebe (uloga dugmeta, ručne boje, boja modula na dugmadi, broju i natpisu): 41 fajl iz mape §2.3 plana T08, plus `overview/performance-highlights.tsx`, `overview/unconnected-tile.tsx`, `overview/command-focus.tsx`, `leadovi/{work-card,lead-row-actions,leads-today,leads-table,call-mode,import-flow-steps,import-dashboard,import-review-table,lead-detail,gaps-panel,izbor-sablona}.tsx`, `analytics/{acquisition-dashboard,ads-performance-dashboard}.tsx` (prop `primary`), mreže objava (`facebook-content-grid`, `instagram-content-grid`, `threads-content-grid`, `youtube-videos-grid`), `ads/{new-campaign-wizard,hook-battle-view,hook-label-editor,campaign-detail}.tsx`, `instagram/post-detail/{post-profile-actions,post-reels-performance,post-story-funnel}.tsx`, `threads/threads-attribution-section.tsx`, `settings/{connections-settings,action-audit-log,projekat-panel}.tsx`, `hub/novi-projekat.tsx`, `facebook/{fb-comment-thread,fb-post-comments-panel}.tsx`, `instagram/publish-composer.tsx`, `novosti/{novosti-editor,publish-readiness-panel}.tsx`.
+- vodič: `app/dev-ux/sistem/vodic.tsx`, `app/dev-ux/sistem/vodic-komponente.tsx`.
+
+**Šta je urađeno:**
+- **Boja radnje (P1).** `:root` dobija `--radnja` (= `--accent-400` #58c4ff), `--radnja-hover`, `--radnja-tekst`, `--radnja-soft`, `--radnja-line` i neutralne `--surface-control` / `--surface-control-hover`, sa utility klasama u `@theme inline`. `--primary` čita `--radnja`. `[data-module]` više ne prepisuje `--primary`, `--ring` ni `--focus-ring-strong`, pa su primarno dugme, veza, Switch, Checkbox, okvir fokusa i ivica polja u fokusu iste boje na svakom modulu. `--shadow-mod` je obrisan (nema upotreba). Vrednosti `--mod-*` nisu menjane.
+- **Uloge dugmeta.** `buttonVariants` ima tačno šest uloga (primary, secondary, outline, ghost, destructive, link). `default` je ukinut, a `variant` je obavezan u tipu `Button` (typecheck pada na dugmetu bez uloge). `secondary` je neutralan (`surface-control`), obris je providan sa `text-foreground`, opasno je tinta greške. Svih 73 mesta iz mape plana dobilo je ulogu (33 primary, 30 secondary, 7 destructive, 3 uslovna; 5 u `lead-row-actions` već je imalo ulogu kroz `{...shared}`), a 14 ručno obojenih dugmadi izgubilo je svoje boje. Dodatno je očišćeno 18 dugmadi koja su klasama nosila boju modula.
+- **Boja modula izlazi** sa dugmadi, brojeva u fokusu (KpiTile, ChannelFocus, tabla, Danas, Podešavanja → Integracije, atribucija Threads), natpisa pločica i grupa (9), FocusCard (1 px ivica + tiha senka), čipova (tonovi `module`/`accent` ukinuti), merača (nov ton `neutral`), izabranog stanja (čip-filter, jezičci, tekući korak → boja radnje) i neaktivnih pločica modula. Ostaje na aktivnoj stavci bočne trake, ikonici zaglavlja i u auri. Mono je skinut u `system/*` (isti redovi).
+- **44 px na dodir.** `pointer-coarse:min-h-11 min-w-11` u osnovi `Button`-a i `Toggle`-a; Switch i Checkbox imaju zonu 44 × 44 oko nepromenjene staze i kućice; `Input` `pointer-coarse:h-11`; stavke menija, zatvaranje dijaloga, Chip sa `onClick`, naslov `WorkCard` i jezičci `SectionNav`. Uz to jedno pravilo u `globals.css` daje 44 px visine svakom ručno pisanom `button`, `select`, `[role=button]` i `[role=tab]` pod `pointer: coarse` (vidi ODLUKE). Desktop: visine dugmadi na 1536 su i dalje 24/28/32/36 px.
+- **Provera.** `verify:ultra-dugmad` (D1–D7, plafon boje modula 683) i test logike sa primerima i proverom celog koda.
+- **Vodič.** Matrica od 455 dugmadi je zamenjena jednom tabelom 6 uloga × 5 stanja, uz tokene radnje, Switch i Checkbox i primer „Jedan pogled, jedno primarno". Primeri sa dva primarna (zaglavlje + fokus kartica, Napredak, portal) sada imaju po jedno.
+
+**ODLUKE:**
+- **Pravilo dodira za ručno pisana dugmad (van spiska plana).** Primitivi sami su na 8 ekrana na 390 spustili male mete sa ~56 % na 41 %; ostatak su ručni `<button>` (filteri Leadova, zaglavlja koja sortiraju, okidači oblačića) i izvorni `select`. Dodato je jedno pravilo u osnovi (`:where(button, select, [role=button], [role=tab])` → `min-height: 44px`, samo `pointer: coarse`, specifičnost 0). Merenje istih 8 ekrana: 172 od 701 (24,5 %); pre runa na tim ekranima ~56 %. Ostatak su linkovi naziva firme u tabeli i uske ćelije ocene (širina, ne visina). Na 390 nema vodoravnog klizanja (tabela, uvoz, FB komentari: `scrollWidth` 390).
+- **`data-variant="default"` na Toggle i stavkama menija.** Merenje broji svaki `[data-variant="default"]`, a birač perioda (ToggleGroup) i stavke `DropdownMenu` su ga nosili na svakoj strani (3 po ekranu). Njihova podrazumevana varijanta je preimenovana u `neutral` (bez promene izgleda). Sada 0 na svih 13 merenih ekrana.
+- **Oznaka „#1" u mrežama objava i traka „Vodeći hook"** (plan ih je video kao izabrane pilule) nisu izbor nego oznaka ranga: dobile su neutralnu belu podlogu (`bg-foreground text-text-inverse`), ne boju radnje, da ne izgledaju kao dugme.
+- **Čip `module`/`accent`** je imao 8 upotreba (plan je brojao 5): sve su `neutral`. ProgressBar `module` u uvozu → `neutral`.
+- **Izabran segment perioda** (7 d / 28 d / 90 d) je bio u boji modula; sada je `text-foreground` (segmenti ostaju neutralni, po pravilu izbora iz plana).
+- **Dugmad sa bojom modula u klasama (18)**: boja modula je skinuta; tekst-veze u boji modula su prešle u `text-radnja`, a izabrani segmenti u `text-foreground`.
+- **`Input` i `Textarea`** gube `dark:` (Tailwind 4 ga čita iz OS teme); podloga je uvek `bg-input/30`, kao na tamnom Windowsu.
+- **`CountBadge` ton `accent`** (0 upotreba) ostaje T10-u, koji je vlasnik `count-badge.tsx` po planu. Ikonice `text-primary` u `analytics/realtime-dashboard.tsx` i `retention-dashboard.tsx` su do T10 cijan (prelazno, plan T08 §1.6).
+- **Plafon boje modula** je 683 (stvarni broj posle T09; pre T09 857).
+- **Playwright MCP se nije povezao** (CONNECT_TIMEOUT). Snimci i merenje su rađeni skriptom nad paketom `playwright` (`.nocni-run/ultra1/tmp/t09-snimci.mjs`), na 390 sa `isMobile` i `hasTouch`, pa se 44 px stvarno vidi.
+- Skill `impeccable` je pozvan u ovoj sesiji (T08). Radnici nisu korišćeni; mapa uloga je primenjena skriptom po redovima i proverena typecheck-om (74 greške pre, 0 posle).
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- `lib/dugmad-cuvar.test.ts` (10): D2/D3 (dugme bez uloge, `default` i u uslovu, `render={<Button/>}`, komentar se ne broji); D2 izuzetak spread-a sa razlogom; D4 (`buttonVariants` bez uloge ili sa `default`); D5 (ručno puno dugme, izuzetak aktivne pločice); D1 (primitiv sa `default` i podrazumevanom ulogom); D7 (boja modula u shadcn sloju, `:root` bez `--radnja`); D6 (brojanje u stringovima, ne u komentarima); i nad celim kodom: nijedno dugme bez uloge, primitiv i globals ispravni, boja modula ≤ plafon.
+
+**Rezultat provere:**
+- typecheck: prošao.
+- lint: 0 grešaka (1210 upozorenja, isto kao pre).
+- vitest: 63 fajla / 1096 testova prošlo.
+- pristup: prošao.
+- regresije: 15/15 prošlo (uključuje `verify:ultra-dugmad`, `verify:leads-ui`, `verify:pokret`, `verify:brojevi`).
+- `node scripts/contrast-check.mjs --strogo`: 0 od 212.
+- **Vizuelno** (`next dev -p 3117`, `?ux=1`):
+  - 1536: Instagram, YouTube, Threads, Podešavanja, Leadovi i vodič (`T09-sistem-dugmad-1536.png`); 390 sa dodirom: Leadovi i tabla.
+  - Primarno dugme je `rgb(88, 196, 255)` na svih 11 merenih ekrana (Instagram, YouTube, Threads, Podešavanja, Leadovi, Analitika, Oglasi, Facebook, tabla, Pravila, vodič); `[data-variant="default"]`: 0.
+  - Na 390 (dodir) sva dugmad i jezičci imaju 44 px (Leadovi 24/24, tabla 4/4); na 1536 visine su 24/28/32/36 px kao pre.
+- Dev server je ugašen (PID 22088, 34680, 29392; port 3117 slobodan).
+
+**Za Jovana ujutru:**
+1. Na pravom telefonu otvori Leadove (Danas i Tabela) i tablu: dugmad, filteri, jezičci i prekidači treba da su visoki 44 px; na računaru sve ostaje iste veličine.
+2. Prođi Instagram, YouTube, Threads, Podešavanja i Leadove: primarno dugme je svuda isti cijan; sporedna dugmad su neutralno siva; boja modula je samo na aktivnoj stavci bočne trake, ikonici zaglavlja i u auri.
+3. Potvrdi odluke: pravilo 44 px i za ručno pisana dugmad, bela oznaka „#1" u mrežama objava, opasno dugme kao tinta (i u potvrdi), neutralni merači napretka.
+
+**Prihvatanje T09 (provera stavku po stavku, dopuna 03:20):**
+- *Nijedno dugme nema `data-variant="default"`, a primarno je iste boje na svim modulima:* ispunjeno. `verify:ultra-dugmad` (D1–D4) prolazi nad celim kodom. U pregledaču je `[data-variant="default"]` 0 na svih 13 merenih ekrana (i na `/sistem`), a pozadina svakog vidljivog `[data-variant="primary"]` je `rgb(88, 196, 255)` na Instagramu, YouTube-u, Threads-u, Podešavanjima, Leadovima, Analitici, Oglasima, Facebook-u, tabli i Pravilima. Snimci: `T09-instagram/youtube/threads/podesavanja/leadovi-1536.png`.
+- *Na 390 px dugmad i jezičci imaju bar 44 px visine:* ispunjeno. Uz `isMobile` i `hasTouch` (pravi `pointer: coarse`): Leadovi 24/24 dugmeta i jezičci po 44 px, tabla 4/4 po 44 px (`T09-leadovi-390.png`, `T09-tabla-390.png`).
+- *Na 1536 visine su iste kao pre:* ispunjeno. Klase visine u `ui/button.tsx` nisu menjane u odnosu na `4cfca83` (`git diff`: u bloku `size` je samo uklonjen `text-[0.8rem]` iz `sm`, visine `h-6/h-7/h-8/h-9` i `size-*` iste). Na 1536 (`pointer: coarse` = false) svako vidljivo dugme ima tačno visinu svoje klase veličine: tabla 4/4, Leadovi 24/24, Tabela leadova 54/54, Instagram 1/1, YouTube 22/22, Threads 5/5, Podešavanja 19/19, Analitika 1/1, Oglasi 1/1, Pravila 9/9 (0 razlika). Ručna dugmad i jezičci zadržavaju zatečene visine iz revizije (npr. „Više o ovom ekranu" 20×20, zaglavlja koja sortiraju 16 px, jezičci 37–38 px), jer pravilo dodira važi samo pod `pointer: coarse`. Skripta: `.nocni-run/ultra1/tmp/t09-prihvatanje.mjs`, rezultat `t09-prihvatanje.json`.
+- *Vodič `/sistem` bez matrice od 455 dugmadi i bez primera sa dva primarna:* ispunjeno. Naslov „13 modula × 7 varijanti" ne postoji; tabela uloga ima 30 dugmadi (6 × 5), cela strana 49. Van referentne tabele uloga svaka sekcija ima najviše jedno primarno (zaglavlje i fokus kartica: 1, prazna stanja: 1).
+- *Provere prolaze; sekcija T09 je u progress-u:* ispunjeno (typecheck, lint 0 grešaka, vitest 1096/1096, pristup, regresije 15/15).
+- **Snimci** su rađeni skriptom nad paketom `playwright`, jer se Playwright MCP u tom trenutku nije povezao; pravila runa dozvoljavaju skriptu umesto MCP-a.
+- **Procesi:** dev server za dopunsku proveru (PID 31420, 20488, 32424) je ugašen; nijedan `next` proces ovog repoa ne radi, port 3117 je slobodan.
