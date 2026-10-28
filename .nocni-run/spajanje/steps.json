@@ -1,0 +1,302 @@
+[
+  {
+    "id": "S01",
+    "title": "Arhitektura spajanja (plan)",
+    "model": "claude-opus-5-5",
+    "effort": "max",
+    "mode": "plan",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 150
+  },
+  {
+    "id": "S02",
+    "title": "Temelj: paketi, deljena logika, šema, identitet, alat za prenos",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "ista",
+    "resumeFrom": "S01",
+    "timeoutMin": 240
+  },
+  {
+    "id": "S03",
+    "title": "Backend: dokumenti, oblasti, saradnja, korpa, pretraga",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S04",
+    "title": "Backend: zadaci, lični zadaci, Moj dan, Puls tima",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S05",
+    "title": "Backend: ideje, beleške, mape, tabele, fajlovi, AI",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S06",
+    "title": "Backend: poruke, obaveštenja, push, podsetnici, lozinke",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S07",
+    "title": "Plan: ljuska, rute i prevod ekrana",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "mode": "plan",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 120
+  },
+  {
+    "id": "S08",
+    "title": "Temelj weba: primitivi, toast, pokret, kuke, alat za ekrane",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "ista",
+    "resumeFrom": "S07",
+    "timeoutMin": 240
+  },
+  {
+    "id": "S09",
+    "title": "Ljuska: traka, meni Ja, meni projekta, rute, profil",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S10",
+    "title": "Dokumenti 1: oblasti, stablo, stranica, editor",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S11",
+    "title": "Dokumenti 2: komentari, istorija, prisustvo, zaključavanje, prilozi, tabele",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S12",
+    "title": "Zadaci: zadaci tima, zadatak, panel, koraci, rokovi",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S13",
+    "title": "Ideje: tabla, lista, detalj, faze, glasanje",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 210
+  },
+  {
+    "id": "S14",
+    "title": "Mape: oblast, stranica, ideje, beleške",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S15",
+    "title": "Poruke: kanali projekta, lične poruke, grupe",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S16",
+    "title": "Ja: Moji zadaci, Beleške, brzi unos",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S17",
+    "title": "Zvono, Inbox, obaveštenja, web push",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S18",
+    "title": "Plan: Danas i početna projekta",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "mode": "plan",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 90
+  },
+  {
+    "id": "S19",
+    "title": "Danas iz svih projekata",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "ista",
+    "resumeFrom": "S18",
+    "timeoutMin": 240
+  },
+  {
+    "id": "S20",
+    "title": "Početna projekta, Puls tima, Aktivnost",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S21",
+    "title": "Korpa, podešavanja projekta, profil",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 210
+  },
+  {
+    "id": "S22",
+    "title": "Svi projekti, novi projekat, pozivnice za tim",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 180
+  },
+  {
+    "id": "S23",
+    "title": "Veze: lid i zadatak, komentar i upozorenje u zadatak",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 210
+  },
+  {
+    "id": "S24",
+    "title": "Komandna paleta i prečice",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 180
+  },
+  {
+    "id": "S25",
+    "title": "Tekst, rečnik, prazna stanja, greške",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 180
+  },
+  {
+    "id": "S26",
+    "title": "Telefon (390)",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 210
+  },
+  {
+    "id": "S27",
+    "title": "Dizajn sistem: čuvari, tokeni, pokret",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 240
+  },
+  {
+    "id": "S28",
+    "title": "Performanse i pristupačnost",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 210
+  },
+  {
+    "id": "S29",
+    "title": "Revizija: paritet, dozvole, regresije",
+    "model": "claude-opus-5-5",
+    "effort": "max",
+    "mode": "goal",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 300
+  },
+  {
+    "id": "S30",
+    "title": "Završni izveštaj, merenje, snimci",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "mode": "auto",
+    "session": "nova",
+    "resumeFrom": null,
+    "timeoutMin": 150
+  }
+]

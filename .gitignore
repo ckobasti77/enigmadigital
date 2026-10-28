@@ -90,3 +90,13 @@ nocni-run/ux/b*
 .nocni-run/ultra1/STOP
 .nocni-run/ultra1/baseline.txt
 .nocni-run/ultra1/mcp.json
+
+# nocni run spajanje (logovi, stanje runnera i snimak Devotiona)
+.nocni-run/spajanje/logs/
+.nocni-run/spajanje/tmp/
+.nocni-run/spajanje/state.json
+.nocni-run/spajanje/state.json.tmp
+.nocni-run/spajanje/state.bad.json
+.nocni-run/spajanje/STOP
+.nocni-run/spajanje/baseline.txt
+.nocni-run/spajanje/mcp.json
