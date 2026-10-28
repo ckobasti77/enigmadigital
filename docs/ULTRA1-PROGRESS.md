@@ -486,3 +486,6 @@ Nijedan `next dev` ni drugi proces koji je korak sam pokrenuo nije upaljen.
 4. „Pokreni proveru sad" i dalje radi prave pauze bez probe (zatečeno, plan §9). Proba štiti uključivanje, a ne ručnu proveru.
 5. Evaluator više ne procenjuje Google kampanje. One su ranije padale na Meta API-ju, pa ishod treba da bude isti, samo bez lažnih grešaka.
 6. Potvrdi odluke: pravilo iz šablona donosi događaj u Napretku, istorija piše „prag sada", proba se ne traži za preimenovanje aktivnog pravila, a urednik više ne dodaje šablone.
+
+## T08 - Plan: temelj sistema   (2026-10-28 02:35)
+**Plan korak.** Plan je upisan u `docs/ultra/planovi/T08.md`. Kod nije menjan.
