@@ -56,6 +56,7 @@ import { FIXTURES_PROSTOR_IDEJE, PRAZNO_PROSTOR_IDEJE } from "./fixtures-prostor
 import { FIXTURES_PROSTOR_MAPE, PRAZNO_PROSTOR_MAPE } from "./fixtures-prostor-mape";
 import { FIXTURES_PROSTOR_OSNOVA, PRAZNO_PROSTOR_OSNOVA } from "./fixtures-prostor-osnova";
 import { FIXTURES_PROSTOR_PORUKE, PRAZNO_PROSTOR_PORUKE } from "./fixtures-prostor-poruke";
+import { FIXTURES_PROSTOR_JA, PRAZNO_PROSTOR_JA } from "./fixtures-prostor-ja";
 import { redoviStatusa } from "./fixtures-status-veza";
 import { integracijeUKvaru } from "@/convex/lib/statusVeze";
 
@@ -1244,6 +1245,8 @@ Object.assign(
   FIXTURES_PROSTOR_IDEJE,
   FIXTURES_PROSTOR_MAPE,
   FIXTURES_PROSTOR_PORUKE,
+  // Posle zadataka i mapa: „Ja“ menja i njihove mutacije, pa ih sam prosleđuje.
+  FIXTURES_PROSTOR_JA,
 );
 
 // ── Prazan nalog (`?ux=1&prazno=1`) ──────────────────────────────────────────
@@ -1279,6 +1282,7 @@ const PRAZNO: Record<string, Fixture> = {
   ...PRAZNO_PROSTOR_IDEJE,
   ...PRAZNO_PROSTOR_MAPE,
   ...PRAZNO_PROSTOR_PORUKE,
+  ...PRAZNO_PROSTOR_JA,
   // Prazan nalog je stanje kanala, ne nalog bez projekata: birač ostaje pun.
   [getFunctionName(api.projekti.stanjeProjekata)]: () =>
     stanjeProjekataUx(staMeCeka.ukupno),

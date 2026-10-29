@@ -41,6 +41,7 @@ import { Toaster } from "./toaster";
 import { CuvarNapustanjaProvider } from "./prostor/cuvar-napustanja";
 import { DokumentiProvider } from "./prostor/dokumenti/dokumenti-kontekst";
 import { ShortcutProvider } from "./prostor/precice/precice-provider";
+import { BrziUnosProvider } from "./prostor/ja/brzi-unos/brzi-unos";
 import { ProjekatLink } from "./projekat-link";
 import {
   useEkranPutanja,
@@ -253,9 +254,11 @@ function ShellFrame({
 
   return (
     // Radni deo (SPAJANJE S08): prečice (bez globalnog `?` do S24), čuvar
-    // nesačuvanog teksta i jedan Toaster za celu ljusku.
+    // nesačuvanog teksta i jedan Toaster za celu ljusku. Brzi unos (`q`, S16)
+    // je u oba opsega, ali ne i u panelu (D4).
     <ShortcutProvider>
     <CuvarNapustanjaProvider>
+    <BrziUnosProvider aktivan={!panel}>
     <OkvirDokumenata aktivan={opseg === "projekat"}>
       {/* The sidebar and header are fixed/sticky chrome, so the column is
           inset by the sidebar width rather than sharing a flex row. */}
@@ -304,6 +307,7 @@ function ShellFrame({
       {nagrade}
       <Toaster />
     </OkvirDokumenata>
+    </BrziUnosProvider>
     </CuvarNapustanjaProvider>
     </ShortcutProvider>
   );

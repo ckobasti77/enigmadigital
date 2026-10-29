@@ -1,8 +1,16 @@
-import { EkranUskoro } from "@/components/app/prostor/ekran-uskoro";
+import { Suspense } from "react";
+import { MojiZadaciEkran } from "@/components/app/prostor/ja/ekrani";
 
 export const metadata = { title: "Moji zadaci · Enigma Digital" };
 
-/** Lični nivo „Ja“ (SPAJANJE P13), kroz sve moje projekte. Sadržaj donosi kasniji korak. */
+/**
+ * Lični nivo „Ja“ (SPAJANJE P13): zadaci iz svih mojih projekata + lični.
+ * Filteri žive na klijentu; Suspense čuva granicu za kuke rutera ispod.
+ */
 export default function Page() {
-  return <EkranUskoro naslov="Moji zadaci" />;
+  return (
+    <Suspense>
+      <MojiZadaciEkran />
+    </Suspense>
+  );
 }

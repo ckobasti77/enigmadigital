@@ -124,6 +124,16 @@ const DOZVOLJENI_DIREKTNI: Readonly<Record<string, string>> = {
   "prostor.chat.setPresence": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
   "prostor.chat.toggleReaction": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
   "prostor.chat.updatePersonalGroup": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  // S16 (plan S07 §3.2): Moji zadaci, Beleške i brzi unos — sve L funkcije.
+  "prostor.personalTasks.list": "Moji zadaci i Beleške kroz sve moje projekte (opseg 50)",
+  "prostor.personalTasks.create": "Moji zadaci i Beleške kroz sve moje projekte (opseg 50)",
+  "prostor.tasks.listEverywhere": "Moji zadaci i Beleške kroz sve moje projekte (opseg 50)",
+  "prostor.thoughts.createNote": "Moji zadaci i Beleške kroz sve moje projekte (opseg 50)",
+  "prostor.thoughts.getNote": "Moji zadaci i Beleške kroz sve moje projekte (opseg 50)",
+  "prostor.thoughts.listMine": "Moji zadaci i Beleške kroz sve moje projekte (opseg 50)",
+  "prostor.thoughts.searchMine": "Moji zadaci i Beleške kroz sve moje projekte (opseg 50)",
+  "prostor.projekat.listForCurrent":
+    "moji projekti sa oblastima za Moje zadatke, Beleške i brzi unos (bez client_viewer i arhiviranih, opseg 50)",
 };
 
 const koren = fileURLToPath(new URL("../", import.meta.url));

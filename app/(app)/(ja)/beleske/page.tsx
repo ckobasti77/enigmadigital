@@ -1,8 +1,16 @@
-import { EkranUskoro } from "@/components/app/prostor/ekran-uskoro";
+import { Suspense } from "react";
+import { BeleskeJaEkran } from "@/components/app/prostor/ja/ekrani";
 
 export const metadata = { title: "Beleške · Enigma Digital" };
 
-/** Lični nivo „Ja“ (SPAJANJE P13), kroz sve moje projekte. Sadržaj donosi kasniji korak. */
+/**
+ * Lični nivo „Ja“ (SPAJANJE P13): moje beleške iz svih projekata i lične.
+ * Mapa beleški projekta je `/<projekat>/beleske`.
+ */
 export default function Page() {
-  return <EkranUskoro naslov="Beleške" />;
+  return (
+    <Suspense>
+      <BeleskeJaEkran />
+    </Suspense>
+  );
 }
