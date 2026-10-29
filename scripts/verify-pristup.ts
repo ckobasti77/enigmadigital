@@ -103,6 +103,27 @@ const DOZVOLJENI_DIREKTNI: Readonly<Record<string, string>> = {
   "prostor.thoughts.updateEdge": "mapa beleški: beleška je moja, projekat je opcion",
   "prostor.thoughts.updateNode": "mapa beleški: beleška je moja, projekat je opcion",
   "prostor.thoughts.updateNodeLayout": "mapa beleški: beleška je moja, projekat je opcion",
+  // S15 (plan S07 §3.2): Poruke u „Ja“ i u projektu — sve L funkcije četa.
+  "prostor.chat.archiveChannel": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.channelMembers": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.createChannel": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.createPersonalGroup": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.deleteMessage": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.editMessage": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.generateUploadUrl": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.getChannel": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.leavePersonalGroup": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.listConversations": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.listPeople": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.markChannelRead": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.messages": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.openPersonalDm": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.sendMessage": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.setChannelMembers": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.setNotificationLevel": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.setPresence": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.toggleReaction": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
+  "prostor.chat.updatePersonalGroup": "poruke kroz sve moje projekte i lične; pristup proverava članstvo u razgovoru (P9)",
 };
 
 const koren = fileURLToPath(new URL("../", import.meta.url));

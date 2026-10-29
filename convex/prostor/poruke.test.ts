@@ -125,6 +125,42 @@ describe("P9: ljudi u porukama", () => {
     expect(kanali).toHaveLength(2);
   });
 
+  test("S15: spisak za poruke u projektu (projekat.listMembers) nema client_viewer-a; DM ka njemu i strancu se odbija", async () => {
+    const s = await seed();
+    // Ekran Poruke projekta nudi „Nova poruka“ iz ovog spiska (i pominjanja).
+    const tim = await s.kao(s.marko).query(api.prostor.projekat.listMembers, {
+      workspaceId: s.tim,
+      limit: 50,
+    });
+    expect(tim.map((m) => m.profile.displayName).sort()).toEqual(["Ana", "Jovan", "Marko"]);
+    for (const drugi of [s.klijent, s.stranac]) {
+      await expect(
+        s.kao(s.marko).mutation(api.prostor.chat.openDirectMessage, {
+          workspaceId: s.tim,
+          otherProfileId: drugi.profileId,
+        }),
+      ).rejects.toThrow();
+    }
+    const dm = await s.kao(s.marko).mutation(api.prostor.chat.openDirectMessage, {
+      workspaceId: s.tim,
+      otherProfileId: s.ana.profileId,
+    });
+    // Isti DM se ponovo otvara, ne pravi se drugi.
+    expect(
+      await s.kao(s.ana).mutation(api.prostor.chat.openDirectMessage, {
+        workspaceId: s.tim,
+        otherProfileId: s.marko.profileId,
+      }),
+    ).toBe(dm);
+    // Client_viewer ne vidi ni spisak ljudi ni kanale projekta.
+    await expect(
+      s.kao(s.klijent).query(api.prostor.projekat.listMembers, { workspaceId: s.tim }),
+    ).rejects.toThrow();
+    await expect(
+      s.kao(s.klijent).query(api.prostor.chat.listChannels, { workspaceId: s.tim }),
+    ).rejects.toThrow();
+  });
+
   test("poruka u opštem kanalu ne obaveštava client_viewer-a", async () => {
     const s = await seed();
     await s.kao(s.ana).mutation(api.prostor.chat.sendMessage, {

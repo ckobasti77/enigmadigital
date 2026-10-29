@@ -7,6 +7,8 @@ import { toast } from "@/lib/toast";
 import { CommentsSection } from "@/components/app/prostor/saradnja/comments-section";
 import type { MentionMember } from "@/components/app/prostor/saradnja/comment-composer";
 import { RevisionHistoryDrawer } from "@/components/app/prostor/saradnja/revision-history-drawer";
+import { DiskusijaDijalog, useDiskusijaSidra } from "@/components/app/prostor/poruke/diskusija";
+import { useProjekatQueryTolerant } from "@/components/app/prostor/podaci/projekat";
 import { Drawer } from "@/components/ui/drawer";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -35,7 +37,8 @@ import { useProjekatMutation } from "@/components/app/projekat-provider";
  * `ideas.list` (R7: `ideas.get` ne postoji). `idea === undefined` = lista
  * još stiže; `null` = ideje nema u ovom projektu (Korpa ili tuđ link).
  * Projekat daje okruženje (`useProjekat*`), pa `workspaceId` nije prop.
- * „Diskusija u Porukama" (`chat.channelForAnchor`) dolazi sa porukama.
+ * „Diskusija u Porukama" (`chat.channelForAnchor`, S15): postojeći kanal
+ * ideje se otvara u Porukama projekta, a bez njega prva poruka ide iz dijaloga.
  */
 export function IdeaDetailDrawer({
   open,
@@ -66,6 +69,9 @@ export function IdeaDetailDrawer({
   if (idea && idea !== shown) setShown(idea);
   const [historyOpen, setHistoryOpen] = useState(false);
   const current = idea ?? (open ? null : shown);
+  const diskusija = useDiskusijaSidra("idea", current?._id ?? null);
+  // Tim projekta za `@Ime` u prvoj poruci diskusije (ista pretplata kao komentari).
+  const tim = useProjekatQueryTolerant(api.prostor.projekat.listMembers, { limit: 50 });
 
   return (
     <>
@@ -82,6 +88,8 @@ export function IdeaDetailDrawer({
               idea={current}
               onOpenHistory={() => setHistoryOpen(true)}
               onArchive={() => actions.onArchive(current)}
+              discussionLabel={diskusija.natpis}
+              onDiscussion={diskusija.pokreni}
             />
           ) : undefined
         }
@@ -131,6 +139,17 @@ export function IdeaDetailDrawer({
           blockedReason={current.permissions.canEdit ? null : "Ideja je već pretvorena."}
           memberName={(profileId) => members.find((member) => member.profileId === profileId)?.displayName ?? null}
           now={now}
+        />
+      ) : null}
+      {current ? (
+        <DiskusijaDijalog
+          open={diskusija.dijalog.otvoren}
+          onOpenChange={diskusija.dijalog.setOtvoren}
+          anchorType="idea"
+          predmet="ideja"
+          anchorId={current._id}
+          members={tim}
+          onOpenChannel={diskusija.dijalog.otvoriKanal}
         />
       ) : null}
     </>

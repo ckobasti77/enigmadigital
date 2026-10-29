@@ -9,6 +9,7 @@ import { CommentsSection, type CommentsCount } from "@/components/app/prostor/sa
 import type { MentionMember } from "@/components/app/prostor/saradnja/comment-composer";
 import { ConflictDialog } from "@/components/app/prostor/saradnja/conflict-dialog";
 import { RevisionHistoryDrawer } from "@/components/app/prostor/saradnja/revision-history-drawer";
+import { DiskusijaDijalog, useDiskusijaSidra } from "@/components/app/prostor/poruke/diskusija";
 import { usePagePresence } from "@/components/app/prostor/saradnja/use-page-presence";
 import { useLiveNow } from "@/components/app/prostor/saradnja/use-live-now";
 import { PageRelationsCompact } from "@/components/app/prostor/saradnja/page-relations";
@@ -50,8 +51,8 @@ export type PageDetails = FunctionReturnType<typeof api.prostor.pages.get>;
 const SUBPAGES_PAGE = 20;
 
 /**
- * Radnje menija „…" koje ovaj prikaz već ume. Diskusija dolazi sa porukama
- * i tada se dodaje ovde. „Prikaži na mapi" (S14) vodi na `?tab=mapa`.
+ * Radnje menija „…" koje ovaj prikaz već ume. „Prikaži na mapi" (S14) vodi
+ * na `?tab=mapa`, a „Diskusija u Porukama" (S15) u kanal stranice.
  */
 const RADNJE_MENIJA: ReadonlySet<PageMenuKey> = new Set([
   "comments",
@@ -61,6 +62,7 @@ const RADNJE_MENIJA: ReadonlySet<PageMenuKey> = new Set([
   "unlock",
   "move",
   "detach",
+  "discussion",
   "archive",
 ]);
 
@@ -200,6 +202,7 @@ export function PageDocumentView({
     },
   });
 
+  const diskusija = useDiskusijaSidra("page", pageId);
   const otherAreas = workspace.areas.filter((area) => area._id !== page.areaId).length;
   const hasChildren = (subpageCount?.count ?? 0) > 0;
   const menuKeys = pageMenuKeys(page.permissions, { hasChildren, otherAreas }).filter((key) =>
@@ -208,13 +211,13 @@ export function PageDocumentView({
   const menuItems = buildPageMenuItems({
     keys: menuKeys,
     kind: "page",
-    discussionLabel: "Diskusija u Porukama",
+    discussionLabel: diskusija.natpis,
     onJumpToComments: jumpToComments,
     onOpenHistory: () => setHistoryOpen(true),
     onSetLocked: (locked) => void setLocked(locked),
     onOpenMap: () => onOpenMap(pageId),
     onDetach: () => void detach(),
-    onDiscussion: () => {},
+    onDiscussion: diskusija.pokreni,
     onArchive: () => void archive(),
   });
 
@@ -372,6 +375,16 @@ export function PageDocumentView({
           now={liveNow}
         />
       </NoteAttachmentsProvider>
+      <DiskusijaDijalog
+        open={diskusija.dijalog.otvoren}
+        onOpenChange={diskusija.dijalog.setOtvoren}
+        anchorType="page"
+        predmet="stranica"
+        anchorId={pageId}
+        members={members}
+        onOpenChannel={diskusija.dijalog.otvoriKanal}
+        finalFocus={actionsTrigger}
+      />
       <ConflictDialog
         open={conflictOpen && saveState === "conflict"}
         onOpenChange={setConflictOpen}

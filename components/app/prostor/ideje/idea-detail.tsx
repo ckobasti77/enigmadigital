@@ -2,7 +2,7 @@
 
 // Preneto iz Devotion apps/web/components/workspace/ideas/idea-detail.tsx (main @ c05c40f), SPAJANJE S13.
 import { useId, type ReactNode } from "react";
-import { ArrowUpRight, History, Lightbulb, MoreHorizontal, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { ArrowUpRight, History, Lightbulb, MessageCircle, MoreHorizontal, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import {
   IDEA_CONVERTED_REASON,
   IDEA_STAGE_CHANGE_REASON,
@@ -16,6 +16,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Select } from "@/components/ui/select";
@@ -37,18 +38,19 @@ import {
   type IdeaSaveState,
 } from "@/lib/prostor/modeli/ideas-model";
 
-/**
- * Zaglavlje fioke: faza kao oznaka, Istorija izmena i „…" (Obriši). Diskusiju
- * u Porukama donosi modul poruka; do tada meni nudi samo radnje koje rade.
- */
+/** Zaglavlje fioke: faza kao oznaka, Istorija izmena i „…" (Diskusija u Porukama, Obriši). */
 export function IdeaDetailHeader({
   idea,
   onOpenHistory,
   onArchive,
+  discussionLabel,
+  onDiscussion,
 }: {
   idea: IdeaModel;
   onOpenHistory: () => void;
   onArchive: () => void;
+  discussionLabel: string;
+  onDiscussion: () => void;
 }) {
   return (
     <div className="flex min-h-8 items-center gap-2">
@@ -57,20 +59,26 @@ export function IdeaDetailHeader({
       <Button type="button" variant="ghost" size="sm" onClick={onOpenHistory}>
         <History aria-hidden="true" /> Istorija
       </Button>
-      {idea.permissions.canArchive ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button type="button" variant="ghost" size="icon" className="size-8" aria-label="Još radnji za ideju" />}
-          >
-            <MoreHorizontal aria-hidden="true" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem variant="destructive" onClick={onArchive}>
-              <Trash2 aria-hidden="true" /> Obriši
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={<Button type="button" variant="ghost" size="icon" className="size-8" aria-label="Još radnji za ideju" />}
+        >
+          <MoreHorizontal aria-hidden="true" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={onDiscussion}>
+            <MessageCircle aria-hidden="true" /> {discussionLabel}
+          </DropdownMenuItem>
+          {idea.permissions.canArchive ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={onArchive}>
+                <Trash2 aria-hidden="true" /> Obriši
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

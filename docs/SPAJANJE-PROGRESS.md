@@ -1192,3 +1192,81 @@ Ceo `npx vitest run`: 181 fajl, 2412 testova.
 - Istorija radnji važi samo dok je mapa otvorena (ODLUKA 3). Potvrdi da ti to odgovara.
 - „Ćilibar“ je sada „Narandžasta“ (ODLUKA 1).
 - Ništa nije deployovano.
+
+## S15 — Poruke: kanali projekta, lične poruke, grupe   (2026-10-29 10:35)
+**Fajlovi:**
+- Rute: `app/(app)/(ja)/poruke/page.tsx` i `app/(app)/[projekat]/poruke/page.tsx` (umesto `EkranUskoro`; klijentski kontejner u `<Suspense>`, `?kanal=` čita klijent).
+- `components/app/prostor/poruke/` (preneto alatom pa ručno dovršeno): `chat-hub-container`, `chat-hub-view`, `chat-hub-skeleton`, `hub-list`, `people-dialogs`, `chat-view`, `channel-list`, `channel-members-dialog`, `conversation-pane`, `entity-discussion-panel`, `mention-textarea`, `message-composer`, `message-list`, `message-row`, `new-conversation`, `reaction-picker`, `use-attachment-sender`, `use-chat-presence`. Novi: `ekrani.tsx` (`PorukeJaEkran`, `PorukeProjektaEkran`), `diskusija.tsx` (`useDiskusijaSidra`, `DiskusijaDijalog`), `uloge.ts` (`useVlasnikPlatforme`, `ulogaCeta`).
+- `lib/prostor/web/chat.ts` (preneto; `Intl` → `lib/format`, `api.prostor.chat.*`).
+- „Diskusija u Porukama“ (napomena iz nadzora): `components/app/prostor/dokumenti/page-document-view.tsx` (stranica), `components/app/prostor/zadaci/task-page-view.tsx` (zadatak na celu stranu), `components/app/prostor/ideje/idea-detail.tsx` + `idea-detail-drawer.tsx` (detalj ideje).
+- `components/app/app-sidebar.tsx`: broj nepročitanih poruka projekta uz „Poruke“ u meniju projekta.
+- Čuvar: `scripts/verify-pristup.ts` (`DOZVOLJENI_DIREKTNI` +20, ODLUKA 9).
+- Test: `convex/prostor/poruke.test.ts` (+1).
+- Razvojni prikaz: nov `app/dev-ux/fixtures-prostor-poruke.ts` (radnik), registrovan u `app/dev-ux/fixtures.ts`.
+- Snimci `docs/spajanje/snimci/S15-{poruke-1536,kanal-projekta-1536,poruke-390,poruke-prazno-1536,diskusija-stranica-1536,diskusija-zadatak-1536,diskusija-ideja-1536}.png`.
+- Pomoćno: recept radnika `.nocni-run/spajanje/tmp/s15/brief-radnik.md`, skripte izmena `.nocni-run/spajanje/tmp/s15/*.py`, izveštaj alata `.nocni-run/spajanje/tmp/prenos-ekran-S15.md` (19 fajlova, 65 RUČNO, sve zatvorene).
+
+**Šta je urađeno:**
+- **`/poruke` („Ja“)**: Enigmin `PageHeader`, pa okvir sa dva okna visine ekrana. Levo spisak svih razgovora (`chat.listConversations`): „Lično“ (DM-ovi i lične grupe), pa projekti kao sklopive grupe sa znakom projekta i brojem nepročitanog; pretraga po imenu (`/`, Esc, strelice, Enter otvara prvi pogodak), „Nova poruka“ (jedina primarna radnja) i „Nova grupa“. Desno otvoren razgovor; kanal projekta se otvara u mestu (opseg ostaje „Ja“), a meni nudi „Otvori u projektu“. Podešavanja grupe (ime, članovi, napusti) sa „Poništi“.
+- **`/<projekat>/poruke`**: kanali tog projekta po sekcijama Opšte · Kanali · Diskusije · Direktne (`chat.listChannels`), „Nova poruka“ (vlasnik platforme dobija „Novo“ sa „Novi kanal“), članovi kanala, arhiviranje uz potvrdu.
+- **Razgovor**: poruke po danima sa grupisanjem autora, odgovor na poruku, izmena i brisanje (uz potvrdu), reakcije (brzi set, „tvoja“ označena neutralno), `@` pominjanja iz tima ili članova razgovora, prilozi (dugme, prevlačenje, lepljenje), glasovna poruka, nivo obaveštenja po kanalu, prisustvo (`setPresence` dok gledaš dno) i čitanje (`markChannelRead` pri otvaranju i novoj poruci). **Optimistično slanje ostaje** (`sendMessage.withOptimisticUpdate` + `insertAtTop` nad `chat.messages`).
+- **Nepročitano**: bedž „Ja“ u traci i broj uz „Poruke“ u meniju „Ja“ i u donjoj traci su iz S09 (`chat.unreadSummary`) i sada se vidi da se gase čim se razgovor otvori; novo je broj uz „Poruke“ u meniju projekta (nepročitano tog projekta).
+- **„Diskusija u Porukama“** vraćena na sva tri mesta kao u Devotionu: stavka menija „…“ sa brojem poruka; kad diskusija postoji vodi pravo u razgovor (`/<projekat>/poruke?kanal=…`), a kad ne postoji otvara dijalog u kome prva poruka pravi nit (`chat.sendToAnchor`).
+- **Pokret**: dve autorske stvari na ekranu — promena okna razgovora (na uskom ekranu bočno u smeru kretanja) i ulaz poruke koja je STIGLA; obe kroz `useGSAP` + `gsap.matchMedia()` sa granom za smanjen pokret, `DUR_UI`/`EASE_UI`/`ARRIVE_Y`. Prvo punjenje i „Učitaj starije“ se ne animiraju.
+
+**Paritet:**
+- Red 6 (Poruke: lični DM, grupe, kanali svih projekata, reakcije, prisustvo, pretraga): gotovo, osim pretrage SADRŽAJA poruka (ODLUKA 1). Pretraga razgovora po imenu radi.
+- Red 15 (Poruke projekta: kanali po oblasti, poruke, reakcije): gotovo.
+- Dopuna redova 12 (zadatak), 13 (ideje) i 18/19 (stranica): „Diskusija u Porukama“ (S10 ODLUKA 4, S12 ODLUKA 7, S13 ODLUKA 1) — gotovo na sva tri ulaza.
+- Red 5/32 nisu dirani (S17).
+
+**ODLUKE:**
+1. **Pretraga sadržaja poruka (`chat.searchMessages`) nije na `/poruke`.** U Devotionu je bila samo u globalnoj pretrazi (`search-dialog.tsx`, ⌘K), koju plan uliva u Enigminu paletu u S24; hub je i u Devotionu pretraživao samo imena razgovora. Pretraga u hubu kroz sve projekte bi tražila po jedan upit po projektu. `searchMessages` zato nije u `DOZVOLJENI_DIREKTNI` (plan S07 §3.2 ga je pripisao S15); dodaje ga korak koji ga prvi pozove. **Za S24:** paritet reda 6 „pretraga poruka“ zatvara ⌘K.
+2. **Kanal projekta u „Ja“** se crta ispod `ProjekatStavkeProvider`-a tog projekta (D14): tim (`projekat.listMembers`, za pominjanja) i oblasti (`projekat.get`, za ikonicu kanala) su projektni upiti. Lični razgovor čita `chat.channelMembers`. Devotion je dobijao spisak startupa sa oblastima iz ljuske; prop `workspaces` je zato uklonjen iz `ChatHubContainer`.
+3. **Devotion „admin“ u porukama = vlasnik platforme** (S06 ODLUKA 2), na webu kroz `useVlasnikPlatforme()` (`projekti.ja`, ista pretplata kao ljuska): „Novi kanal“, članovi kanala, arhiviranje i brisanje tuđe poruke. Dok se nalog čita, odgovor je „ne“, pa vlasnik platforme na trenutak vidi „Nova poruka“ pre „Novo“.
+4. **Zaglavlja**: h1 ekrana nosi Enigmin `PageHeader` („Poruke“ + jedan red opisa); spiskovi u oknu imaju `h2` „Razgovori“, grupe `h3`. Devotion nadnaslov „Moj prostor“ je uklonjen (zabrana nadnaslova). Jedina primarna radnja je „Nova poruka“ / „Novo“ u zaglavlju spiska; ista radnja u praznom stanju je `outline`, „Pošalji“ je `secondary` ikonica, a u dijalozima je primarna samo potvrda.
+5. **Boja radnje nije stanje izbora** (kao S11–S14): izabran razgovor, moja reakcija, pominjanje u tekstu, izabrana stavka liste `@` i overlay prevlačenja su neutralni (`surface-control*`, `line-strong`); brojevi nepročitanog su neutralan `CountBadge`, pominjanje neutralan bedž „@N“, utišan kanal tiha tačka `bg-text-muted`. Tačka snimanja glasa je neutralna (crveno samo za grešku).
+6. **Potvrde umesto `window.confirm`**: arhiviranje razgovora i brisanje poruke idu kroz `ConfirmDialog` (Devotion je koristio `window.confirm`; brisanje poruke nema „Poništi“). Napuštanje grupe zadržava Devotion korak potvrde u dijalogu.
+7. **Okvir**: oba ekrana su u okviru visine `100dvh − zaglavlje` (telefon: iznad donje trake), pa spisak i razgovor klize odvojeno, a polje za poruku stoji dole; na 1536 × 695 i spisak i polje su iznad preloma. Na telefonu (i do `xl` u „Ja“, do `lg` u projektu) vidi se spisak ILI razgovor, sa „Nazad na razgovore“ (Devotion E10).
+8. **Izbor razgovora u adresi** (`?kanal=`): izbor dodaje unos u istoriju (na telefonu „Nazad“ pregledača vraća na spisak), „Nazad na razgovore“ ga zamenjuje. Neispravan ID se ignoriše (`jeOblikId`).
+9. **Čuvar pristupa:** `DOZVOLJENI_DIREKTNI` dobio je 20 ključeva `prostor.chat.*` iz plana S07 §3.2 (sve L funkcije, `proveriSpisak` to potvrđuje), bez `searchMessages` (ODLUKA 1). Front sada ima 100 direktnih poziva, svi sa spiska. Nijedno pravilo nije oslabljeno; ostali čuvari nisu menjani.
+10. **Radnja reda poruke na dodir** (radnik): na `pointer: coarse` traka radnji (reakcija, odgovor, izmena, brisanje) stoji ispod poruke i uvek se vidi, jer bi plutajuća traka sa 44 px dugmadima pokrila susedne poruke; mišem ostaje plutajuća na prelaz i fokus. Na dodiru nije viđeno u pregledaču.
+11. **Diskusija**: jedna kuka i jedan dijalog (`poruke/diskusija.tsx`) za sva tri ulaza, umesto tri kopije iz Devotiona; opis dijaloga kaže „ove stranice“ / „ovog zadatka“ / „ove ideje“. Meni ideje se sada uvek vidi (stavka diskusije), „Obriši“ samo kome je dozvoljeno.
+12. **`.threadline`** (plan S07 §6.4) se ne prenosi u `poruke.css`: Devotion ga koristi samo u stablu stranica i ekranu prijave, ne u porukama.
+13. **Fiksture** (radnik): stanje u modulu, mutacije menjaju stanje (slanje, reakcija, čitanje, nova grupa, diskusija); `chat.unreadSummary` je preuzet iz osnove i računa se iz istog stanja, sa istim početnim brojevima, pa bedž „Ja“ pada kad se razgovor otvori. `setPresence` i ponovno čitanje vraćaju `undefined` (bez kruga). U `&prazno=1` ScanMe zadržava kanale (fikstura ne vidi režim). Ključni ID-jevi: Opšte `chatChannelsux0001`, DM sa Anom `chatChannelsux0021`, lična grupa `chatChannelsux0023`, diskusija stranice `chatChannelsux0006`.
+14. **Odluke radnika prihvaćene posle pregleda:** hover reda je `surface-control`, izbor `surface-control-hover` (hover slabiji od izbora); `useGSAP` okna sa `revertOnUpdate`; `Checkbox` u dijalogu grupe ostaje primitiv (čekirano u boji radnje je pravilo primitiva, ULTRA P1); popup dijaloga ljudi ima `max-h` i skrol da podnožje ostane na 695; vreme grupisane poruke se na dodiru uvek vidi; `motion-safe:animate-pulse` za tačku snimanja (isti obrazac već postoji u `ads/hook-battle-view.tsx`).
+
+**Novi paketi:** nema.
+
+**Testovi:** 1 nov backend test, svi prolaze.
+- `convex/prostor/poruke.test.ts` +1: spisak ljudi za poruke projekta (`projekat.listMembers`) ima samo owner/urednike, bez `client_viewer`-a i stranca; projektni DM ka `client_viewer`-u i strancu se odbija, ka članu radi i ne duplira se; `client_viewer` ne čita ni spisak ljudi ni kanale. Postojeći S06 test („listPeople: samo owner/urednik iz zajedničkih projekata, bez client_viewer-a i stranaca“ i odbijanje ličnog DM-a/grupe) pokriva spisak u „Ja“ (prihvatanje: „u spisku ljudi nema client_viewer ni ljudi bez zajedničkog projekta“).
+- Devotion web za poruke nije imao testove modela (`lib/chat.ts` bez testa); deljena logika (`chat-hub`, `mentions`) ima testove od S02.
+- Ceo `npx vitest run`: 188 fajlova, 2463 testa.
+
+**Rezultat provere:**
+- codegen: prošao;
+- typecheck: prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest: prolazi (2463);
+- pristup: 632 / 617 / 15, front 100 direktnih poziva, svi sa spiska;
+- regresije: prolaze (20; ultra 5, prostor 1); boja modula 654/654, `font-mono` 254/254.
+
+**Vizuelna provera** (Playwright, `next dev -p 3117`, ugašen na kraju):
+- 1536 × 695: `/poruke` sa otvorenim DM-om (nepročitano 2 → 0, bedževi „Ja“ i „Poruke“ padaju), Opšte projekta u „Ja“ (pominjanje, reakcije), klik na reakciju 👀 (2 → 3, „tvoja“), slanje poruke sa `@Ma` → izbor „Marko Proba“ → Enter (poruka na dnu sa pominjanjem, pregled u spisku se menja); `/enigma-it/poruke` (sekcije, „Novo“); prazno stanje (`&prazno=1`) i dijalog „Nova poruka“ (ljudi sa „Zajedno: …“); podešavanja lične grupe.
+- „Diskusija u Porukama“: zadatak (`pagesux0200`) bez diskusije → dijalog, prva poruka pravi nit („1 poruka“, „Otvori razgovor“); stranica (`pagesux0101`) → stavka „Diskusija u Porukama · 2“ vodi na `/enigma-it/poruke?kanal=chatChannelsux0006` (adresa uhvaćena u mreži, jer navigacija gubi `?ux=1`), a ta adresa otvara diskusiju; ideja (`ideaNodesux0003`) → meni → dijalog.
+- 390 × 844: spisak bez vodoravnog klizanja, razgovor preko celog okvira sa „Nazad“, polje iznad donje trake.
+- Konzola: 0 grešaka i 0 upozorenja na svim ekranima.
+
+**Prihvatanje (dokaz):**
+- „U razvojnom prikazu rade lični i projektni razgovori, reakcije i nepročitano“: vizuelna provera iznad; snimci `S15-poruke-1536.png`, `S15-kanal-projekta-1536.png`, `S15-poruke-390.png`, `S15-poruke-prazno-1536.png`.
+- „U spisku ljudi nema client_viewer ni ljudi bez zajedničkog projekta (test u backendu)“: `convex/prostor/poruke.test.ts` (S06 test za `listPeople` + nov S15 test za spisak projekta i projektni DM).
+- Napomena iz nadzora: panel prenet, sva tri ulaza vraćena (stranica, zadatak na celu stranu, detalj ideje); snimci `S15-diskusija-{stranica,zadatak,ideja}-1536.png`; fiksture dopunjene (`channelForAnchor`, `sendToAnchor`). BLOKADE nema.
+- „Provere prolaze; sekcija S15 je u progress-u“: ovo je ta sekcija.
+
+**Za Jovana ujutru:**
+- Na pravim podacima pošalji poruku u Opšte projekta i u lični DM; proveri da drugi član vidi nepročitano (bedž „Ja“, tačka na pločici projekta, broj uz „Poruke“) i da se gasi kad otvori razgovor.
+- Proveri prisustvo: dok drugi član gleda dno istog razgovora, nova poruka mu ne pravi obaveštenje.
+- Otpremi sliku i glasovnu poruku (pravo skladište se u razvojnom prikazu ne vidi).
+- Pretraga sadržaja poruka stiže sa ⌘K (S24), kao u Devotionu (ODLUKA 1). Potvrdi.
+- Na telefonu proveri traku radnji poruke ispod poruke (ODLUKA 10).
+- Ništa nije deployovano.

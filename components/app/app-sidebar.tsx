@@ -26,6 +26,10 @@ import {
 } from "./nav-items";
 import { ModuleTile } from "./module-tile";
 import { NavBadge } from "./nav-badge";
+import { useNeprocitano } from "./podaci-ljuske";
+import { QuietBoundary } from "./quiet-boundary";
+import { BedzNaUglu, CountBadge } from "./system/count-badge";
+import { unreadMessagesPhrase } from "@/lib/prostor/web/opseg";
 import { PlayerCard, initialsOf } from "./system/player-card";
 import {
   napredakZaKarticu,
@@ -296,6 +300,11 @@ function NavRow({
         label={item.label}
         ugao={rail ? "sina" : undefined}
       />
+      {item.href === "/poruke" ? (
+        <QuietBoundary>
+          <BrojPorukaProjekta rail={rail} />
+        </QuietBoundary>
+      ) : null}
     </>
   );
 
@@ -453,5 +462,23 @@ function SidebarFooter({
         </Tip>
       </span>
     </div>
+  );
+}
+
+/**
+ * Nepročitane poruke ovog projekta uz „Poruke" u meniju projekta (SPAJANJE
+ * S15, crtež plana S07 §2.1). Isti zbir kao tačka na pločici u traci
+ * (`chat.unreadSummary`, jedna pretplata za celu ljusku); broj je neutralan,
+ * jer poruka nije posao koji kasni.
+ */
+function BrojPorukaProjekta({ rail }: { rail: boolean }) {
+  const { workspaceId } = useProjekat();
+  const { porukePoProjektu } = useNeprocitano();
+  const broj = workspaceId ? (porukePoProjektu[workspaceId] ?? 0) : 0;
+  const opis = unreadMessagesPhrase(broj);
+  return rail ? (
+    <BedzNaUglu count={broj} tone="neutral" ugao="sina" label={opis} />
+  ) : (
+    <CountBadge count={broj} tone="neutral" label={opis} />
   );
 }

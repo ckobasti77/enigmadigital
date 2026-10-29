@@ -1,8 +1,17 @@
-import { EkranUskoro } from "@/components/app/prostor/ekran-uskoro";
+import { Suspense } from "react";
+import { PorukeJaEkran } from "@/components/app/prostor/poruke/ekrani";
 
 export const metadata = { title: "Poruke · Enigma Digital" };
 
-/** Lični nivo „Ja“ (SPAJANJE P13), kroz sve moje projekte. Sadržaj donosi kasniji korak. */
+/**
+ * Lične poruke kroz sve moje projekte (SPAJANJE P13): lični DM, grupe i
+ * kanali projekata. Izabran razgovor je `?kanal=<id>`; čita ga klijent
+ * (`useSearchParams`), zato Suspense.
+ */
 export default function Page() {
-  return <EkranUskoro naslov="Poruke" />;
+  return (
+    <Suspense>
+      <PorukeJaEkran />
+    </Suspense>
+  );
 }

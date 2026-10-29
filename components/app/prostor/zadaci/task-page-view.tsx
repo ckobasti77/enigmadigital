@@ -10,6 +10,7 @@ import type { MentionMember } from "@/components/app/prostor/saradnja/comment-co
 import { ConflictDialog } from "@/components/app/prostor/saradnja/conflict-dialog";
 import { LOCK_NOTICE_TASK } from "@/lib/prostor/modeli/collab-model";
 import { RevisionHistoryDrawer } from "@/components/app/prostor/saradnja/revision-history-drawer";
+import { DiskusijaDijalog, useDiskusijaSidra } from "@/components/app/prostor/poruke/diskusija";
 import { useLiveNow } from "@/components/app/prostor/saradnja/use-live-now";
 import { usePagePresence } from "@/components/app/prostor/saradnja/use-page-presence";
 
@@ -55,7 +56,7 @@ const noop = () => {};
 
 /**
  * Radnje menija „…" koje zadatak već ume (isti spisak kao stranica u
- * `page-document-view.tsx`). Diskusija u Porukama dolazi sa porukama.
+ * `page-document-view.tsx`), sa „Diskusijom u Porukama" (S15).
  */
 const RADNJE_MENIJA: ReadonlySet<PageMenuKey> = new Set([
   "comments",
@@ -64,6 +65,7 @@ const RADNJE_MENIJA: ReadonlySet<PageMenuKey> = new Set([
   "unlock",
   "move",
   "detach",
+  "discussion",
   "archive",
 ]);
 
@@ -307,18 +309,19 @@ export function TaskPageView({
   }
 
   // --- Meni, obaveštenja ---------------------------------------------------------
+  const diskusija = useDiskusijaSidra("page", pageId);
   const otherAreas = workspace.areas.filter((area) => area._id !== page.areaId).length;
   const menuKeys = taskMenuKeys(page.permissions, { otherAreas }).filter((key) => RADNJE_MENIJA.has(key));
   const menuItems = buildPageMenuItems({
     keys: menuKeys,
     kind: "task",
-    discussionLabel: "Diskusija u Porukama",
+    discussionLabel: diskusija.natpis,
     onJumpToComments: () => scrollToComments(true),
     onOpenHistory: () => setHistoryOpen(true),
     onSetLocked: (locked) => void setLocked(locked),
     onOpenMap: () => {},
     onDetach: () => void detach(),
-    onDiscussion: noop,
+    onDiscussion: diskusija.pokreni,
     onArchive: () => void archive(),
   });
 
@@ -524,6 +527,16 @@ export function TaskPageView({
         blockedReason={restoreBlockedReason({ canRestoreRevision: page.permissions.canRestoreRevision, saveState, subject: "task" })}
         memberName={memberName}
         now={liveNow}
+      />
+      <DiskusijaDijalog
+        open={diskusija.dijalog.otvoren}
+        onOpenChange={diskusija.dijalog.setOtvoren}
+        anchorType="page"
+        predmet="zadatak"
+        anchorId={pageId}
+        members={members}
+        onOpenChannel={diskusija.dijalog.otvoriKanal}
+        finalFocus={actionsTrigger}
       />
       <ConflictDialog
         open={conflictOpen && autosave.saveState === "conflict"}
