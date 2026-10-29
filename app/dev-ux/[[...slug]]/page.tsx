@@ -238,6 +238,7 @@ export default async function DevUxPage({
         prazno={prazno === "1"}
         pad={pad}
         projekata={Number.isInteger(broj) && broj >= 1 && broj <= 40 ? broj : undefined}
+        stanje={stanje}
       >
         {/* Isto kao `app/(app)/layout.tsx` i `app/(app)/(ja)/layout.tsx`. */}
         <AuthGate>

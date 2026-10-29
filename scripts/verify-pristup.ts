@@ -144,6 +144,10 @@ const DOZVOLJENI_DIREKTNI: Readonly<Record<string, string>> = {
   "prostor.pushSubscriptions.myDeviceCount": "Inbox i podešavanja obaveštenja su lični (P16)",
   "prostor.pushSubscriptions.save": "Inbox i podešavanja obaveštenja su lični (P16)",
   "prostor.pushSubscriptions.remove": "Inbox i podešavanja obaveštenja su lični (P16)",
+  // S19 (plan S07 §3.2, plan S18 §4.1): Danas — „Isplaniraj dan“ i redosled plana; sve L funkcije.
+  "prostor.myDay.carryOver": "Moj dan je lični: „Preneto od ranije“ vraća stavku u plan dana",
+  "prostor.myDay.clearOld": "Moj dan je lični: „Skloni“ briše staru stavku plana",
+  "prostor.myDay.reorder": "Moj dan je lični: redosled sekcije Planirano",
 };
 
 const koren = fileURLToPath(new URL("../", import.meta.url));

@@ -5,6 +5,7 @@ import { ConvexProviderWithAuth } from "convex/react";
 import { createFakeConvexClient } from "./fake-convex";
 import { resolveFixture } from "./fixtures";
 import { projektiUx } from "./fixtures-hub";
+import { postaviStanjeDanas } from "./fixtures-prostor-danas";
 
 /**
  * Omotač koji pravim ekranima podmeće lažni Convex klijent i „ulogovanu"
@@ -36,6 +37,8 @@ function useFakeAuthOdjavljen() {
  * menja ulogu u tekućem projektu, da se vidi šta urednik i posmatrač ne vide.
  * `projekata` (`?ux=1&rezim=hub&projekata=1|22`) menja broj projekata
  * korisnika, za hub „Svi projekti“ sa jednim i sa više od 20 projekata.
+ * `stanje` (`/?ux=1&stanje=bez-projekata|jedan|pretrpan|posmatrac`) bira
+ * stanje ekrana Danas (S19, `fixtures-prostor-danas.ts`).
  */
 export function UxHarness({
   children,
@@ -44,9 +47,11 @@ export function UxHarness({
   odjavljen = false,
   uloga,
   projekata,
+  stanje,
 }: {
   children: ReactNode;
   projekata?: number;
+  stanje?: string;
   prazno?: boolean;
   odjavljen?: boolean;
   uloga?: string;
@@ -57,28 +62,28 @@ export function UxHarness({
    */
   pad?: string;
 }) {
-  const client = useMemo(
-    () =>
-      createFakeConvexClient((name, args) => {
-        if (pad && name.startsWith(`${pad}:`)) {
-          throw new Error(`Razvojni prikaz: namerni pad upita ${name}`);
-        }
-        if (projekata !== undefined && name === "projekti:mojiProjekti") {
-          return projektiUx(projekata);
-        }
-        const rez = resolveFixture(name, args, prazno);
-        if (
-          name === "projekti:mojProjekat" &&
-          rez !== null &&
-          typeof rez === "object" &&
-          (uloga === "urednik" || uloga === "client_viewer" || uloga === "owner")
-        ) {
-          return { ...rez, uloga };
-        }
-        return rez;
-      }),
-    [prazno, pad, uloga, projekata],
-  );
+  const client = useMemo(() => {
+    // Stanje modula fikstura Danas mora biti postavljeno pre prvog upita.
+    postaviStanjeDanas(stanje);
+    return createFakeConvexClient((name, args) => {
+      if (pad && name.startsWith(`${pad}:`)) {
+        throw new Error(`Razvojni prikaz: namerni pad upita ${name}`);
+      }
+      if (projekata !== undefined && name === "projekti:mojiProjekti") {
+        return projektiUx(projekata);
+      }
+      const rez = resolveFixture(name, args, prazno);
+      if (
+        name === "projekti:mojProjekat" &&
+        rez !== null &&
+        typeof rez === "object" &&
+        (uloga === "urednik" || uloga === "client_viewer" || uloga === "owner")
+      ) {
+        return { ...rez, uloga };
+      }
+      return rez;
+    });
+  }, [prazno, pad, uloga, projekata, stanje]);
   return (
     <ConvexProviderWithAuth
       client={client}

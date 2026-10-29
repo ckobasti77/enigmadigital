@@ -36,11 +36,20 @@ function sazetak(zbir: Zbir): string {
   return `${formatNumber(zbir.ukupno)} ${pluralSr(zbir.ukupno, "zadatak", "zadatka", "zadataka")} · ${formatNumber(zbir.projekata)} ${pluralSr(zbir.projekata, "projekat", "projekta", "projekata")}`;
 }
 
-export function CekaTe({ zbir, className }: { zbir: Zbir; className?: string }) {
+export function CekaTe({
+  zbir,
+  className,
+  najvise = NAJVISE,
+}: {
+  zbir: Zbir;
+  className?: string;
+  /** Stavki pre „Prikaži sve“ (hub 8, Danas 5). */
+  najvise?: number;
+}) {
   const [otvoreno, setOtvoreno] = useState(false);
   const [sve, setSve] = useState(false);
   const telo = useId();
-  const prikazane = sve ? zbir.stavke : zbir.stavke.slice(0, NAJVISE);
+  const prikazane = sve ? zbir.stavke : zbir.stavke.slice(0, najvise);
   const nista = !zbir.ucitava && zbir.stavke.length === 0;
 
   return (
@@ -123,9 +132,9 @@ export function CekaTe({ zbir, className }: { zbir: Zbir; className?: string }) 
           </ul>
         )}
 
-        {(zbir.stavke.length > NAJVISE || zbir.bezPodataka.length > 0) && (
+        {(zbir.stavke.length > najvise || zbir.bezPodataka.length > 0) && (
           <div className="flex flex-col gap-2 border-t border-line px-4 py-3">
-            {zbir.stavke.length > NAJVISE && (
+            {zbir.stavke.length > najvise && (
               <Button
                 type="button"
                 variant="ghost"

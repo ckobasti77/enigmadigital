@@ -1432,3 +1432,143 @@ Devotion web Inbox nije imao testove modela; deljena logika (`lib/prostor/inbox.
 
 ## S18 - Plan: Danas i početna projekta   (2026-10-29 12:21)
 **Plan korak.** Plan je upisan u `docs/spajanje/planovi/S18.md`. Kod nije menjan.
+
+
+## S19 — Danas iz svih projekata   (2026-10-29 12:55)
+**Fajlovi:**
+- Ruta `app/(app)/(ja)/page.tsx`: `EkranUskoro` je zamenjen ekranom `DanasEkran` u `<Suspense>`.
+- `components/app/prostor/danas/`:
+  - preneto alatom pa ručno prepisano: `my-day-container`, `my-day-view`, `my-day-skeleton`, `plan-day-dialog` i `my-day-strana` (iz `my-day-side`);
+  - novo: `ekran.tsx` (`DanasEkran`), `ceka-te-danas.tsx` (`useCekaTeDanas`), `napredak-kartica.tsx` (`NapredakKartica`, `useStanjeNapretka`);
+  - `use-completion-queue.ts` (preneto u S12) nije menjan;
+  - Devotion `my-day-header`, `use-arrival` i `use-query-state` nisu zadržani (ODLUKE 3 i 4).
+- `lib/prostor/modeli/` (+ testovi):
+  - preneti: `my-day-model`, `side-model`, `plan-day-model`, `my-day-logic.test.ts` (alat ga je stavio u `components/`, premešten je u `lib/`);
+  - nov: `danas-model.ts`.
+- `components/app/hub/` (hirurški):
+  - nov `ceka-izvor.tsx` (`useCekaProjekta`, `CekaIzvor`, `CekaJaviGresku`);
+  - `red-projekta.tsx`: `CekaCelija` koristi `useCekaProjekta` (ponašanje isto);
+  - `ceka-te.tsx`: opcioni prop `najvise` (podrazumevano 8, kao do sada).
+- `convex/prostor/danas.test.ts` (nov test; kod u `convex/` nije menjan).
+- Čuvar `scripts/verify-pristup.ts`: `DOZVOLJENI_DIREKTNI` +3 (ODLUKA 9).
+- Razvojni prikaz:
+  - nov `app/dev-ux/fixtures-prostor-danas.ts`, registrovan poslednji u `fixtures.ts`;
+  - `harness.tsx` dobija prop `stanje`;
+  - `[[...slug]]/page.tsx` prosleđuje `&stanje=` u grani „Ja“ (CRLF zadržan).
+- Snimci `docs/spajanje/snimci/S19-{danas-1536,danas-390,danas-prazno-1536,danas-pretrpan-1536,danas-bez-projekata-1536,isplaniraj-1536}.png`.
+- Pomoćno:
+  - log alata `.nocni-run/spajanje/tmp/prenos-ekran-S19-log.txt` (15 fajlova, 44 RUČNO, sve zatvorene ili fajl nije zadržan);
+  - skripte izmena i logovi provera u `.nocni-run/spajanje/tmp/s19/`;
+  - Playwright logovi premešteni u `.nocni-run/spajanje/tmp/playwright/s19/`.
+
+**Šta je urađeno:**
+- **Danas** (`/`): `PageHeader` „Danas“ sa podnaslovom u jednom redu („Zdravo, Jovan · četvrtak 29. oktobar · 1 kasni, 3 za danas“; na telefonu samo brojevi dana) i jedinom primarnom radnjom „Brzi unos“ (`Q`). Od `xl` naviše su dve kolone (levo Moj dan, desno 20rem). Ispod `xl` je jedna kolona, sa trakom čipova (Čeka te · Inbox · Poruke · Glasanje) koji vode na blokove ispod.
+- **Moj dan:**
+  - traka „Moj dan“ sa prstenom dana (X / Y), „Po vremenu / Po projektu“ (pamti se lokalno) i „Isplaniraj dan“ (`secondary`);
+  - red „Dodaj zadatak…“ (brzi unos) i svih 7 Devotion sekcija; Blokirano i Završeno danas su skupljene;
+  - redovi zadatka iz S12: kvačica sa zadržavanjem i „Poništi“ 8 s, Moj dan, rok, prioritet, redosled Planiranog `Alt+↑/↓`, prečice liste i panel zadatka;
+  - zadatak projekta menja se mutacijom svog projekta (`PoProjektu`, kao S16), a panel radi pod `ProjekatStavkeProvider`-om;
+  - Flip i dolazak novog reda radi `FlipGroup` (do 80 redova).
+- **„Isplaniraj dan“:** Enigmin dijalog pri vrhu; „Preneto od ranije“ (Vrati, Vrati sve u danas, Skloni, `Delete`), predlozi po razlogu sa „+“, „U planu: n od 50“, poruka kad je plan pun, a jedina primarna radnja je „Gotovo“. Tastatura: ↑/↓, a fokus prelazi na red koji je stao na mesto vraćenog.
+- **Desna kolona:**
+  - **Čeka te:** postojeći zbir huba (`zbirCekanja`) nad prvih 20 projekata koji nisu arhivirani i postojeći prikaz `CekaTe` (3 stavke, „Prikaži sve“, „Bez podataka“, napomena „Uračunato 20 od N projekata.“);
+  - **Napredak:** tiha kartica sa nizom, tri nedeljna prstena, „Misije danas X / N“, do dve nezavršene misije sa trakom napretka i „Nivo N · zvanje“ kao vezom na Napredak;
+  - **Inbox:** 3 nepročitana;
+  - **Poruke:** Lično + po projektu;
+  - **Ideje za glasanje:** 4, na telefonu 3.
+- **Kontrolna tabla** u ovom koraku nije dirana: misije i dalje nosi i ona, a S20 ih sklanja (plan S18 §2.1).
+
+**Paritet:**
+- Red 1 (Moj dan: plan dana, „Isplaniraj“, prenos nezavršenog, sekcije, završeno danas): **gotovo** na `/`.
+- Red 2: brzi unos ima i red „Dodaj zadatak…“ na Danas (prečica `q` je iz S16).
+- Devotion desna kolona Moj dan (Inbox, Poruke, Čeka tebe): gotovo; „Čeka tebe“ je pod naslovom „Ideje za glasanje“ (ODLUKA 5).
+- O7/P17 („Danas · misije“ na Danas): gotovo u hubu. Kontrolna tabla ih sklanja u S20.
+
+**ODLUKE:**
+1. **„Čeka te“ na Danas ima 3 stavke, ne 5 (plan S18 E5, §1.2).** Plan je računao red od 44 px, a red `CekaTe` ima dva reda teksta (≈ 61 px). Sa 5 stavki kartica napretka pada ispod preloma na 1536 × 695, a plan traži da obe budu iznad. Ostale stavke su iza „Prikaži sve (N)“ (`CEKA_TE_DANAS = 3`, test).
+2. **Nijedan nov proizvođač „Čeka te“.**
+   - Pretplata iz privatne `CekaCelija` (hub) izdvojena je u `components/app/hub/ceka-izvor.tsx` (`useCekaProjekta`). Hub je koristi i ponaša se isto: 8 stavki, provereno u razvojnom prikazu.
+   - Danas za svaki od prvih 20 projekata crta nevidljiv `CekaIzvor` iza svoje granice greške.
+   - Izbor projekata (redosled, arhivirani, granica 20) je čista funkcija `izborProjekataCeka` u `danas-model.ts`, ista kao `Portfolio` na hubu, ali hub nije prepravljen da je koristi (manje izmena tuđeg koda).
+3. **Zaglavlje Moj dan nije preneto kao zaglavlje ekrana (plan S18 E15).**
+   - Naslov ekrana je `PageHeader` „Danas“, a pozdrav i datum su u podnaslovu.
+   - Devotion `my-day-header` (h1 „Moj dan“, `NumberRoll`, kvačica koja iskače u prstenu) je zamenjen trakom „Moj dan“ u `my-day-view.tsx`. Razlog: radni ekran se ne animira, a plan je predvideo zaseban `my-day-traka.tsx`.
+   - Prsten se ne animira pri učitavanju; luk se pomeri tek kad se vrednost promeni (`ProgressRing`).
+4. **`use-arrival` nije zadržan.** Dolazak novog reda (neprozirnost i veličina 0,98 → 1) i pomeranje suseda već radi Enigmin `FlipGroup` (snimak pre commit-a), kao na Mojim zadacima (S16). Kontejner zato ne snima ništa (`flipCapture` je prazan). Devotion `use-query-state` je zamenjen Enigminim `podaci/ja.ts`.
+5. **„Čeka tebe“ (ideje za glasanje) nosi naslov „Ideje za glasanje“**, a čip „Glasanje“ (plan S18 E7). Na istom ekranu je Enigmino „Čeka te“. Kartica „Čeka tebe“ na `/inbox` nije menjana.
+6. **Napredak na Danas je tih (plan S18 E3).**
+   - Bez XP čipa, XP trake, bonusa i zlata.
+   - Nivo je tekst „Nivo 7 · Operativac“ i veza na Napredak.
+   - Prstenovi nose boju modula kao na Kontrolnoj tabli (`MODUL_PRSTENA`, ista mapa).
+   - Kartica se ne crta kad je Napredak isključen, kad je upit pao ili kad se dan ne otvara (zastoj). Dok se dan sabira crta skelet sa „Sabiram dan…“.
+7. **Veze iz kartice napretka u „Ja“ idu kroz `JaLink`**, bez novog izuzetka u čuvaru linkova.
+   - Napredak vodi u poslednji otvoren projekat (`/<slug>/napredak`, kolačić kao „Projekat“ u donjoj traci), a bez njega na „Svi projekti“.
+   - Misija projekta vodi u svoj projekat (`odredisteMisije`).
+   - Misija bez projekta vodi na isti ekran poslednjeg projekta, a bez njega red nema adresu. Gola `/napredak` bi u „Ja“ bila adresa ekrana projekta, za koju `JaLink` javlja grešku u konzoli.
+8. **Podnaslov na telefonu** pokazuje samo brojeve dana (ili datum dok se učitava), jer uzak red sekao je baš brojeve. Pozdrav i datum ostaju od `md` naviše. Model daje delove (`podnaslovDelovi`), a pun red (`podnaslovDanas`) ostaje ≤ 90 znakova.
+9. **Čuvar pristupa:** `DOZVOLJENI_DIREKTNI` je dobio tačno tri L ključa iz plana S07 §3.2 (`prostor.myDay.carryOver`, `clearOld`, `reorder`). `proveriSpisak` to potvrđuje: front ima 155 direktnih poziva, svi su sa spiska. Nijedno pravilo nije oslabljeno, a drugi čuvari nisu menjani.
+10. **Znak projekta u boji projekta** i u desnoj koloni: `boja` iz `useMojiProjektiRadnogDela` dodaje se uz mini projekta u redovima, Inbox-u, porukama i idejama, kao u Mojim zadacima (S16 ODLUKA 3).
+11. **Posmatrač (plan S18 E6):**
+    - Danas ne zove nijedan projektni upit radnog dela sa ID-jem projekta posmatrača: `PoProjektu` dobija samo projekte iz `overview.tasks`, a panel samo iz `useMojiProjektiRadnogDela`.
+    - Enigmine stavke „Čeka te“ tog projekta ostaju, kao na hubu i u zvonu „Ja“.
+    - Server to čuva sam (`listMyActiveWorkspaces`); nov `convex/prostor/danas.test.ts` to dokazuje za Inbox, brojač, poruke i ideje.
+12. **Fikstura Danas:**
+    - Čita zadatke i lične zadatke iz fiksture „Ja“ (S16), pa kvačica, rok i panel rade nad istim podacima kao Moji zadaci, uz 7 svojih zadataka (Uskoro, Blokirano, Završeno danas, „Preneto od ranije“).
+    - Registrovana je poslednja i prosleđuje „Ja“ i Inbox-u ono što nije njeno. Mutacije plana dana menjaju stanje modula.
+    - `&stanje=` se postavlja u `UxHarness` pre prvog upita.
+    - Fikstura uvozi `@/lib/prostor/dates`, a ne `@/lib/prostor`: provere `verify:napredak` i `verify:leads-ui` uvoze fiksture kroz Node, koji ne razrešava uvoz fascikle. Sa barelom su padale; posle izmene prolaze.
+13. **`&prazno=1` ostavlja Enigmino „Čeka te“ puno.** To je postojeće pravilo razvojnog prikaza („prazno je stanje kanala, ljuska i šta me čeka ostaju“), pa snimak praznog stanja pokazuje prazan Moj dan, Inbox i Poruke, a „Čeka te“ i Napredak puni.
+14. **Alat za prenos** je u testu `my-day-logic.test.ts` preveo interni ključ `"startup:s2"` u `"projekat:s2"` (pravilo teksta E8 je pogodilo string literal). Vraćen je original, pa je broj provera isti kao u Devotionu (39/39 `expect(`). Ključ lokalnog skladišta je `enigma:danas:grupisanje`, a interna vrednost „po projektu“ ostaje `"startup"` (D10).
+
+**Novi paketi:** nema.
+
+**Testovi:** 40 novih ili prenetih (23 preneta, 17 novih), svi prolaze.
+
+| Fajl | Testova | Šta pokriva |
+|---|---|---|
+| `lib/prostor/modeli/my-day-logic.test.ts` | 11 (preneto) | sekcije, zadržavanje reda, redosled plana, optimistične slike |
+| `lib/prostor/modeli/my-day-model.test.ts` | 4 (preneto) | `buildMyDay` po vremenu i po projektu |
+| `lib/prostor/modeli/side-model.test.ts` | 4 (preneto) | Inbox, poruke, čeka tebe, skriven blok |
+| `lib/prostor/modeli/plan-day-model.test.ts` | 4 (preneto) | „Isplaniraj dan“: preneto, predlozi, granica 50 |
+| `lib/prostor/modeli/danas-model.test.ts` | 13 (novo) | **zbir Čeka te po projektima:** izbor prvih 20 koji nisu arhivirani, po redosledu, 34 projekta → „Uračunato 20 od 34 projekta.“, 0 projekata, učitavanje, sortiranje po hitnosti, „Bez podataka“, projekat posmatrača ulazi sa Enigminim stavkama. **Model sekcija:** redosled blokova, stanje kartice napretka (isključen, pao, zastoj, sabira). Ostalo: čipovi samo za > 0, podnaslov (množina, ≤ 90, delovi), misije u kartici. |
+| `convex/prostor/danas.test.ts` | 4 (novo) | posmatrač: `inbox.feed`, `inbox.unreadCounts`, `chat.unreadSummary`, `inbox.pending` i `myDay.overview` ne daju ništa iz njegovog projekta; `inbox.pending` sa njegovim ID-jem se odbija |
+
+Ceo `npx vitest run`: 198 fajlova, 2546 testova.
+
+**Rezultat provere:**
+- codegen: izlaz 0 (`convex/` ima samo nov test; `_generated` bez izmene);
+- typecheck: prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest: prolazi (198 fajlova, 2546 testova);
+- pristup: 632 / 617 / 15, front 155 direktnih poziva, 0 nedozvoljenih;
+- regresije: prolaze (20; ultra 5, prostor 1); `font-mono` 254/254. Prvi prolaz je pao na `verify:napredak` i `verify:leads-ui` zbog uvoza barela u fiksturi (ODLUKA 12); posle popravke prolaze;
+- `npm run build`: prolazi.
+- Procesi: `next dev -p 3117` je ugašen (`Stop-Process` na `next dev` i `start-server.js`, jer ga `TaskStop` ne gasi), pa je port slobodan. Ostali `node` procesi nisu iz koraka (Codex, Penpot `mcp-remote`, Playwright MCP harnessa).
+
+**Vizuelna provera** (Playwright, `next dev -p 3117`, ugašen na kraju):
+- 1536 × 695: fokus (Prekoračeno, Danas, Planirano) i jedina primarna radnja su iznad preloma. Desno su ceo „Čeka te“ i kartica napretka do prve misije.
+- Radnje:
+  - kvačica na „Ponuda za lanac kafića“ (ScanMe, kroz mutaciju tog projekta): red prelazi u Završeno danas, a broj „Danas“ u meniju „Ja“ pada sa 6 na 5;
+  - „Isplaniraj dan“: Enter na „Vrati“ daje „U planu: 3 od 50“, a fokus prelazi na sledeći red;
+  - „Po projektu“: grupe Lično, Enigma IT, ScanMe.
+- Stanja (`&stanje=`): `pretrpan` (40 redova, napomena o odsečenoj listi, 20 projekata u traci), `bez-projekata` („Nisi ni u jednom projektu.“, samo lično), `posmatrac` (nijedan red „Klijent d.o.o.“), `&prazno=1` („Danas je mirno.“ sa „Isplaniraj dan“).
+- `&pad=napredak`: kartica se ne crta; jedina greška u konzoli je namerni pad koji hvata postojeća `GranicaNapretka`.
+- `&pad=notificationsStore`: „Bez podataka: Enigma IT, ScanMe, Klijent d.o.o.“
+- 390 × 844: jedna kolona bez vodoravnog klizanja (širina 390), čipovi, podnaslov „1 kasni, 3 za danas“, donja traka.
+- Regresija: `/projekti` („Čeka te“ 8 stavki) i `/moji-zadaci` (11 otvorenih) rade kao pre.
+- Konzola: 0 grešaka i 0 upozorenja na svim stanjima osim namernog `pad`.
+
+**Prihvatanje (dokaz):**
+- „Posle prijave (u razvojnom prikazu `/`) vidi se Danas po planu S18, sa radnjama iz Moj dan“: `S19-danas-1536.png` i `S19-danas-390.png`; radnje su proverene iznad (kvačica, Isplaniraj, Vrati, Po projektu).
+- „Prazno stanje i stanje sa mnogo stavki izgledaju po planu; modeli imaju testove“: `S19-danas-prazno-1536.png` i `S19-danas-pretrpan-1536.png`, plus `S19-danas-bez-projekata-1536.png` i `S19-isplaniraj-1536.png`. Modeli Danas imaju 36 testova, a izolacija posmatrača 4 Convex testa.
+- „Provere prolaze; sekcija S19 je u progress-u“: završni prolaz iznad; ovo je sekcija S19.
+
+**Za Jovana ujutru:**
+- Na pravim podacima otvori `/`: kvačica na zadatku iz drugog projekta, „Isplaniraj dan“ (Vrati, Skloni, „+“), „Po projektu“ i panel zadatka.
+- Proveri da li „Čeka te“ i zvono „Ja“ pokazuju isti broj. Mogu da se razlikuju kad `stanjeProjekata` prekorači budžet čitanja; oba tada pišu „najmanje toliko“ (plan S18 §1.4).
+- Potvrdi:
+  - tihu karticu napretka (nivo samo tekstom, bez XP-a, ODLUKA 6);
+  - 3 stavke „Čeka te“ umesto 5 (ODLUKA 1);
+  - naslov „Ideje za glasanje“ (ODLUKA 5).
+- Kontrolna tabla do S20 i dalje nosi misije: u međukoraku su misije na dva mesta.
+- Ništa nije deployovano.

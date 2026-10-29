@@ -58,6 +58,7 @@ import { FIXTURES_PROSTOR_OSNOVA, PRAZNO_PROSTOR_OSNOVA } from "./fixtures-prost
 import { FIXTURES_PROSTOR_PORUKE, PRAZNO_PROSTOR_PORUKE } from "./fixtures-prostor-poruke";
 import { FIXTURES_PROSTOR_JA, PRAZNO_PROSTOR_JA } from "./fixtures-prostor-ja";
 import { FIXTURES_PROSTOR_INBOX, PRAZNO_PROSTOR_INBOX } from "./fixtures-prostor-inbox";
+import { FIXTURES_PROSTOR_DANAS, postaviPrethodnoStanjeProjekata } from "./fixtures-prostor-danas";
 import { redoviStatusa } from "./fixtures-status-veza";
 import { integracijeUKvaru } from "@/convex/lib/statusVeze";
 
@@ -1251,6 +1252,11 @@ Object.assign(
   // Posle osnove: Inbox računa nepročitano iz svog stanja (označavanje ga menja).
   FIXTURES_PROSTOR_INBOX,
 );
+
+// Danas (S19) poslednji: bira stanje (`&stanje=`) i prosleđuje „Ja“ i Inbox-u
+// ono što nije njegovo; zvono „Ja“ bez projekata nema šta da sabere.
+postaviPrethodnoStanjeProjekata(FIXTURES[getFunctionName(api.projekti.stanjeProjekata)]);
+Object.assign(FIXTURES, FIXTURES_PROSTOR_DANAS);
 
 // ── Prazan nalog (`?ux=1&prazno=1`) ──────────────────────────────────────────
 // Bez veza ka kanalima (osim ljuske) i bez redova: svaki kanal pokazuje svoje

@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { useQueryZaProjekat } from "../projekat-provider";
 import { ProjekatZnak } from "../projekat-znak";
 import { QuietBoundary } from "../quiet-boundary";
+import { useCekaProjekta } from "./ceka-izvor";
 
 /**
  * ============================================================================
@@ -330,18 +331,8 @@ function CekaCelija({
   pomerajMin: number;
   onCeka: (workspaceId: string, stanje: CekaProjekta) => void;
 }) {
-  const staMeCeka = useQueryZaProjekat(projekat.workspaceId, api.notificationsStore.staMeCeka, {
-    pomerajMin,
-  });
-  const ws = projekat.workspaceId;
-  useEffect(() => {
-    onCeka(
-      ws,
-      staMeCeka === undefined
-        ? { stanje: "ucitava" }
-        : { stanje: "ok", ukupno: staMeCeka.ukupno, zadaci: staMeCeka.zadaci },
-    );
-  }, [ws, staMeCeka, onCeka]);
+  // Ista pretplata i isto javljanje kao Danas (`ceka-izvor.tsx`).
+  const staMeCeka = useCekaProjekta(projekat.workspaceId, pomerajMin, onCeka);
 
   return (
     <Celija naziv="Čeka">
