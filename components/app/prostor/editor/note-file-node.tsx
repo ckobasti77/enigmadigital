@@ -123,7 +123,7 @@ function NoteFileView({ node, editor, deleteNode }: NodeViewProps) {
         controls
         preload="metadata"
         onError={() => setPreviewFailed(true)}
-        className="mx-auto max-h-[28rem] w-full rounded-xl bg-black"
+        className="mx-auto max-h-[28rem] w-full rounded-xl bg-background"
       >
         <track kind="captions" />
       </video>

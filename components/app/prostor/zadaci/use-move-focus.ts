@@ -37,7 +37,7 @@ export function useMoveFocus(
     if (key === null) return;
     refocusKey.current = null;
     if (timer.current !== null) window.clearTimeout(timer.current);
-    // Posle Radix-ovog vraćanja fokusa (popover / meni se zatvara u istom potezu).
+    // Posle vraćanja fokusa iz Base UI sloja (popover / meni se zatvara u istom potezu).
     timer.current = window.setTimeout(() => {
       timer.current = null;
       const root = listRef.current;

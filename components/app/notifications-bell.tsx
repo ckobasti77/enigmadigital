@@ -15,7 +15,6 @@ import { BedzNaUglu } from "@/components/app/system/count-badge";
 import { Unfold } from "@/components/motion/unfold";
 import { cn } from "@/lib/utils";
 import { MOBILE_TAB, MOBILE_TAB_ICON } from "./mobile-tab";
-import { resolveModule } from "./nav-items";
 import { useOpseg } from "./opseg-ljuske";
 import { ZvonoJa } from "./zvono-ja";
 import { QuietBoundary } from "./quiet-boundary";
@@ -339,11 +338,7 @@ function Stavka({
   };
 
   return (
-    // Radnja nosi boju modula u koji vodi: zeleno „Zovi" otvara Leadove.
-    <li
-      data-module={resolveModule(zadatak.veza.split(/[?#]/)[0])}
-      className="border-t border-line-soft/60 first:border-t-0"
-    >
+    <li className="border-t border-line-soft/60 first:border-t-0">
       {/* Razmak je NA DETETU, ne na `Unfold`-u: `height: 0` sa `border-box`
           ne guta uspravan razmak, pa bi ostao trag od dvadesetak piksela. */}
       <Unfold open={!sklanjam}>
@@ -358,13 +353,16 @@ function Stavka({
         </p>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <ProjekatLink
-          href={zadatak.veza}
-          onClick={onNavigate}
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-mod-line bg-mod-soft px-2.5 text-meta font-medium text-mod transition-colors hover:border-mod"
+        {/* Radnja je neutralna: boja modula kaže gde si, ne šta da
+            klikneš (CLAUDE.md, SPAJANJE S27). */}
+        <Button
+          render={<ProjekatLink href={zadatak.veza} onClick={onNavigate} />}
+          nativeButton={false}
+          variant="secondary"
+          size="sm"
         >
           {zadatak.radnja}
-        </ProjekatLink>
+        </Button>
         <Button
           type="button"
           variant="ghost"

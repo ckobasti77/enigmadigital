@@ -34,7 +34,7 @@ export const NAJMANJE_PX = 12;
  * fikstura). Upisan u T10 posle prelaska na P2: ostaju brojčane kolone
  * tabela, ID/kod/token/URL/telefon i `<code>`/`<kbd>`. Broj sme samo da pada.
  */
-export const PLAFON_MONO = 254; // T13: stvaran broj posle T11–T12 (bilo 269)
+export const PLAFON_MONO = 253; // SPAJANJE S27: period u gornjoj traci nije mono (bilo 254)
 
 /** Mono je dozvoljen u sistemu samo ovde (brojčana kolona `DataTable`). */
 export const MONO_U_SISTEMU: readonly Izuzetak[] = [

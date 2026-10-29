@@ -1,7 +1,7 @@
 /**
- * Toast (P11, plan S07 §5.3): kratko obaveštenje posle radnje, sa API-jem kao
- * `sonner`, da preneti ekrani radnog dela samo promene uvoz
- * (`from "sonner"` → `from "@/lib/toast"`).
+ * Toast (P11, plan S07 §5.3): kratko obaveštenje posle radnje, sa istim API-jem
+ * kao Devotionov paket za toast (P10 ga ne prenosi), da preneti ekrani radnog
+ * dela promene samo uvoz (na `@/lib/toast`).
  *
  * Ispod je Base UI Toast: jedan globalni menadžer (`menadzerToasta`), koji
  * crta jedan `Toaster` u ljusci (`components/app/toaster.tsx`). Poziv radi i
@@ -44,7 +44,7 @@ export type OpcijeToasta = {
   onAutoClose?: () => void;
 };
 
-/** Trajanje kao u `sonner`-u (Devotion se na njega oslanjao). */
+/** Trajanje kao u Devotionovom paketu za toast (Devotion se na njega oslanjao). */
 export const TRAJANJE_TOASTA_MS = 4000;
 
 /** Deo Base UI menadžera koji toast koristi (test podmeće svoj). */

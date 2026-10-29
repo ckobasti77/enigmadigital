@@ -7,7 +7,8 @@ import type { TooltipValueType } from "recharts"
 import { cn } from "@/lib/utils"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
-const THEMES = { light: "", dark: ".dark" } as const
+// Samo tamna tema (SPAJANJE P2): jedan skup boja, bez `.dark` prefiksa.
+const THEMES = { dark: "" } as const
 
 const INITIAL_DIMENSION = { width: 320, height: 200 } as const
 type TooltipNameType = number | string

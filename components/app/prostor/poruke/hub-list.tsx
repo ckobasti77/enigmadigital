@@ -406,7 +406,7 @@ function GroupTitle({ group }: { group: HubGroup }) {
   return (
     <>
       {group.workspace ? <StartupChip workspace={group.workspace} size="sm" /> : null}
-      <span className="min-w-0 flex-1 truncate text-meta font-semibold uppercase tracking-wide text-text-muted">
+      <span className="heading-caps min-w-0 flex-1 truncate text-meta text-text-muted">
         {group.title}
       </span>
       {group.unreadCount > 0 ? <UnreadCount count={group.unreadCount} /> : null}

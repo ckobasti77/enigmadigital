@@ -46,11 +46,6 @@ export const IZUZECI_SPREAD: readonly Izuzetak[] = [
 export const DOZVOLJENA_BOJA_MODULA: readonly Izuzetak[] = [
   { fajl: "components/app/module-tile.tsx", sadrzi: "", razlog: "aktivna stavka bočne trake" },
   { fajl: "components/app/app-sidebar.tsx", sadrzi: "", razlog: "crtica aktivne stavke bočne trake" },
-  {
-    fajl: "components/app/meni-ja.tsx",
-    sadrzi: "",
-    razlog: "crtica i aktivna stavka menija „Ja“ — isto mesto kao bočna traka projekta (SPAJANJE P14)",
-  },
   { fajl: "components/app/mobile-nav.tsx", sadrzi: "", razlog: "crtica aktivne ćelije donje trake" },
   { fajl: "components/app/system/page-header.tsx", sadrzi: "", razlog: "ikonica zaglavlja" },
   { fajl: "app/dev-ux/sistem/vodic.tsx", sadrzi: "", razlog: "vodič pokazuje boje modula (mesto)" },
@@ -70,7 +65,7 @@ export const IZUZECI_PUNE_PODLOGE: readonly Izuzetak[] = [
  * (izabrana stanja, ikonice i trake na ekranima) čiste faze U10–U16. Broj sme
  * samo da pada; kad padne, spusti plafon.
  */
-export const PLAFON_BOJE_MODULA = 654; // T13: stvaran broj posle T11–T12 (bilo 679)
+export const PLAFON_BOJE_MODULA = 646; // SPAJANJE S27: radnja u „Čeka te“ bez boje modula (bilo 654)
 
 const BOJA_MODULA =
   /(?:^|[^\w-])(?:[a-z-]+:)*(?:text|bg|border|ring|fill|stroke|shadow|outline|from|to|via|decoration|accent)-mod(?:-strong|-soft|-line|-glow)?(?![\w-])|var\(--mod(?:-strong|-soft|-line|-glow)?\)/g;

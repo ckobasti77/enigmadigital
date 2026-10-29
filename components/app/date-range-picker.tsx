@@ -378,7 +378,7 @@ function TrakaBirac({
           se uvek vidi. */}
       <p
         className={cn(
-          "whitespace-nowrap font-mono text-xs tabular-nums text-text-muted",
+          "whitespace-nowrap text-xs tabular-nums text-text-muted",
           compact && "hidden lg:block",
         )}
       >

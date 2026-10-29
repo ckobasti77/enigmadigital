@@ -15,6 +15,7 @@
     "verify:purge": "node --import ./scripts/ts-hooks.mjs scripts/verify-purge-coverage.ts",
     "verify:pristup": "node --import ./scripts/ts-hooks.mjs scripts/verify-pristup.ts",
     "verify:prostor-pristup": "node --import ./scripts/ts-hooks.mjs scripts/verify-prostor-pristup.ts",
+    "verify:prostor-dizajn": "node --import ./scripts/ts-hooks.mjs scripts/verify-prostor-dizajn.ts",
     "verify:obavestenja": "node --import ./scripts/ts-hooks.mjs scripts/notifications-check.ts",
     "verify:napredak": "node --import ./scripts/ts-hooks.mjs scripts/napredak-check.ts",
     "verify:leads-ui": "node --import ./scripts/ts-hooks.mjs scripts/leads-table-entropy.ts",

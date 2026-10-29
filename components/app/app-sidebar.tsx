@@ -24,7 +24,7 @@ import {
   vidljiveSekcije,
   type NavItem,
 } from "./nav-items";
-import { ModuleTile } from "./module-tile";
+import { ActiveBar, ModuleTile, RED_TRAKE_IZABRAN } from "./module-tile";
 import { NavBadge } from "./nav-badge";
 import { useNeprocitano } from "./podaci-ljuske";
 import { QuietBoundary } from "./quiet-boundary";
@@ -237,16 +237,6 @@ function Tip({
   );
 }
 
-/** Crta uz levu ivicu trake: u kom si modulu. Ne meri se, pa preživi reflow. */
-function ActiveBar() {
-  return (
-    <span
-      aria-hidden
-      className="absolute -left-2.5 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-mod"
-    />
-  );
-}
-
 function NavRow({
   item,
   pathname,
@@ -274,7 +264,7 @@ function NavRow({
     "group relative flex items-center gap-2.5 rounded-lg pl-[9px] pr-2 text-ui font-medium transition-colors",
     rail ? "h-9" : "h-[30px]",
     filled
-      ? "bg-mod-soft text-foreground"
+      ? RED_TRAKE_IZABRAN
       : active
         ? "text-foreground"
         : "text-text-secondary hover:bg-sidebar-accent/60 hover:text-foreground",

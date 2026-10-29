@@ -41,3 +41,19 @@ export function ModuleTile({
     </span>
   );
 }
+
+/**
+ * Podloga izabranog reda bočne trake. Deli je meni projekta (`app-sidebar`) i
+ * meni „Ja“ (`meni-ja`), da boja mesta stoji u jednom fajlu (SPAJANJE S27).
+ */
+export const RED_TRAKE_IZABRAN = "bg-mod-soft text-foreground";
+
+/** Crta uz levu ivicu trake: u kom si modulu. Ne meri se, pa preživi reflow. */
+export function ActiveBar() {
+  return (
+    <span
+      aria-hidden
+      className="absolute -left-2.5 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-mod"
+    />
+  );
+}

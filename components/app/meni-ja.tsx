@@ -10,7 +10,7 @@ import { CountBadge, BedzNaUglu } from "@/components/app/system/count-badge";
 import { unreadMessagesPhrase, unreadPhrase } from "@/lib/prostor/web/opseg";
 import { cn } from "@/lib/utils";
 import { JaLink } from "./ja-link";
-import { ModuleTile } from "./module-tile";
+import { ActiveBar, ModuleTile, RED_TRAKE_IZABRAN } from "./module-tile";
 import { activeJaHref, jaNavItems, type NavItem } from "./nav-items";
 import {
   useBrojeviJa,
@@ -161,17 +161,12 @@ function RedJa({ item, aktivan, rail }: { item: NavItem; aktivan: boolean; rail:
     "group relative flex items-center gap-2.5 rounded-lg pl-[9px] pr-2 text-ui font-medium transition-colors",
     rail ? "h-9" : "h-[30px]",
     aktivan
-      ? "bg-mod-soft text-foreground"
+      ? RED_TRAKE_IZABRAN
       : "text-text-secondary hover:bg-sidebar-accent/60 hover:text-foreground",
   );
   const sadrzaj = (
     <>
-      {aktivan && (
-        <span
-          aria-hidden
-          className="absolute -left-2.5 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-mod"
-        />
-      )}
+      {aktivan && <ActiveBar />}
       <ModuleTile icon={item.icon} active={aktivan} />
       <span data-nav-fade className={rail ? "sr-only" : "min-w-0 flex-1 truncate"}>
         {item.label}

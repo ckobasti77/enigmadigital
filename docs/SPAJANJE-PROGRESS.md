@@ -2055,3 +2055,124 @@ Proveren grep-om i čitanjem koda (broj fajlova ekrana sa praznim stanjem / skel
 - Mapa na telefonu je samo pregled (ODLUKA 2) — potvrdi da ti to odgovara; uređivanje mape ostaje na računaru.
 - Probaj uređivač stranice sa tastaturom telefona (alatna traka, autosave) i panel zadatka (status, rok, izvršioci, komentar).
 - Ništa nije deployovano.
+
+## S27 — Dizajn sistem: čuvari, tokeni, pokret   (2026-10-29 19:10)
+**Fajlovi:**
+- Primitivi `components/ui/`:
+  - `table.tsx`: izabran red se boji kroz `aria-selected`;
+  - `toggle.tsx`: bez Radix varijante stanja (ostaje `aria-pressed`);
+  - `chart.tsx`: jedna, tamna tema;
+  - `tabs.tsx`, `dialog.tsx`, `drawer.tsx`: samo komentari, bez pominjanja Radixa.
+- Ljuska `components/app/`:
+  - `module-tile.tsx`: `ActiveBar` i `RED_TRAKE_IZABRAN`, zajednički za bočnu traku i meni „Ja“;
+  - `app-sidebar.tsx` i `meni-ja.tsx`: uvoze ih;
+  - `notifications-bell.tsx` i `hub/ceka-te.tsx`: radnja „Čeka te“ je sporedno dugme;
+  - `date-range-picker.tsx`: period bez mono pisma.
+- Radni deo `components/app/prostor/`:
+  - `poruke/channel-list.tsx` i `poruke/hub-list.tsx`: natpis grupe kroz `heading-caps`;
+  - `editor/note-file-node.tsx`: podloga videa je token;
+  - `mape/canvases/perimeter-resize-control.module.css`: fokus bez oreola;
+  - komentari bez pominjanja Radixa u `editor/rich-text-editor.tsx`, `precice/precice-provider.tsx` i `zadaci/use-move-focus.ts`.
+- Čuvari:
+  - nov `lib/prostor-dizajn-cuvar.ts` (+ test), `scripts/verify-prostor-dizajn.ts` i unos `verify:prostor-dizajn` u `package.json`;
+  - `scripts/motion-check.ts`: sekcija 14;
+  - `lib/dugmad-cuvar.ts`: izuzetak `meni-ja` uklonjen, plafon 654 → 646;
+  - `lib/tipografija-cuvar.ts`: plafon mono 254 → 253.
+- `lib/toast.ts` i `lib/toast.test.ts`: komentar i nazivi testova više ne navode ime Devotionovog paketa za toast, pa doslovni grep po kodu ostaje čist. Ponašanje je isto.
+- Alati `.nocni-run/spajanje/alati/`:
+  - `s27-dizajn.mjs`: merenje 28 ekrana na 1536 i 390;
+  - `s27-stanja.mjs`: 13 plutajućih slojeva;
+  - `s27-zameni.mjs`: zamene teksta koje čuvaju kraj reda.
+- Snimci `docs/spajanje/snimci/` (9; radni deo levo, Enigmin ekran desno):
+  - `S27-uporedo-{danas-napredak,pocetna-analitika,zadaci-leadovi,poruke-novosti,oblast-korpa,zvono-dijalog,podesavanja}-1536.png`;
+  - `S27-uporedo-telefon-{ja,projekat}-390.png`.
+
+**Šta je urađeno:**
+- **Pregled.** Alat `s27-dizajn.mjs` je otvorio 24 ekrana radnog dela, 4 kartice Podešavanja i 4 Enigmina ekrana za poređenje, na 1536 × 695 i 390 × 844.
+  - U DOM-u je brojao: naslove ekrana, primarna dugmad, nadnaslove, verzal, karticu u kartici, pismo mimo Aeonika, tekst ispod 12 px, boju radnje van kontrole, boju modula van ljuske, svetlu podlogu i boju u `style`.
+  - Rezultat za radni deo: svaki ekran ima tačno jedan `h1` i najviše jedno primarno dugme. Nema nadnaslova, pisma mimo Aeonika, teksta ispod 12 px, boje radnje van radnje ni svetle podloge.
+  - `s27-stanja.mjs` je isto proverio u 13 dijaloga, fioka i zvona: najviše jedno primarno dugme po sloju, bez kartice u kartici.
+- **Lista razlika i popravke:**
+  1. **Natpisi grupa u Porukama** („Opšte“, „Kanali“, projekti u „Ja“) bili su debeli verzal sa svojim razmakom slova. Sada su `heading-caps`, kao u bočnoj traci i Inbox-u.
+  2. **Radnja u „Čeka te“** (zvono i blok na Danas) bila je u boji modula u koji vodi (zeleno „Zovi“). Na početnoj projekta ista lista („Šta me čeka“) ima sporedno dugme sa strelicom. Sada su sva tri mesta ista: sporedno dugme (ODLUKA 2).
+  3. **Period u gornjoj traci** („2.–29. okt · 28 d“) bio je mono, a datum u rečenici nikad nije mono (DESIGN.md). Sada je Aeonik sa `tabular-nums`.
+  4. **Video u belešci** imao je sirovu crnu podlogu; sada je token `bg-background`.
+  5. **Fokus ivice za promenu veličine na mapi** imao je oreol (`drop-shadow 0 0 4px`) nad providnom linijom, pa se zapravo nije ni video. Sada se ivica na fokusu crta punom linijom u boji fokusa.
+  6. **Ostaci Radixa:**
+     - varijanta stanja u `ui/table` zamenjena je sa `aria-selected`, a u `ui/toggle` uklonjena (`aria-pressed` već postoji); Base UI ih nikad ne postavlja;
+     - `ui/chart` više nema svetlu temu;
+     - komentari koji su pominjali Radix prepisani su na Base UI.
+- **Izuzeci čuvara.** Za dizajn je radni deo dodao tačno jedan izuzetak: `meni-ja.tsx` u `DOZVOLJENA_BOJA_MODULA` (S09).
+  - Uklonjen je: crtica i podloga izabranog reda sada žive u `module-tile.tsx`, koji je već dozvoljen („aktivna stavka bočne trake“). Bočna traka i meni „Ja“ ih uvoze.
+  - Ostali izuzeci iz runa ostaju, uz razlog (ODLUKA 4).
+- **Nov čuvar `verify:prostor-dizajn` (P25)** drži prihvatanje trajnim:
+  - PD1: bez Radixa (uvoz, varijanta stanja, `asChild`);
+  - PD2: bez `framer-motion`, `motion`, `sonner` i `next-themes`;
+  - PD3: radni deo bez heksa, `rgb()`/`hsl()`/`oklch()` i sirove Tailwind palete, u kodu i u CSS-u;
+  - PD4: radni deo bez boje modula;
+  - PD5: bez Geista;
+  - PD6: samo tamna tema;
+  - PD7: verzal samo kroz `heading-caps`, bez razmaka slova nadnaslova;
+  - PD8: bez `<Card>` u `<Card>`.
+
+  Pregleda 749 fajlova koda (od toga 303 u radnom delu), 7 CSS fajlova radnog dela, `app/globals.css` i `package.json`. Prolazi bez ijednog izuzetka.
+- **Pokret (P12).** `verify:pokret` je dobio sekciju 14:
+  - svaki GSAP fajl radnog dela (6) uzima trajanje i krivu iz `lib/motion.ts` i ima granu za smanjen pokret, bez Devotion opruge;
+  - CSS radnog dela uzima trajanje samo iz tokena i nema `@keyframes`;
+  - klase nemaju `duration-N`, `ease-[…]` ni `delay-N`, a od beskonačnog pokreta postoje samo spiner i kostur.
+
+  Sekcija prolazi bez izmene koda: preneti pokret je već bio na Enigminom rečniku (S08–S26).
+
+**Paritet:** P3 (dizajn sistem) i P12 (pokret) za radni deo i spojenu ljusku su pokriveni i zaključani čuvarima (`verify:prostor-dizajn`, `verify:pokret` §14, `verify:ultra-*`). Redovi §6 se ne menjaju, jer je menjan samo izgled.
+
+**ODLUKE:**
+1. **„Šta radi“ na početnoj projekta ostaje kartica u kartici.** To je Enigmin blok Kontrolne table (`components/app/overview/performance-highlights.tsx`), koji S20 namerno ugrađuje „u celini, bez izmene“. Pravilo koraka kaže da se Enigmini ekrani ne menjaju, pa ga ne diram; to je dug Enigme, ne radnog dela. Isto važi za Enigmina Podešavanja → Integracije (kartice u kartici) i za Leadove, koji nemaju `h1`.
+2. **Radnja u „Čeka te“ više nije u boji modula**, ni u zvonu ljuske ni u bloku na Danas i na „Svi projekti“. CLAUDE.md kaže da boja modula kaže gde si, a ne šta da klikneš, i da nikad nije na dugmetu. Zvono je deo ljuske, a ista lista na početnoj („Šta me čeka“) već ima sporedno dugme, pa je razlika greška u ljusci. Plafon boje modula je zato spušten sa 654 na 646, jer čuvar sme samo da pada.
+3. **Period u gornjoj traci nije mono** (ljuska, pravilo mono iz DESIGN.md). Plafon mono je spušten sa 254 na 253.
+4. **Izuzeci koji ostaju, sa razlogom u kodu i ovde:**
+   - `components/app/ja-link.tsx` u `NEXT_LINK_DOZVOLJEN` (S08, ODLUKA 5): omotač linkova nivoa „Ja“; kroz `ProjekatLink` bi dobili prefiks tekućeg projekta.
+   - Ključevi u `DOZVOLJENI_DIREKTNI` (`scripts/verify-pristup.ts`): plan §4.3 tako propisuje za „Ja“, i ne tiču se dizajna.
+   - Dodaci u `lib/uloge-ui-cuvar.test.ts` i `lib/front-cuvar.ts` pojačavaju pravilo, ne slabe ga.
+5. **`.on-light` ostaje.** To je svetla POVRŠINA (pregled objave i DM-a, A1), ne tema; `color-scheme: light` postoji samo unutar nje. PD6 to proverava: van `.on-light` pada, a `html` mora da bude `color-scheme: dark`.
+6. **Van radnog dela ostaje:**
+   - `dark:text-warning` na tri Enigmina Instagram ekrana: isto je kao osnovna klasa, pa nema efekta, a Enigmini ekrani se ne diraju;
+   - selektor `[stroke='#ccc']` u `ui/chart.tsx`: gađa podrazumevanu Recharts boju, a ne piše boju;
+   - selektori sa `data-state` u izgrađenom CSS-u: dolaze iz paketa `shadcn/tailwind.css`, čije varijante (`data-open:`, `data-active:`…) gađaju i Base UI i Radix atribute. To je kod paketa, ne naš, a menjanje varijanti bi diralo sve primitive.
+7. **Natpis grupe u Porukama ostaje verzal** (`heading-caps`), jer Enigma dozvoljava verzal za natpis grupe. DIZAJN-SMIRENJE zabranjuje verzal za naslove sekcija i nadnaslove. Ovo nije ni jedno ni drugo, nego natpis grupe u listi, kao „RAD“ i „PRODAJA“ u bočnoj traci.
+8. **Nov čuvar ne skenira sam sebe ni druge `*-cuvar.ts` fajlove**, jer oni opisuju zabranjene obrasce. U testu su primeri razbijeni na delove, da Tailwind (koji skenira i `lib/`) od njih ne napravi pravilo.
+
+**Novi paketi:** nema.
+
+**Testovi:** nov `lib/prostor-dizajn-cuvar.test.ts` (10 testova):
+- opseg radnog dela;
+- PD1–PD8 na primerima (komentar se ne broji, tokeni prolaze);
+- CSS radnog dela;
+- `globals.css` (`.on-light` i `html`);
+- `package.json`;
+- ceo kod.
+
+Postojeći testovi čuvara dugmadi i tipografije prolaze sa spuštenim plafonima. Ceo `npx vitest run`: 207 fajlova, 2644 testa.
+
+**Rezultat provere:**
+- codegen nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1210 upozorenja, kao i pre);
+- vitest: prolazi (2644);
+- pristup: prolazi (635 / 620 / 15; front 161 direktan poziv, 0 nedozvoljenih);
+- regresije: prolaze (21; ultra 5, prostor 2), uključujući nov `verify:prostor-dizajn` i `verify:pokret` sa sekcijom 14;
+- `npm run build`: prolazi.
+
+**Grep (prihvatanje):** u `components/`, `app/` i `lib/`:
+- nema uvoza `@radix-ui`, `framer-motion` ni `sonner`;
+- nema reči „Radix“ van čuvara (`scripts/motion-check.ts` opisuje šta hvata);
+- nema Radix varijante stanja ni `asChild`;
+- nema heksa ni sirove palete u radnom delu, ni Geista;
+- jedina „svetla“ stvar je površina `.on-light` (ODLUKA 5);
+- jedini preostali pogoci su `hasChildren` (lažan pogodak za `asChild`) i negativni primeri u `lib/prostor-dizajn-cuvar.test.ts`, gde su imena paketa sastavljena od delova.
+
+**Vizuelna provera:** `next dev -p 3117` je pušten kao zaseban proces, uz Playwright skripte iznad, na 1536 × 695 i 390 × 844. Dev server je ugašen na kraju. Konzola je bez grešaka na svim merenim ekranima.
+
+**Za Jovana ujutru:**
+- Zvono → „Čeka te“ i blok „Čeka te“ na Danas: radnje su sada neutralna dugmad sa strelicom, a ne obojene po modulu (ODLUKA 2). Potvrdi da ti tako odgovara.
+- „Šta radi“ na početnoj projekta je i dalje kartica u kartici (ODLUKA 1). Ako želiš, sledeći korak je da spoljni okvir postane obična sekcija; to menja izgled bloka Kontrolne table.
+- Ništa nije deployovano.

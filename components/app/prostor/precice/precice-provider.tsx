@@ -43,8 +43,7 @@ const ShortcutContext = createContext<ShortcutContextValue | null>(null);
 
 /**
  * Otvoren modalni sloj (dijalog, sheet, meni) — tada obične prečice ćute.
- * Base UI iskačuće slojeve označava atributom `data-open` (Devotion je gledao
- * Radixov `data-state="open"`).
+ * Base UI iskačuće slojeve označava atributom `data-open`.
  */
 const OPEN_LAYER_SELECTOR = [
   '[role="dialog"][data-open]',

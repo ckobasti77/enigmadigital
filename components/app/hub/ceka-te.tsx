@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { useId, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber, pluralSr } from "@/lib/format";
 import { vezaUProjektu, type Hitnost, type Zbir } from "@/lib/hub-zbir";
 import { cn } from "@/lib/utils";
-import { resolveModule } from "../nav-items";
 
 /**
  * ============================================================================
@@ -104,8 +103,6 @@ export function CekaTe({
             {prikazane.map(({ projekat, zadatak }) => (
               <li
                 key={`${projekat.workspaceId}:${zadatak.kljuc}`}
-                // Radnja nosi boju modula u koji vodi (isto kao zvono).
-                data-module={resolveModule(zadatak.veza.split(/[?#]/)[0])}
                 className="flex items-start gap-3 px-4 py-3"
               >
                 <span
@@ -120,13 +117,19 @@ export function CekaTe({
                     {zadatak.imenilac ? ` · ${zadatak.imenilac}` : ""}
                   </p>
                 </div>
-                <Link
-                  href={vezaUProjektu(projekat.slug, zadatak.veza)}
-                  className="touch-target inline-flex h-7 shrink-0 items-center rounded-md border border-mod-line bg-mod-soft px-2.5 text-meta text-mod transition-colors hover:border-mod focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                {/* Radnja je neutralna, kao „Šta me čeka“ na početnoj: boja
+                    modula kaže gde si, ne šta da klikneš (CLAUDE.md, SPAJANJE S27). */}
+                <Button
+                  render={<Link href={vezaUProjektu(projekat.slug, zadatak.veza)} />}
+                  nativeButton={false}
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0"
                 >
                   {zadatak.radnja}
                   <span className="sr-only"> u projektu {projekat.ime}</span>
-                </Link>
+                  <ArrowRight data-icon="inline-end" aria-hidden />
+                </Button>
               </li>
             ))}
           </ul>

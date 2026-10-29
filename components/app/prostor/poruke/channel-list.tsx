@@ -82,7 +82,7 @@ export function ChannelList({
             if (sectionChannels.length === 0) return null;
             return (
               <section key={section.id} className="space-y-0.5">
-                <p className="px-3 pb-1 text-meta font-semibold uppercase tracking-wide text-text-muted">
+                <p className="heading-caps px-3 pb-1 text-meta text-text-muted">
                   {section.label}
                 </p>
                 {sectionChannels.map((channel) => (

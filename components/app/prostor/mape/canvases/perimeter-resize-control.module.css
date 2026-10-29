@@ -48,16 +48,11 @@
   opacity: 1;
 }
 
-.hitPath:focus-visible {
-  filter:
-    drop-shadow(0 0 2px var(--background))
-    drop-shadow(
-      0 0 4px
-        var(
-          --perimeter-resize-accent,
-          var(--node-accent, var(--checkpoint-accent, var(--focus-ring)))
-        )
-    );
+/* Fokus tastature: vidljiva linija u boji fokusa, bez oreola (DESIGN.md). */
+.hitPath:focus-visible + .visualPath {
+  stroke: var(--focus-ring-strong);
+  stroke-width: 2.25px;
+  opacity: 1;
 }
 
 @media (pointer: coarse) {

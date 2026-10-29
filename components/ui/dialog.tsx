@@ -49,8 +49,8 @@ function DialogPopup({
         data-slot="dialog-popup"
         className={cn(
           "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl border border-line bg-surface-raised p-6 shadow-elev-3 sm:max-w-md",
-          // CSS prelaz na Base UI stanjima (S08, D17). Radix atribut stanja
-          // Base UI nikad ne postavlja, pa ulaz i izlaz ranije nisu radili.
+          // CSS prelaz na Base UI stanjima (S08, D17). `data-state` Base UI
+          // nikad ne postavlja, pa ulaz i izlaz ranije nisu radili.
           "transition-[opacity,scale] duration-(--duration-base) ease-(--ease-ui) data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0",
           className,
         )}

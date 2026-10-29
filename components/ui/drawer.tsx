@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
  * samo uvoz. Novo je `strana` („desno“ ili „dole“).
  *
  * Pokret je CSS prelaz na Base UI stanjima (`data-starting-style`,
- * `data-ending-style`), a ne GSAP sa `forceMount`: Base UI čeka da se prelaz
+ * `data-ending-style`), a ne GSAP nad slojem koji ostaje u DOM-u: Base UI čeka da se prelaz
  * završi pa tek onda skida panel, a prelaz kreće od zatečenog položaja (i
  * posle prevlačenja). Pod smanjenim pokretom globalno pravilo ostavlja samo
  * neprozirnost.

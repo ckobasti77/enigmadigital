@@ -614,5 +614,69 @@ for (const fajl of ["animated-check.tsx", "flip-group.tsx"]) {
   );
 }
 
+// ---------------------------------------------------------------------------
+console.log("\n14. Radni deo (SPAJANJE S27, P12): jedan rečnik pokreta");
+// ---------------------------------------------------------------------------
+
+// Devotionov rečnik (90/160/240/380 ms, opruga) ne postoji: svaki GSAP pokret
+// radnog dela uzima trajanje i krivu iz `lib/motion.ts` i ima granu za
+// smanjen pokret; CSS prelaz uzima trajanje iz tokena (`--duration-*`).
+function fajloviRadnogDela(dir: string, izlaz: string[] = []): string[] {
+  for (const ulaz of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+    const put = `${dir}/${ulaz.name}`;
+    if (ulaz.isDirectory()) fajloviRadnogDela(put, izlaz);
+    else if (/\.(tsx?|css)$/.test(ulaz.name) && !/\.test\.tsx?$/.test(ulaz.name)) izlaz.push(put);
+  }
+  return izlaz;
+}
+const radniDeo = fajloviRadnogDela("components/app/prostor");
+proveri("radni deo je pregledan (bar 200 fajlova)", radniDeo.length >= 200, `samo ${radniDeo.length}`);
+
+const gsapFajlovi: string[] = [];
+const losGsap: string[] = [];
+const losCss: string[] = [];
+const losKlase: string[] = [];
+for (const put of radniDeo) {
+  const kod = readFileSync(join(ROOT, put), "utf8");
+  if (put.endsWith(".css")) {
+    const bez = kod.replace(/\/\*[\s\S]*?\*\//g, "");
+    // Trajanje u CSS-u samo iz tokena; keyframe animacija ne postoji.
+    if (/@keyframes|animation\s*:/.test(bez) || /\b\d*\.?\d+m?s\b/.test(bez.replace(/var\(--[\w-]+\)/g, ""))) {
+      losCss.push(put);
+    }
+    continue;
+  }
+  if (/from "gsap"|useGSAP/.test(kod)) {
+    gsapFajlovi.push(put);
+    const ok =
+      kod.includes('from "@/lib/motion"') &&
+      kod.includes("MOTION_QUERIES") &&
+      kod.includes("conditions?.still") &&
+      !/duration:\s*\d/.test(kod) &&
+      !/ease:\s*"(?!none")[^"]*"/.test(kod) &&
+      !/springTween|SPRING\.|bouncy|back\.out|elastic/.test(kod);
+    if (!ok) losGsap.push(put);
+  }
+  // Tailwind: trajanje i kriva samo iz tokena; beskonačno samo spiner i kostur.
+  if (/(?:^|[\s"'`:])(?:duration-\d|duration-\[|ease-\[|delay-\d|delay-\[)|animate-(?!spin\b|pulse\b|none\b)[a-z]/.test(kod)) {
+    losKlase.push(put);
+  }
+}
+proveri(
+  `GSAP u radnom delu (${gsapFajlovi.length} fajlova): rečnik iz lib/motion.ts i grana za smanjen pokret`,
+  gsapFajlovi.length > 0 && losGsap.length === 0,
+  losGsap.join(", ") || "nijedan GSAP fajl nije nađen",
+);
+proveri(
+  "CSS radnog dela: trajanje samo iz tokena, bez @keyframes",
+  losCss.length === 0,
+  losCss.join(", "),
+);
+proveri(
+  "klase radnog dela: bez `duration-N`, `ease-[…]`, `delay-N` i ukrasnih `animate-*`",
+  losKlase.length === 0,
+  losKlase.join(", "),
+);
+
 console.log(pao === 0 ? "\nSVE PROLAZI\n" : `\n${pao} PROVERA NIJE PROSLA\n`);
 process.exit(pao === 0 ? 0 : 1);

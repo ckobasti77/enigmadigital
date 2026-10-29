@@ -19,7 +19,7 @@ function lazniMenadzer() {
   return { menadzer, dodati, zatvoreni };
 }
 
-describe("toast (API kao sonner)", () => {
+describe("toast (API kao Devotionov paket za toast)", () => {
   test("svaki ton dodaje toast sa svojim tipom i porukom kao naslovom", () => {
     const { menadzer, dodati } = lazniMenadzer();
     const toast = napraviToast(menadzer);
@@ -47,7 +47,7 @@ describe("toast (API kao sonner)", () => {
     expect(dodati.map((d) => d.priority)).toEqual(["low", "high", "high", "low"]);
   });
 
-  test("podrazumevano trajanje je kao u sonner-u, a `duration` ima prednost", () => {
+  test("podrazumevano trajanje je kao u Devotionu, a `duration` ima prednost", () => {
     const { menadzer, dodati } = lazniMenadzer();
     const toast = napraviToast(menadzer);
     toast("a");

@@ -14,8 +14,8 @@ import { cn } from "@/lib/utils";
  * - `pill` (prekidač prikaza: Lista · Tabla) — izabrana kartica je podignuta
  *   površina, bez boje.
  *
- * Izabrana kartica nosi Base UI atribut `data-active` (ne Radix atribut
- * stanja). Pod `pointer: coarse` kartica ima najmanje 44 px.
+ * Izabrana kartica nosi Base UI atribut `data-active` (ne `data-state`).
+ * Pod `pointer: coarse` kartica ima najmanje 44 px.
  */
 type TabsVarijanta = "line" | "pill";
 

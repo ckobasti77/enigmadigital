@@ -296,10 +296,10 @@ export function RichTextEditor({
   };
 
   /**
-   * Lanac izmene ide bez `focus()` u sebi: dok je dijalog otvoren Radix vraća
-   * fokus sebi, pa se kursor u tekst vraća tek kad React upiše zatvoreno stanje
-   * i zamka fokusa popusti (`onCloseAutoFocus` je isključen da fokus ne bi
-   * završio na toolbar dugmetu).
+   * Lanac izmene ide bez `focus()` u sebi: dok je dijalog otvoren Base UI drži
+   * fokus u njemu, pa se kursor u tekst vraća tek kad React upiše zatvoreno
+   * stanje i zamka fokusa popusti (`finalFocus={false}` u `link-dijalog.tsx`, da
+   * fokus ne bi završio na toolbar dugmetu).
    */
   const restoreEditorFocus = () => {
     setTimeout(() => {
