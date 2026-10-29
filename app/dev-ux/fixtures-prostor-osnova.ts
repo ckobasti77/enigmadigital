@@ -173,7 +173,7 @@ export const OBLAST_UX = OBLASTI[0]._id;
 
 // ── Projekti ─────────────────────────────────────────────────────────────────
 
-const PROJEKTI: Projekat[] = [
+export const PROJEKTI: Projekat[] = [
   {
     _id: WS,
     name: "Enigma IT",

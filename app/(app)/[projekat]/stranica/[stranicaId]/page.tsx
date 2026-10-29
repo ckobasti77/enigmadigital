@@ -1,5 +1,6 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { EkranUskoro } from "@/components/app/prostor/ekran-uskoro";
+import { StranicaEkran } from "@/components/app/prostor/dokumenti/ekrani";
 import { jeOblikId } from "@/lib/prostor/web/oblik-id";
 
 export const metadata = {
@@ -8,9 +9,9 @@ export const metadata = {
 };
 
 /**
- * Stranica ili zadatak na celu stranu (`?tab=mapa`, SPAJANJE P13). Server
- * proverava samo oblik ID-ja; postojanje i pripadnost projektu proverava
- * backend. Sadržaj donosi kasniji korak.
+ * Stranica kao dokument tima (`?tab=mapa`, SPAJANJE P13). Server proverava
+ * samo oblik ID-ja; postojanje i pripadnost projektu proverava backend.
+ * Karticu čita klijent (`useSearchParams`), zato Suspense.
  */
 export default async function Page({
   params,
@@ -19,5 +20,9 @@ export default async function Page({
 }) {
   const { stranicaId } = await params;
   if (!jeOblikId(stranicaId)) notFound();
-  return <EkranUskoro naslov="Stranica" />;
+  return (
+    <Suspense>
+      <StranicaEkran stranicaId={stranicaId} />
+    </Suspense>
+  );
 }

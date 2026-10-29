@@ -23,8 +23,11 @@
  * Nepoznata vrednost parametra pri čitanju daje podrazumevanu (Devotion K07
  * E13): nepoznat filter = „Svi“, nepoznata kartica = podrazumevana.
  */
-import type { Id } from "../../convex/_generated/dataModel";
+import type { FunctionReturnType } from "convex/server";
+import type { api } from "../../convex/_generated/api";
+import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { putanjaEkrana } from "../rutiranje";
+import type { PageKind } from "./web/vrste-stranica";
 
 // ── Tipovi (port Devotion `workspace/types.ts`) ────────────────────────────
 
@@ -81,6 +84,28 @@ export type ProjektnaRuta =
   | { kind: "page"; pageId: Id<"pages">; tab?: PageTab };
 
 export type ProstorRuta = JaRuta | ProjektnaRuta;
+
+// ── Podaci ekrana (port ostatka Devotion `workspace/types.ts`, S10) ─────────
+
+/** Profil radnog dela sa adresom slike. */
+export type ProfileWithAvatar = Doc<"profiles"> & { avatarUrl: string | null };
+
+/**
+ * Projekat sa oblastima (`prostor.projekat.get`). Zamena za Devotion
+ * `StartupWithAreas`: umesto `createdByProfileId` nosi `isManager` (vlasnik
+ * projekta ili vlasnik platforme) i ulogu člana.
+ */
+export type StartupWithAreas = FunctionReturnType<typeof api.prostor.projekat.get>;
+
+/** Član projekta za dodelu i pominjanje (`prostor.projekat.listMembers`). */
+export type StartupMember = FunctionReturnType<typeof api.prostor.projekat.listMembers>[number];
+
+/** Gde nastaje nova stranica: oblast, roditelj i početna vrsta. */
+export type CreatePageTarget = {
+  areaId?: Id<"areas">;
+  parentPageId?: Id<"pages"> | null;
+  initialKind?: PageKind;
+};
 
 /** Opseg prikaza: lični nivo ili projekat. */
 export type OpsegRute = "ja" | "projekat";

@@ -758,3 +758,94 @@ Ceo `npx vitest run`: 159 fajlova, 2206 testova.
 - Posmatrač vidi samo Početnu iz grupe Rad (ODLUKA 4). Potvrdi.
 - Kartica Napredak u podnožju menija je uska, pa zvanje može da se skrati („Opera…“).
 - Ništa nije deployovano.
+
+## S10 — Dokumenti 1: oblasti, stablo, stranica, editor   (2026-10-29 07:20)
+**Fajlovi:**
+- Rute `app/(app)/[projekat]/`: `dokumenti/page.tsx`, `dokumenti/[oblastId]/page.tsx`, `stranica/[stranicaId]/page.tsx` (umesto `EkranUskoro`; `params` se čeka, klijentski kontejner je u `<Suspense>`).
+- `components/app/prostor/dokumenti/` (preneto alatom pa ručno dovršeno): `area-view`, `area-header`, `area-overview(-container)`, `area-documents(-container)`, `use-area-body`, `create-page-dialog`, `create-area-dialog`, `move-to-area-menu`, `nesting-target-menu`, `detach-page-button`, `page-route-view`, `page-document-view`, `page-document`, `page-document-actions`, `page-side-column`, `subpages-list`, `use-page-autosave`, `stablo-oblasti` (popunjeno mesto iz S09); novi `dokumenti-kontekst.tsx` i `ekrani.tsx`.
+- `components/app/prostor/editor/`: `rich-text-editor.tsx`, `note-file-node.tsx`, `link-dijalog.tsx` (preneti); novi `index.tsx` (`next/dynamic`, `ssr: false`), `editor-skeleton.tsx`, `prilozi-kontekst.ts`.
+- `components/app/prostor/saradnja/` (rano iz grupe S11): `conflict-dialog.tsx`, `use-live-now.ts`, `lock.tsx`, `presence-indicator.tsx`.
+- `components/app/prostor/zajednicko/istorija-radnji.tsx`.
+- `lib/prostor/modeli/` (+ testovi): `area-model`, `page-autosave-model`, `page-document-model`, `page-entry-text`, `page-tree-model`; rano: `collab-model` (S11), `task-instructions-draft` (S12).
+- `lib/prostor/web/`: `note-link.ts` (+ test), `poslednja-oblast.ts`; `lib/prostor/rute.ts` (tipovi podataka ekrana); nov `lib/prostor/uredjivac-lenj.test.ts`.
+- Izmenjeni: `components/app/app-shell.tsx` (`DokumentiProvider` u opsegu projekta), `app/globals.css` (`@source not "../docs";`), `package.json` i `package-lock.json` (`overrides` za Tiptap, ODLUKA 2).
+- Razvojni prikaz: nov `app/dev-ux/fixtures-prostor-dokumenti.ts`, registrovan u `fixtures.ts`; `fixtures-prostor-osnova.ts` izvozi `PROJEKTI`.
+- Snimci `docs/spajanje/snimci/S10-{oblast-1536,stranica-1536,stranica-390,stablo-1536}.png`.
+- Odloženo (samo za čitanje u kasnijim koracima): `.nocni-run/spajanje/tmp/s10-odlozeno/` (`area-tasks.tsx` i pun izlaz alata za `create-page-dialog`, `page-document-view`, `rich-text-editor`); izveštaji alata `.nocni-run/spajanje/tmp/prenos-ekran-S10*.md`.
+
+**Šta je urađeno:**
+- **Oblast** (`/dokumenti/<id>?tab=`): zaglavlje na Enigminom `PageHeader`-u (ikonica mesta, naziv sa preimenovanjem u mestu, „N stranica · N zadataka“, jedina primarna radnja „Nova stranica“) i kartice Pregled · Zadaci · Dokumenti. Pregled ima opis oblasti sa autosave-om, revizijom i konfliktom i Nedavne izmene. Dokumenti imaju stablo-tabelu sa filterom vrste, razvijanjem, prevlačenjem (ugnežđavanje), menijem reda i „Poništi“. Kartica iz adrese ima prednost, pa zapamćena po oblasti.
+- **Stranica** (`/stranica/<id>`): dokument tima sa putanjom, naslovom, Tiptap uređivačem (iste ekstenzije i HTML kao Devotion: StarterKit, liste zadataka, tabele, blok priloga, linkovi), stanjem čuvanja, bočnom kolonom (autor, izmena, zaključano), podstranicama i menijem „…“ (premesti u oblast, odvoji, obriši u Korpu sa „Poništi“). Autosave je 650 ms sa `expectedRevision`; konflikt otvara dijalog „Kopiraj moju verziju · Učitaj najnoviju · Prepiši“; Ctrl/⌘ + S čuva odmah.
+- **Uređivač** je samo iza `editor/index.tsx` (`next/dynamic`, `ssr: false`, kostur iste visine). `editor.css` (S08) uvozi sam uređivač, pa je u buildu zaseban komad. Nov test čuva da Tiptap ne uđe nigde drugde.
+- **Stablo** pod „Dokumenti“ u meniju projekta: oblasti (prevlačenje menja redosled), stranice po nivou (lenjo, 7 po nivou uz „Prikaži još“), neograničeno ugnežđavanje, prevlačenje stranice na stranicu ili oblast (`areasV2.movePage`, sa zahtevom za odobrenje kad treba), „+“ na oblasti i stranici i „Nova oblast“ na dnu. Tekuća oblast i preci otvorene stranice se sami razviju.
+- **`DokumentiProvider`** (ljuska, samo opseg projekta) deli projekat sa oblastima i profil, po jedan dijalog „Nova stranica“ i „Nova oblast“ i fokus na naslov upravo napravljene stranice. Stanje čuvanja stranice i opisa oblasti ide čuvaru napuštanja ljuske; `beforeunload` ostaje.
+- **`/dokumenti`** je spisak oblasti; sa jednom oblašću vodi pravo na nju. Posmatrač na sve tri rute vidi „Dokumenti nisu dostupni.“
+- `@source not "../docs";` je dodat u `app/globals.css` (napomena iz nadzora).
+
+**Paritet:**
+- Red 16 (oblasti): podrazumevane i nove, preuređivanje (stablo), preimenovanje (zaglavlje oblasti), opis oblasti — gotovo. Komentari i istorija opisa oblasti su S11.
+- Red 17 (stablo): neograničeno ugnežđavanje, prevlačenje, nova stranica — gotovo. Rok zadatka u stablu dolazi sa S12.
+- Red 18 (stranica): Tiptap (naslovi, liste zadataka, tabele, prikaz priloga), autosave, konflikt „Učitaj najnoviju / Prepiši“ — gotovo. Otpremanje priloga i uvoz tabele iz fajla u uređivaču su S11; stranice vrste tabela i fajl do S11 pokazuju prazno stanje.
+
+**ODLUKE:**
+1. **`@source not "../docs";`** stoji odmah ispod `@import "tailwindcss";` (podrška je proverena u `tailwindcss/dist/lib.js`, 4.3.3). `/sistem?ux=1` je posle izmene otvoren u pregledaču i ima stilove (pozadina, Aeonik, boja radnje); `npm run build` prolazi, a CSS komad ima sve klase ekrana.
+2. **Tiptap je imao dve kopije `@tiptap/core`.** Instalacija iz S02 je za zavisnosti `starter-kit`-a uzela 3.32.1 (sa svojim `core` 3.32.1), a Devotion lockfile ih ima na 3.29.2 (P10 traži tačne verzije iz njega). Komande StarterKit-a zato nisu imale tipove (`toggleBold` …), a u pregledaču bi radila dva jezgra. `package.json` je dobio `overrides` koji sve `@tiptap/*` iz Devotion lockfile-a drže na 3.29.2. Nov paket nije uveden, a u `package-lock.json` su promenjeni samo `@tiptap` unosi (provereno razlikom prema HEAD-u). Usput je `npm dedupe` podigao i nepovezane pakete (google-gax, zod …), pa je lockfile vraćen na HEAD i izmena urađena uže. Ugnežđeni `@tiptap` unosi su ručno uklonjeni iz lockfile-a, jer npm 10 ne primenjuje `overrides` na postojeće unose.
+3. **Rano preneto iz kasnijih koraka**, alatom sa `--korak S11/S12 --samo`: `conflict-dialog`, `collab-model` (+ test), `use-live-now`, `lock`, `presence-indicator` (S11) i `task-instructions-draft` (+ test, S12). Bez knjige revizija nema autosave-a, a bez dijaloga nema konflikta, a S10 traži oba. S11 i S12 ih nalaze gotove (alat ne prepisuje bez `--prepisi`). U `collab-model` je putanja `convex/lib/pagePresence` ispravljena na `convex/prostor/lib/pagePresence`, a tekst zaključavanja „autor, vlasnik projekta i admin“ je postao „autor i vlasnik projekta“ (admin nije Enigmina uloga).
+4. **Šta S10 svesno ne crta, bez mrtvih kontrola:**
+   - kartica Zadaci oblasti pokazuje prazno stanje (broj u kartici je pravi, iz `tasks.listForArea`). `area-tasks.tsx` je preneto, ali parkirano u `tmp/s10-odlozeno/`, jer traži `TaskPanel` i `TaskRow` iz S12;
+   - Mapa nije u redu kartica; `?tab=mapa` na oblasti i stranici daje prazno stanje sa putem nazad (S14). Stranica vrste „zadatak“ daje prazno stanje sa „Otvori oblast“ (S12);
+   - na stranici su komentari, istorija, prisustvo, dugme zaključavanja, „Povezano“ i diskusija prazna mesta (S11, S15). Meni „…“ nudi samo radnje koje već rade (`RADNJE_MENIJA`);
+   - dijalog „Nova stranica“ pravi samo belešku (`VRSTE_NOVE_STRANICE`), jer forme tabele, fajlova i zadatka traže module S11 i S12. Zaglavlje oblasti zato nema izbor vrste;
+   - uređivač nema otpremanje priloga ni „Uvezi tabelu (CSV/XLSX)“ (S11), ali blok priloga ostaje, pa prilozi u HTML-u ne nestaju pri čuvanju. Kontekst priloga je izdvojen u `editor/prilozi-kontekst.ts`: stranica ga puni iz `pageFiles.list`, a pregled otvara fajl u novoj kartici dok S11 ne donese pregledač;
+   - stablo nema rok zadatka (S12) ni preimenovanje oblasti u meniju; preimenovanje je u zaglavlju oblasti, kao i u Devotionu;
+   - `istorija-radnji.tsx`, `nesting-target-menu` i `detach-page-button` su preneti, ali ih koriste tek mape (S14).
+5. **Stablo se vidi uvek pod „Dokumenti“**, ne samo kad je stavka aktivna (Devotion i crtež plana §2.1). Oblasti su zatvorene, osim tekuće i oblasti i predaka otvorene stranice (`pages.get` i `getBreadcrumbs`, iste pretplate kao ekran stranice). Izabran čvor je neutralan (`bg-sidebar-accent`), jer red „Dokumenti“ već nosi boju mesta; dve pilule bi bile dupla oznaka.
+6. **Zaglavlje oblasti je Enigmin `PageHeader`** (ikonica mesta, naslov, opis, radnje), a ne sopstveni crtež: tako boja mesta ostaje u `page-header.tsx` i nijedan čuvar ne dobija nov izuzetak („čuvari prolaze bez novih izuzetaka“). Naziv se preimenuje poljem u naslovu (`h1`), olovka „Preimenuj oblast“ je u radnjama, a greška naziva zamenjuje opis. Nijedan fajl čuvara (`lib/*-cuvar*`, `scripts/verify-*`, `lib/rutiranje.test.ts`, `lib/linkovi-cuvar.test.ts`) nije menjan; plafon boje modula je i dalje 654/654.
+7. **Dijalog konflikta:** „Prepiši“ je primarno, „Učitaj najnoviju“ obris, a početni fokus je na „Kopiraj moju verziju“ (Devotion). Traka „Nije sačuvano …“ je u tonu upozorenja, ne greške, jer tekst još nije izgubljen.
+8. **Tipovi** `CreatePageTarget`, `ProfileWithAvatar`, `StartupWithAreas` (= `prostor.projekat.get`) i `StartupMember` su u `lib/prostor/rute.ts`, gde alat preusmerava Devotion `workspace/types`.
+9. **Fiksture:** stranica za razvojni prikaz je `pagesux0101` (`STRANICA_UX`), a ne `pagesux0001` kako je S09 nagovestio, jer su stranice 1–3 zadaci u fiksturi Moj dan. Oblast je `areasux0001` (`OBLAST_UX`). Mutacije koje vraćaju vrednost (`updatePage`, `createPage`, `movePage` …) imaju fiksture, pa autosave u razvojnom prikazu stiže do „Sačuvano“.
+10. **Razvojni prikaz:** navigacija unutar aplikacije gubi `?ux=1` i vodi na prijavu (važi za sve ekrane), pa su snimci pravljeni direktnim adresama.
+11. **Zastareli `.next/dev/types`** (dev server ugašen usred pisanja) premešten je u `.nocni-run/spajanje/tmp/next-types-stari-s10/`, jer je `tsc` padao na njemu (kao S09, ODLUKA 17).
+12. **Vitest:** dva cela prolaza su imala 40+ „Test timed out in 5000ms“ u `convex/` testovima (svaki prolazi sam, a `convex/` nije menjan). Treći prolaz je 2307/2307 za 25 s. Opterećenje je bilo prolazno (verovatno skeniranje posle `npm install`), pa konfiguracija nije menjana.
+
+**Novi paketi:** nema. `overrides` u `package.json` drži postojeće Tiptap zavisnosti na 3.29.2 iz Devotion lockfile-a (ODLUKA 2).
+
+**Testovi:** 74 nova, svi prolaze.
+
+| Fajl | Testova | Napomena |
+|---|---|---|
+| `lib/prostor/modeli/area-model.test.ts` | 17 | preneto |
+| `lib/prostor/modeli/page-autosave-model.test.ts` | 10 | preneto |
+| `lib/prostor/modeli/page-document-model.test.ts` | 8 | preneto |
+| `lib/prostor/modeli/page-entry-text.test.ts` | 3 | preneto |
+| `lib/prostor/modeli/page-tree-model.test.ts` | 3 | preneto |
+| `lib/prostor/modeli/collab-model.test.ts` | 15 | preneto (S11, rano) |
+| `lib/prostor/modeli/task-instructions-draft.test.ts` | 6 | preneto (S12, rano) |
+| `lib/prostor/web/note-link.test.ts` | 9 | preneto |
+| `lib/prostor/uredjivac-lenj.test.ts` | 3 | nov čuvar: Tiptap samo iza dinamičkog ulaza |
+
+Ceo `npx vitest run`: 170 fajlova, 2307 testova.
+
+**Rezultat provere:**
+- codegen: nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest: prolazi (2307);
+- pristup: 632 / 617 / 15, front 50 direktnih poziva, svi sa spiska;
+- regresije: prolaze (20; ultra 5, prostor 1);
+- `npm run build`: prolazi.
+
+**Vizuelna provera** (Playwright, `next dev -p 3117`, ugašen na kraju): oblast (Pregled, Dokumenti i prazno stanje sa `&prazno=1`), stranica sa uređivačem na 1536 × 695 i 390 × 844, stablo sa tri nivoa, `/dokumenti`, dijalog „Nova stranica“ (lenj uređivač), posmatrač i `/sistem?ux=1`. Kucanje u naslov prolazi kroz autosave do „Sačuvano“. U konzoli nema grešaka ni upozorenja. Dijalog konflikta nije viđen u pregledaču, jer lažni Convex ne vraća konflikt; pokriva ga test modela.
+
+**Prihvatanje (dokaz):**
+- „Otvara se oblast sa karticama“: `/enigma-it/dokumenti/areasux0001?ux=1` crta zaglavlje i kartice Pregled · Zadaci · Dokumenti; Pregled i Dokumenti su viđeni sa podacima, a Dokumenti i u praznom stanju (`&prazno=1`). Snimak `S10-oblast-1536.png`.
+- „Stranica sa editorom“: `/enigma-it/stranica/pagesux0101?ux=1` crta Tiptap uređivač sa alatnom trakom; kucanje u naslov stiže do „Sačuvano“. Snimci `S10-stranica-1536.png` i `S10-stranica-390.png`.
+- „Stablo prikazuje ugnežđene stranice“: na `/enigma-it/stranica/pagesux0102?ux=1` merenje DOM-a u pregledaču daje četiri nivoa: oblast „Razvoj“ (1) → „Lansiranje sajta“ (2) → „Endpointi za plaćanje“ (3) → „Webhook tok“ (4, izabrana, `aria-current="page"`) i „Cene provizija po kartici“ (4). Ručno razvijanje oblasti „Marketing“ učitava njene stranice („Plan objava za novembar“, „Kampanja za otvaranje“). Snimak `S10-stablo-1536.png`. Konzola tekuće strane je bez grešaka.
+- „Preneseni modeli imaju testove; čuvari prolaze bez novih izuzetaka“: 8 prenetih modela ima testove (74 nova testa), a nijedan fajl čuvara nije menjan (ODLUKA 6).
+- „Provere prolaze; sekcija S10 je u progress-u“: typecheck, lint, `npx --no-install vitest run` (2307), pristup i regresije prolaze; ovo je ta sekcija.
+
+**Za Jovana ujutru:**
+- Otvori stranicu, piši i proveri da posle pauze piše „Sačuvano“. U drugoj kartici izmeni istu stranicu i proveri dijalog „Učitaj najnoviju / Prepiši“.
+- Prevuci stranicu u stablu na drugu stranicu i na drugu oblast; prevuci oblast da promeniš redosled.
+- `package.json` sada ima `overrides` za Tiptap (ODLUKA 2): posle povlačenja izmena pusti `npm ci`.
+- Ništa nije deployovano.

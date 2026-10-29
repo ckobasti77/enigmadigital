@@ -1,11 +1,16 @@
-import { EkranUskoro } from "@/components/app/prostor/ekran-uskoro";
+import { Suspense } from "react";
+import { DokumentiEkran } from "@/components/app/prostor/dokumenti/ekrani";
 
 export const metadata = {
   // Ime projekta dodaje šablon iz layout-a `[projekat]`.
   title: "Dokumenti",
 };
 
-/** Radni deo projekta (SPAJANJE P13). Sadržaj donosi kasniji korak. */
+/** Spisak oblasti projekta (SPAJANJE P13); jedna oblast vodi pravo na nju. */
 export default function Page() {
-  return <EkranUskoro naslov="Dokumenti" />;
+  return (
+    <Suspense>
+      <DokumentiEkran />
+    </Suspense>
+  );
 }

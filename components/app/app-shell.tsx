@@ -39,6 +39,7 @@ import { useNapredakFeedback } from "./napredak/napredak-feedback";
 import { NapredakIzvor } from "./napredak/napredak-izvor";
 import { Toaster } from "./toaster";
 import { CuvarNapustanjaProvider } from "./prostor/cuvar-napustanja";
+import { DokumentiProvider } from "./prostor/dokumenti/dokumenti-kontekst";
 import { ShortcutProvider } from "./prostor/precice/precice-provider";
 import { ProjekatLink } from "./projekat-link";
 import {
@@ -255,6 +256,7 @@ function ShellFrame({
     // nesačuvanog teksta i jedan Toaster za celu ljusku.
     <ShortcutProvider>
     <CuvarNapustanjaProvider>
+    <OkvirDokumenata aktivan={opseg === "projekat"}>
       {/* The sidebar and header are fixed/sticky chrome, so the column is
           inset by the sidebar width rather than sharing a flex row. */}
       {/* Prvi Tab na strani: četrnaest veza navigacije stoji između tastature
@@ -301,9 +303,19 @@ function ShellFrame({
       <NapredakIzvor />
       {nagrade}
       <Toaster />
+    </OkvirDokumenata>
     </CuvarNapustanjaProvider>
     </ShortcutProvider>
   );
+}
+
+/**
+ * Dokumenti projekta (SPAJANJE S10): stablo oblasti u meniju i ekrani oblasti
+ * i stranice dele projekat sa oblastima i dijaloge „Nova stranica“ i „Nova
+ * oblast“. Samo u opsegu projekta; „Ja“ ih nema.
+ */
+function OkvirDokumenata({ aktivan, children }: { aktivan: boolean; children: React.ReactNode }) {
+  return aktivan ? <DokumentiProvider>{children}</DokumentiProvider> : <>{children}</>;
 }
 
 /**

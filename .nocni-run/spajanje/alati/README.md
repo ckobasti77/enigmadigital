@@ -167,3 +167,10 @@ node .nocni-run/spajanje/regresije.mjs
 - `--korak S21 --samo components/workspace/trash/trash-model,components/workspace/trash/trash-container --izlaz tmp`: model i test u `lib/prostor/modeli/` sa relativnim uvozima; kontejner je dobio `useProjekatQueryTolerant(api.prostor.trash.counts)`, `useProjekatPaginatedQuery(api.prostor.trash.list, { kind })`, `useProjekatMutation(…)`, `@/lib/toast`, `@/lib/prostor/web/greske`, a `startupId` je postao `workspaceId`; 2 RUČNO (prop `workspaceId` koji kuke više ne traže).
 - `--suvo` za S09–S24 prolazi bez greške alata; RUČNO stavki po koraku od 2 (S24) do 142 (S14, mape).
 - Ceo korak `--korak S21 --izlaz tmp`: 10 fajlova (Korpa i Podešavanja; `team-tab` i `invites-tab` se preskaču jer su u `NE_PRENOSI`), 29 RUČNO stavki, izlazni kod 0. Ovaj prolaz je otkrio da je fascikla pobeđivala `NE_PRENOSI`; ispravljeno je u `poslovi()`.
+
+## Isprobano (S10)
+
+- `--korak S10`: 37 fajlova, 46 RUČNO stavki, izlazni kod 0. `stablo-oblasti.tsx` (mesto iz S09) je prepisan sa `--samo components/workspace/page-tree --prepisi`, pa dopunjen oblastima iz Devotion `workspace-sidebar.tsx` (taj fajl alat ne prenosi).
+- Posle alata typecheck je imao oko 130 grešaka: `workspaceId` u pozivima mutacija (alat ga briše samo iz poziva kuka), uvozi modula kasnijih koraka (saradnja, zadaci, mape, prilozi, tabele) i `onCloseAutoFocus`/`asChild` na mestima koja alat ne prepoznaje.
+- Ranim prenosom iz drugih grupa (`--korak S11 --samo …`, `--korak S12 --samo …`) se prenose samo fajlovi bez kojih korak ne radi; izveštaj se tada preimenuje (`prenos-ekran-S10-rano-*.md`), da ne pregazi izveštaj tog koraka.
+- Alat ne vidi da Radix `onCloseAutoFocus` na `DropdownMenuContent` ima zamenu u Base UI `onOpenChangeComplete` na korenu, a na `DialogPopup` u `finalFocus`.
