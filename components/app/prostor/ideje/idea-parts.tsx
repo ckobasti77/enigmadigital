@@ -56,7 +56,7 @@ export function IdeaVoteButtons({
   const title = ideaTitle(idea);
   const button = cn(
     "inline-flex items-center gap-1 rounded-md border border-line px-2 text-meta font-medium tabular-nums text-text-secondary transition-colors hover:bg-surface-control-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:border-line-soft disabled:text-text-muted aria-pressed:border-line-control aria-pressed:bg-surface-control aria-pressed:text-foreground aria-pressed:[&_svg]:fill-current",
-    size === "sm" ? "h-7 pointer-coarse:h-11" : "h-9 px-3 text-ui pointer-coarse:h-11",
+    size === "sm" ? "h-7 pointer-coarse:h-11 pointer-coarse:min-w-11 justify-center" : "h-9 px-3 text-ui pointer-coarse:h-11 pointer-coarse:min-w-11 justify-center",
   );
   return (
     <div role="group" aria-label={`Glasovi za „${title}”`} className={cn("flex items-center gap-1", className)}>

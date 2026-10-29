@@ -198,7 +198,7 @@ function NoteFileView({ node, editor, deleteNode }: NodeViewProps) {
           </span>
           <button
             type="button"
-            className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-control-hover hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex size-7 items-center justify-center rounded-md pointer-coarse:size-11 text-muted-foreground hover:bg-surface-control-hover hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Ukloni iz beleške"
             title="Ukloni iz beleške"
             onClick={() => deleteNode()}

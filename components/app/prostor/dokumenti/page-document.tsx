@@ -279,7 +279,7 @@ export function PageDocument({
                 aria-invalid={saveState === "invalid"}
                 aria-describedby={saveState === "invalid" ? invalidId : undefined}
                 onChange={(event) => onTitleChange(event.target.value)}
-                className="w-full rounded-md bg-transparent outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="w-full rounded-md bg-transparent outline-none pointer-coarse:min-h-11 placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               />
             ) : (
               <span className="break-words">{title.trim() || "Bez naslova"}</span>

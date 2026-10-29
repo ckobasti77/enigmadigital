@@ -79,6 +79,7 @@ import {
   useMapActivation,
 } from "@/components/app/prostor/mape/canvases/use-canvas-navigation";
 import { PagePeek } from "@/components/app/prostor/mape/page-peek";
+import { useMapaSamoPregled } from "@/components/app/prostor/mape/use-mapa-samo-pregled";
 import { ThoughtEdge } from "@/components/app/prostor/mape/thoughts/thought-edge";
 import {
   isEditableTarget,
@@ -389,6 +390,8 @@ function AreaCanvasReady({
     api.prostor.taskCheckpoints.resetCanvasSize,
   );
   const { historyState, pushHistory, runHistory } = useWorkspaceHistory();
+  // Na telefonu je Mapa samo pregled (bez prevlačenja, povezivanja i izmene veličine).
+  const samoPregled = useMapaSamoPregled();
 
   const ownTaskPageId =
     canvasData.scope.pageKind === "task" && rootPageId !== null
@@ -464,13 +467,13 @@ function AreaCanvasReady({
               ownTaskPageId === null &&
               expandedTaskId === page._id &&
               page.checkpointTotal > 0,
-            canMove: page.canMove,
-            canResize: page.canResize,
-            canDetach: page.canDetach,
+            canMove: page.canMove && !samoPregled,
+            canResize: page.canResize && !samoPregled,
+            canDetach: page.canDetach && !samoPregled,
             nestingTarget: false,
           },
-          draggable: page.canMove,
-          connectable: true,
+          draggable: page.canMove && !samoPregled,
+          connectable: !samoPregled,
           deletable: false,
           ariaLabel: `${card.kindLabel}: ${card.title}${card.locked ? ", zaključano" : ""}`,
         };
@@ -543,13 +546,13 @@ function AreaCanvasReady({
                 blockedByOrdinal: checkpoint.blockedByOrdinal,
                 canEdit: checkpoint.canEdit,
                 canToggle: checkpoint.canToggle,
-                canMove: checkpoint.canMove,
-                canResize: checkpoint.canMove,
+                canMove: checkpoint.canMove && !samoPregled,
+                canResize: checkpoint.canMove && !samoPregled,
                 manuallySized,
                 canDeleteDirectly: checkpoint.canDeleteDirectly,
               },
-              draggable: checkpoint.canMove,
-              connectable: true,
+              draggable: checkpoint.canMove && !samoPregled,
+              connectable: !samoPregled,
               deletable: false,
               ariaLabel: `Korak ${ordinal}: ${checkpoint.text}. ${
                 checkpoint.completed
@@ -569,6 +572,7 @@ function AreaCanvasReady({
     filter,
     now,
     ownTaskPageId,
+    samoPregled,
     taskCheckpoints,
     visibleCheckpointTaskId,
   ]);
@@ -1870,6 +1874,7 @@ function AreaCanvasReady({
           styles.canvas,
           MAP_FRAME_CLASS,
           layout === "task-focus" ? "min-h-[28rem]" : "min-h-[32rem]",
+          samoPregled && "!min-h-[24rem]",
         )}
         data-canvas-space-pan={canvasNavigation.spacePressed}
         data-canvas-zoom-modifier={canvasNavigation.zoomModifierPressed}
@@ -1878,8 +1883,9 @@ function AreaCanvasReady({
         // AreaView does not provide a fixed-height parent. Keep a definite
         // containing-block height so React Flow's 100% height cannot collapse.
         style={{
-          height:
-            layout === "task-focus"
+          height: samoPregled
+            ? "min(60dvh, 30rem)"
+            : layout === "task-focus"
               ? "clamp(28rem, calc(100dvh - 12rem), 56rem)"
               : "min(72vh, 52rem)",
         }}
@@ -2127,7 +2133,7 @@ function AreaCanvasReady({
           zoomActivationKeyCode={["Control", "Meta"]}
           noPanClassName={canvasNavigation.noPanClassName}
           noWheelClassName={canvasNavigation.noWheelClassName}
-          selectionOnDrag
+          selectionOnDrag={!samoPregled}
           selectionMode={SelectionMode.Partial}
           selectionKeyCode="Shift"
           multiSelectionKeyCode={["Control", "Meta"]}
@@ -2135,7 +2141,25 @@ function AreaCanvasReady({
           nodeDragThreshold={3}
           connectionDragThreshold={4}
           elevateNodesOnSelect
-          nodesConnectable
+          elementsSelectable={!samoPregled}
+          // Na telefonu dodir na kartici otvara pregled (traka radnji iznad
+          // sićušne kartice bi izlazila van okvira mape).
+          onNodeClick={
+            samoPregled
+              ? (event, node) => {
+                  if (node.type !== "areaPage") return;
+                  if (
+                    event.target instanceof Element &&
+                    event.target.closest("button, a, [role=button]") !== null
+                  ) {
+                    return;
+                  }
+                  setPeekPageId(node.id as Id<"pages">);
+                }
+              : undefined
+          }
+          nodesDraggable={!samoPregled}
+          nodesConnectable={!samoPregled}
           nodesFocusable
           edgesFocusable
           fitViewOptions={{ padding: 0.24, maxZoom: 1 }}
@@ -2156,20 +2180,23 @@ function AreaCanvasReady({
             showInteractive={false}
           />
 
-          <Panel position="top-left" className="m-3">
-            <MapHistoryButtons
-              undoCount={historyState.undoCount}
-              redoCount={historyState.redoCount}
-              busy={historyState.busy}
-              onUndo={() => void runHistory("undo")}
-              onRedo={() => void runHistory("redo")}
-              undoIcon={<Undo2 className="size-4" aria-hidden="true" />}
-              redoIcon={<Redo2 className="size-4" aria-hidden="true" />}
-            />
-          </Panel>
+          {samoPregled ? null : (
+            <Panel position="top-left" className="m-3">
+              <MapHistoryButtons
+                undoCount={historyState.undoCount}
+                redoCount={historyState.redoCount}
+                busy={historyState.busy}
+                onUndo={() => void runHistory("undo")}
+                onRedo={() => void runHistory("redo")}
+                undoIcon={<Undo2 className="size-4" aria-hidden="true" />}
+                redoIcon={<Redo2 className="size-4" aria-hidden="true" />}
+              />
+            </Panel>
+          )}
 
           <Panel position="top-right" className="m-3">
             <CanvasActionRail
+              horizontal={samoPregled}
               ariaLabel={`Radnje na mapi ${canvasLabel}`}
               identity={{
                 label: "Mapa",
@@ -2179,7 +2206,7 @@ function AreaCanvasReady({
               sections={[
                 {
                   id: "Novo",
-                  items: PAGE_KIND_KEYS.map((kind) => ({
+                  items: samoPregled ? [] : PAGE_KIND_KEYS.map((kind) => ({
                     id: `new-${kind}`,
                     label: `Novo: ${PAGE_KIND_META[kind].label}`,
                     icon: PAGE_KIND_META[kind].icon,
@@ -2284,6 +2311,11 @@ function AreaCanvasReady({
         ) : null}
 
         </div>
+        {samoPregled ? (
+          <p className="mt-2 text-meta text-text-muted">
+            Mapa se uređuje na računaru.
+          </p>
+        ) : null}
         <PagePeek
           open={peekPage !== null}
           onOpenChange={(open) => {

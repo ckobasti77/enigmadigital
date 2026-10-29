@@ -1995,3 +1995,63 @@ Proveren grep-om i čitanjem koda (broj fajlova ekrana sa praznim stanjem / skel
 **Svesno ostavljeno:** male liste u dijalozima i panelima ("U timu nema drugih članova.", "Nema rezultata.", "Nema koraka.") ostaju jedan red teksta bez `EmptyState`. To su umetnuti redovi unutar kartice ili menija, ne ekrani; opis „šta dalje“ bi bio izmišljen.
 
 **BLOKADA:** stavka „svaki ekran ima prazno stanje, učitavanje i grešku“ je ispunjena u kodu (popis iznad), ali stanja **učitavanja i greške** nije moguće videti u browseru. Razlog: razvojni prikaz (`?ux=1`) radi nad lažnim Convex-om iz `app/dev-ux/fake-convex.ts`, koji upite odmah razrešava i nikad ne vraća `undefined` ni grešku, a prave prijave i prave baze u runu nema. Prazna stanja jesu viđena (5 snimaka na 1536 × 695 + `S25-prazno-inbox-390.png` na 390 × 844, bez vodoravnog klizanja). Šta ostaje Jovanu: na pravoj bazi usporiti vezu i proveriti skelete i obaveštenje o grešci (spisak ekrana u „Za Jovana ujutru“ iznad).
+
+## S26 — Telefon (390)   (2026-10-29 18:30)
+**Fajlovi:**
+- Ljuska `components/app/`: `mobile-nav.tsx` (list „Više“, tačka na ćeliji „Projekat“), `nav-items.ts` (`jaStavkeVise`), `zvono-ja.tsx` (redovi projekata 44 px na dodir).
+- `components/app/prostor/`:
+  - `zadaci/task-row.tsx` (dugme „…“ reda 44 × 44 na dodir);
+  - `ja/my-tasks-view.tsx`, `ja/notes-view.tsx` (podnaslov na telefonu samo sa brojem; brza beleška 44 px);
+  - `ideje/idea-parts.tsx` (glasanje 44 × 44);
+  - `dokumenti/area-documents.tsx` (razvij/skupi i čipovi vrste 44 px), `dokumenti/page-document.tsx` (polje naslova 44 px);
+  - `editor/note-file-node.tsx` (ukloni fajl 44 px), `tabele/page-table-panel.tsx` (ćelije i „Dodaj kolonu“ 44 px);
+  - `mape/use-mapa-samo-pregled.ts` (nov), `mape/area-canvas-view.tsx`, `mape/ideas-canvas-view.tsx`, `mape/thoughts/thoughts-canvas-view.tsx`, `mape/thoughts/thought-edge.tsx`, `mape/canvases/canvas-action-rail.{tsx,module.css}` (mapa na telefonu je samo pregled).
+- `lib/rutiranje.test.ts` (+1 test).
+- Alati: `.nocni-run/spajanje/alati/s26-telefon.mjs` (merenje 22 ekrana), `s26-stanja.mjs` (merenje 29 stanja posle dodira), `s26-snimci.mjs`, `s26_sub.py`.
+- Snimci: `docs/spajanje/snimci/S26-{danas,pocetna,zadaci,stranica,poruke,poruke-razgovor,panel-zadatka,mapa-pregled,vise-ja,vise-projekat}.png`.
+
+**Šta je urađeno:**
+- **Donja traka (P15, plan S07 §2.6)**: Danas · Projekat · Zadaci · Poruke · Više radi u oba opsega. Ćelija „Projekat“ dobila je tačku čekanja (nepročitano ili „čeka te“ u tom projektu), kako plan traži.
+- **List „Više“ (plan S07 §2.2)**:
+  - projekti su mreža od četiri kolone umesto vodoravnog reda koji je sekao „Novi projekat“;
+  - „Ja“ nosi lične ekrane kojih nema u traci: u „Ja“ Inbox i Beleške, a u projektu i Moje zadatke i lične Poruke (ćelije trake su tada projektne);
+  - u „Ja“ ispod stoje moduli poslednjeg projekta po grupama (Prodaja, Sadržaj, Kanali, Analitika, Automatizacija), sa znakom i imenom projekta, pa nijedan modul nije dalje od dva dodira ni sa ličnog ekrana;
+  - u projektu ostaju Rad, moduli i dno (Korpa, Napredak, Podešavanja).
+- **Zaglavlje**: jedan red od 56 px (znak opsega, mrvica, pretraga, zvono, meni korisnika), kao u planu S07 §2.2. Mrvica se skraćuje pre nego što se red lomi.
+- **Merenje (razvojni prikaz, Playwright, 390 × 844, `isMobile` + dodir)**: 22 ekrana radnog dela i 29 stanja posle dodira (meni reda, Brzi unos, Isplaniraj, zvono, fioka Filteri, panel zadatka i meni Status, Novi zadatak, Sredi rokove, Ideje Lista/Mapa/detalj/Nova ideja, Nova stranica, mapa oblasti i pregled kartice, meni stranice, tabela, mapa beleški, Korpa, Aktivnost, Inbox, razgovor „Ja“ i kanal projekta, Nova poruka, „Više“ u oba opsega). **Nijedan nema vodoravno klizanje** (`scrollWidth` = 390 svuda).
+- **Mete 44 px**: dugmad, filteri i jezičci su ≥ 44 px na dodir (globalno pravilo za `button`/`[role=tab]` plus dopune iznad za širinu ikonica i elemente koji nisu dugmad). Pre: 14–17 malih meta na ekranima sa zadacima; posle: 0.
+- **Editor, panel zadatka, mapa**: uređivač radi (alatna traka se lomi u redove, 44 px); panel zadatka je preko celog ekrana sa čipovima, koracima, instrukcijama i komentarima; **mapa na telefonu je samo pregled** (ODLUKA 2).
+
+**Paritet:** P15 (telefon) — pokriveno: donja traka, „Više“ sa projektima i svim modulima, zvono „Čeka te“ u zaglavlju. Ekrani radnog dela iz §6 rade na 390 bez vodoravnog klizanja.
+
+**ODLUKE:**
+1. **„Jedan red zaglavlja“** tumačim kao gornju traku ljuske u jednom redu od 56 px (plan S07 §2.2). Druga ravan (`SectionNav`, jezičci podekrana) postoji samo na Enigminim modulima sa podekranima (Instagram, Oglasi…), nikad na ekranima radnog dela; ostaje, jer je ponašanje modula van obima.
+2. **Mapa na telefonu je samo pregled** (ispod `md` i samo na dodir, `useMapaSamoPregled`): kartice se ne prevlače, ne povezuju i ne menjaju veličinu; nema poništi/ponovi ni „Novo“ u traci mape oblasti; veze bez naziva nemaju oznaku ni radnje (olovka, makaze). Zum, pomeranje i „uklopi“ rade. Na mapi oblasti dodir na karticu otvara pregled stranice („Otvori stranicu“); na mapi ideja i beleški gore levo piše „Mapa se uređuje na računaru.“, a „+“ u traci (nova ideja/misao kroz dijalog) ostaje, jer dijalog radi na telefonu. Miš i tablet (≥ 768 px) su nepromenjeni.
+3. **U „Ja“ list „Više“ crta module poslednjeg projekta** (kolačić `ep_projekat`), ne radni deo i dno: plan S07 §2.2 označava Rad i dno „samo u projektu“, a Module ne. Moduli se biraju po `moduli` tog projekta. Bez poslednjeg projekta odeljka nema. Bedževi modula se u „Ja“ ne crtaju (brojevi su vezani za tekući projekat).
+4. **Mreža projekata u „Više“** (4 kolone, prelom) umesto vodoravnog klizanja: sa tri projekta je peta pločica bila presečena („Novi proje…“), a mreža ništa ne skriva.
+5. **Podnaslov Moji zadaci i Beleške** na telefonu nosi samo broj (kao Danas, S19 ODLUKA 8): uzak red je sekao baš broj.
+6. **Svesno ostavljeno**: (a) linkovi unutar Enigmine „Brojke“ (`OverviewDashboard`) na Početnoj (16–32 px visine: „Levak“, „Instagram“, „Sve objave →“) — blok je Enigmin i prenet bez izmene (S20), a to su linkovi u zaglavlju kartice, ne dugmad; (b) naslovi kartica na `/projekti` imaju 23 px, ali je ceo red meta (`after:absolute` preko kartice); (c) dugmad na oznaci veze mape (20 px) postoje samo od `md` naviše.
+7. **Merenje**: `isMobile` + `hasTouch` u Playwright-u (važi `pointer: coarse`); meta je dugme, link, jezičak, stavka menija ili polje; `sr-only` i link u rečenici se ne broje; elementi unutar uređivača i mape su izuzeti iz brojanja meta (mapa je pregled, a sadržaj uređivača nije meta).
+8. **Razvojni prikaz**: klik na razgovor menja adresu i gubi `?ux=1` (poznato iz S10), pa su razgovori mereni i snimljeni direktnom adresom `?kanal=`.
+9. **Radnici**: tri `sonnet` radnika (Ja + poruke, ekrani projekta, dokumenti/editor/mape) ugašena su u 16:10 (CLI gasi pozadinske zadatke 10 min posle kraja poteza; vidi `tmp/s26/dokumenti/zz-NADZOR-…txt`). Njihove izmene su u stablu; pregledao sam svaki diff, a merenje stanja i snimke završio sam u prvom planu. U radnikovom delu oznaka mape je ispravljena (`text-xs` → `text-meta`), a samo-pregled je proširen na mape ideja i beleški i na oznake veza.
+10. `.nocni-run/spajanje/alati/__pycache__/` (Python keš pomoćnog `s26_sub.py`) nije obrisan, jer je brisanje odbijeno; bezopasan je.
+
+**Novi paketi:** nema.
+
+**Testovi:** 1 nov u `lib/rutiranje.test.ts`: svaki lični ekran je u donjoj traci ili u listu „Više“, tačno jednom, u oba opsega (`jaStavkeVise`). Ceo `npx vitest run`: 206 fajlova, 2634 testa.
+
+**Rezultat provere:**
+- codegen: nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1210 upozorenja; nijedno u fajlovima ovog koraka);
+- vitest: prolazi (2634);
+- pristup: prolazi;
+- regresije: prolaze (20; ultra 5, prostor 1).
+
+**Vizuelna provera:** Playwright (skripte iznad), `next dev -p 3117`, ugašen na kraju. 390 × 844: 22 ekrana i 29 stanja, bez vodoravnog klizanja i bez grešaka u konzoli. 1536 × 695 nije menjan: sve izmene su pod `pointer-coarse:`, `max-md:`/`md:hidden` ili `(max-width: 767px) and (pointer: coarse)`.
+
+**Za Jovana ujutru:**
+- Na pravom telefonu: donja traka, „Više“ iz „Ja“ (posle ulaska u projekat pojave se njegovi moduli) i iz projekta, tačka na „Projekat“.
+- Mapa na telefonu je samo pregled (ODLUKA 2) — potvrdi da ti to odgovara; uređivanje mape ostaje na računaru.
+- Probaj uređivač stranice sa tastaturom telefona (alatna traka, autosave) i panel zadatka (status, rok, izvršioci, komentar).
+- Ništa nije deployovano.

@@ -66,6 +66,7 @@ import { selectNestingDropTarget } from "@/lib/prostor/modeli/nesting-drop";
 
 import { Button } from "@/components/ui/button";
 import { CanvasActionRail } from "@/components/app/prostor/mape/canvases/canvas-action-rail";
+import { useMapaSamoPregled } from "@/components/app/prostor/mape/use-mapa-samo-pregled";
 import {
   ThoughtEdge,
   ThoughtEdgeActionsProvider,
@@ -349,6 +350,12 @@ function IdeasCanvasBody({
     toFlowNodes(nodeDocs, now),
   );
   const [edges, setEdges] = useState<IdeaFlowEdge[]>(() => edgeDocs.map(toFlowEdge));
+  // Na telefonu je mapa samo pregled: dodir ne pomera ideje i ne pravi veze.
+  const samoPregled = useMapaSamoPregled();
+  const prikazaniCvorovi = useMemo(
+    () => (samoPregled ? nodes.map((node) => ({ ...node, draggable: false, connectable: false })) : nodes),
+    [nodes, samoPregled],
+  );
   const [viewport, setViewport] = useState<Viewport>({
     x: canvasState.x,
     y: canvasState.y,
@@ -964,7 +971,7 @@ function IdeasCanvasBody({
             }
           >
             <ReactFlow<IdeaFlowNode, IdeaFlowEdge>
-              nodes={nodes}
+              nodes={prikazaniCvorovi}
               edges={edges}
               nodeTypes={NODE_TYPES}
               edgeTypes={EDGE_TYPES}
@@ -1164,7 +1171,7 @@ function IdeasCanvasBody({
               zoomActivationKeyCode={["Control", "Meta"]}
               noPanClassName={canvasNavigation.noPanClassName}
               noWheelClassName={canvasNavigation.noWheelClassName}
-              selectionOnDrag
+              selectionOnDrag={!samoPregled}
               selectionMode={SelectionMode.Partial}
               selectionKeyCode="Shift"
               multiSelectionKeyCode={["Control", "Meta"]}
@@ -1172,7 +1179,8 @@ function IdeasCanvasBody({
               nodeDragThreshold={3}
               connectionDragThreshold={4}
               elevateNodesOnSelect
-              nodesConnectable
+              nodesDraggable={!samoPregled}
+              nodesConnectable={!samoPregled}
               nodesFocusable
               edgesFocusable
               fitViewOptions={{ padding: 0.22, maxZoom: 1 }}
@@ -1188,6 +1196,13 @@ function IdeasCanvasBody({
               />
               <Controls position="bottom-left" showInteractive={false} />
 
+              {samoPregled ? (
+                <Panel position="top-left" className="m-3">
+                  <p className="rounded-md bg-surface-raised px-2.5 py-1.5 text-meta text-text-muted shadow-elev-1">
+                    Mapa se uređuje na računaru.
+                  </p>
+                </Panel>
+              ) : (
               <Panel position="top-left" className="m-3">
                 <MapHistoryButtons
                   undoCount={historyState.undoCount}
@@ -1199,6 +1214,7 @@ function IdeasCanvasBody({
                   redoIcon={<Redo2 className="size-4" aria-hidden="true" />}
                 />
               </Panel>
+              )}
 
               <Panel position="top-right" className="m-3">
                 <CanvasActionRail

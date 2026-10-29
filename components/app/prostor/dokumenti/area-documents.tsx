@@ -296,12 +296,12 @@ function DocumentRow({
             aria-expanded={expanded}
             aria-label={`${expanded ? "Skupi" : "Razvij"} „${title}”`}
             onClick={() => onToggle(page._id, !expanded)}
-            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-11"
           >
             <ChevronRight className={cn("size-4 transition-transform", expanded && "rotate-90")} aria-hidden="true" />
           </button>
         ) : (
-          <span className="size-7 shrink-0" aria-hidden="true" />
+          <span className="size-7 shrink-0 pointer-coarse:size-11" aria-hidden="true" />
         )}
         <button
           type="button"
@@ -429,7 +429,7 @@ function KindChips({ value, onChange }: { value: PageKind | null; onChange: (val
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
-              "inline-flex min-h-8 items-center gap-1.5 rounded-md border px-2.5 text-sm text-muted-foreground transition-colors hover:bg-surface-control-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "inline-flex min-h-8 items-center gap-1.5 rounded-md border px-2.5 text-sm pointer-coarse:min-h-11 text-muted-foreground transition-colors hover:bg-surface-control-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               checked ? "border-line bg-surface-control-hover font-medium text-foreground" : "border-transparent",
             )}
           >

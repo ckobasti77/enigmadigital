@@ -147,7 +147,7 @@ function CekaTeJa({
                 <JaLink
                   href={`/${projekat.slug}`}
                   onClick={onNavigate}
-                  className="flex min-h-10 items-center gap-2.5 px-3 text-ui text-text-secondary transition-colors hover:bg-foreground/8 hover:text-foreground"
+                  className="flex min-h-10 items-center gap-2.5 px-3 text-ui text-text-secondary transition-colors hover:bg-foreground/8 hover:text-foreground pointer-coarse:min-h-11"
                 >
                   <ProjekatZnak projekat={projekat} velicina="sm" />
                   <span className="min-w-0 flex-1 truncate">{projekat.ime}</span>

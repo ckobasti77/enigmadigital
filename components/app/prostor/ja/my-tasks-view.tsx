@@ -125,7 +125,17 @@ export function MyTasksView({
       <PageHeader
         variant="module"
         title="Moji zadaci"
-        description={`Svi projekti i lično${model ? ` · ${openTasksPhrase(model.openCount)}` : ""}`}
+        description={
+          model ? (
+            <>
+              {/* Na telefonu podnaslov ne sme da preseče broj: ostaje samo broj. */}
+              <span className="max-md:hidden">Svi projekti i lično · </span>
+              {openTasksPhrase(model.openCount)}
+            </>
+          ) : (
+            "Svi projekti i lično"
+          )
+        }
         actions={
           <Button variant="primary" type="button" onClick={onQuickAdd}>
             <Plus aria-hidden="true" />

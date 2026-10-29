@@ -12,6 +12,8 @@ import {
 import { Pencil, Scissors } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useMapaSamoPregled } from "@/components/app/prostor/mape/use-mapa-samo-pregled";
+
 type ThoughtEdgeActions = {
   editLabel: (edgeId: string) => void;
   archiveEdge: (edgeId: string) => void;
@@ -46,6 +48,9 @@ export function ThoughtEdge({
   markerEnd,
 }: EdgeProps) {
   const actions = useContext(ThoughtEdgeActionsContext);
+  // Na telefonu je mapa samo pregled: bez radnji na vezi, a veza bez naziva
+  // bez oznake (prazna „Veza“ bi pokrivala kartice).
+  const samoPregled = useMapaSamoPregled();
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -54,6 +59,10 @@ export function ThoughtEdge({
     targetY,
     targetPosition,
   });
+
+  if (samoPregled && !label) {
+    return <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />;
+  }
 
   return (
     <>
@@ -79,7 +88,7 @@ export function ThoughtEdge({
             </span>
           )}
 
-          {actions ? (
+          {actions && !samoPregled ? (
             <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100">
               <Button
                 type="button"

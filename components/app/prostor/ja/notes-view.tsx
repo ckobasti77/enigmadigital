@@ -129,9 +129,15 @@ export function NotesView({
         variant="module"
         title="Beleške"
         description={
-          count !== null && count > 0 && !searching
-            ? `Moje misli iz svih projekata i lične · ${notesCountLabel(count, more)}`
-            : "Moje misli iz svih projekata i lične."
+          count !== null && count > 0 && !searching ? (
+            <>
+              {/* Na telefonu podnaslov ne sme da preseče broj: ostaje samo broj. */}
+              <span className="max-md:hidden">Moje misli iz svih projekata i lične · </span>
+              {notesCountLabel(count, more)}
+            </>
+          ) : (
+            "Moje misli iz svih projekata i lične."
+          )
         }
         actions={
           <>
@@ -383,7 +389,7 @@ function QuickNote({
         aria-label="Brza beleška"
         aria-invalid={shownError ? true : undefined}
         aria-describedby={shownError ? errorId : undefined}
-        className="max-h-48 min-h-10 resize-none border-0 bg-transparent px-2 py-2 text-copy shadow-none focus-visible:ring-0 md:text-ui"
+        className="max-h-48 min-h-10 resize-none pointer-coarse:min-h-11 border-0 bg-transparent px-2 py-2 text-copy shadow-none focus-visible:ring-0 md:text-ui"
       />
       {shownError ? (
         <p id={errorId} role="alert" className="px-2 pb-1 text-ui text-danger">

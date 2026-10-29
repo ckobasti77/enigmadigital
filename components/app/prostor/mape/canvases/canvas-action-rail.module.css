@@ -251,6 +251,30 @@
   }
 }
 
+/* Dodir: svaka meta je najmanje 44 × 44 px (i izbor vrste kartica). */
+@media (pointer: coarse) {
+  .switchGroup {
+    width: 3.25rem;
+  }
+
+  .switchItem {
+    width: 2.75rem;
+    height: 2.75rem;
+    flex-basis: 2.75rem;
+  }
+}
+
+/* Telefon (samo pregled): izbor vrste kartica u jednom redu. */
+.railRow {
+  flex-direction: row;
+  align-items: center;
+}
+
+.railRow .switchGroup {
+  width: auto;
+  flex-direction: row;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .item,
   .label {

@@ -7,6 +7,7 @@ import { LayoutGrid, Plus, Trophy, X } from "lucide-react";
 import { Drawer } from "@/components/ui/drawer";
 import { BedzNaUglu } from "@/components/app/system/count-badge";
 import { unreadMessagesPhrase, unreadPhrase } from "@/lib/prostor/web/opseg";
+import { modulUkljucen, putanjaEkrana } from "@/lib/rutiranje";
 import { cn } from "@/lib/utils";
 import {
   NAPREDAK_HREF,
@@ -16,7 +17,7 @@ import {
   activeHref,
   donjaTraka,
   donjaTrakaHub,
-  jaNavItems,
+  jaStavkeVise,
   korpaNavItem,
   navItems,
   podekraniRadnogDela,
@@ -362,8 +363,13 @@ function DonjaTrakaHuba() {
           const znak =
             celija.kljuc === "projekat" && celija.slug
               ? (projekti?.find((p) => p.slug === celija.slug) ??
-                (projekat?.slug === celija.slug && projekat.ime !== null
-                  ? { ime: projekat.ime, boja: projekat.brend.boja, logoUrl: projekat.brend.logoUrl }
+                (projekat?.slug === celija.slug && projekat.ime !== null && projekat.workspaceId !== null
+                  ? {
+                      workspaceId: projekat.workspaceId,
+                      ime: projekat.ime,
+                      boja: projekat.brend.boja,
+                      logoUrl: projekat.brend.logoUrl,
+                    }
                   : null))
               : null;
           return (
@@ -376,7 +382,13 @@ function DonjaTrakaHuba() {
               {ovde && <ActiveMark />}
               <span className={cn(MOBILE_TAB_ICON, ovde && "bg-mod-soft")}>
                 {znak ? (
-                  <ProjekatZnak projekat={znak} velicina="sm" />
+                  <span className="relative">
+                    <ProjekatZnak projekat={znak} velicina="sm" />
+                    {/* Tačka čekanja (plan S07 §2.6), isto pravilo kao u listu. */}
+                    <QuietBoundary>
+                      <TackaProjekta workspaceId={znak.workspaceId} prsten="ring-surface" />
+                    </QuietBoundary>
+                  </span>
                 ) : (
                   <Icon className="size-5" aria-hidden />
                 )}
@@ -446,17 +458,17 @@ function ListVise({
           <ProjektiURedu zatvori={zatvori} />
         </Odeljak>
 
+        {/* Lični ekrani kojih nema u traci: u „Ja“ traka već nosi Moje
+            zadatke i Poruke, a u projektu su te ćelije projektne. */}
         <Odeljak naslov="Ja">
           <MrezaStavki>
-            {jaNavItems
-              .filter((i) => i.href === "/inbox" || i.href === "/beleske")
-              .map((item) => (
-                <StavkaLista key={item.href} item={item} ja zatvori={zatvori} />
-              ))}
+            {jaStavkeVise(uProjektu ? "projekat" : "ja").map((item) => (
+              <StavkaLista key={item.href} item={item} ja zatvori={zatvori} />
+            ))}
           </MrezaStavki>
         </Odeljak>
 
-        {uProjektu && <OdeljciProjekta zatvori={zatvori} />}
+        {uProjektu ? <OdeljciProjekta zatvori={zatvori} /> : <ModuliPoslednjeg zatvori={zatvori} />}
       </div>
     </Drawer>
   );
@@ -479,19 +491,22 @@ function MrezaStavki({ children }: { children: ReactNode }) {
 function StavkaLista({
   item,
   ja = false,
+  slug,
   zatvori,
   label,
 }: {
   item: NavItem;
   ja?: boolean;
+  /** Ekran drugog projekta (iz „Ja“): adresa sa njegovim prefiksom, bez bedža. */
+  slug?: string;
   zatvori: () => void;
   label?: string;
 }) {
-  const Veza = ja ? JaLink : ProjekatLink;
+  const Veza = ja || slug ? JaLink : ProjekatLink;
   return (
     <li data-module={item.module}>
       <Veza
-        href={item.href}
+        href={slug ? putanjaEkrana(item.href, `/${slug}`) : item.href}
         onClick={zatvori}
         className="flex min-h-[5.25rem] flex-col items-center justify-center gap-1.5 rounded-xl px-1 py-2 text-center text-meta text-text-secondary transition-colors active:bg-surface"
       >
@@ -502,7 +517,7 @@ function StavkaLista({
               <BedzInbox />
             </QuietBoundary>
           )}
-          {!ja && <NavBadge href={item.href} label={item.label} ugao="ikonica" />}
+          {!ja && !slug && <NavBadge href={item.href} label={item.label} ugao="ikonica" />}
         </span>
         <span className="max-w-full truncate">{label ?? item.label}</span>
       </Veza>
@@ -532,14 +547,14 @@ function ProjektiURedu({ zatvori }: { zatvori: () => void }) {
   const projekti = useProjektiTrake(tekuci);
   const nalog = useJaNalog();
   return (
-    <ul className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
+    <ul className="grid grid-cols-4 gap-1">
       {projekti?.map((p) => (
-        <li key={p.workspaceId} className="shrink-0">
+        <li key={p.workspaceId}>
           <JaLink
             href={`/${p.slug}`}
             onClick={zatvori}
             aria-current={p.slug === tekuci ? "true" : undefined}
-            className="flex w-[4.5rem] flex-col items-center gap-1.5 rounded-xl px-1 py-2 text-meta text-text-secondary transition-colors active:bg-surface aria-[current=true]:text-foreground"
+            className="flex min-h-11 flex-col items-center gap-1.5 rounded-xl px-1 py-2 text-meta text-text-secondary transition-colors active:bg-surface aria-[current=true]:text-foreground"
           >
             <span className="relative">
               <ProjekatZnak projekat={p} velicina="traka" />
@@ -551,11 +566,11 @@ function ProjektiURedu({ zatvori }: { zatvori: () => void }) {
           </JaLink>
         </li>
       ))}
-      <li className="shrink-0">
+      <li>
         <JaLink
           href={SVI_PROJEKTI_HREF}
           onClick={zatvori}
-          className="flex w-[4.5rem] flex-col items-center gap-1.5 rounded-xl px-1 py-2 text-meta text-text-secondary transition-colors active:bg-surface"
+          className="flex min-h-11 flex-col items-center gap-1.5 rounded-xl px-1 py-2 text-meta text-text-secondary transition-colors active:bg-surface"
         >
           <span className="grid size-9 place-items-center rounded-[10px] bg-surface text-text-muted ring-1 ring-line">
             <LayoutGrid className="size-4" aria-hidden />
@@ -564,11 +579,11 @@ function ProjektiURedu({ zatvori }: { zatvori: () => void }) {
         </JaLink>
       </li>
       {nalog?.platformaVlasnik && NOVI_PROJEKAT_POSTOJI && (
-        <li className="shrink-0">
+        <li>
           <JaLink
             href={NOVI_PROJEKAT_HREF}
             onClick={zatvori}
-            className="flex w-[4.5rem] flex-col items-center gap-1.5 rounded-xl px-1 py-2 text-meta text-text-secondary transition-colors active:bg-surface"
+            className="flex min-h-11 flex-col items-center gap-1.5 rounded-xl px-1 py-2 text-meta text-text-secondary transition-colors active:bg-surface"
           >
             <span className="grid size-9 place-items-center rounded-[10px] border border-dashed border-line-strong text-text-muted">
               <Plus className="size-4" aria-hidden />
@@ -582,7 +597,14 @@ function ProjektiURedu({ zatvori }: { zatvori: () => void }) {
 }
 
 /** Tačka na znaku: u projektu ima nepročitanog ili posla koji čeka. */
-function TackaProjekta({ workspaceId }: { workspaceId: string }) {
+function TackaProjekta({
+  workspaceId,
+  prsten = "ring-surface-raised",
+}: {
+  workspaceId: string;
+  /** Prsten u boji podloge na kojoj tačka stoji (list ili traka). */
+  prsten?: string;
+}) {
   const { bedzevi } = useNeprocitano();
   const stanja = useStanjeProjekata();
   const ceka = stanja?.get(workspaceId)?.ceka ?? 0;
@@ -590,8 +612,45 @@ function TackaProjekta({ workspaceId }: { workspaceId: string }) {
   return (
     <span
       aria-hidden
-      className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-foreground ring-2 ring-surface-raised"
+      className={cn("absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-foreground ring-2", prsten)}
     />
+  );
+}
+
+/**
+ * U „Ja“: moduli poslednjeg projekta po grupama (plan S07 §2.2, „Moduli“), da
+ * ni sa ličnog ekrana nijedan modul nije dalje od dva dodira. Radni deo i dno
+ * su u samom projektu (ćelija „Projekat“). Bez poslednjeg projekta odeljka
+ * nema; projekti su gore.
+ */
+function ModuliPoslednjeg({ zatvori }: { zatvori: () => void }) {
+  const slug = usePoslednjiProjekat();
+  const projekti = useProjektiTrake(null);
+  const p = slug ? projekti?.find((x) => x.slug === slug) : undefined;
+  if (!p) return null;
+  const sekcije = vidljiveSekcije((m) => modulUkljucen(p.moduli, m), {
+    radniDeo: p.uloga !== "client_viewer",
+  }).filter((s) => s.title !== radSekcija.title);
+  if (sekcije.length === 0) return null;
+  return (
+    <section
+      aria-label={`Moduli projekta ${p.ime}`}
+      className="flex flex-col gap-5 border-t border-line pt-4"
+    >
+      <p className="flex min-w-0 items-center gap-2 text-ui font-medium text-foreground">
+        <ProjekatZnak projekat={p} velicina="sm" />
+        <span className="truncate">{p.ime}</span>
+      </p>
+      {sekcije.map((sekcija) => (
+        <Odeljak key={sekcija.title} naslov={sekcija.title}>
+          <MrezaStavki>
+            {sekcija.items.map((item) => (
+              <StavkaLista key={item.href} item={item} slug={p.slug} zatvori={zatvori} />
+            ))}
+          </MrezaStavki>
+        </Odeljak>
+      ))}
+    </section>
   );
 }
 

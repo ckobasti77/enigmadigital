@@ -70,6 +70,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CanvasActionRail } from "@/components/app/prostor/mape/canvases/canvas-action-rail";
+import { useMapaSamoPregled } from "@/components/app/prostor/mape/use-mapa-samo-pregled";
 import {
   useCanvasNavigation,
   useMapActivation,
@@ -387,6 +388,16 @@ function ThoughtsCanvasBody({
 
   const [nodes, setNodes] = useState<ThoughtFlowNode[]>([]);
   const [edges, setEdges] = useState<ThoughtFlowEdge[]>([]);
+  // Na telefonu je mapa samo pregled: dodir ne pomera misli i ne menja veze.
+  const samoPregled = useMapaSamoPregled();
+  const prikazaniCvorovi = useMemo(
+    () => (samoPregled ? nodes.map((node) => ({ ...node, draggable: false, connectable: false })) : nodes),
+    [nodes, samoPregled],
+  );
+  const prikazaneVeze = useMemo(
+    () => (samoPregled ? edges.map((edge) => ({ ...edge, reconnectable: false })) : edges),
+    [edges, samoPregled],
+  );
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance<
     ThoughtFlowNode,
     ThoughtFlowEdge
@@ -1238,8 +1249,8 @@ function ThoughtsCanvasBody({
           }
         >
           <ReactFlow<ThoughtFlowNode, ThoughtFlowEdge>
-            nodes={nodes}
-            edges={edges}
+            nodes={prikazaniCvorovi}
+            edges={prikazaneVeze}
             nodeTypes={NODE_TYPES}
             edgeTypes={EDGE_TYPES}
             reconnectRadius={25}
@@ -1309,7 +1320,9 @@ function ThoughtsCanvasBody({
             zoomActivationKeyCode={["Control", "Meta"]}
             noPanClassName={canvasNavigation.noPanClassName}
             noWheelClassName={canvasNavigation.noWheelClassName}
-            selectionOnDrag
+            selectionOnDrag={!samoPregled}
+            nodesDraggable={!samoPregled}
+            nodesConnectable={!samoPregled}
             selectionMode={SelectionMode.Partial}
             selectionKeyCode="Shift"
             multiSelectionKeyCode={["Control", "Meta", "Shift"]}
@@ -1342,6 +1355,13 @@ function ThoughtsCanvasBody({
               aria-label="Minimapa misli"
             />
 
+            {samoPregled ? (
+              <Panel position="top-left" className="!m-3">
+                <p className="rounded-md bg-surface-raised px-2.5 py-1.5 text-meta text-text-muted shadow-elev-1">
+                  Mapa se uređuje na računaru.
+                </p>
+              </Panel>
+            ) : (
             <Panel position="top-left" className="!m-3 sm:!m-4">
               <MapHistoryButtons
                 undoCount={historyState.undoCount}
@@ -1353,6 +1373,7 @@ function ThoughtsCanvasBody({
                 redoIcon={<Redo2 className="size-4" aria-hidden="true" />}
               />
             </Panel>
+            )}
 
             <Panel position="top-right" className="!m-3 sm:!m-4">
               <CanvasActionRail

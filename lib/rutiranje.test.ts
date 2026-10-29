@@ -28,6 +28,8 @@ import {
   activeHref,
   donjaTraka,
   donjaTrakaHub,
+  jaStavkeVise,
+  jaNavItems,
   ekranZaPrelazak,
   navSections,
   radSekcija,
@@ -523,6 +525,21 @@ describe("moduli projekta (C11)", () => {
     const bez = donjaTrakaHub({ opseg: "ja", slugTekuci: null, slugPoslednji: null });
     expect(bez).toHaveLength(5);
     expect(bez[1]).toMatchObject({ kljuc: "projekat", href: "/projekti", slug: null });
+  });
+
+  test("list Više (P15): svaki lični ekran je u traci ili u listu, jednom, u oba opsega", () => {
+    for (const opseg of ["ja", "projekat"] as const) {
+      const traka = donjaTrakaHub({ opseg, slugTekuci: opseg === "projekat" ? "enigma-it" : null, slugPoslednji: null })
+        .map((c) => c.href)
+        .filter((h): h is string => h !== null);
+      const list = jaStavkeVise(opseg).map((i) => i.href);
+      for (const item of jaNavItems) {
+        const mesta = (traka.includes(item.href) ? 1 : 0) + (list.includes(item.href) ? 1 : 0);
+        expect(mesta, `${opseg}: ${item.href}`).toBe(1);
+      }
+    }
+    expect(jaStavkeVise("ja").map((i) => i.href)).toEqual(["/inbox", "/beleske"]);
+    expect(jaStavkeVise("projekat").map((i) => i.href)).toEqual(["/moji-zadaci", "/inbox", "/poruke", "/beleske"]);
   });
 
   test("donja traka uvek ima tri ćelije; mesto isključenog popuni sledeći modul", () => {

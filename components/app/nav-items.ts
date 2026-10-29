@@ -318,6 +318,16 @@ export function donjaTrakaHub({
 }
 
 /**
+ * Lični ekrani u listu „Više“ (P15): oni kojih nema u donjoj traci. U „Ja“
+ * traka nosi Danas, Moje zadatke i Poruke; u projektu su Zadaci i Poruke
+ * projektni, pa lični idu u list.
+ */
+export function jaStavkeVise(opseg: Opseg): NavItem[] {
+  const uTraci = opseg === "ja" ? ["/", "/moji-zadaci", "/poruke"] : ["/"];
+  return jaNavItems.filter((i) => !uTraci.includes(i.href));
+}
+
+/**
  * Ekran koji ima svoje mesto u gornjoj traci, ali ne i u navigaciji — otvara
  * se sa matičnog ekrana i ima sopstveni izlaz nazad.
  */

@@ -363,7 +363,7 @@ export function PageTablePanel({
                               value={draft}
                               maxLength={MAX_TABLE_CELL_LENGTH}
                               aria-label={`${column.label}, red ${rowIndex + 1}`}
-                              className="h-9 w-full bg-surface-control px-2 text-ui text-foreground outline-none ring-2 ring-inset ring-ring"
+                              className="h-9 pointer-coarse:h-11 w-full bg-surface-control px-2 text-ui text-foreground outline-none ring-2 ring-inset ring-ring"
                               onChange={(event) => setDraft(event.target.value)}
                               onBlur={() => {
                                 void commitCell(address, draft);
@@ -386,7 +386,7 @@ export function PageTablePanel({
                               type="button"
                               disabled={!canEditCells}
                               className={cn(
-                                "h-9 w-full truncate px-2 text-left text-ui text-foreground transition-colors hover:bg-surface-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-default disabled:hover:bg-transparent",
+                                "h-9 pointer-coarse:h-11 w-full truncate px-2 text-left text-ui text-foreground transition-colors hover:bg-surface-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-default disabled:hover:bg-transparent",
                                 looksNumeric(value) && "text-right tabular-nums",
                               )}
                               aria-label={`${column.label}, red ${rowIndex + 1}: ${value || "prazno"}`}
@@ -409,7 +409,7 @@ export function PageTablePanel({
           <button
             type="button"
             disabled={atColumnLimit}
-            className={cn(IVICA_DODAVANJA, "w-10")}
+            className={cn(IVICA_DODAVANJA, "w-10 pointer-coarse:w-11")}
             aria-label={
               atColumnLimit ? `Dostignuta granica od ${formatNumber(MAX_TABLE_COLUMNS)} kolona` : "Dodaj kolonu"
             }

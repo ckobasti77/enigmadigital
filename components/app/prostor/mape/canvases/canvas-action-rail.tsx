@@ -45,6 +45,7 @@ export function CanvasActionRail({
   identity,
   sections,
   className,
+  horizontal = false,
 }: {
   ariaLabel: string;
   identity: {
@@ -56,6 +57,8 @@ export function CanvasActionRail({
   };
   sections: CanvasActionRailSection[];
   className?: string;
+  /** Telefon (samo pregled): traka u jednom redu, bez oznake mape. */
+  horizontal?: boolean;
 }) {
   const IdentityIcon = identity.icon;
   const visibleSections = sections.filter((section) => section.items.length > 0);
@@ -72,6 +75,7 @@ export function CanvasActionRail({
       <div
         className={cn(
           styles.rail,
+          horizontal && styles.railRow,
           "nodrag nopan nowheel",
           className,
         )}
@@ -80,7 +84,7 @@ export function CanvasActionRail({
         onPointerDown={(event) => event.stopPropagation()}
         onDoubleClick={(event) => event.stopPropagation()}
       >
-        <Tooltip>
+        {horizontal ? null : <Tooltip>
           <TooltipTrigger render={<div className={cn(
                 styles.item,
                 styles.expandable,
@@ -108,7 +112,7 @@ export function CanvasActionRail({
           <TooltipContent side="left">
             {identityDescription}
           </TooltipContent>
-        </Tooltip>
+        </Tooltip>}
 
         {visibleSections.map((section) => (
           <div

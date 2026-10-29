@@ -124,7 +124,7 @@ const PRIORITIES: ReadonlyArray<TaskPriorityKey> = ["urgent", "high", "medium", 
 const hoverReveal =
   "md:pointer-fine:opacity-0 md:pointer-fine:group-hover/row:opacity-100 md:pointer-fine:group-focus-within/row:opacity-100 data-open:opacity-100";
 const iconButton =
-  "grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-control-hover hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted-foreground";
+  "grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors pointer-coarse:size-11 hover:bg-surface-control-hover hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted-foreground";
 
 /**
  * Red zadatka ličnog nivoa (pun, K10): kvačica (`AnimatedCheck` + precrt),
