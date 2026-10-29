@@ -3,6 +3,7 @@ import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
 import { PORUKE_PROSTORA } from "./auth";
 import { ensureAreaChannel, ensureGeneralChannel } from "./chat_channels";
+import { archiveAssignmentsForProfile } from "./task_assignees";
 import { AREA_DEFINITIONS, cleanRequiredText, normalizeEmail } from "./validators";
 
 /**
@@ -100,4 +101,30 @@ export async function obezbediRadniDeoProjekta(
       createdAt: args.now,
     });
   }
+}
+
+/** Najviše zadataka sa kojih se član skida u jednoj transakciji (Devotion 250). */
+const NAJVISE_ZADATAKA_PRI_UKLANJANJU = 250;
+
+/**
+ * D23: član uklonjen iz projekta (`membersStore.removeMember`) skida se sa
+ * svojih zadataka u tom projektu; ostali izvršioci ostaju, a projekcija na
+ * stranici se preračunava. Korisnik bez profila nije ni ulazio u radni deo.
+ * Preko granice baca grešku i uklanjanje se ne izvodi, kao u Devotionu.
+ */
+export async function ukloniClanaIzRadnogDela(
+  ctx: MutationCtx,
+  args: { workspaceId: Id<"workspaces">; userId: Id<"users">; now: number },
+): Promise<number> {
+  const profil = await ctx.db
+    .query("profiles")
+    .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+    .first();
+  if (profil === null) return 0;
+  return await archiveAssignmentsForProfile(ctx, {
+    profileId: profil._id,
+    workspaceId: args.workspaceId,
+    now: args.now,
+    limit: NAJVISE_ZADATAKA_PRI_UKLANJANJU,
+  });
 }

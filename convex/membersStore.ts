@@ -3,6 +3,7 @@ import { deleteLoginMachinery } from "./lib/auth";
 import { isEmailInAllowlist } from "./auth";
 import { ulogaValidator } from "./lib/uloge";
 import { projekatMutation, projekatQuery } from "./lib/projekat";
+import { ukloniClanaIzRadnogDela } from "./prostor/lib/radniDeo";
 
 /**
  * Upravljanje članovima projekta (sekcija „Pristup").
@@ -238,6 +239,13 @@ export const removeMember = projekatMutation({
     // gleda ni `members` ni `authAccounts`, pa bi novi `signUp` te adrese opet
     // prošao. Ekran to mora reći kad uklanja takvu adresu. (Uklanjanje iz
     // `ALLOWED_EMAILS` je ručna izmena env-a, van ovog toka.)
+    // Radni deo (SPAJANJE D23): uklonjen član se skida sa zadataka projekta.
+    await ukloniClanaIzRadnogDela(ctx, {
+      workspaceId: args.workspaceId,
+      userId: args.userId,
+      now,
+    });
+
     // Članstvo mete u ovom prostoru se briše; `users` red OSTAJE jer
     // `leadStageEvents.actorUserId` i istorija pokazuju na njega.
     for (const m of meta) await ctx.db.delete(m._id);

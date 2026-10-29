@@ -79,3 +79,10 @@ npm run verify:prostor-pristup
 - `--korak S03`: 11 modula, 13 lib fajlova, 4 test fajla; 41 RUČNO stavka (23 poziva migracija u `areasV2.test.ts`, polja projekta, `startupMembers` u `search`, `dashboard` i `lib/comments`). Posle alata typecheck je imao 69 grešaka, sve u tim stavkama.
 - `proveraOblasti.pomoc.ts` alat ne pravi: sastavljen je iz `areasV2Migrations.ts` (31–57, 82–159, 721–1131) uz ista preimenovanja (S01 D2, §5.3).
 - Novo u adapteru: `profilKreatoraProjekta` (vlasnik cilja komentara bez zamenskog profila).
+
+## Isprobano (S04)
+
+- `--korak S04`: 7 modula, 1 lib fajl (`my_day`), 7 test fajlova; 21 RUČNO stavka (`startupDocumentValidator` u `tasks.listMine`, `startupMembers` u `tasks`, `puls` ×2 i `lib/my_day`, `archivedAt` projekta, tri bloka testova koji zovu migracije i `startups.removeMember`).
+- Posle alata typecheck modula je imao 28 grešaka (sve u RUČNO stavkama); testovi oko 460, skoro sve „nedostaje `workspaceId`“ u pozivima P funkcija koje ga ranije nisu primale.
+- `ctx.db.patch("profiles", id, { role: "admin" })` posle `insertProfil` alat ne hvata: takav profil NIJE vlasnik platforme. Seed mora da napravi profil kroz `insertProfil` sa `role: "admin"`.
+- Devotion kreator startupa nije bio automatski član; `insertStartup` kreatoru daje `owner` red, pa se „napustio projekat“ radi sa `ukloniClanstvo` nad tim redom.

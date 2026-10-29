@@ -190,3 +190,123 @@ Noćni run SPAJANJE: Enigma + Devotion u jednu internu aplikaciju. Plan: `docs/S
 - Posle deploya, `areasV2`, `pages` i ostali moduli rade samo kroz `api.prostor.*` sa `workspaceId`. Web ih dobija u S08+.
 - Odluči da li „orakl postojanja“ (ODLUKA 6) treba ujednačiti u jednu grešku.
 - Odluči da li puni profili članova (email) u odgovorima ostaju.
+
+## S04 — Backend: zadaci, lični zadaci, Moj dan, Puls tima   (2026-10-29 02:50)
+**Fajlovi:**
+- `convex/prostor/` (preneto alatom pa ručno dovršeno): `tasks.ts`, `taskCheckpoints.ts`, `taskAssignees.ts`, `taskCheckpointCanvasEdges.ts`, `personalTasks.ts`, `myDay.ts`, `puls.ts` (puls tima; Enigmin `convex/puls.ts` nije diran).
+- `convex/prostor/lib/`:
+  - nov `my_day.ts`;
+  - izmenjen `task_assignees.ts`: `archiveAssignmentsForProfile` sa projektom čita indeks projekta;
+  - izmenjen `radniDeo.ts`: nov `ukloniClanaIzRadnogDela` (D23).
+- `convex/membersStore.ts`: jedan poziv `ukloniClanaIzRadnogDela` u `removeMember` (D23), pre brisanja članstva.
+- Testovi:
+  - preneti `tasks.test.ts`, `tasks.bulk.test.ts`, `taskAssignees.test.ts`, `taskCheckpoints.test.ts`, `personalTasks.test.ts`, `myDay.test.ts`, `puls.test.ts`;
+  - nov `zadaci.test.ts`.
+- `convex/_generated/api.d.ts` (codegen).
+- `.nocni-run/spajanje/alati/README.md` (odeljak „Isprobano (S04)“).
+
+**Šta je urađeno:**
+- Alat je preneo 7 modula, `lib/my_day` i 7 test fajlova. Ostala je 21 RUČNO stavka, i sve su zatvorene ručno. Četiri radnika (Sonnet) su dovršila test fajlove, svaki svoje. Diff i provere su pregledani pre prihvatanja.
+- Projektne funkcije su na `projekatQuery/Mutation` sa `uloga: "urednik"`:
+  - `tasks` (osim `listMine` i `listEverywhere`);
+  - `taskCheckpoints`, `taskAssignees`, `taskCheckpointCanvasEdges`;
+  - `personalTasks.moveToStartup`;
+  - `puls.getWeekly`.
+- Lične funkcije su na `prijavljen*`: `tasks.listMine`, `tasks.listEverywhere`, `personalTasks.*` i `myDay.*`.
+- `verify:pristup` pokazuje **514 / 499 / 15**, tačno po S01 §7, bez novih izuzetaka.
+- Lični nivo čita moje projekte kroz `listMyActiveWorkspaces`:
+  - čita `members.by_user`;
+  - preskače `client_viewer` i arhivirane projekte;
+  - opseg je 50.
+- Provera članstva u `tasks.listMine` i `lib/my_day.getPlannableTask` više ne čita `startupMembers`. Sada pita `clanstvoProfila` (owner/urednik, `.first()`). `listMine` vraća `workspace` kao mini (`_id`, ime, logo), a ne ceo `workspaces` red.
+- Puls tima čita ljude kroz `aktivniClanoviProjekta` (P9: owner/urednik sa profilom, bez duplikata).
+- `sendWeeklyPulsNotifications` ostaje nepozvana (Devotion P9, nema crona) i prolazi kroz projekte koji nisu arhivirani.
+- Zadržano je sledeće:
+  - status, prioritet, rok, izvršioci, koraci (lanac, Undo 8 s, mapa) i instrukcije sa istorijom;
+  - „Sredi rokove“ (`bulkReschedule` / `bulkRestoreSchedule` sa revizijom);
+  - „Zastarelo“ (podaci iz `commandCenter`, logika u `lib/prostor/stale.ts`);
+  - lični zadaci i „Premesti u projekat“ (plan dana prati zadatak);
+  - Moj dan: plan, redosled, prenos nezavršenog (`carryOver`) i čišćenje starog (`clearOld`);
+  - nedeljni puls tima.
+- D23: član kog vlasnik ukloni iz projekta skida se sa zadataka tog projekta. Zadaci drugih projekata ostaju, i to proverava test.
+
+**Paritet:** backend za redove:
+- 1 (Moj dan);
+- 3 (Moji zadaci);
+- 4 (lični zadaci, „Premesti u projekat“);
+- 10 (Trijaža: Sredi rokove, Zastarelo; `commandCenter`);
+- 11 (zadaci tima: lista, osoba, radnje);
+- 12 (zadatak: status, prioritet, rok, izvršioci, koraci, instrukcije);
+- 27 (puls nedelje).
+
+Ekrani nisu dirani; UI dolazi u S12, S16, S19 i S20.
+
+**ODLUKE:**
+1. **`archiveAssignmentsForProfile` sa projektom čita `by_workspace_profile_active_sort`.**
+   - Devotion je čitao `by_profile_active_sort` (`take(limit + 1)`) pa filtrirao po projektu. Član mnogih projekata bi zato pri uklanjanju iz jednog tiho ostao na delu zadataka tog projekta.
+   - Granica (250) i greška preko nje ostaju.
+   - Funkcija je iz S03, ali je njen jedini pozivalac D23 iz ovog koraka.
+2. **D23 ide kroz `ukloniClanaIzRadnogDela(ctx, { workspaceId, userId, now })`** u `radniDeo.ts`.
+   - Poziva se u `membersStore.removeMember`, pre brisanja `members` redova.
+   - Korisnik bez profila se preskače.
+   - Preko 250 zadataka `removeMember` pada sa Devotion porukom („Prvo ih preraspodelite.“), kao Devotion `startups.removeMember`.
+3. **`puls.getWeekly.startupCreatedAt`** zadržava ime (D10). Vrednost je `workspace._creationTime`, jer `workspaces` nema `createdAt`.
+4. **`sendWeeklyPulsNotifications`:**
+   - `workspaces` nema indeks po arhivi, pa funkcija ide prolazom (`for await`) i staje na 200 projekata koji nisu arhivirani, kao Devotion granica;
+   - funkciju ništa ne poziva (Devotion P9).
+5. **Ugovorne vrednosti ostaju (D10):** razlog preskakanja `"drugi_startup"` u „Sredi rokove“ i `targetType: "startup"` u aktivnosti.
+6. **Test „uklanjanje člana … skida ga sa zadatka“** sada zove `membersStore.removeMember` kao vlasnik projekta (`userId`, `preuzimaLeadoveUserId`). Devotion `startups.removeMember` ne postoji, a u Enigmi člana uklanja vlasnik projekta, ne admin (plan S01 §1.4).
+7. **Seed u `taskAssignees.test`:** admin se pravi kroz `insertProfil` sa `role: "admin"`, pa je vlasnik platforme. Devotion je radio `patch` posle upisa, što u Enigmi ne bi dalo prava.
+8. **Seed `tasks.test › seedEverywhere`:** projekat „Napušten“ sada briše `owner` red kreatora (`ukloniClanstvo`). `insertStartup` kreatoru daje članstvo, a Devotion ga nije davao.
+9. **T0 u `tasks.bulk.test`:**
+   - `Date.UTC(2026, 9, 26, 10, 0)` je danas prošlost.
+   - convex-test 0.0.65 ne pušta sat transakcije unazad od poslednjeg upisa, a seed piše pravim satom. Zato su 3 testa padala.
+   - T0 je sada `Date.UTC(2030, 9, 26, 10, 0)`: isti dan i sat, fiksno u budućnosti. Asercije zavise samo od redosleda.
+10. **Očekivani tekstovi u testovima.** Provera nije oslabljena, promenjen je samo tekst:
+    - „Nemate pristup ovom startupu.“ → „Nemaš pristup ovom projektu.“;
+    - „mora pripadati ovom startupu“ → „… projektu“;
+    - „deaktiviran“ → „Profil još nije spreman“ (deaktiviran profil adapter tretira kao „nema profila“, S02);
+    - „Oblast nije pronađena u ovom startupu.“ i poruke za „Premesti u projekat“ preveo je alat (S01 §3.8);
+    - u `myDay.test` spisak ključeva stavke sadrži `workspace` umesto `startup`.
+11. **Nisu preneta 3 bloka, po planu S01 §1.4.** Na njihovom mestu je jednoredni komentar:
+    - `taskAssignees` „arhiviranje profila …“: nema globalne arhive profila;
+    - `taskAssignees` „verifier … čekaju backfill“: migracije se ne prenose (P21);
+    - `taskCheckpoints` „legacy backfill je idempotentan …“: migracije se ne prenose (P21).
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- Preneto je **99 blokova**, tačno po S01 §5.4:
+  - tasks 14, tasks.bulk 23;
+  - taskAssignees 9 od 11, taskCheckpoints 12 od 13;
+  - personalTasks 13, myDay 17, puls 11.
+- Nov je `zadaci.test.ts` sa 9 testova:
+  - lični nivo (Moj dan, `listEverywhere`, `listMine`) vidi samo projekte u kojima sam `owner`/`urednik`. Projekat u kome sam client_viewer i arhiviran projekat ne ulaze ni kroz filter ni kroz plan dana;
+  - projektni ekrani (`commandCenter`, `puls.getWeekly`) projekta u kome sam client_viewer su zatvoreni;
+  - puls tima ne pokazuje client_viewer kao člana (P9);
+  - 51 projekat daje 50, najnovije članstvo prvo;
+  - izolacija:
+    - zadatak drugog projekta se odbija u `updateMetadata`, `taskCheckpoints.create/listForTask` i `taskAssignees.leave`;
+    - `listForTasks` ga preskače;
+    - „Sredi rokove“ ga preskače kao `drugi_startup`;
+    - ništa se ne upisuje;
+  - stranac i client_viewer ne ulaze;
+  - „Premesti u projekat“ ne ide u projekat u kome sam client_viewer, ni u oblast drugog projekta;
+  - D23: uklanjanje iz A skida člana sa zadatka u A, a zadatak u B ostaje.
+- Paritet sa `lib/prostor`: ovi moduli nemaju Devotion parity test. Zajedničku logiku (`day_key`) već pokriva `day-key-parity.test.ts` (S02).
+- `convex/prostor` sada ima 26 fajlova i 244 testa.
+- Ceo `npx vitest run`: 122 fajla i 1789 testova, svi prolaze.
+
+**Rezultat provere:**
+- codegen prolazi;
+- typecheck prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest prolazi (1789);
+- pristup: 514 / 499 / 15, bez novih izuzetaka;
+- `verify:purge` 196 (nema novih tabela);
+- regresije: 20 provera prolazi, uključujući `verify:prostor-pristup`.
+
+**Za Jovana ujutru:**
+- Ništa nije deployovano.
+- Posle deploya, uklanjanje člana u Pristupu ga skida i sa zadataka tog projekta. Ako član ima više od 250 aktivnih zadataka u projektu, uklanjanje pada dok se zadaci ne preraspodele (Devotion pravilo).
+- Deaktiviran profil u radnom delu dobija poruku „Profil još nije spreman. Osveži stranicu.“ (adapter iz S02), a ne posebnu poruku o deaktivaciji. Odluči da li treba posebna poruka.

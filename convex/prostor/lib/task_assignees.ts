@@ -243,16 +243,26 @@ export async function archiveAssignmentsForProfile(
     limit: number;
   },
 ) {
-  const rows = await ctx.db
-    .query("taskAssignees")
-    .withIndex("by_profile_active_sort", (q) =>
-      q.eq("profileId", args.profileId).eq("archivedAt", null),
-    )
-    .take(args.limit + 1);
+  // Sa projektom se čita indeks tog projekta: član mnogih projekata bi kroz
+  // indeks profila uz filter posle čitanja tiho ostao na delu zadataka (S04).
+  const workspaceId = args.workspaceId;
   const scoped =
-    args.workspaceId === undefined
-      ? rows
-      : rows.filter((row) => row.workspaceId === args.workspaceId);
+    workspaceId === undefined
+      ? await ctx.db
+          .query("taskAssignees")
+          .withIndex("by_profile_active_sort", (q) =>
+            q.eq("profileId", args.profileId).eq("archivedAt", null),
+          )
+          .take(args.limit + 1)
+      : await ctx.db
+          .query("taskAssignees")
+          .withIndex("by_workspace_profile_active_sort", (q) =>
+            q
+              .eq("workspaceId", workspaceId)
+              .eq("profileId", args.profileId)
+              .eq("archivedAt", null),
+          )
+          .take(args.limit + 1);
   if (scoped.length > args.limit) {
     throw new Error(
       `Član je dodeljen na više od ${args.limit} zadataka. Prvo ih preraspodelite.`,
