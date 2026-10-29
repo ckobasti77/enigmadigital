@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/workspace/settings/areas-tab.tsx (main @ c05c40f), SPAJANJE S21.
 import { useState } from "react";
 import { ArrowDown, ArrowUp, Check, Pencil, Plus, X } from "lucide-react";
-import { AREA_LABEL_MAX, cleanAreaLabel } from "@/lib/prostor";
+import { AREA_LABEL_MAX, cleanAreaLabel } from "@/lib/prostor/settings";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

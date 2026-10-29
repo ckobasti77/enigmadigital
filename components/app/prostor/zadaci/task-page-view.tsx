@@ -2,7 +2,7 @@
 
 // Preneto iz Devotion apps/web/components/workspace/task-page/task-page-view.tsx (main @ c05c40f), SPAJANJE S12.
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { PERMISSION_REASONS } from "@/lib/prostor";
+import { PERMISSION_REASONS } from "@/lib/prostor/task-row";
 import { toast } from "@/lib/toast";
 
 import { CommentsSection, type CommentsCount } from "@/components/app/prostor/saradnja/comments-section";

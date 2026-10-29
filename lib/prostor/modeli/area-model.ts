@@ -5,7 +5,7 @@
  * učitavanje zadataka oblasti i stablo Dokumenata. Bez React-a i bez Convex-a.
  * Testovi: `area-model.test.ts`.
  */
-import { formatEditTime } from "..";
+import { formatEditTime } from "../revisions";
 import { formatNumber } from "../../format";
 
 import {

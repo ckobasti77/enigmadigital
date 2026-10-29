@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { useQueryTolerant } from "@/components/app/prostor/podaci/ja";
+import { ProfileAvatar } from "@/components/app/prostor/zajednicko/radni-ui";
 import { useProstorNavigacija } from "@/components/app/prostor/use-prostor-navigacija";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -30,6 +31,7 @@ import { PUSH_TEKST, mozeUkljuciti } from "@/lib/prostor/web/push";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
+import type { InboxItemModel } from "./inbox-view";
 import { PUSH_PODESEN, usePushNotifications } from "./use-push-notifications";
 
 /** Ikonica po vrsti obaveštenja; obaveštenje sa autorom crta njegov avatar. */
@@ -56,6 +58,34 @@ export const TYPE_ICON: Record<string, typeof CheckSquare2> = {
 
 /** Prekoračen rok je jedina vrsta koja sme da nosi crvenu (kašnjenje). */
 export const LOUD_TYPES = new Set(["task_overdue"]);
+
+/**
+ * Znak reda: avatar autora, a bez autora ikonica vrste (kašnjenje je crveno).
+ * Živi ovde, a ne u `inbox-view`, jer ga crta i zvono u ljusci: tako ceo
+ * ekran Inbox-a ne ulazi u prvo učitavanje svake strane (S28).
+ */
+export function ZnakObavestenja({
+  item,
+  className,
+}: {
+  item: Pick<InboxItemModel, "type" | "actor">;
+  className?: string;
+}) {
+  if (item.actor !== null) return <ProfileAvatar profile={item.actor} className={cn("size-8", className)} />;
+  const Icon = TYPE_ICON[item.type] ?? BellRing;
+  const loud = LOUD_TYPES.has(item.type);
+  return (
+    <span
+      className={cn(
+        "grid size-8 shrink-0 place-items-center rounded-full",
+        loud ? "bg-danger-soft text-danger" : "bg-surface-raised text-text-secondary",
+        className,
+      )}
+    >
+      <Icon className="size-4" aria-hidden="true" />
+    </span>
+  );
+}
 
 /**
  * Prva strana Inboxa kroz sve projekte i lične poruke: zvono (kartica Inbox) i

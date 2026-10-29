@@ -3,7 +3,8 @@
 // Preneto iz Devotion apps/web/components/me/task-panel/startup-task-panel-view.tsx (main @ c05c40f), SPAJANJE S12.
 import { useState, type ReactNode, type Ref } from "react";
 import { CircleDot, LogIn, LogOut, Users } from "lucide-react";
-import { STATUS_LABELS, type TaskPermissions, type TaskPriorityKey, type TaskStatusKey, type WorkspaceMini } from "@/lib/prostor";
+import { STATUS_LABELS, type TaskPriorityKey, type TaskStatusKey } from "@/lib/prostor/task-sort";
+import type { TaskPermissions, WorkspaceMini } from "@/lib/prostor/task-row";
 
 import { Button } from "@/components/ui/button";
 import {

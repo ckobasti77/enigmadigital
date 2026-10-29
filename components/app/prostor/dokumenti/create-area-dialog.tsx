@@ -27,11 +27,14 @@ export function CreateAreaDialog({
   onOpenChange,
   workspace,
   onCreated,
+  finalFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspace: StartupWithAreas;
   onCreated?: (areaId: Id<"areas">) => void;
+  /** Kuda fokus posle zatvaranja; dijalog se otvara spolja (nema svoj okidač). */
+  finalFocus?: () => HTMLElement | boolean;
 }) {
   const createArea = useProjekatMutation(api.prostor.projekat.createArea);
   const [label, setLabel] = useState("");
@@ -60,7 +63,7 @@ export function CreateAreaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogPopup className="max-w-md gap-0 p-0">
+      <DialogPopup className="max-w-md gap-0 p-0" finalFocus={finalFocus}>
         <form onSubmit={submit}>
           <DialogHeader className="border-b border-line-soft px-5 py-5 sm:px-6">
             <DialogTitle>Nova oblast</DialogTitle>

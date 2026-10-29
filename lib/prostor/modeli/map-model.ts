@@ -1,5 +1,5 @@
 // Preneto iz Devotion apps/web/components/map/map-model.ts (main @ c05c40f), SPAJANJE S14.
-import { formatEditTime } from "..";
+import { formatEditTime } from "../revisions";
 
 import {
   classifyDeadline,

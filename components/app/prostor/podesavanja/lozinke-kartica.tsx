@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "convex/react";
 import { KeyRound, Lock } from "lucide-react";
 
-import { SETTINGS_TEXT } from "@/lib/prostor";
+import { SETTINGS_TEXT } from "@/lib/prostor/settings";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";

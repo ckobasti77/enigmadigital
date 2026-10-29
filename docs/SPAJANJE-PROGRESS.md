@@ -2176,3 +2176,161 @@ Postojeći testovi čuvara dugmadi i tipografije prolaze sa spuštenim plafonima
 - Zvono → „Čeka te“ i blok „Čeka te“ na Danas: radnje su sada neutralna dugmad sa strelicom, a ne obojene po modulu (ODLUKA 2). Potvrdi da ti tako odgovara.
 - „Šta radi“ na početnoj projekta je i dalje kartica u kartici (ODLUKA 1). Ako želiš, sledeći korak je da spoljni okvir postane obična sekcija; to menja izgled bloka Kontrolne table.
 - Ništa nije deployovano.
+
+## S28 — Performanse i pristupačnost   (2026-10-29 20:30)
+**Fajlovi:**
+- Ljuska `components/app/`: `mobile-nav.tsx` (fioka lista „Više“ iza `next/dynamic`), `notifications-bell.tsx` i `zvono-ja.tsx` (lenj dijalog podešavanja, ime oblačića), `user-menu.tsx` (lenji dijalozi profila i obaveštenja).
+- Radni deo `components/app/prostor/`:
+  - nov `lenji-dijalozi.tsx` (podešavanja obaveštenja i profil kroz `next/dynamic`);
+  - `dokumenti/dokumenti-kontekst.tsx` (lenji „Nova stranica“ i „Nova oblast“, ključ po broju otvaranja, povratak fokusa), `dokumenti/create-page-dialog.tsx` i `dokumenti/create-area-dialog.tsx` (opcioni `finalFocus`);
+  - `ja/brzi-unos/brzi-unos.tsx` (kontejner brzog unosa iza `next/dynamic`);
+  - `inbox/notifications-panel.tsx` (dobio `ZnakObavestenja`), `inbox/inbox-view.tsx` (uvozi ga odatle; jači broj na izabranom čipu), `inbox/zvono-inbox.tsx`;
+  - `precice/pomoc-dijalog.tsx` („Zatvori“, `dd` bez `aria-label`), `editor/rich-text-editor.tsx` (`role="textbox"`), `mape/canvases/canvas-action-rail.tsx` (`role="img"`), ručke mapa bez `aria-label` (`mape/thoughts/thought-node.tsx`, `mape/canvases/{area,idea,task-checkpoint}-flow-node.tsx`);
+  - duboki uvozi umesto barela `@/lib/prostor` (alat `s28-barel.mjs`): 66 fajlova u `components/`, `app/dev-ux/fixtures-prostor-ideje.ts` i `components/app/leadovi/firma-zadaci.tsx`, plus 14 fajlova `lib/prostor/{modeli,web}/*` koji su uvozili `".."`; `lib/prostor/web/danas.ts` izvozi iz `../today`.
+- Nov čuvar `lib/prostor/ljuska-lenja.test.ts`.
+- Alati `.nocni-run/spajanje/alati/`:
+  - `s28-bundle.mjs`: KB po ruti iz `route-bundle-stats.json` i potpisi biblioteka u komadima;
+  - `s28-moduli.mjs`: sastav prvog učitavanja po izvornom fajlu, iz `next experimental-analyze --output`;
+  - `s28-lanac.mjs`: lanac statičkih uvoza do fajla;
+  - `s28-barel.mjs`: codemod;
+  - `s28-pristupacnost.mjs`: axe, Tab i radnje tastaturom;
+  - `s28-mreza.mjs`: mreža u razvojnom prikazu i snimci.
+- Snimci `docs/spajanje/snimci/S28-{pomoc-1536,pomoc-390,inbox-cipovi-1536}.png`. Merenja su u `.nocni-run/spajanje/tmp/s28/` (`bundle-pre.json`, `bundle-kraj.json`, `pristupacnost/izvestaj-{1536,390}.json`).
+
+**Šta je urađeno:**
+- **Merenje.** Next 16 (Turbopack) u izlazu `npm run build` više ne štampa KB po ruti, a nema ih ni `baseline_build.txt`.
+  - Brojevi su zato iz `.next/diagnostics/route-bundle-stats.json` (prvo učitavanje po ruti, nekompresovano), uz gzip istih komada.
+  - Sastav po fajlu daje `next experimental-analyze --output`. Njegovi komadi se sa buildom uparuju po veličini (razlika 43 B), a zbir se poklapa sa buildom na ±4 KB.
+- **Šta je spajanje dodalo svakoj strani pre S28.** Ljuska je statički vukla:
+  - dijalog „Nova stranica“ (sa brzim pravljenjem zadatka, koracima i komentarima) i „Nova oblast“;
+  - Brzi unos, podešavanja obaveštenja i profil;
+  - ceo ekran Inbox-a, zbog jedne ikonice u zvonu;
+  - Base UI fioku za „Više“;
+  - barel `@/lib/prostor` sa svih 26 modula.
+
+  To je bilo oko 294 KB na svakoj Enigminoj ruti (od toga 206 KB koda radnog dela).
+- **Lenjo učitavanje.**
+  - Ti dijalozi i fioka su iza `next/dynamic` (`ssr: false`). Montirani su kao i pre, zatvoreni, pa se ponašaju isto: kod im ne stiže u prvom učitavanju, nego odmah posle njega.
+  - `ZnakObavestenja` je premešten u `notifications-panel.tsx`, pa zvono više ne vuče `inbox-view`.
+  - Svi uvozi barela su postali duboki (plan S07 §11.1).
+- **Tiptap, xyflow, `read-excel-file`, `web-push`.** Već su bili lenji (S10, S14, S11, S17), a sada ih čuva i graf uvoza svake strane. `web-push` nije ni u jednom klijentskom komadu.
+- **Pristupačnost radnog dela.** Provera je Playwright + axe-core 4.13 iz `node_modules`, po WCAG 2.0/2.1 A i AA:
+  - 24 ekrana na 1536 × 695 (axe i Tab) i na 390 × 844 (axe), plus 14 radnji tastaturom;
+  - na kraju: 0 axe nalaza u radnom delu i u svim otvorenim slojevima;
+  - svaki Tab-stop ima ime i vidljiv fokus;
+  - svaki meni i dijalog se otvara tasterom, fokus ulazi u sloj, a modalni sloj drži Tab;
+  - Esc zatvara sloj i vraća fokus na okidač.
+
+**Brojevi (prvo učitavanje JS, KB nekompresovano / gzip; build pre i posle S28):**
+
+| Ruta | Pre S28 | Posle S28 | Razlika |
+|---|---|---|---|
+| Ljuska (zajedničko svim rutama iza prijave) | 1558 / 503 | 1350 / 432 | −208 / −71 |
+| `/` Danas | 1693 / 547 | 1636 / 528 | −57 |
+| `/[projekat]` početna | 2204 / 694 | 2153 / 678 | −51 |
+| `/[projekat]/leadovi` | 1857 / 588 | 1692 / 533 | −165 |
+| `/[projekat]/analytics` | 2035 / 641 | 1829 / 571 | −206 |
+| `/[projekat]/instagram` | 2096 / 660 | 1930 / 605 | −166 |
+| `/[projekat]/ads` | 2183 / 676 | 1979 / 606 | −204 |
+| `/[projekat]/threads` | 2147 / 667 | 1976 / 609 | −171 |
+| `/[projekat]/youtube` | 2128 / 666 | 1957 / 608 | −171 |
+| `/[projekat]/novosti` | 1606 / 517 | 1440 / 462 | −166 |
+| `/[projekat]/napredak` | 1583 / 510 | 1377 / 440 | −206 |
+| `/[projekat]/rules` | 1641 / 527 | 1468 / 469 | −173 |
+| `/[projekat]/settings` | 1780 / 557 | 1576 / 487 | −204 |
+| `/[projekat]/zadaci` | 1672 / 542 | 1621 / 526 | −51 |
+| `/[projekat]/stranica/[id]` | 1828 / 587 | 1790 / 575 | −38 |
+| `/login` | 825 / 255 | 824 / 255 | −1 |
+
+Svih 59 ruta je u `.nocni-run/spajanje/tmp/s28/bundle-{pre,kraj}.json`. Lenji komadi posle S28:
+- Tiptap, 454 KB;
+- xyflow, 193 KB (3 kopije, po jedna za grupu mapa);
+- `read-excel-file`, 78 KB;
+- Enigmina mapa leadova (maplibre + three), 1500 KB.
+
+Nijedan nije u prvom učitavanju nijedne rute.
+
+**Poređenje sa početkom runa.** Brojeva iz baseline-a nema, pa je dodatak spajanja izmeren po sastavu: fajlovi dodati u runu i Base UI delovi koje su doneli novi primitivi.
+- Na Enigminim ekranima dodatak je **≈ 294 KB pre S28 i ≈ 140 KB posle**; od toga je 60 KB radni deo.
+- Ostatak su traka projekata, meni „Ja“, zvono sa Inbox-om, prečice, Toaster (Base UI Toast, 20 KB) i stablo oblasti.
+- Procena za Leadove: ≈ 1552 KB na početku runa, a 1692 KB sada. To je +9 % (pre S28 +19 %).
+- Procena je donja granica, jer ne broji rast fajlova koji su postojali i pre runa (npr. `app-shell.tsx`).
+
+**Mreža (razvojni prikaz):** nijedna od ovih strana ne učitava skriptu sa potpisom Tiptap-a, xyflow-a, `read-excel-file`-a ni `web-push`-a: Danas, Moji zadaci, početna projekta, Leadovi, Analitika, Instagram, Oglasi, Podešavanja i oblast (Pregled). Kontrola (`s28-mreza.mjs`): stranica učitava Tiptap, a oblast sa karticom Mapa učitava xyflow.
+
+**Pristupačnost — nalazi i ispravke:**
+1. **„Nova stranica“ i „Nova oblast“** (stablo, ⌘K, zaglavlje): posle Esc fokus je padao na `body`.
+   - Uzrok: ključ dijaloga je nosio „otvoreno“, pa se primerak menjao i pri zatvaranju, a dijalog nema svoj okidač.
+   - Ispravka: ključ je sada broj otvaranja, a fokus se vraća na dugme koje je dijalog otvorilo (`finalFocus`). Zatvaranje sada odigra i izlaz, kao kod ostalih dijaloga.
+2. **Pomoć za prečice (`?`):** imala je 47 × `aria-label` na `<dd>` (zabranjeno) i listu koja se skroluje bez ijedne kontrole. Tekst kombinacije je sada `sr-only`, a vraćeno je dugme „Zatvori“ koje je Devotion imao.
+3. **Uređivač:** `contenteditable` je imao ime, ali ne i ulogu. Dobio je `role="textbox"` i `aria-multiline`.
+4. **Mape:** ručke za povezivanje (8) imale su `aria-label` na `div`-u bez uloge, pa je uklonjen. Oznaka mape u traci radnji je fokusabilan `div` sa imenom, pa je dobila `role="img"`.
+5. **Inbox:** broj na izabranom čipu opsega imao je kontrast 3,98:1. Na izabranom čipu je sada `text-text-secondary`.
+6. **Zvono (oba):** oblačić je `role="dialog"` bez imena. Dobio je `aria-label="Čeka te"`.
+7. **Provereno, bez izmene:**
+   - „Preskoči na sadržaj“ je prvi Tab;
+   - traka projekata ima jednu Tab-stanicu, a po njoj se kreće strelicama (roving);
+   - „+“ u stablu se pokaže na fokus;
+   - panel zadatka drži Tab;
+   - ivice mape imaju vidljiv fokus (`stroke` u boji radnje);
+   - meni reda zadatka, meni korisnika, ⌘K, brzi unos (`q`), Nova ideja, Nova poruka i Isplaniraj prolaze proveru.
+
+**Paritet:** redovi §6 se ne menjaju. Pomoć za prečice je vratila Devotionovo dugme „Zatvori“.
+
+**ODLUKE:**
+1. **Baseline bez KB.** `baseline_build.txt` postoji, ali Turbopack build ne štampa veličine ruta. Stari kod nisam gradio: run dozvoljava samo `git status/diff/log`, a `.env*` se ne kopira. Zato su upisani apsolutni brojevi pre i posle S28, kako korak dozvoljava, uz procenu dodatka spajanja po sastavu.
+2. **Lenji dijalozi ostaju montirani** (zatvoreni), kao i pre; samo im kod stiže posle prvog učitavanja.
+   - Montiranje tek pri prvom otvaranju bi tom otvaranju dodalo čekanje na mrežu i oduzelo ulaznu animaciju, a to je promena ponašanja.
+   - Brzi unos se i pre montirao tek pri prvom otvaranju, pa njegov kod sada stiže tada.
+3. **Barel `@/lib/prostor` → duboki uvozi u celom kodu** (82 fajla). Plan S07 §11.1 kaže: „S28 meri i po potrebi prelazi na duboke uvoze“.
+   - Bundler ne odbacuje ponovne izvoze aplikacionih modula, pa je barel vukao svih 26 modula u svaku stranu koja ga uvozi.
+   - Testovi su ostali na barelu, jer ne ulaze u bundle. Pet test fajlova koje je alat dotakao vraćeno je zakrpom (`patch -R`).
+4. **Nov čuvar je vitest test (`lib/prostor/ljuska-lenja.test.ts`), a ne `verify:prostor-*` skripta.** Tako su urađeni i čuvari iz S10 i S14 (`uredjivac-lenj`, `mape-lenje`), a pušta se u `npx vitest run`. Proverava četiri pravila:
+   - (a) nijedna strana ni layout iza prijave ne doseže statički Tiptap, xyflow, `read-excel-file`, `web-push` ni fajlove iza dinamičkih ulaza;
+   - (b) ljuska ne doseže lenje dijaloge, fioku, ekran Inbox-a ni barel;
+   - (c) kod aplikacije ne uvozi barel;
+   - (d) lenji ulazi su `dynamic` bez SSR-a.
+
+   Nijedan postojeći čuvar nije menjan.
+5. **`ZnakObavestenja` je premešten** iz `inbox-view.tsx` u `notifications-panel.tsx`, gde su već bili `TYPE_ICON` i `LOUD_TYPES`. Kod je isti, promenjeno je samo mesto.
+6. **Dugme „Zatvori“ u pomoći za prečice** je jedina vidljiva izmena. Ispravlja axe nalaz (lista koja se skroluje mora da ima kontrolu) i vraća Devotionovo ponašanje, gde je `showCloseButton` bio podrazumevan.
+7. **Nalaz van radnog dela ostao je nepromenjen.** Enigmina Podešavanja → GA4 konfiguracija (`components/app/settings/ga4-configuration.tsx`) na 390 imaju dve tabele sa vodoravnim skrolom bez fokusabilnog sadržaja (axe `scrollable-region-focusable`). To je Enigmin ekran, koji pravila runa ne diraju, pa ide u „Za Jovana“.
+8. **Lažne nalaze alata ispravio sam u alatu, a ne u kodu:**
+   - dev overlay `nextjs-portal`;
+   - klik koji pomera početak Taba;
+   - stil pročitan pre kraja prelaza (prelazi su isključeni za merenje);
+   - Base UI čuvar fokusa, koji preusmerava posle ~40 ms (alat čeka 150 ms);
+   - SVG ivica visine 0.
+9. **`next experimental-analyze` kvari `.next/dev`:** posle njega `next dev` daje 404 na svakoj ruti, pa i na `/privacy`. Oba puta sam `.next/dev` premestio u `.nocni-run/spajanje/tmp/s28/next-dev-*`; dev server ga pravi iznova.
+10. **Tab na početnoj projekta** stao je na plafonu alata od 160 zaustavljanja, jer je strana duga (Brojke, Šta radi, zadaci). Svih 160 je bez nalaza.
+
+**Novi paketi:** nema. `axe-core` 4.13.0 (iz `eslint-plugin-jsx-a11y`) i `playwright` 1.63.0 su već u `node_modules`.
+
+**Testovi:** nov `lib/prostor/ljuska-lenja.test.ts` (5 testova, opisani u ODLUCI 4). Ceo `npx vitest run`: 208 fajlova, 2649 testova.
+
+**Rezultat provere:**
+- codegen: nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1210 upozorenja, kao i pre);
+- vitest: prolazi (2649);
+- pristup: prolazi;
+- regresije: prolaze (21; ultra 5, prostor 2);
+- `npm run build`: prolazi (sa `verify:purge`).
+
+**Vizuelna provera:**
+- `next dev -p 3117` je pušten kao zaseban proces, uz Playwright skripte iznad, na 1536 × 695 i 390 × 844.
+- Konzola je bez grešaka na svim ekranima.
+- Dev server je ugašen na kraju; port 3117 je slobodan.
+- Snimci: `S28-pomoc-1536.png`, `S28-pomoc-390.png`, `S28-inbox-cipovi-1536.png`.
+
+**Za Jovana ujutru:**
+- Na pravom nalogu otvori:
+  - zvono → zupčanik (podešavanja obaveštenja);
+  - meni korisnika → Profil;
+  - brzi unos (`q`);
+  - „Nova stranica“ i „Nova oblast“ iz stabla.
+
+  Dijalozi treba da se otvaraju odmah, kao i pre (kod im stiže posle učitavanja strane). Posle Esc fokus treba da bude na dugmetu koje je dijalog otvorilo.
+- Pomoć za prečice (`?`) sada ima „Zatvori“ gore desno (ODLUKA 6).
+- Enigmina Podešavanja → GA4 na telefonu: tabele sa vodoravnim skrolom nisu dostupne tastaturom (ODLUKA 7). Ako želiš ispravku, omotač tabele dobija `tabIndex={0}` i ime.
+- Ništa nije deployovano.

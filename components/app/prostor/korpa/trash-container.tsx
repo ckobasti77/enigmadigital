@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/workspace/trash/trash-container.tsx (main @ c05c40f), SPAJANJE S21.
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "@/lib/toast";
-import { restoredMessage, type TrashKind } from "@/lib/prostor";
+import { restoredMessage, type TrashKind } from "@/lib/prostor/trash";
 import { api } from "@/convex/_generated/api";
 import { accessErrorMessage } from "@/lib/prostor/web/greske";
 

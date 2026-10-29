@@ -6,19 +6,16 @@ import { ChevronDown, ListFilter, Search, X } from "lucide-react";
 import {
   activeFilterCount,
   clearTaskFilters,
-  DUE_BUCKET_LABELS,
   hasActiveFilters,
   PERSONAL_FILTER_KEY,
-  PRIORITY_LABELS,
-  STATUS_LABELS,
   TASK_FILTER_DUE,
   TASK_FILTER_PRIORITIES,
   TASK_FILTER_STATUSES,
   TASK_GROUP_BY_OPTIONS,
   toggleFilterValue,
   type TaskFilters,
-  type TaskGroupBy,
-} from "@/lib/prostor";
+} from "@/lib/prostor/task-filters";
+import { DUE_BUCKET_LABELS, PRIORITY_LABELS, STATUS_LABELS, type TaskGroupBy } from "@/lib/prostor/task-sort";
 
 import { Button } from "@/components/ui/button";
 import {

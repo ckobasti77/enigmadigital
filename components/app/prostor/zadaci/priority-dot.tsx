@@ -1,5 +1,5 @@
 // Preneto iz Devotion apps/web/components/me/priority-dot.tsx (main @ c05c40f), SPAJANJE S12.
-import { PRIORITY_LABELS, type TaskPriorityKey } from "@/lib/prostor";
+import { PRIORITY_LABELS, type TaskPriorityKey } from "@/lib/prostor/task-sort";
 
 import { cn } from "@/lib/utils";
 

@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/me/task-panel/task-detail-layout.tsx (main @ c05c40f), SPAJANJE S12.
 import type { ReactNode } from "react";
 import { ExternalLink, LogIn, LogOut, Maximize2 } from "lucide-react";
-import type { TaskPermissions } from "@/lib/prostor";
+import type { TaskPermissions } from "@/lib/prostor/task-row";
 
 import { Button } from "@/components/ui/button";
 import { TaskMetaChips } from "@/components/app/prostor/zadaci/task-meta-chips";

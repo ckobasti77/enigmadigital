@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/workspace/command-center/pulse-block.tsx (main @ c05c40f), SPAJANJE S20.
 import { useMemo } from "react";
 import { ChevronRight } from "lucide-react";
-import { currentWeekBounds, pulseCardNow, weekPulseFacts, type WeekPulseFact } from "@/lib/prostor";
+import { currentWeekBounds, pulseCardNow, weekPulseFacts, type WeekPulseFact } from "@/lib/prostor/command-center";
 
 import { ProjekatLink } from "@/components/app/projekat-link";
 import { Button } from "@/components/ui/button";

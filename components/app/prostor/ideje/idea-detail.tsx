@@ -9,7 +9,7 @@ import {
   IDEA_STAGE_LABELS,
   IDEA_STORED_STAGES,
   type IdeaStoredStage,
-} from "@/lib/prostor";
+} from "@/lib/prostor/idea-stages";
 
 import { Button } from "@/components/ui/button";
 import {

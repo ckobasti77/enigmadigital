@@ -7,7 +7,7 @@ import { insertAtTop, useMutation } from "convex/react";
 import { toast } from "@/lib/toast";
 import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import { LoaderCircle, Mic, Paperclip, Reply, Send, Trash2, X } from "lucide-react";
-import { mentionCandidates, mentionScopeFor } from "@/lib/prostor";
+import { mentionCandidates, mentionScopeFor } from "@/lib/prostor/chat-hub";
 
 import { MentionTextarea } from "@/components/app/prostor/poruke/mention-textarea";
 import type { ProfileWithAvatar } from "@/lib/prostor/rute";

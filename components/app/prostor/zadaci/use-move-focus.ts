@@ -2,7 +2,7 @@
 
 // Preneto iz Devotion apps/web/components/workspace/startup-tasks/use-move-focus.ts (main @ c05c40f), SPAJANJE S12.
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import type { TaskRowModel } from "@/lib/prostor";
+import type { TaskRowModel } from "@/lib/prostor/task-row";
 
 /** Interaktivan element — tu je korisnik namerno, fokus se ne otima. */
 const INTERACTIVE = 'input, textarea, select, button, a[href], [contenteditable="true"], [role^="menuitem"], [role="option"]';

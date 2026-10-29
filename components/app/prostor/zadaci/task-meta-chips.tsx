@@ -1,7 +1,9 @@
 "use client";
 
 // Preneto iz Devotion apps/web/components/workspace/startup-tasks/task-meta-chips.tsx (main @ c05c40f), SPAJANJE S12.
-import type { StartupTaskStatus, TaskPermissions, TaskPriorityKey } from "@/lib/prostor";
+import type { StartupTaskStatus } from "@/lib/prostor/startup-tasks";
+import type { TaskPermissions } from "@/lib/prostor/task-row";
+import type { TaskPriorityKey } from "@/lib/prostor/task-sort";
 
 import { DueMetaChip, PriorityChip } from "@/components/app/prostor/zadaci/panel/panel-parts";
 import { AssigneesChip, StatusChip, type PanelPerson } from "@/components/app/prostor/zadaci/panel/startup-task-panel-view";

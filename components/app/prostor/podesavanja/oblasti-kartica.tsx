@@ -1,6 +1,6 @@
 "use client";
 
-import { SETTINGS_TEXT, moveInOrder } from "@/lib/prostor";
+import { SETTINGS_TEXT, moveInOrder } from "@/lib/prostor/settings";
 import { useState } from "react";
 
 import { api } from "@/convex/_generated/api";

@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { JaLink } from "./ja-link";
 import { useProjektiTrake, useStanjeProjekata, type ProjekatTrake } from "./podaci-ljuske";
 import { ProjekatZnak } from "./projekat-znak";
-import { NotificationSettingsDialog } from "./prostor/inbox/notification-settings-dialog";
+import { NotificationSettingsDialog } from "./prostor/lenji-dijalozi";
 import { ZvonoKartice, nazivZvona, useInboxZvona } from "./prostor/inbox/zvono-inbox";
 
 /**
@@ -77,6 +77,8 @@ export function ZvonoJa({ className }: { className?: string }) {
           side="bottom"
           align="end"
           sideOffset={8}
+          // Oblačić je dijalog za čitač ekrana; bez imena bi bio samo „dijalog“ (S28).
+          aria-label="Čeka te"
           className="w-[min(24rem,calc(100vw-2rem))] gap-0 p-0"
         >
           {inbox === null ? (

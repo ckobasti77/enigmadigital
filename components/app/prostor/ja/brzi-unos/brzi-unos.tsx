@@ -19,8 +19,9 @@
  * posle zatvaranja dijaloga.
  */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { useQuery } from "convex/react";
-import type { QuickAddKind } from "@/lib/prostor";
+import type { QuickAddKind } from "@/lib/prostor/quick-add";
 import { SHELL_SHORTCUTS } from "@/lib/prostor/precice/registar";
 
 import { useOpseg } from "@/components/app/opseg-ljuske";
@@ -30,7 +31,12 @@ import { useToday } from "@/components/app/prostor/zajednicko/use-danas";
 import { useMojiProjektiRadnogDela } from "@/components/app/prostor/ja/moji-projekti";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { QuickAddContainer } from "./quick-add-container";
+
+// Dijalog se montira tek pri prvom otvaranju (gore), pa i njegov kod stiže
+// tek tada (SPAJANJE S28): ljuska ga ne nosi u prvom učitavanju svake strane.
+const QuickAddContainer = dynamic(() => import("./quick-add-container").then((m) => m.QuickAddContainer), {
+  ssr: false,
+});
 
 export type OpcijeBrzogUnosa = { vrsta?: QuickAddKind };
 

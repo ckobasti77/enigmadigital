@@ -9,13 +9,12 @@
 import {
   applyStartupHolds,
   rowFromStartupTask,
-  splitStale,
-  type WorkspaceMini,
   type StartupTaskHold,
   type StartupTaskLike,
   type StartupTaskSection,
-  type TaskRowModel,
-} from "..";
+} from "../startup-tasks";
+import { splitStale } from "../stale";
+import type { WorkspaceMini, TaskRowModel } from "../task-row";
 
 import { bucketTasksByZone, classifyDeadline, type TriageZone } from "../web/deadline";
 

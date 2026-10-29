@@ -5,9 +5,11 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import dynamic from "next/dynamic";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -15,8 +17,17 @@ import { useMoze, useProjekat } from "@/components/app/projekat-provider";
 import { useProjekatQueryTolerant } from "@/components/app/prostor/podaci/projekat";
 import { useProstorNavigacija } from "@/components/app/prostor/use-prostor-navigacija";
 import type { CreatePageTarget, ProfileWithAvatar, StartupWithAreas } from "@/lib/prostor/rute";
-import { CreateAreaDialog } from "./create-area-dialog";
-import { CreatePageDialog } from "./create-page-dialog";
+
+// Ljuska nosi ove dijaloge na svakoj strani projekta, a otvaraju se retko:
+// njihov kod (sa brzim pravljenjem zadatka, koracima i komentarima) nije u
+// prvom učitavanju, nego stiže odmah posle njega (SPAJANJE S28). Montirani
+// su kao i pre, pa se ponašaju isto.
+const CreatePageDialog = dynamic(() => import("./create-page-dialog").then((m) => m.CreatePageDialog), {
+  ssr: false,
+});
+const CreateAreaDialog = dynamic(() => import("./create-area-dialog").then((m) => m.CreateAreaDialog), {
+  ssr: false,
+});
 
 /**
  * ============================================================================
@@ -71,12 +82,35 @@ export function DokumentiProvider({ children }: { children: ReactNode }) {
   const [cilj, setCilj] = useState<CreatePageTarget | undefined>();
   const [oblastOtvorena, setOblastOtvorena] = useState(false);
   const [novaStranicaId, setNovaStranicaId] = useState<Id<"pages"> | null>(null);
+  // Broj otvaranja daje ključ dijalogu: svako otvaranje počinje čistim
+  // poljem, a zatvaranje ne menja ključ, pa dijalog odigra izlaz. Dijalozi se
+  // otvaraju spolja (stablo, zaglavlje, ⌘K), bez svog okidača, pa fokus posle
+  // zatvaranja vraćamo sami na dugme koje ih je otvorilo. Ranije je ključ
+  // nosio i „otvoreno“, a fokus je padao na `body` (pristupačnost, S28).
+  const [otvaranjaStranice, setOtvaranjaStranice] = useState(0);
+  const [otvaranjaOblasti, setOtvaranjaOblasti] = useState(0);
+  const okidac = useRef<HTMLElement | null>(null);
+  const zapamtiOkidac = () => {
+    const el = document.activeElement;
+    okidac.current = el instanceof HTMLElement && el !== document.body ? el : null;
+  };
+  // Okidač koji je u međuvremenu nestao (zatvoren meni, paleta): podrazumevano.
+  const vratiFokus = useCallback(
+    () => (okidac.current?.isConnected ? okidac.current : true),
+    [],
+  );
 
   const otvoriNovuStranicu = useCallback((target?: CreatePageTarget) => {
+    zapamtiOkidac();
     setCilj(target);
     setNovaOtvorena(true);
+    setOtvaranjaStranice((n) => n + 1);
   }, []);
-  const otvoriNovuOblast = useCallback(() => setOblastOtvorena(true), []);
+  const otvoriNovuOblast = useCallback(() => {
+    zapamtiOkidac();
+    setOblastOtvorena(true);
+    setOtvaranjaOblasti((n) => n + 1);
+  }, []);
   const zaboraviNovuStranicu = useCallback(() => setNovaStranicaId(null), []);
 
   const vrednost = useMemo<DokumentiKontekst>(
@@ -98,22 +132,24 @@ export function DokumentiProvider({ children }: { children: ReactNode }) {
         <>
           <CreatePageDialog
             // Nov ključ = čisto polje za svaki cilj (oblast, roditelj).
-            key={`${novaOtvorena}-${cilj?.areaId ?? "bez"}-${cilj?.parentPageId ?? "vrh"}`}
+            key={`${otvaranjaStranice}-${cilj?.areaId ?? "bez"}-${cilj?.parentPageId ?? "vrh"}`}
             open={novaOtvorena}
             onOpenChange={setNovaOtvorena}
             workspace={projekat}
             profileId={profil?._id ?? null}
             target={cilj}
+            finalFocus={vratiFokus}
             onCreated={(pageId) => {
               setNovaStranicaId(pageId);
               idi({ kind: "page", pageId });
             }}
           />
           <CreateAreaDialog
-            key={`${oblastOtvorena}`}
+            key={otvaranjaOblasti}
             open={oblastOtvorena}
             onOpenChange={setOblastOtvorena}
             workspace={projekat}
+            finalFocus={vratiFokus}
             onCreated={(areaId) => idi({ kind: "area", areaId })}
           />
         </>

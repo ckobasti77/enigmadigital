@@ -5,7 +5,7 @@ import { Component, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation } from "convex/react";
 import { toast } from "@/lib/toast";
 import { MessagesSquare, RefreshCw, TriangleAlert } from "lucide-react";
-import { findHubChannel, hubGroups, type HubInput } from "@/lib/prostor";
+import { findHubChannel, hubGroups, type HubInput } from "@/lib/prostor/chat-hub";
 
 import { useShortcuts } from "@/components/app/prostor/precice/precice-provider";
 import { ConversationPane } from "@/components/app/prostor/poruke/conversation-pane";

@@ -5,9 +5,4 @@
  * izmene idu tamo, ne ovde. Ovaj fajl ostaje kao stabilna adresa za web
  * importere i njihove testove.
  */
-export {
-  detectCsvDelimiter,
-  normalizeTableMatrix,
-  parseCsv,
-  type CsvTable,
-} from "..";
+export { detectCsvDelimiter, normalizeTableMatrix, parseCsv, type CsvTable } from "../table-matrix";

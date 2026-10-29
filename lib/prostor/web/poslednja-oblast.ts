@@ -11,7 +11,7 @@ import {
   serializeDestination,
   type QuickAddDestination,
   type StoredDestination,
-} from "..";
+} from "../quick-add";
 
 function read(key: string): string | null {
   try {

@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ThumbsDown, ThumbsUp } from "lucide-react";
 import { toast } from "@/lib/toast";
-import { pendingIdeaVotes } from "@/lib/prostor";
+import { pendingIdeaVotes } from "@/lib/prostor/inbox";
 
 import { useProjekat, useProjekatMutation } from "@/components/app/projekat-provider";
 import { ProjekatLink } from "@/components/app/projekat-link";

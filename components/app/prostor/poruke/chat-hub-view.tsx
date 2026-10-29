@@ -6,7 +6,7 @@ import { useRef, type ReactNode, type RefObject } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { MessagesSquare, SquarePen } from "lucide-react";
-import { hubIsEmpty, type HubGroup } from "@/lib/prostor";
+import { hubIsEmpty, type HubGroup } from "@/lib/prostor/chat-hub";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/app/prostor/zajednicko/radni-ui";

@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/workspace/area/area-documents.tsx (main @ c05c40f), SPAJANJE S10.
 import { useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { ChevronRight, FileText, LoaderCircle, Lock, Plus } from "lucide-react";
-import { formatEditTime } from "@/lib/prostor";
+import { formatEditTime } from "@/lib/prostor/revisions";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

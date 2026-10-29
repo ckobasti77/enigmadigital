@@ -22,7 +22,7 @@ export {
   type MyTasksModel,
   type MyTasksSource,
   type TaskRowHold,
-} from "..";
+} from "../my-tasks";
 
 /** Iznad ovoliko redova nema Flip-a, samo neprozirnost (plan K07 E12). */
 export const TASKS_FLIP_MAX_ROWS = 80;

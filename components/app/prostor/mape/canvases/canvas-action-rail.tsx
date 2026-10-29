@@ -92,6 +92,9 @@ export function CanvasActionRail({
                 "bg-surface-control text-foreground",
                 identity.className,
               )}
+              // Oznaka mape (ime i broj) sa imenom za čitač: bez uloge `aria-label` na
+              // `div`-u ne važi, a fokus je tu da se opis vidi i sa tastature.
+              role="img"
               aria-label={identityDescription}
               tabIndex={0} />}>
               <span className={styles.label} aria-hidden="true">

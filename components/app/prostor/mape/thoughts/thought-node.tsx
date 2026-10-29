@@ -207,13 +207,11 @@ export function ThoughtNode({
         type="target"
         position={Position.Left}
         className={canvasStyles.handle}
-        aria-label="Ulazna veza"
       />
       <Handle
         type="source"
         position={Position.Right}
         className={canvasStyles.handle}
-        aria-label="Izlazna veza"
       />
     </article>
   );

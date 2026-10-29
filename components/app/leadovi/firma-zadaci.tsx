@@ -15,7 +15,7 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { STATUS_LABELS } from "@/lib/prostor";
+import { STATUS_LABELS } from "@/lib/prostor/task-sort";
 import type { QueryState } from "@/components/app/prostor/podaci/ja";
 import type { FunctionReturnType } from "convex/server";
 import { vezaZaFirmu } from "@/lib/prostor/web/veze-zadatka";

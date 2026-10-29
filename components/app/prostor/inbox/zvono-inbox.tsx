@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowRight, CheckCheck, Inbox, SlidersHorizontal } from "lucide-react";
-import { formatInboxTime, inboxCountLabel, inboxMarkedMessage, inboxUnreadWord } from "@/lib/prostor";
+import { formatInboxTime, inboxCountLabel, inboxMarkedMessage, inboxUnreadWord } from "@/lib/prostor/inbox";
 
 import { JaLink } from "@/components/app/ja-link";
 import { useProjektiTrake } from "@/components/app/podaci-ljuske";
@@ -22,8 +22,7 @@ import { cn } from "@/lib/utils";
 
 import { ProjekatCip } from "@/components/app/prostor/zajednicko/projekat-cip";
 
-import { ZnakObavestenja } from "./inbox-view";
-import { GLAVA_INBOXA, useOtvoriObavestenje } from "./notifications-panel";
+import { GLAVA_INBOXA, ZnakObavestenja, useOtvoriObavestenje } from "./notifications-panel";
 
 /**
  * ============================================================================

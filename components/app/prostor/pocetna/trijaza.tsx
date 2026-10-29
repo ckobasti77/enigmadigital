@@ -12,7 +12,8 @@ import {
   Flame,
   type LucideIcon,
 } from "lucide-react";
-import { COMMAND_BLOCK_TEXT, rescheduleCandidates, type TaskRowModel } from "@/lib/prostor";
+import { COMMAND_BLOCK_TEXT, rescheduleCandidates } from "@/lib/prostor/command-center";
+import type { TaskRowModel } from "@/lib/prostor/task-row";
 
 import type { TaskRowActions } from "@/components/app/prostor/zadaci/task-row";
 import { STARTUP_FLIP_MAX_ROWS } from "@/components/app/prostor/zadaci/constants";

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 
-import { PERMISSION_REASONS } from "@/lib/prostor";
+import { PERMISSION_REASONS } from "@/lib/prostor/task-row";
 
 import { Button } from "@/components/ui/button";
 import {

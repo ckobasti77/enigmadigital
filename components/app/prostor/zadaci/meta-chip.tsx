@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/me/meta-chip.tsx (main @ c05c40f), SPAJANJE S12.
 import { forwardRef, useId, type ComponentPropsWithoutRef, type ReactElement, type ReactNode } from "react";
 import { ChevronDown, Lock, type LucideIcon } from "lucide-react";
-import type { Perm } from "@/lib/prostor";
+import type { Perm } from "@/lib/prostor/task-row";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";

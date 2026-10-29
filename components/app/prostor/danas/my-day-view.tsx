@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/me/my-day/my-day-view.tsx (main @ c05c40f), SPAJANJE S19.
 import { useRef, type FocusEvent, type RefObject } from "react";
 import { CalendarPlus, CheckCheck, Coffee, Plus, RefreshCw } from "lucide-react";
-import type { TaskRowModel } from "@/lib/prostor";
+import type { TaskRowModel } from "@/lib/prostor/task-row";
 
 import { PageHeader } from "@/components/app/page-header";
 import { FlipGroup } from "@/components/motion/flip-group";

@@ -3,29 +3,30 @@
 // Preneto iz Devotion apps/web/components/me/quick-add/quick-add-dialog.tsx (main @ c05c40f), SPAJANJE S16.
 import { useId, useRef, useState, type ComponentPropsWithoutRef, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import { CalendarDays, CornerDownLeft, LoaderCircle } from "lucide-react";
+import { cleanNoteText, NOTE_TEXT_MAX } from "@/lib/prostor/notes";
 import {
-  cleanNoteText,
   cleanQuickAddTitle,
   defaultAddToMyDay,
-  DUE_SHORTCUT_LABELS,
-  DUE_SHORTCUTS,
-  dueShortcutValue,
-  formatDateShort,
   matchDueShortcut,
   NO_AREA_REASON,
-  NOTE_TEXT_MAX,
   QUICK_ADD_KINDS,
   QUICK_ADD_TITLE_MAX,
   resolveArea,
   resolveDestination,
-  type DueShortcut,
   type QuickAddDestination,
   type QuickAddDraft,
   type QuickAddKind,
   type QuickAddNoteDraft,
   type QuickAddStartup,
   type StoredDestination,
-} from "@/lib/prostor";
+} from "@/lib/prostor/quick-add";
+import {
+  DUE_SHORTCUT_LABELS,
+  DUE_SHORTCUTS,
+  dueShortcutValue,
+  formatDateShort,
+  type DueShortcut,
+} from "@/lib/prostor/dates";
 
 import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@/components/ui/dialog";
 import { Kbd } from "@/components/ui/kbd";

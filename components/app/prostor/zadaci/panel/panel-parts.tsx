@@ -3,12 +3,9 @@
 // Preneto iz Devotion apps/web/components/me/task-panel/panel-parts.tsx (main @ c05c40f), SPAJANJE S12.
 import { useId, useState, type ReactNode, type Ref } from "react";
 import { CalendarClock, Flag, Lock, Sun, SunDim } from "lucide-react";
-import {
-  describeDue,
-  PRIORITY_LABELS,
-  type Perm,
-  type TaskPriorityKey,
-} from "@/lib/prostor";
+import { describeDue } from "@/lib/prostor/dates";
+import { PRIORITY_LABELS, type TaskPriorityKey } from "@/lib/prostor/task-sort";
+import type { Perm } from "@/lib/prostor/task-row";
 
 import { DatePicker } from "@/components/app/prostor/zajednicko/birac-datuma";
 import { Button } from "@/components/ui/button";

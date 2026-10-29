@@ -53,7 +53,7 @@ import {
   Ungroup,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
-import { IDEA_STAGE_LABELS, ideaDisplayStage, type IdeaStage, type IdeaStoredStage } from "@/lib/prostor";
+import { IDEA_STAGE_LABELS, ideaDisplayStage, type IdeaStage, type IdeaStoredStage } from "@/lib/prostor/idea-stages";
 
 import {
   MAP_FRAME_CLASS,

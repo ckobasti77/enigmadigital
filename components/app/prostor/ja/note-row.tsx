@@ -13,7 +13,7 @@ import {
   noteScopeLabel,
   type NoteEditPatch,
   type NoteNode,
-} from "@/lib/prostor";
+} from "@/lib/prostor/notes";
 
 import { Button } from "@/components/ui/button";
 import {

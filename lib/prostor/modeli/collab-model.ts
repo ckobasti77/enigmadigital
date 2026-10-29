@@ -5,16 +5,10 @@
  * potvrde), komentari (nacrt za izmenu, kandidati za @) i tekst konflikta.
  * Bez React-a i bez Convex klijenta — testira se u `collab-model.test.ts`.
  */
-import {
-  dayKeyOf,
-  filterPeople,
-  formatClock,
-  formatDateShort,
-  formatDayRelative,
-  formatEditTime,
-  parseCommentSegments,
-  type MentionCandidate,
-} from "..";
+import { dayKeyOf, formatClock, formatDateShort, formatDayRelative } from "../dates";
+import { filterPeople } from "../chat-hub";
+import { formatEditTime } from "../revisions";
+import { parseCommentSegments, type MentionCandidate } from "../mentions";
 
 import { isPresenceFresh } from "../../../convex/prostor/lib/pagePresence";
 

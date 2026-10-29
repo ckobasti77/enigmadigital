@@ -13,4 +13,4 @@ export {
   type PlanDayCarryRow,
   type PlanDayModel,
   type PlanDaySuggestionRow,
-} from "..";
+} from "../my-day-plan";

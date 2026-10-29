@@ -2,7 +2,7 @@
 
 // Preneto iz Devotion apps/web/components/workspace/page/use-page-autosave.ts (main @ c05c40f), SPAJANJE S10.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { htmlToPlainText } from "@/lib/prostor";
+import { htmlToPlainText } from "@/lib/prostor/revisions";
 import { toast } from "@/lib/toast";
 
 import {

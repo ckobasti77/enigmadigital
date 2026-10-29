@@ -18,7 +18,7 @@ import {
   sentToStartupMessage,
   type NoteEditPatch,
   type NoteFilter,
-} from "@/lib/prostor";
+} from "@/lib/prostor/notes";
 
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";

@@ -2,7 +2,12 @@
 
 // Preneto iz Devotion apps/web/components/workspace/ideas/idea-parts.tsx (main @ c05c40f), SPAJANJE S13.
 import { ArrowUpRight, MessageSquare, MoreHorizontal, Sparkles, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
-import { IDEA_CONVERTED_REASON, IDEA_STAGE_LABELS, type IdeaStage, type IdeaStoredStage } from "@/lib/prostor";
+import {
+  IDEA_CONVERTED_REASON,
+  IDEA_STAGE_LABELS,
+  type IdeaStage,
+  type IdeaStoredStage,
+} from "@/lib/prostor/idea-stages";
 
 import { Button } from "@/components/ui/button";
 import {

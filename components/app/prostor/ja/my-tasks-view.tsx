@@ -5,15 +5,14 @@ import { useLayoutEffect, useRef, useState, type FocusEvent, type RefObject } fr
 import { CheckSquare2, Plus, RefreshCw, SearchX } from "lucide-react";
 import {
   clearTaskFilters,
-  enterKey,
   openTasksPhrase,
   pageOfGroup,
   PERSONAL_FILTER_KEY,
-  TASKS_GROUP_PAGE,
   type TaskFilters,
-  type TaskGroupBy,
-  type WorkspaceMini,
-} from "@/lib/prostor";
+} from "@/lib/prostor/task-filters";
+import { enterKey, TASKS_GROUP_PAGE } from "@/lib/prostor/my-tasks";
+import type { TaskGroupBy } from "@/lib/prostor/task-sort";
+import type { WorkspaceMini } from "@/lib/prostor/task-row";
 
 import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";

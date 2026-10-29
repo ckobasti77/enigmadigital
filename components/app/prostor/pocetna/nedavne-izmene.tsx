@@ -3,7 +3,8 @@
 // Preneto iz Devotion apps/web/components/workspace/command-center/recent-block.tsx (main @ c05c40f), SPAJANJE S20.
 import { useMemo } from "react";
 import { ChevronRight } from "lucide-react";
-import { COMMAND_BLOCK_TEXT, type ActivityTarget } from "@/lib/prostor";
+import { COMMAND_BLOCK_TEXT } from "@/lib/prostor/command-center";
+import type { ActivityTarget } from "@/lib/prostor/activity-format";
 
 import { ProjekatLink } from "@/components/app/projekat-link";
 import { useProstorNavigacija } from "@/components/app/prostor/use-prostor-navigacija";

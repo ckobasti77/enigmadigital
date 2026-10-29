@@ -219,14 +219,12 @@ export const IdeaFlowNodeCard = memo(function IdeaFlowNodeCard({
         type="source"
         position={Position.Left}
         className={styles.handle}
-        aria-label="Leva tačka za povezivanje ideje"
       />
       <Handle
         id="right"
         type="source"
         position={Position.Right}
         className={styles.handle}
-        aria-label="Desna tačka za povezivanje ideje"
       />
     </div>
   );

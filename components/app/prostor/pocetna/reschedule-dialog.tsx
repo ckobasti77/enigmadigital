@@ -16,7 +16,7 @@ import {
   type RescheduleCandidate,
   type RescheduleTarget,
   type UndoItem,
-} from "@/lib/prostor";
+} from "@/lib/prostor/command-center";
 
 import { UNDO_MS } from "@/components/app/prostor/danas/use-completion-queue";
 import { Button } from "@/components/ui/button";

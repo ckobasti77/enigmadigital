@@ -25,7 +25,7 @@ import {
   channelSection,
   type ChatChannel,
 } from "@/lib/prostor/web/chat";
-import { hubMentionLabel, hubUnreadLabel } from "@/lib/prostor";
+import { hubMentionLabel, hubUnreadLabel } from "@/lib/prostor/chat-hub";
 import type { AreaKey } from "@/lib/prostor/web/projekat";
 import { cn } from "@/lib/utils";
 

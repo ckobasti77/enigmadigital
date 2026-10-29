@@ -7,6 +7,11 @@
 import {
   applyCompletionHolds,
   type CompletionHold,
+  rowFromMyDay,
+  type TaskRowModel,
+  type WorkspaceMini,
+} from "../task-row";
+import {
   countOpenByStartup,
   fromOverview,
   groupMyDay,
@@ -14,10 +19,7 @@ import {
   type MyDayGrouping,
   type MyDayOverviewLike,
   type MyDaySectionId,
-  rowFromMyDay,
-  type TaskRowModel,
-  type WorkspaceMini,
-} from "..";
+} from "../my-day";
 
 export type OverviewStartup = WorkspaceMini;
 
@@ -150,7 +152,7 @@ export {
   withEntryOrder,
   withoutEntry,
   withoutHistory,
-} from "..";
+} from "../my-day-plan";
 
 // --- Zadržavanje reda posle kvačice (E7) u oba prikaza -----------------------
 

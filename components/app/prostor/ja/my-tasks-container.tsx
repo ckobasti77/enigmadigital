@@ -9,20 +9,14 @@ import { toast } from "@/lib/toast";
 import {
   completionCall,
   dueCall,
-  EMPTY_TASK_FILTERS,
-  isOptimisticId,
-  OPTIMISTIC_PREFIX,
-  patchItem,
   planCall,
   priorityCall,
-  withEntry,
-  withoutEntry,
   type RowCall,
-  type TaskFilters,
-  type TaskGroupBy,
-  type TaskPriorityKey,
   type TaskRowModel,
-} from "@/lib/prostor";
+} from "@/lib/prostor/task-row";
+import { EMPTY_TASK_FILTERS, type TaskFilters } from "@/lib/prostor/task-filters";
+import { isOptimisticId, OPTIMISTIC_PREFIX, patchItem, withEntry, withoutEntry } from "@/lib/prostor/my-day-plan";
+import type { TaskGroupBy, TaskPriorityKey } from "@/lib/prostor/task-sort";
 
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";

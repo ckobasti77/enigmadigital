@@ -9,7 +9,7 @@ import {
   NOTE_SEND_NO_STARTUP,
   NOTE_SEND_TITLE,
   noteDisplayTitle,
-} from "@/lib/prostor";
+} from "@/lib/prostor/notes";
 
 import {
   Dialog,

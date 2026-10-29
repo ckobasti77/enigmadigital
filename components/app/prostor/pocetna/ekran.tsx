@@ -3,7 +3,8 @@
 // Preneto iz Devotion apps/web/components/workspace/command-center-view.tsx (main @ c05c40f), SPAJANJE S20.
 import { Suspense, useCallback, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Lock, Plus } from "lucide-react";
-import { findStartupRow, locateStartupRow, type StartupTaskSection, type WorkspaceMini } from "@/lib/prostor";
+import { findStartupRow, locateStartupRow, type StartupTaskSection } from "@/lib/prostor/startup-tasks";
+import type { WorkspaceMini } from "@/lib/prostor/task-row";
 
 import { PageHeader } from "@/components/app/page-header";
 import { CommandTop, FokusZadatak } from "@/components/app/overview/command-focus";
@@ -19,7 +20,7 @@ import { useStartupTaskCommands } from "@/components/app/prostor/zadaci/use-star
 import { EmptyState } from "@/components/app/prostor/zajednicko/radni-ui";
 import { useToday } from "@/components/app/prostor/zajednicko/use-danas";
 import { Button } from "@/components/ui/button";
-import { COMMAND_BLOCK_TEXT } from "@/lib/prostor";
+import { COMMAND_BLOCK_TEXT } from "@/lib/prostor/command-center";
 import { COMMAND_CENTER_LIST, type WorkloadFilter } from "@/lib/prostor/modeli/command-center-model";
 import {
   limitiPocetne,

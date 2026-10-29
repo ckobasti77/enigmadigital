@@ -3,14 +3,9 @@
 // Preneto iz Devotion apps/web/components/workspace/command-center/for-you-block.tsx (main @ c05c40f), SPAJANJE S20.
 import { useMemo, useRef } from "react";
 import { ChevronRight } from "lucide-react";
-import {
-  applyStartupHolds,
-  COMMAND_BLOCK_TEXT,
-  forYouTasks,
-  rowFromTaskItem,
-  type StartupTaskSection,
-  type TaskRowModel,
-} from "@/lib/prostor";
+import { applyStartupHolds, type StartupTaskSection } from "@/lib/prostor/startup-tasks";
+import { COMMAND_BLOCK_TEXT, forYouTasks } from "@/lib/prostor/command-center";
+import { rowFromTaskItem, type TaskRowModel } from "@/lib/prostor/task-row";
 
 import type { TaskRowActions } from "@/components/app/prostor/zadaci/task-row";
 import { STARTUP_FLIP_MAX_ROWS } from "@/components/app/prostor/zadaci/constants";

@@ -7,6 +7,7 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, type LucideIcon } from "luci
 
 import {
   Dialog,
+  DialogClose,
   DialogDescription,
   DialogHeader,
   DialogPopup,
@@ -19,7 +20,7 @@ type Grupa = { group: ShortcutGroup; defs: ShortcutDef[] };
 
 /**
  * Strelice se crtaju lucide ikonicama: znak „↓“ Aeonik nema, pa ga Windows
- * uzima iz fonta emodžija (u boji). Čitač ekrana čita `aria-label` reda.
+ * uzima iz fonta emodžija (u boji). Čitač ekrana čita skriven tekst reda (`sr-only`).
  */
 const STRELICE: Record<string, LucideIcon> = { "↑": ArrowUp, "↓": ArrowDown, "←": ArrowLeft, "→": ArrowRight };
 
@@ -62,6 +63,9 @@ export function ShortcutHelpDialog({
             <Grupe grupe={otherGroups} isMac={isMac} idPrefix={`${idPrefix}-drugde`} />
           </section>
         ) : null}
+        {/* Kao u Devotionu: zatvaranje i bez tastature, a lista koja se skroluje
+            ima kontrolu na koju fokus može da stane (S28). */}
+        <DialogClose />
       </DialogPopup>
     </Dialog>
   );
@@ -85,10 +89,9 @@ function Grupe({ grupe, isMac, idPrefix }: { grupe: Grupa[]; isMac: boolean; idP
               return (
                 <div key={def.id} className="flex min-h-9 items-center justify-between gap-3 py-1">
                   <dt className="text-ui text-text-secondary">{def.label}</dt>
-                  <dd
-                    className="flex shrink-0 items-center gap-1"
-                    aria-label={kombinacije.map((combo) => combo.join(" + ")).join(" ili ")}
-                  >
+                  <dd className="flex shrink-0 items-center gap-1">
+                    {/* `dd` ne nosi `aria-label`; čitač čita ovaj tekst, a tastere ne. */}
+                    <span className="sr-only">{kombinacije.map((combo) => combo.join(" + ")).join(" ili ")}</span>
                     {kombinacije.map((combo, i) => (
                       <span key={combo.join("+")} className="flex items-center gap-1">
                         {i > 0 ? (

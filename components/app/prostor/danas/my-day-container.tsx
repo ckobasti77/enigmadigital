@@ -13,9 +13,9 @@ import {
   planCall,
   priorityCall,
   type RowCall,
-  type TaskPriorityKey,
   type TaskRowModel,
-} from "@/lib/prostor";
+} from "@/lib/prostor/task-row";
+import type { TaskPriorityKey } from "@/lib/prostor/task-sort";
 
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";

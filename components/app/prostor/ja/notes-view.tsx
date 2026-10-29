@@ -14,7 +14,7 @@ import {
   type NoteEditPatch,
   type NoteFilter,
   type NoteRow as NoteRowModel,
-} from "@/lib/prostor";
+} from "@/lib/prostor/notes";
 
 import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";

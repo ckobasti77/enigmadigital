@@ -9,22 +9,15 @@ import { toast } from "@/lib/toast";
 import {
   completionCall,
   dueCall,
-  isOptimisticId,
-  OPTIMISTIC_PREFIX,
-  patchItem,
-  patchStartupTasks,
   planCall,
-  plannedKeysOf,
   priorityCall,
-  withEntry,
-  withoutEntry,
   type RowCall,
-  type StartupTaskPatch,
-  type StartupTaskStatus,
-  type TaskPriorityKey,
-  type TaskStatusKey,
   type TaskRowModel,
-} from "@/lib/prostor";
+} from "@/lib/prostor/task-row";
+import { isOptimisticId, OPTIMISTIC_PREFIX, patchItem, withEntry, withoutEntry } from "@/lib/prostor/my-day-plan";
+import { patchStartupTasks, type StartupTaskPatch, type StartupTaskStatus } from "@/lib/prostor/startup-tasks";
+import { plannedKeysOf } from "@/lib/prostor/my-tasks";
+import type { TaskPriorityKey, TaskStatusKey } from "@/lib/prostor/task-sort";
 
 import { UNDO_MS, useCompletionQueue, type RowLocation } from "@/components/app/prostor/danas/use-completion-queue";
 import { useQueryState } from "@/components/app/prostor/podaci/ja";

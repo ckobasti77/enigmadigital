@@ -1,6 +1,6 @@
 // Preneto iz Devotion apps/web/components/me/due-chip.tsx (main @ c05c40f), SPAJANJE S12.
 import { CalendarClock, Flame } from "lucide-react";
-import { describeDueForRow, type DueTone } from "@/lib/prostor";
+import { describeDueForRow, type DueTone } from "@/lib/prostor/dates";
 
 import { cn } from "@/lib/utils";
 

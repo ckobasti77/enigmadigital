@@ -12,7 +12,7 @@ import {
   groupDraftProblem,
   groupMembersLabel,
   sharedStartupsLabel,
-} from "@/lib/prostor";
+} from "@/lib/prostor/chat-hub";
 
 import {
   Dialog,

@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { api } from "@/convex/_generated/api";
-import { SETTINGS_TEXT } from "@/lib/prostor";
+import { SETTINGS_TEXT } from "@/lib/prostor/settings";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";

@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/workspace/activity-view.tsx (main @ c05c40f), SPAJANJE S20.
 import { useEffect, useMemo, useState } from "react";
 import { Activity, Lock } from "lucide-react";
-import type { ActivityTarget } from "@/lib/prostor";
+import type { ActivityTarget } from "@/lib/prostor/activity-format";
 
 import { PageHeader } from "@/components/app/page-header";
 import { useMoze, useProjekat } from "@/components/app/projekat-provider";

@@ -225,14 +225,12 @@ export const AreaFlowNodeCard = memo(function AreaFlowNodeCard({
         type="source"
         position={Position.Left}
         className={styles.handle}
-        aria-label="Leva tačka za povezivanje kartice"
       />
       <Handle
         id="right"
         type="source"
         position={Position.Right}
         className={styles.handle}
-        aria-label="Desna tačka za povezivanje kartice"
       />
     </div>
   );

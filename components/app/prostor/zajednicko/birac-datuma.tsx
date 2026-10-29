@@ -22,18 +22,15 @@ import {
   calendarMoveForKey,
   datePickerChips,
   dayAriaLabel,
-  dayKeyOf,
   dayKeyOfDue,
   dueFromDayKey,
-  formatDateShort,
   formatMonthTitle,
   monthGrid,
   monthKeyOf,
   moveCalendarFocus,
   selectedDatePickerChip,
-  SR_WEEKDAYS,
-  type DayKey,
-} from "@/lib/prostor";
+} from "@/lib/prostor/calendar";
+import { dayKeyOf, formatDateShort, SR_WEEKDAYS, type DayKey } from "@/lib/prostor/dates";
 
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";

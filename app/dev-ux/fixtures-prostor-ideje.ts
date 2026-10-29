@@ -24,7 +24,7 @@
 import { getFunctionName } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import type { IdeaStoredStage } from "@/lib/prostor";
+import type { IdeaStoredStage } from "@/lib/prostor/idea-stages";
 import { serializeComment } from "@/lib/prostor/mentions";
 import { type Fixture, type R, WS, now, DAY, HOUR } from "./fixtures-util";
 import { fakeId, PROFILI, strana } from "./fixtures-prostor-osnova";

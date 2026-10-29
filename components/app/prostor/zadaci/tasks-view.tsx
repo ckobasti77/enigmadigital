@@ -19,16 +19,15 @@ import {
   boardColumns,
   findStartupRow,
   locateStartupRow,
-  rescheduleCandidates,
   rowFromStartupTask,
-  STATUS_LABELS,
-  type WorkspaceMini,
   type StartupTaskHold,
   type StartupTaskLike,
   type StartupTaskSection,
   type StartupTaskStatus,
-  type TaskRowModel,
-} from "@/lib/prostor";
+} from "@/lib/prostor/startup-tasks";
+import { rescheduleCandidates } from "@/lib/prostor/command-center";
+import { STATUS_LABELS } from "@/lib/prostor/task-sort";
+import type { WorkspaceMini, TaskRowModel } from "@/lib/prostor/task-row";
 
 import { TaskRow, type TaskRowActions } from "@/components/app/prostor/zadaci/task-row";
 import type { TaskPanelProps } from "@/components/app/prostor/zadaci/panel/task-panel";

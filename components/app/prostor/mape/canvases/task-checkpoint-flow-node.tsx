@@ -379,14 +379,12 @@ export const TaskCheckpointFlowNodeCard = memo(
             type="source"
             position={Position.Left}
             className={canvasStyles.handle}
-            aria-label="Leva tačka za povezivanje koraka"
           />
           <Handle
             id="right"
             type="source"
             position={Position.Right}
             className={canvasStyles.handle}
-            aria-label="Desna tačka za povezivanje koraka"
           />
         </div>
 

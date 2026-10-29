@@ -4,7 +4,7 @@
 // Preneto iz Devotion apps/web/components/workspace/trash/trash-view.tsx (main @ c05c40f), SPAJANJE S21.
 import { useRef, type ReactNode, type RefObject } from "react";
 import { History, Lightbulb, LoaderCircle, Paperclip, Trash2 } from "lucide-react";
-import { TRASH_SEGMENTS, type TrashKind } from "@/lib/prostor";
+import { TRASH_SEGMENTS, type TrashKind } from "@/lib/prostor/trash";
 
 import { FLIP_MAX_ITEMS, FlipGroup } from "@/components/motion/flip-group";
 import { Button } from "@/components/ui/button";

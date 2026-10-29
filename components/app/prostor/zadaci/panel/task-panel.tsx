@@ -4,7 +4,7 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { toast } from "@/lib/toast";
-import type { TaskPriorityKey } from "@/lib/prostor";
+import type { TaskPriorityKey } from "@/lib/prostor/task-sort";
 
 import { CommentsSection } from "@/components/app/prostor/saradnja/comments-section";
 import { useLiveNow } from "@/components/app/prostor/saradnja/use-live-now";

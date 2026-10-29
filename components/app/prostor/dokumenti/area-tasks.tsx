@@ -17,12 +17,12 @@ import {
   locateStartupRow,
   rowFromStartupTask,
   STARTUP_TASK_STATUSES,
-  STATUS_LABELS,
-  type WorkspaceMini,
   type StartupTaskLike,
   type StartupTaskSection,
   type StartupTaskStatus,
-} from "@/lib/prostor";
+} from "@/lib/prostor/startup-tasks";
+import { STATUS_LABELS } from "@/lib/prostor/task-sort";
+import type { WorkspaceMini } from "@/lib/prostor/task-row";
 
 import type { TaskRowActions } from "@/components/app/prostor/zadaci/task-row";
 import { Button } from "@/components/ui/button";

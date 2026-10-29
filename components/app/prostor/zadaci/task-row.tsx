@@ -21,20 +21,11 @@ import {
   Sun,
   SunDim,
 } from "lucide-react";
-import {
-  DUE_SHORTCUT_LABELS,
-  DUE_SHORTCUTS,
-  dueShortcutValue,
-  formatDateShort,
-  matchDueShortcut,
-  PRIORITY_LABELS,
-  STATUS_LABELS,
-  STARTUP_TASK_STATUSES,
-  type Perm,
-  type StartupTaskStatus,
-  type TaskPriorityKey,
-  type TaskRowModel,
-} from "@/lib/prostor";
+import { DUE_SHORTCUT_LABELS, DUE_SHORTCUTS, dueShortcutValue, formatDateShort } from "@/lib/prostor/dates";
+import { matchDueShortcut } from "@/lib/prostor/quick-add";
+import { PRIORITY_LABELS, STATUS_LABELS, type TaskPriorityKey } from "@/lib/prostor/task-sort";
+import { STARTUP_TASK_STATUSES, type StartupTaskStatus } from "@/lib/prostor/startup-tasks";
+import type { Perm, TaskRowModel } from "@/lib/prostor/task-row";
 
 import { AnimatedCheck } from "@/components/motion/animated-check";
 import { DatePicker } from "@/components/app/prostor/zajednicko/birac-datuma";

@@ -196,6 +196,9 @@ export function RichTextEditor({
       attributes: {
         class:
           "tiptap min-h-[42vh] w-full max-w-none px-1 pb-28 pt-4 text-copy leading-7 text-foreground outline-none sm:min-h-[52vh] sm:text-base",
+        // Uloga polja za višeredni tekst: bez nje `aria-label` na `div`-u ne važi (S28).
+        role: "textbox",
+        "aria-multiline": "true",
         "aria-label": "Sadržaj stranice",
       },
       handleClick: (view, _pos, event) => {

@@ -21,7 +21,7 @@ import {
   Upload,
   Users,
 } from "lucide-react";
-import { chatConversationPermissions, personalSubtitle } from "@/lib/prostor";
+import { chatConversationPermissions, personalSubtitle } from "@/lib/prostor/chat-hub";
 
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { ChannelMembersDialog } from "@/components/app/prostor/poruke/channel-members-dialog";

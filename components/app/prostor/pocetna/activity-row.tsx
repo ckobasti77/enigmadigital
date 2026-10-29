@@ -21,11 +21,11 @@ import {
 import {
   activityTarget,
   formatActivity,
-  formatEditTime,
   type ActivityIcon,
   type ActivityTarget,
   type ActivityTone,
-} from "@/lib/prostor";
+} from "@/lib/prostor/activity-format";
+import { formatEditTime } from "@/lib/prostor/revisions";
 
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ProstorRuta } from "@/lib/prostor/rute";

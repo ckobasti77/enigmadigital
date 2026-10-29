@@ -4,7 +4,7 @@
  * gledalac sme (iz `permissions` servera — klijent ne računa „autor" sam, K07
  * R16), meta tekstovi i stavke menija „…". Testovi: `page-document-model.test.ts`.
  */
-import { formatEditTime } from "..";
+import { formatEditTime } from "../revisions";
 
 import { pageKindMeta, type PageKind } from "../web/vrste-stranica";
 

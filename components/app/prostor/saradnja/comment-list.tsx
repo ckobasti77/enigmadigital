@@ -5,7 +5,7 @@ import { Fragment, useEffect, useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { LoaderCircle, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import { parseCommentSegments } from "@/lib/prostor";
+import { parseCommentSegments } from "@/lib/prostor/mentions";
 import type { FunctionReturnType } from "convex/server";
 
 import { Button } from "@/components/ui/button";

@@ -2,7 +2,7 @@
 
 // Preneto iz Devotion apps/web/lib/shortcuts/use-task-list-shortcuts.ts (main @ c05c40f), SPAJANJE S08.
 import { useCallback, useState, type FocusEvent, type RefObject } from "react";
-import type { TaskRowModel } from "@/lib/prostor";
+import type { TaskRowModel } from "@/lib/prostor/task-row";
 import { nextRowKey, taskListAction, taskListShortcutDefs, type RowRequest } from "@/lib/prostor/precice/lista-zadataka";
 import { toast } from "@/lib/toast";
 

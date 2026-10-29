@@ -3,7 +3,8 @@
 // Preneto iz Devotion apps/web/components/me/my-day/use-completion-queue.ts (main @ c05c40f), SPAJANJE S19.
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { toast } from "@/lib/toast";
-import { completionCall, type CompletionHold, type TaskRowModel, type TaskStatusKey } from "@/lib/prostor";
+import { completionCall, type CompletionHold, type TaskRowModel } from "@/lib/prostor/task-row";
+import type { TaskStatusKey } from "@/lib/prostor/task-sort";
 
 import { DUR_UI } from "@/lib/motion";
 import { accessErrorMessage } from "@/lib/prostor/web/greske";

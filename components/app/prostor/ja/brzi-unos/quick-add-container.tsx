@@ -13,7 +13,7 @@ import {
   type QuickAddDraft,
   type QuickAddKind,
   type QuickAddNoteDraft,
-} from "@/lib/prostor";
+} from "@/lib/prostor/quick-add";
 
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";

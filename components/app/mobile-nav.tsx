@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { ProjekatLink } from "@/components/app/projekat-link";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { LayoutGrid, Plus, Trophy, X } from "lucide-react";
-import { Drawer } from "@/components/ui/drawer";
 import { BedzNaUglu } from "@/components/app/system/count-badge";
 import { unreadMessagesPhrase, unreadPhrase } from "@/lib/prostor/web/opseg";
 import { modulUkljucen, putanjaEkrana } from "@/lib/rutiranje";
@@ -55,6 +55,11 @@ import { QuietBoundary } from "./quiet-boundary";
  * `window`, kao ⌘K.
  */
 export const VISE_EVENT = "enigma:vise";
+
+// Fioka lista „Više“ (Base UI Drawer) treba samo telefonu i samo na dodir:
+// njen kod nije u prvom učitavanju svake strane, nego stiže odmah posle njega
+// (SPAJANJE S28). List je montiran kao i pre, pa se otvara isto.
+const Drawer = dynamic(() => import("@/components/ui/drawer").then((m) => m.Drawer), { ssr: false });
 
 /**
  * Donja traka na telefonu (SPAJANJE P15, plan S07 §2.6). U hubu: Danas ·

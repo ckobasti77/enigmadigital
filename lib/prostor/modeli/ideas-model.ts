@@ -9,11 +9,11 @@ import {
   IDEA_BOARD_COLUMNS,
   IDEA_STAGE_LABELS,
   IDEA_STAGE_ORDER,
-  formatTrashAge,
   stageTargets,
   type IdeaStage,
   type IdeaStoredStage,
-} from "..";
+} from "../idea-stages";
+import { formatTrashAge } from "../trash";
 
 import type { Id } from "../../../convex/_generated/dataModel";
 import { formatNumber } from "../../format";

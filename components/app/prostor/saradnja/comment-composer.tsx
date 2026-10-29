@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/collab/comment-composer.tsx (main @ c05c40f), SPAJANJE S11.
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { LoaderCircle } from "lucide-react";
-import { insertMention, mentionQueryAt, serializeComment, type MentionCandidate } from "@/lib/prostor";
+import { insertMention, mentionQueryAt, serializeComment, type MentionCandidate } from "@/lib/prostor/mentions";
 
 import { Button } from "@/components/ui/button";
 import { ProfileAvatar } from "@/components/app/prostor/zajednicko/radni-ui";

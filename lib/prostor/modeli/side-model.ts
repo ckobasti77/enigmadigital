@@ -4,7 +4,8 @@
  * „Čeka tebe". ČISTO (vitest). Svaki blok ima svoje stanje; blok čiji upit
  * padne ili ne postoji se tiho skriva (`hidden`).
  */
-import { pendingIdeaVotes, pendingKey, pendingTitle, type WorkspaceMini } from "..";
+import { pendingIdeaVotes, pendingKey, pendingTitle } from "../inbox";
+import type { WorkspaceMini } from "../task-row";
 
 // Tekst i ključ stavke „Čeka tebe" žive u shared (`inbox.ts`) — dele ih Inbox i telefon.
 export { pendingTitle };

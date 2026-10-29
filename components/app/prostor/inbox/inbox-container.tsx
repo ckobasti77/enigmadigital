@@ -11,7 +11,7 @@ import {
   pendingIdeaVotes,
   type InboxScope,
   type InboxSegment,
-} from "@/lib/prostor";
+} from "@/lib/prostor/inbox";
 
 import { useQueryState, useQueryTolerant } from "@/components/app/prostor/podaci/ja";
 import { useShortcuts } from "@/components/app/prostor/precice/precice-provider";

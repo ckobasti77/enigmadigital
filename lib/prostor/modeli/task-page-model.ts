@@ -4,7 +4,7 @@
  * gledalac sme da menja, koji poziv nosi promenu čipa i meni „…". Testovi:
  * `task-page-model.test.ts`.
  */
-import { PERMISSION_REASONS, taskPermissions, type TaskPermissions } from "..";
+import { PERMISSION_REASONS, taskPermissions, type TaskPermissions } from "../task-row";
 
 import { conflictFromError } from "./page-autosave-model";
 import { pageMenuKeys, type DocumentPermissions, type PageMenuKey } from "./page-document-model";

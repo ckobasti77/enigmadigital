@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/me/my-day/my-day-side.tsx (main @ c05c40f), SPAJANJE S19.
 import { useId, type ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
-import { formatDayRelative } from "@/lib/prostor";
+import { formatDayRelative } from "@/lib/prostor/dates";
 
 import { CekaTe } from "@/components/app/hub/ceka-te";
 import { CountBadge } from "@/components/app/system/count-badge";

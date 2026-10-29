@@ -4,7 +4,7 @@
  * onemogućenog „Vrati", cilj „Otvori" posle vraćanja. Bez React-a; deli je
  * Tekstovi vremena i podstranica dolaze iz `lib/prostor/trash.ts`.
  */
-import { subpagesLabel, trashMetaLabel, type TrashKind } from "..";
+import { subpagesLabel, trashMetaLabel, type TrashKind } from "../trash";
 import type { FunctionReturnType } from "convex/server";
 
 import type { api } from "../../../convex/_generated/api";

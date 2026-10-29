@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/me/task-panel/personal-task-panel-view.tsx (main @ c05c40f), SPAJANJE S12.
 import { useId, useLayoutEffect, useRef, useState, type Ref } from "react";
 import { ArrowRightLeft, Trash2 } from "lucide-react";
-import type { TaskPriorityKey } from "@/lib/prostor";
+import type { TaskPriorityKey } from "@/lib/prostor/task-sort";
 
 import { AnimatedCheck } from "@/components/motion/animated-check";
 import { ProjekatStavkeProvider, useProjekat, useProjekatMutation } from "@/components/app/projekat-provider";

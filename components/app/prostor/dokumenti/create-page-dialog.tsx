@@ -21,7 +21,7 @@ import { Select } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PAGE_KIND_META, type PageKind } from "@/lib/prostor/web/vrste-stranica";
 import type { CreatePageTarget, StartupWithAreas } from "@/lib/prostor/rute";
-import { defaultTaskDraft, taskCreateFields, type TaskCreateDraft } from "@/lib/prostor";
+import { defaultTaskDraft, taskCreateFields, type TaskCreateDraft } from "@/lib/prostor/task-create";
 import { readLastArea, rememberLastArea } from "@/lib/prostor/web/poslednja-oblast";
 import { opisVeze } from "@/lib/prostor/web/veze-zadatka";
 import { TaskQuickCreate } from "@/components/app/prostor/zadaci/task-quick-create";
@@ -73,6 +73,7 @@ export function CreatePageDialog({
   profileId,
   target,
   onCreated,
+  finalFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -81,6 +82,8 @@ export function CreatePageDialog({
   profileId: Id<"profiles"> | null;
   target?: CreatePageTarget;
   onCreated: (pageId: Id<"pages">) => void;
+  /** Kuda fokus posle zatvaranja; dijalog se otvara spolja (nema svoj okidač). */
+  finalFocus?: () => HTMLElement | boolean;
 }) {
   const { now } = useToday();
   const createPage = useProjekatMutation(api.prostor.areasV2.createPage);
@@ -210,7 +213,7 @@ export function CreatePageDialog({
         onOpenChange(next);
       }}
     >
-      <DialogPopup className="flex max-h-[min(90dvh,56rem)] flex-col gap-0 p-0 sm:max-w-2xl">
+      <DialogPopup className="flex max-h-[min(90dvh,56rem)] flex-col gap-0 p-0 sm:max-w-2xl" finalFocus={finalFocus}>
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
           <DialogHeader className="border-b border-line-soft px-5 py-5 pr-14 sm:px-6 sm:pr-16">
             <DialogTitle>{kind === "task" ? "Novi zadatak" : "Nova stranica"}</DialogTitle>

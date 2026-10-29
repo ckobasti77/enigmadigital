@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/workspace/ideas/idea-board.tsx (main @ c05c40f), SPAJANJE S13.
 import { useId, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { IdeaStage, IdeaStoredStage } from "@/lib/prostor";
+import type { IdeaStage, IdeaStoredStage } from "@/lib/prostor/idea-stages";
 
 import { FLIP_MAX_ITEMS, FlipGroup } from "@/components/motion/flip-group";
 import { Unfold } from "@/components/motion/unfold";

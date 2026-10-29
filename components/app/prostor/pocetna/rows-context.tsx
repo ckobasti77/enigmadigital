@@ -2,7 +2,8 @@
 
 // Preneto iz Devotion apps/web/components/workspace/command-center/rows-context.tsx (main @ c05c40f), SPAJANJE S20.
 import { createContext, useContext, useLayoutEffect, type ReactNode } from "react";
-import { canJoinTask, type StartupTaskSection, type TaskRowModel, type WorkspaceMini } from "@/lib/prostor";
+import { canJoinTask, type StartupTaskSection } from "@/lib/prostor/startup-tasks";
+import type { TaskRowModel, WorkspaceMini } from "@/lib/prostor/task-row";
 
 import { TaskRow, type TaskRowActions } from "@/components/app/prostor/zadaci/task-row";
 import { AssigneeStack } from "@/components/app/prostor/zadaci/assignee-stack";

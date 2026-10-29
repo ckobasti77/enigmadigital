@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/collab/revision-history.tsx (main @ c05c40f), SPAJANJE S11.
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { ArrowLeft, History, LoaderCircle, RotateCcw } from "lucide-react";
-import { htmlToPlainText, revisionMeta } from "@/lib/prostor";
+import { htmlToPlainText, revisionMeta } from "@/lib/prostor/revisions";
 import type { FunctionReturnType } from "convex/server";
 
 import { Button } from "@/components/ui/button";

@@ -5,14 +5,14 @@ import { useId, useMemo } from "react";
 import { ChevronDown, FolderClosed, ListChecks, Users } from "lucide-react";
 import {
   assigneesChipValue,
-  NO_AREA_REASON,
   TASK_CREATE_INSTRUCTIONS_MAX,
   TASK_CREATE_MAX_ASSIGNEES,
   taskCreateExtrasCount,
   toggleTaskAssignee,
-  type Perm,
   type TaskCreateDraft,
-} from "@/lib/prostor";
+} from "@/lib/prostor/task-create";
+import { NO_AREA_REASON } from "@/lib/prostor/quick-add";
+import type { Perm } from "@/lib/prostor/task-row";
 
 import { LockedMetaChip, MetaChip } from "@/components/app/prostor/zadaci/meta-chip";
 import { DueMetaChip, PriorityChip } from "@/components/app/prostor/zadaci/panel/panel-parts";

@@ -14,8 +14,8 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { formatInboxTime } from "@/lib/prostor/inbox";
 import {
-  formatInboxTime,
   hubChannelName,
   hubIsEmpty,
   hubMentionLabel,
@@ -25,7 +25,7 @@ import {
   type HubChannel,
   type HubGroup,
   type HubInput,
-} from "@/lib/prostor";
+} from "@/lib/prostor/chat-hub";
 
 import { CountBadge } from "@/components/app/system/count-badge";
 import { Unfold } from "@/components/motion/unfold";

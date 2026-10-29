@@ -4,7 +4,6 @@
 import { useId, useRef, type ReactNode, type RefObject } from "react";
 import {
   ArrowRight,
-  BellRing,
   Check,
   CheckCheck,
   GitMerge,
@@ -32,7 +31,7 @@ import {
   type InboxScope,
   type InboxSegment,
   type PendingItemLike,
-} from "@/lib/prostor";
+} from "@/lib/prostor/inbox";
 
 import { PageHeader } from "@/components/app/page-header";
 import { CountBadge } from "@/components/app/system/count-badge";
@@ -41,8 +40,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-import { LOUD_TYPES, TYPE_ICON } from "./notifications-panel";
-import { EmptyState, ProfileAvatar } from "@/components/app/prostor/zajednicko/radni-ui";
+import { ZnakObavestenja } from "./notifications-panel";
+import { EmptyState } from "@/components/app/prostor/zajednicko/radni-ui";
 import { ProjekatCip } from "@/components/app/prostor/zajednicko/projekat-cip";
 import { InboxSkeleton } from "./inbox-skeleton";
 
@@ -325,7 +324,8 @@ function ScopeChip({
       {leading}
       {children}
       {shown !== null && shown.count > 0 ? (
-        <span className="text-meta tabular-nums text-text-muted">
+        // Na izabranom čipu (svetlija podloga) prigušen broj pada ispod 4.5:1, pa je jači.
+        <span className={cn("text-meta tabular-nums", active ? "text-text-secondary" : "text-text-muted")}>
           {inboxCountLabel(shown.count, shown.capped)}
           <span className="sr-only">
             {" "}
@@ -418,30 +418,6 @@ function InboxGroup({ title, count, children }: { title: string; count: number; 
       </h2>
       <ul className="flex flex-col">{children}</ul>
     </section>
-  );
-}
-
-/** Znak reda: avatar autora, a bez autora ikonica vrste (kašnjenje je crveno). */
-export function ZnakObavestenja({
-  item,
-  className,
-}: {
-  item: Pick<InboxItemModel, "type" | "actor">;
-  className?: string;
-}) {
-  if (item.actor !== null) return <ProfileAvatar profile={item.actor} className={cn("size-8", className)} />;
-  const Icon = TYPE_ICON[item.type] ?? BellRing;
-  const loud = LOUD_TYPES.has(item.type);
-  return (
-    <span
-      className={cn(
-        "grid size-8 shrink-0 place-items-center rounded-full",
-        loud ? "bg-danger-soft text-danger" : "bg-surface-raised text-text-secondary",
-        className,
-      )}
-    >
-      <Icon className="size-4" aria-hidden="true" />
-    </span>
   );
 }
 

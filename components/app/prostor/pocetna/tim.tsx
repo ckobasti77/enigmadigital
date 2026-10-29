@@ -3,7 +3,7 @@
 // Preneto iz Devotion apps/web/components/workspace/command-center/team-block.tsx (main @ c05c40f), SPAJANJE S20.
 import { useMemo } from "react";
 import { UserRound } from "lucide-react";
-import { COMMAND_BLOCK_TEXT, teamWorkloadLabel } from "@/lib/prostor";
+import { COMMAND_BLOCK_TEXT, teamWorkloadLabel } from "@/lib/prostor/command-center";
 
 import { EmptyState, ProfileAvatar } from "@/components/app/prostor/zajednicko/radni-ui";
 import {
