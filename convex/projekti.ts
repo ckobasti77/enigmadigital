@@ -22,6 +22,7 @@ import { normalizujHost, proveriSlugProjekta } from "./lib/projekatSlug";
 import { ulogaValidator, type Uloga } from "./lib/uloge";
 import { citajVezeProjekta } from "./lib/vezeProjekta";
 import { zdravljeProjekta } from "./lib/zdravljeVeza";
+import { obezbediRadniDeoProjekta } from "./prostor/lib/radniDeo";
 
 /**
  * ============================================================================
@@ -371,6 +372,9 @@ export const kreirajProjekat = platformaMutation({
       sablonLeadova: "prazno",
     });
     await ctx.db.insert("members", { workspaceId, userId, role: "owner" });
+    // Radni deo (SPAJANJE, P26): podrazumevane oblasti i kanali, posle članstva
+    // (profil vlasnika nastaje iz njega).
+    await obezbediRadniDeoProjekta(ctx, { workspaceId, userId, now: Date.now() });
     return { workspaceId, slug };
   },
 });

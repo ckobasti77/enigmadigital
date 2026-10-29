@@ -1437,6 +1437,24 @@ export const TABLE_OWNERSHIP: Record<ProviderPrefixedTable, Disposition> = {
   orPostbacks: { purgedBy: ["meta_ig", "meta_fb"] },
 };
 
+// ── Radni deo (SPAJANJE, plan S01 §2.6) ─────────────────────────────────────
+// Sadržaj koji tim sam piše u radnom delu. Nijedna od ovih tabela ne dolazi od
+// providera, pa ih prekid veze ne dodiruje; razlog stoji uz svaku grupu.
+const PROSTOR_SADRZAJ =
+  "Radni deo projekta (dokumenti, zadaci, ideje, beleške, poruke): sadržaj koji su napisali članovi tima, ne podaci preuzeti od providera. Prekid veze sa Meta/Google ga ne dodiruje; briše se iz Korpe ili ručno.";
+const PROSTOR_TRAG =
+  "Trag saradnje u radnom delu (komentari, istorija izmena, aktivnost, obaveštenja): sopstveni sadržaj tima, ne podaci providera. Prekid veze ga ne dodiruje.";
+const PROSTOR_LICNO =
+  "Lični podaci člana u radnom delu (profil, avatar, Moj dan, lični zadaci, podešavanja obaveštenja): ne dolaze od providera i prekid veze ih ne dodiruje.";
+const PROSTOR_PUSH =
+  "Pretplate uređaja za web i Expo push (adresa i ključevi uređaja): kontrola dostave obaveštenja, ne podaci providera; brišu se odjavom ili posle pet neuspelih dostava.";
+const PROSTOR_PRISUSTVO =
+  "Kratkotrajni otkucaji prisustva (rok 45 s), bez sadržaja i bez podataka providera.";
+const PROSTOR_STARO =
+  "Stari tokovi radnog dela (v1 mapa, unosi stranice, zahtevi za brisanje i ugnežđavanje, oporavljen sadržaj) koje preneseni kod još čita ili dvostruko upisuje; ne dolaze od providera.";
+const PROSTOR_AI =
+  "Podešavanje AI provajdera projekta (adresa, model, ključ koji ne izlazi iz internih funkcija): operaterovo podešavanje, ne podaci Meta/Google. Briše ga vlasnik projekta.";
+
 /**
  * The decision for every APPLICATION table whose name carries no provider
  * prefix (R1/4e).
@@ -1570,4 +1588,56 @@ export const EXTRA_TABLE_OWNERSHIP: Record<string, Disposition> = {
     excluded:
       "Koje proslave (misija, bonus, nivo, dostignuće) je operater već video — ključ i datum, da se ne ponavljaju posle osvežavanja. Bez ikakvog sadržaja; potvrde starih dana se brišu same pri zamrzavanju novog dana.",
   },
+  // ── Radni deo (SPAJANJE, S01 §2.6): 51 tabela ────────────────────────────
+  areas: { excluded: PROSTOR_SADRZAJ },
+  pages: { excluded: PROSTOR_SADRZAJ },
+  pageBodies: { excluded: PROSTOR_SADRZAJ },
+  areaBodies: { excluded: PROSTOR_SADRZAJ },
+  pageCanvasPlacements: { excluded: PROSTOR_SADRZAJ },
+  pageCanvasEdgesV2: { excluded: PROSTOR_SADRZAJ },
+  pageCanvasViewports: { excluded: PROSTOR_SADRZAJ },
+  pageRelations: { excluded: PROSTOR_SADRZAJ },
+  taskCheckpoints: { excluded: PROSTOR_SADRZAJ },
+  taskAssignees: { excluded: PROSTOR_SADRZAJ },
+  taskCheckpointCanvasPlacements: { excluded: PROSTOR_SADRZAJ },
+  taskCheckpointCanvasEdges: { excluded: PROSTOR_SADRZAJ },
+  ideaCanvases: { excluded: PROSTOR_SADRZAJ },
+  ideaNodes: { excluded: PROSTOR_SADRZAJ },
+  ideaVotes: { excluded: PROSTOR_SADRZAJ },
+  ideaEdges: { excluded: PROSTOR_SADRZAJ },
+  pageTableColumns: { excluded: PROSTOR_SADRZAJ },
+  pageTableRows: { excluded: PROSTOR_SADRZAJ },
+  pageFiles: { excluded: PROSTOR_SADRZAJ },
+  pageFileUploads: { excluded: PROSTOR_SADRZAJ },
+  chatChannels: { excluded: PROSTOR_SADRZAJ },
+  chatMessages: { excluded: PROSTOR_SADRZAJ },
+  chatMembers: { excluded: PROSTOR_SADRZAJ },
+  chatReads: { excluded: PROSTOR_SADRZAJ },
+  chatReactions: { excluded: PROSTOR_SADRZAJ },
+  thoughtCanvases: { excluded: PROSTOR_SADRZAJ },
+  thoughtNodes: { excluded: PROSTOR_SADRZAJ },
+  thoughtEdges: { excluded: PROSTOR_SADRZAJ },
+  contentContributions: { excluded: PROSTOR_TRAG },
+  contentRevisions: { excluded: PROSTOR_TRAG },
+  activities: { excluded: PROSTOR_TRAG },
+  notifications: { excluded: PROSTOR_TRAG },
+  profiles: { excluded: PROSTOR_LICNO },
+  avatarUploads: { excluded: PROSTOR_LICNO },
+  personalTasks: { excluded: PROSTOR_LICNO },
+  myDayEntries: { excluded: PROSTOR_LICNO },
+  notificationSettings: { excluded: PROSTOR_LICNO },
+  pushSubscriptions: { excluded: PROSTOR_PUSH },
+  expoPushTokens: { excluded: PROSTOR_PUSH },
+  pagePresence: { excluded: PROSTOR_PRISUSTVO },
+  chatPresence: { excluded: PROSTOR_PRISUSTVO },
+  pageEntries: { excluded: PROSTOR_STARO },
+  pageEdges: { excluded: PROSTOR_STARO },
+  pageCanvasNodes: { excluded: PROSTOR_STARO },
+  pageCanvases: { excluded: PROSTOR_STARO },
+  recoveredContent: { excluded: PROSTOR_STARO },
+  deletionRequests: { excluded: PROSTOR_STARO },
+  deletionBallots: { excluded: PROSTOR_STARO },
+  nestingRequests: { excluded: PROSTOR_STARO },
+  pageNestingRequests: { excluded: PROSTOR_STARO },
+  aiProviders: { excluded: PROSTOR_AI },
 };

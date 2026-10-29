@@ -23,6 +23,7 @@ import {
 import { sablonLeadovaValidator } from "./lib/sabloniLeadova";
 import { pulsGreskaValidator } from "./lib/puls";
 import { svrhaUploadaValidator } from "./lib/projekatUploadi";
+import { prostorTabele } from "./prostor/schema";
 
 // Multi-tenant from day one (PLAN.md §3). V1 is single-user, but every future
 // table carries a `workspaceId`, so onboarding clients later needs no migration.
@@ -32,6 +33,10 @@ import { svrhaUploadaValidator } from "./lib/projekatUploadi";
 export default defineSchema({
   // Convex Auth: users, authAccounts, authSessions, authVerificationCodes, …
   ...authTables,
+
+  // Radni deo (SPAJANJE, plan S01 §2.4). Stoji ODMAH posle auth tabela: Enigmina
+  // tabela istog imena bi pobedila, a `convex/prostor/schema.test.ts` tada pada.
+  ...prostorTabele,
 
   // Projekat (PROJEKTI-PLAN §3–§4). U kodu ostaje `workspace` (P1). Sve nove
   // kolone su opcione, pa postojeći redovi ostaju validni bez migracije.
@@ -52,6 +57,8 @@ export default defineSchema({
     arhiviran: v.optional(v.boolean()),
     redosled: v.optional(v.number()),
     createdBy: v.optional(v.id("users")),
+    /** Opis projekta (radni deo, P5); bez vrednosti = prazan. */
+    opis: v.optional(v.string()),
   })
     .index("by_slug", ["slug"])
     // Fajl brenda pripada tačno jednom projektu (C11, `postaviSlikuBrenda`):
