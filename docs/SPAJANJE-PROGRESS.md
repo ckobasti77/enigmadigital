@@ -310,3 +310,111 @@ Ekrani nisu dirani; UI dolazi u S12, S16, S19 i S20.
 - Ništa nije deployovano.
 - Posle deploya, uklanjanje člana u Pristupu ga skida i sa zadataka tog projekta. Ako član ima više od 250 aktivnih zadataka u projektu, uklanjanje pada dok se zadaci ne preraspodele (Devotion pravilo).
 - Deaktiviran profil u radnom delu dobija poruku „Profil još nije spreman. Osveži stranicu.“ (adapter iz S02), a ne posebnu poruku o deaktivaciji. Odluči da li treba posebna poruka.
+
+## S05 — Backend: ideje, beleške, mape, tabele, fajlovi, AI   (2026-10-29 03:17)
+**Fajlovi:**
+- `convex/prostor/` (preneto alatom pa ručno dovršeno): `ideas.ts`, `thoughts.ts`, `canvases.ts`, `pageTables.ts`, `pageFiles.ts`, `aiProviders.ts`.
+- `convex/prostor/lib/otpremanje.ts` (nov): `tudjiBlob`, pravilo „čiji je blob“ za priloge i avatar.
+- `convex/prostor/storage.ts` (S02, avatar): `setAvatar` dobio istu proveru bloba.
+- Testovi:
+  - preneti `ideas`, `ideas.stage`, `thoughts.notes`, `pageFiles`, `pageTables`, `aiProviders`, `collaboration`, `comments`, `moves`, `pages.collaboration`, `pages.security`, `prostor.authz`, `search`, `trash`, `trash.nodelete` (`*.test.ts`);
+  - nov `sadrzaj.test.ts`.
+- `convex/_generated/api.d.ts` (codegen).
+- `.nocni-run/spajanje/alati/README.md` (odeljak „Isprobano (S05)“).
+
+**Šta je urađeno:**
+- Alat je preneo 6 modula i 15 test fajlova. Ostalo je 6 RUČNO stavki, sve zatvorene. Moduli su posle alata imali 0 grešaka typecheck-a, a testovi 368 (skoro sve „nedostaje `workspaceId`“).
+- Pet radnika (Sonnet) je dovršilo testove, svaki svoje fajlove. Module nisu menjali. Diff, broj blokova i broj `expect(` su pregledani pre prihvatanja.
+- Svih 71 novih javnih funkcija je na omotačima P8:
+  - `ideas` (15), `canvases` (8) i `pageTables` (10) su P;
+  - `pageFiles` (7) je P;
+  - `thoughts` ima 9 P i 17 L;
+  - `aiProviders` (5) je P!.
+- `verify:pristup` pokazuje **585 / 570 / 15**, tačno po S01 §7, bez novih izuzetaka.
+- `aiProviders` (D14): omotač traži `owner` projekta, a handler još i vlasnika platforme (Devotion `profile.role === "admin"`). Ključ ne izlazi iz javnih funkcija (`toPublic`). Čitaju ga samo `getDefaultProviderWithKey` i `getWithKey`, obe interne. AI se nigde ne poziva.
+- Otpremanje radi kroz svoje tabele: `pageFileUploads` za priloge, `avatarUploads` za avatar. Enigmin `projekatUploadi` nije menjan, samo se čita.
+- „Pošalji u projekat“ (`thoughts.convertToIdeas`) prima beleške iz drugog mog projekta: izvor se proverava bez `ctx.projekat` (ODLUKA 2).
+- Zadržano je sledeće:
+  - ideje: faze (predlog, razmatra se, odobreno, odbijeno), glasanje, „Postalo zadatak“ (`convertToPage`);
+  - beleške: lične (`workspaceId: null`) i projektne, „Pošalji u projekat“, pretraga mojih (`searchMine`);
+  - mape: položaji, veze, viewport, ugnežđavanje (`thoughts`, `ideas`, v1 `canvases`);
+  - tabele: kolone, redovi, ograničenja, uvoz;
+  - prilozi: otpremanje sa dozvolom, uklanjanje u Korpu (blob ostaje), čišćenje beleške;
+  - avatar.
+
+**Paritet:** backend za redove:
+- 7 (Beleške: moje misli iz svih projekata, „Pošalji u projekat“, pretraga mojih);
+- 8 (Mapa beleški projekta);
+- 9 (avatar: provera bloba; ostatak profila je iz S02);
+- 13 (Ideje: faze, glasanje, „Postalo zadatak“);
+- 14 (Mapa ideja);
+- 22 (Stranica-tabela: kolone, redovi, uvoz);
+- 23 (Stranica-fajl i prilozi);
+- 24 (v1 API mape `canvases`, D3; Mapa oblasti je `areasV2` iz S03);
+- 25 (Korpa: ideje i prilozi; stranice su iz S03);
+- 29 (AI provajderi po projektu, backend za karticu „AI“ iz S21).
+
+Ekrani nisu dirani.
+
+**ODLUKE:**
+1. **Tuđ blob se ne prima i ne briše (`lib/otpremanje.ts`).**
+   - Devotion `attach` je u granama odbijanja (istekla dozvola, nepodržan tip, preveliki fajl, limit) brisao blob iz argumenta. Proveravao je samo da blob nije već prilog. Član je tako mogao da podmetne ID loga projekta, slike objave ili tuđeg avatara i da ga obriše.
+   - Isto važi za `setAvatar`: sledeća promena avatara briše prethodni blob.
+   - Zato se blob prihvata samo ako je nastao posle dozvole (`_creationTime ≥ dozvola._creationTime`) i ako ga ne drži niko drugi: prilog, avatar drugog profila, prilog poruke, red u `projekatUploadi`, logo ili ikonica projekta, fajl IG/Threads objave.
+   - Inače se baca „Fajl nije pronađen. Pošalji ga ponovo.“ („Slika nije pronađena …“ za avatar), a blob se ne dira. Ovo je Enigmino pravilo iz C19 (rok i vlasništvo), primenjeno bez izmene `projekatUploadi`.
+   - S06 treba da ga primeni i na otpremanje u četu, ako ono briše blob.
+2. **`convertToIdeas` proverava izvor bez `ctx.projekat`.**
+   - Omotač proverava CILJ. Adapter bi zato belešku iz drugog mog projekta odbio sa „Stavka nije pronađena u ovom projektu.“, a Devotion to dozvoljava (test „fromA → B“).
+   - Izvor se sada proverava kao na ličnom nivou: `requireProjekat(…, "urednik")`, uz kontekst `{ ...ctx, projekat: undefined }`.
+   - Autor koji je u izvoru postao client_viewer ne može da pošalje belešku (nov test).
+3. **AI gate:** `requireStartupAdmin` posle adaptera traži `jeVlasnikPlatforme` i baca `ConvexError(PORUKE.platforma)` („Ovu radnju može da izvede samo vlasnik platforme.“).
+   - Urednik pada već na omotaču („samo vlasnik projekta“). Zato je 5 provera `toThrow("administratorski")` u `aiProviders.test` postalo „samo vlasnik projekta“.
+   - Radnik je u postojeći test dodao osobu „owner, a nije vlasnik platforme“ i 5 provera „samo vlasnik platforme“. Novih blokova nema.
+4. **Nisu preneti blokovi, po planu S01 §1.4:** samo `pages.security › „legacy body backfill ne duplira canonical ni raniji bodyId zapis“` (migracije, P21), sa jednorednim komentarom. Zato `pages.security` ima 16 od 17 blokova i 87 od 91 `expect(`; tačno 4 su bila u tom bloku.
+5. **Očekivani tekstovi u testovima.** Provera nije oslabljena, promenjen je samo tekst:
+   - „Nemate pristup“ → „Nemaš pristup“ (comments 2, moves 3, trash 4);
+   - „deaktiviran“ → „Profil još nije spreman. Osveži stranicu.“ (pages.collaboration 3, trash 1, prostor.authz 6), jer adapter deaktiviran profil tretira kao „nema profila“ (S02);
+   - „Fazu ideje menja autor, vlasnik startupa ili admin.“ i „Ideju pretvara njen autor, vlasnik startupa ili admin.“ → „… autor ili vlasnik projekta.“ (`lib/idea_stages`, S02);
+   - `aiProviders` „pristup“ → „Nemaš pristup“.
+6. **Sat u testovima** (convex-test 0.0.65 ne pušta sat transakcije unazad od poslednjeg upisa, kao S04 ODLUKA 9):
+   - `comments`: `T0` je `Date.UTC(2030, 9, 28, 10, 0)`, isti dan u nedelji i isti sat, umesto `Date.UTC(2026, 9, 26, 10, 0)`. „Poništi radi 8 s“ je inače padao.
+   - `pages.collaboration › prisustvo`: `vi.setSystemTime(T0 + 1000)` posle seed-a, a `expiresAt` se računa od toga.
+   - `prostor.authz`: `archivedAt` komentara se poredi sa vrednošću pročitanom odmah posle `comments.remove`, umesto sa `T0`. Transakcija sa zamrznutim satom pada na `T0 + 1`. Provera „vraćanje ne menja `archivedAt`“ ostaje, uz jednu proveru više.
+7. **Seed:** upiti nad `startupMembers` (comments ×2, prostor.authz ×1) idu nad `members.by_user_workspace` sa `.first()` pa `ukloniClanstvo`. `ideas.test` zove verifikator kroz `makeFunctionReference("prostor/proveraOblasti.pomoc:verifyAreasV2")`, kao `areasV2.test` (S03).
+8. **Kozmetika:** alat ostavlja `args: { }` kad briše jedini `workspaceId`. U S05 modulima je to `args: {}`, a S03 moduli nisu dirani. Nekorišćen uvoz `query` u `thoughts.ts` je uklonjen (lint).
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- Preneto je **157 blokova**, tačno po S01 §5.4:
+  - ideas 2, ideas.stage 7, thoughts.notes 9;
+  - pageFiles 14, pageTables 11, aiProviders 12;
+  - collaboration 10, comments 29, moves 7, pages.collaboration 11;
+  - pages.security 16 od 17, prostor.authz 8, search 5;
+  - trash 13, trash.nodelete 3.
+- Broj `expect(` je jednak Devotionu u 12 fajlova. Veći je u `aiProviders` (ODLUKA 3) i `prostor.authz` (ODLUKA 6), a manji u `pages.security` (ODLUKA 4).
+- Nov je `sadrzaj.test.ts` sa 7 testova:
+  - ključ AI provajdera nije ni u jednom odgovoru javnih funkcija (`list`, `create`, `update`, `setDefault`, `remove`). Spisak javnih funkcija modula je ugovor, pa nova javna funkcija obara test. Greška ne nosi ključ, a interna `getWithKey` ga vraća;
+  - AI: urednik, owner koji nije vlasnik platforme i client_viewer su odbijeni, i ništa se ne upisuje;
+  - izolacija: ideja, tabela, prilog, AI provajder, misao i oblast projekta A se odbijaju pod projektom B (ideas ×3, pageTables ×2, pageFiles ×2, aiProviders ×2, thoughts.createEdge, canvases), i ništa se ne upisuje;
+  - client_viewer ne ulazi ni u projektne funkcije (ideas, thoughts, pageTables, pageFiles, canvases) ni u lične sa projektom (`createNote`, `listMine`);
+  - prilog odbija blob stariji od dozvole, logo projekta i tuđ avatar, a sva tri bloba ostaju;
+  - avatar odbija stari i prijavljen Enigmin fajl, a sopstvena promena briše samo svoj prethodni blob;
+  - „Pošalji u projekat“ iz A u B radi; cilj u kome sam client_viewer i izvor u kome je autor postao client_viewer se odbijaju.
+- `convex/prostor` sada ima 42 fajla i 409 testova.
+- Ceo `npx vitest run`: 138 fajlova i 1954 testa, svi prolaze.
+
+**Rezultat provere:**
+- codegen prolazi;
+- typecheck prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest prolazi (1954);
+- pristup: 585 / 570 / 15, bez novih izuzetaka;
+- `verify-purge-coverage` 196 (nema novih tabela);
+- regresije: 20 provera prolazi, uključujući `verify:prostor-pristup` (62 fajla).
+
+**Za Jovana ujutru:**
+- Ništa nije deployovano.
+- `aiProviders.apiKey` je u bazi nešifrovan (D14, kao u Devotionu). Predlog: šifrovati ga kroz `convex/lib/crypto.ts` pre nego što kartica „AI“ (S21) ode u produkciju.
+- AI provajdere vodi samo vlasnik projekta koji je i vlasnik platforme. Odluči da li vlasnik klijentskog projekta treba da ih vodi sam.
+- Prilog ili avatar čiji je blob nastao pre dozvole sada se odbija (ODLUKA 1). Normalan tok (dozvola → otpremanje → `attach`) ne pogađa. Ako web nekad otprema pre nego što uzme dozvolu, to mora da obrne.

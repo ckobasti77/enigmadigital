@@ -86,3 +86,10 @@ npm run verify:prostor-pristup
 - Posle alata typecheck modula je imao 28 grešaka (sve u RUČNO stavkama); testovi oko 460, skoro sve „nedostaje `workspaceId`“ u pozivima P funkcija koje ga ranije nisu primale.
 - `ctx.db.patch("profiles", id, { role: "admin" })` posle `insertProfil` alat ne hvata: takav profil NIJE vlasnik platforme. Seed mora da napravi profil kroz `insertProfil` sa `role: "admin"`.
 - Devotion kreator startupa nije bio automatski član; `insertStartup` kreatoru daje `owner` red, pa se „napustio projekat“ radi sa `ukloniClanstvo` nad tim redom.
+
+## Isprobano (S05)
+
+- `--korak S05`: 6 modula (`ideas`, `thoughts`, `canvases`, `pageTables`, `pageFiles`, `aiProviders`), 0 lib fajlova, 15 test fajlova; 6 RUČNO stavki (`profile.role` u `aiProviders`, dva poziva migracija u testovima, tri upita nad `startupMembers` u testovima).
+- Posle alata moduli su imali 0 grešaka typecheck-a; testovi 368 (skoro sve „nedostaje `workspaceId`“).
+- Alat ne vidi da P funkcija sme da čita dokument iz DRUGOG projekta (`thoughts.convertToIdeas`: izvor je lična beleška ili beleška drugog mog projekta, cilj je `ctx.projekat`). Takvo mesto mora da proveri izvor bez `ctx.projekat` (`{ ...ctx, projekat: undefined }`), inače adapter odbija sa „Stavka nije pronađena u ovom projektu.“
+- Alat ostavlja `args: { }` kad obriše jedini `workspaceId` (kozmetika).

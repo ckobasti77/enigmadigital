@@ -2,6 +2,7 @@
 import { v } from "convex/values";
 
 import { requireProfile } from "./lib/auth";
+import { tudjiBlob } from "./lib/otpremanje";
 import { prijavljenMutation, prijavljenQuery } from "../lib/projekat";
 
 async function hashUploadToken(token: string) {
@@ -58,6 +59,15 @@ export const setAvatar = prijavljenMutation({
     }
     const metadata = await ctx.db.system.get("_storage", args.storageId);
     if (metadata === null) throw new Error("Slika nije pronađena.");
+    // SPAJANJE S05: sledeća promena avatara briše ovaj blob, pa se prihvata
+    // samo slika otpremljena pod ovom dozvolom koju ne drži niko drugi.
+    if (
+      await tudjiBlob(ctx, metadata, upload._creationTime, {
+        profileId: profile._id,
+      })
+    ) {
+      throw new Error("Slika nije pronađena. Pošalji je ponovo.");
+    }
     if (!metadata.contentType?.startsWith("image/")) {
       throw new Error("Avatar mora biti slika.");
     }
