@@ -8,7 +8,13 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { NAZIV_ULOGE } from "@/convex/lib/uloge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency, formatNumber, formatSignedNumber, formatSyncAge } from "@/lib/format";
+import {
+  formatCurrency,
+  formatNumber,
+  formatSignedNumber,
+  formatSyncAge,
+  pluralSr,
+} from "@/lib/format";
 import {
   NAZIV_VEZE,
   RAZLOG_BROJKE,
@@ -17,6 +23,7 @@ import {
   type RazlogBrojke,
 } from "@/lib/hub-zbir";
 import { cn } from "@/lib/utils";
+import { ProfileAvatar } from "../prostor/zajednicko/radni-ui";
 import { useQueryZaProjekat } from "../projekat-provider";
 import { ProjekatZnak } from "../projekat-znak";
 import { QuietBoundary } from "../quiet-boundary";
@@ -142,13 +149,55 @@ function Glava({
           </Link>
           {tacka}
         </div>
-        <p className="truncate text-meta text-text-muted">
-          {projekat.vrsta === "klijent" ? "Klijent · " : ""}
-          {NAZIV_ULOGE[projekat.uloga]}
-        </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate text-meta text-text-muted">
+            {projekat.vrsta === "klijent" ? "Klijent · " : ""}
+            {NAZIV_ULOGE[projekat.uloga]}
+          </p>
+          <QuietBoundary fallback={null}>
+            <Clanovi projekat={projekat} />
+          </QuietBoundary>
+        </div>
         {razlog}
       </div>
     </div>
+  );
+}
+
+/** Najviše avatara u nizu članova; ostali su broj. */
+const MAKS_AVATARA = 4;
+
+/**
+ * Članovi projekta (profili iz radnog dela): niz avatara i broj. Posmatrač
+ * nema pristup radnom delu pa se ne pita; dok profil člana ne nastane (prvi
+ * ulazak u radni deo), on se ne vidi.
+ */
+function Clanovi({ projekat }: { projekat: ProjekatReda }) {
+  const clanovi = useQueryZaProjekat(
+    projekat.workspaceId,
+    api.prostor.projekat.listMembers,
+    projekat.uloga === "client_viewer" ? "skip" : {},
+  );
+  if (clanovi === undefined || clanovi.length === 0) return null;
+  const vidljivi = clanovi.slice(0, MAKS_AVATARA);
+  return (
+    <span
+      className="relative z-10 flex shrink-0 items-center gap-1.5"
+      title={clanovi.map((c) => c.profile.displayName).join(", ")}
+    >
+      <span className="flex -space-x-1.5" aria-hidden>
+        {vidljivi.map((c) => (
+          <ProfileAvatar
+            key={c.membershipId}
+            profile={c.profile}
+            className="size-5 ring-2 ring-background"
+          />
+        ))}
+      </span>
+      <span className="text-meta tabular-nums text-text-muted">
+        {formatNumber(clanovi.length)} {pluralSr(clanovi.length, "član", "člana", "članova")}
+      </span>
+    </span>
   );
 }
 

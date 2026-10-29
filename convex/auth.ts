@@ -5,6 +5,7 @@ import { Resend as ResendClient } from "resend";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { ActionCtx, MutationCtx, QueryCtx } from "./_generated/server";
+import { obezbediProfil } from "./prostor/lib/radniDeo";
 
 /**
  * Normalize email: trim and lowercase so allowlist checks cannot be bypassed
@@ -166,6 +167,25 @@ export async function consumeOpenInvite(
       userId,
       role: aktivna.uloga ?? "urednik",
     });
+  }
+  await obezbediProfilPozvanog(db, userId);
+}
+
+/**
+ * Prihvaćena pozivnica ostavlja i profil radnog dela (S22), da se novi član
+ * odmah vidi u Timu, Porukama i dodeli. Profil je dodatak: ako ne može da
+ * nastane (npr. nevažeće ime), prijava i članstvo ostaju, a profil nastaje
+ * lenjo pri prvom ulasku (`profiles.ensureCurrent`). `client_viewer` profil
+ * ne dobija.
+ */
+export async function obezbediProfilPozvanog(
+  db: MutationCtx["db"],
+  userId: Id<"users">,
+): Promise<void> {
+  try {
+    await obezbediProfil({ db }, userId);
+  } catch {
+    // Lenji put (`ensureCurrent`) ponavlja pokušaj.
   }
 }
 

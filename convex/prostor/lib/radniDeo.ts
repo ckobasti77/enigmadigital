@@ -23,7 +23,7 @@ const NAJVISE_CLANSTAVA = 100;
  * ne prave dva profila (OCC ponavlja drugi).
  */
 export async function obezbediProfil(
-  ctx: MutationCtx,
+  ctx: { db: MutationCtx["db"] },
   userId: Id<"users">,
   displayName?: string,
 ): Promise<Doc<"profiles"> | null> {

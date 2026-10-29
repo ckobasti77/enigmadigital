@@ -1740,3 +1740,33 @@ Postojeći `command-center-model`, `command-center`, `stale`, `activity-format` 
 - AI provajderi se nigde ne pozivaju; kartica samo čuva podešavanje.
 - „Lozinke“ i „AI“ se vide samo ako je tvoj nalog i vlasnik platforme i vlasnik projekta; proveri da se tako ponašaju na stvarnom nalogu.
 - Ništa nije deployovano.
+
+## S22 — Svi projekti, novi projekat, pozivnice za tim   (2026-10-29 14:10)
+**Fajlovi:**
+- `convex/auth.ts` (`obezbediProfilPozvanog`, poziv na kraju `consumeOpenInvite`), `convex/invitesStore.ts` (poziv u `prihvatiPozivnicu`), `convex/prostor/lib/radniDeo.ts` (`obezbediProfil` prima `{ db }`).
+- `convex/pozivnice.test.ts`: nova sekcija „profil posle prihvatanja pozivnice“.
+- `components/app/hub/red-projekta.tsx`: niz avatara i broj članova u redu projekta.
+- Snimci `docs/spajanje/snimci/S22-{projekti,novi-projekat,pristup}-1536.png`.
+
+**Šta je urađeno:**
+- **Hub** radi na `/projekti` (S09); traka, ⌘K i čarobnjak vode tamo. Red projekta sada pokazuje članove: do 4 avatara iz profila (slika ili inicijali) i „N članova“, iz `prostor.projekat.listMembers`. Posmatrač ne pita (nema pristup radnom delu), a pad upita ne obara red.
+- **Novi projekat**: `kreirajProjekat` već pravi 4 oblasti i 5 kanala (S02, test `projekat.test.ts`); ovde nije menjan, a čarobnjak nije dirao.
+- **Pozivnica pravi profil**: oba puta prihvatanja (novi nalog u `consumeOpenInvite`, postojeći u `prihvatiPozivnicu`) posle članstva zovu `obezbediProfil`. Član se odmah vidi u `listMembers` (Tim, kanali Poruka, dodela). Pristup (tim i pozivnice) ostaje Enigmin.
+
+**Paritet:** red 28 (tim i pozivnice u podešavanjima): **gotovo**; red 34 (novi projekat sa oblastima i kanalima): **gotovo**; red 35 (pozivnica u tim → profil): **gotovo**.
+
+**ODLUKE:**
+1. **Profil se pravi u `consumeOpenInvite`**, iako je to deo toka prijave: dodat je samo poziv posle već postojećeg upisa članstva, a token, kapija i redosled se ne menjaju. Greška pri pravljenju profila se guta (`obezbediProfilPozvanog`), da prijava nikad ne padne zbog profila; lenji `ensureCurrent` ponavlja pokušaj.
+2. **`client_viewer` profil ne dobija** (pravilo `obezbediProfil`, O5); test to proverava.
+3. **Hub: „N članova“ bez „+N“**, jer avatari su samo uvod, a broj je tačan do granice upita (25).
+4. **Fikture nisu menjane**: `listMembers` iz `fixtures-prostor-osnova.ts` već vraća avatare.
+
+**Novi paketi:** nema.
+
+**Testovi:** 3 nova u `convex/pozivnice.test.ts` (nov nalog: profil + član u `listMembers`; postojeći nalog: profil; `client_viewer`: bez profila). Ceo `npx vitest run`: 202 fajla, 2589 testova.
+
+**Rezultat provere:** codegen prošao; typecheck prolazi; lint 0 grešaka (1210 upozorenja); vitest prolazi; pristup prolazi (0 nedozvoljenih); regresije prolaze (20). Dev server na 3117 ugašen. Konzola razvojnog prikaza: bez grešaka u snimljenim ekranima.
+
+**Za Jovana ujutru:**
+- Pozovi test adresu, registruj je i proveri da se u Timu i u dodeli zadatka odmah vidi (bez prvog ulaska u radni deo).
+- Na `/projekti` proveri avatare članova na pravim podacima.

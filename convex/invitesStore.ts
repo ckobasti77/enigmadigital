@@ -8,7 +8,12 @@ import {
   projekatMutation,
   projekatQuery,
 } from "./lib/projekat";
-import { normalizeEmail, isEmailInAllowlist, otvorenaPozivnica } from "./auth";
+import {
+  normalizeEmail,
+  isEmailInAllowlist,
+  obezbediProfilPozvanog,
+  otvorenaPozivnica,
+} from "./auth";
 import { sha256Hex } from "./lib/metaAudienceHash";
 import { ulogaValidator } from "./lib/uloge";
 import { osnivackiProjekatId, primarniDomen } from "./lib/podesavanja";
@@ -345,6 +350,7 @@ export const prihvatiPozivnicu = prijavljenMutation({
       });
     }
     await ctx.db.patch(inv._id, { usedAt: Date.now(), usedByUserId: ctx.korisnik.userId });
+    await obezbediProfilPozvanog(ctx.db, ctx.korisnik.userId);
     return { slug: ws.slug };
   },
 });

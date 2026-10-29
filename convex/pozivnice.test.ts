@@ -857,3 +857,57 @@ describe("pripremiAdminSetup", () => {
     expect(await s.t.run(async (ctx) => (await ctx.db.query("invites").collect()).length)).toBe(0);
   });
 });
+
+// ── 9. profil posle prihvatanja (S22) ───────────────────────────────────────
+
+describe("profil posle prihvatanja pozivnice (S22)", () => {
+  const profili = (s: Svet, userId: Id<"users">) =>
+    s.t.run(async (ctx) =>
+      ctx.db
+        .query("profiles")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .collect(),
+    );
+
+  test("nov nalog: prijava pravi članstvo i profil, pa se član vidi u spisku za dodelu", async () => {
+    const s = await napraviSvet();
+    // Vlasnik ScanMe ima profil, kao posle prvog ulaska u radni deo.
+    await kao(s, s.boban).mutation(api.prostor.profiles.ensureCurrent, {});
+    const { token } = await pozovi(s, s.boban, s.wsB, NOVA, "urednik");
+    const userId = await korisnik(s, NOVA);
+    await pripremi(s, token, NOVA);
+    expect(await profili(s, userId)).toEqual([]);
+
+    await potrosi(s, userId, NOVA);
+
+    const nastali = await profili(s, userId);
+    expect(nastali).toHaveLength(1);
+    expect(nastali[0]).toMatchObject({ email: NOVA, role: "member", archivedAt: null });
+    const clanovi = await kao(s, s.boban).query(api.prostor.projekat.listMembers, {
+      workspaceId: s.wsB,
+    });
+    expect(clanovi.map((c) => c.profile.email).sort()).toEqual(
+      ["boban@scanme.test", NOVA].sort(),
+    );
+  });
+
+  test("postojeći nalog: prihvatiPozivnicu pravi profil", async () => {
+    const s = await napraviSvet();
+    expect(await profili(s, s.ana)).toEqual([]);
+    const { token } = await pozovi(s, s.boban, s.wsB, ANA, "urednik");
+    await prihvati(s, s.ana, token);
+    const nastali = await profili(s, s.ana);
+    expect(nastali).toHaveLength(1);
+    expect(nastali[0].email).toBe(ANA);
+  });
+
+  test("client_viewer ne dobija profil radnog dela", async () => {
+    const s = await napraviSvet();
+    const { token } = await pozovi(s, s.boban, s.wsB, NOVA, "client_viewer");
+    const userId = await korisnik(s, NOVA);
+    await pripremi(s, token, NOVA);
+    await potrosi(s, userId, NOVA);
+    expect(await clanstva(s, userId)).toEqual([{ workspaceId: s.wsB, role: "client_viewer" }]);
+    expect(await profili(s, userId)).toEqual([]);
+  });
+});
