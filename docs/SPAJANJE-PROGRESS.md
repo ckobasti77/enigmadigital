@@ -1429,3 +1429,6 @@ Devotion web Inbox nije imao testove modela; deljena logika (`lib/prostor/inbox.
 - Potvrdi ODLUKE 1 (Inbox u zvonu je ceo, ne samo tekući projekat) i 5 (toast i za lične poruke, iz svih projekata).
 - Polje vremena za tihe sate prikazuje format pregledača (u headless proveri „10:00 PM“; na srpskom Chrome-u je 24-časovno).
 - Ništa nije deployovano.
+
+## S18 - Plan: Danas i početna projekta   (2026-10-29 12:21)
+**Plan korak.** Plan je upisan u `docs/spajanje/planovi/S18.md`. Kod nije menjan.
