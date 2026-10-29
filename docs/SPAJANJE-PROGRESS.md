@@ -555,3 +555,6 @@ Ekrani nisu dirani.
 - Odluči da li razgovor sme da se započne samo sa ljudima iz zajedničkog projekta (ODLUKA 1) ili sa svima, kao u Devotionu.
 - Odluči da li vlasnik projekta treba da pravi i arhivira kanale tima i briše tuđe poruke (sada to radi samo vlasnik platforme, ODLUKA 2).
 - Postavljanje lozinke članu gasi sve njegove sesije i radi samo za člana projekta iz kog se pokreće.
+
+## S07 - Plan: ljuska, rute i prevod ekrana   (2026-10-29 04:29)
+**Plan korak.** Plan je upisan u `docs/spajanje/planovi/S07.md`. Kod nije menjan.
