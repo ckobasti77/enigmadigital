@@ -42,6 +42,8 @@ import { CuvarNapustanjaProvider } from "./prostor/cuvar-napustanja";
 import { DokumentiProvider } from "./prostor/dokumenti/dokumenti-kontekst";
 import { ShortcutProvider } from "./prostor/precice/precice-provider";
 import { BrziUnosProvider } from "./prostor/ja/brzi-unos/brzi-unos";
+import { ObavestenjaToast } from "./prostor/inbox/notifications-panel";
+import { QuietBoundary } from "./quiet-boundary";
 import { ProjekatLink } from "./projekat-link";
 import {
   useEkranPutanja,
@@ -306,6 +308,14 @@ function ShellFrame({
       <NapredakIzvor />
       {nagrade}
       <Toaster />
+      {/* Toast za obaveštenje radnog dela koje stigne dok je aplikacija
+          otvorena (S17). Lični Inbox, pa ne u panelu (D4); pad upita radnog
+          dela ne obara ljusku. */}
+      {!panel && (
+        <QuietBoundary>
+          <ObavestenjaToast />
+        </QuietBoundary>
+      )}
     </OkvirDokumenata>
     </BrziUnosProvider>
     </CuvarNapustanjaProvider>

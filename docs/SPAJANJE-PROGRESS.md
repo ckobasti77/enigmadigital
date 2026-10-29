@@ -1348,3 +1348,84 @@ Modeli beleški i brzog unosa (`lib/prostor/notes.ts`, `quick-add.ts`) i Mojih z
 - Na Beleškama pošalji belešku u drugi projekat i otvori ideju iz toasta.
 - Toast posle brzog unosa nema „Otvori“ (ODLUKA 4). Potvrdi.
 - Ništa nije deployovano.
+
+## S17 — Zvono, Inbox, obaveštenja, web push   (2026-10-29 11:55)
+**Fajlovi:**
+- Rute: `app/(app)/(ja)/inbox/page.tsx` (umesto `EkranUskoro`); `components/app/prostor/otvori.tsx` (dovršen `/otvori`).
+- `components/app/prostor/inbox/` (preneto alatom pa ručno prepisano): `inbox-container`, `inbox-view`, `inbox-skeleton`, `notifications-panel` (vrste, `PushToggle`, `useOtvoriObavestenje`, `ObavestenjaToast`), `notification-settings-dialog`, `use-push-notifications`. Novi: `ekran.tsx` (`InboxEkran`), `zvono-inbox.tsx` (`ZvonoKartice`, `useInboxZvona`, `nazivZvona`).
+- `public/sw.js` (preneto; adrese vode na `/otvori`).
+- `lib/prostor/web/obavestenja.ts` (+ test) i `lib/prostor/web/push.ts` (+ test); čuvar izvornog koda `lib/prostor/web/push-registracija.test.ts`.
+- Ljuska: `components/app/notifications-bell.tsx` (kartice u zvonu projekta), `zvono-ja.tsx` (kartice u zvonu „Ja“), `user-menu.tsx` (stavka „Obaveštenja“), `app-shell.tsx` (`ObavestenjaToast` van panela).
+- Čuvar: `scripts/verify-pristup.ts` (`DOZVOLJENI_DIREKTNI` +9, ODLUKA 9).
+- Razvojni prikaz: nov `app/dev-ux/fixtures-prostor-inbox.ts` (registrovan u `fixtures.ts`), `app/dev-ux/[[...slug]]/page.tsx` (`otvori` u `JA_PAGES`).
+- Snimci `docs/spajanje/snimci/S17-{zvono-1536,inbox-1536,podesavanja-1536,inbox-390}.png`.
+- Pomoćno: izveštaj alata `.nocni-run/spajanje/tmp/prenos-ekran-S17.md` (6 fajlova, 18 RUČNO, sve zatvorene), skripte izmena `.nocni-run/spajanje/tmp/s17/*.py`, logovi provera u `.nocni-run/spajanje/tmp/s17/`.
+
+**Šta je urađeno:**
+- **Zvono** ima dve kartice u hubu, u oba opsega: **Čeka te** (Enigmin izračunat posao, panel nepromenjen: u projektu hitnost, odloži, sakrij; u „Ja“ zbir po projektu) i **Inbox** (poslednjih osam obaveštenja iz svih mojih projekata i ličnih poruka, nepročitano podebljano sa tačkom, „Označi sve“, podešavanja, „Ceo Inbox“). Broj na zvonu je zbir posla koji čeka i nepročitanog Inboxa; natpis za čitač ekrana kaže oba. Klik na obaveštenje označi pročitano i vodi na povod.
+- **`/inbox`**: Enigmin `PageHeader` („12 nepročitanih · svi projekti i lične poruke“), kartice Sve · Nepročitano · Čeka tebe sa brojevima, čipovi Svi · Lično · projekti (znak projekta, broj po kartici), grupe Danas · Juče · Ranije, „Označi kao pročitano“ po redu (na prelaz), „Označi sve kao pročitano“ po opsegu, „Učitaj još“, odvojene greške feed-a i „Čeka tebe“, prečice 1/2/3 i j/k. „Čeka tebe“ su ideje u fazi „Razmatra se“ bez mog glasa, sa „Glasaj“.
+- **Podešavanja obaveštenja** (dijalog sa Inboxa, iz zvona i iz menija korisnika): vrste po grupama Poruke · Zadaci · Tim, tihi sati (22:00–08:00 pri prvom uključivanju, Od/Do), sve se čuva odmah i vraća se ako upis padne. Na vrhu je prekidač „Obaveštenja na ovom uređaju“ (web push), samo kad postoji `NEXT_PUBLIC_VAPID_PUBLIC_KEY`.
+- **Web push**: servis radnik se registruje samo iz klika na prekidač (dozvola → registracija → pretplata → `pushSubscriptions.save`); gašenje briše pretplatu. `public/sw.js` vodi klik na `/otvori?projekat=…&vrsta=…&cilj=…`, a `/otvori` razrešava slug iz mojih projekata (mapa vrsta iz plana S07 §10 S17; lična poruka → `/poruke?kanal=`).
+- **Toast** za novo obaveštenje dok je aplikacija otvorena (Devotion `useNotificationToasts`), sa „Otvori“; ne javlja se za ono što je bilo tu pri učitavanju.
+
+**Paritet:**
+- Red 5 (Inbox: obaveštenja iz svih projekata, nepročitano, Čeka tebe): gotovo (`/inbox` + kartica u zvonu).
+- Red 9 (profil: podešavanja obaveštenja, tiho vreme, web push): gotovo (ime i avatar su S09).
+- Red 32 (web push): gotovo na webu; šalje tek kad se postave VAPID promenljive (S06). Bez ključa nema prekidača ni registracije.
+
+**ODLUKE:**
+1. **Inbox kartica u zvonu je lična i ista u oba opsega** (P16: „Inbox i podešavanja obaveštenja su lični“). U projektu zvono ne filtrira Inbox na taj projekat; broj na zvonu je posao tog projekta + ceo nepročitan Inbox. Filtar po projektu je na `/inbox` (čip).
+2. **Panel domen i nalog bez profila nemaju Inbox karticu**: zvono tamo ostaje samo „Čeka te“, kao pre spajanja (D4; posmatrač nema radni deo, O5). Ćelija „Čeka te“ u donjoj traci panela nije menjana.
+3. **Početna kartica zvona**: „Čeka te“ kad ima posla ili kad ni Inbox nema ništa, inače Inbox. Bira se pri svakom otvaranju.
+4. **Boja bedža**: crveno/žuto važi samo za posao koji čeka (pravilo „Čeka te“); kad je jedini razlog nepročitan Inbox, bedž je neutralan, jer obaveštenje nije upozorenje. Nepročitano u redu je neutralna tačka (`bg-foreground`) i podebljan naslov, ne boja radnje; jedina crvena ikonica je prekoračen rok (Devotion `LOUD_TYPES`, CLAUDE: crveno za kašnjenje).
+5. **Toast čita glavu ličnog Inboxa** (`inbox.feed`, prvih 8), a ne `notifications.latest` tekućeg projekta (Devotion je slušao jedan izabran startup). Tako toast radi i u „Ja“ i za lične poruke, a deli pretplatu sa karticom u zvonu. Montira se jednom u ljusci, iza `QuietBoundary`, ne u panelu. `notifications.latest` iz spiska fikstura plana se zato ne koristi.
+6. **Push prekidač je `Switch`** („Obaveštenja na ovom uređaju“), ne Devotion dugme sa obojenom kutijom; uključivanje i gašenje idu kroz isti prekidač, a blokiran i nepodržan pregledač dobijaju objašnjenje bez prekidača. Stanje „nije podešeno“ se ne crta uopšte (kuka se ni ne montira, pa nema ni čitanja registracije). Greška pregledača (engleski DOMException) se ne prikazuje sirova, nego srpski tekst; poruka servera ide kroz `accessErrorMessage`.
+7. **Servis radnik**: ikonica je `/favicon.ico` (Enigma nema `icon.svg`), bez `badge` (Android bi crtao beli kvadrat od favicon-a). Adrese uvek idu kroz `/otvori` (i lična poruka, bez `projekat`); `/otvori` bez vrste i projekta vodi u Inbox, a tuđ projekat na Danas. `obavestenja.test.ts` izvršava `targetUrl` iz `sw.js` i proverava da je ista kao `adresaOtvori`, i da radnik nema `fetch` slušalac ni samoregistraciju. `/otvori` ne označava obaveštenje kao pročitano (Devotion push klik nije).
+8. **Podešavanja**: naslov „Obaveštenja“ (web nema probu zvuka, pa „i zvuci“ otpada); grupa „Chat“ iz deljenog kataloga prikazuje se kao „Poruke“ (mapa u dijalogu, katalog u `convex/prostor/lib` nije diran); opis kaže istinu da Inbox čuva sve, a utišana vrsta i tihi sati važe za obaveštenja na uređaju (backend tako i radi). Nema dugmeta „Sačuvaj“ (čuva se odmah), samo Enigmin `DialogClose`.
+9. **Čuvar pristupa**: `DOZVOLJENI_DIREKTNI` je dobio tačno devet ključeva S17 iz plana S07 §3.2 (`inbox.feed`, `inbox.pending`, `inbox.markAllRead`, `notifications.markRead`, `notificationSettings.get/update`, `pushSubscriptions.myDeviceCount/save/remove`); sve su L, `proveriSpisak` to potvrđuje. Front ima 141 direktan poziv, svi sa spiska. Nijedno pravilo nije oslabljeno; drugi čuvari nisu menjani.
+10. **„Čeka tebe“ nije obaveštenje**: klik na „Glasaj“ ne zove `markRead` (`useOtvoriObavestenje` prima stavku bez `_id`).
+11. **Radni ekran bez pokreta pri učitavanju**: Devotion `useEnter` i `NumberRoll` u zaglavlju nisu preneti (kao S12/S16).
+12. **Razvojni prikaz**: fikstura Inboxa računa nepročitano iz svog stanja (zamenjuje broj iz osnove, isti početak: 12), pa „Označi kao pročitano“ spušta zvono, bedž „Ja“ i meni „Ja“ zajedno. Ciljevi „Enigma IT“ su pravi ID-jevi drugih fikstura. U `&prazno=1` čip ScanMe i dalje pokazuje stavke ScanMe-a, jer `resolveFixture` deli granu prazno/ScanMe (isto kao S15 ODLUKA 13). `/otvori` je dodat u `JA_PAGES`.
+13. **Ostalo**: `components/app/notifications-bell.tsx` je menjan hirurški (Prettier je prvo preformatirao ceo fajl, pa je vraćen iz HEAD i izmene su ponovo primenjene skriptom); `user-menu.tsx`, `app-shell.tsx` i `[[...slug]]/page.tsx` zadržavaju CRLF.
+
+**Novi paketi:** nema (`web-push` je iz S02 i koristi se samo na serveru).
+
+**Testovi:** 35 novih, svi prolaze.
+
+| Fajl | Testova | Šta pokriva |
+|---|---|---|
+| `lib/prostor/web/obavestenja.test.ts` | 27 | mapa vrsta → adresa (stranica, poruka, ideja, oblast, puls, odobrenja, početna, nedosledan cilj), lična poruka, lično bez odredišta, tuđ projekat, povratni put `/otvori`, konačna adresa `/otvori`, `sw.js` = `adresaOtvori` za 6 oblika, radnik bez `fetch` i samoregistracije |
+| `lib/prostor/web/push.test.ts` | 5 | stanje prekidača redom provera, bez ključa nema teksta ni prekidača, uključivanje samo iz `idle`/`permitted`, base64url → bajtovi |
+| `lib/prostor/web/push-registracija.test.ts` | 3 | čuvar izvornog koda: `serviceWorker.register` postoji samo jednom, u kuki za push, unutar `enable` (klik), a `enable` bez ključa odmah odustaje; `PushToggle` bez ključa vraća `null`, a kuku zove samo `PushPrekidac` |
+
+Devotion web Inbox nije imao testove modela; deljena logika (`lib/prostor/inbox.ts`) ima testove od S02, a backend (`inbox`, `inbox.ideaVote`, `notifications`, `obavestenja`) od S06. Ceo `npx vitest run`: 192 fajla, 2506 testova.
+
+**Rezultat provere:**
+- codegen: nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest: prolazi (192 fajla, 2506 testova);
+- pristup: 632 / 617 / 15, front 141 direktan poziv, 0 nedozvoljenih;
+- regresije: prolaze (20; ultra 5, prostor 1); boja modula 654/654, `font-mono` 254/254;
+- `npm run build`: prolazi (`/inbox`, `/otvori` u spisku ruta).
+- **Završni prolaz** (11:59–12:01, posle poslednje izmene koda u 11:49 i dodatog čuvara u 11:59): typecheck 0, lint 0 (0 grešaka, 1209 upozorenja), vitest 0 (192/2506), `verify-pristup` 0 (632/617/15, front 141/0), regresije 0 (20). Build je pušten posle poslednje izmene koda ekrana (završen u 11:54, izlaz 0); posle toga je dodat samo test.
+- Procesi: `next dev -p 3117` ugašen (`Stop-Process` na `start-server.js` i roditelju, jer `TaskStop` ga ne gasi); port 3117 ne sluša; nijedan `next`, `vitest`, `tsc` ni `eslint` proces iz repoa nije ostao.
+
+**Vizuelna provera** (Playwright, `next dev -p 3117`, ugašen na kraju; port slobodan):
+- 1536 × 695: `/inbox` (12 nepročitanih, čipovi, grupe), zvono u „Ja“ (Čeka te 13 · Inbox 12, bedž 25) na obe kartice, zvono projekta `/enigma-it/zadaci` (Čeka te 12 · Inbox 12, bedž 24, crven zbog hitnog), panel `/zadaci` (samo „Čeka te: 12 stavki“, bez kartica), podešavanja (tihi sati isključeni pa ponovo otvoren dijalog: ostaju isključeni; ponovo uključeni: 22:00–08:00), `&prazno=1` („Inbox je prazan“).
+- „Označi kao pročitano“ na prvom redu: Inbox 12 → 11, bedž „Ja“ 16 → 15, zvono „Inbox: 11 nepročitanih“.
+- Klik na red „Marko Proba te je pomenuo…“ vodi na `/enigma-it/stranica/pagesux0101`; `/otvori?projekat=<Enigma IT>&vrsta=ideas&cilj=ideaNodesux0002` vodi na `/enigma-it/ideje?ideja=ideaNodesux0002` (adrese uhvaćene u mreži, jer navigacija gubi `?ux=1`). Taster `3` otvara „Čeka tebe“ sa tri „Glasaj“.
+- Bez VAPID ključa: prekidača nema, `navigator.serviceWorker.getRegistrations()` je 0, konzola 0 grešaka i 0 upozorenja na ekranima S17.
+- 390 × 844: Inbox bez vodoravnog klizanja (nađen i popravljen prelaz od 30 px: `sr-only` u čipovima je bežao iz trake za klizanje), zvono u zaglavlju sa karticama.
+
+**Prihvatanje (dokaz):**
+- „Zvono ima obe kartice; `/inbox` radi u razvojnom prikazu; podešavanja čuvaju tiho vreme.“ — snimci `S17-zvono-1536.png`, `S17-inbox-1536.png`, `S17-inbox-390.png`, `S17-podesavanja-1536.png`; tiho vreme isključeno pa sačuvano posle ponovnog otvaranja.
+- „Bez VAPID ključa nema greške u konzoli i nema prekidača.“ — ispunjeno na dva nivoa. (a) Pregledač (razvojni prikaz bez ključa u okruženju): u podešavanjima nema prekidača, `navigator.serviceWorker.getRegistrations()` je 0, konzola 0 grešaka i 0 upozorenja na `/inbox`, zvonu, podešavanjima, panelu i `&prazno=1`. (b) Kod: `push-registracija.test.ts` dokazuje da je `serviceWorker.register` samo u `enable` (klik) i da `PushToggle` bez ključa vraća `null` pre montiranja kuke, pa učitavanje strane ne dira servis radnika ni u produkciji; `push.test.ts` dokazuje da je stanje bez ključa `unconfigured` bez teksta.
+- „Provere prolaze; sekcija S17 je u progress-u.“ — ispunjeno: završni prolaz iznad (codegen nije potreban jer `convex/` nije menjan; typecheck, lint, vitest, `verify-pristup` i regresije izlaz 0; build izlaz 0); ovo je sekcija S17, pročitana i usklađena sa kodom posle poslednje izmene.
+
+**Za Jovana ujutru:**
+- Postavi na webu `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (isti javni ključ kao `VAPID_PUBLIC_KEY` u Convexu, uz `VAPID_PRIVATE_KEY` i `VAPID_SUBJECT`), pa u Podešavanjima obaveštenja uključi prekidač na računaru i telefonu i proveri da dodela zadatka stigne kao sistemsko obaveštenje i da klik vodi na zadatak. Ključ se ugrađuje pri buildu, pa posle postavljanja treba nov deploy fronta.
+- Na pravim podacima proveri da se broj u zvonu i bedž „Ja“ spuste kad pročitaš obaveštenje i da toast iskoči kad ti neko dodeli zadatak dok je aplikacija otvorena.
+- Potvrdi ODLUKE 1 (Inbox u zvonu je ceo, ne samo tekući projekat) i 5 (toast i za lične poruke, iz svih projekata).
+- Polje vremena za tihe sate prikazuje format pregledača (u headless proveri „10:00 PM“; na srpskom Chrome-u je 24-časovno).
+- Ništa nije deployovano.

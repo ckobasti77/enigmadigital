@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { LogOut, Settings, Trophy, UserRound } from "lucide-react";
+import { Bell, LogOut, Settings, Trophy, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { NAPREDAK_HREF, screenExists, settingsNavItem } from "./nav-items";
 import { useOpseg } from "./opseg-ljuske";
 import { useJaNalog } from "./podaci-ljuske";
+import { NotificationSettingsDialog } from "./prostor/inbox/notification-settings-dialog";
 import { ProfilDijalog } from "./prostor/profil/profil-dijalog";
 import { SyncStatusLine } from "./sync-status";
 import { ProjekatLink } from "./projekat-link";
@@ -37,7 +38,8 @@ import { useProjekatOpciono } from "./projekat-provider";
  * SPAJANJE (P14, plan S07 D11): na širem ekranu meni stoji na dnu trake
  * projekata (`variant="traka"`), a u zaglavlju samo ispod `md`, gde trake
  * nema. „Profil“ otvara ime i sliku koje tim vidi (P6); posmatrač profil
- * radnog dela nema (O5), pa ni stavku.
+ * radnog dela nema (O5), pa ni stavku. „Obaveštenja“ (S17) otvara vrste,
+ * tihe sate i web push na ovom uređaju; isto važi i za nju.
  */
 
 /** Istaknuta stavka: popover i `accent` su ista površina, pa je nosi tinta. */
@@ -63,6 +65,7 @@ export function UserMenu({
   const { signOut } = useAuthActions();
   const router = useRouter();
   const [profil, setProfil] = useState(false);
+  const [obavestenja, setObavestenja] = useState(false);
   const traka = variant === "traka";
 
   async function handleSignOut() {
@@ -133,6 +136,12 @@ export function UserMenu({
             Profil
           </DropdownMenuItem>
         )}
+        {ja.imaProfil && (
+          <DropdownMenuItem onClick={() => setObavestenja(true)} className={ITEM}>
+            <Bell />
+            Obaveštenja
+          </DropdownMenuItem>
+        )}
 
         {projekat && (
           <>
@@ -168,6 +177,7 @@ export function UserMenu({
       </DropdownMenuContent>
     </DropdownMenu>
     <ProfilDijalog open={profil} onOpenChange={setProfil} />
+    {ja.imaProfil && <NotificationSettingsDialog open={obavestenja} onOpenChange={setObavestenja} />}
     </>
   );
 }

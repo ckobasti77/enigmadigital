@@ -46,6 +46,7 @@ import StranicaPage from "@/app/(app)/[projekat]/stranica/[stranicaId]/page";
 import DanasPage from "@/app/(app)/(ja)/page";
 import MojiZadaciPage from "@/app/(app)/(ja)/moji-zadaci/page";
 import InboxPage from "@/app/(app)/(ja)/inbox/page";
+import OtvoriPage from "@/app/(app)/(ja)/otvori/page";
 import PorukePage from "@/app/(app)/(ja)/poruke/page";
 import BeleskePage from "@/app/(app)/(ja)/beleske/page";
 import SviProjektiPage from "@/app/(app)/(ja)/projekti/page";
@@ -143,6 +144,8 @@ const JA_PAGES: Record<string, ComponentType> = {
   "": DanasPage,
   "moji-zadaci": MojiZadaciPage,
   inbox: InboxPage,
+  // Link iz obaveštenja (S17): razreši projekat i vodi na cilj.
+  otvori: OtvoriPage,
   poruke: PorukePage,
   beleske: BeleskePage,
   projekti: SviProjektiPage,

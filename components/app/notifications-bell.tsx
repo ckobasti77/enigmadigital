@@ -19,7 +19,9 @@ import { resolveModule } from "./nav-items";
 import { useOpseg } from "./opseg-ljuske";
 import { ZvonoJa } from "./zvono-ja";
 import { QuietBoundary } from "./quiet-boundary";
-import { useProjekat, useProjekatMutation } from "./projekat-provider";
+import { useProjekat, useProjekatMutation, useProjekatOpciono } from "./projekat-provider";
+import { NotificationSettingsDialog } from "./prostor/inbox/notification-settings-dialog";
+import { ZvonoKartice, nazivZvona, useInboxZvona } from "./prostor/inbox/zvono-inbox";
 import { useStaMeCeka, type StaMeCeka, type Zadatak } from "./use-sta-me-ceka";
 
 /**
@@ -52,6 +54,10 @@ const HITNOST_RED: Array<Zadatak["hitnost"]> = ["visoka", "srednja", "niska"];
  *
  * Natpis je „Čeka te“ (P15): „Danas“ je sada lični dan. U opsegu „Ja“ zvono
  * sabira posao koji čeka u svim mojim projektima (`ZvonoJa`).
+ *
+ * Dve kartice (P16, SPAJANJE S17): „Čeka te“ (ovaj panel, nepromenjen) i
+ * „Inbox“ (obaveštenja radnog dela, lična). Broj na zvonu je zbir posla koji
+ * čeka i nepročitanog Inboxa. Panel domen (D4) zadržava samo „Čeka te“.
  */
 type Oblik = "icon" | "tab";
 
@@ -63,20 +69,31 @@ export function NotificationsBell({
   variant?: Oblik;
 }) {
   const opseg = useOpseg();
+  const panel = useProjekatOpciono()?.rezim === "panel";
   return (
     <QuietBoundary>
       {opseg === "ja" ? (
         <ZvonoJa className={className} />
       ) : (
-        <Zvono className={className} variant={variant} />
+        <Zvono className={className} variant={variant} saInboxom={!panel && variant === "icon"} />
       )}
     </QuietBoundary>
   );
 }
 
-function Zvono({ className, variant }: { className?: string; variant: Oblik }) {
+function Zvono({
+  className,
+  variant,
+  saInboxom,
+}: {
+  className?: string;
+  variant: Oblik;
+  saInboxom: boolean;
+}) {
   const [open, setOpen] = useState(false);
+  const [podesavanja, setPodesavanja] = useState(false);
   const data = useStaMeCeka();
+  const inbox = useInboxZvona(saInboxom);
 
   if (data === undefined) {
     return variant === "tab" ? (
@@ -91,21 +108,30 @@ function Zvono({ className, variant }: { className?: string; variant: Oblik }) {
     );
   }
 
-  const ukupno = data.ukupno;
-  const naziv =
-    ukupno > 0
-      ? `Čeka te: ${ukupno} ${ukupno === 1 ? "stavka" : "stavki"}`
-      : "Čeka te: nema ničega";
-  // Bez posla — bez bedža. Nikad „0" (A1 §3).
+  // Broj na zvonu: posao koji čeka + nepročitan Inbox (P16).
+  const ukupno = data.ukupno + (inbox?.broj ?? 0);
+  const naziv = nazivZvona(data.ukupno, inbox);
+  // Bez posla — bez bedža. Nikad „0" (A1 §3). Boja stanja važi samo za posao
+  // koji čeka; samo nepročitan Inbox je neutralan broj.
   const bedz = (
     <BedzNaUglu
-      count={ukupno}
-      tone={data.zadaci.some((z) => z.hitnost === "visoka") ? "danger" : "warning"}
+      count={inbox?.odseceno ? Math.max(ukupno, 100) : ukupno}
+      tone={
+        data.zadaci.some((z) => z.hitnost === "visoka")
+          ? "danger"
+          : data.ukupno > 0
+            ? "warning"
+            : "neutral"
+      }
       ugao={variant === "tab" ? "tab" : "ikonica"}
     />
   );
+  const panelCeka = (
+    <Panel data={data} naslov={inbox === null} onNavigate={() => setOpen(false)} />
+  );
 
   return (
+    <>
     <Popover open={open} onOpenChange={setOpen}>
       {variant === "tab" ? (
         <PopoverTrigger
@@ -149,17 +175,37 @@ function Zvono({ className, variant }: { className?: string; variant: Oblik }) {
         sideOffset={8}
         className="w-[min(24rem,calc(100vw-2rem))] gap-0 p-0"
       >
-        <Panel data={data} onNavigate={() => setOpen(false)} />
+        {inbox === null ? (
+          panelCeka
+        ) : (
+          <ZvonoKartice
+            ceka={panelCeka}
+            cekaBroj={data.ukupno}
+            inbox={inbox}
+            onZatvori={() => setOpen(false)}
+            onPodesavanja={() => {
+              setOpen(false);
+              setPodesavanja(true);
+            }}
+          />
+        )}
       </PopoverContent>
     </Popover>
+    {saInboxom && (
+      <NotificationSettingsDialog open={podesavanja} onOpenChange={setPodesavanja} />
+    )}
+    </>
   );
 }
 
 function Panel({
   data,
+  naslov,
   onNavigate,
 }: {
   data: StaMeCeka;
+  /** Bez kartica panel sam nosi naslov „Čeka te“; sa karticama ga nosi kartica. */
+  naslov: boolean;
   onNavigate: () => void;
 }) {
   const [prikaziSklonjene, setPrikaziSklonjene] = useState(false);
@@ -171,17 +217,19 @@ function Panel({
 
   return (
     <div className="flex max-h-[70vh] flex-col">
-      <div className="flex shrink-0 items-baseline justify-between gap-2 border-b border-line-soft px-3 py-2.5">
-        <p className="text-ui font-medium text-foreground">Čeka te</p>
-        {data.nepotpuno && (
-          <span
-            className="text-meta text-text-muted"
-            title="Bar jedan brojač je čitan sa granicom, pa je prikazan broj donja granica, a ne tačan broj."
-          >
-            najmanje toliko
-          </span>
-        )}
-      </div>
+      {(naslov || data.nepotpuno) && (
+        <div className="flex shrink-0 items-baseline justify-between gap-2 border-b border-line-soft px-3 py-2.5">
+          {naslov && <p className="text-ui font-medium text-foreground">Čeka te</p>}
+          {data.nepotpuno && (
+            <span
+              className="ml-auto text-meta text-text-muted"
+              title="Bar jedan brojač je čitan sa granicom, pa je prikazan broj donja granica, a ne tačan broj."
+            >
+              najmanje toliko
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {grupe.length === 0 ? (

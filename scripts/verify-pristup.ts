@@ -134,6 +134,16 @@ const DOZVOLJENI_DIREKTNI: Readonly<Record<string, string>> = {
   "prostor.thoughts.searchMine": "Moji zadaci i Beleške kroz sve moje projekte (opseg 50)",
   "prostor.projekat.listForCurrent":
     "moji projekti sa oblastima za Moje zadatke, Beleške i brzi unos (bez client_viewer i arhiviranih, opseg 50)",
+  // S17 (plan S07 §3.2): Inbox, zvono i podešavanja obaveštenja — sve L funkcije.
+  "prostor.inbox.feed": "Inbox i podešavanja obaveštenja su lični (P16)",
+  "prostor.inbox.pending": "Inbox i podešavanja obaveštenja su lični (P16)",
+  "prostor.inbox.markAllRead": "Inbox i podešavanja obaveštenja su lični (P16)",
+  "prostor.notifications.markRead": "Inbox i podešavanja obaveštenja su lični (P16)",
+  "prostor.notificationSettings.get": "Inbox i podešavanja obaveštenja su lični (P16)",
+  "prostor.notificationSettings.update": "Inbox i podešavanja obaveštenja su lični (P16)",
+  "prostor.pushSubscriptions.myDeviceCount": "Inbox i podešavanja obaveštenja su lični (P16)",
+  "prostor.pushSubscriptions.save": "Inbox i podešavanja obaveštenja su lični (P16)",
+  "prostor.pushSubscriptions.remove": "Inbox i podešavanja obaveštenja su lični (P16)",
 };
 
 const koren = fileURLToPath(new URL("../", import.meta.url));
