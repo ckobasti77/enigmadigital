@@ -11,7 +11,8 @@ import type { ConvexReactClient } from "convex/react";
  * sintetički rezultat (ili `undefined` = ekran crta skeleton). Akcija vraća
  * fiksturu sa svojim imenom kad je ima (npr. dnevna dozvola Instagram
  * objava), inače `undefined`; isto i mutacija (npr. novi projekat). Nema mreže, nema
- * pretplata, nema tajni.
+ * tajni. Posle mutacije sa fiksturom svi otvoreni upiti dobiju `onUpdate` (S13): fikstura
+ * sa stanjem (glas, faza ideje) se tako vidi odmah, kao posle odgovora servera.
  *
  * Koristi se SAMO iz `app/dev-ux` (koji u produkciji vraća 404).
  */
@@ -23,6 +24,9 @@ export type FixtureResolver = (
 export function createFakeConvexClient(
   resolve: FixtureResolver,
 ): ConvexReactClient {
+  // Posmatrači otvorenih upita (`useQuery` ih registruje kroz `onUpdate`).
+  const posmatraci = new Set<() => void>();
+  const obavesti = () => posmatraci.forEach((posmatrac) => posmatrac());
   const fake = {
     watchQuery(query: FunctionReference<"query">, ...rest: unknown[]) {
       const name = getFunctionName(query);
@@ -30,7 +34,12 @@ export function createFakeConvexClient(
         rest[0] && typeof rest[0] === "object" ? rest[0] : {}
       ) as Record<string, unknown>;
       return {
-        onUpdate: () => () => {},
+        onUpdate: (posmatrac: () => void) => {
+          posmatraci.add(posmatrac);
+          return () => {
+            posmatraci.delete(posmatrac);
+          };
+        },
         localQueryResult: () => resolve(name, args),
         localQueryLogs: () => [],
         journal: () => undefined,
@@ -45,7 +54,11 @@ export function createFakeConvexClient(
       mutation: FunctionReference<"mutation">,
       args?: Record<string, unknown>,
     ) {
-      return resolve(getFunctionName(mutation), args ?? {});
+      const rezultat = resolve(getFunctionName(mutation), args ?? {});
+      // Samo mutacija sa fiksturom (ona ume da promeni stanje); ostale ne bude
+      // ekrane, pa mutacija iz efekta ne može da zavrti krug crtanja.
+      if (rezultat !== undefined) obavesti();
+      return rezultat;
     },
     async action(action: FunctionReference<"action">, args?: Record<string, unknown>) {
       return resolve(getFunctionName(action), args ?? {});

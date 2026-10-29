@@ -1033,3 +1033,75 @@ Ceo `npx vitest run`: 170 fajlova, 2307 testova.
 - Novi zadatak se ne otvara sam i toast nema „Otvori“ (ODLUKA 6).
 - Boje: „Hitno“ je žuto, a crveno je samo kašnjenje (ODLUKA 11).
 - Ništa nije deployovano.
+
+## S13 — Ideje: tabla, lista, detalj, faze, glasanje   (2026-10-29 09:15)
+**Fajlovi:**
+- Ruta `app/(app)/[projekat]/ideje/page.tsx` (umesto `EkranUskoro`; klijentski kontejner u `<Suspense>`).
+- `components/app/prostor/ideje/` (preneto alatom pa ručno dovršeno): `ideas-view`, `ideas-screen`, `idea-board`, `idea-card`, `idea-list`, `idea-parts`, `idea-detail`, `idea-detail-drawer`, `idea-dialogs`; nov `ekrani.tsx` (`IdejeEkran`).
+- `lib/prostor/modeli/ideas-model.ts` (+ `ideas-model.test.ts`, preneto).
+- Razvojni prikaz: nov `app/dev-ux/fixtures-prostor-ideje.ts` (registrovan u `app/dev-ux/fixtures.ts`); `app/dev-ux/fake-convex.ts` javlja promenu upitima posle mutacije sa fiksturom (ODLUKA 7).
+- Snimci `docs/spajanje/snimci/S13-{ideje-tabla-1536,ideje-lista-1536,ideja-detalj-1536,ideje-390}.png`.
+- Pomoćne skripte izmena: `.nocni-run/spajanje/tmp/s13-*.py`; izlaz alata `.nocni-run/spajanje/tmp/prenos-ekran-S13-log.txt` (11 fajlova, 25 RUČNO, sve zatvorene).
+
+**Šta je urađeno:**
+- **Ideje** (`/ideje`, `?ideja=<id>`): Enigmin `PageHeader` (ikonica mesta, „N ideja“, jedina primarna radnja „Nova ideja“), pretraga (Esc briše, broj rezultata se najavljuje) i prekidač Tabla · Lista · Mapa koji se pamti lokalno.
+- **Tabla po fazama**: Predlog · Razmatra se · Odobreno · Postalo zadatak, a Odbijeno je skupljena uska kolona koja se otvara klikom. Kartica se prevlači samo kome je dozvoljena promena faze, i samo u dozvoljene kolone; promena faze putuje kroz `FlipGroup`. Strelice idu kroz kartice po kolonama, Enter otvara detalj. Ispod `md` tabla je lista grupisana po fazi (Odbijeno se rasklapa kroz `Unfold`).
+- **Lista**: tabela Ideja · Autor · Glasovi · Faza · Komentari · Starost, sortiranje klikom na zaglavlje (`aria-sort`), meni reda se vidi na prelaz ili fokus; ispod `xl` red u dva reda.
+- **Glas i faza**: optimistično (`useProjekatMutationOptimisticno` za `ideas.vote` i `ideas.setStage`, ključ keša `ideas.list` sa `workspaceId`); faza i iz menija „…“ (Premesti u fazu), iz izbora u detalju i prevlačenjem, sa toastom „Ideja je u fazi …“ i „Poništi“ 8 s.
+- **Detalj** u desnoj fioci: naslov i tekst se čuvaju sami (1 s i na blur), autor, Za/Protiv, faza, „Pretvori u zadatak ili belešku“ (samo u fazi Odobreno i samo kome je dozvoljeno), Istorija izmena (fioka iz S11) i Komentari sa @pominjanjem (`CommentsSection`, cilj `idea`, S11). Obriši ide u Korpu sa „Poništi“; ideja koje nema nudi „Otvori Korpu“.
+- **„Postalo zadatak“** vodi na stranicu zadatka (`/stranica/<id>`, S12): veza „Postalo zadatak“ u detalju i „Otvori“ u toastu posle pretvaranja.
+- Kartica **Mapa** pokazuje „Mapa ideja stiže uskoro.“ (S14); „Ugnezdi u…“ (`IdeaNestDialog`) je prenet i čeka mapu.
+
+**Paritet:**
+- Red 13 (Ideje: tabla po fazama, lista, detalj, glasanje, faze, „Postalo zadatak“): gotovo.
+- Red 20 (komentari sa @): dopunjeno za ideju (isti `CommentsSection`).
+- Red 21 (istorija): ideja koristi istu fioku istorije.
+- Red 14 (Mapa ideja): nije, S14; kartica Mapa ima prazno stanje sa putem nazad.
+
+**ODLUKE:**
+1. **„Diskusija u Porukama“ nije u meniju detalja** (`chat.channelForAnchor`, `EntityDiscussionPanel`): dolazi sa porukama (S15), isto kao S12 ODLUKA 7. Meni „…“ detalja nudi samo Obriši, a kad brisanje nije dozvoljeno, menija nema. Plan S07 §8 je fiksturi ideja pripisao i `chat.channelForAnchor`; nije dodata jer je ekran ne zove.
+2. **Mapa i ugnežđavanje čekaju S14.** Kontejner ne uvozi `ideas-canvas-view` ni `collaboration.requestNesting`; `IdeaNestDialog` i `CreateTarget` (roditelj, položaj) ostaju za S14. Dijalog „Nova ideja“ već ume naslov „Nova grana ideje“.
+3. **Pokret:** Devotion `useEnter` (ulaz kartica pri učitavanju i promeni prikaza) nije prenet — radni ekrani se ne animiraju pri učitavanju (CLAUDE.md), kao S12 ODLUKA 4. `NumberRoll` (kotrljanje broja glasova) je zamenjen običnim brojem (`formatNumber`, `tabular-nums`): glas nije nagrada, a ekran ima već Flip. `Collapse` → Enigmin `Unfold`. `data-motion-enter` oznake su uklonjene (niko ih ne čita).
+4. **Boja radnje nije stanje izbora** (kao S11 ODLUKA 4 i S12 ODLUKA 11): moj glas je podloga kontrole + puna ikonica (bez `radnja-soft` i `text-primary`), otvorena kartica i red su `surface-raised` sa neutralnom ivicom, cilj prevlačenja je neutralan isprekidan obris, izbor vrste u „Pretvori“ je neutralan. Kolone table nemaju podlogu (nema kutije u kutiji); kartice su `bg-card` + `shadow-elev-1`. Kartica koja se prevlači ostaje kao prazan obris umesto providnog teksta (pravilo punog tona). Onemogućen glas (pretvorena ideja) je prigušen tokenima, ne `opacity`.
+5. **Dugmad:** „Nova ideja“ u zaglavlju je jedina primarna radnja ekrana; u praznom stanju je `outline`. U dijalozima je primarna samo potvrda („Dodaj ideju“, „Pretvori“, „Ugnezdi“), kao S11 ODLUKA 4. „Pretvori u zadatak ili belešku“ u detalju je `secondary`.
+6. **`window.confirm` „Odbaciti nesačuvanu ideju?“** je zamenjen Enigminim `ConfirmDialog` („Odbaci“), jer `confirm-dialog.tsx` izričito odbija `window.confirm`. `MotionDialog` → `Dialog`/`DialogPopup`, a Devotion `Select` delovi → Enigmin `Select` (sa `label`; faza u detalju ima natpis kroz `id`).
+7. **Lažni Convex (`app/dev-ux/fake-convex.ts`) sada javlja `onUpdate` posle mutacije koja ima fiksturu.** Bez toga se glas i faza u razvojnom prikazu nisu menjali (lažni klijent nema keš ni pretplate, a prihvatanje traži da se glas i faza menjaju). Mutacija bez fiksture (`undefined`) ništa ne budi, pa mutacija iz efekta ne može da zavrti krug; provereno na Zadacima i Danas (konzola čista, nema stalnog crtanja). Fikstura ideja drži glas, fazu i brisanje u stanju modula; osvežavanje strane ga vraća. Optimistični put proverava test modela (`applyIdeaVote`, `applyIdeaStage`).
+8. **Adresa:** otvaranje i zatvaranje detalja menja `?ideja=` bez novog unosa u istoriji (Devotion `replace: true`). Neispravan ID u adresi se ignoriše (`jeOblikId`).
+9. **Model:** brojevi u tekstu („3 ideje“, „Za: 3 glasa“, broj komentara) idu kroz `formatNumber`; `Intl.Collator` za sortiranje ostaje u `lib/prostor/modeli` (poređenje, ne prikaz; čuvar formata dozvoljava `Intl` u `lib`). Ključ lokalnog skladišta prikaza ostaje `devotion:ideje:prikaz`, kao ostali preneti ključevi (`devotion:oblast:*`, `devotion:quick-add:*`). Test modela je prenet bez izmene (21 test, 103 `expect(`, isto kao Devotion); RUČNO 80 („admin“ u testu) je samo naziv uloge u pozivu deljenog pravila, pa nije menjan.
+10. **Base UI:** natpis „Premesti u fazu“ u meniju je umotan u `DropdownMenuGroup` (Base UI baca grešku za `Menu.GroupLabel` van grupe; viđeno u pregledaču i popravljeno).
+11. Nijedan fajl čuvara nije menjan. Front i dalje ima 62 direktna poziva, svi sa spiska.
+
+**Novi paketi:** nema.
+
+**Testovi:** 21 nov (preneto), svi prolaze.
+
+| Fajl | Testova | Napomena |
+|---|---|---|
+| `lib/prostor/modeli/ideas-model.test.ts` | 21 | preneto; `expect(` 103/103 |
+
+Ceo `npx vitest run`: 181 fajl, 2412 testova.
+
+**Rezultat provere:**
+- codegen: nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest: prolazi (2412);
+- pristup: 632 / 617 / 15, front 62 direktna poziva, svi sa spiska;
+- regresije: prolaze (20; ultra 5, prostor 1).
+
+**Vizuelna provera** (Playwright, `next dev -p 3117`, ugašen na kraju):
+- 1536 × 695: tabla (4 kolone + skupljeno Odbijeno, otvaranje Odbijenog), glas Za na kartici (2 → 3, `aria-pressed`), faza kroz meni „…“ (kartica prelazi iz Predlog u Odobreno, toast sa „Poništi“), lista sa sortiranjem po starosti, detalj sa komentarima (`?ideja=ideaNodesux0002`), faza iz izbora u detalju (pojavi se „Pretvori u zadatak ili belešku“), „Postalo zadatak“ (`ideaNodesux0010`) traži `/enigma-it/stranica/pagesux0200` (zadatak iz S12; prijava se pojavi samo zato što navigacija gubi `?ux=1`, S10 ODLUKA 10), prazno stanje (`&prazno=1`), dijalog „Nova ideja“ sa potvrdom „Odbaci“.
+- 390 × 844: tabla kao lista po fazama, bez vodoravnog klizanja.
+- Konzola: 0 grešaka i 0 upozorenja posle popravke iz ODLUKE 10.
+- Next razvojni znak je sklonjen samo za snimke (`nextjs-portal`).
+
+**Prihvatanje (dokaz):**
+- „Tabla, lista i detalj rade u razvojnom prikazu; glas i faza se menjaju“: vizuelna provera iznad i snimci `S13-ideje-tabla-1536.png` (posle promene faze, toast vidljiv), `S13-ideje-lista-1536.png`, `S13-ideja-detalj-1536.png`, `S13-ideje-390.png`.
+- „Čuvari prolaze“: pristup i regresije prolaze, nijedan fajl čuvara nije menjan.
+- „Provere prolaze; sekcija S13 je u progress-u“: ovo je ta sekcija.
+
+**Za Jovana ujutru:**
+- Na pravim podacima glasaj i promeni fazu ideje (meni „…“, prevlačenje na tabli, izbor u detalju) i proveri „Poništi“.
+- Pretvori odobrenu ideju u zadatak i otvori ga iz toasta i iz detalja („Postalo zadatak“).
+- Razvojni prikaz sada osvežava upite posle mutacije sa fiksturom (ODLUKA 7); ako neki stari ekran u `?ux=1` počne drugačije da se ponaša, to je razlog.
+- Ništa nije deployovano.
