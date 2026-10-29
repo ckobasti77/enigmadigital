@@ -73,3 +73,9 @@ npm run verify:prostor-pristup
 - `--korak S02`: 2 modula (`profiles`, `storage`), 16 lib fajlova, 9 test fajlova; `profiles.ts` je posle alata prepisan ručno (D22).
 - `--korak S02 --deljeno`: 26 modula, 26 testova i `index.ts` u `lib/prostor/`; 0 RUČNO stavki, testovi prolaze.
 - `--suvo` za S03–S06 radi bez greške (izveštaji pokazuju RUČNO stavke za te korake).
+
+## Isprobano (S03)
+
+- `--korak S03`: 11 modula, 13 lib fajlova, 4 test fajla; 41 RUČNO stavka (23 poziva migracija u `areasV2.test.ts`, polja projekta, `startupMembers` u `search`, `dashboard` i `lib/comments`). Posle alata typecheck je imao 69 grešaka, sve u tim stavkama.
+- `proveraOblasti.pomoc.ts` alat ne pravi: sastavljen je iz `areasV2Migrations.ts` (31–57, 82–159, 721–1131) uz ista preimenovanja (S01 D2, §5.3).
+- Novo u adapteru: `profilKreatoraProjekta` (vlasnik cilja komentara bez zamenskog profila).

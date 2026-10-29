@@ -96,3 +96,97 @@ Noćni run SPAJANJE: Enigma + Devotion u jednu internu aplikaciju. Plan: `docs/S
 - Posle deploya Convexa, novi projekat dobija oblasti Razvoj/Marketing/Prodaja/Ostalo i kanale.
 - Postojeći projekti (Enigma IT) dobijaju oblasti tek kad web pozove `prostor.projekat.pripremiRadniDeo` (S09/S10).
 - Lockfile je bez `libc` polja za 10 dev binarnih paketa (ODLUKA 12). Po želji, pusti `npm install` sa npm 11 na čistoj mašini.
+
+## S03 — Backend: dokumenti, oblasti, saradnja, korpa, pretraga   (2026-10-29 02:25)
+**Fajlovi:**
+- `convex/prostor/` (moduli, preneti alatom pa ručno dovršeni): `areasV2.ts`, `pages.ts`, `collaboration.ts`, `comments.ts`, `history.ts`, `trash.ts`, `activity.ts`, `presence.ts`, `search.ts`, `dashboard.ts`, `canvasPlacement.ts`.
+- `convex/prostor/lib/`: `collaboration.ts`, `history.ts`, `page_content.ts`, `page_creation.ts`, `page_relations.ts`, `comments.ts`, `trash.ts`, `profile_summary.ts`, `task_assignees.ts`, `task_checkpoints.ts`, `page_tables.ts`, `page_files.ts`, `task_checkpoint_canvas_edges.ts`; izmenjen adapter `auth.ts` (nova `profilKreatoraProjekta`).
+- `convex/prostor/proveraOblasti.pomoc.ts`: read-only `verifyAreasV2` iz `areasV2Migrations.ts` (S01 D2).
+- Testovi: preneti `areasV2.test.ts`, `canvasPlacement.test.ts`, `pages.test.ts`, `lib/task_checkpoint_canvas_edges.test.ts`; nov `dokumenti.test.ts`.
+- `convex/_generated/api.d.ts` (codegen).
+- `.nocni-run/spajanje/alati/README.md` (odeljak „Isprobano (S03)“).
+
+**Šta je urađeno:**
+- Alat je preneo 11 modula, 13 lib fajlova i 4 test fajla. Ostalo je 41 RUČNO stavka, i sve su zatvorene ručno.
+- Polja projekta su prevedena: `archivedAt` → `arhiviran === true`, `createdByProfileId` → `vlasnikProjektaProfileId` / `profilKreatoraProjekta`.
+- Upiti nad `startupMembers` prešli su na adapter: `search.pages` i `dashboard.getOverview` idu kroz `listMyActiveWorkspaces` (opseg 20, kao Devotion), a @pominjanje kroz `clanstvoProfila`.
+- Svih 79 novih javnih funkcija (77 P i 2 L: `search.pages`, `dashboard.getOverview`) je na omotačima P8 sa `uloga: "urednik"`. `verify:pristup` pokazuje 473 / 458 / 15, tačno po planu S01 §7.
+- Tri radnika (samo čitanje) su prošla sve izvezene funkcije. U areasV2, pages, trash, presence, activity, search, dashboard, collaboration, comments i history nije nađena nijedna rupa: svaki ID iz argumenta, i ugnežđen, proverava se za projekat pre čitanja ili upisa.
+- Ponašanje je zadržano:
+  - autosave sa `expectedRevision` i `KONFLIKT_IZMENA`;
+  - zaključavanje (autor, vlasnik projekta, vlasnik platforme);
+  - Korpa i vraćanje;
+  - Istorija i „Vrati ovu verziju“;
+  - @pominjanje samo članova projekta;
+  - aktivnost;
+  - prisustvo sa TTL od 45 s;
+  - pretraga po projektu.
+
+  Sve to dokazuje nov `dokumenti.test.ts`.
+
+**Paritet:** backend za redove 16 (oblasti, opis oblasti), 17 (stablo stranica), 18 (autosave i konflikt), 19 (prisustvo, zaključavanje, podstranice, povezano), 20 (komentari sa @), 21 (istorija), 24 (Mapa oblasti i stranice, `areasV2`), 25 (Korpa: stranice; ideje i prilozi dobijaju module u S05), 26 (aktivnost) i 30 (pretraga stranica). Ekrani nisu dirani; UI dolazi u S10–S24.
+
+**ODLUKE:**
+1. **Test „automatic layout … migrated collisions“ je zadržan skraćen**, iako plan (S01 §1.4) kaže da se ne prenosi.
+   - Raspored novih kartica i nalaz verifikatora (`issueCount` 1 posle sudara) ostaju.
+   - Uklonjeni su samo koraci `backfillPlacements` (popravka i idempotentnost), jer migracije ne postoje (P21).
+   - Konzervativnije je zadržati više provera nego ceo blok izbaciti.
+   - „collision repair …“ i „backfill je idempotentan …“ nisu preneti, po planu.
+   - Zato `areasV2` ima 25/27 blokova, a ne 24/27.
+2. **Poruka pristupa u testovima:** `toThrow("Nemate pristup")` (4 mesta) je sada `toThrow("Nemaš pristup")`.
+   - Devotion „Nemate pristup ovom startupu.“ je po S01 §3.8 postalo omotačevo „Nemaš pristup ovom projektu.“
+   - Provera nije oslabljena, nego je promenjen samo tekst. Stranac i dalje šalje `workspaceId` projekta dokumenta.
+3. **Vlasnik cilja komentara (oblast)** je profil kreatora projekta (`workspaces.createdBy`).
+   - Ako ga nema, vrednost je `null`: niko ne moderira tuđe komentare oblasti, a odbijen komentar vidi samo autor.
+   - Zamenski profil pozivaoca bi svakom članu dao moderaciju.
+   - Za `areaBodies.ownerProfileId` (obavezno polje, prava ne daje) i za prikaz na mapi zamena je profil pozivaoca, po S01 §3.1.
+4. **`search.pages` vraća `workspace` kao `WorkspaceMini`** (`_id`, ime, logo), a ne ceo `workspaces` red, koji nosi Enigmina podešavanja (`mozak`, `podesavanja`, `moduli`). Devotion web čita samo `workspace?.name`.
+   - `dashboard.getOverview` isto vraća mini plus oblasti, sortirano po redosledu članstva, jer `workspaces` nema `updatedAt`.
+   - `summary.startupCount` zadržava ime (D10).
+5. **`verifyAreasV2` se zove preko `makeFunctionReference`** sa tipovima (`prostor/proveraOblasti.pomoc:verifyAreasV2`), jer `.pomoc` modul nije u `internal`.
+   - Uzorci grešaka sada pišu `areas:` umesto `startupAreas:`. Testovi proveravaju samo broj nalaza.
+6. **Poznato, nije menjano (Devotion ponašanje):**
+   - „orakl postojanja“: tuđ živ dokument vraća „Stavka nije pronađena u ovom projektu.“, a nepostojeći „Stranica nije pronađena.“; to je S01 §9.11;
+   - `activity.listForStartup`, `pages.get` i `dashboard` vraćaju cele profile (sa email-om) članova istog projekta;
+   - `listContributionsPaginated` nema gornju granicu `numItems`.
+
+   Ništa od toga ne prelazi granicu projekta.
+7. **`pageFiles` upis ne postoji u S03.** Kad S05 prenese upload, upis mora da proveri da je projekat stranice jednak `workspaceId` fajla (napomena radnika).
+8. `npx convex codegen --typecheck disable` je pušten jednom, da bi `api.d.ts` dobio `prostor/*` pre ručnih popravki. Završni `npx convex codegen` (sa typecheck-om) prolazi.
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- Preneto je 35 blokova:
+  - `areasV2` 25 (od 27; vidi ODLUKU 1);
+  - `pages` 8;
+  - `canvasPlacement` 1;
+  - `lib/task_checkpoint_canvas_edges` 1.
+- Nov je `dokumenti.test.ts` sa 10 testova:
+  - izolacija: dokument projekta A uz `workspaceId` B se odbija u 9 funkcija i ništa se ne upisuje;
+  - klijent, stranac i neprijavljen ne ulaze;
+  - `KONFLIKT_IZMENA`;
+  - zaključavanje (3 dozvoljene uloge, kolega odbijen, `ZAKLJUCANO` za izmenu);
+  - Korpa i vraćanje, sa praznom Korpom drugog projekta;
+  - „Vrati ovu verziju“;
+  - @pominjanje bez stranca;
+  - aktivnost po projektu;
+  - prisustvo TTL i odlazak;
+  - pretraga po projektu i preko svih mojih projekata.
+- `convex/prostor` sada ima 19 fajlova i 136 testova.
+- Ceo `npx vitest run`: 114 fajlova i 1681 test, svi prolaze.
+
+**Rezultat provere:**
+- codegen prolazi;
+- typecheck prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest prolazi (1681);
+- pristup: 473 / 458 / 15, bez novih izuzetaka;
+- `verify-purge-coverage` 196;
+- regresije: 20 provera prolazi, uključujući `verify:prostor-pristup`.
+
+**Za Jovana ujutru:**
+- Ništa nije deployovano.
+- Posle deploya, `areasV2`, `pages` i ostali moduli rade samo kroz `api.prostor.*` sa `workspaceId`. Web ih dobija u S08+.
+- Odluči da li „orakl postojanja“ (ODLUKA 6) treba ujednačiti u jednu grešku.
+- Odluči da li puni profili članova (email) u odgovorima ostaju.

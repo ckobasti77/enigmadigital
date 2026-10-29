@@ -236,7 +236,18 @@ export async function vlasnikProjektaProfileId(
   workspace: Doc<"workspaces">,
   fallback: Id<"profiles">,
 ): Promise<Id<"profiles">> {
-  if (workspace.createdBy === undefined) return fallback;
+  return (await profilKreatoraProjekta(ctx, workspace)) ?? fallback;
+}
+
+/**
+ * Profil kreatora projekta ili `null` (projekat bez `createdBy`, kreator bez
+ * profila). Za vlasnika cilja komentara, gde „nema vlasnika“ ne daje prava.
+ */
+export async function profilKreatoraProjekta(
+  ctx: ReadCtx,
+  workspace: Doc<"workspaces">,
+): Promise<Id<"profiles"> | null> {
+  if (workspace.createdBy === undefined) return null;
   const profile = await profilPoKorisniku(ctx, workspace.createdBy);
-  return profile?._id ?? fallback;
+  return profile?._id ?? null;
 }
