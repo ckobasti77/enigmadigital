@@ -22,6 +22,8 @@ import { QuietBoundary } from "./quiet-boundary";
 import { useProjekat, useProjekatMutation, useProjekatOpciono } from "./projekat-provider";
 import { NotificationSettingsDialog } from "./prostor/inbox/notification-settings-dialog";
 import { ZvonoKartice, nazivZvona, useInboxZvona } from "./prostor/inbox/zvono-inbox";
+import { NapraviZadatak } from "./prostor/zadaci/napravi-zadatak";
+import { vezaIzCekaTe } from "@/lib/prostor/web/veze-zadatka";
 import { useStaMeCeka, type StaMeCeka, type Zadatak } from "./use-sta-me-ceka";
 
 /**
@@ -397,6 +399,9 @@ function Stavka({
           <EyeOff aria-hidden />
           Sakrij
         </Button>
+        {/* Posao koji čeka može da postane zadatak tima (S23); zvono se
+            zatvara, a dijalog je u ljusci. */}
+        <NapraviZadatak veza={vezaIzCekaTe(zadatak)} onPre={onNavigate} samoIkona />
       </div>
       {greska && (
         <p role="status" className="mt-1.5 text-meta text-danger">

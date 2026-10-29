@@ -23,6 +23,7 @@ import { PAGE_KIND_META, type PageKind } from "@/lib/prostor/web/vrste-stranica"
 import type { CreatePageTarget, StartupWithAreas } from "@/lib/prostor/rute";
 import { defaultTaskDraft, taskCreateFields, type TaskCreateDraft } from "@/lib/prostor";
 import { readLastArea, rememberLastArea } from "@/lib/prostor/web/poslednja-oblast";
+import { opisVeze } from "@/lib/prostor/web/veze-zadatka";
 import { TaskQuickCreate } from "@/components/app/prostor/zadaci/task-quick-create";
 import { useToday } from "@/components/app/prostor/zajednicko/use-danas";
 import { api } from "@/convex/_generated/api";
@@ -60,6 +61,10 @@ const TITLE_PLACEHOLDER: Record<PageKind, string> = {
  * (`defaultTaskDraft`: oblast zadata → poslednja u projektu → prva), a
  * instrukcije i koraci su iza „Više opcija“. Zadatak se ne otvara sam: pojavi
  * se u listi, a sledeći kreće od iste oblasti.
+ *
+ * Zadatak sa vezom (S23, `target.veza`): sa profila firme, iz komentara bez
+ * odgovora ili iz stavke „Čeka te“. Dijalog tada pravi samo zadatak
+ * (`prostor.veze.noviZadatak`), sa predloženim naslovom i instrukcijama.
  */
 export function CreatePageDialog({
   open,
@@ -79,6 +84,8 @@ export function CreatePageDialog({
 }) {
   const { now } = useToday();
   const createPage = useProjekatMutation(api.prostor.areasV2.createPage);
+  const noviZadatak = useProjekatMutation(api.prostor.veze.noviZadatak);
+  const veza = target?.veza;
   const archivePage = useProjekatMutation(api.prostor.areasV2.archivePage);
   // Tolerantno: pokvaren roditelj ne sme da sruši dijalog za kreiranje.
   const targetParent = useProjekatQueryTolerant(
@@ -87,7 +94,11 @@ export function CreatePageDialog({
   );
   const fallbackAreaId = workspace.areas[0]?._id;
   const [kind, setKind] = useState<PageKind>(
-    target?.initialKind && VRSTE_NOVE_STRANICE.includes(target.initialKind) ? target.initialKind : "note",
+    veza
+      ? "task"
+      : target?.initialKind && VRSTE_NOVE_STRANICE.includes(target.initialKind)
+        ? target.initialKind
+        : "note",
   );
   // Članovi za čip „Izvršioci“ (samo dok je dijalog otvoren).
   const members = useProjekatQuery(api.prostor.projekat.listMembers, open ? { limit: 50 } : "skip");
@@ -98,12 +109,14 @@ export function CreatePageDialog({
       presetAreaId: target?.areaId ?? null,
       rememberedAreaId: readLastArea(workspace._id),
     });
-    return profileId ? draft : { ...draft, assigneeProfileIds: [] };
+    const saVezom = veza?.instrukcije ? { ...draft, instructions: veza.instrukcije } : draft;
+    return profileId ? saVezom : { ...saVezom, assigneeProfileIds: [] };
   });
-  const [moreOpen, setMoreOpen] = useState(false);
+  // Predložene instrukcije (tekst komentara) se vide odmah, ne iza „Više opcija“.
+  const [moreOpen, setMoreOpen] = useState(Boolean(veza?.instrukcije));
   // Oblast koju je korisnik sam izabrao se ne pregazi pri promeni vrste.
   const [areaTouched, setAreaTouched] = useState(false);
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(veza?.naslov ?? "");
   const [noteContent, setNoteContent] = useState("");
   const [areaId, setAreaId] = useState<Id<"areas"> | undefined>(
     target?.areaId ??
@@ -145,6 +158,25 @@ export function CreatePageDialog({
     event.preventDefault();
     if (!areaId || title.trim().length === 0 || submitting) return;
     setSubmitting(true);
+    if (veza) {
+      try {
+        const pageId = await noviZadatak({
+          areaId,
+          title: title.trim(),
+          ...taskFieldsForCreate(taskDraft),
+          ...(veza.firma ? { leadCompanyId: veza.firma.id as Id<"leadCompanies"> } : {}),
+          ...(veza.izvor ? { izvor: veza.izvor } : {}),
+        });
+        showCreatedToast(pageId, false);
+        onOpenChange(false);
+        rememberLastArea(workspace._id, areaId);
+      } catch (error) {
+        toast.error(accessErrorMessage(error, "Zadatak nije napravljen."));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
     try {
       const result = await createPage({
         areaId,
@@ -183,7 +215,9 @@ export function CreatePageDialog({
           <DialogHeader className="border-b border-line-soft px-5 py-5 pr-14 sm:px-6 sm:pr-16">
             <DialogTitle>{kind === "task" ? "Novi zadatak" : "Nova stranica"}</DialogTitle>
             <DialogDescription>
-              {target?.parentPageId
+              {veza
+                ? opisVeze(veza)
+                : target?.parentPageId
                 ? targetParent && !targetParent.permissions.canEdit
                   ? "Stranica nastaje na vrhu oblasti."
                   : "Biće ugnežđena unutar izabrane stranice."
@@ -191,6 +225,7 @@ export function CreatePageDialog({
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+            {veza ? null : (
             <div className="rounded-lg border border-line bg-card p-0.5">
               <ToggleGroup
                 value={[kind]}
@@ -223,6 +258,7 @@ export function CreatePageDialog({
                 })}
               </ToggleGroup>
             </div>
+            )}
             {kind === "task" ? (
               <TaskQuickCreate
                 now={now}

@@ -1770,3 +1770,69 @@ Postojeći `command-center-model`, `command-center`, `stale`, `activity-format` 
 **Za Jovana ujutru:**
 - Pozovi test adresu, registruj je i proveri da se u Timu i u dodeli zadatka odmah vidi (bez prvog ulaska u radni deo).
 - Na `/projekti` proveri avatare članova na pravim podacima.
+
+## S23 — Veze: lid i zadatak, komentar i upozorenje u zadatak   (2026-10-29 14:45)
+**Fajlovi:**
+- Backend: nov `convex/prostor/veze.ts` (`zadaciFirme`, `firma`, `noviZadatak`) i `convex/prostor/lib/veze.ts` (validator izvora, `cistaPutanja`, `normalizujIzvor`, poruke); `convex/prostor/schema.ts` (`pages.izvor`, opciono), `convex/prostor/lib/validators.ts` (`pageSummaryValidator.leadCompanyId`, `pageDocumentValidator.izvor`), `convex/prostor/lib/pages.ts` (`summarizePage` nosi `leadCompanyId` kad postoji); `convex/_generated/api.d.ts` (codegen).
+- Čista logika: nov `lib/prostor/web/veze-zadatka.ts` (+ test); `lib/prostor/rute.ts` (`CreatePageTarget.veza`), `lib/prostor/task-row.ts` i `lib/prostor/startup-tasks.ts` (`leadCompanyId` u redu, + test u `startup-tasks.test.ts`).
+- Komponente: novi `components/app/prostor/zadaci/firma-cip.tsx` (`FirmaCip`, `IzvorCip`, `VezeZadatka`, `FirmaOznaka`) i `napravi-zadatak.tsx` (`useNoviZadatakSaVezom`, `NapraviZadatak`); izmenjeni `task-row.tsx` (oznaka firme), `panel/task-detail-layout.tsx` (prop `veze`), `panel/task-panel.tsx` i `task-page-view.tsx` (red veza), `dokumenti/create-page-dialog.tsx` (zadatak sa vezom).
+- Leadovi (samo dodatak): nov `components/app/leadovi/firma-zadaci.tsx`; `lead-detail.tsx` (jezičak „Zadaci“, `?tab=zadaci`).
+- Kanali i zvono (samo dodatak): `components/app/instagram/comment-thread.tsx`, `components/app/facebook/fb-comment-thread.tsx` (prop `extra` u radnjama komentara), `components/app/notifications-bell.tsx` (radnja u stavci „Čeka te“).
+- Testovi: nov `convex/prostor/veze.test.ts`.
+- Razvojni prikaz: `app/dev-ux/fixtures-prostor-zadaci.ts` (zadaci 211–214, `veze.*`).
+- Snimci: `docs/spajanje/snimci/S23-firma-zadaci-1536.png`, `S23-zadatak-firma-1536.png`, `S23-firma-zadaci-390.png`, `S23-zadaci-firma-390.png`.
+- Pomoćno: logovi provera i radni snimci u `.nocni-run/spajanje/tmp/` (`s23-*`); Playwright otpaci ovog koraka premešteni iz `docs/spajanje/snimci/` u `tmp/s23-playwright/`.
+
+**Šta je urađeno:**
+- **Backend.** `pages.leadCompanyId` i indeks postoje od S02; S23 dodaje upis i čitanje. `veze.noviZadatak` (P8, `urednik`) pravi zadatak na vrhu oblasti istim putem kao `pages.create` (provera oblasti, izvršilaca, roka, instrukcija i koraka, aktivnost, obaveštenje izvršiocima) i upisuje vezu. Firma mora biti iz projekta poziva (inače `not_found`, bez upisa), a izvor (`komentar_ig` · `komentar_fb` · `ceka_te`, naslov, putanja) mora imati putanju unutar aplikacije. Bez ijedne veze mutacija odbija (`invalid`). `veze.zadaciFirme` čita indeks `by_workspaceId_and_leadCompanyId_and_archivedAt` (do 50; otvoreni po roku, pa završeni; `odseceno`). `veze.firma` daje ime za čip; tuđa ili obrisana firma daje `null`, bez imena.
+- **Profil firme.** Nov jezičak „Zadaci“ (posle „Istorija“, bedž = otvoreni zadaci): redovi od 40 px (status, naslov, status rečju, rok, prioritet), svaki vodi na `/stranica/<id>`, i „Novi zadatak“ (`outline`; primarno dugme profila ostaje „Pozovi“). `?tab=zadaci` otvara profil na tom jezičku.
+- **Zadatak.** Panel i puna strana imaju red veza ispod čipova metapodataka: „Firma: Test Salon 2 ↗“ (vodi na `/leadovi/<id>?tab=zadaci`) i „Komentar na Instagramu: @ana_frizer ↗“ ili „Iz „Čeka te“: …“ (vodi na ekran povoda). U listama projekta (Zadaci, Zadaci oblasti, početna) ime firme stoji uz naslov; kad se red lomi u dva (telefon, uže od `xl` u kolonama), seli se u red sa podacima.
+- **Komentar → zadatak.** Neodgovoren komentar (nije naš, nismo odgovorili, nije obrisan) na Instagramu i Facebooku ima „Napravi zadatak“ uz Odgovori/Sakrij/Obriši. Dijalog predlaže naslov „Odgovori @autor: „početak komentara…““, ceo komentar u instrukcijama (vidljiv odmah) i izvor sa putanjom ekrana komentara.
+- **Čeka te → zadatak.** Stavka u zvonu projekta ima ikonicu „Napravi zadatak“ (oblačić i natpis za čitač): zvono se zatvara, a dijalog dobija naslov stavke i izvor sa putanjom njene radnje.
+- **Jedan dijalog.** Sve tri radnje otvaraju deljeni dijalog „Nova stranica“ iz ljuske (`DokumentiProvider`) u režimu zadatka sa vezom: bez izbora vrste, opis kaže za šta je zadatak, oblast i čipovi kao u brzom pravljenju, „Poništi“ u toastu.
+
+**Paritet:** P19 (vrednost koja postoji tek kad su aplikacije zajedno, van tabele §6): lid ↔ zadatak, komentar → zadatak, „Čeka te“ → zadatak — urađeno, u razvojnom prikazu i testovima. Redovi 11 i 12 (zadaci tima, zadatak) dobili su čip firme i izvora.
+
+**ODLUKE:**
+1. **`pages.izvor` (opciono polje `prostor` tabele).** Plan je imao samo `leadCompanyId`, a zadatak traži „sa naslovom i vezom“ i da zadatak vodi nazad. Link u tekstu instrukcija ne bi bio klikabilan, pa je izvor strukturiran (`vrsta`, `naslov`, `putanja`), po uzoru na postojeće `sourceMessageId`. Polje je opciono i bez indeksa; `pageDocumentValidator` ga nosi (`pages.validator.test` prolazi). Enigmine tabele nisu dirane.
+2. **Putanja izvora je samo ekran u projektu** (počinje jednom `/`, bez razmaka, kontrolnih znakova i `\`, do 300 znakova); crta je `ProjekatLink`. Spoljna adresa, `//host` i `javascript:` se odbijaju i na serveru i na klijentu (stavka „Čeka te“ sa takvom vezom ne nudi radnju).
+3. **Jedna mutacija za sve veze.** „Novi zadatak za firmu“ je `veze.noviZadatak` sa `leadCompanyId`; isti poziv nosi i izvor (komentar, „Čeka te“), da ne postoje tri puta za pravljenje zadatka. Traži bar jednu vezu; zadatak bez veze ostaje u „Nova stranica“.
+4. **Veza se postavlja pri pravljenju.** Vezivanje postojećeg zadatka za firmu i brisanje veze nisu ponuđeni (nema ni mutacije): najmanji obim koji pokriva cilj; ostaje kao predlog.
+5. **Komentar vodi na ekran komentara** (`/instagram/komentari`, `/facebook/komentari`), ne na sam komentar: ekrani nemaju adresu pojedinačnog komentara, a dodavanje bi menjalo kanale. Tekst komentara ide u instrukcije, pa je zadatak razumljiv i kad komentar nestane.
+6. **„Napravi zadatak“ samo uz neodgovoren komentar** (P19: „komentar bez odgovora“): ne uz naš komentar, ne uz onaj na koji smo odgovorili, ne uz obrisan i ne uz odgovore u niti. Posmatrač ga ne vidi (radnje komentara već skriva).
+7. **„Čeka te“ samo u zvonu projekta.** Zvono „Ja“ sabira posao po projektima (nema jednog projekta za zadatak), a blok „Čeka te“ na početnoj projekta je Enigmin `StaMeCeka` i nije diran. U zvonu je radnja ikonica (`icon-xs`, natpis u oblačiću i `aria-label`), jer bi tekst prelomio red od četiri radnje u svakoj stavci.
+8. **Profil firme: jezičak, ne sekcija iznad jezičaka.** Ostali delovi profila su jezičci; bedž kaže koliko je otvorenih. `?tab=zadaci` je jedini nov ulaz u stanje profila i važi samo kad je jezičak vidljiv (inače „Istorija“). Odeljak i radnje vidi samo urednik/vlasnik koji nije bez profila radnog dela (`useMoze("urednik")`, `useDokumenti().profil !== null`), pa posmatraču Leadovi izgledaju kao pre.
+9. **Firma u listi je oznaka, ne link** (red je dugme, a link u dugmetu nije dozvoljen); u firmu se ide iz panela ili pune strane. Ime čita `veze.firma` po firmi (Convex deli pretplatu za istu firmu); obrisana firma u listi ne crta ništa, a na zadatku piše „Firma više nije u Leadovima“.
+10. **Ekrani „Ja“ ne pokazuju firmu u redu** (Moji zadaci, Danas): ti redovi ne grade se iz `pageSummaryValidator`, a upit firme je projektni. Panel zadatka na tim ekranima je pod `ProjekatStavkeProvider`-om, pa čip firme i izvora tamo radi.
+11. **Dijalog:** predložene instrukcije (komentar) su odmah vidljive („Više opcija“ otvoreno); toast nudi „Poništi“, kao S12 ODLUKA 6. Oblast se bira kao u brzom pravljenju (poslednja u projektu, pa prva); nije dodato pravilo „firma → Prodaja“.
+12. **Fiksture:** zadaci 211, 212 i 214 su vezani za `LEAD_PROFIL_ID` (jedina firma sa profilom u razvojnom prikazu, „Test Salon 2“), a 213 je iz komentara na Instagramu. Ekran Zadaci zato ima 4 reda više. IG komentari u razvojnom prikazu nemaju fiksturu niti (od ranije, `igCommentsStore.listThreads`), pa je radnja proverena na Facebook komentarima, koji koriste isti obrazac.
+13. **Čuvari nisu menjani.** Front zove nove funkcije kroz `useProjekat*` (`verify-pristup`: 635 / 620 / 15, front 158 direktnih, 0 nedozvoljenih); `verify:prostor-pristup` vidi `veze.ts` (P1–P5 prolaze).
+
+**Novi paketi:** nema.
+
+**Testovi:** 16 novih, svi prolaze.
+- `convex/prostor/veze.test.ts` (10): zadatak nosi vezu (`pages.get`, `tasks.listForStartup`, `zadaciFirme`, `firma`); firma iz drugog projekta odbijena u mutaciji i upitu, iz oba projekta, bez upisa, a ime tuđe firme ne curi; posmatrač i stranac ne prave ni ne čitaju; redosled (otvoreni po roku, pa završeni) i da obrisan i nevezan zadatak ne ulaze; obrisana firma (čip `null`, veza ostaje); izvor se čuva normalizovan; spoljna putanja, `//`, `javascript:`, razmak, `\`, prazan naslov i zadatak bez veze odbijeni bez upisa; `cistaPutanja`; **Leadovi bez veze rade isto**: posle pravljenja, završavanja i brisanja zadatka za firmu redovi `leadCompanies`, `leadAssignments`, `leadStageEvents` i `leadIdentities` su nepromenjeni, a `getLeadDetail` i `getLeadCrm` (bez sata upita) vraćaju isto; firma bez zadataka ima prazan odeljak.
+- `lib/prostor/web/veze-zadatka.test.ts` (5): predlog iz komentara (Instagram; Facebook bez teksta i imena), iz „Čeka te“ (i odbijanje spoljne adrese), opis veze i adresa profila, `skrati`.
+- `lib/prostor/startup-tasks.test.ts` (+1): firma prelazi u red, a zadatak bez firme je nema.
+- Ceo `npx vitest run`: 204 fajla, 2605 testova.
+
+**Rezultat provere:**
+- codegen: prolazi;
+- typecheck: prolazi;
+- lint: 0 grešaka (1210 upozorenja, isto kao S21/S22);
+- vitest: prolazi (204 / 2605);
+- pristup: prolazi (635 / 620 / 15; front 158, 0 nedozvoljenih);
+- regresije: prolaze (20; ultra 5, prostor 1), uključujući `verify:leads-ui` bez izmena;
+- `verify:purge`: 196 (+7 auth), nema novih tabela.
+
+**Vizuelna provera** (Playwright, `next dev -p 3117`, ugašen na kraju; port slobodan, nema zaostalih procesa):
+- 1536 × 695: profil firme na `?tab=zadaci` (tri zadatka, bedž 2); „Novi zadatak“ → dijalog („Zadatak za firmu Test Salon 2…“) → Enter → toast „Zadatak je napravljen.“; puna strana zadatka 211 (čip firme vodi na `/enigma-it/leadovi/lc_ux_test_002?tab=zadaci`); panel zadatka iz liste; zadatak 213 sa čipom komentara (vodi na `/enigma-it/instagram/komentari`); lista zadataka (red 40 px, jedna vidljiva oznaka firme); Facebook komentari (tri neodgovorena sa „Napravi zadatak“, dijalog sa predlogom); zvono (ikonica u stavci, red se ne lomi; klik zatvara zvono i otvara dijalog sa fokusom u naslovu).
+- 390 × 844: profil firme i lista zadataka bez vodoravnog klizanja; ime firme u redu sa podacima.
+- Konzola: 0 grešaka (samo „Fast Refresh“ upozorenja posle izmena fajlova).
+
+**Za Jovana ujutru:**
+- Posle deploya Convexa: na profilu firme otvori „Zadaci“, napravi zadatak i proveri da se pojavi u Zadacima projekta sa imenom firme, i da „Firma: …“ na zadatku vraća na profil.
+- Na Instagram/Facebook komentaru bez odgovora probaj „Napravi zadatak“; čip na zadatku vodi na ekran komentara, ne na sam komentar (ODLUKA 5).
+- Potvrdi ODLUKE 1 (`pages.izvor`), 4 (veza samo pri pravljenju), 7 („Čeka te“ samo u zvonu projekta, kao ikonica) i 8 (jezičak „Zadaci“ na profilu).
+- IG komentari nemaju fiksturu u razvojnom prikazu (ODLUKA 12); radnja je u pregledaču proverena samo na Facebooku.
+- Ništa nije deployovano.

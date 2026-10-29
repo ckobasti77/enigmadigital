@@ -97,6 +97,8 @@ export function summarizePage(page: Doc<"pages">) {
     createdByProfileId: page.createdByProfileId,
     updatedByProfileId: page.updatedByProfileId,
     lockedAt: page.lockedAt ?? null,
+    // Opciono (S23): ključ postoji samo kad je zadatak vezan za firmu.
+    ...(page.leadCompanyId === undefined ? {} : { leadCompanyId: page.leadCompanyId }),
     archivedAt: page.archivedAt,
     createdAt: page.createdAt,
     updatedAt: page.updatedAt,

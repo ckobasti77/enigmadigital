@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type CSSProperties } from "react";
+import { useSearchParams } from "next/navigation";
 import { ProjekatLink } from "@/components/app/projekat-link";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
@@ -20,6 +21,7 @@ import {
   FileSearch,
   Globe,
   Landmark,
+  ListChecks,
   MapPin,
   ScrollText,
   Send,
@@ -69,6 +71,7 @@ import {
 } from "./platform-links";
 import { getErrorMessage } from "./lead-quick-dialogs";
 import { KopirajUProjekat, UnakrsneOznake } from "./unakrsni-projekti";
+import { FirmaZadaci, useZadaciFirme } from "./firma-zadaci";
 import { SamoZa } from "@/components/app/samo-za";
 import { leadGapLabel, personRoleLabel } from "./lead-labels";
 import {
@@ -93,7 +96,7 @@ type LeadDetailProps = {
   companyId: Id<"leadCompanies">;
 };
 
-type ProfileTab = "istorija" | "kontakti" | "firma" | "sajt" | "landing" | "rupe";
+type ProfileTab = "istorija" | "zadaci" | "kontakti" | "firma" | "sajt" | "landing" | "rupe";
 
 const NEXT_UP_TONE: Record<NextUpTone, { box: string; icon: typeof ArrowRight; ink: string }> = {
   danger: { box: "border-danger/40 bg-danger/5", icon: CircleAlert, ink: "text-danger" },
@@ -145,7 +148,9 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
   const { korisnik } = useProjekat();
   const moze = useMoze("urednik");
   const now = useNow();
-  const [tab, setTab] = useState<ProfileTab>("istorija");
+  // `?tab=zadaci`: zadatak vodi nazad na firmu, na njene zadatke (S23).
+  const pocetniTab: ProfileTab = useSearchParams().get("tab") === "zadaci" ? "zadaci" : "istorija";
+  const [tab, setTab] = useState<ProfileTab>(pocetniTab);
   const [gapToFill, setGapToFill] = useState<GapType | null>(null);
   const [procenaZa, setProcenaZa] = useState<{
     identity: Doc<"leadIdentities">;
@@ -164,6 +169,8 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
   const score = useProjekatQuery(api.leadScoringStore.scoreCompany, { companyId });
   // 4. Landing tracker status (§7)
   const landing = useProjekatQuery(api.leadLandingStore.landingStatus, { companyId });
+  // 5. Zadaci tima vezani za firmu (SPAJANJE S23) — dodatak, ne čeka se za skelet.
+  const zadaciFirme = useZadaciFirme(companyId);
 
   // Telefoni po osobi (§7.4): procena verovatnoće ima smisla samo kad broj
   // nosi `personId` — broj centrale nema čiju pripadnost da meri.
@@ -235,6 +242,8 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
 
   const company = detail.company;
   const assignment = crm.assignment;
+  // Bez radnog dela jezička „Zadaci“ nema, pa ni `?tab=zadaci` ne važi.
+  const tabPrikaz: ProfileTab = tab === "zadaci" && !zadaciFirme.vidljivo ? "istorija" : tab;
   const temperatura = normalizeTemperatura(company.temperatura);
   const prov = detail.provenanceByField;
 
@@ -465,10 +474,24 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
       {/* ── Jezičci: istorija, kontakti, firma i poreklo, landing, rupe ── */}
       <TabNav
         panelId="lead-profile-panel"
-        active={tab}
+        active={tabPrikaz}
         onChange={setTab}
         tabs={[
           { id: "istorija", label: "Istorija", icon: ScrollText, badge: <TabBadge count={historyCount} /> },
+          // Zadaci radnog dela vezani za firmu (S23); bedž broji otvorene.
+          ...(zadaciFirme.vidljivo
+            ? [
+                {
+                  id: "zadaci" as const,
+                  label: "Zadaci",
+                  icon: ListChecks,
+                  badge:
+                    zadaciFirme.otvorenih !== undefined ? (
+                      <TabBadge count={zadaciFirme.otvorenih} />
+                    ) : undefined,
+                },
+              ]
+            : []),
           { id: "kontakti", label: "Kontakti", icon: Contact, badge: <TabBadge count={detail.identities.length} /> },
           { id: "firma", label: "Firma i poreklo", icon: Landmark },
           // GL10 (plan §5.1): ocena sajta. Bedž samo kad ocena postoji.
@@ -487,7 +510,7 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
       />
 
       <TabPanel id="lead-profile-panel" className="flex flex-col gap-4">
-        {tab === "istorija" && (
+        {tabPrikaz === "istorija" && (
           <>
             {crm.eventsTruncated && (
               <FeedbackNote tone="warning" title="Prikazan je deo istorije">
@@ -503,7 +526,16 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
           </>
         )}
 
-        {tab === "kontakti" && (
+        {tabPrikaz === "zadaci" && zadaciFirme.vidljivo && (
+          <FirmaZadaci
+            companyId={companyId}
+            companyName={company.name}
+            stanje={zadaciFirme.stanje}
+            now={now}
+          />
+        )}
+
+        {tabPrikaz === "kontakti" && (
           <>
             <Card className="border-line bg-surface">
               <CardHeader className="border-b border-line pb-3">
@@ -661,7 +693,7 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
           </>
         )}
 
-        {tab === "firma" && (
+        {tabPrikaz === "firma" && (
           <Card className="border-line bg-surface">
             <CardHeader className="border-b border-line pb-3">
               <CardTitle className="text-sm font-semibold text-foreground">
@@ -841,11 +873,11 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
           </Card>
         )}
 
-        {tab === "sajt" && (
+        {tabPrikaz === "sajt" && (
           <SiteAuditPanel companyId={companyId} company={company} />
         )}
 
-        {tab === "landing" && (
+        {tabPrikaz === "landing" && (
           <Card className="border-line bg-surface">
             <CardHeader className="border-b border-line pb-3">
               <CardTitle className="text-sm font-semibold text-foreground">
@@ -962,7 +994,7 @@ export function LeadDetail({ companyId }: LeadDetailProps) {
           </Card>
         )}
 
-        {tab === "rupe" && (
+        {tabPrikaz === "rupe" && (
           <Card className="border-line bg-surface">
             <CardHeader className="border-b border-line pb-3">
               <CardTitle className="text-sm font-semibold text-foreground">

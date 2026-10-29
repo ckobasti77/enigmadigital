@@ -27,6 +27,7 @@ import type { FunctionReturnType } from "convex/server";
 import type { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { putanjaEkrana } from "../rutiranje";
+import type { NoviZadatakVeza } from "./web/veze-zadatka";
 import type { PageKind } from "./web/vrste-stranica";
 
 // ── Tipovi (port Devotion `workspace/types.ts`) ────────────────────────────
@@ -105,6 +106,11 @@ export type CreatePageTarget = {
   areaId?: Id<"areas">;
   parentPageId?: Id<"pages"> | null;
   initialKind?: PageKind;
+  /**
+   * Zadatak sa vezom (S23): firma iz Leadova, komentar ili stavka „Čeka te“.
+   * Dijalog tada pravi samo zadatak, na vrhu oblasti.
+   */
+  veza?: NoviZadatakVeza;
 };
 
 /** Opseg prikaza: lični nivo ili projekat. */

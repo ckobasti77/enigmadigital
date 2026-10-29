@@ -18,6 +18,7 @@ import {
   taskStatusValidator,
   trashStateValidator,
 } from "./lib/validators";
+import { izvorZadatkaValidator } from "./lib/veze";
 
 /** Devotion uloga profila; ostaje u šemi, uvek `"member"`, ne čita se (P7). */
 const role = v.union(v.literal("admin"), v.literal("member"));
@@ -231,6 +232,8 @@ export const prostorTabele = {
     sourceMessageId: v.optional(v.id("chatMessages")),
     /** P19: firma iz Leadova na koju se zadatak odnosi (S23). */
     leadCompanyId: v.optional(v.id("leadCompanies")),
+    /** P19 (S23): komentar ili stavka „Čeka te“ iz koje je zadatak nastao. */
+    izvor: v.optional(izvorZadatkaValidator),
     createdByProfileId: v.id("profiles"),
     updatedByProfileId: v.id("profiles"),
     // Zaključavanje (PROSTOR P1): naslov, sadržaj, osobine, premeštanje i

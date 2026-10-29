@@ -74,6 +74,11 @@ describe("red zadatka u startupu", () => {
     expect(row).not.toHaveProperty("createdAt");
   });
 
+  test("firma iz Leadova prelazi u red; zadatak bez firme je nema (SPAJANJE S23)", () => {
+    expect(rowFromStartupTask(task({ leadCompanyId: "lc1" }), context()).leadCompanyId).toBe("lc1");
+    expect(rowFromStartupTask(task(), context())).not.toHaveProperty("leadCompanyId");
+  });
+
   test("završen zadatak je done", () => {
     expect(rowFromStartupTask(task({ taskStatus: "done" }), context()).done).toBe(true);
   });

@@ -58,6 +58,7 @@ import type { RowRequest } from "@/lib/prostor/precice/lista-zadataka";
 import { cn } from "@/lib/utils";
 
 import { DueChip } from "@/components/app/prostor/zadaci/due-chip";
+import { FirmaOznaka } from "@/components/app/prostor/zadaci/firma-cip";
 import { PriorityDot } from "@/components/app/prostor/zadaci/priority-dot";
 import { StartupChip } from "@/components/app/prostor/zajednicko/projekat-cip";
 
@@ -173,6 +174,19 @@ export function TaskRow({
     }
   };
 
+  // Firma iz Leadova (S23): uz naslov kad je red u jednoj liniji, a u redu sa
+  // podacima kad se lomi u dva (na uskom bi gurala naslov).
+  const firmaUzNaslov = row.leadCompanyId ? (
+    <FirmaOznaka
+      leadCompanyId={row.leadCompanyId}
+      className={card ? undefined : columns ? "hidden xl:inline-flex" : "hidden md:inline-flex"}
+    />
+  ) : null;
+  const firmaUPodacima =
+    row.leadCompanyId && !card ? (
+      <FirmaOznaka leadCompanyId={row.leadCompanyId} className={columns ? "xl:hidden" : "md:hidden"} />
+    ) : null;
+
   const meta = columns ? (
     <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground xl:shrink-0 xl:flex-nowrap xl:gap-0">
       {showStartup ? (
@@ -187,6 +201,7 @@ export function TaskRow({
           </>
         )}
       </span>
+      {firmaUPodacima}
       {extraMeta ? <span className="flex min-w-0 shrink-0 items-center xl:w-28 xl:pr-3">{extraMeta}</span> : null}
       {showStatus ? (
         <span className="shrink-0 whitespace-nowrap xl:w-24 xl:pr-3">
@@ -235,6 +250,7 @@ export function TaskRow({
           {row.areaLabel}
         </span>
       ) : null}
+      {firmaUPodacima}
       {extraMeta ? <span className="flex min-w-0 shrink-0 items-center">{extraMeta}</span> : null}
       <span className={cn("flex shrink-0 items-center gap-1.5", card ? null : "ml-auto md:ml-1")}>
         <DueChip dueDate={row.dueDate} now={now} done={row.done} />
@@ -278,7 +294,14 @@ export function TaskRow({
         )}
       </span>
 
-      <TitleArea row={row} columns={columns} card={card} canOpen={canOpen && Boolean(actions)} onOpen={() => actions?.onOpen(row)}>
+      <TitleArea
+        row={row}
+        columns={columns}
+        card={card}
+        canOpen={canOpen && Boolean(actions)}
+        onOpen={() => actions?.onOpen(row)}
+        uzNaslov={firmaUzNaslov}
+      >
         {meta}
       </TitleArea>
 
@@ -354,6 +377,7 @@ function TitleArea({
   card = false,
   canOpen,
   onOpen,
+  uzNaslov,
   children,
 }: {
   row: TaskRowModel;
@@ -363,6 +387,8 @@ function TitleArea({
   card?: boolean;
   canOpen: boolean;
   onOpen: () => void;
+  /** Uz naslov, u istoj koloni (firma iz Leadova, S23). */
+  uzNaslov?: ReactNode;
   children: ReactNode;
 }) {
   const [initiallyDone] = useState(row.done);
@@ -392,9 +418,15 @@ function TitleArea({
 
   const body = (
     <>
-      <span className={cn("min-w-0 max-w-full", card ? null : columns ? "xl:flex-1" : "md:flex-1")}>
+      <span
+        className={cn(
+          "min-w-0 max-w-full",
+          card ? null : columns ? "xl:flex-1" : "md:flex-1",
+          uzNaslov && (card ? "flex flex-col items-start gap-1" : "flex items-center gap-2"),
+        )}
+      >
         {/* Precrt je širok koliko tekst (ne cela kolona), pa omotač skuplja na sadržaj. */}
-        <span className="relative block w-fit max-w-full">
+        <span className="relative block w-fit min-w-0 max-w-full">
           <span
             title={row.title}
             data-row-title
@@ -420,6 +452,7 @@ function TitleArea({
             style={{ transform: `scaleX(${initiallyDone ? 1 : 0})`, opacity: initiallyDone ? 1 : 0 }}
           />
         </span>
+        {uzNaslov}
       </span>
       {children}
     </>

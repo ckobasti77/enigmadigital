@@ -42,6 +42,8 @@ export type TaskDetailLayoutProps = {
   instructions: ReactNode;
   /** Samo panel: kompaktni Komentari. */
   comments?: ReactNode;
+  /** Veze zadatka (S23): firma iz Leadova i povod; vode nazad. */
+  veze?: ReactNode;
 };
 
 /**
@@ -69,6 +71,7 @@ export function TaskDetailLayout({
   checkpoints,
   instructions,
   comments,
+  veze,
 }: TaskDetailLayoutProps) {
   // Izvršilac na zaključanom zadatku ipak završava korake (`status` mu je dozvoljen).
   const checkpointsReason = permissions.checkpoints.allowed
@@ -93,6 +96,8 @@ export function TaskDetailLayout({
         onLeave={onLeave}
         onDenied={onDenied}
       />
+
+      {veze}
 
       <div className="flex flex-wrap gap-2">
         <PlanToggle planned={planned} onToggle={onTogglePlan} />

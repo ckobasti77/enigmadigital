@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import {
@@ -34,6 +34,8 @@ import { formatNumber, formatRelativeTime } from "@/lib/format";
 import { naziv, VRSTA_FB_OBJAVE } from "@/lib/recnik";
 import { useOptimisticToggle } from "@/lib/use-optimistic-toggle";
 import { cn } from "@/lib/utils";
+import { NapraviZadatak } from "@/components/app/prostor/zadaci/napravi-zadatak";
+import { vezaIzKomentara } from "@/lib/prostor/web/veze-zadatka";
 
 export type FbCommentThreadData = FunctionReturnType<
   typeof api.fbCommentsStore.listThreads
@@ -275,6 +277,7 @@ function CommentActions({
   replyOpen,
   onToggleReply,
   onError,
+  extra,
 }: {
   commentId: string;
   text: string;
@@ -286,6 +289,8 @@ function CommentActions({
   replyOpen: boolean;
   onToggleReply: () => void;
   onError: (message: string | null) => void;
+  /** Dodatna radnja u istom redu (S23: „Napravi zadatak“). */
+  extra?: ReactNode;
 }) {
   const setHidden = useProjekatAction(api.fbComments.setCommentHidden);
   const setLiked = useProjekatAction(api.fbComments.setCommentLiked);
@@ -415,6 +420,7 @@ function CommentActions({
           <Trash2 data-icon="inline-start" />
           Obriši
         </Button>
+        {extra}
       </div>
 
       <ConfirmDialog
@@ -627,6 +633,14 @@ export function FbCommentThread({
             replyOpen={replyOpen}
             onToggleReply={() => setReplyOpen((open) => !open)}
             onError={setError}
+            // Komentar bez odgovora može da postane zadatak (S23).
+            extra={
+              !thread.isOurs && !thread.repliedByUs ? (
+                <NapraviZadatak
+                  veza={vezaIzKomentara({ mreza: "facebook", autor: thread.authorName, tekst: thread.text })}
+                />
+              ) : null
+            }
           />
 
           {replyOpen && !deleted && (

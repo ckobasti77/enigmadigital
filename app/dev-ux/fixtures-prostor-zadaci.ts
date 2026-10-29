@@ -15,6 +15,11 @@
  *   /enigma-it/stranica/<ZADATAK_UX>?ux=1          → zadatak na celu stranu
  *   /enigma-it/dokumenti/<OBLAST_UX>?ux=1&tab=zadaci → Zadaci oblasti
  * `&prazno=1` daje projekat bez zadataka.
+ *
+ * Veze (S23): zadaci 211, 212 i 214 su vezani za firmu `FIRMA_UX` iz Leadova
+ * („Test Salon 2“, profil iz `fixtures-oglasi.ts`), a 213 je nastao iz komentara na
+ * Instagramu. Profil firme sa zadacima:
+ *   /enigma-it/leadovi/<FIRMA_UX>?ux=1&tab=zadaci
  */
 import { getFunctionName } from "convex/server";
 import { api } from "@/convex/_generated/api";
@@ -22,6 +27,8 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { type Fixture, type R, WS, now, DAY, HOUR } from "./fixtures-util";
 import { fakeId, OBLASTI, PROFILI, strana } from "./fixtures-prostor-osnova";
 import { FIXTURES_PROSTOR_DOKUMENTI } from "./fixtures-prostor-dokumenti";
+import { LEAD_PROFIL_ID } from "./fixtures-oglasi";
+import type { IzvorZadatka } from "@/lib/prostor/web/veze-zadatka";
 
 type Sazetak = R<typeof api.prostor.tasks.listForStartup>["page"][number];
 type Detalj = R<typeof api.prostor.pages.get>;
@@ -53,7 +60,23 @@ type Seme = {
   zakljucan?: boolean;
   instrukcije?: string;
   pre: number;
+  /** Firma iz Leadova (S23). */
+  firma?: Id<"leadCompanies">;
+  /** Komentar ili stavka „Čeka te“ iz koje je zadatak nastao (S23). */
+  izvor?: IzvorZadatka;
 };
+
+/**
+ * Firma iz Leadova za veze (S23): ona čiji profil razvojni prikaz ima
+ * (`LEAD_PROFIL_ID`, „Test Salon 2“), pa link sa zadatka vodi na pravi profil.
+ */
+export const FIRMA_UX = LEAD_PROFIL_ID as Id<"leadCompanies">;
+
+/** Ime firme po obrascu `fixtures.ts` (`lc_ux_test_NNN` → „Test Salon N“). */
+function imeFirme(id: string): string | null {
+  const m = /^lc_ux_test_(\d{3})$/.exec(id);
+  return m ? `Test Salon ${Number(m[1])}` : null;
+}
 
 const SEME: Seme[] = [
   {
@@ -80,6 +103,36 @@ const SEME: Seme[] = [
   { n: 208, oblast: RAZVOJ, naslov: "Ubrzaj učitavanje panela", status: "done", prioritet: "medium", rok: podne(-1), autor: MARKO, izvrsioci: [MARKO], pre: 3 * HOUR },
   { n: 209, oblast: MARKETING, naslov: "Napiši tekst za landing stranu", status: "next", prioritet: "low", rok: null, autor: STEFAN, izvrsioci: [STEFAN, ANA], pre: 7 * DAY },
   { n: 210, oblast: RAZVOJ, naslov: "Dodaj izvoz izveštaja u CSV", status: "backlog", prioritet: "high", rok: podne(14), autor: JA, izvrsioci: [JA], koraci: { ukupno: 2, zavrseno: 1 }, pre: 12 * DAY },
+  // Veze (S23): firma iz Leadova i komentar bez odgovora.
+  {
+    n: 211,
+    oblast: PRODAJA,
+    naslov: "Pošalji ponudu za sajt sa zakazivanjem",
+    status: "next",
+    prioritet: "high",
+    rok: podne(2),
+    autor: JA,
+    izvrsioci: [JA],
+    instrukcije: "Paket sa zakazivanjem termina i galerijom radova. Cena iz razgovora od utorka.",
+    pre: 3 * HOUR,
+    firma: FIRMA_UX,
+  },
+  { n: 212, oblast: PRODAJA, naslov: "Pripremi primer početne strane", status: "in_progress", prioritet: "medium", rok: podne(4), autor: ANA, izvrsioci: [ANA], pre: DAY, firma: FIRMA_UX },
+  {
+    n: 213,
+    oblast: MARKETING,
+    naslov: "Odgovori @ana_frizer: „Koliko košta šišanje i farbanje za dugu…“",
+    status: "next",
+    prioritet: "medium",
+    rok: podne(0),
+    autor: JA,
+    izvrsioci: [JA],
+    instrukcije:
+      "Komentar na Instagramu, @ana_frizer:\n„Koliko košta šišanje i farbanje za dugu kosu? Da li radite subotom?“",
+    pre: 2 * HOUR,
+    izvor: { vrsta: "komentar_ig", naslov: "@ana_frizer", putanja: "/instagram/komentari" },
+  },
+  { n: 214, oblast: PRODAJA, naslov: "Prvi poziv vlasnici salona", status: "done", prioritet: "medium", rok: podne(-3), autor: JA, izvrsioci: [JA], pre: 3 * DAY, firma: FIRMA_UX },
 ];
 
 /** Zadatak na celu stranu i u panelu: `/enigma-it/stranica/<ZADATAK_UX>?ux=1`. */
@@ -116,6 +169,7 @@ function sazetak(seme: Seme, pozicija: number): Sazetak {
     createdByProfileId: seme.autor._id,
     updatedByProfileId: seme.autor._id,
     lockedAt: seme.zakljucan ? izmena : null,
+    ...(seme.firma ? { leadCompanyId: seme.firma } : {}),
     archivedAt: null,
     createdAt: nastao,
     updatedAt: izmena,
@@ -149,6 +203,7 @@ function detalj(pageId: string): Detalj | undefined {
     ...osnova,
     lockedAt: lockedAt ?? null,
     lockedByProfileId: zakljucan ? seme.autor._id : null,
+    ...(seme.izvor ? { izvor: seme.izvor } : {}),
     content: "",
     creator: seme.autor,
     updater: seme.autor,
@@ -288,6 +343,17 @@ function brojeviSaZadacima(): R<typeof api.prostor.pages.areaTopLevelCounts> {
 
 const NOV_KORAK = fakeId("taskCheckpoints", 9999);
 
+/** Zadaci firme kao `veze.zadaciFirme`: otvoreni po roku, pa završeni. */
+function zadaciFirme(leadCompanyId: unknown): R<typeof api.prostor.veze.zadaciFirme> {
+  const redovi = ZADACI.filter((z) => z.leadCompanyId === leadCompanyId).sort((a, b) => {
+    const aGotov = a.taskStatus === "done";
+    const bGotov = b.taskStatus === "done";
+    if (aGotov !== bGotov) return aGotov ? 1 : -1;
+    return (a.dueDate ?? Infinity) - (b.dueDate ?? Infinity);
+  });
+  return { zadaci: redovi, odseceno: false };
+}
+
 export const FIXTURES_PROSTOR_ZADACI: Record<string, Fixture> = {
   [getFunctionName(api.prostor.tasks.listForStartup)]: (a) => strana(zaListu(a)),
   [getFunctionName(api.prostor.tasks.listForArea)]: (a) =>
@@ -322,6 +388,13 @@ export const FIXTURES_PROSTOR_ZADACI: Record<string, Fixture> = {
   [getFunctionName(api.prostor.taskCheckpoints.updateText)]: (a) => a.checkpointId,
   [getFunctionName(api.prostor.taskCheckpoints.setCompleted)]: (a) => a.checkpointId,
   [getFunctionName(api.prostor.myDay.plan)]: () => ({ entryId: fakeId("myDayEntries", 99), created: true }),
+  // Veze (S23): zadaci firme, ime firme za čip i nov zadatak sa vezom.
+  [getFunctionName(api.prostor.veze.zadaciFirme)]: (a) => zadaciFirme(a.leadCompanyId),
+  [getFunctionName(api.prostor.veze.firma)]: (a) => {
+    const ime = imeFirme(String(a.leadCompanyId));
+    return ime ? { _id: a.leadCompanyId as Id<"leadCompanies">, name: ime } : null;
+  },
+  [getFunctionName(api.prostor.veze.noviZadatak)]: () => fakeId("pages", 299),
   // „Sredi rokove": svaki izabran zadatak je „sređen" (lažni Convex ne menja listu).
   [getFunctionName(api.prostor.tasks.bulkReschedule)]: (a) => ({
     updated: (Array.isArray(a.taskPageIds) ? (a.taskPageIds as Id<"pages">[]) : []).map((taskPageId) => {
@@ -342,4 +415,5 @@ export const PRAZNO_PROSTOR_ZADACI: Record<string, Fixture> = {
   [getFunctionName(api.prostor.tasks.listForStartup)]: () => strana([]),
   [getFunctionName(api.prostor.tasks.listForArea)]: () => strana([]),
   [getFunctionName(api.prostor.taskAssignees.listForTasks)]: () => [],
+  [getFunctionName(api.prostor.veze.zadaciFirme)]: () => ({ zadaci: [], odseceno: false }),
 };

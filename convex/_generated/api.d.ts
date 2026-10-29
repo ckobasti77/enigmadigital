@@ -232,6 +232,7 @@ import type * as prostor_lib_task_checkpoint_canvas_edges from "../prostor/lib/t
 import type * as prostor_lib_task_checkpoints from "../prostor/lib/task_checkpoints.js";
 import type * as prostor_lib_trash from "../prostor/lib/trash.js";
 import type * as prostor_lib_validators from "../prostor/lib/validators.js";
+import type * as prostor_lib_veze from "../prostor/lib/veze.js";
 import type * as prostor_myDay from "../prostor/myDay.js";
 import type * as prostor_notificationSettings from "../prostor/notificationSettings.js";
 import type * as prostor_notifications from "../prostor/notifications.js";
@@ -254,6 +255,7 @@ import type * as prostor_taskCheckpoints from "../prostor/taskCheckpoints.js";
 import type * as prostor_tasks from "../prostor/tasks.js";
 import type * as prostor_thoughts from "../prostor/thoughts.js";
 import type * as prostor_trash from "../prostor/trash.js";
+import type * as prostor_veze from "../prostor/veze.js";
 import type * as publicRouteLimit from "../publicRouteLimit.js";
 import type * as puls from "../puls.js";
 import type * as purge from "../purge.js";
@@ -517,6 +519,7 @@ declare const fullApi: ApiFromModules<{
   "prostor/lib/task_checkpoints": typeof prostor_lib_task_checkpoints;
   "prostor/lib/trash": typeof prostor_lib_trash;
   "prostor/lib/validators": typeof prostor_lib_validators;
+  "prostor/lib/veze": typeof prostor_lib_veze;
   "prostor/myDay": typeof prostor_myDay;
   "prostor/notificationSettings": typeof prostor_notificationSettings;
   "prostor/notifications": typeof prostor_notifications;
@@ -539,6 +542,7 @@ declare const fullApi: ApiFromModules<{
   "prostor/tasks": typeof prostor_tasks;
   "prostor/thoughts": typeof prostor_thoughts;
   "prostor/trash": typeof prostor_trash;
+  "prostor/veze": typeof prostor_veze;
   publicRouteLimit: typeof publicRouteLimit;
   puls: typeof puls;
   purge: typeof purge;

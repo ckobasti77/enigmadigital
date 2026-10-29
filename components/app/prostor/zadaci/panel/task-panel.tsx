@@ -20,6 +20,7 @@ import type { Today } from "@/lib/prostor/web/danas";
 import { useQueryState } from "@/components/app/prostor/podaci/ja";
 import { PersonalTaskPanelHeader, PersonalTaskPanelView, type MoveTargetStartup } from "@/components/app/prostor/zadaci/panel/personal-task-panel-view";
 import { PanelInstructions, StartupTaskPanelHeader, type StartupTaskStatus } from "@/components/app/prostor/zadaci/panel/startup-task-panel-view";
+import { VezeZadatka } from "@/components/app/prostor/zadaci/firma-cip";
 import { TaskDetailLayout } from "@/components/app/prostor/zadaci/panel/task-detail-layout";
 import { isGoneError, TaskPanelError, TaskPanelGone, TaskPanelHeaderSkeleton, TaskPanelSkeleton } from "@/components/app/prostor/zadaci/panel/task-panel-states";
 import { PLAN_UNDO_MS, usePlanEntry, usePlanToggle } from "@/components/app/prostor/zadaci/panel/use-plan-toggle";
@@ -313,6 +314,7 @@ function StartupTaskPanel({
         onTogglePlan={togglePlan}
         onDenied={(reason) => toast.error(reason)}
         openAction={{ kind: openFull ? "full" : "startup", onSelect: openFullPage }}
+        veze={<VezeZadatka leadCompanyId={data.leadCompanyId} izvor={data.izvor} />}
         checkpoints={
           <TaskCheckpointList taskPageId={pageId} canCreate={permissions.checkpoints.allowed} compact />
         }

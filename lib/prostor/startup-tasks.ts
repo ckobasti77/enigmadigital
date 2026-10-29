@@ -40,6 +40,8 @@ export type StartupTaskLike = {
   checkpointTotal?: number;
   checkpointCompleted?: number;
   createdAt?: number;
+  /** `pageSummaryValidator.leadCompanyId` (SPAJANJE S23). */
+  leadCompanyId?: string;
 };
 
 export type StartupRowContext = {
@@ -97,6 +99,7 @@ export function rowFromStartupTask(task: StartupTaskLike, context: StartupRowCon
     permissions: taskPermissions({ kind: "task", isCreator, isAssignee, lockedForViewer }),
     isAssignee,
     ...(task.createdAt === undefined ? {} : { createdAt: task.createdAt }),
+    ...(task.leadCompanyId === undefined ? {} : { leadCompanyId: task.leadCompanyId }),
   };
 }
 

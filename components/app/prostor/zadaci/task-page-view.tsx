@@ -16,6 +16,7 @@ import { usePagePresence } from "@/components/app/prostor/saradnja/use-page-pres
 
 import { InstructionsSection, type StartupTaskPanelChange, type StartupTaskStatus } from "@/components/app/prostor/zadaci/panel/startup-task-panel-view";
 import { TaskDetailLayout } from "@/components/app/prostor/zadaci/panel/task-detail-layout";
+import { VezeZadatka } from "@/components/app/prostor/zadaci/firma-cip";
 import { usePlanEntry, usePlanToggle } from "@/components/app/prostor/zadaci/panel/use-plan-toggle";
 import { Button } from "@/components/ui/button";
 import { MoveToAreaMenu } from "@/components/app/prostor/dokumenti/move-to-area-menu";
@@ -387,6 +388,7 @@ export function TaskPageView({
         }
         onTogglePlan={togglePlan}
         onDenied={(reason) => toast.error(reason)}
+        veze={<VezeZadatka leadCompanyId={page.leadCompanyId} izvor={page.izvor} />}
         checkpoints={
           <TaskCheckpointList taskPageId={pageId} canCreate={permissions.checkpoints.allowed} />
         }

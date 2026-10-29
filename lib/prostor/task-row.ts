@@ -113,6 +113,8 @@ export type TaskRowModel = {
   isAssignee?: boolean;
   /** Za stabilan redosled pri grupisanju (Moji zadaci); opciono. */
   createdAt?: number;
+  /** Firma iz Leadova (SPAJANJE S23); samo liste u projektu. */
+  leadCompanyId?: string;
 };
 
 /** Red iz grupisanja Moj dan (`groupMyDay`); startup sa logom iz `overview.startups`. */

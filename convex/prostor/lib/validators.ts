@@ -1,5 +1,6 @@
 // Preneto iz Devotion packages/backend/convex/lib/validators.ts (main @ c05c40f), SPAJANJE S02.
 import { v } from "convex/values";
+import { izvorZadatkaValidator } from "./veze";
 
 export const roleValidator = v.union(
   v.literal("admin"),
@@ -458,6 +459,8 @@ export const pageSummaryValidator = v.object({
   updatedByProfileId: v.id("profiles"),
   /** PROSTOR P1; `summarizePage` uvek šalje broj ili `null`. */
   lockedAt: v.optional(v.union(v.number(), v.null())),
+  /** P19 (S23): firma iz Leadova (čip firme u listi zadataka). */
+  leadCompanyId: v.optional(v.id("leadCompanies")),
   archivedAt: v.union(v.number(), v.null()),
   createdAt: v.number(),
   updatedAt: v.number(),
@@ -482,8 +485,8 @@ export const pageDocumentValidator = pageSummaryValidator.extend({
   tableRowCount: v.optional(v.number()),
   tableColumnCount: v.optional(v.number()),
   sourceMessageId: v.optional(v.id("chatMessages")),
-  /** P19 (S23): firma iz Leadova. */
-  leadCompanyId: v.optional(v.id("leadCompanies")),
+  /** P19 (S23): komentar ili stavka „Čeka te“ iz koje je zadatak nastao. */
+  izvor: v.optional(izvorZadatkaValidator),
   lockedByProfileId: v.optional(v.union(v.id("profiles"), v.null())),
   archivedByProfileId: v.optional(v.id("profiles")),
   trashState: v.optional(trashStateValidator),
