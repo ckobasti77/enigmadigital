@@ -100,3 +100,70 @@ npm run verify:prostor-pristup
 - Posle alata `npx convex codegen` pada dok `adminAuth.ts` uvozi Devotion `./auth` (esbuild ne nalazi modul); prvo popraviti uvoz, pa `codegen --typecheck disable`.
 - Testovi su posle alata imali samo 41 grešku typecheck-a (5 fajlova); većina padova je bila u ponašanju (P9, imena zakazanih poslova `prostor/<modul>:<fn>`, `contentType` u `_storage`).
 - `adminAuth.ts` i `remindDueTasks` su prepisani ručno po S01 §3.6d i §3.6e; `lib/lozinka.ts` je nov (D13).
+
+---
+
+# Alat za prenos Devotion ekrana (`prenesi-ekran.mjs`, S08)
+
+SPAJANJE, plan `docs/spajanje/planovi/S07.md` §9 i §10. Alat kopira web fajlove iz snimka (`.nocni-run/spajanje/tmp/devotion/apps/web/`) u Enigmu i primenjuje mehanička pravila (E1–E13). Ono što nije mehaničko upisuje kao **RUČNO**, sa brojem reda. Posle alata korak uvek ručno dovršava fajlove i pušta provere.
+
+## Pokretanje
+
+```bash
+node .nocni-run/spajanje/alati/prenesi-ekran.mjs --korak S10                 # piše fajlove svog koraka
+node .nocni-run/spajanje/alati/prenesi-ekran.mjs --korak S10 --suvo          # samo izveštaj
+node .nocni-run/spajanje/alati/prenesi-ekran.mjs --korak S10 --samo components/workspace/page/page-route-view
+node .nocni-run/spajanje/alati/prenesi-ekran.mjs --korak S10 --prepisi       # prepisuje postojeći cilj
+node .nocni-run/spajanje/alati/prenesi-ekran.mjs --korak S21 --samo components/workspace/trash/trash-model --izlaz tmp   # proba u tmp/proba-ekran
+node .nocni-run/spajanje/alati/prenesi-ekran.mjs --pokrivenost               # svaki fajl snimka ima korak ili je u NE_PRENOSI
+```
+
+- `--samo` prima putanju modula u snimku bez nastavka (ili sa njim); test fajl istog modula ide uz njega.
+- **Izveštaj:** `.nocni-run/spajanje/tmp/prenos-ekran-<korak>[-proba].md`.
+- **Izlazni kod 1** kad fajl uvozi nešto zabranjeno (`framer-motion`, `@radix-ui/*` osim kontekstnog menija, temu, Geist).
+
+## Gde ide koji fajl
+
+- `FAJLOVI`: pojedinačni fajlovi (izvor bez nastavka → cilj bez nastavka i korak).
+- `FASCIKLE`: cele fascikle snimka (npr. `components/workspace/area/` → `components/app/prostor/dokumenti/`, S10). Čist `.ts` fajl koji ima svoj `.test.ts` ide u `lib/prostor/modeli/` (P24), osim kuka (`use-*`).
+- `UI`: Devotion primitiv → Enigmin (korak „ZAMENA“: uvoz se preusmerava, fajl se ne prenosi). Birač datuma se prenosi u S12.
+- `PO_IMENU`: modul koji ide na više mesta (`workspace-error-boundary`: kuke u `podaci/ja`, granica u `zajednicko/granica-greske`; barel `components/motion`).
+- `NE_PRENOSI`: svesno se ne prenose (ljuska, tema, prijava, Devotion pokret koji Enigma ima, `circular-text-layout`…).
+
+Cilj pod `lib/` dobija RELATIVNE uvoze (vitest nema `@/`).
+
+## Pravila (redom prolaza)
+
+| Prolaz | Pravilo | Šta radi |
+|---|---|---|
+| JSX | E11 | `DialogContent` → `DialogPopup`; `onSelect` → `onClick` na stavkama menija (uz `preventDefault` dodaje `closeOnClick={false}` + RUČNO); `forceMount` se briše + RUČNO; `asChild` sa jednim JSX detetom → `render={<dete …/>}` (deca deteta ostaju unutra) |
+| JSX | E13 | `<Button>` bez `variant` ili sa `variant="default"` → `variant="secondary"` + RUČNO (jedna primarna radnja po ekranu) |
+| podaci | E5 | `api.x.y` → `api.prostor.x.y`; zamene S01 §8.1.4 (`startups.listMembers` → `prostor.projekat.listMembers` …); funkcija koje nema u `convex/prostor` → RUČNO |
+| podaci | E6 | Klasa funkcije se čita iz `convex/prostor/<modul>.ts` (`projekat*` = P, `prijavljen*`/`platforma*` = L). P: `useQuery` → `useProjekatQuery`, `useMutation` → `useProjekatMutation`, `useAction` → `useProjekatAction`, `usePaginatedQuery` → `useProjekatPaginatedQuery`, `useQueryTolerant/Result/State` → `useProjekat…`; iz objekta argumenata se briše `startupId`/`workspaceId` (prazan objekat → bez argumenta); uvozi se dodaju. L: ostaje direktno (ključ mora na `DOZVOLJENI_DIREKTNI`). RUČNO: `.withOptimisticUpdate`, `useConvex()`, `useQueries`, P poziv u cilju `ja/`, `danas/`, `inbox/` (D14) |
+| listovi | E7 | identifikatori po tabeli iz `prenesi-backend.mjs` (`startupId` → `workspaceId`, `startup` → `workspace` …); literali `"startups"` → `"workspaces"`, `"startupAreas"` → `"areas"` |
+| listovi | E8 | tekst za korisnika: „startup“ → „projekat“ u svim padežima (JSX tekst, `title`/`aria-label`/`placeholder`/`alt`/`label`, `toast(…)`, rečenice u vrednostima) |
+| listovi | E12 | klase: `text-[0.625rem]`/`[0.6875rem]`/`[10px]`/`[11px]` → `text-meta`, `border-border` → `border-line`, `border-input` → `border-line-control`, `shadow-desk` → `shadow-elev-3`, `bg-secondary` → `bg-surface-raised`, `bg-accent` → `bg-surface-control-hover`, `text-destructive` → `text-danger`, `bg-primary/10` → `bg-radnja-soft`; `data-[state=open|closed|checked|active]:` → Base UI atributi; `font-mono` se briše + RUČNO; RUČNO za `text-primary`, ton startupa, `bg-thread`, pun čip stanja, providnost teksta, `opacity-NN`, sirovu paletu |
+| uvozi | E2–E4, E9, E10 | uvozi komponenti po mapi; `@devotion/shared` → `@/lib/prostor`; `sonner` → `@/lib/toast`; primitivi → Enigmini; `@radix-ui/react-context-menu` → `@/components/ui/context-menu`; `TooltipProvider` se briše (Enigmin je u korenu); nekorišćeni uvozi iz `convex/react` se brišu |
+| — | E1 | zaglavlje `// Preneto iz Devotion apps/web/<put> (main @ c05c40f), SPAJANJE <korak>.` (posle `"use client"`) |
+
+## RUČNO (izveštaj ga navodi po redu)
+
+Navigacija (`window.history`, `navigateRoute`, `next/link`, `useRouter`, `useSearchParams`), `Intl`/`toLocale*`, uloge (`profile.role`, `createdByProfileId`), Devotion pokret (`DURATION`, `SPRING`, `springTween`, `useEnter`, `usePress`, `useLayerMotion`, `@/lib/motion`), znak `⌘`, `Doc<"startups">`, optimistične izmene, `useConvex()`, `forceMount`, Radix `ContextMenu.*`, hex boje, prop `workspaceId` koji kuke projekta više ne traže, CSS fajlovi (tokeni, ≥ 12 px).
+
+## Posle alata, obavezno
+
+```bash
+npm run typecheck
+npm run lint
+npx vitest run lib/prostor
+node --import ./scripts/ts-hooks.mjs scripts/verify-pristup.ts
+node .nocni-run/spajanje/regresije.mjs
+```
+
+## Isprobano (S08)
+
+- `--pokrivenost`: svih 281 fajl iz `components/` plus `lib/` i `hooks/` ima korak ili je u `NE_PRENOSI` (S08 26, S09 4, S10 38, S11 26, S12 37, S13 11, S14 40, S15 19, S16 15, S17 6, S19 15, S20 17, S21 10, S24 1, ZAMENA 25).
+- `--korak S17 --samo components/me/inbox/inbox-skeleton --izlaz tmp`: E1, E10 (uvoz `Skeleton`), 0 RUČNO.
+- `--korak S21 --samo components/workspace/trash/trash-model,components/workspace/trash/trash-container --izlaz tmp`: model i test u `lib/prostor/modeli/` sa relativnim uvozima; kontejner je dobio `useProjekatQueryTolerant(api.prostor.trash.counts)`, `useProjekatPaginatedQuery(api.prostor.trash.list, { kind })`, `useProjekatMutation(…)`, `@/lib/toast`, `@/lib/prostor/web/greske`, a `startupId` je postao `workspaceId`; 2 RUČNO (prop `workspaceId` koji kuke više ne traže).
+- `--suvo` za S09–S24 prolazi bez greške alata; RUČNO stavki po koraku od 2 (S24) do 142 (S14, mape).
+- Ceo korak `--korak S21 --izlaz tmp`: 10 fajlova (Korpa i Podešavanja; `team-tab` i `invites-tab` se preskaču jer su u `NE_PRENOSI`), 29 RUČNO stavki, izlazni kod 0. Ovaj prolaz je otkrio da je fascikla pobeđivala `NE_PRENOSI`; ispravljeno je u `poslovi()`.

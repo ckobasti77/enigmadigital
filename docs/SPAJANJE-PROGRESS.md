@@ -558,3 +558,128 @@ Ekrani nisu dirani.
 
 ## S07 - Plan: ljuska, rute i prevod ekrana   (2026-10-29 04:29)
 **Plan korak.** Plan je upisan u `docs/spajanje/planovi/S07.md`. Kod nije menjan.
+
+## S08 — Temelj weba: primitivi, toast, pokret, kuke, alat za ekrane   (2026-10-29 05:10)
+**Fajlovi:**
+- `components/ui/`:
+  - novi Base UI primitivi `tabs.tsx`, `context-menu.tsx`, `avatar.tsx`, `scroll-area.tsx`, `progress.tsx`, `drawer.tsx`;
+  - jednostavni elementi `kbd.tsx`, `badge.tsx`;
+  - izmenjen `dialog.tsx`: Radix atribut stanja → CSS prelaz na Base UI stanjima.
+- `lib/toast.ts` (+ `lib/toast.test.ts`) i `components/app/toaster.tsx`.
+- `components/app/app-shell.tsx`: `ShortcutProvider`, `CuvarNapustanjaProvider` i `Toaster` montirani u `ShellFrame`.
+- `components/motion/animated-check.tsx`, `flip-group.tsx`.
+- `components/app/prostor/`:
+  - `podaci/{projekat,ja,tipovi}.ts`;
+  - `zajednicko/{granica-greske.tsx,use-danas.ts,use-debounced-callback.ts}`;
+  - `precice/{precice-provider.tsx,pomoc-dijalog.tsx,use-precice-liste.ts}`;
+  - `cuvar-napustanja.tsx`, `use-prostor-navigacija.ts`;
+  - `editor/editor.css`, `mape/mape.css`.
+- `components/app/ja-link.tsx`.
+- `lib/prostor/`:
+  - `rute.ts` (+ test);
+  - `web/{greske,danas,projekat,vrste-stranica,flip-snapshot,indikator-trake,cuvar-napustanja}.ts` (+ testovi za greske, projekat, flip-snapshot, indikator-trake i cuvar-napustanja);
+  - `precice/{registar,lista-zadataka}.ts` (+ testovi).
+- `app/dev-ux/fixtures-prostor-osnova.ts` (registrovan u `fixtures.ts`), `app/dev-ux/sistem/vodic-prostor.tsx` (montiran u `vodic.tsx`).
+- Čuvari:
+  - `lib/front-cuvar.ts` (+ test);
+  - `lib/linkovi-cuvar.test.ts` (`ja-link.tsx`);
+  - `scripts/motion-check.ts` (sekcija 13).
+- Alat:
+  - `.nocni-run/spajanje/alati/prenesi-ekran.mjs`;
+  - `README.md` (odeljak „Alat za prenos Devotion ekrana“).
+- Ostalo:
+  - `docs/spajanje/planovi/S07.md`: jedna rečenica (ODLUKA 1);
+  - `.gitignore`: logovi Playwright-a u `docs/spajanje/snimci/` (ODLUKA 2);
+  - snimci `docs/spajanje/snimci/S08-{primitivi-1536,primitivi-390,toast-1536,fioka-1536}.png`.
+
+**Šta je urađeno:**
+- **Primitivi (plan S07 §5).** Napisani su po stilu postojećih `components/ui/*`, na tokenima. Mesta i dodir:
+  - kartice `line` i `pill` nose `data-active` i 44 px na dodir;
+  - kontekstni meni koristi iste stavke kao `dropdown-menu` (`onClick`, `closeOnClick`);
+  - fioka ima Devotion API (`title`, `header`, `footer`, `width`, `initialFocus`, `returnFocusFallback`, `onExited`) i stranu „desno“ ili „dole“, sa prevlačenjem.
+- **Toast.** Base UI Toast sa jednim globalnim menadžerom i API-jem kao sonner (`toast`, `success`, `error`, `info`, `warning`, `dismiss`, `action`, `duration`, `id`, `description`). Mesto je dole u sredini, najviše 3. Pokret je CSS prelaz.
+- **Pokret.**
+  - Kvačica i FLIP su preneti na GSAP (`useGSAP`/`matchMedia`, `DUR_UI`/`EASE_UI`, grana za smanjen pokret).
+  - Ostatak Devotion pokreta se ne prenosi, jer Enigma ima zamene: `Unfold`, `CountUp`, `ProgressRing`, `PageTransition`, Base UI prelazi.
+- **Kuke za podatke.**
+  - `useProjekatQueryTolerant/Result/State`, `useProjekatPaginatedQuery`, `useProjekatQueries`, `useProjekatKlijent` i `useProjekatMutationOptimisticno` sami ubacuju `workspaceId`.
+  - Ja varijante (`useQueryTolerant/Result/State`) čuvar fronta sada vidi kao direktan poziv.
+  - Granica greške prikazuje ljudsku poruku iz `lib/prostor/web/greske.ts`.
+- **Navigacija.**
+  - `lib/prostor/rute.ts` čuva Devotion objekat rute (D18) i pretvara ga u prave rute P13, u oba smera.
+  - `useProstorNavigacija()` vodi u tekući ili drugi projekat i pita čuvara napuštanja (2 s, „Ostani / Napusti“), koji hvata i klik na interni link.
+  - `JaLink` je link nivoa „Ja“.
+- **Ostalo.**
+  - CSS editora i mapa je na tokenima; još ga ništa ne uvozi.
+  - Osnovne fiksture: profil, 6 ljudi, 3 projekta, 4 oblasti, nepročitano i Moj dan.
+  - Alat za ekrane mapira svaki fajl snimka na korak i cilj (`--pokrivenost`), primenjuje E1–E13 i probno je pušten u `tmp`.
+  - Prečice su prenete (registar, lista zadataka, provider bez globalnog `?` do S24).
+
+**Paritet:** temelj za redove 2 i 33 (registar prečica i provider), 18 (čuvar napuštanja, CSS editora), 24, 14 i 8 (CSS mapa, kontekstni meni), 25 (fixture osnova). Ekrani radnog dela nisu preneti, a rute ne postoje (S09).
+
+**ODLUKE:**
+1. **`docs/spajanje/planovi/S07.md` je imao doslovnu klasu sa `--font-geist-*`.** Tailwind 4 skenira i `docs/`, pa je napravio pravilo `font-family: var(--font-geist-*)`. Sav CSS je zato pucao: `/sistem?ux=1` je davao 500, a i `npm run build` bi pao. Rečenica u planu (§6.2) je preformulisana bez te klase; smisao je isti.
+2. **Playwright MCP piše `console-*.log` i `page-*.yml` u `docs/spajanje/snimci/`.** Kad strana padne, log nosi tekst greške, Tailwind ga skenira i greška se sama ponavlja. `.gitignore` sada ima `docs/spajanje/snimci/*.log` i `*.yml` (Tailwind poštuje ignore), a postojeći logovi su premešteni u `.nocni-run/spajanje/tmp/playwright/`. Posle brisanja izvora `next dev` mora da se restartuje, jer pamti kandidate klasa.
+3. **`components/ui/dialog.tsx` je imao Radix `data-[state=open]:animate-in`.** Base UI to nikad ne postavlja, pa ulaz i izlaz nisu radili. Sada je tu CSS prelaz (`data-starting-style`/`data-ending-style`, `--duration-base`), po D17. Svi Enigmini dijalozi sada blago uđu i izađu (200 ms); ništa drugo se ne menja.
+4. **Čuvar fronta (D15) je pojačan, ne oslabljen.**
+   - `HOOKOVI` sada uključuje `useQueryTolerant`, `useQueryResult` i `useQueryState`.
+   - `useQueries` sa `query: api.x.y` u objektu je direktan poziv.
+   - Test pokriva oba slučaja.
+   - `verify:pristup` i dalje pokazuje 632/617/15 i nema novih ključeva u `DOZVOLJENI_DIREKTNI`, jer ih S08 ne zove.
+5. **Čuvar linkova:** `NEXT_LINK_DOZVOLJEN` je naučio `components/app/ja-link.tsx` (nova legitimna putanja).
+6. **`verify:pokret`:** dodata je sekcija 13 (pojačanje). Ona proverava:
+   - `ui/dialog`, `ui/drawer` i `toaster` imaju CSS prelaz sa ulazom i izlazom, bez `animate-in` i bez Radix atributa;
+   - novi primitivi nemaju Radix atribut stanja;
+   - kvačica i FLIP imaju granu za smanjen pokret i Enigmin rečnik.
+7. **Čuvar napuštanja ne hvata dugme Nazad u pregledaču.** Next ruter sam obrađuje `popstate`, a vraćanje adrese bi se sa njim posvađalo. Hvata se `idi()` i svaki klik na interni link; za zatvaranje kartice ostaje `beforeunload` iz autosave-a (S10). Plan S07 §4.3 je predviđao i `popstate`.
+8. **Kvačica (`AnimatedCheck`) nema Devotion prebačaj („bouncy“):** završen zadatak nije nagrada (P27). Boja je boja radnje, kao `Checkbox` i `Switch` u stanju „uključeno“.
+9. **Ime provider-a prečica je ostalo `ShortcutProvider`** (plan je pominjao `PrecicePrividerProstor`). Globalno `?` je isključeno dok ga S24 ne uključi (`pomocNaUpitnik`), zbog sudara sa lokalnim `?` u tabeli Leadova. Otvorene stavke (`[data-open]` dijalog, meni, listbox) gase prečice.
+10. **Radnici su doneli sledeće odluke; pregledane su i prihvaćene:**
+    - `greske.ts` skida prefiks `KONFLIKT_IZMENA:` iz poruke backenda i dodaje kod `invalid`;
+    - `vrste-stranica.ts` hex i sirovu paletu menja `--chart-N` tokenima;
+    - `formatShortDate` ide kroz `lib/format.ts` (`formatShortDateAt`), sa testom jednakosti;
+    - `formatFileSize` ostaje sa tačkom („1.5 MB“), a S11 bira `formatDecimal` kad ekran počne da ga koristi;
+    - `mape.css` i `editor.css` koriste lokalne alijase za `--font-mono` i `--radius-lg`, jer ih `@theme inline` ne emituje kao CSS promenljive. Okvir izbora na mapi je `color-mix(--radnja 10 %, transparent)`, jer je `--radnja-soft` neproziran.
+11. **Fiksture:**
+    - `fakeId` daje ID bez donje crte (`areasux0001`), jer stranice dinamičkih ruta (S07 §1.1) odbijaju ID koji nije `[a-z0-9]{10,}`;
+    - lažni tim ima izmišljena imena i `@primer.test` adrese, ne Devotion ljude;
+    - `PROFILI[0]` je prijavljen korisnik.
+12. **`radni-ui.tsx` i `projekat-cip.tsx` (plan §10, S08) nisu preneti.** Traže `ProjekatZnak` i ručno prilagođavanje ljuske, pa idu u S09. Alat ih zna pod korakom S08: `--korak S08` ih prenosi, a ostale S08 ciljeve preskače jer već postoje.
+13. **Alat:**
+    - isproban i celim korakom: `--korak S21 --izlaz tmp` prenosi 10 fajlova (29 RUČNO, izlazni kod 0). Taj prolaz je otkrio da je pravilo fascikle pobeđivalo `NE_PRENOSI` (`team-tab`, `invites-tab`), pa je ispravljeno;
+    - zamenjeni primitivi i Devotion pokret imaju korak „ZAMENA“ (uvoz se preusmerava, fajl se nikad ne prenosi);
+    - čist `.ts` sa svojim testom ide u `lib/prostor/modeli/`;
+    - Radix kontekstni meni nije greška alata nego preusmerenje.
+
+**Novi paketi:** nema.
+
+**Testovi:** 91 nov test, svi prolaze.
+
+| Fajl | Testova | Napomena |
+|---|---|---|
+| `lib/toast.test.ts` | 8 | |
+| `lib/prostor/rute.test.ts` | 23 | povratni put svih ruta, prefiks u hubu i panelu, nepoznato = podrazumevano, prelaz projekta, pomoćne rute |
+| `lib/prostor/web/cuvar-napustanja.test.ts` | 9 | |
+| `lib/front-cuvar.test.ts` | +1 | |
+| `lib/prostor/precice/*` | 25 | preneto 25 od 25, `expect(` 94/94 |
+| `lib/prostor/web/greske.test.ts` | 15 | 5 prenetih + 10 novih |
+| `lib/prostor/web/projekat.test.ts` | 3 | 1 + 2 |
+| `flip-snapshot` i `indikator-trake` | 4 + 3 | preneti |
+
+Ceo `npx vitest run`: 159 fajlova, 2206 testova.
+
+**Rezultat provere:**
+- codegen nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest: prolazi (2206);
+- pristup: 632 / 617 / 15, front bez padova;
+- regresije: prolaze (20; ultra 5, prostor 1), uključujući `verify:pokret` sa novom sekcijom 13;
+- `npm run build`: prolazi.
+
+**Vizuelna provera:** `/sistem?ux=1` na 1536 × 695 i 390 × 844 (Playwright MCP). Kartice, kontekstni meni (desni klik), avatar, taster, oznake, traka za skrol, napredak, toast sa radnjom i opisom, desna fioka i fioka odozdo rade. Konzola je bez grešaka i upozorenja. Dev server je ugašen.
+
+**Za Jovana ujutru:**
+- Enigmini dijalozi sada imaju blag ulaz i izlaz (ODLUKA 3). Proveri da ti se sviđa.
+- Dugme Nazad u pregledaču ne pita „Ostani / Napusti“ (ODLUKA 7). Odluči da li je to prihvatljivo.
+- Ništa nije deployovano.

@@ -1,0 +1,166 @@
+/*
+ * Zajednička tema svih mapa (@xyflow/react): oblasti, ideje, beleške i
+ * stranica. Tamna tema je jedina; `colorMode="dark"` se zadaje u kodu.
+ *
+ * Uvozi se samo iz dinamički učitanog modula mapa (S14), zajedno sa
+ * `@xyflow/react/dist/style.css`, i to posle njega. Nikad iz layout-a ni iz
+ * ljuske, pa običan ekran ne vuče stilove mape.
+ *
+ * Sve je pod `.prostor-mapa` (omotač svake mape). Pravila su namerno van
+ * `@layer`, jer xyflow style.css nije u sloju: samo nesloženo pravilo sa
+ * većom specifičnošću ga pobeđuje. Zato ovde nema ničega što pripada omotaču
+ * (veličina, pozadina): to ostaje klasama na omotaču. Boje su tokeni iz
+ * app/globals.css; boja radnje je samo izbor, veza u nastanku i fokus.
+ * Ništa nije ispod 12 px. Pokret smanjuje globalno pravilo za
+ * `prefers-reduced-motion`, a ovde se animira samo ono što xyflow već animira.
+ *
+ * Pravila pojedinačnih mapa (kartice, ručke, kontekstni meni, ivica niti u
+ * beleškama) ostaju u modulima svake mape.
+ */
+
+.prostor-mapa {
+  /* `--radius-lg` je u `@theme inline`, pa ga Tailwind ne ispiše kao
+     promenljivu; rezervna vrednost drži polumere stabilnim. */
+  --mapa-radius-md: var(--radius-md, calc(var(--radius) * 0.8));
+  --mapa-radius-lg: var(--radius-lg, var(--radius));
+
+  /* Platno */
+  --xy-background-color: var(--background);
+  --xy-background-pattern-color: var(--line-soft);
+
+  /* Kartice (ugrađeni tipovi čvorova; svoje kartice crtaju pogledi) */
+  --xy-node-background-color: var(--card);
+  --xy-node-color: var(--foreground);
+  --xy-node-border: 1px solid var(--line);
+  --xy-node-border-radius: var(--mapa-radius-md);
+  --xy-node-boxshadow-hover: none;
+  --xy-node-boxshadow-selected: 0 0 0 2px var(--focus-ring);
+  --xy-node-group-background-color: var(--surface);
+
+  /* Veze */
+  --xy-edge-stroke: var(--line-strong);
+  --xy-edge-stroke-width: 1.5;
+  --xy-edge-stroke-selected: var(--radnja);
+  --xy-connectionline-stroke: var(--radnja);
+  --xy-connectionline-stroke-width: 2;
+  --xy-edge-label-background-color: var(--surface-raised);
+  --xy-edge-label-color: var(--text-secondary);
+
+  /* Tačke za povezivanje i promena veličine */
+  --xy-handle-background-color: var(--surface-raised);
+  --xy-handle-border-color: var(--line-strong);
+  --xy-resize-background-color: var(--radnja);
+
+  /* Izbor povlačenjem: providna ispuna, da se kartice ispod vide. */
+  --xy-selection-background-color: color-mix(
+    in oklab,
+    var(--radnja) 10%,
+    transparent
+  );
+  --xy-selection-border: 1px dashed var(--radnja);
+
+  /* Mini-mapa */
+  --xy-minimap-background-color: var(--surface);
+  --xy-minimap-mask-background-color: var(--surface-overlay);
+  --xy-minimap-node-background-color: var(--surface-control);
+
+  /* Dugmad za zum */
+  --xy-controls-button-background-color: var(--surface-raised);
+  --xy-controls-button-background-color-hover: var(--surface-control-hover);
+  --xy-controls-button-color: var(--foreground);
+  --xy-controls-button-color-hover: var(--foreground);
+  --xy-controls-button-border-color: var(--line);
+  --xy-controls-box-shadow: none;
+
+  /* Oznaka biblioteke je skrivena (vidi niže), pozadina bez boje. */
+  --xy-attribution-background-color: transparent;
+}
+
+.prostor-mapa .react-flow {
+  background: transparent;
+}
+
+.prostor-mapa .react-flow__node {
+  overflow: visible;
+}
+
+/* Pomeranje razmaknicom: omotač dobija `data-canvas-space-pan="true"`. */
+.prostor-mapa[data-canvas-space-pan="true"] .react-flow__pane {
+  cursor: grab;
+}
+
+.prostor-mapa .react-flow__pane.dragging,
+.prostor-mapa[data-canvas-space-pan="true"] .react-flow__pane.dragging {
+  cursor: grabbing;
+}
+
+/* Izbor povlačenjem i okvir oko izabranih kartica. */
+.prostor-mapa .react-flow__selection,
+.prostor-mapa .react-flow__nodesselection-rect {
+  border-radius: var(--mapa-radius-md);
+}
+
+/* Vidljiv fokus tastature na kartici (xyflow ga podrazumevano gasi). */
+.prostor-mapa .react-flow__node.selectable:focus-visible {
+  border-radius: var(--mapa-radius-lg);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+/* Veze: izbor, miš i fokus dobijaju boju radnje i malo deblju liniju. */
+.prostor-mapa .react-flow__edge:hover .react-flow__edge-path,
+.prostor-mapa .react-flow__edge.selected .react-flow__edge-path,
+.prostor-mapa .react-flow__edge:focus-visible .react-flow__edge-path,
+.prostor-mapa .react-flow__edge.updating .react-flow__edge-path {
+  stroke: var(--xy-edge-stroke-selected);
+  stroke-width: 2;
+}
+
+.prostor-mapa .react-flow__connection-path {
+  stroke-dasharray: 5 4;
+}
+
+/* Natpis na vezi: xyflow ga podrazumevano crta sa 10 px. */
+.prostor-mapa .react-flow__edge-text {
+  font-size: var(--text-meta);
+}
+
+/* Dugmad za zum. */
+.prostor-mapa .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--mapa-radius-md);
+}
+
+.prostor-mapa .react-flow__controls-button {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.prostor-mapa .react-flow__controls-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.prostor-mapa .react-flow__minimap {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--mapa-radius-lg);
+}
+
+/* xyflow crta ivicu ručke za promenu veličine belom bojom. */
+.prostor-mapa .react-flow__resize-control.handle {
+  border-color: var(--background);
+}
+
+.prostor-mapa .react-flow__attribution {
+  display: none;
+}
+
+/* Dodir: dugmad za zum imaju zonu od najmanje 44 px. */
+@media (pointer: coarse) {
+  .prostor-mapa .react-flow__controls-button {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}

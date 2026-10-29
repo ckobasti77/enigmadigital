@@ -1,0 +1,353 @@
+/*
+ * Stilovi uređivača teksta (Tiptap): telo dokumenta i beleške — pasusi,
+ * naslovi, liste, lista zadataka, citat, kod, linkovi, prilozi i tabele.
+ *
+ * Preneto iz Devotion apps/web/app/globals.css (.tiptap, main @ c05c40f), SPAJANJE S08.
+ *
+ * Uvozi se samo iz dinamički učitanog uređivača (rich-text-editor.tsx, S10),
+ * nikad iz ljuske ni iz layout-a. Next ne skida globalne stilove pri
+ * navigaciji, zato je svaki selektor pod `.tiptap`.
+ *
+ * Boje su tokeni iz app/globals.css (nikad hex): tekst `--foreground`, link i
+ * izbor su boja radnje, linije `--line*`, površine `--surface-*`. Telo je
+ * 15 px, naslovi 28 / 20 / 15, ništa nije ispod 12 px. Font se nasleđuje
+ * (Aeonik, 400 i 700); mono je samo za kod. Pokret smanjuje globalno pravilo
+ * za `prefers-reduced-motion`.
+ *
+ * Pravila su u sloju `components`, kao u Devotionu, pa klasa na elementu
+ * (`min-h-*`, `px-*`, `text-*`) i dalje pobeđuje.
+ */
+
+@layer components {
+  .tiptap {
+    /* `--radius-lg` i `--font-mono` su u `@theme inline`, pa ih Tailwind ne
+       ispiše kao promenljive; rezervna vrednost drži ove stilove stabilnim. */
+    --editor-radius-sm: var(--radius-sm, calc(var(--radius) * 0.6));
+    --editor-radius-md: var(--radius-md, calc(var(--radius) * 0.8));
+    --editor-radius-lg: var(--radius-lg, var(--radius));
+    --editor-font-mono: var(
+      --font-mono,
+      ui-monospace,
+      "SF Mono",
+      Menlo,
+      Consolas,
+      monospace
+    );
+
+    color: var(--foreground);
+    caret-color: var(--foreground);
+    font-size: var(--text-copy);
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+  }
+
+  .tiptap > :first-child {
+    margin-top: 0;
+  }
+
+  .tiptap > :last-child {
+    margin-bottom: 0;
+  }
+
+  .tiptap p {
+    margin-block: 0.45rem;
+  }
+
+  .tiptap h1,
+  .tiptap h2,
+  .tiptap h3 {
+    color: var(--foreground);
+    font-weight: 700;
+    text-wrap: balance;
+  }
+
+  .tiptap h1 {
+    margin-block: 2.25rem 0.75rem;
+    font-size: var(--text-metric);
+    line-height: 1.15;
+    letter-spacing: -0.018em;
+  }
+
+  .tiptap h2 {
+    margin-block: 1.85rem 0.625rem;
+    font-size: var(--text-title);
+    line-height: 1.25;
+    letter-spacing: -0.012em;
+  }
+
+  .tiptap h3 {
+    margin-block: 1.4rem 0.5rem;
+    font-size: var(--text-copy);
+    line-height: 1.35;
+  }
+
+  .tiptap ul:not([data-type="taskList"]),
+  .tiptap ol {
+    margin-block: 0.7rem;
+    padding-left: 1.5rem;
+  }
+
+  .tiptap ul:not([data-type="taskList"]) {
+    list-style-type: disc;
+  }
+
+  .tiptap ol {
+    list-style-type: decimal;
+  }
+
+  .tiptap li {
+    margin-block: 0.18rem;
+    padding-left: 0.18rem;
+  }
+
+  .tiptap li::marker {
+    color: var(--text-secondary);
+  }
+
+  .tiptap li > p {
+    margin-block: 0;
+  }
+
+  .tiptap li ul,
+  .tiptap li ol {
+    margin-block: 0.2rem;
+  }
+
+  /* Lista zadataka (TaskList / TaskItem). */
+  .tiptap ul[data-type="taskList"] {
+    margin-block: 0.75rem;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tiptap ul[data-type="taskList"] li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    margin-block: 0.15rem;
+    padding: 0.25rem 0.375rem;
+    border-radius: var(--editor-radius-md);
+    transition: background-color var(--duration-fast) var(--ease-ui);
+  }
+
+  .tiptap ul[data-type="taskList"] li:hover {
+    background: var(--surface-raised);
+  }
+
+  .tiptap ul[data-type="taskList"] li > label {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.75rem;
+    user-select: none;
+  }
+
+  .tiptap ul[data-type="taskList"] li > label input[type="checkbox"] {
+    display: grid;
+    place-content: center;
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    border: 1px solid var(--line-control);
+    border-radius: var(--editor-radius-sm);
+    appearance: none;
+    background: var(--surface);
+    transition:
+      background-color var(--duration-fast) var(--ease-ui),
+      border-color var(--duration-fast) var(--ease-ui);
+  }
+
+  /* Kvačica je oblik isečen iz kućice, pa dobija token boje umesto SVG-a. */
+  .tiptap ul[data-type="taskList"] li > label input[type="checkbox"]::before {
+    width: 0.625rem;
+    height: 0.625rem;
+    content: "";
+    background: var(--radnja-tekst);
+    clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+    transform: scale(0);
+    transition: transform var(--duration-fast) var(--ease-ui);
+  }
+
+  .tiptap ul[data-type="taskList"] li > label input[type="checkbox"]:checked {
+    border-color: var(--radnja);
+    background-color: var(--radnja);
+  }
+
+  .tiptap ul[data-type="taskList"] li > label input[type="checkbox"]:checked::before {
+    transform: scale(1);
+  }
+
+  .tiptap ul[data-type="taskList"] li > label input[type="checkbox"]:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .tiptap ul[data-type="taskList"] li > div {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .tiptap ul[data-type="taskList"] li[data-checked="true"] > div {
+    color: var(--text-muted);
+    text-decoration: line-through;
+  }
+
+  /* Citat: linija od 1 px i sporedni tekst, bez ukrasa. */
+  .tiptap blockquote {
+    margin-block: 1.15rem;
+    padding: 0.25rem 0 0.25rem 1rem;
+    border-left: 1px solid var(--line-control);
+    color: var(--text-secondary);
+  }
+
+  .tiptap blockquote p {
+    margin-block: 0.15rem;
+  }
+
+  /* Kod je jedino mesto za mono font. */
+  .tiptap code {
+    padding: 0.13rem 0.34rem;
+    border: 1px solid var(--line);
+    border-radius: var(--editor-radius-sm);
+    color: var(--foreground);
+    background: var(--surface-control);
+    font-family: var(--editor-font-mono);
+    font-size: max(var(--text-meta), 0.86em);
+    font-weight: 400;
+  }
+
+  .tiptap pre {
+    position: relative;
+    margin-block: 1rem;
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--editor-radius-lg);
+    background: var(--surface-control);
+    color: var(--foreground);
+    padding: 1rem 1.1rem;
+    tab-size: 2;
+  }
+
+  .tiptap pre code {
+    padding: 0;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    font-size: var(--text-ui);
+    font-weight: 400;
+    line-height: 1.65;
+  }
+
+  .tiptap hr {
+    margin-block: 1.75rem;
+    border: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .tiptap a {
+    color: var(--radnja);
+    text-decoration: underline;
+    text-decoration-color: var(--radnja-line);
+    text-underline-offset: 0.18em;
+  }
+
+  .tiptap a:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .tiptap p.is-editor-empty:first-child::before,
+  .tiptap .is-empty::before {
+    height: 0;
+    float: left;
+    color: var(--text-muted);
+    content: attr(data-placeholder);
+    pointer-events: none;
+  }
+
+  .tiptap .ProseMirror-selectednode {
+    border-radius: var(--editor-radius-md);
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 3px;
+  }
+
+  .tiptap img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Prilozi u telu beleške (`noteFile` blokovi). U uređivaču crta karticu
+     čvor (`data-note-file-view`); ovo je upisani HTML bez njega. */
+  .tiptap [data-note-file] {
+    margin-block: 0.9rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: var(--editor-radius-md);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    font-size: var(--text-ui);
+  }
+
+  /* Tabele u telu beleške (Tiptap table + prosemirror-tables). */
+  .tiptap .tableWrapper {
+    margin-block: 1.1rem;
+    overflow-x: auto;
+  }
+
+  .tiptap table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .tiptap th,
+  .tiptap td {
+    position: relative;
+    min-width: 3rem;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--line);
+    vertical-align: top;
+    font-size: var(--text-ui);
+  }
+
+  .tiptap th {
+    background: var(--surface-raised);
+    font-weight: 700;
+    text-align: left;
+  }
+
+  .tiptap th p,
+  .tiptap td p {
+    margin-block: 0.1rem;
+  }
+
+  /* Izabrane ćelije: boja je na samoj ćeliji, jer je `--radnja-soft` puna
+     (neprozirna) boja i sloj preko ćelije bi sakrio tekst. */
+  .tiptap th.selectedCell,
+  .tiptap td.selectedCell {
+    background: var(--radnja-soft);
+  }
+
+  .tiptap .column-resize-handle {
+    position: absolute;
+    top: 0;
+    bottom: -1px;
+    right: -2px;
+    width: 4px;
+    background: var(--line-strong);
+    pointer-events: none;
+  }
+
+  .tiptap.resize-cursor {
+    cursor: col-resize;
+  }
+
+  /* Dodir: kućica ostaje 16 px, a zona dodira je najmanje 44 px. */
+  @media (pointer: coarse) {
+    .tiptap ul[data-type="taskList"] li > label {
+      justify-content: center;
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+  }
+}

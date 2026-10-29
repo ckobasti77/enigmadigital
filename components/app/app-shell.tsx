@@ -28,6 +28,9 @@ import { DateRangePicker } from "./date-range-picker";
 import { UserMenu } from "./user-menu";
 import { useNapredakFeedback } from "./napredak/napredak-feedback";
 import { NapredakIzvor } from "./napredak/napredak-izvor";
+import { Toaster } from "./toaster";
+import { CuvarNapustanjaProvider } from "./prostor/cuvar-napustanja";
+import { ShortcutProvider } from "./prostor/precice/precice-provider";
 import { ProjekatLink } from "./projekat-link";
 import {
   useEkranPutanja,
@@ -204,7 +207,10 @@ function ShellFrame({
   );
 
   return (
-    <>
+    // Radni deo (SPAJANJE S08): prečice (bez globalnog `?` do S24), čuvar
+    // nesačuvanog teksta i jedan Toaster za celu ljusku.
+    <ShortcutProvider>
+    <CuvarNapustanjaProvider>
       {/* The sidebar and header are fixed/sticky chrome, so the column is
           inset by the sidebar width rather than sharing a flex row. */}
       {/* Prvi Tab na strani: četrnaest veza navigacije stoji između tastature
@@ -239,7 +245,9 @@ function ShellFrame({
           i nagrade čitaju ono što ona upiše, pa ih pad upita ne obara. */}
       <NapredakIzvor />
       {nagrade}
-    </>
+      <Toaster />
+    </CuvarNapustanjaProvider>
+    </ShortcutProvider>
   );
 }
 

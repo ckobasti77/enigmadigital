@@ -16,6 +16,7 @@ import { installForcedStates } from "./force-states";
 import { VodicIzbor } from "./vodic-izbor";
 import { VodicRecnik } from "./vodic-recnik";
 import { VodicKomponente } from "./vodic-komponente";
+import { VodicProstor } from "./vodic-prostor";
 
 /**
  * ============================================================================
@@ -317,6 +318,7 @@ export function SistemVodic() {
       <VodicRecnik />
 
       <VodicKomponente />
+      <VodicProstor />
     </main>
   );
 }

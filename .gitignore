@@ -100,3 +100,8 @@ nocni-run/ux/b*
 .nocni-run/spajanje/STOP
 .nocni-run/spajanje/baseline.txt
 .nocni-run/spajanje/mcp.json
+
+# Playwright MCP piše konzolne logove i snimke stabla pored PNG snimaka;
+# Tailwind skenira repo, pa bi tekst greške iz loga postao klasa (SPAJANJE S08).
+docs/spajanje/snimci/*.log
+docs/spajanje/snimci/*.yml

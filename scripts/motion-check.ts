@@ -564,5 +564,55 @@ proveri(
 );
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+console.log("\n13. Radni deo (SPAJANJE S08): primitivi, toast i pokret");
+// ---------------------------------------------------------------------------
+
+// Izlaz ide preko CSS prelaza na Base UI stanjima (plan S07 D17): Base UI
+// čeka prelaz pre nego što skine element, pa nema `forceMount` ni GSAP-a na
+// samom sloju. Radix atribut stanja Base UI nikad ne postavlja.
+for (const [putanja, prelaz] of [
+  [["components", "ui", "dialog.tsx"], "transition-[opacity,scale]"],
+  [["components", "ui", "drawer.tsx"], "transition-transform"],
+  [["components", "app", "toaster.tsx"], "transition-[opacity,translate]"],
+] as const) {
+  const kod = citaj(...putanja);
+  const ime = putanja.join("/");
+  proveri(
+    `${ime}: CSS PRELAZ na Base UI stanjima, ne keyframe`,
+    kod.includes(prelaz) && !/animate-(in|out)/.test(kod) && !kod.includes("data-[state="),
+    "ima animate-in/animate-out ili Radix atribut stanja",
+  );
+  proveri(
+    `${ime}: ima i ulaz i izlaz (data-starting-style i data-ending-style)`,
+    kod.includes("data-starting-style:") && kod.includes("data-ending-style:"),
+    "nedostaje data-starting-style ili data-ending-style",
+  );
+}
+
+for (const fajl of ["tabs.tsx", "context-menu.tsx", "scroll-area.tsx", "avatar.tsx", "progress.tsx"]) {
+  const kod = citaj("components", "ui", fajl);
+  proveri(
+    `components/ui/${fajl}: bez Radix atributa stanja`,
+    !kod.includes("data-[state="),
+    "Radix atribut stanja koji Base UI ne postavlja",
+  );
+}
+
+// Preneti pokret (P12) ima obe grane matchMedia-e, kao ostale komponente pokreta.
+for (const fajl of ["animated-check.tsx", "flip-group.tsx"]) {
+  const src = citaj("components", "motion", fajl);
+  proveri(
+    `components/motion/${fajl} ima granu za reduced motion`,
+    src.includes("MOTION_QUERIES") && src.includes("conditions?.still"),
+    "nema `ctx.conditions?.still` granu",
+  );
+  proveri(
+    `components/motion/${fajl} koristi Enigmin rečnik (DUR_UI, EASE_UI), bez Devotion springa`,
+    src.includes("DUR_UI") && src.includes("EASE_UI") && !/springTween|SPRING\.|bouncy/.test(src),
+    "Devotion spring ili trajanje mimo lib/motion.ts",
+  );
+}
+
 console.log(pao === 0 ? "\nSVE PROLAZI\n" : `\n${pao} PROVERA NIJE PROSLA\n`);
 process.exit(pao === 0 ? 0 : 1);

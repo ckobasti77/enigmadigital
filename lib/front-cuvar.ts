@@ -16,13 +16,26 @@ import ts from "typescript";
 
 import type { IzvorniFajl, RezultatCuvara } from "./pristup-cuvar";
 
-/** Hookovi `convex/react` koji primaju referencu funkcije kao prvi argument. */
+/**
+ * Hookovi koji primaju referencu funkcije kao prvi argument: `convex/react` i
+ * tolerantne kuke nivoa „Ja“ radnog dela (`components/app/prostor/podaci/ja.ts`,
+ * SPAJANJE S08, D15), koje bi inače direktan poziv sakrile od čuvara.
+ */
 export const HOOKOVI: readonly string[] = [
   "useQuery",
   "useMutation",
   "useAction",
   "usePaginatedQuery",
+  "useQueryTolerant",
+  "useQueryResult",
+  "useQueryState",
 ];
+
+/**
+ * `useQueries({ k: { query: api.x.y, args } })` (Convex): referenca je u
+ * objektu, pa se traži svojstvo `query` bilo gde u prvom argumentu (S08, D15).
+ */
+export const HOOK_VISE_UPITA = "useQueries";
 
 /** Metode klijenta (`ConvexHttpClient`) koje primaju referencu funkcije. */
 export const METODE_KLIJENTA: readonly string[] = ["query", "mutation", "action"];
@@ -87,7 +100,30 @@ export function nadjiDirektnePozive(fajl: IzvorniFajl): DirektanPoziv[] {
     putanja.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
   const nadjeni: DirektanPoziv[] = [];
+  const linija = (cvor: ts.Node) =>
+    izvor.getLineAndCharacterOfPosition(cvor.getStart(izvor)).line + 1;
   const obidji = (cvor: ts.Node): void => {
+    if (
+      ts.isCallExpression(cvor) &&
+      cvor.arguments.length > 0 &&
+      ts.isIdentifier(cvor.expression) &&
+      cvor.expression.text === HOOK_VISE_UPITA
+    ) {
+      const uObjektu = (deo: ts.Node): void => {
+        if (
+          ts.isPropertyAssignment(deo) &&
+          (ts.isIdentifier(deo.name) || ts.isStringLiteral(deo.name)) &&
+          deo.name.text === "query"
+        ) {
+          const lanac = lanacApi(deo.initializer);
+          if (lanac !== null) {
+            nadjeni.push({ putanja, linija: linija(deo), nacin: HOOK_VISE_UPITA, funkcija: lanac.join(".") });
+          }
+        }
+        ts.forEachChild(deo, uObjektu);
+      };
+      uObjektu(cvor.arguments[0]);
+    }
     if (ts.isCallExpression(cvor) && cvor.arguments.length > 0) {
       const nacin = nacinPoziva(cvor);
       const lanac = nacin === null ? null : lanacApi(cvor.arguments[0]);

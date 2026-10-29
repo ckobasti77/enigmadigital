@@ -62,6 +62,35 @@ const d = useQuery(api.lib.modul.fn, "skip");`,
     ]);
   });
 
+  test("tolerantne kuke nivoa Ja i useQueries se proveravaju kao direktan poziv (S08, D15)", () => {
+    const pozivi = nadjiDirektnePozive(
+      fajl(
+        "components/app/prostor/ja/x.tsx",
+        `const a = useQueryTolerant(api.prostor.inbox.feed, { limit: 5 });
+const b = useQueryResult(api.prostor.chat.unreadSummary, {});
+const c = useQueryState(api.prostor.myDay.overview, "skip");
+const d = useQueries({
+  prva: { query: api.prostor.pages.listChildren, args: {} },
+  druga: { "query": (api.prostor.pages.childCounts as any), args: {} },
+});
+const e = useQueries(zahtevi);
+const f = useProjekatQueryTolerant(api.prostor.pages.get, { pageId });`,
+      ),
+    );
+    expect(pozivi.map((p) => [p.nacin, p.funkcija, p.linija])).toEqual([
+      ["useQueryTolerant", "prostor.inbox.feed", 1],
+      ["useQueryResult", "prostor.chat.unreadSummary", 2],
+      ["useQueryState", "prostor.myDay.overview", 3],
+      ["useQueries", "prostor.pages.listChildren", 5],
+      ["useQueries", "prostor.pages.childCounts", 6],
+    ]);
+    const r = proveriFront(
+      [fajl("components/app/prostor/ja/x.tsx", "const a = useQueryTolerant(api.prostor.pages.get, {});")],
+      DOZVOLJENI,
+    );
+    expect(r.pali.map((p) => p.funkcija)).toEqual(["prostor.pages.get"]);
+  });
+
   test("serverska ruta: client.query/mutation/action(api.…) se proverava", () => {
     const r = proveriFront(
       [
