@@ -73,7 +73,9 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
 
   // Rutiranje projekata (samo prijavljeni ili /login): kanonske adrese panela,
   // stare adrese ekrana u hubu, rewrite panela na `/<slug>/…`. Odluka je čista
-  // funkcija u `lib/rutiranje.ts`; ovde se samo primenjuje.
+  // funkcija u `lib/rutiranje.ts`; ovde se samo primenjuje. Putanje ličnog
+  // nivoa „Ja“ (`/`, `/moji-zadaci`, `/poruke`, …) u hubu prolaze, a u panelu
+  // idu pod projekat domena kao i sve ostalo (SPAJANJE, plan S07 D3–D4).
   const odluka = odluciRutu({
     pathname: request.nextUrl.pathname,
     search: request.nextUrl.search,

@@ -109,8 +109,18 @@ function profil(
   };
 }
 
-/** Profil prijavljenog korisnika (`userId` je isti kao u ostatku prikaza). */
-export const PROFIL_JA: Profil = profil(1, USER, "Test Korisnik", "test.korisnik@primer.test", null);
+/**
+ * Profil prijavljenog korisnika (`userId` je isti kao u ostatku prikaza). Ima
+ * sliku (S09): traka, meni korisnika i dijalog profila se vide sa avatarom, a
+ * zamena inicijalima na profilima bez slike ispod.
+ */
+export const PROFIL_JA: Profil = profil(
+  1,
+  USER,
+  "Test Korisnik",
+  "test.korisnik@primer.test",
+  avatarSlika("T", "#155e75"),
+);
 
 /**
  * Šestoro lažnih članova tima; prvi je `PROFIL_JA`, pa je ovo i spisak članova

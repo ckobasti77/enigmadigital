@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useQuery } from "convex/react";
-import { LogOut, Settings, Trophy } from "lucide-react";
+import { LogOut, Settings, Trophy, UserRound } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,11 +14,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { NAPREDAK_HREF, screenExists, settingsNavItem } from "./nav-items";
+import { useOpseg } from "./opseg-ljuske";
+import { useJaNalog } from "./podaci-ljuske";
+import { ProfilDijalog } from "./prostor/profil/profil-dijalog";
 import { SyncStatusLine } from "./sync-status";
-import { PlayerAvatar, initialsOf } from "./system/player-card";
 import { ProjekatLink } from "./projekat-link";
 import { useProjekatOpciono } from "./projekat-provider";
 
@@ -31,21 +33,37 @@ import { useProjekatOpciono } from "./projekat-provider";
  *
  * „Napredak" se crta tek kada njegov ekran postoji u registru navigacije
  * (`screenExists`): meni ne nudi vezu koja vodi na praznu stranu.
+ *
+ * SPAJANJE (P14, plan S07 D11): na širem ekranu meni stoji na dnu trake
+ * projekata (`variant="traka"`), a u zaglavlju samo ispod `md`, gde trake
+ * nema. „Profil“ otvara ime i sliku koje tim vidi (P6); posmatrač profil
+ * radnog dela nema (O5), pa ni stavku.
  */
 
 /** Istaknuta stavka: popover i `accent` su ista površina, pa je nosi tinta. */
 const ITEM =
   "h-8 cursor-pointer gap-2.5 px-2 text-ui text-text-secondary data-highlighted:bg-foreground/8 data-highlighted:text-foreground [&_svg]:text-text-muted data-highlighted:[&_svg]:text-foreground";
 
-export function UserMenu({ className }: { className?: string }) {
-  // Nalog ne zavisi od projekta (`projekti.ja` radi i u hubu); ime projekta,
-  // svežinu i veze ekrana daje provider kad ga ima. Na hubu „Svi projekti“
-  // projekta nema, pa meni nosi samo nalog i odjavu.
-  const ja = useQuery(api.projekti.ja);
-  const projekat = useProjekatOpciono();
+export function UserMenu({
+  className,
+  variant = "zaglavlje",
+}: {
+  className?: string;
+  /** `traka`: dno trake projekata (od `md`); `zaglavlje`: gornja traka. */
+  variant?: "zaglavlje" | "traka";
+}) {
+  // Nalog ne zavisi od projekta (`projekti.ja` radi i u „Ja“); ime projekta,
+  // svežinu i veze ekrana daje provider kad ga ima. U „Ja“ projekta nema, pa
+  // meni nosi nalog, profil i odjavu.
+  const ja = useJaNalog();
+  const opseg = useOpseg();
+  const uProjektu = useProjekatOpciono();
+  const projekat = opseg === "projekat" ? uProjektu : null;
   const imeProjekta = projekat?.ime ?? null;
   const { signOut } = useAuthActions();
   const router = useRouter();
+  const [profil, setProfil] = useState(false);
+  const traka = variant === "traka";
 
   async function handleSignOut() {
     await signOut();
@@ -55,28 +73,40 @@ export function UserMenu({ className }: { className?: string }) {
 
   if (ja === undefined) {
     return (
-      <Skeleton className={cn("size-11 rounded-full md:size-8", className)} />
+      <Skeleton
+        className={cn(
+          "rounded-full",
+          traka ? "size-9" : "size-11 md:size-8",
+          className,
+        )}
+      />
     );
   }
 
-  const name = ja.ime ?? ja.email ?? "Nalog";
-  const initials = initialsOf(ja.ime ?? ja.email ?? imeProjekta);
+  const name = ja.ime;
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={`Meni korisnika: ${name}`}
         title="Meni korisnika"
         className={cn(
-          // 44 px pod prstom, 32 px pod mišem — monogram je isti.
-          "flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-surface-raised aria-expanded:bg-surface-raised md:size-8",
+          // 44 px pod prstom, 32 px pod mišem — monogram je isti. U traci je
+          // meta 44 px u oba slučaja, kao i pločice iznad nje.
+          "flex shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-surface-raised aria-expanded:bg-surface-raised",
+          traka ? "size-11" : "size-11 md:size-8",
           className,
         )}
       >
-        <PlayerAvatar initials={initials} size="sm" />
+        <Avatar size={traka ? "lg" : "sm"} className={traka ? "size-9" : "size-7"}>
+          {ja.avatarUrl && <AvatarImage src={ja.avatarUrl} alt="" />}
+          <AvatarFallback>{ja.inicijali}</AvatarFallback>
+        </Avatar>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
+        side={traka ? "right" : "bottom"}
         align="end"
         sideOffset={8}
         // 150 ms umesto zatečenih 100: meni je panel, ne oblačić.
@@ -84,7 +114,7 @@ export function UserMenu({ className }: { className?: string }) {
       >
         <div className="px-2 pb-2 pt-1.5">
           <p className="truncate text-ui font-medium text-foreground">{name}</p>
-          {ja.ime && ja.email && (
+          {ja.email && ja.email !== name && (
             <p className="truncate text-meta text-text-muted">{ja.email}</p>
           )}
           {imeProjekta && (
@@ -96,6 +126,13 @@ export function UserMenu({ className }: { className?: string }) {
         </div>
 
         <DropdownMenuSeparator />
+
+        {ja.imaProfil && (
+          <DropdownMenuItem onClick={() => setProfil(true)} className={ITEM}>
+            <UserRound />
+            Profil
+          </DropdownMenuItem>
+        )}
 
         {projekat && (
           <>
@@ -130,5 +167,7 @@ export function UserMenu({ className }: { className?: string }) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <ProfilDijalog open={profil} onOpenChange={setProfil} />
+    </>
   );
 }

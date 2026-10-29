@@ -278,6 +278,10 @@
      stoji na istom mestu u oba oblika (19 px od ivice), pa se pri skupljanju
      ne pomera — nestaju samo natpisi. */
   --sidebar-rail: 4rem;
+  /* Traka projekata levo od bočnog menija (SPAJANJE P14): „Ja“, projekti,
+     „+“, „Svi projekti“ i profil. Pločica od 44 px i 14 px vazduha sa strane.
+     Panel domen je nema (`[data-traka="ne"]`, ispod). */
+  --traka-width: 4.5rem;
   /* 56 px: na ekranu visokom 695 px svaki red hroma se oduzima od sadržaja. */
   --chrome-height: 3.5rem;
   /* Jedna debljina linije za sve ikonice (UI Boost §4.5). */
@@ -449,6 +453,12 @@
    se sesija proverava vidi pre nego što se bočna traka uopšte montira. */
 [data-sidebar="rail"] {
   --sidebar-width: var(--sidebar-rail);
+}
+
+/* Panel domen nema traku projekata: atribut postavlja layout `(app)` iz
+   režima koji daje proxy, pa je širina tačna od prvog kadra. */
+[data-traka="ne"] {
+  --traka-width: 0rem;
 }
 
 /* Kategorija → boja (UI Boost §3.6). Isti mehanizam kao moduli: čip signala i

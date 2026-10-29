@@ -13,12 +13,21 @@ import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { Search } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DUR_REDUCED, DUR_UI, EASE_UI, MOTION_QUERIES } from "@/lib/motion";
 import { stilProjekta } from "@/lib/boja-projekta";
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "./app-sidebar";
-import { MobileNav } from "./mobile-nav";
+import { JaLink } from "./ja-link";
+import { MeniJa } from "./meni-ja";
+import { MobileNav, VISE_EVENT } from "./mobile-nav";
+import { OpsegProvider } from "./opseg-ljuske";
+import { useJaNalog } from "./podaci-ljuske";
+import { PripremaRadnogDela } from "./prostor/priprema-radnog-dela";
+import { VezaTraka } from "./prostor/zajednicko/veza-traka";
+import { ProjekatZnak } from "./projekat-znak";
+import { TrakaProjekata } from "./traka-projekata";
 import { CommandPalette } from "./command-palette";
 import { PageTransition } from "./page-transition";
 import { SectionNav } from "./section-nav";
@@ -36,8 +45,8 @@ import {
   useEkranPutanja,
   useModulUkljucen,
   useProjekat,
+  useProjekatOpciono,
 } from "./projekat-provider";
-import { ProjekatBiracMobilni } from "./projekat-birac";
 import {
   COMMAND_EVENT,
   RAIL_EVENT,
@@ -45,6 +54,7 @@ import {
   resolveModule,
   resolveScreen,
   type ModuleKey,
+  type Opseg,
 } from "./nav-items";
 
 gsap.registerPlugin(useGSAP);
@@ -55,9 +65,18 @@ gsap.registerPlugin(useGSAP);
  */
 const RAIL_KEY = "enigma:nav:rail";
 
+/**
+ * Bez sačuvanog izbora meni je u šini na `md`–`lg` (SPAJANJE, plan S07 D12):
+ * pored trake projekata od 72 px puna širina menija bi sadržaju ostavila
+ * premalo mesta.
+ */
+const USKO = "(max-width: 1023px)";
+
 export function readRail(): boolean {
   try {
-    return window.localStorage.getItem(RAIL_KEY) === "1";
+    const sacuvano = window.localStorage.getItem(RAIL_KEY);
+    if (sacuvano !== null) return sacuvano === "1";
+    return window.matchMedia(USKO).matches;
   } catch {
     return false;
   }
@@ -76,15 +95,29 @@ function writeRail(rail: boolean) {
 }
 
 /**
- * Ljuska ekrana projekta. Prijavu proverava `AuthGate` iznad nje (layout
- * `app/(app)`), pa se ljuska montira tek uz potvrđenu sesiju.
+ * Ljuska ekrana. Prijavu proverava `AuthGate` iznad nje (layout `app/(app)`),
+ * pa se ljuska montira tek uz potvrđenu sesiju.
+ *
+ * Dva opsega (SPAJANJE P14, plan S07 §2.4): `projekat` (ispod
+ * `ProjekatProvider`-a, layout `[projekat]`) i `ja` (lični nivo bez projekta,
+ * layout `(ja)`). U oba su traka projekata levo (u hubu), meni pored nje
+ * (meni „Ja“ ili meni projekta), gornja traka, donja traka na telefonu, ⌘K i
+ * Napredak. Samo projekat ima čuvar modula, traku u boji projekta i pripremu
+ * radnog dela.
  */
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  opseg = "projekat",
+  children,
+}: {
+  opseg?: Opseg;
+  children: React.ReactNode;
+}) {
   const ekran = useEkranPutanja();
   // Boja mesta (UI Boost §3.4). Na koloni sadržaja atribut je u stablu, pa je
   // tačan od prvog kadra; na `<html>` ga upisuje efekat, da ga naslede i
-  // portali (dijalog, popover, meni), koji se crtaju van te kolone.
-  const modul = resolveModule(ekran);
+  // portali (dijalog, popover, meni), koji se crtaju van te kolone. „Ja“ nosi
+  // boju Kontrolne table (D5).
+  const modul = opseg === "ja" ? "tabla" : resolveModule(ekran);
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.module = modul;
@@ -93,7 +126,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [modul]);
 
-  return <ShellFrame modul={modul}>{children}</ShellFrame>;
+  return (
+    <OpsegProvider opseg={opseg}>
+      <ShellFrame modul={modul} opseg={opseg}>
+        {children}
+      </ShellFrame>
+    </OpsegProvider>
+  );
 }
 
 /**
@@ -106,11 +145,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
  */
 function ShellFrame({
   modul,
+  opseg,
   children,
 }: {
   modul: ModuleKey;
+  opseg: Opseg;
   children: React.ReactNode;
 }) {
+  // Panel domen (zaključan na jedan projekat) nema traku projekata (D4); njenu
+  // širinu gasi `data-traka="ne"` iz layout-a `(app)`.
+  const panel = useProjekatOpciono()?.rezim === "panel";
   const [rail, setRail] = useState(readRail);
   const sidebarRef = useRef<HTMLElement>(null);
   const columnRef = useRef<HTMLDivElement>(null);
@@ -221,22 +265,33 @@ function ShellFrame({
       >
         Preskoči na sadržaj
       </a>
-      <AppSidebar ref={sidebarRef} rail={rail} onToggleRail={toggleRail} />
-      <TrakaProjekta />
+      {!panel && <TrakaProjekata />}
+      {opseg === "ja" ? (
+        <MeniJa ref={sidebarRef} rail={rail} onToggleRail={toggleRail} />
+      ) : (
+        <AppSidebar ref={sidebarRef} rail={rail} onToggleRail={toggleRail} />
+      )}
+      {opseg === "projekat" && <TrakaProjekta />}
+      {opseg === "projekat" && <PripremaRadnogDela />}
+      <VezaTraka />
       <div
         ref={columnRef}
         data-module={modul}
-        className="aurora-top flex min-w-0 min-h-full flex-1 flex-col md:pl-[var(--sidebar-width)]"
+        className="aurora-top flex min-w-0 min-h-full flex-1 flex-col md:pl-[calc(var(--traka-width)_+_var(--sidebar-width))]"
       >
-        <Header rail={rail} />
+        <Header rail={rail} opseg={opseg} panel={panel} />
         <main
           id="sadrzaj"
           tabIndex={-1}
           className="mx-auto flex w-full max-w-[var(--content-max)] flex-1 flex-col px-[var(--gutter)] py-8 pb-24 outline-none md:pb-8"
         >
-          <ModulCuvar modul={modul}>
+          {opseg === "projekat" ? (
+            <ModulCuvar modul={modul}>
+              <PageTransition>{children}</PageTransition>
+            </ModulCuvar>
+          ) : (
             <PageTransition>{children}</PageTransition>
-          </ModulCuvar>
+          )}
         </main>
       </div>
       <MobileNav />
@@ -304,19 +359,28 @@ function TrakaProjekta() {
  */
 const ROW = "mx-auto w-full max-w-[var(--content-max)] px-[var(--gutter)]";
 
-function Header({ rail }: { rail: boolean }) {
+function Header({
+  rail,
+  opseg,
+  panel,
+}: {
+  rail: boolean;
+  opseg: Opseg;
+  panel: boolean;
+}) {
   const ekran = useEkranPutanja();
-  const screen = resolveScreen(ekran);
-  const allTabs = channelTabsFor(ekran);
+  const screen = resolveScreen(ekran, opseg);
+  const allTabs = opseg === "projekat" ? channelTabsFor(ekran) : undefined;
   // Jedan jedini podekran nije izbor, pa mu ne treba traka.
   const tabs = allTabs && allTabs.length > 1 ? allTabs : undefined;
 
   return (
     <header className="material edge-fade-b sticky top-0 z-30 flex shrink-0 flex-col">
       <div className={cn(ROW, "flex h-[var(--chrome-height)] items-center gap-3")}>
-        {/* Na telefonu nema bočne trake, pa birač projekta stoji ovde. */}
-        <ProjekatBiracMobilni className="md:hidden" />
-        <Breadcrumb screen={screen} />
+        {/* Na telefonu nema trake ni menija: znak opsega (projekat ili ja)
+            otvara list „Više“ sa projektima (P15). */}
+        <ZnakOpsega opseg={opseg} panel={panel} className="md:hidden" />
+        <Breadcrumb screen={screen} opseg={opseg} />
 
         <div className="flex shrink-0 items-center gap-2">
           {screen?.range && (
@@ -334,11 +398,14 @@ function Header({ rail }: { rail: boolean }) {
             </Suspense>
           )}
           <CommandTrigger />
-          {/* Zvono stoji na SVAKOM ekranu: ovde na širem, a na telefonu kao
-              ćelija „Danas" u donjoj traci, pod palcem. */}
-          <NotificationsBell className="hidden md:inline-flex" />
-          <SyncStatus className="hidden sm:inline-flex" />
-          <UserMenu />
+          {/* Zvono „Čeka te“ stoji na SVAKOM ekranu. U hubu je u zaglavlju i
+              na telefonu (P15); u panelu je na telefonu ćelija donje trake,
+              pod palcem, kao pre spajanja (D4). */}
+          <NotificationsBell className={panel ? "hidden md:inline-flex" : undefined} />
+          {opseg === "projekat" && <SyncStatus className="hidden sm:inline-flex" />}
+          {/* Meni korisnika je na dnu trake projekata; ovde samo gde trake
+              nema: na telefonu i u panelu (D11). */}
+          <UserMenu className={panel ? undefined : "md:hidden"} />
         </div>
       </div>
 
@@ -360,7 +427,15 @@ function Header({ rail }: { rail: boolean }) {
  * Mrvica: tačka u boji modula, modul, pa podekran. Uvek tim redom — na
  * ekranu koji je sam stavka navigacije stoji samo modul.
  */
-function Breadcrumb({ screen }: { screen: ReturnType<typeof resolveScreen> }) {
+function Breadcrumb({
+  screen,
+  opseg,
+}: {
+  screen: ReturnType<typeof resolveScreen>;
+  opseg: Opseg;
+}) {
+  // „Ja“ nema prefiks projekta, pa roditelj ide kroz `JaLink`.
+  const Veza = opseg === "ja" ? JaLink : ProjekatLink;
   return (
     <nav
       aria-label="Putanja"
@@ -371,12 +446,12 @@ function Breadcrumb({ screen }: { screen: ReturnType<typeof resolveScreen> }) {
         <ol className="flex min-w-0 items-baseline gap-1.5 text-sm">
           {screen.parent && (
             <li className="hidden shrink-0 items-baseline gap-1.5 sm:flex">
-              <ProjekatLink
+              <Veza
                 href={screen.parent.href}
                 className="text-text-muted transition-colors hover:text-foreground"
               >
                 {screen.parent.label}
-              </ProjekatLink>
+              </Veza>
               <span aria-hidden className="text-line-strong">
                 /
               </span>
@@ -395,6 +470,60 @@ function Breadcrumb({ screen }: { screen: ReturnType<typeof resolveScreen> }) {
         </span>
       )}
     </nav>
+  );
+}
+
+/**
+ * Znak opsega u zaglavlju na telefonu (SPAJANJE P15, plan S07 §2.2): znak
+ * tekućeg projekta, a u „Ja“ moj avatar. Dodir otvara list „Više“ na
+ * spisku projekata. U panelu (jedan projekat, bez prelaska) je samo znak.
+ */
+function ZnakOpsega({
+  opseg,
+  panel,
+  className,
+}: {
+  opseg: Opseg;
+  panel: boolean;
+  className?: string;
+}) {
+  const projekat = useProjekatOpciono();
+  const nalog = useJaNalog();
+  const znak =
+    opseg === "projekat" ? (
+      projekat?.spreman && projekat.ime !== null ? (
+        <ProjekatZnak
+          projekat={{ ime: projekat.ime, boja: projekat.brend.boja, logoUrl: projekat.brend.logoUrl }}
+          velicina="md"
+          oznaka={panel}
+        />
+      ) : (
+        <Skeleton className="size-7 rounded-md" />
+      )
+    ) : nalog === undefined ? (
+      <Skeleton className="size-7 rounded-full" />
+    ) : (
+      <Avatar size="sm" className="size-7">
+        {nalog.avatarUrl && <AvatarImage src={nalog.avatarUrl} alt="" />}
+        <AvatarFallback>{nalog.inicijali}</AvatarFallback>
+      </Avatar>
+    );
+
+  if (panel) return <span className={cn("flex shrink-0 items-center", className)}>{znak}</span>;
+
+  const ime = opseg === "projekat" ? (projekat?.ime ?? "Projekat") : "Ja";
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new CustomEvent(VISE_EVENT, { detail: "projekti" }))}
+      aria-label={`${ime}: projekti i svi ekrani`}
+      className={cn(
+        "-ml-1.5 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors active:bg-surface-raised",
+        className,
+      )}
+    >
+      {znak}
+    </button>
   );
 }
 

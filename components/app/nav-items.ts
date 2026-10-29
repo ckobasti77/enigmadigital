@@ -1,14 +1,27 @@
 import type { ComponentType } from "react";
 import {
+  Activity,
+  FileText,
   GitMerge,
+  History,
+  Inbox,
   LayoutDashboard,
+  LayoutGrid,
+  Lightbulb,
   LineChart,
+  ListChecks,
+  ListTodo,
   Megaphone,
   MessageCircleReply,
+  MessagesSquare,
   Newspaper,
+  NotebookPen,
   PlaySquare,
+  Plus,
   Settings,
   ShieldAlert,
+  Sun,
+  Trash2,
   Users,
 } from "lucide-react";
 import { FacebookIcon, InstagramIcon, ThreadsIcon } from "./brand-glyphs";
@@ -62,25 +75,43 @@ export type NavSection = {
 };
 
 /**
+ * Radni deo projekta (SPAJANJE P14): uvek uključen, pa nema svoj modul nego
+ * nosi boju mesta Kontrolne table (plan S07 D5). Početna je do koraka koji
+ * pravi jednu početnu projekta (O10) Enigmina kontrolna tabla, pa radi nad
+ * periodom. Puls tima i Aktivnost su podstavke Početne (`navChildrenFor`),
+ * a Korpa je u podnožju menija (D6, D8).
+ */
+export const radSekcija: NavSection = {
+  title: "Rad",
+  items: [
+    { label: "Početna", href: "/", module: "tabla", icon: LayoutDashboard, range: true },
+    { label: "Zadaci", href: "/zadaci", module: "tabla", icon: ListTodo, range: false },
+    { label: "Ideje", href: "/ideje", module: "tabla", icon: Lightbulb, range: false },
+    { label: "Poruke", href: "/poruke", module: "tabla", icon: MessagesSquare, range: false },
+    { label: "Dokumenti", href: "/dokumenti", module: "tabla", icon: FileText, range: false },
+    { label: "Beleške", href: "/beleske", module: "tabla", icon: NotebookPen, range: false },
+  ],
+};
+
+/**
  * Jedini izvor istine za bočnu traku, donju traku i mrvicu u gornjoj traci.
  *
- * Grupe prate posao, ne tehnologiju (UI Boost §7.1): Leadovi su svakodnevni
- * rad, pa stoje uz Kontrolnu tablu; Novosti su CMS, ne kanal. Redosled unutar
- * grupa drži susedne boje modula različitim (§3.3).
+ * Grupe prate posao, ne tehnologiju (UI Boost §7.1, SPAJANJE P14): prvo Rad
+ * (radni deo projekta), pa Prodaja, Sadržaj, Kanali, Analitika i
+ * Automatizacija. Novosti su CMS, ne kanal. Redosled unutar grupa drži
+ * susedne boje modula različitim (§3.3).
  */
 export const navSections: NavSection[] = [
+  radSekcija,
   {
-    title: "Radni sto",
+    title: "Prodaja",
     items: [
-      {
-        label: "Kontrolna tabla",
-        short: "Tabla",
-        href: "/",
-        module: "tabla",
-        icon: LayoutDashboard,
-        range: true,
-      },
       { label: "Leadovi", href: "/leadovi", module: "leadovi", icon: Users, range: false },
+    ],
+  },
+  {
+    title: "Sadržaj",
+    items: [
       { label: "Novosti", href: "/novosti", module: "novosti", icon: Newspaper, range: false },
     ],
   },
@@ -136,9 +167,55 @@ export const navItems: NavItem[] = [
 ];
 
 /**
- * Donja traka na telefonu: tri stavke + „Danas" (zvono) + „Više" (§7.3). Sve
- * ostalo je u listu „Više", pa nijedan izlaz ne nestaje, a traka nikad ne
- * kliza vodoravno.
+ * Korpa projekta (SPAJANJE P14): u podnožju menija, uz Napredak i
+ * Podešavanja (plan S07 D8). Radni deo, pa boja Kontrolne table.
+ */
+export const korpaNavItem: NavItem = {
+  label: "Korpa",
+  href: "/korpa",
+  module: "tabla",
+  icon: Trash2,
+  range: false,
+};
+
+/**
+ * Lični nivo „Ja“ (SPAJANJE P13–P14): ekrani bez projekta, kroz sve moje
+ * projekte. Linkovi idu kroz `JaLink` (bez prefiksa projekta). Boja mesta je
+ * Kontrolna tabla (D5).
+ */
+export const jaNavItems: NavItem[] = [
+  { label: "Danas", href: "/", module: "tabla", icon: Sun, range: false },
+  { label: "Moji zadaci", href: "/moji-zadaci", module: "tabla", icon: ListChecks, range: false },
+  { label: "Inbox", href: "/inbox", module: "tabla", icon: Inbox, range: false },
+  { label: "Poruke", href: "/poruke", module: "tabla", icon: MessagesSquare, range: false },
+  { label: "Beleške", href: "/beleske", module: "tabla", icon: NotebookPen, range: false },
+];
+
+/** Hub „Svi projekti“ (`/projekti`) i čarobnjak novog projekta, u ljusci „Ja“. */
+export const SVI_PROJEKTI_HREF = "/projekti";
+export const sviProjektiNavItem: NavItem = {
+  label: "Svi projekti",
+  href: SVI_PROJEKTI_HREF,
+  module: "tabla",
+  icon: LayoutGrid,
+  range: false,
+};
+export const noviProjekatNavItem: NavItem = {
+  label: "Novi projekat",
+  href: "/novi",
+  module: "tabla",
+  icon: Plus,
+  range: false,
+};
+
+/** Opseg ljuske (SPAJANJE P14): lični nivo „Ja“ ili projekat. */
+export type Opseg = "ja" | "projekat";
+
+/**
+ * Donja traka na telefonu: tri stavke + „Čeka te" (zvono) + „Više" (§7.3).
+ * Sve ostalo je u listu „Više", pa nijedan izlaz ne nestaje, a traka nikad ne
+ * kliza vodoravno. Ovo je traka PANELA (domen zaključan na jedan projekat,
+ * plan S07 D4); u hubu je `donjaTrakaHub`.
  */
 const MOBILE_BAR_HREFS = ["/", "/leadovi", "/instagram"];
 const MOBILE_BAR_CELLS = MOBILE_BAR_HREFS.length;
@@ -149,16 +226,30 @@ export const mobileBarItems: NavItem[] = navItems.filter((item) =>
 
 /**
  * Grupe bočne trake samo sa uključenim modulima (PROJEKTI-PLAN §8, „Moduli“);
- * grupa bez ijedne stavke nestaje cela.
+ * grupa bez ijedne stavke nestaje cela. Radni deo je uvek uključen, osim za
+ * posmatrača (`client_viewer`, O5): njemu od grupe Rad ostaje samo Početna
+ * (plan S07 D7), jer backend radni deo ionako odbija.
  */
-export function vidljiveSekcije(ukljucen: Ukljucen): NavSection[] {
+export function vidljiveSekcije(
+  ukljucen: Ukljucen,
+  { radniDeo = true }: { radniDeo?: boolean } = {},
+): NavSection[] {
   return navSections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => ukljucen(item.module)),
+      items: section.items.filter(
+        (item) =>
+          ukljucen(item.module) &&
+          (radniDeo || section !== radSekcija || item.href === "/"),
+      ),
     }))
     .filter((section) => section.items.length > 0);
 }
+
+/** Enigmini moduli (sve osim radnog dela) — dopuna donje trake panela. */
+const ENIGMA_STAVKE: NavItem[] = navSections
+  .filter((section) => section !== radSekcija)
+  .flatMap((section) => section.items);
 
 /**
  * Tri ćelije donje trake u projektu: podrazumevane stavke koje su uključene,
@@ -167,13 +258,63 @@ export function vidljiveSekcije(ukljucen: Ukljucen): NavSection[] {
  */
 export function donjaTraka(ukljucen: Ukljucen): NavItem[] {
   const prve = mobileBarItems.filter((item) => ukljucen(item.module));
-  const dopuna = navItems.filter(
-    (item) =>
-      item !== settingsNavItem &&
-      !prve.includes(item) &&
-      ukljucen(item.module),
+  // Dopunjuju samo Enigmini moduli, kao pre spajanja (panel se ne menja, D4).
+  const dopuna = ENIGMA_STAVKE.filter(
+    (item) => !prve.includes(item) && ukljucen(item.module),
   );
   return [...prve, ...dopuna].slice(0, MOBILE_BAR_CELLS);
+}
+
+/** Ćelija donje trake u hubu (P15). `href: null` je „Više“ (otvara list). */
+export type CelijaDonjeTrake = {
+  kljuc: "danas" | "projekat" | "zadaci" | "poruke" | "vise";
+  label: string;
+  /** Puna adresa (nikad kroz prefiks tekućeg projekta); `null` za „Više“. */
+  href: string | null;
+  icon: NavIcon;
+  /** Projekat ćelije „Projekat“ (znak umesto ikonice); `null` = bez projekta. */
+  slug?: string | null;
+};
+
+/**
+ * Donja traka na telefonu u hubu (SPAJANJE P15, plan S07 D9): Danas ·
+ * Projekat · Zadaci · Poruke · Više. „Projekat“ je tekući projekat, u „Ja“
+ * poslednji iz kolačića, a bez ijednog `/projekti`. Zadaci i Poruke prate
+ * opseg: u „Ja“ vode na moje zadatke i moje poruke, a u projektu na zadatke i
+ * poruke tog projekta. Panel ostaje na `donjaTraka` (D4).
+ */
+export function donjaTrakaHub({
+  opseg,
+  slugTekuci,
+  slugPoslednji,
+}: {
+  opseg: Opseg;
+  /** Slug projekta u kome je ekran (opseg „projekat“). */
+  slugTekuci: string | null;
+  /** Poslednji projekat (kolačić), za opseg „Ja“. */
+  slugPoslednji: string | null;
+}): CelijaDonjeTrake[] {
+  const uProjektu = opseg === "projekat" && slugTekuci !== null;
+  const projekat = opseg === "projekat" ? slugTekuci : slugPoslednji;
+  return [
+    { kljuc: "danas", label: "Danas", href: "/", icon: Sun },
+    projekat
+      ? { kljuc: "projekat", label: "Projekat", href: `/${projekat}`, icon: LayoutGrid, slug: projekat }
+      : { kljuc: "projekat", label: "Projekti", href: SVI_PROJEKTI_HREF, icon: LayoutGrid, slug: null },
+    {
+      kljuc: "zadaci",
+      label: "Zadaci",
+      href: uProjektu ? `/${slugTekuci}/zadaci` : "/moji-zadaci",
+      icon: ListTodo,
+    },
+    {
+      kljuc: "poruke",
+      label: "Poruke",
+      href: uProjektu ? `/${slugTekuci}/poruke` : "/poruke",
+      icon: MessagesSquare,
+    },
+    { kljuc: "vise", label: "Više", href: null, icon: LayoutGrid },
+  ];
 }
 
 /**
@@ -195,10 +336,22 @@ export type Screen = {
   parent?: { href: string; label: string };
 };
 
-/** Podekran: modul mu određuje i boju, i grupu, i prvi deo mrvice. */
-type ExtraScreen = Pick<Screen, "href" | "title" | "range" | "module">;
+/**
+ * Podekran: modul mu određuje i boju, i grupu, i prvi deo mrvice.
+ * `roditelj` menja prvi deo mrvice kad to nije prva stavka modula (stranica
+ * je pod Dokumentima); `null` znači ekran bez roditelja (Korpa).
+ */
+type ExtraScreen = Pick<Screen, "href" | "title" | "range" | "module"> & {
+  roditelj?: string | null;
+};
 
 const EXTRA_SCREENS: ExtraScreen[] = [
+  // Radni deo (SPAJANJE P14): Puls tima i Aktivnost su podstavke Početne,
+  // stranica (dokument ili zadatak) je pod Dokumentima, Korpa je u podnožju.
+  { href: "/puls", module: "tabla", title: "Puls tima", range: false },
+  { href: "/aktivnost", module: "tabla", title: "Aktivnost", range: false },
+  { href: "/stranica", module: "tabla", title: "Stranica", range: false, roditelj: "/dokumenti" },
+  { href: "/korpa", module: "tabla", title: "Korpa", range: false, roditelj: null },
   // Napredak je lični pregled uz radni sto, pa nosi boju Kontrolne table.
   // Namerno NIJE četrnaesti, zlatni modul: zlatna je u sistemu rezervisana za
   // nagradu (XP, bedž, završena misija) — kao boja mesta bi izgubila to
@@ -340,8 +493,13 @@ const SECTION_OF = new Map<ModuleKey, string>([
 ]);
 
 const ROUTES: Array<{ href: string; item?: NavItem; screen: Screen }> = [
-  ...EXTRA_SCREENS.map((extra) => {
-    const parent = navItems.find((item) => item.module === extra.module);
+  ...EXTRA_SCREENS.map(({ roditelj, ...extra }) => {
+    const parent =
+      roditelj === null
+        ? undefined
+        : roditelj !== undefined
+          ? navItems.find((item) => item.href === roditelj)
+          : navItems.find((item) => item.module === extra.module);
     return {
       href: extra.href,
       screen: {
@@ -391,6 +549,17 @@ export function bestHref(
 /** Kandidati za prvi nivo: samo top-level stavke; podekrani padaju na roditelja. */
 const NAV_HREFS: readonly string[] = navItems.map((i) => i.href);
 
+/**
+ * Ekrani radnog dela bez sopstvene stavke u meniju, a sa stavkom roditelja:
+ * Puls tima i Aktivnost su podstavke Početne, a stranica pripada Dokumentima.
+ * Bez ovoga ne bi bila obeležena nijedna stavka (Početna „/“ hvata samo „/“).
+ */
+const RODITELJ_U_MENIJU: Record<string, string> = {
+  puls: "/",
+  aktivnost: "/",
+  stranica: "/dokumenti",
+};
+
 /** Tačno jedna stavka je aktivna: ona sa najdužim poklapanjem putanje. */
 export function isNavActive(pathname: string, href: string): boolean {
   return activeHref(pathname) === href;
@@ -401,11 +570,53 @@ export function isNavActive(pathname: string, href: string): boolean {
  * registra — indikator se tada ne prikazuje.
  */
 export function activeHref(pathname: string): string | undefined {
-  return bestHref(pathname, NAV_HREFS);
+  return (
+    bestHref(pathname, NAV_HREFS) ??
+    RODITELJ_U_MENIJU[pathname.split("/").filter(Boolean)[0] ?? ""]
+  );
 }
 
-/** Sekcija, naziv ekrana i da li mu treba birač perioda — za gornju traku. */
-export function resolveScreen(pathname: string): Screen | undefined {
+/** Ekrani „Ja“: stavke menija, hub, čarobnjak i razrešavanje linka. */
+const JA_SCREENS: Screen[] = [
+  ...jaNavItems.map((item) => ({
+    href: item.href,
+    section: "Ja",
+    title: item.label,
+    range: item.range,
+    module: item.module,
+  })),
+  { href: SVI_PROJEKTI_HREF, section: "Ja", title: sviProjektiNavItem.label, range: false, module: "tabla" },
+  {
+    href: noviProjekatNavItem.href,
+    section: "Ja",
+    title: noviProjekatNavItem.label,
+    range: false,
+    module: "tabla",
+    parent: { href: SVI_PROJEKTI_HREF, label: sviProjektiNavItem.label },
+  },
+  { href: "/otvori", section: "Ja", title: "Otvaram", range: false, module: "tabla" },
+];
+
+const JA_ROUTES: Screen[] = [...JA_SCREENS].sort((a, b) => b.href.length - a.href.length);
+
+/** Href aktivne stavke menija „Ja“. */
+export function activeJaHref(pathname: string): string | undefined {
+  return bestHref(
+    pathname,
+    jaNavItems.map((i) => i.href),
+  );
+}
+
+/**
+ * Sekcija, naziv ekrana i da li mu treba birač perioda — za gornju traku.
+ * U opsegu „Ja“ (SPAJANJE P13) iste adrese znače druge ekrane (`/` je Danas,
+ * `/poruke` su moje poruke), pa se traže u spisku „Ja“.
+ */
+export function resolveScreen(
+  pathname: string,
+  opseg: Opseg = "projekat",
+): Screen | undefined {
+  if (opseg === "ja") return JA_ROUTES.find((r) => matches(pathname, r.href));
   return ROUTES.find((r) => matches(pathname, r.href))?.screen;
 }
 
@@ -431,7 +642,7 @@ export function screenExists(href: string): boolean {
  * prelasku u drugi projekat taj ID tamo ne postoji, pa se ide na roditelja.
  * Profil firme (`/leadovi/<id>`) već pada na „/leadovi“, jer nema svoj red.
  */
-const EKRANI_SA_ID: ReadonlySet<string> = new Set(["/instagram/objave"]);
+const EKRANI_SA_ID: ReadonlySet<string> = new Set(["/instagram/objave", "/stranica"]);
 
 /**
  * Ekran za prelazak u drugi projekat (`putanjaZaPrelazak` u `lib/rutiranje`):
@@ -572,5 +783,43 @@ export function activeChannelTab(
 export function navChildrenFor(
   href: string,
 ): readonly ChannelTab[] | undefined {
-  return channelTabs[href];
+  return PODSTAVKE_MENIJA[href] ?? channelTabs[href];
+}
+
+/**
+ * Podstavke stavke menija koje nisu podekrani kanala (nema ih u traci sa
+ * jezičcima): Puls tima i Aktivnost pod Početnom (SPAJANJE, plan S07 D6).
+ */
+const PODSTAVKE_MENIJA: Record<string, readonly ChannelTab[]> = {
+  "/": [
+    { href: "/", label: "Pregled" },
+    { href: "/puls", label: "Puls tima" },
+    { href: "/aktivnost", label: "Aktivnost" },
+  ],
+};
+
+/** Ekrani radnog dela bez stavke u meniju, za ⌘K i list „Više“ na telefonu. */
+export const podekraniRadnogDela: NavItem[] = [
+  { label: "Puls tima", href: "/puls", module: "tabla", icon: Activity, range: false },
+  { label: "Aktivnost", href: "/aktivnost", module: "tabla", icon: History, range: false },
+];
+
+/**
+ * Stavka čija ikonica stoji u zaglavlju strane. Enigmini moduli zadržavaju
+ * stavku (ikonicu) modula; ekrani radnog dela i „Ja“ (SPAJANJE) nose svoju
+ * stavku, jer svi dele modul Kontrolne table.
+ */
+export function stavkaEkrana(pathname: string, opseg: Opseg = "projekat"): NavItem | undefined {
+  if (opseg === "ja") {
+    const href = resolveScreen(pathname, "ja")?.href;
+    return [...jaNavItems, sviProjektiNavItem, noviProjekatNavItem].find((i) => i.href === href);
+  }
+  const modul = resolveModule(pathname);
+  if (modul !== "tabla") return moduleNavItem(modul);
+  const href = resolveScreen(pathname)?.href;
+  return (
+    [...navItems, korpaNavItem, ...podekraniRadnogDela].find((i) => i.href === href) ??
+    radSekcija.items.find((i) => i.href === activeHref(pathname) && i.href !== "/") ??
+    moduleNavItem(modul)
+  );
 }

@@ -136,6 +136,48 @@ export function ProjekatProvider({
   );
 }
 
+/**
+ * Projekat STAVKE na ekranu „Ja“ (SPAJANJE, plan S07 D14): panel zadatka u
+ * Mojim zadacima ili na Danas radi nad stavkom iz drugog projekta, pa ispod
+ * ovog provider-a obični `useProjekat*` hookovi šalju `workspaceId` te stavke.
+ * Slug, ime i ulogu daje `mojiProjekti` (isti upit kao traka, jedna
+ * pretplata); projekat van mog spiska ostaje nespreman, pa upiti čekaju, a
+ * članstvo i dalje proverava omotač na serveru.
+ */
+export function ProjekatStavkeProvider({
+  workspaceId,
+  children,
+}: {
+  workspaceId: Id<"workspaces">;
+  children: ReactNode;
+}) {
+  const { isAuthenticated } = useConvexAuth();
+  const projekti = useQuery(api.projekti.mojiProjekti, isAuthenticated ? {} : "skip");
+  const p = projekti?.find((x) => x.workspaceId === workspaceId) ?? null;
+
+  const vrednost = useMemo<ProjekatKontekst>(
+    () => ({
+      spreman: p !== null,
+      workspaceId: p?.workspaceId ?? null,
+      slug: p?.slug ?? null,
+      ime: p?.ime ?? null,
+      kratkoIme: p?.kratkoIme ?? null,
+      uloga: p?.uloga ?? null,
+      rezim: "hub",
+      prefiks: p ? prefiksProjekta(p.slug, "hub") : "",
+      brend: { boja: p?.boja ?? null, logoUrl: p?.logoUrl ?? null, faviconUrl: null },
+      moduli: p?.moduli ?? null,
+      vrsta: p?.vrsta ?? null,
+      sajtovi: BEZ_SAJTOVA,
+      korisnik: null,
+      platformaVlasnik: false,
+    }),
+    [p],
+  );
+
+  return <ProjekatContext.Provider value={vrednost}>{children}</ProjekatContext.Provider>;
+}
+
 export function useProjekat(): ProjekatKontekst {
   const kontekst = useContext(ProjekatContext);
   if (kontekst === null) {
@@ -268,7 +310,8 @@ export function useProjekatAction<
  */
 export function useEkranPutanja(): string {
   const pathname = usePathname();
-  const { prefiks } = useProjekat();
+  // Van projekta (lični nivo „Ja“, SPAJANJE) putanja nema prefiks.
+  const prefiks = useContext(ProjekatContext)?.prefiks ?? "";
   return ekranIzPutanje(pathname, prefiks);
 }
 

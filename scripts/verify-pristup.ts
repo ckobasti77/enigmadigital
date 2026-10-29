@@ -70,6 +70,18 @@ const DOZVOLJENI_DIREKTNI: Readonly<Record<string, string>> = {
   "napredak.potvrdi": "lične potvrde viđenih proslava napretka (P12)",
   "napredak.zamrzniDan":
     "lični dan napretka (P12); misije bira iz projekata u kojima je korisnik urednik ili vlasnik",
+  // SPAJANJE S09 (plan S07 §3.2): ljuska u oba opsega i profil radnog dela.
+  "prostor.profiles.ensureCurrent": "lični profil radnog dela (P6): kapija prijave ga pravi lenjo, posle prijave",
+  "prostor.profiles.getCurrent": "lični profil i avatar (P6): traka, meni korisnika i dijalog profila",
+  "prostor.profiles.updateCurrent": "lični profil (P6): ime koje tim vidi, menja ga samo vlasnik profila",
+  "prostor.storage.generateAvatarUploadUrl": "lični avatar (P6): dozvola za otpremanje slike sopstvenog profila",
+  "prostor.storage.setAvatar": "lični avatar (P6): slika sopstvenog profila, uz jednokratnu dozvolu",
+  "prostor.storage.removeAvatar": "lični avatar (P6): uklanja sliku sopstvenog profila",
+  "prostor.inbox.unreadCounts":
+    "bedž „Ja“ u traci: nepročitano iz mojih projekata (lična obaveštenja, opseg mojih projekata)",
+  "prostor.chat.unreadSummary":
+    "bedž „Ja“ u traci i ćelija Poruke: nepročitane poruke iz mojih razgovora",
+  "prostor.myDay.overview": "broj Danas u meniju „Ja“: moj dan kroz sve moje projekte (opseg 50)",
 };
 
 const koren = fileURLToPath(new URL("../", import.meta.url));

@@ -3,8 +3,7 @@
 import type { ReactNode } from "react";
 import { Info } from "lucide-react";
 import {
-  moduleNavItem,
-  resolveModule,
+  stavkaEkrana,
   resolveScreen,
   type NavIcon,
 } from "@/components/app/nav-items";
@@ -14,6 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useOpseg } from "../opseg-ljuske";
 import { useEkranPutanja } from "../projekat-provider";
 import { StanjeVezeRed } from "./stanje-veze";
 
@@ -58,10 +58,12 @@ export function PageHeader({
   info?: ReactNode;
 }) {
   const pathname = useEkranPutanja();
-  const screenTitle = resolveScreen(pathname)?.title;
+  // U opsegu „Ja“ (SPAJANJE) iste adrese znače lične ekrane (`/` je Danas).
+  const opseg = useOpseg();
+  const screenTitle = resolveScreen(pathname, opseg)?.title;
 
   if (variant === "module") {
-    const Icon = icon ?? moduleNavItem(resolveModule(pathname))?.icon;
+    const Icon = icon ?? stavkaEkrana(pathname, opseg)?.icon;
     const heading = title ?? screenTitle;
     return (
       <div
@@ -112,8 +114,9 @@ export function PageHeader({
             {actions}
           </div>
         )}
-        {/* Jedan red stanja veze (P3): samo kad veza ovog ekrana traži pažnju. */}
-        <StanjeVezeRed className="basis-full" />
+        {/* Jedan red stanja veze (P3): samo kad veza ovog ekrana traži pažnju.
+            Veze su projektne, pa ga u „Ja“ nema. */}
+        {opseg === "projekat" && <StanjeVezeRed className="basis-full" />}
       </div>
     );
   }

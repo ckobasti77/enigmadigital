@@ -105,7 +105,7 @@ const NOVOSTI_LOKALNO = {
 };
 
 const EKRANI = [
-  { ime: "kontrolna-tabla", putanja: "/" },
+  { ime: "kontrolna-tabla", putanja: "/enigma-it" },
   { ime: "leadovi", putanja: "/leadovi" },
   // A3: `/leadovi` bez parametra otvara „Danas"; tabela je izričito `?tab=leads`
   // (pre A3 nepoznat jezičak takođe daje tabelu, pa isti URL važi za obe faze).
@@ -183,7 +183,7 @@ const EKRANI = [
   {
     ime: "ljuska-danas",
     putanja: "/leadovi",
-    klik: ['nav.fixed button[aria-label^="Šta me čeka"]'],
+    klik: ['nav.fixed button[aria-label^="Čeka te"]'],
     viewporti: ["390x844"],
     samoB: true,
   },
@@ -232,7 +232,7 @@ const EKRANI = [
     klik: ['[data-ishod="nije_se_javio"]', '[data-ishod="zainteresovan"]'],
     samoB: true,
   },
-  { ime: "kontrolna-tabla-prazno", putanja: "/", prazno: true, samoB: true },
+  { ime: "kontrolna-tabla-prazno", putanja: "/enigma-it", prazno: true, samoB: true },
   // B7: stanja Leadova koja se vide tek posle klika ili sa parametrom — vraćene
   // sakrivene kolone, meni „Još radnji" na profilu, uvoz otvoren na nerazrešenim
   // redovima (kuda vodi misija dana) i panel izabrane firme na mapi.

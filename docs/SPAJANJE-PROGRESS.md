@@ -683,3 +683,78 @@ Ceo `npx vitest run`: 159 fajlova, 2206 testova.
 - Enigmini dijalozi sada imaju blag ulaz i izlaz (ODLUKA 3). Proveri da ti se sviđa.
 - Dugme Nazad u pregledaču ne pita „Ostani / Napusti“ (ODLUKA 7). Odluči da li je to prihvatljivo.
 - Ništa nije deployovano.
+
+## S09 — Ljuska: traka, meni „Ja“, meni projekta, rute, profil   (2026-10-29 05:58)
+**Fajlovi:**
+- Rute `app/(app)/`:
+  - `layout.tsx` (atribut `data-traka` iz režima, iznad kapije prijave);
+  - nova grupa `(ja)/`: `layout.tsx` (ljuska „Ja“), `page.tsx` (Danas), `moji-zadaci`, `inbox`, `poruke`, `beleske`, `otvori`; preseljeni `projekti/page.tsx` (bio `app/(app)/page.tsx`) i `novi/page.tsx`;
+  - `[projekat]/`: novi `zadaci`, `ideje`, `poruke`, `dokumenti`, `dokumenti/[oblastId]`, `stranica/[stranicaId]`, `korpa`, `puls`, `aktivnost`, `beleske`.
+- Ljuska `components/app/`:
+  - novi: `traka-projekata.tsx`, `meni-ja.tsx`, `opseg-ljuske.tsx`, `podaci-ljuske.ts`, `use-indikator-trake.ts`, `zvono-ja.tsx`;
+  - izmenjeni: `app-shell.tsx`, `app-sidebar.tsx`, `nav-items.ts`, `mobile-nav.tsx`, `notifications-bell.tsx`, `command-palette.tsx`, `user-menu.tsx`, `auth-gate.tsx`, `projekat-provider.tsx`, `projekat-birac.tsx` (povučen, ostaje samo `ProjektiZaPaletu`), `projekat-znak.tsx` (veličina `traka`), `projekat-nedostupan.tsx`, `system/page-header.tsx`, `hub/svi-projekti.tsx`, `hub/novi-projekat.tsx`, `napredak/napredak-feedback.tsx`.
+- `components/app/prostor/`: `ekran-uskoro.tsx`, `otvori.tsx`, `priprema-radnog-dela.tsx`, `profil/profil-dijalog.tsx`, `dokumenti/stablo-oblasti.tsx` (mesto za S10), `zajednicko/{radni-ui,projekat-cip,veza-traka}.tsx` (radnik).
+- `lib/`: `rutiranje.ts` (+ test), `prostor/web/opseg.ts` (+ test, radnik), `prostor/web/oblik-id.ts` (+ test), `dugmad-cuvar.ts`, `linkovi-cuvar.test.ts`.
+- Ostalo: `convex/lib/projekatSlug.ts`, `proxy.ts` (samo komentar), `app/globals.css` (širina trake), `app/dev-ux/[[...slug]]/page.tsx`, `app/dev-ux/fixtures-prostor-osnova.ts`, `scripts/verify-pristup.ts`, `scripts/ux-snapshots.mjs`.
+- Alati `.nocni-run/spajanje/alati/s09-*.py` (jednokratne izmene), snimci `docs/spajanje/snimci/S09-ljuska-{ja-1536,projekat-1536,390}.png`.
+
+**Šta je urađeno:**
+- **Traka projekata** (72 px, od `md`, samo u hubu): „Ja“ (moj avatar i bedž nepročitanog Inboxa i poruka), pločica po projektu (`ProjekatZnak`, tačka kad ima nepročitanog ili posla koji čeka), „+“ (vlasnik platforme), „Svi projekti“ i profil dole. Crta izabranog je u boji projekta (u „Ja“ neutralna) i klizi GSAP-om (`DUR_UI`, `EASE_UI`, grana za smanjen pokret); položaj se pamti van komponente, pa klizi i kad se ljuska montira iznova. Tastatura: jedno mesto u Tab redu, strelice, Home i End.
+- **Meni „Ja“**: profil, Danas (broj otvorenog za danas iz Moj dan), Moji zadaci, Inbox i Poruke (nepročitano), Beleške i spisak projekata sa brojem mojih otvorenih zadataka. **Meni projekta** po grupama P14: Rad (Početna sa podstavkama Pregled, Puls tima i Aktivnost; Zadaci, Ideje, Poruke, Dokumenti sa mestom za stablo, Beleške), Prodaja, Sadržaj, Kanali, Analitika, Automatizacija; podnožje Korpa, Napredak, Podešavanja. Enigmini moduli rade na starim putanjama, samo u novom rasporedu.
+- **Rute**: sve putanje iz plana S07 §1.1 postoje; ekrani kasnijih koraka crtaju `EkranUskoro`. `/` je Danas, hub je na `/projekti` (`/svi` i `/hub` preusmeravaju tamo), `/otvori` razrešava ID projekta u adresu. `/poruke` i `/beleske` su na najvišem nivou „Ja“, a u projektu ekrani projekta.
+- **Profil**: kapija prijave jednom zove `ensureCurrent` (ime iz naloga), a meni korisnika ima „Profil“ (ime i slika; port Devotion dijaloga).
+- **Telefon** (P15): u hubu donja traka Danas · Projekat · Zadaci · Poruke · Više, a „Više“ je fioka odozdo sa projektima, ličnim ekranima, radnim delom, modulima po grupama i dnom (Korpa, Napredak, Podešavanja). Zvono „Čeka te“ je u zaglavlju (44 px). Panel ima traku kao pre spajanja, sa natpisom „Čeka te“.
+- **⌘K**: radi u oba opsega; novi ekrani radnog dela i lični ekrani su u spisku (iz `nav-items.ts`).
+- **Ostalo**: zvono u „Ja“ sabira „čeka te“ svih projekata (`stanjeProjekata`), sa spiskom po projektu; `PripremaRadnogDela` zove `pripremiRadniDeo` jednom po projektu i sesiji (P26); `ProjekatStavkeProvider` (D14) je spreman za S12/S16/S19; traka prekinute veze (`VezaTraka`) je u ljusci.
+
+**Paritet:** red 9 (profil: ime i avatar u meniju korisnika; obaveštenja i push ostaju S17). Rute za redove 1, 3, 5, 6, 7, 8, 10–17, 25–27 postoje kao `EkranUskoro`; sadržaj donose koraci iz §6. Redovi 16–17 imaju mesto u meniju (`StabloOblasti`) za S10.
+
+**ODLUKE:**
+1. **Traka koristi `JaLink`, ne `next/link`.** `JaLink` već prima `/`, „Ja“ i `/<slug>/…`, pa `traka-projekata.tsx` ne ide u `NEXT_LINK_DOZVOLJEN` (plan je to predviđao). `projekat-birac.tsx` više ne koristi `next/link`, pa je njegov unos iz čuvara linkova uklonjen (pojačanje).
+2. **Čuvar dugmadi:** `components/app/meni-ja.tsx` je dodat u `DOZVOLJENA_BOJA_MODULA`. Meni „Ja“ je isto mesto boje modula kao bočna traka (aktivna stavka i crtica); bez toga plafon 654 bi bio 656. Plafon nije podignut.
+3. **`lib/rutiranje.test.ts` (plan S07 §1.6):** testovi 17–23, `jeJaPutanja`, folderi `(ja)` i „nema strana van `(ja)` i `[projekat]`“, prelazak radnog dela, aktivna stavka, ekran po opsegu i `donjaTrakaHub`. Promenjeni: test 7 je preimenovan (isto očekivanje); „svaki ekran je stara adresa u hubu“ za `poruke` i `beleske` sada očekuje „dalje“ (D3), a u panelu i dalje rewrite; „bočna traka: isključen modul…“ proverava da je Rad prvi i pun, a zatim samo uključene Enigmine module (plus „Sadržaj“ nestaje, „Prodaja“ ostaje). Nijedna provera nije obrisana.
+4. **Posmatrač (`client_viewer`) od grupe Rad vidi samo Početnu**, bez Puls tima, Aktivnosti i Korpe. D7 kaže „krije celu grupu Rad“, ali tada bi posmatrač izgubio Početnu (Enigminu kontrolnu tablu), a ništa iz Enigme ne sme da nestane. Dok uloga nije poznata, meni je pun (vlasniku bi grupa treptala pri prelasku).
+5. **`/korpa` nema roditelja u mrvici**; stranica (`/stranica/<id>`) pripada Dokumentima (mrvica, aktivna stavka i prelazak u drugi projekat). `EKRANI_SA_ID` je dobio samo `/stranica`: `/dokumenti/<id>` već pada na `/dokumenti` jer je to stavka menija.
+6. **Puls tima i Aktivnost su podstavke Početne samo u meniju** (`navChildrenFor`), ne u traci sa jezičcima (`channelTabs`). Inače bi početna dobila jezičke, a `/puls` ne bi (pravilo „/“ hvata samo „/“).
+7. **Natpis „Početna“** (P14) zamenjuje „Kontrolna tabla“ u meniju i mrvici; ekran je do S20 i dalje Enigmina kontrolna tabla. Kratki natpis „Tabla“ za donju traku panela je nestao, pa ćelija piše „Početna“.
+8. **Iz „Ja“ pločica projekta vodi na početnu projekta**, a iz projekta na isti ekran drugog projekta (`putanjaZaPrelazak`). Lični ekran nema parnjaka u projektu (`/poruke` u „Ja“ nije `/<slug>/poruke`).
+9. **`donjaTrakaHub` nema parametar `ukljucen`**: Zadaci i Poruke su radni deo, uvek uključen. Projekat iz „Ja“ je poslednji iz kolačića `ep_projekat` (čita se na klijentu).
+10. **Meni korisnika** zadržava Napredak i Podešavanja (već su i u podnožju menija), dodata je stavka „Profil“, a „Obaveštenja“ nema do S17 (bez mrtve kontrole). Na `md+` meni je samo na dnu trake; u panelu ostaje u zaglavlju (nema trake).
+11. **Zvono u „Ja“** sabira `ceka` iz `stanjeProjekata` (isto pravilo kao zvono projekta); nepoznat broj je „—“ i „najmanje toliko“. Kartica Inbox je S17. Natpis je „Čeka te“ i u zvonu projekta (P15); `scripts/ux-snapshots.mjs` je naučio novi `aria-label` („Čeka te“), a „kontrolna-tabla“ snima `/enigma-it` (plan S07 §8.3).
+12. **`readRail`**: bez sačuvanog izbora meni je u šini na `md`–`lg` (D12).
+13. **Napredak u „Ja“:** `useNapredakFeedback` je spreman bez projekta (napredak je lični, P12), pa zamrzavanje dana i nagrade rade i na Danas.
+14. **`PageHeader` u „Ja“** ne crta red stanja veze (veze su projektne), a ikonicu uzima iz stavke ekrana (`stavkaEkrana`). Ekrani radnog dela dobijaju ikonicu svoje stavke, a Enigmini moduli, kao i do sada, ikonicu modula.
+15. **Hub i čarobnjak u ljusci:** `SviProjekti` i `NoviProjekat` dobili su prop `uLjusci` (bez sopstvenog zaglavlja i `<main>`); veze „Svi projekti“ u čarobnjaku i na „Projekat nije dostupan“ vode na `/projekti`.
+16. **Razvojni prikaz:** `PROFIL_JA` sada ima sliku (lažni SVG). `/<ekran>/<id>` za `dokumenti` i `stranica` rade kao dinamične rute. Ispravan ID iz fikstura: oblast `areasux0001`, stranica `pagesux0001`. Panel u razvojnom prikazu dobija isti `data-traka="ne"` kao prava aplikacija.
+17. **Zastareli `.next/types` i `.next/dev/types`** (pokazivali su na obrisane `app/(app)/page.tsx` i `novi/page.tsx`) premešteni su u `.nocni-run/spajanje/tmp/next-types-stari/`, jer je `tsc` padao na njima; Next ih pravi iznova.
+18. **Radnik** je preneo `radni-ui`, `projekat-cip`, `opseg` i `veza-traka`; pregledano i prihvaćeno. Njegove odluke: `RailBadges.startupDots` i `RailStartup` zadržavaju Devotion ime (koristi ih test); `ProjekatCip` crta `ProjekatZnak` (tonovi startupa nestaju); status „blokirano“ je upozorenje, ne crvena (crvena je samo za greške i kašnjenje); `ScreenHeader` nema Devotion `data-workspace-enter` (radni ekrani se ne animiraju pri učitavanju).
+
+**Novi paketi:** nema.
+
+**Testovi:** 26 novih ili dopunjenih, svi prolaze.
+- `lib/rutiranje.test.ts`: +15 (§1.6, vidi ODLUKU 3).
+- `lib/prostor/web/opseg.test.ts`: 7 prenetih (bedževi trake, smer, množina).
+- `lib/prostor/web/oblik-id.test.ts`: 2.
+- Ceo `npx vitest run`: 161 fajl, 2233 testa.
+
+**Rezultat provere:**
+- codegen: prošao (`convex/lib/projekatSlug.ts` je izmenjen);
+- typecheck: prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest: prolazi (2233);
+- pristup: 632 / 617 / 15, front 49 direktnih poziva, svi sa spiska;
+- regresije: prolaze („Sve provere prolaze“);
+- `npm run build`: prolazi.
+
+**Vizuelna provera** (Playwright, `next dev -p 3117`, ugašen na kraju):
+- Pregledano na 1536 × 695 i 390 × 844: `/moji-zadaci`, `/projekti`, `/`, `/enigma-it`, `/enigma-it/zadaci`, panel `/zadaci` i posmatrač (`&uloga=client_viewer`).
+- Rade: fioka „Više“ u oba opsega, ⌘K u „Ja“ (projekti, misije i lični ekrani), dijalog profila i tastatura u traci.
+- U konzoli nema grešaka ni upozorenja; poruke „useProjekat mora…“ nema.
+- Next razvojni znak (dole levo) u dev-u pokriva profil u traci; u produkciji ga nema, a za snimke je sklonjen.
+
+**Za Jovana ujutru:**
+- `digital.enigmait.rs` ne sme biti u domenima panela (Podešavanja → Projekat → Domeni). Inače nema trake ni Danas.
+- Pre deploya proveri da nijedan postojeći projekat nema adresu koja je sada rezervisana: `zadaci`, `ideje`, `poruke`, `dokumenti`, `stranica`, `korpa`, `puls`, `aktivnost`, `beleske`, `projekti`, `moji-zadaci`, `inbox`, `otvori`.
+- Posmatrač vidi samo Početnu iz grupe Rad (ODLUKA 4). Potvrdi.
+- Kartica Napredak u podnožju menija je uska, pa zvanje može da se skrati („Opera…“).
+- Ništa nije deployovano.

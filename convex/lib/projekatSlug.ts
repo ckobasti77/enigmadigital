@@ -9,19 +9,35 @@
 /** Imena ekrana (direktorijumi stranica). Projekat ne sme da se zove kao ekran. */
 export const EKRANI = [
   "ads",
+  "aktivnost",
   "analytics",
   "atribucija",
+  "beleske",
+  "dokumenti",
   "facebook",
+  "ideje",
   "instagram",
+  "korpa",
   "leadovi",
   "napredak",
   "novosti",
   "openreply",
+  "poruke",
+  "puls",
   "rules",
   "settings",
+  "stranica",
   "threads",
   "youtube",
+  "zadaci",
 ] as const;
+
+/**
+ * Lični nivo „Ja“ (SPAJANJE P13): ekrani bez projekta, samo u hubu. `poruke`
+ * i `beleske` su i ekrani projekta; na najvišem nivou su „Ja“ (plan S07 D3).
+ * `otvori` razrešava link iz obaveštenja u projekat (D13).
+ */
+export const JA_PUTANJE = ["moji-zadaci", "inbox", "poruke", "beleske", "otvori"] as const;
 
 /** Putanje koje važe u oba režima i koje rutiranje nikad ne dira. */
 export const GLOBALNE_PUTANJE = [
@@ -37,14 +53,18 @@ export const GLOBALNE_PUTANJE = [
   "dev-ux",
 ] as const;
 
-/** Putanje huba van projekta („novi“ je čarobnjak, C11). */
-export const HUB_PUTANJE = ["novi", "svi", "hub", "admin"] as const;
+/**
+ * Putanje huba van projekta („novi“ je čarobnjak, C11; „projekti“ je hub
+ * „Svi projekti“ od SPAJANJA, jer je `/` sada Danas).
+ */
+export const HUB_PUTANJE = ["novi", "svi", "hub", "admin", "projekti"] as const;
 
 const OSTALI_REZERVISANI = ["static", "public"] as const;
 
 export const REZERVISANI_SLUGOVI: ReadonlySet<string> = new Set<string>([
   ...GLOBALNE_PUTANJE,
   ...HUB_PUTANJE,
+  ...JA_PUTANJE,
   ...OSTALI_REZERVISANI,
   ...EKRANI,
 ]);

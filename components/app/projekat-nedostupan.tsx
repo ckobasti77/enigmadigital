@@ -39,7 +39,7 @@ export function ProjekatNedostupan({ rezim }: { rezim: Rezim }) {
             <Button
               variant="primary"
               className="max-md:h-11 max-md:px-4"
-              render={<Link href="/" />}
+              render={<Link href="/projekti" />}
               nativeButton={false}
             >
               Svi projekti

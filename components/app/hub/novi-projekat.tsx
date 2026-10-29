@@ -83,7 +83,7 @@ function porukaGreske(e: unknown, podrazumevana: string): string {
   return typeof data?.message === "string" ? data.message : podrazumevana;
 }
 
-export function NoviProjekat() {
+export function NoviProjekat({ uLjusci = false }: { uLjusci?: boolean } = {}) {
   const ja = useQuery(api.projekti.ja);
   const [korak, setKorak] = useState<Korak>("osnovno");
   const [slug, setSlug] = useState<string | null>(null);
@@ -98,8 +98,12 @@ export function NoviProjekat() {
     karticaRef.current?.focus();
   }, [korak]);
 
+  // U ljusci „Ja“ (SPAJANJE) zaglavlje, mrvicu „Svi projekti / Novi projekat“
+  // i `<main>` daje ljuska; sopstvena traka ostaje samo van nje.
+  const Telo = uLjusci ? "div" : "main";
   return (
     <div className="flex min-h-full flex-1 flex-col">
+      {!uLjusci && (
       <header className="material edge-fade-b sticky top-0 z-30 shrink-0">
         <div
           className={cn(
@@ -108,7 +112,7 @@ export function NoviProjekat() {
           )}
         >
           <Link
-            href="/"
+            href="/projekti"
             className="touch-target -ml-2 flex items-center gap-1 rounded-md px-2 py-1 text-ui text-text-muted transition-colors hover:text-foreground"
           >
             <ChevronLeft className="size-4" aria-hidden />
@@ -118,11 +122,11 @@ export function NoviProjekat() {
           <UserMenu />
         </div>
       </header>
+      )}
 
-      <main
-        id="sadrzaj"
-        tabIndex={-1}
-        className={cn(ROW, "flex flex-1 flex-col py-8 outline-none")}
+      <Telo
+        {...(uLjusci ? {} : { id: "sadrzaj", tabIndex: -1 })}
+        className={cn(uLjusci ? "flex flex-1 flex-col" : cn(ROW, "flex flex-1 flex-col py-8 outline-none"))}
       >
         {ja === undefined ? (
           <Skeleton className="h-80 w-full max-w-xl rounded-xl" />
@@ -136,7 +140,7 @@ export function NoviProjekat() {
               <Button
                 variant="secondary"
                 nativeButton={false}
-                render={<Link href="/" />}
+                render={<Link href="/projekti" />}
                 className="touch-target"
               >
                 Svi projekti
@@ -185,7 +189,7 @@ export function NoviProjekat() {
             </div>
           </div>
         )}
-      </main>
+      </Telo>
     </div>
   );
 }

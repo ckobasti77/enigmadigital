@@ -16,6 +16,7 @@ import {
   EKRANI,
   GLOBALNE_PUTANJE,
   HUB_PUTANJE,
+  JA_PUTANJE,
   jeIspravanSlug,
 } from "../convex/lib/projekatSlug";
 import { modulUkljucen } from "../convex/lib/moduli";
@@ -27,6 +28,7 @@ export {
   EKRANI,
   GLOBALNE_PUTANJE,
   HUB_PUTANJE,
+  JA_PUTANJE,
   REZERVISANI_SLUGOVI,
   jeIspravanSlug,
   jeLokalniHost,
@@ -42,6 +44,7 @@ export type Rezim = "hub" | "panel";
 
 const GLOBALNE: ReadonlySet<string> = new Set<string>(GLOBALNE_PUTANJE);
 const HUB: ReadonlySet<string> = new Set<string>(HUB_PUTANJE);
+const JA: ReadonlySet<string> = new Set<string>(JA_PUTANJE);
 
 /** Prvi segment putanje: „/leadovi/uvoz“ → „leadovi“, „/“ → „“. */
 export function prviSegment(pathname: string): string {
@@ -63,6 +66,17 @@ export function jeGlobalnaPutanja(pathname: string): boolean {
 export function jeHubPutanja(pathname: string): boolean {
   return HUB.has(prviSegment(pathname));
 }
+
+/**
+ * Putanja ličnog nivoa „Ja“ (SPAJANJE P13): `/` (Danas) ili prvi segment iz
+ * `JA_PUTANJE`. Važi samo u hubu; u panelu je sve pod projektom (plan S07 D4).
+ */
+export function jeJaPutanja(pathname: string): boolean {
+  return pathname === "/" || JA.has(prviSegment(pathname));
+}
+
+/** Stari hub „Svi projekti“ pre SPAJANJA (`/svi`, `/hub`); sada je na `/projekti`. */
+const STARI_HUB: ReadonlySet<string> = new Set(["svi", "hub"]);
 
 /** Prefiks putanje projekta: „/<slug>“ u hubu, prazno u panelu. */
 export function prefiksProjekta(slug: string, rezim: Rezim): string {
@@ -143,10 +157,13 @@ export type OdlukaRutiranja =
  * 1. globalna putanja se ne dira;
  * 2. panel (`panelSlug = S`): `/S…` → redirect na kanonski oblik bez `/S`,
  *    a sve ostalo → rewrite na `/S…`;
- * 3. hub: `/` ostaje; stara adresa ekrana (`/leadovi`) → redirect na
- *    poslednji projekat iz kolačića, a bez ispravnog kolačića na `/` (upit
- *    ostaje, pa i `ig_code`); ostalo prolazi, a članstvo proverava layout
- *    `[projekat]`.
+ * 3. hub: `/` (Danas) i putanje „Ja“ (`/moji-zadaci`, `/poruke`, …)
+ *    prolaze — „Ja“ ima prednost na najvišem nivou, pa `/poruke` nije stara
+ *    adresa ekrana (SPAJANJE, plan S07 D3); stari hub `/svi` i `/hub` →
+ *    redirect na `/projekti` (upit ostaje); stara adresa ekrana (`/leadovi`)
+ *    → redirect na poslednji projekat iz kolačića, a bez ispravnog kolačića
+ *    na `/` (upit ostaje, pa i `ig_code`); ostalo prolazi, a članstvo
+ *    proverava layout `[projekat]`.
  * Lokalni host i greška upita su hub još u razrešavaču domena, pa ovde
  * stižu kao `panelSlug: null`.
  */
@@ -166,7 +183,10 @@ export function odluciRutu(u: UlazRutiranja): OdlukaRutiranja {
     };
   }
 
-  if (pathname === "/") return { tip: "dalje" };
+  if (jeJaPutanja(pathname)) return { tip: "dalje" };
+  if (STARI_HUB.has(prviSegment(pathname)) && pathname.split("/").filter(Boolean).length === 1) {
+    return { tip: "redirect", putanja: `/projekti${search}` };
+  }
   if (EKRAN.has(prviSegment(pathname))) {
     const kolacic = u.kolacicProjekat;
     const putanja =

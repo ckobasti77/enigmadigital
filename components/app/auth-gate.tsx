@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
+import {
+  Authenticated,
+  AuthLoading,
+  Unauthenticated,
+  useMutation,
+  useQuery,
+} from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { readRail } from "./app-shell";
 import { KLJUC_POZIVNICE, putanjaPozivnice } from "@/lib/pozivnica-token";
@@ -38,6 +45,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
       <Authenticated>
         <PozivnicaCatcher />
+        <ProfilRadnogDela />
         {children}
       </Authenticated>
     </>
@@ -63,6 +71,26 @@ function PozivnicaCatcher() {
     const putanja = putanjaPozivnice(parkiran);
     if (putanja !== null) router.replace(putanja);
   }, [router]);
+  return null;
+}
+
+/**
+ * Profil radnog dela (SPAJANJE P6): ime i avatar koje tim vidi uz zadatke i
+ * poruke. Nastaje lenjo, posle prijave, jednom po ulasku; poziv je
+ * idempotentan. Početno ime je ime naloga. Greška se ne prikazuje: sledeći
+ * ulaz pokušava ponovo, a ekrani radnog dela do tada čekaju profil.
+ */
+function ProfilRadnogDela() {
+  const ja = useQuery(api.projekti.ja);
+  const obezbedi = useMutation(api.prostor.profiles.ensureCurrent);
+  const pozvano = useRef(false);
+  useEffect(() => {
+    if (ja === undefined || pozvano.current) return;
+    pozvano.current = true;
+    void obezbedi(ja.ime ? { displayName: ja.ime } : {}).catch(() => {
+      // tiho: sledeći ulaz pokušava ponovo
+    });
+  }, [ja, obezbedi]);
   return null;
 }
 
@@ -100,10 +128,13 @@ function RedirectToLogin() {
 }
 
 function ShellFallback() {
+  // Traka projekata i meni stoje na istom mestu kao u ljusci (SPAJANJE P14);
+  // u panelu je širina trake nula (`data-traka="ne"`).
   return (
     <>
-      <div className="material material-edge-r fixed inset-y-0 left-0 z-40 hidden w-[var(--sidebar-width)] md:block" />
-      <div className="flex min-w-0 min-h-full flex-1 flex-col md:pl-[var(--sidebar-width)]">
+      <div className="material material-edge-r fixed inset-y-0 left-0 z-40 hidden w-[var(--traka-width)] md:block" />
+      <div className="material material-edge-r fixed inset-y-0 left-0 z-40 hidden w-[var(--sidebar-width)] md:left-[var(--traka-width)] md:block" />
+      <div className="flex min-w-0 min-h-full flex-1 flex-col md:pl-[calc(var(--traka-width)_+_var(--sidebar-width))]">
         <div className="material h-[var(--chrome-height)] shrink-0" />
         <div className="mx-auto flex w-full max-w-[var(--content-max)] flex-1 flex-col gap-4 px-[var(--gutter)] py-8">
           <Skeleton className="h-7 w-40" />

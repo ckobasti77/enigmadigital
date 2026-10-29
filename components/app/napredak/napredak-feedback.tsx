@@ -17,7 +17,7 @@ import {
   RewardToast,
   RewardToastViewport,
 } from "@/components/app/system/reward-toast";
-import { useProjekat } from "@/components/app/projekat-provider";
+import { useProjekatOpciono } from "@/components/app/projekat-provider";
 import {
   izdvojiNagrade,
   novoPamcenje,
@@ -119,7 +119,9 @@ function napraviRed() {
 }
 
 export function useNapredakFeedback(): ReactNode {
-  const { spreman } = useProjekat();
+  // U opsegu „Ja“ (SPAJANJE) projekta nema; napredak je lični (P12), pa je
+  // spreman čim je ljuska montirana (sesija je potvrđena).
+  const spreman = useProjekatOpciono()?.spreman ?? true;
   const stanje = useNapredak();
   const sada = useSada();
   const vidljivo = useVidljivo();

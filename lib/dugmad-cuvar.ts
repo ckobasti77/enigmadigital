@@ -46,6 +46,11 @@ export const IZUZECI_SPREAD: readonly Izuzetak[] = [
 export const DOZVOLJENA_BOJA_MODULA: readonly Izuzetak[] = [
   { fajl: "components/app/module-tile.tsx", sadrzi: "", razlog: "aktivna stavka bočne trake" },
   { fajl: "components/app/app-sidebar.tsx", sadrzi: "", razlog: "crtica aktivne stavke bočne trake" },
+  {
+    fajl: "components/app/meni-ja.tsx",
+    sadrzi: "",
+    razlog: "crtica i aktivna stavka menija „Ja“ — isto mesto kao bočna traka projekta (SPAJANJE P14)",
+  },
   { fajl: "components/app/mobile-nav.tsx", sadrzi: "", razlog: "crtica aktivne ćelije donje trake" },
   { fajl: "components/app/system/page-header.tsx", sadrzi: "", razlog: "ikonica zaglavlja" },
   { fajl: "app/dev-ux/sistem/vodic.tsx", sadrzi: "", razlog: "vodič pokazuje boje modula (mesto)" },

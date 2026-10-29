@@ -16,6 +16,8 @@ import { Unfold } from "@/components/motion/unfold";
 import { cn } from "@/lib/utils";
 import { MOBILE_TAB, MOBILE_TAB_ICON } from "./mobile-tab";
 import { resolveModule } from "./nav-items";
+import { useOpseg } from "./opseg-ljuske";
+import { ZvonoJa } from "./zvono-ja";
 import { QuietBoundary } from "./quiet-boundary";
 import { useProjekat, useProjekatMutation } from "./projekat-provider";
 import { useStaMeCeka, type StaMeCeka, type Zadatak } from "./use-sta-me-ceka";
@@ -44,9 +46,12 @@ const HITNOST_RED: Array<Zadatak["hitnost"]> = ["visoka", "srednja", "niska"];
 
 /**
  * Dva oblika istog zvona, isti panel (UI Boost §7.2 i §7.3):
- *   `icon`  dugme u gornjoj traci, na širem ekranu;
- *   `tab`   ćelija „Danas" u donjoj traci na telefonu — zvono je tamo pod
- *           palcem, a panel se otvara naviše.
+ *   `icon`  dugme u gornjoj traci (u hubu i na telefonu, SPAJANJE P15);
+ *   `tab`   ćelija „Čeka te" u donjoj traci panela na telefonu — zvono je
+ *           tamo pod palcem, a panel se otvara naviše.
+ *
+ * Natpis je „Čeka te“ (P15): „Danas“ je sada lični dan. U opsegu „Ja“ zvono
+ * sabira posao koji čeka u svim mojim projektima (`ZvonoJa`).
  */
 type Oblik = "icon" | "tab";
 
@@ -57,9 +62,14 @@ export function NotificationsBell({
   className?: string;
   variant?: Oblik;
 }) {
+  const opseg = useOpseg();
   return (
     <QuietBoundary>
-      <Zvono className={className} variant={variant} />
+      {opseg === "ja" ? (
+        <ZvonoJa className={className} />
+      ) : (
+        <Zvono className={className} variant={variant} />
+      )}
     </QuietBoundary>
   );
 }
@@ -74,18 +84,18 @@ function Zvono({ className, variant }: { className?: string; variant: Oblik }) {
         <span className={MOBILE_TAB_ICON}>
           <Bell className="size-5" aria-hidden />
         </span>
-        <span>Danas</span>
+        <span>Čeka te</span>
       </div>
     ) : (
-      <Skeleton className={cn("size-8 rounded-lg", className)} />
+      <Skeleton className={cn("size-11 rounded-lg md:size-8", className)} />
     );
   }
 
   const ukupno = data.ukupno;
   const naziv =
     ukupno > 0
-      ? `Šta me čeka: ${ukupno} ${ukupno === 1 ? "stavka" : "stavki"}`
-      : "Šta me čeka: nema ničega";
+      ? `Čeka te: ${ukupno} ${ukupno === 1 ? "stavka" : "stavki"}`
+      : "Čeka te: nema ničega";
   // Bez posla — bez bedža. Nikad „0" (A1 §3).
   const bedz = (
     <BedzNaUglu
@@ -115,19 +125,20 @@ function Zvono({ className, variant }: { className?: string; variant: Oblik }) {
             />
             {bedz}
           </span>
-          <span>Danas</span>
+          <span>Čeka te</span>
         </PopoverTrigger>
       ) : (
         <PopoverTrigger
           aria-label={naziv}
-          title="Šta me čeka"
+          title="Čeka te"
           className={cn(
-            "hover-lift relative inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border border-line text-text-muted transition-colors hover:text-foreground",
+            // Na telefonu (hub, P15) zvono je u zaglavlju: meta 44 px.
+            "hover-lift relative inline-flex size-11 cursor-pointer items-center justify-center rounded-lg text-text-muted transition-colors hover:text-foreground md:size-8 md:border md:border-line",
             ukupno > 0 && "text-foreground",
             className,
           )}
         >
-          <Bell className="size-4" aria-hidden />
+          <Bell className="size-5 md:size-4" aria-hidden />
           {bedz}
         </PopoverTrigger>
       )}
@@ -161,7 +172,7 @@ function Panel({
   return (
     <div className="flex max-h-[70vh] flex-col">
       <div className="flex shrink-0 items-baseline justify-between gap-2 border-b border-line-soft px-3 py-2.5">
-        <p className="text-ui font-medium text-foreground">Šta me čeka</p>
+        <p className="text-ui font-medium text-foreground">Čeka te</p>
         {data.nepotpuno && (
           <span
             className="text-meta text-text-muted"

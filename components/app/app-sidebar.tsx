@@ -11,11 +11,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Unfold } from "@/components/motion/unfold";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   NAPREDAK_HREF,
   activeChannelTab,
   activeHref,
+  korpaNavItem,
   navChildrenFor,
   screenExists,
   settingsNavItem,
@@ -35,7 +37,8 @@ import {
   useModulUkljucen,
   useProjekat,
 } from "./projekat-provider";
-import { ProjekatBirac } from "./projekat-birac";
+import { ProjekatZnak } from "./projekat-znak";
+import { StabloOblasti } from "./prostor/dokumenti/stablo-oblasti";
 
 /**
  * ============================================================================
@@ -58,6 +61,13 @@ import { ProjekatBirac } from "./projekat-birac";
  * Šina (64 px): pločice stoje na istom mestu kao u punoj traci, nestaju samo
  * natpisi. Naziv tada daje oblačić, a čitaču ekrana natpis koji ostaje u
  * stablu. Izbor pamti `AppShell`.
+ *
+ * SPAJANJE (P14, plan S07 §2.3): ovo je meni PROJEKTA, desno od trake
+ * projekata. Grupe su Rad (radni deo, uvek uključen), Prodaja, Sadržaj,
+ * Kanali, Analitika i Automatizacija; pod Dokumentima stoji stablo oblasti.
+ * Birač projekta je otišao u traku, pa zaglavlje nosi samo znak i ime
+ * projekta. Podnožje: Korpa, Napredak i Podešavanja (D8). Posmatrač
+ * (`client_viewer`) od radnog dela vidi samo Početnu, bez Korpe (D7).
  */
 
 /** Bedž preko gornjeg desnog ugla pločice, u šini. */
@@ -77,13 +87,17 @@ export function AppSidebar({
   const activeParent = activeHref(pathname);
   // Isključen modul projekta nema stavku (PROJEKTI-PLAN §8, „Moduli“).
   const ukljucen = useModulUkljucen();
-  const sekcije = vidljiveSekcije(ukljucen);
+  const { uloga } = useProjekat();
+  // Dok uloga nije poznata, meni je pun: posmatrač je redak, a vlasniku bi
+  // grupa Rad treptala pri svakom prelasku projekta.
+  const radniDeo = uloga !== "client_viewer";
+  const sekcije = vidljiveSekcije(ukljucen, { radniDeo });
 
   return (
     <TooltipProvider delay={200}>
       <aside
         ref={ref}
-        className="material material-edge-r fixed inset-y-0 left-0 z-40 hidden w-[var(--sidebar-width)] flex-col md:flex"
+        className="material material-edge-r fixed inset-y-0 left-0 z-40 hidden w-[var(--sidebar-width)] flex-col md:left-[var(--traka-width)] md:flex"
       >
         <div
           className={cn(
@@ -91,8 +105,8 @@ export function AppSidebar({
             rail ? "justify-center gap-0.5 px-1" : "gap-1 px-2.5",
           )}
         >
-          {/* Čiji je ovo ekran: birač projekta (u panelu samo znak i ime). */}
-          <ProjekatBirac rail={rail} />
+          {/* Čiji je ovo ekran: znak i ime projekta. Prelazak je u traci. */}
+          <ZnakProjekta rail={rail} />
           <Tip
             label={rail ? "Proširi bočnu traku" : "Skupi bočnu traku"}
             side={rail ? "right" : "bottom"}
@@ -146,6 +160,7 @@ export function AppSidebar({
                     pathname={pathname}
                     active={activeParent === item.href}
                     rail={rail}
+                    radniDeo={radniDeo}
                   />
                 ))}
               </ul>
@@ -156,9 +171,43 @@ export function AppSidebar({
         <SidebarFooter
           rail={rail}
           settingsActive={activeParent === settingsNavItem.href}
+          korpaActive={pathname === korpaNavItem.href}
+          radniDeo={radniDeo}
         />
       </aside>
     </TooltipProvider>
+  );
+}
+
+/** Znak i ime projekta u zaglavlju menija (u šini samo znak, ime u oblačiću). */
+function ZnakProjekta({ rail }: { rail: boolean }) {
+  const p = useProjekat();
+  if (!p.spreman || p.ime === null) {
+    return (
+      <div
+        aria-hidden
+        className={cn("flex h-9 items-center gap-2.5", rail ? "w-8 justify-center" : "flex-1 pl-[10px]")}
+      >
+        <Skeleton className="size-6 rounded-md" />
+        {!rail && <Skeleton className="h-3.5 w-24" />}
+      </div>
+    );
+  }
+  const projekat = { ime: p.ime, boja: p.brend.boja, logoUrl: p.brend.logoUrl };
+  return rail ? (
+    <Tooltip>
+      <TooltipTrigger render={<span className="flex size-8 items-center justify-center" />}>
+        <ProjekatZnak projekat={projekat} oznaka />
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={8}>
+        {p.ime}
+      </TooltipContent>
+    </Tooltip>
+  ) : (
+    <p className="flex h-9 min-w-0 flex-1 items-center gap-2.5 pl-[10px]">
+      <ProjekatZnak projekat={projekat} />
+      <span className="min-w-0 truncate text-ui font-medium text-foreground">{p.ime}</span>
+    </p>
   );
 }
 
@@ -199,13 +248,16 @@ function NavRow({
   pathname,
   active,
   rail,
+  radniDeo,
 }: {
   item: NavItem;
   pathname: string;
   active: boolean;
   rail: boolean;
+  radniDeo: boolean;
 }) {
-  const tabs = navChildrenFor(item.href);
+  // Podstavke Početne (Puls tima, Aktivnost) su radni deo (D6, D7).
+  const tabs = item.href === "/" && !radniDeo ? undefined : navChildrenFor(item.href);
   // Jedan jedini podekran nije izbor, pa se ne crta kao podstavka.
   const children = tabs && tabs.length > 1 ? tabs : undefined;
   const activeChild =
@@ -306,25 +358,35 @@ function NavRow({
           </ul>
         </Unfold>
       )}
+
+      {/* Stablo oblasti i stranica pod Dokumentima (puni ga korak dokumenata). */}
+      {item.href === "/dokumenti" && !rail && <StabloOblasti aktivan={active} />}
     </li>
   );
 }
 
 /**
- * Dno: čiji su ovo podaci (kartica igrača) i zupčanik Podešavanja. U jednom
- * redu, jer je visina ono čega na ovom ekranu nema.
+ * Dno (SPAJANJE P14, plan S07 D8): Korpa, Napredak (kartica igrača: nivo i
+ * niz, vodi na ekran napretka) i zupčanik Podešavanja. U jednom redu, jer je
+ * visina ono čega na ovom ekranu nema. Korpa je radni deo, pa je posmatrač
+ * nema (D7).
  */
 function SidebarFooter({
   rail,
   settingsActive,
+  korpaActive,
+  radniDeo,
 }: {
   rail: boolean;
   settingsActive: boolean;
+  korpaActive: boolean;
+  radniDeo: boolean;
 }) {
-  const { ime, korisnik, spreman } = useProjekat();
+  const { korisnik, spreman } = useProjekat();
   const napredak = useNapredak();
   const sada = useSada();
   const item = settingsNavItem;
+  const korpa = korpaNavItem;
 
   return (
     <div
@@ -333,15 +395,36 @@ function SidebarFooter({
         rail && "flex-col",
       )}
     >
+      {radniDeo && (
+        <span data-module={korpa.module} className="shrink-0">
+          <Tip
+            label={korpa.label}
+            side={rail ? "right" : "top"}
+            render={
+              <ProjekatLink
+                href={korpa.href}
+                aria-label={korpa.label}
+                aria-current={korpaActive ? "page" : undefined}
+                className={cn(
+                  "relative flex size-9 items-center justify-center rounded-lg transition-colors",
+                  korpaActive ? "bg-mod-soft" : "hover:bg-sidebar-accent/60",
+                )}
+              />
+            }
+          >
+            <ModuleTile icon={korpa.icon} active={korpaActive} />
+          </Tip>
+        </span>
+      )}
       <PlayerCard
         loading={!spreman}
         rail={rail}
-        initials={initialsOf(korisnik?.ime ?? korisnik?.email ?? ime)}
-        title={ime ?? "Projekat"}
-        subtitle={korisnik?.email ?? undefined}
+        initials={initialsOf(korisnik?.ime ?? korisnik?.email)}
+        title="Napredak"
+        subtitle="Nivo, niz i misije"
         progress={napredakZaKarticu(napredak, sada)}
         href={screenExists(NAPREDAK_HREF) ? NAPREDAK_HREF : undefined}
-        className={rail ? "w-11" : "flex-1"}
+        className={rail ? "w-11" : "min-w-0 flex-1"}
       />
       <span data-module={item.module} className="shrink-0">
         <Tip

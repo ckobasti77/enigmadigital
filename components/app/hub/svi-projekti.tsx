@@ -16,6 +16,7 @@ import { useSada } from "../napredak/use-napredak";
 import { ProjekatZnak } from "../projekat-znak";
 import { EmptyState } from "../system/empty-state";
 import { NOVI_PROJEKAT_HREF, NOVI_PROJEKAT_POSTOJI } from "../nav-items";
+import { PageHeader } from "../page-header";
 import { UserMenu } from "../user-menu";
 import { CekaTe } from "./ceka-te";
 import { KOLONE, MREZA, RedProjekta, type ProjekatReda } from "./red-projekta";
@@ -44,10 +45,38 @@ export const MAKS_PROJEKATA_HUBA = 20;
 /** Isti pomeraj kao zvono (`use-sta-me-ceka.ts`), da broj bude isti. */
 const POMERAJ_MIN = -new Date().getTimezoneOffset();
 
-export function SviProjekti() {
+export function SviProjekti({ uLjusci = false }: { uLjusci?: boolean } = {}) {
   const projekti = useQuery(api.projekti.mojiProjekti);
   const ja = useQuery(api.projekti.ja);
   const praviProjekte = NOVI_PROJEKAT_POSTOJI && ja?.platformaVlasnik === true;
+  const noviProjekat = praviProjekte && (
+    <Button
+      variant="secondary"
+      size="sm"
+      nativeButton={false}
+      render={<Link href={NOVI_PROJEKAT_HREF} />}
+      className="touch-target"
+    >
+      <Plus aria-hidden />
+      Novi projekat
+    </Button>
+  );
+
+  // U ljusci „Ja“ (SPAJANJE, `/projekti`) gornju traku, meni korisnika i
+  // `<main>` daje ljuska; ovde ostaju zaglavlje strane i spisak.
+  if (uLjusci) {
+    return (
+      <div className="flex flex-1 flex-col gap-5">
+        <PageHeader
+          variant="module"
+          title="Svi projekti"
+          description="Brojke po projektu za izabrani period i šta te čeka u kom projektu."
+          actions={noviProjekat || undefined}
+        />
+        <TeloHuba projekti={projekti} praviProjekte={praviProjekte} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -56,18 +85,7 @@ export function SviProjekti() {
           <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
             Svi projekti
           </h1>
-          {praviProjekte && (
-            <Button
-              variant="secondary"
-              size="sm"
-              nativeButton={false}
-              render={<Link href={NOVI_PROJEKAT_HREF} />}
-              className="touch-target"
-            >
-              <Plus aria-hidden />
-              Novi projekat
-            </Button>
-          )}
+          {noviProjekat}
           <UserMenu />
         </div>
       </header>
@@ -77,6 +95,21 @@ export function SviProjekti() {
         tabIndex={-1}
         className={cn(ROW, "flex flex-1 flex-col gap-5 py-6 outline-none")}
       >
+        <TeloHuba projekti={projekti} praviProjekte={praviProjekte} />
+      </main>
+    </div>
+  );
+}
+
+function TeloHuba({
+  projekti,
+  praviProjekte,
+}: {
+  projekti: readonly Stavka[] | undefined;
+  praviProjekte: boolean;
+}) {
+  return (
+    <>
         {projekti === undefined ? (
           <SpisakSkeleton />
         ) : projekti.length === 0 ? (
@@ -108,8 +141,7 @@ export function SviProjekti() {
             <Portfolio projekti={projekti} praviProjekte={praviProjekte} />
           </Suspense>
         )}
-      </main>
-    </div>
+    </>
   );
 }
 
