@@ -15,7 +15,8 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import type { Today } from "@/lib/prostor/web/danas";
 
-import { IdeaConvertDialog, IdeaCreateDialog } from "@/components/app/prostor/ideje/idea-dialogs";
+import { IdeaConvertDialog, IdeaCreateDialog, IdeaNestDialog } from "@/components/app/prostor/ideje/idea-dialogs";
+import { MapaIdeja } from "@/components/app/prostor/mape";
 import { IdeaDetailDrawer } from "@/components/app/prostor/ideje/idea-detail-drawer";
 import type { IdeaActions } from "@/components/app/prostor/ideje/idea-parts";
 import { IdeasScreen } from "@/components/app/prostor/ideje/ideas-screen";
@@ -24,6 +25,7 @@ import {
   applyIdeaVote,
   convertedMessage,
   DEFAULT_IDEA_SORT,
+  filterIdeas,
   ideaTitle,
   IDEAS_VIEW_STORAGE_KEY,
   nextIdeaSort,
@@ -119,8 +121,8 @@ type IdeasViewProps = {
  * Ideje projekta (PROSTOR P6, P16; K07 §5.9) — kontejner: `ideas.list` (R7),
  * glas (`ideas.vote`, svaki član) i faza (`ideas.setStage`, samo kome je
  * dozvoljeno) sa optimističkim upisom, pa Flip; detalj u fioci
- * (`?ideja=`), pretvaranje, brisanje u Korpu uz „Poništi". Mapu ideja
- * (i „Ugnezdi u…“ i novu granu sa nje) donosi modul mapa.
+ * (`?ideja=`), pretvaranje, brisanje u Korpu uz „Poništi". Mapa ideja
+ * (`MapaIdeja`, dinamički) nosi „Ugnezdi u…“ i novu granu sa položajem.
  */
 export function IdeasView(props: IdeasViewProps) {
   // „Pokušaj ponovo" ponovo montira sadržaj (nova pretplata na `ideas.list`).
@@ -152,6 +154,8 @@ function IdeasContent({
   const [createOpen, setCreateOpen] = useState(false);
   const [convertId, setConvertId] = useState<Id<"ideaNodes"> | null>(null);
   const [convertOpen, setConvertOpen] = useState(false);
+  const [nestId, setNestId] = useState<Id<"ideaNodes"> | null>(null);
+  const [nestOpen, setNestOpen] = useState(false);
 
   // Projektne mutacije: kuka ubacuje `workspaceId`, a izmena keša ga dobija u `args`.
   const vote = useProjekatMutationOptimisticno(api.prostor.ideas.vote, optimisticVote);
@@ -160,6 +164,7 @@ function IdeasContent({
   const archive = useProjekatMutation(api.prostor.ideas.archive);
   const restore = useProjekatMutation(api.prostor.ideas.restoreOwn);
   const convert = useProjekatMutation(api.prostor.ideas.convertToPage);
+  const nest = useProjekatMutation(api.prostor.collaboration.requestNesting);
 
   const nodes = data?.nodes;
   const ideas: ReadonlyArray<IdeaModel> | undefined = nodes;
@@ -276,8 +281,31 @@ function IdeasContent({
     }
   }
 
+  const nestIdea = nestId ? (byId.get(nestId) ?? null) : null;
+  async function nestSelected(parentId: string) {
+    if (!nestIdea) return false;
+    const parent = byId.get(parentId);
+    try {
+      await nest({ childIdeaId: nestIdea._id, parentIdeaId: parentId as Id<"ideaNodes"> });
+      toast.success(`„${ideaTitle(nestIdea)}” je ugnežđena u „${parent ? ideaTitle(parent) : "ideju"}”.`);
+      return true;
+    } catch (error) {
+      toast.error(accessErrorMessage(error, "Ugnežđavanje nije sačuvano."));
+      return false;
+    }
+  }
+
   const detail = ideaId === null ? undefined : nodes === undefined ? undefined : (byId.get(ideaId) ?? null);
   const createParent = createTarget.parentIdeaId ? byId.get(createTarget.parentIdeaId) : undefined;
+  // Mapa dobija ISTI niz dok se lista i pretraga ne promene (inače resinhronizuje
+  // čvorove na svaki render i vraća potez koji je u toku), a veze samo između prikazanih.
+  const mapNodes = useMemo(() => (nodes ? filterIdeas(nodes, query) : null), [nodes, query]);
+  const edges = data?.edges;
+  const mapEdges = useMemo(() => {
+    if (!edges || !mapNodes || !nodes || mapNodes === nodes) return edges ?? null;
+    const shown = new Set(mapNodes.map((node) => node._id as string));
+    return edges.filter((edge) => shown.has(edge.nodeAId) && shown.has(edge.nodeBId));
+  }, [edges, mapNodes, nodes]);
   const openCreate = (target: CreateTarget) => {
     setCreateTarget(target);
     setCreateOpen(true);
@@ -304,6 +332,27 @@ function IdeasContent({
         onSortChange={(key) => setSort((current) => nextIdeaSort(current, key))}
         onCreate={() => openCreate({})}
         announcement={announcement}
+        map={
+          data && mapNodes && mapEdges ? (
+            <MapaIdeja
+              nodes={mapNodes}
+              edges={mapEdges}
+              canvasState={data.canvasState}
+              searchActive={query.trim().length > 0}
+              onClearSearch={() => setQuery("")}
+              onConvertIdea={(idea) => {
+                setConvertId(idea._id);
+                setConvertOpen(true);
+              }}
+              onEditIdea={(idea) => onOpenIdea(idea._id)}
+              onNestIdea={(idea) => {
+                setNestId(idea._id);
+                setNestOpen(true);
+              }}
+              onCreateIdea={(parentIdeaId, position) => openCreate({ parentIdeaId, position })}
+            />
+          ) : null
+        }
       />
       <IdeaDetailDrawer
         open={ideaId !== null}
@@ -329,6 +378,15 @@ function IdeasContent({
         ideaTitle={convertIdea ? ideaTitle(convertIdea) : ""}
         areas={workspace.areas}
         onConvert={convertSelected}
+      />
+      <IdeaNestDialog
+        open={nestOpen && nestIdea !== null}
+        onOpenChange={setNestOpen}
+        ideaTitle={nestIdea ? ideaTitle(nestIdea) : ""}
+        candidates={(nodes ?? [])
+          .filter((node) => node._id !== nestId && node.parentIdeaId !== nestId)
+          .map((node) => ({ _id: node._id, title: ideaTitle(node) }))}
+        onNest={nestSelected}
       />
     </>
   );

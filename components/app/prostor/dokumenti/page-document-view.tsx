@@ -50,11 +50,12 @@ export type PageDetails = FunctionReturnType<typeof api.prostor.pages.get>;
 const SUBPAGES_PAGE = 20;
 
 /**
- * Radnje menija „…" koje ovaj prikaz već ume. Mapa i Diskusija dolaze sa
- * svojim modulima (mape, poruke) i tada se dodaju ovde.
+ * Radnje menija „…" koje ovaj prikaz već ume. Diskusija dolazi sa porukama
+ * i tada se dodaje ovde. „Prikaži na mapi" (S14) vodi na `?tab=mapa`.
  */
 const RADNJE_MENIJA: ReadonlySet<PageMenuKey> = new Set([
   "comments",
+  "map",
   "history",
   "lock",
   "unlock",
@@ -78,6 +79,8 @@ export type PageDocumentViewProps = {
   onOpenPage: (pageId: Id<"pages">) => void;
   onOpenArea: (areaId: Id<"areas">) => void;
   onCreateChild: (target: CreatePageTarget) => void;
+  /** Mapa podstranica (`?tab=mapa`). */
+  onOpenMap: (pageId: Id<"pages">) => void;
   /** Stranica je u Korpi: ljuska vodi na roditelja ili oblast. */
   onArchived: () => void;
 };
@@ -104,6 +107,7 @@ export function PageDocumentView({
   onOpenPage,
   onOpenArea,
   onCreateChild,
+  onOpenMap,
   onArchived,
 }: PageDocumentViewProps) {
   const pageId = page._id;
@@ -208,7 +212,7 @@ export function PageDocumentView({
     onJumpToComments: jumpToComments,
     onOpenHistory: () => setHistoryOpen(true),
     onSetLocked: (locked) => void setLocked(locked),
-    onOpenMap: () => {},
+    onOpenMap: () => onOpenMap(pageId),
     onDetach: () => void detach(),
     onDiscussion: () => {},
     onArchive: () => void archive(),
@@ -309,6 +313,7 @@ export function PageDocumentView({
               memberName={memberName}
               onOpen={(id) => onOpenPage(id)}
               onCreate={() => onCreateChild({ areaId: page.areaId, parentPageId: pageId })}
+              onShowMap={() => onOpenMap(pageId)}
               onCount={setSubpageCount}
             />
           </SubpagesBoundary>

@@ -7,6 +7,7 @@ import { Lightbulb, Network, Plus, RefreshCw, Rows3, Search, SearchX, SquareKanb
 import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MapaKostur } from "@/components/app/prostor/mape/mapa-kostur";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/app/prostor/zajednicko/radni-ui";
@@ -38,8 +39,8 @@ const MODE_ICONS = { tabla: SquareKanban, lista: Rows3, mapa: Network } as const
 /**
  * Ideje projekta (PROSTOR P16, K07 §5.9) — prezentacija: zaglavlje sa brojem
  * i jedinom primarnom radnjom „Nova ideja", pretraga i prekidač
- * Tabla · Lista · Mapa, pa izabrani prikaz. Mapu ideja donosi modul mapa;
- * do tada kartica Mapa kaže da stiže. Radni ekran se ne animira pri
+ * Tabla · Lista · Mapa, pa izabrani prikaz. Mapu ideja daje kontejner kroz
+ * `map` (dinamički učitana tek kad se izabere Mapa). Radni ekran se ne animira pri
  * učitavanju (Devotion `useEnter` nije prenet).
  */
 export function IdeasScreen({
@@ -55,6 +56,7 @@ export function IdeasScreen({
   onSortChange,
   onCreate,
   announcement,
+  map,
 }: {
   state: IdeasScreenState;
   mode: IdeasViewMode;
@@ -69,6 +71,8 @@ export function IdeasScreen({
   onCreate: () => void;
   /** Najava za čitač ekrana (glas, faza). */
   announcement: string;
+  /** Mapa ideja (dinamički učitana `MapaIdeja`); daje je kontejner. */
+  map?: ReactNode;
 }) {
   const searchId = useId();
   const ready = state.status === "ready";
@@ -222,16 +226,14 @@ export function IdeasScreen({
         <TabsContent value="lista" className="mt-0">
           {body("lista")}
         </TabsContent>
-        <TabsContent value="mapa" className="mt-0">
+        {/* Mapa ima visinu kao Mapa oblasti: xyflow traži roditelja sa visinom. */}
+        <TabsContent value="mapa" className="mt-0 h-[min(72vh,52rem)] min-h-[32rem]">
           {state.status === "error" ? (
             <IdeasError retry={state.retry} />
+          ) : state.status === "loading" ? (
+            <MapaKostur label="Učitavam mapu ideja" />
           ) : (
-            <EmptyState
-              icon={Network}
-              headingAs="h2"
-              title="Mapa ideja stiže uskoro."
-              description="Ideje su na Tabli i u Listi."
-            />
+            map
           )}
         </TabsContent>
       </Tabs>

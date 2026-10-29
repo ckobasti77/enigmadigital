@@ -111,6 +111,28 @@ await client.mutation(api.leadCrmStore.assignLead, { workspaceId });`,
     ]);
   });
 
+  test("klijent projekta (useProjekatKlijent) nije direktan poziv, a useConvex i dalje jeste (S14)", () => {
+    const r = proveriFront(
+      [
+        fajl(
+          "components/app/prostor/mape/z.tsx",
+          `const projekatKlijent = useProjekatKlijent();
+await projekatKlijent.query(api.prostor.thoughts.getConnectedGroup, { nodeId });
+await useProjekatKlijent().query(api.prostor.areasV2.resolveRoute, {});
+const convex = useConvex();
+await convex.query(api.prostor.thoughts.getConnectedGroup, { workspaceId, nodeId });
+await drugi.query(api.prostor.areasV2.resolveRoute, { workspaceId });`,
+        ),
+      ],
+      DOZVOLJENI,
+    );
+    expect(r.dozvoljeni).toEqual([]);
+    expect(r.pali.map((p) => [p.nacin, p.funkcija])).toEqual([
+      [".query", "prostor.thoughts.getConnectedGroup"],
+      [".query", "prostor.areasV2.resolveRoute"],
+    ]);
+  });
+
   test("hookovi projekta, generička implementacija, komentar i string nisu direktan poziv", () => {
     expect(
       nadjiDirektnePozive(

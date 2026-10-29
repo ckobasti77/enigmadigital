@@ -1105,3 +1105,90 @@ Ceo `npx vitest run`: 181 fajl, 2412 testova.
 - Pretvori odobrenu ideju u zadatak i otvori ga iz toasta i iz detalja („Postalo zadatak“).
 - Razvojni prikaz sada osvežava upite posle mutacije sa fiksturom (ODLUKA 7); ako neki stari ekran u `?ux=1` počne drugačije da se ponaša, to je razlog.
 - Ništa nije deployovano.
+
+## S14 — Mape: oblast, stranica, ideje, beleške   (2026-10-29 10:01)
+**Fajlovi:**
+- `components/app/prostor/mape/` (preneto alatom pa ručno dovršeno): `area-canvas-view`, `ideas-canvas-view`, `page-map-view` (iz `page-workspace-view`), `page-peek`, `workspace-item-dialog`, `thought-sidebar-drag`; `canvases/` (`area-flow-node`, `idea-flow-node`, `task-checkpoint-flow-node`, `canvas-action-rail`, `perimeter-resize-control`, `use-canvas-navigation` + tri CSS modula); `map/` (`map-card` + CSS modul, `map-chrome`); `thoughts/` (`thoughts-canvas-view`, `thought-node`, `thought-edge`, `thought-editor-dialog`, `thought-conversion-dialog`, `types`, `index` + CSS modul).
+- Novi u `mape/`: `index.tsx` (dinamički ulaz: `MapaOblasti`, `MapaStranice`, `MapaIdeja`, `MapaBeleski`, svaka u svojoj istoriji radnji), `mapa-stil.ts` (xyflow `style.css` + `mape.css`), `mapa-kostur.tsx`, `ekrani.tsx` (`BeleskeEkran`).
+- Rano iz S16 (alat, `--samo`): `components/app/prostor/ja/brzi-unos/thought-sharing.ts` (samo tipovi; traže ga `thoughts/types.ts` i `thought-sidebar-drag`).
+- `lib/prostor/modeli/` (+ testovi): `map-model`, `nesting-drop`, `perimeter-resize-geometry`, `thought-hierarchy`. `lib/prostor/web/`: `canvas-nesting` (+ test), `canvas-node-size` (+ test, dobio `CHECKPOINT_NODE_SIZE`), nov `boja-mape.ts`. Nov čuvar `lib/prostor/mape-lenje.test.ts`.
+- Izmenjeni: `dokumenti/area-view.tsx` (kartica Mapa + panel zadatka sa mape), `dokumenti/page-route-view.tsx` i `dokumenti/ekrani.tsx` (`?tab=mapa` crta `MapaStranice`), `dokumenti/page-document-view.tsx` („Prikaži na mapi“ u meniju „…“ i u podstranicama), `ideje/ideas-view.tsx` (`MapaIdeja`, „Ugnezdi u…“), `ideje/ideas-screen.tsx` (mesto `map`), `app/(app)/[projekat]/beleske/page.tsx` (umesto `EkranUskoro`).
+- Čuvari: `lib/front-cuvar.ts` (+ test), `scripts/verify-pristup.ts` (ODLUKA 8).
+- Razvojni prikaz: nov `app/dev-ux/fixtures-prostor-mape.ts` (radnik), registrovan u `app/dev-ux/fixtures.ts`; `fixtures-prostor-ideje.ts` dobio raspored mape, veze i ugnežđenu ideju.
+- Snimci `docs/spajanje/snimci/S14-{mapa-oblasti-1536,mapa-ideja-1536,mapa-beleski-1536,mapa-390}.png`.
+- Pomoćno: recept radnika `.nocni-run/spajanje/tmp/s14/brief-radnik.md`; izveštaj alata `.nocni-run/spajanje/tmp/prenos-ekran-S14.md` (40 fajlova, 130 RUČNO, sve zatvorene); dodatni snimci provere u `.nocni-run/spajanje/tmp/s14/`.
+
+**Šta je urađeno:**
+- **Mapa oblasti** (`/dokumenti/<id>?tab=mapa`, nova kartica „Mapa“): kartice stranica i zadataka (`MapCard`), veze i relacije, koraci zadatka oko kartice, promena veličine povlačenjem ivice, traka radnji desno (filter vrste, „Nova …“), Poništi · Ponovi, „Pregled“ u fioci, a za zadatak panel zadatka iz S12. Prevlačenje kartice na drugu je ugnežđavanje (natpis „Pusti da ugnezdiš“, toast sa „Poništi“).
+- **Mapa stranice** (`/stranica/<id>?tab=mapa`): ista mapa za podstranice, sa „Nazad na stranicu“ (i Esc). Dokument nudi „Prikaži na mapi“ u meniju „…“ i u podstranicama kad stranica ima decu.
+- **Mapa ideja** (kartica Mapa u Idejama): ideje po položaju, grupe (ugnežđene ideje), veze sa natpisom, glas i faza na kartici, kontekstni meni (Otvori, Nova grana, Ugnezdi u…, Izaberi povezane, Dupliraj, Obriši), „Nova ideja ovde“ i „Ugnezdi u…“ kroz dijalog iz S13.
+- **Mapa beleški** (`/<projekat>/beleske`): misli, niti sa natpisom, glavna misao, boje, dupli klik dodaje misao, „Pošalji u Ideje“, dupliranje, arhiviranje, mini-mapa, kontekstni meni na misli, niti i platnu. Ekran ima zaglavlje „Beleške“; posmatrač vidi „Beleške nisu dostupne.“
+- **Lenjo učitavanje:** mape su samo iza `mape/index.tsx` (`next/dynamic`, `ssr: false`); xyflow stil uvozi samo `mapa-stil.ts`, a nju četiri pogleda. Nov test čuva oba pravila.
+- **Točkić** skroluje stranicu dok se ne klikne u mapu; zum je Ctrl/⌘ + točkić ili dugmići (`useMapActivation`), na sve četiri mape.
+- Kontekstni meni je Base UI (`components/ui/context-menu`, S08); tema je samo tamna (`colorMode="dark"`), hex i Devotion tokeni su prepisani na Enigmine.
+
+**Paritet:**
+- Red 8 (Mapa beleški projekta): gotovo.
+- Red 14 (Mapa ideja): gotovo; dopunjuje red 13 iz S13.
+- Red 24 (Mapa oblasti i stranice: kartice, veze, ugnežđavanje prevlačenjem): gotovo.
+- Red 7 (Beleške „Ja“) i prevlačenje misli u stablo menija ostaju za S16 (ODLUKA 6).
+
+**ODLUKE:**
+1. **Boja beleške i ideje je kategorija** (`lib/prostor/web/boja-mape.ts`): `data-cat` iz validirane palete `--chart-1..6`, kao čipovi signala. `amber` ide na narandžastu (slot 2), jer je slot 4 rezervisan (blizu zlatne nagrade), pa je natpis „Ćilibar“ postao „Narandžasta“. Neutralna nema boju kategorije (`--text-muted`).
+2. **Boja radnje nije stanje izbora** (kao S11–S13): izabrana veličina, aktivna stavka trake, cilj ugnežđavanja i izabrana boja su neutralni (`surface-control-hover`, `line-strong`); boja radnje ostaje za vezu u nastanku i ručku pod mišem. Na mapama nema primarnog dugmeta (primarno je u zaglavlju ekrana); u dijalozima je primarna samo potvrda. „Blokirano“ na kartici zadatka je upozorenje, „u toku“ info (S09).
+3. **Istorija radnji** (Poništi · Ponovi, Ctrl/⌘ + Z/Y) važi dok je mapa otvorena: `WorkspaceHistoryProvider` je oko svake mape u `mape/index.tsx`, a ne oko cele ljuske kao u Devotionu. Globalni Ctrl/⌘ + Z bi presretao sve Enigmine ekrane, a mape su jedine koje ga pune. Posledica: istorija se ne pamti kad se napusti mapa.
+4. **Visina mape:** sve četiri mape su `h-[min(72vh,52rem)] min-h-[32rem]` (kao Devotion mapa oblasti). Devotion je mapu ideja i beleški crtao preko celog ekrana, a ovde su u toku strane, pa im je visina morala da se zada.
+5. **Mapa beleški dobila je aktivaciju točkića** (Devotion je tamo imao `preventScrolling` podrazumevano): korak traži isto ponašanje na mapama. Radnik je dodao i `onContextMenu` na omotač, jer xyflow ne zove `onPaneContextMenu` kad je desni taster u `panOnDrag` (meni platna je inače koristio zastareli cilj).
+6. **`thought-sidebar-drag.tsx` je preneto, ali nije montirano:** u Devotionu `c05c40f` nijedan pozivalac ne prosleđuje `onBeginSidebarDrag` ni `onRequestDestination` (sloj se nikad ne pali), pa paritet ne gubi ništa. `thought-sharing.ts` je rano preneto iz S16 (samo tipovi).
+7. **`canvas-node-size.test`:** dva testa poređenja sa kopijom za telefon (`apps/mobile`) nisu preneta, jer telefona u Enigmi još nema (jednoredni komentar umesto njih). Test granica koraka zadatka je zadržan: granice (140–520 × 92–600) su sada `CHECKPOINT_NODE_SIZE` u `lib/prostor/web/canvas-node-size.ts`, a čvor koraka ih čita (bile su inline). Fajl ima 4 od 6 testova i 13 od 16 `expect(`.
+8. **Čuvari:**
+   - `scripts/verify-pristup.ts`: `DOZVOLJENI_DIREKTNI` dobio je tačno 13 ključeva S14 iz plana S07 §3.2 (`thoughts.archiveEdges` … `updateNodeLayout`, sve L, `proveriSpisak` to potvrđuje). Front sada ima 75 direktnih poziva (bilo 62), svi sa spiska.
+   - `lib/front-cuvar.ts`: `.query(api…)` nad rezultatom `useProjekatKlijent()` (kuka S08 iz plana §3.1, sama ubacuje `workspaceId`) više nije direktan poziv; `useConvex().query` i svaki drugi klijent i dalje jesu. Test to pokazuje u oba smera. Bez ovoga planirana kuka nije mogla da se koristi (`getConnectedGroup`).
+9. **Radnici** (tri mape i fiksture, Sonnet; diff, typecheck i lint pregledani): prop `workspaceId` je skinut sa `AreaCanvasView`, `IdeasCanvasView`, `PagePeek`, čvora koraka i akcija kartice (kuke ga ubacuju); `key` mape ideja je `workspaceId` iz `useProjekat()`; mini-mapa beleški boji po `--chart-N`; ugrađen `<style>` iz Devotion mape beleški (neispravni `:global` selektori) je uklonjen; Badge `variant` → `ton`; prečica dupliranja je `usePrecica("D")`. Fiksture: `areasV2.requestNesting` i `ideas.connect` nemaju fiksturu (u prikazu ostaju lokalno), početni pogled mape ideja je pomeren da Poništi · Ponovi ne prekriva prvu karticu.
+10. **CRLF:** nova fikstura je stigla sa CRLF krajevima; svi S14 fajlovi su LF, kao ostale fiksture.
+11. **Razvojni prikaz:** klik na karticu oblasti menja adresu i gubi `?ux=1` (S10 ODLUKA 10), pa je mapa oblasti otvarana direktnom adresom `?tab=mapa`; na Idejama je prekidač lokalan, pa je tamo lenjo učitavanje provereno klikom.
+
+**Novi paketi:** nema (`@xyflow/react@12.11.2` je iz S02).
+
+**Testovi:** 50 novih, svi prolaze.
+
+| Fajl | Testova | Napomena |
+|---|---|---|
+| `lib/prostor/modeli/map-model.test.ts` | 18 | preneto; `expect(` 51/51 |
+| `lib/prostor/modeli/nesting-drop.test.ts` | 6 | preneto; 6/6 |
+| `lib/prostor/modeli/perimeter-resize-geometry.test.ts` | 4 | preneto; 12/12 |
+| `lib/prostor/modeli/thought-hierarchy.test.ts` | 3 | preneto; 6/6 |
+| `lib/prostor/web/canvas-nesting.test.ts` | 9 | preneto; 13/13 |
+| `lib/prostor/web/canvas-node-size.test.ts` | 4 | preneto 4 od 6 (ODLUKA 7); 13/16 |
+| `lib/prostor/mape-lenje.test.ts` | 5 | nov čuvar: xyflow samo u `mape/`, stil samo u `mapa-stil.ts`, van `mape/` samo ulaz, ekran i kostur; ulaz dinamički bez SSR-a |
+| `lib/front-cuvar.test.ts` | +1 | klijent projekta nije direktan poziv, `useConvex` jeste |
+
+`task-checkpoint-layout` (5) je prenet rano u S12. Ceo `npx vitest run`: 188 fajlova, 2462 testa.
+
+**Rezultat provere:**
+- codegen: nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest: prolazi (2462);
+- pristup: prolazi, front 75 direktnih poziva, svi sa spiska;
+- regresije: prolaze (20; ultra 5, prostor 1); boja modula 654/654, `font-mono` 254/254.
+
+**Vizuelna provera** (Playwright, `next dev -p 3117`, ugašen na kraju):
+- Mapa oblasti (1536 × 695): 8 kartica i 4 veze; prevlačenje kartice je pomera (1080, 240 → 1159, 319); prevlačenje kartice preko druge pokazuje „Pusti da ugnezdiš“ i daje toast „… je ugnežđeno u …“ sa „Poništi“; povlačenje od ručke do ručke dodaje vezu (4 → 5); točkić nad neaktivnom mapom skroluje stranu (zum ostaje 69 %), Ctrl + točkić zumira (69 → 91 %).
+- Mapa stranice: „Mapa · Endpointi za plaćanje“ sa 2 podstranice i relacijom; dokument ima „Prikaži na mapi“.
+- Mapa ideja: 13 ideja, 3 veze, grupa sa ugnežđenom idejom; desni klik na ideju daje meni, a „Ugnezdi u…“ otvara dijalog.
+- Mapa beleški: 8 misli i 4 niti; desni klik na misao daje meni misli, na prazno platno meni platna („Nova misao ovde“ otvara dijalog); prevlačenje misli je pomera.
+- 390 × 844: mapa oblasti bez vodoravnog skrola, uklopljena na 20 %.
+- Konzola na tekućim stranama: 0 grešaka i 0 upozorenja (greška istorije radnji i upozorenje „parent container needs a width and a height“ su viđeni i popravljeni, ODLUKE 3 i 4).
+
+**Prihvatanje (dokaz):**
+- „Sve tri vrste mapa se otvaraju u razvojnom prikazu; prevlačenje, veze i kontekstni meni rade“: vizuelna provera iznad i snimci `S14-mapa-oblasti-1536.png`, `S14-mapa-ideja-1536.png`, `S14-mapa-beleski-1536.png`, `S14-mapa-390.png`.
+- „Glavni ekran oblasti ne učitava xyflow dok se ne otvori Mapa“: u mreži, `/enigma-it/dokumenti/areasux0001?ux=1&tab=pregled` učitava 85 JS fajlova i nijedan nema xyflow kod (traženo `react-flow__pane` u sadržaju svakog fajla); ista oblast sa karticom Mapa dodaje `area-canvas-view` i `node_modules_…` (744 KB, xyflow). Na Idejama klik na Mapa dovlači 3 nova komada (85 → 88). Statički to čuva `lib/prostor/mape-lenje.test.ts`.
+- „Provere prolaze; sekcija S14 je u progress-u“: ovo je ta sekcija.
+
+**Za Jovana ujutru:**
+- Na pravim podacima otvori Mapu oblasti: prevuci karticu, poveži dve kartice, prevuci karticu preko druge (ugnežđavanje) i proveri „Poništi“; Ctrl/⌘ + Z poništava poslednju radnju na mapi.
+- Na Idejama (Mapa) napravi vezu između ideja i ugnezdi ideju; na `/<projekat>/beleske` dodaj misao duplim klikom, poveži dve i pošalji jednu u Ideje.
+- Istorija radnji važi samo dok je mapa otvorena (ODLUKA 3). Potvrdi da ti to odgovara.
+- „Ćilibar“ je sada „Narandžasta“ (ODLUKA 1).
+- Ništa nije deployovano.

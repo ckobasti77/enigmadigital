@@ -2,17 +2,14 @@
 
 // Preneto iz Devotion apps/web/components/workspace/page/page-route-view.tsx (main @ c05c40f), SPAJANJE S10.
 import { Component, useState, type ReactNode } from "react";
-import { Map as MapIcon } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
 import type { CreatePageTarget, StartupWithAreas } from "@/lib/prostor/rute";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { EmptyState } from "@/components/app/prostor/zajednicko/radni-ui";
 
 import { PageDocumentSkeleton, PageRouteProblem } from "@/components/app/prostor/dokumenti/page-document";
 import { PageDocumentView } from "@/components/app/prostor/dokumenti/page-document-view";
 import { TaskPageView } from "@/components/app/prostor/zadaci/task-page-view";
+import { MapaStranice } from "@/components/app/prostor/mape";
 import type { Today } from "@/lib/prostor/web/danas";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { useProjekatQueryResult } from "@/components/app/prostor/podaci/projekat";
@@ -29,14 +26,17 @@ export type PageRouteViewProps = {
   onOpenArea: (areaId: Id<"areas">) => void;
   onOpenTrash: () => void;
   onCreateChild: (target: CreatePageTarget) => void;
+  /** Mapa stranice (`?tab=mapa`) i povratak sa nje na dokument. */
+  onOpenMap: (pageId: Id<"pages">) => void;
+  onBackToPage: (pageId: Id<"pages">) => void;
   onArchived: (page: { areaId: Id<"areas">; parentPageId: Id<"pages"> | null }) => void;
 };
 
 /**
  * Ruta `/stranica/<id>` (PROSTOR K10, plan K07 §3): beleška, tabela i fajl su
  * dokument tima, a zadatak je zadatak na celu stranu (`TaskPageView`, S12).
- * Mapa stranice (`?tab=mapa`) dolazi sa ekranom mapa; dotle ruta kaže šta je
- * stranica i vodi na dokument. Sopstvena granica greške razlikuje obrisanu
+ * Mapa stranice (`?tab=mapa`) je dinamički učitana mapa podstranica
+ * (`MapaStranice`); zadatak nema mapu. Sopstvena granica greške razlikuje obrisanu
  * stranicu (Korpa) od greške učitavanja („Pokušaj ponovo").
  */
 export function PageRouteView(props: PageRouteViewProps) {
@@ -68,6 +68,8 @@ function PageRouteLoader({
   onOpenPage,
   onOpenArea,
   onCreateChild,
+  onOpenMap,
+  onBackToPage,
   onArchived,
 }: PageRouteViewProps) {
   const page = useProjekatQuery(api.prostor.pages.get, { pageId });
@@ -92,15 +94,12 @@ function PageRouteLoader({
   }
   if (tab === "mapa") {
     return (
-      <EmptyState
-        icon={MapIcon}
-        headingAs="h2"
-        title="Mapa stranice stiže uskoro."
-        action={
-          <Button type="button" variant="outline" onClick={() => onOpenPage(pageId)}>
-            Otvori stranicu
-          </Button>
-        }
+      <MapaStranice
+        workspace={workspace}
+        page={page}
+        onBackToPage={() => onBackToPage(pageId)}
+        onOpenPage={onOpenPage}
+        onCreateChild={onCreateChild}
       />
     );
   }
@@ -115,6 +114,7 @@ function PageRouteLoader({
       onOpenPage={onOpenPage}
       onOpenArea={onOpenArea}
       onCreateChild={onCreateChild}
+      onOpenMap={onOpenMap}
       onArchived={() => onArchived(fallback)}
     />
   );

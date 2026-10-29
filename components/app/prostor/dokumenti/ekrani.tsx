@@ -132,6 +132,8 @@ function StranicaSadrzaj({ pageId }: { pageId: Id<"pages"> }) {
       onOpenArea={(areaId) => idi({ kind: "area", areaId })}
       onOpenTrash={() => idi({ kind: "trash" }, { zaobidjiCuvara: true })}
       onCreateChild={otvoriNovuStranicu}
+      onOpenMap={(id) => idi({ kind: "page", pageId: id, tab: "mapa" })}
+      onBackToPage={(id) => idi({ kind: "page", pageId: id }, { zameni: true })}
       onArchived={(page) =>
         idi(pageArchiveFallbackRoute(page), { zaobidjiCuvara: true, zameni: true })
       }

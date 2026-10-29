@@ -40,6 +40,16 @@ export const HOOK_VISE_UPITA = "useQueries";
 /** Metode klijenta (`ConvexHttpClient`) koje primaju referencu funkcije. */
 export const METODE_KLIJENTA: readonly string[] = ["query", "mutation", "action"];
 
+/**
+ * Kuka projekta za imperativni upit (`components/app/prostor/podaci/projekat.ts`,
+ * SPAJANJE S08, plan S07 §3.1): `useProjekatKlijent().query(api.x.y, …)` sama
+ * ubacuje `workspaceId`, isto kao `useProjekatQuery`. Zato `.query` nad njenim
+ * rezultatom (`const k = useProjekatKlijent(); k.query(…)` ili lanac
+ * `useProjekatKlijent().query(…)`) nije direktan poziv. Svaki drugi klijent
+ * (`useConvex()`, `ConvexHttpClient`) i dalje jeste (SPAJANJE S14).
+ */
+export const KUKA_KLIJENTA_PROJEKTA = "useProjekatKlijent";
+
 export type DirektanPoziv = {
   /** Putanja relativna u odnosu na koren repoa, sa `/`. */
   putanja: string;
@@ -77,14 +87,48 @@ function lanacApi(izraz: ts.Expression): string[] | null {
   return lanac;
 }
 
+/** `useProjekatKlijent()` (kroz zagrade i `as`). */
+function jePozivKlijentaProjekta(izraz: ts.Expression): boolean {
+  let tek: ts.Expression = izraz;
+  while (ts.isAsExpression(tek) || ts.isParenthesizedExpression(tek) || ts.isNonNullExpression(tek)) {
+    tek = tek.expression;
+  }
+  return (
+    ts.isCallExpression(tek) &&
+    ts.isIdentifier(tek.expression) &&
+    tek.expression.text === KUKA_KLIJENTA_PROJEKTA
+  );
+}
+
+/** Imena promenljivih u fajlu dodeljenih iz `useProjekatKlijent()`. */
+function klijentiProjekta(izvor: ts.SourceFile): Set<string> {
+  const imena = new Set<string>();
+  const obidji = (cvor: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(cvor) &&
+      ts.isIdentifier(cvor.name) &&
+      cvor.initializer !== undefined &&
+      jePozivKlijentaProjekta(cvor.initializer)
+    ) {
+      imena.add(cvor.name.text);
+    }
+    ts.forEachChild(cvor, obidji);
+  };
+  obidji(izvor);
+  return imena;
+}
+
 /** Ime pozvane funkcije (`useQuery`) ili metode (`.query`), inače `null`. */
-function nacinPoziva(poziv: ts.CallExpression): string | null {
+function nacinPoziva(poziv: ts.CallExpression, klijenti: ReadonlySet<string>): string | null {
   const callee = poziv.expression;
   if (ts.isIdentifier(callee) && HOOKOVI.includes(callee.text)) return callee.text;
   if (
     ts.isPropertyAccessExpression(callee) &&
     METODE_KLIJENTA.includes(callee.name.text)
   ) {
+    const primalac = callee.expression;
+    if (ts.isIdentifier(primalac) && klijenti.has(primalac.text)) return null;
+    if (jePozivKlijentaProjekta(primalac)) return null;
     return `.${callee.name.text}`;
   }
   return null;
@@ -100,6 +144,7 @@ export function nadjiDirektnePozive(fajl: IzvorniFajl): DirektanPoziv[] {
     putanja.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
   const nadjeni: DirektanPoziv[] = [];
+  const klijenti = klijentiProjekta(izvor);
   const linija = (cvor: ts.Node) =>
     izvor.getLineAndCharacterOfPosition(cvor.getStart(izvor)).line + 1;
   const obidji = (cvor: ts.Node): void => {
@@ -125,7 +170,7 @@ export function nadjiDirektnePozive(fajl: IzvorniFajl): DirektanPoziv[] {
       uObjektu(cvor.arguments[0]);
     }
     if (ts.isCallExpression(cvor) && cvor.arguments.length > 0) {
-      const nacin = nacinPoziva(cvor);
+      const nacin = nacinPoziva(cvor, klijenti);
       const lanac = nacin === null ? null : lanacApi(cvor.arguments[0]);
       if (nacin !== null && lanac !== null) {
         nadjeni.push({

@@ -90,6 +90,19 @@ const DOZVOLJENI_DIREKTNI: Readonly<Record<string, string>> = {
   "prostor.personalTasks.setStatus": "panel zadatka: završi lični zadatak (bez projekta)",
   "prostor.personalTasks.archive": "panel zadatka: obriši lični zadatak (bez projekta)",
   "prostor.personalTasks.restore": "panel zadatka: „Poništi“ brisanje ličnog zadatka (bez projekta)",
+  "prostor.thoughts.archiveEdges": "mapa beleški: beleška je moja, projekat je opcion",
+  "prostor.thoughts.archiveNodes": "mapa beleški: beleška je moja, projekat je opcion",
+  "prostor.thoughts.detachNode": "mapa beleški: beleška je moja, projekat je opcion",
+  "prostor.thoughts.duplicateNodes": "mapa beleški: beleška je moja, projekat je opcion",
+  "prostor.thoughts.moveNodes": "mapa beleški: beleška je moja, projekat je opcion",
+  "prostor.thoughts.nestNode": "mapa beleški: beleška je moja, projekat je opcion",
+  "prostor.thoughts.resetNodeLayoutSize": "mapa beleški: beleška je moja, projekat je opcion",
+  "prostor.thoughts.restoreEdges": "mapa beleški: beleška je moja, projekat je opcion",
+  "prostor.thoughts.restoreNodes": "mapa beleški: beleška je moja, projekat je opcion",
+  "prostor.thoughts.toggleNodeParent": "mapa beleški: beleška je moja, projekat je opcion",
+  "prostor.thoughts.updateEdge": "mapa beleški: beleška je moja, projekat je opcion",
+  "prostor.thoughts.updateNode": "mapa beleški: beleška je moja, projekat je opcion",
+  "prostor.thoughts.updateNodeLayout": "mapa beleški: beleška je moja, projekat je opcion",
 };
 
 const koren = fileURLToPath(new URL("../", import.meta.url));

@@ -1,0 +1,73 @@
+/* Ivica za promenu veličine kartice: neutralna linija, fokus u boji fokusa. */
+.control {
+  position: absolute;
+  z-index: 44;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.path {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.hitPath {
+  stroke: transparent;
+  stroke-width: 15px;
+  pointer-events: stroke;
+  touch-action: none;
+  outline: none;
+}
+
+.visualPath {
+  stroke: var(
+    --perimeter-resize-accent,
+    var(--node-accent, var(--checkpoint-accent, var(--line-strong)))
+  );
+  stroke-width: 1.5px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--duration-fast) var(--ease-ui),
+    stroke-width var(--duration-fast) var(--ease-ui);
+}
+
+.selected .visualPath,
+.resizing .visualPath,
+.hitPath:hover + .visualPath,
+.hitPath:focus-visible + .visualPath {
+  opacity: 0.9;
+}
+
+.resizing .visualPath,
+.hitPath:active + .visualPath {
+  stroke-width: 2.25px;
+  opacity: 1;
+}
+
+.hitPath:focus-visible {
+  filter:
+    drop-shadow(0 0 2px var(--background))
+    drop-shadow(
+      0 0 4px
+        var(
+          --perimeter-resize-accent,
+          var(--node-accent, var(--checkpoint-accent, var(--focus-ring)))
+        )
+    );
+}
+
+@media (pointer: coarse) {
+  .hitPath {
+    stroke-width: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visualPath {
+    transition: none;
+  }
+}

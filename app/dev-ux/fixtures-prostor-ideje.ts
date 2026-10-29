@@ -15,6 +15,11 @@
  *   /enigma-it/ideje?ux=1                    → tabla (ili zapamćen prikaz)
  *   /enigma-it/ideje?ux=1&ideja=<IDEJA_UX>   → detalj sa komentarima
  * `&prazno=1` daje projekat bez ideja.
+ *
+ * Mapa ideja (kartica „Mapa“, SPAJANJE S14) čita iste ideje: raspored
+ * (`MAPA`), tri veze (`VEZE`, jedna sa natpisom) i jedna ugnežđena ideja
+ * („Šablon ponude u dve strane“ unutar „Paketa Sajt za 7 dana“). Tabla i lista
+ * ne koriste ta polja.
  */
 import { getFunctionName } from "convex/server";
 import { api } from "@/convex/_generated/api";
@@ -210,6 +215,60 @@ const SEME: Seme[] = [
   },
 ];
 
+// ── Mapa ideja ───────────────────────────────────────────────────────────────
+//
+// Pet kolona, tri reda; kartica je 288 × 196, red je 224 visok. „Paket Sajt za
+// 7 dana“ je grupa (352 × 440) koja nosi ideju 8: njen x/y je prema roditelju,
+// ispod zaglavlja grupe. Treći red počinje ispod grupe, a kolona desno od nje
+// je razmaknuta da natpis veze „Cena iz paketa“ stane između kartica.
+
+type Raspored = { x: number; y: number; width?: number; height?: number; roditelj?: number; glavna?: boolean };
+
+const MAPA: Record<number, Raspored> = {
+  1: { x: 0, y: 0 },
+  3: { x: 320, y: 0 },
+  2: { x: 640, y: 0, width: 352, height: 440, glavna: true },
+  6: { x: 1120, y: 0 },
+  4: { x: 1440, y: 0 },
+  5: { x: 0, y: 224 },
+  7: { x: 320, y: 224 },
+  8: { x: 32, y: 216, roditelj: 2 },
+  9: { x: 1120, y: 224 },
+  10: { x: 1440, y: 224 },
+  12: { x: 0, y: 468 },
+  13: { x: 320, y: 468 },
+  11: { x: 640, y: 468 },
+};
+
+/** Veze na mapi (puna linija između dve ideje); jedna nosi natpis. */
+const VEZE: { n: number; a: number; b: number; natpis: string | null; pre: number }[] = [
+  { n: 1, a: 1, b: 3, natpis: null, pre: 3 * DAY },
+  { n: 2, a: 5, b: 7, natpis: null, pre: 5 * DAY },
+  { n: 3, a: 6, b: 2, natpis: "Cena iz paketa", pre: 2 * DAY },
+];
+
+function veza(seme: (typeof VEZE)[number]): Spisak["edges"][number] {
+  const a = fakeId("ideaNodes", seme.a);
+  const b = fakeId("ideaNodes", seme.b);
+  const nastala = now - seme.pre;
+  return {
+    _id: fakeId("ideaEdges", seme.n),
+    _creationTime: nastala,
+    workspaceId: WS,
+    authorProfileId: JA._id,
+    nodeAId: a,
+    nodeBId: b,
+    pairKey: [a, b].sort().join(":"),
+    label: seme.natpis,
+    archivedAt: null,
+    createdAt: nastala,
+    updatedAt: nastala,
+    canEdit: true,
+    canDeleteDirectly: true,
+    canRequestDeletion: false,
+  };
+}
+
 // ── Stanje (glas i faza) ─────────────────────────────────────────────────────
 
 const pocetniGlasovi = () =>
@@ -251,6 +310,7 @@ function ideja(seme: Seme): Ideja {
     canArchive: true,
     canComment: true,
   };
+  const raspored = MAPA[seme.n];
   return {
     _id: id,
     _creationTime: nastala,
@@ -258,8 +318,13 @@ function ideja(seme: Seme): Ideja {
     authorProfileId: seme.autor._id,
     title: seme.naslov || null,
     text: seme.tekst,
-    x: (seme.n % 4) * 320,
-    y: Math.floor(seme.n / 4) * 220,
+    x: raspored.x,
+    y: raspored.y,
+    ...(raspored.width !== undefined && raspored.height !== undefined
+      ? { width: raspored.width, height: raspored.height }
+      : {}),
+    ...(raspored.roditelj !== undefined ? { parentIdeaId: fakeId("ideaNodes", raspored.roditelj) } : {}),
+    ...(raspored.glavna ? { isParent: true } : {}),
     color: "neutral",
     convertedPageId: pretvorena,
     convertedAt: pretvorena ? now - (seme.faza_pre ?? seme.pre) : null,
@@ -286,7 +351,7 @@ function ideja(seme: Seme): Ideja {
     canResize: permissions.canEdit,
     canDeleteDirectly: permissions.canArchive,
     canRequestDeletion: false,
-    canDetach: false,
+    canDetach: raspored.roditelj !== undefined && permissions.canEdit,
     nestingRequestId: null,
     nestingModerationStatus: null,
     canModerateNesting: false,
@@ -294,10 +359,14 @@ function ideja(seme: Seme): Ideja {
 }
 
 function spisak(): Spisak {
+  const prikazane = SEME.filter((seme) => !stanje.obrisane.has(fakeId("ideaNodes", seme.n)));
+  const vidljive = new Set(prikazane.map((seme) => seme.n));
   return {
-    nodes: SEME.filter((seme) => !stanje.obrisane.has(fakeId("ideaNodes", seme.n))).map(ideja),
-    edges: [],
-    canvasState: { x: 0, y: 0, zoom: 1 },
+    nodes: prikazane.map(ideja),
+    edges: VEZE.filter((v) => vidljive.has(v.a) && vidljive.has(v.b)).map(veza),
+    // Mapa ideja kreće od sačuvanog pogleda (nema „uklopi sve“): 0,6 uklapa
+    // ceo raspored (1728 × 664) u ~1060 × 430 px.
+    canvasState: { x: 24, y: 72, zoom: 0.6 },
     currentProfileId: JA._id,
     viewer: { profileId: JA._id, isManager: true },
   };

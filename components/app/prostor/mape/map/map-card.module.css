@@ -1,0 +1,13 @@
+/*
+ * Boja ideje ili beleške (izbor korisnika) — samo tačka pored vrste, nikad
+ * pozadina kartice. Boja je kategorija: element nosi `data-cat`
+ * (`lib/prostor/web/boja-mape.ts`), a `--cat` dolazi iz `app/globals.css`.
+ * Neutralna nema `data-cat`, pa pada na prigušen tekst.
+ */
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: 9999px;
+  background: var(--cat, var(--text-muted));
+}
