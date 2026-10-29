@@ -93,3 +93,10 @@ npm run verify:prostor-pristup
 - Posle alata moduli su imali 0 grešaka typecheck-a; testovi 368 (skoro sve „nedostaje `workspaceId`“).
 - Alat ne vidi da P funkcija sme da čita dokument iz DRUGOG projekta (`thoughts.convertToIdeas`: izvor je lična beleška ili beleška drugog mog projekta, cilj je `ctx.projekat`). Takvo mesto mora da proveri izvor bez `ctx.projekat` (`{ ...ctx, projekat: undefined }`), inače adapter odbija sa „Stavka nije pronađena u ovom projektu.“
 - Alat ostavlja `args: { }` kad obriše jedini `workspaceId` (kozmetika).
+
+## Isprobano (S06)
+
+- `--korak S06`: 10 modula (`chat`, `notifications`, `inbox`, `notificationSettings`, `pushSubscriptions`, `push`, `expoPush`, `expoPushTokens`, `pushTest`, `adminAuth`), 0 lib fajlova, 10 test fajlova; 27 RUČNO stavki (`startupMembers` u `chat` ×2, `expoPushTokens`, `adminAuth` i dva testa; `profile.role` u `chat` ×7; `process.env` u `push`/`expoPush`/`pushTest`; uvoz Devotion `./auth` u `adminAuth`; `startups.removeMember` u `legacyFlows.test`).
+- Posle alata `npx convex codegen` pada dok `adminAuth.ts` uvozi Devotion `./auth` (esbuild ne nalazi modul); prvo popraviti uvoz, pa `codegen --typecheck disable`.
+- Testovi su posle alata imali samo 41 grešku typecheck-a (5 fajlova); većina padova je bila u ponašanju (P9, imena zakazanih poslova `prostor/<modul>:<fn>`, `contentType` u `_storage`).
+- `adminAuth.ts` i `remindDueTasks` su prepisani ručno po S01 §3.6d i §3.6e; `lib/lozinka.ts` je nov (D13).

@@ -106,11 +106,18 @@ export async function obezbediRadniDeoProjekta(
 /** Najviše zadataka sa kojih se član skida u jednoj transakciji (Devotion 250). */
 const NAJVISE_ZADATAKA_PRI_UKLANJANJU = 250;
 
+/** Najviše otvorenih listića koje uklanjanje pregleda (Devotion 200). */
+const NAJVISE_LISTICA_PRI_UKLANJANJU = 200;
+
 /**
  * D23: član uklonjen iz projekta (`membersStore.removeMember`) skida se sa
  * svojih zadataka u tom projektu; ostali izvršioci ostaju, a projekcija na
  * stranici se preračunava. Korisnik bez profila nije ni ulazio u radni deo.
  * Preko granice baca grešku i uklanjanje se ne izvodi, kao u Devotionu.
+ *
+ * SPAJANJE S06: kao Devotion `startups.removeMember`, njegov otvoren listić u
+ * starom zahtevu za brisanje tog projekta postaje „izuzet” i zahtev broji
+ * jednog glasača manje. Zahtev se time ne izvršava (glasanje je ugašeno, P4).
  */
 export async function ukloniClanaIzRadnogDela(
   ctx: MutationCtx,
@@ -121,10 +128,30 @@ export async function ukloniClanaIzRadnogDela(
     .withIndex("by_userId", (q) => q.eq("userId", args.userId))
     .first();
   if (profil === null) return 0;
-  return await archiveAssignmentsForProfile(ctx, {
+  const skinuto = await archiveAssignmentsForProfile(ctx, {
     profileId: profil._id,
     workspaceId: args.workspaceId,
     now: args.now,
     limit: NAJVISE_ZADATAKA_PRI_UKLANJANJU,
   });
+  const listici = await ctx.db
+    .query("deletionBallots")
+    .withIndex("by_profileId_and_vote_and_createdAt", (q) =>
+      q.eq("profileId", profil._id).eq("vote", "pending"),
+    )
+    .take(NAJVISE_LISTICA_PRI_UKLANJANJU);
+  for (const listic of listici) {
+    if (listic.workspaceId !== args.workspaceId) continue;
+    const zahtev = await ctx.db.get("deletionRequests", listic.requestId);
+    if (zahtev === null || zahtev.status !== "pending") continue;
+    await ctx.db.patch("deletionBallots", listic._id, {
+      vote: "excused",
+      updatedAt: args.now,
+    });
+    await ctx.db.patch("deletionRequests", zahtev._id, {
+      eligibleCount: Math.max(0, zahtev.eligibleCount - 1),
+      updatedAt: args.now,
+    });
+  }
+  return skinuto;
 }

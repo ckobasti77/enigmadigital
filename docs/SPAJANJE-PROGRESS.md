@@ -418,3 +418,140 @@ Ekrani nisu dirani.
 - `aiProviders.apiKey` je u bazi nešifrovan (D14, kao u Devotionu). Predlog: šifrovati ga kroz `convex/lib/crypto.ts` pre nego što kartica „AI“ (S21) ode u produkciju.
 - AI provajdere vodi samo vlasnik projekta koji je i vlasnik platforme. Odluči da li vlasnik klijentskog projekta treba da ih vodi sam.
 - Prilog ili avatar čiji je blob nastao pre dozvole sada se odbija (ODLUKA 1). Normalan tok (dozvola → otpremanje → `attach`) ne pogađa. Ako web nekad otprema pre nego što uzme dozvolu, to mora da obrne.
+
+## S06 — Backend: poruke, obaveštenja, push, podsetnici, lozinke   (2026-10-29 03:55)
+**Fajlovi:**
+- `convex/prostor/` (preneto alatom pa ručno dovršeno): `chat.ts`, `notifications.ts`, `inbox.ts`, `notificationSettings.ts`, `pushSubscriptions.ts`, `push.ts` (`"use node"`), `expoPush.ts`, `expoPushTokens.ts`, `pushTest.ts`; `adminAuth.ts` prepisan po S01 §3.6d.
+- `convex/prostor/lib/`:
+  - nov `lozinka.ts` (D13);
+  - `dostava.ts`: `zakaziDostavu` sada zakazuje `push.deliver` i `expoPush.deliver` (D6);
+  - `ljudi.ts`: nova `delimProjekatSa` (P9);
+  - `radniDeo.ts`: `ukloniClanaIzRadnogDela` izuzima i listić starog glasanja (ODLUKA 11).
+- `convex/crons.ts`: posao „podsetnici za rokove“ (6 h). Ostalih 30 poslova nije dirano.
+- Testovi:
+  - preneti `chat`, `chat.personal`, `chat.validator`, `inbox`, `inbox.ideaVote`, `notifications`, `expoPush`, `adminAuth`, `crons`, `legacyFlows` (`*.test.ts`);
+  - novi `obavestenja.test.ts` i `poruke.test.ts`; novi blokovi u `adminAuth.test.ts`.
+- `convex/_generated/api.d.ts` (codegen).
+- `.nocni-run/spajanje/alati/README.md` (odeljak „Isprobano (S06)“).
+
+**Šta je urađeno:**
+- Alat je preneo 10 modula i 10 test fajlova, sa 27 RUČNO stavki. Sve su zatvorene ručno. Tri radnika (Sonnet) su dovršila po jednu grupu testova (chat.personal; chat, inbox, inbox.ideaVote; notifications, legacyFlows). Module nisu menjali. Diff, broj blokova i broj `expect(` su pregledani pre prihvatanja, a jedna izmena radnika je vraćena (ODLUKA 11).
+- Sve nove javne funkcije su na omotačima P8, tačno po S01 §3.5:
+  - `chat`: 6 P (`listChannels`, `channelForAnchor`, `listDirectMessages`, `listFollowedThreads`, `sendToAnchor`, `openDirectMessage`) i 22 L;
+  - `notifications`: 4 P (`list`, `latest`, `unreadCount`, `markAllRead`) i L `markRead`;
+  - `inbox`, `notificationSettings`, `pushSubscriptions`, `expoPushTokens`: sve L;
+  - `adminAuth.adminSetPassword`: P! (akcija); `pushTest.sendTest` je interna (D12).
+- `verify:pristup` pokazuje **632 / 617 / 15**, tačno po S01 §7, bez novih izuzetaka.
+- Poruke:
+  - kanali po oblasti, opšti kanal, lični DM i grupe, članstvo, pročitano, prisustvo, reakcije, niti i pretraga rade kao u Devotionu;
+  - primaoci kanala projekta idu kroz `aktivniClanoviProjekta` (owner/urednik sa profilom), pa client_viewer ne dobija ni poruke ni obaveštenja;
+  - `listPeople` ide kroz `ljudiSaKojimaDelim` (P9);
+  - Devotion „admin“ (`profile.role`, 4 mesta) je vlasnik platforme (`jeVlasnikPlatforme`).
+- Obaveštenja:
+  - `createNotification` ostaje jedini put; posle upisa zakazuje web i Expo dostavu;
+  - web push šalje samo kad postoje sve tri `VAPID_*` promenljive, inače vraća `skipped` bez slanja (test);
+  - Expo push ostaje uspavan: bez sačuvanog tokena ništa ne šalje (test);
+  - Inbox (feed, nepročitano, „Čeka tebe“) i bedž za telefon čitaju moje projekte kroz `listMyActiveWorkspaces` (Enigmino članstvo, bez client_viewer i arhiviranih).
+- `adminSetPassword`: omotač traži vlasnika projekta, a interna autorizacija i vlasnika platforme. Meta mora biti owner/urednik tog projekta. Pravila lozinke su Enigmina (8–128), a sesije mete se gase. Devotion `resetAdminPassword` nije prenet.
+- Podsetnici za rokove su fan-out po projektu, sa kursorom i bez odsecanja (D11). Cron je u `convex/crons.ts`.
+
+**Zbir backenda prema S01 §1 (kraj S02–S06):**
+- Tabele: **51** u `convex/prostor/schema.ts`; `verify:purge` 196 aplikacionih (+7 auth).
+- Moduli: **37** u `convex/prostor/`, to jest 36 Devotion modula (sa `canvasPlacement`) plus `projekat.ts` sa 6 funkcija iz `startups.ts` i 2 nove. Ne prenose se `migrations`, `areasV2Migrations`, `invites` ni `startups` (zamenjuje ih Enigma).
+- Lib: **35** fajlova u `convex/prostor/lib/` (30 Devotion + `dostava`, `radniDeo`, `ljudi`, `lozinka`, `otpremanje`); `access_errors` i `onboarding` nisu preneti (D21).
+- Javne funkcije: **253** nove (632 − 379), sve kroz omotač, 0 novih `// javno:`.
+- Interne funkcije: **19**, to jest 17 prenetih iz Devotiona, nova `remindDueTasksForWorkspace` i `pushTest.sendTest` (bila javna, D12). Uz njih je `verifyAreasV2` u `.pomoc` fajlu, samo za testove.
+- Testovi: preneto **474** bloka (473 po S01 §5.4, plus 1 iz S03 ODLUKE 1); `convex/prostor` ima 54 fajla i 570 testova; deljena logika `lib/prostor` ima 26 fajlova i 373 testa.
+
+**Env promenljive koje push traži (samo imena):**
+- Convex: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (sve tri obavezne za web push), `EXPO_ACCESS_TOKEN` (opciono, za Expo; telefon dolazi kasnije).
+- Web: `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (pretplata iz browsera, S17).
+
+**Paritet:**
+- 31 (podsetnici za rokove, cron 6 h): urađeno, sa testom.
+- Backend za redove:
+  - 5 (Inbox: obaveštenja iz svih projekata, nepročitano, „Čeka tebe“);
+  - 6 i 15 (poruke: lični DM, grupe, kanali projekta, reakcije, prisustvo, pretraga);
+  - 9 (podešavanja obaveštenja, tiho vreme, pretplata za web push);
+  - 28 (lozinka člana);
+  - 32 (web push).
+- Ekrani nisu dirani: S15 (poruke), S17 (zvono, Inbox, push), S21/S22 (lozinke). Enigmino zvono nije dirano.
+
+**ODLUKE:**
+1. **P9 važi i za započinjanje razgovora, ne samo za spisak.**
+   - `openPersonalDm`, `createPersonalGroup` i NOVI članovi u `updatePersonalGroup` traže da pozivalac i druga osoba dele bar jedan aktivan projekat kao owner/urednik (`lib/ljudi.delimProjekatSa`). Inače: „Sa ovom osobom ne deliš nijedan projekat.“
+   - Devotion je dozvoljavao razgovor sa bilo kim („instanca je jedan tim“). U Enigmi bi poznat ID profila zaobišao spisak ljudi i otvorio razgovor sa strancem ili klijentom.
+   - Postojeći razgovori i grupe rade dalje kroz članstvo u razgovoru. `openPersonalDm` ka osobi sa kojom više ne delim projekat odbija i kad DM već postoji; razgovor ostaje dostupan iz spiska razgovora.
+   - Test „radi i bez zajedničkog startupa (instanca je jedan tim)“ je postao „P9: bez zajedničkog projekta se razgovor ne otvara, sa zajedničkim radi“. U seed-u chat.personal Vesna je dodata u projekat A, a dodat je „Stranac“ bez projekta (detalji u 13).
+2. **Admin u četu je vlasnik platforme** (`jeVlasnikPlatforme(profile.userId)`): nov kanal tima (`createChannel`), članovi kanala (`setChannelMembers`), arhiviranje kanala i brisanje tuđe poruke. Vlasnik projekta to ne može, kao ni Devotion vlasnik startupa. Tekst „Poruku može obrisati samo autor ili administrator.“ je postao „… autor ili vlasnik platforme.“.
+3. **Prilog poruke: pravilo „čiji je blob“ iz S05 (ODLUKA 1).** `requireUnattachedBlob` sada zove `tudjiBlob` (prilog stranice, prilog poruke, tuđ avatar, Enigmin upload, logo, fajl objave) i radi i kad prilog prolazi, ne samo pre brisanja. Inače bi odbijen prilog sa podmetnutim ID-jem velikog Enigminog fajla (npr. YouTube videa) obrisao taj fajl, a prihvaćen bi tuđ fajl dobio adresu u poruci. Čet nema tabelu dozvola, pa se rok dozvole ne proverava. Poruka ostaje Devotionova: „Ovaj fajl je već zakačen.“
+4. **Web push traži sve tri `VAPID_*` promenljive.** Devotion je bez `VAPID_SUBJECT` slao sa izmišljenom adresom `mailto:admin@example.com`; ovde se tada ne šalje ništa (`skipped`).
+5. **`zakaziDostavu` uvek zakazuje obe grane** (Devotion paritet; test `expoPush › paralelna dostava` očekuje 2). Provera promenljivih je u `push.deliver`, a provera tokena u `expoPush.deliver`; bez njih obe vraćaju `skipped` i ništa ne izlazi.
+6. **Podsetnici: 40 zadataka po transakciji, ne 100 (S01 §3.6e).** Svaki primalac zakazuje dve dostave, a mutacija sme najviše 1.000 zakazanih poslova: 100 × 10 izvršilaca × 2 bi to probilo, a 40 × 10 × 2 = 800 ne. Projekti idu po 50 na strani. `workspaces` nema indeks po arhivi, pa strana čita sve projekte i preskače arhivirane; posao projekta ponovo proverava arhivu. Nastavci nose isti `now`.
+7. **Testovi starog `remindDueTasks` zovu `remindDueTasksForWorkspace`** (vraća `{ created, scanned }` kao Devotion), pa `created` asercije ostaju doslovne. Ceo cron (fan-out, 150 zadataka, 52 projekta, arhiviran projekat) proverava nov `obavestenja.test.ts`.
+8. **„Čeka tebe“ kroz sve projekte čita najviše 20 projekata** (S01 §9.1: 20 × 31 ideja, kao Devotion). Više od 20 daje `truncated: true`, umesto tihog odsecanja. Feed i nepročitano ostaju na opsegu 50 (P28).
+9. **`adminAuth`:**
+   - meta mora biti owner/urednik projekta iz kog se radnja pokreće („Dodeljeni član mora pripadati ovom projektu.“); Devotion je bio globalan;
+   - `recordPasswordChange` piše aktivnost u svaki projekat gde je meta owner/urednik (`members.by_user`, bez duplikata, najviše 50); arhiviran projekat se ne preskače, jer ni Devotion nije gledao arhivu startupa;
+   - `normalizeEmail` dolazi iz Enigminog `convex/auth.ts`, a pravila lozinke iz `lib/lozinka.ts` (paritet sa `lib/password-rules.ts` proverava test);
+   - u testu „ne-admin je odbijen“ tekst „administratorski“ je postao „samo vlasnik platforme“.
+10. **`pushTest.sendTest` i `expoPushTokens.myTokensForTest` primaju `profileId`** (D12). `computeBadge` čita moje projekte kroz `listMyActiveWorkspaces`, pa bedž ne broji ni projekat u kome sam client_viewer.
+11. **Uklanjanje člana izuzima njegov listić starog glasanja.**
+    - Radnik je u `legacyFlows › uklanjanje člana …` promenio očekivano (`"excused"` → `"pending"`, `eligibleCount` 1 → 2), jer `membersStore.removeMember` to nije radio. To je slabljenje provere, pa je vraćeno na Devotion vrednosti.
+    - `ukloniClanaIzRadnogDela` (D23) sada radi i ono što je radio Devotion `startups.removeMember`: otvoren listić tog člana u tom projektu postaje `excused`, a zahtev broji glasača manje. Zahtev se ne izvršava.
+    - Aktivnost `member_removed` se ne beleži, jer helper ne zna ko uklanja.
+12. **`crons.test`:** Enigmin `crons.ts` ima i svoje poslove, pa test ne traži „samo jedan posao“, nego tačno jedan posao radnog dela, sa imenom `prostor/notifications:remindDueTasks`, i nijedan `prostor/puls:` (S01 §9.6).
+13. **Izmene u prenetim testovima** (provere nisu oslabljene, samo usklađene):
+    - imena zakazanih poslova su puna putanja (`prostor/inbox:markAllReadBatch`, `prostor/push:deliver`, `prostor/expoPush:deliver`); chat.personal dodatno proverava da 5 obaveštenja zakazuje tačno 10 dostava;
+    - convex-test 0.0.65 pamti `contentType` bloba: očekivan tip priloga je `image/png`, a u `chat.test` argument sada „laže“ sa `application/pdf` (+1 provera da upisani tip nije iz argumenta);
+    - `startupMembers` u seed-u (inbox.ideaVote, notifications) → `members.by_user_workspace` + `.first()` + `ukloniClanstvo`, uz proveru da red postoji;
+    - `workspaceId` je dodat u pozive P funkcija (notifications ×7, legacyFlows ×12); `api.collaboration` → `api.prostor.collaboration` u jednoj tipskoj referenci;
+    - legacyFlows: člana uklanja vlasnik projekta kroz `membersStore.removeMember` (S01 §1.4), uz proveru da je članstvo obrisano; „Nemate pristup“ → „Nemaš pristup ovom projektu.“ (×4);
+    - inbox: očekivani ključ stavke `"startup"` → `"workspace"` (alat ga nije preimenovao);
+    - chat.personal: arhiviran profil → „Profil još nije spreman. Osveži stranicu.“; 50 generisanih profila u testu granica grupe su članovi projekta A; `listPeople` očekivanja su izvedena iz P9, sa dodatnim slučajevima (arhiviran profil, client_viewer, samo arhiviran zajednički projekat, stranac).
+14. **Ime polja `sharedStartupNames` u `listPeople` ostaje** (D10, ugovor sa webom).
+
+**Novi paketi:** nema (`web-push` je instaliran u S02).
+
+**Testovi:**
+- Preneto je **144 bloka**, tačno po S01 §5.4: chat 32, chat.personal 31, chat.validator 3, inbox 23, inbox.ideaVote 5, notifications 13, expoPush 21, adminAuth 6, crons 3, legacyFlows 7. Broj `expect(` nije manji ni u jednom fajlu (chat 113→114, chat.personal 162→176, inbox.ideaVote 21→22, crons 5→6, legacyFlows 46→47, ostali isti).
+- Novi testovi (17):
+  - `adminAuth.test.ts` +5:
+    - vlasnik projekta koji nije vlasnik platforme i urednik su odbijeni, i ništa se ne menja;
+    - meta mora biti član projekta;
+    - pravila lozinke su Enigmina (7 znakova pada, lozinka bez znaka pada);
+    - vlasnik platforme menja lozinku: nov heš, sesija mete obrisana, aktivnost u A, B i klijentskom projektu, bez lozinke;
+    - `lib/lozinka.ts` = `lib/password-rules.ts` na 12 uzoraka.
+  - `obavestenja.test.ts` (6):
+    - `createNotification` zakazuje obe dostave, a bez `VAPID_*` push se tiho preskače;
+    - bez `VAPID_SUBJECT` se ne šalje; sa sve tri ide kroz zamenjen `web-push`;
+    - Expo bez tokena ne šalje, ni probno slanje;
+    - **150 zadataka dobija podsetnik i niko nije odsečen**, a drugi prolaz ne duplira;
+    - 52 projekta prolaze kroz dve strane, a arhiviran se preskače;
+    - `fetch` baca ako ga iko pozove i nijednom nije pozvan.
+  - `poruke.test.ts` (6):
+    - `listPeople` je bez client_viewer-a i stranca;
+    - DM i grupa sa strancem ili client_viewer-om se odbijaju i ništa ne upisuju;
+    - poruka u opštem kanalu ne obaveštava client_viewer-a, a on je ne čita;
+    - kanal tima pravi i arhivira samo vlasnik platforme;
+    - tuđu poruku briše vlasnik platforme, ne vlasnica projekta;
+    - „Čeka tebe“ sa 20 projekata nije, a sa 21 jeste `truncated`.
+  - Cron je registrovan (`crons.test`).
+- `convex/prostor` sada ima 54 fajla i 570 testova.
+- Ceo `npx vitest run`: 150 fajlova i 2115 testova, svi prolaze.
+
+**Rezultat provere:**
+- codegen prolazi;
+- typecheck prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest prolazi (2115);
+- pristup: 632 / 617 / 15, bez novih izuzetaka;
+- `verify-purge-coverage` 196 (nema novih tabela);
+- regresije: 20 provera prolazi, uključujući `verify:prostor-pristup` i `verify:ultra-recnik` (R9).
+
+**Za Jovana ujutru:**
+- Ništa nije deployovano. Posle deploya Convexa cron „podsetnici za rokove“ kreće na 6 h. Prvi prolaz šalje podsetnike za sve otvorene zadatke sa rokom u poslednjih 14 dana i sledećih 48 h (Devotion prozor).
+- Web push radi tek kad se u Convexu postave `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` i `VAPID_SUBJECT`, a na webu `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (S17). Bez njih obaveštenja ostaju u Inboxu, bez greške.
+- Odluči da li razgovor sme da se započne samo sa ljudima iz zajedničkog projekta (ODLUKA 1) ili sa svima, kao u Devotionu.
+- Odluči da li vlasnik projekta treba da pravi i arhivira kanale tima i briše tuđe poruke (sada to radi samo vlasnik platforme, ODLUKA 2).
+- Postavljanje lozinke članu gasi sve njegove sesije i radi samo za člana projekta iz kog se pokreće.

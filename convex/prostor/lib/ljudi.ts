@@ -1,5 +1,5 @@
 import type { Doc, Id } from "../../_generated/dataModel";
-import type { Clanstvo, ReadCtx } from "./auth";
+import { clanstvoProfila, type Clanstvo, type ReadCtx } from "./auth";
 import { listMyActiveWorkspaces, type WorkspaceMini } from "./my_scope";
 import { CHAT_PEOPLE_CAP } from "./validators";
 
@@ -65,4 +65,21 @@ export async function ljudiSaKojimaDelim(
   return [...poProfilu.values()].sort((a, b) =>
     a.profile.displayName.localeCompare(b.profile.displayName, "sr-Latn"),
   );
+}
+
+/**
+ * P9: da li pozivalac deli bar jedan aktivan projekat sa drugim profilom (oba
+ * `owner`/`urednik`). Važi za nov lični razgovor i novog člana lične grupe, da
+ * spisak ljudi ne bi mogao da se zaobiđe poznatim ID-jem profila.
+ */
+export async function delimProjekatSa(
+  ctx: ReadCtx,
+  profile: Doc<"profiles">,
+  drugiProfileId: Id<"profiles">,
+): Promise<boolean> {
+  const projekti = await listMyActiveWorkspaces(ctx, profile._id);
+  for (const workspaceId of projekti.keys()) {
+    if ((await clanstvoProfila(ctx, workspaceId, drugiProfileId)) !== null) return true;
+  }
+  return false;
 }

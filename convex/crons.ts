@@ -305,4 +305,13 @@ crons.interval(
 // `interval`, po pravilu sa vrha ovog fajla.
 crons.interval("puls", { minutes: 15 }, internal.puls.pokupiSve, {});
 
+// Radni deo (SPAJANJE S06): podsetnici za rokove zadataka. Nije Meta posao,
+// pa ide na `interval`. Fan-out po projektu sa kursorom (plan S01 D11).
+crons.interval(
+  "podsetnici za rokove",
+  { hours: 6 },
+  internal.prostor.notifications.remindDueTasks,
+  {},
+);
+
 export default crons;
