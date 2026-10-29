@@ -59,6 +59,7 @@ import { FIXTURES_PROSTOR_PORUKE, PRAZNO_PROSTOR_PORUKE } from "./fixtures-prost
 import { FIXTURES_PROSTOR_JA, PRAZNO_PROSTOR_JA } from "./fixtures-prostor-ja";
 import { FIXTURES_PROSTOR_INBOX, PRAZNO_PROSTOR_INBOX } from "./fixtures-prostor-inbox";
 import { FIXTURES_PROSTOR_DANAS, postaviPrethodnoStanjeProjekata } from "./fixtures-prostor-danas";
+import { FIXTURES_PROSTOR_POCETNA, PRAZNO_PROSTOR_POCETNA } from "./fixtures-prostor-pocetna";
 import { redoviStatusa } from "./fixtures-status-veza";
 import { integracijeUKvaru } from "@/convex/lib/statusVeze";
 
@@ -1257,6 +1258,9 @@ Object.assign(
 // ono što nije njegovo; zvono „Ja“ bez projekata nema šta da sabere.
 postaviPrethodnoStanjeProjekata(FIXTURES[getFunctionName(api.projekti.stanjeProjekata)]);
 Object.assign(FIXTURES, FIXTURES_PROSTOR_DANAS);
+// Početna projekta (S20) posle Danas: kvačica i glas prosleđuje Danas/„Ja“/
+// Idejama, a `listEverywhere` i `inbox.pending` sa projektom sužava na projekat.
+Object.assign(FIXTURES, FIXTURES_PROSTOR_POCETNA);
 
 // ── Prazan nalog (`?ux=1&prazno=1`) ──────────────────────────────────────────
 // Bez veza ka kanalima (osim ljuske) i bez redova: svaki kanal pokazuje svoje
@@ -1293,6 +1297,7 @@ const PRAZNO: Record<string, Fixture> = {
   ...PRAZNO_PROSTOR_PORUKE,
   ...PRAZNO_PROSTOR_JA,
   ...PRAZNO_PROSTOR_INBOX,
+  ...PRAZNO_PROSTOR_POCETNA,
   // Prazan nalog je stanje kanala, ne nalog bez projekata: birač ostaje pun.
   [getFunctionName(api.projekti.stanjeProjekata)]: () =>
     stanjeProjekataUx(staMeCeka.ukupno),

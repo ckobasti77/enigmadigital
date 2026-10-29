@@ -1572,3 +1572,98 @@ Ceo `npx vitest run`: 198 fajlova, 2546 testova.
   - naslov „Ideje za glasanje“ (ODLUKA 5).
 - Kontrolna tabla do S20 i dalje nosi misije: u međukoraku su misije na dva mesta.
 - Ništa nije deployovano.
+
+## S20 — Početna projekta, Puls tima, Aktivnost   (2026-10-29 13:40)
+**Fajlovi:**
+- Rute `app/(app)/[projekat]/`:
+  - `page.tsx`: `OverviewPage` crta `PocetnaEkran` (zaglavlje je u ekranu, jer podnaslov i primarna radnja zavise od uloge i podataka);
+  - `puls/page.tsx` (u `<Suspense>`, čita `?nedelja=`) i `aktivnost/page.tsx`: `EkranUskoro` je zamenjen.
+- `components/app/prostor/pocetna/`:
+  - preneto alatom pa ručno prepisano (imena po planu S18 §4.2): `blok.tsx`, `rows-context.tsx`, `za-tebe.tsx`, `trijaza.tsx`, `use-triage-data.ts`, `ideje-glasanje.tsx`, `tim.tsx`, `nedavne-izmene.tsx`, `activity-row.tsx`, `puls-kartica.tsx`, `ekran.tsx` (`PocetnaEkran`), `puls-ekran.tsx`, `pulse-bar.tsx`, `aktivnost-ekran.tsx`;
+  - novo: `pocetna-skeleton.tsx`, `brojevi-zaglavlja.tsx`;
+  - `reschedule-dialog.tsx` (S12) nije menjan.
+- `lib/prostor/modeli/pocetna-model.ts` (+ test): `sastavPocetne`, `redBlokova`, `limitiPocetne`, `sledecaGranicaZone`, `podnaslovPocetne`.
+- `lib/prostor/web/puls.ts` (+ test): port Devotion `lib/puls.ts`.
+- Hirurške izmene van `prostor/`: `components/app/overview/command-focus.tsx` (samo `export` za `FokusZadatak`).
+- Izmena S19 fajla: `components/app/prostor/danas/napredak-kartica.tsx` (prop `uProjektu`, ODLUKA 3).
+- Razvojni prikaz: nov `app/dev-ux/fixtures-prostor-pocetna.ts` (registrovan posle Danas u `fixtures.ts`, uz `PRAZNO`), `harness.tsx` (prop `pocetna` i spisak E17), `[[...slug]]/page.tsx` (grana projekta prosleđuje `&stanje=`; CRLF zadržan).
+- Snimci `docs/spajanje/snimci/S20-{pocetna-1536,pocetna-390,puls-1536,aktivnost-1536,pocetna-prazno-1536,pocetna-posmatrac-1536,pocetna-panel-1536,sredi-rokove-1536}.png`.
+- Pomoćno: izveštaj alata `.nocni-run/spajanje/tmp/prenos-ekran-S20.md` (16 fajlova, 19 RUČNO, sve zatvorene ručnim prepisom), skripta izmene i log builda u `.nocni-run/spajanje/tmp/s20/`, Playwright logovi u `.nocni-run/spajanje/tmp/playwright/s20/`.
+
+**Šta je urađeno:**
+- **Početna projekta** (`/[projekat]`), sastav bira `sastavPocetne({ uloga, rezim })`:
+  - owner/urednik: zaglavlje „Početna“ sa podnaslovom „6 za tebe · 20 otvorenih u timu · 12 čeka te“ (na telefonu bez broja tima) i jedinom primarnom radnjom „Novi zadatak“ (deljeni dijalog sa vrstom Zadatak). Gore levo **Za tebe** (fokus, 6 redova, na telefonu 5, „Svi moji zadaci“) i **Trijaža** (Gori · Zastarelo · Danas · Ova nedelja · Kasnije i bez roka, filter člana, „Sredi rokove · N“ kao `secondary`, 8 redova po zoni pa „Prikaži još“ po 25 do 100). Desno (od `xl`) Enigmino **Šta me čeka**, **Ideje za glasanje** (Za/Protiv) i **Tim** (klik filtrira Trijažu). Ispod **Brojke** (ceo `OverviewDashboard`, bez izmene), pa **Puls tima** (jedina uokvirena kartica: Završeno · Novo · Zapelo) i **Nedavne izmene** (8, na telefonu 5, „Sva aktivnost“). Na telefonu je jedna kolona tačno redom P18.
+  - posmatrač u hubu: Enigmin `FokusZadatak` (jedino primarno dugme), „Šta me čeka“ bez prvog reda i Brojke; nijedan blok ni upit radnog dela.
+  - panel: posmatrač dobija `CommandTop` kakav je bio; urednik dobija P18 blokove i tihu karticu napretka posle „Šta me čeka“ (E10).
+  - Svaki blok radnog dela ima svoju granicu i „Pokušaj ponovo“; Trijaža i Tim dele pretplate i ponovni pokušaj. Redovi zadataka dele `useStartupTaskCommands` (kvačica sa zadržavanjem i „Poništi“, rok, prioritet, status, panel zadatka, prečice). Dok uloga nije poznata, crta se skelet fiksne visine i nijedan upit radnog dela se ne šalje.
+- **Puls tima** (`/[projekat]/puls?nedelja=<ms>`): nedelja (prethodna, sledeća, „Tekuća nedelja“, „Prva nedelja“), traka sastava (Kasni · Zapelo · Završeno), Sažetak (4 broja sa trendom, jedini istaknut blok), Zapelo, Po oblastima, Po članovima, Ideje.
+- **Aktivnost** (`/[projekat]/aktivnost`): 30 unosa, „Učitaj još“ po 30, sat od 60 s, prazno „Još nema aktivnosti.“, greška „Aktivnost nije učitana.“.
+- Posmatrač na `/puls` i `/aktivnost` (adresa otvorena ručno) vidi zaključano stanje, bez upita.
+- **Ništa od Kontrolne table nije nestalo:** zaglavlje, „Šta me čeka“, Brojke i birač perioda su tu; misije i napredak su na Danas (hub) i ostaju na početnoj u panelu (plan S18 §2.1).
+
+**Paritet:**
+- Red 10 (Komandni centar: Za tebe, Trijaža sa Sredi rokove i Zastarelo, Čeka tebe, Tim, Nedavne izmene, Puls): **gotovo** na `/[projekat]`; „Čeka tebe“ je „Ideje za glasanje“ (E7).
+- Red 26 (Aktivnost projekta): **gotovo** na `/[projekat]/aktivnost`.
+- Red 27 (Puls nedelje: završeno, novo, prekoračeno, zapelo; po oblasti i članu): **gotovo** na `/[projekat]/puls` + kartica „Puls tima“ na početnoj.
+- O10/P18: gotovo; „Danas · misije“ je sklonjeno sa početne u hubu (S19 ih je već prikazao na Danas).
+
+**ODLUKE:**
+1. **Blok „Čeka te“ na početnoj je Enigmin `StaMeCeka` bez izmene, sa njegovim naslovom „Šta me čeka“** (plan S18 §4.2: „ništa drugo u `overview/` se ne menja“). Za urednika bez preskakanja prvog reda (E8); kad nema stavki blok se ne crta, pa desna kolona počinje Idejama. Za posmatrača `preskociPrvi`, jer prvi red već nosi `FokusZadatak` (isto kao `CommandTop`).
+2. **E8/E9:** urednik nema `FokusZadatak`/`SledeciZadatak`; fokus je „Za tebe“, a primarna radnja „Novi zadatak“. Posmatrač ima `FokusZadatak` (izvezen iz `command-focus.tsx`, `sabira={false}`); `CommandTop` se ponaša isto.
+3. **E10 (panel): `NapredakKartica` je dobila opcioni prop `uProjektu`.** Kartica je pravljena za „Ja“ (`JaLink`, poslednji projekat iz kolačića); u panelu bi „Nivo“ vodio na `/projekti`, kojeg panel nema. Sa `uProjektu` nivo ide kroz `ProjekatLink` (`/napredak`), misija kroz postojeći `MisijaLink`, a naslov misije kroz `naslovMisije`. Bez propa (Danas) ponašanje je isto. Provereno u panelu: veze `/napredak` i `/instagram/komentari`.
+4. **Brojeve u podnaslovu javljaju sami blokovi** (`brojevi-zaglavlja.tsx`), a ne druga pretplata u zaglavlju: druga pretplata bi grešku držala živom, pa „Pokušaj ponovo“ ne bi ništa obnovio. Blok koji padne briše svoj broj (plan §2.7). Na telefonu podnaslov nema broj tima („7 za tebe · 3 čeka te“, plan §2.5).
+5. **Filter člana u Trijaži je Enigmin `Select`** („Čiji zadaci“, kao na Zadacima), ne Devotion padajući meni sa radio stavkama. Skriven je kad tim nema otvorenih zadataka (bez mrtve kontrole).
+6. **Zone Trijaže (E12):** 8 redova (telefon 5), „Prikaži još“ dodaje 25 do 100. Preko 100 umesto daljeg „Prikaži još“ stoji veza „Još N na Zadacima“ (Devotion je dodavao po 100 bez gornje granice). Granica prati širinu ekrana (broji se klik, ne apsolutni broj).
+7. **Flip:** `FlipGroup` u Za tebe i u Trijaži (zone su i same deo Flip-a), bez Devotion `useFlip().capture` (S12 ODLUKA 4, S19). Ulaz pri učitavanju nema.
+8. **Naslovi blokova su 15 px** (`text-copy font-semibold`), kao Enigmini „Kanali“ i „Šta me čeka“ na istom ekranu; Devotion `SectionHeading` je 13 px. `Block` zato crta svoj `h2`.
+9. **Puls tima:** `?nedelja=` je samo početna vrednost (Devotion `initialWeekStart`); strelice menjaju stanje ekrana, ne adresu. Nedelja u budućnosti pada na tekuću (server je odbija). `now` ide u koracima od 15 min (`pulseCardNow`) i na ekranu, ne samo na kartici, da povratak u aplikaciju ne pravi novu pretplatu.
+10. **`lib/prostor/web/puls.ts`** računa nedelje preko ključeva dana iz `lib/prostor/dates.ts` (opciona `zone`, kao ostatak `lib/prostor`), pa nedelja preko promene vremena (25. 10. 2026) ima tačno 169 sati. Imena meseci su iz `SR_MONTHS_SHORT` bez `Intl`; test potvrđuje da su ista kao `MESECI_KRATKO` u `lib/format.ts`. `daysWord` je iz `lib/prostor/dates` (Devotion ga je uvozio iz `deadline`; ista množina).
+11. **`PulseBar` bez interaktivne grane** (`onSelect`, `active`, `opacity-40`): jedini korisnik je Puls tima, koji je ne koristi. Prazna traka je `bg-surface-raised`, „prigušeni“ ton `bg-line-control`.
+12. **Glas „Za/Protiv“ dok se šalje:** `aria-disabled` + `aria-busy` (Enigmino dugme tada ima 0,8), bez `aria-disabled:opacity-50` (pravilo K3 o providnosti).
+13. **Tekstovi grešaka:** Za tebe, Trijaža, Tim i Nedavne izmene iz `COMMAND_BLOCK_TEXT`; Ideje „Ideje nisu učitane.“ i Puls „Puls tima nije učitan.“ po planu §2.7 (Devotion je imao „Čeka tebe“ i „Puls nedelje“).
+14. **Posmatrač na `/puls` i `/aktivnost`:** isto zaključano stanje kao Zadaci i Dokumenti (ikonica katanca, „… nije dostupan. Tvoja uloga u ovom projektu vidi samo brojeve.“), bez upita; dok uloga nije poznata, skelet.
+15. **E17 u razvojnom prikazu:** za `&uloga=client_viewer` harness baca „Nemaš pristup ovom projektu.“ za upite sa spiska `RADNI_UPITI_POCETNE` kad nose `workspaceId` (lične varijante bez projekta, npr. `inbox.pending` u zvonu, su legitimne). Na početnoj, Pulsu i Aktivnosti posmatrača konzola je bez grešaka, pa poziva nema.
+16. **Fikstura početne:** Trijaža = zadaci tima iz S12 + svojih 9 (tri zastarela, prekoračeni i „u toku“ za Za tebe), `&stanje=pretrpan` dodaje 30 prekoračenih i `hasMore`. Kvačica, rok i prioritet se pamte i prosleđuju Danas/„Ja“, pa Za tebe, Trijaža i podnaslov pokazuju istu promenu. Treća ideja za glasanje je „Radionica „Prvi sajt“ u Novom Sadu“ (ideja 7 iz S13), a glas skida ideju sa spiska. `&stanje=` u grani projekta ide u nov prop harness-a `pocetna`, ne u `postaviStanjeDanas` (inače bi „pretrpan“ promenio traku na 20 projekata).
+17. **Dodatni snimci** (posmatrač, panel, „Sredi rokove“) su napravljeni Playwright-om; `scripts/ux-snapshots.mjs` nije menjan (unosi `kontrolna-tabla` i dalje snimaju `/enigma-it`).
+18. **Jedna primarna radnja** (izmereno `[data-variant="primary"]`): urednik u hubu i panelu 1 („Novi zadatak“, y = 95 na 1536 × 695), posmatrač 1 (Enigmin fokus „Otvori upite“). `ConnectNotice` u Brojkama je `outline`, pa nije trebalo ništa spuštati.
+19. **Čuvari nisu menjani.** `DOZVOLJENI_DIREKTNI` je isti: novi direktni pozivi (`tasks.listEverywhere` i `inbox.pending` sa projektom) su već na spisku (S16, S17); front ima 157 direktnih poziva, 0 nedozvoljenih.
+
+**Novi paketi:** nema.
+
+**Testovi:** 28 novih ili prenetih, svi prolaze.
+
+| Fajl | Testova | Šta pokriva |
+|---|---|---|
+| `lib/prostor/modeli/pocetna-model.test.ts` | 15 (novo) | `sastavPocetne`: uloga nepoznata → samo skelet, bez radnog dela; posmatrač u hubu [FokusZadatak, Šta me čeka, Brojke], u panelu [CommandTop, Brojke], nikad blok radnog dela; owner/urednik u hubu tačno P18 + Ideje + Tim, bez Napretka; u panelu Napredak posle Čeka te; red na telefonu = P18. `limitiPocetne` 6/5, 8/5, 5/3, 8/5 i „Prikaži još“ +25 do 100. `podnaslovPocetne`: množina, nule, pad bloka, telefon bez broja tima, ≤ 90 znakova |
+| `lib/prostor/web/puls.test.ts` | 13 (9 preneto + 4 nova) | početak nedelje, normalizacija, `addWeeks`, `isCurrentWeek`, oznaka nedelje (mesec, godina), `formatDaysStanding`, trend; novo: Europe/Belgrade leto, nedelja preko 25. 10. 2026 (169 h), tekuća nedelja i oznaka po Beogradu, imena meseci = `lib/format.ts` |
+
+Postojeći `command-center-model`, `command-center`, `stale`, `activity-format` i `convex/prostor/zadaci.test.ts` (`commandCenter` i `puls.getWeekly` zatvoreni za posmatrača) prolaze bez izmene. Ceo `npx vitest run`: 200 fajlova, 2574 testa.
+
+**Rezultat provere:**
+- codegen: nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest: prolazi (200 fajlova, 2574 testa);
+- pristup: 632 / 617 / 15, front 157 direktnih poziva, 0 nedozvoljenih;
+- regresije: prolaze (20; ultra 5, prostor 1); boja modula 654/654, `font-mono` 254/254;
+- `npm run build`: prolazi (`/[projekat]/puls`, `/[projekat]/aktivnost` u spisku ruta).
+- Procesi: `next dev -p 3117` ugašen (`Stop-Process` na `start-server.js`, `next dev` i `npx`, jer `TaskStop` ga ne gasi); port 3117 ne sluša.
+
+**Vizuelna provera** (Playwright, `next dev -p 3117`, ugašen na kraju):
+- 1536 × 695: iznad preloma su zaglavlje sa „Novi zadatak“, ceo blok Za tebe (6), naslov Trijaže sa „Sredi rokove · 5“ i zona Gori; desno ceo „Šta me čeka“ i Ideje za glasanje. Brojke, Puls tima i Nedavne izmene su ispod (pun snimak u `tmp/s20/pocetna-ceo-1536.png`).
+- Radnje: kvačica na „Odgovori na upit pekare“ skida red iz Za tebe i iz Gori, a podnaslov pada na „5 za tebe · 19 otvorenih u timu“; „Sredi rokove“ otvara dijalog sa 4 zadatka (tri zastarela); „Za“ skida ideju i fokus ide na sledeću; klik na člana u Timu filtrira Trijažu („Ana Test“, 3) i drži `aria-pressed`; `&stanje=pretrpan`: Gori 8 → 33 posle „Prikaži još 25“, napomena o 150 zadataka.
+- Puls tima: „Prethodna nedelja“ menja oznaku na 19–25. okt i brojeve; Aktivnost: 30 → 40 posle „Učitaj još“, dugme nestaje.
+- Posmatrač (`&uloga=client_viewer`): početna po §2.6, `/puls` zaključan; panel (`/?ux=1&rezim=panel`): kartica napretka posle „Šta me čeka“; `&prazno=1`: „Nemaš otvorenih zadataka ovde.“, „Tim nema otvorenih zadataka.“, „Nema ideja koje čekaju tvoj glas.“.
+- 390 × 844: jedna kolona redom P18, bez vodoravnog klizanja (početna i Puls), podnaslov „6 za tebe · 12 čeka te“.
+- Konzola: 0 grešaka i 0 upozorenja na svim proverenim stanjima.
+
+**Prihvatanje (dokaz):**
+- „Početna projekta ima sve blokove po planu S18, a fokus i primarna radnja staju iznad preloma na 1536 × 695“: `S20-pocetna-1536.png` (Za tebe i „Novi zadatak“ iznad preloma), `S20-pocetna-390.png`, `S20-pocetna-prazno-1536.png`, `S20-pocetna-posmatrac-1536.png`, `S20-pocetna-panel-1536.png`; sastav pokriva `pocetna-model.test.ts`.
+- „Puls i Aktivnost rade u razvojnom prikazu“: `S20-puls-1536.png`, `S20-aktivnost-1536.png`; promena nedelje i „Učitaj još“ provereni iznad.
+- „Provere prolaze; sekcija S20 je u progress-u“: završni prolaz iznad; ovo je sekcija S20.
+
+**Za Jovana ujutru:**
+- Na pravim podacima otvori `/<projekat>`: završi zadatak iz Za tebe (treba da nestane i iz Trijaže), „Sredi rokove“ sa „Poništi“, glas na ideji i klik na člana u Timu.
+- Misije i napredak više nisu na početnoj u hubu; žive na Danas (`/`). U panelu domenu ostaju na početnoj (E10).
+- Potvrdi: fokus urednika je „Za tebe“, a ne prvi zadatak iz „Šta me čeka“ (E8); Tim ostaje na početnoj (E11); blok „Čeka te“ i dalje nosi Enigmin naslov „Šta me čeka“ (ODLUKA 1); preko 100 zadataka u zoni vodi na Zadatke (ODLUKA 6).
+- Ništa nije deployovano.

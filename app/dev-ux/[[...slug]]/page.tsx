@@ -274,7 +274,7 @@ export default async function DevUxPage({
   if (!dinamicna && !Page) notFound();
 
   return (
-    <UxHarness prazno={prazno === "1"} pad={pad} uloga={uloga}>
+    <UxHarness prazno={prazno === "1"} pad={pad} uloga={uloga} pocetna={stanje}>
       {/* Isto kao `app/(app)/layout.tsx` (traka samo u hubu) i
           `app/(app)/[projekat]/layout.tsx`. */}
       <div data-traka={rezim === "panel" ? "ne" : undefined} className="contents">

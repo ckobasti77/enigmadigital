@@ -3,10 +3,13 @@
 import { ArrowRight } from "lucide-react";
 
 import { JaLink } from "@/components/app/ja-link";
+import { ProjekatLink } from "@/components/app/projekat-link";
+import { useProjekatOpciono } from "@/components/app/projekat-provider";
+import { MisijaLink } from "@/components/app/napredak/misija-link";
 import { usePoslednjiProjekat } from "@/components/app/podaci-ljuske";
 
 import { NAPREDAK_HREF, type ModuleKey } from "@/components/app/nav-items";
-import { ikonaMisije, odredisteMisije } from "@/components/app/napredak/napredak-ikone";
+import { ikonaMisije, naslovMisije, odredisteMisije } from "@/components/app/napredak/napredak-ikone";
 import {
   stanjeNiza,
   useNapredak,
@@ -50,6 +53,9 @@ const MODUL_PRSTENA: Record<string, ModuleKey> = {
   objave: "instagram",
 };
 
+const KLASA_NIVOA =
+  "inline-flex min-h-8 items-center gap-1 rounded-md px-1 text-meta font-medium text-radnja underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11";
+
 /** Šta kartica crta, iz prodavnice napretka (bez nove pretplate). */
 export function useStanjeNapretka(): StanjeNapretka {
   const stanje = useNapredak();
@@ -58,10 +64,21 @@ export function useStanjeNapretka(): StanjeNapretka {
   return stanjeNapretka({ stanje, pao, zastoj });
 }
 
-export function NapredakKartica({ stanje: prikaz }: { stanje: StanjeNapretka }) {
+/**
+ * `uProjektu` (SPAJANJE S20, plan S18 E10): ista kartica na početnoj projekta
+ * u panelu, gde Danas ne postoji. Veze tada idu kroz projekat (`ProjekatLink`,
+ * `MisijaLink`), a ne kroz „Ja".
+ */
+export function NapredakKartica({
+  stanje: prikaz,
+  uProjektu = false,
+}: {
+  stanje: StanjeNapretka;
+  uProjektu?: boolean;
+}) {
   const stanje = useNapredak();
   if (prikaz === "skriveno") return null;
-  if (prikaz === "spremno" && stanje?.ukljucen && stanje.spremno) return <Kartica stanje={stanje} />;
+  if (prikaz === "spremno" && stanje?.ukljucen && stanje.spremno) return <Kartica stanje={stanje} uProjektu={uProjektu} />;
   return (
     <section aria-label="Napredak" aria-busy="true" className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
@@ -80,7 +97,7 @@ export function NapredakKartica({ stanje: prikaz }: { stanje: StanjeNapretka }) 
   );
 }
 
-function Kartica({ stanje }: { stanje: NapredakUkljucen }) {
+function Kartica({ stanje, uProjektu }: { stanje: NapredakUkljucen; uProjektu: boolean }) {
   const sada = useSada();
   const poslednji = usePoslednjiProjekat();
   const prefiks = poslednji === null ? null : `/${poslednji}`;
@@ -93,13 +110,20 @@ function Kartica({ stanje }: { stanje: NapredakUkljucen }) {
         <h2 id="danas-napredak" className="text-copy font-bold text-foreground">
           Napredak
         </h2>
-        <JaLink
-          href={prefiks === null ? "/projekti" : putanjaEkrana(NAPREDAK_HREF, prefiks)}
-          className="inline-flex min-h-8 items-center gap-1 rounded-md px-1 text-meta font-medium text-radnja underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11"
-        >
-          Nivo {formatNumber(nivo.broj)} · {nivo.zvanje}
-          <ArrowRight className="size-3.5" aria-hidden />
-        </JaLink>
+        {uProjektu ? (
+          <ProjekatLink href={NAPREDAK_HREF} className={KLASA_NIVOA}>
+            Nivo {formatNumber(nivo.broj)} · {nivo.zvanje}
+            <ArrowRight className="size-3.5" aria-hidden />
+          </ProjekatLink>
+        ) : (
+          <JaLink
+            href={prefiks === null ? "/projekti" : putanjaEkrana(NAPREDAK_HREF, prefiks)}
+            className={KLASA_NIVOA}
+          >
+            Nivo {formatNumber(nivo.broj)} · {nivo.zvanje}
+            <ArrowRight className="size-3.5" aria-hidden />
+          </JaLink>
+        )}
       </div>
 
       <div className="flex items-center gap-x-5 gap-y-3">
@@ -143,7 +167,13 @@ function Kartica({ stanje }: { stanje: NapredakUkljucen }) {
         ) : (
           <ul className="flex flex-col">
             {prikazane.map((misija) => (
-              <RedMisije key={misija.kljuc} misija={misija} ikona={ikonaMisije(misija.kljuc)} prefiks={prefiks} />
+              <RedMisije
+                key={misija.kljuc}
+                misija={misija}
+                ikona={ikonaMisije(misija.kljuc)}
+                prefiks={prefiks}
+                uProjektu={uProjektu}
+              />
             ))}
           </ul>
         )}
@@ -156,17 +186,24 @@ function RedMisije({
   misija,
   ikona: Ikona,
   prefiks,
+  uProjektu,
 }: {
   misija: Misija;
   ikona: ReturnType<typeof ikonaMisije>;
   prefiks: string | null;
+  uProjektu: boolean;
 }) {
+  const tekuci = useProjekatOpciono();
   // U „Ja" nema tekućeg projekta: misija projekta vodi u svoj projekat, a
   // misija bez projekta na isti ekran poslednjeg projekta.
   const kuda = odredisteMisije(misija, { slug: null, rezim: "hub" });
   const href =
     kuda === null ? null : kuda.vrsta === "projekat" ? kuda.href : prefiks === null ? null : putanjaEkrana(kuda.href, prefiks);
-  const naslov = misija.projekat ? `${misija.naslov} · ${misija.projekat.ime}` : misija.naslov;
+  const naslov = uProjektu
+    ? naslovMisije(misija, tekuci?.slug ?? null)
+    : misija.projekat
+      ? `${misija.naslov} · ${misija.projekat.ime}`
+      : misija.naslov;
   const telo = (
     <>
       <Ikona className="size-4 shrink-0 text-text-muted" aria-hidden />
@@ -185,7 +222,12 @@ function RedMisije({
     "flex min-h-10 items-center gap-2.5 rounded-md px-1.5 py-1.5 transition-colors hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11";
   return (
     <li>
-      {href === null ? (
+      {uProjektu ? (
+        // U projektu (panel): `MisijaLink` vodi kroz tekući projekat, a bez adrese crta isti red.
+        <MisijaLink misija={misija} className={klasa}>
+          {telo}
+        </MisijaLink>
+      ) : href === null ? (
         <span className={klasa}>{telo}</span>
       ) : (
         <JaLink href={href} className={klasa}>

@@ -338,8 +338,10 @@ function SledeciZadatak() {
  * Napredak je isključen, upit je pao ili se dan još sabira. Fokus tada nosi
  * prvi zadatak iz „Šta me čeka" — bez XP-a, bez niza, bez prstenova — pa
  * ekran i dalje kaže šta sledeće da klikneš.
+ *
+ * Izvezen (SPAJANJE S20): početna projekta ga crta kao fokus posmatrača u hubu.
  */
-function FokusZadatak({ sabira }: { sabira: boolean }) {
+export function FokusZadatak({ sabira }: { sabira: boolean }) {
   const sada = useSada();
   const data = useStaMeCeka();
 
