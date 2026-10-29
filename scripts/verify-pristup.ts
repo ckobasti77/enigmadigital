@@ -82,6 +82,14 @@ const DOZVOLJENI_DIREKTNI: Readonly<Record<string, string>> = {
   "prostor.chat.unreadSummary":
     "bedž „Ja“ u traci i ćelija Poruke: nepročitane poruke iz mojih razgovora",
   "prostor.myDay.overview": "broj Danas u meniju „Ja“: moj dan kroz sve moje projekte (opseg 50)",
+  // S12 (plan S07 §3.2): panel zadatka i radnje reda.
+  "prostor.myDay.plan": "panel zadatka i red: „Dodaj u Moj dan“ — lični plan dana",
+  "prostor.myDay.unplan": "panel zadatka i red: „Ukloni iz Moj dan“ — lični plan dana",
+  "prostor.personalTasks.get": "panel zadatka: lični zadatak (bez projekta)",
+  "prostor.personalTasks.update": "panel zadatka: izmena ličnog zadatka (bez projekta)",
+  "prostor.personalTasks.setStatus": "panel zadatka: završi lični zadatak (bez projekta)",
+  "prostor.personalTasks.archive": "panel zadatka: obriši lični zadatak (bez projekta)",
+  "prostor.personalTasks.restore": "panel zadatka: „Poništi“ brisanje ličnog zadatka (bez projekta)",
 };
 
 const koren = fileURLToPath(new URL("../", import.meta.url));

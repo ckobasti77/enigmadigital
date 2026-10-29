@@ -102,6 +102,7 @@ export function DokumentiProvider({ children }: { children: ReactNode }) {
             open={novaOtvorena}
             onOpenChange={setNovaOtvorena}
             workspace={projekat}
+            profileId={profil?._id ?? null}
             target={cilj}
             onCreated={(pageId) => {
               setNovaStranicaId(pageId);

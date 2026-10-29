@@ -2,7 +2,7 @@
 
 // Preneto iz Devotion apps/web/components/workspace/area/area-view.tsx (main @ c05c40f), SPAJANJE S10.
 import { useCallback, useEffect, useMemo } from "react";
-import { Blocks, Hourglass, Map as MapIcon } from "lucide-react";
+import { Blocks, Map as MapIcon } from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { useLiveNow } from "@/components/app/prostor/saradnja/use-live-now";
@@ -32,6 +32,7 @@ import {
   resolveAreaTab,
 } from "@/lib/prostor/modeli/area-model";
 import { AreaOverviewContainer } from "@/components/app/prostor/dokumenti/area-overview-container";
+import { AreaTasksContainer } from "@/components/app/prostor/dokumenti/area-tasks";
 import type { MentionMember } from "@/components/app/prostor/saradnja/comment-composer";
 import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { useProjekatQueryTolerant } from "@/components/app/prostor/podaci/projekat";
@@ -181,12 +182,15 @@ export function AreaView({
         </WorkspaceErrorBoundary>
       </TabsContent>
       <TabsContent value="zadaci" className="mt-0">
-        <EmptyState
-          icon={Hourglass}
-          headingAs="h2"
-          title="Zadaci oblasti stižu uskoro."
-          description="Spisak sa rokovima i izvršiocima dolazi sa ekranom Zadaci."
-        />
+        <WorkspaceErrorBoundary title="Zadaci oblasti nisu učitani." className="min-h-[16rem]">
+          <AreaTasksContainer
+            workspace={workspace}
+            profileId={profileId}
+            areaId={areaId}
+            onOpenPage={onOpenPage}
+            onCreateTask={() => create("task")}
+          />
+        </WorkspaceErrorBoundary>
       </TabsContent>
       <TabsContent value="dokumenti" className="mt-0">
         <WorkspaceErrorBoundary title="Dokumenti oblasti nisu učitani." className="min-h-[16rem]">

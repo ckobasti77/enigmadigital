@@ -117,7 +117,7 @@ function StranicaSadrzaj({ pageId }: { pageId: Id<"pages"> }) {
   const { projekat, profil, otvoriNovuStranicu, novaStranicaId, zaboraviNovuStranicu } = useDokumenti();
   const parametri = useSearchParams();
   const { idi } = useProstorNavigacija();
-  const { now } = useToday();
+  const today = useToday();
   if (!projekat || !profil) return null;
   return (
     <PageRouteView
@@ -125,7 +125,7 @@ function StranicaSadrzaj({ pageId }: { pageId: Id<"pages"> }) {
       profileId={profil._id}
       pageId={pageId}
       tab={parametri.get("tab") === "mapa" ? "mapa" : undefined}
-      now={now}
+      today={today}
       autoFocusTitle={novaStranicaId === pageId}
       onAutoFocusDone={zaboraviNovuStranicu}
       onOpenPage={(id) => idi({ kind: "page", pageId: id })}

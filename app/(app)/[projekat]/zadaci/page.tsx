@@ -1,11 +1,19 @@
-import { EkranUskoro } from "@/components/app/prostor/ekran-uskoro";
+import { Suspense } from "react";
+import { ZadaciEkran } from "@/components/app/prostor/zadaci/ekrani";
 
 export const metadata = {
   // Ime projekta dodaje šablon iz layout-a `[projekat]`.
   title: "Zadaci",
 };
 
-/** Radni deo projekta (SPAJANJE P13). Sadržaj donosi kasniji korak. */
+/**
+ * Zadaci tima (SPAJANJE P13): `?filter=moji` ili `?osoba=<profileId>`.
+ * Filter čita klijent (`useSearchParams`), zato Suspense.
+ */
 export default function Page() {
-  return <EkranUskoro naslov="Zadaci" />;
+  return (
+    <Suspense>
+      <ZadaciEkran />
+    </Suspense>
+  );
 }

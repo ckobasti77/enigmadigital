@@ -947,3 +947,89 @@ Ceo `npx vitest run`: 170 fajlova, 2307 testova.
 - Otpremi pravi fajl (slika, PDF, video) na stranicu-fajl i u belešku; uvezi pravi `.xlsx` u tabelu.
 - Vrati stariju verziju beleške i opisa oblasti.
 - Ništa nije deployovano.
+
+## S12 — Zadaci: zadaci tima, zadatak, panel, koraci, rokovi   (2026-10-29 08:55)
+**Fajlovi:**
+- Ruta `app/(app)/[projekat]/zadaci/page.tsx` (umesto `EkranUskoro`; klijentski kontejner u `<Suspense>`).
+- `components/app/prostor/zadaci/` (preneto alatom pa ručno dovršeno): `tasks-view`, `task-row`, `use-startup-task-commands`, `use-move-focus`, `constants`, `task-quick-create`, `task-meta-chips`, `task-checkpoint-list`, `task-page-view`, `use-task-instructions`, `assignee-stack`, `deadline-badge`, `due-chip`, `meta-chip`, `priority-dot`, `section-header`; nov `ekrani.tsx` (`ZadaciEkran`).
+- `components/app/prostor/zadaci/panel/` (deljen sa S16, S19, S20): `task-panel`, `startup-task-panel-view`, `personal-task-panel-view`, `panel-parts`, `task-detail-layout`, `task-panel-states`, `use-plan-toggle`, `use-title-flight`.
+- `components/app/prostor/zajednicko/birac-datuma.tsx` (srpski birač datuma, port `ui/date-picker`).
+- Rano iz kasnijih koraka (alat, `--samo`): `components/app/prostor/danas/use-completion-queue.ts` (S19), `components/app/prostor/pocetna/reschedule-dialog.tsx` („Sredi rokove“, S20), `lib/prostor/modeli/task-checkpoint-layout.ts` (+ test, S14).
+- `components/app/prostor/dokumenti/`: nov `area-tasks.tsx` (S10 ga je parkirao u `tmp/s10-odlozeno/`); izmenjeni `area-view.tsx` (kartica Zadaci), `page-route-view.tsx` i `ekrani.tsx` (`/stranica/<id>` crta zadatak), `create-page-dialog.tsx` (vrsta Zadatak, brzo pravljenje), `dokumenti-kontekst.tsx` (`profileId` za dijalog).
+- `lib/prostor/modeli/` (+ testovi): `command-center-model`, `task-page-model`, `comments-focus`, `task-checkpoint-order`, `task-checkpoint-layout`; `lib/prostor/web/deadline.ts` (+ test).
+- `components/ui/popover.tsx`: `PopoverContent` prima `anchor` (prosleđuje ga Base UI Positioner-u; zamena za Radix `PopoverAnchor`).
+- Čuvar: `scripts/verify-pristup.ts` (`DOZVOLJENI_DIREKTNI` +7, ODLUKA 12).
+- Razvojni prikaz: nov `app/dev-ux/fixtures-prostor-zadaci.ts`, registrovan u `app/dev-ux/fixtures.ts`.
+- Snimci `docs/spajanje/snimci/S12-{zadaci-1536,zadatak-1536,panel-1536,zadaci-390,zadaci-prazno-1536,sredi-rokove-1536}.png`.
+- Pomoćne skripte izmena: `.nocni-run/spajanje/tmp/s12-skripte/`; izveštaji alata `.nocni-run/spajanje/tmp/prenos-ekran-S12.md` (37 fajlova, 61 RUČNO, sve zatvorene) i `prenos-ekran-S12-rano-{S14,S19,S20}.md`.
+
+**Šta je urađeno:**
+- **Zadaci tima** (`/zadaci`, `?filter=moji`, `?osoba=<profil>`): Enigmin `PageHeader` (ikonica mesta, „N zadataka“, jedina primarna radnja „Novi zadatak“), filter Svi · Moji (radio grupa, strelice) i „Osoba“ (Enigmin `Select`), Lista · Tabla (od `md`), kolone Oblast · Status · Rok · Prioritet. Filter je u adresi i menja se bez novog unosa u istoriji; nepoznata osoba pada na „Svi“.
+- **Red zadatka** (deljen, 40 px na `md+`, dva reda na telefonu): kvačica sa precrtom (GSAP `useGSAP` u `gsap.matchMedia()`, `DUR_UI`/`EASE_UI`, grana za smanjen pokret) i zadržavanjem reda ≈ 0,74 s pre selidbe, „Poništi“ 8 s; Moj dan, rok (birač), „…“ (Otvori, Završi, Moj dan, Priključi se, Status, Rok, Prioritet); zabranjena radnja je zaključana sa razlogom. Prečice liste iz S08 (`j`/`k`/strelice, `x`, Enter, `d`, `p`, `t`) i optimistične izmene (`tasks.updateMetadata` kroz `useProjekatMutationOptimisticno`, `myDay.plan/unplan` direktno) su zadržane; Flip radi `FlipGroup`.
+- **Panel zadatka** (desna fioka 28rem, na telefonu ceo ekran): znak projekta i oblast, naslov u mestu sa letom naslova iz reda (jedini autorski pokret panela), čipovi Status · Prioritet · Rok · Izvršioci, Moj dan, „Puni prikaz“, Koraci, Instrukcije i Komentari (S11). Lični zadatak ima svoj prikaz (beleška, „Prebaci u projekat“, obriši sa „Poništi“) za S16/S19.
+- **Zadatak na celu stranu** (`/stranica/<id>` vrste „zadatak“): isti raspored kao panel u okviru stranice iz S10/S11 (putanja, čuvanje, „uređuje“, komentari, istorija sa „Vrati ovu verziju“, zaključavanje, konflikt, Povezano, podstranice), čuvar napuštanja ljuske i Ctrl/⌘ + S.
+- **Koraci**: lanac i „Poveži sve“, napredak (`ui/progress`), završavanje, izmena, brisanje sa „Poništi“, komentari koraka (`checkpoint-comments-dialog` iz S11).
+- **Brzo pravljenje**: dijalog „Nova stranica“ ima vrstu Zadatak (`TaskQuickCreate`: naslov prvi, Enter pravi; čipovi sa podrazumevanim vrednostima, instrukcije i koraci iza „Više opcija“; sledeći zadatak kreće od iste oblasti). Otvara ga „Novi zadatak“ na Zadacima i u Zadacima oblasti, a zaglavlje oblasti ga nudi u „Nova stranica“.
+- **Srpski birač datuma**: prečice (Danas, Sutra, Vikend, Sledeće nedelje, Bez roka) i kalendar sa srpskim mesecima; tastatura strelice, PgUp/PgDn, Home/End, Enter; izabran dan je neutralan, ne boja radnje.
+- **„Sredi rokove“** (ODLUKA 10): dugme „Sredi rokove · N“ na Zadacima kad među prikazanim ima otvorenih sa prošlim rokom; dijalog (Danas · Sutra · Sledeće nedelje · Bez roka · Završi) sa „Poništi“ (`tasks.bulkReschedule` / `bulkRestoreSchedule`).
+- **Zadaci oblasti** (S10 kartica): isti red, Lista · Tabla, čipovi statusa i „Novi zadatak“.
+
+**Paritet:**
+- Red 11 (zadaci tima: lista, moji/osoba, brzo pravljenje, radnje u redu, panel zadatka): gotovo.
+- Red 12 (zadatak na celu stranu: status, prioritet, rok, izvršioci, koraci, instrukcije, povezano, komentari, istorija): gotovo.
+- Dopuna reda 16 (kartica Zadaci oblasti) i reda 17 (zadaci u stablu kao stranice oblasti).
+- Red 10: „Sredi rokove“ je spreman i radi na Zadacima; Trijaža i ostatak Komandnog centra su S20.
+
+**ODLUKE:**
+1. **Rano preneto iz kasnijih koraka** (alat sa `--samo`, S14/S19/S20 ih nalaze gotove jer alat ne prepisuje): `use-completion-queue` (S19, red završavanja sa zadržavanjem), `task-checkpoint-layout` (+ test, S14; `task-checkpoint-order` ga uvozi) i `reschedule-dialog` (S20, ODLUKA 10). U `use-completion-queue` je Devotion `RowHold` iz `my-day-model` zamenjen istim tipom `CompletionHold<TaskRowModel>` iz `lib/prostor`, pa S12 ne uvozi model Danas.
+2. **Trajanje zadržavanja reda posle kvačice ostaje ≈ 0,74 s** (`HOLD_DONE_MS = 740`, Devotion trajanje „bouncy“ kvačice), iako Enigmina kvačica nema prebačaj (`DUR_UI`): pauza služi da se vidi šta je završeno i da „Poništi“ stigne pre selidbe. Vraćanje u otvoreno je `DUR_UI`. Devotion `SPRING`/`DURATION` se u `components/` ne uvoze (plan §6.3).
+3. **Menadžer projekta** (zaključan zadatak, dozvole reda) je `uloga === "owner" || platformaVlasnik`, isto kao `isManager` na serveru (`convex/prostor/lib/auth.ts`). Devotion je čitao `createdByProfileId` startupa i globalnu ulogu `admin`.
+4. **Flip:** Devotion `useFlip().capture()` pre izmene zamenjen je Enigminim `FlipGroup` (snimak pre commit-a, ključ rasporeda po sekcijama, `resetKey` = filter i prikaz, iznad 80 redova bez Flip-a). `flipCapture` u komandama je zato prazna funkcija. Ulaz liste pri učitavanju (`useEnter`) je uklonjen: radni ekrani ne animiraju sekcije pri učitavanju (CLAUDE.md).
+5. **Gustina:** red liste je 40 px na `md+` (Devotion 44), redovi koraka takođe ≈ 40 px; tabla je `min-w-[60rem]`, pa na 1536 staje bez klizanja.
+6. **Novi zadatak se ne otvara sam** (Devotion): pojavi se u listi, toast „Zadatak je napravljen.“ nudi „Poništi“. Devotion je nudio i „Otvori“ kao drugu radnju toasta; `lib/toast` ima jednu radnju, pa je zadržano „Poništi“ (put nazad za izmenu u bazi). Oblast se pamti za sledeći zadatak (`rememberLastArea`).
+7. **Meni „…“ zadatka na celoj strani** nudi samo radnje koje već rade (isti `RADNJE_MENIJA` kao stranica u S10/S11). „Diskusija u Porukama“ (`EntityDiscussionPanel`) dolazi sa porukama (S15); upit `chat.channelForAnchor` se zato ne zove.
+8. **Panel za ekrane „Ja“:** `TaskPanelTarget` za zadatak projekta prima opcioni `workspaceId`; kad ga ima, panel se umotava u `ProjekatStavkeProvider` (D14), pa S16/S19 samo prosleđuju projekat stavke. Na ekranu projekta ga nema.
+9. **„Prebaci u projekat“ (lični zadatak)** je projektna mutacija ciljnog projekta: dugme „Prebaci“ je u koraku, pod `ProjekatStavkeProvider`-om izabranog projekta (`useProjekatMutation`), bez novog izuzetka u čuvaru. Prikaz zato prima `personalTaskId` i `onMoved` umesto Devotion `onMove`. Lični panel se na ekranu projekta ne otvara (lični zadaci nisu u listama projekta); vidi se tek u S16.
+10. **„Sredi rokove“ na ekranu Zadaci.** Zadatak koraka ga traži, a plan (§6 red 10, §10) ga stavlja u Trijažu Komandnog centra (S20). Dijalog i `useReschedule` su preneti rano, a na Zadacima stoji dugme „Sredi rokove · N“ samo kad među prikazanim (uz filter) ima otvorenih sa prošlim rokom. Lista kandidata je iz učitane strane (do 50 + „Učitaj još“); S20 koristi isti dijalog u Trijaži.
+11. **Boje stanja** (radnik, prihvaćeno): tačka prioriteta je žuta za „Hitno“ i neutralna za „Visok“ (crvena je samo kašnjenje i greška); „kasni“ je crven, rok danas upozorenje, ostali rokovi neutralni. Izabran dan u biraču i otvoren čip su neutralni (ne boja radnje). „Dodaj u Moj dan“ u panelu je `outline`/`secondary` sa `aria-pressed`, bez boje radnje.
+12. **Čuvar pristupa:** `DOZVOLJENI_DIREKTNI` dobio je tačno ključeve S12 iz plana §3.2: `prostor.myDay.plan`, `myDay.unplan`, `personalTasks.get`, `update`, `setStatus`, `archive`, `restore` (sve L funkcije, `proveriSpisak` to potvrđuje). Nijedno pravilo nije oslabljeno.
+13. **`components/ui/popover.tsx`:** `PopoverContent` prima `anchor` i prosleđuje ga Positioner-u (zamena za Radix `PopoverAnchor` kod birača otvorenog prečicom `d`). Ostali pozivaoci se ne menjaju.
+14. **Precrt naslova** je širok koliko tekst (Devotion ga je u kolonama crtao preko cele kolone).
+15. **Fiksture:** zadaci 200–210 (`ZADATAK_UX` = `pagesux0200`) plus zadatak 106 iz dokumenata; zadaci su i stranice oblasti, pa fikstura dopunjuje `pages.get`, putanju, stablo i broj na vrhu i ostalo prepušta dokumentima. `?osoba=profilesux0003` je Marko.
+16. **Vizuelna provera:** Next razvojni znak je sklonjen samo za snimke (`nextjs-portal`), kao u S09. Navigacija unutar aplikacije gubi `?ux=1` (S10), pa su panel → „Puni prikaz“ i filteri provereni direktnim adresama.
+
+**Novi paketi:** nema.
+
+**Testovi:** 47 novih (svi preneti), svi prolaze.
+
+| Fajl | Testova |
+|---|---|
+| `lib/prostor/modeli/command-center-model.test.ts` | 7 |
+| `lib/prostor/modeli/task-page-model.test.ts` | 14 |
+| `lib/prostor/modeli/comments-focus.test.ts` | 4 |
+| `lib/prostor/modeli/task-checkpoint-order.test.ts` | 3 |
+| `lib/prostor/modeli/task-checkpoint-layout.test.ts` | 5 (rano, S14) |
+| `lib/prostor/web/deadline.test.ts` | 14 |
+
+`task-instructions-draft` (6) je prenet u S10. Modeli reda, filtera, sortiranja, pravljenja i zastarelog (`lib/prostor/task-row`, `task-filters`, `task-sort`, `task-create`, `stale`) imaju testove od S02. Ceo `npx vitest run`: 180 fajlova, 2391 test.
+
+**Rezultat provere:**
+- codegen: nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest: prolazi (2391);
+- pristup: 632 / 617 / 15, front 62 direktna poziva, svi sa spiska;
+- regresije: prolaze (20; ultra 5, prostor 1); boja modula 654/654, `font-mono` 254/254;
+- `npm run build`: prolazi.
+
+**Vizuelna provera** (Playwright, `next dev -p 3117`, ugašen na kraju):
+- 1536 × 695: lista (Svi, Moji = 4, Osoba Marko = 4), tabla (5 kolona bez klizanja), kvačica (zadržavanje, precrt, toast „Završeno: …“ sa „Poništi“), birač roka u redu (prečice, kalendar, „Sutra“ → toast „Rok je promenjen.“, fokus se vraća na dugme), panel, zadatak na celu stranu (stablo pokazuje zadatke), Zadaci oblasti, dijalog „Novi zadatak“ (Enter pravi, toast „Zadatak je napravljen.“), „Sredi rokove“ (toast „Sređeno: 1 zadatak → sutra.“), prazno stanje (`&prazno=1`).
+- 390 × 844: lista u dva reda bez vodoravnog klizanja, panel preko celog ekrana.
+- Konzola: 0 grešaka i 0 upozorenja na svim ekranima.
+
+**Za Jovana ujutru:**
+- Na pravim podacima otvori Zadatke, završi zadatak kvačicom i proveri da red sačeka pa pređe; „Poništi“ ga vraća.
+- „Sredi rokove“ je na ekranu Zadaci (ODLUKA 10), a u S20 dolazi i u Trijažu na početnoj projekta. Potvrdi da ti odgovara i ovde.
+- Novi zadatak se ne otvara sam i toast nema „Otvori“ (ODLUKA 6).
+- Boje: „Hitno“ je žuto, a crveno je samo kašnjenje (ODLUKA 11).
+- Ništa nije deployovano.

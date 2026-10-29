@@ -2,7 +2,7 @@
 
 // Preneto iz Devotion apps/web/components/workspace/page/page-route-view.tsx (main @ c05c40f), SPAJANJE S10.
 import { Component, useState, type ReactNode } from "react";
-import { ListChecks, Map as MapIcon } from "lucide-react";
+import { Map as MapIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import type { CreatePageTarget, StartupWithAreas } from "@/lib/prostor/rute";
@@ -12,6 +12,8 @@ import { EmptyState } from "@/components/app/prostor/zajednicko/radni-ui";
 
 import { PageDocumentSkeleton, PageRouteProblem } from "@/components/app/prostor/dokumenti/page-document";
 import { PageDocumentView } from "@/components/app/prostor/dokumenti/page-document-view";
+import { TaskPageView } from "@/components/app/prostor/zadaci/task-page-view";
+import type { Today } from "@/lib/prostor/web/danas";
 import { useProjekatQuery } from "@/components/app/projekat-provider";
 import { useProjekatQueryResult } from "@/components/app/prostor/podaci/projekat";
 
@@ -20,7 +22,7 @@ export type PageRouteViewProps = {
   profileId: Id<"profiles">;
   pageId: Id<"pages">;
   tab?: "mapa";
-  now: number;
+  today: Today;
   autoFocusTitle?: boolean;
   onAutoFocusDone?: () => void;
   onOpenPage: (pageId: Id<"pages">) => void;
@@ -32,8 +34,8 @@ export type PageRouteViewProps = {
 
 /**
  * Ruta `/stranica/<id>` (PROSTOR K10, plan K07 §3): beleška, tabela i fajl su
- * dokument tima. Zadatak na celu stranu (`kind: "task"`) i Mapa stranice
- * (`?tab=mapa`) dolaze sa ekranima zadataka i mapa; dotle ruta kaže šta je
+ * dokument tima, a zadatak je zadatak na celu stranu (`TaskPageView`, S12).
+ * Mapa stranice (`?tab=mapa`) dolazi sa ekranom mapa; dotle ruta kaže šta je
  * stranica i vodi na dokument. Sopstvena granica greške razlikuje obrisanu
  * stranicu (Korpa) od greške učitavanja („Pokušaj ponovo").
  */
@@ -60,7 +62,7 @@ function PageRouteLoader({
   profileId,
   pageId,
   tab,
-  now,
+  today,
   autoFocusTitle,
   onAutoFocusDone,
   onOpenPage,
@@ -74,16 +76,17 @@ function PageRouteLoader({
 
   if (page.kind === "task") {
     return (
-      <EmptyState
-        icon={ListChecks}
-        headingAs="h2"
-        title="Zadatak na celoj strani stiže uskoro."
-        description={`„${page.title.trim() || "Bez naslova"}“ je zadatak; otvara se iz oblasti kad stigne ekran zadataka.`}
-        action={
-          <Button type="button" variant="outline" onClick={() => onOpenArea(page.areaId)}>
-            Otvori oblast
-          </Button>
-        }
+      <TaskPageView
+        workspace={workspace}
+        profileId={profileId}
+        page={page}
+        today={today}
+        autoFocusTitle={autoFocusTitle}
+        onAutoFocusDone={onAutoFocusDone}
+        onOpenPage={onOpenPage}
+        onOpenArea={onOpenArea}
+        onCreateChild={onCreateChild}
+        onArchived={() => onArchived(fallback)}
       />
     );
   }
@@ -106,7 +109,7 @@ function PageRouteLoader({
       workspace={workspace}
       profileId={profileId}
       page={page}
-      now={now}
+      now={today.now}
       autoFocusTitle={autoFocusTitle}
       onAutoFocusDone={onAutoFocusDone}
       onOpenPage={onOpenPage}
