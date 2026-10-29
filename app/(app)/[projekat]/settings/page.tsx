@@ -6,9 +6,12 @@ import {
   BookOpen,
   FolderCog,
   Globe,
+  Bot,
   History,
   KeyRound,
+  Layers,
   Link2,
+  LockKeyhole,
   ShieldCheck,
   Trophy,
 } from "lucide-react";
@@ -26,9 +29,14 @@ import { ProjekatPanel } from "@/components/app/settings/projekat-panel";
 import { MozakPanel } from "@/components/app/settings/mozak-panel";
 import { SajtPanel } from "@/components/app/settings/sajt-panel";
 import { useProjekat, useProjekatHref } from "@/components/app/projekat-provider";
+import { AiKartica } from "@/components/app/prostor/podesavanja/ai-kartica";
+import { LozinkeKartica } from "@/components/app/prostor/podesavanja/lozinke-kartica";
+import { OblastiKartica } from "@/components/app/prostor/podesavanja/oblasti-kartica";
+import { OpisProjekta } from "@/components/app/prostor/podesavanja/opis-projekta";
 import { PageHeader } from "@/components/app/page-header";
 import { TabNav, TabPanel, type TabItem } from "@/components/app/tab-nav";
 import type { Uloga } from "@/convex/lib/uloge";
+import { vidiKarticu } from "@/lib/prostor/modeli/kartice-podesavanja";
 
 /**
  * Jezičak je u adresi (`?tab=`), pa birač projekta vodi pravo na „Projekat“, a
@@ -39,9 +47,12 @@ import type { Uloga } from "@/convex/lib/uloge";
 type Tab =
   | "integracije"
   | "projekat"
+  | "oblasti"
   | "sajt"
   | "mozak"
+  | "ai"
   | "pristup"
+  | "lozinke"
   | "istorija"
   | "moderacija"
   | "napredak";
@@ -49,9 +60,12 @@ type Tab =
 const TABS: readonly TabItem<Tab>[] = [
   { id: "integracije", label: "Integracije", icon: Link2 },
   { id: "projekat", label: "Projekat", icon: FolderCog },
+  { id: "oblasti", label: "Oblasti", icon: Layers },
   { id: "sajt", label: "Sajt i oglasi", icon: Globe },
   { id: "mozak", label: "Mozak", icon: BookOpen },
+  { id: "ai", label: "AI", icon: Bot },
   { id: "pristup", label: "Pristup", icon: KeyRound },
+  { id: "lozinke", label: "Lozinke", icon: LockKeyhole },
   { id: "istorija", label: "Istorija akcija", icon: History },
   { id: "moderacija", label: "Moderacija", icon: ShieldCheck },
   { id: "napredak", label: "Napredak", icon: Trophy },
@@ -73,6 +87,21 @@ const COPY: Record<Tab, { title: string; blurb: string; info?: string }> = {
     title: "Projekat",
     blurb: "Ime, izgled, domeni, sajtovi i moduli ovog projekta.",
     info: "Menja ih vlasnik projekta; vrstu projekta i domene samo vlasnik platforme.",
+  },
+  oblasti: {
+    title: "Oblasti",
+    blurb: "Oblasti radnog dela: naziv i redosled u meniju i među dokumentima.",
+    info: "Menja ih svaki urednik projekta.",
+  },
+  ai: {
+    title: "AI",
+    blurb: "Provajderi koje projekat koristi za AI asistenta.",
+    info: "Ključ se čuva na serveru i nikad se ne prikazuje.",
+  },
+  lozinke: {
+    title: "Lozinke",
+    blurb: "Nova lozinka za člana projekta.",
+    info: "Samo vlasnik platforme; važi za nalog u svim projektima.",
   },
   sajt: {
     title: "Sajt i oglasi",
@@ -118,24 +147,20 @@ export default function SettingsPage() {
 /**
  * Jezičci po ulozi (P9; backend iste izmene već odbija): „Sajt i oglasi“ i
  * „Pristup“ vidi samo vlasnik, a „Integracije“ posmatrač ne vidi (urednik vidi
- * samo stanje veza, bez dugmadi). Dok uloga nije stigla, crtaju se svi.
+ * samo stanje veza, bez dugmadi). „Oblasti“ vidi urednik, a „Lozinke“ i „AI“
+ * samo vlasnik projekta koji je i vlasnik platforme. Dok uloga nije stigla,
+ * crtaju se svi osim ova dva.
  */
-function jezicciZa(uloga: Uloga | null): readonly TabItem<Tab>[] {
-  if (uloga === null || uloga === "owner") return TABS;
-  return TABS.filter(
-    (t) =>
-      t.id !== "sajt" &&
-      t.id !== "pristup" &&
-      !(uloga === "client_viewer" && t.id === "integracije"),
-  );
+function jezicciZa(uloga: Uloga | null, platformaVlasnik: boolean): readonly TabItem<Tab>[] {
+  return TABS.filter((t) => vidiKarticu(t.id, uloga, platformaVlasnik));
 }
 
 function Podesavanja() {
   const params = useSearchParams();
   const router = useRouter();
   const ka = useProjekatHref();
-  const { uloga } = useProjekat();
-  const tabs = jezicciZa(uloga);
+  const { uloga, platformaVlasnik } = useProjekat();
+  const tabs = jezicciZa(uloga, platformaVlasnik);
   const izabran = izAdrese(params.get("tab"));
   // Jezičak koji uloga ne vidi vodi na prvi koji vidi (posmatrač: Projekat).
   const tab = tabs.some((t) => t.id === izabran) ? izabran : tabs[0].id;
@@ -167,7 +192,16 @@ function Podesavanja() {
             <ConnectionsSettings />
           </Suspense>
         ) : tab === "projekat" ? (
-          <ProjekatPanel />
+          <>
+            <ProjekatPanel />
+            <OpisProjekta />
+          </>
+        ) : tab === "oblasti" ? (
+          <OblastiKartica />
+        ) : tab === "ai" ? (
+          <AiKartica />
+        ) : tab === "lozinke" ? (
+          <LozinkeKartica />
         ) : tab === "sajt" ? (
           <SajtPanel />
         ) : tab === "mozak" ? (

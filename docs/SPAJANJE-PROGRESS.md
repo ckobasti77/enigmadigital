@@ -1667,3 +1667,76 @@ Postojeći `command-center-model`, `command-center`, `stale`, `activity-format` 
 - Misije i napredak više nisu na početnoj u hubu; žive na Danas (`/`). U panelu domenu ostaju na početnoj (E10).
 - Potvrdi: fokus urednika je „Za tebe“, a ne prvi zadatak iz „Šta me čeka“ (E8); Tim ostaje na početnoj (E11); blok „Čeka te“ i dalje nosi Enigmin naslov „Šta me čeka“ (ODLUKA 1); preko 100 zadataka u zoni vodi na Zadatke (ODLUKA 6).
 - Ništa nije deployovano.
+
+## S21 — Korpa, podešavanja projekta, profil   (2026-10-29 14:00)
+**Fajlovi:**
+- Rute: `app/(app)/[projekat]/korpa/page.tsx` (`EkranUskoro` zamenjen), `app/(app)/[projekat]/settings/page.tsx` (tri nove kartice, opis pod „Projekat“, filtriranje kroz `vidiKarticu`).
+- `components/app/prostor/korpa/`: `korpa-ekran.tsx` (novo), `trash-container.tsx`, `trash-view.tsx` (preneto alatom pa ručno prepisano).
+- `components/app/prostor/podesavanja/`: `oblasti-kartica.tsx`, `areas-tab.tsx`, `lozinke-kartica.tsx`, `member-password-dialog.tsx`, `ai-kartica.tsx` (novo, nema Devotion izvora), `opis-projekta.tsx`, `liste.tsx`, `use-radnja.ts`.
+- `lib/prostor/modeli/`: `trash-model.ts` (+ test), `kartice-podesavanja.ts` (+ test).
+- `lib/uloge-ui-cuvar.test.ts`: `FAJLOVI` + 5 novih fajlova.
+- Razvojni prikaz: `app/dev-ux/fixtures-prostor-korpa.ts`, `fixtures-prostor-podesavanja.ts`, registracija u `fixtures.ts` (običan i `PRAZNO`).
+- Snimci `docs/spajanje/snimci/S21-{korpa,podesavanja-oblasti,podesavanja-ai,profil}-1536.png`.
+- Pomoćno: izveštaj alata `.nocni-run/spajanje/tmp/prenos-ekran-S21.md`, skripte izmena u `.nocni-run/spajanje/tmp/s21/`, Playwright snimak dijaloga lozinke u `tmp/playwright/s21/`.
+
+**Šta je urađeno:**
+- **Korpa** (`/[projekat]/korpa?vrsta=page|idea|file|recovered`): četiri vrste sa brojačima, „Vrati“ (toast sa „Otvori“, fokus prelazi na sledeći red, Flip), „Ukloni“ za Oporavljeno, „Učitaj još“, greška i prazna stanja. Posmatrač dobija zaključano stanje bez upita.
+- **Podešavanja**: tri nove kartice u Enigminoj traci jezičaka: **Oblasti** (preimenuj, pomeri, nova; urednik i vlasnik), **AI** (provajderi: dodaj, izmeni, uključi/isključi, podrazumevani, obriši uz potvrdu; ključ se nikad ne prikazuje, samo poslednja 4 znaka) i **Lozinke** (nova lozinka članu). „Opis projekta“ (`postaviOpis`) stoji ispod postojeće kartice „Projekat“. Tim i pozivnice ostaju Enigmin „Pristup“.
+- **Uloge**: pravila su u čistoj funkciji `vidiKarticu` (test, 5 slučajeva). „Lozinke“ i „AI“ vidi samo vlasnik projekta koji je i vlasnik platforme; kartice same dodatno prolaze kroz `SamoZa uloga="owner"` i proveru `platformaVlasnik`.
+- **Profil**: S09 je već imao ime, avatar i greške; ovde je samo provereno u razvojnom prikazu (otvaranje iz menija korisnika, slika, ime, e-pošta samo za čitanje).
+
+**Paritet:**
+- Red 25 (Korpa: stranice, ideje, prilozi; vraćanje; po vrsti): **gotovo**.
+- Red 28 (podešavanja: opšte/opis, oblasti, lozinke): **gotovo**; ime i logo ostaju Enigmin „Projekat“, tim i pozivnice „Pristup“.
+- Red 29 (AI provajderi po projektu): **gotovo** (interfejs; AI se nigde ne poziva, kao i u S05).
+
+**ODLUKE:**
+1. **`general-tab`, `settings-container`, `settings-view` se ne prenose.** Plan kaže da opis ide u postojeću karticu, a ime i logo već rade Enigmin „Projekat“. Iz `settings-view` su ostala samo stanja liste (`liste.tsx`).
+2. **Opis nije u `projekat-panel.tsx`** (zabrana menjanja postojećih kartica): `OpisProjekta` je nova komponenta koju stranica crta ispod `ProjekatPanel`.
+3. **AI kartica traži oba prava (vlasnik projekta + vlasnik platforme)**, kao backend (S05 ODLUKA 14). Plan to kaže samo uz „Lozinke“ (vlasnik platforme), ali kartica koju backend odbija bila bi mrtva.
+4. **Kartica „Oblasti“ nije skrivena od urednika** (backend `uloga: "urednik"`); posmatrač je ne vidi, a komponenta mu bez radnji nudi samo spisak.
+5. **Spisak članova u „Lozinke“ nema oznaku uloge**: `listMembers` ne vraća ulogu članstva, a Devotion `role` (admin/član) više ne postoji. Dodata je samo oznaka „Ti“.
+6. **Dijalog lozinke koristi Enigmina pravila** (`lib/password-rules.ts`: 8–128, živa provera, dugme isključeno dok ne važi), ne Devotionova „12–128“; to je i server (`proveriLozinku`).
+7. **Dugmad radnji u Oblastima su `disabled`** (ne `aria-disabled` + providnost), jer čuvar K3 ne dozvoljava providnost bez `cursor-not-allowed`.
+8. **`variant`**: potvrde u dijalozima (lozinka, provajder) su `primary` (jedino glavno dugme dijaloga); „Sačuvaj opis“ i „Sačuvaj“ uz oblast su `secondary`.
+9. **Promena vrste u Korpi** menja samo `?vrsta=` (`router.replace`, ostali parametri ostaju); „Stranice“ su podrazumevane pa im adresa nema parametar. Adresu daje `useProjekatHref`, ne `usePathname` (čuvar linkova).
+10. **Fikture su stateful** (Korpa skida red i smanjuje brojač; oblasti, opis i provajderi se menjaju), jer lažni Convex nema lokalni keš. Registrovane su na kraju `fixtures.ts`, jer `projekat.get` ima stanje oblasti.
+11. **Čuvari**: menjan je samo `lib/uloge-ui-cuvar.test.ts` (`FAJLOVI` + 5 fajlova, bez slabljenja pravila). `DOZVOLJENI_DIREKTNI` nije menjan; broj direktnih poziva je 158 (+1: `profiles.getCurrent` u kartici Lozinke, već na spisku), nedozvoljenih 0.
+
+**Novi paketi:** nema.
+
+**Testovi:** 2 fajla, svi prolaze.
+
+| Fajl | Testova | Šta pokriva |
+|---|---|---|
+| `lib/prostor/modeli/trash-model.test.ts` | preneto | ključ i naslov stavke, lokacija, meta red, razlog onemogućenog „Vrati“, cilj „Otvori“, brojač „99+“, fokus posle uklanjanja |
+| `lib/prostor/modeli/kartice-podesavanja.test.ts` | 5 (novo) | vlasnik+platforma vidi sve; vlasnik bez platforme ne vidi Lozinke i AI; urednik vidi Oblasti, ne Pristup/Sajt/Lozinke/AI; posmatrač ne vidi Oblasti ni Integracije ni Lozinke/AI; nepoznata uloga ne crta Lozinke i AI |
+
+`lib/uloge-ui-cuvar.test.ts` prolazi sa novim fajlovima. Ceo `npx vitest run`: 202 fajla, 2586 testova.
+
+**Rezultat provere:**
+- codegen: nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1210 upozorenja, kao i ranije);
+- vitest: prolazi (202 / 2586);
+- pristup: front 158 direktnih poziva, 0 nedozvoljenih;
+- regresije: prolaze (20; ultra 5, prostor 1); `font-mono` 254/254;
+- `npm run build`: puštaju ga runner i posle koraka;
+- Procesi: `next dev -p 3117` ugašen (proces na portu 3117); port slobodan.
+
+**Vizuelna provera** (Playwright, `next dev -p 3117`):
+- 1536 × 695: Korpa (5 stranica sa podstranicama, jedna bez prava vraćanja i „Vraća se na vrh oblasti“); „Vrati“ skida red, brojač pada na 4 i toast „Vraćeno: „Plan lansiranja Q4” i 3 podstranice.“; Oblasti (dodavanje „Podrška“ i pomeranje gore rade); AI (lista, dodavanje provajdera sa ključem …AbCd); Lozinke (dijalog sa živom proverom pravila); Projekat (opis u polju); profil iz menija korisnika.
+- Uloge (`&uloga=`): urednik ne vidi Sajt, Pristup, Lozinke ni AI; posmatrač vidi samo Projekat, Mozak, Istoriju, Moderaciju i Napredak.
+- 390 × 844: AI i Korpa (Oporavljeno) bez vodoravnog klizanja. Konzola: 0 grešaka i 0 upozorenja.
+
+**Prihvatanje (dokaz):**
+- „Korpa vraća stavke (u razvojnom prikazu)“: `S21-korpa-1536.png` + provera iznad.
+- „Nove kartice rade i skrivene su od uloga koje ih ne smeju“: `S21-podesavanja-oblasti-1536.png`, `S21-podesavanja-ai-1536.png`, `S21-profil-1536.png`; `kartice-podesavanja.test.ts`; provera po ulogama iznad.
+- „Čuvari, uključujući `uloge-ui-cuvar`, prolaze“: vitest, `verify-pristup`, regresije.
+
+**Za Jovana ujutru:**
+- Na pravim podacima: vrati stranicu iz Korpe (proveri da se vraća sa podstranicama), promeni redosled oblasti, dodaj AI provajdera i postavi lozinku članu (kao vlasnik platforme).
+- `aiProviders.apiKey` je u bazi nešifrovan (S05 ODLUKA 14); pre nego što AI kartica ode u produkciju, ključ treba šifrovati kroz `convex/lib/crypto.ts`.
+- AI provajderi se nigde ne pozivaju; kartica samo čuva podešavanje.
+- „Lozinke“ i „AI“ se vide samo ako je tvoj nalog i vlasnik platforme i vlasnik projekta; proveri da se tako ponašaju na stvarnom nalogu.
+- Ništa nije deployovano.

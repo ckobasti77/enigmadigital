@@ -59,6 +59,12 @@ const FAJLOVI = [
   "components/app/settings/invites-panel.tsx",
   "components/app/settings/ingest-tokens-panel.tsx",
   "components/app/settings/purge-state.tsx",
+  // Radni deo projekta (SPAJANJE S21): Korpa i nove kartice podešavanja.
+  "components/app/prostor/korpa/korpa-ekran.tsx",
+  "components/app/prostor/podesavanja/oblasti-kartica.tsx",
+  "components/app/prostor/podesavanja/opis-projekta.tsx",
+  "components/app/prostor/podesavanja/lozinke-kartica.tsx",
+  "components/app/prostor/podesavanja/ai-kartica.tsx",
 ] as const;
 
 describe("uloge u UI-ju", () => {
