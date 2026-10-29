@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DatePicker } from "@/components/app/prostor/zajednicko/birac-datuma";
 import { usePrecica } from "@/components/app/use-precica";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import { cn } from "@/lib/utils";
 
 import { StartupChip } from "@/components/app/prostor/zajednicko/projekat-cip";
@@ -166,11 +167,7 @@ function QuickAddForm({
       else onClose();
     } catch (cause) {
       setError(
-        cause instanceof Error && cause.message
-          ? cause.message
-          : isNote
-            ? "Beleška nije sačuvana. Pokušaj ponovo."
-            : "Zadatak nije dodat. Pokušaj ponovo.",
+        accessErrorMessage(cause, isNote ? "Beleška nije sačuvana. Pokušaj ponovo." : "Zadatak nije dodat. Pokušaj ponovo."),
       );
       inputRef.current?.focus();
     } finally {

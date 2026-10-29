@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { toast } from "@/lib/toast";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import {
   Archive,
   ArrowLeft,
@@ -170,9 +171,7 @@ export function ConversationPane({
     try {
       await setNotificationLevel({ channelId: channel._id, level });
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Podešavanje nije sačuvano.",
-      );
+      toast.error(accessErrorMessage(error, "Podešavanje nije sačuvano."));
     }
   }
 
@@ -185,9 +184,7 @@ export function ConversationPane({
       onOpenList();
     } catch (error) {
       setArchiveOpen(false);
-      toast.error(
-        error instanceof Error ? error.message : "Razgovor nije arhiviran.",
-      );
+      toast.error(accessErrorMessage(error, "Razgovor nije arhiviran."));
     } finally {
       setArchiving(false);
     }
@@ -397,7 +394,7 @@ export function ConversationPane({
         >
           <div className="flex flex-col items-center gap-2 text-foreground">
             <Upload className="size-8" aria-hidden="true" />
-            <p className="text-ui font-semibold">Pusti da pošalješ</p>
+            <p className="text-ui font-semibold">Pusti fajl da ga pošalješ</p>
           </div>
         </div>
       ) : null}

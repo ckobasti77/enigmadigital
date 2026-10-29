@@ -22,8 +22,8 @@ export const NO_RESTORE_RIGHT = "Nemaš pravo da vratiš ovu stavku.";
 /** Prazna stanja po segmentu (jedna rečenica, bez obećanja roka). */
 export const TRASH_EMPTY_COPY: Record<TrashKind, { title: string; description?: string }> = {
   page: { title: "Korpa je prazna.", description: "Obrisano ovde čeka dok ga neko iz tima ne vrati." },
-  idea: { title: "Nema obrisanih ideja." },
-  file: { title: "Nema uklonjenih priloga." },
+  idea: { title: "Nema obrisanih ideja.", description: "Obrisano ovde čeka dok ga neko iz tima ne vrati." },
+  file: { title: "Nema uklonjenih priloga.", description: "Uklonjeno ovde čeka dok ga neko iz tima ne vrati." },
   recovered: { title: "Nema oporavljenih tekstova." },
 };
 

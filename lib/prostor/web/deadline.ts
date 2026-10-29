@@ -98,7 +98,7 @@ export function classifyDeadline({
 
 /**
  * Kratka oznaka za skeniranje kolone — namerno kratka
- * („kasni 3 d”, „danas”, „D-3”), ne proza.
+ * („kasni 3 d”, „danas”, „za 3 d”), ne proza.
  */
 export function deadlineLabel(
   classification: DeadlineClassification,
@@ -112,7 +112,7 @@ export function deadlineLabel(
     case "tomorrow":
       return "sutra";
     case "week":
-      return `D-${classification.dayDiff}`;
+      return `za ${classification.dayDiff} d`;
     case "none":
       return "Bez roka";
     default:

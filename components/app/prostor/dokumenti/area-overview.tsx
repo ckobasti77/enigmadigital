@@ -113,7 +113,7 @@ export function AreaDescription({
         state.value ? (
           <p className="whitespace-pre-wrap break-words text-sm leading-6">{state.value}</p>
         ) : (
-          <EmptyState size="section" title="Oblast još nema opis." />
+          <EmptyState size="section" title="Oblast još nema opis." description="Opis dodaje ko sme da menja oblast." />
         )
       ) : !state.value && !writing && state.saveStatus === "saved" ? (
         <EmptyState
@@ -234,7 +234,7 @@ export function RecentChanges({
           </Button>
         </div>
       ) : state.items.length === 0 ? (
-        <EmptyState size="section" title="Ovde još niko nije menjao." />
+        <EmptyState size="section" title="Ovde još niko nije menjao." description="Izmene stranica ove oblasti pojaviće se ovde." />
       ) : (
         <ul className="space-y-0.5">
           {state.items.map((item) => {

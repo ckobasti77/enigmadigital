@@ -19,6 +19,8 @@
  * za urednika tačno prati P18.
  */
 
+import { formatNumber } from "../../format";
+
 export type UlogaPocetne = "owner" | "urednik" | "client_viewer" | null;
 export type RezimPocetne = "hub" | "panel";
 
@@ -158,10 +160,10 @@ export function podnaslovPocetne(
   const otvorenihUTimu = usko ? undefined : brojevi.otvorenihUTimu;
   if (zaTebe === undefined && otvorenihUTimu === undefined && cekaTe === undefined) return null;
   const delovi: string[] = [];
-  if (zaTebe) delovi.push(`${zaTebe} za tebe`);
+  if (zaTebe) delovi.push(`${formatNumber(zaTebe)} za tebe`);
   if (otvorenihUTimu) {
-    delovi.push(`${otvorenihUTimu} ${mnozina(otvorenihUTimu, "otvoren", "otvorena", "otvorenih")} u timu`);
+    delovi.push(`${formatNumber(otvorenihUTimu)} ${mnozina(otvorenihUTimu, "otvoren", "otvorena", "otvorenih")} u timu`);
   }
-  if (cekaTe) delovi.push(`${cekaTe} čeka te`);
+  if (cekaTe) delovi.push(`${formatNumber(cekaTe)} čeka te`);
   return delovi.length === 0 ? "Ništa za tebe danas." : delovi.join(" · ");
 }

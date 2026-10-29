@@ -13,6 +13,7 @@ import {
   type ThoughtSidebarDragRequest,
 } from "@/components/app/prostor/ja/brzi-unos/thought-sharing";
 import type { Id } from "@/convex/_generated/dataModel";
+import { formatNumber, pluralSr } from "@/lib/format";
 
 type Point = {
   x: number;
@@ -370,7 +371,7 @@ export function ThoughtSidebarDragLayer({
   return (
     <>
       <span className="sr-only" aria-live="polite">
-        Prevlačenje {count === 1 ? "jedne misli" : `${count} misli`} u bočnu navigaciju.
+        Prevlačenje {count === 1 ? "jedne misli" : `${formatNumber(count)} ${pluralSr(count, "misao", "misli", "misli")}`} u bočnu navigaciju.
         {activeTarget ? ` Odredište: ${activeTarget.label}.` : " Izaberi oblast ili stranicu."}
       </span>
       <div

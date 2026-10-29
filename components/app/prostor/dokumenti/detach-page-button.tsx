@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import { useProjekatMutation } from "@/components/app/projekat-provider";
 
 export function DetachPageButton({
@@ -43,7 +44,7 @@ export function DetachPageButton({
       toast.success("Stavka je odvojena i vraćena u koren oblasti.");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Stavka nije odvojena.",
+        accessErrorMessage(error, "Stavka nije odvojena."),
       );
     } finally {
       setBusy(false);

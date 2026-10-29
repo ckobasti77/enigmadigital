@@ -19,12 +19,12 @@ import { DueMetaChip, PriorityChip } from "@/components/app/prostor/zadaci/panel
 import { StatusChip, type PanelPerson } from "@/components/app/prostor/zadaci/panel/startup-task-panel-view";
 import { Unfold } from "@/components/motion/unfold";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -243,7 +243,12 @@ function AssigneesPicker({
             <DropdownMenuGroup>
               <DropdownMenuLabel>Izvršioci</DropdownMenuLabel>
               {members === undefined ? (
-                <DropdownMenuItem disabled>Učitavanje članova…</DropdownMenuItem>
+                <div role="status" className="space-y-1 p-1">
+                  <span className="sr-only">Učitavanje članova…</span>
+                  {[0, 1, 2].map((item) => (
+                    <Skeleton key={item} aria-hidden="true" className="h-8 w-full rounded-md" />
+                  ))}
+                </div>
               ) : (
                 ordered.map((person) => {
                   const checked = value.includes(person._id);

@@ -121,7 +121,7 @@ describe("oznake roka", () => {
     expect(labelFor(localNoon(2026, 7, 28))).toBe("kasni 1 d");
     expect(labelFor(localNoon(2026, 7, 29))).toBe("danas");
     expect(labelFor(localNoon(2026, 7, 30))).toBe("sutra");
-    expect(labelFor(localNoon(2026, 8, 1))).toBe("D-3");
+    expect(labelFor(localNoon(2026, 8, 1))).toBe("za 3 d");
     expect(labelFor(null)).toBe("Bez roka");
   });
 

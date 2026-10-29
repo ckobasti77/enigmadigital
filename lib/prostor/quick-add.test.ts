@@ -227,7 +227,7 @@ describe("brzi unos: beleška (K18)", () => {
     });
     expect(
       quickAddNoteCall({ destination: { kind: "personal" }, text: "x".repeat(12_001) }),
-    ).toMatchObject({ fn: "invalid", reason: expect.stringContaining("12000") });
+    ).toMatchObject({ fn: "invalid", reason: expect.stringContaining("12.000") });
   });
 
   test("poruka uspeha", () => {

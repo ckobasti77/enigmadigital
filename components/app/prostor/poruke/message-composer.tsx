@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { insertAtTop, useMutation } from "convex/react";
 import { toast } from "@/lib/toast";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import { LoaderCircle, Mic, Paperclip, Reply, Send, Trash2, X } from "lucide-react";
 import { mentionCandidates, mentionScopeFor } from "@/lib/prostor";
 
@@ -137,7 +138,7 @@ export function MessageComposer({
       onSent();
     } catch (error) {
       setDraft(body);
-      toast.error(error instanceof Error ? error.message : "Poruka nije poslata.");
+      toast.error(accessErrorMessage(error, "Poruka nije poslata."));
     }
   }
 

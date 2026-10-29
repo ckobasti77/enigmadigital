@@ -79,13 +79,18 @@ export function EntityDiscussionPanel({
           <MessagesSquare className="size-4 shrink-0 text-text-muted" aria-hidden="true" />
           <div className="min-w-0">
             <h3 className="text-ui font-semibold text-foreground">Diskusija</h3>
-            <p className="truncate text-meta text-text-muted">
-              {loading
-                ? "Učitavanje…"
-                : messageCount === 0
+            {loading ? (
+              <div role="status" className="py-0.5">
+                <span className="sr-only">Učitavanje…</span>
+                <Skeleton aria-hidden="true" className="h-3.5 w-24" />
+              </div>
+            ) : (
+              <p className="truncate text-meta text-text-muted">
+                {messageCount === 0
                   ? "Još nema poruka."
                   : `${formatNumber(messageCount)} ${porukaWord(messageCount)}`}
-            </p>
+              </p>
+            )}
           </div>
         </div>
         {channel && onOpenChannel ? (

@@ -47,11 +47,11 @@ import { useTriageData, type TriageMember } from "./use-triage-data";
 const SVI_ZADACI = hrefRute({ kind: "tasks" }, "");
 
 const ZONE_META: Record<CommandCenterZoneId, { label: string; icon: LucideIcon; iconClass: string; emptyLabel: string }> = {
-  gori: { label: "Gori", icon: Flame, iconClass: "text-danger", emptyLabel: "Ništa ovde." },
-  zastarelo: { label: "Zastarelo", icon: CalendarX2, iconClass: "text-text-muted", emptyLabel: "Ništa ovde." },
-  danas: { label: "Danas", icon: CalendarClock, iconClass: "text-text-muted", emptyLabel: "Ništa ovde." },
-  nedelja: { label: "Ova nedelja", icon: CalendarDays, iconClass: "text-text-muted", emptyLabel: "Ništa ovde." },
-  kasnije: { label: "Kasnije i bez roka", icon: CircleDashed, iconClass: "text-text-muted", emptyLabel: "Ništa ovde." },
+  gori: { label: "Gori", icon: Flame, iconClass: "text-danger", emptyLabel: "Nema zadataka." },
+  zastarelo: { label: "Zastarelo", icon: CalendarX2, iconClass: "text-text-muted", emptyLabel: "Nema zadataka." },
+  danas: { label: "Danas", icon: CalendarClock, iconClass: "text-text-muted", emptyLabel: "Nema zadataka." },
+  nedelja: { label: "Ova nedelja", icon: CalendarDays, iconClass: "text-text-muted", emptyLabel: "Nema zadataka." },
+  kasnije: { label: "Kasnije i bez roka", icon: CircleDashed, iconClass: "text-text-muted", emptyLabel: "Nema zadataka." },
 };
 
 /** Zone koje se skupljaju (i podrazumevano su skupljene). */

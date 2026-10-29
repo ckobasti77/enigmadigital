@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { initialsOf } from "@/components/app/system/player-card";
@@ -58,8 +59,14 @@ function TeloProfila({ zatvori }: { zatvori: () => void }) {
 
   if (profil === undefined) {
     return (
-      <div className="flex min-h-48 items-center justify-center p-6">
-        <LoaderCircle className="size-5 animate-spin text-text-muted" aria-label="Učitavam profil" />
+      <div role="status" aria-label="Učitavam profil" className="flex flex-col gap-5 p-6">
+        <DialogTitle className="sr-only">Moj profil</DialogTitle>
+        <div className="flex items-center gap-4">
+          <Skeleton className="size-16 rounded-full" />
+          <Skeleton className="h-8 w-32 rounded-md" />
+        </div>
+        <Skeleton className="h-9 w-full rounded-md" />
+        <Skeleton className="h-9 w-full rounded-md" />
       </div>
     );
   }
@@ -70,8 +77,8 @@ function TeloProfila({ zatvori }: { zatvori: () => void }) {
         <DialogHeader>
           <DialogTitle>Moj profil</DialogTitle>
           <DialogDescription>
-            Profil još nije spreman. Pokušaj ponovo za trenutak; nastaje pri
-            prvom ulasku u radni deo projekta.
+            Profil još nije spreman. Pokušaj ponovo za trenutak; pravi se pri
+            prvom ulasku u projekat.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

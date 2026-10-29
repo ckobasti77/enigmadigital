@@ -5,6 +5,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { toast } from "@/lib/toast";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
 
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -126,8 +127,11 @@ export function useAttachmentSender({
         }
         onSent();
       } catch (error) {
+        // Mrežni prekid stiže kao TypeError na engleskom: korisnik dobija srpski tekst.
         toast.error(
-          error instanceof Error ? error.message : "Prilog nije poslat.",
+          error instanceof TypeError
+            ? "Prilog nije poslat. Proveri vezu i pokušaj ponovo."
+            : accessErrorMessage(error, "Prilog nije poslat."),
         );
       } finally {
         setUploading(false);

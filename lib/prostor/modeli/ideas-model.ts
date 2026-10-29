@@ -369,8 +369,8 @@ export const IDEA_SAVE_DELAY_MS = 1_000;
 export function ideaDraftError(draft: { title: string; text: string }): string | null {
   if (!draft.title.trim()) return "Naslov ne može biti prazan.";
   if (!draft.text.trim()) return "Tekst ideje ne može biti prazan.";
-  if (draft.title.trim().length > IDEA_TITLE_MAX) return `Naslov može imati najviše ${IDEA_TITLE_MAX} znakova.`;
-  if (draft.text.trim().length > IDEA_TEXT_MAX) return `Tekst može imati najviše ${IDEA_TEXT_MAX} znakova.`;
+  if (draft.title.trim().length > IDEA_TITLE_MAX) return `Naslov može imati najviše ${formatNumber(IDEA_TITLE_MAX)} znakova.`;
+  if (draft.text.trim().length > IDEA_TEXT_MAX) return `Tekst može imati najviše ${formatNumber(IDEA_TEXT_MAX)} znakova.`;
   return null;
 }
 

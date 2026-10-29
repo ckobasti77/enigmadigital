@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import { cn } from "@/lib/utils";
 
 import { StartupChip } from "@/components/app/prostor/zajednicko/projekat-cip";
@@ -218,7 +219,7 @@ function NoteEditor({
     } catch (cause) {
       setError({
         field: "server",
-        message: cause instanceof Error && cause.message ? cause.message : "Izmena nije sačuvana. Pokušaj ponovo.",
+        message: accessErrorMessage(cause, "Izmena nije sačuvana. Pokušaj ponovo."),
       });
       return false;
     } finally {

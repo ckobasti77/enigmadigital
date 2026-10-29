@@ -180,7 +180,12 @@ function DokumentiSadrzaj() {
         }
       />
       {oblasti.length === 0 ? (
-        <EmptyState icon={Blocks} headingAs="h2" title="Projekat još nema oblasti." />
+        <EmptyState
+          icon={Blocks}
+          headingAs="h2"
+          title="Projekat još nema oblasti."
+          description="Dodaj prvu oblast da stranice imaju gde da stoje."
+        />
       ) : (
         <ul className="divide-y divide-line-soft border-y border-line-soft" aria-label="Oblasti">
           {oblasti.map((oblast) => {

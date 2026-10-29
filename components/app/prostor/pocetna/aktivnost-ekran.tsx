@@ -50,7 +50,12 @@ export function ActivityScreen({ status, entries, canLoadMore, loadingMore, onLo
       {status === "loading" ? (
         <AktivnostSkeleton />
       ) : entries.length === 0 ? (
-        <EmptyState icon={Activity} title="Još nema aktivnosti." headingAs="h2" />
+        <EmptyState
+          icon={Activity}
+          title="Još nema aktivnosti."
+          description="Izmene stranica, zadataka i ideja pojaviće se ovde."
+          headingAs="h2"
+        />
       ) : (
         <div className="max-w-3xl">
           <ul className="space-y-0.5">

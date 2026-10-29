@@ -24,6 +24,7 @@ import type { StartupWithAreas } from "@/lib/prostor/rute";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { useProjekatMutation } from "@/components/app/projekat-provider";
+import { formatNumber, pluralSr } from "@/lib/format";
 
 function titleFromThought(node: Pick<Doc<"thoughtNodes">, "title" | "text">) {
   const explicit = node.title?.trim();
@@ -82,7 +83,7 @@ export function ThoughtConversionDialog({
   const selectedLabel =
     orderedNodes.length === 1
       ? "1 izabrana misao"
-      : `Izabrano misli: ${orderedNodes.length}`;
+      : `Izabrano misli: ${formatNumber(orderedNodes.length)}`;
 
   return (
     <Dialog
@@ -142,7 +143,7 @@ export function ThoughtConversionDialog({
                 ? "Šaljem u Ideje…"
                 : orderedNodes.length === 1
                   ? "Pošalji u Ideje"
-                  : `Pošalji ${orderedNodes.length} misli`}
+                  : `Pošalji ${formatNumber(orderedNodes.length)} ${pluralSr(orderedNodes.length, "misao", "misli", "misli")}`}
             </Button>
           </DialogFooter>
         </form>

@@ -320,7 +320,7 @@ describe("tekstovi", () => {
   test("prazno stanje po segmentu", () => {
     const all: InboxScope = { kind: "all" };
     expect(inboxEmptyCopy("all", all).title).toBe("Inbox je prazan");
-    expect(inboxEmptyCopy("unread", all).title).toBe("Sve je pročitano");
+    expect(inboxEmptyCopy("unread", all).title).toBe("Nema nepročitanih obaveštenja");
     expect(inboxEmptyCopy("pending", all).title).toBe("Niko ne čeka tvoju odluku");
     expect(inboxEmptyCopy("pending", all).description).toBe("Ideje koje tim razmatra stižu ovde.");
   });

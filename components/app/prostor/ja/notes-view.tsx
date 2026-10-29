@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/app/prostor/zajednicko/radni-ui";
 import { formatNumber } from "@/lib/format";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import { cn } from "@/lib/utils";
 
 import { StartupChip } from "@/components/app/prostor/zajednicko/projekat-cip";
@@ -355,7 +356,7 @@ function QuickNote({
       setText("");
       quickRef.current?.focus();
     } catch (cause) {
-      setError(cause instanceof Error && cause.message ? cause.message : "Beleška nije sačuvana. Pokušaj ponovo.");
+      setError(accessErrorMessage(cause, "Beleška nije sačuvana. Pokušaj ponovo."));
     } finally {
       setBusy(false);
     }

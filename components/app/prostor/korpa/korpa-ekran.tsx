@@ -7,7 +7,7 @@ import { Lock } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { useMoze, useProjekat, useProjekatHref } from "@/components/app/projekat-provider";
 import { TrashContainer } from "@/components/app/prostor/korpa/trash-container";
-import { TrashView } from "@/components/app/prostor/korpa/trash-view";
+import { TrashSkeleton, TrashView } from "@/components/app/prostor/korpa/trash-view";
 import { useProstorNavigacija } from "@/components/app/prostor/use-prostor-navigacija";
 import { WorkspaceErrorBoundary } from "@/components/app/prostor/zajednicko/granica-greske";
 import { EmptyState } from "@/components/app/prostor/zajednicko/radni-ui";
@@ -78,7 +78,7 @@ function KorpaSadrzaj() {
   if (uloga === null) {
     return (
       <TrashView segment={segment} onSegmentChange={promeniSegment} counts={undefined}>
-        {null}
+        <TrashSkeleton />
       </TrashView>
     );
   }

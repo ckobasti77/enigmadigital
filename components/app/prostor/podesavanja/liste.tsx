@@ -19,10 +19,11 @@ export function SettingsListSkeleton({ label }: { label: string }) {
   );
 }
 
-export function SettingsListError({ what, onRetry }: { what: string; onRetry: () => void }) {
+/** `text` je cela rečenica („Oblasti nisu učitane.“): rod i broj zavise od imenice. */
+export function SettingsListError({ text, onRetry }: { text: string; onRetry: () => void }) {
   return (
     <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-2 text-ui">
-      <span className="text-text-muted">{what} nije učitano.</span>
+      <span className="text-text-muted">{text}</span>
       <Button type="button" variant="outline" size="sm" onClick={onRetry}>
         Pokušaj ponovo
       </Button>

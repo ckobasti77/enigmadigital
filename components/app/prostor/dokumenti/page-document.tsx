@@ -375,6 +375,7 @@ export function PageRouteProblem({
           icon={FileX2}
           headingAs="h2"
           title="Ova stranica je obrisana ili ne postoji."
+          description="Možda je u Korpi ili pripada drugom projektu."
           action={
             <Button type="button" variant="outline" onClick={onOpenTrash}>
               Otvori Korpu

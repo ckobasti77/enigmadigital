@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "@/lib/toast";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import { MAP_HISTORY_HELP } from "@/lib/prostor/precice/registar";
 import { usePrijaviPomoc } from "@/components/app/prostor/precice/precice-provider";
 
@@ -92,11 +93,7 @@ export function WorkspaceHistoryProvider({ children }: { children: ReactNode }) 
           : `Ponovljeno: ${entry.label}`,
       );
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Promena nije mogla da se primeni.",
-      );
+      toast.error(accessErrorMessage(error, "Promena nije mogla da se primeni."));
     } finally {
       busyRef.current = false;
       syncState(false);

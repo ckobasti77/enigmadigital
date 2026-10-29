@@ -85,6 +85,7 @@ import {
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { accessErrorMessage } from "@/lib/prostor/web/greske";
+import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useWorkspaceHistory } from "@/components/app/prostor/zajednicko/istorija-radnji";
 import { useProjekat, useProjekatMutation } from "@/components/app/projekat-provider";
@@ -575,7 +576,7 @@ function IdeasCanvasBody({
       toast.success(
         createdIds.length === 1
           ? "Ideja je duplirana."
-          : `${createdIds.length} ideje su duplirane.`,
+          : `Duplirano ideja: ${formatNumber(createdIds.length)}.`,
       );
     } catch (error) {
       toast.error(
@@ -1239,6 +1240,7 @@ function IdeasCanvasBody({
               <MapEmptyState
                 icon={searchActive ? SearchX : Lightbulb}
                 title={searchActive ? "Nijedna ideja ne odgovara pretrazi." : "Još nema ideja."}
+                description={searchActive ? "Probaj drugu reč." : "Dodaj prvu ideju da je rasporediš na mapi."}
                 actions={
                   searchActive ? (
                     onClearSearch ? (

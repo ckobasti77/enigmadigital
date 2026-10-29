@@ -18,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { ProfileAvatar } from "@/components/app/prostor/zajednicko/radni-ui";
 
@@ -167,9 +168,12 @@ export function AssigneesChip({
                   </DropdownMenuItem>
                 </>
               ) : members === undefined ? (
-                <p role="status" className="px-2 py-1.5 text-ui text-muted-foreground">
-                  Učitavanje članova…
-                </p>
+                <div role="status" className="space-y-1 p-1">
+                  <span className="sr-only">Učitavanje članova…</span>
+                  {[0, 1, 2].map((item) => (
+                    <Skeleton key={item} aria-hidden="true" className="h-8 w-full rounded-md" />
+                  ))}
+                </div>
               ) : members === "error" ? (
                 <p role="alert" className="px-2 py-1.5 text-ui text-danger">
                   Članovi nisu učitani. Zatvori i ponovo otvori ovaj prikaz.

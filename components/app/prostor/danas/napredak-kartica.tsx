@@ -140,9 +140,9 @@ function Kartica({ stanje, uProjektu }: { stanje: NapredakUkljucen; uProjektu: b
                 max={prsten.cilj}
                 size={44}
                 stroke={5}
-                label={`${prsten.naziv} ove nedelje: ${prsten.vrednost} od ${prsten.cilj}`}
+                label={`${prsten.naziv} ove nedelje: ${formatNumber(prsten.vrednost)} od ${formatNumber(prsten.cilj)}`}
               >
-                <span className="text-meta font-bold tabular-nums text-foreground">{prsten.vrednost}</span>
+                <span className="text-meta font-bold tabular-nums text-foreground">{formatNumber(prsten.vrednost)}</span>
               </ProgressRing>
               <span className="text-meta text-text-muted">{prsten.naziv}</span>
             </li>

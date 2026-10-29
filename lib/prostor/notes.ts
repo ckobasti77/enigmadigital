@@ -5,6 +5,7 @@
  * (id-jevi stižu kao generički `string`). Beleške su privatne po vlasniku — ovde
  * nema pravila pristupa, njih drži server (`thoughts.listMine`).
  */
+import { formatNumber } from "../format";
 import { dayDiff } from "./dates";
 import { formatTrashAge } from "./trash";
 
@@ -182,10 +183,17 @@ export function notesEmptyText(
   filter: NoteFilter,
   options: { searching: boolean; startupName?: string | null },
 ): { title: string; description: string | null } {
-  if (options.searching) return { title: "Nema beležaka za ovu pretragu.", description: null };
-  if (filter.kind === "personal") return { title: "Nema ličnih beležaka.", description: null };
+  if (options.searching) {
+    return { title: "Nema beležaka za ovu pretragu.", description: "Probaj drugu reč ili obriši pretragu." };
+  }
+  if (filter.kind === "personal") return { title: "Nema ličnih beležaka.", description: "Zapiši belešku gore." };
   if (filter.kind === "startup") {
-    return { title: "Nema beležaka u ovom projektu.", description: options.startupName ?? null };
+    return {
+      title: "Nema beležaka u ovom projektu.",
+      description: options.startupName
+        ? `Zapiši belešku gore i izaberi ${options.startupName}.`
+        : "Zapiši belešku gore i izaberi ovaj projekat.",
+    };
   }
   return { title: "Još nema beležaka.", description: "Zapiši prvu belešku gore." };
 }
@@ -197,7 +205,7 @@ export function cleanNoteText(raw: string): NoteTextCheck {
   const text = raw.trim();
   if (text.length === 0) return { ok: false, reason: null };
   if (text.length > NOTE_TEXT_MAX) {
-    return { ok: false, reason: `Beleška može imati najviše ${NOTE_TEXT_MAX} znakova.` };
+    return { ok: false, reason: `Beleška može imati najviše ${formatNumber(NOTE_TEXT_MAX)} znakova.` };
   }
   return { ok: true, text };
 }
@@ -220,7 +228,7 @@ export function noteEditPatch(
   const originalTitle = original.title?.trim() ?? "";
   if (text.length === 0) return { ok: false, reason: "Beleška ne može biti prazna.", field: "text" };
   if (text.length > NOTE_TEXT_MAX) {
-    return { ok: false, reason: `Beleška može imati najviše ${NOTE_TEXT_MAX} znakova.`, field: "text" };
+    return { ok: false, reason: `Beleška može imati najviše ${formatNumber(NOTE_TEXT_MAX)} znakova.`, field: "text" };
   }
   if (title.length === 0 && originalTitle.length > 0) {
     return { ok: false, reason: "Naslov ne može biti prazan.", field: "title" };

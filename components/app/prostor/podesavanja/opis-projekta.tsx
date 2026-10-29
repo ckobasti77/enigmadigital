@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { SETTINGS_TEXT } from "@/lib/prostor";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { SamoZa } from "@/components/app/samo-za";
 import { useMoze, useProjekatMutation } from "@/components/app/projekat-provider";
@@ -23,7 +24,29 @@ const NAJVECI_OPIS = 500;
 export function OpisProjekta() {
   const sme = useMoze("urednik");
   const projekat = useProjekatQueryResult(api.prostor.projekat.get, sme ? {} : "skip");
-  if (projekat.data === undefined) return null;
+  // Posmatrač opis ne čita (upit se preskače): njemu se ništa ne crta.
+  if (!sme) return null;
+  if (projekat.failed) {
+    return (
+      <p role="alert" className="mt-8 max-w-xl border-t border-line pt-6 text-ui text-text-muted">
+        Opis projekta nije učitan. Osveži stranicu.
+      </p>
+    );
+  }
+  if (projekat.data === undefined) {
+    return (
+      <div
+        role="status"
+        aria-label="Učitavanje opisa projekta"
+        className="mt-8 max-w-xl space-y-3 border-t border-line pt-6"
+      >
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="h-4 w-64" />
+        <Skeleton className="h-[4.75rem] w-full rounded-md" />
+        <Skeleton className="h-8 w-28 rounded-md" />
+      </div>
+    );
+  }
   return <Opis key={projekat.data._id} sacuvan={projekat.data.description} />;
 }
 

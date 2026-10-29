@@ -11,7 +11,7 @@
  * model samo bira i slaže ono što oni vrate.
  */
 
-import { pluralSr } from "../../format";
+import { formatNumber, pluralSr } from "../../format";
 import { zbirCekanja, type CekaProjekta, type ProjekatZbira, type Zbir } from "../../hub-zbir";
 import { formatDayHeading } from "../dates";
 import type { MyDaySectionId } from "../my-day";
@@ -81,7 +81,7 @@ export type CekaTeDanas =
 /** „Uračunato 20 od 34 projekta." — kad projekata ima više od granice. */
 export function napomenaIzostavljenih(izabrano: number, ukupno: number): string | null {
   if (ukupno <= izabrano) return null;
-  return `Uračunato ${izabrano} od ${ukupno} ${pluralSr(ukupno, "projekta", "projekta", "projekata")}.`;
+  return `Uračunato ${formatNumber(izabrano)} od ${formatNumber(ukupno)} ${pluralSr(ukupno, "projekta", "projekta", "projekata")}.`;
 }
 
 /**
@@ -109,8 +109,8 @@ export function cekaTeDanas(
 /** „2 kasne, 3 za danas" — delovi sa nulom se izostavljaju; `null` kad nema ničega. */
 export function sazetakDana(counts: Pick<Record<MyDaySectionId, number>, "overdue" | "today">): string | null {
   const delovi: string[] = [];
-  if (counts.overdue > 0) delovi.push(`${counts.overdue} ${pluralSr(counts.overdue, "kasni", "kasne", "kasni")}`);
-  if (counts.today > 0) delovi.push(`${counts.today} za danas`);
+  if (counts.overdue > 0) delovi.push(`${formatNumber(counts.overdue)} ${pluralSr(counts.overdue, "kasni", "kasne", "kasni")}`);
+  if (counts.today > 0) delovi.push(`${formatNumber(counts.today)} za danas`);
   return delovi.length === 0 ? null : delovi.join(", ");
 }
 

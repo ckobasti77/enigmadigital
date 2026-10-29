@@ -106,7 +106,7 @@ function Provajderi({ onRetry }: { onRetry: () => void }) {
       </div>
 
       {lista.failed ? (
-        <SettingsListError what="Provajderi" onRetry={onRetry} />
+        <SettingsListError text="Provajderi nisu učitani." onRetry={onRetry} />
       ) : lista.data === undefined ? (
         <SettingsListSkeleton label="Učitavanje provajdera" />
       ) : lista.data.length === 0 ? (

@@ -213,7 +213,7 @@ function PocetnaUrednik({ sastav }: { sastav: SastavPocetne }) {
           <EmptyState
             icon={Lock}
             headingAs="h2"
-            title="Radni deo još nije spreman."
+            title="Projekat još nije spreman."
             description="Profil tima se pravi pri prvom ulasku. Osveži stranicu."
           />
         ) : !projekat || !profil ? (

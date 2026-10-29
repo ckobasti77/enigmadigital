@@ -2241,6 +2241,17 @@ function AreaCanvasReady({
                       ? "Na mapi nema beležaka."
                       : "Na mapi nema kartica ove vrste."
             }
+            description={
+              canvasData.truncated
+                ? "Probaj drugi filter."
+                : filter === "all"
+                  ? "Dodaj zadatak ili belešku da se pojavi na mapi."
+                  : isTaskFilter
+                    ? "Napravi zadatak da se pojavi na mapi."
+                    : isNoteFilter
+                      ? "Napravi belešku da se pojavi na mapi."
+                      : "Prikaži sve kartice ili izaberi drugu vrstu."
+            }
             actions={
               filter !== "all" && !isTaskFilter && !isNoteFilter ? (
                 <Button variant="outline" onClick={() => onFilterChange("all")}>

@@ -129,6 +129,7 @@ export function IdeasScreen({
           icon={SearchX}
           headingAs="h2"
           title="Nijedna ideja ne odgovara pretrazi."
+          description="Probaj drugu reč."
           action={
             <Button variant="outline" onClick={() => onQueryChange("")}>
               Poništi pretragu

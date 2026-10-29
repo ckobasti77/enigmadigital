@@ -277,6 +277,7 @@ export function AreaTasksBody({
         icon={CheckCircle2}
         headingAs="h2"
         title="Oblast nema zadataka."
+        description="Napravi prvi zadatak da bi se ovde pojavio."
         action={
           <Button variant="secondary" onClick={onCreateTask}>
             <Plus aria-hidden="true" /> Novi zadatak

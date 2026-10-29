@@ -49,7 +49,7 @@ function FileBody({ file }: { file: ViewableFile }) {
   if (file.url === null) {
     return (
       <p className="rounded-xl border border-dashed border-line-soft px-4 py-10 text-center text-ui text-text-secondary">
-        Fajl više nije dostupan u skladištu.
+        Fajl više nije dostupan. Dodaj ga ponovo na stranicu.
       </p>
     );
   }
@@ -58,7 +58,7 @@ function FileBody({ file }: { file: ViewableFile }) {
       <div className="grid place-items-center gap-3 rounded-xl border border-dashed border-line-soft px-4 py-12 text-center">
         <FileQuestion className="size-8 text-text-muted" aria-hidden="true" />
         <p className="text-ui text-text-secondary">
-          Pregled nije podržan u ovom pregledaču. Preuzmi fajl da bi ga otvorio.
+          Pregled nije podržan u ovom pregledaču. Preuzmi fajl da ga otvoriš.
         </p>
       </div>
     );
@@ -106,7 +106,7 @@ function FileBody({ file }: { file: ViewableFile }) {
     <div className="grid place-items-center gap-3 rounded-xl border border-dashed border-line-soft px-4 py-12 text-center">
       <FileQuestion className="size-8 text-text-muted" aria-hidden="true" />
       <p className="text-ui text-text-secondary">
-        Ovaj tip se ne prikazuje u pregledu. Preuzmi ga da bi ga otvorio.
+        Ovaj tip se ne prikazuje u pregledu. Preuzmi ga da ga otvoriš.
       </p>
     </div>
   );

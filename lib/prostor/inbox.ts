@@ -5,6 +5,7 @@
  * tekstovi praznih stanja i stavke „Čeka tebe". Bez React-a i bez Convex tipova
  * (id-jevi su stringovi; klijent ih kastuje u `Id<...>` na ivici).
  */
+import { formatNumber } from "../format";
 import { addDaysToKey, dayKeyOf, formatClock, formatDayRelative } from "./dates";
 
 // --- Segmenti i opseg --------------------------------------------------------
@@ -279,9 +280,9 @@ export function inboxEmptyCopy(segment: InboxSegment, scope: InboxScope): InboxE
   const filtered = scope.kind !== "all";
   if (segment === "unread") {
     return {
-      title: "Sve je pročitano",
+      title: "Nema nepročitanih obaveštenja",
       description: filtered
-        ? "Za ovaj filter nema nepročitanih obaveštenja."
+        ? "Za ovaj filter su sva obaveštenja pročitana."
         : "Nova obaveštenja će se pojaviti ovde.",
     };
   }
@@ -307,6 +308,6 @@ export function inboxEmptyCopy(segment: InboxSegment, scope: InboxScope): InboxE
 /** Poruka posle „Označi sve" (`inbox.markAllRead` vraća `marked` i `hasMore`). */
 export function inboxMarkedMessage(result: { marked: number; hasMore: boolean }): string {
   if (result.marked === 0) return "Nema nepročitanih obaveštenja.";
-  if (result.hasMore) return `Označeno je prvih ${result.marked}, ostalo se označava.`;
-  return `Označeno kao pročitano: ${result.marked}.`;
+  if (result.hasMore) return `Označeno je prvih ${formatNumber(result.marked)}, ostalo se označava.`;
+  return `Označeno kao pročitano: ${formatNumber(result.marked)}.`;
 }

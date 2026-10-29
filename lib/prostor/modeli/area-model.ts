@@ -6,6 +6,7 @@
  * Testovi: `area-model.test.ts`.
  */
 import { formatEditTime } from "..";
+import { formatNumber } from "../../format";
 
 import {
   AUTOSAVE_MAX_RETRIES,
@@ -66,7 +67,7 @@ export type AreaCount = { count: number; capped: boolean };
 /** „12", „99+"; `null` dok se ne zna. */
 export function countText(value: AreaCount | null): string | null {
   if (value === null) return null;
-  return `${value.count}${value.capped ? "+" : ""}`;
+  return `${formatNumber(value.count)}${value.capped ? "+" : ""}`;
 }
 
 /** „1 stranica", „3 stranice", „12 stranica". */

@@ -5,6 +5,7 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { toast } from "@/lib/toast";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import {
   ChevronDown,
   Hash,
@@ -23,6 +24,7 @@ import type {
 } from "@/lib/prostor/rute";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogPopup,
@@ -148,9 +150,7 @@ function NewDirectMessageDialog({
       setQuery("");
       onCreated(channelId);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Razgovor nije otvoren.",
-      );
+      toast.error(accessErrorMessage(error, "Razgovor nije otvoren."));
     } finally {
       setBusyId(null);
     }
@@ -174,13 +174,16 @@ function NewDirectMessageDialog({
         />
         <div className="scrollbar-thin max-h-72 space-y-1 overflow-y-auto">
           {members === undefined ? (
-            <p className="px-2 py-6 text-center text-ui text-text-muted">
-              Učitavanje članova…
-            </p>
+            <div role="status" className="space-y-1">
+              <span className="sr-only">Učitavanje članova…</span>
+              {[0, 1, 2, 3].map((item) => (
+                <Skeleton key={item} aria-hidden="true" className="h-11 w-full rounded-lg" />
+              ))}
+            </div>
           ) : candidates.length === 0 ? (
             <p className="px-2 py-6 text-center text-ui text-text-muted">
               {query.trim()
-                ? `Nema rezultata za „${query.trim()}".`
+                ? `Nema rezultata za „${query.trim()}“.`
                 : "Nema drugih članova u ovom projektu."}
             </p>
           ) : (
@@ -260,7 +263,7 @@ function NewChannelDialog({
       setSelected(new Set());
       onCreated(channelId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Kanal nije kreiran.");
+      toast.error(accessErrorMessage(error, "Kanal nije kreiran."));
     } finally {
       setBusy(false);
     }
@@ -311,9 +314,12 @@ function NewChannelDialog({
             <p className="text-ui font-medium">Članovi</p>
             <div className="scrollbar-thin max-h-48 space-y-1 overflow-y-auto rounded-lg border border-line-soft p-1">
               {members === undefined ? (
-                <p className="px-2 py-3 text-meta text-text-muted">
-                  Učitavanje članova…
-                </p>
+                <div role="status" className="space-y-1">
+                  <span className="sr-only">Učitavanje članova…</span>
+                  {[0, 1, 2].map((item) => (
+                    <Skeleton key={item} aria-hidden="true" className="h-10 w-full rounded-md" />
+                  ))}
+                </div>
               ) : selectable.length === 0 ? (
                 <p className="px-2 py-3 text-meta text-text-muted">
                   Nema drugih članova.

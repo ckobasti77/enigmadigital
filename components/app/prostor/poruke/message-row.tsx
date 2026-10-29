@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { toast } from "@/lib/toast";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import { CornerUpLeft, FileText, Pencil, Reply, Trash2 } from "lucide-react";
 import { canDeleteChatMessage } from "@/lib/prostor/chat-hub";
 
@@ -91,7 +92,7 @@ export function MessageRow({
 
   function react(emoji: string) {
     void toggleReaction({ messageId: message._id, emoji }).catch((error) =>
-      toast.error(error instanceof Error ? error.message : "Reakcija nije sačuvana."),
+      toast.error(accessErrorMessage(error, "Reakcija nije sačuvana.")),
     );
   }
 
@@ -102,7 +103,7 @@ export function MessageRow({
       await editMessage({ messageId: message._id, body: trimmed });
       setEditing(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Izmena nije sačuvana.");
+      toast.error(accessErrorMessage(error, "Izmena nije sačuvana."));
     }
   }
 
@@ -111,7 +112,7 @@ export function MessageRow({
     try {
       await deleteMessage({ messageId: message._id });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Poruka nije obrisana.");
+      toast.error(accessErrorMessage(error, "Poruka nije obrisana."));
     } finally {
       setDeleting(false);
       setConfirmingDelete(false);

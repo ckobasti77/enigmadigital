@@ -48,7 +48,7 @@ function Clanovi({ onRetry }: { onRetry: () => void }) {
     <div className="max-w-xl space-y-4 pt-5">
       <p className="text-ui text-text-muted">{SETTINGS_TEXT.passwordsNote}</p>
       {clanovi.failed ? (
-        <SettingsListError what="Članovi" onRetry={onRetry} />
+        <SettingsListError text="Članovi nisu učitani." onRetry={onRetry} />
       ) : clanovi.data === undefined ? (
         <SettingsListSkeleton label="Učitavanje članova" />
       ) : clanovi.data.length === 0 ? (

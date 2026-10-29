@@ -3,6 +3,7 @@
 // Preneto iz Devotion apps/web/components/workspace/files/note-attachments.tsx (main @ c05c40f), SPAJANJE S11.
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { toast } from "@/lib/toast";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
 
 import { FileViewerDialog, type ViewableFile } from "@/components/app/prostor/prilozi/file-viewer-dialog";
 import {
@@ -61,7 +62,7 @@ export function useNoteFileUpload(pageId: Id<"pages"> | null) {
         return await uploadPageFile({ pageId, file, generateUploadUrl, attach });
       } catch (error) {
         toast.error(
-          error instanceof Error ? `„${file.name}“: ${error.message}` : `„${file.name}“ nije dodat.`,
+          `„${file.name}“: ${accessErrorMessage(error, "nije dodat.")}`,
         );
         return null;
       }

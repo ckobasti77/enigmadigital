@@ -23,6 +23,8 @@ import type { StartupWithAreas } from "@/lib/prostor/rute";
 import { AREA_ICONS, getAreaTint } from "@/components/app/prostor/zajednicko/radni-ui";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatNumber } from "@/lib/format";
 import { pageKindMeta } from "@/lib/prostor/web/vrste-stranica";
 import { cn } from "@/lib/utils";
 import type { AreaKey } from "@/lib/prostor/web/projekat";
@@ -58,7 +60,7 @@ export function ThoughtDestinationPicker({
         <DialogHeader className="border-b border-line-soft px-5 py-5 pr-12 sm:px-6">
           <DialogTitle>Pošalji u dokumente</DialogTitle>
           <DialogDescription>
-            Izaberi oblast ili stranicu za {selectedCount === 1 ? "ovu misao" : `${selectedCount} izabranih misli`}.
+            Izaberi oblast ili stranicu za {selectedCount === 1 ? "ovu misao" : `izabrane misli (${formatNumber(selectedCount)})`}.
           </DialogDescription>
         </DialogHeader>
 
@@ -146,8 +148,10 @@ function DestinationPageList({
   return (
     <div className="ml-5 border-l border-line-soft pl-2" aria-label={parentPageId === null ? `Stranice u ${areaLabel}` : "Podstranice"}>
       {status === "LoadingFirstPage" ? (
-        <div className="flex min-h-9 items-center gap-2 px-3 text-xs text-muted-foreground">
-          <LoaderCircle className="size-3.5 animate-spin" /> Učitavam stranice
+        <div role="status" aria-label="Učitavam stranice" className="space-y-0.5 py-1">
+          {[0, 1].map((red) => (
+            <Skeleton key={red} className="h-9 w-full rounded-lg" />
+          ))}
         </div>
       ) : results.length === 0 ? (
         <p className="px-3 py-2 text-xs leading-5 text-muted-foreground">

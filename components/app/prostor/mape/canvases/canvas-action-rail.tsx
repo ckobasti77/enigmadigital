@@ -10,6 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { formatNumber, pluralSr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import styles from "@/components/app/prostor/mape/canvases/canvas-action-rail.module.css";
@@ -36,11 +37,7 @@ export type CanvasActionRailSection = {
 
 /** „1 stavka", „3 stavke", „12 stavki". */
 function itemsLabel(count: number) {
-  const lastDigit = count % 10;
-  const lastTwo = count % 100;
-  if (lastDigit === 1 && lastTwo !== 11) return `${count} stavka`;
-  if (lastDigit >= 2 && lastDigit <= 4 && (lastTwo < 12 || lastTwo > 14)) return `${count} stavke`;
-  return `${count} stavki`;
+  return `${formatNumber(count)} ${pluralSr(count, "stavka", "stavke", "stavki")}`;
 }
 
 export function CanvasActionRail({

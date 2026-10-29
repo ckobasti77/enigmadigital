@@ -85,9 +85,7 @@ export function PageFilesPanel({
           added += 1;
         } catch (error) {
           toast.error(
-            error instanceof Error
-              ? `„${file.name}“: ${error.message}`
-              : `„${file.name}“ nije dodat.`,
+            `„${file.name}“: ${accessErrorMessage(error, "nije dodat.")}`,
           );
         } finally {
           setUploadProgress((progress) => {

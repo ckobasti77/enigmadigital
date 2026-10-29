@@ -104,6 +104,7 @@ export function AreaDocumentsBody({
             icon={FileText}
             headingAs="h2"
             title="Oblast još nema stranica."
+            description="Dodaj prvu stranicu da bi se ovde pojavio spisak."
             action={
               <Button variant="secondary" onClick={onCreate}>
                 <Plus aria-hidden="true" /> Nova stranica

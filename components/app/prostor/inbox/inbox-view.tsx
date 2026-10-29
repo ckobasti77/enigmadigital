@@ -160,7 +160,7 @@ export function InboxView({
     total === null
       ? "Obaveštenja iz svih projekata i ličnih poruka"
       : total.count === 0
-        ? "Sve je pročitano · svi projekti i lične poruke"
+        ? "Nema nepročitanih · svi projekti i lične poruke"
         : `${inboxCountLabel(total.count, total.capped)} ${inboxUnreadWord(total.count)} · svi projekti i lične poruke`;
 
   return (
@@ -367,8 +367,8 @@ function FeedPanel({
     return (
       <EmptyState
         headingAs="h2"
-        icon={segment === "unread" ? Check : Inbox}
-        title={more ? "Na ovoj strani nema ničega." : copy.title}
+        icon={Inbox}
+        title={more ? "Na ovoj strani nema obaveštenja." : copy.title}
         description={more ? "Ostalo može biti dalje u istoriji." : copy.description}
         action={
           more ? (

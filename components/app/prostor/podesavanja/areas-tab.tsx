@@ -66,7 +66,7 @@ export function AreasTab({
   return (
     <div className="max-w-xl space-y-6">
       {areas.length === 0 ? (
-        <EmptyState size="section" title="Nema oblasti." />
+        <EmptyState size="section" title="Nema oblasti." description={canEdit ? "Dodaj prvu ispod." : undefined} />
       ) : (
         <ul className="space-y-0.5" aria-label="Oblasti">
           {areas.map((area, index) => (

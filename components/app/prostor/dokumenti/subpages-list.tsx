@@ -5,7 +5,7 @@ import { LoaderCircle, Lock, Map as MapIcon, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SectionHeading } from "@/components/app/prostor/zajednicko/radni-ui";
+import { EmptyState, SectionHeading } from "@/components/app/prostor/zajednicko/radni-ui";
 import { pageKindMeta, type PageKind } from "@/lib/prostor/web/vrste-stranica";
 
 export type SubpageRow = {
@@ -90,7 +90,9 @@ export function SubpagesList({
             Pokušaj ponovo
           </Button>
         </div>
-      ) : empty ? null : (
+      ) : empty ? (
+        <EmptyState size="section" title="Još nema podstranica." description="Dodaj prvu dugmetom Nova podstranica." />
+      ) : (
         <>
           <ul className="space-y-0.5">
             {state.items.map((item) => {

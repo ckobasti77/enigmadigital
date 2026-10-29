@@ -172,7 +172,7 @@ export function PlanDayDialog({ open, onOpenChange, now, state, onAdd, onCarryOv
                     <span className="grid size-10 place-items-center rounded-lg bg-surface-control text-text-secondary">
                       <CalendarCheck2 className="size-5" aria-hidden="true" />
                     </span>
-                    <p className="text-ui text-text-secondary">Nema predloga. Sve važno je već u planu.</p>
+                    <p className="text-ui text-text-secondary">Nema predloga za danas. Zadatke dodaješ i Brzim unosom.</p>
                   </div>
                 ) : null}
 

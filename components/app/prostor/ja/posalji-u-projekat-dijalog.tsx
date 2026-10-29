@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import { cn } from "@/lib/utils";
 
 import { StartupChip } from "@/components/app/prostor/zajednicko/projekat-cip";
@@ -89,7 +90,7 @@ function SendForm({
       await onSend(target);
       onClose();
     } catch (cause) {
-      setError(cause instanceof Error && cause.message ? cause.message : "Beleška nije poslata. Pokušaj ponovo.");
+      setError(accessErrorMessage(cause, "Beleška nije poslata. Pokušaj ponovo."));
     } finally {
       setBusy(false);
     }

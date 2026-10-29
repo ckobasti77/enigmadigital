@@ -185,9 +185,10 @@ export function resolveMentions(
   return ids;
 }
 
-/** Trajanje glasovne poruke: „0:07" / „1:23". */
+/** Trajanje glasovne poruke: „0:07" / „1:23"; „—" kad trajanje nije zabeleženo. */
 export function formatVoiceDuration(ms: number | null): string {
-  const totalSeconds = Math.max(0, Math.round((ms ?? 0) / 1_000));
+  if (ms === null) return "—";
+  const totalSeconds = Math.max(0, Math.round(ms / 1_000));
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;

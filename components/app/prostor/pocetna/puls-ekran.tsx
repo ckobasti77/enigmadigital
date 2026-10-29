@@ -430,7 +430,8 @@ function AreasSection({
       <div className="space-y-0.5">
         {areas.map((area) => {
           const total = area.openCount + area.doneCount;
-          const percent = total === 0 ? 0 : Math.round((area.doneCount / total) * 100);
+          // Oblast bez zadataka nema udeo: „—“, ne 0 %.
+          const percent = total === 0 ? null : Math.round((area.doneCount / total) * 100);
           const Icon = AREA_ICONS[area.key as AreaKey] || Blocks;
           return (
             <button
@@ -443,9 +444,18 @@ function AreasSection({
               <span className="min-w-0 flex-1">
                 <span className="flex items-center justify-between gap-3">
                   <span className="truncate text-ui font-medium text-foreground">{area.label}</span>
-                  <span className="text-meta tabular-nums text-text-muted">{formatPercentValue(percent)}</span>
+                  <span className="text-meta tabular-nums text-text-muted">
+                    {percent === null ? (
+                      <>
+                        <span aria-hidden="true">—</span>
+                        <span className="sr-only">Nema zadataka u ovoj oblasti.</span>
+                      </>
+                    ) : (
+                      formatPercentValue(percent)
+                    )}
+                  </span>
                 </span>
-                <Progress value={percent} ton="success" size="sm" label={`${area.label}: završeno`} className="mt-2" />
+                <Progress value={percent ?? 0} ton="success" size="sm" label={`${area.label}: završeno`} className="mt-2" />
                 <span className="mt-1.5 block text-meta text-text-muted">
                   <span className="tabular-nums">{formatNumber(area.openCount)}</span> otvoreno ·{" "}
                   <span className="tabular-nums">{formatNumber(area.doneCount)}</span> gotovo
@@ -526,7 +536,7 @@ function MembersSection({
               <span className="truncate text-ui font-medium text-foreground">Bez zaduženog</span>
             </span>
             <MemberStat label="Završeno" value={unassigned.completedThisWeek} />
-            <MemberStat label="Aktivnosti" value={0} />
+            <MemberStat label="Aktivnosti" value={null} reason="Aktivnosti se računaju po osobi." />
             <MemberStat label="Otvoreno" value={unassigned.openCount} />
             <MemberStat
               label="Kasni"
@@ -540,17 +550,35 @@ function MembersSection({
   );
 }
 
-function MemberStat({ label, value, tone }: { label: string; value: number; tone?: "danger" }) {
+/** `value === null` = nije izmereno: piše „—“, a razlog je u `reason` (čitač ga dobija kao natpis). */
+function MemberStat({
+  label,
+  value,
+  tone,
+  reason,
+}: {
+  label: string;
+  value: number | null;
+  tone?: "danger";
+  reason?: string;
+}) {
   return (
-    <span className="w-20 shrink-0">
+    <span className="w-20 shrink-0" title={value === null ? reason : undefined}>
       <span
         className={cn(
           "block text-ui font-semibold tabular-nums text-foreground",
           tone === "danger" && "text-danger",
-          value === 0 && tone === undefined && "text-text-muted",
+          (value === null || value === 0) && tone === undefined && "text-text-muted",
         )}
       >
-        {formatNumber(value)}
+        {value === null ? (
+          <>
+            <span aria-hidden="true">—</span>
+            <span className="sr-only">{reason ?? "Nema podatka."}</span>
+          </>
+        ) : (
+          formatNumber(value)
+        )}
       </span>
       <span className="block text-meta text-text-muted">{label}</span>
     </span>

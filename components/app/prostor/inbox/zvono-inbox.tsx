@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/convex/_generated/api";
+import { formatNumber, pluralSr } from "@/lib/format";
 import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import { unreadPhrase } from "@/lib/prostor/web/opseg";
 import { toast } from "@/lib/toast";
@@ -57,10 +58,10 @@ export function useInboxZvona(aktivan: boolean): InboxZvona | null {
 export function nazivZvona(ceka: number, inbox: InboxZvona | null, cekaNepotpuno = false): string {
   const deoCeka =
     ceka > 0
-      ? `Čeka te: ${ceka} ${ceka === 1 ? "stavka" : "stavki"}${cekaNepotpuno ? " ili više" : ""}`
+      ? `Čeka te: ${formatNumber(ceka)} ${pluralSr(ceka, "stavka", "stavke", "stavki")}${cekaNepotpuno ? " ili više" : ""}`
       : "Čeka te: nema ničega";
   if (inbox === null) return deoCeka;
-  return `${deoCeka} · Inbox: ${inbox.broj > 0 ? unreadPhrase(inbox.broj, inbox.odseceno) : "sve je pročitano"}`;
+  return `${deoCeka} · Inbox: ${inbox.broj > 0 ? unreadPhrase(inbox.broj, inbox.odseceno) : "nema nepročitanih"}`;
 }
 
 /**
@@ -90,7 +91,7 @@ export function ZvonoKartice({
       <TabsList aria-label="Zvono" className="shrink-0 px-1.5">
         <TabsTrigger value="ceka">
           Čeka te
-          <CountBadge count={cekaBroj} label={`${cekaBroj} ${cekaBroj === 1 ? "stavka" : "stavki"}`} />
+          <CountBadge count={cekaBroj} label={`${formatNumber(cekaBroj)} ${pluralSr(cekaBroj, "stavka", "stavke", "stavki")}`} />
         </TabsTrigger>
         <TabsTrigger value="inbox">
           Inbox

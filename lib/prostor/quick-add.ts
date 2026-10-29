@@ -224,7 +224,7 @@ export function quickAddSuccessMessage(
   if (destination.kind === "personal") return "Dodato u Lično.";
   const workspace = workspaces.find((item) => item._id === destination.workspaceId);
   const area = workspace?.areas.find((item) => item._id === destination.areaId);
-  const name = workspace?.name ?? "startup";
+  const name = workspace?.name ?? "projekat";
   return area ? `Dodato u ${name} · ${area.label}.` : `Dodato u ${name}.`;
 }
 
@@ -267,5 +267,5 @@ export function quickAddNoteSuccessMessage(
 ): string {
   if (destination.kind === "personal") return noteCreatedMessage(null);
   const workspace = workspaces.find((item) => item._id === destination.workspaceId);
-  return noteCreatedMessage(workspace?.name ?? "startup");
+  return noteCreatedMessage(workspace?.name ?? "projekat");
 }

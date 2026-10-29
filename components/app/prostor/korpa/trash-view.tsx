@@ -93,6 +93,17 @@ export type TrashListProps = {
   announcement?: string;
 };
 
+/** Učitavanje Korpe: pet redova visine pravog reda. */
+export function TrashSkeleton() {
+  return (
+    <div role="status" aria-label="Učitavanje Korpe" className="space-y-1">
+      {[0, 1, 2, 3, 4].map((item) => (
+        <Skeleton key={item} className="h-14 w-full rounded-lg" />
+      ))}
+    </div>
+  );
+}
+
 /** Lista jednog segmenta Korpe: učitavanje, greška, prazno, redovi i „Učitaj još". */
 export function TrashList({
   segment,
@@ -109,11 +120,7 @@ export function TrashList({
   return (
     <>
       {state.status === "loading" ? (
-        <div role="status" aria-label="Učitavanje Korpe" className="space-y-1">
-          {[0, 1, 2, 3, 4].map((item) => (
-            <Skeleton key={item} className="h-14 w-full rounded-lg" />
-          ))}
-        </div>
+        <TrashSkeleton />
       ) : state.status === "error" ? (
         <div
           role="alert"

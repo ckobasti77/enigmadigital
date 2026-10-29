@@ -284,9 +284,11 @@ export function PageTablePanel({
             </thead>
             <tbody>
               {status === "LoadingFirstPage" ? (
-                <tr>
-                  <td colSpan={columns.length + 1} className="px-3 py-6 text-center text-meta text-text-muted">
-                    Učitavanje…
+                <tr role="status" aria-label="Učitavanje redova">
+                  <td colSpan={columns.length + 1} className="space-y-1 px-3 py-2">
+                    <Skeleton className="h-8 rounded-md" />
+                    <Skeleton className="h-8 rounded-md" />
+                    <Skeleton className="h-8 rounded-md" />
                   </td>
                 </tr>
               ) : rows.length === 0 ? (

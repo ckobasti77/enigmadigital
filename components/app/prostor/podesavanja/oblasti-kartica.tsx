@@ -37,7 +37,7 @@ function Oblasti({ onRetry }: { onRetry: () => void }) {
   const { busy, run } = useRadnja();
 
   if (projekat.failed) {
-    return <SettingsListError what="Oblasti" onRetry={onRetry} />;
+    return <SettingsListError text="Oblasti nisu učitane." onRetry={onRetry} />;
   }
   if (projekat.data === undefined)
     return <SettingsListSkeleton label="Učitavanje oblasti" />;

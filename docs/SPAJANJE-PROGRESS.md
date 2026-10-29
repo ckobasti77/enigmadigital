@@ -1927,3 +1927,71 @@ Postojeći `command-center-model`, `command-center`, `stale`, `activity-format` 
 - Na tabeli Leadova pritisni `?`: sada se otvara globalna pomoć umesto lokalne trake (ODLUKA 1). Potvrdi.
 - Potvrdi ODLUKE 4 (pomoć navodi sve), 7 (6 po grupi, grupe posle Ekrana) i 9 (misao vodi na mapu beleški).
 - Ništa nije deployovano.
+
+## S25 — Tekst, rečnik, prazna stanja, greške   (2026-10-29)
+**Fajlovi:**
+- `components/app/prostor/`: obrisan `ekran-uskoro.tsx`; izmenjeno ~45 fajlova u `poruke/`, `zadaci/`, `zajednicko/`, `dokumenti/`, `mape/`, `ideje/`, `tabele/`, `prilozi/`, `inbox/`, `danas/`, `ja/`, `korpa/`, `pocetna/`, `podesavanja/`, `profil/`.
+- `lib/prostor/`: `quick-add.ts`, `inbox.ts`, `notes.ts`, `chat-hub.ts` (komentar), `web/chat.ts`, `web/deadline.ts`, `modeli/{danas,pocetna,trash,ideas,area}-model.ts`, uz testove `inbox.test.ts`, `quick-add.test.ts`, `web/deadline.test.ts`.
+- `docs/spajanje/snimci/S25-prazno-{inbox,zadaci,korpa,aktivnost,beleske}.png`.
+
+**Šta je urađeno:**
+- `EkranUskoro` nigde nije bio uvezan (svi ekrani su dobili prave kontejnere), pa je komponenta obrisana.
+- U vidljivom tekstu nema „startup“, „radni prostor“ ni internih oznaka. Jedina dva ostatka bila su rezervna imena u `quick-add.ts` („startup“ → „projekat“).
+- Svi ekrani radnog dela (Danas, Moji zadaci, Inbox, Poruke, Beleške, Zadaci, Ideje, Dokumenti, Oblast, Stranica, Mapa, Korpa, Puls, Aktivnost) već imaju granicu greške. Dopunjene su rupe unutra:
+  - sirov `error.message` u toastovima zamenjen sa `accessErrorMessage` (poruke, mape, prilozi, tabele, Ja);
+  - tekst „Učitavanje…“ bez mesta zamenjen skeletonom (Nova poruka, izvršioci, tabela stranice, mapa beleški, Korpa, Opis projekta, Profil, izbor odredišta);
+  - prazna stanja bez „šta dalje“ dobila opis (Dokumenti, Oblast, Ideje, Mape, Beleške, Korpa, Aktivnost, Oblasti);
+  - nemerena nula → „—“ sa razlogom (Puls: „Bez zaduženog“ i oblast bez zadataka; `formatVoiceDuration(null)`);
+  - brojevi i množina kroz `formatNumber`/`pluralSr`.
+
+**Paritet:** P3 (tekst, prazna stanja, greške) — pokriveno za sve ekrane radnog dela, bez izmene rasporeda i ponašanja.
+
+**ODLUKE:**
+1. Imena identifikatora i API-ja sa „startup“ (`listForStartup`, `byStartup`, `StartupChip`, `kind: "startup"`…) ostaju: pravilo runa kaže da se u kodu piše `workspace`/Devotionova imena, a „projekat“ važi za tekst koji korisnik vidi. Preimenovanje bi bilo izmena API-ja, ne teksta.
+2. `EkranUskoro` je obrisan, ne ostavljen: nema nijednog potrošača, pa BLOKADE nema.
+3. Kratka oznaka roka „D-3“ → „za 3 d“ (isti oblik kao „kasni 3 d“); test ažuriran.
+4. „Sve je pročitano“ u Inboxu → „Nema nepročitanih obaveštenja“ i ikona kvačice → Inbox: prazna stanja ne slave prazninu (CLAUDE.md).
+5. Bočni blokovi Danas (Inbox, Poruke, Ideje) i dalje se tiho skrivaju kad im upit padne (namerno iz Devotiona; poruka bi menjala ponašanje).
+6. Oblici „menjao/la“, „Obrisao/la“ i „Moj dan“ ostavljeni: ustaljena konvencija u celoj aplikaciji, pinovana testovima.
+7. Male liste u dijalozima ostaju jedan red teksta (bez `EmptyState`), jer bi opis „šta dalje“ bio izmišljen.
+8. Pozadinski `catch` u `priprema-radnog-dela.tsx` i `use-page-autosave.ts` guta grešku namerno (ponavlja se pri sledećem ulasku).
+9. `ekran-uskoro.tsx` sam uklonio i iz git indeksa (`git rm --cached`) pre nego što sam shvatio da je to promena stanja; runner pravi commit pa to ništa ne menja.
+
+**Novi paketi:** nema.
+
+**Testovi:** nijedan nov; ažurirana tri pinovana teksta (`inbox.test.ts`, `quick-add.test.ts`, `deadline.test.ts`). Ceo `npx vitest run`: 206 fajlova, 2633 testa.
+
+**Rezultat provere:** codegen — nije potreban; typecheck — prolazi; lint — 0 grešaka (nijedno novo upozorenje); vitest — prolazi; pristup — prolazi; regresije — prolaze (20; ultra 5, prostor 1).
+
+**Vizuelna provera:** Playwright, `next dev -p 3117` (ugašen), 1536 × 695, snimci pet praznih stanja; konzola 0 grešaka. 390 × 844 i stanja učitavanja/greške nisu gledana u browseru (fikstura ih ne podiže), pa se skeleton visine oslanjaju na kod.
+
+**Za Jovana ujutru:**
+- Na pravim podacima proveri skelete pri sporoj vezi: Nova poruka, Korpa, Opis projekta, Profil, mapa beleški.
+- Proveri tekst „Nema nepročitanih obaveštenja“ u Inboxu i zvonu.
+- `formatFileSize` (`lib/prostor/web/vrste-stranica.ts`) piše „1.5 MB“ sa tačkom; `lib/format.ts` nema formatiranje veličine fajla — nije diran.
+- `lib/prostor/dates.ts` i `calendar.ts` imaju sopstvene formatere datuma; spajanje sa `lib/format.ts` je veći posao van ovog koraka.
+- Ništa nije deployovano.
+
+### S25 — popis pokrivenosti po ekranu (dopuna)
+Proveren grep-om i čitanjem koda (broj fajlova ekrana sa praznim stanjem / skeletonom / obradom greške). Greška = granica `WorkspaceErrorBoundary` na ulazu ekrana plus `accessErrorMessage` u mutacijama.
+
+| Ekran | Prazno | Učitavanje | Greška |
+|---|---|---|---|
+| Danas | da (2) | skelet (6) | granica + blokovi (4) |
+| Moji zadaci, Beleške (Ja) | da (3) | skelet (6) | granica + toast (9) |
+| Inbox | da (2) | skelet (6) | granica (6) |
+| Poruke (Ja i projekat) | da (7) | skelet (11) | granica + toast (12) |
+| Zadaci | da (3) | skelet (8) | granica + toast (10) |
+| Ideje | da (3) | skelet (4) | granica + toast (4) |
+| Dokumenti, Oblast, Stranica (+ tabele, prilozi, uređivač) | da (7) | skelet (13) | granica + toast (18) |
+| Mapa beleški i mape | da (5) | skelet (2) | granica + toast (9) |
+| Korpa | da (2) | skelet (2) | granica (3) |
+| Početna, Puls, Aktivnost | da (8) | skelet (5) | granica po bloku (8) |
+| Podešavanja (Oblasti, AI, Lozinke, Opis) | da (3) | skelet (5) | `SettingsListError` (7) |
+| Profil (dijalog) | nije primenljivo (forma) | skelet | poruka u dijalogu |
+
+**Nije provereno u browseru (BLOKADA za vizuelnu potvrdu, ne za kod):** stanja učitavanja i greške ne mogu da se podignu kroz razvojni prikaz (lažni Convex odmah vraća podatke i ne baca greške), pa su proverena samo u kodu; 390 × 844 nije snimljen. Tačnu visinu skeleta treba potvrditi na pravoj bazi (vidi „Za Jovana ujutru“).
+
+**Svesno ostavljeno:** male liste u dijalozima i panelima ("U timu nema drugih članova.", "Nema rezultata.", "Nema koraka.") ostaju jedan red teksta bez `EmptyState`. To su umetnuti redovi unutar kartice ili menija, ne ekrani; opis „šta dalje“ bi bio izmišljen.
+
+**BLOKADA:** stavka „svaki ekran ima prazno stanje, učitavanje i grešku“ je ispunjena u kodu (popis iznad), ali stanja **učitavanja i greške** nije moguće videti u browseru. Razlog: razvojni prikaz (`?ux=1`) radi nad lažnim Convex-om iz `app/dev-ux/fake-convex.ts`, koji upite odmah razrešava i nikad ne vraća `undefined` ni grešku, a prave prijave i prave baze u runu nema. Prazna stanja jesu viđena (5 snimaka na 1536 × 695 + `S25-prazno-inbox-390.png` na 390 × 844, bez vodoravnog klizanja). Šta ostaje Jovanu: na pravoj bazi usporiti vezu i proveriti skelete i obaveštenje o grešci (spisak ekrana u „Za Jovana ujutru“ iznad).

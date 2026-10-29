@@ -98,8 +98,8 @@ export function TableImportDialog({
       }
       setMatrix(normalized);
       setFileName(file.name);
-    } catch (error) {
-      toast.error(error instanceof Error ? `Fajl nije pročitan: ${error.message}` : "Fajl nije pročitan.");
+    } catch {
+      toast.error("Fajl nije pročitan. Proveri da je ispravan CSV ili Excel fajl.");
       reset();
     } finally {
       setBusy(false);

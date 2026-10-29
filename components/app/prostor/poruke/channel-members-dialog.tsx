@@ -5,6 +5,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "@/lib/toast";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import { LoaderCircle } from "lucide-react";
 
 import { ProfileAvatar } from "@/components/app/prostor/zajednicko/radni-ui";
@@ -113,9 +114,7 @@ export function ChannelMembersDialog({
       toast.success("Članovi kanala su izmenjeni.");
       change(false);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Članovi nisu sačuvani.",
-      );
+      toast.error(accessErrorMessage(error, "Članovi nisu sačuvani."));
     } finally {
       setBusy(false);
     }

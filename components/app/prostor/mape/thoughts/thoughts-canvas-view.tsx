@@ -68,6 +68,7 @@ import {
   MapHistoryButtons,
 } from "@/components/app/prostor/mape/map/map-chrome";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CanvasActionRail } from "@/components/app/prostor/mape/canvases/canvas-action-rail";
 import {
   useCanvasNavigation,
@@ -88,6 +89,8 @@ import { usePrecica } from "@/components/app/use-precica";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { accessErrorMessage } from "@/lib/prostor/web/greske";
+import { formatNumber, pluralSr } from "@/lib/format";
 
 import { ThoughtConversionDialog } from "@/components/app/prostor/mape/thoughts/thought-conversion-dialog";
 import { EdgeEditorDialog, ThoughtEditorDialog } from "@/components/app/prostor/mape/thoughts/thought-editor-dialog";
@@ -515,7 +518,7 @@ function ThoughtsCanvasBody({
     const label =
       uniqueIds.length === 1
         ? first?.title ?? first?.text.split(/\r?\n/)[0]?.slice(0, 60) ?? "Jedna misao"
-        : `${uniqueIds.length} misli`;
+        : `${formatNumber(uniqueIds.length)} ${pluralSr(uniqueIds.length, "misao", "misli", "misli")}`;
     const request: ThoughtDestinationRequest = {
       nodeIds: uniqueIds,
       label,
@@ -551,9 +554,9 @@ function ThoughtsCanvasBody({
         undo: () => archiveNodes({ nodeIds: duplicatedIds }),
         redo: () => restoreNodes({ nodeIds: duplicatedIds }),
       });
-      toast.success(nodeIds.length === 1 ? "Misao je duplirana." : `${nodeIds.length} misli je duplirano.`);
+      toast.success(nodeIds.length === 1 ? "Misao je duplirana." : `Duplirano misli: ${formatNumber(nodeIds.length)}.`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Misli nisu duplirane.");
+      toast.error(accessErrorMessage(error, "Misli nisu duplirane."));
     }
   }, [archiveNodes, duplicateNodes, pushHistory, restoreNodes]);
 
@@ -584,7 +587,7 @@ function ThoughtsCanvasBody({
       });
       toast.success(nodeIds.length ? "Misao je sklonjena u arhivu." : "Veza je arhivirana.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Izbor nije arhiviran.");
+      toast.error(accessErrorMessage(error, "Izbor nije arhiviran."));
     }
   }, [archiveEdges, archiveNodes, pushHistory, restoreEdges, restoreNodes]);
 
@@ -613,7 +616,7 @@ function ThoughtsCanvasBody({
         toast.success(ids.size === 1 ? "Ova misao još nema veze." : `Izabrano je ${ids.size} povezanih misli.`);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Povezane misli nisu učitane.");
+      toast.error(accessErrorMessage(error, "Povezane misli nisu učitane."));
     }
   }, [profile, projekatKlijent]);
 
@@ -667,7 +670,7 @@ function ThoughtsCanvasBody({
       });
       toast.success("Veza je premeštena.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Veza nije promenjena.");
+      toast.error(accessErrorMessage(error, "Veza nije promenjena."));
     }
   }, [pushHistory, updateEdge]);
 
@@ -709,7 +712,7 @@ function ThoughtsCanvasBody({
         redo: () => restoreEdges({ edgeIds: [edgeId] }),
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Veza nije kreirana.");
+      toast.error(accessErrorMessage(error, "Veza nije kreirana."));
     }
   }, [archiveEdges, createEdge, edges, pushHistory, restoreEdges]);
 
@@ -894,7 +897,7 @@ function ThoughtsCanvasBody({
       });
     } catch (error) {
       restorePreDragPositions();
-      toast.error(error instanceof Error ? error.message : "Pozicija nije sačuvana.");
+      toast.error(accessErrorMessage(error, "Pozicija nije sačuvana."));
     }
   }, [
     moveNodes,
@@ -985,7 +988,7 @@ function ThoughtsCanvasBody({
       }
       setEditor(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Misao nije sačuvana.");
+      toast.error(accessErrorMessage(error, "Misao nije sačuvana."));
     } finally {
       setEditorPending(false);
     }
@@ -1007,7 +1010,7 @@ function ThoughtsCanvasBody({
       setEdgeEditorId(null);
       toast.success(nextLabel ? "Naziv veze je sačuvan." : "Naziv veze je uklonjen.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Veza nije izmenjena.");
+      toast.error(accessErrorMessage(error, "Veza nije izmenjena."));
     } finally {
       setEditorPending(false);
     }
@@ -1144,7 +1147,7 @@ function ThoughtsCanvasBody({
             : node,
         ),
       );
-      toast.error(error instanceof Error ? error.message : "Veličina nije sačuvana.");
+      toast.error(accessErrorMessage(error, "Veličina nije sačuvana."));
     }
   }, [nodeDocsById, nodes, persistThoughtSize, pushHistory]);
 
@@ -1168,9 +1171,7 @@ function ThoughtsCanvasBody({
       toast.success("Vraćena je početna veličina misli.");
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Početna veličina nije vraćena.",
+        accessErrorMessage(error, "Početna veličina nije vraćena."),
       );
     }
   }, [nodeDocsById, persistThoughtSize, pushHistory, resetNodeLayoutSize]);
@@ -1453,10 +1454,8 @@ function ThoughtsCanvasBody({
           </ReactFlow>
 
           {loadingFirstPage ? (
-            <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center" role="status">
-              <span className="rounded-lg border border-line bg-card px-4 py-3 text-sm text-muted-foreground">
-                Učitavam mapu beleški…
-              </span>
+            <div className="pointer-events-none absolute inset-0 z-10" role="status" aria-label="Učitavam mapu beleški">
+              <Skeleton className="size-full rounded-lg" />
             </div>
           ) : nodes.length === 0 ? (
             <MapEmptyState
@@ -1491,9 +1490,7 @@ function ThoughtsCanvasBody({
                       .then(() => toast.success("Misao je izvučena iz grupe."))
                       .catch((error) =>
                         toast.error(
-                          error instanceof Error
-                            ? error.message
-                            : "Misao nije izvučena.",
+                          accessErrorMessage(error, "Misao nije izvučena."),
                         ),
                       )
                   }
@@ -1646,7 +1643,7 @@ function ThoughtsCanvasBody({
             toast.success(
               ideaIds.length === 1
                 ? "Ideja je kreirana. Originalna misao je ostala privatna."
-                : `${ideaIds.length} ideje su kreirane. Originalne misli su ostale privatne.`,
+                : `Kreirano ideja: ${formatNumber(ideaIds.length)}. Originalne misli su ostale privatne.`,
               {
                 action: { label: "Otvori Ideje", onClick: onOpenIdeas },
               },
