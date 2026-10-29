@@ -148,6 +148,11 @@ const DOZVOLJENI_DIREKTNI: Readonly<Record<string, string>> = {
   "prostor.myDay.carryOver": "Moj dan je lični: „Preneto od ranije“ vraća stavku u plan dana",
   "prostor.myDay.clearOld": "Moj dan je lični: „Skloni“ briše staru stavku plana",
   "prostor.myDay.reorder": "Moj dan je lični: redosled sekcije Planirano",
+  // S24 (plan S07 §3.2 i §10 S24): ⌘K — pretraga stranica i poruka; obe L funkcije.
+  "prostor.search.pages":
+    "⌘K: pretraga stranica i zadataka; paleta uvek šalje workspaceId tekućeg projekta, a upit proverava članstvo (P21: bez pretrage kroz sve projekte)",
+  "prostor.chat.searchMessages":
+    "⌘K: pretraga poruka projekta ili ličnih razgovora (workspaceId: null); pristup po kanalu proverava upit (P9)",
 };
 
 const koren = fileURLToPath(new URL("../", import.meta.url));

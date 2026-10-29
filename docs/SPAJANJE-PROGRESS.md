@@ -1836,3 +1836,94 @@ Postojeći `command-center-model`, `command-center`, `stale`, `activity-format` 
 - Potvrdi ODLUKE 1 (`pages.izvor`), 4 (veza samo pri pravljenju), 7 („Čeka te“ samo u zvonu projekta, kao ikonica) i 8 (jezičak „Zadaci“ na profilu).
 - IG komentari nemaju fiksturu u razvojnom prikazu (ODLUKA 12); radnja je u pregledaču proverena samo na Facebooku.
 - Ništa nije deployovano.
+
+## S24 — Komandna paleta i prečice   (2026-10-29 15:15)
+**Fajlovi:**
+- Paleta: `components/app/command-palette.tsx` (pretraga sadržaja, „Brzi unos“, „Prečice na tastaturi“, Ctrl/⌘ K iz registra); nov `components/app/prostor/pretraga/pretraga-za-paletu.tsx` (`PretragaProjektaZaPaletu`, `PretragaJaZaPaletu`, `GreskaPretrage`).
+- Prečice: `lib/prostor/precice/registar.ts` (grupe Leadovi, Režim poziva, Stranica, Mapa; `MOD_KEY`), nov `lib/prostor/precice/katalog.ts` (+ `katalog.test.ts`); `components/app/prostor/precice/precice-provider.tsx` (`usePrijaviPomoc`, pomoć iz kataloga), `pomoc-dijalog.tsx` (sve prečice, „Na drugim ekranima“), `components/app/app-shell.tsx` (`pomocNaUpitnik`).
+- Prijava grupa za pomoć (obrada tastera nepromenjena): `components/app/leadovi/leads-table.tsx` (lokalno `?` ugašeno), `leadovi/call-mode.tsx`, `prostor/dokumenti/page-document-actions.tsx`, `prostor/zajednicko/istorija-radnji.tsx`, `prostor/mape/page-map-view.tsx`, `prostor/mape/canvases/use-canvas-navigation.ts`.
+- Model pretrage: nov `lib/prostor/web/pretraga-palete.ts` (+ `pretraga-palete.test.ts`).
+- Čuvar: `scripts/verify-pristup.ts` (`DOZVOLJENI_DIREKTNI` +2).
+- Razvojni prikaz: nov `app/dev-ux/fixtures-prostor-pretraga.ts`; `app/dev-ux/fixtures.ts` (registracija i `q` u `listLeadsFiltered`).
+- Snimci `docs/spajanje/snimci/S24-{paleta-ja-1536,paleta-projekat-1536,pomoc-1536}.png`. Pomoćno: `.nocni-run/spajanje/tmp/s24/` (skripte izmena, logovi provera, `paleta-390.png`), logovi Playwright-a u `.nocni-run/spajanje/tmp/playwright-s24/`.
+
+**Šta je urađeno:**
+- **⌘K svuda.** Enigmina paleta ostaje jedina, a Devotion `search-dialog` je uliven u nju.
+  - U projektu nosi Radnje (zvono, „Brzi unos“ sa `Q`, radnje modula, „Prečice na tastaturi“ sa `?`), Projekte, Misije, Nedavno i Ekrane obe aplikacije.
+  - Od dva znaka i 300 ms mirovanja dodaje **pet grupa radnog dela**: Stranice i Zadaci (`search.pages` za tekući projekat), Ideje i Beleške (`search.ideasAndThoughts`) i Poruke (`chat.searchMessages`). Šesta grupa su **Firme** iz Leadova po imenu (postojeći `listLeadsFiltered` sa `q`, prvih 5, samo kad je modul uključen).
+  - U „Ja“ nosi lične ekrane, projekte, „Brzi unos“, pomoć i lične razgovore (`searchMessages`, `workspaceId: null`, jedan upit). Pretrage kroz sve projekte nema (P21).
+- **Kuda vode pogoci:** stranica ili zadatak na `/stranica/<id>`, ideja na `/ideje?ideja=`, misao na mapu beleški projekta, poruka na `/poruke?kanal=`, firma na `/leadovi/<id>`. Adrese grade `ekranRute`/`jaHref` iz `lib/prostor/rute.ts`.
+- **Dok upit radi**, poslednji rezultat ostaje na ekranu (lista ne trepće), a dole piše „Pretražujem sadržaj…“. Pad pretrage ne obara paletu: piše „Pretraga sadržaja trenutno ne radi. Ekrani i radnje su i dalje tu.“ Izbor ostaje u granicama liste dok pogoci stižu.
+- **Jedan registar prečica.**
+  - Ctrl/⌘ K više nema svoj slušalac: paleta ga prijavljuje kroz `useShortcuts`, pa radi i u polju i uz otvoren dijalog.
+  - `?` je uključen globalno. Pomoć navodi **sve** prečice: prvo one prijavljene na ovom ekranu, pa „Na drugim ekranima“ iz kataloga.
+  - Tastere Leadova, režima poziva, stranice (Ctrl/⌘ S) i mape (Ctrl/⌘ Z/Y, Esc, Space) i dalje obrađuju njihovi ekrani. U registru su `displayOnly`, a ekrani ih prijavljuju kroz `usePrijaviPomoc`.
+
+**Paritet:**
+- Red 2 (brzi unos `q`): gotovo — `q` u ljusci (S16) i „Brzi unos“ u ⌘K u oba opsega.
+- Red 30 (pretraga stranica i zadataka u ⌘K): gotovo, uz Ideje, Beleške, Poruke i Firme.
+- Red 33 (prečice `q`, `?`, `j`/`k`/`x`): gotovo. Registar je jedan, pomoć navodi sve, a test proverava da nema sudara.
+- Red 6 (pretraga poruka, S15 ODLUKA 1): zatvoreno. ⌘K u projektu traži poruke projekta, a u „Ja“ lične razgovore.
+
+**ODLUKE:**
+1. **Sudar `?`** (plan S07 §11.3): `?` je globalna pomoć. Lokalno `?` tabele Leadova je uklonjeno; tabela prijavljuje grupu „Leadovi“, pa je pomoć navodi prvu, uz „Svuda“. Dugme sa tastaturom u tabeli i dalje pali traku sa tasterima, a u traci „? ovaj spisak“ sada piše „? sve prečice“. Ostalo ponašanje Leadova nije menjano.
+2. **Ostala preklapanja su na različitim ekranima, pa nisu sudari:** `j`/`k` (Leadovi, liste zadataka, Inbox), `p` (Leadovi, režim poziva, prioritet u listi), `/` (Leadovi, liste, Poruke), `n` (režim poziva, Poruke) i Esc.
+   - `EKRANI_PRECICA` u katalogu kaže koje grupe žive zajedno.
+   - Test za svaki ekran proverava da jedna kombinacija ima jednu radnju (uz „Svuda“) i da `?`, `Q` i Ctrl/⌘ K ne koristi nijedan ekran.
+   - Režim poziva zamenjuje tabelu (`leads-dashboard`), pa su to odvojeni ekrani.
+3. **Enigmine prečice su u registru kao `displayOnly`**, a obrada ostaje u ekranima. Prenos obrade u provider bi promenio ponašanje Leadova (drugačije prepoznavanje polja i slojeva), a to je van obima.
+4. **Pomoć navodi sve prečice, ne samo aktivne** (Devotion je navodio samo aktivne). Grupe ovog ekrana idu tačno onakve kakve su prijavljene (npr. `/` samo gde lista ima pretragu), a ostale iz kataloga ispod „Na drugim ekranima“. Strelice u pomoći su lucide ikonice, jer Windows znak „↓“ crta fontom emodžija u boji.
+5. **„Ja“ pretražuje samo lične razgovore** (napomena iz nadzora). Stranice, Ideje, Beleške i Firme su projektne, pa ih u „Ja“ nema. Lične beleške imaju svoju pretragu na `/beleske` (`searchMine`, S16).
+6. **Firme ne traže nov upit:** postoji `leadFiltersStore.listLeadsFiltered` sa `q` (ime bez dijakritike, P funkcija, poziv kroz `useProjekatQuery`). Paleta uzima prvih 5; ceo spisak je u tabeli Leadova.
+7. **Grupa pokazuje najviše 6 pogodaka** (server vraća do 30, kao Devotion), a naslov tada kaže „Stranice · prvih 6“. Grupe sadržaja stoje posle Ekrana, jer je paleta pre svega skok na ekran.
+8. **Posmatrač (`client_viewer`) ne pokreće upite radnog dela** (`radniDeo` znači urednik ili više); dobija samo Firme, ako je modul uključen. Panel nema „Ja“, pa nema ni „Brzi unos“ ni `q` (D4, S16).
+9. **Misao vodi na mapu beleški projekta** (`/beleske` u projektu), jer adresa pojedinačne misli ne postoji. Devotion je vodio na Beleške.
+10. **Čuvar pristupa:** `DOZVOLJENI_DIREKTNI` je dobio 2 ključa, `prostor.search.pages` i `prostor.chat.searchMessages` (obe su L, što `proveriSpisak` potvrđuje). Paleta `search.pages` uvek zove sa `workspaceId` tekućeg projekta. Nijedno pravilo nije oslabljeno, a ostali čuvari nisu menjani.
+11. **`ProjektiZaPaletu` ostaje u `projekat-birac.tsx`**, iako plan D10 kaže „dok ga S24 ne preseli“. Selidba ovom koraku ne donosi ništa, a paleta je jedini korisnik fajla, pa je ostavljeno konzervativno.
+12. **Fikstura pretrage** je mali korpus sa ID-jevima iz ostalih fikstura (`includes` bez dijakritike). `listLeadsFiltered` u fiksturi sada filtrira po `q`; ranije je filter teksta ignorisao i u tabeli.
+13. Fajlove koje je alat Edit upisao sa CRLF korak je vratio na LF.
+
+**Novi paketi:** nema.
+
+**Testovi:** 28 novih, svi prolaze.
+- `lib/prostor/precice/katalog.test.ts` (17; od toga 7 po ekranu kroz `test.each`):
+  - jedinstveni id-jevi i svaka grupa ima ekran;
+  - na svakom ekranu nema sudara, a globalne prečice su slobodne;
+  - pseudonimi su dosledni i provera zaista hvata sudar;
+  - provider nikad ne okida prečice Leadova;
+  - Ctrl/⌘ K radi u polju i uz dijalog;
+  - pomoć navodi sve, redom ovde pa drugde;
+  - `Mod` postaje Ctrl ili ⌘.
+- `lib/prostor/web/pretraga-palete.test.ts` (11):
+  - termin (2 znaka, plafon 200) i redosled grupa;
+  - stranica i zadatak po vrsti;
+  - adrese ideje, beleške, poruke i firme;
+  - „Prilog“ i „Razgovor“;
+  - jedinstveni ključevi, plafon grupe, prazan ulaz;
+  - u „Ja“ samo lični razgovori.
+- Ceo `npx vitest run`: 206 fajlova, 2633 testa.
+
+**Rezultat provere:**
+- codegen: nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1210 upozorenja; nijedno u fajlovima ovog koraka);
+- vitest: prolazi (2633);
+- pristup: prolazi, front ima 161 direktan poziv, 0 nedozvoljenih;
+- regresije: prolaze (20; ultra 5, prostor 1);
+- impeccable detektor (`command-palette.tsx`, `pomoc-dijalog.tsx`): bez nalaza.
+
+**Vizuelna provera** (Playwright, `next dev -p 3117`, ugašen na kraju; port slobodan):
+- 1536 × 695:
+  - `/enigma-it?ux=1`, Ctrl K: „plan“ daje Stranice, Zadatke, Ideje i Poruke; „salon“ daje Firme (5, sa gradom).
+  - U „Ja“ (`/?ux=1`): prazan upit daje Brzi unos (Q), Prečice (?), Projekte, Misije i Ekrane; „plan“ daje samo lični razgovor.
+  - Na `/enigma-it/leadovi?tab=leads`: `?` otvara pomoć sa „Svuda“ i „Leadovi“ na vrhu, a `q` otvara Brzi unos.
+- 390 × 844: paleta na `/enigma-it/zadaci` bez vodoravnog klizanja; pogoci stižu.
+- Konzola: 0 grešaka, 0 upozorenja.
+- Enter na pogotku gubi `?ux=1` i vodi na prijavu. To je poznato ograničenje razvojnog prikaza (S15).
+
+**Za Jovana ujutru:**
+- Na pravim podacima u projektu otkucaj u ⌘K deo naslova stranice, zadatka, ideje, svoje beleške i poruke, kao i ime firme iz Leadova. Otvori po jedan pogodak svake vrste.
+- U „Ja“ potraži reč iz ličnog razgovora i proveri da poruke projekata NE izlaze.
+- Na tabeli Leadova pritisni `?`: sada se otvara globalna pomoć umesto lokalne trake (ODLUKA 1). Potvrdi.
+- Potvrdi ODLUKE 4 (pomoć navodi sve), 7 (6 po grupi, grupe posle Ekrana) i 9 (misao vodi na mapu beleški).
+- Ništa nije deployovano.

@@ -12,6 +12,8 @@ import { accessErrorMessage } from "@/lib/prostor/web/greske";
 import type { PageDocumentMenuItem } from "@/components/app/prostor/dokumenti/page-document";
 import { trashedMessage, type PageMenuKey } from "@/lib/prostor/modeli/page-document-model";
 import { useProjekatMutation } from "@/components/app/projekat-provider";
+import { PAGE_HELP } from "@/lib/prostor/precice/registar";
+import { usePrijaviPomoc } from "@/components/app/prostor/precice/precice-provider";
 
 /** Tekstovi radnji dokumenta: stranica (ž) i zadatak (m) — isti tok, drugi rod. */
 export const PAGE_ACTION_TEXT = {
@@ -120,6 +122,7 @@ export function usePageDocumentActions({
 
 /** Ctrl/⌘ S: sačuvaj odmah (pregledač ne otvara svoj dijalog); poslednja funkcija stiže kroz ref. */
 export function useSaveShortcut(onSave: () => void) {
+  usePrijaviPomoc(PAGE_HELP);
   const saveRef = useRef(onSave);
   useEffect(() => {
     saveRef.current = onSave;

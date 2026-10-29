@@ -255,10 +255,10 @@ function ShellFrame({
   );
 
   return (
-    // Radni deo (SPAJANJE S08): prečice (bez globalnog `?` do S24), čuvar
-    // nesačuvanog teksta i jedan Toaster za celu ljusku. Brzi unos (`q`, S16)
-    // je u oba opsega, ali ne i u panelu (D4).
-    <ShortcutProvider>
+    // Radni deo (SPAJANJE S08): jedan registar prečica (`?` pomoć i Ctrl/⌘ K
+    // paleta svuda od S24), čuvar nesačuvanog teksta i jedan Toaster za celu
+    // ljusku. Brzi unos (`q`, S16) je u oba opsega, ali ne i u panelu (D4).
+    <ShortcutProvider pomocNaUpitnik>
     <CuvarNapustanjaProvider>
     <BrziUnosProvider aktivan={!panel}>
     <OkvirDokumenata aktivan={opseg === "projekat"}>

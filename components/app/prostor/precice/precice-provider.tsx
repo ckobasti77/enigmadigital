@@ -15,8 +15,8 @@ import {
 } from "react";
 
 import { jeApple } from "@/lib/recnik";
+import { grupisiZaPomoc } from "@/lib/prostor/precice/katalog";
 import {
-  groupShortcuts,
   isTypingTarget,
   matchShortcut,
   SHELL_SHORTCUTS,
@@ -62,13 +62,11 @@ function isMacPlatform() {
 
 /**
  * Jedan `keydown` slušalac za celu ljusku (plan K01 §5). Komponente prijavljuju
- * prečice kroz `useShortcuts`; najnovija prijava ima prednost. Dijalog pomoći
- * prikazuje sve trenutno aktivne prečice.
+ * prečice kroz `useShortcuts`; najnovija prijava ima prednost.
  *
- * Globalno `?` (pomoć) je ovde ISKLJUČENO dok ga ne uključi `pomocNaUpitnik`:
- * isti taster na tabeli Leadova otvara njenu lokalnu pomoć, pa bi se dva
- * sloja tukla oko njega. Do ujedinjenja registra pomoć se otvara programski,
- * kroz `useOtvoriPomoc`.
+ * Globalno `?` (pomoć) uključuje `pomocNaUpitnik` (ljuska, od S24). Tabela
+ * Leadova više nema svoje `?`: prijavljuje svoju grupu, pa je pomoć navodi.
+ * Pomoć navodi sve prečice iz kataloga — prvo one prijavljene na ovom ekranu.
  */
 export function ShortcutProvider({
   children,
@@ -82,12 +80,14 @@ export function ShortcutProvider({
   const [help, setHelp] = useState<{
     open: boolean;
     groups: Array<{ group: ShortcutGroup; defs: ShortcutDef[] }>;
+    otherGroups: Array<{ group: ShortcutGroup; defs: ShortcutDef[] }>;
     isMac: boolean;
-  }>({ open: false, groups: [], isMac: false });
+  }>({ open: false, groups: [], otherGroups: [], isMac: false });
 
   const openHelp = useCallback(() => {
     const defs = [...registrations.current].flatMap((entry) => entry.current?.defs ?? []);
-    setHelp({ open: true, groups: groupShortcuts(defs), isMac: isMacPlatform() });
+    const { ovde, drugde } = grupisiZaPomoc(defs);
+    setHelp({ open: true, groups: ovde, otherGroups: drugde, isMac: isMacPlatform() });
   }, []);
 
   const register = useCallback((registration: RefObject<Registration>) => {
@@ -140,6 +140,7 @@ export function ShortcutProvider({
         open={help.open}
         onOpenChange={(open) => setHelp((current) => ({ ...current, open }))}
         groups={help.groups}
+        otherGroups={help.otherGroups}
         isMac={help.isMac}
       />
     </ShortcutContext.Provider>
@@ -178,4 +179,13 @@ export function useShortcuts(
     if (!enabled || !context) return;
     return context.register(registration);
   }, [context, enabled]);
+}
+
+/**
+ * Prijavi grupu prečica koje ekran obrađuje sam (Leadovi, režim poziva,
+ * stranica, mapa): definicije su `displayOnly`, pa ih provider nikad ne okida,
+ * ali ih pomoć navodi kao prečice ovog ekrana (SPAJANJE S24).
+ */
+export function usePrijaviPomoc(defs: ReadonlyArray<ShortcutDef>, enabled = true): void {
+  useShortcuts(defs, () => false, enabled);
 }

@@ -54,6 +54,8 @@ import { LeadRowDialogs, type LeadRowDialogState } from "./lead-row-dialogs";
 import { PhoneConfidenceRing } from "./phone-confidence";
 import { telHref, type LeadRowItem } from "./lead-urgency";
 import { useNisaZa, useZoviSada, type ZoviKandidat } from "./use-zovi-sada";
+import { CALL_MODE_HELP } from "@/lib/prostor/precice/registar";
+import { usePrijaviPomoc } from "@/components/app/prostor/precice/precice-provider";
 
 gsap.registerPlugin(useGSAP);
 
@@ -170,6 +172,8 @@ function CallModeTelo({
   onExit: () => void;
 }) {
   const now = useNow();
+  // Tastere režim obrađuje sam; registar ih navodi u pomoći (`?`, S24).
+  usePrijaviPomoc(CALL_MODE_HELP);
   const zovi = useZoviSada();
   const nisaZa = useNisaZa();
   const stanje = useNapredak();

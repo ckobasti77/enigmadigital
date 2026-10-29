@@ -12,6 +12,8 @@ import { isEditableTarget } from "@/components/app/prostor/zajednicko/istorija-r
 import type { CreatePageTarget, StartupWithAreas } from "@/lib/prostor/rute";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { PageKind } from "@/lib/prostor/web/vrste-stranica";
+import { PAGE_MAP_HELP } from "@/lib/prostor/precice/registar";
+import { usePrijaviPomoc } from "@/components/app/prostor/precice/precice-provider";
 
 type CanvasFilter = "all" | PageKind;
 
@@ -41,6 +43,7 @@ export function PageMapView({
   );
   const title = page.title.trim() || "Bez naslova";
 
+  usePrijaviPomoc(PAGE_MAP_HELP);
   // Esc = nazad na stranicu. Ugovor kao ranije: ko potroši Escape (Base UI
   // slojevi, kanvas sa selekcijom) pozove preventDefault pre window bubble faze;
   // React Flow ne zove preventDefault za svoje čvorove i ivice.

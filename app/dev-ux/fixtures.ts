@@ -62,6 +62,8 @@ import { FIXTURES_PROSTOR_DANAS, postaviPrethodnoStanjeProjekata } from "./fixtu
 import { FIXTURES_PROSTOR_POCETNA, PRAZNO_PROSTOR_POCETNA } from "./fixtures-prostor-pocetna";
 import { FIXTURES_PROSTOR_KORPA, PRAZNO_PROSTOR_KORPA } from "./fixtures-prostor-korpa";
 import { FIXTURES_PROSTOR_PODESAVANJA, PRAZNO_PROSTOR_PODESAVANJA } from "./fixtures-prostor-podesavanja";
+import { FIXTURES_PROSTOR_PRETRAGA, PRAZNO_PROSTOR_PRETRAGA } from "./fixtures-prostor-pretraga";
+import { fold } from "@/lib/pretraga";
 import { redoviStatusa } from "./fixtures-status-veza";
 import { integracijeUKvaru } from "@/convex/lib/statusVeze";
 
@@ -491,6 +493,13 @@ const listLeadsFiltered: R<typeof api.leadFiltersStore.listLeadsFiltered> = {
  * (chip „telefon ≥ 40 %"). Ostali filteri nisu pokriveni — puna strana.
  */
 function listLeadsFilteredZa(args: Record<string, unknown>): R<typeof api.leadFiltersStore.listLeadsFiltered> {
+  // Pretraga po imenu (tabela, ⌘K u S24): bez dijakritike, kao `imeZaPretragu`.
+  const q = typeof args.q === "string" ? fold(args.q.trim()) : "";
+  if (q !== "") {
+    const items = LEADOVI.filter((l) => fold(l.company?.name ?? "").includes(q));
+    const poStrani = typeof args.poStrani === "number" ? args.poStrani : 25;
+    return { ...listLeadsFiltered, items: items.slice(0, poStrani), ukupno: items.length, ukupnoStrana: 1, poStrani };
+  }
   const tel = typeof args.tel === "number" ? args.tel : null;
   if (tel === null) return listLeadsFiltered;
   const items = LEADOVI.filter(
@@ -1265,6 +1274,8 @@ Object.assign(FIXTURES, FIXTURES_PROSTOR_DANAS);
 Object.assign(FIXTURES, FIXTURES_PROSTOR_POCETNA);
 // Korpa i podešavanja (S21) na kraju: `projekat.get` ima stanje oblasti i opisa.
 Object.assign(FIXTURES, FIXTURES_PROSTOR_KORPA, FIXTURES_PROSTOR_PODESAVANJA);
+// Pretraga u ⌘K (S24): samo svoje tri funkcije, bez prosleđivanja.
+Object.assign(FIXTURES, FIXTURES_PROSTOR_PRETRAGA);
 
 // ── Prazan nalog (`?ux=1&prazno=1`) ──────────────────────────────────────────
 // Bez veza ka kanalima (osim ljuske) i bez redova: svaki kanal pokazuje svoje
@@ -1304,6 +1315,7 @@ const PRAZNO: Record<string, Fixture> = {
   ...PRAZNO_PROSTOR_POCETNA,
   ...PRAZNO_PROSTOR_KORPA,
   ...PRAZNO_PROSTOR_PODESAVANJA,
+  ...PRAZNO_PROSTOR_PRETRAGA,
   // Prazan nalog je stanje kanala, ne nalog bez projekata: birač ostaje pun.
   [getFunctionName(api.projekti.stanjeProjekata)]: () =>
     stanjeProjekataUx(staMeCeka.ukupno),

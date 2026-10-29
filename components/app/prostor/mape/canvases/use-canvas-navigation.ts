@@ -15,6 +15,8 @@ import {
   mapActivation,
   type MapActivationEvent,
 } from "@/lib/prostor/modeli/map-model";
+import { CANVAS_HELP } from "@/lib/prostor/precice/registar";
+import { usePrijaviPomoc } from "@/components/app/prostor/precice/precice-provider";
 
 const DISABLED_PAN_GUARD_CLASS = "__canvas_pan_guard_disabled__";
 const DISABLED_WHEEL_GUARD_CLASS = "__canvas_wheel_guard_disabled__";
@@ -36,6 +38,8 @@ export function isCanvasSpacePanActive(target: EventTarget | null) {
 }
 
 export function useCanvasNavigation() {
+  // Space + prevlačenje obrađuje ova kuka; registar ga navodi u pomoći (S24).
+  usePrijaviPomoc(CANVAS_HELP);
   const [spacePressed, setSpacePressed] = useState(false);
   const [zoomModifierPressed, setZoomModifierPressed] = useState(false);
 

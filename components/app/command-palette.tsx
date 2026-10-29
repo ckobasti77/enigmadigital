@@ -6,11 +6,20 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
   ArrowRightLeft,
   Bell,
+  Building2,
   CornerDownLeft,
+  FileText,
+  Keyboard,
+  Lightbulb,
+  LoaderCircle,
   Megaphone,
+  MessageSquare,
+  NotebookPen,
   PanelLeft,
   PhoneCall,
+  Plus,
   Search,
+  SquareCheckBig,
   SquarePen,
   Trophy,
   Upload,
@@ -52,6 +61,21 @@ import { putanjaEkrana } from "@/lib/rutiranje";
 import { ProjekatZnak } from "./projekat-znak";
 import { QuietBoundary } from "./quiet-boundary";
 import { fold } from "@/lib/pretraga";
+import { SHELL_SHORTCUTS } from "@/lib/prostor/precice/registar";
+import {
+  PRETRAGA_KASNJENJE_MS,
+  terminPretrage,
+  type GrupaPogodaka,
+  type VrstaPogotka,
+} from "@/lib/prostor/web/pretraga-palete";
+import { useOtvoriPomoc, useShortcuts } from "./prostor/precice/precice-provider";
+import { useBrziUnos } from "./prostor/ja/brzi-unos/brzi-unos";
+import {
+  GreskaPretrage,
+  PretragaJaZaPaletu,
+  PretragaProjektaZaPaletu,
+  type RezultatPretrage,
+} from "./prostor/pretraga/pretraga-za-paletu";
 import { cn } from "@/lib/utils";
 
 type Entry = {
@@ -61,6 +85,10 @@ type Entry = {
   title: string;
   /** Desni natpis: modul (ekran) ili natpis radnje (zadatak, npr. „Zovi"). */
   hint: string;
+  /** Pogodak pretrage: oblast, kanal ili grad, odmah uz naslov (seče se). */
+  opis?: string;
+  /** Prečica iste radnje, prikazana kao taster (npr. „Q“). */
+  precica?: string;
   icon: NavIcon;
   /** Modul u čijoj je boji pločica; bez njega je pločica neutralna. */
   module?: ModuleKey;
@@ -142,6 +170,34 @@ const RAIL_ACTION: Entry = {
 };
 
 const ACTION_HREFS = new Set(ACTIONS.map((a) => a.href));
+
+/** Ikonica pogotka pretrage, po vrsti (isti skup kao Devotion pretraga). */
+const IKONA_POGOTKA: Record<VrstaPogotka, NavIcon> = {
+  stranica: FileText,
+  zadatak: SquareCheckBig,
+  ideja: Lightbulb,
+  beleska: NotebookPen,
+  poruka: MessageSquare,
+  firma: Building2,
+};
+
+/** Grupa pretrage → sekcija palete; pogodak „Ja“ ima pun put. */
+function sekcijaPretrage(grupa: GrupaPogodaka): Section {
+  const skraceno = grupa.ukupno > grupa.pogoci.length;
+  return {
+    key: `pretraga-${grupa.vrsta}`,
+    title: skraceno ? `${grupa.naslov} · prvih ${grupa.pogoci.length}` : grupa.naslov,
+    entries: grupa.pogoci.map((p) => ({
+      id: `pretraga:${p.id}`,
+      title: p.naslov,
+      hint: "",
+      opis: p.opis,
+      icon: IKONA_POGOTKA[p.vrsta],
+      href: p.href,
+      ...(p.uJa ? { vanProjekta: true } : {}),
+    })),
+  };
+}
 
 /**
  * Sve što se može otvoriti, jednom sračunato: stavke navigacije, pa podekrani.
@@ -306,6 +362,16 @@ export function CommandPalette() {
   const platformaVlasnik = useJaNalog()?.platformaVlasnik === true;
   // Drugi projekti stižu samo dok je paleta otvorena, u hubu (vidi dole).
   const [drugiProjekti, setDrugiProjekti] = useState<ProjekatZaPrelazak[]>([]);
+  const brziUnos = useBrziUnos();
+  const otvoriPomoc = useOtvoriPomoc();
+  // Pretraga sadržaja (S24): termin kreće posle 300 ms mirovanja i dva znaka.
+  // Poslednji stigli rezultat ostaje na ekranu dok novi upit radi, da lista
+  // ne trepće pri svakom slovu.
+  const [termin, setTermin] = useState<string | null>(null);
+  const [rezultat, setRezultat] = useState<RezultatPretrage | null>(null);
+  const [prikazanePretrage, setPrikazanePretrage] = useState<GrupaPogodaka[]>([]);
+  const [greskaPretrage, setGreskaPretrage] = useState(false);
+  const [sesija, setSesija] = useState(0);
 
   const currentHref = projekat ? resolveScreen(pathname)?.href : undefined;
 
@@ -385,29 +451,86 @@ export function CommandPalette() {
     setActive(0);
     setRecent(readRecent());
     setDesktop(window.matchMedia(DESKTOP).matches);
+    setTermin(null);
+    setRezultat(null);
+    setPrikazanePretrage([]);
+    setGreskaPretrage(false);
+    setSesija((n) => n + 1);
     setOpen(true);
   }, []);
 
-  // Globalni ⌘K / Ctrl+K prekidač. `preventDefault` da ne okine „pretraga"
-  // browsera. Radi i kad je paleta otvorena — tada je zatvara. Listener zavisi
-  // od `open` da bi iz zatvaranja čitao svežu vrednost, bez ref-a.
+  // Globalni ⌘K / Ctrl+K prekidač, iz jednog registra prečica (S24). Radi i
+  // u polju i uz otvoren dijalog; kad je paleta otvorena, zatvara je. Provider
+  // zove `preventDefault`, pa ne okida „pretragu" browsera.
+  useShortcuts([SHELL_SHORTCUTS.search], () => {
+    if (open) setOpen(false);
+    else openPalette();
+  });
+
+  // Termin pretrage posle mirovanja; ispod dva znaka pretrage nema.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        if (open) setOpen(false);
-        else openPalette();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, openPalette]);
+    const sledeci = open ? terminPretrage(query) : null;
+    const tajmer = window.setTimeout(
+      () => setTermin(sledeci),
+      sledeci === null ? 0 : PRETRAGA_KASNJENJE_MS,
+    );
+    return () => window.clearTimeout(tajmer);
+  }, [query, open]);
+
+  const naRezultat = useCallback((r: RezultatPretrage | null) => {
+    setRezultat(r);
+    // Prazan odgovor u letu ne briše prethodni prikaz; stigao odgovor ga menja.
+    if (r === null) setPrikazanePretrage([]);
+    else if (!r.ucitava || r.grupe.length > 0) setPrikazanePretrage(r.grupe);
+  }, []);
+  const naGreskuPretrage = useCallback(() => setGreskaPretrage(true), []);
 
   // Otvaranje sa dugmeta u traci — telefon nema ⌘K, pa mora da postoji i klik.
   useEffect(() => {
     window.addEventListener(COMMAND_EVENT, openPalette);
     return () => window.removeEventListener(COMMAND_EVENT, openPalette);
   }, [openPalette]);
+
+  const brziUnosStavka = useMemo<Entry | null>(
+    () =>
+      brziUnos
+        ? {
+            id: "action:brzi-unos",
+            title: "Brzi unos",
+            hint: "Zadatak ili beleška",
+            icon: Plus,
+            precica: "Q",
+            run: () => brziUnos(),
+          }
+        : null,
+    [brziUnos],
+  );
+  const pomocStavka = useMemo<Entry | null>(
+    () =>
+      otvoriPomoc
+        ? {
+            id: "action:precice",
+            title: "Prečice na tastaturi",
+            hint: "Pomoć",
+            icon: Keyboard,
+            precica: "?",
+            run: () => otvoriPomoc(),
+          }
+        : null,
+    [otvoriPomoc],
+  );
+
+  // Pretraga sadržaja važi samo dok termin odgovara upitu u polju.
+  const terminPolja = terminPretrage(query);
+  const pretragaAktivna = termin !== null && termin === terminPolja;
+  const pretrage = useMemo<Section[]>(
+    () => (pretragaAktivna ? prikazanePretrage.map(sekcijaPretrage) : []),
+    [pretragaAktivna, prikazanePretrage],
+  );
+  const pretrazuje =
+    terminPolja !== null &&
+    !greskaPretrage &&
+    (!pretragaAktivna || rezultat === null || rezultat.termin !== termin || rezultat.ucitava);
 
   const sections = useMemo<Section[]>(() => {
     const q = fold(query.trim());
@@ -437,8 +560,10 @@ export function CommandPalette() {
         title: "Radnje",
         entries: match([
           ...(q ? tasks : tasks.slice(0, TASKS_SHOWN)),
+          ...(brziUnosStavka ? [brziUnosStavka] : []),
           ...(projekat ? ACTIONS.filter(vidljiv) : []),
           ...(desktop ? [RAIL_ACTION] : []),
+          ...(pomocStavka ? [pomocStavka] : []),
         ]),
       },
       { key: "projekti", title: "Projekti", entries: match(projekti) },
@@ -453,8 +578,13 @@ export function CommandPalette() {
           ...(platformaVlasnik ? [NOVI_PROJEKAT] : []),
         ]),
       },
+      // Sadržaj projekta (ili lični razgovori u „Ja“) — server je već tražio.
+      ...pretrage,
     ].filter((section) => section.entries.length > 0);
   }, [
+    brziUnosStavka,
+    pomocStavka,
+    pretrage,
     query,
     tasks,
     projekti,
@@ -471,6 +601,9 @@ export function CommandPalette() {
 
   const flat = useMemo(() => sections.flatMap((s) => s.entries), [sections]);
 
+  // Lista se menja dok stižu pogoci; izbor ostaje u njenim granicama.
+  const izabran = flat.length === 0 ? 0 : Math.min(active, flat.length - 1);
+
   const choose = useCallback(
     (entry: Entry) => {
       setOpen(false);
@@ -484,13 +617,13 @@ export function CommandPalette() {
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive((a) => (flat.length ? (a + 1) % flat.length : 0));
+      setActive(flat.length ? (izabran + 1) % flat.length : 0);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActive((a) => (flat.length ? (a - 1 + flat.length) % flat.length : 0));
+      setActive(flat.length ? (izabran - 1 + flat.length) % flat.length : 0);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const entry = flat[active];
+      const entry = flat[izabran];
       if (entry) choose(entry);
     }
   };
@@ -500,7 +633,7 @@ export function CommandPalette() {
     listRef.current
       ?.querySelector<HTMLElement>('[data-active="true"]')
       ?.scrollIntoView({ block: "nearest" });
-  }, [active]);
+  }, [izabran]);
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -513,6 +646,25 @@ export function CommandPalette() {
       {projekat && (
         <QuietBoundary>
           <ZadaciZaPaletu onZadaci={setStaMeCeka} />
+        </QuietBoundary>
+      )}
+      {open && termin !== null && (
+        // Pad pretrage ne obara paletu: ekrani i radnje ostaju, a paleta kaže
+        // da pretraga sadržaja ne radi. Novo otvaranje počinje iznova.
+        <QuietBoundary
+          key={sesija}
+          fallback={<GreskaPretrage onGreska={naGreskuPretrage} />}
+        >
+          {projekat ? (
+            <PretragaProjektaZaPaletu
+              termin={termin}
+              radniDeo={mozeUrednik}
+              leadovi={ukljucen("leadovi")}
+              onRezultat={naRezultat}
+            />
+          ) : (
+            <PretragaJaZaPaletu termin={termin} onRezultat={naRezultat} />
+          )}
         </QuietBoundary>
       )}
       <DialogPrimitive.Portal>
@@ -556,10 +708,18 @@ export function CommandPalette() {
               aria-expanded
               aria-controls="command-palette-list"
               aria-activedescendant={
-                flat[active] ? `cmd-${flat[active].id}` : undefined
+                flat[izabran] ? `cmd-${flat[izabran].id}` : undefined
               }
-              aria-label="Pretraga radnji i ekrana"
-              placeholder="Skoči na ekran ili radnju…"
+              aria-label={
+                projekat
+                  ? "Pretraga radnji, ekrana i sadržaja projekta"
+                  : "Pretraga radnji, ekrana, projekata i ličnih poruka"
+              }
+              placeholder={
+                projekat
+                  ? "Skoči na ekran ili pretraži projekat…"
+                  : "Skoči na ekran, projekat ili poruku…"
+              }
               className="h-12 w-full min-w-0 rounded-t-xl bg-transparent pl-11 pr-4 text-sm text-foreground outline-none placeholder:text-text-muted"
             />
           </div>
@@ -572,8 +732,14 @@ export function CommandPalette() {
             className="min-h-0 flex-1 overflow-y-auto p-1.5"
           >
             {flat.length === 0 ? (
-              <p className="px-3 py-6 text-center text-sm text-text-muted">
-                Nema rezultata za: {query}
+              <p role="status" className="px-3 py-6 text-center text-sm text-text-muted">
+                {pretrazuje
+                  ? "Pretražujem…"
+                  : terminPolja === null
+                    ? `Nema ekrana ni radnje za: ${query}. Za pretragu sadržaja unesi bar dva slova.`
+                    : greskaPretrage
+                      ? "Pretraga sadržaja trenutno ne radi. Izmeni upit i pokušaj ponovo."
+                      : `Nema rezultata za: ${query}`}
               </p>
             ) : (
               sections.map((section) => (
@@ -591,7 +757,7 @@ export function CommandPalette() {
                   </p>
                   {section.entries.map((entry) => {
                     const index = flat.indexOf(entry);
-                    const isActive = index === active;
+                    const isActive = index === izabran;
                     const Icon = entry.icon;
                     return (
                       <button
@@ -621,8 +787,14 @@ export function CommandPalette() {
                             <Icon className="size-4" />
                           </span>
                         )}
-                        <span className="min-w-0 flex-1 truncate">
-                          {entry.title}
+                        <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                          <span className="min-w-0 truncate">{entry.title}</span>
+                          {entry.opis && <span className="sr-only">, </span>}
+                          {entry.opis && (
+                            <span className="min-w-0 max-w-[45%] shrink-[2] truncate text-meta text-text-muted">
+                              {entry.opis}
+                            </span>
+                          )}
                         </span>
                         {entry.projekat && (
                           <ProjekatZnak projekat={entry.projekat} velicina="xs" />
@@ -637,6 +809,7 @@ export function CommandPalette() {
                             {entry.hint}
                           </span>
                         )}
+                        {entry.precica && <Key>{entry.precica}</Key>}
                         {entry.xp !== undefined && (
                           <span className="shrink-0 text-micro font-medium text-xp tabular-nums">
                             +{entry.xp} XP
@@ -658,6 +831,22 @@ export function CommandPalette() {
               ))
             )}
           </div>
+
+          {flat.length > 0 && (pretrazuje || greskaPretrage) && (
+            <p
+              role="status"
+              className="flex shrink-0 items-center gap-2 border-t border-line px-4 py-2 text-meta text-text-muted"
+            >
+              {greskaPretrage ? (
+                "Pretraga sadržaja trenutno ne radi. Ekrani i radnje su i dalje tu."
+              ) : (
+                <>
+                  <LoaderCircle aria-hidden className="size-3.5 animate-spin" />
+                  Pretražujem sadržaj…
+                </>
+              )}
+            </p>
+          )}
 
           <div className="hidden shrink-0 items-center gap-4 border-t border-line px-4 py-2 text-micro text-text-muted sm:flex">
             <span className="flex items-center gap-1.5">

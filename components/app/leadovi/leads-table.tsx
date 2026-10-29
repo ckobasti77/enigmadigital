@@ -80,6 +80,8 @@ import {
   type LeadRowItem,
 } from "./lead-urgency";
 import { cn } from "@/lib/utils";
+import { LEAD_TABLE_HELP } from "@/lib/prostor/precice/registar";
+import { usePrijaviPomoc } from "@/components/app/prostor/precice/precice-provider";
 
 const PAGE_SIZE = 25;
 const DENSITY_KEY = "enigma.leadovi.density";
@@ -423,6 +425,16 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
   // Red pod kursorom tastature (`j`/`k`); `null` dok se tastatura ne upotrebi.
   const [cursor, setCursor] = useState<string | null>(null);
   const [showKeys, setShowKeys] = useState(false);
+  // Tastere tabela obrađuje sama; registar ih samo navodi u pomoći (`?`).
+  // Radnje reda (p, i, s) se navode samo ulozi koja ih sme.
+  const precice = useMemo(
+    () =>
+      moze
+        ? LEAD_TABLE_HELP
+        : LEAD_TABLE_HELP.filter((d) => !["leads-call", "leads-outcome", "leads-next-step"].includes(d.id)),
+    [moze],
+  );
+  usePrijaviPomoc(precice);
   // Kolone koje svima pišu isto se same sakrivaju; ovim ih čovek vraća.
   const [prikaziSveKolone, setPrikaziSveKolone] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -685,9 +697,8 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
           }
           break;
         }
-        case "?":
-          setShowKeys((s) => !s);
-          break;
+        // `?` je globalna pomoć (SPAJANJE S24); tabela prijavljuje svoju
+        // grupu ispod, pa je pomoć navodi.
       }
     };
     document.addEventListener("keydown", onKey);
@@ -1144,7 +1155,7 @@ export function LeadsTable({ onInvalidRulesFound }: LeadsTableProps) {
             )}
             <Kbd k="/" /> pretraga ·
             <Kbd k="Esc" /> zatvori ·
-            <Kbd k="?" /> ovaj spisak
+            <Kbd k="?" /> sve prečice
           </div>
         )}
 

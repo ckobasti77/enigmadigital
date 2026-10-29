@@ -12,6 +12,8 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "@/lib/toast";
+import { MAP_HISTORY_HELP } from "@/lib/prostor/precice/registar";
+import { usePrijaviPomoc } from "@/components/app/prostor/precice/precice-provider";
 
 export type WorkspaceHistoryEntry = {
   label: string;
@@ -45,6 +47,8 @@ export function isEditableTarget(target: EventTarget | null) {
 }
 
 export function WorkspaceHistoryProvider({ children }: { children: ReactNode }) {
+  // Ctrl/⌘ Z i Y obrađuje ovaj provider; registar ih navodi u pomoći (S24).
+  usePrijaviPomoc(MAP_HISTORY_HELP);
   const undoStackRef = useRef<WorkspaceHistoryEntry[]>([]);
   const redoStackRef = useRef<WorkspaceHistoryEntry[]>([]);
   const busyRef = useRef(false);

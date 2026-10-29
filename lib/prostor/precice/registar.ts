@@ -12,13 +12,26 @@
  *   osim ako definicija to izričito dozvoli.
  */
 
-export type ShortcutGroup = "Svuda" | "Liste zadataka" | "Inbox" | "Poruke" | "Birač datuma";
+export type ShortcutGroup =
+  | "Svuda"
+  | "Liste zadataka"
+  | "Inbox"
+  | "Poruke"
+  | "Leadovi"
+  | "Režim poziva"
+  | "Stranica"
+  | "Mapa"
+  | "Birač datuma";
 
 export const SHORTCUT_GROUP_ORDER: ReadonlyArray<ShortcutGroup> = [
   "Svuda",
   "Liste zadataka",
   "Inbox",
   "Poruke",
+  "Leadovi",
+  "Režim poziva",
+  "Stranica",
+  "Mapa",
   "Birač datuma",
 ];
 
@@ -158,9 +171,15 @@ const KEY_NAMES: Record<string, string> = {
   End: "End",
 };
 
+/** Znak u `helpKeys` koji postaje „Ctrl“ ili „⌘“, po platformi (SPAJANJE S24). */
+export const MOD_KEY = "Mod";
+
 /** Alternative za dijalog pomoći: `helpKeys` ili jedina kombinacija prečice. */
 export function shortcutHelpKeys(def: ShortcutDef, isMac = false): string[][] {
-  return def.helpKeys ?? [shortcutKeys(def, isMac)];
+  if (!def.helpKeys) return [shortcutKeys(def, isMac)];
+  return def.helpKeys.map((combo) =>
+    combo.map((key) => (key === MOD_KEY ? (isMac ? "⌘" : "Ctrl") : key)),
+  );
 }
 
 /** Prečice ljuske (K08). Kasniji koraci dodaju svoje kroz `useShortcuts`. */
@@ -171,7 +190,7 @@ export const SHELL_SHORTCUTS = {
     id: "search",
     key: "k",
     mod: true,
-    label: "Pretraga",
+    label: "Komandna paleta i pretraga",
     group: "Svuda",
     allowInInputs: true,
     allowInDialogs: true,
@@ -225,6 +244,61 @@ export const CHAT_SHORTCUTS = {
 export const CHAT_LIST_HELP: ReadonlyArray<ShortcutDef> = [
   { id: "chat-list-move", key: "ArrowDown", label: "Sledeći / prethodni razgovor", group: CHAT, displayOnly: true, helpKeys: [["↓"], ["↑"]] },
   { id: "chat-list-open", key: "Enter", label: "Otvori razgovor", group: CHAT, displayOnly: true },
+];
+
+const LEADOVI = "Leadovi" as const;
+
+/**
+ * Tabela Leadova (A7 §4, A9): tastere obrađuje sama tabela, kao i pre
+ * spajanja; ovde su da bi ih pomoć navela i da bi test sudara video ceo
+ * ekran (SPAJANJE S24). Lokalno `?` tabele je ugašeno — `?` je globalna pomoć.
+ */
+export const LEAD_TABLE_HELP: ReadonlyArray<ShortcutDef> = [
+  { id: "leads-next", key: "j", label: "Sledeći lead", group: LEADOVI, displayOnly: true, helpKeys: [["J"], ["↓"]] },
+  { id: "leads-prev", key: "k", label: "Prethodni lead", group: LEADOVI, displayOnly: true, helpKeys: [["K"], ["↑"]] },
+  { id: "leads-open", key: "Enter", label: "Otvori profil firme", group: LEADOVI, displayOnly: true },
+  { id: "leads-expand", key: " ", label: "Proširi red (zašto ovaj lead)", group: LEADOVI, displayOnly: true, helpKeys: [["Space"]] },
+  { id: "leads-call", key: "p", label: "Pozovi", group: LEADOVI, displayOnly: true },
+  { id: "leads-outcome", key: "i", label: "Zabeleži ishod", group: LEADOVI, displayOnly: true },
+  { id: "leads-next-step", key: "s", label: "Sledeći korak", group: LEADOVI, displayOnly: true },
+  { id: "leads-search", key: "/", label: "Pretraga leadova", group: LEADOVI, displayOnly: true },
+  { id: "leads-close", key: "Escape", label: "Zatvori traku, red ili izbor", group: LEADOVI, displayOnly: true },
+];
+
+const POZIV = "Režim poziva" as const;
+
+/** Režim poziva (`?rezim=poziv`): tastere obrađuje sam režim; ovde su za pomoć. */
+export const CALL_MODE_HELP: ReadonlyArray<ShortcutDef> = [
+  { id: "call-dial", key: "p", label: "Pozovi", group: POZIV, displayOnly: true },
+  { id: "call-no-answer", key: "1", label: "Nije se javio", group: POZIV, displayOnly: true },
+  { id: "call-interested", key: "2", label: "Zainteresovan", group: POZIV, displayOnly: true },
+  { id: "call-not-interested", key: "3", label: "Nije zainteresovan", group: POZIV, displayOnly: true },
+  { id: "call-meeting", key: "4", label: "Zakaži sastanak", group: POZIV, displayOnly: true },
+  { id: "call-skip", key: "n", label: "Sledeća firma", group: POZIV, displayOnly: true },
+  { id: "call-exit", key: "Escape", label: "Izađi iz režima poziva", group: POZIV, displayOnly: true },
+];
+
+/** Stranica i zadatak na celu stranu: Ctrl/⌘ S obrađuje `useSaveShortcut`. */
+export const PAGE_HELP: ReadonlyArray<ShortcutDef> = [
+  { id: "page-save", key: "s", mod: true, label: "Sačuvaj odmah", group: "Stranica", displayOnly: true },
+];
+
+const MAPA = "Mapa" as const;
+
+/** Istorija radnji oko mape (Ctrl/⌘ Z, Y) — obrađuje je `istorija-radnji`. */
+export const MAP_HISTORY_HELP: ReadonlyArray<ShortcutDef> = [
+  { id: "map-undo", key: "z", mod: true, label: "Poništi", group: MAPA, displayOnly: true },
+  { id: "map-redo", key: "y", mod: true, label: "Ponovi", group: MAPA, displayOnly: true, helpKeys: [[MOD_KEY, "Shift", "Z"], [MOD_KEY, "Y"]] },
+];
+
+/** Mapa stranice: Esc vraća na stranicu (`page-map-view`). */
+export const PAGE_MAP_HELP: ReadonlyArray<ShortcutDef> = [
+  { id: "map-back", key: "Escape", label: "Nazad na stranicu", group: MAPA, displayOnly: true },
+];
+
+/** Platno mape: Space + prevlačenje pomera mapu (`use-canvas-navigation`). */
+export const CANVAS_HELP: ReadonlyArray<ShortcutDef> = [
+  { id: "map-pan", key: " ", label: "Drži i prevuci da pomeriš mapu", group: MAPA, displayOnly: true, helpKeys: [["Space"]] },
 ];
 
 const PICKER = "Birač datuma" as const;
