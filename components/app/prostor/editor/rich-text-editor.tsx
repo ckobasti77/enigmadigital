@@ -12,6 +12,7 @@ import {
   BetweenVerticalEnd,
   Bold,
   Code2,
+  FileSpreadsheet,
   Heading1,
   Heading2,
   ImagePlus,
@@ -42,6 +43,8 @@ import {
 } from "@/components/app/prostor/editor/link-dijalog";
 import { EditorSkeleton } from "@/components/app/prostor/editor/editor-skeleton";
 import type { AttachedPageFile } from "@/components/app/prostor/editor/prilozi-kontekst";
+import { NoteTableImportDialog } from "@/components/app/prostor/tabele/note-table-import-dialog";
+import { noteTableContent } from "@/lib/prostor/web/table-file";
 import { cn } from "@/lib/utils";
 import "./editor.css";
 
@@ -103,6 +106,7 @@ export function RichTextEditor({
   // `done`/`total` hrane brojač „Otpremanje n/m…”; paralelne serije se sabiraju.
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [linkOpen, setLinkOpen] = useState(false);
+  const [tableImportOpen, setTableImportOpen] = useState(false);
   // Snimak preživljava zatvaranje: dok se dijalog gasi animacijom, sadržaj
   // treba da ostane isti umesto da se isprazni.
   const [linkDraft, setLinkDraft] = useState<NoteLinkDraft | null>(null);
@@ -424,6 +428,13 @@ export function RichTextEditor({
           .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
           .run(),
     },
+    {
+      // Čitač Excel-a se učitava tek kad se fajl izabere (`lib/prostor/web/table-file`).
+      label: "Uvezi tabelu (CSV/XLSX)",
+      icon: FileSpreadsheet,
+      disabled: () => editor.isActive("table"),
+      run: () => setTableImportOpen(true),
+    },
   );
 
   if (editor.isActive("table")) {
@@ -574,6 +585,14 @@ export function RichTextEditor({
         onClose={() => setLinkOpen(false)}
         onSubmit={applyLink}
         onRemove={removeLink}
+      />
+      <NoteTableImportDialog
+        open={tableImportOpen}
+        onOpenChange={setTableImportOpen}
+        getBodyLength={() => editorRef.current?.getHTML().length ?? 0}
+        onImport={(matrix, firstRowIsHeader) => {
+          editorRef.current?.chain().focus().insertContent(noteTableContent(matrix, firstRowIsHeader)).run();
+        }}
       />
     </div>
   );

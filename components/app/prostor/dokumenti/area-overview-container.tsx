@@ -1,9 +1,12 @@
 "use client";
 
 // Preneto iz Devotion apps/web/components/workspace/area/area-overview-container.tsx (main @ c05c40f), SPAJANJE S10.
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
+import { CommentsSection } from "@/components/app/prostor/saradnja/comments-section";
+import type { MentionMember } from "@/components/app/prostor/saradnja/comment-composer";
 import { ConflictDialog } from "@/components/app/prostor/saradnja/conflict-dialog";
+import { RevisionHistoryDrawer } from "@/components/app/prostor/saradnja/revision-history-drawer";
 import { useCuvarNapustanja } from "@/components/app/prostor/cuvar-napustanja";
 import type { PageEditorSaveState } from "@/lib/prostor/modeli/page-autosave-model";
 import { useBeforeUnloadGuard } from "@/components/app/prostor/dokumenti/use-page-autosave";
@@ -26,23 +29,28 @@ const RECENT_LIMIT = 8;
 
 /**
  * Pregled oblasti — kontejner (PROSTOR P12, K07 §5.5): opis oblasti
- * (`areasV2.getAreaBody` / `updateAreaBody` sa revizijom i konfliktom) i
- * Nedavne izmene (`pages.recentForArea`). Komentari i Istorija izmena oblasti
- * dolaze sa modulom saradnje (mesto `comments` u rasporedu).
+ * (`areasV2.getAreaBody` / `updateAreaBody` sa revizijom i konfliktom, fioka
+ * Istorija izmena), Nedavne izmene (`pages.recentForArea`) i Komentari oblasti
+ * (`comments.*`, cilj `area`).
  */
 export function AreaOverviewContainer({
   areaId,
+  profileId,
+  members,
   memberName,
   now,
   onOpenPage,
 }: {
   areaId: Id<"areas">;
+  profileId: Id<"profiles">;
+  members: ReadonlyArray<MentionMember>;
   memberName: (profileId: string | null) => string | null;
   now: number;
   onOpenPage: (pageId: Id<"pages">) => void;
 }) {
   const descriptionHeadingId = useId();
   const recentHeadingId = useId();
+  const commentsHeadingId = useId();
   // Greška upita se ne popravlja sama: „Pokušaj ponovo" pravi novu pretplatu.
   const [bodyAttempt, setBodyAttempt] = useState(0);
   const [recentAttempt, setRecentAttempt] = useState(0);
@@ -69,7 +77,15 @@ export function AreaOverviewContainer({
           onRetry={() => setRecentAttempt((value) => value + 1)}
         />
       }
-      comments={null}
+      comments={
+        <CommentsSection
+          target={{ kind: "area", id: areaId }}
+          members={members}
+          selfProfileId={profileId}
+          now={now}
+          headingId={commentsHeadingId}
+        />
+      }
     />
   );
 }
@@ -93,7 +109,9 @@ function DescriptionLoader({
     [data],
   );
   const body = useAreaBody({ areaId, server });
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [dismissedConflict, setDismissedConflict] = useState<string | null>(null);
+  const historyButtonRef = useRef<HTMLButtonElement>(null);
 
   const saveState: PageEditorSaveState = body.status;
   useBeforeUnloadGuard(saveState);
@@ -144,8 +162,27 @@ function DescriptionLoader({
       <AreaDescription
         headingId={headingId}
         state={state}
-        onOpenHistory={null}
+        onOpenHistory={data ? () => setHistoryOpen(true) : null}
+        historyButtonRef={historyButtonRef}
       />
+      {data ? (
+        <RevisionHistoryDrawer
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          target={{ kind: "area", id: areaId }}
+          currentRevision={data.revision}
+          blockedReason={
+            !data.permissions.canEdit
+              ? "Opis oblasti ne možeš da menjaš."
+              : body.status !== "saved"
+                ? "Sačekaj da se tvoje izmene sačuvaju."
+                : null
+          }
+          memberName={memberName}
+          now={now}
+          returnFocusFallback={() => historyButtonRef.current}
+        />
+      ) : null}
       <ConflictDialog
         open={conflictOpen && body.status === "conflict"}
         onOpenChange={setConflictOpen}

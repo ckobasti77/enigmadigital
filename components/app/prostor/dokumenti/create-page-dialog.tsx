@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PAGE_KIND_META, type PageKind } from "@/lib/prostor/web/vrste-stranica";
 import type { CreatePageTarget, StartupWithAreas } from "@/lib/prostor/rute";
 import { api } from "@/convex/_generated/api";
@@ -27,12 +28,17 @@ import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { useProjekatQueryTolerant } from "@/components/app/prostor/podaci/projekat";
 
 /**
- * Vrste koje dijalog već pravi. Tabela i fajl dobijaju svoja polja (uvoz,
- * prilozi) sa modulima tabela i priloga, a zadatak sa brzim unosom zadataka;
- * dotle se ne nude, da u izboru ne stoji vrsta koja se ne može otvoriti.
- * Zaglavlje oblasti čita isti spisak („Nova stranica“).
+ * Vrste koje dijalog već pravi. Zadatak dolazi sa brzim unosom zadataka; dotle
+ * se ne nudi, da u izboru ne stoji vrsta koja se ne može otvoriti. Zaglavlje
+ * oblasti čita isti spisak („Nova stranica“).
  */
-export const VRSTE_NOVE_STRANICE: ReadonlyArray<PageKind> = ["note"];
+export const VRSTE_NOVE_STRANICE: ReadonlyArray<PageKind> = ["note", "table", "file"];
+
+/** Tabela i fajlovi se pune na samoj stranici, odmah posle kreiranja. */
+const POSLE_KREIRANJA: Partial<Record<PageKind, string>> = {
+  table: "Posle kreiranja dodaješ kolone i redove ili uvoziš Excel ili CSV.",
+  file: "Posle kreiranja prevlačiš ili biraš fajlove na stranici.",
+};
 
 const TITLE_PLACEHOLDER: Record<PageKind, string> = {
   note: "Naslov beleške…",
@@ -67,10 +73,9 @@ export function CreatePageDialog({
     open && target?.parentPageId ? { pageId: target.parentPageId } : "skip",
   );
   const fallbackAreaId = workspace.areas[0]?._id;
-  const kind: PageKind =
-    target?.initialKind && VRSTE_NOVE_STRANICE.includes(target.initialKind)
-      ? target.initialKind
-      : "note";
+  const [kind, setKind] = useState<PageKind>(
+    target?.initialKind && VRSTE_NOVE_STRANICE.includes(target.initialKind) ? target.initialKind : "note",
+  );
   const [title, setTitle] = useState("");
   const [noteContent, setNoteContent] = useState("");
   const [areaId, setAreaId] = useState<Id<"areas"> | undefined>(target?.areaId ?? fallbackAreaId);
@@ -86,8 +91,8 @@ export function CreatePageDialog({
   function showCreatedToast(pageId: Id<"pages">, pending: boolean) {
     toast.success(
       pending
-        ? `${PAGE_KIND_META[kind].label} je kreirana u oblasti i čeka odobrenje autora ciljne stranice.`
-        : `${PAGE_KIND_META[kind].label} je kreirana.`,
+        ? "Stranica je kreirana u oblasti i čeka odobrenje autora ciljne stranice."
+        : "Stranica je kreirana.",
       {
         duration: 8_000,
         action: {
@@ -148,6 +153,32 @@ export function CreatePageDialog({
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+            <div className="rounded-lg border border-line bg-card p-0.5">
+              <ToggleGroup
+                value={[kind]}
+                onValueChange={(value) => {
+                  const next = value[0];
+                  if (next) setKind(next as PageKind);
+                }}
+                spacing={0}
+                aria-label="Vrsta stranice"
+                className="grid w-full grid-cols-3"
+              >
+                {VRSTE_NOVE_STRANICE.map((value) => {
+                  const Icon = PAGE_KIND_META[value].icon;
+                  return (
+                    <ToggleGroupItem
+                      key={value}
+                      value={value}
+                      className="cursor-pointer rounded-md! text-text-secondary data-pressed:bg-surface-control-hover data-pressed:text-foreground"
+                    >
+                      <Icon aria-hidden="true" />
+                      {PAGE_KIND_META[value].label}
+                    </ToggleGroupItem>
+                  );
+                })}
+              </ToggleGroup>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="new-page-title">Naslov</Label>
               <Input
@@ -183,6 +214,8 @@ export function CreatePageDialog({
                   />
                 </div>
               </div>
+            ) : POSLE_KREIRANJA[kind] ? (
+              <p className="text-ui text-text-secondary">{POSLE_KREIRANJA[kind]}</p>
             ) : null}
           </div>
           <DialogFooter className="shrink-0 border-t border-line-soft px-5 py-4 sm:px-6">

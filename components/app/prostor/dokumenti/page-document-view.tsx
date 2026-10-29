@@ -3,28 +3,33 @@
 // Preneto iz Devotion apps/web/components/workspace/page/page-document-view.tsx (main @ c05c40f), SPAJANJE S10.
 import { Component, useCallback, useEffect, useMemo, useId, useRef, useState, type ReactNode } from "react";
 import type { FunctionReturnType } from "convex/server";
-import { FileSpreadsheet, Paperclip } from "lucide-react";
+import { toast } from "@/lib/toast";
 
+import { CommentsSection, type CommentsCount } from "@/components/app/prostor/saradnja/comments-section";
+import type { MentionMember } from "@/components/app/prostor/saradnja/comment-composer";
 import { ConflictDialog } from "@/components/app/prostor/saradnja/conflict-dialog";
+import { RevisionHistoryDrawer } from "@/components/app/prostor/saradnja/revision-history-drawer";
+import { usePagePresence } from "@/components/app/prostor/saradnja/use-page-presence";
 import { useLiveNow } from "@/components/app/prostor/saradnja/use-live-now";
+import { PageRelationsCompact } from "@/components/app/prostor/saradnja/page-relations";
 import { RichTextEditor } from "@/components/app/prostor/editor";
-import {
-  NoteAttachmentsContext,
-  type NoteAttachmentsContextValue,
-} from "@/components/app/prostor/editor/prilozi-kontekst";
+import { NoteAttachmentsProvider, useNoteFileUpload } from "@/components/app/prostor/prilozi/note-attachments";
+import { PageFilesPanel } from "@/components/app/prostor/prilozi/page-files-panel";
+import { PageTablePanel } from "@/components/app/prostor/tabele/page-table-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MoveToAreaMenu } from "@/components/app/prostor/dokumenti/move-to-area-menu";
-import { EmptyState } from "@/components/app/prostor/zajednicko/radni-ui";
 import type { CreatePageTarget, StartupWithAreas } from "@/lib/prostor/rute";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { MOTION_QUERIES } from "@/lib/motion";
 
-import { PageDocument, type PageDocumentNotice } from "@/components/app/prostor/dokumenti/page-document";
+import { PAGE_ACTIONS_SELECTOR, PageDocument, type PageDocumentNotice } from "@/components/app/prostor/dokumenti/page-document";
 import { buildPageMenuItems, usePageDocumentActions, useSaveShortcut } from "@/components/app/prostor/dokumenti/page-document-actions";
 import {
   countLabel,
   documentAccess,
   pageMenuKeys,
+  restoreBlockedReason,
   subpageMeta,
   type PageMenuKey,
 } from "@/lib/prostor/modeli/page-document-model";
@@ -32,8 +37,10 @@ import { PageSideFacts } from "@/components/app/prostor/dokumenti/page-side-colu
 import { SubpagesList } from "@/components/app/prostor/dokumenti/subpages-list";
 import { useBeforeUnloadGuard, usePageAutosave } from "@/components/app/prostor/dokumenti/use-page-autosave";
 import { useCuvarNapustanja } from "@/components/app/prostor/cuvar-napustanja";
+import { useProjekatMutation } from "@/components/app/projekat-provider";
 import {
   useProjekatPaginatedQuery,
+  useProjekatQueryResult,
   useProjekatQueryTolerant,
 } from "@/components/app/prostor/podaci/projekat";
 
@@ -43,11 +50,21 @@ export type PageDetails = FunctionReturnType<typeof api.prostor.pages.get>;
 const SUBPAGES_PAGE = 20;
 
 /**
- * Radnje menija „…" koje ovaj prikaz već ume. Komentari, Istorija,
- * zaključavanje, Mapa i Diskusija dolaze sa svojim modulima (saradnja, mape,
- * poruke) i tada se dodaju ovde, uz svoju fioku ili prikaz.
+ * Radnje menija „…" koje ovaj prikaz već ume. Mapa i Diskusija dolaze sa
+ * svojim modulima (mape, poruke) i tada se dodaju ovde.
  */
-const RADNJE_MENIJA: ReadonlySet<PageMenuKey> = new Set(["move", "detach", "archive"]);
+const RADNJE_MENIJA: ReadonlySet<PageMenuKey> = new Set([
+  "comments",
+  "history",
+  "lock",
+  "unlock",
+  "move",
+  "detach",
+  "archive",
+]);
+
+/** Fioka otvorena iz menija: stavka menija nestaje, fokus se vraća na „…". */
+const actionsTrigger = () => document.querySelector<HTMLElement>(PAGE_ACTIONS_SELECTOR);
 
 export type PageDocumentViewProps = {
   workspace: StartupWithAreas;
@@ -67,10 +84,12 @@ export type PageDocumentViewProps = {
 
 /**
  * Stranica (beleška, tabela, fajl) kao dokument tima — kontejner (PROSTOR
- * P13, P23; K07 §5.6). Izvori: `pages.get` (dozvole), `getBreadcrumbs`,
- * `projekat.listMembers` (imena), `areasV2.updatePage` kroz `usePageAutosave`
- * (650 ms, `expectedRevision`, konflikt „Učitaj najnoviju / Prepiši"),
- * `pages.listChildren` i `areasV2.archivePage` (Korpa + „Poništi").
+ * P13, P19, P23; K07 §5.6). Izvori: `pages.get` (dozvole), `getBreadcrumbs`,
+ * `projekat.listMembers` (imena i @), `areasV2.updatePage` kroz
+ * `usePageAutosave` (650 ms, `expectedRevision`, konflikt „Učitaj najnoviju /
+ * Prepiši"), `pages.listChildren`, `areasV2.listRelations`, `pages.lock/unlock`,
+ * `presence.*`, `comments.*`, `history.*`, `pageFiles.*`, `pageTables.*` i
+ * `areasV2.archivePage` (Korpa + „Poništi").
  *
  * Stanje čuvanja ide čuvaru napuštanja ljuske (`useCuvarNapustanja`), a
  * zatvaranje kartice pita pregledač (`useBeforeUnloadGuard`).
@@ -87,7 +106,6 @@ export function PageDocumentView({
   onCreateChild,
   onArchived,
 }: PageDocumentViewProps) {
-  void profileId;
   const pageId = page._id;
   const liveNow = useLiveNow(now);
   const access = documentAccess(page.permissions);
@@ -98,18 +116,34 @@ export function PageDocumentView({
     api.prostor.pageFiles.list,
     page.kind === "note" ? { pageId } : "skip",
   );
+  const uploadNoteFile = useNoteFileUpload(page.kind === "note" && access.editable ? pageId : null);
   const autosave = usePageAutosave({
     pageId,
     page,
     noteFileCount: noteFiles?.length ?? 0,
   });
 
+  const regionRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const subpagesHeadingId = useId();
+  const commentsHeadingId = useId();
+  const relationsHeadingId = useId();
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [dismissedConflict, setDismissedConflict] = useState<string | null>(null);
+  const [commentCount, setCommentCount] = useState<CommentsCount | null>(null);
   const [subpageCount, setSubpageCount] = useState<{ count: number; capped: boolean } | null>(null);
+  const { editors } = usePagePresence(pageId, { canEdit: access.editable, region: regionRef });
 
   const members = useMemo(() => membersResult ?? [], [membersResult]);
+  const mentionMembers = useMemo<MentionMember[]>(
+    () =>
+      members.map(({ profile }) => ({
+        profileId: profile._id,
+        displayName: profile.displayName,
+        avatarUrl: profile.avatarUrl,
+      })),
+    [members],
+  );
   const memberName = useCallback(
     (id: string | null) => members.find(({ profile }) => profile._id === id)?.profile.displayName ?? null,
     [members],
@@ -140,7 +174,17 @@ export function PageDocumentView({
     onAutoFocusDone?.();
   }, [autoFocusTitle, draftReady, onAutoFocusDone]);
 
-  const { archive, detach } = usePageDocumentActions({
+  function jumpToComments() {
+    const heading = document.getElementById(commentsHeadingId);
+    const still = window.matchMedia(MOTION_QUERIES.still).matches;
+    heading?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+    heading
+      ?.closest("section")
+      ?.querySelector<HTMLTextAreaElement>("textarea")
+      ?.focus({ preventScroll: true });
+  }
+
+  const { lockBusy, setLocked, archive, detach } = usePageDocumentActions({
     kind: "page",
     pageId,
     title: page.title,
@@ -161,9 +205,9 @@ export function PageDocumentView({
     keys: menuKeys,
     kind: "page",
     discussionLabel: "Diskusija u Porukama",
-    onJumpToComments: () => {},
-    onOpenHistory: () => {},
-    onSetLocked: () => {},
+    onJumpToComments: jumpToComments,
+    onOpenHistory: () => setHistoryOpen(true),
+    onSetLocked: (locked) => void setLocked(locked),
     onOpenMap: () => {},
     onDetach: () => void detach(),
     onDiscussion: () => {},
@@ -186,41 +230,28 @@ export function PageDocumentView({
         ? { text: "Izmene nisu sačuvane.", actionLabel: "Pokušaj ponovo", onAction: autosave.saveNow }
         : null;
 
-  // Prilozi u telu beleške: spisak iz `pageFiles.list`; pregled otvara fajl u
-  // novoj kartici dok modul priloga ne donese svoj pregledač.
-  const attachments = useMemo<NoteAttachmentsContextValue>(
-    () => ({
-      files: noteFiles,
-      openFile: (fileId) => {
-        const url = noteFiles?.find((file) => file._id === fileId)?.url;
-        if (url) window.open(url, "_blank", "noopener,noreferrer");
-      },
-    }),
-    [noteFiles],
-  );
-
+  // Prilozi u telu beleške: spisak iz `pageFiles.list`, otpremanje kroz
+  // uređivač (traka, prevlačenje, lepljenje), pregled u pregledaču fajlova.
   const body =
     page.kind === "note" ? (
       autosave.draftReady ? (
-        <NoteAttachmentsContext.Provider value={attachments}>
+        <NoteAttachmentsProvider files={noteFiles}>
           <RichTextEditor
             key={pageId}
             documentKey={pageId}
             content={autosave.content}
             editable={access.editable}
+            attachments={uploadNoteFile !== null ? { upload: uploadNoteFile } : undefined}
             onChange={({ html }) => autosave.editContent(html)}
           />
-        </NoteAttachmentsContext.Provider>
+        </NoteAttachmentsProvider>
       ) : (
         <Skeleton className="h-[42vh] rounded-lg sm:h-[52vh]" />
       )
+    ) : page.kind === "table" ? (
+      <PageTablePanel pageId={pageId} />
     ) : (
-      <EmptyState
-        icon={page.kind === "table" ? FileSpreadsheet : Paperclip}
-        headingAs="h2"
-        title={page.kind === "table" ? "Prikaz tabele stiže uskoro." : "Prikaz fajlova stiže uskoro."}
-        description="Naslov i podstranice možeš da menjaš već sada."
-      />
+      <PageFilesPanel pageId={pageId} canManage={access.editable} />
     );
 
   const ancestors = (breadcrumbs ?? []).slice(0, -1).map((item) => ({ id: item._id, title: item.title }));
@@ -241,7 +272,7 @@ export function PageDocumentView({
         titleRef={titleRef}
         saveState={access.editable || lostEditRight ? saveState : null}
         notice={notice}
-        editors={[]}
+        editors={editors}
         lock={{
           view: access.lock,
           lockedByName: page.lockedBy?.displayName ?? null,
@@ -252,7 +283,9 @@ export function PageDocumentView({
           editorName: page.updater?.displayName ?? null,
           updatedAt: page.updatedAt,
         }}
-        commentCount={null}
+        commentCount={countLabel(commentCount)}
+        onJumpToComments={jumpToComments}
+        onOpenHistory={() => setHistoryOpen(true)}
         menuItems={menuItems}
         menuExtra={
           menuKeys.includes("move") ? (
@@ -290,20 +323,50 @@ export function PageDocumentView({
             lastEdit={{ editorName: page.updater?.displayName ?? null, at: page.updatedAt }}
             lock={{
               locked: page.permissions.isLocked,
-              // Zaključavanje dobija svoje dugme sa modulom saradnje.
-              canLock: false,
-              canUnlock: false,
-              busy: false,
-              onLock: () => {},
-              onUnlock: () => {},
+              canLock: page.permissions.canLock,
+              canUnlock: page.permissions.canUnlock,
+              busy: lockBusy,
+              onLock: () => void setLocked(true),
+              onUnlock: () => void setLocked(false),
             }}
             now={liveNow}
           />
         }
-        relations={null}
-        comments={null}
+        relations={
+          <RelationsContainer
+            page={page}
+            areas={workspace.areas}
+            headingId={relationsHeadingId}
+            onOpenPage={onOpenPage}
+          />
+        }
+        comments={
+          <CommentsSection
+            target={{ kind: "page", id: pageId }}
+            members={mentionMembers}
+            selfProfileId={profileId}
+            now={liveNow}
+            headingId={commentsHeadingId}
+            onCountChange={setCommentCount}
+          />
+        }
+        regionRef={regionRef}
         now={liveNow}
       />
+      {/* Pregled verzije beleške vidi priloge stranice (blok priloga u starom tekstu). */}
+      <NoteAttachmentsProvider files={noteFiles}>
+        <RevisionHistoryDrawer
+          returnFocusFallback={actionsTrigger}
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          target={{ kind: "page", id: pageId }}
+          currentRevision={page.revision}
+          blockedReason={restoreBlockedReason({ canRestoreRevision: page.permissions.canRestoreRevision, saveState })}
+          richPreview={page.kind === "note"}
+          memberName={memberName}
+          now={liveNow}
+        />
+      </NoteAttachmentsProvider>
       <ConflictDialog
         open={conflictOpen && saveState === "conflict"}
         onOpenChange={setConflictOpen}
@@ -409,4 +472,91 @@ export class SubpagesBoundary extends Component<{ children: ReactNode; headingId
       />
     );
   }
+}
+
+/** „Povezano" u bočnoj koloni dokumenta (deli ga i puna strana zadatka). */
+export function RelationsContainer(props: {
+  page: PageDetails;
+  areas: ReadonlyArray<{ _id: Id<"areas">; label: string }>;
+  headingId: string;
+  onOpenPage: (pageId: Id<"pages">) => void;
+}) {
+  // Greška upita se ne popravlja sama: „Pokušaj ponovo" pravi novu pretplatu.
+  const [attempt, setAttempt] = useState(0);
+  return <RelationsLoader key={attempt} {...props} onRetry={() => setAttempt((value) => value + 1)} />;
+}
+
+function RelationsLoader({
+  page,
+  areas,
+  headingId,
+  onOpenPage,
+  onRetry,
+}: {
+  page: PageDetails;
+  areas: ReadonlyArray<{ _id: Id<"areas">; label: string }>;
+  headingId: string;
+  onOpenPage: (pageId: Id<"pages">) => void;
+  onRetry: () => void;
+}) {
+  const { data: result, failed } = useProjekatQueryResult(api.prostor.areasV2.listRelations, { pageId: page._id });
+  const createRelation = useProjekatMutation(api.prostor.areasV2.createRelation);
+  const deleteRelation = useProjekatMutation(api.prostor.areasV2.deleteRelation);
+  const [selected, setSelected] = useState<Id<"pages"> | "">("");
+  const [busy, setBusy] = useState(false);
+  const areaLabel = (areaId: Id<"areas">) =>
+    areaId === page.areaId ? null : (areas.find((area) => area._id === areaId)?.label ?? "Druga oblast");
+
+  async function create() {
+    if (!selected) return;
+    setBusy(true);
+    try {
+      const linked = result?.candidates.find((candidate) => candidate.pageId === selected);
+      await createRelation({ pageAId: page._id, pageBId: selected });
+      setSelected("");
+      toast.success(`Povezano sa „${linked?.title.trim() || "Bez naslova"}“.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(relationId: Id<"pageRelations">) {
+    setBusy(true);
+    try {
+      await deleteRelation({ relationId });
+      toast.success("Veza je uklonjena.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <PageRelationsCompact
+      headingId={headingId}
+      loading={result === undefined && !failed}
+      failed={failed ? { onRetry } : null}
+      relations={(result?.relations ?? []).map((relation) => ({
+        id: relation._id,
+        pageId: relation.linkedPage.pageId,
+        title: relation.linkedPage.title,
+        kind: relation.linkedPage.kind,
+        areaLabel: areaLabel(relation.linkedPage.areaId),
+        canDelete: relation.canDelete,
+        canRequestDeletion: false,
+      }))}
+      candidates={(result?.candidates ?? []).map((candidate) => ({
+        pageId: candidate.pageId,
+        title: candidate.title,
+        kind: candidate.kind,
+        areaLabel: areaLabel(candidate.areaId),
+      }))}
+      candidatesTruncated={result?.candidatesTruncated ?? false}
+      selectedCandidate={selected}
+      onSelectedCandidate={setSelected}
+      busy={busy}
+      onCreate={create}
+      onDelete={remove}
+      onOpenPage={onOpenPage}
+    />
+  );
 }

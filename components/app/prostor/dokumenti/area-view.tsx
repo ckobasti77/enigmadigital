@@ -32,6 +32,7 @@ import {
   resolveAreaTab,
 } from "@/lib/prostor/modeli/area-model";
 import { AreaOverviewContainer } from "@/components/app/prostor/dokumenti/area-overview-container";
+import type { MentionMember } from "@/components/app/prostor/saradnja/comment-composer";
 import { useProjekatMutation } from "@/components/app/projekat-provider";
 import { useProjekatQueryTolerant } from "@/components/app/prostor/podaci/projekat";
 import type { CreatePageTarget } from "@/lib/prostor/rute";
@@ -102,6 +103,16 @@ export function AreaView({
     (id: string | null) => members.find(({ profile: member }) => member._id === id)?.profile.displayName ?? null,
     [members],
   );
+  // Članovi za @pominjanje u Komentarima oblasti.
+  const mentionMembers = useMemo<MentionMember[]>(
+    () =>
+      members.map(({ profile: member }) => ({
+        profileId: member._id,
+        displayName: member.displayName,
+        avatarUrl: member.avatarUrl,
+      })),
+    [members],
+  );
 
   if (!area) {
     return (
@@ -161,6 +172,8 @@ export function AreaView({
         <WorkspaceErrorBoundary title="Pregled oblasti nije učitan." className="min-h-[16rem]">
           <AreaOverviewContainer
             areaId={areaId}
+            profileId={profileId}
+            members={mentionMembers}
             memberName={memberName}
             now={liveNow}
             onOpenPage={onOpenPage}

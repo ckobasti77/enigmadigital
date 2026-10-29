@@ -849,3 +849,101 @@ Ceo `npx vitest run`: 170 fajlova, 2307 testova.
 - Prevuci stranicu u stablu na drugu stranicu i na drugu oblast; prevuci oblast da promeniš redosled.
 - `package.json` sada ima `overrides` za Tiptap (ODLUKA 2): posle povlačenja izmena pusti `npm ci`.
 - Ništa nije deployovano.
+
+## S11 — Dokumenti 2: komentari, istorija, prisustvo, zaključavanje, prilozi, tabele   (2026-10-29 08:05)
+**Fajlovi:**
+- `components/app/prostor/saradnja/` (preneto alatom pa ručno dovršeno): `comments-section`, `comment-list`, `comment-composer`, `revision-history`, `revision-history-drawer`, `use-page-presence`, `page-relations`, `checkpoint-comments-dialog`. Rano iz S10 (nije dirano): `conflict-dialog`, `lock`, `presence-indicator`, `use-live-now`.
+- `components/app/prostor/prilozi/` (preneto): `file-viewer-dialog`, `note-attachments`, `page-files-panel`.
+- `components/app/prostor/tabele/` (preneto): `page-table-panel`, `table-import-dialog`, `note-table-import-dialog`; nov `pregled-matrice.tsx` (zajednički pregled prvih redova za oba uvoza).
+- `lib/prostor/`: nov `ogranicenja.ts` (granice tabela i priloga, preuzete iz `convex/prostor/lib/*`).
+- `lib/prostor/web/` (preneto): `csv.ts` (+ test), `page-files.ts` (+ test), `table-file.ts`, `media-convert.ts`; novi `otkucaj-prisustva.ts` (+ test) i `table-file.test.ts`.
+- Izmenjeni: `dokumenti/page-document-view.tsx` (sve iz S11 ugrađeno, `RelationsContainer`), `dokumenti/area-overview-container.tsx` i `area-view.tsx` (komentari i istorija opisa oblasti), `dokumenti/create-page-dialog.tsx` (vrste Tabela i Fajlovi), `editor/rich-text-editor.tsx` („Uvezi tabelu (CSV/XLSX)"), `editor/prilozi-kontekst.ts` (`AttachedPageFile` iz `lib/prostor/web/page-files`).
+- Razvojni prikaz: `app/dev-ux/fixtures-prostor-dokumenti.ts` (dopuna: komentari, istorija, prisustvo, prilozi, tabela, Povezano, zaključavanje; `TABELA_UX`, `FAJL_UX`). Fiksture je pisao radnik (Sonnet); diff i typecheck pregledani pre prihvatanja.
+- Snimci `docs/spajanje/snimci/S11-{komentari-1536,istorija-1536,tabela-1536,fajl-1536,stranica-390}.png`.
+- Pomoćne skripte izmena: `.nocni-run/spajanje/tmp/s11-skripte/`; izveštaj alata `.nocni-run/spajanje/tmp/prenos-ekran-S11.md` (26 fajlova, 29 RUČNO, sve zatvorene).
+
+**Šta je urađeno:**
+- **Komentari sa @pominjanjem** na stranici i u Pregledu oblasti: lista (najstariji gore, „Učitaj još"), unos koji raste do 8 redova, `@` otvara listu članova projekta (strelice, Enter/Tab, Esc), Ctrl/⌘ + Enter šalje, izmena u mestu, „Ukloni" sa „Poništi" dok traje rok servera. Pominjanje se crta kroz `parseCommentSegments` (nikad HTML). Nov komentar ulazi kratkim pomakom (GSAP `useGSAP` u `gsap.matchMedia()`, grana za smanjen pokret samo neprozirnost); prvo punjenje i „Učitaj još" se ne animiraju.
+- **Istorija izmena** u fioci s desna (stranica i opis oblasti): verzije po danu, oznake „Trenutna", „Vraćena verzija", „Zatečeno stanje", pregled verzije (beleška kroz uređivač samo za čitanje, iza `editor/index.tsx`), „Vrati ovu verziju" uz potvrdu; konflikt otvara isti dijalog kao čuvanje.
+- **Prisustvo „X uređuje"**: otkucaj odmah i na 15 s (`PAGE_PRESENCE_REFRESH_MS`); sakrivena kartica zaustavlja sat (nema otkucaja ni ticanja), povratak šalje odmah. Ritam je u čistom `lib/prostor/web/otkucaj-prisustva.ts` sa testom.
+- **Zaključavanje**: „Zaključaj/Otključaj" u bočnoj koloni i meniju „…" (`pages.lock/unlock`), traka „Zaključano…" za čitaoca.
+- **Povezano** u bočnoj koloni (`areasV2.listRelations/createRelation/deleteRelation`), **podstranice** iz S10 ostaju.
+- **Stranica-fajl i prilozi**: panel fajlova (prevlačenje, izbor, granice, preimenovanje, uklanjanje u Korpu sa „Poništi"), pregledač (slika, video, zvuk, PDF, ostalo sa „Preuzmi"), otpremanje priloga u telo beleške (traka, prevlačenje, lepljenje) i pregled bloka priloga.
+- **Stranica-tabela**: kolone (preimenuj, pomeri, obriši uz potvrdu), redovi (dodaj ispod, obriši uz potvrdu), ćelije u mestu, uvoz iz Excel-a ili CSV-a sa pregledom i serijama; „Uvezi tabelu (CSV/XLSX)" u uređivaču beleške. `read-excel-file` se učitava tek pri izboru fajla.
+- Dijalog „Nova stranica" i zaglavlje oblasti sada nude Belešku, Tabelu i Fajlove (zadatak čeka S12).
+
+**Paritet:**
+- Red 19 (prisustvo, zaključavanje, podstranice, povezano): gotovo.
+- Red 20 (komentari sa @): stranica i oblast gotovo; ideja dobija isti `CommentsSection` u S13. `checkpoint-comments-dialog` je spreman za korake zadatka (S12).
+- Red 21 (istorija sa „Vrati ovu verziju"): stranica i opis oblasti gotovo; zadatak u S12 (ista fioka).
+- Red 22 (stranica-tabela: kolone, redovi, uvoz CSV/XLSX): gotovo.
+- Red 23 (stranica-fajl, prilozi, pregled fajla): gotovo.
+- Red 18 (dopuna iz S10): otpremanje priloga i uvoz tabele u uređivaču sada rade.
+
+**ODLUKE:**
+1. **Granice su u `lib/prostor/ogranicenja.ts`**, kao ponovni izvoz iz `convex/prostor/lib/validators.ts` i `page_files.ts`, pa se web i server ne mogu razići. `lib/prostor/web/page-files.ts` (Devotion je imao svoje kopije brojeva) sada čita iste vrednosti. Tabela u belešci (100 × 20) je web pravilo iz Devotiona i stoji u istom fajlu. Granica tela beleške (80.000, `page_creation.ts`) nije izvezena na serveru, pa `note-table-import-dialog` zadržava svoju sigurnosnu granicu 78.000; backend nije menjan.
+2. **Dijalog „Nova stranica" ne prenosi Devotion forme za tabelu i fajlove** (ručne kolone, uvoz i izbor fajlova pre kreiranja, sa naknadnim brisanjem „ljuske" ako upis padne). Tabela i Fajlovi se prave prazni, stranica se odmah otvara, a uvoz i otpremanje su prvo dugme na njoj (isti moduli, isti `importRows`/`attach`). Funkcija ne nestaje, a ne pravi se druga kopija istog toka; dijalog to kaže jednom rečenicom. Toast posle kreiranja je „Stranica je kreirana." (Devotion „Fajl je kreirana" je bio u pogrešnom rodu).
+3. **Brisanje kolone i reda traži potvrdu** (`ConfirmDialog`), jer UI nema vraćanje (red je meko obrisan na serveru, ali nema „Poništi"). Devotion je brisao odmah. Uklanjanje fajla ide u Korpu, pa umesto potvrde nudi „Poništi" (`trash.restore`, isti obrazac kao Korpa stranice u S10).
+4. **Boja radnje nije stanje izbora:** izmena ćelije, prevlačenje fajla i „+" ivice tabele su neutralni (`surface-control*`, `line-strong`, `ring`), a pominjanje u komentaru je neutralan čip (`bg-surface-control`, podebljano), ne `text-primary`. Primarna je samo potvrda u dijalogu („Vrati verziju", „Uvezi", „Ubaci tabelu"), kao „Prepiši" u S10.
+5. **Radnje reda** (fajl, Povezano, komentar) su `ghost` ikonice koje se vide na prelaz ili fokus, a na dodir uvek (`pointer-coarse:opacity-100`). U redu fajla je ikonica „Otvori pregled" uklonjena, jer ime fajla otvara pregled (`title="Otvori pregled"`), a meta je „Slika · 2 KB" umesto „Fajl · Slika · 2 KB".
+6. **Prisustvo:** Devotion je slao otkucaj iz `setInterval`-a koji je radio i dok je kartica sakrivena (samo je preskakao slanje). Sada sat staje kad je kartica sakrivena, kako korak traži; `presence.leave` na `pagehide` i odlasku ostaje.
+7. **Pregled verzije beleške** je umotan u `NoteAttachmentsProvider` stranice, pa blok priloga u staroj verziji pokazuje fajl umesto „Fajl nije dostupan" (Devotion je fioku crtao van provajdera).
+8. **`checkpoint-comments-dialog` nema `workspaceId` prop** (kuke projekta ga ne traže); `MotionDialog` → `Dialog` sa `DialogClose`. Ime profila čita kroz `useQueryTolerant(api.prostor.profiles.getCurrent)` (L funkcija), pa front ima 51 direktan poziv (bio 50), svi sa spiska, bez novog izuzetka.
+9. **`NoteAttachmentsContext` se ne definiše dvaput:** `prilozi/note-attachments.tsx` puni kontekst iz `editor/prilozi-kontekst.ts` (S10), a `AttachedPageFile` ima jedan izvor (`lib/prostor/web/page-files.ts`).
+10. **Fiksture:** stranica 103 (tabela) više nije zaključana; zaključana je 104 („Kontrolna lista pre objave", autor Milica), da bi se u prikazu video slučaj „samo za čitanje". `SADRZAJ_PLACANJA` dobio blok priloga (`pageFilesux0105`). Adrese: `/enigma-it/stranica/pagesux0101?ux=1` (beleška), `pagesux0103` (tabela), `pagesux0107` (fajlovi), `pagesux0104` (zaključana), oblast `/enigma-it/dokumenti/areasux0001?ux=1`.
+11. Preneti fajlovi iz snimka su imali mešane CRLF/LF krajeve redova (`file-viewer-dialog`, `page-relations`, `page-table-panel`); svi S11 fajlovi su LF.
+12. Nijedan fajl čuvara nije menjan. Nov čuvar u `lib/prostor/web/table-file.test.ts` traži da se `read-excel-file` uvozi samo dinamički i samo u `table-file.ts`.
+
+**Novi paketi:** nema (`read-excel-file@9.3.5` je iz S02).
+
+**Testovi:** 37 novih, svi prolaze.
+
+| Fajl | Testova | Napomena |
+|---|---|---|
+| `lib/prostor/web/csv.test.ts` | 10 | preneto |
+| `lib/prostor/web/page-files.test.ts` | 12 | preneto |
+| `lib/prostor/web/otkucaj-prisustva.test.ts` | 6 | nov: 15 s, sakrivena kartica ne šalje, povratak šalje odmah, nema duplog sata, gašenje |
+| `lib/prostor/web/table-file.test.ts` | 9 | nov: CSV bez Excel čitača, Tiptap tabela, procena dužine, padež „red/reda/redova", granice = server, lenj `read-excel-file` |
+
+`collab-model` (15 testova) je prenet u S10. Ceo `npx vitest run`: 174 fajla, 2344 testa.
+
+**Rezultat provere:**
+- codegen: nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1209 upozorenja, kao i ranije);
+- vitest: prolazi (2344);
+- pristup: prolazi, front 51 direktan poziv, svi sa spiska;
+- regresije: prolaze (20; ultra 5, prostor 1); plafon boje modula 654/654, `font-mono` 254/254;
+- `npm run build` (sa `verify:purge`): prolazi.
+
+**Vizuelna provera** (Playwright, `next dev -p 3117`, ugašen na kraju):
+- Stranica (1536 × 695): „Marko uređuje", „Komentari 4", „Istorija", „Zaključaj", Povezano 2, blok priloga u telu.
+- Komentari: `@Ma` otvara listu, Enter ubacuje „@Marko Proba", Ctrl + Enter šalje i prazni polje.
+- Istorija: lista po danima, pregled verzije, potvrda i toast „Vraćena je verzija od juče u 01:52.".
+- Tabela: izmena ćelije u mestu, uvoz CSV-a (pregled, „Uvezi", toast „Uvezeno: 3 reda.").
+- Fajlovi: lista, radnje na prelaz, pregledač slike.
+- Zaključana stranica: samo za čitanje, bez dugmeta.
+- Oblast: Komentari 2 i „Istorija izmena".
+- 390 × 844: Povezano i komentari jedno ispod drugog, bez horizontalnog skrola.
+- Jedina greška u konzoli (Base UI `nativeButton` na „Preuzmi" kao `<a>`) je popravljena i ponovo proverena.
+- Dijalog konflikta i pravo otpremanje fajla nisu viđeni, jer lažni Convex nema skladište ni konflikt.
+
+**Dopuna provere** (drugi prolaz, isti `next dev -p 3117`, ugašen na kraju):
+- Otpremanje na stranici-fajl: lažni Convex nema skladište, pa je u stranici `fetch` ka lažnoj adresi za slanje vraćao `{ storageId }`. Izbor dva fajla (PDF i PNG) poslao je oba POST-a sa tačnim `Content-Type`, `attach` je prošao, a toast je javio uspeh. Tekst toasta za više fajlova je usput ispravljen u „Dodato fajlova: 2." (Devotion „Dodato je 2 fajlova" je bio gramatički pogrešan).
+- Otpremanje u telo beleške: izbor fajla kroz dugme priloga u traci uređivača ubacio je nov blok priloga (blokova 1 → 2), a autosave je stigao do „Sačuvano". Nov blok piše „Fajl nije dostupan." samo zato što lažni `pageFiles.list` ne vraća nov fajl; pravi Convex osvežava spisak sam.
+- Istorija opisa oblasti: izbor starije verzije, „Vrati ovu verziju", potvrda; dijalog se zatvorio, fioka se vratila na spisak i stigao je toast „Vraćena je verzija od …".
+- Konzola tokom drugog prolaza: 0 grešaka, 0 upozorenja.
+- Van obima prihvatanja i nevidljivo u razvojnom prikazu: dijalog konflikta (lažni Convex nikad ne vraća `KONFLIKT_IZMENA`; pokriva ga test modela iz S10) i stvarno skladište fajlova. To je u „Za Jovana ujutru"; nije BLOKADA, jer nijedna stavka prihvatanja od toga ne zavisi.
+- Pojašnjenje uz „čuvari": nijedan postojeći fajl čuvara (`scripts/verify-*`, `lib/*-cuvar*`, `lib/rutiranje.test.ts`, `lib/linkovi-cuvar.test.ts`, `scripts/verify-pristup.ts`) nije menjan. Nov je test u `lib/prostor/web/table-file.test.ts` koji čuva lenji uvoz `read-excel-file` (ODLUKA 12); on ništa postojeće ne slabi.
+
+**Prihvatanje (dokaz):**
+- „Na stranici rade komentari sa pominjanjem, istorija sa vraćanjem, oznaka „uređuje", zaključavanje, prilozi i tabela": vizuelna provera iznad i snimci `S11-komentari-1536.png`, `S11-istorija-1536.png`, `S11-tabela-1536.png`, `S11-fajl-1536.png`, `S11-stranica-390.png`.
+- „Čuvari prolaze; preneseni modeli imaju testove": pristup i regresije prolaze bez novih izuzetaka; preneti `csv` i `page-files` imaju svoje testove, a ritam prisustva i uvoz tabele nove (37).
+- „Provere prolaze; sekcija S11 je u progress-u": ovo je ta sekcija.
+
+**Za Jovana ujutru:**
+- Otvori stranicu u dve kartice istog naloga ili sa dva člana: u drugoj treba da piše „<Ime> uređuje" dok kucaš, i da nestane oko 45 s pošto sakriješ prvu karticu.
+- Pošalji komentar sa @pominjanjem i proveri da pomenuti dobija obaveštenje (backend iz S03/S06).
+- Otpremi pravi fajl (slika, PDF, video) na stranicu-fajl i u belešku; uvezi pravi `.xlsx` u tabelu.
+- Vrati stariju verziju beleške i opisa oblasti.
+- Ništa nije deployovano.

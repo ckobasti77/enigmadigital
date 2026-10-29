@@ -10,7 +10,8 @@ import type { PageFileCategory } from "@/lib/prostor/web/vrste-stranica";
  *
  * Kontekst je ovde, a ne kod priloga, da uređivač ne bi zavisio od panela
  * fajlova: blok priloga (`note-file-node.tsx`) samo čita spisak. Stranica ga
- * puni iz `pageFiles.list`; pregled i otpremanje dodaje modul priloga.
+ * puni iz `pageFiles.list`; pregled i otpremanje dodaje modul priloga
+ * (`prilozi/note-attachments.tsx`).
  */
 
 /** Red iz `pageFiles.list` — onoliko koliko treba prikazu u telu beleške. */
@@ -25,12 +26,7 @@ export type NoteAttachmentRow = {
 };
 
 /** Otpremljen prilog koji uređivač ubacuje kao blok (`noteFile`). */
-export type AttachedPageFile = {
-  fileId: Id<"pageFiles">;
-  name: string;
-  size: number;
-  category: PageFileCategory;
-};
+export type { AttachedPageFile } from "@/lib/prostor/web/page-files";
 
 export type NoteAttachmentsContextValue = {
   /** `undefined` dok se spisak još učitava. */
