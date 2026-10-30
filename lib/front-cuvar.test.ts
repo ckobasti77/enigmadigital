@@ -133,6 +133,44 @@ await drugi.query(api.prostor.areasV2.resolveRoute, { workspaceId });`,
     ]);
   });
 
+  test("ime klijenta projekta koje drugde u fajlu nosi drugi klijent je direktan poziv (S29)", () => {
+    const r = proveriFront(
+      [
+        fajl(
+          "components/app/prostor/mape/w.tsx",
+          `function A() {
+  const k = useProjekatKlijent();
+  return k.query(api.prostor.thoughts.getConnectedGroup, { nodeId });
+}
+function B() {
+  const k = useConvex();
+  return k.query(api.prostor.areasV2.resolveRoute, { workspaceId });
+}
+function C(p: unknown) {
+  let m = useProjekatKlijent();
+  m = useConvex();
+  return m.query(api.prostor.areasV2.resolveRoute, { workspaceId });
+}
+function D(klijent: ReturnType<typeof useConvex>) {
+  return klijent.query(api.prostor.areasV2.resolveRoute, { workspaceId });
+}
+function E() {
+  const klijent = useProjekatKlijent();
+  return klijent.query(api.prostor.thoughts.getConnectedGroup, { nodeId });
+}`,
+        ),
+      ],
+      DOZVOLJENI,
+    );
+    expect(r.pali.map((p) => [p.linija, p.funkcija])).toEqual([
+      [3, "prostor.thoughts.getConnectedGroup"],
+      [7, "prostor.areasV2.resolveRoute"],
+      [12, "prostor.areasV2.resolveRoute"],
+      [15, "prostor.areasV2.resolveRoute"],
+      [19, "prostor.thoughts.getConnectedGroup"],
+    ]);
+  });
+
   test("hookovi projekta, generička implementacija, komentar i string nisu direktan poziv", () => {
     expect(
       nadjiDirektnePozive(

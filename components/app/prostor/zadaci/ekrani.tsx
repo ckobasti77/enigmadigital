@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Lock } from "lucide-react";
 
+import { PageHeader } from "@/components/app/page-header";
 import { useMoze, useProjekat } from "@/components/app/projekat-provider";
 import { useDokumenti } from "@/components/app/prostor/dokumenti/dokumenti-kontekst";
 import { useProstorNavigacija } from "@/components/app/prostor/use-prostor-navigacija";
@@ -79,12 +80,15 @@ function ZadaciSadrzaj() {
 
   if (uloga !== null && !sme) {
     return (
-      <EmptyState
-        icon={Lock}
-        headingAs="h2"
-        title="Zadaci nisu dostupni."
-        description="Tvoja uloga u ovom projektu vidi samo brojeve."
-      />
+      <div className="flex w-full flex-col gap-6">
+        <PageHeader variant="module" title="Zadaci" />
+        <EmptyState
+          icon={Lock}
+          headingAs="h2"
+          title="Zadaci nisu dostupni."
+          description="Tvoja uloga u ovom projektu vidi samo brojeve."
+        />
+      </div>
     );
   }
   if (!projekat || !profil) return <TaskSectionsSkeleton />;

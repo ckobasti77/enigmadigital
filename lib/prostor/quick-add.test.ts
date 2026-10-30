@@ -94,7 +94,7 @@ describe("odredište brzog unosa", () => {
     for (const broken of [null, "", "{", "[]", "null", '{"kind":"startup"}', '{"kind":"x"}']) {
       expect(parseStoredDestination(broken)).toBeNull();
     }
-    expect(lastAreaKey("s1")).toBe("devotion:quick-add:area:s1");
+    expect(lastAreaKey("s1")).toBe("enigma:quick-add:area:s1");
   });
 });
 

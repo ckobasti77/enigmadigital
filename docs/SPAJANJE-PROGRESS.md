@@ -2334,3 +2334,226 @@ Nijedan nije u prvom učitavanju nijedne rute.
 - Pomoć za prečice (`?`) sada ima „Zatvori“ gore desno (ODLUKA 6).
 - Enigmina Podešavanja → GA4 na telefonu: tabele sa vodoravnim skrolom nisu dostupne tastaturom (ODLUKA 7). Ako želiš ispravku, omotač tabele dobija `tabIndex={0}` i ime.
 - Ništa nije deployovano.
+
+## S29 — Revizija: paritet, dozvole, regresije   (2026-10-30 02:20)
+**Fajlovi:**
+- Novo: `convex/prostor/izolacija.test.ts` (izolacija kroz svih 256 javnih funkcija radnog dela), `.nocni-run/spajanje/alati/s29-pregled.mjs` (pregled razvojnog prikaza), snimak `docs/spajanje/snimci/S29-posmatrac-zadaci-1536.png`.
+- Izmenjeno:
+  - `package-lock.json`: vraćene dve opcione zavisnosti `@tiptap/react` i šest `inBundle` unosa (nalaz 1);
+  - `lib/front-cuvar.ts` + `lib/front-cuvar.test.ts`: izuzetak za `useProjekatKlijent()` (nalaz 2);
+  - `components/app/prostor/{zadaci,ideje,dokumenti}/ekrani.tsx`: zaglavlje ekrana u zaključanom stanju posmatrača (nalaz 4);
+  - ključevi lokalnog skladišta `devotion:*` → `enigma:*`: `lib/prostor/quick-add.ts`, `lib/prostor/modeli/area-model.ts`, `lib/prostor/modeli/ideas-model.ts`, `components/app/prostor/poruke/chat-hub-container.tsx` i testovi `quick-add.test.ts`, `area-model.test.ts` (nalaz 6);
+  - `.gitignore`: `__pycache__/` (nalaz 7).
+- Obrisano: `components/app/prostor/zajednicko/use-debounced-callback.ts` (mrtav kod, nalaz 5), `.nocni-run/spajanje/alati/__pycache__/s26_sub.cpython-314.pyc` (nalaz 7).
+- Pomoćno (samo `tmp`): `.nocni-run/spajanje/tmp/s29/`. Tu su poređenje funkcija (`extrakt-*.json`, `uporedi.json`), poređenje testova (`paritet-testova.mjs/json`), izveštaj izolacije (`izolacija-izvestaj.json`), probe lockfile-a (`lock*/`, `fix*/`, `stab*/`), pregled ekrana (`pregled-1536.json`, `pregled-390.json`) i logovi provera.
+
+**Šta je urađeno:**
+- **Paritet:** svih 35 redova §6 provereno je na tri mesta:
+  - u kodu;
+  - u razvojnom prikazu: 59 ekrana na 1536 × 695 i na 390 × 844, plus 5 radnji;
+  - u testovima (tabela ispod).
+
+  Spisak Devotion javnih funkcija iz snimka uporeden je sa `convex/prostor/`, a svaki Devotion test fajl sa prenetim.
+- **Dozvole:** nov generički test napada svaku javnu funkciju radnog dela ID-jevima iz tuđeg projekta, kao napadač iz drugog projekta i kao `client_viewer`. Test je proveren sa dva namerna „mutanta“ i oba je uhvatio; originali su vraćeni:
+  - skinuta provera projekta u `ideas.vote`;
+  - skinuta provera vlasnika u `thoughts.getNote`.
+- **Regresije Enigme:**
+  - prolaze sve 21 regresione provere, uključujući `verify:leads-ui`, `verify:uvoz`, svih šest `verify:gads-*`, `verify:napredak`, `verify:obavestenja` i `verify:site-score`;
+  - u celom runu nisu dirani prijava, OAuth povratak, pravne strane, `convex/http.ts` ni `convex/auth.config.ts`;
+  - Enigmini ekrani se otvaraju bez greške: Leadovi i uvoz, kanali, komentari, oglasi, pravila, Novosti, Napredak, OpenReply, Podešavanja, panel, posmatrač, prijava i pozivnica.
+- **Pravila repoa:**
+  - izmene čuvara u runu samo uče nove putanje ili spuštaju plafone;
+  - `verify:purge` pokazuje 196 + 7;
+  - u kodu runa nema `TODO`/`FIXME`, `console.log`, `EkranUskoro` ni vidljivog „startup“, „radni prostor“ ili „Devotion“.
+- **Nalazi:** 13 (jedan kritičan, dva srednja, četiri niska, šest informativnih). Svi su popravljeni ili obrazloženi; BLOKADE nema.
+
+**Paritet (§6):**
+- Kolona „Prikaz“ je pregled S29 (`s29-pregled.mjs`): ekran se otvara, ima `h1`, konzola je bez grešaka i upozorenja, nema granice greške, a na 390 nema vodoravnog skrola. Uz to idu radnje proverene u koracima koji su red radili.
+- Kolona „Test“ je Devotion test → preneti test, sa brojem blokova Devotion/Enigma.
+
+| # | Funkcija | Mesto | Prikaz (S29) | Test (Devotion → Enigma) | Ishod |
+|---|---|---|---|---|---|
+| 1 | Moj dan | `/` Danas | ✓ (+ prazno) | `myDay` 17/17, `my-day-logic` 11/11, `my-day-model` 4/4, `side-model` 4/4, `plan-day-model` 4/4, `my-day` 19/19, `my-day-plan` 8/8; novi `danas-model`, `danas.test` | gotovo |
+| 2 | Brzi unos (`q`) | ljuska + ⌘K | ✓ radnja `q` | `quick-add` 17/17, `registry` → `registar` 15/15; nov `katalog` | gotovo |
+| 3 | Moji zadaci | `/moji-zadaci` | ✓ | `my-tasks-model` 8/8, `my-tasks` 6/6, `task-filters` 20/20, `tasks` 14/14 | gotovo |
+| 4 | Lični zadaci, „Premesti u projekat“ | `/moji-zadaci` | ✓ | `personalTasks` 13/13 | gotovo |
+| 5 | Inbox, „Čeka tebe“ | `/inbox` + zvono | ✓ + radnja zvono (Čeka te · Inbox) | `inbox` 23/23, `inbox.ideaVote` 5/5, `notifications` 13/13, deljeni `inbox` 31/31; nov `obavestenja` (web) | gotovo |
+| 6 | Poruke (DM, grupe, kanali, reakcije, prisustvo, pretraga) | `/poruke` | ✓ (spisak i DM) | `chat` 32/32, `chat.personal` 31/31, `chat.validator` 3/3, `chat-hub` 30/30, `mentions` 20/20; nov `poruke.test` | gotovo |
+| 7 | Beleške, „Pošalji u projekat“ | `/beleske` | ✓ | `thoughts.notes` 9/9, `notes` 23/23 | gotovo |
+| 8 | Mapa beleški projekta | `/[projekat]/beleske` | ✓ | `thought-hierarchy` 3/3 | gotovo |
+| 9 | Profil, obaveštenja, tiho vreme, web push | meni korisnika | ✓ radnja „Profil“ | `notificationSettingsCatalog` 6/6; Devotion nije imao test profila; novi `profiles.test`, `push`, `push-registracija` | gotovo |
+| 10 | Komandni centar | `/[projekat]` | ✓ (+ panel, posmatrač) | `command-center-model` 7/7, `command-center` 18/18, `stale` 7/7, `tasks.bulk` 23/23; nov `pocetna-model` | gotovo |
+| 11 | Zadaci tima | `/[projekat]/zadaci` | ✓ (+ `?filter=moji`, prazno, panel) | `tasks` 14/14, `task-row` 18/18, `task-sort` 9/9, `task-create` 14/14, `task-list` → `lista-zadataka` 10/10, `startup-tasks` 15/16 | gotovo |
+| 12 | Zadatak na celu stranu | `/stranica/[id]` | ✓ | `task-page-model` 14/14, `comments-focus` 4/4, `task-checkpoint-order` 3/3, `task-instructions-draft` 6/6, `taskCheckpoints` 13/12, `taskAssignees` 11/9 (S04 ODLUKA 11) | gotovo |
+| 13 | Ideje | `/[projekat]/ideje` | ✓ (+ detalj `?ideja=`) | `ideas-model` 21/21, `ideas` 2/2, `ideas.stage` 7/7, `idea-stages` 7/7 | gotovo |
+| 14 | Mapa ideja | Ideje → Mapa | prekidač je lokalan, pa ga pregled po adresi ne otvara; proveren u S14 | `map-model` 18/18, `canvas-nesting` 9/9, `collaboration` 10/10 | gotovo |
+| 15 | Poruke projekta | `/[projekat]/poruke` | ✓ | `chat` 32/32 | gotovo |
+| 16 | Oblasti | meni + `/dokumenti/[id]` | ✓ (Pregled, Zadaci, Dokumenti) | `areasV2` 27/25 (S03 ODLUKA 1), `area-model` 17/17, `projekat` (K20) | gotovo |
+| 17 | Stablo stranica | meni projekta | ✓ (stablo u meniju na svakom ekranu projekta) | `page-tree-model` 3/3, `moves` 7/7 | gotovo |
+| 18 | Stranica (Tiptap, autosave, konflikt) | `/stranica/[id]` | ✓ | `pages` 8/8, `pages.validator` 3/3, `page-autosave-model` 10/10, `page-document-model` 8/8, `page-entry-text` 3/3, `collab-model` 15/15 | gotovo |
+| 19 | Prisustvo, zaključavanje, podstranice, povezano | stranica | ✓ (i zaključana stranica) | `pages.collaboration` 11/11, `pages.security` 17/16 (S05 ODLUKA 4); nov `otkucaj-prisustva` | gotovo |
+| 20 | Komentari sa @ | stranica, oblast, ideja | ✓ | `comments` 29/29, `mentions` 20/20 | gotovo |
+| 21 | Istorija, „Vrati ovu verziju“ | stranica, oblast, zadatak | ✓ | `revisions` 3/3, `prostor.authz` 8/8; `dokumenti.test` (vraćanje verzije) | gotovo |
+| 22 | Stranica-tabela, uvoz CSV/XLSX | stranica | ✓ | `pageTables` 11/11, `csv` 10/10, `table-matrix` 10/10; nov `table-file` | gotovo |
+| 23 | Stranica-fajl, prilozi, pregled | stranica | ✓ | `pageFiles` 14/14, `page-files` 12/12 | gotovo |
+| 24 | Mapa oblasti i stranice | kartica „Mapa“ | ✓ (oblast i stranica) | `canvasPlacement` 1/1, `nesting-drop` 6/6, `perimeter-resize-geometry` 4/4, `task-checkpoint-layout` 5/5, `canvas-node-size` 6/4 (S14 ODLUKA 7) | gotovo |
+| 25 | Korpa | `/[projekat]/korpa` | ✓ | `trash` 13/13, `trash.nodelete` 3/3, deljeni `trash` 6/6, `trash-model` 7/7 | gotovo |
+| 26 | Aktivnost | `/[projekat]/aktivnost` | ✓ | `activity-format` 14/14, `activity-format-parity` 2/2 | gotovo |
+| 27 | Puls nedelje | `/[projekat]/puls` + kartica | ✓ | backend `puls` 11/11, web `puls` 9 → 13 | gotovo |
+| 28 | Podešavanja (opis, oblasti, tim, pozivnice, lozinke) | `/[projekat]/settings` | ✓ (Projekat, Oblasti, Lozinke, Pristup) | `projekat` (K20), `adminAuth` 6/11, `settings` 7/7; nov `kartice-podesavanja` | gotovo |
+| 29 | AI provajderi | Podešavanja → AI | ✓ | `aiProviders` 12/12; `sadrzaj.test` (ključ ne izlazi) | gotovo |
+| 30 | Pretraga (⌘K) | ⌘K | ✓ radnja ⌘K „plan“ (Stranice, Zadaci, Ideje, Poruke) | `search` 5/5; nov `pretraga-palete` | gotovo |
+| 31 | Podsetnici za rokove (6 h) | `convex/crons.ts` | — (nema ekrana) | `crons` 3/3, `notifications` 13/13; nov `obavestenja.test` (150 zadataka, 52 projekta) | gotovo |
+| 32 | Web push | zvono, podešavanja | ✓ bez ključa nema prekidača | `expoPush` 21/21; novi `obavestenja.test` (VAPID), `push`, `push-registracija` | gotovo; šalje tek uz VAPID |
+| 33 | Prečice (`q`, `?`, `j`/`k`/`x`) | ljuska | ✓ radnja `?` | `registry` → `registar` 15/15, `task-list` → `lista-zadataka` 10/10; nov `katalog` | gotovo |
+| 34 | Novi projekat sa oblastima i kanalima | `/novi` | ✓ | `startups` → `projekat` 9/8 (bez `isCurrentMember`, S01 §1.4; +4 nova) | gotovo |
+| 35 | Pozivnica u tim | Pristup + profil | ✓ (Pristup, `/pozivnica-ux`) | Devotion `invites` (3) se ne prenosi (Enigmine pozivnice, S01 §1.4); `pozivnice.test` +3 (S22) | gotovo |
+
+**Paritet funkcija (snimak → `convex/prostor/`):**
+- **Brojevi.** Devotion ima 271 javnu i 31 internu funkciju u 39 modula sa funkcijama. `convex/prostor/` ima 256 javnih (178 `projekat*`, 78 `prijavljen*`) i 19 internih.
+- **Poklapanje.** 263 funkcije se poklapaju po modulu i imenu. Jedna je promenila vidljivost: `pushTest.sendTest` je sada interna (S06 D12).
+- **Novo u Enigmi:**
+  - `projekat.*` (8): `listForCurrent`, `get`, `listMembers`, `createArea`, `updateArea`, `reorderAreas`, `pripremiRadniDeo`, `postaviOpis`;
+  - `veze.*` (3): `zadaciFirme`, `firma`, `noviZadatak`;
+  - interna `notifications.remindDueTasksForWorkspace`.
+- **Nije preneto 39 funkcija**, i svaka ima razlog u planu:
+  - `startups.*` (16), po tabeli zamena u S01 §7:
+    - `listForCurrent`, `get`, `listMembers`, `createArea`, `updateArea` i `reorderAreas` → `prostor.projekat.*`;
+    - `create` → `projekti.kreirajProjekat`;
+    - `update` → `projekti.azurirajProjekat` + `prostor.projekat.postaviOpis`;
+    - `archive` → `projekti.azurirajProjekat({ arhiviran })`;
+    - `generateLogoUploadUrl`, `setLogo` i `removeLogo` → Enigmin `podesavanjaStore`;
+    - `addMember` i `removeMember` → `invitesStore`/`membersStore`;
+    - `isCurrentMember` nema zamenu, jer ga ni Devotion web ne zove: u snimku ga koristi samo njegov test (S01 §1.4);
+  - `invites.*` (5) → Enigmine pozivnice (plan §4.2, S01);
+  - `profiles.getBootstrapState`, `listForStartup`, `listAll`, `setRole` i `archive` (5) → S01 D22 i D25 (`prostor.projekat.listMembers` i Enigmin Pristup);
+  - `adminAuth.resetAdminPassword` (interna) → plan §4.2;
+  - `areasV2Migrations.*` (6 internih) i `migrations.verify*` (7 internih) → P21 i plan §4.2. `verifyAreasV2` i dalje živi u `proveraOblasti.pomoc.ts`, samo za testove (S03 ODLUKA 5);
+  - moduli `auth`, `auth.config`, `http`, `crons`, `convex.config` i `schema` nemaju funkcije ili ih zamenjuje Enigma (plan §4.2).
+
+**Paritet testova:**
+- **Obim.** Devotion ima 118 test fajlova sa 1251 blokom: 49 backend, 26 deljena logika i 43 web.
+- **Preneto 108 fajlova.** Nije preneto 10, svaki sa razlogom:
+  - `invites`, `migrations` i `table-limits-parity` (S01 §1.4);
+  - web `izlog/params` (P23);
+  - `circular-text-layout`, koji je mrtav kod i u Devotionu (S07 §7.2);
+  - `motion/eases`, `number-roll` i `scale-property` (S07 §10 S08: Devotion pokret se ne prenosi).
+- **Manje blokova** ima sedam fajlova, svi sa razlogom:
+  - `areasV2` 27/25;
+  - `pages.security` 17/16;
+  - `taskAssignees` 11/9;
+  - `taskCheckpoints` 13/12;
+  - `startups` → `projekat` 9/8;
+  - `canvas-node-size` 6/4;
+  - `workspace-route` → `rute` 34/23 (parsiranje `?view=` se ne prenosi, S07 §4.1).
+- `lib/permissions` ima isti broj blokova, a 3 `expect(` manje (S02 ODLUKA 6).
+- Nijedno odstupanje nije bez dokumentovanog razloga.
+
+**Dozvole i privatnost:**
+- **Svaka javna funkcija ide kroz omotač.**
+  - `verify:pristup` pokazuje 635 / 620 / 15, bez novih `// javno:`.
+  - Svih 256 javnih funkcija radnog dela su `projekat*` sa `uloga: "urednik"` ili `"owner"`, ili `prijavljen*` (`verify:prostor-pristup` P1–P5).
+- **Dokument iz argumenta je iz istog projekta** (nov `convex/prostor/izolacija.test.ts`):
+  - **Seme** su dva puna projekta. U svakom su stranice svih vrsta, komentari, istorija, relacije, koraci, tabela, prilog sa blobom, ideje sa vezom i glasom, misli i niti, lične beleške i zadaci, Moj dan, prisustvo, push pretplata, kanali, DM, grupa, AI provajder, firma i redovi starih tokova.
+  - **Argumenti** se grade iz validatora svake funkcije (`exportArgs`), a ID-jevi dolaze iz tuđeg projekta.
+  - **Varijante:** „sve iz A“, „po jedan ID iz A uz ostale iz B“ i „projekat A“ (za napadača i za posmatrača).
+  - **Prekršaj** je: tekst ili ID iz A u odgovoru, izmenjen ili obrisan dokument iz A, ili nov dokument koji pokazuje na A.
+  - **Rezultat:** 256 funkcija, nijedna neizvršena zbog argumenata, nijedna bez dokumenta i 0 prekršaja.
+  - **Preostalih 5 odbijanja** koja nisu provera pristupa pročitao sam u kodu:
+    - kod `areasV2.updatePage` konflikt revizije dolazi pre provere izvršioca, a izvršioce posle proverava `requireProfilUProjektu`;
+    - `chat.updatePersonalGroup`, `pageFiles.reorder` i `tasks.bulkReschedule` pokrivaju `chat.personal`, `pageFiles` i `zadaci.test`.
+- **`client_viewer`:**
+  - Isti test traži da posmatraču ne prođe nijedna projektna funkcija sa `workspaceId` A i da mu nijedna lična ne pokaže ništa iz A.
+  - Na frontu je zaključano stanje viđeno na 10 ekrana radnog dela (`&uloga=client_viewer`).
+- **Spisak ljudi (P9):**
+  - Imena ljudi koji su samo u A nose oznaku. `chat.listPeople`, `projekat.listMembers`, DM i grupe ih napadaču ne vraćaju i ne prihvataju.
+  - Pokrivaju ih i `poruke.test` (S06, S15) i `chat.personal`.
+- **Lični nivo:** svih 78 `prijavljen*` funkcija je napadnuto ID-jevima iz A. Isto pokrivaju i `danas.test` i `zadaci.test`.
+- **AI ključ:**
+  - `sadrzaj.test` (S05) proverava da ključ nije ni u jednom odgovoru javnih funkcija.
+  - Nov test potvrđuje da ni napadač ni posmatrač ne dobijaju provajdera iz A.
+- **Push bez ključa:** pokrivaju ga `obavestenja.test` (bez `VAPID_*` slanje se preskače, bez greške), `push.test` i `push-registracija.test`.
+- **Prijava i pozivnice (S22):**
+  - `consumeOpenInvite` i `prihvatiPozivnicu` su do poslednjeg reda isti kao na `main`: token, kapija `vecClan`, redosled `patch` → `insert members` i ishod.
+  - Jedini dodatak je `obezbediProfilPozvanog`, posle članstva.
+  - `obezbediProfil` baca samo pre upisa (nalog bez e-pošte, nevažeće ime), pa progutana greška ne ostavlja poluupis.
+  - Bez `owner`/`urednik` članstva `obezbediProfil` vraća `null`, pa `client_viewer` profil ne dobija (test u `pozivnice.test`).
+
+**Lista nalaza:**
+
+| # | Ozbiljnost | Oblast | Fajl | Nalaz | Ishod |
+|---|---|---|---|---|---|
+| 1 | kritično | paketi | `package-lock.json` | Sa npm 11 (Node 24, a time i Vercel) `npm ci` pada: „Missing: @tiptap/extension-bubble-menu@3.29.2, @tiptap/extension-floating-menu@3.29.2 from lock file“. To su opcione zavisnosti `@tiptap/react` koje je S10 izbacio pri ručnom čišćenju ugnežđenih unosa. Sa `main` lockfile-om npm 11 `ci` prolazi. | Popravljeno. Vraćena su dva unosa 3.29.2 (kao u Devotion lockfile-u i u `overrides`) i šest `inBundle` unosa `@tailwindcss/oxide-wasm32-wasi`, koje npm 10.9.8 i npm 11.21.1 sami dodaju (i nad `main`). U čistoj kopiji, sa obe verzije, `npm ci --dry-run --ignore-scripts` prolazi, a `npm install --package-lock-only --ignore-scripts` ne menja lockfile. |
+| 2 | srednje | dozvole (čuvar) | `lib/front-cuvar.ts` | Izuzetak za `useProjekatKlijent()` (S14 ODLUKA 8) pamti ime promenljive za ceo fajl. Zato bi `k.query(api…)` prošao kao klijent projekta i kad je `k` u drugoj funkciji istog fajla `useConvex()`, parametar ili nova dodela. Sama kuka uvek ubacuje `workspaceId` posle argumenata, pa ga poziv ne može prepisati. | Popravljeno. Ime važi samo ako ga nijedna druga deklaracija, parametar ni dodela u fajlu ne vezuje za nešto drugo; nov test ima 5 slučajeva. Front i dalje ima 161 direktan poziv, 0 nedozvoljenih. |
+| 3 | srednje | dozvole (testovi) | `convex/prostor/izolacija.test.ts` | Izolacija je bila dokazana za oko 60 funkcija, svaka posebno; za ostale nije bilo testa. | Popravljeno: generički test kroz svih 256 funkcija, 0 prekršaja, potvrđen mutantima. |
+| 4 | nisko | pristupačnost | `zadaci/ekrani.tsx`, `ideje/ekrani.tsx`, `dokumenti/ekrani.tsx` | Zaključano stanje posmatrača nema `h1` na Zadacima, Idejama i Dokumentima (oblast, stranica). Na Porukama, Korpi, Pulsu, Aktivnosti i Beleškama ga ima. | Popravljeno: `PageHeader` kao u Korpi; snimak `S29-posmatrac-zadaci-1536.png`. |
+| 5 | nisko | mrtav kod | `components/app/prostor/zajednicko/use-debounced-callback.ts` | Prenet u S08, a niko ga ne zove; i u Devotionu ga koristi samo sopstveni fajl. | Uklonjen. |
+| 6 | nisko | nazivi | `quick-add.ts`, `area-model.ts`, `ideas-model.ts`, `chat-hub-container.tsx` | Ključevi lokalnog skladišta počinju sa `devotion:`, a Enigmini (i `enigma:danas:grupisanje` iz S19) sa `enigma:`. | Ujednačeno na `enigma:*` (5 ključeva, 2 testa); podaci su probni (O6). |
+| 7 | nisko | ostaci | `.nocni-run/spajanje/alati/__pycache__/s26_sub.cpython-314.pyc` | Python keš je komitovan u S26. | Fajl uklonjen; `__pycache__/` je dodat u `.gitignore`. |
+| 8 | info | paketi | `package-lock.json` | Lockfile nema `libc` polja (S02 ODLUKA 12). npm 10 ih skida i nad `main`, a npm 11 ih ne vraća. | Bez izmene; lockfile je stabilan za obe verzije. |
+| 9 | info | mrtav kod | `mape/thought-sidebar-drag.tsx`, `ja/brzi-unos/thought-destination-picker.tsx` | Preneti su, ali nisu montirani (S14 ODLUKA 6, S16 ODLUKA 7). U snimku `workspace-shell.tsx` poziva `setSidebarDragRequest` i `setDestinationRequest` samo sa `null`, a `<ThoughtsCanvasView>` crta bez `onBeginSidebarDrag` i `onRequestDestination`. | Potvrđeno da su mrtvi i u Devotionu; ostaju kao svestan izuzetak. |
+| 10 | info | testovi | `lib/prostor/web/canvas-node-size.test.ts` | Dva nepreneta testa („mobilna kopija se ne razilazi…“ i „preseti sheet-a…“) uvoze `../../mobile/src/lib/canvas-node-size`. | Potvrđeno: porede kopiju za telefon, koje u Enigmi nema (S14 ODLUKA 7). |
+| 11 | info | mrtav kod | 339 dodatih fajlova | 348 izvoza nema korisnika van svog fajla. To su tipovi propsa (obrazac kontejner → prikaz) i pomoćne funkcije prenetih modula, delom korišćene samo u testovima. Celih nekorišćenih fajlova nema, osim onih iz nalaza 5 i 9 i `podaci/tipovi.ts`, koji služi samo za typecheck (S07 §3.1). | Bez izmene (nije greška). |
+| 12 | info | BLOKADA S16 | — | Playwright MCP proces harnessa nije stvarna blokada. | Rešeno, bez popravke. |
+| 13 | info | paritet | — | Nepreneto je 39 Devotion funkcija i 10 test fajlova. | Svaka stavka ima razlog u planu (spisak iznad). |
+
+**ODLUKE:**
+1. **Lockfile dobija i šest `inBundle` unosa Tailwind wasm paketa**, a ne samo dva Tiptap unosa.
+   - Napomena iz nadzora traži da `npm install --package-lock-only` ne menja lockfile. Bez tih unosa bi ga menjao, isto kao nad `main`.
+   - Oba npm-a (10.9.8 i 11.21.1) daju bajt-isti rezultat.
+   - Unosi su opcioni razvojni paketi za `wasm32` i ništa ne instaliraju ni na Windows-u ni na Linuxu.
+   - Paket van P10 nije uveden: obe Tiptap zavisnosti su deo stabla `@tiptap/react@3.29.2` i od S10 stoje u `overrides`.
+2. **Čuvar fronta je pooštren, ne oslabljen** (čuvar se sme menjati samo da nauči novu putanju ili da postane stroži). Dvosmisleno ime se sada računa kao direktan poziv. Nijedan postojeći poziv u kodu ga ne pogađa.
+3. **Generički test izolacije je u `convex/prostor/`.** Pušta ga `npx vitest run` i traje oko 30 s.
+   - Test ne broji brojčano curenje (npr. broj komentara).
+   - Za funkcije koje vraćaju brojeve pročitao sam kod: `comments.countFor` filtrira po projektu, a `pages.childCounts` po svojoj oblasti.
+4. **Zaključano stanje posmatrača dobija `PageHeader`**, a ne samo `h1` u praznom stanju. Isti obrazac već imaju Korpa, Puls, Aktivnost, Beleške i Poruke, pa nijedan čuvar nije menjan.
+5. **Nekorišćeni izvozi (nalaz 11) se ne skidaju.** To bi bila prepravka ispravnog koda, a korak to zabranjuje.
+
+**Novi paketi:** nema.
+
+**Testovi:**
+- nov `convex/prostor/izolacija.test.ts` (1 test, 256 funkcija, oko 850 poziva);
+- `lib/front-cuvar.test.ts`: +1;
+- u `quick-add.test.ts` i `area-model.test.ts` prepravljen je po jedan očekivani ključ, zbog preimenovanja (nalaz 6). Provera nije oslabljena.
+
+Ceo `npx vitest run`: 209 fajlova, 2651 test.
+
+**Rezultat provere:**
+- codegen: izlaz 0;
+- typecheck: prolazi;
+- lint: 0 grešaka (1210 upozorenja, kao i pre);
+- vitest: prolazi (209 / 2651);
+- pristup: 635 / 620 / 15, front 161 direktan poziv, 0 nedozvoljenih;
+- regresije: prolaze (21; ultra 5, prostor 2);
+- `verify:purge`: 196 + 7.
+
+**Vizuelna provera:**
+- `next dev -p 3117` je pušten kao zaseban proces i proveren pre upotrebe. Na kraju je ugašen, a port 3117 ne sluša.
+- `s29-pregled.mjs` je otvorio 59 ekrana na 1536 × 695 i na 390 × 844. Posle popravke nalaza 4 nema nijednog nalaza.
+- Radnje `q`, `?`, ⌘K „plan“, zvono i „Profil“ rade, a konzola je bez grešaka.
+
+**Prihvatanje (dokaz, stavka po stavka iz `prompts/S29.md`):** sadržaj sekcije proverava `.nocni-run/spajanje/tmp/s29/prihvatanje.mjs`.
+1. „Tabela pariteta pokriva sva 35 reda sa ishodom“: ispunjeno. Tabela ima redove 1–35, svaki tačno jednom i svaki sa ishodom:
+   - „gotovo“ × 34;
+   - „gotovo; šalje tek uz VAPID“ × 1.
+2. „Lista nalaza ima ishode“: ispunjeno. Svih 13 nalaza ima ishod.
+3. „Nijedan kritičan nalaz nije ostao otvoren bez BLOKADE“: ispunjeno. Jedini kritičan nalaz (#1, lockfile) je popravljen i ponovo proveren u svežoj kopiji `package.json` + `package-lock.json`:
+   - npm 10.9.8: `npm ci --dry-run --ignore-scripts` izlaz 0, `npm install --package-lock-only --ignore-scripts` izlaz 0, lockfile bajt-isti;
+   - npm 11: isto, `ci` bez ijedne poruke „Missing:“.
+4. „Provere prolaze“: ispunjeno. Posle poslednje izmene koda sve su ponovo puštene:
+   - codegen izlaz 0;
+   - typecheck izlaz 0;
+   - lint izlaz 0 (0 grešaka);
+   - `npx --no-install vitest run` izlaz 0 (209 / 2651);
+   - `verify-pristup` izlaz 0 (635 / 620 / 15, front 161 / 0);
+   - `regresije.mjs` izlaz 0 (21).
+5. „Sekcija S29 je u `docs/SPAJANJE-PROGRESS.md`“: ispunjeno. Ovo je ta sekcija.
+
+**BLOKADA:** nema.
+
+**Za Jovana ujutru:**
+- Posle povlačenja izmena pusti `npm ci`. Lockfile sada prolazi i sa npm 11 (nalaz 1). Bez ove popravke bi `npm ci` na Vercelu (Node 24) pao.
+- Posmatrač na Zadacima, Idejama i Dokumentima sada vidi naslov ekrana iznad poruke „… nisu dostupni.“.
+- Zapamćeni izbori se vraćaju na podrazumevane, jer su ključevi preimenovani. To su prikaz Ideja, kartica oblasti, odredište brzog unosa i sklopljene grupe u Porukama.
+- Ništa nije deployovano.

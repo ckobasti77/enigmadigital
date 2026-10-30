@@ -19,11 +19,11 @@ import type { TaskPriorityKey } from "./task-sort";
 /** Isto kao `MAX_PERSONAL_TASK_TITLE_LENGTH` i naslov stranice na serveru. */
 export const QUICK_ADD_TITLE_MAX = 200;
 
-export const QUICK_ADD_LAST_DESTINATION_KEY = "devotion:quick-add:destination";
+export const QUICK_ADD_LAST_DESTINATION_KEY = "enigma:quick-add:destination";
 
 /** Ključ skladišta za poslednju oblast po startupu. */
 export function lastAreaKey(workspaceId: string): string {
-  return `devotion:quick-add:area:${workspaceId}`;
+  return `enigma:quick-add:area:${workspaceId}`;
 }
 
 export type QuickAddStartup = {

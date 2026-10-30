@@ -64,7 +64,7 @@ export const IDEAS_VIEW_MODES: ReadonlyArray<{ value: IdeasViewMode; label: stri
   { value: "mapa", label: "Mapa" },
 ];
 
-export const IDEAS_VIEW_STORAGE_KEY = "devotion:ideje:prikaz";
+export const IDEAS_VIEW_STORAGE_KEY = "enigma:ideje:prikaz";
 
 export function isIdeasViewMode(value: unknown): value is IdeasViewMode {
   return value === "tabla" || value === "lista" || value === "mapa";

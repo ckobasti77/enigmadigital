@@ -39,12 +39,15 @@ function RadniDeo({ children, skeleton }: { children: ReactNode; skeleton: React
   const { projekat, profil } = useDokumenti();
   if (uloga !== null && !sme) {
     return (
-      <EmptyState
-        icon={Lock}
-        headingAs="h2"
-        title="Dokumenti nisu dostupni."
-        description="Tvoja uloga u ovom projektu vidi samo brojeve."
-      />
+      <div className="flex w-full flex-col gap-6">
+        <PageHeader variant="module" title="Dokumenti" />
+        <EmptyState
+          icon={Lock}
+          headingAs="h2"
+          title="Dokumenti nisu dostupni."
+          description="Tvoja uloga u ovom projektu vidi samo brojeve."
+        />
+      </div>
     );
   }
   if (projekat === undefined || !profil) return <>{skeleton}</>;

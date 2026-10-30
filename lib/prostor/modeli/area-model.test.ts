@@ -59,7 +59,7 @@ describe("kartice oblasti (P12, K07 E15)", () => {
     const storage = memoryStorage();
     rememberAreaTab(storage, "area-1", "dokumenti");
     expect(storage.data.get(areaTabStorageKey("area-1"))).toBe("dokumenti");
-    expect(areaTabStorageKey("area-1")).toBe("devotion:oblast:area-1:tab");
+    expect(areaTabStorageKey("area-1")).toBe("enigma:oblast:area-1:tab");
     expect(readRememberedAreaTab(storage, "area-1")).toBe("dokumenti");
     expect(readRememberedAreaTab(storage, "area-2")).toBeNull();
     expect(readRememberedAreaTab(memoryStorage({ [areaTabStorageKey("area-1")]: "kanvas" }), "area-1")).toBeNull();

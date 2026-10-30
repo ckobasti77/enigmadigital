@@ -105,3 +105,6 @@ nocni-run/ux/b*
 # Tailwind skenira repo, pa bi tekst greške iz loga postao klasa (SPAJANJE S08).
 docs/spajanje/snimci/*.log
 docs/spajanje/snimci/*.yml
+
+# Python keš pomoćnih skripti runa (SPAJANJE S29)
+__pycache__/

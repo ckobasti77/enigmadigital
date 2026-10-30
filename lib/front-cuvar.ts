@@ -100,21 +100,37 @@ function jePozivKlijentaProjekta(izraz: ts.Expression): boolean {
   );
 }
 
-/** Imena promenljivih u fajlu dodeljenih iz `useProjekatKlijent()`. */
+/**
+ * Imena promenljivih u fajlu dodeljenih iz `useProjekatKlijent()`. Ime se
+ * pamti po tekstu, ne po opsegu, pa se računa samo ako ga nijedna druga
+ * deklaracija ni dodela u fajlu ne vezuje za nešto drugo (npr. `useConvex()`
+ * pod istim imenom u drugoj funkciji, SPAJANJE S29).
+ */
 function klijentiProjekta(izvor: ts.SourceFile): Set<string> {
   const imena = new Set<string>();
+  const drugo = new Set<string>();
   const obidji = (cvor: ts.Node): void => {
-    if (
-      ts.isVariableDeclaration(cvor) &&
-      ts.isIdentifier(cvor.name) &&
-      cvor.initializer !== undefined &&
-      jePozivKlijentaProjekta(cvor.initializer)
+    if (ts.isVariableDeclaration(cvor) && ts.isIdentifier(cvor.name)) {
+      const izKuke =
+        cvor.initializer !== undefined && jePozivKlijentaProjekta(cvor.initializer);
+      (izKuke ? imena : drugo).add(cvor.name.text);
+    } else if (
+      ts.isBinaryExpression(cvor) &&
+      cvor.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+      cvor.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+      ts.isIdentifier(cvor.left)
     ) {
-      imena.add(cvor.name.text);
+      drugo.add(cvor.left.text);
+    } else if (
+      (ts.isParameter(cvor) || ts.isBindingElement(cvor)) &&
+      ts.isIdentifier(cvor.name)
+    ) {
+      drugo.add(cvor.name.text);
     }
     ts.forEachChild(cvor, obidji);
   };
   obidji(izvor);
+  for (const ime of drugo) imena.delete(ime);
   return imena;
 }
 

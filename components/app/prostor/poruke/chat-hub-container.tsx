@@ -51,7 +51,7 @@ export type ChatHubContainerProps = {
 
 type HubData = HubInput<ChatChannel> & { capped: boolean };
 
-const COLLAPSED_KEY = "devotion:me-chat:collapsed";
+const COLLAPSED_KEY = "enigma:me-chat:collapsed";
 const STARTUP_MEMBERS_LIMIT = 50;
 
 function readCollapsed(): Set<string> {

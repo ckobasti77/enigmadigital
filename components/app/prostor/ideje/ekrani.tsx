@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Lock } from "lucide-react";
 
+import { PageHeader } from "@/components/app/page-header";
 import { useMoze, useProjekat } from "@/components/app/projekat-provider";
 import { useDokumenti } from "@/components/app/prostor/dokumenti/dokumenti-kontekst";
 import { useProstorNavigacija } from "@/components/app/prostor/use-prostor-navigacija";
@@ -45,12 +46,15 @@ function IdejeSadrzaj() {
 
   if (uloga !== null && !sme) {
     return (
-      <EmptyState
-        icon={Lock}
-        headingAs="h2"
-        title="Ideje nisu dostupne."
-        description="Tvoja uloga u ovom projektu vidi samo brojeve."
-      />
+      <div className="flex w-full flex-col gap-6">
+        <PageHeader variant="module" title="Ideje" />
+        <EmptyState
+          icon={Lock}
+          headingAs="h2"
+          title="Ideje nisu dostupne."
+          description="Tvoja uloga u ovom projektu vidi samo brojeve."
+        />
+      </div>
     );
   }
   if (!projekat || !profil) {

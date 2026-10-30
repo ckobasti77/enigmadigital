@@ -30,7 +30,7 @@ export const AREA_TAB_LABELS: Record<AreaTab, string> = {
 
 /** Ključ zapamćene kartice po oblasti (K07 E15). */
 export function areaTabStorageKey(areaId: string): string {
-  return `devotion:oblast:${areaId}:tab`;
+  return `enigma:oblast:${areaId}:tab`;
 }
 
 type TabStorage = Pick<Storage, "getItem" | "setItem">;
