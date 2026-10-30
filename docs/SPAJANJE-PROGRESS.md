@@ -2557,3 +2557,53 @@ Ceo `npx vitest run`: 209 fajlova, 2651 test.
 - Posmatrač na Zadacima, Idejama i Dokumentima sada vidi naslov ekrana iznad poruke „… nisu dostupni.“.
 - Zapamćeni izbori se vraćaju na podrazumevane, jer su ključevi preimenovani. To su prikaz Ideja, kartica oblasti, odredište brzog unosa i sklopljene grupe u Porukama.
 - Ništa nije deployovano.
+
+## S30 — Završni izveštaj, merenje, snimci   (2026-10-30 06:35)
+**Fajlovi:**
+- Novo: `docs/SPAJANJE-REPORT.md` (odeljci 0–11).
+- Novo: `.nocni-run/spajanje/merenje.cjs`, kopija ULTRA1 alata. Enigmini ekrani su pod `/enigma-it/…`, dodata su 33 ekrana radnog dela, a sažetak se računa posebno za Enigmu i radni deo. Polazna vrednost je ULTRA1 T14.
+- Novo: `.nocni-run/spajanje/alati/s30-snimci.mjs` (završni snimci).
+- Novo: `docs/spajanje/merenja/SPAJANJE.jsonl`, `SPAJANJE-sazetak.json`, `SPAJANJE-sazetak.md` (184 merenja).
+- Novo: `docs/spajanje/snimci/S30-*.png`, 12 ekrana × 1536 i 390 (24 snimka): Danas, Moji zadaci, Inbox, Poruke, Svi projekti, Početna projekta, Zadaci, Zadatak, Stranica, Ideje, Mapa oblasti, Firma → Zadaci.
+- Pomoćno (samo `tmp`): `.nocni-run/spajanje/tmp/s30/` (izvodi ODLUKA iz S02–S28), `napravi-merenje.cjs`, `s30-popuni.cjs`, logovi provera i merenja.
+
+**Šta je urađeno:**
+- Napisan je izveštaj za Jovana: ukratko, pregled grane, urađeno po oblasti, paritet (35 redova iz S29), šta nije urađeno, BLOKADE, odluke za potvrdu (P1–P28 i 42 odluke ukusa iz koraka), deploy redom, ručne provere, brojevi, rezultat provera i zatečeno.
+- Dva radnika (Sonnet) izvukla su ODLUKE, BLOKADE i stavke „Za Jovana“ iz S02–S28. Izbor odluka ukusa i politike za izveštaj je moj.
+- Merenje je pušteno nad svih 93 ekrana na 1536 i 390. Enigma je ostala na nivou T14: 0 sitnog teksta i 17 ekrana bez primarnog dugmeta iznad preloma. Male mete na 390 pale su sa 15,3 % na 13,3 %. Radni deo ima 0 sitnog teksta, 3,6 % malih meta i nijedan vodoravni preliv.
+- Snimljeno je 24 završna snimka. Svi ekrani su bez greške u konzoli. Na stranici i zadatku pregled javlja prazan `h1`, jer je naslov polje za unos unutar `h1`; `h1` postoji i vidi se.
+
+**Paritet:** svih 35 redova §6 je u izveštaju sa ishodom iz S29: „gotovo“ × 34 i „gotovo; šalje tek uz VAPID“ × 1.
+
+**ODLUKE:**
+1. **Merenje ide kroz kopiju `.nocni-run/spajanje/merenje.cjs`**, jer ULTRA1 alat ne zna nove ekrane i gađa stare adrese bez projekta (`/leadovi`, a `/` je sada Danas). Enigmin spisak je isti, samo dobija prefiks `/enigma-it`. Polazna vrednost je T14 (poslednje merenje `main`-a pre runa), a ne revizija od 27. 10. Tako „pre/posle“ meri baš ovaj run.
+2. **Dva zastarela klika** iz ULTRA1 spiska (`ljuska-meni` i `ljuska-danas` na 390) nisu prepravljena. Tako Enigmin spisak ostaje uporediv sa T14. U izveštaju je zapisano da su ta dva ekrana izmerena bez otvorenog sloja.
+3. **Brojevi „pre runa“** su izračunati iz progress-a, ne izmereni na `main`-u, jer je `checkout` zabranjen:
+   - testovi 1.168 / 69 piše i u `ULTRA1-REPORT.md`;
+   - javnih funkcija 379 = 635 − 256 radnog dela;
+   - tabela 145 = 196 − 51;
+   - regresija 19 = 20 iz S02 − `verify:prostor-pristup`.
+4. **Predlog za staru Devotion produkciju:** ostaje dok tim ne proveri spojenu verziju, a zatim trajno preusmerenje na `digital.enigmait.rs`. Njen Convex se ne briše do runa za telefon. Ovo je samo predlog; ništa nije urađeno.
+5. **Odluke ukusa u izveštaju su izbor**, ne sve odluke. Tehničke odluke ostaju samo u progress-u, a izveštaj upućuje na korake (npr. „S06 O1“).
+
+**Novi paketi:** nema.
+
+**Testovi:** nijedan nov. Ceo `npx vitest run`: 209 fajlova, 2651 test.
+
+**Rezultat provere:**
+- codegen: nije potreban (`convex/` nije menjan);
+- typecheck: prolazi;
+- lint: 0 grešaka (1210 upozorenja);
+- vitest: prolazi (209 / 2651);
+- pristup: 635 / 620 / 15, front 161, 0 nedozvoljenih;
+- regresije: prolaze (21; ultra 5, prostor 2);
+- `npm run build` sa `verify:purge`: prolazi.
+
+Dev server (`next dev -p 3117`) je pušten kao zaseban proces i na kraju ugašen; port 3117 je slobodan.
+
+**BLOKADA:** nema.
+
+**Za Jovana ujutru:**
+- Počni od `docs/SPAJANJE-REPORT.md`. Odeljak 8 je redosled ručnih provera, a odeljak 7 deploy redom.
+- Odluke za potvrdu su u odeljku 6.
+- Ništa nije deployovano.

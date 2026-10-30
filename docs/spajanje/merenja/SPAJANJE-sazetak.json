@@ -1,0 +1,260 @@
+{
+  "oznaka": "SPAJANJE",
+  "vreme": "2026-10-30T05:29:36.646Z",
+  "polazno": {
+    "1536x695": {
+      "ekrana": 60,
+      "tekstCvorova": 10474,
+      "tekstIspod12": 0,
+      "primarnoBezAtf": 17,
+      "najduze": "uvoz-pregled 8,95 · podesavanja 6,73",
+      "boje": "11 / 16"
+    },
+    "390x844": {
+      "ekrana": 56,
+      "meta": 1964,
+      "metaIspod44": 301,
+      "udeo": "15,3 %",
+      "tekstCvorova": 8182,
+      "tekstIspod12": 0,
+      "traka": "101 px",
+      "preliv": "instagram-komentari"
+    }
+  },
+  "posle": {
+    "1536x695": {
+      "ekrana": 60,
+      "greske": [],
+      "tekstCvorova": 11576,
+      "tekstIspod12": 0,
+      "ekranaSaTekstomIspod12": 0,
+      "najviseSitnogTeksta": [],
+      "meta": 4352,
+      "metaIspodPraga": 426,
+      "udeoMetaIspodPraga": 9.8,
+      "najviseMalihMeta": [
+        "leadovi-tabela 50/237",
+        "leadovi-tabela-kolone 50/237",
+        "kontrolna-tabla 19/149",
+        "analitika-sadrzaj 19/70",
+        "uvoz-pregled 18/254",
+        "threads 15/71",
+        "analitika 14/75",
+        "oglasi 14/80"
+      ],
+      "defaultDugmadIznadPreloma": 0,
+      "primarnaIznadPreloma": 41,
+      "ekranaBezPrimarnogIznadPreloma": 17,
+      "ekranaSaViseOdJednogPrimarnogIznadPreloma": [],
+      "najduzeStrane": [
+        "uvoz-pregled 8.95",
+        "podesavanja 6.73",
+        "threads 5.65",
+        "youtube 4.9",
+        "uvoz-nereseno 4.85"
+      ],
+      "medijanaBojaTeksta": 11,
+      "medijanaBojaPozadine": 19,
+      "vodoravniPreliv": [
+        "leadovi-tabela-kolone"
+      ],
+      "najvisaGornjaTraka": 96,
+      "greskeKonzole": 2
+    },
+    "390x844": {
+      "ekrana": 56,
+      "greske": [],
+      "tekstCvorova": 8240,
+      "tekstIspod12": 0,
+      "ekranaSaTekstomIspod12": 0,
+      "najviseSitnogTeksta": [],
+      "meta": 2158,
+      "metaIspodPraga": 287,
+      "udeoMetaIspodPraga": 13.3,
+      "najviseMalihMeta": [
+        "leadovi-tabela 101/238",
+        "uvoz-pregled 50/222",
+        "facebook 14/48",
+        "threads 14/37",
+        "youtube 13/54",
+        "oglasi 12/46",
+        "leadovi-mapa-panel 12/59",
+        "analitika 10/40"
+      ],
+      "defaultDugmadIznadPreloma": 0,
+      "primarnaIznadPreloma": 37,
+      "ekranaBezPrimarnogIznadPreloma": 17,
+      "ekranaSaViseOdJednogPrimarnogIznadPreloma": [],
+      "najduzeStrane": [
+        "podesavanja 10.58",
+        "uvoz-pregled 9.08",
+        "threads 8.94",
+        "leadovi-tabela 8.81",
+        "youtube 7.85"
+      ],
+      "medijanaBojaTeksta": 8,
+      "medijanaBojaPozadine": 15,
+      "vodoravniPreliv": [
+        "instagram-komentari"
+      ],
+      "najvisaGornjaTraka": 101,
+      "greskeKonzole": 1
+    }
+  },
+  "prostor": {
+    "1536x695": {
+      "ekrana": 33,
+      "greske": [],
+      "tekstCvorova": 3401,
+      "tekstIspod12": 0,
+      "ekranaSaTekstomIspod12": 0,
+      "najviseSitnogTeksta": [],
+      "meta": 2026,
+      "metaIspodPraga": 73,
+      "udeoMetaIspodPraga": 3.6,
+      "najviseMalihMeta": [
+        "zadaci 16/80",
+        "moji-zadaci 14/56",
+        "stranica-tabela 8/117",
+        "ideje 6/87",
+        "oblast-zadaci 6/84",
+        "svi-projekti 3/37",
+        "novi-projekat 3/23",
+        "stranica 3/94"
+      ],
+      "defaultDugmadIznadPreloma": 0,
+      "primarnaIznadPreloma": 17,
+      "ekranaBezPrimarnogIznadPreloma": 16,
+      "ekranaSaViseOdJednogPrimarnogIznadPreloma": [],
+      "najduzeStrane": [
+        "stranica 2.86",
+        "aktivnost 2.49",
+        "puls 2.34",
+        "beleske-ja 2.31",
+        "inbox 2.22"
+      ],
+      "medijanaBojaTeksta": 9,
+      "medijanaBojaPozadine": 13,
+      "vodoravniPreliv": [],
+      "najvisaGornjaTraka": 56,
+      "greskeKonzole": 0
+    },
+    "390x844": {
+      "ekrana": 33,
+      "greske": [],
+      "tekstCvorova": 2107,
+      "tekstIspod12": 0,
+      "ekranaSaTekstomIspod12": 0,
+      "najviseSitnogTeksta": [],
+      "meta": 1088,
+      "metaIspodPraga": 39,
+      "udeoMetaIspodPraga": 3.6,
+      "najviseMalihMeta": [
+        "oblast-mapa 10/34",
+        "stranica-tabela 8/59",
+        "svi-projekti 3/20",
+        "novi-projekat 3/13",
+        "stranica 3/44",
+        "zadaci 2/63",
+        "zadaci-prazno 2/15",
+        "zadatak 1/36"
+      ],
+      "defaultDugmadIznadPreloma": 0,
+      "primarnaIznadPreloma": 16,
+      "ekranaBezPrimarnogIznadPreloma": 17,
+      "ekranaSaViseOdJednogPrimarnogIznadPreloma": [],
+      "najduzeStrane": [
+        "danas 3.27",
+        "ideje 3.26",
+        "ideja-detalj 3.26",
+        "stranica 3.06",
+        "puls 3.06"
+      ],
+      "medijanaBojaTeksta": 6,
+      "medijanaBojaPozadine": 10,
+      "vodoravniPreliv": [],
+      "najvisaGornjaTraka": 56,
+      "greskeKonzole": 0
+    }
+  },
+  "ukupno": {
+    "1536x695": {
+      "ekrana": 93,
+      "greske": [],
+      "tekstCvorova": 14977,
+      "tekstIspod12": 0,
+      "ekranaSaTekstomIspod12": 0,
+      "najviseSitnogTeksta": [],
+      "meta": 6378,
+      "metaIspodPraga": 499,
+      "udeoMetaIspodPraga": 7.8,
+      "najviseMalihMeta": [
+        "leadovi-tabela 50/237",
+        "leadovi-tabela-kolone 50/237",
+        "kontrolna-tabla 19/149",
+        "analitika-sadrzaj 19/70",
+        "uvoz-pregled 18/254",
+        "zadaci 16/80",
+        "threads 15/71",
+        "analitika 14/75"
+      ],
+      "defaultDugmadIznadPreloma": 0,
+      "primarnaIznadPreloma": 58,
+      "ekranaBezPrimarnogIznadPreloma": 33,
+      "ekranaSaViseOdJednogPrimarnogIznadPreloma": [],
+      "najduzeStrane": [
+        "uvoz-pregled 8.95",
+        "podesavanja 6.73",
+        "threads 5.65",
+        "youtube 4.9",
+        "uvoz-nereseno 4.85"
+      ],
+      "medijanaBojaTeksta": 10,
+      "medijanaBojaPozadine": 17,
+      "vodoravniPreliv": [
+        "leadovi-tabela-kolone"
+      ],
+      "najvisaGornjaTraka": 96,
+      "greskeKonzole": 2
+    },
+    "390x844": {
+      "ekrana": 89,
+      "greske": [],
+      "tekstCvorova": 10347,
+      "tekstIspod12": 0,
+      "ekranaSaTekstomIspod12": 0,
+      "najviseSitnogTeksta": [],
+      "meta": 3246,
+      "metaIspodPraga": 326,
+      "udeoMetaIspodPraga": 10,
+      "najviseMalihMeta": [
+        "leadovi-tabela 101/238",
+        "uvoz-pregled 50/222",
+        "facebook 14/48",
+        "threads 14/37",
+        "youtube 13/54",
+        "oglasi 12/46",
+        "leadovi-mapa-panel 12/59",
+        "analitika 10/40"
+      ],
+      "defaultDugmadIznadPreloma": 0,
+      "primarnaIznadPreloma": 53,
+      "ekranaBezPrimarnogIznadPreloma": 34,
+      "ekranaSaViseOdJednogPrimarnogIznadPreloma": [],
+      "najduzeStrane": [
+        "podesavanja 10.58",
+        "uvoz-pregled 9.08",
+        "threads 8.94",
+        "leadovi-tabela 8.81",
+        "youtube 7.85"
+      ],
+      "medijanaBojaTeksta": 7,
+      "medijanaBojaPozadine": 13,
+      "vodoravniPreliv": [
+        "instagram-komentari"
+      ],
+      "najvisaGornjaTraka": 101,
+      "greskeKonzole": 1
+    }
+  }
+}
